@@ -1,0 +1,412 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The wsp host a fixture is served through, and the one place that knows how to
+// start one: a throwaway home, a fixture state written into it, the built
+// command on a free port, and the wait until it answers. The screenshot run
+// and the persona lab both take this road, so the environment a fixture is
+// served under is written once rather than once per harness.
+import { CATALOG_AGENTS, skillsDirOf } from "@wsp/catalog";
+import { CLOUD_ENV, DAEMON_VERSION, FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, PERSON_HOME_ENV, shellQuote, WEB_DIR_ENV, wsUrlOf } from "@wsp/protocol";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, openSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { atProvider, HERE_LABEL } from "./fixture-state.mjs";
+
+const SCREENSHOTS_DIR = dirname(fileURLToPath(import.meta.url));
+export const WEB_DIR = resolve(SCREENSHOTS_DIR, "..");
+export const REPO = resolve(WEB_DIR, "..", "..");
+export const HOST_BIN = join(REPO, "packages", "host", "dist", "bin.js");
+export const HOST_PACKAGE = join(REPO, "packages", "host", "dist", "index.js");
+export const APP_PAGE = join(WEB_DIR, "dist", "index.html");
+
+/** What builds the binary this computer's workspace runs. No node build makes it, which is why a checkout that has
+ * built everything else still has none. */
+export const DAEMON_BUILD = "cargo build --release -p wsp-daemon-bin $(node ../packages/wspx/scripts/daemon-features.mjs) in daemon/, then node packages/wspx/scripts/daemon-binary.mjs";
+
+/** Where this computer's own wsp-daemon binary sits in this checkout, read out of the built wsp command: which
+ * binary a machine runs is that command's own table, and the app a lab serves is a package that command depends
+ * on, so naming the table here would be a circle and spelling the path again would be a second copy of it.
+ * Nothing on a platform wsp builds no daemon for. */
+export async function daemonBinaryHere(load = () => import(pathToFileURL(HOST_PACKAGE).href)) {
+  const { daemonBinaryIn, daemonTargetHere, workspaceAsset } = await load();
+  const target = daemonTargetHere();
+  return target === undefined ? undefined : daemonBinaryIn(workspaceAsset("daemon"), target.triple);
+}
+
+/** The path a fixture's host is started with: this computer's own, which is the wsp command's own reading of what a
+ * machine may run, read out of that command rather than spelled a second time here. The shell that starts a lab may
+ * be a harness's, and a harness puts wrappers of its own first on the path under a temp folder; a turn that ran one
+ * of those dialled back into that harness and never answered. The one folder put back in front of it is the run's
+ * own under the throwaway home, holding the stand-in for this Mac's name (writeHereLabel). */
+export async function hostPath(load = () => import(pathToFileURL(HOST_PACKAGE).href)) {
+  const { thisComputersPath } = await load();
+  return thisComputersPath(process.env["PATH"]);
+}
+
+const notBuilt = (what, path, how) => `${what} is not built: ${path} is missing. Run ${how} first, or use the coordinator's screenshots.sh or lab.sh, which build.`;
+
+/** What a fixture's host must find built, and the command that builds each: the app it serves, the wsp command
+ * that serves it, and the daemon that command starts for this computer's own workspace. Answers the sentence to
+ * print, or nothing when all three are there. A whole round of nine served a host whose daemon binary was never
+ * built, and no tester on a Mac alone could type a message: the turn does not need it, but the terminal, the files,
+ * the process list and the composer's own reading of the machine all do. */
+export async function whatIsNotBuilt({ exists = existsSync, daemon = daemonBinaryHere, version = daemonVersionOf } = {}) {
+  for (const [what, path, how] of [
+    ["the web app", APP_PAGE, "pnpm --filter @wsp/web... build"],
+    ["the wsp command", HOST_BIN, "pnpm --filter @wsp/host build"],
+  ]) {
+    if (!exists(path)) return notBuilt(what, path, how);
+  }
+  // Asked after the command, since the path is read out of that command's own build.
+  const bin = await daemon();
+  if (bin === undefined) return `wsp builds no daemon for ${process.platform} ${process.arch}, so a host here cannot serve its own workspace and every tester would meet a computer that answers nothing.`;
+  if (!exists(bin)) return notBuilt("this computer's daemon", bin, DAEMON_BUILD);
+  // A binary a build left behind is there all the same, and every op it lacks misses on every shot that needs it.
+  const speaks = version(bin);
+  if (speaks === DAEMON_VERSION) return undefined;
+  const said = speaks === undefined ? "is too old to say its version" : `speaks version ${speaks}`;
+  return `this computer's daemon at ${bin} ${said}, and this checkout's protocol names version ${DAEMON_VERSION}. Run ${DAEMON_BUILD} first, or use the coordinator's screenshots.sh or lab.sh, which build.`;
+}
+
+/** The protocol version a daemon binary speaks, off its own version verb; nothing from one too old to have it. */
+export function daemonVersionOf(bin) {
+  const ran = spawnSync(bin, ["version"], { encoding: "utf8", timeout: 10_000 });
+  const speaks = Number(ran.stdout?.trim());
+  return ran.status === 0 && Number.isInteger(speaks) ? speaks : undefined;
+}
+
+/** What every browser this harness opens is started with. Chromium's shared memory files land on the root disk, and
+ * one uncapped render filled it to ENOSPC under other work on this machine (measured 2026-09-08); low-end device
+ * mode caps the tile and image budgets that grow them. */
+export const BROWSER_ARGS = ["--enable-low-end-device-mode"];
+
+export const freePort = () =>
+  new Promise((ok, no) => {
+    const probe = createServer();
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      probe.close(() => (typeof address === "object" && address !== null ? ok(address.port) : no(new Error("no port"))));
+    });
+  });
+
+export const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** The provider word a fixture's host runs under: a state holding forks or a sealed image needs a provider that
+ * answers for them, and the one that answers out of memory is the only one that dials nothing. A state of local
+ * machines alone runs with none, which is what that person's computer really has. */
+export const providerFor = state => (Object.values(state.workspaces ?? {}).some(atProvider) || state.goldens !== undefined ? "fake" : "none");
+
+/**
+ * The whole environment a fixture's host is started with, and the only place it is written down, so the lab can
+ * print and record the same words the child was given.
+ *
+ * A bare one, not this shell's: a Solari key or a WSP_PROVIDER word in the terminal would put the run on a real
+ * provider, a stray WSP_HOME would take it to the person's own machines, and a thread's own variables would reach
+ * the wsp under test and shape what it lists. The path is the one thing carried over, since the agents a turn runs
+ * are found on it, and it is this computer's own rather than this shell's: the wrappers a harness puts first on its
+ * own path are that harness's, and a turn that ran one never answered.
+ *
+ * The home a turn's agent runs under rides beside the host's. The screenshot run leaves it the person's, since it
+ * runs no turn; a lab names its own, which is what keeps this Mac's own MCP servers and skills out of a tester's
+ * thread. An agent under a home that is not the person's reads no sign-in of theirs, so a lab signs its own home
+ * in with the agents' key instead (measured 2026-09-12: neither a copy of their agent's file nor a link to their
+ * keychain carries a subscription sign-in under another home).
+ *
+ * A lab's own home takes each agent's store with it. The home alone does not: the agent this computer runs looks
+ * its user instructions up under the home the login record names, whatever HOME says, and a tester's turn quoted
+ * the person's own instruction file back at them (measured 2026-09-12). The variable each agent reads its store
+ * from is the catalog's to name, so this moves them all by one rule rather than by a word written here.
+ *
+ * A folder for the stand-in's own machines rides with it where the caller names one. A lab does: its testers open
+ * panes on those machines, and a fork with a folder has a daemon, so its terminal, its processes and its live
+ * readings answer instead of reading unreachable six ways. The screenshot run names none, since it photographs
+ * screens rather than driving machines and a daemon per fork is a process per fork on this computer; it names the
+ * stand-in's records file instead, so the fixture's sleeping forks come up asleep with nothing running on any of
+ * them.
+ *
+ * The address a machine dials this host at is the caller's to name, and a lab names its own: the machines its forks
+ * stand on are this computer, so the address is this computer's loopback. Without one the runtime hands a turn no
+ * token of its own, and every tool call an agent in a thread makes arrives as the person: no opener on a thread a
+ * thread opened, no cap on what it may fork, and no tree.
+ */
+export function hostEnv({ home, state, personHome = homedir(), appDir, cloud, binDir, standIn, records, path = process.env["PATH"] ?? "/usr/bin:/bin" }) {
+  return {
+    // A lab's own wsp leads the path where it has one, so a turn that shells out to wsp reaches the lab's host
+    // rather than the person's.
+    PATH: binDir === undefined ? path : `${binDir}:${path}`,
+    HOME: home,
+    WSP_HOME: join(home, ".wsp"),
+    WSP_PROVIDER: providerFor(state),
+    [PERSON_HOME_ENV]: personHome,
+    ...(appDir === undefined ? {} : { [WEB_DIR_ENV]: appDir }),
+    ...(personHome === home ? agentStores(home) : {}),
+    // A fixture that names a cloud is served with the cloud on; every other one as a fresh host is, with it off.
+    ...(cloud === undefined ? {} : { [CLOUD_ENV]: "1" }),
+    ...(cloud === undefined || providerFor(state) !== "fake" ? {} : { [FAKE_AS_ENV]: cloud }),
+    ...(standIn === undefined || providerFor(state) !== "fake" ? {} : { [FAKE_ROOT_ENV]: standIn }),
+    // The records alone where no folder was named: the fixture's forks come up in the state it gave them and
+    // nothing runs on any of them. A folder carries its own records, so the two are never both named.
+    ...(records === undefined || standIn !== undefined || providerFor(state) !== "fake" ? {} : { [FAKE_RECORDS_ENV]: records }),
+  };
+}
+
+/** Every agent a lab writes a store for under one home, with the folder that agent reads it from. An agent whose
+ * store follows HOME alone names no variable and is not here. */
+export const agentStoreRows = home => CATALOG_AGENTS.flatMap(a => (a.stateHomeEnv == null ? [] : [{ agent: a, store: join(home, a.stateHome) }]));
+
+/** Those same stores by the variable that agent reads its own from: what a harness sets so a turn reads the
+ * instructions, the MCP servers and the skills in that home and none of the person's. The folder is read off the
+ * rows above, so the variable a host is started with and the files a lab writes cannot name two folders. */
+export const agentStores = home => Object.fromEntries(agentStoreRows(home).map(({ agent, store }) => [agent.stateHomeEnv, store]));
+
+/** The command line a fixture's host is served with. The address a machine dials this host at rides here rather
+ * than in the environment, since that is where the command takes it. */
+export const hostArgv = ({ statePath, port, advertise }) => [HOST_BIN, "up", "--state", statePath, "--port", String(port), ...(advertise === undefined ? [] : ["--advertise", advertise])];
+
+/** An executable script at `path`, its whole text given, interpreter line and all. */
+export function writeScript(path, text) {
+  writeFileSync(path, text);
+  chmodSync(path, 0o755);
+}
+
+/** The text of a shell script whose body is `body`. */
+const sh = body => `#!/bin/sh\n${body}\n`;
+
+/** A folder holding the one command a host asks for this Mac's name, answering the fixtures' label: the host reads
+ * the row's label off `scutil --get ComputerName` on its path, so the shots name one computer whichever Mac takes
+ * them. Answers the folder, which leads the host's path. */
+export function writeHereLabel(home) {
+  const bin = join(home, ".wsp-system");
+  mkdirSync(bin, { recursive: true });
+  writeScript(join(bin, "scutil"), sh(`printf '%s\\n' ${shellQuote(HERE_LABEL)}`));
+  return bin;
+}
+
+/** A folder holding a stand-in gh that lists a fixture's open pull requests and issues in gh's JSON, and answers the
+ * reads, the page and the merge settings of the pull requests the fixture holds, so the composer's # menu, a tile's
+ * word and the Pull request pane read without a login or a network. Anything else it refuses as gh refuses a branch
+ * with no pull request. Answers the folder. */
+export function writeHereGh(home, items) {
+  const bin = join(home, ".wsp-gh");
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, "items.json"), JSON.stringify({ pr: items.pr, issue: items.issue, pulls: items.pulls ?? [], compares: items.compares ?? {} }));
+  writeScript(join(bin, "gh"), `#!${process.execPath}
+${ghScript}
+`);
+  return bin;
+}
+
+/** The stand-in gh itself, read by its argv as gh is: the repository after -R, the selector after view or checks. */
+const ghScript = `
+const { readFileSync } = require("node:fs");
+const { join, dirname } = require("node:path");
+const items = JSON.parse(readFileSync(join(dirname(process.argv[1]), "items.json"), "utf8"));
+const [a, b, c] = process.argv.slice(2);
+const repo = process.argv[process.argv.indexOf("-R") + 1];
+const say = value => (process.stdout.write(typeof value === "string" ? value + "\\n" : JSON.stringify(value)), process.exit(0));
+const none = () => (process.stderr.write("no pull requests found\\n"), process.exit(1));
+const pull = (r, sel) => items.pulls.find(p => p.repo === r && (String(p.view.number) === sel || p.branch === sel));
+if (a === "pr" && b === "list") say(items.pr);
+if (a === "issue" && b === "list") say(items.issue);
+if (a === "pr" && b === "view") {
+  const p = pull(repo, c) ?? none();
+  say(process.argv.some(arg => arg.split(",").includes("body")) ? p.page : p.view);
+}
+if (a === "pr" && b === "checks") say((pull(repo, c) ?? none()).checks);
+if (a === "repo" && b === "view") say((items.pulls.find(p => p.repo === c) ?? none()).settings);
+if (a === "api" && process.argv.includes("{ahead_by,behind_by,status}")) {
+  const [repo, span] = b.replace(/^repos\\//, "").split("/compare/");
+  const head = decodeURIComponent(span.slice(span.indexOf("...") + 3));
+  const answer = (items.compares[repo] ?? {})[head];
+  if (answer === undefined || answer === 404) (process.stderr.write("gh: Not Found (HTTP 404)\\n"), process.exit(1));
+  say(answer);
+}
+if (a === "api") {
+  const path = b.split("?")[0].replace(/^repos\\//, "");
+  const byRepo = items.pulls.find(p => path === p.repo || path.startsWith(p.repo + "/")) ?? none();
+  if (path === byRepo.repo) say(String(byRepo.settings.autoMerge));
+  if (path.includes("/compare/")) say(String(byRepo.behind));
+  const n = path.match(/\\/pulls\\/(\\d+)\\/comments$/);
+  if (n !== null) say((pull(byRepo.repo, n[1]) ?? none()).lineComments);
+}
+none();
+`;
+
+/** The folders a host serving a fixture's own agents looks past its stand-ins to: the system's, where no agent a Mac
+ * installs lives, so no agent of this computer's is found, run or read. */
+export const SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin";
+
+/** A stand-in MCP server over stdin: it answers initialize and tools/list with the fixture's tools and nothing else,
+ * each answer carrying the id its request came with. */
+const serverScript = (name, tools) => {
+  const answer = result => {
+    const [head, tail] = JSON.stringify({ jsonrpc: "2.0", id: 0, result }).split('"id":0');
+    return `printf '%s%s%s\\n' ${shellQuote(`${head}"id":`)} "$id" ${shellQuote(tail)}`;
+  };
+  const hello = answer({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name, version: "1.0.0" } });
+  const listed = answer({ tools: tools.map(t => ({ ...t, inputSchema: { type: "object", properties: {} } })) });
+  const id = `id=$(printf '%s' "$line" | sed -n 's/.*"id":\\([0-9]*\\).*/\\1/p')`;
+  return `while IFS= read -r line; do\n  ${id}\n  case "$line" in\n    *'"method":"initialize"'*) ${hello} ;;\n    *'"method":"tools/list"'*) ${listed} ;;\n  esac\ndone`;
+};
+
+/** A stand-in's answer to a side question: each piece of its words as a partial message line after its wait, then the
+ * result line a print-mode run ends on after the fixture's last wait, so shots catch the sheet asking, streaming and
+ * answered. */
+const asideScript = aside => {
+  if (aside === undefined) return "";
+  const piece = text => JSON.stringify({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } }, parent_tool_use_id: null });
+  const pieces = (aside.pieces ?? []).map(([s, text]) => `sleep ${s}; printf '%s\\n' ${shellQuote(piece(text))}; `).join("");
+  return `case " $* " in\n  *" --fork-session "*) ${pieces}sleep ${aside.afterS}; printf '%s\\n' ${shellQuote(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: aside.text }))}; exit 0 ;;\nesac\n`;
+};
+
+/** A stand-in's answer to a commit message asked of it: the question comes on stdin with the person's customizations
+ * off and no side question's fork, and the draft is the print-mode result after the fixture's wait. */
+const draftScript = draft =>
+  draft === undefined
+    ? ""
+    : `case " $* " in\n  *" --fork-session "*) ;;\n  *" --safe-mode "*) cat >/dev/null; sleep ${draft.afterS}; printf '%s\\n' ${shellQuote(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: draft.text }))}; exit 0 ;;\nesac\n`;
+
+/** A stand-in's answer to `claude agents --json`: the sessions the fixture says another Claude Code holds open. */
+const agentsScript = live => (live === undefined ? "" : `case "$1" in\n  agents) printf '%s\\n' ${shellQuote(JSON.stringify(live.map((sessionId, i) => ({ pid: 4000 + i, cwd: "/", kind: "interactive", startedAt: 0, sessionId, status: "idle" }))))}; exit 0 ;;\nesac\n`);
+
+/** A stand-in codex whose app server answers thread/list with the fixture's threads and every other request with an
+ * empty result, as the conversation list reads Codex's own; its version and sign-in are the fixture's. */
+const codexServer = said => `#!${process.execPath}
+const [verb] = process.argv.slice(2);
+if (verb !== "app-server") { console.log(verb === "--version" ? ${JSON.stringify(said.version)} : ${JSON.stringify(said.status)}); process.exit(0); }
+const threads = ${JSON.stringify(said.threads)};
+process.getBuiltinModule("node:readline").createInterface({ input: process.stdin }).on("line", line => {
+  const m = JSON.parse(line);
+  if (m.id === undefined) return;
+  const result = m.method === "thread/list" ? { data: threads, nextCursor: null, backwardsCursor: null } : {};
+  process.stdout.write(JSON.stringify({ id: m.id, result }) + "\\n");
+}).on("close", () => process.exit(0));
+`;
+
+/** This computer's agents as a fixture has them, all under the throwaway home: a stand-in for each agent's command that
+ * says the fixture's version and sign-in and answers a side question where the fixture gives it one, a stand-in
+ * command for each server with tools, and each agent's own MCP file written by the catalog's module for its format.
+ * Answers the folder the commands are in, which leads the host's path. */
+/** What an app server answers a plugin read with on a computer whose agent has no plugins: its first three requests, by
+ * id, each a result with nothing in it. */
+const NO_PLUGINS = ['{"id":1,"result":{}}', '{"id":2,"result":{"marketplaces":[]}}', '{"id":3,"result":{"config":{}}}'].map(shellQuote).join(" ");
+
+export function writeHereAgents(home, here) {
+  const bin = join(home, ".local", "bin");
+  mkdirSync(bin, { recursive: true });
+  for (const [id, said] of Object.entries(here.agents)) {
+    const agent = CATALOG_AGENTS.find(a => a.id === id);
+    if (agent === undefined) throw new Error(`the fixture names an agent the catalog does not have: ${id}`);
+    if (said.threads !== undefined) writeScript(join(bin, agent.bin), codexServer(said));
+    else writeScript(join(bin, agent.bin), sh(`${agentsScript(said.live)}${asideScript(said.aside)}${draftScript(said.draft)}case "$1" in\n  --version) printf '%s\\n' ${shellQuote(said.version)} ;;\n  app-server) printf '%s\\n' ${NO_PLUGINS} ; cat >/dev/null ;;\n  *) printf '%s\\n' ${shellQuote(said.status)} ;;\nesac`));
+  }
+  const transports = new Map(
+    here.servers.map(s => {
+      if (s.tools === undefined) return [s.name, s.transport];
+      const command = join(bin, `${s.name}-mcp`);
+      writeScript(command, sh(serverScript(s.name, s.tools)));
+      return [s.name, { kind: "stdio", command, args: [], env: {} }];
+    }),
+  );
+  for (const skill of here.skills ?? []) {
+    const agent = CATALOG_AGENTS.find(a => a.id === skill.agent);
+    if (agent === undefined) throw new Error(`the fixture names an agent the catalog does not have: ${skill.agent}`);
+    const folder = join(skillsDirOf(agent).replace(/^~\//, `${home}/`), skill.name);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "SKILL.md"), `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n`);
+  }
+  for (const agent of CATALOG_AGENTS) {
+    const mine = here.servers.filter(s => s.agents.includes(agent.id));
+    if (mine.length === 0 || agent.mcp === undefined) continue;
+    const file = agent.mcp.files[0].replace(/^~\//, `${home}/`);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, mine.reduce((text, s) => agent.mcp.format.place(text, s.name, transports.get(s.name)).text, undefined));
+  }
+  return bin;
+}
+
+/** Starts the built wsp command on a throwaway home holding one fixture state, and answers once it serves. A
+ * secret is handed to the child and never written into the environment this answers with: the lab records and
+ * prints what it started the host with, and a key in that record would be a key in a log.
+ *
+ * `files` are written under the state file's folder before the host starts: the blobs and readings a fixture keeps.
+ *
+ * `agents` names the fixture's own agents on this computer, which the host then reads in place of this computer's:
+ * their stand-ins lead a path of the system's folders alone, and the newest versions are kept as already asked, so
+ * no agent of the person's is run and no vendor is asked. A lab names none, since its testers' turns run real agents. */
+export async function startHost({ home, state, port, logPath, detached = false, personHome, appDir, cloud, binDir, standIn, records, advertise, agents, hostItems, files = [], secrets = {} }) {
+  const statePath = join(home, ".wsp", "state.json");
+  mkdirSync(dirname(statePath), { recursive: true });
+  writeFileSync(statePath, JSON.stringify(state, null, 2));
+  for (const file of files) {
+    const at = join(dirname(statePath), file.path);
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, file.text);
+  }
+  const out = logPath === undefined ? "pipe" : openSync(logPath, "a");
+  const { hostTokenFor, writeKeptLatest } = await import(pathToFileURL(HOST_PACKAGE).href);
+  if (agents !== undefined) writeKeptLatest(statePath, agents.latest, Date.now());
+  const path = agents === undefined ? await hostPath() : `${writeHereAgents(home, agents)}:${SYSTEM_PATH}`;
+  const here = hostItems === undefined ? writeHereLabel(home) : `${writeHereLabel(home)}:${writeHereGh(home, hostItems)}`;
+  const env = hostEnv({ home, state, personHome, appDir, cloud, binDir, standIn, records, path: `${here}:${path}` });
+  const child = spawn(process.execPath, hostArgv({ statePath, port, advertise }), {
+    cwd: home,
+    env: { ...env, ...secrets },
+    stdio: ["ignore", out, out],
+    detached,
+  });
+  const log = [];
+  child.stdout?.on("data", d => log.push(String(d)));
+  child.stderr?.on("data", d => log.push(String(d)));
+  const said = () => (logPath === undefined ? log.join("") : `the host's log is at ${logPath}`);
+  const base = `http://127.0.0.1:${port}`;
+  const answer = { child, base, log, env, token: () => hostTokenFor(statePath) };
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) throw new Error(`the host exited with ${child.exitCode} before it served:\n${said()}`);
+    const served = await fetch(base).then(r => r.ok, () => false);
+    if (served) return answer;
+    await sleep(200);
+  }
+  child.kill("SIGTERM");
+  throw new Error(`the host did not serve ${base} in 30 s:\n${said()}`);
+}
+
+/** What this computer's own workspace reads on a host that has come up: the word its row carries in that host's own
+ * listing, which is the one reading that says whether its daemon answered. A lab prints it, since a daemon that
+ * never started is the one fault a tester can neither work around nor see the cause of: every pane reads
+ * unreachable and nothing on the screen says why. */
+export async function localReach(base, token) {
+  const statuses = await new Promise(done => {
+    const ws = new WebSocket(wsUrlOf(base));
+    const finish = value => {
+      ws.close();
+      done(value);
+    };
+    ws.onerror = () => finish(undefined);
+    ws.onopen = () => ws.send(JSON.stringify({ id: 1, op: "auth", token }));
+    ws.onmessage = m => {
+      const reply = JSON.parse(String(m.data));
+      if (reply.id === 1) {
+        if (reply.ok === true) ws.send(JSON.stringify({ id: 2, op: "status.list" }));
+        else finish(undefined);
+      } else if (reply.id === 2) finish(reply.ok === true ? reply.statuses : undefined);
+    };
+  });
+  return statuses?.find(w => w.kind === "local")?.reach?.state;
+}
+
+/** SIGTERM to the pid this run started, and nothing else: four builders share this machine and a host found by port
+ * or by name is as likely to be somebody else's. */
+export async function stopHost(host) {
+  if (host === undefined || host.child.exitCode !== null) return;
+  const ended = new Promise(r => host.child.once("exit", r));
+  host.child.kill("SIGTERM");
+  const gaveUp = await Promise.race([ended.then(() => false), sleep(8_000).then(() => true)]);
+  if (gaveUp) {
+    host.child.kill("SIGKILL");
+    await ended;
+  }
+}

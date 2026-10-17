@@ -1,0 +1,680 @@
+{
+  "cloudOff": null,
+  "cloudOn": {
+    "name": "fork",
+    "description": "A new machine of the source's image version, a child of the source that starts on the source's branch with its commits pushed first (not a copy of its live disk); a thread's fork sits under that thread in its tree, and its size and agents switch are the person's to pick. A workspace in a project's folder is no machine to fork. With a task, its first thread is opened and the reply returned. When that first turn fails, the error still names the workspace, which exists: continue with run on it rather than forking again.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "description": "the workspace's name, or its id when two share a name"
+        },
+        "name": {
+          "type": "string",
+          "description": "defaults to <source>-fork"
+        },
+        "size": {
+          "type": "string",
+          "description": "the machine size as <cpu>x<memGb>, like 2x4; absent takes the image's size. A size the provider does not offer is refused with the list it does, so read that list rather than guessing twice; a build wants the largest memory offered"
+        },
+        "task": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string",
+          "description": "the agent to run in the thread, one of claude, codex, opencode, cursor; absent means the host's default"
+        },
+        "model": {
+          "type": "string",
+          "description": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+        },
+        "effort": {
+          "type": "string",
+          "description": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+        },
+        "access": {
+          "type": "string",
+          "description": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "the folder on the machine the thread works in or the command runs in, absolute. Absent means the workspace's own project, which is where a thread there starts unless it says otherwise"
+        },
+        "notify": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "who is told each time a turn of the new thread ends, each one a thread (by id, or a prefix of it) the line goes into as a message carrying that turn's whole reply, or me, which is the thread this call came out of when it came out of one and otherwise the person's app, where the line is its last reply line alone. Several targets each get the line once, which is how a builder's end reaches its orchestrator and a reviewer together; a target whose thread is gone by then falls back to the person, and the new thread's own id is refused. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+        },
+        "spawn": {
+          "type": "string",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "whether the agents on this workspace may drive this host: open threads and fork machines under the thread they run in, capped. Absent is on under the default caps, which is what every workspace made without it reads as"
+        },
+        "max_machines": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "how many machines may stand at once under one root thread while spawn is on; defaults to 3"
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "how many levels deep the tree under a root thread may go while spawn is on, 2 by default; 1 stops at the root's own children"
+        }
+      },
+      "required": [
+        "workspace"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "workspace": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "machineId": {
+              "type": "string"
+            },
+            "phase": {
+              "type": "string",
+              "enum": [
+                "running",
+                "pausing",
+                "napping",
+                "waking",
+                "gone",
+                "queued",
+                "released"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "cloud",
+                "local",
+                "place"
+              ]
+            },
+            "golden": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "project": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "computer": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "path",
+                "computer"
+              ],
+              "additionalProperties": false
+            },
+            "folder": {
+              "type": "string"
+            },
+            "home": {
+              "type": "string"
+            },
+            "claudeSessionId": {
+              "type": "string"
+            },
+            "gone": {
+              "type": "string"
+            },
+            "theme": {
+              "type": "object",
+              "properties": {
+                "dots": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "angle": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 360
+                      },
+                      "radius": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "angle",
+                      "radius"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 3
+                },
+                "harmony": {
+                  "type": "string",
+                  "enum": [
+                    "single",
+                    "complementary",
+                    "analogous",
+                    "splitComplementary",
+                    "triadic",
+                    "analogousThree"
+                  ]
+                },
+                "grain": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "opacity": {
+                  "type": "number",
+                  "minimum": 0.1,
+                  "maximum": 1
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "light",
+                    "dark"
+                  ]
+                }
+              },
+              "required": [
+                "dots",
+                "harmony",
+                "grain",
+                "opacity",
+                "mode"
+              ],
+              "additionalProperties": false
+            },
+            "glyph": {
+              "type": "string",
+              "enum": [
+                "terminal",
+                "code",
+                "bug",
+                "wrench",
+                "hammer",
+                "rocket",
+                "flask",
+                "database",
+                "cloud",
+                "globe",
+                "compass",
+                "map",
+                "book",
+                "feather",
+                "palette",
+                "leaf",
+                "star",
+                "bolt",
+                "key",
+                "shield",
+                "box",
+                "folder",
+                "chip",
+                "lamp"
+              ]
+            },
+            "daemonNote": {
+              "type": "string"
+            },
+            "daemonRefusedAt": {
+              "type": "object",
+              "properties": {
+                "machineId": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "machineId",
+                "at",
+                "why"
+              ],
+              "additionalProperties": false
+            },
+            "vaultedAt": {
+              "type": "string"
+            },
+            "vaultRefused": {
+              "type": "string"
+            },
+            "wakeRefused": {
+              "type": "string"
+            },
+            "diskGone": {
+              "type": "string"
+            },
+            "agents": {
+              "type": "object",
+              "properties": {
+                "spawn": {
+                  "type": "boolean"
+                },
+                "maxMachines": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "maxDepth": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "spawn",
+                "maxMachines",
+                "maxDepth"
+              ],
+              "additionalProperties": false
+            },
+            "parentThreadId": {
+              "type": "string"
+            },
+            "rootThreadId": {
+              "type": "string"
+            },
+            "parentWorkspaceId": {
+              "type": "string"
+            },
+            "place": {
+              "type": "string"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "pauseMode": {
+              "type": "string",
+              "enum": [
+                "memory",
+                "disk"
+              ]
+            },
+            "worktree": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "branch": {
+                  "type": "string"
+                },
+                "made": {
+                  "type": "boolean"
+                },
+                "madeFor": {
+                  "type": "string"
+                },
+                "settled": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "number"
+                    },
+                    "why": {
+                      "type": "string",
+                      "enum": [
+                        "merged",
+                        "closed",
+                        "deleted",
+                        "removed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "why"
+                  ],
+                  "additionalProperties": false
+                },
+                "kept": {
+                  "type": "string"
+                },
+                "removeFailed": {
+                  "type": "string"
+                },
+                "gone": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": [
+                "path",
+                "made"
+              ],
+              "additionalProperties": false
+            },
+            "from": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "issue",
+                    "pull_request",
+                    "review"
+                  ]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "base": {
+                  "type": "string"
+                },
+                "head": {
+                  "type": "object",
+                  "properties": {
+                    "branch": {
+                      "type": "string"
+                    },
+                    "oid": {
+                      "type": "string"
+                    },
+                    "fork": {
+                      "type": "object",
+                      "properties": {
+                        "owner": {
+                          "type": "string"
+                        },
+                        "pushable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "owner",
+                        "pushable"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "branch"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "kind",
+                "repo",
+                "number",
+                "url",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "review": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "comment",
+                        "approve",
+                        "request_changes"
+                      ]
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "comments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0
+                          },
+                          "side": {
+                            "type": "string",
+                            "enum": [
+                              "LEFT",
+                              "RIGHT"
+                            ]
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "on": {
+                            "type": "boolean"
+                          },
+                          "inSummary": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "path",
+                          "line",
+                          "side",
+                          "body",
+                          "on"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "headOid": {
+                      "type": "string"
+                    },
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "number"
+                    },
+                    "posted": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "number"
+                        },
+                        "folded": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "url",
+                        "at",
+                        "folded"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "summary",
+                    "comments",
+                    "headOid",
+                    "threadId",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "note": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "number"
+                    },
+                    "reasked": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "note",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "machineId",
+            "phase",
+            "golden",
+            "createdAt",
+            "project"
+          ],
+          "additionalProperties": false
+        },
+        "notice": {
+          "type": "string"
+        },
+        "turn": {
+          "type": "object",
+          "properties": {
+            "threadId": {
+              "type": "string"
+            },
+            "workspaceId": {
+              "type": "string"
+            },
+            "harness": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string",
+              "description": "the reply, complete; absent under detach, where the turn is still running and its end reaches whoever the start's notify named"
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "started",
+                "steered",
+                "queued",
+                "held"
+              ]
+            },
+            "capped": {
+              "type": "object",
+              "properties": {
+                "placeId": {
+                  "type": "string"
+                },
+                "place": {
+                  "type": "string"
+                },
+                "running": {
+                  "type": "integer"
+                },
+                "atOnce": {
+                  "type": "integer"
+                },
+                "why": {
+                  "type": "string",
+                  "enum": [
+                    "slot",
+                    "minute"
+                  ]
+                }
+              },
+              "required": [
+                "placeId",
+                "place",
+                "running",
+                "atOnce"
+              ],
+              "additionalProperties": false,
+              "description": "what holds the start back while outcome is held: the computer and what runs there against its threads at once"
+            },
+            "afterCut": {
+              "type": "boolean",
+              "const": true
+            },
+            "notice": {
+              "type": "string",
+              "description": "what the host said before the turn: the line a wake left when the provider had deleted the machine's disk and the thread went on on a new machine"
+            }
+          },
+          "required": [
+            "threadId",
+            "workspaceId",
+            "harness",
+            "outcome"
+          ],
+          "additionalProperties": false
+        },
+        "failure": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

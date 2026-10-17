@@ -1,0 +1,286 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Every skill on a computer, off the folders each catalog agent loads skills
+// from: one row per folder name with every folder it lives in, whether that
+// folder is a link, and the description off its SKILL.md's frontmatter.
+// One command reads every folder, so a computer reached over a link answers
+// in one round trip however many skills it keeps.
+import { posix } from "node:path";
+import { CATALOG_AGENTS, inStore, type AgentEntry } from "@wsp/catalog";
+import type { AgentsProject, SkillPath, SkillRow, SkillScope } from "@wsp/protocol";
+import { type Host, tilde } from "../host.js";
+import type { AgentPlugins } from "./plugins.js";
+
+/** One folder to read skills from, absolute: whose own folder it is, where it is one agent's, and what kind. */
+export interface SkillRootAt {
+  dir: string;
+  scope: SkillScope;
+  agent?: string;
+  /** The project a project folder is in, its path absolute. */
+  project?: AgentsProject;
+  /** Why nothing under this folder is read, as the list's refusal line says it: a project's folder that links out of
+   * the repo, or one the read could not tell. */
+  skipped?: string;
+  /** The plugin a plugin's folder comes with: its id, the name its skills are announced under, and whether it is on. */
+  plugin?: { id: string; prefix: string; on: boolean };
+}
+
+export interface SkillsRead {
+  skills: SkillRow[];
+  refused: string[];
+}
+
+/** How much of a SKILL.md is read for its frontmatter. */
+export const SKILL_HEAD_BYTES = 4096;
+
+const END = "\x1eEND";
+
+/** Reads the list the finder prints, a line naming each root and then one line per file found under any of them
+ * (whether its folder is a link, whether it is turned off, its path), and prints a record for each root the file sits
+ * two or three folders below: where each linked folder points comes off one ls, and every frontmatter off the one awk,
+ * each file cut at `cap` bytes. Only a newline in a name splits a line. */
+const FRONTMATTERS = String.raw`function q(s,  o, i) { o = ""; while ((i = index(s, "\047")) > 0) { o = o substr(s, 1, i - 1) "\047\\\047\047"; s = substr(s, i + 1) } return "\047" o s "\047" }
+/^r/ { T[++t] = substr($0, 2); next }
+{
+  k = substr($0, 2, 1); o = substr($0, 3, 1); f = substr($0, 4)
+  if (f in S) next
+  S[f] = 1
+  d = f; if (match(f, "/[^/]*$")) d = substr(f, 1, RSTART - 1)
+  for (i = 1; i <= t; i++) {
+    if (index(f, T[i] "/") != 1) continue
+    rel = substr(f, length(T[i]) + 2); up = gsub("/", "/", rel)
+    if (up < 1 || up > 2) continue
+    n++; R[n] = T[i]; K[n] = k; O[n] = o; F[n] = f; D[n] = d
+  }
+  if (k == "1" && !(d in L)) { L[d] = ""; cmd = cmd " " q(d) }
+}
+END {
+  if (cmd != "") {
+    cmd = "QUOTING_STYLE=literal ls -ld --" cmd " 2>/dev/null"
+    while ((cmd | getline line) > 0) {
+      # Assumes an absolute name, a target with no newline, and no link named another link plus " -> " and a target start.
+      i = index(line, " /")
+      if (i == 0) continue
+      rest = substr(line, i + 1); best = ""
+      for (d in L) if (length(d) > length(best) && substr(rest, 1, length(d) + 4) == d " -> ") best = d
+      if (best != "") L[best] = substr(rest, length(best) + 5)
+    }
+    close(cmd)
+  }
+  for (j = 1; j <= n; j++) {
+    printf "\036%s\037%s\037%s\037%s\037", R[j], D[j], (K[j] == "1" ? L[D[j]] : ""), (O[j] == "1" ? "1" : "")
+    f = F[j]; k = 0; b = 0
+    while (f != "" && b < cap && (getline line < f) > 0) {
+      k++
+      if (b + length(line) > cap) line = substr(line, 1, cap - b)
+      b += length(line) + 1
+      sub(/\r$/, "", line)
+      if (k == 1) { if (line != "---") break; continue }
+      if (line == "---") break
+      print line
+    }
+    if (f != "") close(f)
+  }
+}`;
+
+/** Prints, per SKILL.md found under each root (two or three folders down: a category folder is allowed, links are
+ * followed), the root, the skill's folder, where that folder links, whether it is turned off (a SKILL.md.off with no
+ * SKILL.md beside it), and the frontmatter lines alone. One find walks every root, so the processes it starts grow
+ * with neither the skills nor the roots. A line that names no file, a piece of a name with a newline in it, is dropped
+ * rather than read as a path under some other root. */
+const SCRIPT = [
+  '{',
+  "  printf 'r%s\\n' \"$@\"",
+  '  find -L "$@" -mindepth 2 -maxdepth 3 \\( -name SKILL.md -o -name SKILL.md.off \\) -type f 2>/dev/null | while IFS= read -r f; do',
+  '    [ -f "$f" ] || continue',
+  '    d=${f%/*}',
+  '    o=0; case $f in *.off) [ -f "$d/SKILL.md" ] && continue; o=1;; esac',
+  '    l=0; [ -L "$d" ] && l=1',
+  "    printf 'f%s%s%s\\n' \"$l\" \"$o\" \"$f\"",
+  "  done",
+  `} | LC_ALL=C awk -v cap=${SKILL_HEAD_BYTES} '${FRONTMATTERS}' && printf '\\036END\\n'`,
+].join("\n");
+
+/** A one-line YAML value as a string: a quoted one is what its quotes hold, a plain one ends where a comment starts. */
+const scalar = (v: string): string => {
+  const t = v.trim();
+  const single = /^'((?:[^']|'')*)'/.exec(t);
+  if (single !== null) return single[1]!.replaceAll("''", "'");
+  const double = /^"((?:[^"\\]|\\.)*)"/.exec(t);
+  if (double !== null) return double[1]!.replace(/\\(["\\])/g, "$1");
+  return t.replace(/(^|\s+)#.*$/, "");
+};
+
+/** A top-level `name` or `description` key as YAML reads one: bare or quoted, with or without room before its colon. */
+const KEY = /^(?:(name|description)|"(name|description)"|'(name|description)')\s*:(?:\s+(.*))?$/;
+
+/** What a SKILL.md's frontmatter says; `names` counts the name lines when there is more than one. */
+export interface SkillFront {
+  name?: string;
+  description?: string;
+  names?: number;
+}
+
+/** `name` and `description` off a SKILL.md's frontmatter lines, the first of each: a plain value, a quoted one, or a
+ * folded or literal block, read as one line. */
+export function skillFrontmatter(text: string): SkillFront {
+  const out: SkillFront = {};
+  let names = 0;
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const m = KEY.exec(lines[i]!);
+    if (m === null) continue;
+    const key = (m[1] ?? m[2] ?? m[3]) as "name" | "description";
+    if (key === "name") names++;
+    let value = (m[4] ?? "").trim();
+    const block = /^[>|][-+]?$/.test(value);
+    const more: string[] = [];
+    while (i + 1 < lines.length && /^\s+\S/.test(lines[i + 1]!)) more.push(lines[++i]!.trim());
+    value = block ? more.join(" ") : [scalar(value), ...more].filter(w => w !== "").join(" ");
+    if (value !== "" && out[key] === undefined) out[key] = value;
+  }
+  if (names > 1) out.names = names;
+  return out;
+}
+
+/** `name` and `description` off a whole SKILL.md: the lines between its opening `---` and the next, as the reader's
+ * script takes them. */
+export function skillMdFrontmatter(text: string): SkillFront {
+  const lines = text.slice(0, SKILL_HEAD_BYTES).split(/\r?\n/);
+  if (lines[0] !== "---") return {};
+  const end = lines.indexOf("---", 1);
+  return skillFrontmatter(lines.slice(1, end === -1 ? undefined : end).join("\n"));
+}
+
+/** The one rule for whether a folder sits under a link: a shell function, `linked <path> <top> [<real top>]`, that
+ * prints the first folder above <path> and below <top> that is a link, tab, where it points, and returns 0; else 1.
+ * Given <real top>, the realpath of <top>, a link that resolves inside it is passed over, so a project's skills
+ * folder counts as linked only where it leads out of the project. The read of a project's folders and the install
+ * into one both run it, so neither keeps a second copy of the rule. */
+export const SKILL_LINK_ABOVE = [
+  "linked() {",
+  "  p=${1%/*}",
+  '  while [ -n "$p" ] && [ "$p" != "$2" ] && [ "$p" != / ]; do',
+  '    if [ -L "$p" ]; then',
+  '      if [ -n "$3" ] && r=$(realpath "$p" 2>/dev/null); then case $r/ in "$3"/*) p=${p%/*}; continue;; esac; fi',
+  "      printf '%s\\t%s\\n' \"$p\" \"$(readlink \"$p\")\"",
+  "      return 0",
+  "    fi",
+  "    p=${p%/*}",
+  "  done",
+  "  return 1",
+  "}",
+].join("\n");
+
+const LINKED_SCRIPT = [
+  SKILL_LINK_ABOVE,
+  'p=$1; shift',
+  // A project folder that is not on this computer holds no skills folder to judge, and realpath fails on it.
+  "[ -d \"$p\" ] || { printf '\\036END\\n'; exit 0; }",
+  'b=$(realpath "$p") || exit 1',
+  'for r in "$@"; do',
+  '  l=$(linked "$r/." "$p" "$b") && printf \'%s\\t%s\\n\' "$r" "$l"',
+  'done',
+  "printf '\\036END\\n'",
+].join("\n");
+
+/** The project's skills folders that sit under a link out of the project, each with that link and where it points: a
+ * repo that links one out would hand its skills acts the person's own folders. Nothing when the answer does not come
+ * back whole, which leaves every one of them unread. */
+async function linkedOut(host: Host, project: string, dirs: readonly string[]): Promise<Map<string, { link: string; to: string }> | undefined> {
+  const said = await host.exec.run("sh", ["-c", LINKED_SCRIPT, "sh", project, ...dirs], { timeoutMs: 20_000 });
+  if (said === undefined || !said.trimEnd().endsWith(END)) return undefined;
+  const out = new Map<string, { link: string; to: string }>();
+  for (const line of said.split("\n")) {
+    const [dir = "", link = "", to = ""] = line.split("\t");
+    if (dirs.includes(dir)) out.set(dir, { link, to });
+  }
+  return out;
+}
+
+/** What the list says of a project's skills folder it does not read: where it links out of the repo, or that the
+ * read could not tell. */
+function skippedLine(host: Host, dir: string, at: { link: string; to: string } | undefined): string {
+  const folder = tilde(host.home, dir);
+  if (at === undefined) return `skills: ${folder} was not read, since whether it links out of the repo could not be told`;
+  return `skills: ${folder} links out of the repo${at.link === dir ? "" : ` through ${tilde(host.home, at.link)}`}, to ${at.to}, so its skills are not read`;
+}
+
+/** The folders every catalog agent loads skills from on that computer, absolute, each once, an agent's own under the
+ * folder its store variable names there: an agent's own folder carries that agent, a folder several read carries none.
+ * Each project adds the folders the agents read inside it, and each plugin read the folders its skills sit in. */
+export async function skillRoots(host: Host, o: { agents?: readonly AgentEntry[]; projects?: readonly AgentsProject[]; plugins?: readonly AgentPlugins[] } = {}): Promise<SkillRootAt[]> {
+  const agents = o.agents ?? CATALOG_AGENTS;
+  const out = new Map<string, SkillRootAt>();
+  const add = (dirs: { dir: string; own: boolean }[], scope: SkillScope, agent: string, project?: AgentsProject): void => {
+    for (const { dir, own } of dirs) {
+      const at = out.get(dir);
+      if (at === undefined) out.set(dir, { dir, scope, ...(own ? { agent } : {}), ...(project !== undefined ? { project } : {}) });
+      else if (own && at.agent === undefined) out.set(dir, { ...at, agent });
+    }
+  };
+  for (const a of agents) add(a.skillRoots.user.map((r, i) => ({ dir: inStore(a, r.dir, { home: host.home, store: host.stores?.[a.id] }), own: i === 0 })), "user", a.id);
+  await Promise.all(
+    (o.projects ?? []).map(async project => {
+      const at = (r: { dir: string }): string => posix.join(project.path, r.dir);
+      const dirs = [...new Set(agents.flatMap(a => a.skillRoots.project.map(at)))];
+      const linked = await linkedOut(host, project.path, dirs);
+      for (const a of agents) add(a.skillRoots.project.map((r, i) => ({ dir: at(r), own: i === 0 })), "project", a.id, project);
+      for (const dir of dirs) if (linked === undefined || linked.has(dir)) out.set(dir, { ...out.get(dir)!, skipped: skippedLine(host, dir, linked?.get(dir)) });
+    }),
+  );
+  for (const root of pluginSkillRoots(o.plugins ?? [])) if (!out.has(root.dir)) out.set(root.dir, root);
+  return [...out.values()];
+}
+
+/** The folders each plugin read says its skills sit in, each with its plugin: none of a plugin whose folder is gone. */
+function pluginSkillRoots(plugins: readonly AgentPlugins[]): SkillRootAt[] {
+  return plugins.flatMap(({ agent, found }) =>
+    found.plugins.flatMap(p => (p.skills === undefined || p.missing !== undefined ? [] : p.skills.dirs.map(dir => ({ dir, scope: "plugin" as const, agent, plugin: { id: p.id, prefix: p.skills!.prefix, on: p.on } })))),
+  );
+}
+
+/** Every skill under the roots, one row per folder name and kind with every folder it lives in. A folder whose name starts
+ * with a dot, one without a SKILL.md, and a skill inside another skill's folder are not skills. An answer cut short
+ * is a refusal naming it, never a list that silently stops. */
+export async function detectSkills(host: Host, all: readonly SkillRootAt[]): Promise<SkillsRead> {
+  const outside = all.flatMap(r => (r.skipped === undefined ? [] : [r.skipped]));
+  const roots = all.filter(r => r.skipped === undefined);
+  if (roots.length === 0) return { skills: [], refused: outside };
+  const said = await host.exec.run("sh", ["-c", SCRIPT, "sh", ...roots.map(r => r.dir)], { timeoutMs: 20_000 });
+  if (said === undefined) return { skills: [], refused: ["skills: the folders could not be read", ...outside] };
+  const refused = [...(said.trimEnd().endsWith(END) ? [] : ["skills: the answer was cut short, so the list is not whole"]), ...outside];
+  const rootOf = new Map(roots.map(r => [r.dir, r]));
+  const found: { root: SkillRootAt; dir: string; link: string; off: boolean; head: string }[] = [];
+  for (const record of said.split("\x1e").slice(1)) {
+    const [rootDir, dir, link, off, head] = record.split("\x1f");
+    const root = rootDir === undefined ? undefined : rootOf.get(rootDir);
+    if (root === undefined || dir === undefined || head === undefined) continue;
+    const rel = dir.slice(root.dir.length + 1);
+    if (!dir.startsWith(`${root.dir}/`) || rel.split("/").some(seg => seg.startsWith("."))) continue;
+    found.push({ root, dir, link: link ?? "", off: off === "1", head });
+  }
+  const dirs = new Set(found.map(f => `${f.root.dir}\0${f.dir}`));
+  const rows = new Map<string, SkillRow>();
+  for (const f of found) {
+    // A SKILL.md under a folder that is itself a skill belongs to that skill (its examples, its templates).
+    const parts = f.dir.slice(f.root.dir.length + 1).split("/");
+    if (parts.slice(1).some((_, i) => dirs.has(`${f.root.dir}\0${f.root.dir}/${parts.slice(0, i + 1).join("/")}`))) continue;
+    const meta = skillFrontmatter(f.head);
+    // Keyed by folder, which is what an agent loads a skill by; the frontmatter's name is the file's own claim. A
+    // plugin's skill goes by the name the agent announces it under, its plugin's first.
+    const plugin = f.root.plugin;
+    const name = plugin === undefined ? posix.basename(f.dir) : `${plugin.prefix}:${posix.basename(f.dir)}`;
+    const key = `${f.root.scope}\0${f.root.project?.id ?? plugin?.id ?? ""}\0${name}`;
+    const path: SkillPath = {
+      path: tilde(host.home, f.dir),
+      ...(f.root.agent !== undefined ? { agent: f.root.agent } : {}),
+      ...(f.link !== "" ? { linkTo: tilde(host.home, posix.resolve(posix.dirname(f.dir), f.link)) } : {}),
+      ...(f.off || plugin?.on === false ? { off: true as const } : {}),
+    };
+    const row = rows.get(key);
+    const project = f.root.project === undefined ? {} : { project: { ...f.root.project, path: tilde(host.home, f.root.project.path) } };
+    if (row === undefined) rows.set(key, { name, ...(meta.description !== undefined ? { description: meta.description } : {}), paths: [path], scope: f.root.scope, ...project, ...(plugin !== undefined ? { plugin: plugin.id } : {}) });
+    else if (!row.paths.some(p => p.path === path.path)) row.paths.push(path);
+  }
+  return { skills: [...rows.values()].sort((a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope) || (a.project?.name ?? "").localeCompare(b.project?.name ?? "")), refused };
+}

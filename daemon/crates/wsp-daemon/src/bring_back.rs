@@ -1,0 +1,518 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! Work leaves a workspace through git and nothing else: the branch the agent made is pushed to the project's
+//! remote, and the branch the work started from is never pushed at all.
+
+use std::path::Path;
+
+use wsp_frames::{words, DaemonErrorCode, GitPushReply};
+
+use crate::git::{check, default_branch, default_branch_name, parse_porcelain_v2, rev_exists, run_git, stdout_text, GitLine, Runs};
+use crate::paths::OpError;
+
+/// Files of the diffstat one push carries; past it git prints its own "N more files" line and the reply stays a
+/// thing a person reads rather than a whole tree.
+const STAT_FILES: &str = "--stat-count=50";
+
+/// The remote a push goes to: origin where there is one, else the first the checkout names, else none.
+async fn remote_name<R: Runs>(runner: &R, cwd: &Path) -> Result<Option<String>, OpError> {
+    let listed = run_git(runner, cwd, &GitLine::new(&["remote"]), None, None).await?;
+    check(&listed, "remote")?;
+    let text = stdout_text(&listed);
+    let mut names = text.lines().map(str::trim).filter(|n| !n.is_empty());
+    let first = names.next().map(str::to_owned);
+    Ok(first.map(|one| if text.lines().any(|n| n.trim() == "origin") { "origin".to_owned() } else { one }))
+}
+
+/// The remote a branch's own configuration pushes it to: its pushRemote, then the remote it tracks. A branch the git
+/// host's command line checked out off someone's fork tracks that fork, and pushes there.
+async fn configured_remote<R: Runs>(runner: &R, cwd: &Path, branch: &str) -> Result<Option<String>, OpError> {
+    for key in [format!("branch.{branch}.pushRemote"), format!("branch.{branch}.remote")] {
+        let read = run_git(runner, cwd, &GitLine::new(&["config", "--get"]).operands(&[&key]), None, None).await?;
+        let named = stdout_text(&read).trim().to_owned();
+        if read.code == Some(0) && !named.is_empty() && named != "." {
+            return Ok(Some(named));
+        }
+    }
+    Ok(None)
+}
+
+/// That remote and where it points, which is what says which git host this project lives on; none for a project
+/// with no remote at all.
+pub(crate) async fn remote_if_any<R: Runs>(runner: &R, cwd: &Path) -> Result<Option<(String, String)>, OpError> {
+    let Some(name) = remote_name(runner, cwd).await? else { return Ok(None) };
+    let url = run_git(runner, cwd, &GitLine::new(&["remote", "get-url"]).operands(&[&name]), None, None).await?;
+    check(&url, "remote get-url")?;
+    Ok(Some((name, stdout_text(&url).trim().to_owned())))
+}
+
+/// The same for a push, which a project with no remote has nowhere to go.
+pub(crate) async fn remote_url<R: Runs>(runner: &R, cwd: &Path) -> Result<(String, String), OpError> {
+    remote_if_any(runner, cwd).await?.ok_or_else(|| OpError::plain(words::NO_REMOTE))
+}
+
+/// The branch this checkout is on; a detached head is on none, and there is nothing to bring back from one.
+pub(crate) async fn branch_at<R: Runs>(runner: &R, cwd: &Path) -> Result<String, OpError> {
+    let head = run_git(runner, cwd, &GitLine::new(&["symbolic-ref", "-q", "--short", "HEAD"]), None, None).await?;
+    check(&head, "symbolic-ref")?;
+    let branch = stdout_text(&head).trim().to_owned();
+    if head.code != Some(0) || branch.is_empty() {
+        return Err(OpError::plain(words::NOT_ON_A_BRANCH));
+    }
+    Ok(branch)
+}
+
+/// The branch the work started from when the caller named none: what the remote says its default is, read as the
+/// branch's own name rather than the remote's word for it, else a main or a master here. A checkout with none is
+/// measured against nothing, and every commit on it is ahead.
+pub(crate) async fn base_of<R: Runs>(runner: &R, cwd: &Path, remote: &str, named: Option<&str>) -> Result<String, OpError> {
+    if let Some(base) = named {
+        return Ok(base.to_owned());
+    }
+    let read = default_branch(runner, cwd).await?;
+    Ok(read.map_or_else(String::new, |b| b.strip_prefix(&format!("{remote}/")).unwrap_or(&b).to_owned()))
+}
+
+/// The branch a bring back would carry: the one this checkout is on, refused when it is the base itself. One home
+/// for the rule, so the push and the pull request refuse the base alike.
+pub(crate) async fn head_for<R: Runs>(runner: &R, cwd: &Path, base: &str) -> Result<String, OpError> {
+    let branch = branch_at(runner, cwd).await?;
+    if branch == base {
+        return Err(OpError::plain(words::on_base_refusal(base)));
+    }
+    Ok(branch)
+}
+
+/// What the ahead count and the diffstat are measured from: the base branch here, else the remote's copy of it.
+/// Neither, on a checkout whose base has never been fetched, leaves every commit of the branch ahead.
+async fn base_ref<R: Runs>(runner: &R, cwd: &Path, remote: &str, base: &str) -> Result<Option<String>, OpError> {
+    for rev in [base.to_owned(), format!("{remote}/{base}")] {
+        if rev_exists(runner, cwd, &rev).await? {
+            return Ok(Some(rev));
+        }
+    }
+    Ok(None)
+}
+
+/// How many commits the branch has that the base lacks.
+async fn ahead_of<R: Runs>(runner: &R, cwd: &Path, from: Option<&str>) -> Result<u64, OpError> {
+    let range = from.map_or_else(|| "HEAD".to_owned(), |base| format!("{base}..HEAD"));
+    let counted = run_git(runner, cwd, &GitLine::new(&["rev-list", "--count"]).revs(&[&range]), None, None).await?;
+    check(&counted, "rev-list")?;
+    Ok(stdout_text(&counted).trim().parse().unwrap_or(0))
+}
+
+/// Changes in the checkout that no commit holds, ignored files apart: what a person is told they are leaving behind.
+async fn uncommitted<R: Runs>(runner: &R, cwd: &Path) -> Result<u64, OpError> {
+    let status = run_git(runner, cwd, &GitLine::new(&["status", "--porcelain=v2", "--branch", "-z"]), None, None).await?;
+    check(&status, "status")?;
+    let (_, entries) = parse_porcelain_v2(&stdout_text(&status));
+    Ok(entries.iter().filter(|e| e.xy != "!!").count() as u64)
+}
+
+/// The diffstat of what the branch carries over the base, git's own lines; empty where the base is not here to
+/// measure against.
+async fn stat_over<R: Runs>(runner: &R, cwd: &Path, from: Option<&str>) -> Result<Vec<String>, OpError> {
+    let Some(base) = from else { return Ok(Vec::new()) };
+    let range = format!("{base}...HEAD");
+    let diffed = run_git(runner, cwd, &GitLine::new(&["diff", "--stat", STAT_FILES]).revs(&[&range]), None, None).await?;
+    check(&diffed, "diff --stat")?;
+    Ok(stdout_text(&diffed).lines().map(|l| l.trim_end().to_owned()).filter(|l| !l.is_empty()).collect())
+}
+
+/// What git says when it wanted an https credential and had none: the prompt it was refused by GIT_TERMINAL_PROMPT
+/// and the two answers a host gives a request with no credential on it. A key an ssh remote wants is not here: it
+/// wants a key on this computer and not a signed-in command line, so git's own line rides as it always has.
+const NO_CREDENTIAL_SAID: [&str; 3] = ["could not read Username", "terminal prompts disabled", "Authentication failed for"];
+
+/// The sentence a push refused for want of a credential is refused with, or nothing where git refused it for some
+/// other reason. The remote's host names itself and its own module names the fix, so a host wsp knows no command
+/// line for is not told to run gh; a remote that is a folder beside the checkout has no host and no credential to
+/// want, whatever it said.
+pub(crate) async fn no_credential<R: Runs>(
+    runner: &R,
+    cwd: &Path,
+    remote: &str,
+    said: &str,
+    sentence: fn(&str, Option<&str>) -> String,
+) -> Result<Option<String>, OpError> {
+    if !NO_CREDENTIAL_SAID.iter().any(|mark| said.contains(mark)) {
+        return Ok(None);
+    }
+    let url = run_git(runner, cwd, &GitLine::new(&["remote", "get-url"]).operands(&[remote]), None, None).await?;
+    let Some(host) = crate::hosts::host_name(stdout_text(&url).trim()) else { return Ok(None) };
+    let fix = crate::hosts::host_for(stdout_text(&url).trim()).map(|module| module.credential_fix());
+    Ok(Some(sentence(&host, fix)))
+}
+
+/// Pushes the branch this checkout is on, with the base guard ahead of it and the counts a person reads beside it.
+pub(crate) async fn push<R: Runs>(runner: &R, cwd: &Path, named: Option<&str>) -> Result<GitPushReply, OpError> {
+    let remote = remote_name(runner, cwd).await?.ok_or_else(|| OpError::plain(words::NO_REMOTE))?;
+    let base = base_of(runner, cwd, &remote, named).await?;
+    let branch = head_for(runner, cwd, &base).await?;
+    // A base the caller named may be another branch, as a fork names its lead's: the branch every copy starts from is
+    // still never pushed, whatever this push is measured against, and the caller words the refusal for its road.
+    if named.is_some() && default_branch_name(runner, cwd).await?.as_deref() == Some(branch.as_str()) {
+        return Err(OpError::coded(DaemonErrorCode::OnDefaultBranch, words::on_default_refusal(&branch)));
+    }
+    let from = base_ref(runner, cwd, &remote, &base).await?;
+    let ahead = ahead_of(runner, cwd, from.as_deref()).await?;
+    if ahead == 0 {
+        return Err(OpError::plain(words::nothing_ahead(&branch, &base)));
+    }
+    let left = uncommitted(runner, cwd).await?;
+    let stat = stat_over(runner, cwd, from.as_deref()).await?;
+    let remote = configured_remote(runner, cwd, &branch).await?.unwrap_or(remote);
+    let pushed = run_git(runner, cwd, &GitLine::new(&["push", "-u"]).operands(&[&remote, &branch]), None, None).await?;
+    if pushed.code != Some(0) {
+        if let Some(refusal) = no_credential(runner, cwd, &remote, &pushed.stderr, words::no_git_credential).await? {
+            return Err(OpError::coded(DaemonErrorCode::NoGitCredential, refusal));
+        }
+        let said = pushed.stderr.trim();
+        return Err(OpError::plain(format!("git push failed: {}", if said.is_empty() { stdout_text(&pushed) } else { said.to_owned() })));
+    }
+    Ok(GitPushReply { branch, base, remote, ahead, uncommitted: left, stat })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    use super::*;
+    use crate::git::here::Here;
+    use crate::git::recorded::Recorded;
+
+    /// git on this computer, as every case here runs it: the road the daemon takes for every machine but a
+    /// workspace on a computer somebody owns.
+    fn here() -> Here {
+        Here::new()
+    }
+
+    fn git(cwd: &Path, args: &[&str]) -> String {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@x")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@x")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8(out.stdout).unwrap()
+    }
+
+    /// A checkout on main with one commit, its own bare origin beside it, and main pushed there.
+    struct Repo {
+        dir: tempfile::TempDir,
+    }
+
+    impl Repo {
+        fn new() -> Repo {
+            Repo::on("main")
+        }
+
+        /// The same with the remote's default branch named, and origin/HEAD pointing at it as a clone leaves it.
+        fn starting_on(default: &str) -> Repo {
+            let repo = Repo::on(default);
+            git(&repo.at(), &["remote", "set-head", "origin", default]);
+            repo
+        }
+
+        fn on(default: &str) -> Repo {
+            let dir = tempfile::Builder::new().prefix("wsp-bring-back-").tempdir().unwrap();
+            let repo = dir.path().join("work");
+            let origin = dir.path().join("origin.git");
+            std::fs::create_dir_all(&repo).unwrap();
+            git(dir.path(), &["init", "-q", "--bare", "-b", default, origin.to_str().unwrap()]);
+            git(&repo, &["init", "-q", "-b", default]);
+            git(&repo, &["config", "commit.gpgsign", "false"]);
+            std::fs::write(repo.join("README.md"), "# readme\n").unwrap();
+            git(&repo, &["add", "-A"]);
+            git(&repo, &["commit", "-q", "-m", "first"]);
+            git(&repo, &["remote", "add", "origin", origin.to_str().unwrap()]);
+            git(&repo, &["push", "-q", "-u", "origin", default]);
+            Repo { dir }
+        }
+
+        fn at(&self) -> PathBuf {
+            self.dir.path().join("work")
+        }
+
+        fn origin(&self) -> PathBuf {
+            self.dir.path().join("origin.git")
+        }
+
+        fn commit(&self, name: &str) {
+            std::fs::write(self.at().join(name), "x\n").unwrap();
+            git(&self.at(), &["add", name]);
+            git(&self.at(), &["commit", "-q", "-m", name]);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_branch_pushes_where_its_own_config_points_then_to_its_remote_then_to_origin() {
+        let repo = Repo::new();
+        let fork = repo.dir.path().join("fork.git");
+        git(repo.dir.path(), &["init", "-q", "--bare", "-b", "main", fork.to_str().unwrap()]);
+        git(&repo.at(), &["remote", "add", "waldyrious", fork.to_str().unwrap()]);
+        git(&repo.at(), &["checkout", "-q", "-b", "fix/typo"]);
+        assert_eq!(configured_remote(&here(), &repo.at(), "fix/typo").await.unwrap(), None);
+        git(&repo.at(), &["config", "branch.fix/typo.remote", "waldyrious"]);
+        assert_eq!(configured_remote(&here(), &repo.at(), "fix/typo").await.unwrap().as_deref(), Some("waldyrious"));
+        git(&repo.at(), &["config", "branch.fix/typo.remote", "origin"]);
+        git(&repo.at(), &["config", "branch.fix/typo.pushRemote", "waldyrious"]);
+        assert_eq!(configured_remote(&here(), &repo.at(), "fix/typo").await.unwrap().as_deref(), Some("waldyrious"));
+        // The push itself goes there: the fork gets the branch and origin never sees it.
+        repo.commit("typo.txt");
+        let pushed = push(&here(), &repo.at(), Some("main")).await.unwrap();
+        assert_eq!(pushed.remote, "waldyrious");
+        assert!(git(&fork, &["branch", "--list", "fix/typo"]).contains("fix/typo"));
+        assert!(!git(&repo.origin(), &["branch", "--list", "fix/typo"]).contains("fix/typo"));
+    }
+
+    /// update-ref takes a branch named as a flag, and a push reads a flag after its remote: the branch reaches the
+    /// remote as a branch and the command it names never runs, whatever the checkout's config says to push.
+    #[tokio::test]
+    async fn a_branch_named_as_a_flag_is_pushed_as_a_branch_and_runs_nothing() {
+        let repo = Repo::new();
+        let marker = repo.dir.path().join("ran");
+        let branch = format!("--receive-pack=touch${{IFS}}{};git-receive-pack", marker.display());
+        git(&repo.at(), &["update-ref", &format!("refs/heads/{branch}"), "HEAD"]);
+        git(&repo.at(), &["symbolic-ref", "HEAD", &format!("refs/heads/{branch}")]);
+        repo.commit("work.txt");
+        git(&repo.at(), &["config", "push.default", "current"]);
+        let pushed = push(&here(), &repo.at(), Some("main")).await.unwrap();
+        assert!(!marker.exists(), "the branch's name ran as a command");
+        assert_eq!(pushed.branch, branch);
+        assert!(git(&repo.origin(), &["for-each-ref", "--format=%(refname)"]).contains(&format!("refs/heads/{branch}")));
+    }
+
+    #[tokio::test]
+    async fn a_push_from_the_base_branch_names_the_base_and_pushes_nothing() {
+        let repo = Repo::new();
+        repo.commit("on-main.txt");
+        let err = push(&here(), &repo.at(), Some("main")).await.unwrap_err();
+        assert_eq!(err.message, words::on_base_refusal("main"));
+        let landed = git(&repo.origin(), &["rev-parse", "main"]);
+        assert_eq!(landed.trim(), git(&repo.at(), &["rev-parse", "HEAD~1"]).trim());
+    }
+
+    /// A fork names its lead's branch as the base, and a copy its agent moved onto the default branch would be measured
+    /// against that and pushed: the default branch is refused whatever base the caller named.
+    #[tokio::test]
+    async fn a_push_from_the_default_branch_is_refused_whatever_base_it_names_and_pushes_nothing() {
+        let repo = Repo::new();
+        git(&repo.at(), &["switch", "-q", "-c", "work"]);
+        repo.commit("on-work.txt");
+        git(&repo.at(), &["push", "-q", "-u", "origin", "work"]);
+        git(&repo.at(), &["switch", "-q", "main"]);
+        repo.commit("on-main.txt");
+        let err = push(&here(), &repo.at(), Some("work")).await.unwrap_err();
+        assert_eq!((err.code, err.message.as_str()), (Some(DaemonErrorCode::OnDefaultBranch), words::on_default_refusal("main").as_str()));
+        assert_eq!(git(&repo.origin(), &["rev-parse", "main"]).trim(), git(&repo.at(), &["rev-parse", "HEAD~1"]).trim());
+    }
+
+    /// The default branch is the one the copy's remote starts on, which the status a host reads and the push's own
+    /// guard both read: master here, and a branch called main is pushed like any other.
+    #[tokio::test]
+    async fn a_remote_that_starts_on_master_has_master_refused_and_a_branch_called_main_pushed() {
+        let repo = Repo::starting_on("master");
+        git(&repo.at(), &["switch", "-q", "-c", "work"]);
+        git(&repo.at(), &["push", "-q", "-u", "origin", "work"]);
+        git(&repo.at(), &["switch", "-q", "master"]);
+        repo.commit("on-master.txt");
+        assert_eq!(crate::git::git_status(&here(), &repo.at()).await.unwrap().default_branch.as_deref(), Some("master"));
+        let err = push(&here(), &repo.at(), Some("work")).await.unwrap_err();
+        assert_eq!(
+            (err.code, err.message.as_str()),
+            (Some(DaemonErrorCode::OnDefaultBranch), words::on_default_refusal("master").as_str())
+        );
+        assert_eq!(git(&repo.origin(), &["rev-parse", "master"]).trim(), git(&repo.at(), &["rev-parse", "HEAD~1"]).trim());
+        git(&repo.at(), &["switch", "-q", "-c", "main"]);
+        assert_eq!(crate::git::git_status(&here(), &repo.at()).await.unwrap().default_branch.as_deref(), Some("master"));
+        assert_eq!(push(&here(), &repo.at(), Some("work")).await.unwrap().branch, "main");
+        assert_eq!(git(&repo.origin(), &["rev-parse", "main"]).trim(), git(&repo.at(), &["rev-parse", "HEAD"]).trim());
+    }
+
+    #[tokio::test]
+    async fn a_checkout_on_no_branch_says_there_is_nothing_to_bring_back_yet() {
+        let repo = Repo::new();
+        repo.commit("one.txt");
+        git(&repo.at(), &["checkout", "-q", "--detach", "HEAD"]);
+        assert_eq!(push(&here(), &repo.at(), Some("main")).await.unwrap_err().message, words::NOT_ON_A_BRANCH);
+    }
+
+    #[tokio::test]
+    async fn a_branch_the_base_already_holds_every_commit_of_is_refused_by_name() {
+        let repo = Repo::new();
+        git(&repo.at(), &["switch", "-q", "-c", "quiet"]);
+        assert_eq!(push(&here(), &repo.at(), Some("main")).await.unwrap_err().message, words::nothing_ahead("quiet", "main"));
+    }
+
+    #[tokio::test]
+    async fn a_branch_ahead_is_pushed_with_its_upstream_and_the_reply_counts_what_travelled() {
+        let repo = Repo::new();
+        git(&repo.at(), &["switch", "-q", "-c", "work"]);
+        repo.commit("one.txt");
+        repo.commit("two.txt");
+        std::fs::write(repo.at().join("dirty.txt"), "not committed\n").unwrap();
+        let reply = push(&here(), &repo.at(), Some("main")).await.unwrap();
+        assert_eq!((reply.branch.as_str(), reply.base.as_str(), reply.remote.as_str()), ("work", "main", "origin"));
+        assert_eq!((reply.ahead, reply.uncommitted), (2, 1));
+        assert!(reply.stat.iter().any(|l| l.contains("one.txt")), "{:?}", reply.stat);
+        assert!(reply.stat.last().is_some_and(|l| l.contains("2 files changed")), "{:?}", reply.stat);
+        assert_eq!(git(&repo.origin(), &["rev-parse", "work"]).trim(), git(&repo.at(), &["rev-parse", "HEAD"]).trim());
+        // -u is what the push carried, so the next one from inside the workspace needs no remote named.
+        assert_eq!(git(&repo.at(), &["rev-parse", "--abbrev-ref", "work@{upstream}"]).trim(), "origin/work");
+    }
+
+    #[tokio::test]
+    async fn a_checkout_with_nowhere_to_push_says_so() {
+        let repo = Repo::new();
+        git(&repo.at(), &["switch", "-q", "-c", "work"]);
+        repo.commit("one.txt");
+        git(&repo.at(), &["remote", "remove", "origin"]);
+        assert_eq!(push(&here(), &repo.at(), Some("main")).await.unwrap_err().message, words::NO_REMOTE);
+    }
+
+    #[tokio::test]
+    async fn the_base_is_measured_against_the_remote_copy_where_the_branch_is_not_here() {
+        let repo = Repo::new();
+        git(&repo.at(), &["switch", "-q", "-c", "work"]);
+        repo.commit("one.txt");
+        git(&repo.at(), &["branch", "-q", "-D", "main"]);
+        let reply = push(&here(), &repo.at(), Some("main")).await.unwrap();
+        assert_eq!((reply.ahead, reply.base.as_str()), (1, "main"));
+    }
+
+    #[tokio::test]
+    async fn a_push_that_names_no_base_takes_the_branch_the_checkout_reads_as_its_default() {
+        let repo = Repo::new();
+        git(&repo.at(), &["switch", "-q", "-c", "work"]);
+        repo.commit("one.txt");
+        let reply = push(&here(), &repo.at(), None).await.unwrap();
+        assert_eq!((reply.base.as_str(), reply.ahead), ("main", 1));
+        // And on that default branch itself the guard still fires, which is the whole reason the base is read.
+        git(&repo.at(), &["switch", "-q", "main"]);
+        repo.commit("two.txt");
+        assert_eq!(push(&here(), &repo.at(), None).await.unwrap_err().message, words::on_base_refusal("main"));
+    }
+
+    /// Every git a push runs goes through the way of running it was handed, in the checkout that way sees, and the
+    /// push runs nothing else: a workspace on a computer somebody owns is served by this daemon, and its git runs
+    /// inside it rather than as root on the computer.
+    #[tokio::test]
+    async fn a_push_runs_every_git_through_the_way_it_was_handed_and_nothing_of_its_own() {
+        let runner = Recorded::new(&[]).answering(vec![
+            (0, "origin\n"),                                      // remote
+            (0, "main\n"),                                        // the base the checkout reads as its default
+            (0, ""),                                              // and that branch is here
+            (0, "work\n"),                                        // the branch HEAD is on
+            (0, "0123456789abcdef\n"),                            // the base is here to measure against
+            (0, "2\n"),                                           // commits ahead
+            (0, "# branch.head work\0"),                          // nothing uncommitted
+            (0, " README.md | 2 +-\n"),                           // the diffstat
+            (1, ""),                                              // no pushRemote for the branch
+            (1, ""),                                              // and no remote it tracks yet
+            (0, "branch 'work' set up to track 'origin/work'\n"), // the push itself
+        ]);
+        let reply = push(&runner, Path::new("/private/tmp/proof/repo"), None).await.unwrap();
+        assert_eq!((reply.branch.as_str(), reply.base.as_str(), reply.remote.as_str(), reply.ahead), ("work", "main", "origin", 2));
+        let calls = runner.asked();
+        // Every call: git, in the checkout the caller named, and never a program or a folder of the daemon's own.
+        assert!(calls.iter().all(|call| call.cwd == "/private/tmp/proof/repo" && call.program == "git"), "a call ran somewhere else");
+        assert_eq!(calls.first().map(|call| call.args.clone()), Some(vec!["remote".to_owned()]));
+        assert_eq!(calls.last().map(|call| call.args.clone()), Some(["push", "-u", "--", "origin", "work"].map(str::to_owned).to_vec()));
+        // And nothing was fed on stdin: a push carries its words and reads nothing from this end.
+        assert!(calls.iter().all(|call| call.stdin.is_none()), "a git call was fed stdin");
+        assert_eq!(calls.len(), 11);
+    }
+
+    /// The answers a push reads before it pushes, in order, with the push's own answer and whatever comes after it
+    /// handed in: the remote, the base and that it is here, the branch, the base ref, the count ahead, the status,
+    /// the diffstat, the branch's own remote asked twice, then the push.
+    fn push_answering(after: Vec<(i32, &str, &str)>) -> Recorded {
+        let mut answers = vec![
+            (0, "origin\n", ""),
+            (0, "main\n", ""),
+            (0, "", ""),
+            (0, "work\n", ""),
+            (0, "0123456789abcdef\n", ""),
+            (0, "2\n", ""),
+            (0, "# branch.head work\0", ""),
+            (0, " README.md | 2 +-\n", ""),
+            (1, "", ""),
+            (1, "", ""),
+        ];
+        answers.extend(after);
+        Recorded::new(&[]).answering_said(answers)
+    }
+
+    /// What git printed on a box with no git credential, measured on spoo on 2026-09-18.
+    const NO_USERNAME: &str = "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
+
+    #[tokio::test]
+    async fn a_push_git_refused_for_want_of_a_credential_says_so_in_the_persons_words_with_the_hosts_own_fix() {
+        let runner = push_answering(vec![(128, "", NO_USERNAME), (0, "https://github.com/o/r.git\n", "")]);
+        let refused = push(&runner, Path::new("/private/tmp/proof/repo"), None).await.unwrap_err();
+        let fix = crate::hosts::host_for("https://github.com/o/r.git").unwrap().credential_fix();
+        assert_eq!(refused.message, words::no_git_credential("github.com", Some(fix)));
+        // The host knows it by the code stamped here, never by the sentence.
+        assert_eq!(refused.code, Some(DaemonErrorCode::NoGitCredential));
+        // The words a person reads name the host and the commands only they can run, and say nothing landed.
+        assert!(refused.message.contains("gh auth login"), "{}", refused.message);
+        assert!(refused.message.contains("nothing was pushed"), "{}", refused.message);
+        // The remote's url is read only where the push was refused for a credential: the happy road runs eleven.
+        assert_eq!(runner.asked().len(), 12);
+        assert_eq!(runner.asked()[11].args, ["remote", "get-url", "--", "origin"]);
+
+        // The other two sentences a host with no credential on the request answers with read the same way.
+        for said in [
+            "remote: HTTP Basic: Access denied\nfatal: Authentication failed for 'https://github.com/o/r.git/'",
+            "fatal: terminal prompts disabled",
+        ] {
+            let runner = push_answering(vec![(128, "", said), (0, "https://github.com/o/r.git\n", "")]);
+            assert_eq!(
+                push(&runner, Path::new("/private/tmp/proof/repo"), None).await.unwrap_err().message,
+                words::no_git_credential("github.com", Some(fix))
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_host_wsp_knows_no_command_line_for_is_told_no_command_to_run_and_a_folder_remote_reads_as_git_did() {
+        // A host with no module here: the sentence names the host and stops, rather than naming gh's commands.
+        let runner = push_answering(vec![(128, "", NO_USERNAME), (0, "https://gitlab.example.com/o/r.git\n", "")]);
+        let refused = push(&runner, Path::new("/private/tmp/proof/repo"), None).await.unwrap_err();
+        assert_eq!(refused.message, words::no_git_credential("gitlab.example.com", None));
+        assert!(!refused.message.contains("gh"), "{}", refused.message);
+        // A remote that is a folder beside the checkout has no host and no credential to want.
+        let folder = push_answering(vec![(128, "", NO_USERNAME), (0, "/srv/mirrors/r.git\n", "")]);
+        let failed = push(&folder, Path::new("/private/tmp/proof/repo"), None).await.unwrap_err();
+        assert!(failed.message.starts_with("git push failed: "));
+        assert_eq!(failed.code, None);
+    }
+
+    #[tokio::test]
+    async fn a_key_an_ssh_remote_wants_and_every_other_refusal_ride_gits_own_line() {
+        // A key on the box is not a signed-in command line, so this one is not in the matcher at all.
+        for said in ["git@github.com: Permission denied (publickey).", "error: failed to push some refs to 'origin'"] {
+            let runner = push_answering(vec![(128, "", said)]);
+            let refused = push(&runner, Path::new("/private/tmp/proof/repo"), None).await.unwrap_err();
+            assert_eq!(refused.message, format!("git push failed: {said}"));
+            // Nothing beyond the push was asked: the url is read for the credential sentence alone.
+            assert_eq!(runner.asked().len(), 11);
+        }
+    }
+
+    #[tokio::test]
+    async fn the_remote_is_origin_where_there_is_one_and_the_first_named_otherwise() {
+        let repo = Repo::new();
+        assert_eq!(remote_url(&here(), &repo.at()).await.unwrap().0, "origin");
+        git(&repo.at(), &["remote", "rename", "origin", "elsewhere"]);
+        let (name, url) = remote_url(&here(), &repo.at()).await.unwrap();
+        assert_eq!(name, "elsewhere");
+        assert!(url.ends_with("origin.git"), "{url}");
+    }
+}

@@ -1,0 +1,268 @@
+[
+  {
+    "tool": "threads",
+    "arguments": {
+      "project": 5
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool threads: Expected string, received number at project"
+  },
+  {
+    "tool": "run",
+    "arguments": {},
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool run: Required at message"
+  },
+  {
+    "tool": "run",
+    "arguments": {
+      "project": "w",
+      "message": 3,
+      "agent": true
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool run: Expected string, received number at message\nExpected string, received boolean at agent"
+  },
+  {
+    "tool": "run",
+    "arguments": {
+      "project": {},
+      "message": []
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool run: Expected string, received object at project\nExpected string, received array at message"
+  },
+  {
+    "tool": "run",
+    "arguments": {
+      "message": "m",
+      "branch": 7
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool run: Expected string, received number at branch"
+  },
+  {
+    "tool": "exec",
+    "arguments": {
+      "thread": "t",
+      "argv": []
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool exec: Array must contain at least 1 element(s) at argv"
+  },
+  {
+    "tool": "exec",
+    "arguments": {
+      "thread": "t",
+      "argv": [
+        1,
+        "a",
+        null
+      ]
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool exec: Expected string, received number at argv[0]\nExpected string, received null at argv[2]"
+  },
+  {
+    "tool": "exec",
+    "arguments": {
+      "thread": "t",
+      "argv": "ls"
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool exec: Expected array, received string at argv"
+  },
+  {
+    "tool": "exec",
+    "arguments": {
+      "workspace": "w",
+      "argv": [
+        "ls"
+      ]
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool exec: Required at thread"
+  },
+  {
+    "tool": "commit",
+    "arguments": {
+      "workspace": "w"
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool commit: Required at thread"
+  },
+  {
+    "tool": "stop",
+    "arguments": {
+      "thread": null
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool stop: Expected string, received null at thread"
+  },
+  {
+    "tool": "stop",
+    "arguments": {
+      "thread": "t",
+      "subagent": 3
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool stop: Expected string, received number at subagent"
+  },
+  {
+    "tool": "delete",
+    "arguments": {
+      "thread": "w",
+      "confirm": "yes"
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool delete: Expected boolean, received string at confirm"
+  },
+  {
+    "tool": "delete",
+    "arguments": {
+      "thread": 3
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool delete: Expected string, received number at thread"
+  },
+  {
+    "tool": "worktree",
+    "arguments": {
+      "project": "p"
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool worktree: Required at branch"
+  },
+  {
+    "tool": "worktree_remove",
+    "arguments": {
+      "project": "p",
+      "branch": "b",
+      "force": "yes"
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool worktree_remove: Expected boolean, received string at force"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "attic",
+      "nap": 2.5
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Expected integer, received float at nap"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "attic",
+      "nap": -1
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Number must be greater than or equal to 0 at nap"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "attic",
+      "nap": 181
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Number must be less than or equal to 180 at nap"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "attic",
+      "spawn": "yes"
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Invalid enum value. Expected 'on' | 'off', received 'yes' at spawn"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "attic",
+      "turn_limit": 1.5
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Expected integer, received float at turn_limit"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "attic",
+      "turn_limit": -1
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Number must be greater than or equal to 0 at turn_limit"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "attic",
+      "turn_limit": 25
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Number must be less than or equal to 24 at turn_limit"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "boat",
+      "size": "big"
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Invalid at size"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "boat",
+      "size": 4
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Expected string, received number at size"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "boat",
+      "delete_after": 1441
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Number must be less than or equal to 1440 at delete_after"
+  },
+  {
+    "tool": "computers_set",
+    "arguments": {
+      "computer": "boat",
+      "delete_after": 2.5
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Expected integer, received float at delete_after"
+  },
+  {
+    "tool": "skills_search",
+    "arguments": {
+      "query": "q",
+      "limit": 0
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool skills_search: Number must be greater than or equal to 1 at limit"
+  },
+  {
+    "tool": "skills_search",
+    "arguments": {
+      "query": "q",
+      "limit": 1000
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool skills_search: Number must be less than or equal to 50 at limit"
+  },
+  {
+    "tool": "threads_wait",
+    "arguments": {
+      "threads": []
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool threads_wait: Array must contain at least 1 element(s) at threads"
+  },
+  {
+    "tool": "threads_wait",
+    "arguments": {
+      "threads": [
+        "t"
+      ],
+      "timeout": 0
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool threads_wait: Number must be greater than 0 at timeout"
+  },
+  {
+    "tool": "skills_show",
+    "arguments": {
+      "skill": "x",
+      "project": 3
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool skills_show: Invalid input at project"
+  },
+  {
+    "tool": "recipe",
+    "arguments": {
+      "set": [
+        1
+      ]
+    },
+    "text": "MCP error -32602: Input validation error: Invalid arguments for tool recipe: Expected string, received number at set[0]"
+  }
+]

@@ -1,0 +1,136 @@
+{
+  "cloudOff": {
+    "name": "exec",
+    "description": "Runs a command on the computer the thread runs on as argv (each word as given; use sh -c for a shell line), in the folder cwd names or the folder the thread works in, and returns its output lines, exit code and the folder it ran in. A non-zero exit is a result; the computer going away is an error.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one, as threads lists them"
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "cwd": {
+          "type": "string",
+          "description": "the folder the command runs in, absolute; absent means the folder the thread works in"
+        }
+      },
+      "required": [
+        "thread",
+        "argv"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "exitCode": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string",
+          "description": "the folder the command ran in, as the host resolved it; absent only where the thread's computer names no folder, where its own home is where the command ran"
+        }
+      },
+      "required": [
+        "exitCode",
+        "output"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "exec",
+    "description": "Runs a command on the computer the thread runs on as argv (each word as given; use sh -c for a shell line), in the folder cwd names or the folder the thread works in, and returns its output lines, exit code and the folder it ran in. A non-zero exit is a result; the computer going away is an error.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one, as threads lists them"
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "cwd": {
+          "type": "string",
+          "description": "the folder the command runs in, absolute; absent means the folder the thread works in"
+        }
+      },
+      "required": [
+        "thread",
+        "argv"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "exitCode": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string",
+          "description": "the folder the command ran in, as the host resolved it; absent only where the thread's computer names no folder, where its own home is where the command ran"
+        }
+      },
+      "required": [
+        "exitCode",
+        "output"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

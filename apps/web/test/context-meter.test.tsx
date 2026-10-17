@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { fireEvent, render, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import type { TurnSummary } from "../src/adapt";
+import { ContextRing, usePublishContext } from "../src/components/chat/ContextMeter.js";
+
+const WS = "ws_ring";
+const ring = () => document.querySelector<HTMLElement>("[data-context-ring]");
+const used = () => ring()!.querySelector<SVGCircleElement>("circle[data-context-used]")!;
+
+type Turn = Pick<TurnSummary, "tokens" | "held"> & Partial<Pick<TurnSummary, "state">>;
+
+function Thread({ turns, agentLabel }: { turns: ReadonlyArray<Turn>; agentLabel: string }) {
+  usePublishContext(WS, turns.map(t => ({ state: "completed" as const, ...t })), agentLabel);
+  return null;
+}
+
+describe("the context ring in the thread's top bar", () => {
+  it("fills with the share of the window the thread's view published, and says the numbers and the percentage", () => {
+    render(
+      <>
+        <Thread turns={[{ tokens: { input: 1, output: 1, context: 50_000, window: 200_000 } }]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()!.getAttribute("aria-label")).toBe("Context: 25% used, 50k of 200k tokens");
+    const circumference = 2 * Math.PI * 9.75;
+    expect(Number(used().getAttribute("stroke-dashoffset"))).toBeCloseTo(circumference * 0.75);
+  });
+
+  it("draws an empty ring and the count alone where the agent reports no limit", () => {
+    render(
+      <>
+        <Thread turns={[{ tokens: { input: 1, output: 1, context: 24_763 } }]} agentLabel="Codex" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()!.getAttribute("aria-label")).toBe("Context: 24.8k tokens. Codex does not report its limit");
+    expect(Number(used().getAttribute("stroke-dashoffset"))).toBeCloseTo(2 * Math.PI * 9.75);
+  });
+
+  it("opens a card with the share, the count over the window and a meter, or the count alone and why where there is no limit", async () => {
+    const { unmount } = render(
+      <>
+        <Thread turns={[{ tokens: { input: 1, output: 1, context: 50_000, window: 200_000 } }]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    fireEvent.click(ring()!);
+    const card = await waitFor(() => document.querySelector<HTMLElement>("[data-context-card]")!);
+    expect(card.textContent).toContain("Context window");
+    expect(card.querySelector("[data-context-figures]")!.textContent).toBe("25%50k / 200k");
+    expect(card.querySelector("[role=progressbar]")!.getAttribute("aria-valuenow")).toBe("25");
+    // No compaction was published for this thread, so the card offers none.
+    expect(card.querySelector("[data-context-compact]")).toBeNull();
+    unmount();
+
+    render(
+      <>
+        <Thread turns={[{ tokens: { input: 1, output: 1, context: 24_763 } }]} agentLabel="Codex" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    fireEvent.click(ring()!);
+    const bare = await waitFor(() => document.querySelector<HTMLElement>("[data-context-card]")!);
+    expect(bare.querySelector("[data-context-figures]")!.textContent).toBe("24.8k");
+    expect(bare.querySelector("[role=progressbar]")).toBeNull();
+    expect(bare.textContent).toContain("Codex does not report its limit");
+  });
+
+  it("reads what the agent held after its last call while its first turn runs, and after a turn stopped before its result", () => {
+    const { rerender } = render(
+      <>
+        <Thread turns={[{ tokens: null, held: { context: 28_514 }, state: "running" }]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()!.getAttribute("aria-label")).toBe("Context: 28.5k tokens. The limit shows once a turn finishes");
+    rerender(
+      <>
+        <Thread turns={[{ tokens: { input: 1, output: 1, context: 20_000, window: 200_000 } }, { tokens: null, held: { context: 50_000 }, state: "interrupted" }]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()!.getAttribute("aria-label")).toBe("Context: 25% used, 50k of 200k tokens");
+  });
+
+  it("says why on a thread that ran a turn and has no reading, and draws nothing on one that never ran", async () => {
+    const { rerender } = render(
+      <>
+        <Thread turns={[]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()).toBeNull();
+    rerender(
+      <>
+        <Thread turns={[{ tokens: null, state: "error" }]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()!.getAttribute("aria-label")).toBe("Context: The agent reported nothing before the turn failed");
+    expect(Number(used().getAttribute("stroke-dashoffset"))).toBeCloseTo(2 * Math.PI * 9.75);
+    rerender(
+      <>
+        <Thread turns={[{ tokens: { input: 900, output: 4 } }]} agentLabel="Cursor" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    fireEvent.click(ring()!);
+    const card = await waitFor(() => document.querySelector<HTMLElement>("[data-context-card]")!);
+    expect(card.querySelector("[data-context-figures]")).toBeNull();
+    expect(card.querySelector("[data-context-missing]")!.textContent).toBe("Cursor does not report how much context it holds");
+  });
+
+  it("goes as the thread leaves", () => {
+    const { rerender } = render(
+      <>
+        <Thread turns={[{ tokens: null }]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()).not.toBeNull();
+    rerender(
+      <>
+        <Thread turns={[{ tokens: { input: 1, output: 1, context: 50_000, window: 200_000 } }]} agentLabel="Claude Code" />
+        <ContextRing workspaceId={WS} />
+      </>,
+    );
+    expect(ring()).not.toBeNull();
+    rerender(<ContextRing workspaceId={WS} />);
+    expect(ring()).toBeNull();
+  });
+});

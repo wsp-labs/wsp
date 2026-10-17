@@ -1,0 +1,51 @@
+[
+  {
+    "op": "ports.watch"
+  },
+  {
+    "id": 4,
+    "op": "ports.watch",
+    "roots": [
+      -1
+    ]
+  },
+  {
+    "id": 5,
+    "op": "ports.watch",
+    "roots": "200"
+  },
+  {
+    "id": 7,
+    "op": "ports.watch",
+    "roots": [
+      200
+    ],
+    "folder": 7
+  },
+  {
+    "id": 9,
+    "op": "ports.watch",
+    "watch": "a b"
+  },
+  {
+    "id": 10,
+    "op": "ports.watch",
+    "watch": ""
+  },
+  {
+    "id": 12,
+    "op": "ports.watch",
+    "roots": [],
+    "cgroups": [
+      "wsp-threads/a"
+    ]
+  },
+  {
+    "id": 13,
+    "op": "ports.watch",
+    "roots": [],
+    "cgroups": [
+      "/wsp-threads/../system.slice"
+    ]
+  }
+]

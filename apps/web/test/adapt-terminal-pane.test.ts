@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The terminal pane's state from (phase, reach, socket): what it says over the frame, in the empty state, and to a key.
+import { describe, expect, it } from "vitest";
+import type { DaemonLinkStatus, MachineState, ReachState, WorkspacePhase } from "@wsp/protocol";
+import { absentComputer, awayMsOf, ownDaemonDown, workspaceState } from "@wsp/protocol";
+import { terminalEmptyLine, terminalInputRefusal, terminalPaneHints, terminalPaneState, terminalPaneTitle, type TerminalPaneState } from "../src/adapt/index.js";
+
+const pane = (phase: WorkspacePhase, machineState: MachineState | null, reach: ReachState | null, socket: DaemonLinkStatus): TerminalPaneState =>
+  terminalPaneState({ state: workspaceState({ phase, machineState, reach }), reach, socket });
+
+describe("terminalPaneState", () => {
+  it.each<[WorkspacePhase, MachineState | null, ReachState | null, DaemonLinkStatus, TerminalPaneState]>([
+    ["running", "running", "reachable", "live", { kind: "live" }],
+    ["running", null, null, "live", { kind: "live" }],
+    ["running", "running", "reachable", "connecting", { kind: "reconnecting" }],
+    ["running", "running", "unreachable", "connecting", { kind: "reconnecting" }],
+    ["running", "running", "unreachable", "live", { kind: "reconnecting" }],
+    ["running", "running", "reachable", "reauth-needed", { kind: "reauth" }],
+    ["running", "running", "unreachable", "reauth-needed", { kind: "reconnecting" }],
+    ["running", "running", "zombie", "connecting", { kind: "not-answering" }],
+    ["napping", "paused", "napping", "connecting", { kind: "paused", pausing: false }],
+    ["napping", "paused", "napping", "live", { kind: "paused", pausing: false }],
+    ["running", "paused", "napping", "live", { kind: "paused", pausing: false }],
+    ["pausing", "running", "napping", "live", { kind: "paused", pausing: true }],
+    ["waking", "starting", "napping", "connecting", { kind: "waking" }],
+    ["running", "gone", "gone", "connecting", { kind: "gone" }],
+  ])("phase %s, machine %s, reach %s, socket %s", (phase, machineState, reach, socket, expected) => {
+    expect(pane(phase, machineState, reach, socket)).toEqual(expected);
+  });
+
+  it("a computer that is not answering refuses in the pane itself, in two halves, whatever the socket is doing", () => {
+    const now = Date.parse("2026-09-12T13:30:00.000Z");
+    const absent = absentComputer("old-laptop", awayMsOf({ lastSeenAt: "2026-09-12T12:52:00.000Z" }, now));
+    // Ahead of every reading the socket could give: nothing is reconnecting, and a pane that promised a link back
+    // was a pane promising what nobody is opening.
+    for (const socket of ["opening", "connecting", "live", "unanswered", "reauth-needed"] as const) {
+      expect(terminalPaneState({ state: "running", reach: "unsupported", socket, absent })).toEqual({ kind: "absent", absent });
+      expect(terminalPaneState({ state: "unreachable", reach: "unreachable", socket, absent })).toEqual({ kind: "absent", absent });
+    }
+    const pane = { kind: "absent", absent } as const;
+    // Two halves: what happened, then what happens next. Neither says daemon and neither names a machine id.
+    expect(terminalPaneTitle(pane)).toBe("old-laptop is not answering");
+    expect(terminalPaneHints(pane, null, null)).toEqual(["it connects on its own when it is on"]);
+    expect(terminalEmptyLine(pane)).toBe("old-laptop is not answering; it connects on its own when it is on, and a terminal opens then");
+    expect(terminalInputRefusal(pane)).toBe("Typing is refused: old-laptop is not answering");
+    for (const line of [terminalPaneTitle(pane), ...terminalPaneHints(pane, null, null), terminalEmptyLine(pane), terminalInputRefusal(pane)]) {
+      expect(line).not.toContain("daemon");
+      expect(line).not.toContain("place:");
+    }
+  });
+
+  it("names the person's own computer by the name it is handed while its link opens, never by a word for it", () => {
+    const pane = terminalPaneState({ state: "running", reach: "reachable", socket: "opening", local: true, where: "zingzy's MacBook Pro" });
+    expect(pane).toEqual({ kind: "starting", local: true, where: "zingzy's MacBook Pro" });
+    expect(terminalPaneTitle(pane)).toBe("Starting a terminal on zingzy's MacBook Pro");
+  });
+
+  it("this computer's own daemon refuses in the one sentence the pane already shows, with no second line to fill the button's place", () => {
+    const absent = ownDaemonDown("zingzy's MacBook Pro");
+    const pane = { kind: "absent", absent } as const;
+    expect(terminalPaneTitle(pane)).toBe("zingzy's MacBook Pro's terminals and files stopped");
+    // The button is what happens next, so nothing under the title says it in words the button already says.
+    expect(terminalPaneHints(pane, null, null)).toEqual([]);
+    expect(terminalEmptyLine(pane)).toBe("zingzy's MacBook Pro's terminals and files stopped");
+    expect(terminalInputRefusal(pane)).toBe("Typing is refused: zingzy's MacBook Pro's terminals and files stopped");
+    for (const line of [terminalPaneTitle(pane), terminalEmptyLine(pane), terminalInputRefusal(pane)]) {
+      expect(line).not.toContain("Unreachable");
+      expect(line).not.toContain("terminal:");
+    }
+  });
+
+  it("says one thing per state over the frame, in the empty pane and to a refused key; nothing while live", () => {
+    expect(terminalPaneTitle({ kind: "live" })).toBeNull();
+    expect(terminalEmptyLine({ kind: "live" })).toBeNull();
+    expect(terminalInputRefusal({ kind: "live" })).toBeNull();
+    expect(terminalPaneTitle({ kind: "paused", pausing: false, pauseMode: "memory" })).toBe("Paused. The shell is kept; wake the thread to continue");
+    expect(terminalPaneTitle({ kind: "paused", pausing: true, pauseMode: "memory" })).toBe("Pausing. The shell is kept; wake the thread to continue");
+    expect(terminalPaneTitle({ kind: "waking", pauseMode: "memory" })).toBe("Waking the thread. The shell continues when it is back");
+    expect(terminalPaneTitle({ kind: "reconnecting" })).toBe("Reconnecting to the thread's computer");
+    expect(terminalPaneTitle({ kind: "not-answering" })).toBe("The thread's computer is not answering");
+    expect(terminalPaneTitle({ kind: "reauth" })).toBe("Reconnecting to the thread's computer");
+    expect(terminalEmptyLine({ kind: "reauth" })).toBe("Reconnecting to the thread's computer; terminals open when it is back");
+    expect(terminalInputRefusal({ kind: "reauth" })).toBe("Typing is refused while the thread's computer reconnects");
+    expect(terminalEmptyLine({ kind: "reconnecting" })).toBe("Reconnecting to the thread's computer; terminals open when it is back");
+    expect(terminalEmptyLine({ kind: "paused", pausing: false, pauseMode: "memory" })).toBe("The thread is paused; wake it to open a terminal");
+    expect(terminalInputRefusal({ kind: "paused", pausing: false, pauseMode: "memory" })).toBe("Typing is refused: the thread is paused");
+    expect(terminalInputRefusal({ kind: "reconnecting" })).toBe("Typing is refused while the thread's computer reconnects");
+    for (const kind of ["reconnecting", "not-answering", "waking", "gone"] as const) {
+      expect(terminalPaneTitle({ kind })).toBeTruthy();
+      expect(terminalEmptyLine({ kind })).toBeTruthy();
+      expect(terminalInputRefusal({ kind })).toBeTruthy();
+    }
+  });
+});
+
+describe("a nap on a computer that does not keep the memory", () => {
+  // Boat's nap snapshots the disk and kills every process, and a pane holding no pause mode reads it the same way.
+  for (const pauseMode of ["disk", undefined] as const) {
+    it(`promises no kept shell with pause mode ${pauseMode ?? "unknown"}`, () => {
+      const nap = pauseMode === undefined ? {} : { pauseMode };
+      expect(terminalPaneState({ state: "paused", reach: "napping", socket: "connecting", ...nap })).toEqual({ kind: "paused", pausing: false, ...nap });
+      expect(terminalPaneState({ state: "waking", reach: "napping", socket: "connecting", ...nap })).toEqual({ kind: "waking", ...nap });
+      const panes = [{ kind: "paused", pausing: true, ...nap }, { kind: "paused", pausing: false, ...nap }, { kind: "waking", ...nap }] as const;
+      expect(panes.map(terminalPaneTitle)).toEqual([
+        "Stopping. The shell ends with the stop; wake the thread to open a new one",
+        "Stopped. The shell ended with the stop; wake the thread to open a new one",
+        "Waking the thread. The shell ended with the stop; open a new one when it is back",
+      ]);
+      expect(terminalEmptyLine(panes[1])).toBe("The thread is stopped; wake it to open a terminal");
+      expect(terminalInputRefusal(panes[0])).toBe("Typing is refused: the thread is stopping");
+      for (const line of panes.flatMap(p => [terminalPaneTitle(p), terminalEmptyLine(p), terminalInputRefusal(p)])) expect(line).not.toMatch(/kept|continues|paus/i);
+    });
+  }
+  it("carries a pause mode that keeps the memory through to the pane", () => {
+    expect(terminalPaneState({ state: "pausing", reach: "napping", socket: "live", pauseMode: "memory" })).toEqual({ kind: "paused", pausing: true, pauseMode: "memory" });
+  });
+});
+
+describe("a drop with memory near full", () => {
+  const GiB = 1024 ** 3;
+  const oom = { used: 3.59 * GiB, total: 3.94 * GiB, load1: 6.4 };
+  const OOM_LINE = "Out of memory (3.6 GB of 3.9 GB used, load 6.4) when the thread's computer last answered; the work there took the memory, not a fault in the computer";
+  const size = { cpu: 2, memMb: 4096 };
+  const sizes = [
+    { cpu: 2, memMb: 4096, rateUsdPerHour: 0.11 },
+    { cpu: 2, memMb: 8192, rateUsdPerHour: 0.15 },
+  ];
+  const SIZE_LINE = "A thread on 2 vCPU, 8 GB ($0.15/hr) fits more; pick it when you start the next one";
+  const REBUILD = "Rebuild it from the thread's row";
+
+  it("rides the reconnecting and not-answering panes and no other", () => {
+    expect(terminalPaneState({ state: "unreachable", reach: "unreachable", socket: "connecting", outOfMemory: oom })).toEqual({ kind: "reconnecting", outOfMemory: oom });
+    expect(terminalPaneState({ state: "running", reach: "reachable", socket: "connecting", outOfMemory: oom })).toEqual({ kind: "reconnecting", outOfMemory: oom });
+    expect(terminalPaneState({ state: "unreachable", reach: "zombie", socket: "connecting", outOfMemory: oom })).toEqual({ kind: "not-answering", outOfMemory: oom });
+    expect(terminalPaneState({ state: "running", reach: "reachable", socket: "live", outOfMemory: oom })).toEqual({ kind: "live" });
+    expect(terminalPaneState({ state: "gone", reach: "gone", socket: "connecting", outOfMemory: oom })).toEqual({ kind: "gone" });
+    expect(terminalPaneState({ state: "unreachable", reach: "unreachable", socket: "connecting", outOfMemory: null })).toEqual({ kind: "reconnecting" });
+  });
+
+  it("once the runtime gave up, the title says out of memory instead of not answering; while reconnecting the title keeps its clock and the line goes under it", () => {
+    expect(terminalPaneTitle({ kind: "not-answering", outOfMemory: oom })).toBe(OOM_LINE);
+    expect(terminalPaneTitle({ kind: "reconnecting", outOfMemory: oom })).toBe("Reconnecting to the thread's computer");
+    expect(terminalPaneHints({ kind: "reconnecting", outOfMemory: oom }, size, sizes)).toEqual([OOM_LINE, SIZE_LINE]);
+  });
+
+  it("the next size up comes before the rebuild, and the rebuild alone is what a plain silence or a gone machine offers", () => {
+    expect(terminalPaneHints({ kind: "not-answering", outOfMemory: oom }, size, sizes)).toEqual([SIZE_LINE, REBUILD]);
+    expect(terminalPaneHints({ kind: "not-answering" }, size, sizes)).toEqual([REBUILD]);
+    expect(terminalPaneHints({ kind: "gone" }, size, sizes)).toEqual([REBUILD]);
+    expect(terminalPaneHints({ kind: "reconnecting" }, size, sizes)).toEqual([]);
+    for (const kind of ["live", "reauth", "waking"] as const) expect(terminalPaneHints({ kind }, size, sizes)).toEqual([]);
+    expect(terminalPaneHints({ kind: "paused", pausing: false }, size, sizes)).toEqual([]);
+    // Before the status or the provider's table arrived there is no size to name; the rebuild still comes last.
+    expect(terminalPaneHints({ kind: "not-answering", outOfMemory: oom }, null, sizes)).toEqual([REBUILD]);
+    expect(terminalPaneHints({ kind: "reconnecting", outOfMemory: oom }, size, null)).toEqual([OOM_LINE]);
+  });
+
+  it("a machine with no daemon road says so in one sentence, with nothing to wait for and nothing to rebuild", () => {
+    // The runtime's own word for a machine it has no daemon road to; nothing is reconnecting.
+    const pane = terminalPaneState({ state: "running", reach: "unsupported", socket: "connecting" });
+    expect(pane).toEqual({ kind: "no-daemon" });
+    expect(terminalPaneTitle(pane)).toBe("No terminal runs on the thread's computer");
+    expect(terminalEmptyLine(pane)).toBe("No terminal runs on the thread's computer, so none opens here");
+    expect(terminalInputRefusal(pane)).toBe("Typing is refused: no terminal runs on the thread's computer");
+    expect(terminalPaneHints(pane, size, sizes)).toEqual([]);
+    // Nothing about it promises a return, which is what the reconnecting copy did for a kind that had no daemon.
+    for (const line of [terminalPaneTitle(pane), terminalEmptyLine(pane)]) {
+      expect(line).not.toMatch(/reconnect|when it is back|when it does/i);
+    }
+  });
+
+  it("a daemon that is dropping out still reads as reconnecting, since that one does come back", () => {
+    expect(terminalPaneState({ state: "running", reach: "reachable", socket: "connecting" })).toEqual({ kind: "reconnecting" });
+    expect(terminalPaneState({ state: "unreachable", reach: "no-daemon", socket: "dead" })).toEqual({ kind: "reconnecting" });
+  });
+
+  it("a refused connection says what happened to this window and that threads keep running, in the ruled words", () => {
+    const reason = "the connection was refused with 403: cross-origin websocket denied";
+    const refused = terminalPaneState({ state: "running", reach: "reachable", socket: "refused", refusal: reason });
+    expect(refused).toEqual({ kind: "refused", reason });
+    // The words are the coordinator's ruling on this ticket, read against the word table of the design spec.
+    expect(terminalPaneTitle(refused)).toBe("The connection to the thread's computer was refused; its threads keep running");
+    expect(terminalEmptyLine(refused)).toBe(`No terminal opens from this window: ${reason}. Your threads keep running.`);
+    expect(terminalInputRefusal(refused)).toBe("Typing is refused: the connection to the thread's computer was refused");
+    // Why, in the muted line under the title: what turned the connection away, in its own words.
+    expect(terminalPaneHints(refused, size, sizes)).toEqual([reason]);
+    const lines = [terminalPaneTitle(refused)!, terminalEmptyLine(refused)!, terminalInputRefusal(refused)!];
+    // A person never reads machine or daemon, and nothing here says door either: the sentence is about this window.
+    for (const line of lines) expect(line).not.toMatch(/\bmachines?\b|\bdaemons?\b|\bdoors?\b/i);
+    // A connection that was turned away is not one that dropped, so nothing promises it back or offers a wait.
+    for (const line of lines) expect(line).not.toMatch(/reconnect|when it is back|when it does|try again/i);
+    // The work on the workspace is untouched by this window, and the pane says so where a person will read it.
+    expect(terminalPaneTitle(refused)).toContain("threads keep running");
+    expect(terminalEmptyLine(refused)).toContain("threads keep running");
+
+    // Without a sentence from the far side the pane still says what happened rather than falling back to reconnecting.
+    expect(terminalPaneState({ state: "running", reach: "reachable", socket: "refused" })).toEqual({ kind: "refused", reason: "" });
+    // Only a running workspace has a connection to be refused; a paused one says what it is.
+    expect(terminalPaneState({ state: "paused", reach: "napping", socket: "refused", refusal: reason })).toEqual({ kind: "paused", pausing: false });
+  });
+});

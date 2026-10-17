@@ -1,0 +1,384 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Photographs the built web app against a real host, so a design review reads
+// the app a person meets rather than a fixture page. A run makes a throwaway
+// home, serves a fixture state out of it with the built wsp command on two free
+// ports, drives Chromium over the surfaces list and leaves a folder of PNGs and
+// an index.md. It never reads or writes the person's own ~/.wsp: HOME and
+// WSP_HOME both point into the temp folder, which is where every file the host
+// writes for itself then lands.
+//
+// Themes are emulated as the computer's colour scheme rather than written onto
+// the root: the preference record a fixture serves names no side, so `system`
+// stands and the scheme is the only thing that flips the `dark` class the
+// stylesheet reads. Every shot checks the class once the app is up, so a theme
+// that stopped following the scheme fails the run instead of shipping two
+// identical files.
+//
+// A surface that names a fixture of its own is served by a second host on the
+// same run: one state file cannot hold both a person whose image is built and
+// one whose image never was.
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { chromium } from "playwright";
+import { codexThreads, writeConversations } from "./fixture-kit.mjs";
+import { fixtureAgents, fixtureChanges, fixtureConversations, fixtureClock, fixtureCloud, fixtureCompares, fixtureFiles, fixtureFleet, fixtureFolders, fixtureKeys, fixturePulls, fixtureRepos, fixtureState, fixtureStorage, HERE_AGENTS, HERE_HOST_ITEMS, HERE_PROJECT_FILES } from "./fixture-state.mjs";
+import { BROWSER_ARGS, freePort, REPO, startHost, stopHost, whatIsNotBuilt } from "./host.mjs";
+import { leaveMidWork, writeKeys, writeStandIn, writeWorkFolder } from "./lab-home.mjs";
+import { indexMarkdown, readSurfaces, shippedSurfaces, shotPlan, surfacesIn } from "./plan.mjs";
+import { APP_UP, failuresToCheck, STILL_LOADING } from "./ready.mjs";
+
+/** The files an `image:` step picks for a project: an SVG logo, and a PNG whose header says 20000 px a side. */
+const HUGE = Buffer.concat([Buffer.from("89504e470d0a1a0a0000000d49484452000000004e2000004e20080600000000000000", "hex"), Buffer.alloc(64)]);
+HUGE.writeUInt32BE(20_000, 16);
+HUGE.writeUInt32BE(20_000, 20);
+const IMAGE_PICKS = {
+  logo: { name: "logo.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="#e11d48"/><path d="M20 34l8 8 16-18" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>') },
+  huge: { name: "poster.png", mimeType: "image/png", buffer: HUGE },
+};
+
+function usage(why) {
+  console.error(`${why}\n\nusage: pnpm --filter @wsp/web screenshots -- --out <folder> [--surfaces <file.json>]`);
+  process.exit(2);
+}
+
+function parseArgs(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const flag = argv[i];
+    const value = argv[i + 1];
+    // pnpm hands the separator through to the script; it is not a flag.
+    if (flag === "--") continue;
+    if (flag === "--out" || flag === "--surfaces") {
+      if (value === undefined || value.startsWith("--")) usage(`${flag} needs a path`);
+      args[flag.slice(2)] = resolve(value);
+      i += 1;
+    } else usage(`unknown flag ${flag}`);
+  }
+  if (args.out === undefined) usage("--out names the folder the files land in");
+  return args;
+}
+
+/** The repo's own word for where it stands, so the index says which tree a reviewer is looking at. */
+function treeFacts() {
+  const git = args => execFileSync("git", args, { cwd: REPO, encoding: "utf8" }).trim();
+  try {
+    return { sha: git(["rev-parse", "--short", "HEAD"]), branch: git(["rev-parse", "--abbrev-ref", "HEAD"]) };
+  } catch {
+    return { sha: "an unknown commit", branch: "an unknown branch" };
+  }
+}
+
+/** Where a paired browser keeps the token the host handed it, copied from `apps/web/src/protocol/pairing.ts`
+ * (DEVICE_TOKEN_KEY): this file is plain node beside the app rather than inside its build, so it cannot import the
+ * app's TypeScript, and a rename there is a rename here. */
+const DEVICE_TOKEN_KEY = "wsp:device-token";
+
+/** The host's own token, off the file it writes beside its state: no page it serves carries it. */
+function hostToken(host) {
+  const token = host.token();
+  if (token === undefined) throw new Error("the host wrote no token beside its state, so no window can be let in");
+  return token;
+}
+
+/** A browser that holds a token for the host, in the store a paired device keeps one in: no page carries the host's
+ * token, so a browser on this computer that was never let in reads the pairing screen. */
+async function letIn(context, token) {
+  await context.addInitScript(([key, held]) => window.localStorage.setItem(key, held), [DEVICE_TOKEN_KEY, token]);
+}
+
+/** A context that reads as a window on another computer: the boot object the page is handed loses what only the
+ * loopback page carries (the token's digest and the state file) and reads unpaired, as a page served beyond
+ * loopback does. The boot object is taken as the page's own inline script sets it rather than by rewriting the page:
+ * a fulfilled response puts the page in another address space and Chromium then blocks its socket to loopback
+ * outright (measured 2026-09-12). Nothing in the app is told which window this is; it reads the same boot object a
+ * real window on another computer reads. */
+async function asAnotherComputer(context) {
+  await context.addInitScript(() => {
+    let boot;
+    Object.defineProperty(window, "__WSP__", {
+      configurable: true,
+      get: () => boot,
+      set: value => {
+        const { tokenHash: _digest, statePath: _state, ...rest } = value ?? {};
+        boot = { ...rest, paired: false };
+      },
+    });
+  });
+}
+
+/** Where the Mac preload marks the html element, copied from `DESKTOP_MAC_CLASS` in `packages/protocol/src/index.ts`
+ * for the same reason as the token key above. */
+const DESKTOP_MAC_CLASS = "desktop-mac";
+
+/** A context that reads as the Mac window: the html carries the class the preload sets, before the app's first
+ * render reads it, and a stand-in desktop paints behind the page's clear canvas where the window's glass would be.
+ * The stand-in runs from mid grey, the glass over a white desktop and the lightest ground its text has to hold AA
+ * on, into a dark blue so a share that lets it through shows as one. */
+async function asMacWindow(context) {
+  await context.addInitScript(className => {
+    const mark = html => {
+      html.classList.add(className);
+      html.style.backgroundImage = "linear-gradient(135deg, #808080, #1e2a44)";
+      html.style.minHeight = "100%";
+    };
+    if (document.documentElement !== null) return mark(document.documentElement);
+    new MutationObserver((_, watch) => {
+      if (document.documentElement === null) return;
+      watch.disconnect();
+      mark(document.documentElement);
+    }).observe(document, { childList: true });
+  }, DESKTOP_MAC_CLASS);
+}
+
+/** The page's socket to the host, in this run's hands. It connects as it would until the function this returns is
+ * called, which shuts it and leaves every redial unanswered: that is what a window sees the moment the computer
+ * running wsp falls asleep, and it is not what Playwright's own offline mode does, which leaves an open socket
+ * alone. */
+async function holdSocket(page) {
+  const open = [];
+  let asleep = false;
+  await page.routeWebSocket(/.*/, ws => {
+    if (asleep) return ws.close();
+    open.push(ws.connectToServer());
+  });
+  return () => {
+    asleep = true;
+    for (const server of open) server.close();
+  };
+}
+
+/** Scrolls the nearest box around the element that scrolls, in the page, and says so when none does. */
+function scrollAround(el, by) {
+  for (let at = el; at !== null; at = at.parentElement) {
+    if (at.scrollHeight > at.clientHeight && getComputedStyle(at).overflowY !== "visible") {
+      at.scrollTop += by;
+      at.dispatchEvent(new Event("scroll"));
+      return;
+    }
+  }
+  throw new Error("nothing around that element scrolls");
+}
+
+/** Picks up one element and holds it over another, the pointer left down: the shot is taken mid-drag. The place it
+ * goes is read once the drag has started, since the heads a drag shows stand a frame after it starts and push the
+ * list down. */
+async function holdDrag(page, { from, to, dy }) {
+  const box = async selector => {
+    const at = await page.locator(selector).first().boundingBox({ timeout: 15_000 });
+    if (at === null) throw new Error(`${selector} has no box to drag`);
+    return at;
+  };
+  const a = await box(from);
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 + 8, { steps: 2 });
+  await page.waitForTimeout(150);
+  const b = await box(to);
+  await page.mouse.move(b.x + b.width / 2, b.y + (dy ?? b.height / 2), { steps: 8 });
+}
+
+/** One shot, in a browser that has never seen this app: the context is its own, so the sidebar width, the
+ * chosen workspace and the right panel's last state are what a first launch has and not what the shot
+ * before left behind. Sharing one context per width and theme is what hid the machine surface at 390,
+ * where an earlier shot's remembered panel meant the launcher was never drawn. */
+async function shoot(context, shot, base, out, token) {
+  await letIn(context, token);
+  const clock = fixtureClock(shot.fixture);
+  // Fixed, not installed: the page's timers still run, so a socket, a poll and the settle waits go on as they would.
+  if (clock !== undefined) await context.clock.setFixedTime(clock);
+  await context.addInitScript(stored => {
+    for (const [key, value] of stored) window.localStorage.setItem(key, value);
+  }, Object.entries(fixtureStorage(shot.fixture)));
+  if (shot.remote) await asAnotherComputer(context);
+  if (shot.mac) await asMacWindow(context);
+  const page = await context.newPage();
+  const fallAsleep = shot.steps.some(step => step.offline === true) ? await holdSocket(page) : undefined;
+  await page.goto(`${base}${shot.at}`, { waitUntil: "domcontentloaded" });
+  await page.locator(APP_UP).first().waitFor({ state: "visible", timeout: 30_000 });
+  const dark = await page.locator("html").evaluate(el => el.classList.contains("dark"));
+  if (dark !== (shot.theme === "dark")) throw new Error(`the page drew the ${dark ? "dark" : "light"} side under an emulated ${shot.theme} scheme; the theme no longer follows the computer, so this file would be wrong`);
+  await page.waitForTimeout(shot.settleMs);
+  for (const step of shot.steps) {
+    // The socket going is the whole of "the computer running wsp fell asleep": nothing new arrives, nothing answers
+    // the redial, and the window keeps every row it was last told about.
+    if (step.offline === true) fallAsleep();
+    else if (step.pointerOff === true) await page.mouse.move(0, 0);
+    else if (step.key !== undefined) await page.keyboard.press(step.key);
+    else if (step.scroll !== undefined) await page.locator(step.scroll.within).first().evaluate(scrollAround, step.scroll.by);
+    else if (step.type !== undefined) await page.keyboard.type(step.type);
+    else if (step.focus !== undefined) await page.locator(step.focus).first().focus({ timeout: 15_000 });
+    else if (step.menu !== undefined) await page.locator(step.menu).first().click({ button: "right", timeout: 15_000 });
+    else if (step.hover !== undefined) await page.locator(step.hover).first().hover({ timeout: 15_000 });
+    else if (step.file !== undefined) {
+      await page.locator('[data-composer-file-input="true"]').first().setInputFiles({ name: step.file.name, mimeType: "application/octet-stream", buffer: Buffer.alloc(step.file.bytes, 0x61) });
+      // The composer reads a file before it holds it, so the next step waits for the file to stand in the box.
+      await page.locator(`[data-composer-files] [data-chat-file="${step.file.name}"], [data-composer-refused-file="${step.file.name}"]`).first().waitFor({ state: "visible", timeout: 15_000 });
+    }
+    else if (step.image !== undefined) {
+      await page.locator('[data-k="project-icon-file"]').first().setInputFiles(IMAGE_PICKS[step.image]);
+      await page.locator('[data-k="project-icon-sheet"] img, [data-k="project-icon-refusal"]').first().waitFor({ state: "visible", timeout: 15_000 });
+    }
+    else if (step.drag !== undefined) await holdDrag(page, step.drag);
+    else await page.locator(step.click).first().click({ timeout: 15_000 });
+  }
+  if (shot.wait !== undefined) await page.locator(shot.wait).first().waitFor({ state: "visible", timeout: 15_000 });
+  await page.waitForTimeout(shot.settleMs);
+  // A click leaves its control focused and the ring would be the one thing the eye goes to.
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+  const loading = await page.locator(STILL_LOADING.join(", ")).filter({ visible: true }).count();
+  if (loading > 0) throw new Error(`the page was still loading: ${loading} ${loading === 1 ? "part still reads" : "parts still read"} as on its way (a skeleton bar or a status still checking)`);
+  await page.screenshot({ path: join(out, shot.file) });
+  const failures = await unmeantFailures(page, shot);
+  if (failures.length > 0) throw new Error(`the page shows a failure it was not meant to: ${failures.join("; ")}`);
+}
+
+/** One fixture's state with every folder in it under the throwaway home its host runs in, and those folders made
+ * there as small repositories: a project folder under the person's own home is one the host would act on. The home
+ * is named by its real path, since the host holds a project folder to the path git answers with, and the temp
+ * folder on a Mac is reached through a link. */
+function fixtureOn(home, fixture = "mac-in-use") {
+  const state = fixtureState(fixture, { home: realpathSync(home) });
+  writeWorkFolder(home, fixtureFolders(state), fixtureRepos(fixture, { home }));
+  for (const project of Object.values(state.projects ?? {})) {
+    if (!fixtureFolders(state).includes(project.path)) continue;
+    for (const file of HERE_PROJECT_FILES) {
+      mkdirSync(dirname(join(project.path, file)), { recursive: true });
+      writeFileSync(join(project.path, file), "");
+    }
+    // The project's own files, committed, so the checkout starts clean: the Changes pane lists every untracked file.
+    const as = ["-c", "user.name=notes", "-c", "user.email=notes@example.com", "-c", "commit.gpgsign=false"];
+    execFileSync("git", [...as, "add", "-A"], { cwd: project.path, stdio: "ignore" });
+    execFileSync("git", [...as, "commit", "-q", "-m", "the project's files"], { cwd: project.path, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", project.remote], { cwd: project.path, stdio: "ignore" });
+  }
+  for (const dest of fixtureChanges(fixture, state)) leaveMidWork(dest);
+  writeConversations(home, state, fixtureConversations(fixture));
+  const keys = fixtureKeys(fixture);
+  if (Object.keys(keys).length > 0) writeKeys(home, keys);
+  return state;
+}
+
+/** A fixture's agents with what its conversations need of the stand-ins: the Claude Code sessions another app holds
+ * open, and the threads Codex's own server lists. */
+function withConversations(agents, home, state, rows) {
+  if (rows.length === 0) return agents;
+  const live = rows.filter(c => c.agent === "claude" && c.live === true).map(c => c.id);
+  const { claude, codex } = agents.agents;
+  return { ...agents, agents: { ...agents.agents, claude: { ...claude, live }, codex: { ...codex, threads: codexThreads(home, state, rows) } } };
+}
+
+/** Why a shot is not what it is named for: every failure the page shows that the surface did not wait for. */
+async function unmeantFailures(page, shot) {
+  const shown = [];
+  for (const selector of failuresToCheck(shot)) {
+    const found = page.locator(selector);
+    if ((await found.count()) > 0) shown.push(`${selector}: ${((await found.first().innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim().slice(0, 160)}`);
+  }
+  return shown;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const list = readSurfaces(args.surfaces === undefined ? shippedSurfaces() : surfacesIn(args.surfaces));
+  const unbuilt = await whatIsNotBuilt();
+  if (unbuilt !== undefined) {
+    console.error(unbuilt);
+    process.exit(1);
+  }
+
+  mkdirSync(args.out, { recursive: true });
+  // A file a later run misses would otherwise be reviewed from the earlier run's picture of it.
+  for (const shot of shotPlan(list)) rmSync(join(args.out, shot.file), { force: true });
+  const home = mkdtempSync(join(tmpdir(), "wsp-shots-"));
+  let host;
+  let browser;
+  const written = [];
+  const failures = [];
+  // One host per fixture a surface names, started the first time a shot asks for it and stopped with the rest. Each
+  // carries its own token, since a window standing in for another computer reads the token of the host it dials.
+  const others = new Map();
+  // A shot that changes what its host holds takes a host of its own, stopped after it: the next shot on that fixture
+  // would otherwise meet what this one made, and the same shot in the other theme would be refused as made already.
+  const served = async (fixture, fresh = false) => {
+    if (fixture === undefined && !fresh) return host;
+    const held = fresh ? undefined : others.get(fixture);
+    if (held !== undefined) return held;
+    const own = mkdtempSync(join(tmpdir(), "wsp-shots-"));
+    // The cloud the fixture's machines are meant to be at rides with it: without that word the stand-in stands in
+    // for nothing, and the provider a fixture is about is on no row of the places table.
+    const state = fixtureOn(own, fixture);
+    // A fixture's conversations sit in the agents' stores under its own home, which the host reads only as the
+    // person's home.
+    const started = await startHost({
+      home: own,
+      ...(fixtureConversations(fixture).length > 0 ? { personHome: own } : {}),
+      state,
+      port: await freePort(),
+      cloud: fixtureCloud(fixture),
+      records: writeStandIn(own, fixtureFleet(state)),
+      agents: withConversations(fixtureAgents(fixture), own, state, fixtureConversations(fixture)),
+      files: fixtureFiles(fixture),
+      hostItems: { ...HERE_HOST_ITEMS, pulls: fixturePulls(fixture), compares: fixtureCompares(fixture) },
+    });
+    const made = { ...started, home: own, token: hostToken(started) };
+    if (!fresh) others.set(fixture, made);
+    return made;
+  };
+  try {
+    const state = fixtureOn(home);
+    // The stand-in's records, seeded and named: a fixture's sleeping fork is asleep because its provider says so,
+    // and this run names no folder for the machines, so nothing runs on any of them. The cloud those machines are
+    // meant to be at rides with them, or the stand-in stands in for nothing and no provider is on the places table.
+    host = await startHost({ home, state, port: await freePort(), cloud: fixtureCloud(), records: writeStandIn(home, fixtureFleet(state)), agents: HERE_AGENTS, hostItems: HERE_HOST_ITEMS });
+    host.token = hostToken(host);
+    browser = await chromium.launch({ args: BROWSER_ARGS });
+    for (const shot of shotPlan(list)) {
+      let context;
+      try {
+        context = await browser.newContext({ viewport: { width: shot.width, height: shot.height }, colorScheme: shot.theme, deviceScaleFactor: 2, reducedMotion: "reduce" });
+        const on = await served(shot.fixture, shot.fresh);
+        try {
+          await shoot(context, shot, on.base, args.out, on.token);
+        } finally {
+          if (shot.fresh) {
+            await context.close();
+            context = undefined;
+            await stopHost(on);
+            rmSync(on.home, { recursive: true, force: true });
+          }
+        }
+        written.push(shot.file);
+        console.log(`wrote ${shot.file}`);
+      } catch (e) {
+        const why = e instanceof Error ? e.message.split("\n")[0] : String(e);
+        failures.push(`${shot.file}: ${why}`);
+        console.error(`missed ${shot.file}: ${why}`);
+      } finally {
+        await context?.close();
+      }
+    }
+  } finally {
+    await browser?.close().catch(() => {});
+    await stopHost(host);
+    rmSync(home, { recursive: true, force: true });
+    for (const other of others.values()) {
+      await stopHost(other);
+      rmSync(other.home, { recursive: true, force: true });
+    }
+  }
+
+  const facts = treeFacts();
+  writeFileSync(join(args.out, "index.md"), `${indexMarkdown(list, written, { ...facts, at: new Date().toISOString() })}\n`);
+  console.log(`${written.length} of ${shotPlan(list).length} files in ${args.out}`);
+  if (failures.length > 0) {
+    console.error(`${failures.length} surfaces were not photographed:\n${failures.map(f => `  ${f}`).join("\n")}`);
+    process.exit(1);
+  }
+}
+
+await main().catch(e => {
+  console.error(`screenshots: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
+});

@@ -1,0 +1,567 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { existsSync, readdirSync, rmdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve as resolvePathOn } from "node:path";
+import { CATALOG_AGENTS, GUEST_HOME, guestEnv, loginHomeIn, sharedLoginOf, sharedOn } from "@wsp/catalog";
+import { INLINE_EXEC_MS, installScript, INSTALL_MS, guestAgentHomes, PlaceFolderMachine, placeFolderBackend, projectInstalls, type Lifecycle, type MachineBackend, GUEST_TMP, GITHUB_TOKEN_ENV, LOCAL_MACHINE_ID, projectStateKey } from "@wsp/engine";
+import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneOnMachineFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, codexLoginUnreadRefusal, type BrokerStatus, type CodexClaims } from "@wsp/protocol";
+import { cloneLines, underLoginHome } from "../project-landing.js";
+import { landOnRecord, publicMarketplaces } from "../projects/branch-of-record.js";
+import { threadEnds } from "./thread-ends.js";
+import { PANE_HOLD_MS } from "../places/pane-ports.js";
+import { projectRemote, projectSource } from "../project-sources.js";
+import { openDaemonChannel } from "../daemon-channel.js";
+import { machineExecStream, type MachineExecOptions, type TurnWaiting } from "../machine-exec.js";
+import { writeDaemonRootsScript } from "../daemon-roots.js";
+import { PlaceForksNowhereError, placeHomeRefusal, type PlaceDoor } from "../places.js";
+import { GUEST_WSP_MCP } from "../agents-read.js";
+import { loginEnvOn, PLACE_LOGIN_ENV } from "../types/harness.js";
+import { secretEnvOf } from "../adapters.js";
+import { brokeredEnv, codexBrokerOf, placeholdersOf, unbrokeredRefusal, withGhDoor } from "./brokered.js";
+import { type ProjectImportOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, CLONE_MS, atProvider, folderNamed, lastLineOf } from "../types/wiring.js";
+import type { KindModule, ImportReport, ImportLanded } from "../types/internal.js";
+import { RELEASED_BACKEND } from "../types/internal.js";
+import type { RuntimeContext, KindsArea } from "../context.js";
+
+/** How long a launch waits on the broker's answer to what it holds. */
+const BROKER_READ_MS = 5_000;
+
+export function kindsArea(ctx: RuntimeContext): KindsArea {
+  const { opts, backend, local, placeDoor, clock, places } = ctx;
+  const ends = placeDoor === undefined ? undefined : threadEnds(ctx, placeDoor);
+  const projectOf = (dest: string, size: number): WorkspaceProject => ({ name: folderName(dest), dest, importedAt: new Date(clock.now()).toISOString(), size });
+  /** The command that puts a project's repo inside a copy of an image, word for word, so the test that reads the
+   * machine's log and the machine that runs it read one line. No --branch where the record names no base: the
+   * remote's own default branch is what the clone then takes. */
+  const cloneOnMachine = (project: ProjectView, computer: string): string =>
+    cloneLines({
+      source: projectSource(project.source.kind),
+      remote: project.remote,
+      checkout: project.path,
+      computer,
+      ...(project.base !== undefined ? { branch: project.base } : {}),
+    }).join("\n");
+  /** The clone inside a copy: git's own last line is the failure, so a person reads what git said and not that a
+   * stage failed, and where git said nothing past its start, how the clone ended. */
+  const cloneProject = async (entry: LiveWorkspace, project: ProjectView, report: StageReport): Promise<void> => {
+    // A machine whose credentials the host keeps works on its branch of record, cloned there or put on it in the
+    // checkout its image holds.
+    const ofRecord = entry.record.branchOfRecord;
+    // A copy forked from the project's own image already holds the checkout and its dependencies, and so does one
+    // the computer copied the checkout into; there is nothing to clone and nothing to install in either.
+    // And neither has a fork of a project image that carried this checkout: the snapshot is the whole disk, so the
+    // project stands at its path with its dependencies installed, and a clone over it is what git refuses. The
+    // image the machine was forked from is what says so, read off this workspace's own record.
+    if (project.image !== undefined || project.checkout !== undefined || imageCarriesCheckout((await ctx.imageOf(entry.record.golden)).projects, project.path)) {
+      if (ofRecord !== undefined) await landOnRecord(ctx, entry, project, undefined);
+      return;
+    }
+    report("project-cloned", `Cloning ${project.remote} into ${project.path}.`);
+    const computer = ctx.placeName(entry.record.place ?? places.wired);
+    if (ofRecord !== undefined) {
+      // A fork of a thread's workspace starts from the branch its parent was on, which its record names as its base.
+      const base = entry.record.base ?? project.base;
+      await landOnRecord(ctx, entry, project, cloneLines({ source: projectSource(project.source.kind), remote: project.remote, checkout: project.path, computer, ...(base !== undefined ? { branch: base } : {}), brokered: { ofRecord, origin: ownerRepoOf(project.remote) ?? "", held: entry.ofRecordHeld === true } }));
+    } else {
+      const cloned = await entry.machine.exec(cloneOnMachine(project, computer), { timeoutMs: CLONE_MS });
+      if (cloned.exitCode !== 0) throw new Error(cloneOnMachineFailedLine({ repo: ownerRepoOf(project.remote) ?? project.remote, on: computer, exitCode: cloned.exitCode, said: cloned.stderr || cloned.stdout, limitMs: CLONE_MS }));
+    }
+    // Fresh dependencies on the machine holding the checkout: the catalog's row for whichever lockfile the repo's
+    // own root carries, run once, its output in wsp's own folder and never inside the project. A repo no row names
+    // an install for installs nothing.
+    const root = await entry.machine.exec(`ls -A ${shellQuote(project.path)}`, { timeoutMs: INLINE_EXEC_MS });
+    const install = projectInstalls(root.stdout.split("\n").map(name => name.trim()), project.path)[0];
+    if (install === undefined) return;
+    report("project-cloned", `${install.command} in ${project.path}.`);
+    const log = `${moduleOf(entry.record.kind).scratch(entry)}/install-${project.id}.log`;
+    const ran = await entry.machine.exec(installScript(install, { dir: project.path, log }), { timeoutMs: INSTALL_MS });
+    if (ran.exitCode !== 0) throw new Error(`${install.command} in ${project.path}: ${lastLineOf(ran.stderr) || lastLineOf(ran.stdout) || `exit ${ran.exitCode}`}; its whole output is ${log} on the machine`);
+  };
+  /** One folder on this computer's own remote and the branch that remote's HEAD names, in one command: what a
+   * project of a folder here keeps on its record. Both empty where the folder has no origin, which a project
+   * here is allowed: nothing clones it. */
+  const remoteHere = async (path: string): Promise<{ remote: string; defaultBranch: string }> => {
+    const machine = await moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID);
+    // Each command prints exactly one line, its answer or an empty one, so the two are read apart whichever of
+    // them the folder can answer: a folder with no origin has no remote and no default branch, not one of each.
+    const read = await machine.exec(
+      `${shellLine(["git", "-C", path, "remote", "get-url", "origin"])} || echo; ${shellLine(["git", "-C", path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"])} || echo`,
+      { timeoutMs: INLINE_EXEC_MS },
+    );
+    const [remote = "", head = ""] = read.stdout.split("\n").map(line => line.trim());
+    return { remote, defaultBranch: head.replace(/^origin\//, "") };
+  };
+
+  /** One git command on this computer, argv quoted, through the local backend as every read here goes. */
+  const gitHere = async (cwd: string, args: readonly string[], timeoutMs = INLINE_EXEC_MS, stdin?: string): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+    const machine = await moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID);
+    return machine.exec(shellLine(["git", "-C", cwd, ...args]), { timeoutMs, ...(stdin !== undefined ? { stdin: Buffer.from(stdin) } : {}) });
+  };
+  /** The top of the repo a folder on this computer sits in, the folder itself or one above it; nothing for a folder
+   * git holds no repo in. */
+  const gitTopOf = async (path: string): Promise<string | undefined> => {
+    const read = await gitHere(path, ["rev-parse", "--show-toplevel"]);
+    const top = read.stdout.trim();
+    return read.exitCode === 0 && top !== "" ? top : undefined;
+  };
+  /** The branch a folder has checked out; nothing on a detached HEAD or where git answers nothing. */
+  const branchAt = async (path: string): Promise<string | undefined> => {
+    const read = await gitHere(path, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    const branch = read.stdout.trim();
+    return read.exitCode === 0 && branch !== "" ? branch : undefined;
+  };
+  /** The folder beside the state this host serves, where its worktrees and its own files about them live, so two
+   * hosts never share one. Never a home's default: a host serving another home would write into the person's. */
+  const stateFolder = (): string => {
+    if (opts.statePath === undefined) throw Object.assign(new Error("this runtime was given no state file, so it keeps no worktrees or copies"), { kind: "invalid" });
+    return dirname(resolvePathOn(opts.statePath));
+  };
+  /** A repo cloned on this computer into the folder the person picked, as git clone does: the folder picked is the
+   * clone's own folder when its name is the repo's or the repo's with a number (`lab`, `lab-2`), and otherwise the
+   * folder the clone goes in, as `<picked>/<repo>`, made when it does not stand yet. The clone's folder must hold
+   * nothing, and a refusal offers the next free name beside it. The source's own clone line, argv quoted so neither
+   * the url nor the folder is read by the shell, `--` before the url so git reads no option out of it, and no
+   * prompt, since nobody is at a terminal to answer one. Git's own last line is the refusal, and the folders above
+   * the clone's that the failed clone made are taken away. Answers the folder as it resolved, which is the
+   * project's path from here on. */
+  const cloneHere = async (word: string, source: ProjectSource, into: string): Promise<string> => {
+    const refused = cloneUrlRefusal(word);
+    if (refused !== undefined) throw Object.assign(new Error(refused), { kind: "invalid" });
+    const picked = folderNamed(into);
+    const standing = (path: string): "missing" | "empty" | "full" | "file" => {
+      try {
+        return readdirSync(path).length === 0 ? "empty" : "full";
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === "ENOENT") return "missing";
+        if (code === "ENOTDIR") return "file";
+        throw e;
+      }
+    };
+    const name = projectNameOf(source);
+    const own = basename(picked) === name || (basename(picked).startsWith(`${name}-`) && /^[0-9]+$/.test(basename(picked).slice(name.length + 1)));
+    const dest = own ? picked : join(picked, name);
+    if (!own && standing(picked) === "file") throw Object.assign(new Error(cloneIntoFileLine(homeShortened(picked, homedir()))), { kind: "invalid" });
+    const atDest = standing(dest);
+    if (atDest === "full" || atDest === "file") {
+      const beside = dirname(dest);
+      let n = 2;
+      while (existsSync(join(beside, `${name}-${n}`))) n += 1;
+      const shown = homeShortened(dest, homedir());
+      const free = homeShortened(join(beside, `${name}-${n}`), homedir());
+      throw Object.assign(new Error(atDest === "file" ? cloneIntoFileLine(shown, free) : cloneIntoTakenLine(shown, free)), { kind: "invalid" });
+    }
+    const made: string[] = [];
+    for (let up = dirname(dest); !existsSync(up) && up !== dirname(up); up = dirname(up)) made.push(up);
+    const machine = await moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID);
+    const line = `${shellLine(["env", "GIT_TERMINAL_PROMPT=0"])} ${projectSource(source.kind).cloneCommand({ remote: projectRemote(source), dest })}`;
+    const cloned = await machine.exec(line, { timeoutMs: CLONE_MS });
+    if (cloned.exitCode !== 0) {
+      for (const folder of made) {
+        try {
+          rmdirSync(folder);
+        } catch {
+          break;
+        }
+      }
+      throw Object.assign(new Error(cloneFailedLine(cloned.stderr || cloned.stdout)), { kind: "invalid" });
+    }
+    return folderNamed(dest);
+  };
+  /** The import road on this computer: the folder is here already, so its path is recorded at once and nothing is
+   * packed or sent. The plan is still read, since it is the one measure of the folder and the one check that it is
+   * there, and its bytes are the size the record shows. */
+  const registerImport = async (o: ProjectImportOptions, report: ImportReport): Promise<ImportLanded> => {
+    report("landing", REGISTERING_LINE);
+    const plan = await o.bundler.plan();
+    return {
+      result: { dest: o.dest, files: plan.files, bytes: plan.bytes, parts: 0, cut: [], rewritten: [], agents: [], project: projectOf(o.dest, plan.bytes) },
+      done: registeredLine(o.dest),
+    };
+  };
+  /** The roots file as the machine's daemon reads it, written through the machine so the guest and this computer
+   * take one script; a machine that will not take it fails the import before the record names the folder. */
+  const writeRoots = async (entry: LiveWorkspace, dests: readonly string[], rootsPath?: string): Promise<void> => {
+    const browsable = await entry.machine.exec(writeDaemonRootsScript(dests, rootsPath), { timeoutMs: INLINE_EXEC_MS });
+    if (browsable.exitCode !== 0) throw new Error(`could not make ${dests.at(-1)} browsable on the machine: ${browsable.stderr.slice(-200)}`);
+  };
+  const cloudHome = (id: string): string => {
+    const home = guestAgentHomes()[id];
+    if (home === undefined) throw new Error(`the catalog has no home for ${id}`);
+    return home;
+  };
+  /** The guest's login plus the variable pointing one harness at its store there, the store cloudHome names: a guest
+   * exec carries no environment of its own, so the adapter exports this on every launch. */
+  const cloudEnv = (record: Pick<WorkspaceRecord, "place" | "npmBin">, id: string | undefined): Readonly<Record<string, string>> => {
+    const login = loginEnvOn(record.place, record.npmBin);
+    const agent = CATALOG_AGENTS.find(a => a.id === id);
+    return agent === undefined ? login : { ...login, ...guestEnv(agent) };
+  };
+  const cloudRoad = async (entry: LiveWorkspace): Promise<DaemonReachView> => {
+    const reach = await entry.ws.daemonReach();
+    const token = await ctx.daemonTokenOf(entry.machine, DAEMON_TOKEN_PATH);
+    return { url: reach.url, expiresAt: reach.expiresAt, ...(token !== undefined ? { daemonToken: token } : {}) };
+  };
+  const localRoad = async (): Promise<DaemonReachView> => {
+    if (local?.daemonRoad === undefined) throw new Error("this host wired no daemon for this computer, so nothing on it can be dialled");
+    return local.daemonRoad();
+  };
+  /** Puts this runtime's daemon on a fork with the token this runtime holds for it. A token of the deploy's own makes
+   * the old daemon close 4401 every socket the host dialled, the pipes too, and they wait a minute for the host to
+   * write its own back. A machine with no token yet takes the deploy's, replaced the moment the deploy is done. */
+  const cloudDeploy = async (entry: LiveWorkspace): Promise<void> => {
+    await opts.goldenRecipe!.deployDaemon!(entry.machine, await ctx.daemonTokenOf(entry.machine, DAEMON_TOKEN_PATH));
+    ctx.daemonTokens.delete(entry.machine.id);
+    await ctx.daemonTokenOf(entry.machine, DAEMON_TOKEN_PATH);
+  };
+  /** Whether the file one agent's shared login lives in stands under the home that agent reads on this computer.
+   * The catalog names both the home and the file, and an agent with no shared login has no file to stand. Only a
+   * login kept as a file is seen: one a tool put in this computer's keyring reads here as none. */
+  const sharedLoginUnder = (home: string, agentId: string): boolean => {
+    const shared = sharedOn(agentId);
+    return shared !== undefined && existsSync(join(home, shared.file));
+  };
+  const placeDoorOf = (): PlaceDoor => {
+    if (placeDoor === undefined) throw new Error(noKindLine("place"));
+    return placeDoor;
+  };
+  /** The computer a folder record on a joined computer stands on, with the home its login was joined with. A record
+   * naming a computer this host no longer holds is held by nothing, and the hydration leaves it as it was. */
+  const placeOf = (record: Pick<WorkspaceRecord, "place" | "name">): NonNullable<ReturnType<PlaceDoor["folderComputer"]>> => {
+    const at = record.place === undefined ? undefined : placeDoorOf().folderComputer(record.place);
+    if (at === undefined && record.place !== undefined && placeDoorOf().joined(record.place)) throw new Error(placeHomeRefusal(undefined));
+    if (at === undefined) throw new Error(`${record.name} stands on ${record.place ?? "no computer"}, which this host no longer holds`);
+    return at;
+  };
+  /** Where one agent keeps its store for a thread on that computer: the folder a sign-in there pointed the tool's
+   * home at where its login is one the computer signs in once, else its guest store under the login's home. */
+  const placeAgentHome = (place: string | undefined, home: string, id: string): string => {
+    const agent = CATALOG_AGENTS.find(a => a.id === id);
+    const shared = agent === undefined ? undefined : sharedLoginOf(agent.signIn);
+    const logins = place === undefined ? undefined : placeDoor?.backendOf(place)?.logins;
+    return shared !== undefined && logins !== undefined ? loginHomeIn(logins, shared) : underLoginHome(home, cloudHome(id));
+  };
+  /** The vault as the computer a workspace stands on hands it to its turns, by that computer's picks. */
+  const vaultOn = (entry: LiveWorkspace): Readonly<Record<string, string>> => {
+    const vault = opts.vault?.() ?? {};
+    return entry.record.place === undefined ? vault : (placeDoor?.vaultAt(entry.record.place, vault) ?? vault);
+  };
+  /** Whether the host's broker adds this workspace's credentials on the way out: a fork at a provider, read as the nap
+   * reads one, while the broker answers ready. */
+  const brokered = (record: Pick<WorkspaceRecord, "kind" | "place">): boolean =>
+    opts.broker?.ready() === true && isBrokered(record, atProvider(record.place, places) ? { kind: "provider" } : undefined);
+  /** What the host's broker last said it holds, read before each launch on a brokered workspace mints its token. It
+   * is the host's, one answer for every workspace. A read past BROKER_READ_MS leaves the token kind, which B2 answers
+   * with its own sentence where the host holds another, rather than holding the launch. */
+  let brokerSaid: BrokerStatus | undefined;
+  /** The claims of the host's ChatGPT login, read beside the status where it says it holds one. */
+  let claimsSaid: CodexClaims | undefined;
+  const readBroker = async (): Promise<void> => {
+    const broker = opts.broker;
+    if (broker?.status === undefined) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<undefined>(resolve => (timer = setTimeout(() => resolve(undefined), BROKER_READ_MS)));
+    const read = async (): Promise<{ status?: BrokerStatus; claims?: CodexClaims }> => {
+      const status = await broker.status!().catch(() => undefined);
+      const claims = status?.codex === "chatgpt" || status?.codex === "access-token" ? await broker.codexClaims().catch(() => undefined) : undefined;
+      return { ...(status !== undefined ? { status } : {}), ...(claims !== undefined ? { claims } : {}) };
+    };
+    const said = await Promise.race([read(), late]);
+    clearTimeout(timer);
+    brokerSaid = said?.status;
+    claimsSaid = said?.claims;
+  };
+  /** What a launch on a brokered workspace carries in place of the vault, the turn token in each place a credential
+   * would sit, the kind Claude Code's placeholder takes and the login Codex's is written as. A Codex turn whose login
+   * the broker named none of refuses, since codex there would start unsigned and off the door. A launch with no token
+   * carries only Codex's, read by knowBroker before any such launch starts codex, so a title runs at the door on the
+   * login the last turn left there, and a probe, a revert or a fork's turn lookup on none. Only Claude Code and Codex
+   * are launched there, since the broker adds no other agent's key. Undefined for every other workspace, whose
+   * launches keep today's road. */
+  const brokeredLaunch = (entry: LiveWorkspace, harness: string, token: string | undefined): ReturnType<KindsArea["brokeredLaunch"]> => {
+    if (!brokered(entry.record)) return undefined;
+    const codexBroker = harness === "codex" ? codexBrokerOf(brokerSaid, claimsSaid, opts.broker?.codexModels?.bind(opts.broker)) : undefined;
+    const codex = codexBroker !== undefined ? { codex: codexBroker } : {};
+    if (token === undefined) return { env: {}, vault: {}, ...codex };
+    const refused = unbrokeredRefusal(harness) ?? (harness === "codex" && codexBroker === undefined ? codexLoginUnreadRefusal() : undefined);
+    if (refused !== undefined) throw refused;
+    const { claude, vault } = placeholdersOf(brokerSaid, token);
+    return { env: brokeredEnv(token, entry.record.branchOfRecord, publicMarketplaces(ctx)), vault, claude, ...codex };
+  };
+  /** Before a road starts codex on a brokered workspace with no turn token: the broker read where no Codex login was
+   * read since the host started or the last read named none, and the turn's refusal where it still names none, so
+   * that codex never runs off the door. Nothing for any other agent or workspace. */
+  const knowBroker = async (entry: LiveWorkspace, harness: string): Promise<void> => {
+    if (harness !== "codex" || !brokered(entry.record)) return;
+    if (codexBrokerOf(brokerSaid, claimsSaid) === undefined) await readBroker();
+    if (codexBrokerOf(brokerSaid, claimsSaid) === undefined) throw codexLoginUnreadRefusal();
+  };
+  /** Whether the computer a workspace stands on listed a login of this agent's own, by the word its row carries. */
+  const placeLoginStands = (entry: LiveWorkspace, id: string): boolean => entry.record.place !== undefined && placeDoor?.signInsAt(entry.record.place)?.[id] === "signed-in";
+  /** The environment every process of a thread in a folder on that computer runs under, its agent's turns and its
+   * terminal's shell alike: the order and knobs every thread there reads, the login's own home, and for every agent
+   * its store variable pointed where it keeps its store there and the vault's sign-in its turn would be handed. So
+   * `claude` or `codex` typed in either reads the login the other reads, whichever agent the thread runs. GitHub's
+   * token is there only where the person picked the vault for GitHub on that computer: gh reads it before its own
+   * login, so a skipped sign-in or gh's own login there gets nothing of the vault's. */
+  const placeEnv = (entry: LiveWorkspace, homeOf: (id: string) => string): Readonly<Record<string, string>> => {
+    const { home } = placeOf(entry.record);
+    // The PATH is the login's own, which the run's command exports as the login before this environment is read.
+    const { USER: _root, PATH: _path, ...login } = PLACE_LOGIN_ENV;
+    const vault = vaultOn(entry);
+    const agents = CATALOG_AGENTS.map(agent => {
+      const variable = agent.stateHomeEnv ?? sharedLoginOf(agent.signIn)?.homeEnv;
+      return { ...(variable !== undefined ? { [variable]: homeOf(agent.id) } : {}), ...secretEnvOf(vault, agent.id, placeLoginStands(entry, agent.id)) };
+    });
+    const token = vault[GITHUB_TOKEN_ENV];
+    const github = token !== undefined && entry.record.place !== undefined && placeDoor?.githubFromVault(entry.record.place) === true ? { [GITHUB_TOKEN_ENV]: token } : {};
+    return Object.assign({ ...login, HOME: home }, ...agents, github) as Record<string, string>;
+  };
+  /** Every run on a machine this runtime is reading, as the call that lets go of each. A poll on a turn left
+   * running holds this process after its last line, and a turn on a machine is not this host's to end: closing
+   * lets go and leaves them running, and whoever opens them next reads their logs from the first byte. Each
+   * kind's wiring holds its own set; this one is for the kinds whose runs live on a machine. */
+  const machineReading = new Set<() => void>();
+  const modules: Record<WorkspaceKind, KindModule | undefined> = {
+    cloud: {
+      // A fork lands either at this host's own provider or on a computer somebody joined; the record says which,
+      // and a place that forks nowhere refuses here rather than at the provider.
+      backend: record => {
+        if (record.place === undefined) return backend;
+        const at = placeDoorOf().backendOf(record.place);
+        if (at === undefined) throw new PlaceForksNowhereError(placeForksNowhereLine(placeDoorOf().nameOf(record.place)));
+        return at;
+      },
+      execStream: (entry, o, waiting) => withGhDoor(machineExecStream(entry.machine, { reading: machineReading, ...o }, waiting)),
+      folder: record => record.sub?.folder,
+      home: (_entry, id) => cloudHome(id),
+      homeDir: () => GUEST_HOME,
+      env: (entry, id) => cloudEnv(entry.record, id),
+      // A fork at a provider is a copy of an image, and no sign-in is ever sealed into one, so the vault's key is
+      // what a turn there runs on. A workspace on a computer somebody joined shares that computer's own logins,
+      // and the word for each is the one its row carries.
+      loginStands: (entry, id) => placeLoginStands(entry, id),
+      relayed: () => true,
+      // The word, not a path: the deploy writes the shim onto the machine's PATH and the binary under it carries the
+      // chip in its own path, so the one stable name for a fork's wsp is the word a turn's own shell runs. It dials
+      // no host of its own, it opens a session on this machine's daemon and the daemon carries it up the socket
+      // this host already holds.
+      wspMcp: () => GUEST_WSP_MCP,
+      turnReach: () => ({}),
+      turnRoad: "relayed",
+      keepsAgents: false,
+      serverValues: "environment",
+      // A workspace whose computer answers its daemon frames has no daemon of its own to dial and no route worth
+      // minting: nothing listens inside it, and the road to its files and its git is the link this host holds.
+      hasDaemon: entry => ctx.servedByItsComputer(entry) === undefined && Boolean(entry.machine.previewUrl),
+      sharedDaemon: false,
+      daemonRoad: entry =>
+        ctx.servedByItsComputer(entry) === undefined
+          ? cloudRoad(entry)
+          : Promise.reject(new Error(placeServesDaemonLine(entry.record.name, ctx.computerOf(entry)))),
+      scratch: () => GUEST_TMP,
+      daemonVersion: entry => ctx.helloVersion(entry),
+      dropped: async () => {},
+      // The bundle is the host's to wire; whether it can reach a given machine is canDeployDaemon's reading, since
+      // one kind's machines can differ about it (a container a box's runtime boots mints no signed URL).
+      ...(opts.goldenRecipe?.deployDaemon !== undefined ? { deployDaemon: async (entry: LiveWorkspace) => cloudDeploy(entry) } : {}),
+      import: (entry, o, report) => ctx.copyImport(entry, o, report),
+      roots: (entry, dests) => writeRoots(entry, dests),
+      landProject: (entry, project, report) => cloneProject(entry, project, report),
+      // The key the project was recorded with, which is the folder's own on the computer it was seeded from: a
+      // fork holds the checkout at a path of the machine's, and keying off that path would give one project as
+      // many memories as it has computers.
+      memoryKey: (entry, agentId) => projectMemoryKey(agentId, ctx.projectHeld(entry.record.project)),
+    },
+    local:
+      local === undefined
+        ? undefined
+        : {
+            backend: () => local.backend,
+            execStream: (_entry, o, waiting) => local.execStream(o, waiting),
+            // A record here is a folder: the project's own or a worktree of its repo, the word its view carries and
+            // where a thread on it starts; the same reading threadFolder takes.
+            folder: record => ctx.checkoutOf(record),
+            home: (_entry, id) => local.home(id),
+            homeDir: () => local.homeDir,
+            // The person's own login on the computer they are sitting at, read where that agent keeps it.
+            loginStands: (_entry, id) => sharedLoginUnder(local.home(id), id),
+            // The person's own login and nothing more: threads here share the person's ports, as panes in one
+            // terminal do.
+            env: () => local.env(),
+            relayed: () => false,
+            // This computer's own command, as the command line hands it: a thread here runs the wsp tools on this
+            // computer, which dial the pair its launch carries rather than riding a machine's daemon. Marked, since here a
+            // server missing that pair could otherwise dial the host on the person's own token; a fork's guest door has no
+            // such fallback.
+            wspMcp: () => {
+              const wsp = opts.agents?.wspMcp;
+              return wsp === undefined ? undefined : { ...wsp, args: [...wsp.args, SCOPED_MCP_ARG] };
+            },
+            // A turn here runs on the computer the host runs on, so it dials the host's loopback, and a host that
+            // listens on none tells it nothing and hands it no token. The token is identity here, not confinement:
+            // the turn runs as the person, who can read the host's own token file.
+            turnReach: () => {
+              const url = opts.agents?.here?.url;
+              return url === undefined || url === "" ? undefined : { url };
+            },
+            turnRoad: "here",
+            keepsAgents: true,
+            serverValues: "file",
+            hasDaemon: () => local.daemonRoad !== undefined,
+            sharedDaemon: true,
+            daemonRoad: localRoad,
+            ...(local.restartDaemon !== undefined ? { restartDaemon: local.restartDaemon } : {}),
+            scratch: () => local.backend.folder,
+            // The binary beside this host, read by starting the daemon where nothing has: this process holds the
+            // process, and the binary it spawns is staged beside the command and can be older than this wsp.
+            daemonVersion: async () => (local.hereDaemon === undefined ? null : local.hereDaemon.version()),
+            dropped: async () => {},
+            import: (_entry, o, report) => registerImport(o, report),
+            // The file this host's own daemon reads, which is the wiring's and not a path taken off the home it
+            // browses: a host on another state file has its own, and neither rewrites the other's.
+            roots: (entry, dests) => writeRoots(entry, dests, local.rootsPath),
+            landProject: async () => {},
+            // A worktree wsp made keys off its own top, so a builder there never loads the notes the person and the
+            // thread leading it keep. Every other folder of the project, the project folder with no branch, a
+            // subfolder project's own and a worktree the person made, takes the key Claude Code gives it in the
+            // person's own terminal, which is its repo's main checkout, so the thread shares their memory.
+            memoryKey: (entry, agentId) => {
+              const project = ctx.projectHeld(entry.record.project);
+              const tree = entry.record.worktree;
+              if (tree?.made === true && tree.gone !== true) return projectStateKey(agentId, tree.path);
+              const top = project.git?.top;
+              return top !== undefined && top !== project.path ? projectStateKey(agentId, top) : projectMemoryKey(agentId, project);
+            },
+          },
+    place:
+      placeDoor === undefined
+        ? undefined
+        : {
+            backend: record => {
+              const at = placeOf(record);
+              return placeFolderBackend(() => at.machine, at.shape);
+            },
+            // That computer's daemon runs a folder's git and writes its roots file as root: over a folder another
+            // login owns, git stops at its ownership check or runs that login's hooks as root.
+            admitFolder: async record => {
+              const login = await placeOf(record).machine.loginOf();
+              if (login.user !== "root") throw Object.assign(new Error(placeLoginNotRootLine(placeDoorOf().nameOf(record.place!), login.user)), { kind: "usage" });
+            },
+            // The same detached run a machine's turn is, on the computer itself as its login, under wsp's own folder
+            // in that login's home rather than a folder every account there shares.
+            // A thread's turn is launched from a shell standing in that thread's cgroup, so everything it starts is
+            // the thread's to list and to end, a server it detached included; wsp's own folder goes in front of the
+            // login's PATH for the turn alone, so the wsp it finds is the one that computer's daemon writes for its threads.
+            execStream: (entry, o, waiting) => {
+              const machine = entry.machine;
+              const at = placeDaemonPaths(placeOf(entry.record).home);
+              const launchOn = o?.thread !== undefined && machine instanceof PlaceFolderMachine ? machine.inCgroup(threadCgroup(o.thread), at.guestBin) : undefined;
+              return machineExecStream(machine, { reading: machineReading, runDir: at.runDir, ...o, ...(launchOn !== undefined ? { launchOn } : {}) }, waiting);
+            },
+            // That computer's port at the same number on this one, so a link its threads print opens what they meant;
+            // held while the pane showing it asks again inside the hold.
+            portReach: async (entry, port, o) => {
+              const pane = { workspaceId: entry.record.id, name: entry.record.name };
+              const { localPort } = await placeDoor.forward(entry.record.place!, port, { pane, ...(o?.standing === true ? { standing: true } : {}) });
+              return { url: `http://localhost:${localPort}/`, expiresAt: clock.now() + PANE_HOLD_MS };
+            },
+            // As root on that computer, since a thread's cgroup is root's to empty and take away; a computer that is
+            // away is owed the end of a deleted thread's, and of one whose running turn a stop could not reach.
+            endThread: (entry, threadId, o) => ends!.end(entry.record.place!, threadId, o),
+            endOwed: (entry, threadId) => ends!.owed(entry.record.place!, threadId),
+            folder: record => ctx.checkoutOf(record),
+            home: (entry, id) => placeAgentHome(entry.record.place, placeOf(entry.record).home, id),
+            homeDir: record => placeOf(record).home,
+            env: (entry, _id, homeOf) => placeEnv(entry, homeOf),
+            loginStands: (entry, id) => placeLoginStands(entry, id),
+            relayed: () => true,
+            // The word, as a fork's: the PATH above finds the wsp that computer's daemon writes beside the socket it
+            // binds for its threads, which carries the session up the link this host already holds. Only where its
+            // report says that door stands: a daemon older than it, or one that could not bind it, has no such wsp,
+            // and a launch naming one shows the tools failed or finds another wsp that dials a host of its own.
+            wspMcp: entry => (entry.record.place !== undefined && placeDoor.folderComputer(entry.record.place)?.tools === true ? GUEST_WSP_MCP : undefined),
+            turnReach: () => ({}),
+            turnRoad: "relayed",
+            keepsAgents: true,
+            serverValues: "launch",
+            // That computer's own daemon answers for the folder over its link: nothing is dialled.
+            hasDaemon: () => false,
+            sharedDaemon: true,
+            daemonRoad: entry => Promise.reject(new Error(placeServesDaemonLine(entry.record.name, ctx.computerOf(entry)))),
+            scratch: entry => placeDaemonPaths(placeOf(entry.record).home).putDir,
+            daemonVersion: async entry => (entry.record.place === undefined ? null : ((await placeDoor.reportOf(entry.record.place))?.daemonVersion ?? null)),
+            dropped: async () => {},
+            import: entry => Promise.reject(Object.assign(new Error(`${entry.record.name} is a project folder on ${ctx.computerOf(entry)}; a folder from this computer goes there as a project of its own, with wsp add <folder> --on ${ctx.computerOf(entry)}`), { kind: "usage" })),
+            // The file that computer's daemon reads beside the home it was joined with, written by the daemon itself
+            // and never as the login: it says which folders a root daemon serves.
+            roots: async (entry, dests) => {
+              const { home } = placeOf(entry.record);
+              const wrote = await placeDoor.exec(entry.record.place!, writeDaemonRootsScript(dests, rootsPathIn(home)), { timeoutMs: INLINE_EXEC_MS });
+              if (wrote.exitCode !== 0) throw new Error(`could not make ${dests.at(-1)} browsable on ${placeDoor.nameOf(entry.record.place!)}: ${wrote.stderr.slice(-200)}`);
+            },
+            landProject: async () => {},
+            // The key the add fixed for the folder's own path on that computer, which is the key Claude Code gives
+            // that folder in the person's own terminal there.
+            memoryKey: (entry, agentId) => projectMemoryKey(agentId, ctx.projectHeld(entry.record.project)),
+          },
+  };
+  /** The kind of workspace a project on this computer lands as: a computer the person joined is told apart from a
+   * cloud account by whether this host holds it as a computer. */
+  const kindOf = (computer: string): WorkspaceKind => kindForComputer(computer, placeDoor?.joined(computer) === true);
+  const moduleOf = (kind: WorkspaceKind): KindModule => {
+    const found = modules[kind];
+    if (found === undefined) throw new Error(noKindLine(kind));
+    return found;
+  };
+  const backendFor = (record: WorkspaceRecord): MachineBackend => (record.phase === "released" || record.sub?.cloudGone === true ? RELEASED_BACKEND : moduleOf(record.kind).backend(record));
+  const openChannel = opts.daemonChannel ?? openDaemonChannel;
+  /** The backend a kind's machines live on where no record is in hand yet: the create that is about to write one,
+   * and the roads that ask what this host can do at all. The same reading a record gets, off the two facts a record
+   * would carry. */
+  const backendOfKind = (kind: WorkspaceKind, place?: string): MachineBackend =>
+    moduleOf(kind).backend({ kind, ...(place !== undefined ? { place } : {}) } as WorkspaceRecord);
+  /** Whether a fork on this backend stands on an image at all: a provider boots a template or a snapshot it keeps,
+   * and a workspace on a computer somebody joined is a copy of that computer's own directories, so it names none
+   * and nothing is looked up or built for it. The one reading of that road above the backend, so no road here
+   * names a provider or a place to learn it. */
+  const keepsImages = (at: MachineBackend): boolean => at.capabilities.images;
+  /** Whether this backend's pause keeps the disk: a stop that snapshots it, so a wake resumes the same machine with
+   * its home. Such a nap reads nothing of the home; the vault is taken off the running machine at a rebuild instead. */
+  const pauseKeepsDisk = (at: MachineBackend): boolean => at.capabilities.pauseMode === "disk";
+  /** Whether the machines of this backend come up under the workspace's own name. The one reading of that road
+   * above the backend, beside the images one: a fork that is named at its boot is never named again from here. */
+  const namesWorkspace = (at: MachineBackend): boolean => at.namesWorkspace === true;
+  /** The budgets a kind's backend declares for its naps and wakes. Every reader sits behind the pause refusal or
+   * behind a machine's preview route, so a kind without one here is a wiring fault, never a person's road. */
+  const lifecycleOf = (entry: LiveWorkspace): Lifecycle => {
+    const lifecycle = backendFor(entry.record).lifecycle;
+    if (lifecycle === undefined) throw new Error(`${entry.record.kind} machines declare no lifecycle`);
+    return lifecycle;
+  };
+  const execFactoryFor = (entry: LiveWorkspace, o?: MachineExecOptions, waiting?: TurnWaiting): ExecStreamFactory =>
+    moduleOf(entry.record.kind).execStream(entry, opts.machineExec === undefined ? o : { ...opts.machineExec, ...o }, waiting);
+  /** What one agent on a workspace of this project keys its sessions and its memory to. The project's own key
+   * where that agent's catalog row names the variable that pins it, since that key was fixed when the project was
+   * recorded and follows it onto whichever computer holds it; every other agent keys off the folder it is worked
+   * at, which is the rule the resolver for that agent carries. Read off the catalog row and never off an agent's
+   * id, and read here alone, so every kind answers the same way. */
+  const projectMemoryKey = (agentId: string, project: ProjectView): string | undefined =>
+    CATALOG_AGENTS.find(a => a.id === agentId)?.projectKeyEnv !== undefined ? project.memoryKey : projectStateKey(agentId, project.path);
+
+  /** The folder a turn or a command starts in, the one rule every road reads: the folder the caller named, else
+   * the folder this workspace holds its project in, which is the kind's own reading, else the project's own path.
+   * The kind is asked rather than the project read directly, because on a computer that makes a workspace by
+   * copying the project folder the workspace's folder is that copy and never the person's own checkout. Both
+   * roads that launch a process through this runtime read it here, the turn and the exec verb, so the folder a
+   * turn opens in and the one a command runs in cannot differ, and the app, the command line and the tool need
+   * not restate it. */
+  const threadFolder = async (entry: LiveWorkspace, o: { cwd?: string | undefined }): Promise<string> => {
+    return o.cwd ?? moduleOf(entry.record.kind).folder(entry.record) ?? ctx.projectHeld(entry.record.project).path;
+  };
+  return {
+    projectOf, remoteHere, gitHere, gitTopOf, branchAt, stateFolder, cloneHere, localRoad, placeDoorOf, machineReading,
+    moduleOf, backendFor, openChannel, backendOfKind, keepsImages, pauseKeepsDisk, namesWorkspace, lifecycleOf,
+    execFactoryFor, threadFolder, kindOf, placeAgentHome, vaultOn, brokered, readBroker, knowBroker, brokeredLaunch,
+  };
+}

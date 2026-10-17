@@ -1,0 +1,207 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// A project's home: New thread with no workspace under it yet, the same
+// composer included, the project the one choice on it. The task typed here names the workspace the send makes;
+// the picks made here move to that workspace and the message is queued on its
+// fresh thread, which sends it the moment the copy stands, so a person types once
+// and lands in the running thread; the store keeps the message through a reload
+// until then. A send to several models makes one copy per
+// model, and the store starts the thread in each the moment it stands, all under
+// one attempt id, since a queue drains only in a composer on screen and one copy
+// at most is on screen; the computer's free room is read first, and a send it
+// has no room for is refused before any copy is made.
+import { CONVERSATION_OPEN_KIND, CONVERSATION_WORDS, HERE_PLACE_ID, START_WORDS, defaultNotRunLine, githubLinkOf, nameOfTask, placeRoom, plural, projectForRepo, refusalLine, resolveThreadDefaults, type HarnessCatalog, type ProjectView } from "@wsp/protocol";
+import { HistoryIcon } from "lucide-react";
+import { DEFAULT_AGENT, agentName } from "@wsp/catalog";
+import { sendOn, useConversationsStore, type HeldPick, type SendPicks } from "./conversations.js";
+import { ResumeDraft } from "./ResumeDraft.js";
+import { Button } from "../components/ui/button.js";
+import { RefusalSlot } from "../settings/sheetParts.js";
+import { EmptyThread } from "../components/chat/ChatView.js";
+import { HeroField } from "../components/chat/EmptyHero.js";
+import { ChatComposer } from "../components/chat/ChatComposer.js";
+import { newId, useComposerDraft, useComposerDraftStore } from "../components/chat/composerDraftStore.js";
+import { attachmentOf, useComposerFilesStore } from "../components/chat/composerFiles.js";
+import { useMultiPickStore, type ModelPick } from "../components/chat/composerMultiPick.js";
+import { useComposerOptions, useComposerOptionsStore, type ComposerOptions } from "../components/chat/composerOptionsStore.js";
+import { startOptionsFrom } from "../components/chat/composerPicks.js";
+import { useChatThread } from "../components/chat/useChatThread.js";
+import { noticeFailure } from "../notices/store.js";
+import { HomeProjectPicker, WhereItRuns } from "./NewThreadPicks.js";
+import type { Api } from "../protocol/client.js";
+import { projectHomeKey, useHarnessCatalogs, useStore } from "../protocol/store.js";
+
+/** The line a send to more models than the computer has room for is refused with. */
+export function noRoomLine(where: string, free: number, noun: string, asked: number): string {
+  return `${where} has room for ${plural(free, `more ${noun}`)} now, and this send needs ${asked}`;
+}
+
+/** Why a send to `asked` models is refused before any copy is made, or null when the computer the project lands on
+ * takes them all: the room its cap leaves, and the room for forks where it makes them. */
+async function roomRefusal(api: Api, project: ProjectView, asked: number): Promise<string | null> {
+  if (api.workspacesLanding === undefined || api.placesList === undefined) return null;
+  try {
+    const landing = await api.workspacesLanding(project.id);
+    const { places } = await api.placesList();
+    const place = places.find(p => p.id === (landing.place ?? HERE_PLACE_ID));
+    if (place === undefined) return null;
+    const cap = placeRoom(place);
+    const free = Math.min(cap?.room ?? Infinity, place.forks?.room ?? Infinity);
+    return asked > free ? noRoomLine(landing.name, free, cap?.noun ?? "workspace", asked) : null;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
+/** The line New thread says where the model the person set as the default, on the project or the agent, is not one
+ * the agent on the project's computer runs: what runs instead, and why. Nothing once a model is picked here. */
+function useDefaultNotRun(projectId: string, catalogs: readonly HarnessCatalog[], picked: ComposerOptions): string | null {
+  const preferences = useStore(s => s.preferences);
+  const table = useStore(s => s.harnesses);
+  if (picked.model !== undefined) return null;
+  const project = preferences.projectDefaults[projectId];
+  const agent = picked.harness ?? resolveThreadDefaults({ firstAgent: catalogs[0]?.harness ?? DEFAULT_AGENT.id, catalogOf: id => catalogs.find(c => c.harness === id), prefs: preferences, ...(project !== undefined ? { project } : {}) }).agent.value;
+  const lists = catalogs.find(c => c.harness === agent);
+  return lists === undefined ? null : defaultNotRunLine(lists, table.find(c => c.harness === agent), preferences, project);
+}
+
+export function ProjectHome({ projectId }: { projectId: string }) {
+  const project = useStore(s => s.projects.find(p => p.id === projectId));
+  const createWorkspace = useStore(s => s.createWorkspace);
+  const key = projectHomeKey(projectId);
+  const thread = useChatThread(key, null, true);
+  const catalogs = useHarnessCatalogs(key);
+  const picked = useComposerOptions(key);
+  // A link in the box names a project of its own, whichever home it was typed in: the send starts on that project.
+  const link = githubLinkOf(useComposerDraft(key).prompt);
+  const linked = useStore(s => (link === undefined ? undefined : projectForRepo(s.projects, link.repo, HERE_PLACE_ID)));
+  const held = useConversationsStore(s => s.held[projectId]);
+  const notRun = useDefaultNotRun(projectId, catalogs, picked);
+  if (project === undefined) return null;
+
+  /** A send with a conversation held opens the thread on it; one another app holds open asks first, the message kept. */
+  const continueOn = async (prompt: string, pick: HeldPick): Promise<string | null> => {
+    // The conversation's own agent runs it, so the picks ride only where they were made for that agent.
+    const catalog = catalogs.find(c => c.harness === pick.row.agent);
+    const own = catalog !== undefined && (picked.harness === undefined || picked.harness === pick.row.agent) ? startOptionsFrom(catalog, picked) : {};
+    const picks: SendPicks = {
+      ...(own.model !== undefined ? { model: own.model } : {}),
+      ...(own.effort !== undefined ? { effort: own.effort } : {}),
+      ...(own.permissionMode !== undefined ? { permissionMode: own.permissionMode } : {}),
+    };
+    const send = { prompt, picks, key };
+    const refused = await sendOn(project.id, pick, send);
+    if (refused === null) return null;
+    if (refused.kind !== CONVERSATION_OPEN_KIND) return refused.fix === undefined ? refused.said : refusalLine(refused.said, refused.fix);
+    useComposerDraftStore.getState().setDraft(key, { prompt, cursor: prompt.length });
+    useConversationsStore.getState().ask({ project: project.id, row: pick.row, send });
+    return null;
+  };
+
+  /** A start or a review off the link, through the host, which opens the thread it made. */
+  const fromLink = async (url: string, kind: "start" | "review"): Promise<string | null> => {
+    const { api, select, preferences } = useStore.getState();
+    const go = kind === "start" ? api?.start : api?.review;
+    if (go === undefined) return null;
+    const access = preferences.access[key];
+    try {
+      const made = await go({
+        url,
+        ...(kind === "start" && picked.harness !== undefined ? { agent: picked.harness } : {}),
+        ...(picked.model !== undefined && kind === "start" ? { model: picked.model } : {}),
+        ...(picked.effort !== undefined ? { effort: picked.effort } : {}),
+        ...(kind === "start" && access !== undefined && access !== null ? { access } : {}),
+      });
+      useComposerDraftStore.getState().setDraft(key, { prompt: "", cursor: 0 });
+      useComposerOptionsStore.getState().drop(key, key);
+      select(made.workspace.id, made.threadId);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+
+  const start = async (prompt: string): Promise<string | null> => {
+    if (held !== undefined) return continueOn(prompt, held);
+    const asked = githubLinkOf(prompt);
+    if (asked !== undefined) return fromLink(asked.url, "start");
+    const picks = useMultiPickStore.getState().byKey[key];
+    if (picks !== undefined) return startSeveral(prompt, picks);
+    await createWorkspace(project.id, nameOfTask(prompt), undefined, { prompt, queuedFrom: key });
+    return null;
+  };
+
+  const startSeveral = async (prompt: string, picks: ReadonlyArray<ModelPick>): Promise<string | null> => {
+    const { api } = useStore.getState();
+    if (api === null) return null;
+    const refused = await roomRefusal(api, project, picks.length);
+    if (refused !== null) return refused;
+    const attempt = newId();
+    const attachments = (useComposerFilesStore.getState().pending[key] ?? []).map(attachmentOf);
+    useComposerFilesStore.getState().sendAs(key, attempt);
+    useMultiPickStore.getState().set(key, []);
+    await Promise.all(
+      picks.map(pick => {
+        const catalog = catalogs.find(c => c.harness === pick.harness);
+        const own = { harness: pick.harness, model: pick.model };
+        const options = catalog === undefined ? own : startOptionsFrom(catalog, { ...picked, ...own });
+        return createWorkspace(project.id, `${nameOfTask(prompt)} (${pick.label})`, undefined, { prompt, opens: { ...options, harness: pick.harness, attempt }, ...(attachments.length > 0 ? { attachments } : {}) });
+      }),
+    );
+    useComposerOptionsStore.getState().drop(key, key);
+    return null;
+  };
+
+  if (held !== undefined) {
+    return (
+      <ResumeDraft projectId={project.id}>
+        <ChatComposer
+          key={key}
+          workspaceId={key}
+          thread={thread}
+          onStart={start}
+          homeProject={project.id}
+          where={<WhereItRuns project={project} />}
+          sendLabel={CONVERSATION_WORDS.send}
+          banner={{
+            k: "resume",
+            icon: <HistoryIcon />,
+            line: CONVERSATION_WORDS.continues(held.row.title, held.copy),
+            note: agentName(held.row.agent),
+            dismiss: CONVERSATION_WORDS.startFresh,
+            onDismiss: () => useConversationsStore.getState().hold(project.id, null),
+          }}
+        />
+      </ResumeDraft>
+    );
+  }
+
+  return (
+    <div data-k="project-home" data-chat-view className="relative isolate flex min-h-0 flex-1 flex-col justify-center gap-10 pb-[8vh]">
+      <HeroField />
+      <EmptyThread name={project.name} projectId={project.id} picker={<HomeProjectPicker project={project} />} />
+      <ChatComposer
+        key={key}
+        workspaceId={key}
+        thread={thread}
+        onStart={start}
+        homeProject={project.id}
+        where={<WhereItRuns project={project} />}
+        {...(link !== undefined && linked !== undefined ? { sendLabel: START_WORDS.startOn(link.number) } : {})}
+        {...(link?.kind === "pull_request" && linked !== undefined
+          ? {
+              beside: (
+                <Button type="button" variant="outline" data-k="start-review" onClick={() => void fromLink(link.url, "review").then(said => (said === null ? undefined : noticeFailure(new Error(said))))}>
+                  {START_WORDS.review(link.number)}
+                </Button>
+              ),
+            }
+          : {})}
+        {...(link !== undefined && linked === undefined
+          ? { under: <RefusalSlot k="start-refusal" said={START_WORDS.noProjectForRepo(link.repo)} /> }
+          : notRun !== null
+            ? { under: <RefusalSlot k="default-not-run" note={notRun} /> }
+            : {})}
+      />
+    </div>
+  );
+}

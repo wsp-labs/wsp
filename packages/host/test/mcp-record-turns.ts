@@ -1,0 +1,836 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The sentences the thread and turn tools of the daemon binary's tool server
+// say, recorded off the functions that say them here: each with `{name}` where
+// the Rust side fills a value. A sentence whose words hang on a count is read
+// through a stand-in list whose length is the placeholder, and one built out of
+// a figure is read with the figure swapped for its placeholder, so no word of
+// any of them is written twice.
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { CATALOG_AGENTS } from "@wsp/catalog";
+import { floorApplies, type CommandCount } from "@wsp/collect";
+import {
+  ACCESS_CHOICES,
+  accessNotTakenLine,
+  noAccessWordsLine,
+  noSuchProjectLine,
+  AFTER_CUT_LINE,
+  BOAT_DISK_GONE_LINE,
+  diskGoneReplacedLine,
+  alsoTitle,
+  fmtDuration,
+  goneRefusal,
+  HOST_CLOSED_LINE,
+  FILE_MAX_BYTES,
+  FILES_MAX,
+  filesRefusal,
+  IMAGE_MAX_BYTES,
+  INSTALLS_LATEST,
+  jsonLine,
+  threadResult,
+  notifyLine,
+  NOTIFY_ME,
+  permissionAskLine,
+  pinWords,
+  startPicks,
+  threadOpenedLine,
+  threadMovedLine,
+  threadWithoutIdRefusal,
+  usageRefusal,
+  replacesWorkingLine,
+  replacesWorkingFix,
+  verbFailure,
+  TURN_TOKEN_ENV,
+  UNKNOWN_SIZE,
+  UNTYPED_FILE,
+  waitTimedOutLine,
+  workspaceAsleepAgainLine,
+  workspaceStaysAwakeLine,
+  type HarnessCatalog,
+  type Recipe,
+  type ThreadView,
+  type TurnResult,
+  BUILT_IN_LIST_CLAUSE,
+  BUILT_IN_TABLE_CLAUSE,
+  ANSWER_WORDS,
+  refusalLine,
+  spawnFolderRefusal,
+  SPAWN_FOLDER_FIX,
+  threadLeftLine,
+  capWaitLine,
+  CONVERSATION_OPEN_KIND,
+  conversationOpenFix,
+  conversationOpenLine,
+  BOX_END_FIX,
+  END_AGAIN_FIX,
+  agentEndFix,
+  agentEndLine,
+  boxEndLine,
+  endReusedLine,
+  processesLeftRefusal,
+  type ActivityEnded,
+  subBesideRefusal,
+  subOpenedLine,
+  subOpening,
+  subOtherProjectRefusal,
+  subSizeNoCloudRefusal,
+  subFromNoCloudRefusal,
+  threadOpRefusal,
+} from "@wsp/protocol";
+import { BASE_GROUP, FLOOR_LINE, GROUP_LABEL, tableLines, totalsLine, type TableRow } from "../src/init-table.js";
+import { GUTTER } from "../src/init-layout.js";
+import { COMMANDS_SHOWN, COMMANDS_TITLE, commandTableLines, NOT_SCANNED, recipeAnswer, recipePrintout, recipeScan, scanPrintout, SIGN_INS_TITLE, signInTableLines } from "../src/recipe-answer.js";
+import type { ScanRow } from "../src/scan.js";
+import {
+  absoluteFolder,
+  accessWordOf,
+  ANSWER_ROADS,
+  answeredLine,
+  checkedStart,
+  hostDidNotStopLine,
+  hostRestartedLine,
+  filesFrom,
+  noOpenAskLine,
+  noSuchAnswerLine,
+  openedThreadLine,
+  renameLine,
+  startDetached,
+  stopLine,
+  threadForgotLine,
+  settledLines,
+  restoredLines,
+  threadOf,
+  runTarget,
+  toolFailure,
+  turnFailure,
+  VERBS,
+  workspaceOf,
+  type HostClient,
+  type Turn,
+  type VerbDeps,
+} from "../src/verbs.js";
+import { activityLines, endedLines } from "../src/verbs/activity.js";
+import { SERVICE_WAIT_MS } from "../src/host-lock.js";
+
+/** The message a piece of work is refused with; a record that expected a refusal and got none is a broken record. */
+async function refused(work: () => unknown): Promise<string> {
+  try {
+    await work();
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+  throw new Error("nothing was refused");
+}
+
+/** A host that answers each op with one body, for the functions that ask one before they refuse. */
+function answering(bodies: Record<string, unknown>): HostClient {
+  return {
+    request: async <T extends Record<string, unknown>>(op: string): Promise<T> => {
+      if (!(op in bodies)) throw new Error(`${op} is not asked in this record`);
+      return bodies[op] as T;
+    },
+    events: async () => {},
+    onFrame: () => () => {},
+    closed: new Promise(() => {}),
+    closeWords: () => HOST_CLOSED_LINE,
+    close: () => {},
+    terminate: () => {},
+  };
+}
+
+/** A list whose length reads as the placeholder and whose items join to another: the count's words, never the count. */
+const standIn = (count: string, joined: string): string[] => ({ length: count, map: () => ({ join: () => joined }) }) as unknown as string[];
+
+const catalog = (fields: Partial<HarnessCatalog>): HarnessCatalog =>
+  ({ harness: "{subject}", label: "L", source: "harness", version: null, models: [], efforts: [], contextWindows: [], permissionModes: [], steers: false, renames: false, images: false, isDefault: true, ...fields }) as HarnessCatalog;
+
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+
+async function pickWords(): Promise<Record<string, unknown>> {
+  const option = [{ value: "V", label: "L" }];
+  const said = (c: HarnessCatalog, picks: Parameters<typeof startPicks>[1]): Promise<string> => refused(() => startPicks(c, picks, true));
+  const notOne = async (c: HarnessCatalog, picks: Parameters<typeof startPicks>[1]): Promise<string> => (await said(c, picks)).replace("L (V)", "{options}");
+  const legacy = (await said(catalog({ models: option, legacyModels: [{ value: "LV", label: "LL" }] }), { model: "{value}" })).replace("LL (LV)", "{legacy}").replace("L (V)", "{options}");
+  const fixed = catalog({ models: option });
+  const refusedStart = await refused(() => checkedStart(answering({ "harnesses.list": { harnesses: [fixed] } }), "t", undefined, { model: "{value}" }, "w"));
+  // An agent that maps ask alone, refusing plan: the sentence the start says, with what it refused standing in.
+  const asking = catalog({ label: "{label}", permissionModes: option, access: { ask: "V" } });
+  const accessRefused = await refused(() => checkedStart(answering({ "harnesses.list": { harnesses: [asking] } }), "t", undefined, { access: "plan" }, "w"));
+  return {
+    notOne: {
+      model: await notOne(catalog({ models: option }), { model: "{value}" }),
+      effort: await notOne(catalog({ efforts: option }), { effort: "{value}" }),
+      access: await notOne(catalog({ permissionModes: option }), { permissionMode: "{value}" }),
+    },
+    legacy: legacy.slice(legacy.indexOf("{options}") + "{options}".length),
+    takesNoEffort: await said(catalog({ models: [{ value: "M", label: "{subject}", efforts: [] }], efforts: option }), { model: "M", effort: "{value}" }),
+    noFast: await said(catalog({ models: [{ value: "M", label: "{model}" }] }), { model: "M", fast: true }),
+    refused: refusedStart.replace(await said(fixed, { model: "{value}" }), "{said}"),
+    builtInList: BUILT_IN_LIST_CLAUSE,
+    builtInTable: BUILT_IN_TABLE_CLAUSE,
+    accessWords: await refused(() => accessWordOf("{given}")),
+    accessNotTaken: accessNotTakenLine("{label}", "{word}", "{takes}"),
+    noAccessWords: noAccessWordsLine("{label}"),
+    accessRefused: accessRefused.replace(accessNotTakenLine("{label}", "plan", "ask"), "{said}"),
+    accessChoices: [...ACCESS_CHOICES],
+  };
+}
+
+async function fileWords(): Promise<Record<string, unknown>> {
+  const dir = mkdtempSync(join(tmpdir(), "wsp-mcp-record-files-"));
+  const pngs = Array.from({ length: FILES_MAX + 1 }, (_, i) => {
+    const path = join(dir, `shot-${i}.png`);
+    writeFileSync(path, PNG);
+    return path;
+  });
+  const tooMany = filesRefusal(pngs.map(() => ({ mediaType: "image/png", bytes: PNG.length })))!;
+  const many = Array.from({ length: FILES_MAX + 2 }, () => ({ mediaType: "image/png", bytes: 1 }));
+  const big = 2 * FILE_MAX_BYTES;
+  const size = `is ${(big / 1024 / 1024).toString()} MB`;
+  return {
+    notAFile: await refused(() => filesFrom(["{path}"])),
+    guest: await refused(() => filesFrom(["{path}"], true)),
+    refused: (await refused(() => filesFrom(pngs))).replace(tooMany, "{refusal}"),
+    tooMany: filesRefusal(many)!.replace(`carries ${many.length}`, "carries {count}"),
+    empty: filesRefusal([{ mediaType: "image/png", bytes: 0, name: "{name}" }])!,
+    imageTooBig: filesRefusal([{ mediaType: "image/png", bytes: big, name: "{name}" }])!.replace(size, "is {size}"),
+    fileTooBig: filesRefusal([{ mediaType: UNTYPED_FILE, bytes: big, name: "{name}" }])!.replace(size, "is {size}"),
+    untyped: UNTYPED_FILE,
+    imageMaxBytes: IMAGE_MAX_BYTES,
+    fileMaxBytes: FILE_MAX_BYTES,
+    max: FILES_MAX,
+  };
+}
+
+/** The recipe tools' own refusals, read off the tools, which refuse a relative path before anything is scanned. */
+async function recipeRefusals(): Promise<Record<string, string>> {
+  const deps: VerbDeps = { statePath: "/nonexistent/state.json", env: {}, client: async () => answering({}) };
+  const call = (name: string, args: Record<string, unknown>): Promise<string> =>
+    refused(async () => {
+      const verb = VERBS.find(v => v.name === name && "tool" in v && v.tool !== undefined)! as unknown as { tool: { call(args: Record<string, unknown>, deps: VerbDeps): Promise<unknown> } };
+      await verb.tool.call(args, deps);
+    });
+  return { outNotAbsolute: await call("recipe", { out: "{path}" }), projectNotAbsolute: await call("recipe scan", { project: ["{path}"] }) };
+}
+
+/** What the recipe's two tables are drawn out of on a terminal with no colour: the marks, the columns' words and the
+ * lines around them. */
+function recipeTableWords(): Record<string, unknown> {
+  const row = (on: boolean): TableRow => ({ id: "i", kind: "tool", name: "n", on, base: on, group: BASE_GROUP, why: "w", heavy: false });
+  const mark = (on: boolean): string => tableLines([row(on)], 1)[0]!.split(GUTTER)[0]!;
+  const unknown = totalsLine([{ ...row(true), base: false }], "tools");
+  const counted = totalsLine([{ ...row(true), size: 0 }], "tools");
+  const head = (line: string): string[] => line.trim().split(/ {2,}/);
+  const empty = recipePrintout({ at: "", out: "", agents: [], tools: [], totalBytes: 0, heavy: [], commands: [], custom: [] });
+  const more = commandTableLines(Array.from({ length: COMMANDS_SHOWN + 1 }, (_, i) => ({ name: `c${i}`, calls: 1, sessions: 1 })));
+  return {
+    agentsTitle: empty[0],
+    toolsTitle: empty[empty.indexOf("") + 1],
+    tickOn: mark(true),
+    tickOff: mark(false),
+    gutter: GUTTER,
+    groupLabels: GROUP_LABEL,
+    floorLine: FLOOR_LINE,
+    floorApplies: { used: floorApplies("used"), installed: floorApplies("installed"), default: floorApplies("default"), none: floorApplies(undefined) },
+    unknownSize: UNKNOWN_SIZE,
+    totals: counted.replace("1 tool", "{on}").replace("0 B", "{bytes}"),
+    totalsUnknown: unknown.slice(unknown.indexOf(", 1 of")).replace("1", "{unknown}"),
+    pinLatest: pinWords({ tag: "{tag}", latest: true }),
+    installsLatest: INSTALLS_LATEST,
+    commandsTitle: COMMANDS_TITLE,
+    commandsShown: COMMANDS_SHOWN,
+    commandsHead: head(commandTableLines([{ name: "n", calls: 1, sessions: 1 }])[1]!),
+    none: commandTableLines([])[1],
+    more: more.at(-1)!.replace("1", "{count}"),
+    notScanned: NOT_SCANNED,
+    signInsTitle: SIGN_INS_TITLE,
+    signInsHead: head(signInTableLines([{ id: "i", name: "n", signIn: "s", recommended: { value: "v", why: "w" } }])[1]!),
+    alsoTitle: { darwin: alsoTitle("darwin"), linux: alsoTitle("linux") },
+  };
+}
+
+/** Activity's sentences in the shape the Rust side fills; the columns of its rows are laid out there as activityLines
+ * lays them. */
+function activityWords(): Record<string, string> {
+  const row = { pid: 1, ppid: 0, depth: 0, startedAt: 0, kind: "other" as const, name: "{name}", command: "c", memory: 0, cpu: 0, ports: [] };
+  const named = { ...row, pid: "{pid}" as unknown as number };
+  const ended = (over: Partial<ActivityEnded>): string[] => endedLines({ pid: 1, ended: [named], forced: [], left: [], ...over }).split("\n");
+  const [wsp, , unowned] = activityLines({ computer: "c", at: 0, threads: [], wsp: [row], unowned: [row] }).split("\n");
+  return {
+    none: activityLines({ computer: "{computer}", at: 0, threads: [], wsp: [], unowned: [] }),
+    wsp: wsp!,
+    unowned: unowned!,
+    ended: ended({})[0]!,
+    endedUnder: ended({ ended: [named, row, row] })[0]!.replace(" 2 under", " {count} under"),
+    gone: endedLines({ pid: "{pid}" as unknown as number, ended: [], forced: [], left: [] }),
+    forced: ended({ forced: ["{pids}" as unknown as number] })[1]!,
+    left: ended({ left: ["{pids}" as unknown as number] })[1]!,
+    freed: endedLines({ pid: 1, ended: [], forced: [], left: [], freed: "{thread}" }),
+  };
+}
+
+export async function turnWords(): Promise<Record<string, unknown>> {
+  const session = (id: string) => ({ id, workspaceId: "w", harness: "claude", status: "completed" });
+  const several = await refused(() => threadOf(answering({ "sessions.list": { sessions: [session("{ref}a"), session("{ref}b")] } }), "{ref}"));
+  const otherVersion = await refused(() => workspaceOf(answering({ "workspaces.resolve": { workspace: {} } }), "w"));
+  const stopped = (outcome: "accepted" | "not-running" | "not-found"): string => stopLine({ threadId: "{thread}", outcome });
+  const outcomes = ["renamed", "unsupported", "no-session", "failed", "not-found"] as const;
+  const unstamped = (await refused(() => startDetached(answering({ "sessions.start": { session: session("s"), outcome: "started", turnId: "t" } }), {}, "agent"))).trim();
+  const napping = workspaceStaysAwakeLine("{name}", 60_000);
+  const write = permissionAskLine("Write", JSON.stringify({ file_path: "{name}" }));
+  const edit = permissionAskLine("Edit", JSON.stringify({ file_path: "{name}" }));
+  const change = permissionAskLine("file_change", JSON.stringify({ changes: [{ path: "{name}" }] }));
+  return {
+    severalThreads: several.replace(/^2 /, "{count} "),
+    noThread: await refused(() => threadOf(answering({ "sessions.list": { sessions: [] } }), "{ref}")),
+    otherVersion: otherVersion.replace("workspaces.resolve", "{op}"),
+    gone: goneRefusal("{name}", "{action}"),
+    goneWith: goneRefusal("{name}", "{action}", "{words}"),
+    stopped: { accepted: stopped("accepted"), "not-running": stopped("not-running"), "not-found": stopped("not-found") },
+    stopUnderOne: stopLine({ threadId: "{thread}", outcome: "accepted", under: ["{under}"] }).slice(stopped("accepted").length),
+    stopLeft: stopLine({ threadId: "{thread}", outcome: "accepted", left: "{left}" }).slice(stopped("accepted").length),
+    stopUnderSome: stopLine({ threadId: "{thread}", outcome: "accepted", under: standIn("{count}", "{under}") }).slice(stopped("accepted").length),
+    stoppedTask: Object.fromEntries((["accepted", "not-running", "not-found"] as const).map(outcome => [outcome, stopLine({ threadId: "{thread}", task: "{task}", outcome })])),
+    stopTaskSaid: stopLine({ threadId: "{thread}", task: "{task}", outcome: "refused", error: "{error}" }),
+    renamed: Object.fromEntries(outcomes.map(outcome => [outcome, renameLine({ threadId: "{thread}", title: "{title}", harness: "{agent}", outcome, error: "{error}" })])),
+    renameFailedSilent: renameLine({ threadId: "{thread}", title: "{title}", harness: "{agent}", outcome: "failed" }),
+    agents: Object.fromEntries(CATALOG_AGENTS.map(e => [e.id, e.name])),
+    threadWithoutId: threadWithoutIdRefusal("{row}"),
+    threadForgot: threadForgotLine({ id: "{thread}" } as ThreadView),
+    activity: activityWords(),
+    threadSettled: settledLines({ settled: [{ threadId: "{thread}", title: "{title}" }], left: [] }),
+    threadLeft: settledLines({ settled: [], left: [{ threadId: "{thread}", why: "{why}" }] }),
+    nothingSettled: settledLines({ settled: [], left: [] }),
+    threadRestored: restoredLines({ restored: [{ threadId: "{thread}", title: "{title}" }] }),
+    nothingRestored: restoredLines({ restored: [] }),
+    noOpenAsk: noOpenAskLine("{thread}"),
+    answerRoads: ANSWER_ROADS.flatMap(road => (road.answer === undefined ? [] : [{ verb: road.answer.verb, effect: road.effect, said: road.answer.said, noSuchAnswer: noSuchAnswerLine("{thread}", road.answer.verb) }])),
+    answered: answeredLine("{thread}", { toolName: "{tool}", input: "" }, "{said}").replace(permissionAskLine("{tool}", ""), "{ask}"),
+    answerWords: ANSWER_WORDS,
+    asks: {
+      command: permissionAskLine("Bash", JSON.stringify({ command: "{command}" })),
+      skill: permissionAskLine("Skill", JSON.stringify({ skill: "{skill}" })),
+      server: permissionAskLine("mcp__{server}__{tool}", "{}"),
+      plain: permissionAskLine("{tool}", ""),
+      plainDetail: permissionAskLine("{tool}", "", "{detail}"),
+      write,
+      writeIn: permissionAskLine("Write", JSON.stringify({ file_path: "{folder}/{name}" })).slice(write.length),
+      writeSize: permissionAskLine("Write", JSON.stringify({ file_path: "{name}", content: "x" })).slice(write.length).replace("1 B", "{size}"),
+      edit,
+      editIn: permissionAskLine("Edit", JSON.stringify({ file_path: "{folder}/{name}" })).slice(edit.length),
+      editPlaces: permissionAskLine("MultiEdit", JSON.stringify({ file_path: "{name}", edits: [{}, {}] })).slice(edit.length).replace("2", "{count}"),
+      fetch: permissionAskLine("WebFetch", JSON.stringify({ url: "{url}" })),
+      change,
+      changeIn: permissionAskLine("file_change", JSON.stringify({ changes: [{ path: "{folder}/{name}" }] })).slice(change.length),
+      changes: permissionAskLine("file_change", JSON.stringify({ changes: [{ path: "a" }, { path: "b" }] })).replace("2", "{count}").replace("a, b", "{names}"),
+    },
+    finished: notifyLine("{thread}", { status: "{facts}", text: "{body}" } as unknown as TurnResult),
+    finishedBare: notifyLine("{thread}", { status: "{facts}" } as unknown as TurnResult),
+    timedOutOne: waitTimedOutLine(["{thread}"], 1_000).replace(fmtDuration(1_000), "{after}"),
+    timedOutSome: waitTimedOutLine(standIn("{count}", ""), 1_000).replace(fmtDuration(1_000), "{after}"),
+    restarted: { none: hostRestartedLine([]), one: hostRestartedLine(["{ids}"]), some: hostRestartedLine(standIn("{count}", "{ids}")) },
+    hostDidNotStop: hostDidNotStopLine(SERVICE_WAIT_MS),
+    cwdNotAbsolute: await refused(() => absoluteFolder("{path}")),
+    emptyTask: await refused(() => checkedStart(answering({}), " ", undefined, {})),
+    noAdapter: await refused(() => checkedStart(answering({ "harnesses.list": { harnesses: [catalog({ harness: "{agents}" })] } }), "t", "{agent}", {})),
+    noAdapterNone: await refused(() => checkedStart(answering({ "harnesses.list": { harnesses: [] } }), "t", "{agent}", {})),
+    picks: await pickWords(),
+    noThreadTarget: await refused(() => runTarget(answering({}), undefined, "/", {}, false, {})),
+    guestNamesWorkspace: await refused(() => runTarget(answering({}), undefined, "/", {}, true, {})),
+    branchHereOnly: await refused(() => runTarget(answering({ "projects.resolve": { project: { id: "p-9", name: "{ref}", path: "/root/{ref}", computer: "pl-attic" } } }), "{ref}", undefined, {}, false, { branch: "b" })),
+    threadOpened: threadOpenedLine("{thread}", "{project}", "{folder}"),
+    threadOpenedIn: threadOpenedLine("{thread}", undefined, "{folder}"),
+    moved: threadMovedLine("{from}", "{to}", false),
+    movedFresh: threadMovedLine("{from}", "{to}", true),
+    openedThread: openedThreadLine("{thread}", undefined),
+    sub: { sizeNoCloud: subSizeNoCloudRefusal().message, fromNoCloud: subFromNoCloudRefusal().message, beside: subBesideRefusal("{word}").message, opened: subOpenedLine("{thread}", "{on}", "{folder}"), opening: subOpening("{preamble}", "{task}") },
+    capWait: capWaitLine({ placeId: "p", place: "{place}", running: "{running}" as unknown as number, atOnce: 2 }).replace("2 threads", "{threads}"),
+    noResult: threadResult([{ type: "session.end", workspaceId: "w", sessionId: "s", threadId: "t", exitCode: null, sawResult: false }], "t")?.error,
+    noThreadStamped: unstamped,
+    turnFailed: turnFailure({ result: { status: "{status}" } } as unknown as Turn),
+    turnNoResult: turnFailure({} as Turn),
+    afterCut: AFTER_CUT_LINE,
+    asleepAgain: workspaceAsleepAgainLine("{name}"),
+    staysAwake: workspaceStaysAwakeLine("{name}"),
+    staysAwakeNaps: napping.replace(/1m$/, "{naps}"),
+    files: await fileWords(),
+    turnTokenEnv: TURN_TOKEN_ENV,
+    notifyMe: NOTIFY_ME,
+    recipe: { ...(await recipeRefusals()), ...recipeTableWords() },
+  };
+}
+
+/** One call recorded against a host: the arguments, the frame each op is answered with, the frames the host pushes
+ * while an op is under way, before its reply, the op after whose reply the host lets the socket go as it stops, and the
+ * environment the server runs in where the tool reads it. */
+export interface TurnCase {
+  case: string;
+  arguments: Record<string, unknown>;
+  replies: Record<string, string>;
+  pushed?: Record<string, string[]>;
+  closes?: string;
+  env?: Record<string, string>;
+  /** Recorded and replayed with the cloud on, which is the only state some tools are served in. */
+  cloud?: true;
+}
+
+const ok = (body: Record<string, unknown>): string => JSON.stringify({ id: 1, ok: true, ...body });
+const no = (error: string, kind?: string): string => JSON.stringify({ id: 1, ok: false, error, ...(kind !== undefined ? { kind } : {}) });
+const frame = (body: Record<string, unknown>): string => JSON.stringify(body);
+
+const THREAD = "thread-7f3a9c21e4b5";
+const OTHER = "thread-b0b0b0b0c1c1";
+const STARTED = "thread-9d8c7b6a5f4e";
+const WORKSPACE = { id: "ws-1", name: "attic-work", machineId: "m-1", phase: "running", kind: "cloud", golden: "default", createdAt: "2026-09-27T00:00:00.000Z", project: { id: "p-1", name: "wsp", path: "/root/wsp", computer: "here" }, home: "/root" };
+const NAPPING = { ...WORKSPACE, phase: "napping" };
+const SITE_FORK = { ...WORKSPACE, id: "ws-5", name: "fix the login page now 2", project: { id: "p-2", name: "site", path: "/root/site", computer: "pl-attic" } };
+const GONE = { ...WORKSPACE, phase: "gone", gone: "deleted at the provider \u0085" };
+/** The machine a wake moved the workspace onto when Boat had deleted the napping one's disk, with the line it left. */
+const REPLACED = { ...WORKSPACE, machineId: "m-2", diskGone: diskGoneReplacedLine(BOAT_DISK_GONE_LINE) };
+/** A sub-thread whose machine Boat deleted on release: its next turn starts a new one, with no wake asked first. */
+const RELEASED = { ...WORKSPACE, machineId: "", phase: "released" };
+const sessionRow = (fields: Record<string, unknown>) => ({ workspaceId: "ws-1", harness: "claude", status: "completed", ...fields });
+const SESSIONS = [
+  sessionRow({ id: "sess-1", threadId: THREAD, status: "completed", claudeSessionId: "cs-1", prompt: "fix the \u0085 build", costUsd: 0.1 }),
+  sessionRow({ id: "sess-2", threadId: THREAD, status: "running", claudeSessionId: "cs-1", costUsd: 0.2 }),
+  sessionRow({ id: "sess-3", threadId: OTHER, harness: "codex", status: "completed" }),
+];
+const listed = (rows: readonly unknown[] = SESSIONS): string => ok({ sessions: rows });
+/** One process as Activity lists it, a dev server unless the case says otherwise; fields out of the schema's order. */
+const activityProc = (over: Record<string, unknown>) => ({ ports: [], cpu: 0.25, memory: 80_000_000, command: "node /lab/node_modules/.bin/vite", name: "node", kind: "dev", startedAt: 1_760_000_001_000, depth: 1, ppid: 4100, pid: 4200, ...over });
+const ACTIVITY = {
+  computer: "lab-mac",
+  at: 1_760_000_010_000,
+  threads: [
+    {
+      threadId: THREAD,
+      title: "fix the \u0085 build",
+      workspaceId: "ws-1",
+      memory: 400_000_000,
+      cpu: 13.05,
+      processes: [
+        activityProc({ pid: 4100, ppid: 1, depth: 0, kind: "agent", name: "2.1.296", command: "claude -p --input-format stream-json", memory: 300_000_000, cpu: 3, startedAt: 1_760_000_000_000 }),
+        activityProc({ ports: [5173, 24678], cpu: 10.05 }),
+        activityProc({ pid: 4300, ppid: 4200, depth: 2, kind: "other", name: "esbuild", command: "esbuild --service=0.25.0 --ping", memory: 20_000_000, cpu: 0, startedAt: 1_760_000_002_000 }),
+      ],
+    },
+  ],
+  wsp: [activityProc({ pid: 1, ppid: 0, depth: 0, kind: "wsp", name: "wsp-daemon", command: "wsp-daemon serve", memory: 9_000_000, cpu: 0.5, startedAt: 1_759_000_000_000 })],
+  unowned: [activityProc({ pid: 5000, ppid: 1, depth: 0, kind: "other", name: "naïve", command: "naïve \"résumé\"", memory: 512, cpu: 0 })],
+};
+const ENDED = { left: [], forced: [], ended: [activityProc({}), activityProc({ pid: 4300, ppid: 4200, depth: 2, kind: "other", name: "esbuild", command: "esbuild --service", memory: 20_000_000 })], pid: 4200 };
+/** A sub-thread on Boat, its machine napping until its delete, and what the done after its turn read off it. */
+const SUB = "thread-e17a90c34f2b";
+const SUB_RESULT = { branch: "wsp/fix-it", pushedSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", commits: 3, unpushed: 0, changed: 0, onBranch: "wsp/fix-it", readAt: "2026-10-12T09:44:10.512Z" };
+const SUB_ROW = { state: "napping", on: "boat", machine: "Fix it \u0085", size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018, branch: "wsp/fix-it", deleteAt: 1_790_000_000_000 };
+const resolved = (workspace: unknown = WORKSPACE): string => ok({ workspace });
+/** A thread's replies: the index THREAD is read off, on the record given, and that record. */
+const atThread = (workspace: { id: string; [field: string]: unknown } = WORKSPACE): Record<string, string> => ({ "sessions.list": listed([{ id: "s-1", workspaceId: workspace.id, harness: "claude", status: "completed", threadId: THREAD }]), "workspaces.get": resolved(workspace) });
+/** A project in a folder on this computer, and the list a run reads it off, with a box project beside it. */
+const HERE_PROJECT = { id: "p-1", name: "wsp", computer: "here", source: { kind: "folder", path: "/Users/me/wsp" }, path: "/Users/me/wsp", git: { top: "/Users/me/wsp" } };
+const SITE_PROJECT = { ...HERE_PROJECT, id: "p-2", name: "site", computer: "pl-attic", path: "/root/site" };
+const PROJECTS = { "projects.list": ok({ projects: [HERE_PROJECT, SITE_PROJECT] }) };
+/** The list, the project door answering site, and its landing on a computer that forks a machine for a thread. */
+const SITE_FORKS = { ...PROJECTS, "projects.resolve": ok({ project: SITE_PROJECT }), "workspaces.landing": ok({ place: "pl-attic", name: "attic", capabilities: { sizes: [] }, kind: "cloud" }) };
+/** The list a run reads, and the project door refusing a machine's name as it refuses any word naming no project. */
+const MACHINE_NAMED = { ...PROJECTS, "projects.resolve": no(noSuchProjectLine(WORKSPACE.name, ["wsp", "site"]), "not-found") };
+const startIn = (cwd: string): string => ok({ session: sessionRow({ id: "sess-9", threadId: STARTED, status: "running", startedBy: "agent", cwd }), outcome: "started", turnId: "turn-9" });
+const CLAUDE = {
+  harness: "claude",
+  label: "Claude Code",
+  source: "harness",
+  version: "2.1.0",
+  models: [
+    { value: "claude-sonnet-5", label: "Sonnet 5", isDefault: true },
+    { value: "claude-opus-5-5", label: "Opus 5.5", efforts: ["high", "max"] },
+    { value: "claude-haiku", label: "Haiku", efforts: [] },
+  ],
+  legacyModels: [{ value: "claude-3", label: "Claude 3" }],
+  efforts: [
+    { value: "low", label: "Low" },
+    { value: "high", label: "High", isDefault: true },
+    { value: "max", label: "Max" },
+  ],
+  contextWindows: [],
+  permissionModes: [
+    { value: "acceptEdits", label: "Accept edits" },
+    { value: "bypassPermissions", label: "Bypass \u0085", isDefault: true },
+  ],
+  access: { "auto-edit": "acceptEdits", full: "bypassPermissions" },
+  steers: true,
+  renames: true,
+  images: true,
+  isDefault: true,
+};
+const CODEX = { ...CLAUDE, harness: "codex", label: "Codex", source: "table", models: [{ value: "gpt-5", label: "GPT-5", isDefault: true }], legacyModels: undefined, isDefault: false };
+const HARNESSES = ok({ harnesses: [CLAUDE, CODEX] });
+/** A sub-thread's machine on Boat as the host answers its create: the machine, the lines it passed with, and what the
+ * start opens the thread with. */
+const SUB_OUT = {
+  on: "boat",
+  machine: "fix it",
+  size: { cpu: 4, memMb: 8192 },
+  rateUsdPerHour: 0.036,
+  repo: "https://github.com/acme/web.git",
+  base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" },
+  branch: "wsp/fix-it",
+  sent: { paths: [".env"], bytes: 1100, missing: [] },
+  notSent: { uncommitted: 0 },
+  deleteAfterMinutes: 30,
+};
+const SUB_MADE = ok({
+  workspace: { ...WORKSPACE, id: "ws-sub", name: "fix it", project: { id: "p-1", name: "web", path: "/Users/me/web", computer: "here" } },
+  notice: "no git-ignored files were sent \u0085",
+  sub: { out: SUB_OUT, folder: "/root/web", preamble: "This thread runs on a machine of its own on Boat \"x\" \u0085", harness: "claude" },
+});
+const SUB_REPLIES = { "harnesses.list": HARNESSES, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "events.subscribe": ok({}), "workspaces.create": SUB_MADE };
+
+const scope = { workspaceId: "ws-1", sessionId: "sess-9", threadId: STARTED };
+const START = ok({ session: sessionRow({ id: "sess-9", threadId: STARTED, status: "running", startedBy: "agent" }), outcome: "started", turnId: "turn-9" });
+const HELD = ok({ session: sessionRow({ id: "turn-9", threadId: STARTED, status: "running", startedBy: "agent", capped: { placeId: "p-hetzner", place: "hetzner", running: 2, atOnce: 2 } }), outcome: "held", turnId: "turn-9" });
+const done = (result: Record<string, unknown>, turnId = "turn-9"): string => frame({ type: "session.done", ...scope, turnId, result });
+const REPLY = { status: "completed", durationMs: 83_456, waitedMs: 2_000, costUsd: 0.1 + 0.2, text: "Fixed \"it\" \u0085 é\n\nlast   line of the reply  \n" };
+const TURN = [
+  frame({ type: "session.start", ...scope, turnId: "turn-9", afterCut: true }),
+  done({ status: "failed", error: "an older turn's end" }, "turn-8"),
+  frame({ type: "session.delta", ...scope, turnId: "turn-9", kind: "text", text: "Fixed" }),
+  done(REPLY),
+];
+
+const ask = (toolName: string, input: unknown, options: { id: string; label: string; effect: string }[], detail?: string) =>
+  frame({ type: "session.permission", workspaceId: "ws-1", sessionId: "sess-2", threadId: THREAD, turnId: "turn-2", askId: "ask-1", toolName, input: typeof input === "string" ? input : JSON.stringify(input), options, ...(detail !== undefined ? { detail } : {}) });
+const CONSENT = [
+  { id: "opt-allow", label: "Allow", effect: "allow" },
+  { id: "opt-mode", label: "Allow all edits", effect: "mode" },
+  { id: "opt-deny", label: "Deny", effect: "deny" },
+];
+const history = (...events: string[]): string => `{"id":1,"ok":true,"events":[${events.join(",")}]}`;
+const answer = (outcome: string): string => ok({ outcome });
+
+const asked = (events: string[], extra: Record<string, string> = {}): Record<string, string> => ({ "sessions.list": listed(), "sessions.history": history(...events), "sessions.answer": answer("answered"), ...extra });
+
+export const TURN_ANSWERED: Record<string, TurnCase[]> = {
+  stop: [
+    { case: "stopped with the tree", arguments: { thread: "thread-7f" }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "accepted", under: ["thread-1111aaaa2222", "thread-3333bbbb4444"] }) } },
+    { case: "stopped with one under", arguments: { thread: THREAD }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "accepted", under: ["thread-1111aaaa2222"] }) } },
+    { case: "stopped, a process it started left running", arguments: { thread: THREAD }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "accepted", left: threadLeftLine("hetzner", [4242]) }) } },
+    { case: "not running", arguments: { thread: THREAD }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "not-running", under: [] }) } },
+    { case: "not found by the host", arguments: { thread: OTHER }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "not-found" }) } },
+    { case: "one subagent stopped", arguments: { thread: THREAD, subagent: "a1b2c3" }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "accepted" }) } },
+    { case: "one subagent already over", arguments: { thread: THREAD, subagent: "a1b2c3" }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "not-running" }) } },
+    { case: "one subagent the agent would not stop", arguments: { thread: THREAD, subagent: "zz9" }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "refused", error: "Claude Code would not stop it: No task found with ID: zz9" }) } },
+    { case: "no stop for one subagent", arguments: { thread: THREAD, subagent: "a1b2c3" }, replies: { "sessions.list": listed(), "sessions.interrupt": ok({ outcome: "unsupported", error: "Stop is not available for Codex subagents; stop the thread to stop them all" }) } },
+    { case: "a prefix of two", arguments: { thread: "thread-" }, replies: { "sessions.list": listed() } },
+    { case: "no such thread", arguments: { thread: "nope" }, replies: { "sessions.list": listed() } },
+  ],
+  thread_rename: [
+    { case: "renamed", arguments: { thread: "thread-7f", title: "fix the \u0085 \"build\"" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "renamed" }) } },
+    { case: "a title that names a placeholder", arguments: { thread: THREAD, title: "{agent} for {thread}" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "renamed" }) } },
+    { case: "failed with the machine's line", arguments: { thread: THREAD, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "failed", error: "EACCES: the store is read-only" }) } },
+    { case: "failed without a line", arguments: { thread: THREAD, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "failed" }) } },
+    { case: "an agent the catalog does not name", arguments: { thread: OTHER, title: "t" }, replies: { "sessions.list": listed([sessionRow({ id: "sess-7", threadId: OTHER, harness: "mystery" })]), "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "unsupported" }) } },
+    { case: "no session", arguments: { thread: OTHER, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "no-session" }) } },
+    { case: "not found", arguments: { thread: OTHER, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "not-found" }) } },
+    { case: "gone", arguments: { thread: THREAD, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(GONE) } },
+    { case: "napping wakes first", arguments: { thread: THREAD, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(), "sessions.rename": ok({ outcome: "renamed" }) } },
+    { case: "another version", arguments: { thread: THREAD, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": ok({ workspace: { id: "ws-1" } }) } },
+    { case: "the wake refused", arguments: { thread: THREAD, title: "t" }, replies: { "sessions.list": listed(), "workspaces.resolve": resolved(), "workspaces.wake": no("the provider has no capacity", "unreachable") } },
+  ],
+  thread_forget: [
+    { case: "forgot", arguments: { thread: "thread-b0" }, replies: { "sessions.list": listed(), "sessions.forget": ok({}) } },
+    { case: "a row from before threads", arguments: { thread: "sess-old" }, replies: { "sessions.list": listed([sessionRow({ id: "sess-old" })]) } },
+    { case: "refused once a turn ran", arguments: { thread: THREAD }, replies: { "sessions.list": listed(), "sessions.forget": no("thread-7f3a9c21e4b5 did work; forget the workspace instead", "usage") } },
+  ],
+  thread_settle: [
+    {
+      case: "a tree settled and one left",
+      arguments: { threads: ["thread-7f", "thread-b0"] },
+      replies: { "sessions.list": listed(), "sessions.settle": ok({ settled: [{ threadId: THREAD, title: "fix the \u0085 build" }, { threadId: "thread-c4c4c4c4d5d5", title: "naïve \"résumé\"" }], left: [{ threadId: "thread-b0b0b0b0c1c1", why: "still working: stop it first" }] }) },
+    },
+    { case: "finished, nothing to settle", arguments: { threads: [THREAD], finished: true }, replies: { "sessions.list": listed(), "sessions.settle": ok({ settled: [], left: [] }) } },
+    { case: "already settled", arguments: { threads: [THREAD], finished: false }, replies: { "sessions.list": listed(), "sessions.settle": ok({ settled: [], left: [{ threadId: THREAD, why: "already settled" }] }) } },
+    { case: "a thread nobody holds", arguments: { threads: ["nobody"] }, replies: { "sessions.list": listed() } },
+    { case: "processes stopped first", arguments: { threads: [THREAD], processes: "stop" }, replies: { "sessions.list": listed(), "sessions.settle": ok({ ended: [ENDED, { pid: 4400, ended: [activityProc({ pid: 4400 })], forced: [4400], left: [] }], left: [], settled: [{ threadId: THREAD, title: "fix" }] }) } },
+    { case: "processes kept", arguments: { threads: [THREAD], processes: "keep" }, replies: { "sessions.list": listed(), "sessions.settle": ok({ settled: [{ threadId: THREAD, title: "fix" }], left: [] }) } },
+    { case: "refused while processes run", arguments: { threads: [THREAD] }, replies: { "sessions.list": listed(), "sessions.settle": no(processesLeftRefusal("settle", [{ ...ACTIVITY.threads[0]!, processes: ACTIVITY.threads[0]!.processes.slice(1) }] as never).message, "usage") } },
+    { case: "refused for its lead", arguments: { threads: [THREAD] }, replies: { "sessions.list": listed(), "sessions.settle": no("thread thread-7 is not under this thread, and a thread settles and restores only itself and the threads it started. leave its lead and the threads beside it to the person.", "usage") } },
+  ],
+  activity: [
+    { case: "a thread's tree, wsp's own and what has no thread", arguments: {}, replies: { "activity.read": ok({ activity: ACTIVITY }) } },
+    { case: "one thread", arguments: { thread: "thread-7f" }, replies: { "sessions.list": listed(), "activity.read": ok({ activity: { ...ACTIVITY, wsp: [], unowned: [] } }) } },
+    { case: "nothing runs", arguments: { computer: "lab-mac" }, replies: { "activity.read": ok({ activity: { computer: "lab-mac", at: 1, threads: [], wsp: [], unowned: [] } }) } },
+    { case: "a thread nobody holds", arguments: { thread: "nobody" }, replies: { "sessions.list": listed() } },
+    { case: "a box", arguments: { computer: "hetzner" }, replies: { "activity.read": ok({ activity: { ...ACTIVITY, computer: "hetzner", wsp: [] } }) } },
+  ],
+  activity_end: [
+    { case: "ended with what was under it", arguments: { pid: 4200, started: 1_760_000_001_000 }, replies: { "activity.end": ok(ENDED) } },
+    { case: "forced, one left", arguments: { pid: 4200, started: 1_760_000_001_000, computer: "lab-mac" }, replies: { "activity.end": ok({ ...ENDED, ended: [activityProc({})], forced: [4200], left: [4200] }) } },
+    { case: "a kept agent freed", arguments: { pid: 4100, started: 1_760_000_000_000 }, replies: { "activity.end": ok({ pid: 4100, ended: [activityProc({ pid: 4100, kind: "agent" })], forced: [], left: [], freed: THREAD }) } },
+    { case: "the agent refused", arguments: { pid: 4100, started: 1_760_000_000_000 }, replies: { "activity.end": no(refusalLine(agentEndLine(4100, { threadId: THREAD, title: "fix", workspaceId: "ws-1", roots: [] }), agentEndFix({ threadId: THREAD, title: "fix", workspaceId: "ws-1", roots: [] })), "usage") } },
+    { case: "a pid that is another process now", arguments: { pid: 4200, started: 5 }, replies: { "activity.end": no(refusalLine(endReusedLine(4200, { comm: "sleep", startedAt: 1_760_000_001_000 } as never, 5), END_AGAIN_FIX), "not-found") } },
+    { case: "the process listed is gone by the signal", arguments: { pid: 4200, started: 1_760_000_001_000 }, replies: { "activity.end": ok({ pid: 4200, ended: [], forced: [], left: [] }) } },
+    { case: "a box refused", arguments: { pid: 4200, started: 1_760_000_001_000, computer: "hetzner" }, replies: { "activity.end": no(refusalLine(boxEndLine("hetzner"), BOX_END_FIX), "usage") } },
+  ],
+  thread_restore: [
+    { case: "restored", arguments: { threads: ["thread-7f"] }, replies: { "sessions.list": listed(), "sessions.restore": ok({ restored: [{ threadId: THREAD, title: "fix the \u0085 build" }, { threadId: "thread-c4c4c4c4d5d5", title: "naïve" }] }) } },
+    { case: "nothing restored", arguments: { threads: [THREAD] }, replies: { "sessions.list": listed(), "sessions.restore": ok({ restored: [] }) } },
+    { case: "a thread nobody holds", arguments: { threads: ["nobody"] }, replies: { "sessions.list": listed() } },
+  ],
+  thread_allow: [
+    { case: "a command", arguments: { thread: "thread-7f" }, replies: asked([ask("Bash", { command: "rm -rf \u0085 build", description: "clean" }, CONSENT)]) },
+    { case: "a server's tool", arguments: { thread: THREAD }, replies: asked([ask("mcp__github__create_pull_request", { title: "x" }, CONSENT)]) },
+    { case: "the oldest open prompt", arguments: { thread: THREAD }, replies: asked([frame({ type: "session.permission", workspaceId: "ws-1", sessionId: "sess-2", threadId: THREAD, askId: "ask-0", toolName: "Skill", input: JSON.stringify({ skill: "unslop" }), options: CONSENT }), ask("Bash", { command: "ls" }, CONSENT), frame({ type: "session.permission.closed", workspaceId: "ws-1", sessionId: "sess-2", threadId: THREAD, askId: "ask-9" })]) },
+    { case: "no prompt open", arguments: { thread: THREAD }, replies: asked([ask("Bash", { command: "ls" }, CONSENT), frame({ type: "session.permission.closed", workspaceId: "ws-1", sessionId: "sess-2", threadId: THREAD, askId: "ask-1" })]) },
+    { case: "a question carries no allow", arguments: { thread: THREAD }, replies: asked([ask("AskUserQuestion", { questions: [] }, [{ id: "a", label: "Yes", effect: "answer" }])]) },
+    { case: "the prompt closed first", arguments: { thread: THREAD }, replies: asked([ask("Bash", { command: "ls" }, CONSENT)], { "sessions.answer": answer("gone") }) },
+    { case: "no thread", arguments: { thread: "nope" }, replies: { "sessions.list": listed() } },
+  ],
+  thread_deny: [
+    { case: "a write", arguments: { thread: THREAD }, replies: asked([ask("Write", { file_path: "/root/wsp/src/é.ts", content: "x".repeat(2048) }, CONSENT)]) },
+    { case: "a write at the root", arguments: { thread: THREAD }, replies: asked([ask("Write", { file_path: "notes.md" }, CONSENT)]) },
+    { case: "a plain call with the harness's words", arguments: { thread: THREAD }, replies: asked([ask("WebFetch", "not json", CONSENT, "fetch \u0085 example.com")]) },
+    { case: "a plain call without", arguments: { thread: THREAD }, replies: asked([ask("Read", { file_path: "a" }, CONSENT)]) },
+    { case: "an edit", arguments: { thread: THREAD }, replies: asked([ask("Edit", { file_path: "/root/api/src/health.ts", old_string: "a", new_string: "b" }, CONSENT)]) },
+    { case: "several edits", arguments: { thread: THREAD }, replies: asked([ask("MultiEdit", { file_path: "health.ts", edits: [{ old_string: "a", new_string: "b" }, { old_string: "c", new_string: "d" }, { old_string: "e", new_string: "f" }] }, CONSENT)]) },
+    { case: "a fetch", arguments: { thread: THREAD }, replies: asked([ask("WebFetch", { url: "https://example.com/é", prompt: "read it" }, CONSENT)]) },
+    { case: "a codex command", arguments: { thread: THREAD }, replies: asked([ask("command_execution", { command: "touch hi.txt", cwd: "/w" }, CONSENT, "Allow me to create hi.txt?")]) },
+    { case: "a codex file change", arguments: { thread: THREAD }, replies: asked([ask("file_change", { changes: [{ path: "/w/src/a.rs", kind: "update" }] }, CONSENT)]) },
+    { case: "several codex file changes", arguments: { thread: THREAD }, replies: asked([ask("file_change", { changes: [{ path: "/w/a.rs", kind: "update" }, { path: "b.rs", kind: "add" }] }, CONSENT)]) },
+    { case: "with a reason", arguments: { thread: THREAD, reason: "count them with awk \u0085 \"instead\"" }, replies: asked([ask("Bash", { command: "wc -l < /etc/hosts" }, CONSENT)]) },
+    { case: "no option by that id", arguments: { thread: THREAD }, replies: asked([ask("Bash", { command: "ls" }, CONSENT)], { "sessions.answer": answer("no-option") }) },
+    { case: "unsupported", arguments: { thread: THREAD }, replies: asked([ask("Bash", { command: "ls" }, CONSENT)], { "sessions.answer": answer("unsupported") }) },
+    { case: "not found", arguments: { thread: THREAD }, replies: asked([ask("Bash", { command: "ls" }, CONSENT)], { "sessions.answer": answer("not-found") }) },
+  ],
+  exec: [
+    {
+      case: "output and the folder",
+      arguments: { thread: THREAD, argv: ["sh", "-c", "echo hi"] },
+      replies: { ...atThread(), "workspaces.wake": resolved(), "workspaces.exec": ok({ execId: "exec-1", cwd: "/root/wsp" }) },
+      pushed: { "workspaces.exec": [frame({ type: "exec.output", execId: "exec-0", text: "someone else's" }), frame({ type: "exec.output", execId: "exec-1", text: "hi \u0085 \"there\"" }), frame({ type: "exec.output", execId: "exec-1", text: "é" }), frame({ type: "exec.exit", execId: "exec-1", exitCode: 3 })] },
+    },
+    { case: "no folder named and no output", arguments: { thread: THREAD, argv: ["true"], cwd: "/tmp" }, replies: { ...atThread(NAPPING), "workspaces.wake": resolved(), "workspaces.exec": ok({ execId: "exec-2" }) }, pushed: { "workspaces.exec": [frame({ type: "exec.exit", execId: "exec-2", exitCode: null })] } },
+    {
+      case: "no folder named runs in the thread's own",
+      arguments: { thread: THREAD, argv: ["pwd"] },
+      replies: {
+        "sessions.list": listed([{ id: "s-1", workspaceId: WORKSPACE.id, harness: "claude", status: "completed", threadId: THREAD, cwd: "/root/wsp/packages" }]),
+        "workspaces.get": resolved(WORKSPACE),
+        "workspaces.wake": resolved(),
+        "workspaces.exec": ok({ execId: "exec-4", cwd: "/root/wsp/packages" }),
+      },
+      pushed: { "workspaces.exec": [frame({ type: "exec.exit", execId: "exec-4", exitCode: 0 })] },
+    },
+    { case: "the machine went away", arguments: { thread: THREAD, argv: ["true"] }, replies: { ...atThread(), "workspaces.wake": resolved(), "workspaces.exec": ok({ execId: "exec-3" }) }, pushed: { "workspaces.exec": [frame({ type: "exec.exit", execId: "exec-3", exitCode: null, error: "the machine stopped answering" })] } },
+    { case: "a relative folder", arguments: { thread: THREAD, argv: ["true"], cwd: "src" }, replies: {} },
+    { case: "gone", arguments: { thread: THREAD, argv: ["true"] }, replies: atThread({ ...GONE, gone: "" }) },
+    { case: "no such thread", arguments: { thread: "nope", argv: ["true"] }, replies: { "sessions.list": listed([]), "projects.list": ok({ projects: [] }) } },
+    { case: "a project's name", arguments: { thread: "wsp", argv: ["true"] }, replies: { "sessions.list": listed([]), "projects.list": ok({ projects: [WORKSPACE.project] }) } },
+  ],
+  threads_wait: [
+    { case: "already over", arguments: { threads: ["thread-b0"] }, replies: { "sessions.list": listed(), "sessions.history": history(frame({ type: "session.start", workspaceId: "ws-1", sessionId: "sess-3", threadId: OTHER, turnId: "t3" }), frame({ type: "session.done", workspaceId: "ws-1", sessionId: "sess-3", threadId: OTHER, turnId: "t3", result: REPLY })) } },
+    { case: "over with nothing in the transcript", arguments: { threads: [OTHER] }, replies: { "sessions.list": listed(), "sessions.history": history() } },
+    { case: "a done pushed", arguments: { threads: [THREAD, "thread-b0"], timeout: 30 }, replies: { "sessions.list": listed([SESSIONS[1], sessionRow({ id: "sess-3", threadId: OTHER, status: "running" })]) }, pushed: { "sessions.list": [frame({ type: "session.done", workspaceId: "ws-1", sessionId: "sess-2", threadId: THREAD, turnId: "t2", result: { status: "interrupted", durationMs: 61_000, error: "stopped by the person" } })] } },
+    { case: "an end pushed", arguments: { threads: [THREAD] }, replies: { "sessions.list": listed([SESSIONS[1]]), "sessions.history": history(frame({ type: "session.start", ...scope, threadId: THREAD, turnId: "t2" }), frame({ type: "session.end", ...scope, threadId: THREAD, turnId: "t2", reason: "the harness exited \u0085" })) }, pushed: { "sessions.list": [frame({ type: "session.end", workspaceId: "ws-1", sessionId: "sess-2", threadId: THREAD, turnId: "t2", reason: "cut" })] } },
+    { case: "timed out on one", arguments: { threads: [THREAD], timeout: 0.05 }, replies: { "sessions.list": listed([SESSIONS[1]]) } },
+    { case: "timed out on two", arguments: { threads: [THREAD, OTHER], timeout: 0.25 }, replies: { "sessions.list": listed([SESSIONS[1], sessionRow({ id: "sess-3", threadId: OTHER, status: "running" })]) } },
+    {
+      case: "a sub-thread over, with what its machine was read to hold",
+      arguments: { threads: [SUB] },
+      replies: {
+        "sessions.list": listed([sessionRow({ id: "sess-5", threadId: SUB, sub: SUB_ROW })]),
+        "sessions.history": history(frame({ type: "session.start", workspaceId: "ws-1", sessionId: "sess-5", threadId: SUB, turnId: "t5" }), frame({ type: "session.done", workspaceId: "ws-1", sessionId: "sess-5", threadId: SUB, turnId: "t5", result: REPLY })),
+        "sessions.head": ok({ facts: { id: SUB, threadId: SUB, workspaceId: "ws-1", harness: "claude", startedBy: "agent", status: "completed", turns: 1, ran: true, sub: { ...SUB_ROW, result: SUB_RESULT } }, events: [], pos: 0, total: 0 }),
+      },
+    },
+    { case: "no such thread", arguments: { threads: ["nope"] }, replies: { "sessions.list": listed() } },
+  ],
+  restart: [
+    { case: "back with threads running", arguments: {}, replies: { "host.restart": ok({}), "sessions.list": listed([...SESSIONS, sessionRow({ id: "sess-4", threadId: "thread-4444", status: "running" })]) }, closes: "host.restart" },
+    { case: "back with none running", arguments: {}, replies: { "host.restart": ok({}), "sessions.list": listed([]) }, closes: "host.restart" },
+    { case: "refused", arguments: {}, replies: { "host.restart": no("this host runs under wsp up in a terminal; only that terminal brings it back", "usage") } },
+  ],
+  run: [
+    { case: "a sub-thread on Boat, detached", arguments: { on: "boat", size: "4x8", message: "fix it", notify: ["me"], detach: true }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") } },
+    { case: "a sub-thread on Boat followed to its reply", arguments: { on: "boat", message: "fix it", title: "the upload test" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") }, pushed: { "sessions.start": TURN } },
+    { case: "a size with no cloud", arguments: { size: "4x8", message: "t" }, replies: {} },
+    { case: "a cloud beside another thread's folder", arguments: { on: "boat", beside: "thread-7f", message: "t" }, replies: {} },
+    { case: "a cloud beside the thread's own project", arguments: { on: "boat", project: "web", message: "fix it", detach: true }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") } },
+    { case: "a cloud beside another project", arguments: { on: "boat", project: "attic-work", message: "t" }, replies: { ...SUB_REPLIES, "workspaces.create": no(subOtherProjectRefusal("boat", "attic-work", "web").message, "usage") } },
+    { case: "followed to its reply", arguments: { project: "attic-work", message: "fix it", model: "claude-opus-5-5", effort: "max" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "detached", arguments: { project: "attic-work", message: "fix it", detach: true, agent: "codex", notify: ["me", "thread-7f"] }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.list": listed(), "sessions.start": START } },
+    { case: "a restart of a stopped thread, named by a prefix", arguments: { project: "attic-work", message: "fix it", detach: true, replaces: "thread-b0b0" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "sessions.replaceable": ok({}), "workspaces.wake": resolved(), "sessions.list": listed(), "sessions.start": START } },
+    { case: "a restart of a thread still working, refused before the machine is woken", arguments: { project: "attic-work", message: "fix it", detach: true, replaces: "thread-b0b0" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "sessions.list": listed(), "sessions.replaceable": no(usageRefusal(replacesWorkingLine("thread-b0b0b0b0c1c1"), replacesWorkingFix("thread-b0b0b0b0c1c1")).message, "usage") } },
+    { case: "a restart naming no thread", arguments: { project: "attic-work", message: "fix it", replaces: "nope" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "sessions.list": listed() } },
+    { case: "a fork through the thread's latest finished turn", arguments: { fork: "thread-7f3a", message: "what do you remember?", detach: true }, replies: { ...atThread(), "harnesses.list": HARNESSES, "sessions.start": START } },
+    { case: "a fork through its second turn onto a new branch", arguments: { fork: "thread-7f3a", at: 2, branch: "main-fork", message: "what do you remember?", detach: true }, replies: { ...atThread(), "harnesses.list": HARNESSES, "sessions.start": START } },
+    { case: "a turn counted with no fork", arguments: { at: 2, message: "what do you remember?" }, replies: {} },
+    { case: "a fork beside a project", arguments: { fork: "thread-7f3a", project: "attic-work", message: "what do you remember?" }, replies: {} },
+    { case: "a fork beside a resume", arguments: { fork: "thread-7f3a", resume: "conv-7f3a", message: "what do you remember?" }, replies: {} },
+    { case: "a failed turn on a machine it woke goes back to sleep", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START, "sessions.list": listed([]), "workspaces.nap": ok({}) }, pushed: { "sessions.start": [done({ status: "failed", error: "the agent crashed \u0085" })] } },
+    { case: "a failed turn beside a running one stays awake", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START, "sessions.list": listed(), "status.list": ok({ statuses: [] }) }, pushed: { "sessions.start": [frame({ type: "session.end", ...scope, turnId: "turn-9" })] } },
+    { case: "refused for a sign-in", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": [done({ status: "failed", error: "claude is not signed in", refusal: "sign-in" })] } },
+    { case: "the host stopped under it", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START, "sessions.history": history(frame({ type: "session.start", ...scope, turnId: "turn-9" }), done({ status: "completed", text: "after the restart" })) }, closes: "sessions.start" },
+    { case: "an empty task", arguments: { project: "attic-work", message: "  \n" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved() } },
+    { case: "a model the agent does not list", arguments: { project: "attic-work", message: "t", model: "gpt-9" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES } },
+    { case: "an effort the model does not take", arguments: { project: "attic-work", message: "t", model: "claude-haiku", effort: "max" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES } },
+    { case: "an effort off the model's list", arguments: { project: "attic-work", message: "t", model: "claude-opus-5-5", effort: "low" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES } },
+    { case: "an access that is no word of wsp's", arguments: { project: "attic-work", message: "t", agent: "codex", access: "yolo" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES } },
+    { case: "an access the agent maps to no mode", arguments: { project: "attic-work", message: "t", access: "plan" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES } },
+    { case: "an access the agent maps", arguments: { project: "attic-work", message: "t", access: "auto-edit" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": [done({ status: "completed", text: "edited" })] } },
+    { case: "an agent with no adapter", arguments: { project: "attic-work", message: "t", agent: "nope" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES } },
+    { case: "an agent on a host with none", arguments: { project: "attic-work", message: "t", agent: "nope" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": ok({ harnesses: [] }) } },
+    { case: "a relative folder", arguments: { project: "attic-work", message: "t", cwd: "src" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved() } },
+    { case: "a file that is not there", arguments: { project: "attic-work", message: "t", files: ["no-such-shot.png"] }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved() } },
+    { case: "fast on a model with none", arguments: { project: "attic-work", message: "t", fast: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES } },
+    { case: "no project and no thread", arguments: { message: "t" }, replies: { ...PROJECTS, "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp") }, pushed: { "sessions.start": [done({ status: "completed", text: "ok" })] } },
+    { case: "in the project folder", arguments: { project: "wsp", message: "fix it", detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp") } },
+    { case: "on a branch", arguments: { project: "p-1", branch: "feat/x \u0085", message: "fix it", agent: "codex" }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/.wsp/worktrees/p-1/feat-x-") }, pushed: { "sessions.start": TURN } },
+    { case: "in a folder of the project", arguments: { project: "wsp", cwd: "/Users/me/wsp/src", message: "t", detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp/src") } },
+    { case: "a relative folder of the project", arguments: { project: "wsp", cwd: "src", message: "t" }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES } },
+    { case: "a branch for a box", arguments: { project: "attic-work", branch: "x", message: "t" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved() } },
+    {
+      case: "a project of the thread's repository on a box opens in its folder there",
+      arguments: { project: "site", message: "build it", notify: ["me"], detach: true },
+      env: { [TURN_TOKEN_ENV]: "turn-token-1" },
+      replies: { ...PROJECTS, "projects.resolve": ok({ project: SITE_PROJECT }), "workspaces.landing": ok({ kind: "place", place: "pl-attic", name: "attic", capabilities: { sizes: [] } }), "harnesses.list": HARNESSES, "sessions.start": startIn("/root/site") },
+    },
+    { case: "a branch for a project on another computer", arguments: { project: "site", branch: "x", message: "t" }, replies: SITE_FORKS },
+    { case: "a branch for a project the thread may not use", arguments: { project: "lab-two", branch: "x", message: "t" }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { ...PROJECTS, "projects.resolve": no(refusalLine(spawnFolderRefusal("thread-7f", "lab-two"), SPAWN_FOLDER_FIX), "usage") } },
+    {
+      case: "a project on another computer forks a machine named off the task",
+      arguments: { project: "site", message: "fix the login page now please", detach: true },
+      replies: {
+        ...SITE_FORKS,
+        "workspaces.list": ok({ workspaces: [WORKSPACE, { ...WORKSPACE, id: "ws-2", name: "fix the login page now" }] }),
+        "projects.defaults": ok({ defaults: { "p-2": { agent: { value: "claude", from: "default" } } } }),
+        "harnesses.list": HARNESSES,
+        "workspaces.create": ok({ workspace: SITE_FORK }),
+        "workspaces.wake": resolved(SITE_FORK),
+        "sessions.start": START,
+      },
+    },
+    {
+      case: "a fork's model read against the project's own agent",
+      arguments: { project: "site", message: "t", model: "claude-opus-5-5" },
+      replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: { "p-2": { agent: { value: "codex", from: "project" } } } }), "harnesses.list": HARNESSES },
+    },
+    { case: "a fork's file that is not there", arguments: { project: "site", message: "t", files: ["no-such-shot.png"] }, replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: {} }), "harnesses.list": HARNESSES } },
+    { case: "a project elsewhere with a machine of its name", arguments: { project: "site", message: "t", detach: true }, cloud: true, replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [{ ...WORKSPACE, name: "site" }] }), "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START } },
+    { case: "the projects not read", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { "projects.list": no(threadOpRefusal("projects.list", "thread-7f", undefined)), "projects.resolve": MACHINE_NAMED["projects.resolve"], "workspaces.list": ok({ workspaces: [WORKSPACE] }), "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START } },
+    { case: "a project held by the thread's own tree", arguments: { project: "wsp", message: "t", detach: true }, replies: { "workspaces.list": ok({ workspaces: [{ ...WORKSPACE, kind: "local", project: { id: "p-1", name: "wsp", path: "/Users/me/wsp", computer: "here" } }] }), "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp") } },
+    { case: "beside the thread asking", arguments: { message: "look", detach: true }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp") } },
+    { case: "on a conversation from outside wsp, in the folder it ran in", arguments: { project: "wsp", message: "go on", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350", detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp-wt") } },
+    { case: "on a copy of a conversation open in another app", arguments: { project: "wsp", message: "go on", agent: "codex", resume: "01a12813-cd12-7a12-9b13-e76892906ff0", copy: true, detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp") } },
+    { case: "a conversation open in another app, refused", arguments: { project: "wsp", message: "go on", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350" }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": no(refusalLine(conversationOpenLine("lab codewords", "zingzy's MacBook Pro"), conversationOpenFix(undefined)), CONVERSATION_OPEN_KIND) } },
+    { case: "a conversation beside a branch", arguments: { project: "wsp", branch: "x", message: "t", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350" }, replies: {} },
+    { case: "a copy with no conversation", arguments: { project: "wsp", message: "t", copy: true }, replies: {} },
+    { case: "a conversation on a project that forks a machine", arguments: { project: "site", message: "t", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350" }, replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: {} }), "harnesses.list": HARNESSES } },
+    { case: "beside the thread with a branch", arguments: { message: "look", branch: "feat/y" }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/.wsp/worktrees/p-1/feat-y") }, pushed: { "sessions.start": [done({ status: "completed", text: "ok" })] } },
+    { case: "no thread stamped", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": ok({ session: sessionRow({ id: "sess-9", status: "running" }), outcome: "started", turnId: "turn-9" }) } },
+    { case: "another version", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": ok({ outcome: "started" }) } },
+    { case: "a wake onto a new machine says why first", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "a wake onto a new machine, detached", arguments: { project: "attic-work", message: "fix it", detach: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(REPLACED), "sessions.start": START } },
+    { case: "to a released sub-thread", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(RELEASED), "harnesses.list": HARNESSES, "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "held by its computer's threads at once", arguments: { project: "wsp", message: "t", detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": HELD } },
+  ],
+  send: [
+    { case: "followed to its reply", arguments: { thread: "thread-7f", message: "and the tests", effort: "low" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "held, detached", arguments: { thread: THREAD, message: "also this", detach: true }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.start": HELD } },
+    { case: "held, then followed to its reply", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.start": HELD }, pushed: { "sessions.start": TURN } },
+    { case: "steered, detached", arguments: { thread: THREAD, message: "also this", detach: true }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(), "workspaces.wake": resolved(), "sessions.start": ok({ session: sessionRow({ id: "sess-2", threadId: THREAD, status: "running" }), outcome: "steered", turnId: "turn-2" }) } },
+    { case: "an empty message", arguments: { thread: THREAD, message: "" }, replies: { "sessions.list": listed() } },
+    { case: "a model off the list", arguments: { thread: OTHER, message: "m", model: "o3" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES } },
+    { case: "a failed turn", arguments: { thread: THREAD, message: "m" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": [done({ status: "interrupted" })] } },
+    { case: "a file that is not there", arguments: { thread: THREAD, message: "m", files: ["no-such-shot.png"] }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(), "workspaces.wake": resolved() } },
+    { case: "a wake onto a new machine says why first", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "a wake onto a new machine, detached", arguments: { thread: THREAD, message: "and the tests", detach: true }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(REPLACED), "sessions.start": START } },
+    { case: "a machine already running says no earlier wake's line", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(REPLACED), "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "to a released sub-thread", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(RELEASED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+  ],
+};
+
+/** A recipe tool's call as the tool server makes it: the command line it runs and what that line printed, or none
+ * where the tool refuses before running anything. `result` is what the TypeScript tool answers the same call with. */
+export interface RecipeCase {
+  case: string;
+  arguments: Record<string, unknown>;
+  /** The platform the printout names this computer by; a case for another platform is not this computer's to replay. */
+  platform?: "darwin" | "linux";
+  wsp?: { argv: string[]; stdout: string; stderr: string; exit: number };
+  result?: Record<string, unknown>;
+}
+
+const RECIPE: Recipe = {
+  version: 1,
+  at: "2026-09-27T10:00:00.000Z",
+  tick: "used",
+  histories: [
+    { agent: "claude", state: "read", sessions: 42, calls: 1_200 },
+    { agent: "codex", state: "empty", sessions: 0, calls: 0 },
+  ],
+  rows: [
+    { id: "claude", kind: "agent", on: true, source: { kind: "installed", paths: ["/usr/local/bin/claude"], bin: true } },
+    { id: "codex", kind: "agent", on: false, source: { kind: "installed", paths: [], bin: true } },
+    { id: "node", kind: "tool", on: true, source: { kind: "used", sessions: 12, calls: 340 }, pin: { tag: "v22.11.0", sha256: "ab12" } },
+    { id: "docker", kind: "tool", on: false, source: { kind: "used", sessions: 1, calls: 2 } },
+    { id: "gh", kind: "tool", on: true, source: { kind: "project", why: "the \u0085 workflow calls gh" }, pin: { tag: "2.62.0", latest: true } },
+    { id: "go", kind: "tool", on: true, source: { kind: "installed", paths: ["/usr/local/go/bin/go"], bin: true } },
+    { id: "rust", kind: "tool", on: true, size: 1_600_000_000, source: { kind: "used", sessions: 30, calls: 900 } },
+  ],
+  custom: [{ kind: "custom", id: "just", name: "just", install: ["brew install just", "echo é"], check: "command -v just", why: "for the build", size: 5_300_000 }],
+};
+
+const COMMANDS: CommandCount[] = Array.from({ length: COMMANDS_SHOWN + 2 }, (_, i) => ({ name: i === 0 ? "maké" : `cmd-${String(i).padStart(2, "0")}`, calls: 1_000 - i * 7, sessions: 30 - i }) as CommandCount);
+const ALSO_HERE = [
+  { id: "brew/ffmpeg", name: "ffmpeg", manager: "brew", group: "Homebrew", install: "apt-get install -y ffmpeg", check: "command -v ffmpeg", size: 52_000_000 },
+  { id: "brew/tree", name: "tree", manager: "brew", group: "Homebrew", install: "apt-get install -y tree", check: "command -v tree" },
+  { id: "npm/tsx", name: "tsx", manager: "npm", group: "npm globals", install: "npm i -g tsx", check: "command -v tsx", size: 900 },
+] as unknown as ScanRow[];
+
+const printed = (value: unknown): string => `${jsonLine(value)}\n`;
+const answeredWith = (text: string, value: object): Record<string, unknown> => ({ content: [{ type: "text", text }], structuredContent: value });
+const READING = "Reading this computer against the catalog and your agents' session histories. Nothing leaves this computer.\n";
+const recipeUsage = (VERBS.find(v => v.name === "recipe") as { usage: string }).usage;
+
+export function recipeCases(): Record<string, RecipeCase[]> {
+  const full = recipeAnswer(RECIPE, "/tmp/recipe \u0085.json", COMMANDS);
+  const bare = recipeAnswer({ ...RECIPE, tick: undefined, rows: [], custom: undefined }, "/nonexistent/recipe.json", []);
+  const refusal = usageRefusal('--set takes <id>=on or <id>=off, and got "node=maybe".', "Write the row id, an equals sign, then on or off.");
+  const scanned = recipeScan(RECIPE, COMMANDS, ALSO_HERE);
+  const unscanned = recipeScan({ ...RECIPE, tick: "installed" }, [], undefined);
+  const nothingElse = recipeScan({ ...RECIPE, tick: "default" }, [], []);
+  const scan = (platform: "darwin" | "linux", value: ReturnType<typeof recipeScan>, name: string, args: Record<string, unknown> = {}): RecipeCase => ({
+    case: `${name} on ${platform}`,
+    arguments: args,
+    platform,
+    wsp: { argv: ["recipe", "scan", "--json", "--state", "{state}", ...(args["project"] as string[] | undefined ?? []).map(p => `--project=${p}`)], stdout: printed(value), stderr: READING, exit: 0 },
+    result: answeredWith(scanPrintout(value, platform).join("\n"), value),
+  });
+  return {
+    recipe: [
+      {
+        case: "every input",
+        arguments: { tick: "used", set: ["node=on", "docker=off"], signin: ["gh=machine"], add: ["just=brew install just"], add_check: ["just=just --version"], why: "for the build \u0085", engine: true, project: ["/root/wsp"], out: "/tmp/recipe \u0085.json" },
+        wsp: {
+          argv: ["recipe", "--json", "--state", "{state}", "--tick=used", "--set=node=on", "--set=docker=off", "--signin=gh=machine", "--add=just=brew install just", "--add-check=just=just --version", "--why=for the build \u0085", "--engine", "--project=/root/wsp", "--out=/tmp/recipe \u0085.json"],
+          stdout: printed(full),
+          stderr: READING,
+          exit: 0,
+        },
+        result: answeredWith(recipePrintout(full).join("\n"), full),
+      },
+      { case: "no input", arguments: { engine: false }, wsp: { argv: ["recipe", "--json", "--state", "{state}"], stdout: printed(bare), stderr: "", exit: 0 }, result: answeredWith(recipePrintout(bare).join("\n"), bare) },
+      { case: "refused by the command line", arguments: { set: ["node=maybe"] }, wsp: { argv: ["recipe", "--json", "--state", "{state}", "--set=node=maybe"], stdout: "", stderr: `${READING}${jsonLine(verbFailure(refusal))}\n`, exit: verbFailure(refusal).exit }, result: toolFailure(refusal, recipeUsage) as unknown as Record<string, unknown> },
+      { case: "a relative out", arguments: { out: "recipe.json" } },
+      { case: "a relative project", arguments: { project: ["/root/wsp", "src"] } },
+    ],
+    recipe_scan: [
+      scan("linux", scanned, "scanned", { project: ["/root/wsp"] }),
+      scan("darwin", scanned, "scanned", { project: ["/root/wsp"] }),
+      scan("linux", unscanned, "nothing looked"),
+      scan("linux", nothingElse, "nothing else here"),
+      { case: "a relative project", arguments: { project: ["src"] } },
+    ],
+  };
+}

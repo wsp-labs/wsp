@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The words the sidebar's own screens say: the act that makes a workspace,
+// wherever it is offered; the first run, which is the whole window while this
+// wsp holds no project; the project rows and the switcher over them; and the
+// sheet that records one.
+// Nothing here says what a workspace is made of: that pair of words is the
+// protocol's table (madeOfWord, portsWord), so a row in the app and a cell in
+// the command line's table cannot say two things about one workspace.
+import { CAP_RAISE_ACT, threadStateWord } from "@wsp/protocol";
+import { onceNamed } from "../settings/format.js";
+
+/** The one word for the act, read by the plus on a project, the project's menu and the palette's row: three
+ * surfaces offering one act, so none of them can name it differently. */
+export const NEW_WORKSPACE = "New thread";
+
+/** The screen a person meets on a wsp that holds no project: one folder, one question, one key. Its button says
+ * Start, since the screen has one act and its title says what that act starts. */
+export const FIRST_RUN_WORDS = {
+  title: "Add a project to get started",
+  sentence: (here: string) => onceNamed(here, h => `A project is a folder on ${h}. Its threads work in that folder.`),
+  add: "Add a project",
+  productUsage: "wsp sends anonymous usage counts to PostHog.",
+  privacy: "Privacy settings",
+} as const;
+
+/** The project's own rows in the sidebar: its menu, the leaf under a project nobody has started work on, the
+ * switcher menu's foot that records another one, and the one row the sidebar holds while this wsp has no project,
+ * which sends a person to the first run in the centre. */
+export const PROJECT_WORDS = {
+  add: "Add a project",
+  settings: "Project settings",
+  remove: "Remove project",
+  noWorkspaces: "No threads yet.",
+  notRead: (said: string) => `Projects not read: ${said}`,
+} as const;
+
+/** The project switcher at the head of the sidebar: the pick that shows every project, and its menu's search. */
+export const SWITCHER_WORDS = {
+  all: "All projects",
+  search: "Search projects",
+  add: PROJECT_WORDS.add,
+  list: "Projects",
+  settingsOf: (name: string) => `${name} settings`,
+} as const;
+
+/** The computer filter under the project filter, in its words. */
+export const COMPUTER_SWITCHER_WORDS = {
+  all: "All computers",
+  search: "Search computers",
+  add: "Add a computer",
+  list: "Computers",
+  settingsOf: SWITCHER_WORDS.settingsOf,
+} as const;
+
+/** The sheet that records a project: one source on one computer, and nothing else. The computer pick appears only
+ * where there is a computer beyond this one and the source is a repository address, which is what says which road
+ * the source takes; there is no sentence under the field saying it. */
+export const ADD_PROJECT_WORDS = {
+  title: PROJECT_WORDS.add,
+  search: "Search your repos, or type a path",
+  addressOnly: "Paste a repository address",
+  choose: "Choose",
+  add: "Add",
+  computers: "Computers",
+  addComputer: COMPUTER_SWITCHER_WORDS.add,
+  look: "Look",
+  navigate: "Navigate",
+  open: "Open",
+  complete: "Complete",
+  byPath: "Type a path",
+  reposOn: (name: string) => `Repos on ${name}`,
+  noRepos: "No git repos found under your home folder. Type a path to one.",
+  noFolders: "No folders here.",
+  noMatch: "No repo matches.",
+  added: "Added",
+  cloneLine: (url: string, on: string) => `Clone ${url} on ${on}`,
+  cloneInto: (url: string) => `Clone ${url} into`,
+  cloneIntoPlaceholder: (name: string) => `The folder to put ${name} in, like ~/code`,
+  boxSays: (name: string) => `Repos on ${name} show here soon. Paste a repository address above to clone it there.`,
+  providerSays: (name: string) => `${name} clones a project from its repository address. Paste one above.`,
+} as const;
+
+/** The live list's section heads and the Settled fold's. */
+export const SECTION_WORDS: Record<"pinned" | "needs-you" | "settled", string> = {
+  pinned: "Pinned",
+  "needs-you": threadStateWord("waiting"),
+  settled: "Settled",
+};
+
+/** The snooze's pick of times. */
+export const SNOOZE_WORDS = {
+  custom: "Until",
+  snooze: "Snooze",
+  /** The slot of a snoozed root while threads of its tree run, and its hover line. */
+  working: (n: number): string => `${n} working`,
+  workingHover: (n: number): string => `Snoozed, ${n} working in it`,
+} as const;
+
+/** What a held thread's card says under the reason: the setting that lets it start before a thread there ends. */
+export const CAP_WAIT_WORDS = {
+  raise: (place: string, act: string = CAP_RAISE_ACT): string => `${act} on ${place} in Settings to start it now`,
+} as const;
+
+/** The card's line on a thread in the Needs you inbox that names the threads it hangs under, from its tree's top down. */
+export const TREE_WORDS = {
+  startedBy: (path: ReadonlyArray<string>): string => `Started by ${path.join(" / ")}`,
+  fold: "Fold",
+  unfold: "Unfold",
+  /** What the sidebar's polite live region says once a tree moves. */
+  moved: (title: string, place: number, of: number, pinned: boolean): string => `Moved ${title} to ${place} of ${of}${pinned ? " in Pinned" : ""}`,
+} as const;

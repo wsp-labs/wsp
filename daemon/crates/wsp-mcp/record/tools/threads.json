@@ -1,0 +1,1450 @@
+{
+  "cloudOff": {
+    "name": "threads",
+    "description": "Every thread as the sidebar lists it: its project, the folder it works in (the project folder, or a worktree of the project's repo), that folder's branch as git reads it now, the computer it runs on, the agent inside, its state, who opened it (person, cli or agent) and its title. claudeSessionId is the agent's own id for the thread's session, absent until the agent announced one; for a Claude Code thread on this computer, cd into folder and run claude --resume with it to go on with the thread in a terminal, once the thread is not running; a thread on another computer goes on in a terminal there, its line also setting the CLAUDE_CONFIG_DIR its turns run with, as the app's Continue in terminal copies it. capped is on a thread waiting for a slot on its computer: the computer and what runs there against its threads at once; it starts on its own when one frees. Optionally within one project. A thread an agent inside another thread opened carries parentThreadId and rootThreadId, which is the tree stop ends as one. lastLine is the last line of the latest turn's reply and failure why that turn failed. subagents lists the agent's own subagents of every turn (id, title, state running, done, failed or stopped, model, asked: the start of what it was asked, lastLine or failure once it ends); stop takes one of them alone by its id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "one project's threads, by the name or the id projects lists"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "threadId": {
+                "type": "string"
+              },
+              "workspaceId": {
+                "type": "string"
+              },
+              "harness": {
+                "type": "string"
+              },
+              "startedBy": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "cli",
+                  "agent"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "completed",
+                  "interrupted",
+                  "failed"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              },
+              "claudeSessionId": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "number"
+              },
+              "endedAt": {
+                "type": "number"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "turns": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "ran": {
+                "type": "boolean"
+              },
+              "parentThreadId": {
+                "type": "string"
+              },
+              "rootThreadId": {
+                "type": "string"
+              },
+              "attempt": {
+                "type": "string"
+              },
+              "asking": {
+                "type": "string"
+              },
+              "waitingOn": {
+                "type": "object",
+                "properties": {
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "sessionId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "object",
+                    "properties": {
+                      "askId": {
+                        "type": "string"
+                      },
+                      "toolName": {
+                        "type": "string"
+                      },
+                      "toolUseId": {
+                        "type": "string"
+                      },
+                      "parentToolUseId": {
+                        "type": "string"
+                      },
+                      "input": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": "string"
+                      },
+                      "options": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "allow",
+                                "deny",
+                                "mode",
+                                "answer"
+                              ]
+                            },
+                            "mode": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "label",
+                            "effect"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "askId",
+                      "toolName",
+                      "input",
+                      "options"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "threadId",
+                  "workspaceId",
+                  "sessionId",
+                  "title",
+                  "prompt"
+                ],
+                "additionalProperties": false
+              },
+              "setupRefusal": {
+                "type": "string"
+              },
+              "sub": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "waiting",
+                      "starting",
+                      "running",
+                      "napping",
+                      "released"
+                    ]
+                  },
+                  "on": {
+                    "type": "string"
+                  },
+                  "machine": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "object",
+                    "properties": {
+                      "cpu": {
+                        "type": "integer"
+                      },
+                      "memMb": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "cpu",
+                      "memMb"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "rateUsdPerHour": {
+                    "type": "number"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "object",
+                    "properties": {
+                      "branch": {
+                        "type": "string"
+                      },
+                      "pushedSha": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "commits": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "unpushed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "changed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "onBranch": {
+                        "type": "string"
+                      },
+                      "norepo": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "readFailed": {
+                        "type": "string"
+                      },
+                      "readAt": {
+                        "type": "string"
+                      },
+                      "pushRefused": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "branch",
+                      "pushedSha",
+                      "commits",
+                      "unpushed",
+                      "changed",
+                      "readAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "held": {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "commits": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      }
+                    },
+                    "required": [
+                      "files",
+                      "commits"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "deleteAt": {
+                    "type": "number"
+                  },
+                  "releasedAt": {
+                    "type": "number"
+                  },
+                  "cloudGone": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "sessionNotKept": {
+                    "type": "string"
+                  },
+                  "spawn": {
+                    "type": "object",
+                    "properties": {
+                      "startedAt": {
+                        "type": "number"
+                      },
+                      "branch": {
+                        "type": "object",
+                        "properties": {
+                          "branch": {
+                            "type": "string"
+                          },
+                          "sha": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "branch",
+                          "sha",
+                          "ms"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "machine": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "states": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "states"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "files": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "paths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "bytes": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "paths",
+                          "bytes"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "readyAt": {
+                        "type": "number"
+                      },
+                      "failed": {
+                        "type": "object",
+                        "properties": {
+                          "step": {
+                            "type": "string",
+                            "enum": [
+                              "machine",
+                              "files"
+                            ]
+                          },
+                          "said": {
+                            "type": "string"
+                          },
+                          "fix": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "step",
+                          "said"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "uncommitted": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "asked": {
+                        "type": "string"
+                      },
+                      "notSent": {
+                        "type": "string"
+                      },
+                      "replaced": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "log": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "startedAt",
+                      "log"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "state",
+                  "on",
+                  "machine",
+                  "size",
+                  "branch"
+                ],
+                "additionalProperties": false
+              },
+              "diskKeptUntil": {
+                "type": "number"
+              },
+              "diskGone": {
+                "type": "string"
+              },
+              "capped": {
+                "type": "object",
+                "properties": {
+                  "placeId": {
+                    "type": "string"
+                  },
+                  "place": {
+                    "type": "string"
+                  },
+                  "running": {
+                    "type": "integer"
+                  },
+                  "atOnce": {
+                    "type": "integer"
+                  },
+                  "why": {
+                    "type": "string",
+                    "enum": [
+                      "slot",
+                      "minute"
+                    ]
+                  }
+                },
+                "required": [
+                  "placeId",
+                  "place",
+                  "running",
+                  "atOnce"
+                ],
+                "additionalProperties": false
+              },
+              "limit": {
+                "type": "object",
+                "properties": {
+                  "resetsAt": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "resumeAt": {
+                "type": "number"
+              },
+              "costUsd": {
+                "type": "number"
+              },
+              "lastLine": {
+                "type": "string"
+              },
+              "failure": {
+                "type": "string"
+              },
+              "pid": {
+                "type": "integer"
+              },
+              "agentPid": {
+                "type": "integer"
+              },
+              "readAt": {
+                "type": "number"
+              },
+              "settledAt": {
+                "type": "number"
+              },
+              "pinnedAt": {
+                "type": "number"
+              },
+              "order": {
+                "type": "number"
+              },
+              "foldedAt": {
+                "type": "number"
+              },
+              "replaces": {
+                "type": "string"
+              },
+              "replacedBy": {
+                "type": "string"
+              },
+              "snoozedUntil": {
+                "type": "number"
+              },
+              "wokeAt": {
+                "type": "number"
+              },
+              "section": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "enum": [
+                      "needs-you",
+                      "working",
+                      "done",
+                      "idle"
+                    ]
+                  },
+                  "whileState": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "whileState"
+                ],
+                "additionalProperties": false
+              },
+              "rewoundAt": {
+                "type": "number"
+              },
+              "forkedFrom": {
+                "type": "object",
+                "properties": {
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "turnId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "threadId",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              "permissionMode": {
+                "type": "string"
+              },
+              "fast": {
+                "type": "boolean"
+              },
+              "subagents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "done",
+                        "failed",
+                        "stopped"
+                      ]
+                    },
+                    "parentToolUseId": {
+                      "type": "string"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "asked": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "endedAt": {
+                      "type": "number"
+                    },
+                    "lastLine": {
+                      "type": "string"
+                    },
+                    "failure": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": {
+                          "type": "object",
+                          "properties": {
+                            "input": {
+                              "type": "number"
+                            },
+                            "output": {
+                              "type": "number"
+                            },
+                            "cached": {
+                              "type": "number"
+                            },
+                            "cacheWrite": {
+                              "type": "number"
+                            },
+                            "reasoning": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "input",
+                            "output",
+                            "cached",
+                            "cacheWrite",
+                            "reasoning"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "toolUses": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "durationMs": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "state",
+                    "startedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "projectName": {
+                "type": "string"
+              },
+              "folder": {
+                "type": "string"
+              },
+              "branch": {
+                "type": "string"
+              },
+              "computerName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "workspaceId",
+              "harness",
+              "startedBy",
+              "status",
+              "title",
+              "sessionId",
+              "turns",
+              "ran",
+              "projectName",
+              "folder",
+              "branch",
+              "computerName"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "threads",
+    "description": "Every thread as the sidebar lists it: its project, the folder it works in (the project folder, or a worktree of the project's repo), that folder's branch as git reads it now, the computer it runs on, the agent inside, its state, who opened it (person, cli or agent) and its title. claudeSessionId is the agent's own id for the thread's session, absent until the agent announced one; for a Claude Code thread on this computer, cd into folder and run claude --resume with it to go on with the thread in a terminal, once the thread is not running; a thread on another computer goes on in a terminal there, its line also setting the CLAUDE_CONFIG_DIR its turns run with, as the app's Continue in terminal copies it. capped is on a thread waiting for a slot on its computer: the computer and what runs there against its threads at once; it starts on its own when one frees. Optionally within one project. A thread an agent inside another thread opened carries parentThreadId and rootThreadId, which is the tree stop ends as one. lastLine is the last line of the latest turn's reply and failure why that turn failed. subagents lists the agent's own subagents of every turn (id, title, state running, done, failed or stopped, model, asked: the start of what it was asked, lastLine or failure once it ends); stop takes one of them alone by its id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "one project's threads, by the name or the id projects lists"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "threadId": {
+                "type": "string"
+              },
+              "workspaceId": {
+                "type": "string"
+              },
+              "harness": {
+                "type": "string"
+              },
+              "startedBy": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "cli",
+                  "agent"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "completed",
+                  "interrupted",
+                  "failed"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              },
+              "claudeSessionId": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "number"
+              },
+              "endedAt": {
+                "type": "number"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "turns": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "ran": {
+                "type": "boolean"
+              },
+              "parentThreadId": {
+                "type": "string"
+              },
+              "rootThreadId": {
+                "type": "string"
+              },
+              "attempt": {
+                "type": "string"
+              },
+              "asking": {
+                "type": "string"
+              },
+              "waitingOn": {
+                "type": "object",
+                "properties": {
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "workspaceId": {
+                    "type": "string"
+                  },
+                  "sessionId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "object",
+                    "properties": {
+                      "askId": {
+                        "type": "string"
+                      },
+                      "toolName": {
+                        "type": "string"
+                      },
+                      "toolUseId": {
+                        "type": "string"
+                      },
+                      "parentToolUseId": {
+                        "type": "string"
+                      },
+                      "input": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": "string"
+                      },
+                      "options": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "allow",
+                                "deny",
+                                "mode",
+                                "answer"
+                              ]
+                            },
+                            "mode": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "label",
+                            "effect"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "askId",
+                      "toolName",
+                      "input",
+                      "options"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "threadId",
+                  "workspaceId",
+                  "sessionId",
+                  "title",
+                  "prompt"
+                ],
+                "additionalProperties": false
+              },
+              "setupRefusal": {
+                "type": "string"
+              },
+              "sub": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "waiting",
+                      "starting",
+                      "running",
+                      "napping",
+                      "released"
+                    ]
+                  },
+                  "on": {
+                    "type": "string"
+                  },
+                  "machine": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "object",
+                    "properties": {
+                      "cpu": {
+                        "type": "integer"
+                      },
+                      "memMb": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "cpu",
+                      "memMb"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "rateUsdPerHour": {
+                    "type": "number"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "object",
+                    "properties": {
+                      "branch": {
+                        "type": "string"
+                      },
+                      "pushedSha": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "commits": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "unpushed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "changed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "onBranch": {
+                        "type": "string"
+                      },
+                      "norepo": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "readFailed": {
+                        "type": "string"
+                      },
+                      "readAt": {
+                        "type": "string"
+                      },
+                      "pushRefused": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "branch",
+                      "pushedSha",
+                      "commits",
+                      "unpushed",
+                      "changed",
+                      "readAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "held": {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "commits": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      }
+                    },
+                    "required": [
+                      "files",
+                      "commits"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "deleteAt": {
+                    "type": "number"
+                  },
+                  "releasedAt": {
+                    "type": "number"
+                  },
+                  "cloudGone": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "sessionNotKept": {
+                    "type": "string"
+                  },
+                  "spawn": {
+                    "type": "object",
+                    "properties": {
+                      "startedAt": {
+                        "type": "number"
+                      },
+                      "branch": {
+                        "type": "object",
+                        "properties": {
+                          "branch": {
+                            "type": "string"
+                          },
+                          "sha": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "branch",
+                          "sha",
+                          "ms"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "machine": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "states": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "states"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "files": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "paths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "bytes": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "paths",
+                          "bytes"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "readyAt": {
+                        "type": "number"
+                      },
+                      "failed": {
+                        "type": "object",
+                        "properties": {
+                          "step": {
+                            "type": "string",
+                            "enum": [
+                              "machine",
+                              "files"
+                            ]
+                          },
+                          "said": {
+                            "type": "string"
+                          },
+                          "fix": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "step",
+                          "said"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "uncommitted": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "asked": {
+                        "type": "string"
+                      },
+                      "notSent": {
+                        "type": "string"
+                      },
+                      "replaced": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "log": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "startedAt",
+                      "log"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "state",
+                  "on",
+                  "machine",
+                  "size",
+                  "branch"
+                ],
+                "additionalProperties": false
+              },
+              "diskKeptUntil": {
+                "type": "number"
+              },
+              "diskGone": {
+                "type": "string"
+              },
+              "capped": {
+                "type": "object",
+                "properties": {
+                  "placeId": {
+                    "type": "string"
+                  },
+                  "place": {
+                    "type": "string"
+                  },
+                  "running": {
+                    "type": "integer"
+                  },
+                  "atOnce": {
+                    "type": "integer"
+                  },
+                  "why": {
+                    "type": "string",
+                    "enum": [
+                      "slot",
+                      "minute"
+                    ]
+                  }
+                },
+                "required": [
+                  "placeId",
+                  "place",
+                  "running",
+                  "atOnce"
+                ],
+                "additionalProperties": false
+              },
+              "limit": {
+                "type": "object",
+                "properties": {
+                  "resetsAt": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "resumeAt": {
+                "type": "number"
+              },
+              "costUsd": {
+                "type": "number"
+              },
+              "lastLine": {
+                "type": "string"
+              },
+              "failure": {
+                "type": "string"
+              },
+              "pid": {
+                "type": "integer"
+              },
+              "agentPid": {
+                "type": "integer"
+              },
+              "readAt": {
+                "type": "number"
+              },
+              "settledAt": {
+                "type": "number"
+              },
+              "pinnedAt": {
+                "type": "number"
+              },
+              "order": {
+                "type": "number"
+              },
+              "foldedAt": {
+                "type": "number"
+              },
+              "replaces": {
+                "type": "string"
+              },
+              "replacedBy": {
+                "type": "string"
+              },
+              "snoozedUntil": {
+                "type": "number"
+              },
+              "wokeAt": {
+                "type": "number"
+              },
+              "section": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "enum": [
+                      "needs-you",
+                      "working",
+                      "done",
+                      "idle"
+                    ]
+                  },
+                  "whileState": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "whileState"
+                ],
+                "additionalProperties": false
+              },
+              "rewoundAt": {
+                "type": "number"
+              },
+              "forkedFrom": {
+                "type": "object",
+                "properties": {
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "turnId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "threadId",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              "permissionMode": {
+                "type": "string"
+              },
+              "fast": {
+                "type": "boolean"
+              },
+              "subagents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "done",
+                        "failed",
+                        "stopped"
+                      ]
+                    },
+                    "parentToolUseId": {
+                      "type": "string"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "asked": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "endedAt": {
+                      "type": "number"
+                    },
+                    "lastLine": {
+                      "type": "string"
+                    },
+                    "failure": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": {
+                          "type": "object",
+                          "properties": {
+                            "input": {
+                              "type": "number"
+                            },
+                            "output": {
+                              "type": "number"
+                            },
+                            "cached": {
+                              "type": "number"
+                            },
+                            "cacheWrite": {
+                              "type": "number"
+                            },
+                            "reasoning": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "input",
+                            "output",
+                            "cached",
+                            "cacheWrite",
+                            "reasoning"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "toolUses": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "durationMs": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "state",
+                    "startedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "projectName": {
+                "type": "string"
+              },
+              "folder": {
+                "type": "string"
+              },
+              "branch": {
+                "type": "string"
+              },
+              "computerName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "workspaceId",
+              "harness",
+              "startedBy",
+              "status",
+              "title",
+              "sessionId",
+              "turns",
+              "ran",
+              "projectName",
+              "folder",
+              "branch",
+              "computerName"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

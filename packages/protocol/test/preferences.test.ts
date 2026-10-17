@@ -1,0 +1,302 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The preferences record every client reads off the host: what a stored record
+// parses to, how a patch lands on it, and the wire shapes that carry both.
+import { describe, expect, it } from "vitest";
+import { DEFAULT_PREFERENCES, EventUnion, GENERAL_DEFAULTS, LABS_ENV, NOTIFY_CHOICES, notifyBy, Preferences, PreferencesPatch, RuntimeRequest, applyPreferencesPatch, fmtPx, labsFromEnv, preferencesFrom } from "../src/index.js";
+
+describe("the preferences record", () => {
+  it("nothing stored, a record from an older host and a corrupt one all read as the defaults", () => {
+    expect(preferencesFrom(undefined)).toEqual(DEFAULT_PREFERENCES);
+    expect(preferencesFrom({})).toEqual(DEFAULT_PREFERENCES);
+    expect(preferencesFrom({ theme: "sepia" })).toEqual(DEFAULT_PREFERENCES);
+    expect(preferencesFrom("nonsense")).toEqual(DEFAULT_PREFERENCES);
+    expect(DEFAULT_PREFERENCES).toEqual({ theme: "system", lightTheme: "paper", darkTheme: "graphite", sidebarMode: "list", terminalSize: "app", terminalZoom: {}, access: {}, projectLook: {}, projectIcon: {}, computerLook: {}, serverIcons: true, agentVersions: true, usageLogs: true, productUsage: true, keepAwake: true, transparency: true, projectOrder: [], keybindings: {}, appFont: "", codeFont: "", agentDefaults: {}, projectDefaults: {}, sendWith: "enter", midTurn: "queue", notifyNeeds: "notify-sound", notifyDone: "notify", planAlerts: true, settleAfter: "2h", askDelete: true, onQuit: "ask", newThreadIn: "current", labs: false });
+  });
+
+  it("a stored record keeps what it has and takes the defaults for the rest", () => {
+    expect(preferencesFrom({ theme: "light", sidebarWidth: 312 })).toEqual({ ...DEFAULT_PREFERENCES, theme: "light", sidebarWidth: 312 });
+  });
+
+  it("a patch lands field by field, a null width clears the width, and the zoom lands per workspace, a null entry dropping that workspace's", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { theme: "dark", sidebarWidth: 300, terminalZoom: { ws_a: 2 } });
+    expect(one).toEqual({ theme: "dark", lightTheme: "paper", darkTheme: "graphite", sidebarMode: "list", sidebarWidth: 300, terminalSize: "app", terminalZoom: { ws_a: 2 }, access: {}, projectLook: {}, projectIcon: {}, computerLook: {}, serverIcons: true, agentVersions: true, usageLogs: true, productUsage: true, keepAwake: true, transparency: true, projectOrder: [], keybindings: {}, appFont: "", codeFont: "", agentDefaults: {}, projectDefaults: {}, sendWith: "enter", midTurn: "queue", notifyNeeds: "notify-sound", notifyDone: "notify", planAlerts: true, settleAfter: "2h", askDelete: true, onQuit: "ask", newThreadIn: "current", labs: false });
+    const two = applyPreferencesPatch(one, { terminalZoom: { ws_b: -1 } });
+    expect(two.terminalZoom).toEqual({ ws_a: 2, ws_b: -1 });
+    const three = applyPreferencesPatch(two, { sidebarWidth: null, terminalZoom: { ws_a: null } });
+    expect(three).toEqual({ theme: "dark", lightTheme: "paper", darkTheme: "graphite", sidebarMode: "list", terminalSize: "app", terminalZoom: { ws_b: -1 }, access: {}, projectLook: {}, projectIcon: {}, computerLook: {}, serverIcons: true, agentVersions: true, usageLogs: true, productUsage: true, keepAwake: true, transparency: true, projectOrder: [], keybindings: {}, appFont: "", codeFont: "", agentDefaults: {}, projectDefaults: {}, sendWith: "enter", midTurn: "queue", notifyNeeds: "notify-sound", notifyDone: "notify", planAlerts: true, settleAfter: "2h", askDelete: true, onQuit: "ask", newThreadIn: "current", labs: false });
+    expect(applyPreferencesPatch(one, {})).toEqual(one);
+    expect(PreferencesPatch.safeParse({ terminalZoom: { ws_a: null } }).success).toBe(true);
+  });
+
+  it("a reading or code size lands from its table and a null puts each surface back on its own size", () => {
+    const sized = applyPreferencesPatch(DEFAULT_PREFERENCES, { textSize: 16, codeSize: 13 });
+    expect([sized.textSize, sized.codeSize]).toEqual([16, 13]);
+    expect(applyPreferencesPatch(sized, { theme: "dark" }).textSize).toBe(16);
+    const cleared = applyPreferencesPatch(sized, { textSize: null, codeSize: null });
+    expect("textSize" in cleared || "codeSize" in cleared).toBe(false);
+    for (const off of [{ textSize: 21 }, { codeSize: 9 }, { textSize: 14.5 }]) expect(PreferencesPatch.safeParse(off).success, JSON.stringify(off)).toBe(false);
+  });
+
+  it("the editor pick lands and stays through a patch that names none, and an editor off the table is refused", () => {
+    const picked = applyPreferencesPatch(DEFAULT_PREFERENCES, { editor: "zed" });
+    expect(picked).toEqual({ ...DEFAULT_PREFERENCES, editor: "zed" });
+    expect(applyPreferencesPatch(picked, { theme: "dark" }).editor).toBe("zed");
+    expect(preferencesFrom({ editor: "cursor" }).editor).toBe("cursor");
+    expect(PreferencesPatch.safeParse({ editor: "emacs" }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ editor: "sh -c 'open /'" }).success).toBe(false);
+  });
+
+  it("each side keeps its own theme pick: a patch lands either, an old record reads with the side defaults, and an empty id is refused", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { darkTheme: "denim" });
+    expect(one).toEqual({ ...DEFAULT_PREFERENCES, darkTheme: "denim" });
+    const two = applyPreferencesPatch(one, { lightTheme: "linen", theme: "light" });
+    expect(two).toEqual({ ...DEFAULT_PREFERENCES, theme: "light", lightTheme: "linen", darkTheme: "denim" });
+    expect(applyPreferencesPatch(two, { sidebarWidth: 280 })).toEqual({ ...two, sidebarWidth: 280 });
+    // A record from a host older than the picks reads with each side on its default.
+    expect(preferencesFrom({ theme: "dark", sidebarWidth: 300 })).toEqual({ ...DEFAULT_PREFERENCES, theme: "dark", sidebarWidth: 300 });
+    expect(preferencesFrom({ darkTheme: "denim" }).darkTheme).toBe("denim");
+    // On the wire too: a record an older host sends parses with the side defaults rather than failing whole.
+    const { lightTheme: _l, darkTheme: _d, ...older } = DEFAULT_PREFERENCES;
+    expect(Preferences.parse({ ...older, theme: "dark" })).toEqual({ ...DEFAULT_PREFERENCES, theme: "dark" });
+    // The shape is the protocol's; which ids exist is the app's, so an id this build does not know still parses.
+    expect(PreferencesPatch.safeParse({ lightTheme: "linen", darkTheme: "some-later-theme" }).success).toBe(true);
+    expect(PreferencesPatch.safeParse({ lightTheme: "" }).success).toBe(false);
+    // The record's defaults never ride in on a patch that names neither pick: they would put a side back unasked.
+    expect(PreferencesPatch.parse({ theme: "dark" })).toEqual({ theme: "dark" });
+    expect(PreferencesPatch.safeParse({ darkTheme: 3 }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ lightTheme: "linen", accentTheme: "x" }).success).toBe(false);
+  });
+
+  it("the access pick lands per workspace and stands beside the rest, a null entry dropping that workspace's", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { access: { ws_a: "bypassPermissions" } });
+    expect(one.access).toEqual({ ws_a: "bypassPermissions" });
+    // A pick in one workspace leaves another's alone, and a patch that names none leaves every pick standing.
+    const two = applyPreferencesPatch(one, { access: { ws_b: "acceptEdits" } });
+    expect(two.access).toEqual({ ws_a: "bypassPermissions", ws_b: "acceptEdits" });
+    expect(applyPreferencesPatch(two, { theme: "dark" }).access).toEqual(two.access);
+    expect(applyPreferencesPatch(two, { access: { ws_a: null } }).access).toEqual({ ws_b: "acceptEdits" });
+    // A record from a host that kept no picks reads as none, not as undefined a caller has to guard.
+    expect(preferencesFrom({ theme: "light" }).access).toEqual({});
+  });
+
+  it("a project's look lands per project, a null entry dropping that project's, and a stored record without looks reads as none", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { projectLook: { pr_1: { icon: "rocket", hue: "teal" } } });
+    expect(one.projectLook).toEqual({ pr_1: { icon: "rocket", hue: "teal" } });
+    const two = applyPreferencesPatch(one, { projectLook: { pr_2: { hue: "blue" } } });
+    expect(two.projectLook).toEqual({ pr_1: { icon: "rocket", hue: "teal" }, pr_2: { hue: "blue" } });
+    expect(applyPreferencesPatch(two, { projectLook: { pr_1: null } }).projectLook).toEqual({ pr_2: { hue: "blue" } });
+    expect(preferencesFrom({ theme: "light" }).projectLook).toEqual({});
+    expect(PreferencesPatch.safeParse({ projectLook: { pr_1: { icon: "rocket" } } }).success).toBe(true);
+    expect(PreferencesPatch.safeParse({ projectLook: { pr_1: { icon: "unicorn" } } }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ projectLook: { pr_1: { hue: "blue", size: 3 } } }).success).toBe(false);
+  });
+
+  it("a project's image stands apart from its look: a look's patch keeps it, the stored record reads it, no patch names it, and a reader from before it drops the key alone", () => {
+    const hash = "c".repeat(64);
+    const held = preferencesFrom({ theme: "light", projectLook: { pr_1: { icon: "rocket", hue: "teal" } }, projectIcon: { pr_1: hash } });
+    expect(held.projectIcon).toEqual({ pr_1: hash });
+    expect(applyPreferencesPatch(held, { projectLook: { pr_1: { icon: "rocket", hue: "blue" } } }).projectIcon).toEqual({ pr_1: hash });
+    expect(applyPreferencesPatch(held, { projectLook: { pr_1: null } }).projectIcon).toEqual({ pr_1: hash });
+    expect(preferencesFrom({ theme: "light" }).projectIcon).toEqual({});
+    expect(PreferencesPatch.safeParse({ projectIcon: { pr_1: hash } }).success).toBe(false);
+    expect(Preferences.safeParse({ ...held, projectIcon: { pr_1: "../../etc/passwd" } }).success).toBe(false);
+    // The record as a command line one version behind parses it: the same object less the field, which strips a key it
+    // does not know rather than refusing the record.
+    const before = Preferences.omit({ projectIcon: true });
+    expect(before.parse(held)).toEqual(Object.fromEntries(Object.entries(held).filter(([k]) => k !== "projectIcon")));
+  });
+
+  it("a computer's icon lands per computer, a null entry dropping that computer's, and a stored record without icons reads as none", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { computerLook: { pl_1: { icon: "server" } } });
+    expect(one.computerLook).toEqual({ pl_1: { icon: "server" } });
+    const two = applyPreferencesPatch(one, { computerLook: { pl_2: { icon: "laptop" } }, theme: "dark" });
+    expect(two.computerLook).toEqual({ pl_1: { icon: "server" }, pl_2: { icon: "laptop" } });
+    expect(applyPreferencesPatch(two, { projectLook: { pr_1: { hue: "blue" } } }).computerLook).toEqual(two.computerLook);
+    expect(applyPreferencesPatch(two, { computerLook: { pl_1: null } }).computerLook).toEqual({ pl_2: { icon: "laptop" } });
+    expect(preferencesFrom({ theme: "light", projectLook: { pr_1: { icon: "rocket" } } })).toEqual({ ...DEFAULT_PREFERENCES, theme: "light", projectLook: { pr_1: { icon: "rocket" } }, computerLook: {} });
+    expect(preferencesFrom({ computerLook: { pl_1: { icon: "home" } } }).computerLook).toEqual({ pl_1: { icon: "home" } });
+    expect(PreferencesPatch.safeParse({ computerLook: { pl_1: null } }).success).toBe(true);
+    expect(PreferencesPatch.safeParse({ computerLook: { pl_1: { icon: "toaster" } } }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ computerLook: { pl_1: {} } }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ computerLook: { pl_1: { icon: "cloud", hue: "blue" } } }).success).toBe(false);
+  });
+
+  it("a recipe's icon lands per recipe, a null entry dropping it, and a record that never picked one carries no field", () => {
+    expect(DEFAULT_PREFERENCES).not.toHaveProperty("recipeLook");
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { recipeLook: { builders: { icon: "rocket" } } });
+    expect(one.recipeLook).toEqual({ builders: { icon: "rocket" } });
+    const two = applyPreferencesPatch(one, { recipeLook: { minimal: { icon: "zap" } }, theme: "dark" });
+    expect(two.recipeLook).toEqual({ builders: { icon: "rocket" }, minimal: { icon: "zap" } });
+    expect(applyPreferencesPatch(two, { theme: "light" }).recipeLook).toEqual(two.recipeLook);
+    expect(applyPreferencesPatch(two, { recipeLook: { builders: null } }).recipeLook).toEqual({ minimal: { icon: "zap" } });
+    expect(applyPreferencesPatch(DEFAULT_PREFERENCES, { theme: "dark" })).not.toHaveProperty("recipeLook");
+    expect(PreferencesPatch.safeParse({ recipeLook: { builders: { icon: "toaster" } } }).success).toBe(false);
+  });
+
+  it("server icons are on until the person turns them off, a stored record without the switch reading as on", () => {
+    expect(preferencesFrom({ theme: "light" }).serverIcons).toBe(true);
+    const off = applyPreferencesPatch(DEFAULT_PREFERENCES, { serverIcons: false });
+    expect(off.serverIcons).toBe(false);
+    expect(applyPreferencesPatch(off, { theme: "dark" }).serverIcons).toBe(false);
+    expect(preferencesFrom({ serverIcons: false }).serverIcons).toBe(false);
+    expect(applyPreferencesPatch(off, { serverIcons: true }).serverIcons).toBe(true);
+    expect(PreferencesPatch.safeParse({ serverIcons: "no" }).success).toBe(false);
+  });
+
+  it("a chord override lands per command, a null entry putting that command back on its default chords", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { keybindings: { "sidebar.toggle": "mod+shift+b" } });
+    expect(one.keybindings).toEqual({ "sidebar.toggle": "mod+shift+b" });
+    const two = applyPreferencesPatch(one, { keybindings: { "terminal.toggle": "mod+shift+t" } });
+    expect(two.keybindings).toEqual({ "sidebar.toggle": "mod+shift+b", "terminal.toggle": "mod+shift+t" });
+    expect(applyPreferencesPatch(two, { theme: "dark" }).keybindings).toEqual(two.keybindings);
+    expect(applyPreferencesPatch(two, { keybindings: { "sidebar.toggle": null } }).keybindings).toEqual({ "terminal.toggle": "mod+shift+t" });
+    // A record from a host that kept no overrides reads as none.
+    expect(preferencesFrom({ theme: "light" }).keybindings).toEqual({});
+    expect(preferencesFrom({ keybindings: { "chat.new": "mod+alt+n" } }).keybindings).toEqual({ "chat.new": "mod+alt+n" });
+    expect(PreferencesPatch.safeParse({ keybindings: { "sidebar.toggle": null } }).success).toBe(true);
+    expect(PreferencesPatch.safeParse({ keybindings: { "sidebar.toggle": 3 } }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ keybindings: { "sidebar.toggle": "" } }).success).toBe(false);
+  });
+
+  it("the app and code fonts are a family each, empty for the system stack, and a stored record without them reads as empty", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { appFont: "Inter", codeFont: "JetBrains Mono" });
+    expect([one.appFont, one.codeFont]).toEqual(["Inter", "JetBrains Mono"]);
+    expect(applyPreferencesPatch(one, { theme: "dark" })).toEqual({ ...one, theme: "dark" });
+    expect(applyPreferencesPatch(one, { appFont: "" })).toEqual({ ...one, appFont: "" });
+    expect(preferencesFrom({ theme: "light" })).toEqual({ ...DEFAULT_PREFERENCES, theme: "light" });
+    expect(preferencesFrom({ codeFont: "Hack" }).codeFont).toBe("Hack");
+    expect(PreferencesPatch.safeParse({ appFont: 3 }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ codeFont: "x".repeat(129) }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ uiFont: "Inter" }).success).toBe(false);
+    // On the wire too: a record from an older host parses with the fonts and overrides empty.
+    const { keybindings: _k, appFont: _a, codeFont: _c, ...older } = DEFAULT_PREFERENCES;
+    expect(Preferences.parse(older)).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("labs comes from the host's environment alone, and no patch carries it", () => {
+    expect(labsFromEnv({})).toBe(false);
+    expect(labsFromEnv({ [LABS_ENV]: "0" })).toBe(false);
+    expect(labsFromEnv({ [LABS_ENV]: "1" })).toBe(true);
+    expect(PreferencesPatch.safeParse({ labs: true }).success).toBe(false);
+    expect(applyPreferencesPatch({ ...DEFAULT_PREFERENCES, labs: true }, { theme: "dark" }).labs).toBe(true);
+  });
+
+  it("the patch shape refuses a value outside the record's own", () => {
+    expect(PreferencesPatch.safeParse({ theme: "light" }).success).toBe(true);
+    expect(PreferencesPatch.safeParse({ theme: "sepia" }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ sidebarWidth: -4 }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ terminalZoom: { ws_a: 1.5 } }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ access: { ws_a: "acceptEdits" } }).success).toBe(true);
+    expect(PreferencesPatch.safeParse({ access: { ws_a: null } }).success).toBe(true);
+    expect(PreferencesPatch.safeParse({ access: { ws_a: 3 } }).success).toBe(false);
+  });
+
+  it("the runtime takes preferences.get and preferences.set with a patch, and the changed event carries the whole record", () => {
+    expect(RuntimeRequest.safeParse({ id: 1, op: "preferences.get" }).success).toBe(true);
+    expect(RuntimeRequest.safeParse({ id: 1, op: "preferences.set", patch: { sidebarMode: "spaces" } }).success).toBe(true);
+    expect(RuntimeRequest.safeParse({ id: 1, op: "preferences.set", patch: { sidebarMode: "grid" } }).success).toBe(false);
+    expect(RuntimeRequest.safeParse({ id: 1, op: "preferences.set" }).success).toBe(false);
+    expect(EventUnion.safeParse({ type: "preferences.changed", preferences: DEFAULT_PREFERENCES, seq: 4 }).success).toBe(true);
+  });
+
+  it("a size in css pixels reads as a number and the unit", () => {
+    expect(fmtPx(14)).toBe("14 px");
+    expect(fmtPx(312)).toBe("312 px");
+  });
+});
+
+describe("the last target on the preferences record", () => {
+  it("the last target, the workspace a thread was started on, lands whole and a null clears it; a workspace holds one project, so the workspace is the whole of it", () => {
+    const one = applyPreferencesPatch(DEFAULT_PREFERENCES, { target: { workspace: "ws_a" } });
+    expect(one.target).toEqual({ workspace: "ws_a" });
+    const two = applyPreferencesPatch(one, { target: { workspace: "ws_b" } });
+    expect(two.target).toEqual({ workspace: "ws_b" });
+    expect(applyPreferencesPatch(two, { theme: "dark" }).target).toEqual({ workspace: "ws_b" });
+    expect("target" in applyPreferencesPatch(two, { target: null })).toBe(false);
+    expect("target" in DEFAULT_PREFERENCES).toBe(false);
+    expect(PreferencesPatch.safeParse({ target: null }).success).toBe(true);
+    // The per-workspace project pick left with the list: a patch naming it is refused rather than written into a
+    // state file nothing reads.
+    expect(PreferencesPatch.safeParse({ project: { ws_a: "spoo" } }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ target: { workspace: "ws_a", project: "spoo" } }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ target: { project: "spoo" } }).success).toBe(false);
+  });
+});
+
+describe("transparency on the preferences record", () => {
+  it("is on by default and on for a record written before the switch, and a patch turns it off and on", () => {
+    expect(DEFAULT_PREFERENCES.transparency).toBe(true);
+    const off = applyPreferencesPatch(DEFAULT_PREFERENCES, { transparency: false });
+    expect(off.transparency).toBe(false);
+    expect(applyPreferencesPatch(off, { theme: "dark" }).transparency).toBe(false);
+    expect(applyPreferencesPatch(off, { transparency: true }).transparency).toBe(true);
+    const { transparency: _, ...older } = DEFAULT_PREFERENCES;
+    expect(preferencesFrom(older).transparency).toBe(true);
+    expect(PreferencesPatch.safeParse({ transparency: "off" }).success).toBe(false);
+  });
+});
+
+describe("the dismissed update on the preferences record", () => {
+  it("is absent until the person dismisses a release, then holds that version through a patch that names none, and a later one replaces it", () => {
+    expect(DEFAULT_PREFERENCES.updateDismissed).toBeUndefined();
+    const dismissed = applyPreferencesPatch(DEFAULT_PREFERENCES, { updateDismissed: "0.3.3" });
+    expect(dismissed).toEqual({ ...DEFAULT_PREFERENCES, updateDismissed: "0.3.3" });
+    expect(applyPreferencesPatch(dismissed, { theme: "dark" }).updateDismissed).toBe("0.3.3");
+    expect(applyPreferencesPatch(dismissed, { updateDismissed: "0.3.4" }).updateDismissed).toBe("0.3.4");
+    expect(preferencesFrom({ updateDismissed: "0.3.3" }).updateDismissed).toBe("0.3.3");
+    expect(PreferencesPatch.safeParse({ updateDismissed: 3 }).success).toBe(false);
+  });
+});
+
+describe("the project order on the preferences record", () => {
+  it("a project order lands whole, the list the person dragged", () => {
+    const ordered = applyPreferencesPatch(DEFAULT_PREFERENCES, { projectOrder: ["pr_b", "pr_a"] });
+    expect(ordered).toEqual({ ...DEFAULT_PREFERENCES, projectOrder: ["pr_b", "pr_a"] });
+    expect(applyPreferencesPatch(ordered, { projectOrder: ["pr_a"] }).projectOrder).toEqual(["pr_a"]);
+    expect(applyPreferencesPatch(ordered, { theme: "dark" }).projectOrder).toEqual(["pr_b", "pr_a"]);
+    expect(PreferencesPatch.safeParse({ projectOrder: [3] }).success).toBe(false);
+    expect(PreferencesPatch.safeParse({ notifySound: false }).success).toBe(false);
+  });
+});
+
+describe("keeping the computer awake while threads work", () => {
+  it("is on unless the person turns it off, a record from before the switch reads as on, and the switch lands as a flag", () => {
+    expect(DEFAULT_PREFERENCES.keepAwake).toBe(true);
+    expect(preferencesFrom({ theme: "dark" }).keepAwake).toBe(true);
+    expect(applyPreferencesPatch(DEFAULT_PREFERENCES, { keepAwake: false }).keepAwake).toBe(false);
+    expect(applyPreferencesPatch(applyPreferencesPatch(DEFAULT_PREFERENCES, { keepAwake: false }), { theme: "dark" }).keepAwake).toBe(false);
+    expect(PreferencesPatch.safeParse({ keepAwake: "yes" }).success).toBe(false);
+  });
+});
+
+describe("the General choices on the preferences record", () => {
+  it("each takes its default on a record that names none, the owner's ruling among them: a finished thread says nothing", () => {
+    expect(preferencesFrom({ theme: "dark" })).toMatchObject({ sendWith: "enter", midTurn: "queue", notifyNeeds: "notify-sound", notifyDone: "notify", planAlerts: true, settleAfter: "2h", askDelete: true, onQuit: "ask", newThreadIn: "current" });
+    const { sendWith: _s, notifyDone: _n, onQuit: _q, newThreadIn: _t, ...older } = DEFAULT_PREFERENCES;
+    expect(Preferences.parse(older)).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("New thread opens on the current project unless the record stored Ask every time", () => {
+    expect(preferencesFrom({}).newThreadIn).toBe("current");
+    expect(preferencesFrom({ newThreadIn: "ask" }).newThreadIn).toBe("ask");
+  });
+
+  it("a patch lands each choice and a later patch naming none keeps it", () => {
+    const picked = applyPreferencesPatch(DEFAULT_PREFERENCES, { sendWith: "mod-enter", midTurn: "steer", notifyNeeds: "sound", notifyDone: "notify", planAlerts: false, settleAfter: "never", askDelete: false, onQuit: "stop", newThreadIn: "ask" });
+    expect(picked).toEqual({ ...DEFAULT_PREFERENCES, sendWith: "mod-enter", midTurn: "steer", notifyNeeds: "sound", notifyDone: "notify", planAlerts: false, settleAfter: "never", askDelete: false, onQuit: "stop", newThreadIn: "ask" });
+    expect(applyPreferencesPatch(picked, { theme: "dark" })).toEqual({ ...picked, theme: "dark" });
+    expect(preferencesFrom({ settleAfter: "15m", onQuit: "keep" })).toMatchObject({ settleAfter: "15m", onQuit: "keep" });
+  });
+
+  it("each notification choice shows, sounds, both, or says nothing", () => {
+    expect(NOTIFY_CHOICES.map(choice => notifyBy(choice))).toEqual([undefined, { show: true, sound: false }, { show: false, sound: true }, { show: true, sound: true }]);
+  });
+
+  it("the defaults the schema fills in are the defaults the record starts at, from one list", () => {
+    expect(Preferences.parse({ ...DEFAULT_PREFERENCES, ...Object.fromEntries(Object.keys(GENERAL_DEFAULTS).map(k => [k, undefined])) })).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("a choice off its table is refused", () => {
+    for (const off of [{ sendWith: "shift-enter" }, { midTurn: "interrupt" }, { notifyNeeds: "loud" }, { notifyDone: true }, { planAlerts: "on" }, { settleAfter: "3h" }, { askDelete: 1 }, { onQuit: "hide" }, { newThreadIn: "last" }]) expect(PreferencesPatch.safeParse(off).success, JSON.stringify(off)).toBe(false);
+  });
+});

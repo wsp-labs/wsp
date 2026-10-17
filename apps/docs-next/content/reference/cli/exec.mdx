@@ -1,0 +1,19 @@
+# wsp exec
+
+{/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
+
+```text
+usage: wsp exec <thread> [--cwd <dir>] -- <command...>
+  runs the command where the thread works, each word as given, in --cwd or the
+  thread's own folder
+
+  --cwd      the folder to run the command in, absolute; the folder the thread
+             works in without it
+  --json     print the raw protocol values, one JSON object per line, with
+             everything else on stderr
+  --state    the state file the host serves
+  --host     run the line against a host on your account, by the name wsp hosts
+             lists it under; WSP_HOST names one for a whole shell
+```
+
+MCP tool: [`exec`](/reference/mcp-tools#exec).

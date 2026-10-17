@@ -1,0 +1,420 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// A computer's setup as the app reads it: the job's frames folded onto the
+// record the places list carries, read again once per step that ends and never
+// per frame, the pending adds kept off their own events, and the record drawn
+// as the rows every list of steps shows.
+import { afterEach, describe, expect, it } from "vitest";
+import { AT_ITS_TERMINAL, copiedFromLine, tokenHeldLine, GITHUB_SKIPPED_LINE, waitsForInstallLine, RecipeFile, SIGNED_IN_THERE, SKIPPED_FOR_NOW, type EventUnion, type PendingComputer, type PlaceAddJob, type PlaceProvisionRow, type PlaceSetup, type PlaceSetupStep, type PlaceView } from "@wsp/protocol";
+import type { Api } from "../src/protocol/client.js";
+import { useStore } from "../src/protocol/store.js";
+import { checkRows, foldSetup, leftRows, runningSince, setupCount, setupRows, setupStanding } from "../src/settings/add/setup.js";
+import { ADD_COMPUTER_WORDS } from "../src/settings/format.js";
+import { caps } from "./caps.js";
+import { resetSettings, settingsApi, settle } from "./settings-harness.js";
+
+const RUNNING: PlaceSetup = { state: "running", addId: "a_1", startedAt: "2026-10-03T10:00:00.000Z", steps: [{ step: "floor", state: "running" }], waiting: [] };
+const studio: PlaceView = { id: "p_studio", kind: "computer", name: "studio", default: false, present: true, setup: RUNNING };
+const choosing: PendingComputer = { id: "a_2", address: "root@jump", step: "choosing", placeId: "p_jump", startedAt: "2026-10-03T10:00:00.000Z", choices: RecipeFile.parse({ name: "jump" }) };
+
+function bound(over: Partial<Api>): { push(e: EventUnion): void } {
+  const fake = settingsApi({ listWorkspaces: async () => [], watchStatuses: async () => [], getGolden: async () => undefined, listSessions: async () => [], capabilities: async () => caps(), ...over } as Partial<Api>);
+  useStore.getState().bind(fake.api);
+  return fake;
+}
+
+afterEach(() => resetSettings());
+
+describe("a setup's frames in the store", () => {
+  it("folds each frame onto the computer's row and reads the list again only when a step or the job ends", async () => {
+    let asked = 0;
+    const { push } = bound({ placesList: async () => (asked++, { places: [studio], adds: [], pending: [] }) } as Partial<Api>);
+    await settle();
+    expect(asked).toBe(1);
+    push({ type: "place.setup", addId: "a_1", placeId: "p_studio", line: { step: "floor", state: "done", ms: 72_000 } } as EventUnion);
+    push({ type: "place.setup", addId: "a_1", placeId: "p_studio", line: { step: "agents", state: "running" } } as EventUnion);
+    push({ type: "place.setup", addId: "a_1", placeId: "p_studio", wait: { row: "signins/codex", label: "Codex", code: "4F2K-9QJM", url: "https://auth.openai.com/device", expiresAt: "2026-10-03T10:10:00.000Z", state: "waiting" } } as EventUnion);
+    // A frame of a run the record does not hold changes nothing, not even the list's identity.
+    const before = useStore.getState().places;
+    push({ type: "place.setup", addId: "a_other", placeId: "p_studio", line: { step: "floor", state: "running" } } as EventUnion);
+    expect(useStore.getState().places).toBe(before);
+    const row = useStore.getState().places.find(p => p.id === "p_studio")!;
+    expect(row.setup?.steps).toEqual([{ step: "floor", state: "done", ms: 72_000 }, { step: "agents", state: "running" }]);
+    expect(row.setup?.waiting.map(w => w.code)).toEqual(["4F2K-9QJM"]);
+    await settle();
+    expect(asked).toBe(2);
+  });
+
+  it("keeps the pending adds off the list and their own events, an event with none taking the add away", async () => {
+    const { push } = bound({ placesList: async () => ({ places: [], adds: [], pending: [choosing] }) } as Partial<Api>);
+    await settle();
+    expect(useStore.getState().pending.map(p => p.id)).toEqual(["a_2"]);
+    push({ type: "place.pending", id: "a_2", pending: { ...choosing, recipe: "builders" } } as EventUnion);
+    expect(useStore.getState().pending).toEqual([{ ...choosing, recipe: "builders" }]);
+    push({ type: "place.pending", id: "a_2" } as EventUnion);
+    expect(useStore.getState().pending).toEqual([]);
+  });
+
+  it("takes a sign-in's wait off when its row lands after its step ended, before the list read again answers", async () => {
+    const wait = { row: "signins/codex", label: "Codex", code: "4F2K-9QJM", url: "https://auth.openai.com/device", expiresAt: "2026-10-03T10:10:00.000Z", state: "waiting" as const };
+    const signing: PlaceView = { ...studio, setup: { ...RUNNING, steps: [{ step: "signins", state: "done", ms: 40 }, { step: "clis", state: "running" }], waiting: [wait] } };
+    let asked = 0;
+    const { push } = bound({ placesList: () => (asked++ === 0 ? Promise.resolve({ places: [signing], adds: [], pending: [] }) : new Promise(() => {})) } as Partial<Api>);
+    await settle();
+    expect(useStore.getState().places[0]?.setup?.waiting).toEqual([wait]);
+    push({ type: "place.setup", addId: "a_1", placeId: "p_studio", landed: "signins/codex" } as EventUnion);
+    expect(useStore.getState().places[0]?.setup?.waiting).toEqual([]);
+    expect(useStore.getState().places[0]?.setup?.steps).toEqual(signing.setup!.steps);
+  });
+
+  it("counts a running step's time from when the host started it, in a window that first sees the step mid-run", async () => {
+    const now = Date.parse("2026-10-03T10:05:00.000Z");
+    const midway: PlaceView = { ...studio, setup: { ...RUNNING, steps: [{ step: "floor", state: "done", ms: 72_000 }, { step: "clis", state: "running", startedAt: "2026-10-03T10:00:00.000Z" }] } };
+    const { push } = bound({ placesList: async () => ({ places: [midway], adds: [], pending: [] }) } as Partial<Api>);
+    await settle();
+    expect(now - runningSince(useStore.getState().places[0]?.setup, "clis")!).toBe(300_000);
+    push({ type: "place.setup", addId: "a_1", placeId: "p_studio", line: { step: "skills", state: "running", startedAt: "2026-10-03T10:04:00.000Z" }, running: ["clis", "skills"] } as EventUnion);
+    expect(now - runningSince(useStore.getState().places[0]?.setup, "clis")!).toBe(300_000);
+    expect(now - runningSince(useStore.getState().places[0]?.setup, "skills")!).toBe(60_000);
+  });
+
+  it("leaves a setup alone for a frame of another run", () => {
+    expect(foldSetup(RUNNING, { type: "place.setup", addId: "a_old", placeId: "p_studio", line: { step: "floor", state: "failed" } })).toBe(RUNNING);
+  });
+});
+
+describe("a setup as rows", () => {
+  it("reads a project's own servers under MCP servers, a missed one under it, and draws no row of their own step", () => {
+    const rows = setupRows({
+      setup: { ...RUNNING, state: "done", steps: [{ step: "mcp", state: "done" }, { step: "folderServers", state: "done" }], waiting: [] },
+      applied: {
+        hash: "h",
+        at: "x",
+        rows: [
+          { id: "agents/mcp/claude/@%2Froot%2Facme/stub-one", label: "Claude Code stub-one", outcome: "installed", step: "folderServers" },
+          { id: "agents/mcp/claude/@%2Froot%2Facme/keyed", label: "Claude Code keyed", outcome: "failed", step: "folderServers", note: "the config edit did not run" },
+        ],
+      },
+    });
+    expect(rows.filter(r => r.name === "MCP servers" || r.name === "Claude Code keyed").map(r => [r.name, r.state, r.sub === true])).toEqual([
+      ["MCP servers", "done", false],
+      ["Claude Code keyed", "failed", true],
+    ]);
+    expect(rows.some(r => r.id === "folderServers")).toBe(false);
+  });
+
+  it("draws every chosen step in order, a step not started waiting, the sign-ins under Agents and a missed item under its step", () => {
+    const rows = setupRows({
+      setup: { ...RUNNING, state: "done", steps: [{ step: "floor", state: "done", ms: 72_000 }, { step: "agents", state: "done" }, { step: "skills", state: "failed", note: "1 of 2 failed" }], waiting: [{ row: "signins/codex", label: "Codex", code: "4F2K", expiresAt: "x", state: "waiting" }] },
+      applied: {
+        hash: "h",
+        at: "x",
+        rows: [
+          { id: "claude", label: "Claude Code", outcome: "installed", step: "agents" },
+          { id: "signins/claude", label: "Claude Code", outcome: "present", step: "signins", note: "from the vault" },
+          { id: "skills/unslop", label: "unslop", outcome: "installed", step: "skills" },
+          { id: "skills/taste", label: "zingzy-design-taste", outcome: "failed", step: "skills", note: "a link inside points at a folder", fix: "Replace the link with a copy here and retry." },
+        ],
+      },
+    });
+    expect(rows.map(r => [r.name, r.state, r.sub === true])).toEqual([
+      ["Install wsp", "done", false],
+      ["Base packages", "done", false],
+      ["Agents", "done", false],
+      ["Claude Code sign-in", "done", true],
+      ["Codex sign-in", "needs-you", true],
+      ["MCP servers", "waiting", false],
+      ["CLIs", "waiting", false],
+      ["Skills", "done", false],
+      ["zingzy-design-taste", "failed", true],
+      ["Plugins", "waiting", false],
+      ["GitHub", "waiting", false],
+      ["Projects", "waiting", false],
+      ["Other config", "waiting", false],
+    ]);
+    expect(rows.find(r => r.id === "skills")?.note).toBe("1 skill");
+    expect(rows.find(r => r.id === "skills/taste")).toMatchObject({ said: "a link inside points at a folder", fix: "Replace the link with a copy here and retry." });
+    expect(rows.find(r => r.id === "signins/codex")?.wait?.code).toBe("4F2K");
+    expect(setupCount(rows)).toEqual({ done: 4, of: 10 });
+  });
+
+  it("draws a sign-in waiting again after a retry by its wait, never also by the row it failed with before", () => {
+    const rows = setupRows({
+      setup: { ...RUNNING, waiting: [{ row: "signins/codex", label: "Codex", code: "NEW-CODE", expiresAt: "x", state: "waiting" }] },
+      applied: { hash: "h", at: "x", rows: [{ id: "signins/codex", label: "Codex", outcome: "failed", step: "signins", note: "the page ran out" }] },
+    });
+    expect(rows.filter(r => r.id === "signins/codex").map(r => [r.state, r.wait?.code])).toEqual([["needs-you", "NEW-CODE"]]);
+  });
+
+  it("says the install landed and connected, never with an internal word", () => {
+    const install = setupRows({ setup: RUNNING })[0]!;
+    expect([install.name, install.state, install.note]).toEqual(["Install wsp", "done", "Installed and connected."]);
+  });
+
+  it("counts what a step put there, never naming its rows, whose labels may be paths on the box", () => {
+    const rows = (step: PlaceSetupStep, labels: readonly string[], id = (i: number) => `${step}/${i}`) => labels.map((label, i) => ({ id: id(i), label, outcome: "installed" as const, step }));
+    const note = (step: PlaceSetupStep, applied: PlaceProvisionRow[]) => setupRows({ setup: { ...RUNNING, steps: [{ step, state: "done" }] }, applied: { hash: "h", at: "x", rows: applied } }).find(r => r.id === step)?.note;
+    expect(note("skills", rows("skills", Array.from({ length: 332 }, (_, i) => `skill-${i}`)))).toBe("332 skills");
+    expect(note("clis", rows("clis", ["gh"]))).toBe("1 CLI");
+    const files = rows("mcp", ["Claude Code /root/.claude-cfg/CLAUDE.md", "Codex /root/.codex/AGENTS.md"]);
+    const servers = rows("mcp", ["context7", "linear", "playwright"], i => `agents/mcp/claude/${i}`);
+    expect(note("mcp", [...servers, ...files])).toBe("3 MCP servers, 2 agent files");
+    expect(note("mcp", servers)).toBe("3 MCP servers");
+    expect(note("mcp", files)).toBe("2 agent files");
+    expect(note("mcp", [...servers, ...files])).not.toContain("/root");
+  });
+
+  it("says why on the step a setup stopped at, with no items under it", () => {
+    const rows = setupRows({ setup: { ...RUNNING, state: "failed", said: "apt-get install exited 100", steps: [{ step: "floor", state: "failed" }] }, applied: { hash: "h", at: "x", rows: [{ id: "floor/stopped", label: "base", outcome: "failed", step: "floor" }] } });
+    expect(rows.find(r => r.id === "floor")).toMatchObject({ state: "failed", said: "apt-get install exited 100" });
+    expect(rows.some(r => r.id === "floor/stopped")).toBe(false);
+  });
+
+  it("reads running, needs you, failed and ready off the record", () => {
+    expect(setupStanding({ setup: RUNNING })).toBe("running");
+    expect(setupStanding({ setup: { ...RUNNING, state: "failed" } })).toBe("failed");
+    expect(setupStanding({ setup: { ...RUNNING, state: "done", waiting: [{ row: "signins/codex", label: "Codex", expiresAt: "x", state: "waiting" }] } })).toBe("needs-you");
+    expect(setupStanding({ setup: { ...RUNNING, state: "done" }, applied: { hash: "h", at: "x", rows: [{ id: "f", label: "wsp", outcome: "failed", step: "folders" }] } })).toBe("needs-you");
+    expect(setupStanding({ setup: { ...RUNNING, state: "done" } })).toBe("ready");
+    // What waits on nobody reads ready, as the computer's own row does: a sign-in that failed, a row set aside, a CLI.
+    const settled: PlaceProvisionRow[] = [
+      { id: "signins/codex", label: "Codex", outcome: "failed", step: "signins" },
+      { id: "github", label: "GitHub", outcome: "skipped", step: "github" },
+      { id: "clis/gh", label: "gh", outcome: "failed", step: "clis" },
+    ];
+    expect(setupStanding({ setup: { ...RUNNING, state: "done" }, applied: { hash: "h", at: "x", rows: settled } })).toBe("ready");
+  });
+
+  it("names what a setup left: each row skipped or failed, a step whose items missed by those items, the first few by name", () => {
+    const rows = setupRows(
+      {
+        setup: { ...RUNNING, state: "done", steps: [{ step: "agents", state: "done" }, { step: "clis", state: "failed", note: "1 of 1 failed" }, { step: "github", state: "done" }] },
+        applied: {
+          hash: "h",
+          at: "x",
+          rows: [
+            { id: "claude", label: "Claude Code", outcome: "installed", step: "agents" },
+            { id: "signins/claude", label: "Claude Code", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW },
+            { id: "clis/gh", label: "gh", outcome: "failed", step: "clis" },
+            { id: "github", label: "GitHub", outcome: "skipped", step: "github" },
+          ],
+        },
+      },
+      "studio",
+    );
+    expect(rows.find(r => r.id === "clis")?.state).toBe("failed");
+    expect(leftRows(rows)).toEqual(["Claude Code sign-in skipped", "gh failed", "GitHub skipped"]);
+    expect(ADD_COMPUTER_WORDS.left(leftRows(rows), "studio")).toBe("Claude Code sign-in skipped, gh failed, GitHub skipped. Finish them from studio's page in Settings.");
+    expect(ADD_COMPUTER_WORDS.left([...leftRows(rows), "uv failed"], "studio")).toBe("Claude Code sign-in skipped, gh failed, GitHub skipped and 1 more. Finish them from studio's page in Settings.");
+  });
+
+  it("reads a skipped sign-in as skipped, a landed one by where it signed in, and counts a skipped step as through", () => {
+    const rows = setupRows(
+      {
+        setup: { ...RUNNING, state: "done", steps: [{ step: "floor", state: "done" }, { step: "signins", state: "done" }, { step: "github", state: "done" }] },
+        applied: {
+          hash: "h",
+          at: "x",
+          rows: [
+            { id: "signins/claude", label: "Claude Code", outcome: "present", step: "signins", note: copiedFromLine("zingzy's MacBook Pro") },
+            { id: "signins/codex", label: "Codex", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW },
+            { id: "signins/gemini", label: "Gemini", outcome: "installed", step: "signins", note: SIGNED_IN_THERE },
+            { id: "github", label: "GitHub", outcome: "skipped", step: "github", note: GITHUB_SKIPPED_LINE },
+          ],
+        },
+      },
+      "studio",
+    );
+    const at = (id: string) => rows.find(r => r.id === id)!;
+    expect([at("signins/claude").note, at("signins/gemini").note]).toEqual(["Token copied.", "Signed in on studio."]);
+    expect([at("signins/codex").state, at("signins/codex").note, at("signins/codex").signIn]).toEqual(["skipped", "Skipped.", "codex"]);
+    expect([at("github").state, at("github").note, at("github").signIn]).toEqual(["skipped", "Skipped.", "gh"]);
+    expect(rows.filter(r => r.id === "github")).toHaveLength(1);
+    expect(setupCount(rows)).toEqual({ done: 3, of: 10 });
+  });
+
+  it("words a landed sign-in as the host reads that agent there: a token wsp hands it, or a login on that computer", () => {
+    const rows = setupRows(
+      {
+        setup: { ...RUNNING, state: "done", steps: [{ step: "floor", state: "done" }, { step: "signins", state: "done" }] },
+        applied: {
+          hash: "h",
+          at: "x",
+          rows: [
+            { id: "signins/claude", label: "Claude Code", outcome: "present", step: "signins", note: tokenHeldLine("zingzy's MacBook Pro") },
+            { id: "signins/codex", label: "Codex", outcome: "installed", step: "signins", note: copiedFromLine("zingzy's MacBook Pro") },
+          ],
+        },
+        signIns: { claude: "vault-key", codex: "signed-in" },
+      },
+      "hetzner",
+    );
+    const at = (id: string) => rows.find(r => r.id === id)!;
+    expect([at("signins/claude").note, at("signins/codex").note]).toEqual(["Signed in with a token.", "Signed in on hetzner."]);
+  });
+
+  it("offers every sign-in row that did not land its sign-in, Claude Code's token and OpenCode's too, while the setup still runs", () => {
+    const rows = setupRows(
+      {
+        setup: { ...RUNNING, steps: [{ step: "floor", state: "done" }, { step: "signins", state: "done" }, { step: "github", state: "done" }, { step: "clis", state: "running" }] },
+        applied: {
+          hash: "h",
+          at: "x",
+          rows: [
+            { id: "signins/claude", label: "Claude Code", outcome: "failed", step: "signins" },
+            { id: "signins/opencode", label: "OpenCode", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW },
+            { id: "signins/codex", label: "Codex", outcome: "installed", step: "signins", note: SIGNED_IN_THERE },
+            { id: "github", label: "GitHub", outcome: "skipped", step: "github", note: GITHUB_SKIPPED_LINE },
+          ],
+        },
+      },
+      "studio",
+    );
+    expect(rows.filter(r => r.signIn !== undefined).map(r => [r.id, r.signIn])).toEqual([
+      ["signins/claude", "claude"],
+      ["signins/opencode", "opencode"],
+      ["github", "gh"],
+    ]);
+  });
+
+  it("holds a sign-in that runs there while its agent did not install, and offers it once the agent is in", () => {
+    const at = (codex: PlaceProvisionRow["outcome"], signIn: PlaceProvisionRow) =>
+      setupRows(
+        {
+          setup: { ...RUNNING, state: "done", steps: [{ step: "floor", state: "done" }, { step: "agents", state: "done" }, { step: "signins", state: "done" }] },
+          applied: { hash: "h", at: "x", rows: [{ id: "agents/codex", label: "Codex", outcome: codex, step: "agents" }, signIn] },
+        },
+        "studio",
+      ).find(r => r.id === "signins/codex")!;
+    const failed: PlaceProvisionRow = { id: "signins/codex", label: "Codex", outcome: "failed", step: "signins", note: "codex" };
+    const waited: PlaceProvisionRow = { id: "signins/codex", label: "Codex", outcome: "skipped", step: "signins", note: waitsForInstallLine("Codex") };
+    // The install failed: the setup left the sign-in waiting on it, with nothing to press.
+    expect(at("failed", waited)).toMatchObject({ state: "waiting", note: "Waits for Codex to install." });
+    expect(at("failed", waited).signIn).toBeUndefined();
+    expect(at("failed", failed)).toMatchObject({ state: "waiting", note: "Waits for Codex to install." });
+    // Codex is in: the sign-in is the person's to start.
+    expect(at("installed", waited)).toMatchObject({ state: "skipped", note: "Not signed in yet.", signIn: "codex" });
+    expect(at("installed", failed)).toMatchObject({ state: "failed", signIn: "codex" });
+  });
+
+  it("reads a sign-in that asks the person to pick as theirs at its own terminal there, with its Sign in", () => {
+    const rows = setupRows({ setup: { ...RUNNING, state: "done", steps: [{ step: "signins", state: "done" }] }, applied: { hash: "h", at: "x", rows: [{ id: "signins/opencode", label: "OpenCode", outcome: "skipped", step: "signins", note: AT_ITS_TERMINAL }] } }, "studio");
+    expect(rows.find(r => r.id === "signins/opencode")).toMatchObject({ state: "skipped", note: "Signs in at its own terminal on studio.", signIn: "opencode" });
+  });
+});
+
+describe("an install as the checks", () => {
+  const job = (o: Partial<PlaceAddJob>): PlaceAddJob => ({ addId: "a_1", address: "root@studio", startedAt: "x", state: "running", steps: [], ...o });
+
+  it("ticks each check off its own step and holds Install wsp until the computer joined", () => {
+    const rows = checkRows(
+      job({
+        steps: [
+          { step: "connect", state: "done", note: "Ubuntu 24.04" },
+          { step: "check", state: "done", note: "root, systemd, cgroup v2" },
+          { step: "chip", state: "done", note: "Linux x86_64" },
+          { step: "root", state: "done" },
+          { step: "system", state: "done", note: "systemd, cgroup v2" },
+          { step: "disk", state: "done", note: "61 GB free" },
+          { step: "reach", state: "done" },
+          { step: "wsp", state: "done" },
+          { step: "service", state: "running" },
+        ],
+      }),
+    );
+    expect(rows.map(r => [r.name, r.state, r.note])).toEqual([
+      ["Connected", "done", "Ubuntu 24.04"],
+      ["Chip", "done", "Linux x86_64"],
+      ["Root", "done", undefined],
+      ["System", "done", "systemd, cgroup v2"],
+      ["Disk", "done", "61 GB free"],
+      ["Connects back", "done", undefined],
+      ["Install wsp", "working", undefined],
+    ]);
+    expect(checkRows(job({ state: "done", steps: [{ step: "connect", state: "done" }, { step: "chip", state: "done" }, { step: "root", state: "done" }, { step: "system", state: "done" }, { step: "disk", state: "done" }, { step: "reach", state: "done" }, { step: "wsp", state: "done" }, { step: "join", state: "done" }] })).at(-1)?.state).toBe("done");
+  });
+
+  it("draws each check's time once its row is done, the install's as its three steps together", () => {
+    const rows = checkRows(
+      job({
+        state: "done",
+        steps: [
+          { step: "connect", state: "done", ms: 412 },
+          { step: "chip", state: "done" },
+          { step: "root", state: "done", ms: 2 },
+          { step: "system", state: "done", ms: 3 },
+          { step: "disk", state: "done", ms: 14 },
+          { step: "reach", state: "done", ms: 1_020 },
+          { step: "wsp", state: "done", ms: 3_000 },
+          { step: "service", state: "done", ms: 900 },
+          { step: "join", state: "done" },
+        ],
+      }),
+    );
+    expect(rows.map(r => [r.id, r.ms])).toEqual([
+      ["connect", 412],
+      ["chip", undefined],
+      ["root", 2],
+      ["system", 3],
+      ["disk", 14],
+      ["reach", 1_020],
+      ["wsp", 3_900],
+    ]);
+    // A row still running has no time yet.
+    expect(checkRows(job({ steps: [{ step: "connect", state: "done", ms: 412 }, { step: "wsp", state: "done", ms: 3_000 }, { step: "service", state: "running" }] })).at(-1)?.ms).toBeUndefined();
+  });
+
+  it("says what the running install is doing on its row", () => {
+    const rows = checkRows(job({ steps: [{ step: "connect", state: "done" }, { step: "reach", state: "done" }, { step: "wsp", state: "running", note: "x86_64" }] }));
+    expect(rows.at(-1)).toMatchObject({ id: "wsp", state: "working", note: "x86_64" });
+  });
+
+  it("puts a refusal on the check that was running, the rest after it left waiting", () => {
+    const rows = checkRows(job({ state: "failed", said: "jumpbox logs in as a user that is not root", fix: "Add it as root.", steps: [{ step: "connect", state: "done" }, { step: "check", state: "running" }, { step: "chip", state: "done" }, { step: "root", state: "failed", note: "jumpbox logs in as a user that is not root" }] }));
+    expect(rows.map(r => r.state)).toEqual(["done", "done", "failed", "waiting", "waiting", "waiting", "waiting"]);
+    expect(rows[2]).toMatchObject({ id: "root", said: "jumpbox logs in as a user that is not root", fix: "Add it as root." });
+  });
+});
+
+describe("what a step says in the list", () => {
+  const AT = "2026-10-03T10:00:00.000Z";
+  const place = (steps: PlaceSetup["steps"], rows: PlaceProvisionRow[], picks: RecipeFile): Pick<PlaceView, "name" | "setup" | "applied" | "picks"> => ({
+    name: "studio",
+    setup: { state: "running", addId: "a_1", startedAt: AT, steps, waiting: [] },
+    applied: { hash: "h", at: AT, rows },
+    picks,
+  });
+
+  it("names the GitHub row by what was done, not by its label", () => {
+    const done = [{ step: "github" as const, state: "done" as const, ms: 400 }];
+    const github = (signin: "vault" | "machine" | "skip", outcome: "present" | "skipped") => setupRows(place(done, [{ id: "github", label: "GitHub", outcome, step: "github", note: "from this computer's vault" }], RecipeFile.parse({ name: "studio", configs: { github: { signin } } })), "studio").find(r => r.id === "github")?.note;
+    expect(github("vault", "present")).toBe("Token copied.");
+    expect(github("machine", "present")).toBe("Signed in on studio.");
+    expect(github("skip", "skipped")).toBe("Skipped.");
+  });
+
+  it("says what a running step puts on, off its picks less the rows already there", () => {
+    const skills = Object.fromEntries(Array.from({ length: 78 }, (_, i) => [`skill-${i}`, { from: "~/.claude/skills" }]));
+    const picks = RecipeFile.parse({ name: "studio", mcp: { wsp: { agents: ["claude"] }, context7: { agents: ["claude"] }, gsc: { agents: ["claude"] } }, clis: { gh: { via: "apt" }, go: { via: "apt" }, bun: { via: "npm" } }, skills, agents: { claude: {}, codex: {} } });
+    const rows = setupRows(
+      place(
+        [
+          { step: "floor", state: "done" },
+          { step: "agents", state: "running" },
+          { step: "mcp", state: "running" },
+          { step: "clis", state: "running" },
+          { step: "skills", state: "running" },
+        ],
+        [{ id: "clis/gh", label: "gh", outcome: "present", step: "clis" }],
+        picks,
+      ),
+    );
+    const note = (id: string): string | undefined => rows.find(r => r.id === id)?.note;
+    expect(note("agents")).toBe("Installing Claude Code, Codex.");
+    expect(note("mcp")).toBe("Copying wsp, context7, gsc.");
+    expect(note("clis")).toBe("Installing go, bun.");
+    expect(note("skills")).toBe("Copying 78 skills.");
+    const many = setupRows(place([{ step: "mcp", state: "running" }], [], RecipeFile.parse({ name: "studio", mcp: Object.fromEntries(["wsp", "context7", "gsc", "linear", "github"].map(n => [n, { agents: ["claude"] }])) })));
+    expect(many.find(r => r.id === "mcp")?.note).toBe("Copying wsp, context7 and 3 more.");
+  });
+});
+

@@ -1,0 +1,89 @@
+# wsp run
+
+{/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
+
+```text
+usage: wsp run [<project>] [--on boat [--size <cpu>x<memGb>] [--from <ref>]]
+       [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>]
+       [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>]
+       [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>]
+       [--file <path>] [--resume <id> [--copy]] [--detach] "<message>"
+  an agent works in the project's folder and you read its reply: a thread with
+  the agent, model, effort and access the app offers; a project on a box runs in
+  its folder there as the login the box was added with; --on boat starts it as a
+  sub-thread of the thread asking, on a machine of its own on Boat forked from
+  your image at --size or Boat's own size, which fetches your pushed branch, or
+  with --from a branch, tag or commit the remote holds, and pushes --branch or
+  wsp/<slug>; --beside runs it in the folder another thread works in, on that
+  thread's computer; --branch runs it in a worktree of the project's repo on
+  that branch, made under wsp's folder unless one already holds it, and --cwd in
+  a folder inside the project or one of its worktrees; --fork starts it from
+  another thread's conversation through its latest finished turn, or the one
+  --at counts from 1, on that thread's agent in its folder, or with --branch in
+  a new worktree whose files are that turn's; with no project, run from inside
+  one of your project folders, or from a thread, beside it; follows its first
+  turn, or with --detach prints the id and returns
+
+  --on          boat, to start the thread as a sub-thread of the thread asking
+                on a machine of its own on Boat, forked from your image; it
+                fetches your pushed branch, or the ref --from names, and pushes
+                its own
+  --size        with --on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16
+                or 16x32, the ones the plan sells; Boat's own size setting
+                without it
+  --from        with --on, a branch, tag or commit the remote already holds,
+                origin/main or a commit id, that the sub-thread starts from in
+                place of your branch, which then need not be pushed
+  --beside      a thread whose folder the new thread starts in, by its id or a
+                prefix, on the computer it runs on; never with a project or
+                --branch
+  --fork        a thread to fork, by its id or a prefix: the new thread carries
+                its conversation through one finished turn, on its agent and in
+                its folder, or with --branch in a new worktree with that turn's
+                files; never with a project, --beside, --cwd or --replaces
+  --at          with --fork, the finished turn the fork carries through, counted
+                from 1 as wsp thread read lists them; the latest without it
+  --branch      a branch other than the one the project's folder has checked
+                out: the thread runs in the worktree holding it, made under
+                wsp's folder from the folder's current commit for a new branch;
+                with --on, the branch the sub-thread makes and pushes;
+                wsp/<slug> without it
+  --cwd         a folder inside the project or one of its worktrees, absolute,
+                to start the thread in; the project's folder without it
+  --agent       which agent runs the thread, by its catalog id (claude, codex,
+                opencode, cursor); the project's own default without it
+  --model       the model the turn runs on, by the agent's own slug
+                (claude-sonnet-5); the thread's own without it
+  --effort      how hard the agent thinks, by its own word (low, medium, high,
+                xhigh, max); absent on a new thread means the agent's default;
+                on send, the thread's own
+  --access      how far the agent may go without asking: ask, auto-edit, full or
+                plan, refused where the agent has no such mode; without it, the
+                project's, else the agent's default, else full
+  --fast        run the turn in the agent's fast mode, on a model that offers
+                one; refused naming the model otherwise
+  --notify      where each turn's end is sent, a thread's id or me; repeats
+  --title       what to call the thread; the agent names it from its first
+                message without one
+  --replaces    a stopped or failed thread this one restarts, by id or a prefix;
+                the host settles it once this one starts
+  --file        a file on this computer to send with the message: an image goes
+                as an image, any other file lands in the thread's folder and the
+                message names its path; repeats
+  --resume      a conversation the agent kept in the project's folder outside
+                wsp, by the id wsp conversations lists: the thread opens on it,
+                in the folder it ran in, with its newest messages above the
+                first prompt
+  --copy        with --resume, continue on a copy of the conversation the agent
+                makes, the original left as it was: what a conversation open in
+                another app needs
+  --detach      print the thread's id and return, leaving the reply to the
+                thread's finished line
+  --json        print the raw protocol values, one JSON object per line, with
+                everything else on stderr
+  --state       the state file the host serves
+  --host        run the line against a host on your account, by the name wsp
+                hosts lists it under; WSP_HOST names one for a whole shell
+```
+
+MCP tool: [`run`](/reference/mcp-tools#run).

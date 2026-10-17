@@ -1,0 +1,204 @@
+{
+  "tool": "thread_settle",
+  "cases": [
+    {
+      "case": "a tree settled and one left",
+      "arguments": {
+        "threads": [
+          "thread-7f",
+          "thread-b0"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+        "sessions.settle": "{\"id\":1,\"ok\":true,\"settled\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the \u0085 build\"},{\"threadId\":\"thread-c4c4c4c4d5d5\",\"title\":\"naïve \\\"résumé\\\"\"}],\"left\":[{\"threadId\":\"thread-b0b0b0b0c1c1\",\"why\":\"still working: stop it first\"}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"settled thread-7 fix the \\u0085 build\\nsettled thread-c naïve \\\"résumé\\\"\\nleft thread-b: still working: stop it first\"}],\"structuredContent\":{\"settled\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the \\u0085 build\"},{\"threadId\":\"thread-c4c4c4c4d5d5\",\"title\":\"naïve \\\"résumé\\\"\"}],\"left\":[{\"threadId\":\"thread-b0b0b0b0c1c1\",\"why\":\"still working: stop it first\"}]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.settle",
+          "threadIds": [
+            "thread-7f3a9c21e4b5",
+            "thread-b0b0b0b0c1c1"
+          ],
+          "processes": "ask"
+        }
+      ]
+    },
+    {
+      "case": "finished, nothing to settle",
+      "arguments": {
+        "threads": [
+          "thread-7f3a9c21e4b5"
+        ],
+        "finished": true
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+        "sessions.settle": "{\"id\":1,\"ok\":true,\"settled\":[],\"left\":[]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"nothing settled\"}],\"structuredContent\":{\"settled\":[],\"left\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.settle",
+          "threadIds": [
+            "thread-7f3a9c21e4b5"
+          ],
+          "finished": true,
+          "processes": "ask"
+        }
+      ]
+    },
+    {
+      "case": "already settled",
+      "arguments": {
+        "threads": [
+          "thread-7f3a9c21e4b5"
+        ],
+        "finished": false
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+        "sessions.settle": "{\"id\":1,\"ok\":true,\"settled\":[],\"left\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"why\":\"already settled\"}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"left thread-7: already settled\"}],\"structuredContent\":{\"settled\":[],\"left\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"why\":\"already settled\"}]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.settle",
+          "threadIds": [
+            "thread-7f3a9c21e4b5"
+          ],
+          "processes": "ask"
+        }
+      ]
+    },
+    {
+      "case": "a thread nobody holds",
+      "arguments": {
+        "threads": [
+          "nobody"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"no thread nobody\"}],\"structuredContent\":{\"error\":\"no thread nobody\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        }
+      ]
+    },
+    {
+      "case": "processes stopped first",
+      "arguments": {
+        "threads": [
+          "thread-7f3a9c21e4b5"
+        ],
+        "processes": "stop"
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+        "sessions.settle": "{\"id\":1,\"ok\":true,\"ended\":[{\"left\":[],\"forced\":[],\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200},{\"ports\":[],\"cpu\":0.25,\"memory\":20000000,\"command\":\"esbuild --service\",\"name\":\"esbuild\",\"kind\":\"other\",\"startedAt\":1760000001000,\"depth\":2,\"ppid\":4200,\"pid\":4300}],\"pid\":4200},{\"pid\":4400,\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4400}],\"forced\":[4400],\"left\":[]}],\"left\":[],\"settled\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix\"}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"ended 4200 node and 1 under it\\nended 4400 node\\nKILL after TERM's 2 s: 4400\\nsettled thread-7 fix\"}],\"structuredContent\":{\"settled\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix\"}],\"left\":[],\"ended\":[{\"pid\":4200,\"ended\":[{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]},{\"pid\":4300,\"ppid\":4200,\"depth\":2,\"startedAt\":1760000001000,\"kind\":\"other\",\"name\":\"esbuild\",\"command\":\"esbuild --service\",\"memory\":20000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[],\"left\":[]},{\"pid\":4400,\"ended\":[{\"pid\":4400,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[4400],\"left\":[]}]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.settle",
+          "threadIds": [
+            "thread-7f3a9c21e4b5"
+          ],
+          "processes": "stop"
+        }
+      ]
+    },
+    {
+      "case": "processes kept",
+      "arguments": {
+        "threads": [
+          "thread-7f3a9c21e4b5"
+        ],
+        "processes": "keep"
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+        "sessions.settle": "{\"id\":1,\"ok\":true,\"settled\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix\"}],\"left\":[]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"settled thread-7 fix\"}],\"structuredContent\":{\"settled\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix\"}],\"left\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.settle",
+          "threadIds": [
+            "thread-7f3a9c21e4b5"
+          ],
+          "processes": "keep"
+        }
+      ]
+    },
+    {
+      "case": "refused while processes run",
+      "arguments": {
+        "threads": [
+          "thread-7f3a9c21e4b5"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+        "sessions.settle": "{\"id\":1,\"ok\":false,\"error\":\"a thread to settle still runs 2 processes: 4200 node (dev, :5173 :24678) of thread-7, 4300 esbuild (other) of thread-7: settle it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"a thread to settle still runs 2 processes: 4200 node (dev, :5173 :24678) of thread-7, 4300 esbuild (other) of thread-7: settle it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).\"}],\"structuredContent\":{\"error\":\"a thread to settle still runs 2 processes: 4200 node (dev, :5173 :24678) of thread-7, 4300 esbuild (other) of thread-7: settle it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.settle",
+          "threadIds": [
+            "thread-7f3a9c21e4b5"
+          ],
+          "processes": "ask"
+        }
+      ]
+    },
+    {
+      "case": "refused for its lead",
+      "arguments": {
+        "threads": [
+          "thread-7f3a9c21e4b5"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the \u0085 build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+        "sessions.settle": "{\"id\":1,\"ok\":false,\"error\":\"thread thread-7 is not under this thread, and a thread settles and restores only itself and the threads it started. leave its lead and the threads beside it to the person.\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread thread-7 is not under this thread, and a thread settles and restores only itself and the threads it started. leave its lead and the threads beside it to the person.\"}],\"structuredContent\":{\"error\":\"thread thread-7 is not under this thread, and a thread settles and restores only itself and the threads it started. leave its lead and the threads beside it to the person.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.settle",
+          "threadIds": [
+            "thread-7f3a9c21e4b5"
+          ],
+          "processes": "ask"
+        }
+      ]
+    }
+  ]
+}

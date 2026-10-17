@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The sidebar's bottom-left corner: a row of icon buttons, Settings first, its
+// chord on the tooltip. Settings stands here whatever else the corner holds,
+// so it is never reachable only by a chord nobody was told about.
+import { ActivityIcon, GaugeIcon, SettingsIcon } from "lucide-react";
+import { Button } from "../components/ui/button.js";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip.js";
+import { useStore } from "../protocol/store.js";
+import { ACTIVITY_WORDS, SETTINGS_WORDS, USAGE_PAGE_WORDS } from "../settings/format.js";
+import { openSettingsGroup } from "../settings/openAt.js";
+import { useShortcutLabel } from "../shell/useKeybindings.js";
+
+export function SidebarCorner() {
+  const openSettings = useStore(s => s.openSettings);
+  const chord = useShortcutLabel("settings.toggle");
+  return (
+    <div data-sidebar-corner className="flex items-center gap-1 px-0.5">
+      <Tooltip>
+        <TooltipTrigger render={<Button variant="ghost" size="icon" data-k="settings-row" aria-label={SETTINGS_WORDS.title} onClick={openSettings} />}>
+          <SettingsIcon aria-hidden />
+        </TooltipTrigger>
+        <TooltipPopup side="top">
+          {SETTINGS_WORDS.title}
+          {chord === null ? null : <span className="ms-2 font-mono text-muted-foreground">{chord}</span>}
+        </TooltipPopup>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger render={<Button variant="ghost" size="icon" data-k="usage-row" aria-label={USAGE_PAGE_WORDS.title} onClick={() => openSettingsGroup("usage")} />}>
+          <GaugeIcon aria-hidden />
+        </TooltipTrigger>
+        <TooltipPopup side="top">{USAGE_PAGE_WORDS.title}</TooltipPopup>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger render={<Button variant="ghost" size="icon" data-k="activity-row" aria-label={ACTIVITY_WORDS.title} onClick={() => openSettingsGroup("activity")} />}>
+          <ActivityIcon aria-hidden />
+        </TooltipTrigger>
+        <TooltipPopup side="top">{ACTIVITY_WORDS.title}</TooltipPopup>
+      </Tooltip>
+    </div>
+  );
+}

@@ -1,0 +1,16 @@
+{
+  "at": "/",
+  "steps": [
+    "390:key:Escape",
+    "390:sidebar=trigger",
+    "k=settings-row",
+    "k=settings-general",
+    "pointer-off"
+  ],
+  "wait": "settings-page",
+  "widths": [
+    1440,
+    390
+  ],
+  "reason": "Settings offers no New thread: the Settings sidebar's header holds the toggle and the wordmark alone, 256px at every desktop width, so 1280 draws it as 1440 does; 390 shows the page's own header row."
+}

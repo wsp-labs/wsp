@@ -1,0 +1,178 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+@import "tailwindcss";
+@import "@fontsource-variable/inter/opsz.css";
+@import "@fontsource-variable/geist-mono";
+
+/* The app's Tungsten theme (apps/web/src/themes/tungsten.css) is the page's palette, so a shot and the page around it
+   read as one surface. Amber is the theme's one hue: the field and the mark carry it, nothing else does. */
+:root {
+  --ground: #0d0c0b;
+  --background: #121110;
+  --raised: #1a1816;
+  --foreground: #ece6dc;
+  --muted-foreground: #9c9288;
+  --faint: #6f665e;
+  --border: #2a2623;
+  --rule: rgb(236 230 220 / 0.07);
+  --input: #373129;
+  --primary: #ece6dc;
+  --primary-foreground: #141210;
+  --amber: #f59e0b;
+  --success: #8fbf87;
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --color-ground: var(--ground);
+  --color-background: var(--background);
+  --color-raised: var(--raised);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint: var(--faint);
+  --color-border: var(--border);
+  --color-rule: var(--rule);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-amber: var(--amber);
+  --color-success: var(--success);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    background: var(--background);
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgb(245 158 11 / 0.28);
+    color: var(--foreground);
+  }
+  :focus-visible {
+    outline: 2px solid rgb(236 230 220 / 0.55);
+    outline-offset: 2px;
+  }
+}
+
+@utility display {
+  font-weight: 600;
+  letter-spacing: -0.034em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+@utility heading {
+  font-weight: 600;
+  letter-spacing: -0.026em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+@utility lede {
+  color: var(--muted-foreground);
+  letter-spacing: -0.006em;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* The tactile key the app's primary button is: ivory on soot, a hairline lit from above. */
+@utility key {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+@utility keycap {
+  background: rgb(26 24 22 / 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+@keyframes trace {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@utility rise {
+  animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
+
+/* The legal pages' prose: the site's type ladder, quiet links, hairline-free lists. */
+.legal h2 {
+  margin-top: 2.5rem;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+.legal p,
+.legal li {
+  margin-top: 0.75rem;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+}
+.legal ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.legal li::marker {
+  color: var(--faint);
+}
+.legal strong {
+  font-weight: 500;
+  color: var(--foreground);
+}
+.legal a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  text-underline-offset: 3px;
+}
+.legal a:hover {
+  text-decoration-color: var(--foreground);
+}
+.legal code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--foreground);
+}
+

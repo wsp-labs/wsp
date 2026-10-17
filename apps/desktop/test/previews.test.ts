@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { describe, expect, it, vi } from "vitest";
+import { pagePreviews, type PageImage } from "../src/previews.js";
+
+/** A NativeImage the width of whatever it was last resized to; the url says which page and which width. */
+function fakeImage(page: string, width = 0): PageImage {
+  return {
+    resize: options => fakeImage(page, options.width),
+    toDataURL: () => `data:image/png;base64,${page}@${width}`,
+  };
+}
+
+const fakePage = (name: string) => ({ capturePage: vi.fn(async () => fakeImage(name)) });
+
+describe("pagePreviews", () => {
+  it("holds one downscaled picture per workspace, and the newest capture replaces it", async () => {
+    const previews = pagePreviews(480, 12);
+    expect(previews.get("ws_a")).toBeUndefined();
+    await previews.capture("ws_a", fakePage("first"));
+    expect(previews.get("ws_a")).toBe("data:image/png;base64,first@480");
+    await previews.capture("ws_a", fakePage("second"));
+    expect(previews.get("ws_a")).toBe("data:image/png;base64,second@480");
+    await previews.capture("ws_b", fakePage("other"));
+    expect(previews.get("ws_b")).toBe("data:image/png;base64,other@480");
+    expect(previews.get("ws_a")).toBe("data:image/png;base64,second@480");
+  });
+
+  it("drops the workspace photographed longest ago once the cap is reached, so a long run cannot grow without end", async () => {
+    const previews = pagePreviews(240, 2);
+    await previews.capture("ws_a", fakePage("a"));
+    await previews.capture("ws_b", fakePage("b"));
+    await previews.capture("ws_c", fakePage("c"));
+    expect(previews.get("ws_a")).toBeUndefined();
+    expect(previews.get("ws_b")).toBe("data:image/png;base64,b@240");
+    expect(previews.get("ws_c")).toBe("data:image/png;base64,c@240");
+  });
+
+  it("counts a workspace photographed again as the newest, not as the oldest it once was", async () => {
+    const previews = pagePreviews(240, 2);
+    await previews.capture("ws_a", fakePage("a"));
+    await previews.capture("ws_b", fakePage("b"));
+    await previews.capture("ws_a", fakePage("a2"));
+    await previews.capture("ws_c", fakePage("c"));
+    expect(previews.get("ws_b")).toBeUndefined();
+    expect(previews.get("ws_a")).toBe("data:image/png;base64,a2@240");
+  });
+
+  it("answers at its ceiling when the page never hands a picture back, and keeps the one it held", async () => {
+    const previews = pagePreviews(480, 12, 50);
+    await previews.capture("ws_a", fakePage("held"));
+    vi.useFakeTimers();
+    try {
+      let answered = false;
+      const asked = previews.capture("ws_a", { capturePage: () => new Promise<PageImage>(() => {}) }, true).then(() => (answered = true));
+      await vi.advanceTimersByTimeAsync(49);
+      expect(answered).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await asked;
+      expect(answered).toBe(true);
+      expect(previews.get("ws_a")).toBe("data:image/png;base64,held@480");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("files nothing from a picture that lands after its ceiling, since the page has painted over it by then", async () => {
+    const previews = pagePreviews(480, 12, 50);
+    await previews.capture("ws_a", fakePage("held"));
+    vi.useFakeTimers();
+    try {
+      let land: (image: PageImage) => void = () => {};
+      const asked = previews.capture("ws_a", { capturePage: () => new Promise<PageImage>(resolve => (land = resolve)) }, true);
+      await vi.advanceTimersByTimeAsync(50);
+      await asked;
+      land(fakeImage("late"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(previews.get("ws_a")).toBe("data:image/png;base64,held@480");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("files a picture the page does not wait on whenever it lands, however long the copy takes", async () => {
+    const previews = pagePreviews(480, 12, 50);
+    vi.useFakeTimers();
+    try {
+      const asked = previews.capture("ws_a", { capturePage: () => new Promise<PageImage>(resolve => setTimeout(() => resolve(fakeImage("slow")), 2000)) });
+      await vi.advanceTimersByTimeAsync(2000);
+      await asked;
+      expect(previews.get("ws_a")).toBe("data:image/png;base64,slow@480");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

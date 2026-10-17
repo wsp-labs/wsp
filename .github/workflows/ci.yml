@@ -1,0 +1,507 @@
+name: ci
+
+# One run decides a landing. The landing script squashes a change onto current main, pushes that commit to
+# land/<name>, and fast-forwards main to it once this run passes. On land/** the unit suite runs the tests the change
+# can reach, which scripts/affected-tests.mjs picks off the change from main, and the test files the change added or
+# modified run five times over. The whole suite runs every night on main and on a run started by hand. A push to main
+# carries a commit a land/** run already tested, so it only checks that such a run passed on the same sha. The
+# install, the build and the type check run on every run that tests: one job builds, and the suite runs in four parts
+# after it on the build's own output. The slate's Chromium render cases and a project image's fit run in a job of their
+# own on every run that does not pick tests and on a change that touches either; the other Chromium cases and the Electron smoke stay
+# behind their own flags. What only a Mac runs, for a change of the files only a Mac runs, runs on macOS beside them.
+on:
+  push:
+    branches:
+      - main
+      - "land/**"
+  schedule:
+    - cron: "7 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.9.0"
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/land/') }}
+
+jobs:
+  # The landing script fast-forwards main only to a commit whose land/** runs all passed, so a push to main that fails
+  # here reached main some other way, or with a workflow red at its sha.
+  landed:
+    name: This commit passed on a land branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    steps:
+      - name: Every land/** run at this sha passed, ci among them
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SHA&per_page=100" \
+            --jq '[.workflow_runs[] | select(.head_branch | startswith("land/"))]')
+          jq -r '.[] | "\(.name): \(.conclusion // .status) \(.html_url)"' <<< "$runs"
+          red=$(jq -r '.[] | select(.conclusion != "success" and .conclusion != "skipped") | "\(.name) \(.conclusion // .status) on \(.head_branch)"' <<< "$runs")
+          if [ -n "$red" ]; then
+            while IFS= read -r line; do echo "::error::$SHA reached main with a land/** run that did not pass: $line"; done <<< "$red"
+            exit 1
+          fi
+          if [ "$(jq '[.[] | select(.path == ".github/workflows/ci.yml" and .conclusion == "success")] | length' <<< "$runs")" -eq 0 ]; then
+            echo "::error::$SHA reached main with no passing ci run on a land/** branch"
+            exit 1
+          fi
+          # A skipped job leaves its run green, so each ci run is held to its four test parts by name.
+          for id in $(jq -r '.[] | select(.path == ".github/workflows/ci.yml") | .id' <<< "$runs"); do
+            passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" \
+              --jq '[.jobs[] | select((.name | test("^Tests [1-4]/4$")) and .conclusion == "success") | .name] | unique | length')
+            if [ "$passed" -ne 4 ]; then
+              echo "::error::$SHA reached main with $passed of 4 test parts passed in ci run $id"
+              exit 1
+            fi
+          done
+
+  sizes:
+    name: No source file past 1,500 lines
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: node scripts/file-size-check.mjs
+
+  # One job builds what every test job reads: the daemon this runner runs, staged where the host's asset table
+  # finds it, and every package built. It goes up as one tar, which keeps the binary's mode where an artifact's zip
+  # drops it, beside the lists of tests the change can reach.
+  build:
+    name: Install and build
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      render: ${{ steps.slate.outputs.render }}
+    steps:
+      # Every commit and tree and no blob beyond the checkout's, so the change is read against main's history cheaply.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: The pull request's body names its ticket and carries no footer
+        if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/land/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pr-body-check.mjs
+      # The packages build beside the daemon; the command line package carries the daemon, so it builds after both.
+      - name: Install and build every package but the command line's
+        id: packages
+        background: true
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r --filter '!./apps/www' --filter '!@wsp/desktop' --filter '!@wsp-labs/wsp' build
+      - uses: ./.github/actions/daemon-binary
+      - run: node packages/wspx/scripts/daemon-binary.mjs --triple x86_64-unknown-linux-musl
+      - wait: packages
+      - name: Build the command line package
+        run: pnpm --filter @wsp-labs/wsp build
+      - name: The tests this change can reach
+        if: startsWith(github.ref, 'refs/heads/land/')
+        run: |
+          base=$(git merge-base origin/main HEAD)
+          node scripts/affected-tests.mjs "$base" > "$RUNNER_TEMP/affected.txt"
+          node scripts/affected-tests.mjs "$base" --changed-tests > "$RUNNER_TEMP/changed-tests.txt"
+      - name: Whether this change touches the slate
+        id: slate
+        run: |
+          if [[ "$GITHUB_REF" != refs/heads/land/* ]]; then echo "render=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if git diff --name-only "$(git merge-base origin/main HEAD)" HEAD | grep -qE '^apps/web/(src/slate/|src/components/chat/MermaidBlock|src/projects/imageFile|test/slate-|test/project-icon|test/render-browser\.ts)'; then echo "render=1" >> "$GITHUB_OUTPUT"; fi
+      # What the build wrote is what git ignores, less the installed packages, which each job installs from the pnpm
+      # cache, and the daemon's cargo target, of which the staged binary is the one file read.
+      - name: Pack the build
+        run: |
+          git ls-files --others --ignored --exclude-standard --directory \
+            | grep -vE '(^|/)node_modules/$|^daemon/' > "$RUNNER_TEMP/built.txt"
+          cat "$RUNNER_TEMP/built.txt"
+          tar -cf "$RUNNER_TEMP/build.tar" -T "$RUNNER_TEMP/built.txt"
+          ls -l "$RUNNER_TEMP/build.tar"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build
+          path: |
+            ${{ runner.temp }}/build.tar
+            ${{ runner.temp }}/affected.txt
+            ${{ runner.temp }}/changed-tests.txt
+          if-no-files-found: error
+          retention-days: 3
+
+  # The suite in four parts, each a quarter of the files the run picked, split the same way on every runner. No list,
+  # as on the nightly and a run by hand, and an empty one, for a change to the root config, are both the whole suite.
+  # A small list can leave a part with no file, and vitest passes that part on its own; a list that names no file at
+  # all still fails every part.
+  tests:
+    name: Tests ${{ matrix.shard }}/4
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      # A case reads this repository's own tags and origin/main, which a shallow checkout lacks and skips without.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: build
+          path: ${{ runner.temp }}
+      - run: tar -xf "$RUNNER_TEMP/build.tar"
+      - name: Tests
+        # The build job staged this runner's daemon binary, so the case that reads its version against the
+        # protocol's runs here rather than skipping: a checkout with no binary staged is a developer's machine.
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+        run: |
+          affected=()
+          if [ -f "$RUNNER_TEMP/affected.txt" ]; then mapfile -t affected < "$RUNNER_TEMP/affected.txt"; fi
+          pnpm exec vitest run --minWorkers=1 --maxWorkers=4 --shard=${{ matrix.shard }}/4 --reporter=default --reporter=github-actions --reporter=./vitest.stall.ts "${affected[@]}"
+
+  flake:
+    name: The test files this change added or modified, five times over
+    needs: build
+    if: startsWith(github.ref, 'refs/heads/land/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # A case reads this repository's own tags and origin/main, which a shallow checkout lacks and skips without.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: build
+          path: ${{ runner.temp }}
+      - run: tar -xf "$RUNNER_TEMP/build.tar"
+      - name: Five times over
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+        run: |
+          mapfile -t files < "$RUNNER_TEMP/changed-tests.txt"
+          if [ "${#files[@]}" -eq 0 ]; then echo "no test file added or modified"; exit 0; fi
+          if [ "${#files[@]}" -gt 30 ]; then echo "${#files[@]} test files changed, over 30, so they run once"; exit 0; fi
+          for run in 1 2 3 4 5; do
+            report="$RUNNER_TEMP/repeat-$run.json"
+            if ! pnpm exec vitest run --minWorkers=1 --maxWorkers=2 --reporter=default --reporter=json --reporter=./vitest.stall.ts --outputFile.json="$report" "${files[@]}"; then
+              failed=$(jq -r --arg top "$GITHUB_WORKSPACE/" '[.testResults[] | select(.status == "failed") | .name | ltrimstr($top)] | unique | join(", ")' "$report")
+              echo "::error::run $run of 5 failed: ${failed:-no file reported}"
+              exit 1
+            fi
+          done
+
+  render:
+    name: Slate render tests
+    needs: build
+    if: needs.build.outputs.render == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: build
+          path: ${{ runner.temp }}
+      - run: tar -xf "$RUNNER_TEMP/build.tar"
+      - name: Chromium
+        run: pnpm --filter @wsp/web exec playwright install --with-deps chromium
+      - name: Render tests
+        env:
+          WSP_RENDER: "1"
+        run: pnpm exec vitest run --minWorkers=1 --maxWorkers=2 apps/web/test/slate- apps/web/test/project-icon.browser.test.ts apps/web/test/resume-picker.browser.test.ts apps/web/test/composer-tray.browser.test.ts
+
+  types:
+    name: Types
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: build
+          path: ${{ runner.temp }}
+      - run: tar -xf "$RUNNER_TEMP/build.tar"
+      - run: pnpm -r --filter '!./apps/www' exec tsc --noEmit
+
+  desktop:
+    name: Stage the desktop app
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The release's road, bundled and laid out but not packaged, on a tree that built only what build:deps builds:
+      # after the full build a package missing from the app's dependencies goes unseen until a tag fails.
+      # Built public, as the release builds it: Boat and no Solari, which the last step reads the build for.
+      - name: Build what the desktop app depends on
+        env:
+          PUBLIC_BUILD: "1"
+        run: pnpm --filter @wsp/desktop run build:deps
+      - name: Stage the desktop app
+        env:
+          PUBLIC_BUILD: "1"
+        run: pnpm --filter @wsp/desktop run build:app
+      # A module that reads a value its import cycle has not set yet throws only when the bundle loads, which
+      # building it never does; the command bundle shares its chunks with the window's main.
+      - name: The staged bundle loads
+        run: node apps/desktop/build/app/main/cli.mjs --version
+      # The release's signing step word for word: run from apps/desktop, which has no vitest config of its own, it
+      # loads the root one, so a setup file the root config names by a relative path fails here and not at a tag.
+      - name: The release's signing check runs from apps/desktop
+        run: pnpm --filter @wsp/desktop exec vitest run --minWorkers=1 --maxWorkers=1 test/signing.test.ts
+      - name: The packed command and the staged app carry Boat and no Solari
+        env:
+          PUBLIC_BUILD: "1"
+        run: pnpm exec vitest run --minWorkers=1 --maxWorkers=2 packages/wspx/test/public-check.test.ts
+
+  # What only a Mac runs, beside the Linux jobs: scripts/mac-gate.sh reads the change's Mac files and picks the test
+  # files, which run in two parts, and a change to daemon/ adds the daemon's lints and tests, whose macOS code no
+  # Linux job compiles. The pick runs on Linux, so a change with no Mac file starts no Mac at all.
+  mac-pick:
+    name: What a Mac runs for this change
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.pick.outputs.run }}
+      daemon: ${{ steps.pick.outputs.daemon }}
+      base: ${{ steps.pick.outputs.base }}
+      tests: ${{ steps.pick.outputs.tests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # bash with pipefail: the runner's default shell has none, and a pick that failed behind the tee read as no Mac file.
+      - id: pick
+        shell: bash
+        run: |
+          base=""
+          if [ "$GITHUB_REF" != refs/heads/main ]; then base=$(git merge-base origin/main HEAD); fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          scripts/mac-gate.sh "$base" "$RUNNER_TEMP/mac-tests.txt" | tee -a "$GITHUB_OUTPUT"
+          echo "tests=$(tr '\n' ' ' < "$RUNNER_TEMP/mac-tests.txt")" | tee -a "$GITHUB_OUTPUT"
+
+  # The cache every Mac job reads is written here alone, off land/** by a run that missed it: a land branch reads
+  # main's caches and its own alone, and main's nightly writes the one each landing reads.
+  mac-daemon:
+    name: The daemon's lints and tests on a Mac
+    needs: mac-pick
+    if: needs.mac-pick.outputs.daemon == '1'
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup show
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-mac-${{ runner.arch }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-mac-${{ runner.arch }}-
+      - name: The daemon's sources newer than anything restored
+        run: git ls-files -z . | xargs -0 touch
+      - name: Lints
+        run: cargo clippy --locked --all-targets --features wsp-daemon-bin/mcp -- -D warnings
+      # Main fails these on a Mac, each written for Linux alone: a path under /proc, a checkout read only on Linux, a
+      # backend only Linux has, a temporary folder named through /var where the daemon answers /private/var, or this
+      # runner's open file limit. Every other test fails the job.
+      - name: Tests
+        run: |
+          cargo test --locked --no-fail-fast --features wsp-daemon-bin/mcp -- --exact \
+            --skip fs::tests::a_write_refuses_a_link_a_missing_file_a_folder_and_more_than_the_cap_and_leaves_nothing_behind \
+            --skip fs::tests::a_write_replaces_the_file_whole_and_keeps_its_mode \
+            --skip git::stored::tests::counts_a_branch_whose_name_is_not_utf8_as_git_does \
+            --skip git::stored::tests::counts_every_branch_detached_head_and_worktree_head_no_remote_has_less_the_seeded_ones_as_git_does \
+            --skip git::stored::tests::counts_every_commit_where_there_is_no_remote_and_answers_none_for_a_folder_git_does_not_track \
+            --skip git::stored::tests::follows_a_link_at_refs_heads_or_worktrees_that_stays_inside_the_checkout_and_refuses_one_that_leads_out \
+            --skip git::stored::tests::reads_a_fresh_clone_of_a_remote_holding_a_tag_off_every_branch_as_holding_nothing \
+            --skip git::tests::every_git_call_carries_optional_locks_off_and_the_c_locale_and_runs_at_the_work_score \
+            --skip inbox::tests::announces_a_file_again_if_it_is_removed_and_dropped_again \
+            --skip inbox::tests::announces_a_file_once_even_when_sweeps_come_faster_than_a_file_settles \
+            --skip inbox::tests::emits_inbox_file_only_after_a_file_stops_growing \
+            --skip inbox::tests::leaves_files_already_present_at_start_to_rescan \
+            --skip place::tests::the_leave_outside_the_home_takes_what_the_list_names_as_wsp_left_it_and_nothing_else \
+            --skip place::version_tests::a_busy_spawn_is_never_tried_past_its_deadline \
+            --skip usage_logs::tests::sqlite3_reads_a_copy_in_a_folder_only_its_ids_enter_and_never_as_root \
+            --skip a_server_that_left_its_turns_tree_is_still_the_workspaces_by_its_group_or_by_the_folder_it_runs_in \
+            --skip inbox_watch_pushes_inbox_file_once_a_dropped_file_settles \
+            --skip pty_mode_on_attach_reads_the_real_slave_and_a_resize_reaches_the_shell \
+            --skip an_unscoped_socket_holds_at_most_the_cap_of_tunnels_at_once_and_a_second_open_under_one_id_is_refused \
+            --skip a_thread_on_this_computer_opens_its_session_on_the_door_under_the_home_and_the_link_takes_it_when_it_watches \
+            --skip answers_place_leave_with_what_the_sweep_took_and_then_ends_the_daemon \
+            --skip on_the_link_the_machine_ops_are_the_runtimes_to_answer_and_inbound_the_roads_to_refuse \
+            --skip a_shell_it_spawns_sees_home_and_user_even_when_the_daemon_has_none \
+            --skip an_exited_pty_holds_its_scrollback_and_no_thread_or_fd_until_it_is_killed
+      - name: The daemon the Mac tests run, so the cache holds what they build
+        id: fill
+        if: ${{ !cancelled() && steps.cargo.outputs.cache-hit != 'true' && !startsWith(github.ref, 'refs/heads/land/') }}
+        run: cargo build --locked -p wsp-daemon-bin $(node ../packages/wspx/scripts/daemon-features.mjs)
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ !cancelled() && steps.fill.outcome == 'success' }}
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: ${{ steps.cargo.outputs.cache-primary-key }}
+
+  # The daemon the tests spawn is a debug build with the tool server, which shares every crate the daemon's tests
+  # build; the shipped profile, optimized as one unit, took four and a half minutes here, and the release and the
+  # nightly desktop smoke build that one on a Mac. A failing test that fails on the change's base too is main's,
+  # read by scripts/mac-base-red.sh, and passes with a warning.
+  mac-tests:
+    name: Mac tests ${{ matrix.shard }}/2
+    needs: mac-pick
+    if: needs.mac-pick.outputs.run == '1'
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cargo
+        background: true
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-mac-${{ runner.arch }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-mac-${{ runner.arch }}-
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - wait: cargo
+      - name: The daemon the tests spawn, with the features a Mac's build takes
+        id: binary
+        background: true
+        working-directory: daemon
+        run: |
+          git ls-files -z . | xargs -0 touch
+          rustup toolchain install
+          cargo build --locked -p wsp-daemon-bin $(node ../packages/wspx/scripts/daemon-features.mjs)
+      - name: Install and build every package but the command line's and the desktop app's
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r --filter '!./apps/www' --filter '!./apps/docs' --filter '!@wsp/desktop' --filter '!@wsp-labs/wsp' build
+      - wait: binary
+      - name: Stage the daemon, build the command line package and stage the desktop app
+        run: |
+          node packages/wspx/scripts/daemon-binary.mjs --from daemon/target/debug/wsp-daemon
+          pnpm --filter @wsp-labs/wsp build
+          pnpm --filter @wsp/desktop run build:app
+      - name: The release's signing check runs from apps/desktop
+        if: matrix.shard == 1
+        run: pnpm --filter @wsp/desktop exec vitest run --minWorkers=1 --maxWorkers=1 test/signing.test.ts
+      - name: The test files a Mac runs for this change
+        shell: bash
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+          BASE: ${{ needs.mac-pick.outputs.base }}
+          TESTS: ${{ needs.mac-pick.outputs.tests }}
+        run: |
+          export WSP_MCP_BIN=$PWD/daemon/target/debug/wsp-daemon
+          report="$RUNNER_TEMP/mac-tests.json"
+          if pnpm exec vitest run --minWorkers=1 --maxWorkers=3 --shard=${{ matrix.shard }}/2 --reporter=default --reporter=json --reporter=./vitest.stall.ts --outputFile.json="$report" $TESTS 2>&1 | tee "$RUNNER_TEMP/mac-tests.log"; then exit 0; fi
+          # The JSON report leaves out an error thrown outside any test, so no failure main shares can excuse one.
+          if grep -q "Vitest caught [0-9]* unhandled error" "$RUNNER_TEMP/mac-tests.log"; then echo "::error::vitest caught an error outside any test"; exit 1; fi
+          scripts/mac-base-red.sh "$BASE" "$report"

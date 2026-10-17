@@ -1,0 +1,662 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The workspace and image tools' part of the record the daemon binary's tool
+// server serves from: every sentence those tools say, in the shape the Rust
+// side fills, and the calls recorded per tool. A sentence is taken off the
+// function or the tool that says it here, with each value it names standing
+// in as {name}, so its words keep one home in this package.
+import { CATALOG, ROAD_MODULES } from "@wsp/catalog";
+import {
+  refusalLine,
+  noProjectLine,
+  READ_PROJECTS_FIX,
+  BESIDE_ALONE_LINE,
+  BESIDE_ALONE_FIX,
+  FORK_BESIDE_LINE,
+  FORK_BESIDE_FIX,
+  FORK_RESUME_LINE,
+  FORK_RESUME_FIX,
+  AT_WITHOUT_FORK_LINE,
+  AT_WITHOUT_FORK_FIX,
+  notAThreadLine,
+  NAME_A_THREAD_FIX,
+  sharedFolderLine,
+  childBesideLeadLine,
+  CHILD_BESIDE_LEAD_FIX,
+  START_WORDS,
+  COPY_CURRENT,
+  COPY_STALE,
+  HERE_PLACE_ID,
+  IMAGE_NO_VAULT,
+  INSTALLS_LATEST,
+  LoginState,
+  NOTIFY_ME,
+  NO_SEALED_IMAGE,
+  SUM_SHOWN,
+  WORKSPACE_KIND_WORDS,
+  addedProjectOn,
+  committedLine,
+  deleteNotice,
+  fixAskedLine,
+  fixConflictsLine,
+  fixNothingLine,
+  fixMergeChildLine,
+  FIX_CHECK_OR_CHILD,
+  mergedLine,
+  updateConflictsLine,
+  updatedLine,
+  discardedLine,
+  goneRefusal,
+  goneRoadRefusal,
+  noProjectImageLine,
+  onDeleteOf,
+  UNNAMED_COMPUTER,
+  projectImageRemoveNotice,
+  projectImageRemovedLine,
+  sealedLoginsHeld,
+  shellQuote,
+  thisComputer,
+  threadDeletedLine,
+  workspaceStateLine,
+  worktreeRemovedLine,
+  type WorkspaceState,
+  mergeConflictsLine,
+  threadOnMachineLine,
+  mergedInLine,
+  nothingToMergeLine,
+  notInMergeLine,
+  RESUME_WHERE_LINE,
+  RESUME_WHERE_FIX,
+  COPY_ALONE_LINE,
+  COPY_ALONE_FIX,
+  RESUME_HERE_LINE,
+  RESUME_HERE_FIX,
+  RESIZE_WORD_FIX,
+  resizeWordLine,
+  usageRefusal,
+} from "@wsp/protocol";
+import { absoluteFolder, deletedLine, forgotLine, otherVersion, NO_DRAFT_FIX, noDraftLine, rebuiltLine, renamedWorkspaceLine, threadLabel, type HostClient } from "../src/verbs.js";
+import type { TurnCase } from "./mcp-record-turns.js";
+
+type Replies = Record<string, string>;
+/** The line the TypeScript server writes for one call against a host answering each op with its frame, with the
+ * cloud on where `cloud` says so. */
+export type LineOf = (tool: string, args: Record<string, unknown>, replies: Replies, extra?: Pick<TurnCase, "cloud">) => Promise<{ line: string }>;
+
+/** The cases of a tool the TypeScript server serves with the cloud on alone. */
+const onCloud = (cases: TurnCase[]): TurnCase[] => cases.map(c => ({ ...c, cloud: true }));
+export type HostOf = (replies: Replies) => HostClient;
+
+const reply = (body: Record<string, unknown>): string => JSON.stringify({ id: 1, ok: true, ...body });
+const refused = (error: string, kind?: string): string => JSON.stringify({ id: 1, ok: false, error, ...(kind !== undefined ? { kind } : {}) });
+
+/** The text a sentence is said in with one of its parts standing in as {name}; a part the text no longer holds is a
+ * sentence that changed shape, which has to fail here rather than record a template nothing fills. */
+function slot(text: string, part: string, name: string): string {
+  if (!text.includes(part)) throw new Error(`${JSON.stringify(text)} holds no ${JSON.stringify(part)} to stand in as {${name}}`);
+  return text.replace(part, `{${name}}`);
+}
+
+async function thrown(run: () => unknown): Promise<string> {
+  try {
+    await run();
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+  throw new Error("expected a refusal");
+}
+
+const textOf = ({ line }: { line: string }): string => (JSON.parse(line) as { result: { content: { text: string }[] } }).result.content[0]!.text;
+
+const STATES: readonly WorkspaceState[] = ["running", "pausing", "paused", "waking", "unreachable", "gone", "released"];
+
+/** Every sentence the workspace and image tools say, recorded under `workspaces` in record/words.json. */
+export async function workspaceWords(line: LineOf, host: HostOf): Promise<Record<string, unknown>> {
+  const running = { name: "{name}", phase: "running", machineId: "{machine}" } as never;
+  const ws = (over: Record<string, unknown>) => ({ id: "{id}", name: "{name}", machineId: "{machine}", phase: "running", golden: "g", createdAt: "c", project: { id: "p", name: "n", path: "/p", computer: "c" }, ...over });
+  const deleteText = textOf(await line("delete", { workspace: "w" }, { "workspaces.resolve": reply({ workspace: ws({ machineId: "m", kind: "cloud" }) }), "sessions.list": reply({ sessions: [] }) }, { cloud: true }));
+  const golden = { snapshotId: "{id}", projects: [], golden: "g", workspaceId: "w", workspaceName: "W", createdAt: "2026-01-01T00:00:00.000Z" };
+  const removeText = textOf(await line("image_remove", { image: "{id}" }, { "projectGoldens.list": reply({ projectGoldens: [golden] }) }, { cloud: true }));
+  const project = { id: "p", name: "{project}", path: "/p", computer: HERE_PLACE_ID, source: { kind: "folder", path: "/p" } };
+  const forkOf = (asked: Record<string, unknown>) => ({ "workspaces.resolve": reply({ workspace: ws({}) }), "projects.resolve": reply({ project: asked }) });
+  const copyText = textOf(await line("fork", { workspace: "w", size: "2x4" }, forkOf(project), { cloud: true }));
+  const offered = [{ cpu: 2, memMb: 4096, rateUsdPerHour: 0.09 }];
+  const sizeText = textOf(await line("fork", { workspace: "w", size: "{word}" }, { ...forkOf({ ...project, computer: "solari" }), "workspaces.landing": reply({ capabilities: { sizes: offered } }) }, { cloud: true }));
+  const here = (worktree?: Record<string, unknown>) => ({ "sessions.list": reply({ sessions: [{ id: "s", workspaceId: "w", harness: "claude", status: "completed", threadId: "{thread}" }] }), "workspaces.list": reply({ workspaces: [ws({ id: "w", kind: "local", machineId: "here", ...(worktree !== undefined ? { worktree } : {}) })] }), "sessions.delete": reply({ workspaceId: "w", threads: 1 }) });
+  const threadKeptFolder = textOf(await line("delete", { thread: "{thread}" }, here()));
+  const threadKeptWorktree = textOf(await line("delete", { thread: "{thread}" }, here({ path: "{path}", branch: "b", made: true })));
+  const noThreadHere = textOf(await line("delete", { thread: "{ref}" }, { "sessions.list": reply({ sessions: [] }) }));
+  const subRows = { "sessions.list": reply({ sessions: [{ id: "s", workspaceId: "w", harness: "claude", status: "completed", threadId: "{thread}", sub: SUB_ROW }] }) };
+  const subKept = textOf(await line("delete", { thread: "{thread}" }, { ...subRows, "sessions.delete": reply({ workspaceId: "w", threads: 1, on: "Boat", question: "first\n{second}" }) }));
+  const subDeleted = textOf(await line("delete", { thread: "{thread}", confirm: true }, { ...subRows, "sessions.delete": reply({ workspaceId: "w", threads: 1, machine: "deleted", on: "{on}" }) }));
+  const deleteNamesNothing = textOf(await line("delete", {}, {}));
+  const deleteNamesNothingCloud = textOf(await line("delete", {}, {}, { cloud: true }));
+  const localFolder = textOf(await line("forget", { workspace: "w" }, { "workspaces.resolve": reply({ workspace: ws({ kind: "local", machineId: "here" }) }) }, { cloud: true }));
+  const localWorktree = textOf(await line("forget", { workspace: "w" }, { "workspaces.resolve": reply({ workspace: ws({ kind: "local", machineId: "here", worktree: { path: "/p", branch: "b", made: true } }) }) }, { cloud: true }));
+  const cloud = onDeleteOf("cloud", undefined, "{machine}");
+  const forked = { ...WORKSPACE, id: "{id}", name: "{name}" };
+  const forkReplies = { "workspaces.resolve": reply({ workspace: WORKSPACE }), "harnesses.list": reply({ harnesses: [] }), "projects.resolve": reply({ project: PROJECT }), "workspaces.landing": reply({ capabilities: { sizes: [] } }), "workspaces.create": reply({ workspace: forked }) };
+  const firstTurnFailed = textOf(await line("fork", { workspace: "w", task: "t" }, { ...forkReplies, "sessions.start": refused("{failure}") }, { cloud: true }));
+  if (!firstTurnFailed.endsWith("{failure}")) throw new Error(`${JSON.stringify(firstTurnFailed)} does not end on the failure`);
+  return {
+    otherVersionResolve: otherVersion("workspaces.resolve"),
+    goneBare: goneRefusal("{name}", "{action}"),
+    goneSaid: goneRefusal("{name}", "{action}", "{words}"),
+    stateLines: Object.fromEntries(STATES.map(s => [s, workspaceStateLine("{name}", s)])),
+    rebuildRefused: Object.fromEntries(STATES.map(s => [s, goneRoadRefusal(s, "rebuild")])),
+    onMachine: slot(rebuiltLine(running), workspaceStateLine("{name}", "running"), "state"),
+    renamed: renamedWorkspaceLine({ was: "{was}", workspace: { name: "{name}", id: "{id}" } as never }),
+    forgotOne: forgotLine({ workspace: { name: "{name}", id: "{id}" } as never, threads: 1 }),
+    forgotMany: forgotLine({ workspace: { name: "{name}", id: "{id}" } as never, threads: "{count}" as never }),
+    unnamedComputer: UNNAMED_COMPUTER,
+    onDelete: {
+      ...Object.fromEntries(Object.keys(WORKSPACE_KIND_WORDS).map(kind => [kind, { asked: onDeleteOf(kind as never, undefined, "{machine}").asked, done: onDeleteOf(kind as never, undefined, "{machine}").done("{machine}") }])),
+      worktree: { asked: onDeleteOf("local", { path: "{path}" }, "{machine}").asked, done: onDeleteOf("local", { path: "{path}" }, "{machine}").done("{machine}") },
+      joined: { asked: onDeleteOf("cloud", undefined, "{machine}", { name: "{name}", computer: "{computer}" }).asked, done: onDeleteOf("cloud", undefined, "{machine}", { name: "{name}", computer: "{computer}" }).done("{machine}") },
+      none: { asked: onDeleteOf("cloud", undefined, "").asked, done: onDeleteOf("cloud", undefined, "").done("") },
+    },
+    deleteNoticeOne: slot(deleteNotice(1, "cloud", undefined, "{machine}"), cloud.asked, "asked"),
+    deleteNoticeMany: slot(deleteNotice("{count}" as never, "cloud", undefined, "{machine}"), cloud.asked, "asked"),
+    deletedOne: slot(deletedLine({ workspace: { name: "{name}", id: "{id}", machineId: "{machine}", kind: "cloud" } as never, threads: 1 }), cloud.done("{machine}"), "done"),
+    deletedMany: slot(deletedLine({ workspace: { name: "{name}", id: "{id}", machineId: "{machine}", kind: "cloud" } as never, threads: "{count}" as never }), cloud.done("{machine}"), "done"),
+    deleteKept: slot(deleteText, deleteNotice(0, "cloud", undefined, "m"), "notice"),
+    noProjectImage: noProjectImageLine("{id}"),
+    removeKept: slot(removeText, projectImageRemoveNotice(golden), "notice"),
+    removeNotice: projectImageRemoveNotice({ workspaceName: "{workspace}", createdAt: "{date}" }),
+    removedGone: projectImageRemovedLine("{id}", true),
+    removedNow: projectImageRemovedLine("{id}", false),
+    noSealedImage: NO_SEALED_IMAGE,
+    imageNoVault: IMAGE_NO_VAULT,
+    copyCurrent: COPY_CURRENT,
+    copyStale: COPY_STALE,
+    installsLatest: INSTALLS_LATEST,
+    loginsHeld: LoginState.options.filter(state => sealedLoginsHeld({ logins: [{ name: "n", state }] }) === 1),
+    sumShown: SUM_SHOWN,
+    catalogNames: Object.fromEntries(CATALOG.map(e => [e.id, e.name])),
+    roadWords: Object.fromEntries(Object.entries(ROAD_MODULES).map(([road, module]) => [road, module.words])),
+    addedProject: addedProjectOn({ name: "{name}", id: "{id}", computer: "pl_x", source: { kind: "folder", path: "{source}" }, path: "{path}" } as never, "{computer}"),
+    addedProjectHere: slot(addedProjectOn({ name: "{name}", id: "{id}", computer: HERE_PLACE_ID, source: { kind: "folder", path: "{source}" }, path: "{path}" } as never, "{computer}"), shellQuote("{name}"), "quoted"),
+    thisMac: thisComputer("darwin"),
+    thisComputer: thisComputer("linux"),
+    herePlaceId: HERE_PLACE_ID,
+    copyTakesNone: slot(copyText, "--size", "words"),
+    sizeRefused: slot(sizeText, "2x4 ($0.09/hr)", "sizes"),
+    resizeWord: usageRefusal(resizeWordLine("{word}"), RESIZE_WORD_FIX).message,
+    cwdNotAbsolute: await thrown(() => absoluteFolder("{path}")),
+    committedOne: slot(committedLine("{name}", { oid: "abcdefghij", subject: "{subject}", filesChanged: 1 }), "abcdefg", "oid"),
+    committedMany: slot(slot(committedLine("{name}", { oid: "abcdefghij", subject: "{subject}", filesChanged: 2 }), "abcdefg", "oid"), "2", "count"),
+    noDraft: noDraftLine("{note}"),
+    noDraftBare: noDraftLine(undefined),
+    noDraftFix: NO_DRAFT_FIX,
+    discarded: discardedLine("{name}", "{path}"),
+    fixAsked: fixAskedLine("{name}", "{agent}", "{check}"),
+    fixConflicts: fixConflictsLine("{name}", "{agent}", "{base}"),
+    fixNothing: fixNothingLine("{name}", "{base}"),
+    fixMergeChild: fixMergeChildLine("{name}", "{agent}", "{child}"),
+    fixCheckOrChild: FIX_CHECK_OR_CHILD,
+    merged: slot(mergedLine("{name}", { number: 7, method: "{method}" as never, merged: true }), "7", "number"),
+    mergeArmed: slot(mergedLine("{name}", { number: 7, method: "merge", merged: false }), "7", "number"),
+    updatedNone: updatedLine("{name}", "{base}", 0),
+    updatedOne: updatedLine("{name}", "{base}", 1),
+    updatedMany: slot(updatedLine("{name}", "{base}", 2), "2", "count"),
+    updateConflicts: updateConflictsLine("{name}", "{base}", ["{files}"]),
+    madeBare: START_WORDS.made("{name}", undefined),
+    madeIssue: slot(START_WORDS.made("{name}", { kind: "issue", number: 7 } as never), "7", "number"),
+    madePullRequest: slot(START_WORDS.made("{name}", { kind: "pull_request", number: 7 } as never), "7", "number"),
+    postedOne: slot(slot(START_WORDS.posted("{name}", 7, 1, 3), "7", "number"), "3", "folded"),
+    postedMany: slot(slot(slot(START_WORDS.posted("{name}", 7, 2, 3), "7", "number"), "2", "count"), "3", "folded"),
+    updateConflictsJoin: after(updateConflictsLine("{name}", "{base}", ["{a}", "{b}"]), updateConflictsLine("{name}", "{base}", ["{a}"])).replace("{b}", ""),
+    mergedInOne: mergedInLine("{lead}", "{branch}", "{child}", 1),
+    mergedInMany: slot(mergedInLine("{lead}", "{branch}", "{child}", 2), "2", "count"),
+    mergeConflicts: mergeConflictsLine("{lead}", "{branch}", ["{paths}"]),
+    nothingToMerge: nothingToMergeLine("{lead}", "{child}"),
+    notInMergeOne: notInMergeLine("{thread}", 1),
+    notInMergeMany: slot(notInMergeLine("{thread}", 2), "2", "count"),
+    firstTurnFailed,
+    threadKeptFolder,
+    threadKeptWorktree,
+    subKept,
+    subDeleted,
+    noThreadHere,
+    threadOnMachine: threadOnMachineLine("{name}"),
+    deleteNamesNothing,
+    deleteNamesNothingCloud,
+    notAThreadProject: notAThreadLine("{word}", "project", "{line}"),
+    notAThreadProjectOrOn: notAThreadLine("{word}", "project", "{line}", true),
+    notAThreadMachine: notAThreadLine("{word}", "machine", "{line}"),
+    notAThreadMachineOrOn: notAThreadLine("{word}", "machine", "{line}", true),
+    nameAThreadFix: NAME_A_THREAD_FIX,
+    threadLabel: threadLabel({ id: "{thread}", threadId: "{thread}" } as never),
+    sharedOne: sharedFolderLine(["{thread}"]),
+    sharedMany: sharedFolderLine(["{list}", "{last}"]),
+    sharedJoin: after(sharedFolderLine(["{a}", "{b}", "{c}"]), "threads {a}").split("{b}")[0],
+    childBesideLead: refusalLine(childBesideLeadLine("{child}", "{lead}"), CHILD_BESIDE_LEAD_FIX),
+    noProject: refusalLine(noProjectLine("{word}"), READ_PROJECTS_FIX),
+    besideAlone: refusalLine(BESIDE_ALONE_LINE, BESIDE_ALONE_FIX),
+    forkBeside: refusalLine(FORK_BESIDE_LINE, FORK_BESIDE_FIX),
+    atWithoutFork: refusalLine(AT_WITHOUT_FORK_LINE, AT_WITHOUT_FORK_FIX),
+    forkResume: refusalLine(FORK_RESUME_LINE, FORK_RESUME_FIX),
+    resumeWhere: refusalLine(RESUME_WHERE_LINE, RESUME_WHERE_FIX),
+    copyAlone: refusalLine(COPY_ALONE_LINE, COPY_ALONE_FIX),
+    resumeHere: refusalLine(RESUME_HERE_LINE, RESUME_HERE_FIX),
+    localFolder,
+    localWorktree,
+    threadDeleted: threadDeletedLine("{thread}", { threads: 1 }),
+    threadDeletedOne: threadDeletedLine("{thread}", { worktree: "{path}", threads: 1 }),
+    threadDeletedMany: slot(threadDeletedLine("{thread}", { worktree: "{path}", threads: 2 }), "2", "count"),
+    worktreeRemoved: worktreeRemovedLine("{branch}"),
+  };
+}
+
+/** The text after a prefix it must open with. */
+function after(text: string, prefix: string): string {
+  if (!text.startsWith(prefix)) throw new Error(`${JSON.stringify(text)} does not open with ${JSON.stringify(prefix)}`);
+  return text.slice(prefix.length);
+}
+
+/** A workspace as a verb answers with it, carrying what a byte compare has to survive: a C1 control, a quote, text
+ * past ASCII, a fraction that prints long, and the host's own key order, which is not the schema's. */
+const WORKSPACE = {
+  name: "alpha \"one\" \u0085 🧪",
+  id: "ws-1",
+  machineId: "m-1",
+  phase: "running",
+  kind: "cloud",
+  golden: "snap-g1",
+  createdAt: "2026-09-27T01:02:03.004Z",
+  project: { id: "proj-1", name: "alpha", path: "/root/alpha", computer: "place-9" },
+  home: "/root",
+  theme: { dots: [{ angle: 12.5, radius: 0.1 + 0.2 }], harmony: "single", grain: 0.5, opacity: 1, mode: "auto" },
+  agents: { spawn: true, maxMachines: 2, maxDepth: 1 },
+  place: "place-9",
+  provider: "solari",
+};
+const NAPPING = { ...WORKSPACE, phase: "napping" };
+const FORKED = { ...WORKSPACE, id: "ws-3", name: "alpha-fork", parentWorkspaceId: "ws-1" };
+const SESSION = { id: "s-9", workspaceId: "ws-3", harness: "claude", status: "running", startedBy: "agent", threadId: "t-9" };
+/** An agent as a machine describes itself: its models with a legacy one, the efforts, the access modes. */
+const CLAUDE = {
+  harness: "claude",
+  label: "Claude Code",
+  isDefault: true,
+  source: "machine",
+  models: [
+    { value: "sonnet", label: "Sonnet", isDefault: true },
+    { value: "haiku", label: "Haiku, small", efforts: [] },
+  ],
+  legacyModels: [{ value: "old", label: "Old" }],
+  efforts: [
+    { value: "low", label: "Low" },
+    { value: "high", label: "High", isDefault: true },
+  ],
+  permissionModes: [
+    { value: "default", label: "Default", isDefault: true },
+    { value: "bypass", label: "Bypass" },
+  ],
+  access: { ask: "default", full: "bypass" },
+  contextWindows: [],
+};
+const CODEX = { ...CLAUDE, harness: "codex", label: "Codex \u0085", isDefault: false, source: "table" };
+const event = (over: Record<string, unknown>): string => JSON.stringify({ workspaceId: "ws-3", sessionId: "s-9", threadId: "t-9", turnId: "turn-1", ...over });
+/** A fork's replies through its create, and the start of its first thread. */
+const forkedWith = (over: Replies): Replies => ({
+  "workspaces.resolve": reply({ workspace: WORKSPACE }),
+  "harnesses.list": reply({ harnesses: [CODEX, CLAUDE] }),
+  "projects.resolve": reply({ project: PROJECT }),
+  "workspaces.landing": reply({ capabilities: { sizes: [] } }),
+  "workspaces.create": reply({ workspace: FORKED }),
+  "sessions.start": reply({ session: SESSION, outcome: "started", turnId: "turn-1" }),
+  ...over,
+});
+const GONE = { ...WORKSPACE, phase: "gone", gone: "the provider has no machine m-1 \u009b" };
+const LOCAL = { ...WORKSPACE, id: "ws-2", name: "here", kind: "local", machineId: "here", worktree: { path: "/Users/me/.wsp/worktrees/proj-1/work \u0085", branch: "work", made: true } };
+/** A sub-thread's row on Boat, its machine napping until its delete. */
+const SUB_ROW = { state: "napping", on: "boat", machine: "Fix it \u0085", size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018, branch: "wsp/fix-it", deleteAt: 1_790_000_000_000 };
+const SUB_SESSIONS = [{ id: "s-9", workspaceId: "ws-9", harness: "claude", status: "completed", threadId: "t-9 \u0085", sub: SUB_ROW }];
+/** Threads on this computer and one on a box: t-2 in a worktree wsp made, t-3 in the project folder. */
+const HERE_SESSIONS = [
+  { id: "s-1", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1" },
+  { id: "s-2", workspaceId: "ws-2", harness: "codex", status: "completed", threadId: "t-2 \u0085" },
+  { id: "s-3", workspaceId: "ws-2", harness: "claude", status: "completed", threadId: "t-3" },
+];
+const SESSIONS = [
+  { id: "s-1", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1" },
+  { id: "s-2", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1" },
+  { id: "s-3", workspaceId: "ws-1", harness: "codex", status: "running" },
+];
+const GOLDEN = { snapshotId: "snap-p1", projects: [{ name: "alpha", dest: "/root/alpha", importedAt: "2026-09-20T00:00:00.000Z", size: 1234 }], golden: "snap-g1", version: 3, workspaceId: "ws-1", workspaceName: "alpha \u0085", createdAt: "2026-09-21T10:00:00.000Z" };
+/** The same record in an order the schema does not hold and with a field it does not know, which a parse drops. */
+const GOLDEN_SHUFFLED = { createdAt: GOLDEN.createdAt, workspaceName: GOLDEN.workspaceName, extra: true, workspaceId: GOLDEN.workspaceId, version: 3, golden: GOLDEN.golden, projects: [{ importedAt: "2026-09-20T00:00:00.000Z", dest: "/root/alpha", name: "alpha" }], snapshotId: GOLDEN.snapshotId };
+const HASH = "a".repeat(64);
+const IMAGE = {
+  name: "default",
+  version: 2,
+  hash: HASH,
+  recipeHash: "r-1",
+  pins: [
+    { id: "node", tag: "22.9.0", sha256: "b".repeat(64) },
+    { id: "brew/core/some/formula", tag: "1.0", latest: true, road: "brew" },
+    { id: "unknown-road-row", tag: "2", latest: true, road: "nowhere" },
+  ],
+  logins: [
+    { name: "claude", state: "signed-in" },
+    { name: "gh", state: "copied" },
+    { name: "codex", state: "skipped" },
+  ],
+  sealedAt: "2026-09-20T00:00:00.000Z",
+  sealedFrom: "zingzy's Mac \u0085",
+  vault: { sha256: "c".repeat(64), bytes: 4096, paths: 1, takenAt: "2026-09-20T00:00:00.000Z" },
+  usedBytes: 5_368_709_120 + 268_435_456,
+};
+const COPIES = [
+  { place: "solari", version: 2, hash: HASH, snapshotId: "snap-c1", builtAt: "2026-09-20T00:00:00.000Z", sizeBytes: 1_288_490_188 },
+  { snapshotId: "snap-c2", place: "attic", version: 1, builtAt: "2026-09-19T00:00:00.000Z", unknown: 1 },
+];
+const PROJECT = {
+  id: "proj-1",
+  name: "alpha 'quoted'",
+  computer: "place-9",
+  source: { kind: "github", repo: "dev/alpha" },
+  path: "/root/alpha",
+  remote: "https://github.com/dev/alpha.git",
+  defaultBranch: "main",
+  memoryKey: "-root-alpha",
+  memoryDir: "/root/.claude/projects/-root-alpha \u0085",
+  createdAt: "2026-09-01T00:00:00.000Z",
+  base: "main",
+};
+const PLACES = [{ id: "place-9", kind: "computer", name: "attic \u0085", default: false }];
+
+/** The thread every line that acts where a thread works names, on the record WORKSPACE is, and the index it is read
+ * off; the same folder shared with two more threads, and one in another folder that shares nothing with it. */
+const THREAD_ROWS = [{ id: "s-1", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1 \u0085 lead" }];
+const SHARED_ROWS = [
+  ...THREAD_ROWS,
+  { id: "s-7", workspaceId: "ws-1", harness: "codex", status: "completed", threadId: "t-7 \u0085" },
+  { id: "s-8", workspaceId: "ws-1", harness: "claude", status: "running", threadId: "t-8" },
+  { id: "s-9", workspaceId: "ws-2", harness: "claude", status: "completed", threadId: "t-9" },
+];
+/** A thread's replies: the index it is read off and the record of the folder it works in. */
+const atThread = (workspace: Record<string, unknown>, sessions: readonly Record<string, unknown>[] = THREAD_ROWS): Replies => ({ "sessions.list": reply({ sessions }), "workspaces.get": reply({ workspace }) });
+/** A lead and a child in a folder of its own: the child's record is the second one read. */
+const CHILD = { ...WORKSPACE, id: "ws-4", name: "beta \u0085", parentWorkspaceId: "ws-1" };
+const TREE_ROWS = [...THREAD_ROWS, { id: "s-4", workspaceId: "ws-4", harness: "claude", status: "completed", threadId: "t-4 child" }];
+const atTree = (lead: Record<string, unknown>, child: Record<string, unknown> = CHILD): Replies => ({ "sessions.list": reply({ sessions: TREE_ROWS }), "workspaces.get": reply({ workspace: lead }), "workspaces.get #2": reply({ workspace: child }) });
+/** A word that names a project and no thread, and one that names nothing at all. */
+const PROJECT_NAMED: Replies = { "sessions.list": reply({ sessions: [] }), "projects.list": reply({ projects: [PROJECT] }) };
+const NOTHING_NAMED: Replies = { "sessions.list": reply({ sessions: [] }), "projects.list": reply({ projects: [] }) };
+/** With a cloud, a machine's name: no thread, no project, a machine of that name. */
+const MACHINE_NAMED: Replies = { ...NOTHING_NAMED, "workspaces.list": reply({ workspaces: [WORKSPACE] }) };
+
+export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
+  pause: onCloud([
+    { case: "napped", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.nap": reply({ workspace: NAPPING }) } },
+    { case: "other version", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: { id: "ws-1" } }) } },
+    { case: "not found", arguments: { workspace: "nope" }, replies: { "workspaces.resolve": refused("no workspace nope; wsp workspaces lists them", "not-found") } },
+  ]),
+  wake: onCloud([
+    { case: "woken", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: NAPPING }), "workspaces.wake": reply({ workspace: WORKSPACE }) } },
+    { case: "gone", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: GONE }) } },
+    { case: "gone with no words", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: { ...GONE, gone: "" } }) } },
+  ]),
+  resize: [
+    { case: "moved", arguments: { thread: "t-1", size: "4x8" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }), "workspaces.resize": reply({ workspace: WORKSPACE }) } },
+    { case: "the largest", arguments: { thread: "t-1", size: "16x32" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }), "workspaces.resize": reply({ workspace: WORKSPACE }) } },
+    { case: "no such thread", arguments: { thread: "t-0", size: "4x8" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }) } },
+    { case: "a word that names no size", arguments: { thread: "t-1", size: "0x8" }, replies: {} },
+    { case: "a turn running", arguments: { thread: "t-1", size: "4x8" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }), "workspaces.resize": refused("alpha has a turn running, and the stop a move to another size takes would end it. Stop the turn or wait for it to end, then move it.", "conflict") } },
+  ],
+  snapshot: onCloud([
+    { case: "taken", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.snapshot": reply({ projectGolden: GOLDEN_SHUFFLED }) } },
+    { case: "refused", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.snapshot": refused("only a first-life machine can be snapshotted") } },
+  ]),
+  rename: onCloud([{ case: "renamed", arguments: { workspace: "alpha", name: "beta \u0085" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.rename": reply({ workspace: { ...WORKSPACE, name: "beta \u0085" } }) } }]),
+  rebuild: onCloud([
+    { case: "rebuilt", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: GONE }), "status.list": reply({ statuses: [] }), "workspaces.rebuild": reply({ workspace: { ...WORKSPACE, machineId: "m-2" } }) } },
+    { case: "zombie", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "status.list": reply({ statuses: [{ id: "ws-1", machineState: "running", reach: { state: "zombie" } }] }), "workspaces.rebuild": reply({ workspace: { ...WORKSPACE, phase: "waking" } }) } },
+    { case: "wake refused", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: { ...NAPPING, wakeRefused: "" } }), "status.list": reply({ statuses: [] }), "workspaces.rebuild": reply({ workspace: WORKSPACE }) } },
+    { case: "running", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "status.list": reply({ statuses: [{ id: "ws-1", machineState: "running", reach: { state: "ok" } }] }) } },
+    { case: "unreachable", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "status.list": reply({ statuses: [{ id: "ws-1", machineState: "running", reach: { state: "unreachable" } }] }) } },
+    { case: "paused", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "status.list": reply({ statuses: [{ id: "ws-1", machineState: "paused", reach: { state: "ok" } }] }) } },
+  ]),
+  forget: onCloud([
+    { case: "a folder here", arguments: { workspace: "here" }, replies: { "workspaces.resolve": reply({ workspace: { ...LOCAL, worktree: undefined } }), "sessions.list": reply({ sessions: SESSIONS }) } },
+    { case: "a worktree here", arguments: { workspace: "here" }, replies: { "workspaces.resolve": reply({ workspace: LOCAL }), "sessions.list": reply({ sessions: SESSIONS }) } },
+    { case: "forgot", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: GONE }), "sessions.list": reply({ sessions: SESSIONS }), "workspaces.forget": reply({}) } },
+    { case: "one thread", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: GONE }), "sessions.list": reply({ sessions: SESSIONS.slice(0, 1) }), "workspaces.forget": reply({}) } },
+    { case: "refused", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "sessions.list": reply({ sessions: [] }), "workspaces.forget": refused("Only a workspace whose computer is gone can be forgotten; this one is running", "usage") } },
+  ]),
+  delete: [
+    { case: "unconfirmed", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "sessions.list": reply({ sessions: SESSIONS }), "places.list": reply({ places: PLACES }) } , cloud: true },
+    { case: "thread unconfirmed", arguments: { thread: "t-2" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }), "sessions.delete": reply({ workspaceId: "ws-2", worktree: LOCAL.worktree.path, threads: 2 }) } },
+    { case: "thread in the folder unconfirmed", arguments: { thread: "t-3", confirm: false, processes: "keep" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [{ ...LOCAL, worktree: undefined }, WORKSPACE] }), "sessions.delete": reply({ workspaceId: "ws-2", threads: 1 }) } },
+    { case: "thread refused while processes run", arguments: { thread: "t-3", confirm: true }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [{ ...LOCAL, worktree: undefined }, WORKSPACE] }), "sessions.delete": refused(refusalLine("the thread to delete still runs a process: 4200 node (dev, :5173) of t-3:", "delete it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line)."), "usage") } },
+    { case: "thread deleted with its processes stopped", arguments: { thread: "t-3", confirm: true, processes: "stop" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [{ ...LOCAL, worktree: undefined }, WORKSPACE] }), "sessions.delete": reply({ ended: [{ pid: 4200, ended: [{ pid: 4200, ppid: 4100, depth: 1, startedAt: 1, kind: "dev", name: "node", command: "node vite", memory: 1, cpu: 0, ports: [5173] }], forced: [], left: [] }], threads: 1, workspaceId: "ws-2" }) } },
+    { case: "thread deleted with its worktree", arguments: { thread: "t-2", confirm: true }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }), "sessions.delete": reply({ workspaceId: "ws-2", worktree: LOCAL.worktree.path, threads: 2, extra: 1 }) } },
+    { case: "thread deleted with one thread", arguments: { thread: "t-2", confirm: true }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }), "sessions.delete": reply({ threads: 1, worktree: LOCAL.worktree.path, workspaceId: "ws-2" }) } },
+    { case: "thread deleted in the folder", arguments: { thread: "t-3", confirm: true }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [{ ...LOCAL, worktree: undefined }, WORKSPACE] }), "sessions.delete": reply({ workspaceId: "ws-2", threads: 1 }) } },
+    { case: "thread on a box", arguments: { thread: "t-1" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }) }, cloud: true },
+    { case: "thread on a machine, no cloud", arguments: { thread: "t-1" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }) } },
+    { case: "no such thread", arguments: { thread: "zz" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }) } },
+    { case: "sub-thread unconfirmed", arguments: { thread: "t-9" }, replies: { "sessions.list": reply({ sessions: SUB_SESSIONS }), "sessions.delete": reply({ workspaceId: "ws-9", threads: 1, on: "Boat", question: "Delete sub-thread t-9 \u0085 (Fix it) and its machine on Boat?\n2 commits on wsp/fix-it are not pushed and go with it." }) } },
+    { case: "sub-thread deleted", arguments: { thread: "t-9", confirm: true }, replies: { "sessions.list": reply({ sessions: SUB_SESSIONS }), "sessions.delete": reply({ workspaceId: "ws-9", threads: 1, machine: "deleted", on: "Boat", extra: 1 }) } },
+    { case: "sub-thread refused over work not pushed", arguments: { thread: "t-9", confirm: true }, replies: { "sessions.list": reply({ sessions: SUB_SESSIONS }), "sessions.delete": refused("sub-thread t-9 \u0085 holds 2 commits not pushed on wsp/fix-it. Send it a push, or ask the person to delete it.", "usage") } },
+    { case: "thread refused", arguments: { thread: "t-2", confirm: true }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }), "sessions.delete": refused("that worktree has 2 files not committed; commit them, or remove it with --force to lose them", "usage") } },
+    { case: "nothing named", arguments: {}, replies: {} },
+    { case: "nothing named, with a cloud", arguments: {}, replies: {}, cloud: true },
+    { case: "a folder here", arguments: { workspace: "here" }, replies: { "workspaces.resolve": reply({ workspace: { ...LOCAL, worktree: undefined } }), "sessions.list": reply({ sessions: SESSIONS }) } , cloud: true },
+    { case: "a worktree here", arguments: { workspace: "here" }, replies: { "workspaces.resolve": reply({ workspace: LOCAL }), "sessions.list": reply({ sessions: SESSIONS }) } , cloud: true },
+    { case: "unconfirmed never made", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: { ...WORKSPACE, machineId: "" } }), "sessions.list": reply({ sessions: [] }), "places.list": reply({ places: PLACES }) } , cloud: true },
+    { case: "deleted never made", arguments: { workspace: "alpha", confirm: true }, replies: { "workspaces.resolve": reply({ workspace: { ...WORKSPACE, machineId: "" } }), "sessions.list": reply({ sessions: [] }), "places.list": reply({ places: PLACES }), "workspaces.delete": reply({}) } , cloud: true },
+    { case: "deleted on a joined computer", arguments: { workspace: "alpha", confirm: true }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "sessions.list": reply({ sessions: SESSIONS }), "places.list": reply({ places: PLACES }), "workspaces.delete": reply({}) } , cloud: true },
+    { case: "deleted, the names not read", arguments: { workspace: "alpha", confirm: true }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "sessions.list": reply({ sessions: SESSIONS }), "places.list": refused("not yours to read", "auth"), "workspaces.delete": reply({}) } , cloud: true },
+    { case: "unconfirmed, the names not read", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "sessions.list": reply({ sessions: [] }), "places.list": refused("not yours to read", "auth") } , cloud: true },
+    { case: "unconfirmed at another provider", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "sessions.list": reply({ sessions: [] }), "places.list": reply({ places: [{ id: "place-9", kind: "provider", name: "ascii", default: false }] }) } , cloud: true },
+    { case: "deleted at another provider", arguments: { workspace: "alpha", confirm: true }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "sessions.list": reply({ sessions: [] }), "places.list": reply({ places: [{ id: "place-9", kind: "provider", name: "ascii", default: false }] }), "workspaces.delete": reply({}) } , cloud: true },
+  ],
+  worktree: [
+    { case: "made", arguments: { project: "alpha", branch: "feat/x \u0085" }, replies: { "worktree.make": reply({ made: true, path: "/Users/me/.wsp/worktrees/proj-1/feat-x-", extra: 1, branch: "feat/x \u0085" }) } },
+    { case: "held elsewhere", arguments: { project: "alpha", branch: "main" }, replies: { "worktree.make": reply({ path: "/Users/me/alpha", branch: "main", made: false }) } },
+    { case: "refused", arguments: { project: "alpha", branch: "-x" }, replies: { "worktree.make": refused("-x is not a name git takes for a branch", "usage") } },
+  ],
+  worktree_remove: [
+    { case: "removed", arguments: { project: "alpha", branch: "feat/x \u0085", force: true }, replies: { "worktree.remove": reply({}) } },
+    { case: "kept", arguments: { project: "alpha", branch: "feat/x", force: false }, replies: { "worktree.remove": reply({ removed: true }) } },
+    { case: "refused", arguments: { project: "alpha", branch: "feat/x" }, replies: { "worktree.remove": refused("a thread is working in that worktree; let its turn end or stop it first", "usage") } },
+  ],
+  image_remove: onCloud([
+    { case: "unconfirmed", arguments: { image: "snap-p1" }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN_SHUFFLED] }) } },
+    { case: "removed", arguments: { image: "snap-p1", confirm: true }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN] }), "projectGoldens.remove": reply({ alreadyGone: false, projectGolden: GOLDEN_SHUFFLED }) } },
+    { case: "already gone", arguments: { image: "snap-p1", confirm: true }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN] }), "projectGoldens.remove": reply({ projectGolden: GOLDEN, alreadyGone: true }) } },
+    { case: "no such", arguments: { image: "snap-x", confirm: true }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN] }) } },
+  ]),
+  image: [
+    { case: "record", arguments: {}, replies: { "image.get": reply({ view: { projects: [{ ...GOLDEN, sizeBytes: 900 }, GOLDEN_SHUFFLED], copies: COPIES, image: IMAGE } }) } },
+    { case: "no vault", arguments: {}, replies: { "image.get": reply({ view: { image: { ...IMAGE, vault: undefined, usedBytes: undefined, pins: undefined, logins: [] }, copies: COPIES.slice(1), projects: [] } }) } },
+    { case: "none", arguments: {}, replies: { "image.get": reply({ view: { image: null, copies: [], projects: [] } }) } },
+  ],
+  image_build: onCloud([
+    {
+      case: "built",
+      arguments: { place: "attic \u0085" },
+      replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { built: true, copy: { builtAt: "2026-09-27T00:00:00.000Z", snapshotId: "snap-c3", place: "place-9", version: 1, hash: HASH, sizeBytes: 2_147_483_648 } } }), "image.get": reply({ view: { image: IMAGE, copies: COPIES, projects: [] } }) },
+    },
+    { case: "already", arguments: { place: "solari", force: true }, replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { copy: COPIES[0], built: false } }), "image.get": reply({ view: { image: { ...IMAGE, vault: undefined }, copies: COPIES, projects: [] } }) } },
+    { case: "no image", arguments: { place: "solari" }, replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { copy: COPIES[0], built: false } }), "image.get": reply({ view: { image: null, copies: [], projects: [] } }) } },
+  ]),
+  projects_add: [
+    { case: "added", arguments: { source: "dev/alpha", on: "attic", base: "main" }, replies: { "projects.add": reply({ project: PROJECT }), "places.list": reply({ places: PLACES }) } },
+    { case: "notice", arguments: { source: "https://example.com/dev/alpha.git", on: "attic", name: "alpha" }, replies: { "projects.add": reply({ project: { ...PROJECT, source: { kind: "git", url: "https://example.com/dev/alpha.git" } }, notice: "the seed left 2 commits behind \u0085" }), "places.list": refused("not yours to read", "auth") } },
+    { case: "cloned into a folder", arguments: { source: "https://example.com/dev/alpha.git", into: "/Users/me/alpha", base: "main" }, replies: { "projects.add": reply({ project: { ...PROJECT, computer: "place-9", source: { kind: "folder", path: "/Users/me/alpha" } } }), "places.list": reply({ places: PLACES }) } },
+    { case: "refused", arguments: { source: "/nowhere" }, replies: { "projects.add": refused("/nowhere is not a git repo", "usage") } },
+  ],
+  projects_remove: [{ case: "removed", arguments: { project: "alpha" }, replies: { "projects.resolve": reply({ project: PROJECT }), "projects.remove": reply({ said: "alpha 'quoted' is no longer a project here \u0085" }) } }],
+  merge_in: [
+    {
+      case: "merged from a napping lead",
+      arguments: { lead: "t-1", child: "t-4" },
+      replies: {
+        ...atTree(NAPPING),
+        "workspaces.wake": reply({ workspace: WORKSPACE }),
+        "workspaces.mergeIn": reply({ conflicts: [], child: "beta \u0085", lead: "alpha \"one\"", branch: "child/caf\u00e9", merged: true, commits: 3 }),
+      },
+    },
+    { case: "a sub-thread holding commits not pushed", arguments: { lead: "t-1", child: "t-4" }, replies: { ...atTree(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.mergeIn": reply({ lead: "alpha", child: "Fix it", branch: "wsp/fix-it", merged: true, commits: 3, conflicts: [], unpushed: 2 }) } },
+    { case: "one commit", arguments: { lead: "t-1", child: "t-4" }, replies: { ...atTree(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.mergeIn": reply({ lead: "alpha", child: "beta", branch: "b", merged: true, commits: 1, conflicts: [] }) } },
+    { case: "nothing to take", arguments: { lead: "t-1", child: "t-4" }, replies: { ...atTree(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.mergeIn": reply({ lead: "alpha", child: "beta", branch: "child/one", merged: true, commits: 0, conflicts: [] }) } },
+    {
+      case: "conflicts",
+      arguments: { lead: "t-1", child: "t-4" },
+      replies: { ...atTree(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.mergeIn": reply({ lead: "alpha", child: "beta", branch: "child/two", merged: false, commits: 0, conflicts: ["lead.txt", "src/a b \u0085.ts"] }) },
+    },
+    { case: "refused", arguments: { lead: "t-1", child: "t-4" }, replies: { ...atTree(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.mergeIn": refused("the lead is working") } },
+    { case: "a child in its lead's folder", arguments: { lead: "t-1", child: "t-4" }, replies: atTree(WORKSPACE, WORKSPACE) },
+    { case: "gone", arguments: { lead: "t-1", child: "t-4" }, replies: atTree(GONE) },
+    { case: "a lead that is a project", arguments: { lead: "alpha 'quoted'", child: "t-4" }, replies: PROJECT_NAMED },
+  ],
+  commit: [
+    {
+      case: "every change, the message drafted",
+      arguments: { thread: "t-1" },
+      replies: {
+        ...atThread(NAPPING),
+        "workspaces.wake": reply({ workspace: WORKSPACE }),
+        "workspaces.commitDraft": reply({ message: "Fix the \u0085 thing 🧪\n\nBecause it broke." }),
+        "workspaces.commit": reply({ oid: "0123456789abcdef0123", subject: "Fix the \u0085 thing 🧪", filesChanged: 1, insertions: 3, deletions: 1 }),
+      },
+    },
+    {
+      case: "the files named, with a message",
+      arguments: { thread: "t-1", message: "Name the files", files: ["a.ts", "b \u0085.ts"] },
+      replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.commit": reply({ oid: "fedcba9876543210", subject: "Name the files", filesChanged: 2, insertions: 10, deletions: 0 }) },
+    },
+    {
+      case: "a folder two more threads share",
+      arguments: { thread: "t-1", message: "m" },
+      replies: { ...atThread(WORKSPACE, SHARED_ROWS), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.commit": reply({ oid: "fedcba9876543210", subject: "m", filesChanged: 3, insertions: 1, deletions: 1 }) },
+    },
+    {
+      case: "a folder one more thread shares",
+      arguments: { thread: "t-1", message: "m" },
+      replies: { ...atThread(WORKSPACE, SHARED_ROWS.slice(0, 2)), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.commit": reply({ oid: "fedcba9876543210", subject: "m", filesChanged: 1, insertions: 1, deletions: 1 }) },
+    },
+    { case: "no draft, with the note", arguments: { thread: "t-1", files: ["a.ts"] }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.commitDraft": reply({ message: null, note: "No agent here drafts commit messages; write it yourself." }) } },
+    { case: "no draft, no note", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.commitDraft": reply({ message: null }) } },
+    { case: "refused by a hook", arguments: { thread: "t-1", message: "m" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.commit": refused("a hook said no: lint failed \u0085", "usage") } },
+    { case: "gone", arguments: { thread: "t-1", message: "m" }, replies: atThread(GONE) },
+    { case: "a project's name", arguments: { thread: "alpha 'quoted'" }, replies: PROJECT_NAMED },
+    { case: "nothing of that name", arguments: { thread: "zz" }, replies: NOTHING_NAMED },
+    { case: "a machine's name", arguments: { thread: "alpha \"one\" \u0085 🧪" }, replies: MACHINE_NAMED, cloud: true },
+    { case: "a record in another shape", arguments: { thread: "t-1" }, replies: atThread({ id: "ws-1" }) },
+  ],
+  fix: [
+    { case: "a failed check", arguments: { thread: "t-1", check: "ci \u0085 / test 🧪" }, replies: { ...atThread(NAPPING), "workspaces.fix": reply({ outcome: "steered", threadId: "t-1", check: "ci \u0085 / test 🧪", base: "main", agent: "codex" }) } },
+    { case: "the conflicts sent", arguments: { thread: "t-1" }, replies: { ...atThread(NAPPING), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.fix": reply({ outcome: "started", threadId: "t-2", base: "main", agent: "claude" }) } },
+    { case: "a sent fix naming no agent", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.fix": reply({ outcome: "started", threadId: "t-5", base: "main" }) } },
+    { case: "an agent the catalog does not name", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.fix": reply({ outcome: "queued", threadId: "t-3", base: "develop", agent: "someone-else" }) } },
+    { case: "updated clean, nothing sent", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.fix": reply({ outcome: "updated", base: "main \u0085 🧪" }) } },
+    { case: "refused", arguments: { thread: "t-1", check: "lint" }, replies: { ...atThread(WORKSPACE), "workspaces.fix": refused("lint has not failed on #4", "usage") } },
+    { case: "a child to merge", arguments: { thread: "t-1", child: "t-4" }, replies: { ...atTree(NAPPING), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.fix": reply({ outcome: "started", threadId: "t-1", child: "ws-4", base: "tree/lead", agent: "claude" }) } },
+    { case: "a child in its lead's folder", arguments: { thread: "t-1", child: "t-4" }, replies: atTree(WORKSPACE, WORKSPACE) },
+    { case: "held by its computer's threads at once", arguments: { thread: "t-1", check: "ci" }, replies: { ...atThread(WORKSPACE), "workspaces.fix": reply({ outcome: "held", threadId: "t-6", check: "ci", base: "main", agent: "claude", capped: { placeId: "p_hetzner", place: "hetzner \u0085 🧪", running: 2, atOnce: 1 } }) } },
+    { case: "a check and a child", arguments: { thread: "t-1", check: "lint", child: "t-4" }, replies: {} },
+    { case: "gone", arguments: { thread: "t-1" }, replies: atThread(GONE) },
+  ],
+  merge: [
+    { case: "merged now", arguments: { thread: "t-1", method: "squash" }, replies: { ...atThread(NAPPING), "workspaces.merge": reply({ number: 4, method: "squash", merged: true, autoArmed: false }) } },
+    { case: "armed to merge on its checks", arguments: { thread: "t-1", when_checks_pass: true }, replies: { ...atThread(WORKSPACE), "workspaces.merge": reply({ number: 12, method: "merge", merged: false, autoArmed: true }) } },
+    { case: "a method off the list", arguments: { thread: "t-1", method: "fast-forward" }, replies: {} },
+    { case: "refused by the repository", arguments: { thread: "t-1", method: "rebase" }, replies: { ...atThread(WORKSPACE), "workspaces.merge": refused("the repository does not allow rebase merges \u0085", "usage") } },
+  ],
+  start: [
+    { case: "an issue", arguments: { link: "https://github.com/o/r/issues/5" }, replies: { "workspaces.start": reply({ workspace: { ...WORKSPACE, from: { kind: "issue", repo: "o/r", number: 5, url: "https://github.com/o/r/issues/5", title: "Add a line \u0085 🧪" } }, threadId: "t-1", sessionId: "s-1" }) } },
+    { case: "a pull request, at the picks named", arguments: { link: "https://github.com/o/r/pull/7", project: "alpha", agent: "claude", model: "opus", effort: "high", access: "auto-edit" }, replies: { "workspaces.start": reply({ workspace: { ...WORKSPACE, from: { kind: "pull_request", repo: "o/r", number: 7, url: "https://github.com/o/r/pull/7", title: "Rename", base: "main", head: { branch: "lab/review-me" } } }, threadId: "t-2", sessionId: "s-2" }) } },
+    { case: "a workspace answered with no origin", arguments: { link: "https://github.com/o/r/issues/6" }, replies: { "workspaces.start": reply({ workspace: WORKSPACE, threadId: "t-3", sessionId: "s-3" }) } },
+    { case: "no project for the repository", arguments: { link: "https://github.com/x/y/issues/1" }, replies: { "workspaces.start": refused("no project here is a checkout of x/y; add one with wsp add https://github.com/x/y", "usage") } },
+  ],
+  review: [
+    { case: "a link", arguments: { target: "https://github.com/o/r/pull/7" }, replies: { "workspaces.review": reply({ workspace: { ...WORKSPACE, from: { kind: "review", repo: "o/r", number: 7, url: "https://github.com/o/r/pull/7", title: "Rename \u0085" } }, threadId: "t-4", sessionId: "s-4" }) } },
+    { case: "a thread's own pull request", arguments: { target: "t-1", agent: "claude", effort: "high" }, replies: { ...atThread(WORKSPACE), "workspaces.review": reply({ workspace: { ...WORKSPACE, from: { kind: "review", repo: "o/r", number: 12, url: "https://github.com/o/r/pull/12", title: "Fix" } }, threadId: "t-5", sessionId: "s-5" }) } },
+    { case: "an agent with no read-only access", arguments: { target: "https://github.com/o/r/pull/7", agent: "opencode" }, replies: { "workspaces.review": refused("opencode has no read-only access wsp can give a reviewer; review with codex or claude", "usage") } },
+    { case: "a project's name", arguments: { target: "alpha 'quoted'" }, replies: PROJECT_NAMED },
+  ],
+  review_post: [
+    { case: "posted as drafted", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.reviewPost": reply({ url: "https://github.com/o/r/pull/7#pullrequestreview-9", number: 7, comments: 2, folded: 1 }) } },
+    { case: "one comment, the verdict and summary edited first", arguments: { thread: "t-1", verdict: "approve", summary: "Fine \u0085 🧪" }, replies: { ...atThread(WORKSPACE), "workspaces.reviewDraft": reply({ review: { note: "x", at: 1 } }), "workspaces.reviewPost": reply({ url: "https://github.com/o/r/pull/12#pullrequestreview-3", number: 12, comments: 1, folded: 0 }) } },
+    { case: "no review yet", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.reviewPost": refused("alpha has no review to post yet", "usage") } },
+    { case: "a verdict off the list", arguments: { thread: "t-1", verdict: "lgtm" }, replies: {} },
+  ],
+  update: [
+    { case: "merged, several commits", arguments: { thread: "t-1" }, replies: { ...atThread(NAPPING), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.update": reply({ base: "main", merged: true, commits: 3, conflicts: [] }) } },
+    { case: "merged, one commit", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.update": reply({ base: "main 🧪", merged: true, commits: 1, conflicts: [] }) } },
+    { case: "already current", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.update": reply({ base: "main", merged: true, commits: 0, conflicts: [] }) } },
+    { case: "conflicts", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.update": reply({ base: "main", merged: false, commits: 0, conflicts: ["a.ts", "b \u0085.ts"] }) } },
+    { case: "in a shared folder", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE, SHARED_ROWS), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.update": reply({ base: "main", merged: true, commits: 2, conflicts: [] }) } },
+    { case: "a dirty copy refused", arguments: { thread: "t-1" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.update": refused("a.ts has changes no commit holds; commit or discard them, then update again", "usage") } },
+    { case: "gone", arguments: { thread: "t-1" }, replies: atThread(GONE) },
+    { case: "nothing of that name", arguments: { thread: "zz" }, replies: NOTHING_NAMED },
+  ],
+  discard: [
+    { case: "discarded", arguments: { thread: "t-1", path: "src/a \u0085.ts" }, replies: { ...atThread(NAPPING), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.discard": reply({ path: "src/a \u0085.ts" }) } },
+    { case: "in a shared folder", arguments: { thread: "t-1", path: "a.ts" }, replies: { ...atThread(WORKSPACE, SHARED_ROWS), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.discard": reply({ path: "a.ts" }) } },
+    { case: "no change", arguments: { thread: "t-1", path: "src/a.ts" }, replies: { ...atThread(WORKSPACE), "workspaces.wake": reply({ workspace: WORKSPACE }), "workspaces.discard": refused("src/a.ts has no change to discard", "usage") } },
+    { case: "gone", arguments: { thread: "t-1", path: "src/a.ts" }, replies: atThread(GONE) },
+    { case: "a project's name", arguments: { thread: "alpha 'quoted'", path: "a.ts" }, replies: PROJECT_NAMED },
+  ],
+  export: onCloud([
+    {
+      case: "exported",
+      arguments: { workspace: "alpha", folder: "/Users/me/alpha", agents: ["claude"], replace: true },
+      replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "project.export": reply({ exported: { dest: "/Users/me/alpha", files: 12, bytes: 3.5, excluded: ["node_modules"], agents: [{ agent: "claude", files: 2, bytes: 10, outcome: "moved", sessions: 1 }] } }) },
+      pushed: {
+        "project.export": [
+          JSON.stringify({ type: "project.export", workspaceId: "ws-1", dest: "/Users/me/alpha", stage: "copying", message: "copying" }),
+          JSON.stringify({ type: "project.export", workspaceId: "ws-1", dest: "/elsewhere", stage: "done", message: "another export's end" }),
+          JSON.stringify({ type: "project.export", workspaceId: "ws-1", dest: "/Users/me/alpha", stage: "done", message: "alpha is home at /Users/me/alpha \u0085" }),
+        ],
+      },
+    },
+    { case: "refused", arguments: { workspace: "alpha", folder: "/Users/me/alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "project.export": refused("/Users/me/alpha is already there", "exists") } },
+  ]),
+  fork: onCloud([
+    { case: "forked", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "projects.resolve": reply({ project: PROJECT }), "workspaces.landing": reply({ capabilities: { sizes: [] } }), "workspaces.create": reply({ workspace: { ...WORKSPACE, id: "ws-3", name: "alpha-fork", parentWorkspaceId: "ws-1" } }) } },
+    {
+      case: "named and sized",
+      arguments: { workspace: "alpha", name: "beta", size: "4x8", spawn: "off" },
+      replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "projects.resolve": reply({ project: PROJECT }), "workspaces.landing": reply({ capabilities: { sizes: [{ cpu: 4, memMb: 8192, rateUsdPerHour: 0.2 }] } }), "workspaces.create": reply({ workspace: { ...WORKSPACE, id: "ws-4", name: "beta" }, notice: "built a copy first" }) },
+    },
+    { case: "relative folder", arguments: { workspace: "alpha", cwd: "src \"x\"" }, replies: {} },
+    {
+      case: "first turn",
+      arguments: { workspace: "alpha", task: "go \u0085", model: "old", effort: "low", access: "full", cwd: "/root/alpha", notify: [NOTIFY_ME, "t-1"] },
+      replies: forkedWith({ "sessions.list": reply({ sessions: SESSIONS }) }),
+      pushed: {
+        "sessions.start": [
+          event({ type: "session.start", afterCut: true }),
+          event({ type: "session.done", turnId: "turn-0", result: { status: "failed", error: "another turn's" } }),
+          event({ type: "session.delta", kind: "text", text: "re" }),
+          event({ type: "session.done", result: { status: "completed", text: "re: go \u0085", costUsd: 0.1 } }),
+        ],
+      },
+    },
+    { case: "first turn with no text", arguments: { workspace: "alpha", task: "go", agent: "codex" }, replies: forkedWith({}), pushed: { "sessions.start": [event({ type: "session.done", result: { status: "completed" } })] } },
+    { case: "first turn failed", arguments: { workspace: "alpha", task: "go" }, replies: forkedWith({}), pushed: { "sessions.start": [event({ type: "session.done", result: { status: "failed", error: "no sign-in for claude \u0085" } })] } },
+    { case: "first turn interrupted", arguments: { workspace: "alpha", task: "go" }, replies: forkedWith({}), pushed: { "sessions.start": [event({ type: "session.done", result: { status: "interrupted" } })] } },
+    { case: "ended by the runtime", arguments: { workspace: "alpha", task: "go" }, replies: forkedWith({}), pushed: { "sessions.start": [event({ type: "session.end", reason: "the machine stopped answering" })] } },
+    { case: "ended with no reason", arguments: { workspace: "alpha", task: "go" }, replies: forkedWith({}), pushed: { "sessions.start": [event({ type: "session.end" })] } },
+    { case: "start refused", arguments: { workspace: "alpha", task: "go" }, replies: forkedWith({ "sessions.start": refused("the machine refused the start", "auth") }) },
+    { case: "start in another shape", arguments: { workspace: "alpha", task: "go" }, replies: forkedWith({ "sessions.start": reply({ session: SESSION, outcome: "sideways", turnId: "turn-1" }) }) },
+    { case: "no thread stamped", arguments: { workspace: "alpha", task: "go" }, replies: forkedWith({ "sessions.start": reply({ session: { ...SESSION, threadId: undefined }, outcome: "queued", turnId: "turn-1" }) }) },
+    { case: "notify names no thread", arguments: { workspace: "alpha", task: "go", notify: ["zz"] }, replies: forkedWith({ "sessions.list": reply({ sessions: SESSIONS }) }) },
+    { case: "notify names two", arguments: { workspace: "alpha", task: "go", notify: ["s-"] }, replies: forkedWith({ "sessions.list": reply({ sessions: [{ ...SESSIONS[0], threadId: undefined }, SESSIONS[2]] }) }) },
+    { case: "empty task", arguments: { workspace: "alpha", task: " \n " }, replies: forkedWith({}) },
+    { case: "no such agent", arguments: { workspace: "alpha", task: "go", agent: "gemini" }, replies: forkedWith({}) },
+    { case: "no agent at all", arguments: { workspace: "alpha", task: "go", agent: "gemini" }, replies: forkedWith({ "harnesses.list": reply({ harnesses: [] }) }) },
+    { case: "model not offered", arguments: { workspace: "alpha", task: "go", model: "opus-9" }, replies: forkedWith({}) },
+    { case: "effort not offered", arguments: { workspace: "alpha", task: "go", effort: "max" }, replies: forkedWith({}) },
+    { case: "model takes no effort", arguments: { workspace: "alpha", task: "go", model: "haiku", effort: "low" }, replies: forkedWith({}) },
+    { case: "an access that is no word of wsp's", arguments: { workspace: "alpha", task: "go", agent: "codex", access: "yolo" }, replies: forkedWith({}) },
+    { case: "an access the agent maps to no mode", arguments: { workspace: "alpha", task: "go", agent: "codex", access: "plan" }, replies: forkedWith({}) },
+    { case: "no effort off the built-in table", arguments: { workspace: "alpha", task: "go", agent: "codex", model: "haiku", effort: "low" }, replies: forkedWith({}) },
+    { case: "no catalog for the agent", arguments: { workspace: "alpha", task: "go", model: "anything" }, replies: forkedWith({ "harnesses.list": reply({ harnesses: [{ ...CODEX, isDefault: false }] }) }), pushed: { "sessions.start": [event({ type: "session.done", result: { status: "completed", text: "ok" } })] } },
+  ]),
+};

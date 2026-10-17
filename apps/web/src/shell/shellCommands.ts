@@ -1,0 +1,421 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// One place that turns a keybinding command into store calls, shared by the
+// shortcut dispatcher, the palette, the header button and the terminal
+// surfaces so they all agree on what a command does. The terminal shortcuts
+// drive the drawer under the chat, except that new and split act on the right
+// panel's terminal while one of its terminals has focus; the panel surface
+// itself opens only from its own tab strip. Every pty comes from the link.
+// The switch chord walks the threads the sidebar lists, most recently opened
+// first, inside the switcher overlay until the hold is let go: letting go
+// lands on the highlighted one, in its composer, and a tap is the thread
+// before this one. The thread chord walks the same overlay over the threads
+// of the workspace on screen. With no workspace selected the terminal chord
+// opens this computer's own terminal, and the panel chord a panel whose
+// panels wait for a workspace.
+import { SETTLE_MS } from "@wsp/protocol";
+import { terminalRefusedLine } from "../actions/format.js";
+import { settleSaying, threadActions, threadTarget } from "../actions/threadActions.js";
+import { copyText } from "../actions/clipboard.js";
+import { resolveActions, type ResolvedAction } from "../actions/registry.js";
+import { withHeldThreads } from "../protocol/store/heldKeys.js";
+import { moveRoot, rootPlace, type MoveStep } from "../sidebar/treeMoves.js";
+import { deriveSidebarProjects, type SidebarProjectSnapshot, type SidebarThreadSnapshot } from "../adapt/index.js";
+import { toggleCommandPalette } from "../commandPaletteBus.js";
+import { openFileFinder } from "../files/finderBus.js";
+import { openCopyInEditor } from "../files/openCopy.js";
+import { isWorkspaceSelectCommand, workspaceSelectSlot, type KeybindingCommand, type WorkspaceSelectSlot } from "../keybindingTypes.js";
+import { threadFolderOf } from "../files/root.js";
+import { focusPanelSurface } from "../lib/panelFocus.js";
+import { getTerminalFocusOwner } from "../lib/terminalFocus.js";
+import { addNotice } from "../notices/store.js";
+import { failureOf } from "../protocol/failure.js";
+import { useStore } from "../protocol/store.js";
+import { panelKeyOf, selectWorkspaceRightPanelState, useRightPanelStore } from "../rightPanelStore.js";
+import { absenceOf } from "../settings/places.js";
+import { sidebarThreadOrder, topSidebarThread } from "../sidebar/Sidebar.logic.js";
+import { currentWorkspaceId } from "../adapt/workspaces.js";
+import { drawnTiles, nextNeedsYou, rootHolding, sidebarTiles, threadTree, treeSettle, type TileNode } from "../sidebar/threadTree.js";
+import { storedPicks, underPicks } from "../sidebar/picks.js";
+import { workspaceOrHere } from "../terminal/computer.js";
+import { ptyThreadOf, useTerminalDrawerStore } from "../terminal/drawerStore.js";
+import { resetTerminalZoom, stepTerminalZoom } from "../terminal/fontSetting.js";
+import { MAX_TERMINALS_PER_GROUP } from "../terminal/groups.js";
+import { getTerminals, type OpenOpts, type WorkspaceTerminals } from "../terminal/link.js";
+import { stateKeyOf } from "../stateKey.js";
+import { openNewThread } from "./NewThreadPicks.js";
+import { openThreadFind, stepThreadFind } from "../components/chat/find/store.js";
+import { requestClosePanelTab, requestComposerFocus } from "./shellRequests.js";
+import { recentThreads, useThreadHistory } from "./threadHistory.js";
+import { highlightedTarget, stepSwitcherAt, useWorkspaceSwitcher } from "./workspaceSwitcher.js";
+
+export interface ShellCommandTarget {
+  readonly workspaceId: string | null;
+  readonly toggleSidebar: () => void;
+}
+
+export type SplitDirection = "horizontal" | "vertical";
+
+/** A workspace the link refused a pty for, as a notice with the link's reason. Only for a refusal with no pane to
+ * stand in for it: a computer that is not answering is the pane's own sentence, said where the click was, so
+ * nothing is said here about one. */
+export function reportTerminalRefused(workspaceId: string, e: unknown): void {
+  const { workspaces, statuses, places } = useStore.getState();
+  const workspace = workspaces.find(w => w.id === workspaceId) ?? null;
+  if (absenceOf(places, workspace, statuses[workspaceId] ?? null, null) !== null) return;
+  addNotice({ kind: "error", text: terminalRefusedLine(workspace?.name, failureOf(e).said) });
+}
+
+/** Runs fn against the workspace's link. Nothing is asked of a workspace whose computer is not answering: its pane
+ * already says so in that computer's own words and stands there. The tab that opens a pane is held on the same
+ * reading, so every road to a pty reads one state. */
+function withTerminals(workspaceId: string, fn: (terminals: WorkspaceTerminals) => Promise<unknown>): Promise<void> {
+  const { workspaces, statuses, places } = useStore.getState();
+  const workspace = workspaces.find(w => w.id === workspaceId) ?? null;
+  if (absenceOf(places, workspace, statuses[workspaceId] ?? null, null) !== null) return Promise.resolve();
+  const terminals = getTerminals(workspaceId);
+  if (!terminals) return Promise.resolve();
+  return fn(terminals).then(() => undefined, (e: unknown) => reportTerminalRefused(workspaceId, e));
+}
+
+/** How a fresh pty opens: in the folder a thread of this workspace would start in, which is the project's own
+ * rather than the daemon's home, since a shell in the person's home folder is a shell in the machine and not in the
+ * work; and named for the thread on screen, whose drawer it then is. */
+function ptyOpenOpts(workspaceId: string): OpenOpts {
+  const cwd = threadFolderOf(workspaceId);
+  const thread = ptyThreadOf(stateKeyOf(workspaceId));
+  return { ...(cwd === null ? {} : { cwd }), ...(thread === undefined ? {} : { thread }) };
+}
+
+/** The drawer, shown; a workspace that never had a pty spawns one on mount. */
+export function showTerminal(workspaceId: string): Promise<void> {
+  useTerminalDrawerStore.getState().setOpen(workspaceId, true);
+  return Promise.resolve();
+}
+
+/** A fresh pty as its own drawer tab; the drawer opens if it was closed. */
+export function openDrawerTerminal(workspaceId: string): Promise<void> {
+  const key = stateKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals => terminals.open(ptyOpenOpts(workspaceId)).then(tab => useTerminalDrawerStore.getState().add(key, tab.ptyId)));
+}
+
+/** A fresh pty split into the drawer's active group. */
+export function splitDrawerTerminal(workspaceId: string, direction: SplitDirection = "horizontal"): Promise<void> {
+  const key = stateKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals => terminals.open(ptyOpenOpts(workspaceId)).then(tab => useTerminalDrawerStore.getState().split(key, tab.ptyId, direction)));
+}
+
+/** A fresh pty in its own right-panel surface. Each of these takes the pane it was asked from before the daemon
+ * answers, so a pty landing after a switch to another thread stays in the thread that asked for it. */
+export function openPanelTerminal(workspaceId: string): Promise<void> {
+  const panel = panelKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals => terminals.open(ptyOpenOpts(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)));
+}
+
+/** A fresh pty in its own right-panel surface with a line typed at its prompt and left for the person to run. */
+export function openPanelTerminalWith(workspaceId: string, line: string): Promise<void> {
+  const panel = panelKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals =>
+    terminals.open(ptyOpenOpts(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)).then(tab => terminals.write(tab.ptyId, line)),
+  );
+}
+
+/** A fresh pty split into one right-panel terminal surface. */
+export function splitPanelTerminal(workspaceId: string, surfaceId: string, direction: SplitDirection = "horizontal"): Promise<void> {
+  const panel = panelKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals =>
+    terminals.open(ptyOpenOpts(workspaceId), id => useRightPanelStore.getState().splitTerminal(panel, surfaceId, id, direction)),
+  );
+}
+
+/** A new terminal from the panel, by its + or its key: it joins the surface while that surface's side list shows,
+ * and opens a tab of its own from a lone terminal or a full list. */
+export function newPanelTerminal(workspaceId: string, surfaceId?: string): Promise<void> {
+  const state = selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, workspaceId);
+  const surface = state.surfaces.find(s => s.id === (surfaceId ?? state.activeSurfaceId));
+  if (surface?.kind === "terminal" && surface.terminalIds.length > 1 && surface.terminalIds.length < MAX_TERMINALS_PER_GROUP) {
+    return splitPanelTerminal(workspaceId, surface.id, surface.splitDirection ?? "horizontal");
+  }
+  return openPanelTerminal(workspaceId);
+}
+
+/** A fresh pty split into the panel's active terminal surface, or a new surface when none is active. */
+export function splitActivePanelTerminal(workspaceId: string, direction: SplitDirection = "horizontal"): Promise<void> {
+  const state = selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, workspaceId);
+  const active = state.surfaces.find(surface => surface.id === state.activeSurfaceId);
+  if (!active || active.kind !== "terminal") return openPanelTerminal(workspaceId);
+  return splitPanelTerminal(workspaceId, active.id, direction);
+}
+
+/** The sidebar's own snapshots, in its own order. The creation rows a fork draws above them are left out: a
+    creation row has no workspace to switch to, and counting one would move every slot under the person's fingers
+    while a fork is in flight. */
+function sidebarProjects(): SidebarProjectSnapshot[] {
+  const { workspaces, statuses, sessions, heldKeys } = useStore.getState();
+  return withHeldThreads(deriveSidebarProjects({ workspaces, statuses, sessions }), heldKeys);
+}
+
+function orderedWorkspaceIds(): string[] {
+  return sidebarProjects().map(project => project.id);
+}
+
+/** A thread row a walk can land on: one the runtime stamped a thread id on, which is the one field the walk's
+    list, its compare against what is open and its select all read. */
+export type WalkableThread = SidebarThreadSnapshot & { readonly threadId: string };
+
+/** The threads of the workspace on screen that a walk can land on, in the order the sidebar draws
+    them. The chord and the palette's rows read this one list, so a row that says it is disabled and a chord that
+    does nothing agree. A row the runtime stamped no thread id on pins the workspace alone, so a walk that landed
+    on it could never step off it. */
+export function threadWalk(projects: ReadonlyArray<SidebarProjectSnapshot>, selectedId: string | null): WalkableThread[] {
+  const current = currentWorkspaceId(projects.map(project => project.id), selectedId);
+  const group = threadTree(projects).find(candidate => candidate.project.id === current);
+  if (group === undefined) return [];
+  return sidebarThreadOrder(group.threads).filter((thread): thread is WalkableThread => thread.threadId !== null);
+}
+
+/** One step along an order that wraps at both ends, or null where there is nowhere else to go, which is what
+    the palette's disabled rows say. A current id the order does not hold (a creation row) steps in from the
+    end it came from. */
+export function stepInOrder(ids: ReadonlyArray<string>, currentId: string | null, step: 1 | -1): string | null {
+  if (ids.length === 0) return null;
+  const at = currentId === null ? -1 : ids.indexOf(currentId);
+  if (at === -1) return (step === 1 ? ids[0] : ids[ids.length - 1]) ?? null;
+  const next = ids[(at + step + ids.length) % ids.length] ?? null;
+  return next === currentId ? null : next;
+}
+
+/** Selects the workspace, and one of its threads where the caller names one, then puts the caret in its composer:
+ * the chords and the palette's rows land the same way. */
+export function goToWorkspace(workspaceId: string, threadId: string | null = null): void {
+  useStore.getState().select(workspaceId, threadId);
+  requestComposerFocus(workspaceId);
+}
+
+export function goToAdjacentWorkspace(step: 1 | -1): void {
+  const next = stepInOrder(orderedWorkspaceIds(), useStore.getState().selectedId, step);
+  if (next !== null) goToWorkspace(next);
+}
+
+/** One step through the threads of the workspace Spaces has on screen; nothing happens where there is nowhere
+ * else to go, as the palette's disabled row says. */
+export function cycleThreadInSpace(step: 1 | -1): void {
+  const threads = threadWalk(sidebarProjects(), useStore.getState().selectedId);
+  const next = stepInOrder(threads.map(thread => thread.threadId), useStore.getState().selectedThreadId, step);
+  const thread = threads.find(candidate => candidate.threadId === next);
+  if (thread !== undefined) goToWorkspace(thread.workspaceId, thread.threadId);
+}
+
+/** The sidebar's live list as it draws it under the project and computer picks, the thread open in the centre named
+ * by its fold key so it stands there however long it has been quiet. */
+function sidebarDrawn(fleet: SidebarProjectSnapshot[], open: string | null): ReturnType<typeof sidebarTiles> {
+  const { places, projects: recorded, preferences } = useStore.getState();
+  const { projects, picked } = underPicks(fleet, { places, recorded, order: preferences.projectOrder, stored: storedPicks() });
+  return sidebarTiles(projects, { picked: picked?.project.id ?? null, nowMs: Date.now(), open, settleMs: SETTLE_MS[preferences.settleAfter] });
+}
+
+const sidebarLive = (fleet: SidebarProjectSnapshot[], open: string | null): TileNode[] => sidebarDrawn(fleet, open).live;
+
+/** Every thread the sidebar lists that a walk can land on, in the order it draws them; the Settled fold is left out. */
+function sidebarThreads(): WalkableThread[] {
+  const { selectedId, selectedThreadId } = useStore.getState();
+  const fleet = sidebarProjects();
+  const open = selectedThreadId === null ? undefined : fleet.find(project => project.id === selectedId)?.threads.find(thread => thread.threadId === selectedThreadId);
+  return drawnTiles(sidebarLive(fleet, open?.id ?? null)).flatMap(({ thread }) => (thread !== null && thread.threadId !== null ? [thread as WalkableThread] : []));
+}
+
+/** The threads of the workspace on screen, the thread chord's walk. */
+const workspaceThreads = (): WalkableThread[] => threadWalk(sidebarProjects(), useStore.getState().selectedId);
+
+/** The switch chord's step. The first one puts the overlay up over the threads it walks, the open one first and the
+ * rest most recently opened first, so a tap lands on the thread before this one and a hold walks back in time; the
+ * rest of the steps walk it. With no thread open, as a fresh thread's composer leaves the centre, the most recently
+ * opened thread is the one a tap lands on, so the walk starts on it rather than a step past it. Nothing is selected
+ * until the hold is let go, so a walk past a thread never mounts it, and nothing opens where there is no other thread
+ * to land on. The hold comes from the chord that stepped, so the walk ends on the key that is really down whichever
+ * of the switch chords opened it. */
+export function cycleWorkspaceSwitcher(step: 1 | -1, hold: ReadonlyArray<string>, walk: () => WalkableThread[] = sidebarThreads): void {
+  const switcher = useWorkspaceSwitcher.getState();
+  if (switcher.open) {
+    switcher.step(step);
+    return;
+  }
+  const { selectedThreadId } = useStore.getState();
+  const threads = recentThreads(walk(), useThreadHistory.getState().recent, selectedThreadId);
+  const fromOpen = threads[0]?.threadId === selectedThreadId;
+  if (threads.length < (fromOpen ? 2 : 1)) return;
+  const targets = threads.map(thread => ({ workspaceId: thread.workspaceId, threadId: thread.threadId }));
+  switcher.openAt(targets, fromOpen ? stepSwitcherAt(targets.length, 0, step) : step === 1 ? 0 : targets.length - 1, hold);
+}
+
+/** One step along the right panel's tabs, wrapping, the focus put inside the tab it opens so the next step is the
+ * panel's too. */
+function stepPanelTab(workspaceId: string, step: 1 | -1): void {
+  const state = selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, workspaceId);
+  const next = stepInOrder(state.surfaces.map(surface => surface.id), state.activeSurfaceId, step);
+  if (next === null) return;
+  useRightPanelStore.getState().activateSurface(workspaceId, next);
+  focusPanelSurface();
+}
+
+/** The open thread's root tree, settled by hand as the tile's menu settles it: the thread the centre shows, else the
+ * workspace's top thread, and nothing while a thread of the tree works or the tree is settled already. */
+export function settleOpenThread(): void {
+  const { selectedId, selectedThreadId, settleThreads, restoreThreads, preferences } = useStore.getState();
+  const projects = sidebarProjects();
+  const runs = projects.find(project => project.id === selectedId);
+  if (runs === undefined) return;
+  const open = (selectedThreadId === null ? undefined : runs.threads.find(thread => thread.threadId === selectedThreadId)) ?? topSidebarThread(runs.threads);
+  if (open === null) return;
+  const root = rootHolding(sidebarTiles(projects, { picked: null, nowMs: Date.now(), open: open.id, settleMs: SETTLE_MS[preferences.settleAfter] }).live, open.id);
+  if (root === undefined) return;
+  const settle = treeSettle(root);
+  if (!settle.working) void settleSaying(settle.threadIds, { settle: settleThreads, restore: restoreThreads });
+}
+
+/** The moves of the open thread's root tree, as its tile's menu offers them, held where they are held there: the
+ * palette's Move up, Move down and Move to top. None while the open thread's tree stands in neither Pinned nor the list. */
+export function openRootMoves(): ResolvedAction[] {
+  const { selectedId, selectedThreadId, api } = useStore.getState();
+  const fleet = sidebarProjects();
+  const runs = fleet.find(project => project.id === selectedId);
+  const open = runs === undefined ? undefined : ((selectedThreadId === null ? undefined : runs.threads.find(thread => thread.threadId === selectedThreadId)) ?? topSidebarThread(runs.threads));
+  if (open == null) return [];
+  const drawn = sidebarDrawn(fleet, open.id);
+  const root = rootHolding(drawn.live, open.id);
+  const thread = root?.thread.thread;
+  if (root === undefined || thread == null) return [];
+  const tree = { ...treeSettle(root), workspaceIds: [], pinned: thread.pinnedAt !== null, settled: false, place: rootPlace(drawn.sections, root.thread.id) };
+  const verbs = { copyText, ...(api?.markThreads === undefined ? {} : { move: (_threadId: string, step: MoveStep) => void moveRoot(drawn.sections, root, step) }) };
+  return resolveActions(threadActions, threadTarget(thread, { catalog: null, state: "running" }, tree), verbs).filter(action => MOVE_ACTIONS.has(action.id));
+}
+const MOVE_ACTIONS: ReadonlySet<string> = new Set(["move-up", "move-down", "move-top"]);
+
+/** Opens the next thread after the open one that needs the person, in the order the sidebar draws its list under the
+ * project and computer picks, wrapping; nothing while none it shows does. */
+export function openNextNeedsYou(): void {
+  const { selectedId, selectedThreadId, select } = useStore.getState();
+  const fleet = sidebarProjects();
+  const runs = fleet.find(project => project.id === selectedId);
+  const open = runs === undefined ? undefined : (selectedThreadId === null ? undefined : runs.threads.find(thread => thread.threadId === selectedThreadId)) ?? topSidebarThread(runs.threads);
+  const next = nextNeedsYou(sidebarLive(fleet, open?.id ?? null), open?.id ?? null);
+  if (next?.thread != null) select(next.thread.workspaceId, next.thread.threadId);
+}
+
+/** The hold let go: the highlighted thread becomes the open one. */
+export function commitWorkspaceSwitch(): void {
+  const state = useWorkspaceSwitcher.getState();
+  const target = highlightedTarget(state);
+  state.close();
+  if (target !== null) goToWorkspace(target.workspaceId, target.threadId);
+}
+
+/** Escape, or the window losing focus mid-walk: the overlay leaves and the person stays where they were. */
+export function cancelWorkspaceSwitch(): void {
+  useWorkspaceSwitcher.getState().close();
+}
+
+/** Nothing happens while the sidebar has no row in that slot. */
+export function goToWorkspaceInSlot(slot: WorkspaceSelectSlot): void {
+  const target = orderedWorkspaceIds()[slot - 1];
+  if (target !== undefined) goToWorkspace(target);
+}
+
+/** The hold is the modifiers the chord that ran the command is carrying; the switch's walk ends when one comes up. */
+export function runShellCommand(command: KeybindingCommand, target: ShellCommandTarget, hold: ReadonlyArray<string>): void {
+  if (isWorkspaceSelectCommand(command)) {
+    goToWorkspaceInSlot(workspaceSelectSlot(command));
+    return;
+  }
+  const { workspaceId } = target;
+  switch (command) {
+    case "sidebar.toggle":
+      target.toggleSidebar();
+      return;
+    case "commandPalette.toggle":
+      toggleCommandPalette();
+      return;
+    // The finder reads the open thread's files, so it stands only where one is open and Settings is not.
+    case "files.quickOpen":
+    case "files.search":
+      if (workspaceId && !useStore.getState().settingsOpen) openFileFinder(command === "files.quickOpen" ? "files" : "text");
+      return;
+    case "settings.toggle":
+      useStore.getState().toggleSettings();
+      return;
+    // Settings takes the whole region right of the sidebar and mounts neither the panel nor the drawer, so a chord
+    // that flips one would move a record behind a page that never shows it.
+    case "rightPanel.toggle":
+      if (useStore.getState().settingsOpen) return;
+      useRightPanelStore.getState().toggleVisibility(workspaceOrHere(workspaceId));
+      return;
+    case "rightPanel.nextTab":
+      stepPanelTab(workspaceOrHere(workspaceId), 1);
+      return;
+    case "rightPanel.previousTab":
+      stepPanelTab(workspaceOrHere(workspaceId), -1);
+      return;
+    case "rightPanel.closeTab":
+      requestClosePanelTab();
+      return;
+    case "preview.toggle":
+      if (workspaceId && !useStore.getState().settingsOpen) useRightPanelStore.getState().toggle(workspaceId, "preview");
+      return;
+    case "terminal.toggle":
+      if (!useStore.getState().settingsOpen) useTerminalDrawerStore.getState().toggle(workspaceOrHere(workspaceId));
+      return;
+    case "terminal.new":
+      if (!workspaceId) return;
+      void (getTerminalFocusOwner() === "right-panel" ? newPanelTerminal(workspaceId) : openDrawerTerminal(workspaceId));
+      return;
+    case "terminal.split":
+      if (!workspaceId) return;
+      void (getTerminalFocusOwner() === "right-panel" ? splitActivePanelTerminal(workspaceId) : splitDrawerTerminal(workspaceId));
+      return;
+    case "terminal.zoomIn":
+      if (workspaceId) stepTerminalZoom(workspaceId, 1);
+      return;
+    case "terminal.zoomOut":
+      if (workspaceId) stepTerminalZoom(workspaceId, -1);
+      return;
+    case "terminal.zoomReset":
+      if (workspaceId) resetTerminalZoom(workspaceId);
+      return;
+    case "chat.new":
+      openNewThread();
+      return;
+    case "workspace.next":
+      cycleWorkspaceSwitcher(1, hold);
+      return;
+    case "workspace.previous":
+      cycleWorkspaceSwitcher(-1, hold);
+      return;
+    case "thread.next":
+      cycleWorkspaceSwitcher(1, hold, workspaceThreads);
+      return;
+    case "thread.previous":
+      cycleWorkspaceSwitcher(-1, hold, workspaceThreads);
+      return;
+    case "thread.settle":
+      settleOpenThread();
+      return;
+    case "thread.nextNeedsYou":
+      openNextNeedsYou();
+      return;
+    case "thread.find":
+      openThreadFind();
+      return;
+    case "thread.findOlder":
+      stepThreadFind(-1);
+      return;
+    case "thread.findNewer":
+      stepThreadFind(1);
+      return;
+    case "editor.open":
+      if (workspaceId && !useStore.getState().settingsOpen) void openCopyInEditor(workspaceId);
+      return;
+    default: {
+      const _exhaustive: never = command;
+      return;
+    }
+  }
+}

@@ -1,0 +1,211 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// A comment on a diff line reaching the same thread's composer. The code view
+// is stood in by a button that hands the pane one comment, since the real one
+// draws its annotations inside the Pierre viewer, and the tooltip skin by its
+// text.
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cloneElement, type ReactElement, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../components/diffs/AnnotatableCodeView", () => ({
+  AnnotatableCodeView: (props: {
+    reviewComments: ReadonlyArray<{ id: string }>;
+    onAddReviewComment: (comment: unknown) => void;
+  }) => (
+    <div data-code-view data-comments={props.reviewComments.length}>
+      <button
+        type="button"
+        data-comment-on-a-line
+        onClick={() =>
+          props.onAddReviewComment({
+            id: `c${props.reviewComments.length + 1}`,
+            sectionId: "s",
+            sectionTitle: "Working tree",
+            filePath: "src/a.ts",
+            startIndex: 0,
+            endIndex: 0,
+            rangeLabel: "+1",
+            text: "name this one",
+            diff: "@@ -1,1 +1,1 @@\n+two",
+            fenceLanguage: "diff",
+          })
+        }
+      />
+    </div>
+  ),
+}));
+vi.mock("../components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ render: element, children }: { render: ReactElement<{ children?: ReactNode }>; children?: ReactNode }) => cloneElement(element, {}, children),
+  TooltipPopup: ({ children }: { children: ReactNode }) => <div role="tooltip">{children}</div>,
+}));
+
+import type { WorkspaceView } from "@wsp/protocol";
+import { useComposerDraftStore } from "../components/chat/composerDraftStore";
+import { useRootStore } from "../files/root";
+import { provideDaemonHello, provideDaemonWire } from "../files/wire";
+import { useStore } from "../protocol/store";
+import { provideTerminals, WorkspaceTerminals, type TerminalWire } from "../terminal/link";
+import { reviewCommentsQuote } from "../reviewCommentContext";
+import { DiffSurface } from "./DiffSurface";
+import { onlyOf, turnKey, useDiffStore } from "./store";
+import { NARROWED_WORDS, SEND_TO_THREAD } from "./words";
+
+const WS = "ws_a";
+const workspace: WorkspaceView = {
+  id: WS,
+  name: "api",
+  machineId: "m_ws_a",
+  project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" },
+  phase: "running",
+  golden: "snap_g",
+  createdAt: "2026-09-01T00:00:00Z",
+};
+
+const patch = ["diff --git a/src/a.ts b/src/a.ts", "index 1111111..2222222 100644", "--- a/src/a.ts", "+++ b/src/a.ts", "@@ -1 +1 @@", "-one", "+two", ""].join("\n");
+const DIFF = { base: null, files: [{ path: "src/a.ts", kind: "modified", additions: 1, deletions: 1, patch }], truncated: false };
+const STATUS = { branch: { oid: "abc", head: "agent/pricing-page", ahead: 1, behind: 0 }, entries: [], root: "/root" };
+
+const wire = {
+  request: async (op: string) => (op === "git.diff" ? DIFF : op === "git.status" ? STATUS : {}),
+  onEvent: () => () => {},
+} as unknown as Parameters<typeof provideDaemonWire>[1];
+
+beforeEach(() => {
+  useDiffStore.setState({ scopeByWorkspaceId: {}, renderMode: "stacked" });
+  useComposerDraftStore.setState({ drafts: {}, queues: {}, held: {} });
+  useRootStore.setState({ byWorkspaceId: {} });
+  useStore.setState({ workspaces: [workspace], statuses: {}, places: [] });
+  provideDaemonHello(WS, { root: "/root" });
+  provideDaemonWire(WS, wire);
+});
+
+afterEach(() => {
+  cleanup();
+  provideDaemonWire(WS, null);
+});
+
+const settle = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 20)));
+
+describe("a comment on a diff line", () => {
+  it("is not offered until one is written", async () => {
+    render(<DiffSurface workspaceId={WS} theme="dark" />);
+    await waitFor(() => expect(document.querySelector("[data-code-view]")).not.toBeNull());
+    expect(screen.queryByText(SEND_TO_THREAD)).toBeNull();
+  });
+
+  it("goes to the selected thread's composer as quoted context, under what is already typed, and leaves the pane", async () => {
+    useComposerDraftStore.getState().setDraft(WS, { prompt: "have a look", cursor: 11 });
+    render(<DiffSurface workspaceId={WS} theme="dark" />);
+    await waitFor(() => expect(document.querySelector("[data-comment-on-a-line]")).not.toBeNull());
+    fireEvent.click(document.querySelector("[data-comment-on-a-line]")!);
+    fireEvent.click(document.querySelector("[data-comment-on-a-line]")!);
+    await waitFor(() => expect(document.querySelector("[data-code-view]")?.getAttribute("data-comments")).toBe("2"));
+
+    fireEvent.click(screen.getByText(SEND_TO_THREAD));
+    await settle();
+    const draft = useComposerDraftStore.getState().drafts[WS]!;
+    expect(draft.prompt.startsWith("have a look\n\n")).toBe(true);
+    expect(draft.prompt).toContain("src/a.ts +1");
+    expect(draft.prompt).toContain("name this one");
+    expect(draft.prompt).toContain("@@ -1,1 +1,1 @@");
+    expect(draft.cursor).toBe(draft.prompt.length);
+    // Two comments, one block, in the order they were written.
+    expect(draft.prompt.split("src/a.ts +1")).toHaveLength(3);
+    // The pane keeps none: what is in the composer is what the person edits and sends.
+    expect(document.querySelector("[data-code-view]")?.getAttribute("data-comments")).toBe("0");
+    expect(screen.queryByText(SEND_TO_THREAD)).toBeNull();
+  });
+
+  it("is the quote the one word table builds, never a second spelling", async () => {
+    render(<DiffSurface workspaceId={WS} theme="dark" />);
+    await waitFor(() => expect(document.querySelector("[data-comment-on-a-line]")).not.toBeNull());
+    fireEvent.click(document.querySelector("[data-comment-on-a-line]")!);
+    await waitFor(() => expect(screen.queryByText(SEND_TO_THREAD)).not.toBeNull());
+    fireEvent.click(screen.getByText(SEND_TO_THREAD));
+    await settle();
+    const quoted = reviewCommentsQuote([
+      { id: "c1", sectionId: "s", sectionTitle: "Working tree", filePath: "src/a.ts", startIndex: 0, endIndex: 0, rangeLabel: "+1", text: "name this one", diff: "@@ -1,1 +1,1 @@\n+two", fenceLanguage: "diff" },
+    ]);
+    expect(useComposerDraftStore.getState().drafts[WS]!.prompt).toBe(`${quoted}\n\n`);
+  });
+});
+
+describe("the Diff header's branch", () => {
+  it("is asked again when the link changes its word, so a read made before the link was up is not the header's last word", async () => {
+    // The wire is handed out before the link's first status lands, and the panel reopens the panes it had, so a
+    // Diff pane restored at load reads over a link that is not up yet. Asked once, that failure stood as the
+    // header's word until a scope change, a folder change or a refresh by hand.
+    let up = false;
+    const late = {
+      request: async (op: string) => {
+        if (!up) throw new Error("not answering");
+        return op === "git.diff" ? DIFF : op === "git.status" ? STATUS : {};
+      },
+      onEvent: () => () => {},
+    } as unknown as TerminalWire;
+    provideDaemonWire(WS, late);
+    const terminals = new WorkspaceTerminals(late);
+    provideTerminals(WS, terminals);
+
+    render(<DiffSurface workspaceId={WS} theme="dark" />);
+    await act(() => new Promise<void>(resolve => setTimeout(resolve, 20)));
+    // The failed read leaves the header quiet: the branch, or nothing until it is known.
+    expect(document.querySelector("[data-diff-repo-state]")).toBeNull();
+    up = true;
+    act(() => terminals.feedStatus("live"));
+    await waitFor(() => expect(document.querySelector("[data-diff-repo-state]")?.getAttribute("data-diff-repo-state")).toBe("repo"));
+    expect(document.querySelector("[data-diff-repo]")?.getAttribute("data-diff-repo")).toBe("/root");
+    expect(document.querySelector("[data-diff-repo-state]")?.textContent).toBe("agent/pricing-page");
+    provideTerminals(WS, null);
+  });
+
+  it("keeps its room while a comment is held, where the path leaves the header", async () => {
+    render(<DiffSurface workspaceId={WS} theme="dark" />);
+    await waitFor(() => expect(document.querySelector("[data-comment-on-a-line]")).not.toBeNull());
+    expect(document.querySelector("[data-folder-crumbs]")).not.toBeNull();
+    fireEvent.click(document.querySelector("[data-comment-on-a-line]")!);
+    await waitFor(() => expect(screen.queryByText(SEND_TO_THREAD)).not.toBeNull());
+    expect(document.querySelector("[data-folder-crumbs]")).toBeNull();
+    expect(document.querySelector("[data-diff-repo-state]")?.textContent).toBe("agent/pricing-page");
+  });
+});
+
+describe("a turn's range", () => {
+  it("shows only the files the card opened it on, in a folder other threads changed too", async () => {
+    const other = { ...DIFF.files[0]!, path: "b.ts", patch: patch.replaceAll("src/a.ts", "b.ts") };
+    const asked: string[] = [];
+    provideDaemonWire(WS, {
+      request: async (op: string) => (asked.push(op), op === "git.turn" ? { ...DIFF, files: [...DIFF.files, other] } : op === "git.status" ? STATUS : {}),
+      onEvent: () => () => {},
+    } as unknown as Parameters<typeof provideDaemonWire>[1]);
+    const range = { threadId: "thread-a", turnId: "t1", cwd: "/root", from: "a".repeat(40), to: "b".repeat(40) };
+    useStore.setState({ selectedId: WS, selectedThreadId: "thread-a" });
+    useDiffStore.setState({ turnByThread: { [turnKey(WS, "thread-a")]: { ...range, only: ["src/a.ts"] } } });
+    render(<DiffSurface workspaceId={WS} theme="dark" />);
+    await waitFor(() => expect(document.querySelector('[data-changed-file="src/a.ts"]')).not.toBeNull());
+    expect(asked).toContain("git.turn");
+    expect(document.querySelector('[data-changed-file="b.ts"]')).toBeNull();
+    act(() => useDiffStore.setState({ turnByThread: { [turnKey(WS, "thread-a")]: { ...range, only: ["b.ts"] } } }));
+    await waitFor(() => expect(document.querySelector('[data-changed-file="b.ts"]')).not.toBeNull());
+    expect(document.querySelector('[data-changed-file="src/a.ts"]')).toBeNull();
+    expect(document.querySelector("[data-diff-narrowed]")?.textContent).toBe(`${NARROWED_WORDS.line(1, 2)}${NARROWED_WORDS.all}`);
+    fireEvent.click(screen.getByRole("button", { name: NARROWED_WORDS.all }));
+    await waitFor(() => expect(document.querySelectorAll("[data-changed-file]")).toHaveLength(2));
+    expect(useDiffStore.getState().turnByThread[turnKey(WS, "thread-a")]).toEqual(range);
+    expect(document.querySelector("[data-diff-narrowed]")).toBeNull();
+    useDiffStore.setState({ turnByThread: {} });
+  });
+});
+
+describe("the files a turn's card opens the range on", () => {
+  const own = [{ path: "slate.md" }];
+  const others = [{ path: "b.ts" }, { path: "c.ts" }];
+  it("are the thread's own from Open diff or its own row, the others' from theirs, and the whole range where none are known", () => {
+    expect(onlyOf({ files: own, others }, "slate.md")).toEqual(["slate.md"]);
+    expect(onlyOf({ files: own, others })).toEqual(["slate.md"]);
+    expect(onlyOf({ files: own, others }, "c.ts")).toEqual(["b.ts", "c.ts"]);
+    expect(onlyOf({ files: [], others }, "b.ts")).toEqual(["b.ts", "c.ts"]);
+    expect(onlyOf({ files: own })).toBeUndefined();
+  });
+});

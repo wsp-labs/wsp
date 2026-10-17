@@ -1,0 +1,962 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import type { ActivityArea } from "./activity.js";
+import type {
+  GoneWatch,
+  Builder,
+  GoldenImport,
+  SealResult,
+  GoldenManifest,
+  GoldenVersion,
+  ListedMachine,
+  Lifecycle,
+  Machine,
+  MachineBackend,
+  MachineShape,
+  MachineState,
+  ReapFailure,
+  ReapedMachine,
+  VaultOptions,
+  BoxLimits,
+} from "@wsp/engine";
+import type { DaemonFrame, PlaceKind, ProcKind, ProcScope } from "@wsp/protocol";
+import type {
+  AdapterEvent,
+  SessionOrigin,
+  AttachmentRoad,
+  Capabilities,
+  DaemonReachView,
+  EventUnion,
+  ExecStreamFactory,
+  GoldenBuilderView,
+  GoldenLogin,
+  GoldenStage,
+  GoldenStep,
+  HarnessCatalog,
+  Preferences,
+  RecipeDigest,
+  SealedImage,
+  SealedImageBuilt,
+  ProjectGolden,
+  ProjectRef,
+  ProjectSource,
+  ProjectView,
+  SeedChoice,
+  SeedPlan,
+  PermissionAsk,
+  ReachState,
+  SessionEvent,
+  SessionRenameWrite,
+  SessionStartOutcome,
+  SessionView,
+  TitleSource,
+  Attachment,
+  AttachmentRecord,
+  McpServerSpec,
+  TurnImage,
+  TurnResult,
+  Caller,
+  WorkspaceAgents,
+  WorkspaceKind,
+  PlaceSettings,
+  WorkspaceProject,
+  WorkspaceSize,
+  WorkspaceStatus,
+  WorkspaceView,
+  WorkspaceCreatingEvent,
+} from "@wsp/protocol";
+import type { LandingDeps, ProjectLanding } from "./project-landing.js";
+import type {
+  ThreadScope,
+  WorkspaceOrigin,
+  GitPrViewReply,
+  GitRepoReadReply,
+  GitUpdateReply,
+  TreeFact,
+  TreeRecord,
+  PullRequestSeen,
+  Checkout,
+  SpawnAct,
+  ThreadWaitingOn,
+  ThreadCapWait,
+  SessionUncappedEvent,
+} from "@wsp/protocol";
+import type { CopyBuild, GoneSeenBy, SubResult, SubUnpushed, WorktreeSettled } from "@wsp/protocol";
+import type { agentsReads } from "./agents-read.js";
+import type { DaemonChannel, DaemonChannelOptions } from "./daemon-channel.js";
+import type { MachineExecOptions, TurnWaiting } from "./machine-exec.js";
+import type { AccessChoice, ProjectOverrides, RanPicks, ResolvedFolder } from "@wsp/protocol";
+import type { Clock } from "./clock.js";
+import type { StatusApi } from "./status.js";
+import type { DeviceDoor, ScopedRoad } from "./devices.js";
+import type { PlaceDoor } from "./places.js";
+import type { Store } from "./store.js";
+import type { Slates } from "./slates.js";
+import type { StdioRoad } from "./slate-mcp-on.js";
+import type { GitHubCache } from "./github-cache.js";
+import type { AccountsAnswer } from "@wsp/protocol";
+import type { IssueRead, PullRequest, StartResult, WorkspaceFrom } from "@wsp/protocol";
+import type { Vaulted } from "./usage.js";
+import type { AcrossAct, ThreadFacts } from "@wsp/protocol";
+import type { TranscriptRows } from "./sqlite-transcripts.js";
+import type { TranscriptReader } from "./transcript-reader.js";
+import type { HarnessSession, HarnessAdapter, HarnessStartOptions, StartPicksAsked } from "./types/harness.js";
+import type {
+  WorkspaceSpec,
+  CreatedWorkspace,
+  CreateWorkspaceOptions,
+  ProjectImportOptions,
+  WorkspaceRecord,
+  LiveWorkspace,
+  StageReport,
+  SessionHandle,
+  PlaceBackends,
+  GoldenRecipe,
+  RuntimeOptions,
+  GoneOutcome,
+  FoundMachine,
+  AdoptedMachine,
+  UsageDoor,
+} from "./types/wiring.js";
+import type { Runtime } from "./types/api.js";
+import type {
+  TranscriptIndex,
+  Taken,
+  TurnWritten,
+  TranscriptRecord,
+  TurnLive,
+  TurnAsked,
+  KeptProcess,
+  KeptLaunch,
+  ThreadRecord,
+  ThreadStamps,
+  TreeTalk,
+  BuilderRecord,
+  LiveBuilder,
+  KindModule,
+  ImportReport,
+  ImportLanded,
+  WorkspaceLike,
+  StageFrame,
+  ChildStart,
+  MachineMoment,
+  LiveSession,
+  Reopened,
+  SessionEntry,
+  SESSION_FACTS,
+} from "./types/internal.js";
+import type { EventBus } from "./types/events.js";
+import type { HarnessAdapterContext, HarnessAdapterFactory } from "./types/harness.js";
+import type { LocalWiring } from "./types/wiring.js";
+import type { AgentSetups } from "./agent-setup.js";
+import type { PairedDevice } from "./devices.js";
+import type { IdlePolicy } from "./idle.js";
+import type { PlanAlerts } from "./plan-alerts.js";
+import type { UsageLedger, ReplayedStamp } from "./usage.js";
+import type { AccountRoad, AccountRow } from "@wsp/protocol";
+
+/** The lets more than one area reads or writes, read through ctx.state at the moment they are needed. */
+export interface RuntimeState {
+  sayStops: ((line: string) => void) | undefined;
+  /** When this state file began keeping read stamps: what a thread no window has shown since reads as its stamp. */
+  readsSince: number;
+  rootsRecheck: ReturnType<typeof setInterval> | undefined;
+  owner: string;
+  copiesMoving: Promise<void> | undefined;
+  sweepTimer: (() => void) | undefined;
+  sweeping: Promise<void> | undefined;
+  sweepStopped: boolean;
+  /** Marks the record as this process's, now; the sweep and the heartbeat timer refresh it and close() clears it. */
+  beat: (() => void) | undefined;
+  closed: boolean;
+  /** Set as close() starts, before it shuts the daemon channels a card read still out goes over. */
+  closing: boolean;
+  ticking: Promise<void> | undefined;
+  /** The record as last read or written, so a start reads the defaults without a trip to the store. */
+  preferencesHeld: Preferences | undefined;
+}
+
+/** Built in createRuntime before any area and never reassigned: the options, the maps every area shares and the helpers they stand on. */
+export interface RuntimeCore {
+  readonly opts: RuntimeOptions;
+  readonly backend: MachineBackend;
+  readonly store: Store;
+  readonly adapters: Record<string, HarnessAdapterFactory>;
+  readonly local: LocalWiring | undefined;
+  readonly placeDoor: PlaceDoor | undefined;
+  readonly bus: EventBus & { emit(event: EventUnion): void; pass(event: EventUnion): void; };
+  readonly goneConfirmMs: number;
+  readonly lateReadMs: number;
+  readonly clock: Clock;
+  readonly githubCache: GitHubCache;
+  readonly readsState: (machine: Machine) => Promise<MachineState | undefined>;
+  readonly tookTheResume: (reads: MachineState | undefined) => boolean;
+  readonly sleeps: (ms: number) => Promise<void>;
+  readonly daemonHelloTimeoutMs: number;
+  readonly vaultCapBytes: number;
+  readonly defaultIdleWindowMs: number;
+  readonly hostId: string;
+  readonly vaultExport: (m: Machine, o?: Pick<VaultOptions, "maxBytes" | "leave">) => Promise<Buffer>;
+  readonly deviceDoor: DeviceDoor;
+  readonly threadLaunch: (entry: LiveWorkspace, threadId: string, rootThreadId: string, o?: { aside?: true; }) => Promise<{ scoped?: Awaited<ReturnType<(name: string, scope: ThreadScope, now: number, more?: { road?: ScopedRoad; aside?: true; }) => Promise<PairedDevice>>>; env: Record<string, string>; wsp?: McpServerSpec; }>;
+  readonly landing: Map<string, number>;
+  readonly live: Map<string, LiveWorkspace>;
+  readonly projectsHeld: Map<string, ProjectView>;
+  readonly setups: AgentSetups;
+  readonly builders: Map<string, LiveBuilder>;
+  readonly gone: GoneWatch;
+  readonly preparing: Map<string, { hash: string | undefined; promise: Promise<GoldenBuilderView> }>;
+  readonly copyBuilds: Map<string, Promise<SealedImageBuilt>>;
+  readonly stageAt: Map<string, { place: string; name: string; named: boolean; frame: StageFrame }>;
+  readonly copyRows: Map<string, CopyBuild>;
+  readonly rowSaysFailure: (place: string, e: unknown) => boolean;
+  readonly placeAway: (place: string) => boolean;
+  readonly frameStopped: (place: string, name: string, e: unknown) => void;
+  readonly threadRecords: Map<string, ThreadRecord & { workspaceId: string }>;
+  readonly snoozeTimers: Map<string, () => void>;
+  readonly wakeAt: (threadId: string, until: number) => void;
+  readonly resumeTimers: Map<string, () => void>;
+  readonly resumeOnReset: (threadId: string, at: number) => void;
+  readonly sessions: Map<string, SessionEntry>;
+  readonly execs: Set<{ workspaceId: string; end: (reason: string) => void }>;
+  /** Each running turn's row of what its agent held, written as the host closes. */
+  readonly heldAtClose: Set<() => void>;
+  /** What a starting host still has out on each machine, by workspace id: the re-open of its turns, then the sweep of
+   * its runs, which ends every run it lists that the host did not keep. Everything that starts a run there waits for it. */
+  readonly bootWork: Map<string, Promise<void>>;
+  readonly indexFlushes: Map<string, Promise<void>>;
+  readonly transcripts: Map<string, SessionEvent[]>;
+  readonly rows: TranscriptRows | undefined;
+  readonly unreadIndexes: Set<string>;
+  readonly pendingEvents: Map<string, SessionEvent[]>;
+  readonly pendingBytes: Map<string, number>;
+  readonly transcriptIndex: Map<string, TranscriptIndex>;
+  readonly indexFor: (workspaceId: string) => TranscriptIndex;
+  readonly transcriptBytes: Map<string, number>;
+  readonly sizeOf: (e: SessionEvent) => number;
+  readonly places: PlaceBackends;
+  readonly state: RuntimeState;
+}
+
+export interface KindsArea {
+  readonly projectOf: (dest: string, size: number) => WorkspaceProject;
+  readonly remoteHere: (path: string) => Promise<{ remote: string; defaultBranch: string }>;
+  readonly gitHere: (cwd: string, args: readonly string[], timeoutMs?: number, stdin?: string) => Promise<{ exitCode: number; stdout: string; stderr: string; }>;
+  readonly gitTopOf: (path: string) => Promise<string | undefined>;
+  readonly branchAt: (path: string) => Promise<string | undefined>;
+  readonly stateFolder: () => string;
+  readonly cloneHere: (word: string, source: ProjectSource, into: string) => Promise<string>;
+  readonly localRoad: () => Promise<DaemonReachView>;
+  readonly placeDoorOf: () => PlaceDoor;
+  readonly machineReading: Set<() => void>;
+  readonly moduleOf: (kind: WorkspaceKind) => KindModule;
+  readonly placeAgentHome: (place: string | undefined, home: string, id: string) => string;
+  readonly vaultOn: (entry: LiveWorkspace) => Readonly<Record<string, string>>;
+  readonly brokered: (record: Pick<WorkspaceRecord, "kind" | "place">) => boolean;
+  readonly readBroker: () => Promise<void>;
+  readonly knowBroker: (entry: LiveWorkspace, harness: string) => Promise<void>;
+  readonly brokeredLaunch: (entry: LiveWorkspace, harness: string, token: string | undefined) => { env: Readonly<Record<string, string>>; vault: Readonly<Record<string, string>>; claude?: NonNullable<HarnessAdapterContext["brokered"]>; codex?: NonNullable<HarnessAdapterContext["codexBroker"]> } | undefined;
+  readonly backendFor: (record: WorkspaceRecord) => MachineBackend;
+  readonly openChannel: (o: DaemonChannelOptions) => Promise<DaemonChannel>;
+  readonly backendOfKind: (kind: WorkspaceKind, place?: string) => MachineBackend;
+  readonly keepsImages: (at: MachineBackend) => boolean;
+  readonly pauseKeepsDisk: (at: MachineBackend) => boolean;
+  readonly namesWorkspace: (at: MachineBackend) => boolean;
+  readonly lifecycleOf: (entry: LiveWorkspace) => Lifecycle;
+  readonly execFactoryFor: (entry: LiveWorkspace, o?: MachineExecOptions, waiting?: TurnWaiting) => ExecStreamFactory;
+  readonly threadFolder: (entry: LiveWorkspace, o: { cwd?: string | undefined }) => Promise<string>;
+  readonly kindOf: (computer: string) => WorkspaceKind;
+}
+
+export interface RulesArea {
+  readonly rememberProject: (project: ProjectView) => Promise<void>;
+  readonly rememberTarget: (record: WorkspaceRecord) => Promise<void>;
+  readonly refuseCannot: (entry: LiveWorkspace, can: keyof Omit<Capabilities, "sizes" | "pauseMode">, action: string) => void;
+  readonly pauses: (record: WorkspaceRecord) => boolean;
+  readonly refusePauseless: (entry: LiveWorkspace, action: string) => void;
+  readonly holdsSlot: (record: WorkspaceRecord) => boolean;
+  readonly drives: (record: { kind: WorkspaceKind; machineId?: string }, caller: Caller | undefined) => boolean;
+  readonly actsOn: (record: WorkspaceLike, caller: Caller | undefined) => boolean;
+  readonly opensIn: (record: WorkspaceRecord, caller: Caller | undefined) => boolean;
+  readonly projectOfScope: (scope: ThreadScope) => string | undefined;
+  readonly ofThreadsRepository: (caller: Caller | undefined, project: string) => boolean;
+  readonly projectReached: (caller: Caller | undefined, project: string) => boolean;
+  readonly elsewhereRefusal: (caller: Caller | undefined, project: ProjectView, word: string) => Error | undefined;
+  readonly awayFor: (record: WorkspaceLike, caller: Caller | undefined, act: AcrossAct, word: string) => Error | undefined;
+  readonly leadActsOn: (record: WorkspaceLike, caller: Caller | undefined) => string | undefined;
+  readonly talksToItsTree: (caller: Caller | undefined) => boolean;
+  readonly refusalFor: (record: WorkspaceLike | undefined, caller: Caller | undefined) => string | undefined;
+  readonly refuseRelayed: (record: WorkspaceLike | undefined, caller: Caller | undefined, act?: AcrossAct, thread?: string) => void;
+  readonly refuseNamed: (workspaceId: string, caller: Caller | undefined) => void;
+  readonly held: () => LiveWorkspace[];
+  readonly listedFor: (caller: Caller | undefined) => LiveWorkspace[];
+  readonly refuseRecording: (named: string, caller: Caller | undefined) => void;
+  readonly agentsOf: (record: WorkspaceRecord) => WorkspaceAgents | undefined;
+  readonly parentOf: (threadId: string) => string | undefined;
+  readonly rootOf: (threadId: string) => string;
+  readonly agentsReach: (entry: LiveWorkspace) => { url?: string; wsp?: McpServerSpec } | undefined;
+  readonly spawnGuard: (act: SpawnAct, caller: Caller | undefined) => (() => void);
+  readonly treeOf: (scope: ThreadScope | undefined) => { parentThreadId?: string; rootThreadId?: string };
+  readonly placeOfThread: (scope: ThreadScope) => string | undefined;
+  readonly actRefusal: (scope: ThreadScope, act: SpawnAct) => Error;
+}
+
+export interface TranscriptsArea {
+  readonly keptWrites: Map<string, Promise<void>>;
+  readonly keepSentImages: (workspaceId: string, threadId: string, requestId: string | undefined, attachments: readonly Attachment[]) => Promise<void>;
+  readonly dropSentImages: (workspaceId: string, threadIds: readonly string[] | "all") => Promise<void>;
+  readonly moveTranscript: (moving: TranscriptRecord) => Promise<void>;
+  readonly loadIndex: (workspaceId: string) => Promise<void>;
+  readonly moveBlobs: (rows: TranscriptRows) => void;
+  readonly transcriptQueue: Map<string, Promise<void>>;
+  readonly openTranscript: (workspaceId: string) => Promise<SessionEvent[]>;
+  readonly openThread: (workspaceId: string, threadId: string) => Promise<SessionEvent[]>;
+  readonly openedWords: (workspaceId: string, threadId: string) => void;
+  readonly transcriptReader: TranscriptReader;
+  readonly dropFromTranscript: (workspaceId: string, threadId: string, drops?: (e: SessionEvent) => boolean) => Promise<void>;
+  readonly transcriptTimers: Map<string, () => void>;
+  readonly daemonTokens: Map<string, { hasDaemon: boolean; at: number }>;
+  readonly daemonTokenOf: (machine: Machine, path?: string) => Promise<string | undefined>;
+  readonly cancelFlush: (workspaceId: string) => void;
+  readonly flushTranscript: (workspaceId: string) => Promise<void>;
+  readonly viewedMarks: Map<string, Record<string, string>>;
+  readonly persistSessions: (workspaceId: string) => Promise<void>;
+  readonly record: (unstamped: SessionEvent) => void;
+  readonly recordCopies: (events: readonly SessionEvent[]) => void;
+  readonly accrued: Map<string, number>;
+  readonly ranOn: (workspaceId: string, threadId: string, session: string | undefined) => RanPicks;
+  readonly boxOf: (threadId: string) => LiveWorkspace | undefined;
+}
+
+export interface SlatesArea {
+  readonly slates: Slates;
+}
+
+export interface ChannelsArea {
+  readonly startedAs: (workspaceId: string, threadId: string) => string | undefined;
+  readonly cutBefore: (workspaceId: string, threadId: string) => boolean;
+  readonly resumedFact: (workspaceId: string, resume: string, fact: (typeof SESSION_FACTS)[number]) => string | undefined;
+  readonly folderOf: (workspaceId: string, resume: string) => string | undefined;
+  readonly accessOf: (workspaceId: string, threadId: string, resume: string | undefined) => string | undefined;
+  readonly daemonNotes: Map<string, string>;
+  readonly homeOf: (r: WorkspaceRecord) => { home?: string };
+  readonly providerOf: (r: WorkspaceRecord) => string | undefined;
+  readonly placeIdOf: (r: WorkspaceRecord) => string | undefined;
+  readonly settingsAt: (placeId: string | undefined) => PlaceSettings | undefined;
+  readonly turnLimitOf: (r: WorkspaceRecord) => MachineExecOptions | undefined;
+  readonly agentsHeld: (r: WorkspaceRecord) => WorkspaceAgents;
+  readonly spawnAt: (placeId: string | undefined) => WorkspaceAgents;
+  readonly projectHeld: (id: string) => ProjectView;
+  readonly refOf: (p: ProjectView) => ProjectRef;
+  readonly checkoutOf: (r: WorkspaceRecord) => string;
+  readonly computerOf: (entry: LiveWorkspace) => string;
+  readonly servedByItsComputer: (entry: LiveWorkspace) => ((frame: Record<string, unknown>) => Promise<Record<string, unknown>>) | undefined;
+  readonly channelOver: (reach: DaemonReachView, name: string, onEvent: (event: Record<string, unknown>) => void) => Promise<DaemonChannel>;
+  readonly withDaemon: <T>(entry: LiveWorkspace, work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>) => Promise<T>) => Promise<T>;
+  readonly stdioRoad: (entry: LiveWorkspace, need?: number) => Promise<StdioRoad>;
+  readonly overChannel: <T>(channel: DaemonChannel, work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>) => Promise<T>) => Promise<T>;
+  readonly onThisComputer: <T>(work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>, home: string) => Promise<T>) => Promise<T>;
+  readonly placeGuard: (placeId: string) => Promise<void>;
+  readonly placeRefuses: (placeId: string | undefined) => Promise<void>;
+  readonly copyBlocked: (entry: LiveWorkspace) => Promise<void>;
+  readonly WORKSPACE_FRAMES: string[];
+  readonly GUEST_ROAD_FRAMES: string[];
+  readonly portPids: Map<string, Map<string, number>>;
+  /** Each shell a thread's pane opened, by the pid it leads and the workspace it was opened in. */
+  readonly threadTerminals: () => { thread: string; workspace: string; pid: number }[];
+  readonly heldToOwner: (owner: string, channel: DaemonChannel) => DaemonChannel;
+  readonly killGuarded: (channel: DaemonChannel, here: boolean) => DaemonChannel;
+  readonly threadTagged: (workspaceId: string, channel: DaemonChannel) => DaemonChannel;
+  /** Each workspace's shell tags as read from the store, and its write of them while one is in flight: a deleted
+   * workspace's tags go once its last write settles. */
+  readonly tagsHeld: ReadonlyMap<string, Promise<Map<string, string>>>;
+  readonly tagWrites: ReadonlyMap<string, Promise<void>>;
+  readonly endThreadShells: (entry: LiveWorkspace, threadId: string) => Promise<void>;
+  /** The devices the shells still open on machines whose credentials the host keeps hold as their tokens, which a
+   * restart leaves standing until the shell ends. */
+  readonly shellHeldDevices: () => Promise<ReadonlySet<string>>;
+  readonly sharedDaemonReplaced: () => void;
+  /** By workspace, each process group a turn led and the thread whose turn it was. */
+  readonly turnGroups: Map<string, Map<number, string>>;
+  readonly armRootsRecheck: () => void;
+  readonly portRootsMoved: (workspaceId: string) => void;
+  readonly rootedPorts: (workspaceId: string, folder: string, ptys: Map<string, number>, channel: DaemonChannel) => DaemonChannel;
+  readonly copyChannel: (entry: LiveWorkspace, onEvent: (event: Record<string, unknown>) => void, carries: readonly string[]) => Promise<DaemonChannel>;
+  readonly leadStart: (lead: LiveWorkspace, child: string, road: "fork" | "run") => Promise<ChildStart>;
+  readonly startChildOn: (child: LiveWorkspace, branch: string, lead: string) => Promise<string>;
+  readonly sameRepository: (a: ProjectView, b: ProjectView, caller: Caller | undefined) => boolean;
+}
+
+export interface ProcScopesArea {
+  /** Names a process this host started for a thread (a slate run, a tool server) to the daemon's owner ladder until
+   * the returned release is called. */
+  readonly ownProcess: (threadId: string, pid: number, kind: ProcKind) => () => void;
+  readonly procScopesMoved: () => void;
+  readonly scopesHere: () => ProcScope[];
+  readonly scopesOn: (placeId: string) => ProcScope[];
+  readonly scopedProcs: (scopes: () => ProcScope[], channel: DaemonChannel) => DaemonChannel;
+}
+
+export interface RecordsArea {
+  readonly view: (r: WorkspaceRecord) => WorkspaceView;
+  readonly putLook: <K extends "theme" | "glyph">(r: WorkspaceRecord, key: K, value: WorkspaceRecord[K] | null | undefined) => void;
+  readonly persist: (r: WorkspaceRecord) => Promise<void>;
+  readonly shapeOf: (m: Machine) => Promise<MachineShape | undefined>;
+  readonly sizeBuilt: (shape: MachineShape | undefined, asked: WorkspaceSize) => WorkspaceSize;
+  readonly readMemory: (record: WorkspaceRecord, machine: Machine, sizes: MachineBackend["capabilities"]["sizes"]) => Promise<boolean>;
+  readonly forkedFrom: (snapshotId: string) => string[];
+  readonly copyOf: (place: string, name: string) => Promise<GoldenManifest | undefined>;
+  readonly putCopy: (place: string, name: string, manifest: GoldenManifest) => Promise<void>;
+  readonly copyRecipeOf: (place: string, name: string, version: number) => Promise<RecipeDigest | undefined>;
+  readonly putCopyRecipe: (place: string, name: string, version: number, digest: RecipeDigest) => Promise<void>;
+  readonly dropCopyRecipe: (place: string, name: string, version: number) => Promise<void>;
+  readonly migrateCopies: () => Promise<void>;
+  readonly recordOf: (name: string) => Promise<SealedImage | undefined>;
+  readonly recordedImages: () => Promise<Set<string>>;
+  readonly recipeAsksEngine: (version: GoldenVersion) => Promise<boolean>;
+  readonly imageOf: (snapshotId: string) => Promise<{ golden: string; version?: GoldenVersion; projects?: WorkspaceProject[] }>;
+  readonly projectGoldenOf: (raw: unknown) => ProjectGolden;
+}
+
+export interface ReachArea {
+  readonly polledReach: Map<string, { machineId: string; reach: ReachState }>;
+  readonly napRefusals: Map<string, { machineId: string; said: string }>;
+  readonly napRefusedOf: (entry: LiveWorkspace) => string | undefined;
+  readonly napRefusedReason: (entry: LiveWorkspace) => string | undefined;
+  readonly stopRefusals: Map<string, { machineId: string; said: string }>;
+  readonly stopRefusedReason: (entry: LiveWorkspace) => string | undefined;
+  readonly diskReason: (entry: LiveWorkspace) => string | undefined;
+  readonly readDisk: (entry: LiveWorkspace) => Promise<void>;
+  readonly armDiskWatch: () => void;
+  readonly stopDiskWatch: () => Promise<void>;
+  readonly reachOf: (entry: LiveWorkspace) => ReachState;
+  readonly emitStatus: (entry: LiveWorkspace, reach: ReachState, reason?: string) => Promise<void>;
+  /** The host's line about a workspace's machine, a notice on the latest turn of each of its threads: a running
+   * workspace's status reason is drawn nowhere, so a line a person must read goes here. */
+  readonly tellThreads: (workspaceId: string, line: (threadId: string) => string) => void;
+  readonly saysWaking: (entry: LiveWorkspace, words: string) => Promise<void>;
+  readonly pingDaemon: (entry: LiveWorkspace) => Promise<string | undefined>;
+  readonly helloVersion: (entry: LiveWorkspace) => Promise<number | null>;
+  readonly pushStatus: (entry: LiveWorkspace) => Promise<void>;
+  readonly readCheckout: (entry: LiveWorkspace, force: boolean) => Promise<Checkout | undefined>;
+  readonly readTree: (lead: LiveWorkspace) => Promise<TreeFact | undefined>;
+  readonly readLeadOf: (child: LiveWorkspace) => void;
+  readonly statusNow: (entry: LiveWorkspace) => Promise<void>;
+}
+
+export interface PullRequestsArea {
+  readonly readHost: <T>(entry: LiveWorkspace, frame: (cwd: string) => DaemonFrame, parse: (reply: Record<string, unknown>) => T) => Promise<T>;
+  readonly pullRequestOn: (workspaceId: string, origin: Caller | undefined) => Promise<{ entry: LiveWorkspace; remote: string; number: number }>;
+  readonly pageKey: (remote: string, number: number) => string;
+  readonly readPage: (entry: LiveWorkspace, remote: string, number: number, fresh: boolean) => Promise<{ page: GitPrViewReply; here: boolean }>;
+  readonly postAsPerson: <T>(remote: string, number: number, frame: (cwd: string) => DaemonFrame, parse: (reply: Record<string, unknown>) => T) => Promise<T>;
+  readonly readPullRequest: (entry: LiveWorkspace, force: boolean, whole?: boolean) => Promise<PullRequestSeen | undefined>;
+  readonly takePullRequest: (entry: LiveWorkspace, seen: PullRequestSeen | undefined) => Promise<void>;
+  readonly pollPullRequest: (entry: LiveWorkspace, from?: number) => void;
+  readonly keepTree: (child: LiveWorkspace, kept: TreeRecord) => Promise<void>;
+  readonly settleTree: (entry: LiveWorkspace) => Promise<void>;
+  readonly ranOnBranch: (entry: LiveWorkspace, threadId: string) => Promise<void>;
+  readonly mergeSettings: (remote: string) => Promise<GitRepoReadReply>;
+  readonly updateCopy: (entry: LiveWorkspace) => Promise<GitUpdateReply>;
+}
+
+export interface DaemonArea {
+  readonly sendDetached: (workspaceId: string, o: { prompt: string; thread?: string }, origin: Caller | undefined) => Promise<DetachedSend>;
+  readonly toFirstThread: (workspaceId: string, prompt: string, origin: Caller | undefined) => Promise<DetachedSend>;
+  readonly writeDaemonRoots: (entry: LiveWorkspace, strict?: boolean) => Promise<void>;
+  readonly turnRuns: (workspaceId: string) => boolean;
+  readonly deployDaemonOn: (entry: LiveWorkspace, deploy: (e: LiveWorkspace) => Promise<void | string>) => Promise<void | string>;
+  readonly daemonSyncs: Map<string, Promise<void>>;
+  readonly syncDaemon: (entry: LiveWorkspace) => Promise<void>;
+  readonly daemonSettled: (entry: LiveWorkspace) => Promise<void>;
+  readonly revivedAt: Map<string, MachineMoment>;
+  readonly unreadAt: Map<string, MachineMoment>;
+  readonly unreached: Map<string, { machineId: string; line: string }>;
+  readonly unreachedOf: (entry: LiveWorkspace) => string | undefined;
+  readonly reviveDaemon: (entry: LiveWorkspace, reach: ReachState) => void;
+  readonly offerDaemonAgain: (entry: LiveWorkspace, polled: WorkspaceStatus) => void;
+  readonly readVersionAgain: (entry: LiveWorkspace, polled: WorkspaceStatus) => void;
+}
+
+export interface MachinesArea {
+  readonly imageMark: () => string;
+  readonly inflight: Set<string>;
+  readonly replayCreates: (known: () => Iterable<string>, failed: ReapFailure[]) => Promise<ReapedMachine[]>;
+  readonly sweepStrays: (known: () => Iterable<string>, failed: ReapFailure[], at: readonly MachineBackend[]) => Promise<ReapedMachine[]>;
+  readonly claiming: <T>(purpose: string, run: (b: MachineBackend) => Promise<T>, at?: MachineBackend, place?: string) => Promise<T>;
+  readonly observed: (machine: Machine) => Machine;
+  readonly observing: (b: MachineBackend) => MachineBackend;
+  readonly fork: (record: WorkspaceRecord, bind: (machine: Machine) => void, override?: WorkspaceSpec, report?: StageReport, readsMemory?: boolean) => Promise<Machine>;
+  readonly unfork: (entry: LiveWorkspace) => Promise<void>;
+  readonly followMachine: (entry: LiveWorkspace) => void;
+  readonly attach: (record: WorkspaceRecord, machine: Machine) => LiveWorkspace;
+  readonly endSessions: (workspaceId: string, reason: string) => void;
+  readonly drop: (id: string) => Promise<void>;
+  readonly napWith: (id: string, reason?: string) => Promise<WorkspaceView>;
+  readonly armLateRead: (entry: LiveWorkspace) => void;
+  readonly adoptPause: (entry: LiveWorkspace) => Promise<void>;
+  readonly runsUnderNapping: (entry: LiveWorkspace) => Promise<boolean>;
+  readonly adoptRunning: (entry: LiveWorkspace) => Promise<void>;
+  readonly proven: (entry: LiveWorkspace) => Promise<WorkspaceView>;
+  readonly settleGone: (entry: LiveWorkspace, reason: string) => Promise<GoneOutcome>;
+  readonly markGone: (entry: LiveWorkspace, machineId: string, reason: string) => Promise<GoneOutcome>;
+  readonly rereading: Set<string>;
+  readonly adoptGone: (entry: LiveWorkspace, reason: string) => Promise<void>;
+  readonly recoverGone: (entry: LiveWorkspace) => Promise<"running" | "napping" | undefined>;
+  readonly idle: IdlePolicy;
+}
+
+export interface BootArea {
+  readonly refreshBuilders: () => Promise<void>;
+  readonly isHeldAway: (id: string) => boolean;
+  readonly rereadHeld: (id: string, by: GoneSeenBy) => Promise<void>;
+  readonly hydrateWorkspace: (raw: unknown, seen?: FoundMachine) => Promise<LiveWorkspace | undefined>;
+  readonly ready: () => Promise<void>;
+  readonly entryOf: (id: string, origin?: Caller, o?: { now?: true; act?: AcrossAct; thread?: string; beingMade?: true }) => Promise<LiveWorkspace>;
+  readonly childOf: (lead: LiveWorkspace, ref: string, origin?: Caller, threads?: { lead?: string; child?: string }) => Promise<LiveWorkspace>;
+  readonly reachesRow: (row: { threadId?: string; workspaceId: string }, caller: Caller | undefined, talk?: TreeTalk) => boolean;
+  readonly entryOfRow: (row: { threadId?: string; workspaceId: string }, origin: Caller | undefined, talk?: TreeTalk, o?: { beingMade?: true }) => Promise<LiveWorkspace | undefined>;
+  readonly listedRows: (held: readonly (Map<string, SessionEntry> extends Map<string, infer V> ? V : never)[]) => SessionView[];
+  readonly placedRows: (listed: SessionView[]) => Promise<SessionView[]>;
+  readonly rowGone: (id: string, at: { workspaceId: string; threadId?: string }) => void;
+  readonly setupRefusalMoved: (place: string, harness: string) => void;
+  readonly threadFacts: (threadId: string) => ThreadFacts | undefined;
+  /** A sub-thread's facts once the done after its latest turn has read its machine; any other thread's as they stand. */
+  readonly factsAfterRead: (threadId: string, origin: Caller | undefined) => Promise<ThreadFacts | undefined>;
+  readonly settledNow: (threadId: string, settleMs: number | null) => boolean;
+  readonly pushHead: (threadId: string) => void;
+  /** Answers once every row that moved is on the bus. */
+  readonly rowsSent: () => Promise<void>;
+  readonly mark: (threadIds: readonly string[], stamped: ThreadStamps | ((threadId: string) => ThreadStamps), origin: Caller | undefined) => Promise<void>;
+  readonly endSnoozeFor: (row: Pick<SessionView, "threadId" | "rootThreadId">) => void;
+  readonly armResume: (threadIds: readonly string[], on: boolean, origin: Caller | undefined) => Promise<void>;
+  readonly resumeAfterLimit: (threadId: string) => Promise<void>;
+  readonly treeRecords: (caller: Caller | undefined, talk: TreeTalk | undefined, workspaceId?: string) => [string, ThreadRecord & { workspaceId: string }][];
+  readonly treeStandsOn: (workspaceId: string, caller: Caller | undefined, talk?: TreeTalk) => boolean;
+  readonly talksToTreeOn: (workspaceId: string, caller: Caller | undefined) => boolean;
+  readonly computerRows: () => Promise<{ id: string; name: string; kind: PlaceKind }[]>;
+  readonly nameOfComputer: (computer: string, rows: readonly { id: string; name: string }[]) => string;
+  readonly imageHeadOrNone: () => Promise<string | undefined>;
+  readonly imageHead: () => Promise<string>;
+  readonly landingPlace: (computer: string) => Promise<{ placeId?: string }>;
+}
+
+/** A create as a window holds it before its record lands: a fork a thread asked for while its machine is made, or
+ * any create that failed. */
+export type ShownCreate = WorkspaceView & { kind: WorkspaceKind };
+
+export interface CreateArea {
+  readonly createStaged: (o: CreateWorkspaceOptions, project: ProjectView, id: string, report: StageReport, spawned?: ThreadScope, landed?: () => void, childBase?: string) => Promise<CreatedWorkspace>;
+  readonly nameGiven: (name: string) => string;
+  readonly forking: Set<string>;
+  readonly failedCreates: Map<string, ShownCreate>;
+  readonly shownCreates: Map<string, ShownCreate>;
+  /** A fork a thread asked for, its record announced under that thread before its first stage and listed while its
+   * machine is made. */
+  readonly showCreate: (view: ShownCreate) => void;
+  readonly createStages: Map<string, WorkspaceCreatingEvent>;
+  readonly failedView: (id: string, name: string, kind: WorkspaceKind, golden: string, began: number, project: ProjectView, said: string) => ShownCreate;
+  readonly supersedeFailed: (name: string) => void;
+  readonly stageReporter: (id: string, name: string, began: number, spawned: ThreadScope | undefined) => StageReport;
+  readonly nameRefusal: (name: string) => string | undefined;
+  readonly foldersOf: (projectId: string) => LiveWorkspace[];
+  readonly oneFolder: (key: string, make: () => Promise<LiveWorkspace>) => Promise<LiveWorkspace>;
+}
+
+export interface SubLifeArea {
+  /** A sub-thread's turn ended: read what it pushed, keep its session, arm the delete or hold the machine, nap it. */
+  readonly subDone: (workspaceId: string) => Promise<void>;
+  /** The line a sub-thread's finished line to its lead ends with, off the read of the done after its turn ended at
+   * `since`; nothing where none followed. */
+  readonly subLine: (workspaceId: string, since: number) => Promise<string | undefined>;
+  /** What the done after a sub-thread's turn that ended at `since` read off its machine, once it has; nothing where
+   * none followed. */
+  readonly subRead: (workspaceId: string, since: number) => Promise<SubResult | undefined>;
+  /** The delete a sub-machine's deleteAt arms, run now. */
+  readonly subExpire: (workspaceId: string) => Promise<void>;
+  /** Every delete a record holds, armed; one already past runs at once. */
+  readonly armSubs: () => void;
+  /** The cloud lost a sub-machine: the record is released, the thread kept. */
+  readonly subLost: (entry: LiveWorkspace, reason: string) => Promise<GoneOutcome>;
+  /** The cloud left this host: every sub-machine it held is released and says so; after a forget, which deleted
+   * nothing there, each keeps its phase and says its cloud is gone. */
+  readonly releaseSubsOn: (placeId: string, o?: { forgot?: true }) => Promise<void>;
+  /** The work a sub-machine's last read found not pushed; nothing where it holds none. */
+  readonly subUnpushed: (entry: LiveWorkspace) => SubUnpushed | undefined;
+  /** A sub-thread and its machine taken away, refused under a turn and to a thread's own token over work not pushed;
+   * with check, the question a person is put and nothing deleted. */
+  readonly subDelete: (entry: LiveWorkspace, threadId: string, origin: Caller | undefined, o: { check?: boolean }) => Promise<{ workspaceId: string; threads: number; machine?: "deleted"; on: string; question?: string }>;
+  /** Refuses a send into a sub-thread whose cloud left this host; a released one's send makes it a new machine. */
+  readonly refuseSubSend: (entry: LiveWorkspace) => void;
+  /** Refuses a wake of a released sub-thread, which has no machine to wake, or of one whose cloud left this host. */
+  readonly refuseSubWake: (entry: LiveWorkspace) => void;
+  /** Whether the caller is the lead that started the sub-thread on this record: a lead deletes its own sub-threads, as
+   * the person does, and no thread deletes anything else. */
+  readonly leadOfSub: (workspaceId: string | undefined, origin: Caller | undefined) => boolean;
+}
+
+export interface SubSpawnArea {
+  /** A sub-thread's record on a cloud, under its lead, every refusal read before the cloud is asked for a start; the
+   * queue makes its machine once its thread's start comes. */
+  readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
+  /** The machine of a spawn the queue let through, made as a spawn makes one, the picked files packed fresh. */
+  readonly standUpQueued: (record: WorkspaceRecord, posted: () => void, waited: boolean) => Promise<void>;
+  /** The words a sub-machine's run fails with when the kernel killed it for memory since `startedAt`, else nothing. */
+  readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
+  /** A released sub-thread on a new machine forked from the image head as it stands, the picked files and the kept
+   * session landed on it, the checks that still apply read first: the live entry now, and the head its send opens with.
+   * A send that meets a resume in flight waits for it and opens with no head of its own; any other is answered as it is. */
+  readonly resumeSub: (entry: LiveWorkspace, threadId: string, harness: string, asked?: string) => Promise<{ entry: LiveWorkspace; preamble?: string; notices: string[] }>;
+}
+
+export interface SubQueueArea {
+  /** What holds a spawn on a cloud back now, a slot, the minute's starts or spawns ahead of it; nothing where none. */
+  readonly queueWait: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait | undefined;
+  /** A spawn let past the count holds its slot, and its start until `posted`, from now until `release`. */
+  readonly claimStart: (workspaceId: string, placeId: string) => { posted: () => void; release: () => void };
+  /** A delete of a held spawn's record: stopped as a stop does, answered once it is gone; nothing where none is held. */
+  readonly deleteQueued: (workspaceId: string) => Promise<void> | undefined;
+  /** The wait a create the cloud refused at its machines at once is held under. */
+  readonly cloudFull: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait;
+  /** A spawn's record stored queued with no machine until its start comes, and for the wait it met where one; at the
+   * head of the line, a read on, where the cloud refused its create at its cap. */
+  readonly enqueue: (record: WorkspaceRecord, wait: ThreadCapWait | undefined, refused?: boolean) => Promise<void>;
+  /** A queued record read at load, held live with no machine. */
+  readonly attachQueued: (record: WorkspaceRecord, wait: ThreadCapWait | undefined) => void;
+  /** The first turn of a queued sub-machine's thread, written down and started once its machine stands. */
+  readonly holdQueued: (
+    at: { workspaceId: string; threadId: string; tree: { parentThreadId?: string; rootThreadId?: string }; o: Parameters<RuntimeContext["sessionsApi"]["start"]>[1]; notify: readonly string[] | undefined },
+    origin: Caller | undefined,
+  ) => Promise<SessionHandle>;
+  /** A stop on a held spawn's row: dropped with no start spent; false for any other row. */
+  readonly dropQueued: (turnId: string) => Promise<boolean>;
+  /** At boot: every queued record's written start back in line. */
+  readonly resumeQueue: () => Promise<void>;
+  readonly pumpQueue: () => Promise<void>;
+}
+
+export interface FoldersArea {
+  readonly projectFolder: (project: ProjectView) => Promise<LiveWorkspace>;
+  readonly worktreeFolder: (project: ProjectView, top: string, branch: string, parent?: string, madeFor?: string, checkpoint?: string) => Promise<LiveWorkspace>;
+  readonly folderFor: (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked; opens?: true }, origin: Caller | undefined) => Promise<{ entry: LiveWorkspace; cwd?: string; setup?: string }>;
+  readonly queued: <T>(id: string, work: () => Promise<T>) => Promise<T>;
+  readonly removeWorktree: (entry: LiveWorkspace, force: boolean, o?: { ending?: boolean; check?: boolean }) => Promise<void>;
+  readonly refuseChanged: (path: string) => Promise<void>;
+  readonly dropCheckpoints: (entry: LiveWorkspace, threadId: string) => Promise<void>;
+  readonly holdsThread: (workspaceId: string) => boolean;
+  readonly worktreeGone: (entry: LiveWorkspace, why: WorktreeSettled["why"], o?: { starting?: boolean }) => Promise<void>;
+  readonly runsIn: (entry: LiveWorkspace, ranIn: string | undefined, folder: string) => string;
+  readonly armSweep: () => void;
+  readonly moveOldCopies: () => Promise<void>;
+  readonly gitSaid: (res: { stdout: string; stderr: string }) => string;
+  readonly worktreesOf: (top: string) => Promise<{ path: string; branch?: string }[]>;
+  readonly worktreeMounted: (entry: LiveWorkspace) => Promise<void>;
+  /** What a new worktree ran before its first thread, once, for the start that names it first to open with. */
+  readonly takeSetupLine: (workspaceId: string) => string | undefined;
+}
+
+/** The folder a start on a link runs in, with the lines its new thread is told first: the worktree was left behind the
+ * pull request, and what a worktree made for this start ran. */
+export interface Placed {
+  readonly entry: LiveWorkspace;
+  /** The thread and turn ids a start picked before its workspace was made, which it opens under. */
+  readonly as?: { threadId: string; turnId: string };
+  readonly behind?: string;
+  readonly setup?: string;
+}
+
+export interface StartFromArea {
+  readonly projectByRepo: (repo: string, named: string | undefined) => ProjectView;
+  readonly issueOf: (remote: string, number: number) => Promise<IssueRead>;
+  readonly pullRequestOf: (remote: string, number: number) => Promise<PullRequest>;
+  readonly fromOf: (kind: WorkspaceFrom["kind"], repo: string, read: IssueRead, fact: PullRequest | undefined) => WorkspaceFrom;
+  readonly workspaceFrom: (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined, kind: "start" | "review", origin: Caller | undefined) => Promise<Placed>;
+  readonly picksHold: (project: ProjectView, o: StartPicksAsked) => Promise<void>;
+  readonly openWith: (placed: Placed, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined) => Promise<StartResult>;
+  readonly readOnlyOf: (agent: string) => string | undefined;
+  readonly reviewers: () => string[];
+  readonly takeReview: (entry: LiveWorkspace, threadId: string, text: string) => Promise<void>;
+}
+
+export interface WorkspacesArea {
+  readonly workspaces: Runtime["workspaces"];
+}
+
+export interface AgentsArea {
+  readonly catalogOn: (table: HarnessCatalog, entry: LiveWorkspace, adapter: HarnessAdapter) => Promise<HarnessCatalog>;
+  readonly projectHome: (ref: string, origin: Caller | undefined) => Promise<LiveWorkspace | undefined>;
+  readonly computerHome: (computer: string, origin: Caller | undefined) => Promise<LiveWorkspace | undefined>;
+  readonly agentLists: (entry: LiveWorkspace | undefined) => Promise<HarnessCatalog[]>;
+  readonly firstRunHere: (entry: LiveWorkspace, harness: string) => Promise<boolean>;
+  readonly refreshTitle: (view: SessionView, force: boolean) => Promise<void>;
+  readonly sourceOf: (view: SessionView) => TitleSource;
+  readonly rowsOn: (threadId: string) => SessionView[];
+  readonly carriedTitle: (threadId: string) => Pick<SessionView, "harnessTitle" | "titleSource">;
+  readonly nameInHarness: (view: SessionView, title: string) => Promise<void>;
+  readonly makeTitle: (view: SessionView) => Promise<void>;
+  readonly agentAsks: Set<Promise<unknown>>;
+  readonly holdAsk: <T>(ask: Promise<T>) => Promise<T>;
+  readonly titleRows: (rows: readonly SessionView[]) => SessionView[];
+  readonly setupPlace: (entry: LiveWorkspace) => string | undefined;
+  readonly agentOff: (entry: LiveWorkspace, agent: string) => boolean;
+  readonly agentLabel: (agent: string) => string;
+  readonly configFolderOn: (placeId: string, path: string) => Promise<ResolvedFolder>;
+  readonly setupRefusals: Map<string, string>;
+  readonly setupRefusal: (entry: LiveWorkspace, named?: string) => Promise<string | null>;
+  readonly homesHere: () => Promise<Record<string, string>>;
+  readonly storesHere: () => Promise<Record<string, string>>;
+  readonly confineSetup: (entry: LiveWorkspace, named?: string) => Promise<void>;
+  readonly launchAdapterFor: (entry: LiveWorkspace, named?: string | undefined, turnEnv?: Readonly<Record<string, string>> | undefined, waiting?: TurnWaiting | undefined, servers?: Readonly<Record<string, string>> | undefined) => Promise<ReturnType<(entry: LiveWorkspace, named?: string, turnEnv?: Readonly<Record<string, string>>, waiting?: TurnWaiting, servers?: Readonly<Record<string, string>>) => { harness: string; adapter: HarnessAdapter; }>>;
+  readonly defaultAgentOf: (prefs: Preferences, entry: LiveWorkspace | undefined) => string;
+  readonly defaultsOn: (catalog: HarnessCatalog, prefs: Preferences, project: ProjectOverrides | undefined) => { catalog: HarnessCatalog; open: { model?: string; effort?: string } };
+  readonly namedMode: (catalog: HarnessCatalog | undefined, harness: string, word: AccessChoice) => string;
+  readonly landImages: (entry: LiveWorkspace, road: AttachmentRoad | undefined, folder: string, dir: string, images: readonly Attachment[]) => Promise<{ images: TurnImage[]; dir?: string }>;
+  readonly landFiles: (entry: LiveWorkspace, folder: string, dir: string, files: readonly Attachment[]) => Promise<string[]>;
+  readonly dropThreadFiles: (entry: LiveWorkspace, threadIds: Iterable<string>) => Promise<void>;
+  readonly dropImages: (entry: LiveWorkspace, dir: string) => void;
+  readonly threadEnv: (entry: LiveWorkspace, harness?: string) => Readonly<Record<string, string>>;
+  readonly placeStores: (place: string, home: string) => Readonly<Record<string, string>>;
+  readonly serverValuesFor: (entry: LiveWorkspace, harness: string, folder: string) => Promise<HarnessStartOptions["serverValues"]>;
+  readonly launchServersFor: (entry: LiveWorkspace, harness: string, adapter: HarnessAdapter, folder: string) => Promise<Pick<HarnessStartOptions, "serverValues" | "offServers">>;
+  readonly adapterFor: (entry: LiveWorkspace, named?: string, turnEnv?: Readonly<Record<string, string>>, waiting?: TurnWaiting, servers?: Readonly<Record<string, string>>, thread?: string, asksUntilStopped?: true) => { harness: string; adapter: HarnessAdapter };
+}
+
+/** What a message sent without its caller waiting answers: where it went, and the wait where its computer holds it. */
+export interface DetachedSend {
+  outcome: "steered" | "queued" | "started" | "held";
+  threadId: string;
+  harness: string;
+  capped?: ThreadCapWait;
+}
+
+/** A turn its computer's threads at once has not let through yet: the computer, the running turns that wait on it and
+ * so lend it a slot, the order it came in, the reason a stop gave it, once it waits, what its row says, the thread it
+ * waits on and the two ways the wait ends, and once a look lets a waiting turn through, why. */
+export interface CapHeld {
+  placeId: string | undefined;
+  lenders: string[];
+  order: number;
+  stopped?: string;
+  stops?: Set<Promise<void>>;
+  waiting?: { wait: ThreadCapWait; at: { workspaceId: string; threadId: string; sessionId: string }; wake: () => void; stop: (reason: string) => void };
+  through?: Pick<SessionUncappedEvent, "why" | "atOnce">;
+}
+
+export interface ThreadsArea {
+  readonly threadRuns: (threadId: string) => boolean;
+  readonly launchingOn: (threadId: string) => { turnId: string; launch: Promise<void> } | undefined;
+  readonly runningOn: (threadId: string) => LiveSession | undefined;
+  readonly latestOn: (threadId: string) => SessionView | undefined;
+  readonly keptAgents: Map<string, KeptProcess>;
+  readonly reapKept: (threadId: string, o?: { now: true }) => void;
+  readonly endKept: (threadId: string, kept: KeptProcess, o?: { now: true }) => void;
+  readonly hostWrites: Map<string, Promise<void>>;
+  readonly writeSession: (harnessSessionId: string, write: () => Promise<SessionRenameWrite>) => Promise<SessionRenameWrite>;
+  readonly takeKept: (threadId: string, launch: KeptLaunch | undefined, session: string | undefined, whole?: KeptLaunch) => KeptProcess | undefined;
+  readonly holdKept: (threadId: string, o: Omit<KeptProcess, "file" | "boxFile" | "usedAt" | "cancel">) => boolean;
+  readonly holdWarm: (threadId: string, o: Omit<KeptProcess, "file" | "boxFile" | "usedAt" | "cancel">) => void;
+  readonly keptBox: (workspaceId: string) => { place: string; cap: number } | undefined;
+  readonly keptCheck: (threadId: string) => Promise<void>;
+  readonly warmOn: (workspaceId: string, harness: string) => [string, KeptProcess] | undefined;
+  readonly rewarm: (threadId: string) => void;
+  readonly claimWarm: (workspaceId: string, harness: string) => string | undefined;
+  readonly threadOfToken: (token: string) => string;
+  readonly treeUnder: (threadId: string) => string[];
+  readonly restarts: () => Map<string, string>;
+  readonly drivesThread: (threadId: string | undefined, caller: Caller | undefined) => boolean;
+  readonly settlesThread: (threadId: string, caller: Caller | undefined) => boolean;
+  readonly leadAsks: Map<string, PermissionAsk>;
+  readonly capHeld: Map<string, CapHeld>;
+  readonly capHold: (record: WorkspaceRecord, turnId: string, lender: string | undefined) => void;
+  readonly capLend: (turnId: string, lender: string) => void;
+  readonly capFull: (record: WorkspaceRecord, turnId: string) => ThreadCapWait | undefined;
+  readonly capWait: (at: { workspaceId: string; threadId: string; turnId: string; sessionId: string; requestId?: string; prompt: string }, wait: ThreadCapWait) => Promise<void>;
+  readonly capStop: (turnId: string, reason: string) => boolean;
+  readonly capStopping: (turnId: string) => () => void;
+  readonly capLeft: (turnId: string) => void;
+  readonly stoppedBehind: (s: { view: SessionView; calls?: Map<string, { toolName: string; input: string }> }) => ThreadWaitingOn | undefined;
+  readonly stopUnder: (threadId: string, caller: Caller | undefined) => Promise<string[]>;
+  readonly notifyOn: (threadId: string) => { notify: readonly string[]; by?: ThreadScope; road?: WorkspaceOrigin } | undefined;
+  readonly notifyReach: (from: readonly string[]) => Set<string>;
+  readonly tellAs: (s: { notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin }) => { by?: ThreadScope; road?: WorkspaceOrigin };
+  readonly notifyEnd: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, notify: readonly string[], named: { by?: ThreadScope; road?: WorkspaceOrigin }, result: TurnResult, o?: { open?: true }) => void;
+  readonly deliverOwed: () => Promise<void>;
+  readonly sendBack: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, ids: readonly string[], stopped: boolean) => void;
+  readonly settleCut: (s: { view: SessionView; turnId: string; notify?: readonly string[]; notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin; turnLive?: TurnLive; snapshot?: string; asked?: TurnAsked }, reason: string, cutLine: (endedAt: number) => string, stopped?: boolean, unreached?: boolean) => void;
+  readonly notARepo: (r: WorkspaceRecord) => boolean;
+  readonly checkpointsLanding: Map<string, Promise<void>>;
+  readonly keepCheckpoint: (entry: LiveWorkspace, turn: { sessionId: string; threadId: string; turnId: string; anchor?: string; kept?: string }) => Promise<void>;
+  readonly takenTurn: (workspaceId: string, taken: Taken) => Promise<SessionHandle | undefined>;
+  readonly keepSteer: (s: { view: SessionView; turnLive?: TurnLive }, o: { prompt: string; requestId?: string; startedBy?: SessionOrigin; attachments?: readonly Attachment[] }, caller: Caller | undefined, steerId: string) => Promise<void>;
+  readonly steerLost: (s: { view: SessionView; turnLive?: TurnLive }, steerId: string) => void;
+  readonly lineTry: (s: { view: SessionView; turnId: string; asked?: TurnAsked }) => boolean;
+  readonly promptHeld: (requestId: string) => void;
+  readonly tryStopped: (turnId: string) => void;
+  readonly steerAnswered: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, handleId: string, o: { prompt: string; requestId?: string; via?: "slate"; startedBy?: SessionOrigin; attachments?: readonly Attachment[] }, caller: Caller | undefined, steerId: string, landed: boolean) => boolean;
+  readonly recordSteer: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, handleId: string, o: { prompt: string; requestId?: string; via?: "slate"; startedBy?: SessionOrigin; attachments?: readonly Attachment[] }, caller: Caller | undefined, steerId: string) => void;
+  readonly snapshotOf: (entry: LiveWorkspace, cwd: string) => Promise<string | undefined>;
+  readonly readTurnChanges: (entry: LiveWorkspace, turn: { sessionId: string; turnId: string; threadId: string; cwd: string; from: string; startedAt: number; wrote?: ReadonlySet<string> }) => Promise<boolean>;
+  readonly usageComputerOf: (r: WorkspaceRecord) => string;
+  readonly vaultedFor: (agent: string, loginStands?: boolean, vault?: Readonly<Record<string, string>>) => Vaulted;
+  readonly usageAccountOf: (entry: LiveWorkspace, harness: string, named?: { id: string; label?: string; }) => { key: string; label: string; road: AccountRoad; };
+  readonly limitDetailsDue: (entry: LiveWorkspace, harness: string) => Promise<boolean>;
+}
+
+export interface TurnsArea {
+  readonly runTurn: (t: {
+    entry: LiveWorkspace;
+    view: SessionView;
+    /** How much of itself a turn re-opened after a restart has written. A new turn has written nothing. */
+    written?: TurnWritten;
+    /** The thread this turn runs on, which every row the runtime writes carries. */
+    threadId: string;
+    turnId: string;
+    notify?: readonly string[];
+    /** The thread that named those targets, where a thread named them: the line their end delivers starts the
+     * target's turn under it, so the rules that let it name them are read again when the line goes. */
+    notifyBy?: ThreadScope;
+    /** And the road they were named from, read at delivery beside the thread, so a caller that may start no
+     * process on the target's workspace gets none started for it a turn later. */
+    notifyRoad?: WorkspaceOrigin;
+    /** The token this turn was launched with, kept on its row while the turn runs so a request out of it can name
+     * this thread. */
+    turnToken?: string;
+    /** The device this turn's launch environment carries into the machine, taken away at the exit beside the turn
+     * token: the two are one turn's identity and they end together. */
+    scopeDeviceId?: string;
+    outcome: Exclude<SessionStartOutcome, "held">;
+    /** What this turn's own session.start row carries, for the road that still has to write it. */
+    opening: { prompt: string; requestId?: string; via?: "slate"; afterCut?: boolean; afterLimit?: number; opensThread?: boolean; title?: string; attachments?: readonly AttachmentRecord[] };
+    /** The message the agent is handed and the effort it runs at, kept beside the run while the turn runs. */
+    asked?: TurnAsked;
+    /** The harness session this turn resumes, so the row it takes over keeps who opened the thread and with what. */
+    resume?: string;
+    /** What the row already knows of this turn's reply: a re-opened turn whose result landed before the restart is
+     * still working, and reads as such until the run's own result line comes round again. */
+    turnLive?: TurnLive;
+    /** The folder this turn's images landed in on the machine, removed when the turn ends however it ends; absent on
+     * a turn that landed none, whose harness read them inline or which carried none at all. */
+    imagesDir?: string;
+    /** The snapshot of the turn's folder taken as it launched, which the range of what it changed starts from: the
+     * commit itself where it is known as the turn is handed over, a launch's already in or a re-opened turn's off
+     * its row. */
+    snapshot?: { from: Promise<string | undefined> | string; cwd: string };
+    /** Whether the harness names every file its tool calls write (HarnessAdapter.reportsEdits). */
+    reportsEdits?: boolean;
+    /** The box the turn's own exec stream reads to know it is waiting on something outside its own process: flipped
+     * while a permission prompt of this turn stands open, and while its harness reports a command or a subagent it
+     * started still running, so the turn's idle clock does not run out under a question nobody has answered yet nor
+     * under a quiet watch on work the turn started. Absent on a road that hands the adapter no stream of its own. */
+    waiting?: { on: boolean };
+    /** What the turn's process was launched with, where it may be kept for the thread's next turn once this one is over. */
+    keep?: { launch: KeptLaunch };
+    open: (onEvent: (event: AdapterEvent) => void) => HarnessSession;
+  }) => SessionHandle;
+  readonly sweepRuns: (entry: LiveWorkspace) => Promise<void>;
+  readonly reattach: (s: { view: SessionView; turnId: string; notify?: readonly string[]; notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin; turnLive?: TurnLive; run?: string; from?: number; asked?: TurnAsked; turnToken?: string; scopeDeviceId?: string; snapshot?: string }, again?: boolean) => Promise<Reopened>;
+}
+
+export interface SessionsArea {
+  readonly sessionsApi: Runtime["sessions"];
+  /** Whether a stop's end of the thread's group holds the thread's next turn, which has put nothing there yet. */
+  readonly stopHolds: (threadId: string) => boolean;
+  /** Ends one turn by the road a person's stop ends it, without what the person's stop does beside (the tree under
+   * the thread, a held start's mark): a line's try at its hour, whose end a computer that is away owes at its next
+   * link. */
+  readonly stopTry: (rowId: string) => Promise<void>;
+}
+
+export interface BuildersArea {
+  readonly builderView: (r: BuilderRecord, b: LiveBuilder) => GoldenBuilderView;
+  readonly graceTimers: Map<string, () => void>;
+  readonly armGrace: (id: string, sealedAt: string) => void;
+  readonly inWindow: (sealedAt: string) => boolean;
+  readonly expireGrace: () => Promise<{ reaped: ReapedMachine[]; failed: ReapFailure[] }>;
+  readonly hold: (b: LiveBuilder) => Promise<void>;
+  readonly refuseUntouchable: (entry: LiveBuilder) => void;
+  readonly forgetBuilder: (id: string) => Promise<void>;
+  readonly forgetIfGone: (entry: LiveBuilder, at: MachineBackend) => Promise<void>;
+  readonly stageOf: (name: string, on?: string, named?: boolean) => (stage: GoldenStage, detail?: string, step?: GoldenStep, left?: readonly string[]) => void;
+  readonly backendAt: (place: string) => MachineBackend;
+  readonly placeAt: (word: string) => Promise<{ place: string; at: MachineBackend }>;
+  readonly landingBackend: (placeId: string | undefined) => Promise<MachineBackend>;
+  readonly forkingAt: (placeId: string | undefined) => Promise<MachineBackend | undefined>;
+  readonly placeName: (place: string) => string;
+  readonly imagePlace: (name: string) => Promise<string>;
+  readonly buildPlaces: () => Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }[]>;
+  readonly placeKindOf: (place: string) => PlaceKind;
+  readonly copyRecipeOrThrow: () => ((image: SealedImage, at: { cloud: boolean }) => Promise<GoldenRecipe> | GoldenRecipe);
+  readonly recipeOrThrow: (named?: GoldenRecipe) => GoldenRecipe;
+  readonly builderLabels: (extra: Record<string, string> | undefined) => Record<string, string>;
+  readonly recordingCreates: (b: MachineBackend, name: string, imp: Pick<GoldenImport, "recipeHash" | "recipe"> | undefined, made: (placeholder: LiveBuilder) => void, stop: { signal: AbortSignal | undefined; began: (creating: Promise<Machine>) => void } | undefined, place: string) => MachineBackend;
+  readonly settleBuilder: (name: string, builder: Builder, placeholder: LiveBuilder | undefined, place: string) => Promise<LiveBuilder>;
+  readonly sealEntry: (entry: LiveBuilder, keep: boolean, logins?: GoldenLogin[], copy?: SealedImage) => Promise<SealResult>;
+  readonly dropImage: (v: GoldenVersion, at?: MachineBackend) => Promise<void>;
+}
+
+export interface GoldenArea {
+  readonly golden: Runtime["golden"];
+}
+
+export interface ImageArea {
+  readonly conflict: (message: string) => Error;
+  readonly image: Runtime["image"];
+  readonly copyForFork: (golden: string, placeId: string | undefined, announce?: (where: string, rateUsdPerHour: number) => void) => Promise<string>;
+}
+
+export interface ProjectsArea {
+  readonly copyImport: (entry: LiveWorkspace, o: ProjectImportOptions, report: ImportReport) => Promise<ImportLanded>;
+  readonly landingKind: (computer: string, at: MachineBackend | undefined) => ProjectLanding["kind"];
+  readonly landingDeps: (computer: string) => Promise<{ deps: LandingDeps; at: MachineBackend | undefined; placeId: string | undefined }>;
+  readonly projectsDoor: { seedPlan(source: string, on?: string): Promise<SeedPlan>; add(o: { source: string; on?: string; name?: string; base?: string; into?: string; seed?: SeedChoice; id?: string; createdAt?: string; report?: (line: string) => void; }, origin?: Caller): Promise<ProjectView & { notice?: string; }>; list(origin?: Caller): Promise<ProjectView[]>; computers(): Promise<{ id: string; name: string; }[]>; resolve(ref: string, origin?: Caller): Promise<ProjectView>; unsaved(project: ProjectView): Promise<string | undefined>; folderStands(id: string): Promise<boolean>; seedInto(id: string, plan: SeedPlan, files: readonly string[]): Promise<void>; remove(id: string, origin?: Caller, o?: { force?: boolean; check?: boolean; keepLook?: boolean }): Promise<{ said: string; unsaved?: string }>; };
+  readonly projects: Runtime["projects"];
+}
+
+export interface ProjectIconsArea {
+  readonly projectIcons: {
+    /** Keeps the window's PNG for a project, or with null takes its image off, and deletes what nothing names. */
+    set(projectId: string, png: string | null): Promise<{ image: string | null }>;
+    /** Each hash's kept image as a data url, null where none is kept. */
+    read(hashes: readonly string[]): Promise<Record<string, string | null>>;
+    /** Drops a project's look and image off the record, and its image's file where nothing else names it. */
+    forget(projectId: string): Promise<void>;
+    /** Puts a kept image on a project, as a recipe's folder names it; a hash not kept here leaves the glyph. */
+    wear(projectId: string, hash: string | undefined): Promise<void>;
+  };
+}
+
+export interface UsageArea {
+  readonly awayLine: (record: WorkspaceRecord) => string | undefined;
+  readonly rowReason: (e: LiveWorkspace) => string | undefined;
+  readonly ledger: UsageLedger;
+  readonly alerts: PlanAlerts;
+  readonly burn: { add(o: { account: string; threadId: string; tokens: number; replayed?: ReplayedStamp; }): void; of(account: string): AccountRow["burn"]; };
+  readonly usageAccounts: () => Promise<AccountsAnswer>;
+  readonly usage: UsageDoor;
+}
+
+export interface ConversationsArea {
+  readonly conversations: Runtime["conversations"];
+}
+
+export interface WaitsArea {
+  readonly noteWaited: Runtime["sessions"]["noteWaited"];
+  readonly noteRetry: Runtime["sessions"]["noteRetry"];
+  /** The turn's agent said a retry of its own, which stands for one the host saw a moment before. */
+  readonly agentRetried: (turnId: string, why?: string) => void;
+}
+
+export interface StatusArea {
+  readonly status: StatusApi;
+  readonly adoptLost: (listing: ListedMachine[], known: Set<string>, failed: ReapFailure[], at: { place: string; backend: MachineBackend }) => Promise<{ adopted: AdoptedMachine[]; reaped: ReapedMachine[] }>;
+}
+
+export interface PreferencesArea {
+  readonly preferences: Runtime["preferences"];
+  /** The record moved by a change the host makes itself, in turn with every set, kept and pushed. */
+  readonly changePreferences: (change: (held: Preferences) => Preferences) => Promise<Preferences>;
+  readonly agentsRead: ReturnType<typeof agentsReads<Caller>>;
+}
+
+/** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
+ * called, never copied into a local while the areas are still being built. */
+export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & WaitsArea & StatusArea & PreferencesArea;

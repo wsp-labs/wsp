@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// One adapter factory per agent wsp can drive, keyed by catalog id, for every
+// client that embeds the runtime: the app and the dev CLI read this table
+// rather than wiring adapters of their own. Adding an agent is its id in
+// THREAD_AGENTS and its factory here; the type ties the two together. Each
+// adapter gets its agent's words from the catalog: its home on the guest, the
+// folder the golden's sign-in wrote into, and the command that signs in on a
+// machine; the adapter packages carry no catalog rows of their own.
+import { createClaudeAdapter } from "@wsp/adapter-claude";
+import { codexPlanResets, createCodexAdapter, limitOf as codexLimitOf } from "@wsp/adapter-codex";
+import { createCursorAdapter } from "@wsp/adapter-cursor";
+import { createOpenCodeAdapter } from "@wsp/adapter-opencode";
+import { CATALOG_AGENTS, keyEnvOf, mintsToken, type ThreadAgent } from "@wsp/catalog";
+import type { HarnessLimit, PlanResets } from "@wsp/protocol";
+import type { HarnessAdapterFactory } from "./runtime.js";
+
+/** The sign-in command a person runs on a machine: the row's headless fallback when it has one, else its login. */
+const machineLogin = (id: ThreadAgent): string => {
+  const signIn = CATALOG_AGENTS.find(a => a.id === id)?.signIn;
+  if (signIn === undefined || !("login" in signIn)) throw new Error(`the catalog has no sign-in for ${id}`);
+  return signIn.fallback ?? signIn.login;
+};
+
+/** What the vault holds for one agent, under the variables that agent's own row declares: its token, else its key,
+ * never both. Inside Claude Code an API key outranks the token, so handing both would bill the key on every turn
+ * and the token the person minted would never be used. One reader for every agent, so a new one is a row and not
+ * a branch here.
+ *
+ * `loginStands` is whether a login of that agent's own stands where the turn runs. A harness reads a key or a token
+ * in its environment ahead of the login on its disk, so either handed there would bill it and leave the sign-in the
+ * person made unused: neither goes where a login stands. The variable a key would travel under comes back beside
+ * it, since the sentence for a key the provider turns down has to name it. */
+export function secretsOf(
+  vault: Readonly<Record<string, string>>,
+  id: string,
+  loginStands = false,
+): { oauthToken?: string; apiKey?: string; keyEnv?: string } {
+  const signIn = CATALOG_AGENTS.find(a => a.id === id)?.signIn;
+  if (signIn === undefined || loginStands) return {};
+  const token = mintsToken(signIn) ? vault[signIn.tokenEnv] : undefined;
+  if (token !== undefined) return { oauthToken: token };
+  const keyEnv = keyEnvOf(signIn);
+  if (keyEnv === undefined) return {};
+  const key = vault[keyEnv];
+  return key === undefined ? {} : { apiKey: key, keyEnv };
+}
+
+/** The same, under the variable the agent reads it from: what a process that is not that agent's turn carries, so
+ * the agent run from a shell there signs in as its turn does. */
+export function secretEnvOf(vault: Readonly<Record<string, string>>, id: string, loginStands = false): Record<string, string> {
+  const signIn = CATALOG_AGENTS.find(a => a.id === id)?.signIn;
+  const { oauthToken, apiKey, keyEnv } = secretsOf(vault, id, loginStands);
+  if (oauthToken !== undefined && signIn !== undefined && mintsToken(signIn)) return { [signIn.tokenEnv]: oauthToken };
+  return apiKey !== undefined && keyEnv !== undefined ? { [keyEnv]: apiKey } : {};
+}
+
+export const HARNESS_ADAPTERS: Readonly<Record<ThreadAgent, HarnessAdapterFactory>> = {
+  claude: ctx =>
+    createClaudeAdapter({
+      exec: ctx.execStream,
+      configDir: ctx.home("claude"),
+      baseEnv: ctx.env,
+      signInRefusal: ctx.signInRefusal,
+      ...(ctx.projectKey !== undefined ? { projectDirName: ctx.projectKey } : {}),
+      ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}),
+      ...(ctx.brokered !== undefined ? { brokered: ctx.brokered } : secretsOf(ctx.vault, "claude", ctx.loginStands("claude"))),
+    }),
+  codex: ctx =>
+    createCodexAdapter({
+      exec: ctx.execStream,
+      home: ctx.home("codex"),
+      login: machineLogin("codex"),
+      baseEnv: ctx.env,
+      ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}),
+      ...(ctx.codexBroker !== undefined ? { broker: ctx.codexBroker, ...secretsOf(ctx.vault, "codex") } : secretsOf(ctx.vault, "codex", ctx.loginStands("codex"))),
+    }),
+  opencode: ctx => createOpenCodeAdapter({ exec: ctx.execStream, baseEnv: ctx.env, signInRefusal: ctx.signInRefusal, ...secretsOf(ctx.vault, "opencode", ctx.loginStands("opencode")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
+  cursor: ctx => createCursorAdapter({ exec: ctx.execStream, baseEnv: ctx.env, signInRefusal: ctx.signInRefusal, ...secretsOf(ctx.vault, "cursor", ctx.loginStands("cursor")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
+};
+
+/** The agents a machine whose credentials the host keeps launches: the ones its broker adds a credential for. */
+export const BROKERED_AGENTS: ReadonlySet<string> = new Set<ThreadAgent>(["claude", "codex"]);
+
+/** The agents whose plans bank resets a person can spend, each with the scripts that read and spend one. */
+export const PLAN_RESETS: Readonly<Partial<Record<ThreadAgent, PlanResets>>> = { codex: codexPlanResets };
+
+/** The agents whose own store keeps the plan's windows, each with its reader of a reading off that store, which is in
+ * the shape the agent's server answers a rate-limits read with. */
+export const LOG_LIMITS: Readonly<Partial<Record<ThreadAgent, (snapshot: Record<string, unknown>) => HarnessLimit | undefined>>> = { codex: snapshot => codexLimitOf(snapshot, {}) };

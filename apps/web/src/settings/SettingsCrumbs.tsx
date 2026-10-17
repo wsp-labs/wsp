@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The breadcrumb over the settings page: Settings, inert on every page since
+// there is no page under it; the group, the one link on a computer's, a
+// project's or an agent's page, or a server's or a skill's under the Agents
+// page's list, back to that list, with the back chevron before the trail that
+// says so, which steps back one page; and the page itself in the foreground
+// ink at medium weight, as the thread crumb is. While the field holds text the
+// page is Search. The left crumbs give way first when the line is short.
+import { agentName } from "@wsp/catalog";
+import { ChevronLeftIcon } from "lucide-react";
+import { Button } from "../components/ui/button.js";
+import { ProjectGlyph } from "../projects/look.js";
+import { useIsMobile } from "../hooks/useMediaQuery.js";
+import { useStore } from "../protocol/store.js";
+import { SETTINGS_WORDS } from "./format.js";
+import { Slash } from "./grid.js";
+import { groupById } from "./groups.js";
+import { placeName } from "./places.js";
+import { useSettingsAt } from "./settingsContext.js";
+import { groupOf, useSettingsStore } from "./settingsStore.js";
+
+export function SettingsCrumbs() {
+  const at = useSettingsAt();
+  const search = useSettingsStore(s => s.search);
+  const go = useSettingsStore(s => s.go);
+  const level = useSettingsStore(s => s.agentsLevel);
+  const openLevel = useSettingsStore(s => s.openAgentsLevel);
+  const places = useStore(s => s.places);
+  const projects = useStore(s => s.projects);
+  const harnesses = useStore(s => s.harnesses);
+  const isMobile = useIsMobile();
+  const group = groupById(groupOf(at));
+  const searching = search !== "" && !isMobile;
+  const place = at.kind === "computer" ? places.find(p => p.id === at.id) : undefined;
+  const project = at.kind === "project" ? projects.find(p => p.id === at.id) : undefined;
+  const under = at.kind === "group" && at.group === "agents" ? level : null;
+  const page = place !== undefined ? placeName(place) : at.kind === "agent" ? (harnesses.find(c => c.harness === at.id)?.label ?? agentName(at.id)) : (project?.name ?? under?.name);
+  const sub = !searching && page !== undefined;
+  const up = under?.kind === "found" ? under.up : undefined;
+  const backTo = SETTINGS_WORDS.backTo(up?.name ?? group.name);
+  return (
+    <>
+      {sub ? (
+        <Button variant="ghost" size="icon-xs" data-k="settings-up" aria-label={backTo} title={backTo} className="-ml-1 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => (up === undefined ? go({ kind: "group", group: group.id }) : openLevel(up))}>
+          <ChevronLeftIcon aria-hidden className="size-4" />
+        </Button>
+      ) : null}
+      <span data-breadcrumb-settings className="min-w-0 truncate text-muted-foreground">
+        {SETTINGS_WORDS.title}
+      </span>
+      <Slash />
+      {searching ? (
+        <span data-breadcrumb-page className="shrink-0 font-medium text-foreground">
+          {SETTINGS_WORDS.searchPage}
+        </span>
+      ) : page === undefined ? (
+        <span data-breadcrumb-group className="shrink-0 font-medium text-foreground">
+          {group.name}
+        </span>
+      ) : (
+        <>
+          <button type="button" data-breadcrumb-group className="min-w-0 cursor-pointer truncate text-muted-foreground transition-colors duration-150 hover:text-foreground" onClick={() => go({ kind: "group", group: group.id })}>
+            {group.name}
+          </button>
+          <Slash />
+          <span data-breadcrumb-page className="flex min-w-0 max-w-[70%] shrink-0 items-center gap-2 font-medium text-foreground">
+            {project !== undefined ? <ProjectGlyph projectId={project.id} /> : null}
+            <span className="truncate">{page}</span>
+          </span>
+        </>
+      )}
+    </>
+  );
+}
+

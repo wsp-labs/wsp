@@ -1,0 +1,379 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// What a place's cap is and what it counts, read off the rows the host lists
+// and nowhere else. The host folds `running` at list time and the window can
+// fold its own live rows through the same function, so the two cannot count
+// one computer two ways. One rule per kind of place, so a third kind is one
+// entry in the table below.
+import { agentsLine, fmtCost, fmtDuration, fmtLimit, fmtSize, plural, refusalLine, SIZE_PICK_FIX, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
+import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, SessionUncappedEvent, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
+import { HERE_PLACE_ID, placeSaid } from "./place-word.js";
+import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
+
+/** Which computer a workspace stands on, by place id: a workspace forked on a joined computer carries that
+ * computer's id on its record. Undefined for everything on this computer or at a provider. Written once because
+ * the host asks it to know whether anything can be asked of the machine, and the app asks it to know which row of
+ * the places table a workspace belongs to. */
+export function workspacePlace(view: Pick<WorkspaceView, "place">): string | undefined {
+  return view.place;
+}
+
+/** Which row of the places list a workspace stands on, by id: the computer its record names, this computer for a
+ * workspace that is this computer, and for a fork the provider its record was stamped with. A fork written before
+ * records carried that word stands at the first provider row, which is where a host that forks at one provider put
+ * it. Nothing for a workspace whose row this list does not hold, a stamped fork included: a provider that has been
+ * removed takes its money off the list with it, and standing its workspaces on whatever provider is left would put
+ * one provider's spend on another's row.
+ *
+ * The one reading, so the settings table, the sidebar's rows and the host's own spend fold cannot disagree about
+ * which row a workspace belongs to. */
+export function workspacePlaceId(view: Pick<WorkspaceView, "kind" | "machineId" | "place" | "provider">, places: readonly Pick<PlaceView, "id" | "kind">[]): string | undefined {
+  const named = workspacePlace(view);
+  if (named !== undefined) return places.find(p => p.id === named)?.id;
+  if (isLocalWorkspace(view)) return places.find(p => p.id === HERE_PLACE_ID)?.id ?? places[0]?.id;
+  const providers = places.filter(p => p.kind === "provider");
+  return view.provider === undefined ? providers[0]?.id : providers.find(p => p.id === view.provider)?.id;
+}
+
+/** The memory one running thread is given room for by default: an agent process and whatever it runs. A 4 GB box
+ * held two threads and lost every turn at three; a 16 GB Mac held six and stopped answering at eight, and the owner
+ * keeps it at eight (#1823). */
+export const THREAD_MEM_MB = 2048;
+
+/** Threads at once on a computer of this shape until the person sets a number: one per THREAD_MEM_MB, rounded,
+ * at least one, and never more than twice its cores. */
+export const threadsAtOnce = (s: WorkspaceSize): number => Math.max(1, Math.min(2 * Math.floor(s.cpu), Math.round(s.memMb / THREAD_MEM_MB)));
+
+export const CLOUD_CAP_DEFAULT: CloudCap = { machines: 3, spendPerDayUsd: 10 };
+
+/** What a workspace's switch reads as when neither it nor its place sets one, and what it takes when a person names
+ * no numbers. Three machines is what one root thread's builders need and few enough that a runaway is a bill a
+ * person notices, and two levels let a lead hand work to a sub-lead; threads at once and the machines cap bound cost. */
+export const AGENTS_ON: WorkspaceAgents = { spawn: true, maxMachines: 3, maxDepth: 2 };
+
+/** How long a quiet workspace runs before it naps until the person sets another window. */
+export const NAP_AFTER_MS = 20 * 60_000;
+/** The longest nap window a person may set: the provider's own timer is set behind ours at twice the window, and
+ * six hours is the longest it has accepted. */
+export const NAP_AFTER_MAX_MS = 3 * 60 * 60_000;
+
+/** The nap window a person names in minutes: none of them never naps. */
+export const napMsOf = (minutes: number): number | null => (minutes === 0 ? null : minutes * 60_000);
+
+/** How long a finished sub-thread's machine stays before it is deleted until the person sets another delay. */
+export const DELETE_AFTER_MS = 30 * 60_000;
+/** The longest delete delay a person may set: a day. */
+export const DELETE_AFTER_MAX_MS = 24 * 60 * 60_000;
+
+/** The turn limit on a cloud account until the person sets one: what a forgotten turn there can bill by the hour. A
+ * computer the person owns has none by default, since TURN_IDLE_MS already ends a stuck turn and nothing there bills. */
+export const TURN_WALL_MS = 6 * 60 * 60_000;
+
+/** The longest turn limit a person may set: past a day the number is more likely minutes typed as hours than a turn
+ * anyone means to run, and off is there for one that should never stop. */
+export const TURN_LIMIT_MAX_MS = 24 * 60 * 60_000;
+
+/** The turn limit a person names in hours: none of them is no limit. */
+export const turnLimitMsOf = (hours: number): number | null => (hours === 0 ? null : hours * 3_600_000);
+
+/** What a workspace runs under for one setting: its own, else its place's, else the default. Null is a value (a nap
+ * that is off), so only an absent one falls through. The one chain the host's row and its idle and spawn rules read. */
+export function settingFor<T>(own: T | undefined, placed: T | undefined, fallback: T): T {
+  return own !== undefined ? own : placed !== undefined ? placed : fallback;
+}
+
+/** Whether a machine in this phase holds one of its cloud's slots: a napping machine holds none, a gone or released
+ * one is not there and a queued one waiting with `queue` has none yet, while one creating or waking already does.
+ * Phase alone, so a refusal can read it without asking the provider about every machine. */
+export const phaseHoldsSlot = (w: Pick<WorkspaceView, "phase" | "queue">): boolean => {
+  const state = workspaceState({ phase: w.phase });
+  return state !== "paused" && state !== "gone" && state !== "released" && !(w.phase === "queued" && w.queue !== undefined);
+};
+
+/** What the count reads of a workspace and of a thread. */
+export type PlacedWorkspace = Pick<WorkspaceView, "id" | "kind" | "machineId" | "place" | "provider" | "phase" | "queue">;
+export type PlacedThread = Pick<ThreadView, "workspaceId" | "status">;
+
+/** A dollar figure a person typed, in whole dollars where it has no cents. */
+const dollars = (usd: number): string => (Number.isInteger(usd) ? `$${usd}` : fmtCost(usd));
+
+/** One number of a cap, off the cap that holds it. */
+const capNumber = (cap: PlaceCap | undefined, key: "threads" | "machines" | "spendPerDayUsd"): number | undefined =>
+  cap !== undefined && key in cap ? (cap as Record<string, number>)[key] : undefined;
+
+type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault" | "size" | "sizeDefault" | "deleteAfterMs">;
+/** What a row says a setting runs at: the whole phrase, and the figure alone that a default beside it takes. */
+type SettingSaid = { long: string; short: string };
+
+/** Every setting a person can make on a place: the key it is stored under (and for a part of the agents switch, the
+ * parts of it), the words a refusal names it by, and what a row says it runs at now or by default. */
+const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: readonly (keyof WorkspaceAgents)[]; words: string; reads(place: SettingView, fallback: boolean): SettingSaid | undefined }> = {
+  threads: { key: "threads", words: "threads at once", reads: (p, fallback) => atOnce(capNumber(fallback ? p.capDefault : p.cap, "threads"), "thread") },
+  machines: { key: "machines", words: "machines at once", reads: (p, fallback) => atOnce(capNumber(fallback ? p.capDefault : p.cap, "machines"), "machine") },
+  spend: {
+    key: "spendPerDayUsd",
+    words: "spend per day",
+    reads: (p, fallback) => {
+      const usd = capNumber(fallback ? p.capDefault : p.cap, "spendPerDayUsd");
+      return usd === undefined ? undefined : { long: `${dollars(usd)} a day`, short: dollars(usd) };
+    },
+  },
+  size: {
+    key: "size",
+    words: "size",
+    reads: (p, fallback) => {
+      const size = fallback ? p.sizeDefault : p.size;
+      return size === undefined ? undefined : { long: `size ${fmtSize(size)}`, short: sizeWord(size) };
+    },
+  },
+  "delete-after": {
+    key: "deleteAfterMs",
+    words: "delete after",
+    reads: (p, fallback) => {
+      const ms = fallback ? DELETE_AFTER_MS : p.deleteAfterMs;
+      if (ms === undefined) return undefined;
+      return ms === 0 ? { long: "deleted once done", short: "at once" } : { long: `deleted after ${ms / 60_000} min`, short: `${ms / 60_000} min` };
+    },
+  },
+  nap: {
+    key: "napMs",
+    words: "nap after",
+    reads: (p, fallback) => {
+      const ms = fallback ? p.napDefault : p.napMs;
+      if (ms === undefined) return undefined;
+      return ms === null ? { long: "never naps", short: "never" } : { long: `naps after ${fmtDuration(ms)}`, short: fmtDuration(ms) };
+    },
+  },
+  "turn-limit": {
+    key: "turnLimitMs",
+    words: "turn limit",
+    reads: (p, fallback) => {
+      const ms = fallback ? p.turnLimitDefault : p.turnLimitMs;
+      if (ms === undefined) return undefined;
+      return ms === null ? { long: "no turn limit", short: "off" } : { long: `stops a turn at ${fmtLimit(ms)}`, short: fmtLimit(ms) };
+    },
+  },
+  spawn: {
+    key: "spawn",
+    parts: ["spawn", "maxMachines"],
+    words: "agents may start agents",
+    reads: (p, fallback) => {
+      const agents = fallback ? p.spawnDefault : p.spawn;
+      if (agents === undefined) return undefined;
+      return { long: agentsLine(agents), short: agents.spawn ? `on, up to ${agents.maxMachines}` : "off" };
+    },
+  },
+  "max-depth": {
+    key: "spawn",
+    parts: ["maxDepth"],
+    words: "levels deep",
+    reads: (p, fallback) => {
+      const depth = (fallback ? p.spawnDefault : p.spawn)?.maxDepth;
+      return depth === undefined ? undefined : { long: `${depth} ${depth === 1 ? "level" : "levels"} deep`, short: String(depth) };
+    },
+  },
+};
+
+function atOnce(n: number | undefined, noun: string): SettingSaid | undefined {
+  return n === undefined ? undefined : { long: `${plural(n, noun)} at once`, short: String(n) };
+}
+
+/** Whether settings, held or asked for, name one setting: its key, or any of its parts of the agents switch. */
+export function placeSettingNamed(settings: PlaceSettings, word: PlaceSettingWord): boolean {
+  const { key, parts } = SETTINGS[word];
+  return parts === undefined ? settings[key] !== undefined : parts.some(part => settings.spawn?.[part] !== undefined);
+}
+
+/** Settings with one setting taken back to its default: its key dropped, or its parts of the agents switch, and the
+ * switch with them once nothing of it is left. */
+export function placeSettingDropped(settings: PlaceSettings, word: PlaceSettingWord): PlaceSettings {
+  const { key, parts } = SETTINGS[word];
+  const kept = Object.fromEntries(Object.entries(settings).filter(([k]) => k !== key)) as PlaceSettings;
+  if (parts === undefined || settings.spawn === undefined) return kept;
+  const spawn = Object.fromEntries(Object.entries(settings.spawn).filter(([part]) => !parts.includes(part as keyof WorkspaceAgents)));
+  return Object.keys(spawn).length === 0 ? kept : { ...kept, spawn };
+}
+
+interface PlaceCapRule {
+  /** The settings this kind takes. */
+  keys: readonly PlaceSettingWord[];
+  /** How long one turn runs before it is stopped where the person set no limit; null is none. */
+  turnLimit: number | null;
+  /** The set numbers over this kind's defaults; nothing where there is no default and nothing was set. */
+  capOf(place: Pick<PlaceView, "shape">, set: PlaceCapSet): PlaceCap | undefined;
+  /** How many at once the cap allows. */
+  atOnce(cap: PlaceCap): number;
+  /** What one of those is called in a sentence and a column. */
+  noun: string;
+  /** The spend a day stops new work at, where this kind has one. */
+  spendLimit(cap: PlaceCap): number | undefined;
+  /** How many of what the cap counts stand on the place, given the workspaces on it and every thread. */
+  count(on: readonly PlacedWorkspace[], threads: readonly PlacedThread[]): number;
+}
+
+const PLACE_CAPS: Record<PlaceKind, PlaceCapRule> = {
+  computer: {
+    keys: ["threads", "nap", "turn-limit", "spawn", "max-depth"],
+    turnLimit: null,
+    capOf: (place, set) => {
+      const threads = set.threads ?? (place.shape === undefined ? undefined : threadsAtOnce(place.shape));
+      return threads === undefined ? undefined : { threads };
+    },
+    atOnce: cap => ("threads" in cap ? cap.threads : 0),
+    noun: "thread",
+    spendLimit: () => undefined,
+    count: (on, threads) => {
+      const ids = new Set(on.map(w => w.id));
+      return threads.filter(t => t.status === "running" && ids.has(t.workspaceId)).length;
+    },
+  },
+  provider: {
+    keys: ["machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"],
+    turnLimit: TURN_WALL_MS,
+    capOf: (_place, set) => ({ machines: set.machines ?? CLOUD_CAP_DEFAULT.machines, spendPerDayUsd: set.spendPerDayUsd ?? CLOUD_CAP_DEFAULT.spendPerDayUsd }),
+    atOnce: cap => ("machines" in cap ? cap.machines : 0),
+    noun: "machine",
+    spendLimit: cap => ("spendPerDayUsd" in cap ? cap.spendPerDayUsd : undefined),
+    count: on => on.filter(phaseHoldsSlot).length,
+  },
+};
+
+/** A place's cap: the numbers the person set over its kind's defaults. */
+export function placeCapOf(place: Pick<PlaceView, "kind" | "shape">, set: PlaceCapSet = {}): PlaceCap | undefined {
+  return PLACE_CAPS[place.kind].capOf(place, set);
+}
+
+/** How long one turn on a place of this kind runs before the runtime stops it: what the person set there, else the
+ * kind's default; null is no limit. The one reading the row and the turn's own reader both take. */
+export function placeTurnLimit(kind: PlaceKind, settings: PlaceSettings): number | null {
+  return settingFor(undefined, settings.turnLimitMs, PLACE_CAPS[kind].turnLimit);
+}
+
+/** Why a set is refused on this place: nothing set or reset at all, a setting its kind does not take, or one both
+ * set and reset. Nothing when every key fits. */
+export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | "takesForks" | "sizes">, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[] = []): string | undefined {
+  const takes = settingsOn(place);
+  const said = (words: readonly PlaceSettingWord[]): string => andList(words.map(word => SETTINGS[word].words));
+  const named = (Object.keys(SETTINGS) as PlaceSettingWord[]).filter(word => placeSettingNamed(set, word));
+  // A computer the person added also takes a new name and a new ssh login, which are no settings of its kind.
+  const added = place.kind === "computer" && place.id !== HERE_PLACE_ID ? ["a new name", "a new ssh login"] : [];
+  if (named.length === 0 && reset.length === 0) return `nothing to set on ${placeSaid(place)}: it takes ${andList([...takes.map(word => SETTINGS[word].words), ...added])}`;
+  const wrong = [...new Set([...named, ...reset])].filter(word => !takes.includes(word));
+  if (wrong.length > 0) return `${placeSaid(place)} takes ${said(takes)}, not ${said(wrong)}`;
+  const both = named.filter(word => reset.includes(word));
+  if (both.length > 0) return `${placeSaid(place)}: ${said(both)} is both set and reset; name it once`;
+  const size = set.size;
+  if (size !== undefined && sizeOffer(place.sizes ?? [], size) === undefined) return refusalLine(sizeRefusal(sizeWord(size), place.sizes ?? []), SIZE_PICK_FIX);
+  return undefined;
+}
+
+/** The settings a place takes: its kind's, less the nap on a place that forks nothing, whose workspaces are
+ * folders on the computer itself and never nap. */
+function settingsOn(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">): readonly PlaceSettingWord[] {
+  return PLACE_CAPS[place.kind].keys.filter(word => placeTakes(place, word));
+}
+
+/** Whether a place takes one setting: its kind's, less the nap where it forks nothing and the size where its row
+ * offers none. */
+export function placeTakes(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">, word: PlaceSettingWord): boolean {
+  if (!PLACE_CAPS[place.kind].keys.includes(word)) return false;
+  if (word === "nap") return place.takesForks === true;
+  return word !== "size" || (place.sizes ?? []).length > 0;
+}
+
+const andList = (words: readonly string[]): string => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);
+
+/** One place's settings in a line: each its kind takes at the value it runs at, and beside one the person set what
+ * it reads by default. What wsp computers set answers with. */
+export function placeSettingsLine(place: Pick<PlaceView, "kind" | "name" | "settings" | "takesForks"> & SettingView): string {
+  const parts = settingsOn(place).flatMap(word => {
+    const { reads } = SETTINGS[word];
+    const now = reads(place, false);
+    if (now === undefined) return [];
+    if (!placeSettingNamed(place.settings ?? {}, word)) return [`${now.long} (the default)`];
+    const fallback = reads(place, true);
+    return [fallback === undefined ? now.long : `${now.long} (${fallback.short} by default)`];
+  });
+  return `${placeSaid(place)}: ${parts.join(", ")}`;
+}
+
+/** How many of what a place's cap counts run there now: threads whose latest turn is running on a workspace that
+ * stands on that computer, or on a cloud the machines holding a slot there. */
+export function runningOn(placeId: string, places: readonly Pick<PlaceView, "id" | "kind">[], workspaces: readonly PlacedWorkspace[], threads: readonly PlacedThread[]): number {
+  const place = places.find(p => p.id === placeId);
+  if (place === undefined) return 0;
+  return PLACE_CAPS[place.kind].count(
+    workspaces.filter(w => workspacePlaceId(w, places) === placeId),
+    threads,
+  );
+}
+
+/** What runs on a place against its cap, and how many more it takes under it. Nothing for a place with no cap. */
+export function placeRoom(place: Pick<PlaceView, "kind" | "cap" | "running">): { running: number; atOnce: number; room: number; noun: string } | undefined {
+  if (place.cap === undefined) return undefined;
+  const rule = PLACE_CAPS[place.kind];
+  const running = place.running ?? 0;
+  const atOnce = rule.atOnce(place.cap);
+  return { running, atOnce, room: Math.max(0, atOnce - running), noun: rule.noun };
+}
+
+/** The sentence a full place says: the person's number reached, else a computer that has no room for one more
+ * fork under it. Nothing while there is room. */
+export function placeFullLine(place: Pick<PlaceView, "kind" | "name" | "cap" | "running" | "forks">): string | undefined {
+  const room = placeRoom(place);
+  if (room !== undefined && room.running >= room.atOnce) return `full: ${room.running} of ${plural(room.atOnce, room.noun)} running`;
+  return place.forks?.room === 0 ? `no room on ${place.name}` : undefined;
+}
+
+/** What holds a turn back while its computer's threads at once is met: the computer and what runs there against its
+ * cap; for a sub-thread's spawn, the cloud's machines running or its starts this minute used. */
+export const capRunningLine = (w: ThreadCapWait): string =>
+  w.why === "minute" ? `${w.place}'s starts this minute are used: ${w.running} of ${w.atOnce}` : `${w.place} is running ${w.running} of ${plural(w.atOnce, w.why === "slot" ? "machine" : "thread")}`;
+
+/** The line a held turn says where nothing beside it says it waits: the chat's working row and the command line. A
+ * spawn says a machine slot and a minute of starts apart, since raising one does nothing for the other (05, Q18). */
+export const capWaitLine = (w: ThreadCapWait): string =>
+  w.why === "slot" ? `waiting for a machine on ${w.place}: ${w.running} of ${w.atOnce} running` : w.why === "minute" ? `waiting for ${w.place}'s next minute of starts: ${w.running} of ${w.atOnce} used` : `waiting while ${capRunningLine(w)}`;
+
+/** The bar a held thread's drawer row opens in its composer's place: the computer it waits on as the title, what runs
+ * there and how the wait ends under it. */
+export const capBarWords = (w: ThreadCapWait): { title: string; note: string } => ({
+  title: `Waiting for a thread slot on ${w.place}`,
+  note: `${w.running} of ${plural(w.atOnce, "thread")} ${w.running === 1 ? "is" : "are"} running. It starts on its own when one ends.`,
+});
+
+/** Why a held turn left its wait, as the command line's one line before its start. */
+export const capStartedLine = (e: Pick<SessionUncappedEvent, "why" | "atOnce">): string =>
+  e.why === "raised" ? `started: threads raised to ${e.atOnce}` : e.why === "lent" ? "started: a thread waiting on it lent its slot" : "started: a thread slot freed";
+
+/** Why a held turn ended with nothing started: the person or its lead stopped it while it waited, or before it had
+ * looked at its computer's threads at once and had no count to say. */
+export const capStoppedLine = (w: ThreadCapWait | undefined): string =>
+  w === undefined ? "stopped before it started" : `stopped before it started, while ${w.place} was running ${w.running} of ${plural(w.atOnce, "thread")}`;
+
+/** Why a start ended with nothing started: its workspace was deleted while the start was on its way, held or not. */
+export const deletedBeforeStartLine = (name: string): string => `${name} was deleted before this turn started`;
+
+/** Why a held turn ended with nothing started: the host restarted while it waited, and a held start lives in the
+ * host's memory alone. */
+export const capRestartedLine = (place: string): string => `the host restarted while this turn waited for a slot on ${place}; nothing started, so send it again`;
+
+/** The act that ends the wait without one of those threads ending, as the app's button and a tile's card name it. */
+export const CAP_RAISE_ACT = "Raise threads at once";
+
+/** The act a held wait offers beside its count: threads or machines at once, and none for a minute of starts, which
+ * the cloud's plan sets and no setting here moves. */
+export const capRaiseAct = (w: ThreadCapWait): string | undefined => (w.why === undefined ? CAP_RAISE_ACT : w.why === "slot" ? "Raise machines at once" : undefined);
+
+/** The act that wakes a napping machine, as the chat's working row names it beside the line that it naps. */
+export const WAKE_ACT = "Wake";
+
+/** The spend a day stops new work on this place at: nothing on a kind with no spend limit or a row with no cap. */
+export function placeSpendLimit(place: Pick<PlaceView, "kind" | "cap">): number | undefined {
+  return place.cap === undefined ? undefined : PLACE_CAPS[place.kind].spendLimit(place.cap);
+}
+
+/** The sentence a cloud at its day's spend says. Nothing without a spend figure, which is never guessed. */
+export function placeAtLimitLine(place: Pick<PlaceView, "kind" | "cap">, spentTodayUsd: number | undefined): string | undefined {
+  const limit = placeSpendLimit(place);
+  return limit !== undefined && spentTodayUsd !== undefined && spentTodayUsd >= limit ? SPEND_LIMIT_LINE : undefined;
+}

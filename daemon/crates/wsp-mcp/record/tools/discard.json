@@ -1,0 +1,100 @@
+{
+  "cloudOff": {
+    "name": "discard",
+    "description": "Puts one changed file in the folder the thread works in back as its last commit has it: an edit or a deletion is undone, a rename takes its new name away and brings the old one back, and a file the last commit does not have is removed. Only the file named moves, and it cannot be undone; other threads working in the same folder lose the change too, and the answer names them in sharedWith. Refused in one line when the file has no change.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one, as threads lists them"
+        },
+        "path": {
+          "type": "string",
+          "description": "the file, by path from the checkout's top as git status names it"
+        }
+      },
+      "required": [
+        "thread",
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sharedWith": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "the other threads working in the same folder, by id, whose changes the act took in too; absent where none do"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "discard",
+    "description": "Puts one changed file in the folder the thread works in back as its last commit has it: an edit or a deletion is undone, a rename takes its new name away and brings the old one back, and a file the last commit does not have is removed. Only the file named moves, and it cannot be undone; other threads working in the same folder lose the change too, and the answer names them in sharedWith. Refused in one line when the file has no change.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one, as threads lists them"
+        },
+        "path": {
+          "type": "string",
+          "description": "the file, by path from the checkout's top as git status names it"
+        }
+      },
+      "required": [
+        "thread",
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sharedWith": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "the other threads working in the same folder, by id, whose changes the act took in too; absent where none do"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

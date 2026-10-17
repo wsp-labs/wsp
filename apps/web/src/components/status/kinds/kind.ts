@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// One kind of thread status: when a thread reads as it, and what the one
+// status slot draws for it. The slot draws every kind through this shape, so a
+// kind is its module and one line in the registry.
+import type { LucideIcon } from "lucide-react";
+import type { SidebarThreadSnapshot } from "../../../adapt/index.js";
+
+/** What a thread's status is read off, the fields every surface that shows a thread holds. */
+export type ThreadStatusInput = Pick<SidebarThreadSnapshot, "status" | "asking" | "capped" | "sub" | "diskKeptUntil" | "startedAt" | "unread" | "limit" | "resumeAt">;
+
+/** The suffix of the theme token a status is inked in: `input` is drawn in `--status-input`. */
+export type StatusTone = "input" | "working" | "failed" | "done" | "limited";
+
+export interface StatusKind {
+  readonly id: string;
+  /** Whether a thread reads as this kind; the registry asks in its order and the first yes wins. */
+  readonly is: (thread: ThreadStatusInput) => boolean;
+  /** No tone leaves the slot in the row's own ink. */
+  readonly tone?: StatusTone;
+  /** The colour utility the tone's token is registered as, written out whole so the stylesheet carries it. */
+  readonly ink?: string;
+  readonly glyph?: LucideIcon;
+  readonly word?: string;
+  /** A word read off the thread itself, the reset it goes on at say, standing where the fixed word would. */
+  readonly wordOf?: (thread: ThreadStatusInput, now: number) => string;
+  /** How long the latest turn has run is the slot's text and the time its tooltip adds to its word, ticking. */
+  readonly timed?: boolean;
+  /** The crab is its glyph. */
+  readonly crab?: boolean;
+  /** The thread's age is its time: the slot's only text for a kind with no glyph, the tooltip's beside the word for
+   * one with a glyph. */
+  readonly aged?: boolean;
+}

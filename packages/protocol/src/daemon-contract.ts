@@ -1,0 +1,403 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// What the daemon and every client of it read alike and neither may spell for
+// itself: the sentences a pane or a test matches on, the caps a client sees
+// hit, and the paths a deploy and a daemon both name. One home, so the daemon
+// that runs on a machine and the schemas here cannot drift, and so a second
+// daemon speaking this wire is held to the same words. The contract fixture
+// set under daemon/fixtures/contract is regenerated from these exports and
+// checked against them by the protocol's daemon-contract test.
+
+/** Where the daemon binds by default: every interface, since the previewUrl edge dials the guest's eth0 and
+ * loopback answers 502. A local run names loopback with --host so the firewall stays quiet. */
+export const DAEMON_DEFAULT_HOST = "0.0.0.0";
+export const DAEMON_DEFAULT_PORT = 7070;
+/** Where the daemon inside a machine keeps everything of its own: its token, its inbox, its manifest, its run
+ * and log folders and its roots file, every one of them under this folder. A workspace on a
+ * computer somebody joined has this folder of its own bound over the computer's, so two workspaces there never
+ * read or write each other's token and the computer's own daemon folder is not readable from inside at all. The
+ * names are the ones a daemon on a computer somebody joined uses under that computer's home, which
+ * placeDaemonPaths lays out and the contract test holds these to. */
+export const GUEST_WSP_HOME = "/root/.wsp";
+/** The one file the daemon reads its token from, at every auth frame; a guest is root's, so it sits under root's
+ * own wsp folder, where a workspace's is its own and not the computer's. */
+export const DAEMON_TOKEN_PATH = `${GUEST_WSP_HOME}/daemon-token`;
+export const GUEST_INBOX_DIR = `${GUEST_WSP_HOME}/inbox`;
+export const GUEST_MANIFEST_PATH = `${GUEST_WSP_HOME}/manifest.json`;
+/** BROWSER value and xdg-open target on the guest. A bare path: tools append the URL as the one argument, and
+ * the harness treats the literal "true" as its never-open sentinel. */
+export const OPEN_SHIM_PATH = "/usr/local/bin/wsp-open";
+export const XDG_OPEN_PATH = "/usr/local/bin/xdg-open";
+/** Where a root install keeps the AppArmor profile its workspaces run under: written and loaded by the host's
+ * deploy, unloaded by a remove, a leave and the daemon's own sweep, except where a joined add found one standing,
+ * which every one of those leaves as it was. */
+export const WSP_WORKSPACE_APPARMOR_PATH = "/etc/apparmor.d/wsp-workspace";
+/** The folder of wsp's own every manager installs under on a computer somebody owns, and the folder each command
+ * installed there is linked into. Once wsp is on a computer nothing but its own jobs writes under the prefix and no
+ * workspace writes either on the computer itself, so a leave run as root takes every link in that folder pointing
+ * under the prefix, then the prefix whole, and nothing else of either; a prefix the add found standing keeps every
+ * entry it held then, with the links into those. */
+export const TOOL_PREFIX = "/opt/wsp";
+/** Where the daemon of a computer somebody owns keeps everything its workspaces run on: their copies, their state,
+ * the project checkouts and the shared logins. A leave run as root takes it whole, and keeps it while anything is
+ * mounted under it, since a workspace still running there reads through those mounts. Where the add found it standing,
+ * the leave takes only what wsp made there: its `RUNTIME_FOLDERS` and the project folders the host's records name. */
+export const RUNTIME_ROOT = "/wsp";
+/** The folders of its own state the daemon makes under `RUNTIME_ROOT`, every one wsp's by its name. */
+export const RUNTIME_FOLDERS = ["check", "copies", "logins", "put", "run", "state"] as const;
+/** The folder under `RUNTIME_ROOT` the project checkouts of an older wsp sit in, one folder per project id: a folder
+ * there no record names may be the person's own. */
+export const RUNTIME_PROJECTS = "projects";
+/** Where cgroup v2 is mounted, and the two cgroups wsp makes under it: the workspaces' and the threads'. A leave run as
+ * root takes each once nothing stands in it. */
+export const CGROUP_MOUNT = "/sys/fs/cgroup";
+export const WORKSPACE_CGROUPS = "/wsp";
+export const THREAD_CGROUPS = "/wsp-threads";
+/** The refs an add's seed leaves on a checkout at the tip of the commits it carried over from the person's own folder:
+ * those commits are on that person's computer, so an unsaved read counts none of them as work a remove would lose. */
+export const SEEDED_REFS = "refs/wsp/seeded";
+export const TOOL_LINKS_DIR = "/usr/local/bin";
+/** The last entry of the record a joined add writes of what stood before it outside the home, and the most bytes
+ * that record may hold. A record that does not end on this entry was cut short and a leave reads it as none; a box
+ * whose listing passes the cap gets no record at all, and its leave takes nothing outside the home. */
+export const PLACE_FOUND_END = "wsp-found-end";
+export const PLACE_FOUND_MAX_BYTES = 32 * 1024 * 1024;
+/** The folder a provider's machine keeps the sockets it serves in, outside /root: a provider may mount the machine's
+ * own /root over the one the daemon started in, and a socket file a mount carries across answers no connect. */
+export const GUEST_SOCKET_DIR = "/run/wsp-daemon";
+/** Where the shim posts in the guest; root-only through the daemon's umask, unreachable from the edge. */
+export const OPEN_SOCKET_PATH = `${GUEST_SOCKET_DIR}/open.sock`;
+/** The socket a process inside a workspace on a computer somebody owns reaches its host over. The daemon of that
+ * computer binds one per workspace in that workspace's own wsp folder, which is bound over the folder above
+ * inside it, so the file is in that workspace's view and in no other's and nowhere on the computer's own. The file
+ * itself is the gate and no token rides this road; a fork has no such socket and dials the port instead. */
+export const GUEST_DAEMON_SOCKET_PATH = `${GUEST_WSP_HOME}/daemon.sock`;
+/** The two doors a machine whose credentials the host keeps serves on its own loopback, never on the public route:
+ * the HTTP door for model calls and git as its proxy, and the gh door gh reaches through its http_unix_socket. */
+export const BROKER_PORT = 7071;
+export const BROKER_SOCKET_PATH = `${GUEST_SOCKET_DIR}/broker.sock`;
+/** Idle pipes a daemon parks at once; one dialled past it is closed with PIPE_POOL_FULL. */
+export const PIPE_POOL_MAX = 64;
+/** The longest a local connection on a door waits for a pipe before it is closed: the host away an hour. */
+export const PIPE_HOLD_MAX_MS = 60 * 60 * 1_000;
+/** The whole of the wsp a machine carries at GUEST_WSP_PATH: two lines handing the line to the binary named, which
+ * opens a session on the daemon that serves this machine. The fork's deploy writes it onto the binary its bundle
+ * left, and the workspace runtime writes it into a workspace's own upper onto the init already bound inside; one
+ * text, so the word means the same thing on both roads. */
+export const guestWspShim = (binary: string): string => `#!/bin/sh\nexec ${binary} wsp "$@"\n`;
+
+/** The computer's own system directories a workspace on a computer somebody owns reads through an overlay of its
+ * own: its /usr is the box's /usr, and what it writes there the box does not have. A directory outside these and
+ * outside /root is in no workspace of that computer unless a shared tool root below brings it in. */
+export const WORKSPACE_OVERLAID = ["/usr", "/etc", "/opt", "/var", "/srv"] as const;
+/** Where Homebrew on Linux keeps its own user's home, and the prefix under it every formula is installed into. */
+export const HOMEBREW_HOME = "/home/linuxbrew";
+export const HOMEBREW_PREFIX = `${HOMEBREW_HOME}/.linuxbrew`;
+/** Every install root a road writes outside the overlaid trees and outside /root, bound read-only into a workspace
+ * on a computer somebody owns where that computer has it: a root left off this list is on the box and out of every
+ * workspace's sight while the PATH inside names it. The catalogue's own test holds every road to it. */
+export const SHARED_TOOL_ROOTS = [HOMEBREW_HOME] as const;
+/** Where pnpm puts what it installs globally on a machine; on the PATH below and in the login line the image writes. */
+export const PNPM_HOME = "/root/.local/share/pnpm";
+/** The one PATH the tools on a machine sit on, in one order: the login shell of a sealed image reads it from the
+ * profile the image writes, every thread and exec carries it, and a workspace on a computer somebody owns boots
+ * with it, so the boot's own children and a person's thread find the same gcc and the same gh. */
+export const TOOLS_PATH = `/root/.local/bin:/usr/local/sbin:/usr/local/bin:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/root/go/bin:/root/.cargo/bin:${PNPM_HOME}:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+
+/** The same directories in the order a workspace on a computer somebody owns reads them: the folders no process
+ * inside can write first, then the folders under the home every workspace there shares, then the computer's own
+ * system directories. That home is bound into every workspace read-write, so a file planted in it under the name
+ * of a tool the recipe installed would otherwise be what a sibling's thread, command and pane run; under this
+ * order the copy the recipe put under wsp's own prefix or under Homebrew's answers first. A machine wsp forked
+ * keeps TOOLS_PATH: its home is root's alone, nothing there shadows, and a sealed image keeps the order it was
+ * sealed with. */
+export const PLACE_WORKSPACE_PATH = `/usr/local/sbin:/usr/local/bin:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/root/.local/bin:/root/go/bin:/root/.cargo/bin:${PNPM_HOME}:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+
+/** Wire bytes a peer may send before its auth frame passes; an auth frame is under 200. */
+export const PRE_AUTH_MAX_BYTES = 4096;
+/** How long a fresh socket has to send its auth frame. */
+export const AUTH_DEADLINE_MS = 5_000;
+/** Laptop connections one socket may hold open through the forward at once. */
+export const TUNNEL_CAP = 64;
+/** How much of one file fs.read carries; the whole size travels beside it. */
+export const FS_READ_CAP_BYTES = 2 * 1024 * 1024;
+/** The most files one fs.hash hashes, the largest it reads, and the most paths one asks about: what an Always on a
+ * slate's command pins, on this computer and on the thread's own. */
+export const FS_HASH_FILES_MAX = 32;
+export const FS_HASH_CAP_BYTES = 4 * 1024 * 1024;
+export const FS_HASH_PATHS_MAX = 256;
+/** The longest public key line an ssh.start carries. */
+export const SSH_KEY_MAX = 1024;
+/** How long an editor's ssh server stands once its last session closed, before it and all it started is ended. */
+export const SSH_IDLE_MS = 5 * 60_000;
+/** The most one fs.write replaces a file with, the read cap's twin: a file a pane could not read whole it does not write. */
+export const FS_WRITE_CAP_BYTES = 2 * 1024 * 1024;
+/** Entries one fs.list carries; total counts the rest. */
+export const FS_LIST_CAP_ENTRIES = 10_000;
+/** Paths one fs.files carries; truncated says there were more. */
+export const FS_FILES_CAP_ENTRIES = 20_000;
+/** Open pull requests, and open issues, one git.prList asks its host for. */
+export const GIT_PR_LIST_CAP = 50;
+/** Characters of an item's body a git.prList carries. */
+export const GIT_PR_LIST_BODY_CAP = 4000;
+/** Lines of a failed job's log one git.runLog carries, counted from its end, where the failure is. */
+export const CHECK_LOG_LINES = 300;
+/** Paths one fs.search in files mode carries, and hits one in text mode carries; truncated says the walk stopped there. */
+export const FS_SEARCH_CAP_FILES = 5_000;
+export const FS_SEARCH_CAP_HITS = 500;
+/** Bytes of patch one git.diff carries across its files, cut at a line. */
+export const GIT_DIFF_CAP_BYTES = 2 * 1024 * 1024;
+/** Bytes of a pty's output kept for the next client to attach. */
+export const PTY_SCROLLBACK_CAP_BYTES = 256 * 1024;
+/** The first bytes of a process's command line in a snapshot row, whichever module read it: the whole of one can
+ * run to ARG_MAX and every row carries it. */
+export const PROC_CMDLINE_BYTES = 200;
+/** The first bytes of a listening port holder's command line, on the wire in every close; a cut argv ends with an ellipsis. */
+export const PORT_COMMAND_BYTES = 512;
+/** Rows one proc.snapshot carries at most; total counts what the machine had. */
+export const PROC_CAP = 1000;
+/** Linux pid_max ceiling: above it proc.inspect and proc.kill refuse alike as bad-request. */
+export const PID_MAX = 4_194_304;
+/** How many pids the host's protect and agents lists on proc.kill may each name. */
+export const KILL_PIDS_MAX = 256;
+/** How long proc.kill waits after TERM before it sends KILL to whatever of its targets is still there. */
+export const KILL_GRACE_MS = 2000;
+/** The desktop app's own data folder, beside the state file of the host it opens on, and the single-instance lock
+ * Electron keeps in it while the app runs: a link named for this computer and the app's main pid, which is how that
+ * host knows the app's processes whether or not a page watches them. */
+export const APP_DATA_FOLDER = "desktop";
+export const APP_LOCK_FILE = "SingletonLock";
+
+/** One guest message's JSON: a thread's whole transcript is the largest thing that rides the guest road. */
+export const GUEST_MESSAGE_CAP_BYTES = 4 * 1024 * 1024;
+/** Frames one guest session may hold while no watcher is attached: its guest's messages and its close, since the
+ * frame it opened with rides a field of its own and is named to every watcher that arrives. Past the cap the
+ * session is closed to the guest. */
+export const GUEST_QUEUE_CAP_FRAMES = 256;
+/** Guest bytes one workspace may have waiting at once, queued in its sessions and written onto the watcher's
+ * channel but not carried out of the socket yet. One count per workspace on a computer that runs them, and one for
+ * the daemon itself inside a machine, where a session names no workspace and every session shares it. A computer
+ * somebody joined counts the same way for the threads running on that computer itself: every one of them shares one
+ * count, as a machine's threads do. Four of one
+ * message's cap, so the largest honest thing on this road is never what fills it; a send past the cap is refused
+ * and its session stands. */
+export const GUEST_IN_FLIGHT_CAP_BYTES = 4 * GUEST_MESSAGE_CAP_BYTES;
+/** Guest sockets one workspace's door serves at once, and guest sessions one workspace holds at once, a session
+ * whose socket went and whose close is waiting for a watcher counted among them. The door of a workspace on a
+ * computer somebody owns needs no token, so what a process inside opens is what this bounds: past the cap a socket
+ * is closed with no hello and an open is refused, while the workspaces beside it and the host link stand. One
+ * count per workspace, and one for the daemon inside a machine, where a session names no workspace. The threads
+ * running on a computer somebody joined, outside any workspace, share one count and one door, as a machine's do. */
+export const GUEST_SESSIONS_PER_WORKSPACE_CAP = 64;
+/** The largest frame a workspace's door reads, in place of the ceiling every other socket is opened with: one
+ * guest message's cap and room for the envelope around it. A frame past this is refused by the framing before a
+ * byte of it is held or parsed, which is what makes the cap above worth having, since a frame becomes a message
+ * before any guest cap is read. */
+export const GUEST_FRAME_CAP_BYTES = GUEST_MESSAGE_CAP_BYTES + 64 * 1024;
+/** How long a guest session stands with nobody watching it. Every watcher that arrives is told the sessions the
+ * machine holds, so a host that restarted picks them back up; past this span nobody is coming and the session ends
+ * to its guest, rather than leaving the process inside the machine waiting for the life of the workspace. */
+export const GUEST_UNWATCHED_MS = 10 * 60 * 1_000;
+/** The four sentences a socket is closed 4401 with before its auth frame passes. */
+export const DAEMON_TOKEN_REFUSED = "daemon token refused; the host holds the current one";
+export const DAEMON_FIRST_FRAME_NOT_AUTH = "the first frame must be auth";
+export const DAEMON_PRE_AUTH_BYTES_EXCEEDED = "too many bytes before the auth frame";
+export const DAEMON_AUTH_DEADLINE_PASSED = "no auth frame arrived in time";
+/** What a socket already through the door is cut with once the token it authed with is no longer the file's: a
+ * rotation takes the sockets the old token opened with it, rather than leaving them answering for the life of the
+ * connection. Under the same close code the four above travel with. */
+export const DAEMON_TOKEN_ROTATED = "the daemon token was rotated; dial again with the current one";
+/** What a pipe dialled past PIPE_POOL_MAX is closed with. */
+export const PIPE_POOL_FULL = "pipe pool full";
+/** Whether a daemon's close refused the token, rather than cutting a socket whose auth frame came late: every daemon
+ * closes both 4401, and a host that stood still past the deadline holds a token the daemon never read. */
+export const daemonRefusedToken = (code: number, reason: string): boolean => code === 4401 && reason !== DAEMON_AUTH_DEADLINE_PASSED;
+/** The reply to a frame that is not JSON, with a null id since none could be read. */
+export const DAEMON_INVALID_JSON = "invalid json";
+/** Why a daemon started with an empty token file refuses to start at all. */
+export const DAEMON_NO_TOKEN = "daemon refuses to start without an auth token";
+export const unknownOpLine = (op: string): string => `unknown op: ${op}`;
+/** What a create is refused with on a computer with no room for another workspace, the daemon's room check and the
+ * Mac's copy road alike: what the kernel says is free, what the workspace needs, and the awake one to stop where
+ * there is one. */
+export const boxFullLine = (needMb: number | string, freeMb: number | string, quietest?: { name: string; quietMin: number | string }): string =>
+  quietest === undefined
+    ? `this computer has ${freeMb} MB free and a workspace needs ${needMb} MB, and no workspace of yours is awake to stop: what is holding it is the computer's own work`
+    : `this computer has ${freeMb} MB free and a workspace needs ${needMb} MB; stop ${quietest.name}, quiet for ${quietest.quietMin} min, to make room`;
+/** What one workspace may take of a computer's memory, the rule of daemon/crates/wsp-runtime/src/size.rs: a third,
+ * never the last gigabyte, and never under a gigabyte. The room check holds a create to it. */
+export const workspaceMemMb = (totalMb: number): number => Math.max(1024, Math.min(Math.floor(totalMb / 3), totalMb - 1024));
+/** The refusal every op but tunnel ops on the scoped port and ping gets on a socket whose auth frame named a port. */
+export const portScopeRefusal = (port: number | string): string => `this socket is scoped to port ${port}: only tunnel ops on it and ping are allowed`;
+/** Directories a machine recreates, by exact name: installs, build output and tool caches. A directory is a cache only
+ * when its whole name is on this list; a file never is, whatever its name, since a source file called lruCache.ts is
+ * source. The list is spelled once here and read by the local walk, the guest's find and a box's repos listing. */
+export const CACHE_DIRS: ReadonlySet<string> = new Set([
+  "node_modules",
+  ".pnpm-store",
+  "venv",
+  ".venv",
+  "virtenv",
+  "site-packages",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".tox",
+  "dist",
+  "build",
+  "out",
+  "target",
+  "coverage",
+  ".cache",
+  ".parcel-cache",
+  ".next",
+  ".nuxt",
+  ".turbo",
+  ".gradle",
+]);
+/** How deep under a root a repos listing looks, and how many repos it stops at: a repo deeper than this or past the
+ * cap is reached by walking or by typing its path. One rule for this computer's listing and a box's daemon's. */
+export const REPO_DEPTH = 5;
+export const REPO_CAP = 400;
+/** What a folder listing outside every root it browses is refused with, naming the roots it does browse. The
+ * daemon of a computer somebody owns says it of that computer; the host lists its own and says it of this one. */
+export const foldersOutsideLine = (dir: string, roots: string, on = "that computer"): string => `${dir} is outside the folders wsp browses on ${on}: ${roots}`;
+/** The one line the daemon prints on stdout once it is bound; whoever started it reads the port off this. */
+export const daemonListeningLine = (host: string, port: number | string): string => `wsp-daemon listening on ${host}:${port}`;
+
+/** How often a daemon samples the machine it runs on for sys.watch and proc.watch, and so how long after the reply
+ * to a watch its first sample lands. The node daemon's two samplers default to it, and the Rust daemon's own
+ * SAMPLER_INTERVAL_MS is held equal to it by the contract fixture set. A client waiting on a first reading waits
+ * two of these, since a box under load slips a tick and one interval would be a race with the daemon on every
+ * reading. */
+export const DAEMON_SAMPLER_INTERVAL_MS = 2_000;
+
+/** How often a running process sampler reads the processes after its first snapshot, so the most a list it answers
+ * can lag the processes as they are. The Rust daemon's PROC_INTERVAL_MS, held equal by the contract fixture set. */
+export const DAEMON_PROC_INTERVAL_MS = 2_000;
+
+/** The sampler lines the daemon logs: one sampler serves every watcher, starts with the first and stops with the
+ * last, and these two pairs are how a test reads that without a counter inside the daemon. */
+export const SYS_SAMPLER_STARTED = "sys sampler started";
+export const SYS_SAMPLER_STOPPED = "sys sampler stopped";
+export const PROC_SAMPLER_STARTED = "proc sampler started";
+export const PROC_SAMPLER_STOPPED = "proc sampler stopped";
+
+/** What the link a place holds to its host logs, one line per turn of its state. */
+export const NO_PLACE_FILE_LINE = "no place file here, so there is no host to dial; wsp join <address> --code <code> makes this computer a place";
+export const linkedLine = (url: string): string => `linked to the host at ${url}`;
+export const hostQuietLine = (url: string, seconds: number | string): string => `the host at ${url} sent nothing for ${seconds}s; cutting the link and dialling again`;
+export const dialUnansweredLine = (url: string): string => `${url} did not answer the dial`;
+export const dialTimedOutLine = (url: string, seconds: number | string): string => `${url} did not answer in ${seconds}s`;
+export const dialFailedLine = (url: string, error: string): string => `${url} could not be dialled: ${error}`;
+export const notAFrameLine = (url: string): string => `${url} sent something that is not a frame`;
+export const authUnreadableLine = (url: string, error: string): string => `${url} answered place.auth with something this computer cannot read: ${error}`;
+export const hostRefusedLine = (url: string, refusal: string): string => `${url}: ${refusal}`;
+/** What a host that answered the handshake with no key agreement of its own is passed over with: it runs a wsp
+ * older than this one, and a link neither end can seal is one this computer does not hold. */
+export const linkHostUnsealedLine = (url: string): string => `the host at ${url} agreed no key for this link; it runs an older wsp`;
+/** What an address that answered something the handshake's order does not allow is passed over with: the id a frame
+ * carries says nothing about who sent it, so the order is the only thing a place holds a host to before the key. */
+export const linkOutOfOrderLine = (url: string): string => `${url} answered out of order; nothing was sent to it and the next address is tried`;
+
+/** What a socket that never asked to watch guest sessions is told when it answers or ends one. */
+export const GUEST_NOT_WATCHER = "only the socket that sent guest.watch may answer or close a guest session";
+/** Why a session with nobody reading it is ended: the host has been away past the queue's cap. */
+export const GUEST_QUEUE_FULL = "the host has not read this session for too long";
+/** Why a guest message is refused where its workspace already has the cap's worth of bytes waiting to be read: the
+ * frame is turned away and the session stands, so a sender whose host is reading slowly goes on. */
+export const GUEST_IN_FLIGHT_FULL = "too many guest bytes are waiting to be read here; send this one again";
+/** Why an open is refused where this workspace already holds as many sessions as it may: the sessions standing are
+ * the ones a host is still reading, so the one asking is told to end one of its own rather than the workspace
+ * losing them all. */
+export const GUEST_WORKSPACE_FULL = "this folder already holds as many guest sessions as it may; end one and run it again";
+/** Why a session is ended once nobody has watched it for a whole span: the guest prints this and exits, so the
+ * agent that ran the line can run it again against a host that is there. */
+export const GUEST_UNWATCHED = "the host stopped watching; run it again";
+/** Why one path a leave would have taken is still there: a folder on the way to it under the home is a link, and a
+ * workspace on a computer somebody owns writes in that home, so following it would take the computer's own file of
+ * that name. Said on both roads a leave runs on, and pinned to one text by the contract fixture. */
+export const placeKeptForLinkLine = (path: string): string => `nothing was removed at ${path}: a folder on the way to it is a link`;
+/** What a leave says it took out of a person's own login file: wsp's lines there, and the file. Said on both roads a
+ * leave runs on, and pinned to one text by the contract fixture. */
+export const placeLineOutLine = (lines: string, file: string): string => `${lines} (out of ${file})`;
+/** What a leave says of wsp's lines it left in a person's own login file, and why. Said on both roads a leave runs
+ * on, and pinned to one text by the contract fixture. */
+export const placeLineStaysLine = (lines: string, file: string, why: string): string => `${lines} stays in ${file}: ${why}`;
+/** The most of a person's own login file a leave reads, far past any real one: the file sits in a home a workspace
+ * writes, and a leave runs as root. */
+export const LOGIN_READ_MAX_BYTES = 1024 * 1024;
+/** The most of the place file or its key a read takes, far past the few hundred bytes a join writes: both sit in a
+ * home a workspace writes, read by the host's leave and at every one of the daemon's dials. */
+export const PLACE_READ_MAX_BYTES = 64 * 1024;
+/** Why a leave left a login file unread. */
+export const PLACE_LOGIN_PAST_CAP = "it is over 1 MiB, more than a leave reads of a login file";
+/** Why wsp left a person's own login file as it was, on every road that writes wsp's line or takes it out: a write
+ * through a link or a second name would land, as root, in a file elsewhere, and one to a fifo waits for good. */
+export const PLACE_LOGIN_LINKED = "it is a link, has a second name or is not a plain file, and wsp writes through none of those in a login file";
+/** What a leave says of a login file it did not read, since no plain file stands there. Said on both roads a leave
+ * runs on, and pinned to one text by the contract fixture. */
+export const placeLoginUnreadLine = (file: string): string => `wsp's line was not looked for in ${file}: ${PLACE_LOGIN_LINKED}`;
+/** Why wsp's install folder is still there after a leave: the list in it of what the setup wrote outside the home
+ * still has lines, which only a leave cut short leaves, and the folder holds that list for a leave that finishes.
+ * Said on both roads a leave runs on, and pinned to one text by the contract fixture. */
+export const placeOutsideLeftLine = (prefix: string): string => `nothing was removed at ${prefix}: the leave did not finish taking what the setup wrote outside the home, which ${prefix}/landed still lists`;
+/** Why the runtime's folder is still there after a leave: something is mounted under it, which only a workspace still
+ * running there holds, and taking the folder would reach through that mount. Said on both roads a leave runs on, and
+ * pinned to one text by the contract fixture. */
+export const placeKeptMountedLine = (path: string, mount: string): string => `nothing was removed at ${path}: ${mount} is mounted under it; stop what runs there and leave again`;
+/** Why the runtime's folder is still there after a leave: the mount table could not be read, so whether a workspace
+ * still running there reads through a mount under it is not known. Said on both roads a leave runs on, and pinned to
+ * one text by the contract fixture. */
+export const placeKeptMountsUnreadLine = (path: string, why: string): string => `nothing was removed at ${path}: the mount table could not be read (${why}), so what is mounted under it is not known`;
+/** Why the runtime's folder is still there after a leave that tried to take it: something in it would not go. Said on
+ * both roads a leave runs on, and pinned to one text by the contract fixture. */
+export const placeRuntimeStandsLine = (path: string): string => `${path} still stands: the leave could not remove all of it; remove what is left there by hand`;
+/** Why a cgroup wsp made is still there after a leave: a process still stands in it or under it, and the leave ends
+ * none. Said on both roads a leave runs on, and pinned to one text by the contract fixture. */
+export const placeCgroupStandsLine = (path: string): string => `${path} still stands: a process is still in it; end it and remove the cgroup by hand`;
+/** Why a leave stopped before it removed anything: checkouts under the runtime's folder hold work no remote has, one
+ * line each as the daemon's read names them. Said on both roads a leave runs on, and pinned to one text by the
+ * contract fixture. */
+export const placeLeaveUnsavedLine = (lines: readonly string[]): string => `nothing was removed: ${lines.join("; ")}; that work is on this computer alone`;
+/** A checkout or a workspace under the runtime's folder a leave could not read at all. Said on both roads a leave runs
+ * on, and pinned to one text by the contract fixture. */
+export const placeUnreadLine = (path: string): string => `${path}: could not read what is not pushed`;
+/** What a discard or a commit naming a file git sees no change in is refused with, by the daemon and by the host's own
+ * read before a question is asked. */
+export const noChangeLine = (path: string): string => `${path} has no change`;
+/** Why a path outside the home a leave would have taken is still there: it stood before wsp was added, as the add
+ * wrote down, so it is the computer's own. Said on both roads a leave runs on, and pinned to one text by the
+ * contract fixture. */
+export const placeStoodBeforeLine = (path: string): string => `${path} stays: it was there before wsp was added`;
+/** Why a leave took nothing at the paths outside the home it would have: no whole record says what stood there before
+ * wsp was added, so they may be the computer's own. Said on both roads a leave runs on, and pinned to one text by the
+ * contract fixture. */
+export const placeOwnersUnknownLine = (paths: readonly string[]): string =>
+  `nothing was removed at ${paths.join(" or ")}: no whole record says what stood there before wsp was added, so it may be this computer's own; remove what wsp put there by hand`;
+/** What a line reads when the host's socket went while it was waiting on an answer, and what the wsp command's
+ * forwarder answers each request still waiting then. */
+export const HOST_CLOSED_LINE = "the host closed the connection";
+/** What a guest process prints when nothing answers on its own machine's daemon port. */
+export const guestNoDaemonLine = (port: number | string): string => `this machine's wsp daemon is not answering on 127.0.0.1:${port}`;
+
+/** What a bring back on the branch the work started from is refused with: wsp makes no branch and pushes no base,
+ * so the commits move onto a branch of their own first. */
+export const onBaseRefusal = (base: string): string =>
+  `this workspace is on ${base}, the branch it started from; move the commits onto a branch of their own and bring back again`;
+/** What a bring back in a checkout that is on no branch at all is refused with. */
+export const NOT_ON_A_BRANCH = "this workspace is not on a branch, so there is nothing to bring back yet";
+/** What a bring back of a branch the base already holds every commit of is refused with. */
+export const nothingAheadLine = (branch: string, base: string): string => `${branch} has no commits that ${base} lacks, so there is nothing to bring back`;
+/** What a bring back in a checkout with nowhere to push is refused with. */
+export const NO_REMOTE = "this project has no remote to push to";
+/** What the pull request is answered with where the git host's own command line is not on the machine: the push
+ * stands, so the bring back carries this beside it as a note rather than failing. */
+export const noHostCliLine = (host: string): string => `no signed-in command line for ${host} is on this computer; the branch is pushed and the pull request waits for one`;
+/** What a push git refused for want of an https credential is refused with: nothing reached the remote, so this is
+ * the bring back's own refusal and not a note beside a landed push. The fix is the git host's own to name, since
+ * only that host's module knows which command signs its command line in, and a host wsp knows no module for gets
+ * the sentence with no fix in it rather than a command that would do nothing there. */
+export const noGitCredentialLine = (host: string, fix?: string): string =>
+  `this computer has no git credential for ${host}, so nothing was pushed${fix === undefined ? "" : `; ${fix}, then bring back again`}`;
+

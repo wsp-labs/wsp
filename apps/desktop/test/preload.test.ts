@@ -1,0 +1,206 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The bridge the preload hands the page, and the channel each of its calls
+// rides. The page reads this contract through @wsp/protocol's DesktopBridge,
+// so a name that drifts here is a switcher card with no picture on it.
+import type { DesktopBridge } from "@wsp/protocol";
+import { describe, expect, it, vi } from "vitest";
+
+const invoke = vi.fn(async () => undefined);
+const send = vi.fn();
+const sendSync = vi.fn(() => false);
+const on = vi.fn();
+const off = vi.fn();
+const exposeInMainWorld = vi.fn();
+const executeInMainWorld = vi.fn();
+const DROPPED = "/Users/me/Projects/spoo";
+vi.mock("electron", () => ({ contextBridge: { exposeInMainWorld, executeInMainWorld }, ipcRenderer: { invoke, send, sendSync, on, off }, webUtils: { getPathForFile: () => DROPPED } }));
+
+// The preload reads the renderer's argv as its module body runs, which is the first import below.
+process.argv.push("--wsp-version=0.1.7", "--wsp-bundle-hover=Downloads the AppImage.", "--wsp-update-in-place=1");
+
+async function bridge(): Promise<DesktopBridge> {
+  await import("../src/preload.js");
+  expect(exposeInMainWorld).toHaveBeenCalledOnce();
+  const [name, exposed] = exposeInMainWorld.mock.calls[0]!;
+  expect(name).toBe("wsp");
+  return exposed as DesktopBridge;
+}
+
+describe("the preload's bridge", () => {
+  it("carries the release this shell is, so a page from a host of another one can say which half is behind", async () => {
+    expect((await bridge()).version).toBe("0.1.7");
+  });
+
+  it("carries the words over Get that the shell's platform row gives", async () => {
+    expect((await bridge()).bundleHover).toBe("Downloads the AppImage.");
+  });
+
+  it("carries whether the shell replaces itself, and no reason it cannot where it can", async () => {
+    expect((await bridge()).updatesInPlace).toBe(true);
+    expect((await bridge()).updateWhy).toBeUndefined();
+  });
+
+  it("carries the picture calls the switcher's cards need, each on its own channel", async () => {
+    const wsp = await bridge();
+    await wsp.capturePreview("ws_a");
+    expect(invoke).toHaveBeenLastCalledWith("preview:capture", "ws_a", false);
+    await wsp.capturePreview("ws_a", true);
+    expect(invoke).toHaveBeenLastCalledWith("preview:capture", "ws_a", true);
+    await wsp.workspacePreview("ws_b");
+    expect(invoke).toHaveBeenLastCalledWith("preview:read", "ws_b");
+    await wsp.localFonts("Berkeley Mono");
+    expect(invoke).toHaveBeenLastCalledWith("fonts:local", "Berkeley Mono");
+    await wsp.fontFamilies();
+    expect(invoke).toHaveBeenLastCalledWith("fonts:families");
+    await wsp.pickFolder();
+    expect(invoke).toHaveBeenLastCalledWith("folder:pick");
+  });
+
+  it("carries the first launch's calls, each on its own channel", async () => {
+    const wsp = (await bridge()) as DesktopBridge & { agents(): Promise<unknown>; install(ids: string[]): Promise<unknown>; finish(): Promise<void> };
+    await wsp.agents();
+    expect(invoke).toHaveBeenLastCalledWith("onboarding:agents");
+    await wsp.install(["claude", "codex"]);
+    expect(invoke).toHaveBeenLastCalledWith("onboarding:install", ["claude", "codex"]);
+    await wsp.finish();
+    expect(invoke).toHaveBeenLastCalledWith("onboarding:finish");
+  });
+
+  it("carries the release's download, the restart into it and Later's delete, each on its own channel", async () => {
+    const wsp = await bridge();
+    await wsp.getBundle({ version: "0.3.0" });
+    expect(invoke).toHaveBeenLastCalledWith("bundle:get", { version: "0.3.0" });
+    await wsp.quitAndOpen();
+    expect(invoke).toHaveBeenLastCalledWith("bundle:open");
+    await wsp.discardUpdate();
+    expect(invoke).toHaveBeenLastCalledWith("bundle:discard");
+  });
+
+  it("opens the logs folder on its own channel", async () => {
+    const wsp = await bridge();
+    await wsp.openLogs?.();
+    expect(invoke).toHaveBeenLastCalledWith("logs:open");
+  });
+
+  it("listens in the page's own world, where the page's throws are heard, and sends each uncaught error and rejection to the log with the route", async () => {
+    await bridge();
+    expect(executeInMainWorld).toHaveBeenCalledOnce();
+    const { func, args } = executeInMainWorld.mock.calls[0]![0] as { func: (...a: unknown[]) => void; args: unknown[] };
+    const heard = new Map<string, (e: unknown) => void>();
+    vi.stubGlobal("addEventListener", (type: string, listener: (e: unknown) => void) => heard.set(type, listener));
+    vi.stubGlobal("location", { pathname: "/", hash: "#/settings/general" });
+    try {
+      // The function crosses into the page's world as its source alone, so it is run from that source here.
+      new Function(`return (${func.toString()})`)()(...args);
+      const thrown = new Error("forced renderer error");
+      heard.get("error")!({ message: "Uncaught Error: forced renderer error", error: thrown });
+      expect(send).toHaveBeenLastCalledWith("log:renderer", { kind: "error", message: "Uncaught Error: forced renderer error", stack: thrown.stack, route: "/#/settings/general" });
+      heard.get("unhandledrejection")!({ reason: "a string, not an Error" });
+      expect(send).toHaveBeenLastCalledWith("log:renderer", { kind: "rejection", message: "a string, not an Error", stack: "", route: "/#/settings/general" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("asks the shell before it hands over the path of a dropped file, and answers nothing when that is refused", async () => {
+    const wsp = await bridge();
+    const dropped = {} as File;
+    sendSync.mockReturnValueOnce(true);
+    expect(wsp.droppedPath(dropped)).toBe(DROPPED);
+    expect(sendSync).toHaveBeenLastCalledWith("drop:allowed");
+    sendSync.mockReturnValueOnce(false);
+    expect(wsp.droppedPath(dropped)).toBeUndefined();
+  });
+
+  it("hands the shell the header's ground and ink in #rrggbb, resolved off the page's tokens, and nothing when either cannot be painted", async () => {
+    const wsp = await bridge();
+    // The page's tokens as a probe resolves them, and a canvas that paints two spellings, as the renderer paints every
+    // one; anything else leaves the fill as it was.
+    const tokens: Record<string, string> = { "var(--titlebar-ground, transparent)": "oklch(0.145 0 none)", "var(--titlebar-ink, transparent)": "rgb(200, 203, 212)" };
+    const painted: Record<string, number[]> = { "oklch(0.145 0 none)": [10, 10, 10, 255], "rgb(200, 203, 212)": [200, 203, 212, 255], transparent: [0, 0, 0, 0] };
+    let fill = "#000000";
+    const pen = {
+      set fillStyle(value: string) {
+        if (value in painted) fill = value;
+      },
+      fillRect: () => {},
+      getImageData: () => ({ data: painted[fill] ?? [0, 0, 0, 255] }),
+    };
+    const probe = { style: { color: "" }, remove: () => {} };
+    vi.stubGlobal("document", { createElement: (tag: string) => (tag === "canvas" ? { getContext: () => pen } : probe), documentElement: { append: () => {} } });
+    vi.stubGlobal("getComputedStyle", (el: typeof probe) => ({ color: tokens[el.style.color] ?? "transparent" }));
+    try {
+      send.mockClear();
+      wsp.setTitleBar();
+      expect(send).toHaveBeenLastCalledWith("titlebar:set", { color: "#0a0a0a", symbolColor: "#c8cbd4" });
+      send.mockClear();
+      delete tokens["var(--titlebar-ink, transparent)"];
+      wsp.setTitleBar();
+      expect(send).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("says when a terminal has focus and hands back the chords the shell stood aside from, unsubscribing with the same listener", async () => {
+    const wsp = await bridge();
+    wsp.setTerminalFocus(true);
+    expect(send).toHaveBeenLastCalledWith("terminal:focus", true);
+    wsp.setTheme("light");
+    expect(send).toHaveBeenLastCalledWith("theme:set", "light");
+    wsp.setGlass(false);
+    expect(send).toHaveBeenLastCalledWith("glass:set", false);
+    const chords: unknown[] = [];
+    const stop = wsp.onShellChord(chord => chords.push(chord));
+    expect(on).toHaveBeenLastCalledWith("shell:chord", expect.any(Function));
+    const listen = on.mock.calls.at(-1)![1] as (event: unknown, chord: unknown) => void;
+    listen(null, { key: "=", code: "Equal", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false });
+    expect(chords).toEqual([{ key: "=", code: "Equal", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }]);
+    stop();
+    expect(off).toHaveBeenLastCalledWith("shell:chord", listen);
+  });
+
+  it("hands over a line to say outside the app and the dock's count, and takes the click back, unsubscribing with the same listener", async () => {
+    const wsp = await bridge();
+    wsp.sayOutside({ title: "wsp needs you", body: "sign in to GitHub CLI login", show: true, sound: false });
+    expect(send).toHaveBeenLastCalledWith("outside:say", { title: "wsp needs you", body: "sign in to GitHub CLI login", show: true, sound: false });
+    wsp.setBadge(2);
+    expect(send).toHaveBeenLastCalledWith("badge:set", 2);
+    void wsp.loginStart();
+    expect(invoke).toHaveBeenLastCalledWith("service:login");
+    void wsp.setLoginStart(false);
+    expect(invoke).toHaveBeenLastCalledWith("service:login-set", false);
+    let opened = 0;
+    const stop = wsp.onNeedsYouOpen(() => (opened += 1));
+    expect(on).toHaveBeenLastCalledWith("needs-you:open", expect.any(Function));
+    const listen = on.mock.calls.at(-1)![1] as (event: unknown) => void;
+    listen(null);
+    expect(opened).toBe(1);
+    stop();
+    expect(off).toHaveBeenLastCalledWith("needs-you:open", listen);
+  });
+
+  it("hands the page what a wsp:// link names on its own channel, unsubscribing with the same listener", async () => {
+    const wsp = await bridge();
+    const opened: unknown[] = [];
+    const stop = wsp.onOpen(target => opened.push(target));
+    expect(on).toHaveBeenLastCalledWith("shell:open", expect.any(Function));
+    const listen = on.mock.calls.at(-1)![1] as (event: unknown, target: unknown) => void;
+    listen(null, { kind: "thread", id: "th_9f3a" });
+    expect(opened).toEqual([{ kind: "thread", id: "th_9f3a" }]);
+    stop();
+    expect(off).toHaveBeenLastCalledWith("shell:open", listen);
+  });
+});
+
+describe("the hosts the window can move between", () => {
+  it("carries the token, the list and the switch on their own channels", async () => {
+    const wsp = await bridge();
+    await wsp.hostToken();
+    expect(invoke).toHaveBeenLastCalledWith("hosts:token");
+    await wsp.hosts();
+    expect(invoke).toHaveBeenLastCalledWith("hosts:list");
+    await wsp.switchHost("box");
+    expect(invoke).toHaveBeenLastCalledWith("hosts:switch", "box");
+  });
+});

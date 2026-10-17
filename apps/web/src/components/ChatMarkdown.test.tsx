@@ -1,0 +1,324 @@
+// Adapted from pingdotgg/t3code apps/web/src/components/ChatMarkdown.test.tsx at 57a66608 (MIT).
+// Differs from upstream: only the three orderedListGutterStyle cases are upstream's; the rest of the file is wsp's own, under the license below.
+// SPDX-License-Identifier: AGPL-3.0-only
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
+import ChatMarkdown, { hasMath, orderedListGutterStyle } from "./ChatMarkdown";
+import { namesAnAddress } from "./chat/MermaidBlock";
+import { getSyntaxHighlighterPromise } from "../lib/syntaxHighlighting";
+
+beforeAll(() => {
+  if (typeof globalThis.ResizeObserver === "undefined") {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  }
+});
+
+describe("ChatMarkdown", () => {
+  it("renders emphasis through the markdown pipeline", () => {
+    const { container } = render(
+      <ChatMarkdown text="Some **bold** text" cwd="/tmp/project" resolvedTheme="dark" />,
+    );
+
+    const strong = container.querySelector("strong");
+    expect(strong).not.toBeNull();
+    expect(strong?.textContent).toBe("bold");
+  });
+
+  it("highlights a fenced code block once the highlighter resolves", async () => {
+    // The highlighter resolves outside React's act scope; settle it inside one
+    // so the Suspense retry commits before asserting.
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ChatMarkdown
+          text={"```ts\nconst answer: number = 42;\n```"}
+          cwd="/tmp/project"
+          resolvedTheme="dark"
+        />,
+      ));
+    });
+    expect(container.querySelector(".chat-markdown-codeblock")).not.toBeNull();
+    await act(async () => {
+      await getSyntaxHighlighterPromise("ts");
+    });
+    await waitFor(
+      () => {
+        const shiki = container.querySelector(".chat-markdown-shiki");
+        expect(shiki).not.toBeNull();
+        expect(shiki?.innerHTML).toContain('<span style="color:');
+      },
+      { timeout: 20_000 },
+    );
+  }, 30_000);
+
+  it.each(["light", "dark"] as const)("draws a one-line fenced block's line in the %s theme, in ink the block is not", async theme => {
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <ChatMarkdown text={"hello.txt says:\n\n```text\nbanana\n```"} cwd="/tmp/project" resolvedTheme={theme} />,
+      ));
+    });
+    await act(async () => {
+      await getSyntaxHighlighterPromise("text");
+    });
+    await waitFor(() => expect(container.querySelector(".chat-markdown-shiki .line")).not.toBeNull(), { timeout: 20_000 });
+
+    // The line is drawn, and it is drawn for the side the block is being shown on: a block highlighted for the
+    // other side draws its one line in the ink the box's own ground is, which reads as an empty box.
+    const pre = container.querySelector<HTMLElement>(".chat-markdown-shiki .shiki")!;
+    expect(container.querySelector(".chat-markdown-shiki .line")?.textContent).toBe("banana");
+    expect(pre.className).toContain(theme === "dark" ? "pierre-dark" : "pierre-light");
+    expect(pre.style.color).not.toBe("");
+    expect(pre.style.color).not.toBe(pre.style.backgroundColor);
+  }, 30_000);
+
+  it("colours a cold line fully even when the tokenizer runs slowly", async () => {
+    await act(async () => {
+      await getSyntaxHighlighterPromise("tsx");
+    });
+    // vscode-textmate reads Date.now to cut a line at shiki's 500 ms limit; a clock that jumps a second per read is a starved main thread.
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => (now += 1000));
+    try {
+      let container!: HTMLElement;
+      await act(async () => {
+        ({ container } = render(
+          <ChatMarkdown
+            text={'```tsx\nconst el = <div className="x">{count}</div>;\n```'}
+            cwd="/tmp/project"
+            resolvedTheme="dark"
+          />,
+        ));
+      });
+      await waitFor(
+        () => expect(container.querySelector(".chat-markdown-shiki")).not.toBeNull(),
+        { timeout: 20_000 },
+      );
+      const line = container.querySelector(".chat-markdown-shiki .line");
+      expect(line?.textContent).toBe('const el = <div className="x">{count}</div>;');
+      expect(line?.querySelectorAll("span[style]").length).toBeGreaterThan(3);
+    } finally {
+      clock.mockRestore();
+    }
+  }, 30_000);
+
+  it("opens external links in a new tab", () => {
+    const { container } = render(
+      <ChatMarkdown text="See [link](https://example.com)" cwd="/tmp/project" resolvedTheme="light" />,
+    );
+
+    const anchor = container.querySelector("a");
+    expect(anchor?.getAttribute("href")).toBe("https://example.com");
+    expect(anchor?.getAttribute("target")).toBe("_blank");
+    expect(anchor?.textContent).toBe("link");
+  });
+
+  it("leads a web link with the app's own glyph and draws no image that would ask a third party for the host", () => {
+    const { container } = render(
+      <ChatMarkdown
+        text={"See [the readme](https://raw.githubusercontent.com/acme/lab/main/README.md), https://build.internal:8080/logs and <http://example.com>."}
+        cwd="/tmp/project"
+        resolvedTheme="dark"
+      />,
+    );
+    const anchors = [...container.querySelectorAll("a")];
+    expect(anchors.map(a => a.getAttribute("href"))).toEqual(["https://raw.githubusercontent.com/acme/lab/main/README.md", "https://build.internal:8080/logs", "http://example.com"]);
+    expect([...container.querySelectorAll("img")].map(i => i.getAttribute("src"))).toEqual([]);
+    for (const a of anchors) expect(a.querySelector("svg.lucide-globe"), a.textContent ?? "").not.toBeNull();
+  });
+
+  it("scrolls to a heading a reply links to and leaves the page's address alone", () => {
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+    window.history.replaceState(null, "", "/#w/ws_a/t/thr_1");
+    const { container } = render(
+      <ChatMarkdown text={'<h2 id="the-plan">The plan</h2>\n\n[jump](#the-plan)'} cwd="/tmp/project" resolvedTheme="light" />,
+    );
+
+    const anchor = container.querySelector("a")!;
+    expect(anchor.getAttribute("href")).toBe("#the-plan");
+    fireEvent.click(anchor);
+    expect(scrolled).toHaveBeenCalled();
+    // The address names the thread the person is reading; a fragment written over it would cost them that on a reload.
+    expect(window.location.hash).toBe("#w/ws_a/t/thr_1");
+    scrolled.mockRestore();
+  });
+
+  it("reports task list toggles with the marker offset", () => {
+    const onTaskListChange = vi.fn();
+    render(
+      <ChatMarkdown
+        text={"- [ ] first\n- [x] second"}
+        cwd="/tmp/project"
+        resolvedTheme="light"
+        onTaskListChange={onTaskListChange}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes).toHaveLength(2);
+    fireEvent.click(checkboxes[0]!);
+    expect(onTaskListChange).toHaveBeenCalledWith({ markerOffset: 2, checked: true });
+    fireEvent.click(checkboxes[1]!);
+    expect(onTaskListChange).toHaveBeenCalledWith({ markerOffset: 14, checked: false });
+  });
+
+  it("turns single newlines into hard breaks when lineBreaks is set", () => {
+    const { container: withBreaks } = render(
+      <ChatMarkdown text={"line one\nline two"} cwd="/tmp/project" resolvedTheme="light" lineBreaks />,
+    );
+    const { container: withoutBreaks } = render(
+      <ChatMarkdown text={"line one\nline two"} cwd="/tmp/project" resolvedTheme="light" />,
+    );
+
+    expect(withBreaks.querySelector("br")).not.toBeNull();
+    expect(withoutBreaks.querySelector("br")).toBeNull();
+  });
+
+  it("renders a file link as a button that opens the file when a handler is given", () => {
+    const onOpenFile = vi.fn();
+    render(
+      <ChatMarkdown
+        text="[Source](/tmp/project/src/main.ts#L12)"
+        cwd="/tmp/project"
+        resolvedTheme="light"
+        onOpenFile={onOpenFile}
+      />,
+    );
+
+    const chip = screen.getByRole("button", { name: /main\.ts/ });
+    fireEvent.click(chip);
+    expect(onOpenFile).toHaveBeenCalledWith("src/main.ts", 12);
+  });
+
+  it("renders a file link as an inert chip without a handler", () => {
+    const { container } = render(
+      <ChatMarkdown
+        text="[Source](/tmp/project/src/main.ts)"
+        cwd="/tmp/project"
+        resolvedTheme="light"
+      />,
+    );
+
+    const chip = container.querySelector(".chat-markdown-file-link");
+    expect(chip?.tagName).toBe("SPAN");
+    expect(chip?.textContent).toContain("main.ts");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("math and diagrams", () => {
+  it("finds math by Pandoc's rules, so prices stay prose", () => {
+    expect(hasMath("It costs $3 to $5 a month")).toBe(false);
+    expect(hasMath("a $ 5 $ gap")).toBe(false);
+    expect(hasMath("$$E=mc^2$$")).toBe(true);
+    expect(hasMath("where $x^2$ is the square")).toBe(true);
+    expect(hasMath("no dollars here")).toBe(false);
+  });
+
+  it("leaves a price as text", () => {
+    const { container } = render(<ChatMarkdown text="It costs $3 to $5 a month." cwd="/tmp/project" resolvedTheme="dark" />);
+    expect(container.textContent).toContain("It costs $3 to $5 a month.");
+    expect(container.querySelector(".katex, .language-math")).toBeNull();
+  });
+
+  it("typesets a display formula once KaTeX has loaded", async () => {
+    const { container } = render(<ChatMarkdown text={"The energy:\n\n$$E=mc^2$$"} cwd="/tmp/project" resolvedTheme="dark" />);
+    await waitFor(() => expect(container.querySelector(".katex-display .katex")).not.toBeNull(), { timeout: 10_000 });
+  });
+
+  it("draws a formula's link command as text, never a link", async () => {
+    const { container } = render(<ChatMarkdown text={"Click $\\href{javascript:alert(1)}{here}$ now."} cwd="/tmp/project" resolvedTheme="dark" />);
+    await waitFor(() => expect(container.querySelector(".katex")).not.toBeNull(), { timeout: 10_000 });
+    expect(container.querySelector("a[href^='javascript']")).toBeNull();
+    expect(container.innerHTML).not.toContain('href="javascript');
+  });
+
+  it("refuses a Mermaid fence that names an address before Mermaid can fetch it, and passes a plain one", () => {
+    for (const road of [
+      '%%{init: {"themeCSS": ".node rect { fill: url(http://h/x.svg) }"}}%%\nflowchart LR\n  A --> B',
+      "---\nconfig:\n  themeCSS: \"@import 'h.css';\"\n---\nflowchart LR\n  A --> B",
+      'flowchart LR\n  A@{ img: "/p.png", label: "pic" }',
+      'flowchart LR\n  A --> B\n  click B href "https://h" _blank',
+      'flowchart LR\n  A --> B\n  click B href "/settings"',
+      'flowchart LR\n  A --> B\n  click B call alert()',
+      'flowchart LR\n  A["see https://h"]',
+      "flowchart LR\n  A --> B\n  style A fill:image-set('p.png' 1x)",
+    ]) expect(namesAnAddress(road), road).toBe(true);
+    expect(namesAnAddress("flowchart LR\n  A[Install] --> B[Build]\n  B --> C[Test]")).toBe(false);
+  });
+
+  it("keeps a Mermaid block as code while the reply streams", () => {
+    const { container } = render(<ChatMarkdown text={"```mermaid\ngraph TD\nA-->B\n```"} cwd="/tmp/project" resolvedTheme="dark" isStreaming />);
+    expect(container.querySelector("[data-mermaid]")).toBeNull();
+    expect(container.textContent).toContain("A-->B");
+  });
+
+  it("shows a Mermaid block that does not parse as its source, with the line under it", async () => {
+    const { container } = render(<ChatMarkdown text={"```mermaid\ngraph TD\nA-->\n```"} cwd="/tmp/project" resolvedTheme="dark" />);
+    const line = await screen.findByText("Diagram did not parse", undefined, { timeout: 20_000 });
+    expect(line.className).toContain("text-xs");
+    expect(line.className).toContain("text-muted-foreground");
+    expect(container.textContent).toContain("A-->");
+    expect(container.querySelector("[data-mermaid] svg")).toBeNull();
+  }, 30_000);
+});
+
+describe("orderedListGutterStyle", () => {
+  it("leaves the default gutter alone for single-digit lists", () => {
+    expect(orderedListGutterStyle(9, undefined)).toBeUndefined();
+  });
+
+  it("widens the gutter for two-digit lists", () => {
+    expect(orderedListGutterStyle(99, undefined)).toEqual({ "--list-gutter": "3ch" });
+  });
+
+  it("uses the widest marker and includes a negative start's minus sign", () => {
+    expect(orderedListGutterStyle(1001, -1000)).toEqual({ "--list-gutter": "6ch" });
+    expect(orderedListGutterStyle(3, -15)).toEqual({ "--list-gutter": "4ch" });
+  });
+});
+
+describe("ChatMarkdown restricted images", () => {
+  const renderRestricted = (text: string) =>
+    render(<ChatMarkdown text={text} cwd="" resolvedTheme="dark" restricted />).container;
+
+  it("renders an image from a GitHub image host as an image", () => {
+    const c = renderRestricted("![a shot](https://user-images.githubusercontent.com/1/x.png)");
+    const img = c.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("https://user-images.githubusercontent.com/1/x.png");
+    expect(img!.getAttribute("alt")).toBe("a shot");
+  });
+
+  it("renders github.com only under /user-attachments/, else a link", () => {
+    const attached = renderRestricted("![v](https://github.com/user-attachments/assets/abc-123)");
+    expect(attached.querySelector("img")).not.toBeNull();
+    const elsewhere = renderRestricted("![v](https://github.com/o/r/raw/main/x.png)");
+    expect(elsewhere.querySelector("img")).toBeNull();
+    expect(elsewhere.querySelector("a")?.getAttribute("href")).toBe("https://github.com/o/r/raw/main/x.png");
+  });
+
+  it("turns another host's image into a link, not an image", () => {
+    const c = renderRestricted("![alt](https://evil.example.com/x.png)");
+    expect(c.querySelector("img")).toBeNull();
+    const a = c.querySelector("a");
+    expect(a?.getAttribute("href")).toBe("https://evil.example.com/x.png");
+    expect(a?.textContent).toBe("alt");
+  });
+
+  it("never renders an image for a non-https source: http and javascript stay out", () => {
+    // http, even to a GitHub host, is not https and is not an image.
+    const http = renderRestricted("![alt](http://user-images.githubusercontent.com/1/x.png)");
+    expect(http.querySelector("img")).toBeNull();
+    // A javascript: source is never an image and is not linked out either; it is left as text.
+    const js = renderRestricted("![alt](javascript:alert(1))");
+    expect(js.querySelector("img")).toBeNull();
+    expect(js.querySelector("a")).toBeNull();
+    expect(js.textContent).toContain("alt");
+  });
+});

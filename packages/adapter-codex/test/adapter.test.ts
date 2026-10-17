@@ -1,0 +1,2068 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Both fixtures are codex-cli 0.155.1's own output, stderr lines and all, driven through this adapter's own lines:
+// app-server-turn.jsonl a signed-in turn in a read-only sandbox that asked to run a command, was allowed and took one
+// steer (MCP server names, hook paths and the host scrubbed), no-login-app-server.jsonl a turn under an empty
+// CODEX_HOME.
+import { readFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
+import { agentWord, BROKER_PORT, conversationWrittenElsewhereLine, LOST_SESSION_NOTE, lostSessionPrompt, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
+import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
+import { createCodexAdapter, type CodexSession } from "../src/adapter.js";
+import { creditsOf } from "../src/limits.js";
+import { buildCommand } from "../src/command.js";
+import { LETS_GO } from "../src/conversations.js";
+
+const THREAD_ID = "01a0e2c1-5d10-7b42-9a6e-3f1c2d4b5a60";
+const TURN_ID = "01a0e2c1-5e02-7c11-8d3f-9b2a1c0d4e71";
+const RECORDED_THREAD = "01a0e365-72f3-77e3-ba3a-3d18e12e9b95";
+const RECORDED_TURN = "01a0e365-73b9-7e10-8045-3ff9e93753f9";
+const RECORDED_COMMAND = "exec-267f4a9f-3715-4cb1-b8fc-14f9a57ec2f9";
+const NO_LOGIN_THREAD = "01a0e2b2-493b-7c53-ae59-446697cb28db";
+
+function fixtureLines(name: string): string[] {
+  return readFileSync(new URL(`./fixtures/${name}.jsonl`, import.meta.url), "utf8")
+    .split("\n")
+    .filter(line => line.trim().length > 0);
+}
+
+const RUN_HANDLE = "/tmp/wsp-run/cd34";
+
+type Json = Record<string, unknown>;
+const parse = (line: string): Json => JSON.parse(line) as Json;
+
+/** One app-server process under test: the lines it prints, the lines wsp wrote to it (the launch's seed first), and
+ * how it ended. It exits on stdin EOF as the real one does, unless it hangs. */
+interface Wire {
+  stream: ExecStream;
+  written: Json[];
+  order: string[];
+  closed: boolean;
+  push(...lines: string[]): void;
+  exit(code: number | null): void;
+}
+
+function wire(opts: { exitCode?: number; hang?: boolean; onWrite?: (message: Json, w: Wire) => void } = {}): Wire {
+  const queue: string[] = [];
+  let wake: (() => void) | undefined;
+  let done = false;
+  let resolveExit: (code: number | null) => void = () => {};
+  const exited = new Promise<number | null>(resolve => {
+    resolveExit = resolve;
+  });
+  const w: Wire = {
+    written: [],
+    order: [],
+    closed: false,
+    push: (...lines) => {
+      queue.push(...lines);
+      wake?.();
+    },
+    exit: code => {
+      if (done) return;
+      done = true;
+      wake?.();
+      resolveExit(code);
+    },
+    stream: undefined as unknown as ExecStream,
+  };
+  w.stream = {
+    run: RUN_HANDLE,
+    lines: (async function* () {
+      for (;;) {
+        while (queue.length > 0) yield queue.shift()!;
+        if (done) return;
+        await new Promise<void>(resolve => {
+          wake = resolve;
+        });
+        wake = undefined;
+      }
+    })(),
+    teardown: () => {
+      w.order.push("teardown");
+      if (!opts.hang) w.exit(opts.exitCode ?? 0);
+    },
+    kill: () => {
+      w.order.push("kill");
+      w.exit(null);
+    },
+    write: async line => {
+      if (done) return "gone";
+      const message = parse(line);
+      w.written.push(message);
+      opts.onWrite?.(message, w);
+      return "written";
+    },
+    closeInput: () => {
+      w.closed = true;
+      if (!opts.hang) setTimeout(() => w.exit(opts.exitCode ?? 0), 0);
+    },
+    exited,
+  };
+  return w;
+}
+
+/** Plays a recorded server: everything up to its answer to the thread request once that request arrives, the rest
+ * once a turn starts. */
+function server(lines: string[], opts: { exitCode?: number; hang?: boolean } = {}): (seed: readonly string[]) => Wire {
+  const split = lines.findIndex(l => l.includes('"id":"wsp-thread"')) + 1;
+  const head = lines.slice(0, split);
+  const tail = lines.slice(split);
+  return seed => {
+    const w = wire({
+      ...opts,
+      onWrite: (message, self) => {
+        if (message.method === "thread/start" || message.method === "thread/resume" || message.method === "thread/fork") self.push(...head);
+        if (message.method === "turn/start") self.push(...tail);
+      },
+    });
+    for (const line of seed) void w.stream.write(line);
+    return w;
+  };
+}
+
+interface Launch {
+  factory: ExecStreamFactory;
+  calls: { command: string; env: Record<string, string>; input: readonly string[] | undefined }[];
+  wires: Wire[];
+}
+
+function launcher(make: (seed: readonly string[]) => Wire): Launch {
+  const calls: Launch["calls"] = [];
+  const wires: Wire[] = [];
+  const factory: ExecStreamFactory = (command, { env, input }) => {
+    calls.push({ command, env, input });
+    const w = make(input ?? []);
+    wires.push(w);
+    return w.stream;
+  };
+  return { factory, calls, wires };
+}
+
+function collect(): { events: AdapterEvent[]; onEvent: (e: AdapterEvent) => void } {
+  const events: AdapterEvent[] = [];
+  return { events, onEvent: e => events.push(e) };
+}
+
+const deltasOf = (events: AdapterEvent[]) => events.filter((e): e is Extract<AdapterEvent, { type: "turn.delta" }> => e.type === "turn.delta");
+
+const LOGIN = "codex login --device-auth";
+const NOT_SIGNED_IN = codexNotSignedInLine(LOGIN);
+const adapterOver = (launch: Launch, extra: { graceMs?: number; stallMs?: number; resultExitMs?: number; steerJoinMs?: number } = {}) =>
+  createCodexAdapter({
+    exec: launch.factory,
+    home: "/root/.codex",
+    login: LOGIN,
+    ...(extra.graceMs !== undefined ? { interruptGraceMs: extra.graceMs } : {}),
+    ...(extra.stallMs !== undefined ? { reconnectStallMs: extra.stallMs } : {}),
+    ...(extra.resultExitMs !== undefined ? { resultExitMs: extra.resultExitMs } : {}),
+    ...(extra.steerJoinMs !== undefined ? { steerJoinMs: extra.steerJoinMs } : {}),
+  });
+
+/** The lines a live server prints up to a running turn, for the cases that drive the rest by hand. */
+const opened = (threadId = THREAD_ID): string[] => [
+  '{"id":"wsp-initialize","result":{"userAgent":"wsp/0.155.1","codexHome":"/root/.codex","platformFamily":"unix","platformOs":"linux"}}',
+  `{"id":"wsp-thread","result":{"thread":{"id":"${threadId}","model":"gpt-5.6-sol","cwd":"/root/app","turns":[]},"model":"gpt-5.6-sol","cwd":"/root/app","approvalPolicy":"on-request","sandbox":{"type":"workspaceWrite"}}}`,
+];
+const turnStarted = `{"method":"turn/started","params":{"threadId":"${THREAD_ID}","turn":{"id":"${TURN_ID}","items":[],"status":"inProgress"}}}`;
+const completed = (status: string, extra = "") => `{"method":"turn/completed","params":{"threadId":"${THREAD_ID}","turn":{"id":"${TURN_ID}","items":[],"status":"${status}"${extra}}}}`;
+const failedWith = (message: string) => completed("failed", `,"error":${JSON.stringify({ message })}`);
+const errorNote = (message: string, willRetry: boolean, details: string | null = null) =>
+  `{"method":"error","params":{"error":${JSON.stringify({ message, additionalDetails: details })},"willRetry":${String(willRetry)},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+const agentMessage = (id: string, text: string) => `{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"${id}","text":${JSON.stringify(text)}},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+const reconnecting = errorNote("Reconnecting... 2/5", true, "error sending request");
+
+/** A server that opens the thread and starts the turn, then prints what the case hands it. */
+const scripted = (rest: string[], opts: { exitCode?: number; hang?: boolean } = {}) => server([...opened(), turnStarted, ...rest], opts);
+
+const until = async (check: () => boolean): Promise<void> => {
+  for (let i = 0; i < 200 && !check(); i++) await new Promise(r => setTimeout(r, 1));
+  expect(check()).toBe(true);
+};
+
+describe("a Codex turn's tokens and plan on the app server", () => {
+  const usage = (total: [number, number], last: [number, number], window = 258_400) =>
+    `{"method":"thread/tokenUsage/updated","params":{"threadId":"${THREAD_ID}","turnId":"${TURN_ID}","tokenUsage":{"total":{"inputTokens":${total[0]},"cachedInputTokens":0,"cacheWriteInputTokens":0,"outputTokens":${total[1]},"reasoningOutputTokens":0,"totalTokens":${total[0] + total[1]}},"last":{"inputTokens":${last[0]},"cachedInputTokens":0,"cacheWriteInputTokens":0,"outputTokens":${last[1]},"reasoningOutputTokens":0,"totalTokens":${last[0] + last[1]}},"modelContextWindow":${window}}}}`;
+
+  it("counts a resumed thread's turn from where its running total stood, not from the thread's start", async () => {
+    const launch = launcher(scripted([usage([50_000, 900], [20_000, 100]), usage([72_000, 1_000], [22_000, 100]), agentMessage("m1", "done"), completed("completed")]));
+    const result = await adapterOver(launch).start({ prompt: "again", resume: THREAD_ID, onEvent: () => {} }).finished;
+    expect(result.tokens).toEqual({ input: 42_000, cached: 0, cacheWrite: 0, output: 200, reasoning: 0, context: 22_100, window: 258_400 });
+  });
+
+  it("says what each model call drew as the server reports it, and what the thread then holds of its window", async () => {
+    const { events, onEvent } = collect();
+    await adapterOver(launcher(scripted([usage([50_000, 900], [20_000, 100]), usage([72_000, 1_000], [22_000, 100]), agentMessage("m1", "done"), completed("completed")]))).start({ prompt: "again", resume: THREAD_ID, onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.usage")).toEqual([
+      { type: "turn.usage", sessionId: THREAD_ID, tokens: 20_100, context: 20_100, window: 258_400 },
+      { type: "turn.usage", sessionId: THREAD_ID, tokens: 22_100, context: 22_100, window: 258_400 },
+    ]);
+  });
+
+  it("carries the moment the server says it sent each call's figure, so a re-read run files old calls at their own time", async () => {
+    const stamped = usage([50_000, 900], [20_000, 100]).replace(/}$/, `,"emittedAtMs":1790521480354}`);
+    const { events, onEvent } = collect();
+    await adapterOver(launcher(scripted([stamped, agentMessage("m1", "done"), completed("completed")]))).start({ prompt: "again", resume: THREAD_ID, onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.usage")).toEqual([{ type: "turn.usage", sessionId: THREAD_ID, tokens: 20_100, context: 20_100, window: 258_400, at: 1790521480354 }]);
+  });
+
+  it("reads the plan the server updates as the turn's steps, the step under way as working", async () => {
+    const plan = `{"method":"turn/plan/updated","params":{"threadId":"${THREAD_ID}","turnId":"${TURN_ID}","explanation":null,"plan":[{"step":"read","status":"completed"},{"step":"write","status":"inProgress"},{"step":"ship","status":"pending"}]}}`;
+    const { events, onEvent } = collect();
+    await adapterOver(launcher(scripted([plan, agentMessage("m1", "done"), completed("completed")]))).start({ prompt: "plan", onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.plan")).toEqual([
+      { type: "turn.plan", sessionId: THREAD_ID, steps: [{ text: "read", state: "done" }, { text: "write", state: "working" }, { text: "ship", state: "pending" }] },
+    ]);
+  });
+});
+
+describe("CodexAdapter over codex app-server", () => {
+  it("launches the app server in the folder under CODEX_HOME, seeding initialize and the thread with the picks; the turn follows the thread", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const adapter = adapterOver(launch);
+    const session = adapter.start({ prompt: "list the repo", model: "gpt-5.5", effort: "low", permissionMode: "workspace-write", cwd: "/root/app", onEvent: () => {} });
+    await session.finished;
+    const call = launch.calls[0]!;
+    expect(call.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
+    expect(call.command).not.toContain("list the repo");
+    expect(call.env).toEqual({ CODEX_HOME: "/root/.codex" });
+    expect(adapter.env).toEqual({ CODEX_HOME: "/root/.codex" });
+    expect(session.command).toBe(call.command);
+    expect(call.input?.map(l => parse(l).method)).toEqual(["initialize", "initialized", "account/read", "account/rateLimits/read", "thread/start"]);
+    expect(parse(call.input![4]!).params).toEqual({ cwd: "/root/app", model: "gpt-5.5", sandbox: "workspace-write", approvalPolicy: "on-request" });
+    const turn = launch.wires[0]!.written.find(m => m.method === "turn/start")!;
+    expect(turn.params).toEqual({ threadId: RECORDED_THREAD, input: [{ type: "text", text: "list the repo" }], effort: "low" });
+    // The reply is the turn's end, so stdin closes there and the server exits on its own.
+    expect(launch.wires[0]!.closed).toBe(true);
+  });
+
+  it("a turn's launch turns off each server it is told to leave out, and says it leaves servers out", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const adapter = createCodexAdapter({ exec: launch.factory, home: "/root/.codex", login: LOGIN });
+    expect(adapter.deniesServers).toBe(true);
+    await adapter.start({ prompt: "list the repo", cwd: "/root/app", offServers: ["cloudflare"], onEvent: () => {} }).finished;
+    expect(launch.calls[0]!.command).toBe(buildCommand({ cwd: "/root/app", offServers: ["cloudflare"] }));
+    expect(launch.calls[0]!.command).toContain("-c mcp_servers.cloudflare.enabled=false");
+  });
+
+  it("a turn on a machine whose credentials the host keeps writes its placeholder login before the server, and is handed no key", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const broker = { mode: "chatgpt" as const, claims: { accountId: "11111111-2222-4333-8444-555555555555", planType: "plus", userId: "user-acme0001", fedramp: false } };
+    // Pinned, so the line the turn ran and the one built here stamp the same exp and last_refresh.
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_791_900_000_000);
+    try {
+      await createCodexAdapter({ exec: launch.factory, home: "/root/.codex", login: LOGIN, broker }).start({ prompt: "list the repo", cwd: "/root/app", onEvent: () => {} }).finished;
+      expect(launch.calls[0]!.command).toBe(buildCommand({ cwd: "/root/app", broker }));
+    } finally {
+      now.mockRestore();
+    }
+    const call = launch.calls[0]!;
+    const written = call.command.indexOf('> "$CODEX_HOME/auth.json" ) && ');
+    expect(written).toBeGreaterThan(0);
+    expect(written).toBeLessThan(call.command.indexOf("app-server"));
+    expect(call.env).toEqual({ CODEX_HOME: "/root/.codex", CODEX_REFRESH_TOKEN_URL_OVERRIDE: `http://127.0.0.1:${BROKER_PORT}/oauth/token`, CODEX_REVOKE_TOKEN_URL_OVERRIDE: `http://127.0.0.1:${BROKER_PORT}/oauth/revoke` });
+    expect(call.env.CODEX_API_KEY).toBeUndefined();
+  });
+
+  it("takes its prompt late: the server starts and opens the thread at once, and the turn goes once the prompt is due", async () => {
+    // The launch's snapshot of the folder is what the prompt waits on, and it took 0.46 to 1.6 s on a one-file repo
+    // (measured 2026-10-05); before the server boots in that window, every send paid it in full first.
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const adapter = adapterOver(launch);
+    expect(adapter.waitsForPrompt).toBe(true);
+    let due!: () => void;
+    const session = adapter.start({ prompt: "list the repo", promptAfter: new Promise<void>(r => (due = r)), onEvent: () => {} });
+    await until(() => launch.wires[0]!.written.some(m => m.method === "thread/start"));
+    await new Promise(r => setTimeout(r, 5));
+    expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
+    due();
+    expect((await session.finished).status).toBe("completed");
+    expect(launch.wires[0]!.written.find(m => m.method === "turn/start")!.params).toMatchObject({ threadId: RECORDED_THREAD, input: [{ type: "text", text: "list the repo" }] });
+  });
+
+  it("reads a recorded turn: session.start unprompted as the thread opens and again once its turn started, the CLI's warning as a note, each item as deltas, the approval, turn.done and session.end", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const { events, onEvent } = collect();
+    let session: CodexSession | undefined;
+    // Answered as the recording's person answered it: the command ran once it was allowed.
+    const answering = (e: AdapterEvent): void => {
+      onEvent(e);
+      if (e.type === "permission.ask") void session!.answer(e.ask.askId, { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" });
+    };
+    session = adapterOver(launch).start({ prompt: "Run the shell command `touch hi.txt` in this folder, then reply with one short line.", permissionMode: "read-only", onEvent: answering });
+    const result = await session.finished;
+
+    expect(events.map(e => (e.type === "turn.delta" ? `delta:${e.kind}` : e.type))).toEqual([
+      "session.start",
+      "delta:note",
+      "session.start",
+      "turn.anchor",
+      "delta:text",
+      "delta:tool_use",
+      "permission.ask",
+      "permission.close",
+      "delta:tool_result",
+      "turn.usage",
+      "limit",
+      "delta:text",
+      "turn.usage",
+      "limit",
+      "turn.done",
+      "session.end",
+    ]);
+    expect(events[0]).toEqual({ type: "session.start", sessionId: RECORDED_THREAD, model: "gpt-5.6-sol", cwd: "/private/tmp/b7-real", prompted: false });
+    expect(events[2]).toEqual({ type: "session.start", sessionId: RECORDED_THREAD, model: "gpt-5.6-sol", cwd: "/private/tmp/b7-real" });
+    const deltas = deltasOf(events);
+    expect(deltas[0]!.text).toMatch(/^loading hooks from both /);
+    expect(deltas[1]).toMatchObject({ text: "I\u2019ll create `hi.txt` in the current folder.", messageId: "msg_0567d7bf2c7ea0de016ab930865e9087d09774946388412886" });
+    expect(deltas[2]).toMatchObject({ toolName: "command_execution", toolUseId: RECORDED_COMMAND, text: JSON.stringify({ command: "touch hi.txt" }) });
+    // The recording's two rolling updates, each a plan window pair on a Plus plan, epoch seconds read as ms.
+    expect(events.flatMap(e => (e.type === "limit" ? [e.limit] : [])).at(-1)).toEqual({
+      windows: [
+        { kind: "session", usedPercent: 9, resetsAt: 1_790_539_090_000 },
+        { kind: "week", usedPercent: 5, resetsAt: 1_791_094_756_000 },
+      ],
+      plan: "plus",
+      status: "ok",
+    });
+    const ask = events.find((e): e is Extract<AdapterEvent, { type: "permission.ask" }> => e.type === "permission.ask")!.ask;
+    expect(ask).toMatchObject({ askId: "0", toolName: "command_execution", toolUseId: RECORDED_COMMAND, detail: "Allow me to create hi.txt in the current folder?" });
+    expect(JSON.parse(ask.input)).toEqual({ command: "touch hi.txt", cwd: "/private/tmp/b7-real" });
+    expect(launch.wires[0]!.written).toContainEqual({ id: 0, result: { decision: "accept" } });
+    // The server's own resolved notice for that request finds nothing open, so the prompt closes once.
+    expect(events.filter(e => e.type === "permission.close")).toEqual([{ type: "permission.close", sessionId: RECORDED_THREAD, askId: "0", outcome: "allowed", optionId: PERMISSION_ALLOW }]);
+    expect(deltas[3]).toMatchObject({ kind: "tool_result", toolUseId: RECORDED_COMMAND, text: "", isError: false, exitCode: 0, durationMs: 0 });
+    expect(deltas[4]).toMatchObject({ kind: "text", text: "Created hi.txt in this folder." });
+    for (const d of deltas) expect(d.sessionId).toBe(RECORDED_THREAD);
+
+    expect(result.status).toBe("completed");
+    expect(result.text).toBe("Created hi.txt in this folder.");
+    // The turn's own counts are the thread's running total less what it stood at before the turn's first call; what
+    // the model held is the last call's, and the window is the one the server names.
+    expect(result.tokens).toEqual({ input: 41_624, cached: 31_744, cacheWrite: 0, output: 124, reasoning: 31, context: 20_913, window: 258_400 });
+    expect(result.model).toBe("gpt-5.6-sol");
+    expect(events.at(-1)).toEqual({ type: "session.end", sessionId: RECORDED_THREAD, exitCode: 0, sawResult: true });
+    expect(session.threadId).toBe(RECORDED_THREAD);
+    expect(session.localId).not.toBe(RECORDED_THREAD);
+  });
+
+  it("the recorded steer answers with the running turn's id, which is what reads as accepted", () => {
+    const answer = fixtureLines("app-server-turn").map(l => (l.startsWith("{") ? parse(l) : {})).find(m => m.id === "wsp-steer-1");
+    expect(answer).toEqual({ id: "wsp-steer-1", result: { turnId: RECORDED_TURN } });
+  });
+
+  it("an MCP call the tool failed keeps the tool's words, one that never reached it keeps the error, and one with neither says nothing", async () => {
+    const item = (body: Record<string, unknown>) => `{"method":"item/completed","params":{"item":${JSON.stringify(body)},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+    const said = [{ type: "text", text: "slate refused: 1 error: P100 bad-syntax" }];
+    const launch = launcher(scripted([
+      item({ type: "mcpToolCall", id: "call_4", server: "wsp", tool: "slate_write", arguments: {}, status: "failed", result: { content: said }, error: null }),
+      item({ type: "mcpToolCall", id: "call_5", server: "wsp", tool: "slate_write", arguments: {}, status: "failed", result: null, error: { message: "server gone" } }),
+      item({ type: "mcpToolCall", id: "call_6", server: "wsp", tool: "slate_write", arguments: {}, status: "failed", result: null, error: null }),
+      completed("completed"),
+    ]));
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "x", onEvent }).finished;
+    expect(deltasOf(events).filter(d => d.kind === "tool_result").map(d => [d.toolUseId, d.text, d.isError])).toEqual([["call_4", JSON.stringify(said), true], ["call_5", "server gone", true], ["call_6", "", true]]);
+  });
+
+  it("file changes, MCP calls and web searches, which that turn made none of, draw as codex exec's calls did", async () => {
+    // Written from the 0.155.1 schema's ThreadItem variants, since the recorded turn ran one command and no other tool.
+    const item = (phase: "started" | "completed", body: Record<string, unknown>) => `{"method":"item/${phase}","params":{"item":${JSON.stringify(body)},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+    const change = { type: "fileChange", id: "call_2", changes: [{ path: "README.md", kind: { type: "update", move_path: null }, diff: "" }, { path: "docs/new.md", kind: { type: "add" }, diff: "" }] };
+    const mcp = { type: "mcpToolCall", id: "call_3", server: "wsp", tool: "threads", arguments: { workspace: "first" } };
+    const search = { type: "webSearch", id: "ws_1", query: "codex app-server" };
+    const launch = launcher(
+      scripted([
+        item("started", { ...change, status: "inProgress" }),
+        item("completed", { ...change, status: "completed" }),
+        item("started", { ...mcp, status: "inProgress", result: null, error: null }),
+        item("completed", { ...mcp, status: "completed", result: { content: [{ type: "text", text: '{"threads":[]}' }] }, error: null }),
+        item("completed", { type: "reasoning", id: "rs_1", summary: ["Listing the repository first."], content: [] }),
+        item("started", search),
+        item("completed", search),
+        completed("completed"),
+      ]),
+    );
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "x", onEvent }).finished;
+    const deltas = deltasOf(events);
+    // Changes whose diff the schema let be empty made no hunks to carry.
+    expect(deltas.find(d => d.kind === "tool_result" && d.toolUseId === "call_2")?.patch).toBeUndefined();
+    expect(deltas.map(d => [d.kind, d.toolName, d.toolUseId, d.text])).toEqual([
+      ["tool_use", "file_change", "call_2", JSON.stringify({ changes: [{ path: "README.md", kind: "update" }, { path: "docs/new.md", kind: "add" }] })],
+      ["tool_result", undefined, "call_2", "update README.md\nadd docs/new.md"],
+      ["tool_use", "mcp__wsp__threads", "call_3", JSON.stringify({ workspace: "first" })],
+      ["tool_result", undefined, "call_3", JSON.stringify([{ type: "text", text: '{"threads":[]}' }])],
+      ["thinking", undefined, undefined, "Listing the repository first."],
+      ["tool_use", "web_search", "ws_1", JSON.stringify({ query: "codex app-server" })],
+      ["tool_result", undefined, "ws_1", "codex app-server"],
+    ]);
+  });
+
+  it("a finished command carries its exit code and how long it ran, and each file change its hunks", async () => {
+    // Written from the 0.162.1 schema: an update's diff as `similar` writes it (format_file_change_diff), an add's
+    // and a delete's the whole file, and a rename's update followed by its Moved to line.
+    const item = (body: Record<string, unknown>) => `{"method":"item/completed","params":{"item":${JSON.stringify(body)},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+    const failing = { type: "commandExecution", id: "call_8", command: "/bin/zsh -lc 'npm test'", cwd: "/root/lab", status: "failed", commandActions: [], aggregatedOutput: "1 failing\n", exitCode: 1, durationMs: 1534 };
+    const changes = [
+      { path: "/root/lab/f.txt", kind: { type: "update", move_path: null }, diff: "@@ -1,3 +1,3 @@\n alpha\n-beta\n+BETA\n gamma\n" },
+      { path: "/root/lab/new.txt", kind: { type: "add" }, diff: "hi\nthere\n" },
+      { path: "/root/lab/old.txt", kind: { type: "delete" }, diff: "gone\n" },
+      { path: "/root/lab/a.txt", kind: { type: "update", move_path: "/root/lab/b.txt" }, diff: "@@ -2 +2 @@\n-x\n+y\n\n\nMoved to: /root/lab/b.txt" },
+    ];
+    const launch = launcher(scripted([item(failing), item({ type: "fileChange", id: "call_9", changes, status: "completed" }), item({ type: "fileChange", id: "call_10", changes, status: "declined" }), completed("completed")]));
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "x", onEvent }).finished;
+    const [ran, changed, declined] = deltasOf(events).filter(d => d.kind === "tool_result");
+    expect(declined).toMatchObject({ toolUseId: "call_10", isError: true });
+    expect(declined!.patch).toBeUndefined();
+    expect(ran).toMatchObject({ toolUseId: "call_8", text: "1 failing\n", isError: true, exitCode: 1, durationMs: 1534 });
+    expect(changed!.patch).toEqual([
+      { path: "/root/lab/f.txt", hunks: [{ oldStart: 1, oldLines: 3, newStart: 1, newLines: 3, lines: [" alpha", "-beta", "+BETA", " gamma"] }] },
+      { path: "/root/lab/new.txt", hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 2, lines: ["+hi", "+there"] }] },
+      { path: "/root/lab/old.txt", hunks: [{ oldStart: 1, oldLines: 1, newStart: 0, newLines: 0, lines: ["-gone"] }] },
+      { path: "/root/lab/a.txt", hunks: [{ oldStart: 2, oldLines: 1, newStart: 2, newLines: 1, lines: ["-x", "+y"] }], movedTo: "/root/lab/b.txt" },
+    ]);
+  });
+
+  it("names a call to the slate's second server by wsp's own name, which is the server the person knows", async () => {
+    const item = (phase: "started" | "completed", body: Record<string, unknown>) => `{"method":"item/${phase}","params":{"item":${JSON.stringify(body)},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+    const slate = { type: "mcpToolCall", id: "call_7", server: SLATE_SERVER_NAME, tool: "slate_write", arguments: { text: "<slate/>" } };
+    const launch = launcher(scripted([item("started", { ...slate, status: "inProgress", result: null, error: null }), completed("completed")]));
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "x", onEvent }).finished;
+    const uses = deltasOf(events).filter(d => d.kind === "tool_use");
+    expect(uses.map(d => d.toolName)).toEqual(["mcp__wsp__slate_write"]);
+    expect(toolCallFacts(uses[0]!.toolName!, uses[0]!.text).title).toBe("Use wsp's slate write");
+  });
+
+  it("resumes a thread by the id the row holds: the registry key is that id and the seed asks thread/resume", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const adapter = adapterOver(launch);
+    const { events, onEvent } = collect();
+    const session = adapter.start({ prompt: "next", resume: RECORDED_THREAD, permissionMode: "read-only", cwd: "/root/app", onEvent });
+    await session.finished;
+    expect(session.localId).toBe(RECORDED_THREAD);
+    expect(adapter.sessions.get(RECORDED_THREAD)).toBe(session);
+    expect(parse(launch.calls[0]!.input![4]!)).toEqual({ id: "wsp-thread", method: "thread/resume", params: { threadId: RECORDED_THREAD, cwd: "/root/app", sandbox: "read-only", approvalPolicy: "on-request" } });
+    expect(new Set(events.map(e => e.sessionId))).toEqual(new Set([RECORDED_THREAD]));
+  });
+
+  it("images ride the turn as local paths, and one with no path on the machine is refused before anything launches", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    await adapterOver(launch).start({ prompt: "what is this?", images: [{ mediaType: "image/png", bytes: "", path: "/root/.wsp/threads/thr_1/images/1.png" }], onEvent: () => {} }).finished;
+    expect(launch.wires[0]!.written.find(m => m.method === "turn/start")!.params).toMatchObject({ input: [{ type: "text", text: "what is this?" }, { type: "localImage", path: "/root/.wsp/threads/thr_1/images/1.png" }] });
+
+    const none = launcher(server(fixtureLines("app-server-turn")));
+    expect(() => adapterOver(none).start({ prompt: "x", images: [{ mediaType: "image/png", bytes: "aGk=" }], onEvent: () => {} })).toThrow("no path on it");
+    expect(() => adapterOver(none).start({ prompt: "x", images: [{ mediaType: "image/png", bytes: "", path: "shot.png" }], onEvent: () => {} })).toThrow("must be one absolute path");
+    expect(none.calls).toEqual([]);
+  });
+
+  it("refuses a context window, which codex has no setting for", () => {
+    expect(() => adapterOver(launcher(server([]))).start({ prompt: "x", contextWindow: "1m", onEvent: () => {} })).toThrow("codex takes no context window");
+  });
+});
+
+describe("a message sent while a Codex turn runs", () => {
+  it("steers the running turn by its id and reads accepted off the server's answer", async () => {
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted);
+          if (message.method === "turn/steer") self.push(`{"id":${JSON.stringify(message.id)},"result":{"turnId":"${TURN_ID}"}}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const adapter = adapterOver(live);
+    expect(adapter.steers).toBe(true);
+    const session = adapter.start({ prompt: "count to 40", onEvent: () => {} });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    await new Promise(r => setTimeout(r, 5));
+    expect(await session.steer!("stop at 12")).toBe("accepted");
+    const steer = live.wires[0]!.written.find(m => m.method === "turn/steer")!;
+    expect(steer.params).toEqual({ threadId: THREAD_ID, expectedTurnId: TURN_ID, input: [{ type: "text", text: "stop at 12" }] });
+    live.wires[0]!.push(agentMessage("msg_1", "stopped at 12"), completed("completed"));
+    expect(await session.finished).toMatchObject({ status: "completed", text: "stopped at 12" });
+  });
+
+  it("reads not-running when the server turns the steer down, and after the turn ended", async () => {
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/steer") self.push(`{"error":{"code":-32600,"message":"no active turn"},"id":${JSON.stringify(message.id)}}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const session = adapterOver(live).start({ prompt: "x", onEvent: () => {} });
+    live.wires[0]!.push(turnStarted);
+    await new Promise(r => setTimeout(r, 5));
+    expect(await session.steer!("refused")).toBe("not-running");
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+    expect(await session.steer!("after the end")).toBe("not-running");
+  });
+  it("a steer whose write lost its answer reads the server's own answer: accepted where it landed, not-running where it never did", async () => {
+    let losing: "landed" | "lost" | undefined;
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted);
+          if (message.method === "turn/steer") self.push(`{"id":${JSON.stringify(message.id)},"result":{"turnId":"${TURN_ID}"}}`);
+        },
+      });
+      const write = w.stream.write;
+      w.stream = {
+        ...w.stream,
+        write: async line => {
+          const loses = parse(line).method === "turn/steer" ? losing : undefined;
+          if (loses === "lost") throw new Error("remote write failed on m1: nothing came back saying WSP_OK");
+          const wrote = await write(line);
+          if (loses === "landed") throw new Error("remote write failed on m1: nothing came back saying WSP_OK");
+          return wrote;
+        },
+      };
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const session = adapterOver(live).start({ prompt: "count to 40", onEvent: () => {} });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    await new Promise(r => setTimeout(r, 5));
+    losing = "landed";
+    expect(await session.steer!("stop at 12")).toBe("accepted");
+    losing = "lost";
+    const unanswered = session.steer!("stop at 20");
+    live.wires[0]!.push(agentMessage("msg_1", "stopped at 12"), completed("completed"));
+    expect(await unanswered).toBe("not-running");
+    expect(live.wires[0]!.written.filter(m => m.method === "turn/steer")).toHaveLength(1);
+    await session.finished;
+  });
+});
+
+describe("an approval Codex asks for", () => {
+  const approving = (request: string, also?: (self: Wire, message: Json) => void) =>
+    launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          also?.(self, message);
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start")
+            self.push(turnStarted, `{"method":"item/started","params":{"item":{"type":"fileChange","id":"call_9","changes":[{"path":"hi.txt","kind":{"type":"add"},"diff":"+hi\\n"}],"status":"inProgress"},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`, request);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+  const fileAsk = `{"id":0,"method":"item/fileChange/requestApproval","params":{"threadId":"${THREAD_ID}","turnId":"${TURN_ID}","itemId":"call_9","reason":"write outside the sandbox","startedAtMs":1}}`;
+  const commandAsk = `{"id":"ask-7","method":"item/commandExecution/requestApproval","params":{"threadId":"${THREAD_ID}","turnId":"${TURN_ID}","itemId":"call_4","command":"rm -rf build","cwd":"/root/app","startedAtMs":1,"proposedExecpolicyAmendment":["rm"]}}`;
+
+  it("raises a file change as a prompt with allow and deny, the change's paths as its input, and answers allow with accept alone", async () => {
+    const live = approving(fileAsk);
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "write hi into hi.txt", permissionMode: "read-only", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    const ask = events.find((e): e is Extract<AdapterEvent, { type: "permission.ask" }> => e.type === "permission.ask")!.ask;
+    expect(ask).toEqual({
+      askId: "0",
+      toolName: "file_change",
+      toolUseId: "call_9",
+      input: JSON.stringify({ changes: [{ path: "hi.txt", kind: "add" }] }),
+      detail: "write outside the sandbox",
+      options: [
+        { id: PERMISSION_ALLOW, label: "Allow", effect: "allow" },
+        { id: PERMISSION_DENY, label: "Deny", effect: "deny" },
+      ],
+    });
+    expect(await session.answer!("0", { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" })).toBe("answered");
+    expect(live.wires[0]!.written.at(-1)).toEqual({ id: 0, result: { decision: "accept" } });
+    expect(events.at(-1)).toEqual({ type: "permission.close", sessionId: THREAD_ID, askId: "0", outcome: "allowed", optionId: PERMISSION_ALLOW });
+    expect(await session.answer!("0", { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" })).toBe("gone");
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+  });
+
+  it("a deny the person gave a reason for declines the call and puts the reason to the running turn", async () => {
+    const live = approving(commandAsk, (self, message) => {
+      if (message.method === "turn/steer") self.push(`{"id":${JSON.stringify(message.id)},"result":{"turnId":"${TURN_ID}"}}`);
+    });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "clean", permissionMode: "workspace-write", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    expect(await session.answer!("ask-7", { optionId: PERMISSION_DENY, outcome: "denied", denyMessage: "unused", reason: "Only clean dist" })).toBe("answered");
+    expect(live.wires[0]!.written).toContainEqual({ id: "ask-7", result: { decision: "decline" } });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/steer"));
+    const steer = live.wires[0]!.written.find(m => m.method === "turn/steer")!;
+    expect(JSON.stringify(steer.params)).toContain("Only clean dist");
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+  });
+
+  it("answers a command's deny with decline under the server's own id, never widening the prompt for the session or writing policy", async () => {
+    const live = approving(commandAsk);
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "clean", permissionMode: "workspace-write", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    const ask = events.find((e): e is Extract<AdapterEvent, { type: "permission.ask" }> => e.type === "permission.ask")!.ask;
+    expect(ask).toMatchObject({ askId: "ask-7", toolName: "command_execution", toolUseId: "call_4", input: JSON.stringify({ command: "rm -rf build", cwd: "/root/app" }) });
+    expect(await session.answer!("ask-7", { optionId: PERMISSION_DENY, outcome: "denied", denyMessage: "not now" })).toBe("answered");
+    expect(live.wires[0]!.written.at(-1)).toEqual({ id: "ask-7", result: { decision: "decline" } });
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+    const decisions = live.wires[0]!.written.flatMap(m => (m.result !== undefined ? [JSON.stringify(m.result)] : []));
+    for (const d of decisions) expect(d).not.toMatch(/acceptForSession|Execpolicy|NetworkPolicy/);
+  });
+
+  it("an answer whose write failed leaves the request open, so answering again lands it", async () => {
+    const refused = Object.assign(new Error("Boat is refusing requests from this computer's address"), { kind: "transient", status: 429 });
+    let failing = true;
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted, commandAsk);
+        },
+      });
+      const write = w.stream.write;
+      w.stream = {
+        ...w.stream,
+        write: async line => {
+          if (failing && parse(line).result !== undefined) {
+            failing = false;
+            throw refused;
+          }
+          return write(line);
+        },
+      };
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "clean", permissionMode: "workspace-write", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    await expect(session.answer!("ask-7", { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" })).rejects.toBe(refused);
+    expect(live.wires[0]!.written.filter(m => m.result !== undefined)).toEqual([]);
+    expect(events.some(e => e.type === "permission.close")).toBe(false);
+
+    expect(await session.answer!("ask-7", { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" })).toBe("answered");
+    expect(live.wires[0]!.written.filter(m => m.result !== undefined)).toEqual([{ id: "ask-7", result: { decision: "accept" } }]);
+    expect(events.filter(e => e.type === "permission.close")).toEqual([{ type: "permission.close", sessionId: THREAD_ID, askId: "ask-7", outcome: "allowed", optionId: PERMISSION_ALLOW }]);
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+  });
+
+  it("closes a prompt the server resolved itself, and every prompt still open when the process goes", async () => {
+    const live = approving(fileAsk);
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "x", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    live.wires[0]!.push(`{"method":"serverRequest/resolved","params":{"threadId":"${THREAD_ID}","requestId":0}}`);
+    await until(() => events.some(e => e.type === "permission.close"));
+    expect(events.find(e => e.type === "permission.close")).toMatchObject({ askId: "0", outcome: "cancelled" });
+
+    const second = approving(commandAsk);
+    const { events: later, onEvent: onLater } = collect();
+    const cut = adapterOver(second).start({ prompt: "x", onEvent: onLater });
+    await until(() => later.some(e => e.type === "permission.ask"));
+    second.wires[0]!.exit(1);
+    await cut.finished;
+    expect(later.find(e => e.type === "permission.close")).toMatchObject({ askId: "ask-7", outcome: "cancelled" });
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+  });
+
+  it("refuses a server request it does not serve with an error, so the turn is not left waiting on it", async () => {
+    const live = approving(`{"id":5,"method":"item/tool/requestUserInput","params":{"threadId":"${THREAD_ID}","turnId":"${TURN_ID}","itemId":"call_5","questions":[]}}`);
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "x", onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.id === 5));
+    expect(live.wires[0]!.written.find(m => m.id === 5)).toEqual({ id: 5, error: { code: -32601, message: "wsp does not answer item/tool/requestUserInput" } });
+    expect(events.some(e => e.type === "permission.ask")).toBe(false);
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+  });
+});
+
+describe("a Codex turn that does not complete", () => {
+  it("a turn with no sign-in, as codex-cli 0.155.1 printed it, is the sign-in line with its cause, and the server exits on EOF", async () => {
+    const launch = launcher(server(fixtureLines("no-login-app-server")));
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    expect(NOT_SIGNED_IN).toBe("Codex is not signed in where this thread runs; run codex login --device-auth there");
+    expect(result).toMatchObject({ status: "failed", error: NOT_SIGNED_IN, refusal: "sign-in" });
+    // The server tried the 401 over its two roads, with its note between them, before it gave up, and said each try.
+    const retries = (n: number) => Array<string>(n).fill("turn.retry");
+    expect(events.map(e => e.type)).toEqual(["session.start", "session.start", "turn.anchor", ...retries(4), "turn.delta", ...retries(5), "turn.done", "session.end"]);
+    expect(events.flatMap(e => (e.type === "turn.retry" ? [`${e.attempt}/${e.of} ${e.why}`] : []))).toEqual([2, 3, 4, 5, 1, 2, 3, 4, 5].map(n => `${n}/5 the provider answered 401`));
+    expect(events.at(-1)).toEqual({ type: "session.end", sessionId: NO_LOGIN_THREAD, exitCode: 0, sawResult: true });
+    expect(launch.wires[0]!.closed).toBe(true);
+  });
+
+  it("a failed turn carries the server's own reason where wsp claims no cause for it", async () => {
+    const result = await adapterOver(launcher(scripted([errorNote("stream disconnected before completion", false), failedWith("stream disconnected before completion")]))).start({ prompt: "x", onEvent: () => {} }).finished;
+    expect(result).toMatchObject({ status: "failed", error: "stream disconnected before completion" });
+    expect(result.refusal).toBeUndefined();
+  });
+
+  it("a 401 on a turn that was handed the vault's key is said as a refused key, with the provider's own reason and no url", async () => {
+    const withKey = (launch: Launch) => createCodexAdapter({ exec: launch.factory, home: "/root/.codex", login: LOGIN, apiKey: "sk-x-not-a-key", keyEnv: "OPENAI_API_KEY" });
+    const refused = await withKey(launcher(scripted([failedWith("unexpected status 401 Unauthorized: token expired, url: https://api.openai.com/v1/responses, cf-ray: x")]))).start({ prompt: "x", onEvent: () => {} }).finished;
+    expect(refused).toMatchObject({ status: "failed", error: codexKeyRefusedLine("OPENAI_API_KEY", "token expired", LOGIN), refusal: "sign-in" });
+    const none = await adapterOver(launcher(scripted([failedWith("unexpected status 401 Unauthorized: token expired")]))).start({ prompt: "x", onEvent: () => {} }).finished;
+    expect(none).toMatchObject({ status: "failed", error: NOT_SIGNED_IN, refusal: "sign-in" });
+  });
+
+  it("a provider whose env_key variable is unset fails the turn naming that variable, in the protocol's words", async () => {
+    const result = await adapterOver(launcher(scripted([failedWith("Missing environment variable: `FAKE_API_KEY`.")]))).start({ prompt: "x", onEvent: () => {} }).finished;
+    expect(result).toMatchObject({ status: "failed", error: codexMissingEnvLine("FAKE_API_KEY") });
+  });
+
+  it("the last failure seen wins: a 401 in an early retry, then a turn that fails for another reason, names that reason", async () => {
+    const result = await adapterOver(launcher(scripted([errorNote("Reconnecting... 1/5", true, "unexpected status 401 Unauthorized: token expired"), agentMessage("msg_1", "partway"), failedWith("Missing environment variable: `LATER_KEY`.")]))).start({ prompt: "x", onEvent: () => {} }).finished;
+    expect(result).toMatchObject({ status: "failed", error: codexMissingEnvLine("LATER_KEY") });
+    expect(result.refusal).toBeUndefined();
+  });
+
+  it("a server that turns the thread down fails the turn in its words and sends no turn", async () => {
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/resume") self.push('{"id":"wsp-initialize","result":{}}', '{"error":{"code":-32600,"message":"no rollout found for thread id 01a0"},"id":"wsp-thread"}');
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launch).start({ prompt: "x", resume: THREAD_ID, onEvent }).finished;
+    expect(result).toEqual({ status: "failed", error: "codex could not open the thread: no rollout found for thread id 01a0" });
+    expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: "session.end", sawResult: true });
+  });
+
+  it("a resume whose rollout is gone starts a new thread handed the thread so far, as Claude's does, and says so", async () => {
+    const FRESH = "01a0e2c1-5d10-7b42-9a6e-0000000000f5";
+    // The first server has no rollout for the thread, as 0.162.1 answers one; the second opens a new thread and answers.
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/resume") self.push(opened()[0]!, `{"error":{"code":-32600,"message":"no rollout found for thread id ${THREAD_ID}"},"id":"wsp-thread"}`);
+          if (message.method === "thread/start") self.push(...opened(FRESH));
+          if (message.method === "turn/start") {
+            self.push(
+              `{"method":"turn/started","params":{"threadId":"${FRESH}","turn":{"id":"${TURN_ID}","items":[],"status":"inProgress"}}}`,
+              `{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m1","text":"lantern"},"threadId":"${FRESH}","turnId":"${TURN_ID}"}}`,
+              `{"method":"turn/completed","params":{"threadId":"${FRESH}","turn":{"id":"${TURN_ID}","items":[],"status":"completed"}}}`,
+            );
+          }
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const seed = "person: remember the word lantern\nagent: remembered";
+    const session = adapterOver(launch).start({ prompt: "what was the word?", resume: THREAD_ID, seed: async () => seed, onEvent });
+    const result = await session.finished;
+    expect(result).toMatchObject({ status: "completed", text: "lantern" });
+    expect(launch.wires).toHaveLength(2);
+    expect(launch.wires[1]!.written.some(m => m.method === "thread/resume")).toBe(false);
+    const turn = launch.wires[1]!.written.find(m => m.method === "turn/start") as { params: { input: { text: string }[] } };
+    expect(turn.params.input.at(-1)!.text).toBe(lostSessionPrompt(seed, "what was the word?"));
+    // The failed resume is no turn of the thread's: one turn ends, one session ends, the new thread's.
+    expect(events.filter(e => e.type === "turn.done")).toHaveLength(1);
+    expect(events.filter(e => e.type === "session.end")).toHaveLength(1);
+    const started = events.findIndex(e => e.type === "session.start");
+    expect(events[started]).toMatchObject({ sessionId: FRESH });
+    expect(session.threadId).toBe(FRESH);
+    expect(events.slice(started).find(e => e.type === "turn.delta" && e.kind === "note")).toMatchObject({ text: LOST_SESSION_NOTE });
+  });
+
+  it("a process that dies mid-turn fails under the thread's id with its last stderr lines", async () => {
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") {
+            self.push(turnStarted, "2026-09-27T00:51:50Z ERROR codex_core: sandbox unavailable");
+            setTimeout(() => self.exit(2), 1);
+          }
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launch).start({ prompt: "x", onEvent }).finished;
+    expect(result).toEqual({ status: "failed", error: "codex exited with code 2 before its turn ended: 2026-09-27T00:51:50Z ERROR codex_core: sandbox unavailable" });
+    expect(events.map(e => [e.type, e.sessionId])).toEqual([["session.start", THREAD_ID], ["session.start", THREAD_ID], ["turn.anchor", THREAD_ID], ["turn.done", THREAD_ID], ["session.end", THREAD_ID]]);
+  });
+
+  it("a transport that ends the turn itself makes its message the turn's error", async () => {
+    const failing: ExecStreamFactory = command => ({
+      ...wire().stream,
+      lines: (async function* () {
+        yield command.length > 0 ? opened()[0]! : "";
+        throw new Error("turn cut: idle 10m");
+      })(),
+      exited: Promise.resolve(null),
+    });
+    const result = await createCodexAdapter({ exec: failing, home: "/root/.codex", login: LOGIN }).start({ prompt: "x", onEvent: () => {} }).finished;
+    expect(result).toEqual({ status: "failed", error: "turn cut: idle 10m" });
+  });
+
+  it("a provider that never answers: the server retries forever, so the adapter ends the turn in words and kills the process", async () => {
+    const launch = launcher(scripted([reconnecting, reconnecting], { hang: true }));
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launch, { graceMs: 10, stallMs: 20 }).start({ prompt: "x", onEvent }).finished;
+    expect(launch.wires[0]!.order).toEqual(["teardown", "kill"]);
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatch(/^stopped after \d+m \d\ds of Codex reconnecting to its model provider with no answer$/);
+    expect(codexReconnectLine(90_000)).toBe("stopped after 1m 30s of Codex reconnecting to its model provider with no answer");
+    expect(events.at(-1)).toMatchObject({ type: "session.end", exitCode: null, sawResult: false });
+  });
+
+  it("a retry run that recovers into the turn is not cut", async () => {
+    const launch = launcher(scripted([reconnecting, agentMessage("msg_1", "back"), completed("completed")]));
+    const result = await adapterOver(launch, { graceMs: 10, stallMs: 20 }).start({ prompt: "x", onEvent: () => {} }).finished;
+    expect(result).toMatchObject({ status: "completed", text: "back" });
+    expect(launch.wires[0]!.order).toEqual([]);
+  });
+});
+
+describe("a model call Codex tries again", () => {
+  // As codex 0.155.1's app-server printed them on 2026-10-16 against a provider answering every call 500, and as the
+  // no-login fixture holds them for a provider answering 401.
+  const retrying = (n: number, status: number | null) =>
+    JSON.stringify({ method: "error", params: { error: { message: `Reconnecting... ${n}/5`, codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: status } }, additionalDetails: "We’re currently experiencing high demand, which may cause temporary errors.", misalignment: null }, willRetry: true, threadId: THREAD_ID, turnId: TURN_ID } });
+
+  it("says each retry, which one of how many and why, before the reply the call that got through wrote", async () => {
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launcher(scripted([retrying(1, null), retrying(2, 401), agentMessage("msg_1", "back"), completed("completed")]))).start({ prompt: "x", onEvent }).finished;
+    expect(result).toMatchObject({ status: "completed", text: "back" });
+    expect(events.filter(e => e.type === "turn.retry")).toEqual([
+      { type: "turn.retry", sessionId: THREAD_ID, attempt: 1, of: 5, why: "the connection dropped" },
+      { type: "turn.retry", sessionId: THREAD_ID, attempt: 2, of: 5, why: "the provider answered 401" },
+    ]);
+    expect(events.findIndex(e => e.type === "turn.delta" && e.kind === "text")).toBeGreaterThan(events.map(e => e.type).lastIndexOf("turn.retry"));
+  });
+
+  it("says nothing of an error it will not retry: the turn's own end says that one", async () => {
+    const { events, onEvent } = collect();
+    const final = JSON.stringify({ method: "error", params: { error: { message: "We’re currently experiencing high demand, which may cause temporary errors.", codexErrorInfo: "internalServerError", additionalDetails: null }, willRetry: false, threadId: THREAD_ID, turnId: TURN_ID } });
+    await adapterOver(launcher(scripted([final, completed("failed")]))).start({ prompt: "x", onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.retry")).toEqual([]);
+  });
+});
+
+describe("interrupt", () => {
+  it("asks the server to interrupt the running turn, which then completes as interrupted and exits on EOF", async () => {
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted);
+          if (message.method === "turn/interrupt") self.push(`{"id":${JSON.stringify(message.id)},"result":{}}`, completed("interrupted"));
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live, { graceMs: 5_000 }).start({ prompt: "loop forever", onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    await new Promise(r => setTimeout(r, 5));
+    await session.interrupt();
+    expect(await session.finished).toEqual({ status: "interrupted" });
+    expect(live.wires[0]!.written.find(m => m.method === "turn/interrupt")!.params).toEqual({ threadId: THREAD_ID, turnId: TURN_ID });
+    expect(live.wires[0]!.order).toEqual([]);
+    expect(events.at(-1)).toMatchObject({ type: "session.end", exitCode: 0, sawResult: true });
+  });
+
+  it("ends the process with its tree when the server does not stop inside the grace window", async () => {
+    const launch = launcher(scripted([], { hang: true }));
+    const session = adapterOver(launch, { graceMs: 15 }).start({ prompt: "loop forever", onEvent: () => {} });
+    await until(() => launch.wires[0]!.written.some(m => m.method === "turn/start"));
+    await new Promise(r => setTimeout(r, 5));
+    await session.interrupt();
+    expect(await session.finished).toEqual({ status: "interrupted" });
+    expect(launch.wires[0]!.order).toEqual(["teardown", "kill"]);
+  });
+
+  it("an interrupt before the server started the turn ends the process at once, with nothing to ask it", async () => {
+    const launch = launcher(seed => {
+      const w = wire({ hang: true });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const session = adapterOver(launch, { graceMs: 15 }).start({ prompt: "x", onEvent: () => {} });
+    await session.interrupt();
+    expect(await session.finished).toEqual({ status: "interrupted" });
+    expect(launch.wires[0]!.written.some(m => m.method === "turn/interrupt")).toBe(false);
+    expect(launch.wires[0]!.order).toEqual(["teardown", "kill"]);
+  });
+
+  it("a stop before the prompt was handed over sends no turn, then or once the prompt is due", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const { events, onEvent } = collect();
+    let due!: () => void;
+    const session = adapterOver(launch, { graceMs: 15 }).start({ prompt: "x", promptAfter: new Promise<void>(r => (due = r)), onEvent });
+    await until(() => events.some(e => e.type === "session.start"));
+    await session.interrupt();
+    due();
+    expect(await session.finished).toEqual({ status: "interrupted" });
+    await new Promise(r => setTimeout(r, 5));
+    expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
+  });
+
+  it("an interrupt after the process is gone sends nothing and ends nothing", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const session = adapterOver(launch, { graceMs: 5_000 }).start({ prompt: "x", onEvent: () => {} });
+    await session.finished;
+    const before = launch.wires[0]!.written.length;
+    await session.interrupt();
+    expect(launch.wires[0]!.written.length).toBe(before);
+    expect(launch.wires[0]!.order).toEqual([]);
+  });
+});
+
+describe("what ends a Codex turn", () => {
+  const statusOf = (type: string) => `{"method":"thread/status/changed","params":{"threadId":"${THREAD_ID}","status":{"type":"${type}"}}}`;
+  const running = (onInterrupt?: (self: Wire, id: unknown) => void) =>
+    launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted);
+          if (message.method === "turn/steer") self.push(`{"id":${JSON.stringify(message.id)},"result":{"turnId":"${TURN_ID}"}}`);
+          if (message.method === "turn/interrupt") onInterrupt?.(self, message.id);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+  const pending = async (finished: Promise<unknown>, ms: number): Promise<boolean> => (await Promise.race([finished.then(() => false), new Promise<boolean>(r => setTimeout(() => r(true), ms))]));
+
+  it("only turn/completed: the thread going idle and its last message leave the turn open and a steer accepted", async () => {
+    const live = running();
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "x", onEvent });
+    await until(() => events.some(e => e.type === "turn.anchor"));
+    live.wires[0]!.push(agentMessage("m1", "all done"), statusOf("idle"));
+    expect(await pending(session.finished, 50)).toBe(true);
+    expect(events.some(e => e.type === "turn.done")).toBe(false);
+    expect(await session.steer("one more thing")).toBe("accepted");
+    live.wires[0]!.push(completed("completed"));
+    expect(await session.finished).toMatchObject({ status: "completed", text: "all done" });
+  });
+
+  it("a steer sent before the server named the turn waits for turn/started and names that turn; one whose turn ends first is not-running", async () => {
+    let started = (): void => {};
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") started = () => self.push(turnStarted);
+          if (message.method === "turn/steer") self.push(`{"id":${JSON.stringify(message.id)},"result":{"turnId":"${TURN_ID}"}}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "x", onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    const steered = session.steer("one more thing");
+    expect(await pending(steered, 50)).toBe(true);
+    started();
+    expect(await steered).toBe("accepted");
+    expect(live.wires[0]!.written.find(m => m.method === "turn/steer")!.params).toMatchObject({ threadId: THREAD_ID, expectedTurnId: TURN_ID });
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+
+    const gone = launcher(seed => {
+      const w = wire({ onWrite: (message, self) => message.method === "thread/start" && self.push(...opened()) });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const early = adapterOver(gone).start({ prompt: "x", onEvent: collect().onEvent });
+    await until(() => gone.wires[0]!.written.some(m => m.method === "turn/start"));
+    const late = early.steer("too soon");
+    gone.wires[0]!.exit(1);
+    expect(await late).toBe("not-running");
+    expect(gone.wires[0]!.written.some(m => m.method === "turn/steer")).toBe(false);
+  });
+
+  it("a steer waiting for turn/started answers not-running at a stop whose server does not go, and writes nothing", async () => {
+    const live = launcher(seed => {
+      const w = wire({ hang: true, onWrite: (message, self) => message.method === "thread/start" && self.push(...opened()) });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const session = adapterOver(live, { graceMs: 60_000 }).start({ prompt: "x", onEvent: collect().onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    const steered = session.steer("too soon");
+    void session.interrupt();
+    expect(await pending(steered, 50)).toBe(false);
+    expect(await steered).toBe("not-running");
+    expect(live.wires[0]!.written.some(m => m.method === "turn/steer")).toBe(false);
+    live.wires[0]!.exit(0);
+    await session.finished;
+  });
+
+  it("a steer waiting for a turn/started that never comes answers not-running once the bound passes, and writes nothing", async () => {
+    const live = launcher(seed => {
+      const w = wire({ hang: true, onWrite: (message, self) => message.method === "thread/start" && self.push(...opened()) });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const session = adapterOver(live, { steerJoinMs: 100 }).start({ prompt: "x", onEvent: collect().onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    const steered = session.steer("too soon");
+    expect(await pending(steered, 50)).toBe(true);
+    expect(await steered).toBe("not-running");
+    expect(live.wires[0]!.written.some(m => m.method === "turn/steer")).toBe(false);
+    live.wires[0]!.exit(0);
+    await session.finished;
+  });
+
+  it("an interrupt's answer is not the turn's end: it stays open until turn/completed says interrupted", async () => {
+    const live = running((self, id) => self.push(`{"id":${JSON.stringify(id)},"result":{}}`));
+    const { events, onEvent } = collect();
+    const session = adapterOver(live, { graceMs: 5_000 }).start({ prompt: "x", onEvent });
+    await until(() => events.some(e => e.type === "turn.anchor"));
+    const stopping = session.interrupt();
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/interrupt"));
+    expect(await pending(session.finished, 50)).toBe(true);
+    live.wires[0]!.push(completed("interrupted"));
+    await stopping;
+    expect(await session.finished).toEqual({ status: "interrupted" });
+    expect(events.at(-1)).toMatchObject({ type: "session.end", sawResult: true });
+    expect(live.wires[0]!.order).toEqual([]);
+  });
+});
+
+describe("a subagent's frames on its lead's stream", () => {
+  // The shape of T3 Code's recorded multi-agent wire (codexMultiAgentWire.json, codex-cli 0.145.0, MIT): a child
+  // thread's own turn/started, token usage, items and turn/completed arrive on the lead's stdout under the child's id.
+  const CHILD = "019fcfd6-2883-77e0-9013-4410ede70371";
+  const CHILD_TURN = "019fcfd6-28bf-7e00-a873-4554526dc845";
+  const usageOf = (threadId: string, turnId: string, total: number, last: number) =>
+    `{"method":"thread/tokenUsage/updated","params":{"threadId":"${threadId}","turnId":"${turnId}","tokenUsage":{"total":{"inputTokens":${total},"cachedInputTokens":0,"cacheWriteInputTokens":0,"outputTokens":0,"reasoningOutputTokens":0,"totalTokens":${total}},"last":{"inputTokens":${last},"cachedInputTokens":0,"cacheWriteInputTokens":0,"outputTokens":0,"reasoningOutputTokens":0,"totalTokens":${last}},"modelContextWindow":${threadId === THREAD_ID ? 258_400 : 128_000}}}}`;
+  const childFrames = [
+    `{"method":"thread/status/changed","params":{"threadId":"${CHILD}","status":{"type":"idle"}}}`,
+    `{"method":"item/completed","params":{"item":{"type":"subAgentActivity","id":"call_S2JP","kind":"started","agentThreadId":"${CHILD}","agentPath":"/root/alpha"},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}","completedAtMs":1785898346687}}`,
+    `{"method":"thread/status/changed","params":{"threadId":"${CHILD}","status":{"type":"active","activeFlags":[]}}}`,
+    `{"method":"turn/started","params":{"threadId":"${CHILD}","turn":{"id":"${CHILD_TURN}","items":[],"itemsView":"notLoaded","status":"inProgress","error":null}}}`,
+    usageOf(CHILD, CHILD_TURN, 20_756, 20_756),
+    `{"method":"turn/plan/updated","params":{"threadId":"${CHILD}","turnId":"${CHILD_TURN}","explanation":null,"plan":[{"step":"child step","status":"inProgress"}]}}`,
+    `{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"child_m1","text":"child says done"},"threadId":"${CHILD}","turnId":"${CHILD_TURN}"}}`,
+  ];
+  const childAsk = `{"id":11,"method":"item/commandExecution/requestApproval","params":{"threadId":"${CHILD}","turnId":"${CHILD_TURN}","itemId":"call_c1","command":"ls","cwd":"/root/app","startedAtMs":1}}`;
+  const childCompleted = `{"method":"turn/completed","params":{"threadId":"${CHILD}","turn":{"id":"${CHILD_TURN}","items":[],"status":"completed","error":null}}}`;
+
+  const leading = () =>
+    launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted, usageOf(THREAD_ID, TURN_ID, 18_261, 18_261), ...childFrames, childAsk);
+          if (message.method === "turn/steer") self.push(`{"id":${JSON.stringify(message.id)},"result":{"turnId":"${TURN_ID}"}}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+
+  it("never lets a child's turn set, end or rename the lead's: the steer names the lead's turn and the lead's completion ends it", async () => {
+    const live = leading();
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    expect(await session.steer("and say when")).toBe("accepted");
+    expect(live.wires[0]!.written.find(m => m.method === "turn/steer")!.params).toMatchObject({ threadId: THREAD_ID, expectedTurnId: TURN_ID });
+
+    live.wires[0]!.push(childCompleted);
+    await new Promise(r => setTimeout(r, 10));
+    expect(events.some(e => e.type === "turn.done")).toBe(false);
+    expect(live.wires[0]!.closed).toBe(false);
+
+    live.wires[0]!.push(agentMessage("lead_m1", "the lead's reply"), usageOf(THREAD_ID, TURN_ID, 36_576, 18_315), completed("completed"));
+    const result = await session.finished;
+    expect(result).toMatchObject({ status: "completed", text: "the lead's reply" });
+    // The child's one call counts in the turn's tokens; what the lead's model held and its window stay the lead's.
+    expect(result.tokens).toMatchObject({ input: 36_576 + 20_756, context: 18_315, window: 258_400 });
+    expect(events.filter(e => e.type === "turn.anchor")).toEqual([{ type: "turn.anchor", sessionId: THREAD_ID, anchor: TURN_ID }]);
+    expect(events.some(e => e.type === "turn.plan")).toBe(false);
+    expect(deltasOf(events).map(d => d.text)).not.toContain("child says done");
+  });
+
+  it("an interrupt names the lead's turn after a child's turn started", async () => {
+    const live = leading();
+    const { events, onEvent } = collect();
+    const session = adapterOver(live, { graceMs: 15 }).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    await session.interrupt();
+    const interrupts = live.wires[0]!.written.filter(m => m.method === "turn/interrupt").map(m => m.params);
+    expect(interrupts).toContainEqual({ threadId: THREAD_ID, turnId: TURN_ID });
+    expect(interrupts).not.toContainEqual({ threadId: THREAD_ID, turnId: CHILD_TURN });
+  });
+  const SPAWN = "call_spawn_1";
+  const spawnItem = (phase: "started" | "completed") =>
+    `{"method":"item/${phase}","params":{"item":{"type":"collabAgentToolCall","id":"${SPAWN}","tool":"spawnAgent","status":"${phase === "started" ? "inProgress" : "completed"}","senderThreadId":"${THREAD_ID}","receiverThreadIds":${phase === "started" ? "[]" : `["${CHILD}"]`},"prompt":"Sleep 20 s and say done.\\nEnd without waiting.","model":null,"reasoningEffort":null,"agentsStates":{}},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+  const childStarted = `{"method":"turn/started","params":{"threadId":"${CHILD}","turn":{"id":"${CHILD_TURN}","items":[],"status":"inProgress","error":null}}}`;
+  const childEnded = (status: string, extra = "") => `{"method":"turn/completed","params":{"threadId":"${CHILD}","turn":{"id":"${CHILD_TURN}","items":[],"status":"${status}","error":null${extra}}}}`;
+  const childSays = (text: string) => `{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"child_m2","text":${JSON.stringify(text)}},"threadId":"${CHILD}","turnId":"${CHILD_TURN}"}}`;
+  const activity = (kind: string, path = "/root/alpha") =>
+    `{"method":"item/completed","params":{"item":{"type":"subAgentActivity","id":"${SPAWN}","kind":"${kind}","agentThreadId":"${CHILD}","agentPath":"${path}"},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`;
+
+  /** A lead that spawns one child and ends its own turn without waiting, as the person asked it to. */
+  const spawning = (o: { interrupts?: boolean; hang?: boolean } = {}) =>
+    launcher(seed => {
+      const w = wire({
+        ...(o.hang === true ? { hang: true } : {}),
+        onWrite: (message, self) => {
+          const params = message.params as Json | undefined;
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted, spawnItem("started"), spawnItem("completed"), activity("started"), childStarted, usageOf(CHILD, CHILD_TURN, 900, 900));
+          if (message.method === "turn/interrupt" && o.interrupts === true) {
+            self.push(`{"id":${JSON.stringify(message.id)},"result":{}}`);
+            self.push(params?.threadId === CHILD ? childEnded("interrupted") : completed("interrupted"));
+          }
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+  const subagents = (events: AdapterEvent[]) => events.filter((e): e is Extract<AdapterEvent, { type: "subagent" }> => e.type === "subagent");
+  const tasks = (events: AdapterEvent[]) => events.flatMap(e => (e.type === "turn.tasks" ? [e.running] : []));
+
+  it("holds the lead's reply while its child runs: no turn.done, stdin open, one task, and the child's start named off its spawn", async () => {
+    const live = spawning();
+    const { events, onEvent } = collect();
+    const session = adapterOver(live, { resultExitMs: 15, graceMs: 15 }).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    live.wires[0]!.push(agentMessage("lead_m1", "spawned it"), usageOf(THREAD_ID, TURN_ID, 18_000, 18_000), completed("completed"));
+    await new Promise(r => setTimeout(r, 40));
+    expect(events.some(e => e.type === "turn.done")).toBe(false);
+    expect(live.wires[0]!.closed).toBe(false);
+    expect(live.wires[0]!.order).toEqual([]);
+    expect(tasks(events).at(-1)).toBe(1);
+    expect(subagents(events)[0]).toEqual({
+      type: "subagent",
+      sessionId: THREAD_ID,
+      task: CHILD,
+      state: "running",
+      parentToolUseId: SPAWN,
+      title: "Sleep 20 s and say done.",
+      asked: "Sleep 20 s and say done.\nEnd without waiting.",
+    });
+    expect(subagents(events).filter(e => e.usage === undefined).at(-1)).toMatchObject({ task: CHILD, state: "running", depth: 1 });
+    expect(deltasOf(events).filter(d => d.toolUseId === SPAWN)).toEqual([
+      { type: "turn.delta", sessionId: THREAD_ID, kind: "tool_use", text: JSON.stringify({ prompt: "Sleep 20 s and say done.\nEnd without waiting." }), toolName: "spawn_agent", toolUseId: SPAWN },
+      { type: "turn.delta", sessionId: THREAD_ID, kind: "tool_result", text: "", toolUseId: SPAWN, isError: false },
+    ]);
+
+    live.wires[0]!.push(childSays("done"), childEnded("completed"));
+    const result = await session.finished;
+    const usage = { tokens: { input: 900, cached: 0, cacheWrite: 0, output: 0, reasoning: 0 } };
+    expect(subagents(events).filter(e => e.usage !== undefined)).toEqual([
+      { type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "running", parentToolUseId: SPAWN, usage },
+      { type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "done", parentToolUseId: SPAWN, summary: "done", usage },
+    ]);
+    expect(result).toMatchObject({ status: "completed", text: "spawned it" });
+    expect(result.tokens).toMatchObject({ input: 18_900, context: 18_000, window: 258_400 });
+    expect(tasks(events).at(-1)).toBe(0);
+    expect(live.wires[0]!.closed).toBe(true);
+    expect(events.filter(e => e.type === "turn.usage").map(e => (e as { tokens: number }).tokens)).toEqual([900, 18_000]);
+    // The child's call says nothing of what the lead holds.
+    expect(events.filter(e => e.type === "turn.usage").map(e => (e as { context?: number }).context)).toEqual([undefined, 18_000]);
+  });
+
+  it("a child whose turn failed reads failed, and one a server's activity says completed reads done", async () => {
+    const live = spawning();
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    live.wires[0]!.push(completed("completed"), childEnded("failed", ',"error":{"message":"stream disconnected"}'));
+    await session.finished;
+    expect(subagents(events).at(-1)).toMatchObject({ task: CHILD, state: "failed" });
+
+    const other = spawning();
+    const { events: later, onEvent: onLater } = collect();
+    const next = adapterOver(other).start({ prompt: "spawn one agent", onEvent: onLater });
+    await until(() => later.some(e => e.type === "subagent"));
+    other.wires[0]!.push(completed("completed"), activity("completed"));
+    await next.finished;
+    expect(subagents(later).at(-1)).toMatchObject({ task: CHILD, state: "done" });
+  });
+
+  it("a child known only from its spawn holds the reply but not the idle clock, until its own turn starts", async () => {
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted, spawnItem("completed"), completed("completed"));
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "x", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    await new Promise(r => setTimeout(r, 10));
+    expect(events.some(e => e.type === "turn.done")).toBe(false);
+    expect(tasks(events)).toEqual([]);
+    live.wires[0]!.push(childStarted);
+    await until(() => tasks(events).at(-1) === 1);
+    live.wires[0]!.push(childEnded("completed"));
+    expect((await session.finished).status).toBe("completed");
+    expect(tasks(events)).toEqual([1, 0]);
+  });
+
+  it("a spawn the server failed names no child, so nothing holds the lead", async () => {
+    const failedSpawn = spawnItem("completed").replace('"status":"completed"', '"status":"failed"');
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted, failedSpawn, agentMessage("lead_m1", "could not spawn"), completed("completed"));
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    expect(await adapterOver(live).start({ prompt: "x", onEvent }).finished).toMatchObject({ status: "completed", text: "could not spawn" });
+    expect(subagents(events)).toEqual([]);
+    expect(deltasOf(events).filter(d => d.toolUseId === SPAWN)).toEqual([{ type: "turn.delta", sessionId: THREAD_ID, kind: "tool_result", text: "", toolUseId: SPAWN, isError: true }]);
+  });
+
+  it("knows a child whose only sign is its own turn starting, and holds the lead for it", async () => {
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted, childStarted, completed("completed"));
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "x", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    expect(subagents(events)[0]).toEqual({ type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "running", parentToolUseId: CHILD });
+    await new Promise(r => setTimeout(r, 10));
+    expect(events.some(e => e.type === "turn.done")).toBe(false);
+    live.wires[0]!.push(childEnded("completed"));
+    expect((await session.finished).status).toBe("completed");
+  });
+
+  it("a stop with a child running interrupts the child first, then the lead, and the child reads stopped", async () => {
+    const live = spawning({ interrupts: true });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live, { graceMs: 5_000 }).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    await session.interrupt();
+    const interrupts = live.wires[0]!.written.filter(m => m.method === "turn/interrupt").map(m => m.params);
+    expect(interrupts).toEqual([
+      { threadId: CHILD, turnId: CHILD_TURN },
+      { threadId: THREAD_ID, turnId: TURN_ID },
+    ]);
+    expect(await session.finished).toEqual({ status: "interrupted" });
+    expect(subagents(events).at(-1)).toMatchObject({ task: CHILD, state: "stopped" });
+    expect(live.wires[0]!.order).toEqual([]);
+  });
+
+  it("a stop after the lead's reply interrupts the child alone, and the held reply stands", async () => {
+    const live = spawning({ interrupts: true });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live, { graceMs: 5_000 }).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    live.wires[0]!.push(agentMessage("lead_m1", "spawned it"), completed("completed"));
+    await new Promise(r => setTimeout(r, 10));
+    await session.interrupt();
+    expect(live.wires[0]!.written.filter(m => m.method === "turn/interrupt").map(m => m.params)).toEqual([{ threadId: CHILD, turnId: CHILD_TURN }]);
+    expect(await session.finished).toMatchObject({ status: "completed", text: "spawned it" });
+    expect(subagents(events).at(-1)).toMatchObject({ state: "stopped" });
+  });
+
+  it("a child's approval reaches the person as an ask named by the child's spawn", async () => {
+    const live = leading();
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    const ask = events.find((e): e is Extract<AdapterEvent, { type: "permission.ask" }> => e.type === "permission.ask")!;
+    expect(ask).toMatchObject({ sessionId: THREAD_ID, ask: { askId: "11", toolName: "command_execution", parentToolUseId: "call_S2JP" } });
+    expect(await session.answer(ask.ask.askId, { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" })).toBe("answered");
+    expect(live.wires[0]!.written).toContainEqual({ id: 11, result: { decision: "accept" } });
+    live.wires[0]!.push(childCompleted, completed("completed"));
+    await session.finished;
+  });
+
+  it("stops one child alone by its thread id, the lead running on, and its interrupted end reads stopped", async () => {
+    const live = spawning({ interrupts: true });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    expect(await session.stopTask("no-such-thread")).toEqual({ outcome: "not-running" });
+    expect(await session.stopTask(CHILD)).toEqual({ outcome: "accepted" });
+    expect(live.wires[0]!.written.filter(m => m.method === "turn/interrupt").map(m => m.params)).toEqual([{ threadId: CHILD, turnId: CHILD_TURN }]);
+    await until(() => subagents(events).at(-1)?.state === "stopped");
+    expect(events.some(e => e.type === "turn.done")).toBe(false);
+    expect(await session.stopTask(CHILD)).toEqual({ outcome: "not-running" });
+    live.wires[0]!.push(completed("completed"));
+    expect((await session.finished).status).toBe("completed");
+  });
+
+  it("a process that goes with a child still running ends the child too: stopped under a stop, failed otherwise", async () => {
+    const live = spawning();
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "spawn one agent", onEvent });
+    await until(() => events.some(e => e.type === "subagent"));
+    live.wires[0]!.push(agentMessage("lead_m1", "spawned it"), completed("completed"));
+    await new Promise(r => setTimeout(r, 10));
+    live.wires[0]!.exit(1);
+    expect(await session.finished).toMatchObject({ status: "completed", text: "spawned it" });
+    expect(live.wires[0]!.order).toEqual([]);
+    expect(subagents(events).at(-1)).toMatchObject({ task: CHILD, state: "failed" });
+    expect(events.map(e => e.type).slice(-4)).toEqual(["subagent", "turn.tasks", "turn.done", "session.end"]);
+
+    const stuck = spawning({ hang: true });
+    const { events: stopped, onEvent: onStopped } = collect();
+    const cut = adapterOver(stuck, { graceMs: 15 }).start({ prompt: "spawn one agent", onEvent: onStopped });
+    await until(() => stopped.some(e => e.type === "subagent"));
+    await cut.interrupt();
+    expect(await cut.finished).toEqual({ status: "interrupted" });
+    expect(stuck.wires[0]!.order).toEqual(["teardown", "kill"]);
+    expect(subagents(stopped).at(-1)).toMatchObject({ task: CHILD, state: "stopped" });
+  });
+});
+
+describe("a recorded Codex turn whose lead spawned an agent and ended first", () => {
+  // codex-cli 0.155.1 on gpt-5.6-luna at effort low, recorded through a throwaway host: the lead's turn/completed comes
+  // before its child's. MCP startup, hook and stderr lines are left out; the account, paths and warnings are scrubbed.
+  const LEAD = "01a100dc-e1f0-7183-94f1-048611cff500";
+  const CHILD = "01a100dd-0379-7f91-bd7d-76a0d1bcb962";
+
+  it("holds the lead's reply until the child's own turn completes, and says the child's start, with what its spawn asked and the model it named, what its thread spent, and its end once each", async () => {
+    const launch = launcher(server(fixtureLines("app-server-subagent")));
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launch).start({ prompt: "spawn one agent and end your turn", onEvent }).finished;
+    const said = events.filter((e): e is Extract<AdapterEvent, { type: "subagent" }> => e.type === "subagent");
+    // The child's row carries its own thread's total; the lead's turn still counts the child's calls in its tokens.
+    const usage = { tokens: { input: 19_515, cached: 19_200, cacheWrite: 0, output: 5, reasoning: 0 } };
+    expect(said).toEqual([
+      { type: "subagent", sessionId: LEAD, task: CHILD, state: "running", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", title: "Reply with the single word done and nothing else.", model: "gpt-5.6-luna", asked: "Reply with the single word done and nothing else." },
+      { type: "subagent", sessionId: LEAD, task: CHILD, state: "running", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", usage },
+      { type: "subagent", sessionId: LEAD, task: CHILD, state: "done", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", summary: "done", usage },
+    ]);
+    const at = (type: string) => events.findIndex(e => e.type === type);
+    expect(at("turn.done")).toBeGreaterThan(events.lastIndexOf(said[2]!));
+    expect(events.flatMap(e => (e.type === "turn.tasks" ? [e.running] : []))).toEqual([1, 0]);
+    expect(result).toMatchObject({ status: "completed", text: "spawned", tokens: { input: 77_535 + 19_515, window: 258_400 } });
+    expect(deltasOf(events).map(d => d.text)).not.toContain("done");
+    expect(deltasOf(events).filter(d => d.toolUseId === said[0]!.parentToolUseId).map(d => [d.kind, d.toolName, d.text])).toEqual([
+      ["tool_use", "spawn_agent", JSON.stringify({ prompt: "Reply with the single word done and nothing else." })],
+      ["tool_result", undefined, ""],
+    ]);
+    expect(launch.wires[0]!.closed).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "session.end", sessionId: LEAD, sawResult: true });
+  });
+});
+
+describe("a turn a later host attaches to", () => {
+  it("re-opens the run with its channel, replays the log, and writes nothing in answer to what the replay shows", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const attached: { run: string; input: boolean }[] = [];
+    const replay = wire();
+    replay.push(...fixtureLines("app-server-turn"));
+    replay.exit(0);
+    launch.factory.attach = async (run, options) => {
+      attached.push({ run, input: options.input });
+      return replay.stream;
+    };
+    const adapter = adapterOver(launch);
+    expect(adapter.start({ prompt: "go", onEvent: () => {} }).run).toBe(RUN_HANDLE);
+    const { events, onEvent } = collect();
+    const session = (await adapter.attach!({ run: RUN_HANDLE, sessionId: RECORDED_THREAD, startedAt: 1, model: "gpt-5.5", cwd: "/root/app", onEvent })) as CodexSession;
+    const result = await session.finished;
+    expect(attached).toEqual([{ run: RUN_HANDLE, input: true }]);
+    expect(session.command).toBeUndefined();
+    expect(result.status).toBe("completed");
+    expect(replay.written).toEqual([]);
+    expect(events[0]).toMatchObject({ type: "session.start", sessionId: RECORDED_THREAD, model: "gpt-5.5", cwd: "/root/app" });
+    expect(events.slice(-2)).toMatchObject([{ type: "turn.done" }, { type: "session.end", exitCode: 0, sawResult: true }]);
+  });
+});
+
+describe("the process a finished turn leaves", () => {
+  it("a server that does not go after its turn completed is ended with its tree, and the turn still reads as its reply", async () => {
+    const launch = launcher(scripted([agentMessage("msg_1", "done"), completed("completed")], { hang: true }));
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launch, { graceMs: 15, resultExitMs: 15 }).start({ prompt: "x", onEvent }).finished;
+    expect(launch.wires[0]!.order).toEqual(["teardown", "kill"]);
+    expect(result).toMatchObject({ status: "completed", text: "done" });
+    expect(events.at(-1)).toMatchObject({ type: "session.end", sawResult: true });
+  });
+
+  it("a server that exits on EOF is left alone", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    expect((await adapterOver(launch, { graceMs: 15, resultExitMs: 15 }).start({ prompt: "x", onEvent: () => {} }).finished).status).toBe("completed");
+    await new Promise(r => setTimeout(r, 60));
+    expect(launch.wires[0]!.order).toEqual([]);
+  });
+});
+
+describe("a side question on a Codex thread", () => {
+  const FORK = "01a0e2d0-0000-7000-8000-000000000001";
+  const forking = (onTurn: (self: Wire) => void, opts: { hang?: boolean } = {}) =>
+    launcher(seed => {
+      const w = wire({
+        ...opts,
+        onWrite: (message, self) => {
+          // 0.155.1 refuses an ephemeral fork that would hand back the thread's whole history, in these words.
+          if (message.method === "thread/fork" && (message.params as Json).excludeTurns !== true)
+            self.push('{"id":"wsp-initialize","result":{}}', '{"error":{"code":-32600,"message":"ephemeral paginated thread/fork requires `excludeTurns: true`"},"id":"wsp-thread"}');
+          else if (message.method === "thread/fork")
+            self.push('{"id":"wsp-initialize","result":{}}', `{"id":"wsp-thread","result":{"thread":{"id":"${FORK}","ephemeral":true,"forkedFromId":"${THREAD_ID}"},"model":"gpt-5.6-sol"}}`);
+          if (message.method === "turn/start") onTurn(self);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+
+  it("forks the thread ephemeral and read-only on its own server, asks the question on the fork, and reads the answer", async () => {
+    const launch = forking(self =>
+      self.push(
+        `{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m1","text":"You are in /root/app; you last asked me to count."},"threadId":"${FORK}","turnId":"t1"}}`,
+        `{"method":"thread/tokenUsage/updated","params":{"threadId":"${FORK}","turnId":"t1","tokenUsage":{"last":{"inputTokens":900,"cachedInputTokens":880,"outputTokens":12,"reasoningOutputTokens":0,"totalTokens":912},"total":{}}}}`,
+        `{"method":"turn/completed","params":{"threadId":"${FORK}","turn":{"id":"t1","items":[],"status":"completed"}}}`,
+      ),
+    );
+    const adapter = adapterOver(launch);
+    const answer = await adapter.aside!({ session: THREAD_ID, question: "which folder are you in?", cwd: "/root/app", model: "gpt-5.5" });
+    expect(answer).toEqual({ text: "You are in /root/app; you last asked me to count.", usage: { input: 900, cached: 880, output: 12, reasoning: 0, context: 912 } });
+    const call = launch.calls[0]!;
+    expect(call.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
+    // A side question is no turn of the account's: it asks neither the account nor its limits.
+    expect(call.input?.map(l => parse(l).method)).toEqual(["initialize", "initialized", "thread/fork"]);
+    const fork = parse(call.input!.at(-1)!);
+    expect(fork.method).toBe("thread/fork");
+    expect(fork.params).toMatchObject({ threadId: THREAD_ID, ephemeral: true, sandbox: "read-only", approvalPolicy: "never", model: "gpt-5.5" });
+    expect(String((fork.params as Json).developerInstructions)).toContain("Run nothing");
+    const turn = launch.wires[0]!.written.find(m => m.method === "turn/start")!;
+    expect(turn.params).toEqual({ threadId: FORK, input: [{ type: "text", text: "which folder are you in?" }] });
+    expect(launch.wires[0]!.closed).toBe(true);
+  });
+
+  it("refuses every approval the fork asks for, so a side question never runs anything", async () => {
+    const launch = forking(self =>
+      self.push(
+        `{"id":3,"method":"item/commandExecution/requestApproval","params":{"threadId":"${FORK}","turnId":"t1","itemId":"c1","command":"ls","startedAtMs":1}}`,
+        `{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m1","text":"I would rather not run that."},"threadId":"${FORK}","turnId":"t1"}}`,
+        `{"method":"turn/completed","params":{"threadId":"${FORK}","turn":{"id":"t1","items":[],"status":"completed"}}}`,
+      ),
+    );
+    const answer = await adapterOver(launch).aside!({ session: THREAD_ID, question: "list the files" });
+    expect(answer.text).toBe("I would rather not run that.");
+    expect(launch.wires[0]!.written.find(m => m.id === 3)).toEqual({ id: 3, result: { decision: "decline" } });
+  });
+
+  it("ends a fork that answers nothing for the whole wall with its tree, and says so", async () => {
+    const launch = forking(() => {}, { hang: true });
+    const adapter = createCodexAdapter({ exec: launch.factory, home: "/root/.codex", login: LOGIN, asideWallMs: 20, interruptGraceMs: 10 });
+    await expect(adapter.aside({ session: THREAD_ID, question: "still there?" })).rejects.toThrow(asideWallLine(20));
+    expect(launch.wires[0]!.order).toEqual(["teardown", "kill"]);
+  });
+
+  it("a turn is held to no wall of the side question's", async () => {
+    const launch = launcher(scripted([], { hang: true }));
+    const session = createCodexAdapter({ exec: launch.factory, home: "/root/.codex", login: LOGIN, asideWallMs: 20, interruptGraceMs: 10 }).start({ prompt: "x", onEvent: () => {} });
+    await new Promise(r => setTimeout(r, 60));
+    expect(launch.wires[0]!.order).toEqual([]);
+    await session.interrupt();
+  });
+
+  it("rejects in the server's words when the fork fails, and in the sign-in line when it failed for want of one", async () => {
+    const refused = launcher(seed => {
+      const w = wire({ onWrite: (m, self) => void (m.method === "thread/fork" && self.push('{"error":{"code":-32600,"message":"no rollout found for thread id"},"id":"wsp-thread"}')) });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    await expect(adapterOver(refused).aside!({ session: THREAD_ID, question: "x" })).rejects.toThrow("codex could not open the thread: no rollout found for thread id");
+    const unsigned = forking(self => self.push(`{"method":"turn/completed","params":{"threadId":"${FORK}","turn":{"id":"t1","items":[],"status":"failed","error":{"message":"unexpected status 401 Unauthorized: Missing bearer"}}}}`));
+    await expect(adapterOver(unsigned).aside!({ session: THREAD_ID, question: "x" })).rejects.toThrow(NOT_SIGNED_IN);
+  });
+});
+
+describe("what a rewind needs of a Codex turn", () => {
+  it("names the turn by the id the server gave it at turn/started, once", async () => {
+    const launch = launcher(scripted([agentMessage("msg_1", "done"), completed("completed")]));
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "x", onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.anchor")).toEqual([{ type: "turn.anchor", sessionId: THREAD_ID, anchor: TURN_ID }]);
+  });
+
+  it("on a thread an older Codex made, names each turn's anchor with why its history cannot be cut", async () => {
+    const legacy = server([opened()[0]!, opened()[1]!.replace('"turns":[]', '"turns":[],"historyMode":"legacy"'), turnStarted, agentMessage("msg_1", "done"), completed("completed")]);
+    const { events, onEvent } = collect();
+    await adapterOver(launcher(legacy)).start({ prompt: "x", resume: THREAD_ID, onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.anchor")).toEqual([{ type: "turn.anchor", sessionId: THREAD_ID, anchor: TURN_ID, kept: CODEX_LEGACY_HISTORY }]);
+  });
+
+  it("reads the history mode off this thread's own announcement alone, never a later thread's", async () => {
+    const other = `{"method":"thread/started","params":{"thread":{"id":"01a0e2c1-0000-7000-8000-00000000c41d","historyMode":"legacy"}}}`;
+    const { events, onEvent } = collect();
+    await adapterOver(launcher(server([...opened(), other, turnStarted, agentMessage("msg_1", "done"), completed("completed")]))).start({ prompt: "x", onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.anchor")).toEqual([{ type: "turn.anchor", sessionId: THREAD_ID, anchor: TURN_ID }]);
+  });
+
+  it("cuts the thread's history before a turn on its own short server run, resuming the thread and asking thread/revert", async () => {
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/resume") self.push('{"id":"wsp-initialize","result":{}}', `{"id":"wsp-thread","result":{"thread":{"id":"${THREAD_ID}"},"model":"gpt-5.6-sol"}}`);
+          if (message.method === "thread/revert") self.push(`{"id":"wsp-revert","result":{"thread":{"id":"${THREAD_ID}","turns":[]}}}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    expect(await adapterOver(launch).revert({ session: THREAD_ID, beforeTurn: TURN_ID, cwd: "/root/app" })).toBeUndefined();
+    expect(launch.calls[0]!.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
+    expect(parse(launch.calls[0]!.input!.at(-1)!)).toMatchObject({ method: "thread/resume", params: { threadId: THREAD_ID } });
+    expect(launch.wires[0]!.written.find(m => m.method === "thread/revert")).toEqual({ id: "wsp-revert", method: "thread/revert", params: { threadId: THREAD_ID, beforeTurnId: TURN_ID } });
+    expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
+    expect(launch.wires[0]!.closed).toBe(true);
+  });
+
+  /** A server whose thread answers in the history mode given, with its turns newest first in pages of the size
+   * given, and the answer to thread/revert given. */
+  const history = (o: { mode?: string; turns?: string[]; pageSize?: number; repeatCursor?: boolean; revert?: string }) =>
+    launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          const params = message.params as Json;
+          if (message.method === "thread/resume")
+            self.push(`{"id":"wsp-thread","result":{"thread":{"id":"${THREAD_ID}"${o.mode !== undefined ? `,"historyMode":"${o.mode}"` : ""},"turns":[]},"model":"gpt-5.6-sol"}}`);
+          if (message.method === "thread/turns/list") {
+            const from = params.cursor === null ? 0 : Number(params.cursor);
+            const size = Math.min(Number(params.limit), o.pageSize ?? 100);
+            const data = (o.turns ?? []).slice(from, from + size).map(id => ({ id, items: [], itemsView: "summary", status: "completed" }));
+            const next = o.repeatCursor === true ? "0" : from + size < (o.turns ?? []).length ? String(from + size) : null;
+            self.push(JSON.stringify({ id: message.id, result: { data, nextCursor: next, backwardsCursor: null } }));
+          }
+          if (message.method === "thread/revert") self.push(o.revert ?? `{"id":"wsp-revert","result":{"thread":{"id":"${THREAD_ID}","turns":[]}}}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+  const listed = (launch: Launch) => launch.wires[0]!.written.filter(m => m.method === "thread/turns/list").map(m => m.params);
+  const done = (text: string): { result: TurnResult } => ({ result: { status: "completed", text } });
+  const NEWEST_FIRST = ["t9", "t8", "t7", "t6", "t5"];
+
+  it("rejects in the server's words when it will not cut, so the rewind is refused whole", async () => {
+    const launch = history({ mode: "paginated", revert: `{"error":{"code":-32603,"message":"timed out shutting down thread ${THREAD_ID} before revert"},"id":"wsp-revert"}` });
+    await expect(adapterOver(launch).revert({ session: THREAD_ID, beforeTurn: TURN_ID })).rejects.toThrow(`codex would not cut the thread: timed out shutting down thread ${THREAD_ID} before revert`);
+  });
+
+  it("without the turn's id finds the boundary by count in the thread's turns, newest first across pages", async () => {
+    const launch = history({ mode: "paginated", turns: NEWEST_FIRST, pageSize: 2 });
+    expect(await adapterOver(launch).revert({ session: THREAD_ID, turns: [done("a"), done("b"), done("c")] })).toBeUndefined();
+    expect(listed(launch)).toEqual([
+      { threadId: THREAD_ID, cursor: null, limit: 3, sortDirection: "desc", itemsView: "summary" },
+      { threadId: THREAD_ID, cursor: "2", limit: 1, sortDirection: "desc", itemsView: "summary" },
+    ]);
+    expect(launch.wires[0]!.written.find(m => m.method === "thread/revert")!.params).toEqual({ threadId: THREAD_ID, beforeTurnId: "t7" });
+  });
+
+  it("counts only the cut turns the server opened: not one refused for a sign-in, nor one the adapter failed before the server took it", async () => {
+    const launch = history({ mode: "paginated", turns: NEWEST_FIRST });
+    const refused: TurnResult = { status: "failed", error: NOT_SIGNED_IN, refusal: "sign-in" };
+    const unopened: TurnResult = { status: "failed", error: "codex could not open the thread: no rollout found for thread id 01a0" };
+    await adapterOver(launch).revert({ session: THREAD_ID, turns: [{ result: refused }, done("a"), { result: unopened }, {}, { result: { status: "interrupted" } }] });
+    expect(listed(launch).map(p => (p as Json).limit)).toEqual([3]);
+    expect(launch.wires[0]!.written.find(m => m.method === "thread/revert")!.params).toEqual({ threadId: THREAD_ID, beforeTurnId: "t7" });
+  });
+
+  it("counts a cut turn that kept the server's own id as opened, whatever its result says", async () => {
+    const launch = history({ mode: "paginated", turns: NEWEST_FIRST });
+    const refused: TurnResult = { status: "failed", error: NOT_SIGNED_IN, refusal: "sign-in" };
+    await adapterOver(launch).revert({ session: THREAD_ID, turns: [{ result: refused }, { anchor: "t8", result: refused }, done("a")] });
+    expect(listed(launch).map(p => (p as Json).limit)).toEqual([2]);
+    expect(launch.wires[0]!.written.find(m => m.method === "thread/revert")!.params).toEqual({ threadId: THREAD_ID, beforeTurnId: "t8" });
+  });
+
+  it("refuses when the server lists fewer turns than the rewind would cut, and cuts nothing", async () => {
+    const launch = history({ mode: "paginated", turns: ["t2", "t1"], pageSize: 1 });
+    await expect(adapterOver(launch).revert({ session: THREAD_ID, turns: [done("a"), done("b"), done("c")] })).rejects.toThrow(CODEX_FEWER_TURNS);
+    expect(listed(launch).map(p => (p as Json).limit)).toEqual([3, 2]);
+    expect(launch.wires[0]!.written.some(m => m.method === "thread/revert")).toBe(false);
+  });
+
+  it("refuses a server that hands back a page it already gave, before asking any cut", async () => {
+    const launch = history({ mode: "paginated", turns: NEWEST_FIRST, pageSize: 1, repeatCursor: true });
+    await expect(adapterOver(launch).revert({ session: THREAD_ID, turns: [done("a"), done("b"), done("c")] })).rejects.toThrow("codex could not list the thread's turns: it handed back a page it already gave");
+    expect(launch.wires[0]!.written.some(m => m.method === "thread/revert")).toBe(false);
+  });
+
+  it("a thread an older Codex made answers kept, by its history mode before any request and by the server's own refusal after one", async () => {
+    const legacy = history({ mode: "legacy", turns: NEWEST_FIRST });
+    expect(await adapterOver(legacy).revert({ session: THREAD_ID, beforeTurn: TURN_ID })).toEqual({ kept: CODEX_LEGACY_HISTORY });
+    expect(legacy.wires[0]!.written.some(m => m.method === "thread/revert" || m.method === "thread/turns/list")).toBe(false);
+    expect(legacy.wires[0]!.closed).toBe(true);
+
+    const unsaid = history({ turns: NEWEST_FIRST, revert: '{"error":{"code":-32600,"message":"thread/revert only supports paginated threads"},"id":"wsp-revert"}' });
+    expect(await adapterOver(unsaid).revert({ session: THREAD_ID, turns: [done("a")] })).toEqual({ kept: CODEX_LEGACY_HISTORY });
+  });
+
+  describe("a fork of a Codex thread", () => {
+    const FORK_ID = "01a12812-adb3-7c12-9acc-a86fcbe74924";
+    const onFork = (line: string): string => line.replaceAll(THREAD_ID, FORK_ID);
+
+    it("forks the thread through the turn on the start's own server run, in the fork's folder and at its access, then starts the turn on the thread it answers", async () => {
+      const launch = launcher(server([...opened(FORK_ID), onFork(turnStarted), onFork(agentMessage("m1", "ALPHA, BETA")), onFork(completed("completed"))]));
+      const { events, onEvent } = collect();
+      const result = await adapterOver(launch).start({ prompt: "list every code word you remember", fork: { session: THREAD_ID, turn: "t8" }, cwd: "/root/app-fork", model: "gpt-5.5", permissionMode: "workspace-write", onEvent }).finished;
+      expect(result).toMatchObject({ status: "completed", text: "ALPHA, BETA" });
+      expect(launch.calls).toHaveLength(1);
+      expect(launch.calls[0]!.command).toBe(`cd '/root/app-fork' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
+      const fork = parse(launch.calls[0]!.input!.at(-1)!);
+      expect(fork).toEqual({ id: "wsp-thread", method: "thread/fork", params: { threadId: THREAD_ID, lastTurnId: "t8", ephemeral: false, excludeTurns: true, cwd: "/root/app-fork", model: "gpt-5.5", sandbox: "workspace-write", approvalPolicy: "on-request" } });
+      expect(launch.wires[0]!.written.some(m => m.method === "thread/start" || m.method === "thread/resume")).toBe(false);
+      expect(launch.wires[0]!.written.find(m => m.method === "turn/start")!.params).toMatchObject({ threadId: FORK_ID, input: [{ type: "text", text: "list every code word you remember" }] });
+      // The thread every later turn resumes is the fork's own, as the server answered it.
+      expect(events.find(e => e.type === "session.start")).toMatchObject({ sessionId: FORK_ID });
+      expect(() => adapterOver(launch).start({ prompt: "x", fork: { session: THREAD_ID, turn: "t8" }, resume: FORK_ID, onEvent })).toThrow(/never both/);
+    });
+
+    it("fails the turn in the server's words where it will not fork, naming nothing it never opened", async () => {
+      const refused = launcher(seed => {
+        const w = wire({ onWrite: (message, self) => (message.method === "thread/fork" ? self.push('{"id":"wsp-thread","error":{"code":-32600,"message":"turn not found: t8"}}') : undefined) });
+        for (const line of seed) void w.stream.write(line);
+        return w;
+      });
+      const result = await adapterOver(refused).start({ prompt: "x", fork: { session: THREAD_ID, turn: "t8" }, onEvent: () => {} }).finished;
+      expect(result).toMatchObject({ status: "failed", error: "codex could not open the thread: turn not found: t8" });
+      expect(refused.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
+    });
+
+    it("finds a turn by its id among the thread's turns on a run that loads no thread, across pages", async () => {
+      const launch = history({ turns: NEWEST_FIRST, pageSize: 2 });
+      expect(await adapterOver(launch).forkSession({ session: THREAD_ID, turn: { anchor: "t6" } })).toEqual({ fork: { session: THREAD_ID, turn: "t6" } });
+      expect(listed(launch).map(p => (p as Json).cursor)).toEqual([null, "2"]);
+      expect(launch.wires[0]!.written.some(m => ["thread/resume", "thread/start", "thread/fork", "turn/start"].includes(String(m.method)))).toBe(false);
+      expect(launch.wires[0]!.closed).toBe(true);
+    });
+
+    it("finds a turn that named no anchor by counting back past the turns after it that the server opened", async () => {
+      const launch = history({ turns: NEWEST_FIRST });
+      const refused: TurnResult = { status: "failed", error: NOT_SIGNED_IN, refusal: "sign-in" };
+      expect(await adapterOver(launch).forkSession({ session: THREAD_ID, turn: { after: [done("a"), { result: refused }, done("b")] } })).toEqual({ fork: { session: THREAD_ID, turn: "t7" } });
+      expect(await adapterOver(history({ turns: NEWEST_FIRST })).forkSession({ session: THREAD_ID, turn: { after: [] } })).toEqual({ fork: { session: THREAD_ID, turn: "t9" } });
+    });
+
+    it("refuses a turn the server does not list, and a count past the turns it lists, before any fork", async () => {
+      await expect(adapterOver(history({ turns: NEWEST_FIRST, pageSize: 2 })).forkSession({ session: THREAD_ID, turn: { anchor: "t1" } })).rejects.toThrow(codexNoTurnLine("t1"));
+      await expect(adapterOver(history({ turns: ["t2", "t1"] })).forkSession({ session: THREAD_ID, turn: { after: [done("a"), done("b")] } })).rejects.toThrow(CODEX_FEWER_TURNS);
+    });
+
+    it("forks a thread an older Codex made at its anchor as given, where the server will not list its turns", async () => {
+      const legacy = launcher(seed => {
+        const w = wire({ onWrite: (message, self) => (message.method === "thread/turns/list" ? self.push(`{"id":"${String(message.id)}","error":{"code":-32600,"message":"thread/turns/list only supports paginated threads"}}`) : undefined) });
+        for (const line of seed) void w.stream.write(line);
+        return w;
+      });
+      expect(await adapterOver(legacy).forkSession({ session: THREAD_ID, turn: { anchor: TURN_ID } })).toEqual({ fork: { session: THREAD_ID, turn: TURN_ID } });
+    });
+  });
+});
+
+describe("a Codex account's plan limits on the app server", () => {
+  // Shapes from `codex app-server generate-ts` on codex-cli 0.157.1: GetAccountResponse, GetAccountRateLimitsResponse,
+  // AccountRateLimitsUpdatedNotification.
+  const account = (value: Json | null) => JSON.stringify({ id: "wsp-account", result: { account: value, requiresOpenaiAuth: true } });
+  const window = (usedPercent: number, windowDurationMins: number, resetsAt: number) => ({ usedPercent, windowDurationMins, resetsAt });
+  const snapshot = (o: { primary?: Json | null; secondary?: Json | null; planType?: string | null; reached?: string | null }) => ({
+    limitId: "codex",
+    limitName: null,
+    normalModelSlug: null,
+    primary: o.primary ?? null,
+    secondary: o.secondary ?? null,
+    credits: null,
+    individualLimit: null,
+    spendControlReached: null,
+    planType: o.planType ?? null,
+    rateLimitReachedType: o.reached ?? null,
+  });
+  const rateLimits = (s: Json, accountId: string | null = "acct_7f3a") =>
+    JSON.stringify({ id: "wsp-rate-limits", result: { ordinaryUsageAllowed: true, rateLimits: s, rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId, rateLimitUpsell: null } });
+  const updated = (s: Json) => JSON.stringify({ method: "account/rateLimits/updated", params: { rateLimits: s } });
+  const limitsOf = (events: AdapterEvent[]) => events.flatMap(e => (e.type === "limit" ? [e.limit] : []));
+
+  it("asks the account and its limits once as the turn opens, and reads the windows by their length with the plan and the account", async () => {
+    const launch = launcher(
+      scripted([
+        account({ type: "chatgpt", email: "dev@example.com", planType: "plus" }),
+        rateLimits(snapshot({ primary: window(34.5, 300, 1_790_700_000), secondary: window(12, 10_080, 1_791_200_000), planType: "plus" })),
+        agentMessage("m1", "done"),
+        completed("completed"),
+      ]),
+    );
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    const seed = (launch.calls[0]!.input ?? []).map(line => (JSON.parse(line) as Json).method);
+    expect(seed).toEqual(["initialize", "initialized", "account/read", "account/rateLimits/read", "thread/start"]);
+    expect(limitsOf(events)).toEqual([
+      {
+        windows: [
+          { kind: "session", usedPercent: 34.5, resetsAt: 1_790_700_000_000 },
+          { kind: "week", usedPercent: 12, resetsAt: 1_791_200_000_000 },
+        ],
+        plan: "plus",
+        status: "ok",
+        account: { id: "acct_7f3a", label: "dev@example.com" },
+      },
+    ]);
+  });
+
+  it("merges a rolling update into the last reading, a window it leaves out kept and a reached limit said", async () => {
+    const launch = launcher(
+      scripted([
+        account({ type: "chatgpt", email: "dev@example.com", planType: "plus" }),
+        rateLimits(snapshot({ primary: window(34.5, 300, 1_790_700_000), secondary: window(12, 10_080, 1_791_200_000), planType: "plus" })),
+        updated(snapshot({ primary: window(100, 300, 1_790_700_000), reached: "rate_limit_reached" })),
+        completed("completed"),
+      ]),
+    );
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    expect(limitsOf(events).at(-1)).toEqual({
+      windows: [
+        { kind: "session", usedPercent: 100, resetsAt: 1_790_700_000_000 },
+        { kind: "week", usedPercent: 12, resetsAt: 1_791_200_000_000 },
+      ],
+      plan: "plus",
+      status: "reached",
+      account: { id: "acct_7f3a", label: "dev@example.com" },
+    });
+  });
+
+  it("reads a window longer than a week as the month", async () => {
+    const launch = launcher(scripted([rateLimits(snapshot({ primary: window(5, 43_200, 1_792_000_000) }), null), completed("completed")]));
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    expect(limitsOf(events)).toEqual([{ windows: [{ kind: "month", usedPercent: 5, resetsAt: 1_792_000_000_000 }], status: "ok" }]);
+  });
+
+  it("says a sign-in by API key has no plan window", async () => {
+    const launch = launcher(scripted([account({ type: "apiKey" }), completed("completed")]));
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    expect(limitsOf(events)).toEqual([{ windows: [], keyed: true }]);
+  });
+
+  const banked = (credits: Json | null) => ({ availableCount: 2, credits });
+  const read = (s: Json, extra: Json) => JSON.stringify({ id: "wsp-rate-limits", result: { ordinaryUsageAllowed: true, rateLimits: s, rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: "acct_7f3a", rateLimitUpsell: null, ...extra } });
+
+  it("asks for each banked reset in full on a turn the runtime says is due for it, and for the count alone otherwise", async () => {
+    const paramsOf = async (limitDetails?: boolean) => {
+      const launch = launcher(scripted([completed("completed")]));
+      await adapterOver(launch).start({ prompt: "hi", onEvent: () => {}, ...(limitDetails !== undefined ? { limitDetails } : {}) }).finished;
+      return (launch.calls[0]!.input ?? []).map(line => JSON.parse(line) as Json).find(m => m.method === "account/rateLimits/read")?.params;
+    };
+    expect(await paramsOf(true)).toEqual({});
+    expect(await paramsOf()).toEqual({ excludeResetCreditDetails: true });
+  });
+
+  it("reads how many resets the plan has banked off the turn's read, where the details were left out", async () => {
+    const launch = launcher(scripted([read(snapshot({ primary: window(34.5, 300, 1_790_700_000) }), { rateLimitResetCredits: banked(null) }), completed("completed")]));
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    expect(limitsOf(events).map(l => l.credits)).toEqual([{ count: 2 }]);
+  });
+
+  it("keeps the banked resets off a rolling update, which never carries them, so the last read stands", async () => {
+    const launch = launcher(
+      scripted([read(snapshot({ primary: window(34.5, 300, 1_790_700_000) }), { rateLimitResetCredits: banked(null) }), updated(snapshot({ primary: window(40, 300, 1_790_700_000) })), completed("completed")]),
+    );
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    expect(limitsOf(events).map(l => "credits" in l)).toEqual([true, false]);
+  });
+
+  it("reads the windows off the codex bucket where the answer names buckets, and merges no update for another bucket", async () => {
+    const other = { ...snapshot({ primary: window(90, 300, 1_790_700_000) }), limitId: "codex_other" };
+    const launch = launcher(
+      scripted([
+        read(snapshot({ primary: window(70, 300, 1_790_700_000) }), { rateLimitsByLimitId: { codex: snapshot({ primary: window(10, 300, 1_790_700_000) }), codex_other: other } }),
+        updated(other),
+        completed("completed"),
+      ]),
+    );
+    const { events, onEvent } = collect();
+    await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
+    expect(limitsOf(events).map(l => l.windows.map(w => w.usedPercent))).toEqual([[10]]);
+  });
+  describe("a turn the plan's usage limit stopped", () => {
+    // The sentence the owner saw when a Plus window was spent, under the code the app server's schema names for it;
+    // not a recording of a real limit.
+    const SAID = "You've hit your usage limit. Upgrade to Pro (https://openai.com/chatgpt/pricing) or try again at 1:13 PM.";
+    const error = (code: string) => JSON.stringify({ method: "error", params: { threadId: THREAD_ID, turnId: TURN_ID, willRetry: false, error: { message: SAID, codexErrorInfo: code, additionalDetails: null } } });
+    const failed = (code: string) => completed("failed", `,"error":${JSON.stringify({ message: SAID, codexErrorInfo: code, additionalDetails: null })}`);
+    const inAnHour = Math.floor(Date.now() / 1000) + 3600;
+    const run = async (lines: string[]) => (await adapterOver(launcher(scripted(lines))).start({ prompt: "hi", onEvent: () => {} }).finished);
+
+    it("carries the limit with the reset of the window the latest reading has at its cap", async () => {
+      const result = await run([
+        read(snapshot({ primary: window(97, 300, inAnHour), secondary: window(40, 10_080, inAnHour + 86_400) }), {}),
+        updated(snapshot({ primary: window(100, 300, inAnHour), reached: "rate_limit_reached" })),
+        error("usageLimitExceeded"),
+        failed("usageLimitExceeded"),
+      ]);
+      expect(result).toMatchObject({ status: "failed", limit: { resetsAt: inAnHour * 1000 } });
+    });
+
+    it("carries the reset of the fullest window ahead where the server stopped the turn at 99 (rollout 11-28-17)", async () => {
+      const result = await run([
+        read(snapshot({ primary: window(97, 300, inAnHour), secondary: window(40, 10_080, inAnHour + 86_400) }), {}),
+        updated(snapshot({ primary: window(99, 300, inAnHour) })),
+        error("usageLimitExceeded"),
+        failed("usageLimitExceeded"),
+      ]);
+      expect(result).toMatchObject({ status: "failed", limit: { resetsAt: inAnHour * 1000 } });
+    });
+
+    it("carries the limit with no reset where no window names one ahead", async () => {
+      const result = await run([read(snapshot({ primary: window(99, 300, Math.floor(Date.now() / 1000) - 60) }), {}), failed("usageLimitExceeded")]);
+      expect(result.status).toBe("failed");
+      expect(result.limit).toEqual({});
+    });
+
+    it("carries none on a turn that failed another way, whatever the reading says", async () => {
+      const result = await run([updated(snapshot({ primary: window(100, 300, inAnHour), reached: "rate_limit_reached" })), error("serverOverloaded"), failed("serverOverloaded")]);
+      expect(result.status).toBe("failed");
+      expect(result).not.toHaveProperty("limit");
+    });
+  });
+});
+
+describe("creditsOf", () => {
+  const credit = (o: Json = {}) => ({ id: "rc_1", resetType: "codexRateLimits", status: "available", grantedAt: 1_790_000_000, expiresAt: 1_792_000_000, title: null, description: null, ...o });
+
+  it("reads nothing where the answer has no reset field, as a codex older than resets answers", () => {
+    expect(creditsOf({ rateLimits: {} })).toBeUndefined();
+    expect(creditsOf({ rateLimitResetCredits: null })).toBeUndefined();
+  });
+
+  it("reads the count alone where the details are null or not a list", () => {
+    expect(creditsOf({ rateLimitResetCredits: { availableCount: 2, credits: null } })).toEqual({ count: 2 });
+    expect(creditsOf({ rateLimitResetCredits: { availableCount: 2, credits: "two" } })).toEqual({ count: 2 });
+  });
+
+  it("reads each credit's id, status and expiry, seconds made ms, and an empty list as details read with none left", () => {
+    expect(creditsOf({ rateLimitResetCredits: { availableCount: 2, credits: [credit(), credit({ id: "rc_2", expiresAt: null })] } })).toEqual({
+      count: 2,
+      credits: [
+        { id: "rc_1", status: "available", expiresAt: 1_792_000_000_000 },
+        { id: "rc_2", status: "available" },
+      ],
+    });
+    expect(creditsOf({ rateLimitResetCredits: { availableCount: 0, credits: [] } })).toEqual({ count: 0, credits: [] });
+  });
+
+  it("fails closed: a count that is not a whole number at or above zero reads the whole field absent", () => {
+    for (const availableCount of [1.5, -1, "2", null, Number.NaN]) expect(creditsOf({ rateLimitResetCredits: { availableCount, credits: [credit()] } }), String(availableCount)).toBeUndefined();
+  });
+
+  it("never reads a credit of another kind, or one in a state it does not know, as available, and skips one with no id", () => {
+    const read = creditsOf({ rateLimitResetCredits: { availableCount: 3, credits: [credit({ resetType: "unknown" }), credit({ id: "rc_2", status: "pending" }), credit({ id: undefined }), credit({ id: "rc_4", status: "redeeming" })] } });
+    expect(read?.credits?.map(c => [c.id, c.status])).toEqual([
+      ["rc_1", "unknown"],
+      ["rc_2", "unknown"],
+      ["rc_4", "redeeming"],
+    ]);
+  });
+});
+
+describe("a Codex thread's own compaction", () => {
+  // codex-cli 0.155.1's answer to thread/compact/start on a thread holding 20,964 tokens (recorded 2026-10-05, ids
+  // swapped for the test's): a turn of its own whose one item is the compaction, and a usage line whose last call
+  // reports no input or output but the context the thread now holds as its total.
+  const COMPACTION = [
+    '{"id":"wsp-turn","result":{}}',
+    turnStarted,
+    `{"method":"item/started","params":{"item":{"type":"contextCompaction","id":"cc1"},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`,
+    `{"method":"item/completed","params":{"item":{"type":"contextCompaction","id":"cc1"},"threadId":"${THREAD_ID}","turnId":"${TURN_ID}"}}`,
+    `{"method":"thread/tokenUsage/updated","params":{"threadId":"${THREAD_ID}","turnId":"${TURN_ID}","tokenUsage":{"total":{"totalTokens":20964,"inputTokens":20959,"cachedInputTokens":11136,"cacheWriteInputTokens":0,"outputTokens":5,"reasoningOutputTokens":0},"last":{"totalTokens":4607,"inputTokens":0,"cachedInputTokens":0,"cacheWriteInputTokens":0,"outputTokens":0,"reasoningOutputTokens":0},"modelContextWindow":258400}},"emittedAtMs":1791150174233}`,
+    `{"method":"turn/completed","params":{"threadId":"${THREAD_ID}","turn":{"id":"${TURN_ID}","items":[],"status":"completed","durationMs":3086}}}`,
+  ];
+  const compactingServer = (seed: readonly string[]): Wire => {
+    const w = wire({
+      onWrite: (message, self) => {
+        if (message.method === "thread/resume") self.push(...opened());
+        if (message.method === "thread/compact/start") self.push(...COMPACTION);
+      },
+    });
+    for (const line of seed) void w.stream.write(line);
+    return w;
+  };
+
+  it("runs /compact as the server's own compaction of the thread, not as a message to the model", async () => {
+    const launch = launcher(compactingServer);
+    const adapter = adapterOver(launch);
+    expect(adapter.compacts).toBe("/compact");
+    const result = await adapter.start({ prompt: "/compact", resume: THREAD_ID, onEvent: () => {} }).finished;
+    expect(result.status).toBe("completed");
+    const methods = launch.wires[0]!.written.map(m => m.method);
+    expect(methods).toContain("thread/compact/start");
+    expect(methods).not.toContain("turn/start");
+    expect(launch.wires[0]!.written.find(m => m.method === "thread/compact/start")).toEqual({ id: "wsp-turn", method: "thread/compact/start", params: { threadId: THREAD_ID } });
+  });
+
+  it("reads what the thread holds after the compaction off the usage line's total, where it reports no input or output", async () => {
+    const result = await adapterOver(launcher(compactingServer)).start({ prompt: "/compact", resume: THREAD_ID, onEvent: () => {} }).finished;
+    expect(result.tokens).toMatchObject({ context: 4_607, window: 258_400 });
+  });
+
+  it("says the /compact turn's compaction once, with what the thread holds after it", async () => {
+    const events: AdapterEvent[] = [];
+    await adapterOver(launcher(compactingServer)).start({ prompt: "/compact", resume: THREAD_ID, onEvent: e => events.push(e) }).finished;
+    expect(events.filter(e => e.type === "turn.compacted")).toEqual([{ type: "turn.compacted", sessionId: THREAD_ID, after: 4_607 }]);
+  });
+
+  it("says a compaction the server ran by itself at a turn's start, with what the thread held before it and after it", async () => {
+    // The recording's first line names its own thread and turn, swapped here for the test's.
+    const [head, ...recorded] = fixtureLines("auto-compaction");
+    const ids = parse(head!) as { threadId: string; turnId: string };
+    const [before, ...turn] = recorded.map(line => line.replaceAll(ids.threadId, THREAD_ID).replaceAll(ids.turnId, TURN_ID));
+    const server = (seed: readonly string[]): Wire => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/resume") self.push(...opened(), before!);
+          if (message.method === "turn/start") self.push('{"id":"wsp-turn","result":{}}', ...turn);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    };
+    const events: AdapterEvent[] = [];
+    const result = await adapterOver(launcher(server)).start({ prompt: "go", resume: THREAD_ID, onEvent: e => events.push(e) }).finished;
+    expect(result.status).toBe("completed");
+    expect(events.filter(e => e.type === "turn.compacted")).toEqual([{ type: "turn.compacted", sessionId: THREAD_ID, before: 31_250, after: 18_935 }]);
+  });
+
+  it("sends any other message as a turn, /compact with words after it included", async () => {
+    const launch = launcher(scripted([agentMessage("m1", "done"), completed("completed")]));
+    await adapterOver(launch).start({ prompt: "/compact the notes please", resume: THREAD_ID, onEvent: () => {} }).finished;
+    expect(launch.wires[0]!.written.map(m => m.method)).toContain("turn/start");
+  });
+});
+
+describe("a Codex thread picked up from outside wsp", () => {
+  const COPY_ID = "01a12814-3d6c-7751-813b-3b1c4e6f33da";
+
+  it("runs a copy on thread/fork, written to disk as a thread of its own, and turns on the copy's id", async () => {
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/fork") self.push(...opened(COPY_ID));
+          if (message.method === "turn/start") self.push(turnStarted.replaceAll(THREAD_ID, COPY_ID), completed("completed").replaceAll(THREAD_ID, COPY_ID));
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launch).start({ prompt: "on the copy", resume: THREAD_ID, copy: true, cwd: "/work/acme/lab", onEvent }).finished;
+    expect(result.status).toBe("completed");
+    const written = launch.wires[0]!.written;
+    expect(written.find(m => m.id === "wsp-thread")).toMatchObject({ method: "thread/fork", params: { threadId: THREAD_ID, ephemeral: false, excludeTurns: true, cwd: "/work/acme/lab" } });
+    expect(written.some(m => m.method === "thread/resume")).toBe(false);
+    expect(written.find(m => m.method === "turn/start")).toMatchObject({ params: { threadId: COPY_ID } });
+    expect(events.find(e => e.type === "session.start")).toMatchObject({ sessionId: COPY_ID });
+  });
+
+  it("fails a turn whose thread another process writes in two halves, and sends no turn", async () => {
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/resume") self.push(`{"error":{"code":-32600,"message":"thread ${THREAD_ID} already has an active writer"},"id":"wsp-thread"}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const result = await adapterOver(launch).start({ prompt: "x", resume: THREAD_ID, onEvent: () => {} }).finished;
+    expect(result).toEqual({ status: "failed", error: conversationWrittenElsewhereLine("Codex", LETS_GO) });
+    expect(result.error).toBe("Codex is writing this conversation in another app, so this turn did not run. Close it there and send again. Codex lets go about a minute after its window closes.");
+    expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
+  });
+
+  it("lets go of the thread when a kept server's turn ends, and opens it again on that server for the next turn", async () => {
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "thread/resume") self.push(opened()[1]!);
+          if (message.method === "turn/start") self.push(turnStarted, completed("completed"));
+          if (message.method === "thread/unsubscribe") self.push('{"id":"wsp-unsubscribe","result":{"status":"unsubscribed"}}');
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const first = adapterOver(launch).start({ prompt: "one", keep: true, onEvent: () => {} });
+    expect((await first.finished).status).toBe("completed");
+    const w = launch.wires[0]!;
+    await until(() => w.written.some(m => m.method === "thread/unsubscribe"));
+    expect(w.written.find(m => m.method === "thread/unsubscribe")).toEqual({ id: "wsp-unsubscribe", method: "thread/unsubscribe", params: { threadId: THREAD_ID } });
+    expect(w.closed).toBe(false);
+    const kept = first.kept?.();
+    expect(kept).toBeDefined();
+    const before = w.written.length;
+    const second = kept!.next({ prompt: "two", onEvent: () => {} });
+    expect((await second.finished).status).toBe("completed");
+    const after = w.written.slice(before).map(m => [m.method, (m.params as Json | undefined)?.["threadId"]]);
+    expect(after.slice(0, 2)).toEqual([["thread/resume", THREAD_ID], ["turn/start", THREAD_ID]]);
+    expect(launch.calls).toHaveLength(1);
+  });
+
+  it("lets go of a fork's own thread when a kept server's turn ends, and opens that thread again for the next turn, never the source", async () => {
+    const FORK_ID = "01a12812-adb3-7c12-9acc-a86fcbe74924";
+    const onFork = (line: string): string => line.replaceAll(THREAD_ID, FORK_ID);
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/fork") self.push(...opened(FORK_ID));
+          if (message.method === "thread/resume") self.push(opened(FORK_ID)[1]!);
+          if (message.method === "turn/start") self.push(onFork(turnStarted), onFork(completed("completed")));
+          if (message.method === "thread/unsubscribe") self.push('{"id":"wsp-unsubscribe","result":{"status":"unsubscribed"}}');
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const first = adapterOver(launch).start({ prompt: "one", fork: { session: THREAD_ID, turn: "t8" }, keep: true, onEvent: () => {} });
+    expect((await first.finished).status).toBe("completed");
+    const w = launch.wires[0]!;
+    await until(() => w.written.some(m => m.method === "thread/unsubscribe"));
+    expect(w.written.find(m => m.method === "thread/unsubscribe")).toEqual({ id: "wsp-unsubscribe", method: "thread/unsubscribe", params: { threadId: FORK_ID } });
+    const before = w.written.length;
+    const second = first.kept!()!.next({ prompt: "two", onEvent: () => {} });
+    expect((await second.finished).status).toBe("completed");
+    const after = w.written.slice(before).map(m => [m.method, (m.params as Json | undefined)?.["threadId"]]);
+    expect(after.slice(0, 2)).toEqual([["thread/resume", FORK_ID], ["turn/start", FORK_ID]]);
+    expect(launch.calls).toHaveLength(1);
+  });
+});

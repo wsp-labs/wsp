@@ -1,0 +1,558 @@
+{
+  "cloudOff": {
+    "name": "agents",
+    "description": "The coding agents the catalog knows, as they stand on one computer or where a thread runs: whether each is on that login's PATH and where, the version its command answers, the newest its vendor publishes as this host last read it (asked of npm, GitHub or the vendor from this host alone, kept a day, never with Newest agent versions off in Settings > Privacy or WSP_UPDATE_CHECK=0) and the version wsp's install pins, its sign-in there (signed in, signed in with a token or key from this host's vault, not signed in, or unknown) and how it stands in the status command's own words (signInDetail), the kind of that login (signInKind: api-key, subscription or oauth) and the plan it names (signInPlan), how a person signs it in, whether its threads there get the wsp tools (one of its MCP config files names the wsp server, or on any computer but the one the app runs on, its launch hands the server over), the vendor's own command that brings it up to the newest where it is older (update, which wsp shows and never runs), and on a computer how the person set it to run there (setup: on or off, the program, the config folder, the launch words and the names of its variables, never a value). Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+        },
+        "on": {
+          "type": "string",
+          "description": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "placeId": {
+                  "type": "string"
+                },
+                "project": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "placeId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "workspaceId"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "home": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "readAt": {
+          "type": "string"
+        },
+        "stale": {
+          "type": "string",
+          "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
+        },
+        "refused": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "reach": {
+          "type": "string",
+          "enum": [
+            "here",
+            "relay",
+            "none"
+          ]
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "installed": {
+                "type": "boolean"
+              },
+              "version": {
+                "type": "string"
+              },
+              "latest": {
+                "type": "string"
+              },
+              "pinned": {
+                "type": "string"
+              },
+              "road": {
+                "type": "string",
+                "enum": [
+                  "wsp",
+                  "own",
+                  "shim",
+                  "none"
+                ]
+              },
+              "installsOnFirstRun": {
+                "type": "boolean",
+                "const": true
+              },
+              "versionUnread": {
+                "type": "boolean",
+                "const": true
+              },
+              "path": {
+                "type": "string"
+              },
+              "via": {
+                "type": "string"
+              },
+              "signIn": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "signed-in",
+                      "vault-key",
+                      "none"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "const": "unknown"
+                  }
+                ]
+              },
+              "signInRoad": {
+                "type": "string",
+                "enum": [
+                  "device",
+                  "code",
+                  "key",
+                  "token",
+                  "terminal",
+                  "none"
+                ]
+              },
+              "wspTools": {
+                "type": "boolean"
+              },
+              "signInDetail": {
+                "type": "string"
+              },
+              "signInKind": {
+                "type": "string",
+                "enum": [
+                  "api-key",
+                  "subscription",
+                  "oauth"
+                ]
+              },
+              "signInPlan": {
+                "type": "string"
+              },
+              "update": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string"
+                  },
+                  "command": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "to",
+                  "command"
+                ],
+                "additionalProperties": false
+              },
+              "setup": {
+                "type": "object",
+                "properties": {
+                  "on": {
+                    "type": "boolean"
+                  },
+                  "program": {
+                    "type": "string"
+                  },
+                  "configDir": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "envNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "on",
+                  "envNames"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "installed",
+              "road",
+              "signIn",
+              "signInRoad",
+              "wspTools"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "target",
+        "home",
+        "user",
+        "readAt",
+        "refused",
+        "agents"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "agents",
+    "description": "The coding agents the catalog knows, as they stand on one computer or where a thread runs: whether each is on that login's PATH and where, the version its command answers, the newest its vendor publishes as this host last read it (asked of npm, GitHub or the vendor from this host alone, kept a day, never with Newest agent versions off in Settings > Privacy or WSP_UPDATE_CHECK=0) and the version wsp's install pins, its sign-in there (signed in, signed in with a token or key from this host's vault, not signed in, or unknown) and how it stands in the status command's own words (signInDetail), the kind of that login (signInKind: api-key, subscription or oauth) and the plan it names (signInPlan), how a person signs it in, whether its threads there get the wsp tools (one of its MCP config files names the wsp server, or on any computer but the one the app runs on, its launch hands the server over), the vendor's own command that brings it up to the newest where it is older (update, which wsp shows and never runs), and on a computer how the person set it to run there (setup: on or off, the program, the config folder, the launch words and the names of its variables, never a value). Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+        },
+        "on": {
+          "type": "string",
+          "description": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "placeId": {
+                  "type": "string"
+                },
+                "project": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "placeId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "workspaceId"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "home": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "readAt": {
+          "type": "string"
+        },
+        "stale": {
+          "type": "string",
+          "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
+        },
+        "refused": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "reach": {
+          "type": "string",
+          "enum": [
+            "here",
+            "relay",
+            "none"
+          ]
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "installed": {
+                "type": "boolean"
+              },
+              "version": {
+                "type": "string"
+              },
+              "latest": {
+                "type": "string"
+              },
+              "pinned": {
+                "type": "string"
+              },
+              "road": {
+                "type": "string",
+                "enum": [
+                  "wsp",
+                  "own",
+                  "shim",
+                  "none"
+                ]
+              },
+              "installsOnFirstRun": {
+                "type": "boolean",
+                "const": true
+              },
+              "versionUnread": {
+                "type": "boolean",
+                "const": true
+              },
+              "path": {
+                "type": "string"
+              },
+              "via": {
+                "type": "string"
+              },
+              "signIn": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "signed-in",
+                      "vault-key",
+                      "none"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "const": "unknown"
+                  }
+                ]
+              },
+              "signInRoad": {
+                "type": "string",
+                "enum": [
+                  "device",
+                  "code",
+                  "key",
+                  "token",
+                  "terminal",
+                  "none"
+                ]
+              },
+              "wspTools": {
+                "type": "boolean"
+              },
+              "signInDetail": {
+                "type": "string"
+              },
+              "signInKind": {
+                "type": "string",
+                "enum": [
+                  "api-key",
+                  "subscription",
+                  "oauth"
+                ]
+              },
+              "signInPlan": {
+                "type": "string"
+              },
+              "update": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string"
+                  },
+                  "command": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "to",
+                  "command"
+                ],
+                "additionalProperties": false
+              },
+              "setup": {
+                "type": "object",
+                "properties": {
+                  "on": {
+                    "type": "boolean"
+                  },
+                  "program": {
+                    "type": "string"
+                  },
+                  "configDir": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "envNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "on",
+                  "envNames"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "installed",
+              "road",
+              "signIn",
+              "signInRoad",
+              "wspTools"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "target",
+        "home",
+        "user",
+        "readAt",
+        "refused",
+        "agents"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

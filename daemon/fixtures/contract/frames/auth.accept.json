@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1,
+    "op": "auth",
+    "token": "test-token-123"
+  },
+  {
+    "id": "a",
+    "op": "auth",
+    "token": "t",
+    "port": 8123
+  },
+  {
+    "id": 0,
+    "op": "auth",
+    "token": "t",
+    "pipe": true
+  }
+]

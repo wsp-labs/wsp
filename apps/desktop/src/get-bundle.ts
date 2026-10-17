@@ -1,0 +1,317 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The shell's road to a newer release. The page hands over a version and no
+// URL: this builds the answer's and the download's URLs off the repo, reads
+// the sha256 GitHub publishes for the asset, and keeps the bytes only where
+// they match. Opening what was kept quits the app, since the running host
+// serves the page and the daemon binaries out of the bundle by path. A mac app
+// that can replace itself takes the release's zip instead, and opening it is
+// the restart into the new version.
+import { createHash } from "node:crypto";
+import { createReadStream, createWriteStream, existsSync } from "node:fs";
+import { chmod, mkdir, rename, rm } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream } from "node:stream/web";
+import { RELEASE_BODY_MAX_BYTES, RELEASE_TIMEOUT_MS, cappedText, releaseAssetUrl, releaseTagUrl } from "@wsp/host";
+import { RELEASE_API_ENV, compareVersions, type BundleOutcome } from "@wsp/protocol";
+import { RELEASE_TAG, bundleNames } from "../../../packages/protocol/src/bundles.mjs";
+import type { Staged } from "./self-update.js";
+
+export const BUNDLE_WORDS = {
+  notAVersion: "not a release version",
+  notNewer: (version: string): string => `${version} is not a release above this app`,
+  noBundle: (platform: string): string => `no wsp bundle is built for ${platform}`,
+  noDigest: (asset: string): string => `the release publishes no sha256 and size for ${asset}`,
+  mismatch: (asset: string): string => `${asset} did not match the release's sha256 and was deleted`,
+  tooBig: (asset: string): string => `${asset} ran past the size the release publishes and was deleted`,
+  unsaved: (asset: string): string => `${asset} could not be saved`,
+  changed: (asset: string): string => `${asset} changed after it was checked and was not opened`,
+  gone: "the checked update is gone; get it again",
+  nothingKept: "no verified download to open",
+} as const;
+
+type Env = Readonly<Record<string, string | undefined>>;
+
+/** How long a download may go without a byte before it is given up, so a stalled connection never holds Downloading. */
+export const BUNDLE_STALL_MS = 30_000;
+
+/** What opens a kept bundle: the system's opener, which answers an empty string or its own reason, and the folder view. */
+export interface BundleOpeners {
+  open(file: string): Promise<string>;
+  reveal(file: string): void;
+}
+
+/** One platform's bundle: which asset of a release it is, the words over Get, and what makes it the person's next
+ * step once kept. */
+interface BundleRoad {
+  asset(version: string): string;
+  hover: string;
+  open(file: string, openers: BundleOpeners): Promise<string>;
+}
+
+const BUNDLE_ROADS: Partial<Record<NodeJS.Platform, BundleRoad>> = {
+  // Mounting the disk image opens its drag window.
+  darwin: {
+    asset: version => bundleNames(version).mac,
+    hover: "Downloads the disk image and checks its sha256. Unsigned builds need Privacy & Security, Open Anyway, once.",
+    open: (file, o) => o.open(file),
+  },
+  linux: {
+    asset: version => bundleNames(version).appImage,
+    hover: "Downloads the AppImage into Downloads and checks its sha256. The app you run is not replaced.",
+    open: async (file, o) => {
+      await chmod(file, 0o755);
+      o.reveal(file);
+      return "";
+    },
+  },
+};
+
+/** The words over Get on a mac app that replaces itself. */
+export const IN_PLACE_HOVER = "Downloads the update, checks its sha256 and its signature, and installs it when the app restarts.";
+
+/** The words over Get on this platform, or nothing where no bundle is built for it. */
+export const bundleHover = (platform: NodeJS.Platform, inPlace = false): string | undefined => (inPlace ? IN_PLACE_HOVER : BUNDLE_ROADS[platform]?.hover);
+
+/** The version out of the page's ask, only where it is one the release workflow would tag. */
+export function askedVersion(raw: unknown): string | undefined {
+  const version = typeof raw === "object" && raw !== null ? (raw as { version?: unknown }).version : undefined;
+  return typeof version === "string" && RELEASE_TAG.exec(`v${version}`)?.[1] === version ? version : undefined;
+}
+
+export interface BundleDeps {
+  platform: NodeJS.Platform;
+  /** Where the download lands: the person's Downloads folder. */
+  dir: string;
+  env: Env;
+  userAgent: string;
+  /** The update road's fetch, `releaseFetch` in the app, whose connect window and tries bound each ask. */
+  fetch: typeof fetch;
+  stallMs?: number;
+}
+
+interface Published {
+  sum: string;
+  size: number;
+}
+
+/** The hex sha256 and the byte size GitHub publishes for this asset of the release, or nothing unless it lists both. */
+async function published(tag: string, asset: string, deps: BundleDeps): Promise<Published | undefined> {
+  const res = await deps.fetch(releaseTagUrl(deps.env, tag), { headers: { accept: "application/vnd.github+json", "user-agent": deps.userAgent }, signal: AbortSignal.timeout(RELEASE_TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+  const answer = JSON.parse(await cappedText(res, RELEASE_BODY_MAX_BYTES)) as { assets?: unknown };
+  const row = Array.isArray(answer.assets) ? (answer.assets as unknown[]).find(a => (a as { name?: unknown } | null)?.name === asset) : undefined;
+  const { digest, size } = (row ?? {}) as { digest?: unknown; size?: unknown };
+  const sum = typeof digest === "string" ? /^sha256:([0-9a-f]{64})$/.exec(digest)?.[1] : undefined;
+  return sum !== undefined && Number.isSafeInteger(size) && (size as number) >= 0 ? { sum, size: size as number } : undefined;
+}
+
+async function sumOf(file: string): Promise<string | undefined> {
+  const hash = createHash("sha256");
+  try {
+    await pipeline(createReadStream(file), hash);
+  } catch {
+    return undefined;
+  }
+  return hash.digest("hex");
+}
+
+class PastSize extends Error {}
+
+/** Streams the download beside its final name, hashing as it writes and stopping past the published size; renamed
+ * into place on a match, deleted otherwise. */
+async function download(url: string, file: string, want: Published, asset: string, deps: BundleDeps): Promise<BundleOutcome> {
+  const part = `${file}.part`;
+  const hash = createHash("sha256");
+  const stallMs = deps.stallMs ?? BUNDLE_STALL_MS;
+  const stalled = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = (): void => {
+    clearTimeout(timer);
+    timer = setTimeout(() => stalled.abort(), stallMs);
+  };
+  let bytes = 0;
+  const tee = new Transform({
+    transform(chunk: Buffer, _enc, done) {
+      arm();
+      bytes += chunk.length;
+      if (bytes > want.size) return done(new PastSize());
+      hash.update(chunk);
+      done(null, chunk);
+    },
+  });
+  let failed: string | undefined;
+  let cause: string | undefined;
+  try {
+    // Armed once answered: the fetch bounds its own connect tries and the wait for an answer.
+    const res = await deps.fetch(url, { headers: { "user-agent": deps.userAgent }, signal: stalled.signal });
+    arm();
+    if (!res.ok || res.body === null) return { ok: false, error: `GitHub answered ${res.status}` };
+    await rm(part, { force: true });
+    // Exclusive create refuses a link planted at the name between the removal and the open.
+    await pipeline(Readable.fromWeb(res.body as ReadableStream), tee, createWriteStream(part, { flags: "wx" }), { signal: stalled.signal });
+    if (hash.digest("hex") !== want.sum) failed = BUNDLE_WORDS.mismatch(asset);
+    else await rename(part, file);
+  } catch (e) {
+    failed =
+      e instanceof PastSize ? BUNDLE_WORDS.tooBig(asset)
+      : stalled.signal.aborted ? `no bytes for ${stallMs / 1000} s`
+      : e instanceof Error && "path" in e ? BUNDLE_WORDS.unsaved(asset)
+      : e instanceof Error ? e.message : String(e);
+    if (!(e instanceof PastSize) && !stalled.signal.aborted) cause = causeOf(e);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (failed === undefined) return { ok: true };
+  await rm(part, { force: true });
+  return { ok: false, error: failed, ...(cause === undefined ? {} : { cause }) };
+}
+
+const said = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** What a failed fetch was caused by, each link with its own code: undici's connect timeout and the address it tried
+ * sit under a "fetch failed" the sentence alone would keep, and a host of several addresses fails as an AggregateError
+ * with no message, one error per address. */
+function causeOf(e: unknown): string | undefined {
+  const links: string[] = [];
+  for (let at = (e as { cause?: unknown } | null)?.cause; at !== undefined && at !== null && links.length < 5; at = (at as { cause?: unknown }).cause) {
+    const code = (at as { code?: unknown }).code;
+    const message = at instanceof AggregateError && at.message === "" ? at.errors.map(said).join(", ") : said(at);
+    links.push(typeof code === "string" ? `${code}: ${message}` : message);
+  }
+  return links.length === 0 ? undefined : links.join("; ");
+}
+
+/** One update step's ending as the app log keeps it, a failure's cause beside the sentence the page shows. */
+export const updateLogLine = (step: string, outcome: BundleOutcome): string =>
+  `update: ${step} ${outcome.ok ? "done" : `failed: ${outcome.error}${outcome.cause === undefined ? "" : ` (cause: ${outcome.cause})`}`}`;
+
+/** The release's zip an installed mac app replaces itself from. */
+export const zipAsset = (version: string): string => bundleNames(version).macZip;
+
+/** This release's bundle for this platform in the download folder, verified against the published sha256; `pick`
+ * names another of its assets. */
+export async function getBundle(version: string, deps: BundleDeps, pick?: (version: string) => string): Promise<{ ok: true; file: string; sum: string } | { ok: false; error: string; cause?: string }> {
+  const road = BUNDLE_ROADS[deps.platform];
+  if (road === undefined) return { ok: false, error: BUNDLE_WORDS.noBundle(deps.platform) };
+  const tag = `v${version}`;
+  const asset = (pick ?? road.asset)(version);
+  let want: Published | undefined;
+  try {
+    want = await published(tag, asset, deps);
+  } catch (e) {
+    const cause = causeOf(e);
+    return { ok: false, error: e instanceof Error ? e.message : String(e), ...(cause === undefined ? {} : { cause }) };
+  }
+  if (want === undefined) return { ok: false, error: BUNDLE_WORDS.noDigest(asset) };
+  const file = join(deps.dir, asset);
+  if ((await sumOf(file)) === want.sum) return { ok: true, file, sum: want.sum };
+  const got = await download(releaseAssetUrl(deps.env, tag, asset), file, want, asset, deps);
+  return got.ok ? { ok: true, file, sum: want.sum } : got;
+}
+
+/** Hands a kept bundle to the person's next step on its platform. */
+export async function openBundle(kept: { file: string; platform: NodeJS.Platform }, openers: BundleOpeners): Promise<BundleOutcome> {
+  const road = BUNDLE_ROADS[kept.platform];
+  if (road === undefined) return { ok: false, error: BUNDLE_WORDS.noBundle(kept.platform) };
+  const said = await road.open(kept.file, openers);
+  return said === "" ? { ok: true } : { ok: false, error: said };
+}
+
+export interface BundleShell {
+  get(raw: unknown): Promise<BundleOutcome>;
+  open(): Promise<BundleOutcome>;
+  /** Deletes the checked copy an app that replaces itself holds, which dismissing the update card asks for. */
+  discard(): Promise<BundleOutcome>;
+}
+
+/** How a mac app that can replace itself gets there: the zip lands in `dir`, `stage` unpacks and checks it, `swap`
+ * starts the restart into the checked copy, and `discard` deletes it. */
+export interface InPlaceRoad {
+  dir: string;
+  stage(zip: string, version: string): Promise<({ ok: true } & Staged) | { ok: false; error: string }>;
+  swap(staged: Staged, version: string): void;
+  discard(): Promise<void>;
+}
+
+export interface BundleShellDeps extends BundleDeps, BundleOpeners {
+  quit(): void;
+  /** This app's own version: only a release above it, and never a prerelease, is fetched. */
+  running: string;
+  /** A packaged app reads the release off GitHub alone, whatever the smoke's variable says. */
+  packaged: boolean;
+  /** Present where this app can replace itself; absent, the disk image road. */
+  inPlace?: InPlaceRoad;
+}
+
+/** The two bridge channels' state: asks that overlap share one download, and open reaches only what a get kept,
+ * with the sum it matched when it was kept, or the checked copy a swap starts from. */
+export function bundleShell(shellDeps: BundleShellDeps): BundleShell {
+  const deps: BundleShellDeps = shellDeps.packaged ? { ...shellDeps, env: Object.fromEntries(Object.entries(shellDeps.env).filter(([key]) => key !== RELEASE_API_ENV)) } : shellDeps;
+  let kept: { file: string; sum: string } | undefined;
+  let staged: { copy: Staged; version: string } | undefined;
+  const getting = new Map<string, Promise<BundleOutcome>>();
+  const fetched = async (version: string, inPlace: InPlaceRoad | undefined): Promise<BundleOutcome> => {
+    if (inPlace === undefined) {
+      const got = await getBundle(version, deps);
+      if (!got.ok) return got;
+      kept = { file: got.file, sum: got.sum };
+      return { ok: true };
+    }
+    if (staged?.version === version && existsSync(staged.copy.app)) return { ok: true };
+    if (staged !== undefined) {
+      staged = undefined;
+      await inPlace.discard();
+    }
+    await mkdir(inPlace.dir, { recursive: true });
+    const got = await getBundle(version, { ...deps, dir: inPlace.dir }, zipAsset);
+    if (!got.ok) return got;
+    const ready = await inPlace.stage(got.file, version);
+    if (!ready.ok) return ready;
+    const { ok: _ok, ...copy } = ready;
+    staged = { copy, version };
+    return { ok: true };
+  };
+  return {
+    get: raw => {
+      const version = askedVersion(raw);
+      if (version === undefined) return Promise.resolve({ ok: false, error: BUNDLE_WORDS.notAVersion });
+      if (version.includes("-") || compareVersions(version, deps.running) <= 0) return Promise.resolve({ ok: false, error: BUNDLE_WORDS.notNewer(version) });
+      const running = getting.get(version);
+      if (running !== undefined) return running;
+      kept = undefined;
+      const asked = fetched(version, deps.inPlace).finally(() => getting.delete(version));
+      getting.set(version, asked);
+      return asked;
+    },
+    open: async () => {
+      if (deps.inPlace !== undefined) {
+        if (staged === undefined) return { ok: false, error: BUNDLE_WORDS.nothingKept };
+        const { copy, version } = staged;
+        if (!existsSync(copy.app)) {
+          staged = undefined;
+          return { ok: false, error: BUNDLE_WORDS.gone };
+        }
+        deps.inPlace.swap(copy, version);
+        deps.quit();
+        return { ok: true };
+      }
+      if (kept === undefined) return { ok: false, error: BUNDLE_WORDS.nothingKept };
+      const { file, sum } = kept;
+      if ((await sumOf(file)) !== sum) {
+        kept = undefined;
+        return { ok: false, error: BUNDLE_WORDS.changed(basename(file)) };
+      }
+      const opened = await openBundle({ file, platform: deps.platform }, deps);
+      if (opened.ok) deps.quit();
+      return opened;
+    },
+    discard: async () => {
+      if (deps.inPlace === undefined || staged === undefined) return { ok: true };
+      staged = undefined;
+      await deps.inPlace.discard();
+      return { ok: true };
+    },
+  };
+}

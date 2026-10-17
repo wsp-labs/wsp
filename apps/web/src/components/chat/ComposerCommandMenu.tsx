@@ -1,0 +1,150 @@
+// Adapted from pingdotgg/t3code apps/web/src/components/chat/ComposerCommandMenu.tsx at 57a66608 (MIT).
+// Differs from upstream: the built-in slash command arm is removed with its
+// pickers; a skill row carries no source badge, since the Skills heading says
+// it; a pull request or issue row is wsp's own, off the # menu; the arms name
+// their harness by string; and the one flat list became groups, each under the
+// heading the palette gives its own, since a hundred and thirty names in one
+// run are a list nobody reads. The @ and # menus close on a note of their
+// own, the one line that says what their list is doing: on its way, failed,
+// cut at the cap, or answered with nothing that matches.
+import type { HostItem } from "@wsp/protocol";
+import { CircleDotIcon, FileIcon, GitPullRequestIcon } from "lucide-react";
+import { memo, useLayoutEffect, useRef } from "react";
+
+import { type ComposerTriggerKind } from "../../composer-logic";
+import { cn } from "../../lib/utils";
+import { Command, CommandGroup, CommandGroupLabel, CommandItem, CommandList } from "../ui/command";
+import type { ComposerCommandGroup } from "./composerCommandGroups";
+import type { ProviderSlashCommand } from "./adapt";
+import { ComposerBanner } from "./ComposerBanner";
+
+/** A row the slash menu ranks and groups by its command: one the harness announced, or one of the person's skills,
+ * which carries the Skills heading as its source and whether the harness announced it, which is how it is sent. */
+export type ComposerSlashItem =
+  | { id: string; type: "provider-slash-command"; harness: string; command: ProviderSlashCommand; label: string; description: string }
+  | { id: string; type: "skill"; harness: string; command: ProviderSlashCommand; announced: boolean; label: string; description: string };
+
+export type ComposerCommandItem =
+  | ComposerSlashItem
+  | { id: string; type: "path"; path: string; label: string; description: string }
+  | { id: string; type: "reference"; item: HostItem; label: string; description: string };
+
+const ROW_MARKS = { path: FileIcon, "pull-request": GitPullRequestIcon, issue: CircleDotIcon } as const;
+
+function rowMark(item: ComposerCommandItem) {
+  if (item.type === "path") return ROW_MARKS.path;
+  if (item.type === "reference") return ROW_MARKS[item.item.kind];
+  return null;
+}
+
+export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
+  groups: ReadonlyArray<ComposerCommandGroup>;
+  /** The menu's own last line, or null while it has none to say. */
+  note?: string | null;
+  triggerKind: ComposerTriggerKind | null;
+  activeItemId: string | null;
+  onHighlightedItemChange: (itemId: string | null) => void;
+  onSelect: (item: ComposerCommandItem) => void;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!props.activeItemId || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(
+      `[data-composer-item-id="${CSS.escape(props.activeItemId)}"]`,
+    );
+    el?.scrollIntoView({ block: "nearest" });
+  }, [props.activeItemId]);
+
+  return (
+    <Command
+      autoHighlight={false}
+      mode="none"
+      onItemHighlighted={(highlightedValue) => {
+        props.onHighlightedItemChange(
+          typeof highlightedValue === "string" ? highlightedValue : null,
+        );
+      }}
+    >
+      <ComposerBanner.Surface
+        ref={listRef}
+        className="w-full overflow-hidden pb-(--chat-composer-attachment-overlap) **:data-[slot=scroll-area-scrollbar]:data-[orientation=vertical]:my-4"
+        data-composer-command-drawer="true"
+      >
+        <CommandList className="max-h-72 scroll-pb-6">
+          {props.groups.map((group) => (
+            <CommandGroup key={group.value} data-composer-command-group={group.value}>
+              {/* The kit's own heading, padded to sit over the rows below it, which carry a step more than the palette's. */}
+              <CommandGroupLabel className="px-3">{group.label}</CommandGroupLabel>
+              {group.items.map((item) => (
+                <ComposerCommandMenuItem
+                  key={item.id}
+                  item={item}
+                  triggerKind={props.triggerKind}
+                  isActive={props.activeItemId === item.id}
+                  onHighlight={props.onHighlightedItemChange}
+                  onSelect={props.onSelect}
+                />
+              ))}
+            </CommandGroup>
+          ))}
+          {props.note != null ? (
+            <p data-composer-menu-note className="px-3 py-2 text-xs leading-4 text-muted-foreground">
+              {props.note}
+            </p>
+          ) : null}
+        </CommandList>
+      </ComposerBanner.Surface>
+    </Command>
+  );
+});
+
+const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
+  item: ComposerCommandItem;
+  triggerKind: ComposerTriggerKind | null;
+  isActive: boolean;
+  onHighlight: (itemId: string | null) => void;
+  onSelect: (item: ComposerCommandItem) => void;
+}) {
+  return (
+    <CommandItem
+      value={props.item.id}
+      data-composer-item-id={props.item.id}
+      className={cn(
+        "cursor-pointer gap-3 rounded-lg px-3 py-2! hover:bg-transparent hover:text-inherit data-highlighted:bg-transparent data-highlighted:text-inherit",
+        props.isActive && "bg-accent! text-accent-foreground!",
+      )}
+      onMouseMove={() => {
+        if (!props.isActive) props.onHighlight(props.item.id);
+      }}
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      onClick={() => {
+        props.onSelect(props.item);
+      }}
+    >
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        {(() => {
+          const Mark = rowMark(props.item);
+          return Mark === null ? null : <Mark aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />;
+        })()}
+        {/* The name yields the row's far half to a description only where there is one to read; a command a plugin
+            named itself in is long, and in a narrow window it was cut short of a half the row left empty. */}
+        <span
+          className={cn(
+            "min-w-0 truncate font-sans text-xs font-medium",
+            props.item.description !== "" && "max-w-[45%] shrink-0",
+          )}
+        >
+          {props.item.label}
+        </span>
+        {props.item.description !== "" ? (
+          <span className="min-w-0 max-w-[48ch] flex-1 truncate text-left text-secondary-label text-xs">
+            {props.item.description}
+          </span>
+        ) : null}
+      </span>
+    </CommandItem>
+  );
+});

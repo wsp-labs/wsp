@@ -1,0 +1,342 @@
+{
+  "cloudOff": {
+    "name": "delete",
+    "description": "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. A sub-thread goes with its machine on Boat and its kept session, answering machine deleted; the question names work its machine holds that no remote has, and a thread's own token is refused it while such work stands. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one"
+        },
+        "processes": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "keep"
+          ],
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "true deletes it; absent or false answers with what would go and deletes nothing, so a person can be asked first"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "worktree": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "machineId": {
+          "type": "string"
+        },
+        "threads": {
+          "type": "integer"
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ended": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "forced": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "freed": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pid",
+              "ended",
+              "forced",
+              "left"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "machine": {
+          "type": "string",
+          "const": "deleted",
+          "description": "on a sub-thread: its machine on Boat was deleted with it"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "delete",
+    "description": "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. A sub-thread goes with its machine on Boat and its kept session, answering machine deleted; the question names work its machine holds that no remote has, and a thread's own token is refused it while such work stands. Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one"
+        },
+        "workspace": {
+          "type": "string",
+          "description": "the workspace's name, or its id when two share a name"
+        },
+        "processes": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "keep"
+          ],
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run. A thread on a cloud machine is not read and goes as before"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "true deletes it; absent or false answers with what would go and deletes nothing, so a person can be asked first"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "worktree": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "machineId": {
+          "type": "string"
+        },
+        "threads": {
+          "type": "integer"
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ended": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "forced": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "freed": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pid",
+              "ended",
+              "forced",
+              "left"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "machine": {
+          "type": "string",
+          "const": "deleted",
+          "description": "on a sub-thread: its machine on Boat was deleted with it"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

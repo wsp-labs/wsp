@@ -1,0 +1,1476 @@
+// Normalizes `claude -p --output-format stream-json` output into the small
+// event set the runtime consumes. Classification logic follows pingdotgg/
+// t3code ClaudeAdapter.ts (MIT, see NOTICE); event shapes are the ones
+// recorded in solari-poc/RESULTS.md.
+
+import { randomUUID } from "node:crypto";
+import { ASIDE_WALL_MS, anthropicRetryWhy, baseModel, INTERRUPT_GRACE_MS, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, STEER_JOIN_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, refusedTurn, settlesWithin, startAfterLoss, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
+import type { AdapterAttachOptions, AdapterEvent, AgentLaunch, KeptAgent, KeptRun, KeptTurn, SubagentState, TaskStop, AsideAnswer, AsideQuestion, ExecStream, ExecStreamFactory, HarnessCatalogProbe, HarnessExec, McpServerSpec, PermissionAsk, PermissionOutcome, ScreenCommand, SessionAsker, SessionForker, SessionHarness, SessionRenamer, SessionTitleMaker, SessionTitleReader, TurnImage, TurnRefusal, TurnResult, TurnStatus, CommitDrafter, ConversationStore, TurnTokens } from "@wsp/protocol";
+import { SKIP_PROMPTS_MODE, controlAllowLine, controlAnswerLine, controlErrorLine, controlLine, interruptLine, modeOptionOn, setModeLine, stopTaskLine } from "./permissions.js";
+import { CLAUDE_SCREEN_COMMANDS, catalogProbeCommand, parseCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
+import { harnessOf, parseLine, rec, str, num, strArr } from "./fields.js";
+import { limitOf, noteRejected, withLimit } from "./limits.js";
+import { ASIDE_HOOKS_ID, asideAnswer, asideCommand, asideHooksLine, asidePrompt, asideTextOf, hookDenyLine, promptDenyLine } from "./aside.js";
+import { copyCleanupCommand, copySession } from "./chain.js";
+import { claudeConversations } from "./conversations.js";
+import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTitleFor, renameCommand, sessionTitleCommand, titleForCommand } from "./session-title.js";
+import { buildEnv, launchCommand, newSessionId, savedSpendCommand, serverValuesFile, signInGuard, terminalResumeCommand, userMessageLine } from "./landmines.js";
+import type { BrokeredSignIn } from "./landmines.js";
+import { steersOf } from "./steers.js";
+import { newPlanBook, readPlanCall, type PlanBook } from "./plans.js";
+import { flattenContent, resultFacts } from "./tool-results.js";
+import { endAnswer, heldCall, interimEnd, laterEnd, newHandbackBook, noteLine, readAnswer, taskEnded, type HandbackBook, type TurnDelta } from "./handback.js";
+import { shellCwdAfter } from "./shell-cwd.js";
+import { heldTokens, inputTokens, plusTokens, usageOf, usageTokens } from "./tokens.js";
+import { newSpendBook, noteChildCall, noteProgress, subagentSpent, subagentSpentAtEnd } from "./subagent-spend.js";
+
+export interface StartOptions {
+  prompt: string;
+  /** Session id of an earlier run; the CLI reloads its transcript. */
+  resume?: string;
+  /** The turn opens a copy of `resume` under a new session id, the original left as it was. */
+  copy?: true;
+  cwd?: string;
+  /** Catalog slugs for --model, --effort and the permission flags; each absent one leaves the CLI's default. */
+  model?: string;
+  effort?: string;
+  permissionMode?: string;
+  contextWindow?: string;
+  /** The model's faster output for this turn. */
+  fast?: boolean;
+  /** The name the session is opened under; the CLI records it as the person's own, so nothing generated replaces it. */
+  title?: string;
+  /** Images for this turn, read off their bytes: this CLI takes them inline, so none of them is on the machine. */
+  images?: readonly TurnImage[];
+  /** MCP servers this turn gets besides the config dir's own, by the name each takes in a config. */
+  mcpServers?: Readonly<Record<string, McpServerSpec>>;
+  /** The config's own servers that read a value the host holds, each whole with its values in place, for this launch
+   * alone: they reach the CLI in a file of the run's, never on its command line or in its environment. */
+  serverValues?: { entries?: Readonly<Record<string, Readonly<Record<string, unknown>>>> };
+  /** The config's own servers this launch leaves out, by name. */
+  offServers?: readonly string[];
+  /** The thread so far as text, asked for only where the CLI holds no session under `resume`: the turn then runs in a
+   * new session handed it ahead of the prompt. Absent, that turn fails with the CLI's own sentence. */
+  seed?: () => Promise<string>;
+  /** The CLI starts at once and is handed the prompt when this settles; absent, the prompt is seeded at the launch. */
+  promptAfter?: Promise<void>;
+  /** The version the binary on this machine answered the catalog probe with; absent where it answered nothing. */
+  version?: string;
+  /** The CLI stays up once the turn is over, for the thread's next message: kept() hands it over. */
+  keep?: boolean;
+  onEvent: (event: AdapterEvent) => void;
+}
+
+export type SteerOutcome = "accepted" | "not-running";
+
+/** What answering a permission prompt came to: the CLI took the answer, or the prompt is no longer open (answered
+ * already, withdrawn by the CLI, or its turn is over). */
+export type AnswerOutcome = "answered" | "gone";
+
+/** What moving a running turn's access came to: the turn is at the new mode, the CLI refused the mode in its own
+ * words and this host had no way to stand in for it, or the turn is over and its channel takes nothing. Set covers
+ * the mode the CLI takes only at launch: the request comes back refused and the turn runs at that mode anyway,
+ * because this host answers its prompts from here on. */
+export type AccessOutcome = "set" | "refused" | "gone";
+
+export interface ClaudeSession {
+  /** Registry key, fixed before spawn (self-generated UUID, or the resume id). */
+  readonly localId: string;
+  /** The id the CLI reports in system/init; equals localId unless the CLI re-keys. */
+  readonly claudeSessionId: string;
+  /** The line the launch ran; absent on a session attached to a run some earlier process launched. */
+  readonly command?: string;
+  /** What a later host process attaches to this turn by; absent when its run dies with this process. */
+  readonly run?: string;
+  /** The process this turn leads on the computer the host runs on, where it runs there; absent on a turn running on
+   * another machine. */
+  readonly pid?: number;
+  /** Where this turn starts in the run's log, on a process that served the thread's earlier turns. */
+  readonly from?: number;
+  readonly finished: Promise<TurnResult>;
+  /** Stops the turn: on a kept process an interrupt that leaves the process up, the process and its tree ended where
+   * the CLI does not answer it within the grace; on any other a stop of the process. */
+  interrupt(): Promise<void>;
+  /** Once the turn is over, the CLI still up for the next message; nothing where the turn was not kept or its process
+   * went with it. */
+  kept?(): KeptAgent<ClaudeSession> | undefined;
+  /** Writes a user message into the running turn under `id`, which unread messages are told by; not-running before
+   * system/init and once result was seen or the process is gone. Images ride ahead of the words, as on the first message. */
+  steer(prompt: string, id?: string, images?: readonly TurnImage[]): Promise<SteerOutcome>;
+  /** The CLI announced msg_lifecycle_v1, so the turn tells the messages it never took up as it ends. */
+  readonly tellsUnread: boolean;
+  /** Answers a permission prompt this turn raised, by the ask's own id and one of the options it carried; the tool
+   * call it blocks runs or is refused as the option says. The caller names the outcome, since only it knows whether
+   * this is the person's pick or its own answer for a prompt nobody came to, and denyMessage is what the agent
+   * reads as the call's result when the option refuses it. */
+  answer(askId: string, answer: { optionId: string; outcome: PermissionOutcome; denyMessage: string; reason?: string }): Promise<AnswerOutcome>;
+  /** Puts this running turn into another access mode, from its next tool call on, and puts it to the prompt the turn
+   * is stopped on: a mode that asks nobody answers that prompt, and a mode the CLI itself offered on that call
+   * answers it as that option. Settles on the CLI's own answer to the request otherwise, so a mode it will not take
+   * and this host cannot stand in for comes back refused rather than as a silent no-op. */
+  setAccess(mode: string): Promise<AccessOutcome>;
+  /** Stops one of this turn's own subagents by the CLI's handle for it, the rest of the turn running on; settles on
+   * the CLI's answer, or refused once it has said nothing for the wait. */
+  stopTask(task: string): Promise<TaskStop>;
+}
+
+export interface AdapterDeps {
+  exec: ExecStreamFactory;
+  /** Where this CLI keeps its sessions on the machine, read for transcripts and titles: the folder the login's
+   * CLAUDE_CONFIG_DIR names, else the CLI's own default under its home. Never exported from here; see buildEnv. */
+  configDir: string;
+  baseEnv?: Readonly<Record<string, string | undefined>>;
+  /** The folder under the CLI's projects directory this workspace's sessions and memory are keyed to; absent
+   * leaves the CLI keying off the folder each turn runs in. */
+  projectDirName?: string;
+  apiKey?: string;
+  /** The long-lived token the vault holds for this agent; set on every turn's environment. */
+  oauthToken?: string;
+  /** A launch on a brokered place: the turn token and the kind of credential the host adds for it. */
+  brokered?: BrokeredSignIn;
+  interruptGraceMs?: number;
+  /** How long the CLI gets to exit on the EOF its result closed the channel with, before its process and its tree
+   * are ended for it. The same window it gets to wake its agent in once the background tasks of a held reply are
+   * done, for the same reason: it is how long this adapter waits on a CLI that has something left to do. */
+  resultExitMs?: number;
+  /** How long a message sent before the CLI's init waits for it; STEER_JOIN_MS unless a test says otherwise. */
+  steerJoinMs?: number;
+  /** wsp's half of a turn this workspace's agent refuses for want of a sign-in, from the one rule every door reads
+   * for how it is signed in; it differs between the person's own computer and a machine, which only the caller
+   * knows. Absent leaves such a turn carrying the CLI's own sentence alone. */
+  signInRefusal?: string;
+  /** How long a side question may run before its process is ended; ASIDE_WALL_MS unless a test says otherwise. */
+  asideWallMs?: number;
+  /** The program the person runs in place of claude on this computer, and the words every turn's launch adds. */
+  launch?: AgentLaunch;
+  /** How long a stop of one subagent waits on the CLI's answer; STOP_TASK_WAIT_MS unless a test says otherwise. */
+  stopTaskWaitMs?: number;
+}
+
+/** How long the CLI gets to answer a stop of one subagent before the caller hears it refused: the kill is in process
+ * and answers at once, so silence this long is a CLI wedged mid-kill, and a person pressing Stop is not left waiting. */
+export const STOP_TASK_WAIT_MS = 10_000;
+
+export interface ClaudeAdapter {
+  start(options: StartOptions): ClaudeSession;
+  /** The CLI launched with no message: under -p it connects its MCP servers and runs its SessionStart hooks before it
+   * reads its first line (2.1.296, measured 2026-10-10), so the first turn on it starts without that wait. */
+  warm(options: Pick<StartOptions, "cwd" | "model" | "effort" | "permissionMode" | "contextWindow" | "fast" | "mcpServers" | "serverValues" | "version">): KeptAgent<ClaudeSession>;
+  /** Re-opens a turn this CLI is still running on the machine, by the run handle the launch reported; `gone` is the
+   * machine's own answer that it no longer holds the run, and nothing is emitted for one. A machine that answers
+   * nothing rejects. Absent when the exec factory's runs die with the process that launched them. */
+  attach?(options: AdapterAttachOptions): Promise<ClaudeSession | "gone">;
+  readonly sessions: ReadonlyMap<string, ClaudeSession>;
+  /** Sessions take a message mid-turn over the stdin channel. */
+  readonly steers: true;
+  /** Write, Edit, MultiEdit and NotebookEdit name the file each one wrote. */
+  readonly reportsEdits: true;
+  /** A fork, and a rewind, of a Claude Code thread resumes a copy of its session through the turn's last reply. */
+  readonly forkSession: SessionForker;
+  /** The CLI's stream-json user message carries image blocks, so an image never lands on the machine. */
+  readonly attachments: "inline";
+  /** A message written mid-turn is the same stream-json user message, image blocks and all. */
+  readonly steersImages: true;
+  /** The CLI takes MCP servers on the launch itself (--mcp-config), so a turn gets one whatever the config dir holds. */
+  readonly mcpServers: true;
+  /** A launch leaves out the config's own servers it names, through the CLI's settings. */
+  readonly deniesServers: true;
+  /** A start takes promptAfter: the CLI starts up before it reads its first message. */
+  readonly waitsForPrompt: true;
+  /** An access picked while a turn runs reaches that turn: over the control channel, and on the prompt it is stopped on. */
+  readonly movesAccess: true;
+  /** The CLI's own /compact runs headless as a turn's message: it compacts the session and writes its compact_boundary
+   * with what the model holds after (measured on 2.1.289, 2026-10-05). */
+  readonly compacts: "/compact";
+  /** The command that opens one of its sessions in the person's own terminal, as terminalResumeCommand words it. */
+  readonly terminalResume: string;
+  /** The commands the CLI runs only in its own terminal; the composer keeps them out of its menu and sends none. */
+  readonly screenCommands: ReadonlyArray<ScreenCommand>;
+  /** Makes the binary describe itself under the same config dir as a session; null when it did not answer. The
+   * handshake carries no reason of its own, so this probe has no refusal to hand the footer. */
+  probeCatalog(exec: HarnessExec): Promise<HarnessCatalogProbe | null>;
+  /** Asks the binary only its version, under the same environment as the probe; null where it printed none. */
+  probeVersion(exec: HarnessExec): Promise<string | null>;
+  /** What the CLI's own session file calls a session: its generated title, or the person's rename inside the CLI. */
+  sessionTitle: SessionTitleReader;
+  /** The session's one file, under the config dir's projects folder keyed by the folder it ran in. */
+  sessionFile(sessionId: string): { folder: string; name: string; depth: number };
+  /** Names the session in that same file, with the record the CLI's own rename appends. */
+  renameSession: SessionRenamer;
+  /** Asks the CLI itself, in one print-mode turn, for a name for a thread it has just replied in. */
+  titleFor: SessionTitleMaker;
+  draftFor: CommitDrafter;
+  /** Answers a question on a fork of a session with no tools, the fork's file removed once the answer is read. */
+  aside: SessionAsker;
+  /** The fork loads the servers a turn of the thread is handed, so the CLI does not tell the model they went away. */
+  readonly asideServers: true;
+  /** What every session's command is exported with; the one environment a turn on the machine gets. */
+  readonly env: Readonly<Record<string, string>>;
+  /** The conversations Claude Code kept on the computer, read off its transcripts and its running processes. */
+  readonly conversations: ConversationStore;
+}
+
+function parseInput(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function resultStatus(event: Record<string, unknown>, errorsText: string): TurnStatus {
+  // The CLI stamps user aborts explicitly: "aborted_tools" mid-tool-call,
+  // "aborted_streaming" mid-stream (t3code isInterruptedResult). Read before
+  // anything else: the person ended this turn, whatever word the CLI settled
+  // on for it and whether or not it flagged its own result as an error.
+  const terminal = str(event.terminal_reason);
+  if (terminal === "aborted_tools" || terminal === "aborted_streaming") return "interrupted";
+  // is_error is the CLI's own flag on its own result, and it outranks the subtype: a turn it refused before the
+  // agent ran comes back as a success carrying the refusal (measured on 2.1.257 with a home that has no login).
+  if (str(event.subtype) === "success") return event.is_error === true ? "failed" : "completed";
+  if (errorsText.includes("interrupt") || errorsText.includes("cancel")) return "interrupted";
+  if (
+    str(event.subtype) === "error_during_execution" &&
+    event.is_error === false &&
+    (errorsText.includes("request was aborted") || errorsText.includes("aborted"))
+  ) {
+    return "interrupted";
+  }
+  return "failed";
+}
+
+type ModelUse = NonNullable<TurnResult["models"]>[number];
+
+const MODEL_FIELDS = ["input", "output", "cached", "cacheWrite", "reasoning"] as const;
+
+/** Each model's running totals as Claude Code keeps them, off a result's modelUsage or a saved cost-state line's. input
+ * counts the fresh, the written and the cached part, as every turn's tokens do, and thinking is already inside output. */
+function modelsOf(raw: unknown): ModelUse[] {
+  return Object.entries(rec(raw) ?? {}).flatMap(([model, value]) => {
+    const row = rec(value);
+    if (row === undefined) return [];
+    const cached = num(row.cacheReadInputTokens) ?? 0;
+    const cacheWrite = num(row.cacheCreationInputTokens) ?? 0;
+    const costUsd = num(row.costUSD);
+    const tokens = { input: (num(row.inputTokens) ?? 0) + cached + cacheWrite, output: num(row.outputTokens) ?? 0, cached, cacheWrite, reasoning: num(row.thinkingTokens) ?? 0 };
+    return [{ model, tokens, ...(costUsd !== undefined ? { costUsd } : {}) }];
+  });
+}
+
+/** A model's entry in running totals: by its own name, else by the model it names, since a result keys a model with
+ * its context window (`claude-opus-5-5[1m]`) where its calls and the totals they joined name it bare. */
+const startOf = (models: readonly ModelUse[], model: string): ModelUse | undefined =>
+  models.find(m => m.model === model) ?? models.find(m => baseModel(m.model) === baseModel(model));
+
+/** Running totals by model with calls added, each to the model it was made on whatever name its totals go by. */
+function withCalls(models: readonly ModelUse[], calls: readonly ModelUse[]): ModelUse[] {
+  const out = models.map(m => ({ ...m }));
+  for (const call of calls) {
+    const same = startOf(out, call.model);
+    if (same === undefined) out.push({ ...call });
+    else same.tokens = usageOf(plusTokens(same.tokens, call.tokens));
+  }
+  return out;
+}
+
+/** The turn's tokens off its result: the usage sums the agent's own calls since it last stopped, and modelUsage keeps
+ * each model's running totals for the session, subagents included, with its window. */
+function resultTokens(event: Record<string, unknown>): { tokens?: TurnTokens; models?: ModelUse[] } {
+  const usage = rec(event.usage);
+  const windows = Object.values(rec(event.modelUsage) ?? {}).flatMap(raw => {
+    const window = num(rec(raw)?.contextWindow);
+    return window !== undefined ? [window] : [];
+  });
+  const models = event.modelUsage === undefined ? undefined : modelsOf(event.modelUsage);
+  return {
+    ...(usage !== undefined ? { tokens: { ...usageTokens(usage), ...(windows.length > 0 ? { window: Math.max(...windows) } : {}) } } : {}),
+    ...(models !== undefined ? { models } : {}),
+  };
+}
+
+/** What a session's file saved of its running totals before the turn: the cost and each model's use. */
+interface SavedUse {
+  costUsd: number;
+  models: ModelUse[];
+  /** Models whose totals took calls filed after a held reply with no cost: the cost cannot take their share, so the
+   * next turn's gain on these models still holds what those calls cost. */
+  unpriced?: string[];
+}
+
+/** A cost-state line as this session's saved totals, or nothing where it is another session's or does not read. */
+function savedUseOf(event: Record<string, unknown>, sessionId: string): SavedUse | undefined {
+  const costUsd = num(event.totalCostUSD);
+  if (str(event.sessionId) !== sessionId || costUsd === undefined || rec(event.modelUsage) === undefined) return undefined;
+  return { costUsd, models: modelsOf(event.modelUsage) };
+}
+
+const spentBy = (m: ModelUse): number => m.tokens.input + m.tokens.output;
+
+/** One model's running totals less where they stood before the turn; nothing where any of them fell under that, since
+ * which part of them is this turn's is then not known. */
+function gained(now: ModelUse, before: ModelUse | undefined): ModelUse | undefined {
+  if (before === undefined) return now;
+  if (MODEL_FIELDS.some(k => now.tokens[k] < before.tokens[k])) return undefined;
+  const tokens = { ...now.tokens };
+  for (const k of MODEL_FIELDS) tokens[k] -= before.tokens[k];
+  const costUsd = now.costUsd === undefined ? undefined : Math.max(0, now.costUsd - (before.costUsd ?? 0));
+  return { model: now.model, tokens, ...(costUsd !== undefined ? { costUsd } : {}) };
+}
+
+/** The turn's own use off the session's running totals. A new session starts them at nothing and a resume at what its
+ * file saved; a resume with nothing saved read leaves the turn's cost and its split by model out, its own tokens
+ * standing, so a turn never files the session's whole spend. A total under the saved one started again inside this
+ * turn, so all of it is this turn's. The turn's tokens are its split by model where that is known, else what every
+ * result of the turn counted (`spent`), and the model the one that did the most of it. */
+function ownUse(result: TurnResult, saved: SavedUse | undefined, fresh: boolean, spent: TurnTokens | undefined): TurnResult {
+  const { costUsd: total, models: running, ...given } = result;
+  const window = given.tokens?.window;
+  const rest = spent === undefined ? given : { ...given, tokens: { ...spent, ...(window !== undefined ? { window } : {}) } };
+  if (!fresh && saved === undefined) return rest;
+  const before = saved ?? { costUsd: 0, models: [] };
+  const restarted = total !== undefined && total < before.costUsd;
+  const paid = total === undefined ? undefined : restarted ? total : total - before.costUsd;
+  const own = running?.map(m => (restarted ? m : gained(m, startOf(before.models, m.model))));
+  const counted = own === undefined || own.some(m => m === undefined) ? undefined : (own as ModelUse[]).filter(m => spentBy(m) > 0);
+  // A model whose start took calls an earlier turn filed at list price files its tokens with no cost, so the ledger
+  // prices them at list too and those calls are paid for once; a turn with no split leaves its whole cost out.
+  const unpriced = restarted ? [] : (before.unpriced ?? []).map(baseModel);
+  const withheld = (m: ModelUse): boolean => unpriced.includes(baseModel(m.model));
+  const models = counted?.map(m => (withheld(m) ? { model: m.model, tokens: m.tokens } : m));
+  const priced = models?.filter(m => m.costUsd !== undefined) ?? [];
+  const costUsd = unpriced.length === 0 || paid === undefined ? paid : priced.length === 0 ? undefined : Math.max(0, paid - counted!.reduce((sum, m) => sum + (withheld(m) ? (m.costUsd ?? 0) : 0), 0));
+  const model = models?.reduce<ModelUse | undefined>((best, m) => (best === undefined || spentBy(m) > spentBy(best) ? m : best), undefined)?.model;
+  const split = models === undefined || models.length === 0 ? undefined : models.reduce<TurnTokens | undefined>((sum, m) => plusTokens(sum, m.tokens), undefined);
+  const tokens = split === undefined ? rest.tokens : { ...split, ...(window !== undefined ? { window } : {}) };
+  return { ...rest, ...(tokens !== undefined ? { tokens } : {}), ...(costUsd !== undefined ? { costUsd } : {}), ...(models !== undefined ? { models } : {}), ...(model !== undefined ? { model } : {}) };
+}
+
+function normalizeResult(event: Record<string, unknown>, refusal: { road?: string; cause?: TurnRefusal } | undefined): TurnResult {
+  const errors = strArr(event.errors) ?? [];
+  const result: TurnResult = {
+    status: resultStatus(event, errors.join(" ").toLowerCase()),
+    durationMs: num(event.duration_ms),
+    costUsd: num(event.total_cost_usd),
+    ...resultTokens(event),
+    text: str(event.result),
+    // "[ede_diagnostic] ..." entries are CLI-internal telemetry, hidden from
+    // the CLI's own UI too (t3code resultUserFacingError).
+    error: errors.find((entry) => !entry.startsWith("[ede_diagnostic]")),
+  };
+  return event.is_error === true && result.status === "failed" ? refusedTurn(result, refusal) : result;
+}
+
+/** What wsp classes a refusal as, by the CLI's own name for what refused the turn; a name no cause claims is a
+ * refusal wsp has no road out of and leaves the CLI's sentence to stand alone. Adding a cause is a row here. */
+const REFUSAL_CAUSES: Readonly<Record<string, TurnRefusal>> = { authentication_failed: "sign-in" };
+
+/** The CLI writes a line of its own into the stream as an assistant message when a request failed, marked as its own
+ * and with no model behind it; it is the turn's error and the result carries it again, so it is no reply of the
+ * agent's and never a delta. Answers the cause it named, null where wsp claims none. */
+function apiErrorCause(event: Record<string, unknown>): TurnRefusal | null | undefined {
+  if (str(event.type) !== "assistant" || event.is_api_error_message !== true) return undefined;
+  return REFUSAL_CAUSES[str(event.error) ?? ""] ?? null;
+}
+
+/** The CLI's words for a session whose tasks it cannot stop one at a time (read off the 2.1.288 binary): the same
+ * answer an agent with no such request gives, never a refusal of this one task. */
+const STOP_TASK_UNSUPPORTED = "stop_task is not supported in this context";
+
+/** The CLI's sentence for a resume of a session id its store does not hold, before the id (measured on 2.1.280). */
+const NO_CONVERSATION = "No conversation found with session ID:";
+
+/** A success with no text and no token counted: the CLI refused the turn (a resume of a transcript a kill left
+ * half-written) and said why on stderr only. */
+function answeredNothing(result: TurnResult): boolean {
+  if (result.status !== "completed" || (result.text ?? "").trim().length > 0) return false;
+  return (result.tokens?.input ?? 0) + (result.tokens?.output ?? 0) === 0;
+}
+
+/** The result with what the follow saw beside it: what the model held at the end, and the model the CLI announced
+ * where the result named none. */
+function withContext(result: TurnResult, context: number | undefined, initModel: string | undefined): TurnResult {
+  const model = result.model ?? initModel;
+  const tokens = result.tokens === undefined || context === undefined ? result.tokens : { ...result.tokens, context };
+  return { ...result, ...(tokens !== undefined ? { tokens } : {}), ...(model !== undefined ? { model } : {}) };
+}
+
+/** What the model held before and after a compaction the CLI ran, off its own boundary line. */
+function compactedTo(event: Record<string, unknown>): { before?: number; after: number } | undefined {
+  if (str(event.type) !== "system" || str(event.subtype) !== "compact_boundary") return undefined;
+  const metadata = rec(event.compact_metadata);
+  const after = num(metadata?.post_tokens);
+  const before = num(metadata?.pre_tokens);
+  return after === undefined ? undefined : { ...(before !== undefined ? { before } : {}), after };
+}
+
+/** The retry Claude Code is about to make of a failed model call, off its api_retry line. Measured on 2.1.301: a call
+ * held past its timeout or refused reads `unknown` with no status, a 529 `overloaded`, a 500 `server_error`. */
+function retryOf(event: Record<string, unknown>, sessionId: string): AdapterEvent | undefined {
+  if (str(event.type) !== "system" || str(event.subtype) !== "api_retry") return undefined;
+  const attempt = num(event.attempt);
+  if (attempt === undefined) return undefined;
+  const of = num(event.max_retries);
+  const why = anthropicRetryWhy(str(event.error), num(event.error_status));
+  return { type: "turn.retry", sessionId, attempt, ...(of !== undefined ? { of } : {}), why };
+}
+
+/** The retry a subagent the agent waits on is about to make, off the progress line its call carries; the CLI prints
+ * no api_retry for any subagent, and nothing at all for one in the background (measured on 2.1.301). */
+function subagentRetryOf(event: Record<string, unknown>, sessionId: string): AdapterEvent | undefined {
+  const retry = rec(event.subagent_retry);
+  const attempt = num(retry?.attempt);
+  if (attempt === undefined) return undefined;
+  const of = num(retry?.max_retries);
+  return { type: "turn.retry", sessionId, attempt, ...(of !== undefined ? { of } : {}), why: anthropicRetryWhy(str(retry?.error_category), num(retry?.error_status)) };
+}
+
+/** The last lines the process printed that were not stream-json events: the CLI's stderr shares the log. */
+const STDERR_TAIL_LINES = 5;
+
+function noOutputError(result: TurnResult, stderrTail: readonly string[]): string {
+  const head = `claude answered with no output and no usage after ${fmtDuration(result.durationMs ?? 0)}`;
+  return stderrTail.length === 0 ? head : `${head}: ${stderrTail.join("\n")}`;
+}
+
+/** The call that launched the subagent this line announces, by the CLI's own handle for that subagent. The CLI names
+ * a subagent by that handle on the prompts its run raises, and names the call only here, so a turn keeps the pair. */
+function subagentLaunch(event: Record<string, unknown>): { agentId: string; toolUseId: string } | undefined {
+  if (str(event.type) !== "system" || str(event.subtype) !== "task_started") return undefined;
+  const agentId = str(event.task_id);
+  const toolUseId = str(event.tool_use_id);
+  return agentId === undefined || toolUseId === undefined ? undefined : { agentId, toolUseId };
+}
+
+/** The tools the agent launches a subagent with; the call's input holds what the subagent was asked. */
+const SUBAGENT_TOOLS: ReadonlySet<string> = new Set(["Agent", "Task"]);
+
+/** What each subagent call on a line of the agent's own asks, by the call's id. */
+function subagentPrompts(event: Record<string, unknown>): [string, string][] {
+  if (str(event.type) !== "assistant" || str(event.parent_tool_use_id) !== undefined) return [];
+  const blocks = rec(event.message)?.content;
+  if (!Array.isArray(blocks)) return [];
+  return blocks.flatMap(raw => {
+    const block = rec(raw);
+    const id = str(block?.id);
+    const prompt = str(rec(block?.input)?.prompt);
+    return str(block?.type) === "tool_use" && SUBAGENT_TOOLS.has(str(block?.name) ?? "") && id !== undefined && prompt !== undefined ? [[id, prompt]] : [];
+  });
+}
+
+/** A subagent the agent started, off its task_started line: the CLI tracks background commands as tasks on the same
+ * line, and task_type is what tells a subagent from one of those. */
+function subagentStarted(event: Record<string, unknown>): { task: string; parent?: string; title?: string; depth?: number } | undefined {
+  if (str(event.type) !== "system" || str(event.subtype) !== "task_started" || str(event.task_type) !== "local_agent") return undefined;
+  const task = str(event.task_id);
+  if (task === undefined) return undefined;
+  const parent = str(event.tool_use_id);
+  const title = str(event.description);
+  const depth = num(event.spawn_depth);
+  return { task, ...(parent !== undefined ? { parent } : {}), ...(title !== undefined ? { title } : {}), ...(depth !== undefined ? { depth } : {}) };
+}
+
+/** The CLI's own live background tasks (commands and subagents the agent did not wait for), sent whole each time the
+ * set changes, each with the CLI's own handle and its one phrase for the command; a CLI from before the signal never
+ * sends it, and a turn on such a CLI is never held. A line whose payload is not a set reads as the empty set, which
+ * is what it says: nothing of the agent's is running. */
+function backgroundTasksOf(event: Record<string, unknown>): { id: string; description: string }[] | undefined {
+  if (str(event.type) !== "system" || str(event.subtype) !== "background_tasks_changed") return undefined;
+  if (!Array.isArray(event.tasks)) return [];
+  return event.tasks.flatMap(raw => {
+    const task = rec(raw);
+    const id = str(task?.task_id);
+    return id === undefined ? [] : [{ id, description: str(task?.description) ?? id }];
+  });
+}
+
+/** One background task the CLI says is over, with how it ended in its own word. */
+function taskFinishedOf(event: Record<string, unknown>): { id: string; status: string } | undefined {
+  if (str(event.type) !== "system" || str(event.subtype) !== "task_notification") return undefined;
+  const id = str(event.task_id);
+  const status = str(event.status);
+  return id === undefined || status === undefined ? undefined : { id, status };
+}
+
+/** The CLI's answer to a report on work an earlier process of the session started: on a resume after a run that died
+ * with a command in the background, it reports that command stopped and answers the report as a turn of its own,
+ * empty and in milliseconds, before the message the resume was sent with (measured on 2.1.284). */
+function drainedNotice(event: Record<string, unknown>): boolean {
+  if (str(event.type) !== "result" || str(rec(event.origin)?.kind) !== "task-notification" || num(event.num_turns) !== 0) return false;
+  return answeredNothing(normalizeResult(event, undefined));
+}
+
+function normalizeEvent(event: Record<string, unknown>, fallbackSessionId: string, refusal: { road?: string; cause?: TurnRefusal } | undefined, plans: PlanBook, book: HandbackBook): AdapterEvent[] {
+  const sessionId = str(event.session_id) ?? fallbackSessionId;
+  // A subagent's lines ride the parent's stream and carry the call that launched it; the parent's own carry null.
+  const parent = str(event.parent_tool_use_id);
+  const from = parent === undefined ? {} : { parentToolUseId: parent };
+  switch (str(event.type)) {
+    case "system": {
+      const retry = retryOf(event, sessionId);
+      if (retry !== undefined) return [retry];
+      if (str(event.subtype) !== "init") return [];
+      const harness = harnessOf(event);
+      // Claude Code names where its credential came from; any source but none is a key, which has no plan window.
+      const keySource = str(event.apiKeySource);
+      const keyed: AdapterEvent[] = keySource !== undefined && keySource !== "none" ? [{ type: "limit", sessionId, limit: { windows: [], keyed: true } }] : [];
+      return [
+        {
+          type: "session.start",
+          sessionId,
+          model: str(event.model),
+          cwd: str(event.cwd),
+          tools: strArr(event.tools),
+          ...(harness !== undefined ? { harness } : {}),
+        },
+        ...keyed,
+      ];
+    }
+    case "assistant": {
+      const message = rec(event.message);
+      const blocks = message?.content;
+      if (!Array.isArray(blocks)) return [];
+      // The blocks of one message share its id, so a reply broken into several of them stays one message and only a
+      // message the CLI wrote later opens another.
+      const messageId = str(message?.id);
+      const said = messageId === undefined ? {} : { messageId };
+      const deltas: AdapterEvent[] = [];
+      for (const raw of blocks) {
+        const block = rec(raw);
+        if (block === undefined) continue;
+        switch (str(block.type)) {
+          case "text":
+            deltas.push({ type: "turn.delta", sessionId, kind: "text", text: str(block.text) ?? "", ...said, ...from });
+            break;
+          case "thinking":
+            deltas.push({
+              type: "turn.delta",
+              sessionId,
+              kind: "thinking",
+              text: str(block.thinking) ?? "",
+              ...from,
+            });
+            break;
+          case "tool_use": {
+            const id = str(block.id);
+            const plan = parent === undefined ? readPlanCall(str(block.name), block.input, id, plans) : undefined;
+            if (plan !== undefined) {
+              if (id !== undefined) plans.calls.add(id);
+              if (plan !== null) deltas.push({ type: "turn.plan", sessionId, ...plan });
+              break;
+            }
+            const call: TurnDelta = {
+              type: "turn.delta",
+              sessionId,
+              kind: "tool_use",
+              text: JSON.stringify(block.input ?? null),
+              toolName: str(block.name),
+              toolUseId: str(block.id),
+              ...from,
+            };
+            if (!heldCall(book, call)) deltas.push(call);
+            break;
+          }
+          default:
+            break;
+        }
+      }
+      return deltas;
+    }
+    case "user": {
+      const blocks = rec(event.message)?.content;
+      if (!Array.isArray(blocks)) return [];
+      const deltas: AdapterEvent[] = [];
+      for (const raw of blocks) {
+        const block = rec(raw);
+        if (block === undefined || str(block.type) !== "tool_result") continue;
+        const answered = str(block.tool_use_id);
+        if (answered !== undefined && plans.calls.delete(answered)) {
+          // A TaskCreate's result is where the CLI names the id its later TaskUpdates take.
+          const at = plans.unnamed.get(answered);
+          const named = /#(\d+)/.exec(flattenContent(block.content))?.[1];
+          if (at !== undefined && named !== undefined && plans.tasks[at] !== undefined) plans.tasks[at]!.id = named;
+          plans.unnamed.delete(answered);
+          continue;
+        }
+        const text = flattenContent(block.content);
+        deltas.push(...readAnswer(book, {
+          type: "turn.delta",
+          sessionId,
+          kind: "tool_result",
+          text,
+          toolUseId: str(block.tool_use_id),
+          isError: block.is_error === true,
+          ...from,
+          ...resultFacts(blocks, text, block.is_error === true, event.tool_use_result),
+        }));
+      }
+      return deltas;
+    }
+    case "result":
+      return [{ type: "turn.done", sessionId, result: normalizeResult(event, refusal) }];
+    case "rate_limit_event": {
+      const limit = limitOf(rec(event.rate_limit_info));
+      return limit === undefined ? [] : [{ type: "limit", sessionId, limit }];
+    }
+    case "tool_progress": {
+      const retry = subagentRetryOf(event, sessionId);
+      return retry === undefined ? [] : [retry];
+    }
+    default:
+      return [];
+  }
+}
+
+/** A session's one file: `<config>/projects/<folder key>/<id>.jsonl`, the key being the folder it ran in. */
+const sessionFileIn = (configDir: string, sessionId: string): { folder: string; name: string; depth: number } => ({ folder: `${configDir}/projects`, name: `${sessionId}.jsonl`, depth: 1 });
+
+export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
+  if (!deps.configDir.trim().startsWith("/")) throw new Error(`configDir must be an absolute path, got "${deps.configDir}"`);
+  const sessions = new Map<string, ClaudeSession>();
+  const signIn = { base: deps.baseEnv, apiKey: deps.apiKey, ...(deps.oauthToken !== undefined ? { oauthToken: deps.oauthToken } : {}), ...(deps.brokered !== undefined ? { brokered: deps.brokered } : {}) };
+  const env = buildEnv({ ...signIn, ...(deps.projectDirName !== undefined ? { projectDirName: deps.projectDirName } : {}) });
+  const guard = signInGuard({ ...signIn, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) });
+  const memory = deps.projectDirName === undefined ? {} : { memoryDir: claudeMemoryDir(deps.configDir, deps.projectDirName) };
+
+  /** wsp's half for a refusal the CLI named a cause for: the road the caller handed this adapter, which is the one
+   * rule every door reads for how this workspace is signed in, and the cause the failure is classed by. */
+  const refusalOf = (cause: TurnRefusal | null | undefined): { road?: string; cause?: TurnRefusal } | undefined => {
+    if (cause === undefined) return undefined;
+    const road = cause === "sign-in" ? deps.signInRefusal : undefined;
+    return { ...(road !== undefined ? { road } : {}), ...(cause !== null ? { cause } : {}) };
+  };
+
+  /** Everything a turn is once its stream exists. The launch and the attach differ only in where the stream came
+   * from and in what is already known: an attached turn's CLI announced itself to an earlier host process, so it
+   * takes a message from the first byte rather than waiting for an init line it may have printed long ago. */
+  const follow = (o: {
+    stream: ExecStream;
+    localId: string;
+    announced: boolean;
+    fresh: boolean;
+    command?: string;
+    /** The process this turn runs on, kept for the thread's next message once the turn is over. */
+    keeper?: KeptRun;
+    /** Where this turn starts in the run's log, on a kept process past its first turn. */
+    from?: number;
+    /** The CLI's running totals as the process's last turn left them: on a kept process they run on across turns. */
+    saved?: SavedUse;
+    /** The messages a host kept as steered into this turn before it wrote them, on an attach. */
+    steered?: readonly string[];
+    onEvent: (event: AdapterEvent) => void;
+  }): ClaudeSession => {
+    const { stream, localId, onEvent } = o;
+
+    let claudeSessionId = localId;
+    let sawInit = o.announced;
+    /** Settles at the CLI's init or at a stop: a stop on a computer that is away ends no stream that would settle finished. */
+    let openSteer!: () => void;
+    const steerOpen = new Promise<void>(r => (openSteer = r));
+    let sawResult = false;
+    let exited = false;
+    let interruptRequested = false;
+    let turnResult: TurnResult | undefined;
+    let emptyResult: TurnResult | undefined;
+    const stderrTail: string[] = [];
+    let harnessCwd: string | undefined;
+    let shellCwd: string | undefined;
+    let backgroundTasks = 0;
+    /** The CLI's handles for the background tasks it reports running now. */
+    let runningTasks: string[] = [];
+    /** The reply the agent gave while the CLI still reported work it started running: the turn is not over, so the
+     * reply is kept here and delivered once nothing it started is left running. */
+    let heldReply: TurnResult | undefined;
+    /** When that reply came, so a task finishing after it says how long after. Wall clock here and not the CLI's
+     * own: on a turn re-opened after a host restart the run's log is replayed from its first byte, so the figure a
+     * finished line carries is measured from the replay and not from the words the person read an hour ago. */
+    let heldAt = 0;
+    /** The held reply's line went as it was given (`replied`), so a turn.done ending on that reply says so. Set with the
+     * reply itself: `woken` resets at the agent's next result, so it cannot say which reply went. */
+    let heldTold = false;
+    /** The CLI's one phrase for each background task it has reported, by its own handle for it: only the set lines
+     * carry it, and the line a finished task gets is written from it. */
+    const taskNames = new Map<string, string>();
+    /** The messages steered into this turn, which the reply waits on until the CLI has answered each. */
+    const steers = steersOf(stream.taken ?? [], o.steered);
+    const plans = newPlanBook();
+    /** How each of the turn's subagents ends and hands its report back. */
+    const book = newHandbackBook();
+    /** What the model held after its last call, the agent's own and never a subagent's: the last reply's usage, or a
+     * compaction's figure where one came after it. The result's usage sums the turn, so it cannot say this. */
+    let heldContext: number | undefined;
+    /** The windows this turn's readings said stop the agent, by the CLI's name for each, with its reset where named. */
+    const rejected = new Map<string, number | undefined>();
+    /** Set once the CLI wrote a compaction's boundary this turn: /compact answers with no words and no call, and the
+     * compaction is the whole of what it did, so its result is no empty answer. */
+    let compacted = false;
+    let initModel: string | undefined;
+    /** The session's running totals as its file saved them before this turn, which every result's totals start from. */
+    let saved: SavedUse | undefined = o.saved;
+    /** The totals this turn's result left, which the process's next turn starts from. */
+    let totals: SavedUse | undefined;
+    /** The messages whose call was already reported as drawn: every block of a message repeats the message's usage. */
+    const drawn = new Set<string>();
+    /** What the turn's results counted, summed: the CLI prints one each time its agent stops, and a turn it woke for
+     * its background work has one per wake, each counting only the calls since the last. */
+    let spent: TurnTokens | undefined;
+    /** The calls this turn printed, by message: their model and usage, the output the largest any of its blocks showed,
+     * which is still short of the call's own, since a block prints before the call ends. */
+    const calls = new Map<string, ModelUse>();
+    /** A held reply with the calls printed after it, a woken agent's or a background subagent's, which no result
+     * counted. They follow the reply's own entries as entries of their own with no cost, so the list price is theirs,
+     * and join the process's totals, so its next turn's gain starts past them. */
+    const withCallsAfter = (reply: TurnResult): TurnResult => {
+      const after = drewUse(callsCounted);
+      if (after.models === undefined) return reply;
+      if (totals !== undefined) totals = { ...totals, models: withCalls(totals.models, after.models), unpriced: [...(totals.unpriced ?? []), ...after.models.map(m => m.model)] };
+      const held = { ...(reply.tokens?.window !== undefined ? { window: reply.tokens.window } : {}), ...((heldContext ?? reply.tokens?.context) !== undefined ? { context: heldContext ?? reply.tokens?.context } : {}) };
+      const own = reply.models ?? (reply.tokens === undefined ? [] : [{ model: reply.model ?? after.model!, tokens: usageOf(reply.tokens), ...(reply.costUsd !== undefined ? { costUsd: reply.costUsd } : {}) }]);
+      return { ...reply, tokens: { ...plusTokens(reply.tokens, after.tokens!), ...held }, models: [...own, ...after.models] };
+    };
+    /** How many of the printed calls the last result counted. */
+    let callsCounted = 0;
+    /** The printed calls as a turn's use, for a turn the CLI printed no result for: one cut at the wall, killed, or
+     * stopped before it answered. Its cost is left to the list price. */
+    const drewUse = (from = 0): Pick<TurnResult, "tokens" | "models" | "model"> => {
+      const models = withCalls([], [...calls.values()].slice(from));
+      if (models.length === 0) return {};
+      const model = models.reduce((best, m) => (spentBy(m) > spentBy(best) ? m : best)).model;
+      return { tokens: models.reduce<TurnTokens | undefined>((sum, m) => plusTokens(sum, m.tokens), undefined), models, model };
+    };
+    /** One line per task that finished after the held reply, in the order the CLI reported them. */
+    const finishedAfter: string[] = [];
+    /** Running while a held reply waits out the CLI's silence: its tasks are done, and this is the window it has to
+     * wake its agent in before that reply is the turn's. */
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    /** Set when the CLI announces its agent again under a held reply: it woke the agent with the tasks' end (or a
+     * message), and that agent's own result is the next word. Nothing times it out: a woken agent running a
+     * foreground command, or thinking, prints nothing for as long as that takes (measured on 2.1.280: the init comes
+     * with the notification, the agent's first line only once its first block is whole). */
+    let woken = false;
+    /** What the last error the CLI wrote into the stream itself was for, null where wsp claims no cause for it;
+     * undefined until it writes one. */
+    let refusalCause: TurnRefusal | null | undefined;
+    /** The prompts this turn raised and nobody has answered yet, by the CLI's own request id. The CLI runs nothing
+     * while one is open, so an entry here is what the turn is waiting on. */
+    const pending = new Map<string, PermissionAsk>();
+    /** The control requests this adapter sent that the CLI has not answered yet, by the id it was sent under. It
+     * answers every one, and one still open when the channel shuts is settled rather than left waiting. */
+    const asked = new Map<string, (answer: { error?: string } | "gone") => void>();
+    let askedSeq = 0;
+    /** The call each running subagent was launched by, by the CLI's handle for the subagent. */
+    const launchedBy = new Map<string, string>();
+    /** Where each of the agent's own subagents stands, by the CLI's handle for it: what says its end once, and what a
+     * stop of one already over is answered from. */
+    const subagents = new Map<string, SubagentState>();
+    /** What each subagent call asked, by the call's id, until its subagent starts. */
+    const askedBy = new Map<string, string>();
+    /** The subagents whose model has been said: the first line of each that names one says it, and no later line. */
+    const modelSaid = new Set<string>();
+    const spend = newSpendBook();
+    /** Set once the turn is in the mode that asks nobody, launched there or moved there: every prompt the CLI raises
+     * from then is allowed by this host, and only a question reaches the person. */
+    let skipsPrompts = false;
+
+    /** Every request still waiting, answered as gone; nothing can reach the CLI after this. */
+    const settleAsked = (): void => {
+      for (const settle of [...asked.values()]) settle("gone");
+      asked.clear();
+    };
+
+    /** The turn is open to a line on the channel: its CLI has announced itself and has neither replied nor gone. */
+    const running = (): boolean => sawInit && !sawResult && !exited && !interruptRequested;
+
+    const closeAsk = (askId: string, outcome: PermissionOutcome, optionId?: string): void => {
+      pending.delete(askId);
+      onEvent({ type: "permission.close", sessionId: claudeSessionId, askId, outcome, ...(optionId !== undefined ? { optionId } : {}) });
+    };
+
+    const exitMs = deps.resultExitMs ?? RUN_EXIT_MS;
+
+    /** Everything the turn's reply being final comes to, wherever the reply came from: the CLI waits for more input
+     * after its result and EOF is what lets it exit; the channel is shut, so a request still unanswered will never
+     * be and the caller is told now rather than waiting minutes on a CLI that lingers; a CLI that does not go on its
+     * own is ended with its tree once the wait passes rather than left for the idle cut. */
+    /** The last message of the thread's own agent this turn wrote, by the uuid its session file keys it by: the
+     * point a rewind to this turn keeps. A subagent's messages sit on a chain of their own and are left out. */
+    let anchor: string | undefined;
+    let anchored = false;
+    const anchorOnce = (sessionId: string): void => {
+      if (anchored || anchor === undefined) return;
+      anchored = true;
+      onEvent({ type: "turn.anchor", sessionId, anchor });
+    };
+
+    const deliver = (reply: TurnResult, sessionId = claudeSessionId, held = false): void => {
+      const result = withLimit(reply, rejected);
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
+      settleTimer = undefined;
+      heldReply = undefined;
+      sawResult = true;
+      // A process is kept only past a turn that went as it should: one that refused or failed is launched again, so a
+      // sign-in or a fix made in between reaches the next turn, and one that answered nothing says why as it exits.
+      if ((result.status !== "completed" && result.status !== "interrupted") || answeredNothing(result)) o.keeper?.release();
+      // A message the CLI still queues is answered next as a turn of its own, past a stop it could not cancel (2.1.280:
+      // the interrupt's answer names it still_queued). Nobody reads that turn, and a kept process's next turn would
+      // read it as its own, so the process goes and the message goes back unread.
+      const queuedLeft = steers.settle();
+      if (queuedLeft) o.keeper?.release();
+      stream.closeInput();
+      settleAsked();
+      const graceMs = deps.interruptGraceMs ?? INTERRUPT_GRACE_MS;
+      void (queuedLeft ? endRun(stream, graceMs) : endAfterResult(stream, exitMs, graceMs)).catch(() => {});
+      // Held until the process exits, since the CLI writes its reason to stderr after the result.
+      if (answeredNothing(result) && !compacted) {
+        emptyResult = result;
+        return;
+      }
+      turnResult = result;
+      anchorOnce(sessionId);
+      steers.tellUnread(sessionId, onEvent);
+      onEvent({ type: "turn.done", sessionId, result, ...(held ? { held } : {}) });
+    };
+
+    /** The CLI is at work under a held reply: its agent woken, or a steered message taken up. */
+    const busy = (): boolean => woken || steers.working;
+
+    /** A held reply with one line under it per task that finished after it: the road where the CLI reported the
+     * exits and never woke its agent, so these lines are the turn's own report of them. Where it did wake the agent,
+     * that reply is the turn's and none of this is added. `running` is the tasks still going when the process
+     * ended, a server the agent started among them, which never exits and so never wakes it: the agent replied and
+     * the turn went as it should, so the reply stays done and the last line names that work, the line a thread's row
+     * reads. */
+    const heldWithFinished = (reply: TurnResult, running = 0): TurnResult => {
+      const result = withCallsAfter(reply);
+      const lines = [...finishedAfter, ...(running > 0 && result.status === "completed" ? [backgroundTasksLine(running)] : [])];
+      return lines.length === 0 ? result : { ...result, text: [result.text ?? "", "", ...lines].join("\n") };
+    };
+
+    /** A reply given after a held one, timed from the turn's launch: the CLI times each result from what started
+     * it (the prompt, the wake, a message), so the held reply's figure and the wall time since it are the whole turn.
+     * The CLI's own figure is the floor, since a turn re-opened after a host restart replays its log in a moment. */
+    const spanned = (result: TurnResult): TurnResult => {
+      if (heldReply?.durationMs === undefined) return result;
+      return { ...result, durationMs: heldReply.durationMs + Math.max(Date.now() - heldAt, result.durationMs ?? 0) };
+    };
+
+    /** The window the CLI gets to wake its agent in once a held reply's tasks are done. Any line it prints starts
+     * the window again, since a CLI that is saying something is about to reply; silence through it means the tasks
+     * ended with nobody woken, and the words the agent already gave are the turn's. */
+    const armSettle = (): void => {
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        settleTimer = undefined;
+        if (heldReply !== undefined && backgroundTasks === 0) deliver(heldWithFinished(heldReply), claudeSessionId, heldTold);
+      }, exitMs);
+    };
+
+    const finished = (async (): Promise<TurnResult> => {
+      let streamError: string | undefined;
+      let streamFailure: unknown;
+      try {
+        for await (const raw of stream.lines) {
+          // A held reply waiting on nothing but silence: this line is the CLI saying something, so the window it has
+          // to wake its agent in starts again.
+          if (heldReply !== undefined && backgroundTasks === 0 && !busy()) armSettle();
+          const event = parseLine(raw);
+          if (event === undefined) {
+            const text = raw.trim();
+            if (text.length > 0 && stderrTail.push(text) > STDERR_TAIL_LINES) stderrTail.shift();
+            continue;
+          }
+          if (event.type === "cost-state") {
+            saved = savedUseOf(event, localId);
+            continue;
+          }
+          if (steers.read(event)) {
+            if (steers.working && settleTimer !== undefined) {
+              clearTimeout(settleTimer);
+              settleTimer = undefined;
+            }
+            // The last message the reply waited on is answered. A message the CLI started as a turn of its own is
+            // completed right after that turn's result; one a woken agent took at a tool's end is completed before
+            // it (2.1.295), and the woken agent's result, still to come, is the turn's end.
+            if (heldReply !== undefined && backgroundTasks === 0 && !steers.open && !woken) deliver(interruptRequested ? { ...withCallsAfter(heldReply), status: "interrupted" } : heldWithFinished(heldReply), claudeSessionId, heldTold);
+            continue;
+          }
+          if (event.type === "result" && !drainedNotice(event)) {
+            const costUsd = num(event.total_cost_usd);
+            totals = costUsd === undefined ? undefined : { costUsd, models: modelsOf(event.modelUsage) };
+            const used = rec(event.usage);
+            if (used !== undefined) spent = plusTokens(spent, usageTokens(used));
+            callsCounted = calls.size;
+          }
+          if (event.type === "assistant" && typeof event.uuid === "string" && (event.parent_tool_use_id === undefined || event.parent_tool_use_id === null)) anchor = event.uuid;
+          for (const [call, prompt] of subagentPrompts(event)) askedBy.set(call, prompt);
+          noteLine(book, event);
+          const childLine = str(event.type) === "assistant" && event.is_api_error_message !== true ? str(event.parent_tool_use_id) : undefined;
+          const childTask = childLine === undefined ? undefined : [...launchedBy].find(([id, call]) => call === childLine && subagents.has(id))?.[0];
+          if (childTask !== undefined) noteChildCall(spend, childTask, event);
+          const childModel = childLine === undefined ? undefined : str(rec(event.message)?.model);
+          if (childLine !== undefined && childModel !== undefined) {
+            const task = [...launchedBy].find(([id, call]) => call === childLine && subagents.get(id) === "running" && !modelSaid.has(id))?.[0];
+            if (task !== undefined) {
+              modelSaid.add(task);
+              onEvent({ type: "subagent", sessionId: claudeSessionId, task, state: "running", parentToolUseId: childLine, model: childModel });
+            }
+          }
+          const control = controlLine(event);
+          if (control !== undefined) {
+            switch (control.kind) {
+              case "ask": {
+                // Bypass skips consent, never a question: a question allowed unanswered is the agent deciding alone.
+                if (skipsPrompts && control.ask.toolName !== QUESTION_TOOL) {
+                  void stream.write(controlAllowLine(control.ask));
+                  break;
+                }
+                const parent = control.agentId === undefined ? undefined : launchedBy.get(control.agentId);
+                const ask = parent === undefined ? control.ask : { ...control.ask, parentToolUseId: parent };
+                pending.set(ask.askId, ask);
+                onEvent({ type: "permission.ask", sessionId: claudeSessionId, ask });
+                break;
+              }
+              case "cancel":
+                // The CLI withdrew its own question (its turn was interrupted, or another client answered it).
+                if (pending.has(control.requestId)) closeAsk(control.requestId, "cancelled");
+                break;
+              case "unknown":
+                // The CLI waits on every control request it sends, so one this adapter cannot serve is refused
+                // rather than left open.
+                void stream.write(controlErrorLine(control.requestId, control.subtype));
+                break;
+              case "answer": {
+                const settle = asked.get(control.requestId);
+                asked.delete(control.requestId);
+                settle?.(control.error === undefined ? {} : { error: control.error });
+                break;
+              }
+            }
+            continue;
+          }
+          const progressed = noteProgress(spend, event, subagents);
+          if (progressed !== undefined && str(event.subtype) === "task_progress" && subagents.get(progressed) === "running") {
+            const parent = launchedBy.get(progressed);
+            onEvent({ type: "subagent", sessionId: claudeSessionId, task: progressed, state: "running", ...(parent !== undefined ? { parentToolUseId: parent } : {}), usage: subagentSpent(spend, progressed)! });
+          }
+          const launch = subagentLaunch(event);
+          if (launch !== undefined) {
+            launchedBy.set(launch.agentId, launch.toolUseId);
+            const started = subagentStarted(event);
+            if (started !== undefined) {
+              subagents.set(started.task, "running");
+              const { task, parent, ...said } = started;
+              const prompt = parent === undefined ? undefined : askedBy.get(parent);
+              if (parent !== undefined) askedBy.delete(parent);
+              onEvent({ type: "subagent", sessionId: claudeSessionId, task, state: "running", ...(parent !== undefined ? { parentToolUseId: parent } : {}), ...said, ...(prompt !== undefined ? { asked: subagentAsked(prompt) } : {}) });
+            }
+            continue;
+          }
+          const tasks = backgroundTasksOf(event);
+          if (tasks !== undefined) {
+            for (const task of tasks) taskNames.set(task.id, task.description);
+            backgroundTasks = tasks.length;
+            runningTasks = tasks.map(task => task.id);
+            // The runtime reads this to know the turn is working while the agent waits, which holds its idle clock.
+            onEvent({ type: "turn.tasks", sessionId: claudeSessionId, running: backgroundTasks });
+            if (heldReply !== undefined && backgroundTasks === 0 && !busy()) armSettle();
+            if (backgroundTasks > 0 && settleTimer !== undefined) {
+              clearTimeout(settleTimer);
+              settleTimer = undefined;
+            }
+            continue;
+          }
+          if (interimEnd(book, event)) continue;
+          const ended = taskEnded(event);
+          if (ended !== undefined && (subagents.get(ended.task) === "running" || (subagents.has(ended.task) && laterEnd(book, event)))) {
+            subagents.set(ended.task, ended.state);
+            const parent = launchedBy.get(ended.task);
+            const usage = subagentSpentAtEnd(spend, ended.task, event);
+            onEvent({ type: "subagent", sessionId: claudeSessionId, task: ended.task, state: ended.state, ...(parent !== undefined ? { parentToolUseId: parent } : {}), ...(ended.summary !== undefined ? { summary: ended.summary } : {}), ...(usage !== undefined ? { usage } : {}) });
+          }
+          for (const answer of endAnswer(book, event, claudeSessionId)) onEvent(answer);
+          const over = taskFinishedOf(event);
+          if (over !== undefined) {
+            if (heldReply !== undefined) finishedAfter.push(taskFinishedLine(taskNames.get(over.id) ?? over.id, over.status, Date.now() - heldAt));
+            continue;
+          }
+          if (ended !== undefined) continue;
+          // A report's answer with no reply held is not this turn's: the person's message is answered after it.
+          if (heldReply === undefined && !sawResult && drainedNotice(event)) continue;
+          const after = compactedTo(event);
+          if (after !== undefined) {
+            heldContext = after.after;
+            compacted = true;
+            onEvent({ type: "turn.compacted", sessionId: claudeSessionId, ...after });
+          }
+          const call = str(event.type) === "assistant" && event.is_api_error_message !== true ? rec(event.message) : undefined;
+          const callUsage = rec(call?.usage);
+          const callId = str(call?.id);
+          const callModel = str(call?.model);
+          if (callUsage !== undefined && callId !== undefined && callModel !== undefined) {
+            const held = calls.get(callId);
+            const output = Math.max(held?.tokens.output ?? 0, num(callUsage.output_tokens) ?? 0);
+            calls.set(callId, { model: callModel, tokens: { input: inputTokens(callUsage), output, cached: num(callUsage.cache_read_input_tokens) ?? 0, cacheWrite: num(callUsage.cache_creation_input_tokens) ?? 0, reasoning: 0 } });
+          }
+          if (callUsage !== undefined && callId !== undefined && !drawn.has(callId)) {
+            drawn.add(callId);
+            const at = typeof event.timestamp === "string" ? Date.parse(event.timestamp) : NaN;
+            const drew = heldTokens(callUsage);
+            const own = str(event.parent_tool_use_id) === undefined;
+            onEvent({ type: "turn.usage", sessionId: claudeSessionId, tokens: drew, ...(own ? { context: drew } : {}), ...(Number.isFinite(at) ? { at } : {}) });
+          }
+          const usage = str(event.type) === "assistant" && str(event.parent_tool_use_id) === undefined ? rec(rec(event.message)?.usage) : undefined;
+          if (usage !== undefined && event.is_api_error_message !== true) heldContext = heldTokens(usage);
+          if (str(event.type) === "rate_limit_event") noteRejected(rec(event.rate_limit_info), rejected);
+          const cause = apiErrorCause(event);
+          if (cause !== undefined) {
+            refusalCause = cause;
+            continue;
+          }
+          for (const normalized of normalizeEvent(event, claudeSessionId, refusalOf(refusalCause), plans, book)) {
+            if (normalized.type === "session.start") {
+              claudeSessionId = normalized.sessionId;
+              initModel = normalized.model ?? initModel;
+              sawInit = true;
+              openSteer();
+              harnessCwd = normalized.cwd;
+              shellCwd = normalized.cwd;
+              if (normalized.harness?.permissionMode === SKIP_PROMPTS_MODE) skipsPrompts = true;
+              if (heldReply !== undefined) {
+                woken = true;
+                if (settleTimer !== undefined) clearTimeout(settleTimer);
+                settleTimer = undefined;
+              }
+            }
+            if (normalized.type === "turn.delta" && normalized.kind === "tool_use" && shellCwd !== undefined && harnessCwd !== undefined) {
+              const moved = shellCwdAfter(normalized.toolName, parseInput(normalized.text), shellCwd, harnessCwd);
+              if (moved !== undefined) {
+                shellCwd = moved;
+                normalized.cwd = moved;
+              }
+            }
+            if (normalized.type === "turn.done") {
+              // The turn's reply is already out: the tasks ended in silence, the window passed and the held words
+              // went as the turn's, and this is the CLI waking its agent after that. One turn is one reply, so it
+              // is not delivered a second time; its cost would be added to the row again, its notify line sent
+              // again and its reply row written again, and the agent's later words are already in the pane as
+              // their own lines.
+              if (sawResult) continue;
+              woken = false;
+              // A slash command steered under the held reply answers with no call (num_turns 0, a <synthetic> message,
+              // 2.1.280): its words stay a row of their own, and the reply a lead reads stays the agent's.
+              if (heldReply !== undefined && num(event.num_turns) === 0) continue;
+              const result = spanned(withContext(ownUse(normalized.result, saved, o.fresh, spent), heldContext, initModel));
+              if (backgroundTasks > 0 && interruptRequested) {
+                // The person stopped the turn, so its result is the turn's end and the work it left in the background is
+                // stopped with it. The CLI stops that work by itself too, but only seconds after its result (5.2 s,
+                // measured on 2.1.289), which held a stopped turn past the interrupt's grace and into the kill.
+                for (const task of runningTasks) void stream.write(stopTaskLine(`wsp-stop-task-${++askedSeq}`, task));
+              } else if (interruptRequested && heldReply !== undefined && (result.text ?? "").trim() === "") {
+                // Stopped while the CLI answered a steered message, before the answer said anything: the held words stand.
+                deliver({ ...result, text: heldReply.text ?? "" }, normalized.sessionId);
+                continue;
+              } else if (backgroundTasks > 0 || (steers.open && !interruptRequested)) {
+                // The agent replied while the CLI still reports work it started, or holds a steered message it has not
+                // answered. Ending here kills that work mid-write or drops the message, so the reply is kept and the
+                // stream read until nothing of the agent's runs and every message is answered. A hold on messages
+                // alone also ends at the window's silence, so a CLI that stops reporting cannot keep the turn open.
+                heldReply = result;
+                heldAt = Date.now();
+                finishedAfter.length = 0;
+                // Told now over background work, which may run for an hour; a steer alone is answered within seconds.
+                heldTold = backgroundTasks > 0;
+                if (heldTold) onEvent({ type: "turn.tasks", sessionId: claudeSessionId, running: backgroundTasks, replied: result });
+                else if (!busy()) armSettle();
+                continue;
+              }
+              deliver(result, normalized.sessionId);
+              continue;
+            }
+            onEvent(normalized);
+          }
+        }
+      } catch (cause) {
+        // The transport ended the turn itself and its message says why; that message is the turn's error.
+        streamError = cause instanceof Error ? cause.message : String(cause);
+        streamFailure = cause;
+      }
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
+      settleTimer = undefined;
+      const exitCode = await stream.exited;
+      exited = true;
+      // The process is gone, so nothing can answer these; the rows say so rather than waiting for an answer that
+      // has nowhere to land.
+      for (const askId of [...pending.keys()]) closeAsk(askId, "cancelled");
+      settleAsked();
+      const exitLine = (): string =>
+        streamError ?? harnessExitLine("claude", exitCode, env["PATH"], { reached: sawInit, ...(stream.signalled !== undefined ? { signal: stream.signalled } : {}) });
+      if (turnResult === undefined && heldReply !== undefined) {
+        // The hold ended with the process. The words the agent gave stand, done, with any task still in the set named
+        // under them. A woken agent was cut before its own reply, so the turn reads what ended it: the idle rule, the
+        // wall, or the process going. A stop or a cut is timed to the moment it came, not to the reply.
+        sawResult = true;
+        const held = heldReply;
+        const cut = (): TurnResult => ({ ...withCallsAfter(held), ...(typeof held.durationMs === "number" ? { durationMs: held.durationMs + Date.now() - heldAt } : {}) });
+        turnResult = interruptRequested
+          ? { ...cut(), status: "interrupted" }
+          : woken
+            ? { ...cut(), status: "failed", error: exitLine() }
+            : heldWithFinished(heldReply, backgroundTasks);
+        anchorOnce(claudeSessionId);
+        steers.tellUnread(claudeSessionId, onEvent);
+        // A woken agent cut before its own reply ends on a word the lead has not read: the stop or the exit.
+        onEvent({ type: "turn.done", sessionId: claudeSessionId, result: turnResult, ...(heldTold && !woken ? { held: true as const } : {}) });
+      }
+      if (turnResult === undefined) {
+        turnResult =
+          emptyResult !== undefined
+            ? { ...emptyResult, status: "failed", error: noOutputError(emptyResult, stderrTail) }
+            : interruptRequested
+              ? { status: "interrupted", ...drewUse() }
+              : { status: "failed", error: exitLine(), ...drewUse() };
+        anchorOnce(claudeSessionId);
+        steers.tellUnread(claudeSessionId, onEvent);
+        onEvent({ type: "turn.done", sessionId: claudeSessionId, result: turnResult });
+      }
+      onEvent({ type: "session.end", sessionId: claudeSessionId, exitCode, sawResult, ...(streamFailure !== undefined ? { failure: streamFailure } : {}) });
+      return turnResult;
+    })();
+
+    /** Answers a prompt this turn raised: the person's own pick, and this host's for a turn moved to a mode that
+     * answers it by itself. A deny message exists only for a deny, which only a person makes. */
+    const answerAsk = async (askId: string, o: { optionId: string; outcome: PermissionOutcome; denyMessage?: string }): Promise<AnswerOutcome> => {
+      const ask = pending.get(askId);
+      if (ask === undefined || exited) return "gone";
+      // Taken off the map before the write, so two answers racing on one prompt cannot both reach the CLI, which
+      // ignores the second and would leave a second closed row behind it.
+      pending.delete(askId);
+      // A write that failed leaves the prompt open, or the CLI waits on an answer nobody can give again.
+      const wrote = await stream.write(controlAnswerLine(ask, o.optionId, o.denyMessage ?? "")).catch((e: unknown) => {
+        if (!exited) pending.set(askId, ask);
+        throw e;
+      });
+      if (wrote !== "written") return "gone";
+      onEvent({ type: "permission.close", sessionId: claudeSessionId, askId, outcome: o.outcome, optionId: o.optionId });
+      return "answered";
+    };
+
+    const session: ClaudeSession = {
+      localId,
+      get claudeSessionId() {
+        return claudeSessionId;
+      },
+      ...(o.command !== undefined ? { command: o.command } : {}),
+      ...(stream.run !== undefined ? { run: stream.run } : {}),
+      ...(stream.pid !== undefined ? { pid: stream.pid } : {}),
+      finished,
+      get tellsUnread() {
+        return steers.reports;
+      },
+      steer: async (prompt, uuid = randomUUID(), images = []) => {
+        // A message sent while the CLI is still starting joins the turn once its init names the session the line carries.
+        if (!sawInit) await settlesWithin(Promise.race([steerOpen, finished]), deps.steerJoinMs ?? STEER_JOIN_MS);
+        if (!running()) return "not-running";
+        steers.add(uuid);
+        const wrote = await stream.write(userMessageLine(prompt, claudeSessionId, images, uuid));
+        // The turn may have ended while the write travelled; the line then sits unread and the caller starts a turn.
+        if (wrote === "written" && running()) return "accepted";
+        steers.forget(uuid);
+        return "not-running";
+      },
+      answer: answerAsk,
+      setAccess: async (mode) => {
+        if (!running()) return "gone";
+        const requestId = `wsp-set-mode-${++askedSeq}`;
+        const answered = new Promise<AccessOutcome>((resolve) => asked.set(requestId, answer => resolve(answer === "gone" ? "gone" : answer.error === undefined ? "set" : "refused")));
+        const wrote = await stream.write(setModeLine(requestId, mode));
+        if (wrote !== "written") {
+          asked.delete(requestId);
+          return "gone";
+        }
+        if (mode === SKIP_PROMPTS_MODE) {
+          // The CLI will not take this one on a turn already under way, so the turn goes to it here: every prompt it
+          // raises from now is allowed by this host, and the ones it is stopped on are allowed now. Its answer to the
+          // request is not waited for, since it cannot raise another prompt until the one in front of it is answered.
+          skipsPrompts = true;
+          for (const [askId, ask] of [...pending.entries()]) if (ask.toolName !== QUESTION_TOOL) await answerAsk(askId, { optionId: PERMISSION_ALLOW, outcome: "allowed" });
+          return "set";
+        }
+        const outcome = await answered;
+        // A prompt already open was raised at the mode the turn was in, so the CLI still holds it there; where the
+        // mode the person picked is one the CLI offered on that very call, the pick answers it as well.
+        if (outcome === "set") {
+          for (const [askId, ask] of [...pending.entries()]) {
+            const optionId = modeOptionOn(ask, mode);
+            if (optionId !== undefined) await answerAsk(askId, { optionId, outcome: "allowed" });
+          }
+        }
+        return outcome;
+      },
+      stopTask: async (task) => {
+        const state = subagents.get(task);
+        if (!running() || (state !== undefined && state !== "running")) return { outcome: "not-running" };
+        const requestId = `wsp-stop-task-${++askedSeq}`;
+        const waitMs = deps.stopTaskWaitMs ?? STOP_TASK_WAIT_MS;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const answered = new Promise<{ error?: string } | "gone" | "silent">((resolve) => {
+          asked.set(requestId, resolve);
+          timer = setTimeout(() => {
+            asked.delete(requestId);
+            resolve("silent");
+          }, waitMs);
+        });
+        const wrote = await stream.write(stopTaskLine(requestId, task));
+        if (wrote !== "written") {
+          clearTimeout(timer);
+          asked.delete(requestId);
+          return { outcome: "not-running" };
+        }
+        const answer = await answered;
+        clearTimeout(timer);
+        if (answer === "gone") return { outcome: "not-running" };
+        if (answer === "silent") return { outcome: "refused", error: `it did not answer within ${fmtDuration(waitMs)}` };
+        if (answer.error === undefined) return { outcome: "accepted" };
+        return answer.error.includes(STOP_TASK_UNSUPPORTED) ? { outcome: "unsupported" } : { outcome: "refused", error: answer.error };
+      },
+      interrupt: async () => {
+        const live = running();
+        interruptRequested = true;
+        openSteer();
+        const graceMs = deps.interruptGraceMs ?? INTERRUPT_GRACE_MS;
+        // A reply held for messages the CLI has not taken up yet, on a CLI that cannot be asked to cancel them: nothing
+        // of the agent's is running to stop, so the held words are the turn's now, stopped, and the messages go back.
+        if (heldReply !== undefined && backgroundTasks === 0 && !busy() && !steers.cancelsQueued) {
+          deliver({ ...withCallsAfter(heldReply), status: "interrupted" }, claudeSessionId, heldTold);
+          await settlesWithin(finished, graceMs);
+          return;
+        }
+        if (o.keeper?.up === true && live) {
+          const wrote = await stream.write(interruptLine(`wsp-interrupt-${++askedSeq}`, steers.cancelsQueued));
+          if (wrote === "written" && (await settlesWithin(finished, graceMs))) return;
+        }
+        o.keeper?.release();
+        await endRun(stream, graceMs);
+      },
+      kept: () => {
+        const keeper = o.keeper;
+        if (keeper === undefined || !keeper.up || !sawResult) return undefined;
+        const sessionId = claudeSessionId;
+        const after = totals;
+        return {
+          next: turn => nextOn(keeper, localId, sessionId, after, turn),
+          close: c => keeper.close(c?.now === true ? 0 : exitMs, deps.interruptGraceMs ?? INTERRUPT_GRACE_MS),
+          exited: keeper.exited,
+          sessionFile: sessionFileIn(deps.configDir, sessionId),
+        };
+      },
+      ...(o.from !== undefined ? { from: o.from } : {}),
+    };
+    sessions.set(localId, session);
+    return session;
+  };
+
+  /** The thread's next message on a process its last turn left up, or the first on one launched ahead of it: the CLI
+   * announces itself again for it and answers it as a turn of its own. */
+  const nextOn = (keeper: KeptRun, localId: string, sessionId: string, saved: SavedUse | undefined, turn: KeptTurn, first?: { command: string }): ClaudeSession => {
+    const { stream, from } = keeper.turn();
+    const session = follow({ stream, localId, announced: false, fresh: first !== undefined, ...(first !== undefined ? { command: first.command } : {}), keeper, ...(from !== undefined ? { from } : {}), ...(saved !== undefined ? { saved } : {}), onEvent: turn.onEvent });
+    const line = userMessageLine(turn.prompt, sessionId, turn.images);
+    if (turn.after === undefined) void stream.write(line);
+    else if (stream.writeAfter !== undefined) stream.writeAfter(line, turn.after);
+    else void turn.after.then(() => stream.write(line), () => {});
+    return session;
+  };
+
+  const launch = (options: StartOptions): ClaudeSession => {
+    const [copyOf, resume] = options.copy === true ? [options.resume, undefined] : [undefined, options.resume];
+    const localId = resume ?? newSessionId();
+    const valued = serverValuesFile(options.serverValues);
+    const { resume: _asked, ...asked } = options;
+    const command = launchCommand({ ...asked, ...(resume !== undefined ? { resume } : {}), ...(copyOf !== undefined ? { copyOf } : {}), ...memory, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) }, localId, valued !== undefined);
+    const launch = resume === undefined ? command : `${savedSpendCommand({ configDir: deps.configDir, sessionId: resume })}${command}`;
+    const line = userMessageLine(options.prompt, localId, options.images);
+    const run = deps.exec(`${guard}${launch}`, { env: { ...env }, input: [line], ...(options.promptAfter !== undefined ? { inputAfter: options.promptAfter } : {}), ...(valued !== undefined ? { secret: valued } : {}) });
+    const keeper = options.keep === true ? keepRun(run) : undefined;
+    const stream = keeper === undefined ? run : keeper.turn().stream;
+    return follow({ stream, localId, announced: false, fresh: resume === undefined, command: launch, ...(keeper !== undefined ? { keeper } : {}), onEvent: options.onEvent });
+  };
+
+  const warm: ClaudeAdapter["warm"] = options => {
+    const localId = newSessionId();
+    const valued = serverValuesFile(options.serverValues);
+    const command = launchCommand({ ...options, ...memory, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) }, localId, valued !== undefined);
+    const keeper = keepRun(deps.exec(`${guard}${command}`, { env: { ...env }, input: [], ...(valued !== undefined ? { secret: valued } : {}) }));
+    // Its launch's view closes at once: the process rests as between turns, and its hooks' lines are no turn's.
+    keeper.turn().stream.closeInput();
+    const close = (c?: { now?: true }): Promise<void> => keeper.close(c?.now === true ? 0 : (deps.resultExitMs ?? RUN_EXIT_MS), deps.interruptGraceMs ?? INTERRUPT_GRACE_MS);
+    return { next: turn => nextOn(keeper, localId, localId, undefined, turn, { command }), close, exited: keeper.exited };
+  };
+
+  /** A launch, and where it resumes a session the CLI's store does not hold and a seed is at hand, a second launch in a
+   * new session that is handed the thread so far: the failed resume is no turn of the thread's, so its end is held
+   * back, and the new session's note says what happened. The session answered is the one running at the moment. */
+  const start = (options: StartOptions): ClaudeSession => {
+    const { resume, seed } = options;
+    if (resume === undefined || seed === undefined) return launch(options);
+    const { first, now, finished } = startAfterLoss({ ...options, resume, seed }, `${NO_CONVERSATION} ${resume}`, launch);
+    const session: ClaudeSession = {
+      localId: first.localId,
+      get claudeSessionId() {
+        return now().claudeSessionId;
+      },
+      get command() {
+        return now().command;
+      },
+      get run() {
+        return now().run;
+      },
+      get pid() {
+        return now().pid;
+      },
+      get tellsUnread() {
+        return now().tellsUnread;
+      },
+      finished,
+      kept: () => now().kept?.(),
+      interrupt: () => now().interrupt(),
+      steer: (prompt, id, images) => now().steer(prompt, id, images),
+      answer: (askId, answer) => now().answer(askId, answer),
+      setAccess: mode => now().setAccess(mode),
+      stopTask: task => now().stopTask(task),
+    };
+    sessions.set(first.localId, session);
+    return session;
+  };
+
+  /** Removes a copy's file on the same road, once the side question's own run has ended; a removal that fails leaves
+   * the answer standing. */
+  const removeCopy = async (fork: string): Promise<void> => {
+    const cleanup = deps.exec(copyCleanupCommand({ fork, configDir: deps.configDir }), { env: { ...env } });
+    for await (const _ of cleanup.lines);
+    await cleanup.exited;
+  };
+  const copyOf = (session: string, through: Parameters<typeof copySession>[0]["through"]) =>
+    copySession({ exec: deps.exec, env, configDir: deps.configDir, session, through, graceMs: deps.interruptGraceMs ?? INTERRUPT_GRACE_MS });
+
+  /** The thread's session copied through its turn's last reply, which the fork's first turn resumes; a start that never
+   * ran takes the copy away. */
+  const forkSession: SessionForker = async o => {
+    if (!("anchor" in o.turn)) throw new Error("claude forks a session at the reply a turn ended on, and this turn named none");
+    const { session } = await copyOf(o.session, { anchor: o.turn.anchor });
+    return { resume: session, drop: () => removeCopy(session) };
+  };
+
+  /** A copy of the thread's session through its live end, cut before any call still running, then one run there on
+   * the copy, read to its end so the answer lands after the copy's file is gone. The hook goes in ahead of the
+   * question, and every call the copy tries is refused on the control channel. */
+  const aside = async (q: AsideQuestion): Promise<AsideAnswer> => {
+    const wallMs = deps.asideWallMs ?? ASIDE_WALL_MS;
+    const { session: fork, running } = await copyOf(q.session, q.cut !== undefined ? { anchor: q.cut } : "live");
+    let walled = false;
+    const picks = { ...(q.cwd !== undefined ? { cwd: q.cwd } : {}), ...(q.model !== undefined ? { model: q.model } : {}), ...(q.effort !== undefined ? { effort: q.effort } : {}), ...(q.contextWindow !== undefined ? { contextWindow: q.contextWindow } : {}), ...(q.fast === true ? { fast: true } : {}) };
+    const valued = serverValuesFile(q.serverValues);
+    const command = asideCommand({ fork, ...picks, ...(q.mcpServers !== undefined ? { mcpServers: q.mcpServers } : {}), ...(valued !== undefined ? { serverValues: true as const } : {}), ...memory, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) });
+    const stream = deps.exec(`${guard}${command}`, { env: { ...env }, input: [asideHooksLine(), userMessageLine(asidePrompt(q.question, running), fork)], ...(valued !== undefined ? { secret: valued } : {}) });
+    const wall = setTimeout(() => {
+      walled = true;
+      void endRun(stream, deps.interruptGraceMs ?? INTERRUPT_GRACE_MS).catch(() => {});
+    }, wallMs);
+    let answer: AsideAnswer | { error: string } | undefined;
+    let said: string | undefined;
+    let code: number | null;
+    try {
+      for await (const raw of stream.lines) {
+        const event = parseLine(raw);
+        if (event === undefined) {
+          if (raw.trim().length > 0) said = raw.trim();
+          continue;
+        }
+        const control = controlLine(event);
+        if (control?.kind === "unknown") void stream.write(control.subtype === "hook_callback" ? hookDenyLine(control.requestId) : controlErrorLine(control.requestId, control.subtype));
+        if (control?.kind === "ask") void stream.write(promptDenyLine(control.ask.askId));
+        // A CLI that refuses the hook would run a call the copy tries, so the question goes no further.
+        if (control?.kind === "answer" && control.requestId === ASIDE_HOOKS_ID && control.error !== undefined && answer === undefined) {
+          answer = { error: control.error };
+          void endRun(stream, deps.interruptGraceMs ?? INTERRUPT_GRACE_MS).catch(() => {});
+        }
+        const piece = answer === undefined ? asideTextOf(event) : undefined;
+        if (piece !== undefined) q.onText?.(piece);
+        if (event.type !== "result" || answer !== undefined || drainedNotice(event)) continue;
+        answer = asideAnswer(event);
+        stream.closeInput();
+        void endAfterResult(stream, deps.resultExitMs ?? RUN_EXIT_MS, deps.interruptGraceMs ?? INTERRUPT_GRACE_MS).catch(() => {});
+      }
+      code = await stream.exited;
+    } finally {
+      clearTimeout(wall);
+      // Every road out, a transport that threw included, waits for the run to end and then removes the fork's file.
+      await stream.exited.catch(() => null);
+      await removeCopy(fork).catch(() => {});
+    }
+    if (answer !== undefined) {
+      if ("error" in answer) throw new Error(answer.error);
+      return answer;
+    }
+    if (walled) throw new Error(asideWallLine(wallMs));
+    // A side question's refusal is one line, and the last one the CLI printed is the one that says why.
+    throw new Error(said ?? harnessExitLine("claude", code, env["PATH"], { reached: false }));
+  };
+
+  const attach = deps.exec.attach?.bind(deps.exec);
+
+  return {
+    start,
+    warm,
+    ...(attach !== undefined
+      ? {
+          attach: async (options: AdapterAttachOptions) => {
+            const stream = await attach(options.run, { input: true, startedAt: options.startedAt, ...(options.from !== undefined ? { from: options.from } : {}) });
+            return stream === "gone" ? "gone" : follow({ stream, localId: options.sessionId, announced: true, fresh: false, ...(options.from !== undefined ? { from: options.from } : {}), ...(options.steered !== undefined ? { steered: options.steered } : {}), onEvent: options.onEvent });
+          },
+        }
+      : {}),
+    sessions,
+    steers: true,
+    reportsEdits: true,
+    forkSession,
+    movesAccess: true,
+    compacts: "/compact",
+    terminalResume: terminalResumeCommand({ ...(deps.baseEnv !== undefined ? { base: deps.baseEnv } : {}), ...(deps.launch !== undefined ? { launch: deps.launch } : {}) }),
+    attachments: "inline",
+    steersImages: true,
+    mcpServers: true,
+    deniesServers: true,
+    waitsForPrompt: true,
+    screenCommands: CLAUDE_SCREEN_COMMANDS,
+    probeCatalog: exec => exec(catalogProbeCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), buildEnv({ base: deps.baseEnv })).then(parseCatalogProbe),
+    probeVersion: exec => exec(versionProbeCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), buildEnv({ base: deps.baseEnv })).then(parseVersion),
+    sessionTitle: (sessionId, exec) => exec(sessionTitleCommand({ configDir: deps.configDir, sessionId })).then(parseSessionTitle),
+    sessionFile: sessionId => sessionFileIn(deps.configDir, sessionId),
+    renameSession: (sessionId, title, exec) => exec(renameCommand({ configDir: deps.configDir, sessionId, title })).then(parseRename),
+    // Side questions sign in as the thread's turns do, in the same order, so an inherited key never answers one either.
+    titleFor: (turn, exec) =>
+      exec(
+        titleForCommand({
+          prompt: titlePrompt(turn.opening, turn.reply),
+          ...(turn.model !== undefined ? { model: turn.model } : {}),
+          ...(deps.launch !== undefined ? { launch: deps.launch } : {}),
+          signIn: guard,
+        }),
+        buildEnv(signIn),
+      ).then(parseTitleFor),
+    draftFor: (ask, exec) =>
+      exec(
+        draftForCommand({
+          promptFile: ask.promptFile,
+          ...(ask.model !== undefined ? { model: ask.model } : {}),
+          ...(deps.launch !== undefined ? { launch: deps.launch } : {}),
+          signIn: guard,
+        }),
+        buildEnv(signIn),
+      ).then(parseDraftFor),
+    aside,
+    asideServers: true,
+    env,
+    conversations: claudeConversations(deps),
+  };
+}

@@ -1,0 +1,641 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! `threads`, `thread read` and `thread head`: the session index folded into threads as packages/protocol's
+//! `foldThreads` folds it, the sidebar's rows with their project, folder, branch and computer beside them, one
+//! thread's messages off the transcript the host holds, and the head the host answers for one thread.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
+use serde_json::{Map, Value};
+
+use super::{input, Answer, Refused, Tool};
+use crate::client::Client;
+use crate::failure::Failure;
+use crate::host::Host;
+use crate::js;
+use crate::record::{self, fill};
+use crate::transcript::{self, Message};
+use crate::words::{opening_title, title_line};
+
+pub const THREADS: Tool = Tool {
+    name: "threads",
+    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/threads.json")),
+    call: |host, args| Box::pin(threads(host, args)),
+};
+pub const THREAD_READ: Tool = Tool {
+    name: "thread_read",
+    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/thread_read.json")),
+    call: |host, args| Box::pin(thread_read(host, args)),
+};
+pub const THREAD_HEAD: Tool = Tool {
+    name: "thread_head",
+    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/thread_head.json")),
+    call: |host, args| Box::pin(thread_head(host, args)),
+};
+
+/// One turn's row of the session index, as much of it as a thread is folded from.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Session {
+    id: String,
+    workspace_id: String,
+    harness: String,
+    status: String,
+    #[serde(default)]
+    started_by: Option<String>,
+    #[serde(default)]
+    claude_session_id: Option<String>,
+    #[serde(default)]
+    thread_id: Option<String>,
+    #[serde(default)]
+    parent_thread_id: Option<String>,
+    #[serde(default)]
+    root_thread_id: Option<String>,
+    #[serde(default)]
+    attempt: Option<String>,
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    harness_title: Option<String>,
+    #[serde(default)]
+    started_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    ended_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    cwd: Option<String>,
+    #[serde(default)]
+    refusal: Option<Box<RawValue>>,
+    #[serde(default)]
+    cost_usd: Option<f64>,
+    #[serde(default)]
+    asking: Option<String>,
+    #[serde(default)]
+    waiting_on: Option<Box<RawValue>>,
+    #[serde(default)]
+    setup_refusal: Option<String>,
+    #[serde(default)]
+    sub: Option<Box<RawValue>>,
+    #[serde(default)]
+    disk_kept_until: Option<Box<RawValue>>,
+    #[serde(default)]
+    disk_gone: Option<String>,
+    #[serde(default)]
+    capped: Option<Box<RawValue>>,
+    #[serde(default)]
+    limit: Option<Box<RawValue>>,
+    #[serde(default)]
+    resume_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    last_line: Option<String>,
+    #[serde(default)]
+    failure: Option<String>,
+    #[serde(default)]
+    pid: Option<Box<RawValue>>,
+    #[serde(default)]
+    agent_pid: Option<Box<RawValue>>,
+    #[serde(default)]
+    read_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    settled_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    pinned_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    order: Option<Box<RawValue>>,
+    #[serde(default)]
+    folded_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    forked_from: Option<Box<RawValue>>,
+    #[serde(default)]
+    replaces: Option<String>,
+    #[serde(default)]
+    replaced_by: Option<String>,
+    #[serde(default)]
+    snoozed_until: Option<Box<RawValue>>,
+    #[serde(default)]
+    woke_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    section: Option<Box<RawValue>>,
+    #[serde(default)]
+    rewound_at: Option<Box<RawValue>>,
+    #[serde(default)]
+    permission_mode: Option<String>,
+    #[serde(default)]
+    fast: Option<bool>,
+    #[serde(default)]
+    subagents: Option<Box<RawValue>>,
+    #[serde(default)]
+    project: Option<Stood>,
+    #[serde(default)]
+    computer_name: Option<String>,
+}
+
+/// The project a row's workspace holds, as the listing stamps it on the row.
+#[derive(Clone, Deserialize)]
+struct Stood {
+    id: String,
+    name: String,
+}
+
+/// A thread as `foldThreads` builds it, its fields in that object's order.
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct Thread {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<String>,
+    pub workspace_id: String,
+    pub harness: String,
+    pub started_by: String,
+    pub status: String,
+    pub title: String,
+    pub session_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claude_session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub started_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub ended_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asking: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub waiting_on: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub setup_refusal: Option<String>,
+    /// A sub-thread's machine on its cloud, as the host's row carries it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub sub: Option<Box<RawValue>>,
+    /// When the keep of its napping machine's disk runs out, as the host's row carries it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub disk_kept_until: Option<Box<RawValue>>,
+    /// The line its workspace's last wake left when the provider had deleted the machine's disk.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disk_gone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub capped: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub limit: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub resume_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_line: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<i64>"))]
+    pub pid: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<i64>"))]
+    pub agent_pid: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub read_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub settled_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub pinned_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub order: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub folded_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub forked_from: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replaces: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replaced_by: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub snoozed_until: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub woke_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub section: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub rewound_at: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fast: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<Vec<serde_json::Map<String, serde_json::Value>>>"))]
+    pub subagents: Option<Box<RawValue>>,
+    pub turns: u64,
+    pub ran: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_thread_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_thread_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub cost_usd: Option<Box<RawValue>>,
+}
+
+/// A thread with the names a table reads beside it: `ThreadRow` in packages/host/src/verbs.ts.
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct Row {
+    #[serde(flatten)]
+    pub thread: Thread,
+    pub project_name: String,
+    pub folder: String,
+    pub branch: String,
+    pub computer_name: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct ThreadsIn {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct ThreadsOut {
+    pub threads: Vec<Row>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct ReadIn {
+    pub thread: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct ReadOut {
+    pub thread_id: String,
+    #[cfg_attr(test, schemars(with = "Vec<serde_json::Value>"))]
+    pub messages: Vec<Message>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct HeadIn {
+    pub thread: String,
+}
+
+/// The head as the host answers it, its facts and events passed on as the host wrote them.
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct HeadOut {
+    #[cfg_attr(test, schemars(with = "serde_json::Map<String, serde_json::Value>"))]
+    pub facts: Box<RawValue>,
+    #[cfg_attr(test, schemars(with = "Vec<serde_json::Value>"))]
+    pub events: Vec<Box<RawValue>>,
+    #[cfg_attr(test, schemars(with = "u64"))]
+    pub pos: Box<RawValue>,
+    #[cfg_attr(test, schemars(with = "u64"))]
+    pub total: Box<RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trimmed: Option<bool>,
+}
+
+/// As much of a head's facts as its text reads.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Facts {
+    id: String,
+    #[serde(default)]
+    thread_id: Option<String>,
+    harness: String,
+    status: String,
+    title: String,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    permission_mode: Option<String>,
+    #[serde(default)]
+    cwd: Option<String>,
+}
+
+/// `foldThreads`: the index grouped by thread, in the order each thread's first turn appears.
+fn fold(sessions: Vec<Session>) -> Vec<Thread> {
+    let mut order: Vec<String> = Vec::new();
+    let mut by_thread: HashMap<String, Vec<Session>> = HashMap::new();
+    for session in sessions {
+        let key = session.thread_id.clone().unwrap_or_else(|| session.id.clone());
+        if !by_thread.contains_key(&key) {
+            order.push(key.clone());
+        }
+        by_thread.entry(key).or_default().push(session);
+    }
+    order
+        .into_iter()
+        .filter_map(|id| {
+            let turns = by_thread.remove(&id)?;
+            let ran = turns.iter().any(|t| t.status == "running" || (t.claude_session_id.is_some() && t.refusal.is_none()));
+            let spent: Vec<f64> = turns.iter().filter_map(|t| t.cost_usd).collect();
+            let cost_usd = (!spent.is_empty())
+                .then(|| spent.iter().fold(0.0, |sum, c| sum + c))
+                .and_then(|sum| RawValue::from_string(js::number(sum)).ok());
+            let count = turns.len() as u64;
+            let mut turns = turns.into_iter();
+            let first = turns.next()?;
+            let latest = turns.last();
+            let title = {
+                let latest = latest.as_ref().unwrap_or(&first);
+                match (&latest.harness_title, &first.prompt) {
+                    (Some(named), _) => title_line(named),
+                    (None, Some(prompt)) => opening_title(prompt),
+                    (None, None) => first.claude_session_id.clone().unwrap_or_else(|| first.id.clone()),
+                }
+            };
+            let (parent_thread_id, root_thread_id, attempt) =
+                (first.parent_thread_id.clone(), first.root_thread_id.clone(), first.attempt.clone());
+            let (thread_id, workspace_id, harness, started_by) =
+                (first.thread_id.clone(), first.workspace_id.clone(), first.harness.clone(), first.started_by.clone());
+            let latest = latest.unwrap_or(first);
+            Some(Thread {
+                id,
+                thread_id,
+                workspace_id,
+                harness,
+                started_by: started_by.unwrap_or_else(|| "person".to_owned()),
+                status: latest.status,
+                title,
+                session_id: latest.id,
+                claude_session_id: latest.claude_session_id,
+                started_at: latest.started_at,
+                ended_at: latest.ended_at,
+                cwd: latest.cwd,
+                asking: latest.asking,
+                waiting_on: latest.waiting_on,
+                setup_refusal: latest.setup_refusal,
+                sub: latest.sub,
+                disk_kept_until: latest.disk_kept_until,
+                disk_gone: latest.disk_gone,
+                capped: latest.capped,
+                limit: latest.limit,
+                resume_at: latest.resume_at,
+                last_line: latest.last_line,
+                failure: latest.failure,
+                pid: latest.pid,
+                agent_pid: latest.agent_pid,
+                read_at: latest.read_at,
+                settled_at: latest.settled_at,
+                pinned_at: latest.pinned_at,
+                order: latest.order,
+                folded_at: latest.folded_at,
+                forked_from: latest.forked_from,
+                replaces: latest.replaces,
+                replaced_by: latest.replaced_by,
+                snoozed_until: latest.snoozed_until,
+                woke_at: latest.woke_at,
+                section: latest.section,
+                rewound_at: latest.rewound_at,
+                permission_mode: latest.permission_mode,
+                fast: latest.fast.filter(|fast| *fast),
+                subagents: latest.subagents,
+                turns: count,
+                ran,
+                parent_thread_id,
+                root_thread_id,
+                attempt,
+                cost_usd,
+            })
+        })
+        .collect()
+}
+
+#[derive(Deserialize)]
+struct Sessions {
+    sessions: Vec<Session>,
+}
+
+async fn threads_of(client: &Client, workspace: Option<String>) -> Result<Vec<Thread>, Failure> {
+    let mut params = Map::new();
+    if let Some(id) = workspace {
+        params.insert("workspaceId".to_owned(), Value::from(id));
+    }
+    Ok(fold(client.request::<Sessions>("sessions.list", params).await?.sessions))
+}
+
+#[derive(Deserialize)]
+struct Project {
+    #[serde(default)]
+    path: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Workspace {
+    id: String,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    folder: Option<String>,
+    #[serde(default)]
+    worktree: Option<Worktree>,
+    project: Project,
+}
+
+#[derive(Deserialize)]
+struct Worktree {
+    path: String,
+    #[serde(default)]
+    branch: Option<String>,
+    #[serde(default)]
+    gone: Option<bool>,
+}
+
+/// The branch a folder on this computer has checked out, read off its HEAD file: nothing where the folder is not
+/// here, holds no repo, or stands on no branch.
+fn branch_here(folder: &str) -> Option<String> {
+    let root = std::path::Path::new(folder).ancestors().find(|at| at.join(".git").exists())?;
+    let dot_git = root.join(".git");
+    let git_dir = if dot_git.is_dir() {
+        dot_git
+    } else {
+        let text = std::fs::read_to_string(&dot_git).ok()?;
+        root.join(text.lines().find_map(|l| l.strip_prefix("gitdir:")).map(str::trim)?)
+    };
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    head.lines().find_map(|l| l.strip_prefix("ref: refs/heads/")).map(|b| b.trim().to_owned())
+}
+
+#[derive(Deserialize)]
+struct Workspaces {
+    workspaces: Vec<Workspace>,
+}
+
+/// `threadRows`: the rows within one project when one is named, each with its project, the folder it works in, that
+/// folder's branch as git reads it now, and the computer it is on. The project and the computer ride the session
+/// rows, since a lead's tree reaches rows whose workspace it may not read.
+async fn rows(client: &Client, within: Option<&str>) -> Result<Vec<Row>, Failure> {
+    let all = client.request::<Workspaces>("workspaces.list", Map::new()).await?.workspaces;
+    let sessions = client.request::<Sessions>("sessions.list", Map::new()).await?.sessions;
+    let stood: HashMap<String, (Option<Stood>, Option<String>)> =
+        sessions.iter().map(|s| (s.workspace_id.clone(), (s.project.clone(), s.computer_name.clone()))).collect();
+    let named = |id: &str, name: &str| within.is_some_and(|within| id == within || name == within);
+    // A word is a project's: one naming none is refused, rather than listing nothing.
+    if let Some(within) = within {
+        let listed = sessions.iter().any(|s| s.project.as_ref().is_some_and(|p| named(&p.id, &p.name)));
+        if !listed && !super::turn::projects_here(client).await.unwrap_or_default().iter().any(|p| named(&p.id, &p.name)) {
+            return Err(Failure::of_kind(fill(&super::workspace::words().no_project, &[("word", within)]), "not-found"));
+        }
+    }
+    let threads: Vec<Thread> = fold(sessions)
+        .into_iter()
+        .filter(|t| within.is_none() || stood.get(&t.workspace_id).and_then(|(p, _)| p.as_ref()).is_some_and(|p| named(&p.id, &p.name)))
+        .collect();
+    let mut branches: HashMap<String, String> = HashMap::new();
+    Ok(threads
+        .into_iter()
+        .map(|thread| {
+            let workspace = all.iter().find(|w| w.id == thread.workspace_id);
+            // A thread whose worktree is gone runs its next turn in the folder its record answers now, and is listed there.
+            let moved = workspace.and_then(|w| w.worktree.as_ref()).is_some_and(|t| {
+                t.gone == Some(true)
+                    && thread.cwd.as_deref().is_some_and(|c| c == t.path || c.starts_with(&format!("{}/", t.path.trim_end_matches('/'))))
+            });
+            let folder = (if moved { None } else { thread.cwd.clone() })
+                .or_else(|| workspace.and_then(|w| w.folder.clone()))
+                .or_else(|| workspace.and_then(|w| w.project.path.clone()))
+                .unwrap_or_default();
+            let branch = branches
+                .entry(folder.clone())
+                .or_insert_with(|| {
+                    let local = workspace.is_some_and(|w| w.kind.as_deref() == Some("local"));
+                    local
+                        .then(|| branch_here(&folder))
+                        .flatten()
+                        .or_else(|| workspace.and_then(|w| w.worktree.as_ref().filter(|t| t.gone != Some(true))?.branch.clone()))
+                        .unwrap_or_default()
+                })
+                .clone();
+            Row {
+                project_name: stood.get(&thread.workspace_id).and_then(|(p, _)| p.as_ref()).map_or_else(String::new, |p| p.name.clone()),
+                folder,
+                branch,
+                computer_name: stood.get(&thread.workspace_id).and_then(|(_, c)| c.clone()).unwrap_or_default(),
+                thread,
+            }
+        })
+        .collect())
+}
+
+async fn threads(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
+    let asked: ThreadsIn = input("threads", arguments)?;
+    let client = host.client().await?;
+    Ok(Answer::json(&ThreadsOut { threads: rows(&client, asked.project.as_deref()).await? }))
+}
+
+/// `pickThread`: by id, or by a prefix of it that names exactly one.
+fn pick(all: Vec<Thread>, reference: &str) -> Result<Thread, Failure> {
+    let words = record::words();
+    let mut prefixed = Vec::new();
+    for thread in all {
+        if thread.id == reference {
+            return Ok(thread);
+        }
+        if thread.id.starts_with(reference) {
+            prefixed.push(thread);
+        }
+    }
+    match prefixed.len() {
+        1 => Ok(prefixed.remove(0)),
+        0 => Err(Failure::of_kind(fill(&words.no_thread, &[("ref", reference)]), "not-found")),
+        n => Err(Failure::new(fill(&words.threads_start_with, &[("count", &n.to_string()), ("ref", reference)]))),
+    }
+}
+
+#[derive(Deserialize)]
+struct History {
+    events: Vec<Box<RawValue>>,
+}
+
+async fn thread_read(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
+    let asked: ReadIn = input("thread_read", arguments)?;
+    let last = asked.last == Some(true);
+    let client = host.client().await?;
+    let thread = pick(threads_of(&client, None).await?, &asked.thread)?;
+    let thread_id = thread.thread_id.clone().unwrap_or_else(|| thread.id.clone());
+    let mut params = Map::new();
+    params.insert("workspaceId".to_owned(), Value::from(thread.workspace_id.as_str()));
+    params.insert("threadId".to_owned(), Value::from(thread_id.as_str()));
+    params.insert("whole".to_owned(), Value::from(true));
+    let events = client.request::<History>("sessions.history", params).await?.events;
+    let mut params = Map::new();
+    params.insert("threadId".to_owned(), Value::from(thread.id.as_str()));
+    client.request::<Value>("sessions.read", params).await?;
+    let words = record::words();
+    let messages =
+        if last { transcript::reply_rows(&events, &thread_id, &words.newer_turn) } else { transcript::messages(&events, &thread_id) };
+    let text = if messages.is_empty() {
+        fill(if last { &words.no_reply } else { &words.no_messages }, &[("thread", js::head(&thread_id, 8))])
+    } else {
+        transcript::read_text(&messages)
+    };
+    Ok(Answer::text(text, &ReadOut { thread_id, messages }))
+}
+
+/// `headLine`: the title, what the thread runs on and where it stands, its folder, how much of it the head carries,
+/// and those events as a read lists them.
+fn head_text(facts: &Facts, events: &[Box<RawValue>], total: &str) -> String {
+    let mut runs = vec![match &facts.model {
+        Some(model) => format!("{} on {}", facts.harness, model),
+        None => facts.harness.clone(),
+    }];
+    runs.extend(facts.permission_mode.clone());
+    runs.push(facts.status.clone());
+    let mut lines = vec![facts.title.clone(), runs.join(", ")];
+    lines.extend(facts.cwd.clone());
+    lines.push(format!("the newest {} of {} events", events.len(), total));
+    let messages = transcript::messages(events, facts.thread_id.as_deref().unwrap_or(&facts.id));
+    if !messages.is_empty() {
+        lines.push(String::new());
+        lines.push(transcript::read_text(&messages));
+    }
+    lines.join("\n")
+}
+
+async fn thread_head(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
+    let asked: HeadIn = input("thread_head", arguments)?;
+    let client = host.client().await?;
+    let thread = pick(threads_of(&client, None).await?, &asked.thread)?;
+    let mut params = Map::new();
+    params.insert("threadId".to_owned(), Value::from(thread.id.as_str()));
+    let head = client.request::<HeadOut>("sessions.head", params).await?;
+    let facts: Facts = serde_json::from_str(head.facts.get()).map_err(|e| Failure::new(e.to_string()))?;
+    Ok(Answer::text(head_text(&facts, &head.events, head.total.get()), &head))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::held::to_the_record;
+    use super::*;
+
+    #[test]
+    fn its_structs_are_the_recorded_schemas() {
+        to_the_record::<ThreadsIn, ThreadsOut>(THREADS.listed);
+        to_the_record::<ReadIn, ReadOut>(THREAD_READ.listed);
+        to_the_record::<HeadIn, HeadOut>(THREAD_HEAD.listed);
+    }
+}

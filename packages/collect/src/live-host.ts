@@ -1,0 +1,267 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { execFileSync, spawn } from "node:child_process";
+import { access, constants, open, readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import type { Host, HostExec, HostFs, Platform, RunOptions, Stat } from "./host.js";
+
+// Plugin checkouts and dependency trees live under config dirs (nvim's lazy
+// lock is fine, its .git clones are not); their size would swamp the summary
+// and they are never uploaded.
+const SKIP_DIRS = new Set([".git", "node_modules"]);
+
+async function treeBytes(dir: string): Promise<number> {
+  let total = 0;
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const e of entries) {
+    if (e.isSymbolicLink()) continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (!SKIP_DIRS.has(e.name)) total += await treeBytes(p);
+    } else if (e.isFile()) {
+      try {
+        total += (await stat(p)).size;
+      } catch {
+        continue;
+      }
+    }
+  }
+  return total;
+}
+
+async function walkFiles(dir: string, out: string[]): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    if (e.isSymbolicLink()) continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (!SKIP_DIRS.has(e.name)) await walkFiles(p, out);
+    } else if (e.isFile()) out.push(p);
+  }
+}
+
+export const nodeFs: HostFs = {
+  async stat(path): Promise<Stat | undefined> {
+    let s;
+    try {
+      s = await stat(path);
+    } catch {
+      return undefined;
+    }
+    if (s.isDirectory()) return { kind: "dir", bytes: await treeBytes(path), mtimeMs: s.mtimeMs };
+    if (s.isFile()) return { kind: "file", bytes: s.size, mtimeMs: s.mtimeMs };
+    return undefined;
+  },
+  async list(dir) {
+    try {
+      return (await readdir(dir)).sort();
+    } catch {
+      return [];
+    }
+  },
+  async readText(path) {
+    try {
+      return await readFile(path, "utf8");
+    } catch {
+      return undefined;
+    }
+  },
+  async walk(dir) {
+    const out: string[] = [];
+    await walkFiles(dir, out);
+    return out.sort();
+  },
+  async *lines(path, holding) {
+    let file;
+    try {
+      file = await open(path, "r");
+    } catch {
+      return;
+    }
+    // Bytes are searched before anything is decoded: an agent's transcripts run to gigabytes, most of it tool output
+    // a reader skips, and a line reader that decoded every line took 13 times as long as reading the bytes.
+    const needle = holding === undefined ? undefined : Buffer.from(holding);
+    const chunk = Buffer.allocUnsafe(LINE_CHUNK);
+    let pieces: Buffer[] = [];
+    const take = (line: Buffer): string | undefined => {
+      if (needle !== undefined && line.indexOf(needle) === -1) return undefined;
+      const end = line.length > 0 && line[line.length - 1] === CR ? line.length - 1 : line.length;
+      return line.toString("utf8", 0, end);
+    };
+    try {
+      for (;;) {
+        let read: number;
+        try {
+          ({ bytesRead: read } = await file.read(chunk, 0, LINE_CHUNK, null));
+        } catch {
+          return;
+        }
+        if (read === 0) break;
+        const data = chunk.subarray(0, read);
+        let start = 0;
+        for (let nl = data.indexOf(LF); nl !== -1; nl = data.indexOf(LF, start)) {
+          const line = take(pieces.length === 0 ? data.subarray(start, nl) : Buffer.concat([...pieces, data.subarray(start, nl)]));
+          pieces = [];
+          start = nl + 1;
+          if (line !== undefined) yield line;
+        }
+        if (start < read) pieces.push(Buffer.from(data.subarray(start)));
+      }
+      const last = pieces.length === 0 ? undefined : take(Buffer.concat(pieces));
+      if (last !== undefined) yield last;
+    } finally {
+      await file.close();
+    }
+  },
+};
+
+/** How much of a file one read of its lines takes. */
+const LINE_CHUNK = 1 << 20;
+const LF = 0x0a;
+const CR = 0x0d;
+
+async function onPath(bin: string): Promise<boolean> {
+  for (const dir of (process.env["PATH"] ?? "").split(":")) {
+    if (dir === "") continue;
+    try {
+      await access(join(dir, bin), constants.X_OK);
+      return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
+}
+
+const MAX_OUTPUT = 64 * 1024 * 1024;
+/** A background job the child left holding its stdout would otherwise keep the run open after the child exited. */
+const CLOSE_GRACE_MS = 1000;
+
+export const nodeExec: HostExec = {
+  which: onPath,
+  run: (cmd, args, opts = {}) => spawnRun(cmd, args, { ...process.env, ...opts.env }, opts),
+};
+
+/** The pid and every process under it, off one listing: a child that leads a group of its own, as timeout does, is
+ * out of reach of a kill sent to the group it was started in. */
+function treeOf(pid: number): number[] {
+  let listing: string;
+  try {
+    listing = execFileSync("ps", ["-A", "-o", "pid=,ppid="], { encoding: "utf8" });
+  } catch {
+    return [pid];
+  }
+  const children = new Map<number, number[]>();
+  for (const line of listing.split("\n")) {
+    const [p, parent] = line.trim().split(/\s+/).map(Number);
+    if (p === undefined || parent === undefined || Number.isNaN(p) || Number.isNaN(parent)) continue;
+    children.set(parent, [...(children.get(parent) ?? []), p]);
+  }
+  const tree = [pid];
+  for (let i = 0; i < tree.length; i++) tree.push(...(children.get(tree[i]!) ?? []));
+  return tree;
+}
+
+/** One child as the leader of its own process group under `env` and nothing else, answered with its stdout on exit 0
+ * and nothing otherwise; the group dies with the run, past the budget or once the child exits. */
+export function spawnRun(cmd: string, args: readonly string[], env: NodeJS.ProcessEnv, opts: RunOptions): Promise<string | undefined> {
+  return new Promise(resolve => {
+    if (opts.signal?.aborted === true) {
+      resolve(undefined);
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    let failed = false;
+    let settled = false;
+    let grace: NodeJS.Timeout | undefined;
+    // The child leads its own process group so a job an rc file left behind dies with it, not just the shell.
+    const child = spawn(cmd, [...args], { stdio: ["ignore", "pipe", "pipe"], env, detached: true });
+    const killGroup = (signal: NodeJS.Signals): void => {
+      if (child.pid === undefined) return;
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        return;
+      }
+    };
+    const budget = setTimeout(() => {
+      failed = true;
+      killGroup("SIGTERM");
+      // An interactive shell ignores SIGTERM and would never exit, so the run ends on its own after the grace.
+      grace ??= setTimeout(() => settle(null, "SIGTERM"), CLOSE_GRACE_MS);
+    }, opts.timeoutMs ?? 120_000);
+    const abort = (): void => {
+      failed = true;
+      // Node reaps the child at exit, so its pid is free from then on; only the group a job still holds is ours.
+      if (child.exitCode !== null || child.signalCode !== null) {
+        settle(child.exitCode, child.signalCode);
+        return;
+      }
+      if (child.pid === undefined) return;
+      const tree = treeOf(child.pid);
+      killGroup("SIGKILL");
+      for (const pid of tree) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          continue;
+        }
+      }
+    };
+    opts.signal?.addEventListener("abort", abort, { once: true });
+    const settle = (code: number | null, signal: NodeJS.Signals | null): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(budget);
+      opts.signal?.removeEventListener("abort", abort);
+      if (grace !== undefined) clearTimeout(grace);
+      killGroup("SIGKILL");
+      child.stdout.destroy();
+      child.stderr.destroy();
+      resolve(!failed && code === 0 && signal === null ? Buffer.concat(chunks).toString("utf8") : undefined);
+    };
+    child.stdout.on("data", (b: Buffer) => {
+      bytes += b.length;
+      if (bytes > MAX_OUTPUT) {
+        failed = true;
+        killGroup("SIGKILL");
+      } else chunks.push(b);
+    });
+    child.stderr.resume();
+    child.on("error", () => {
+      failed = true;
+      settle(null, null);
+    });
+    child.on("exit", (code, signal) => {
+      clearTimeout(grace);
+      grace = setTimeout(() => settle(code, signal), CLOSE_GRACE_MS);
+    });
+    child.on("close", settle);
+  });
+}
+
+export function platformOf(p: NodeJS.Platform): Platform | undefined {
+  return p === "darwin" || p === "linux" ? p : undefined;
+}
+
+export function nodeHost(): Host {
+  const platform = platformOf(process.platform);
+  if (platform === undefined) throw new Error(`wsp reads a computer's setup on macOS or Linux only, not ${process.platform}`);
+  const shell = process.env["SHELL"];
+  const terminal = process.env["TERM_PROGRAM"];
+  const xdgConfigHome = process.env["XDG_CONFIG_HOME"];
+  const claudeConfigDir = process.env["CLAUDE_CONFIG_DIR"];
+  const codexHome = process.env["CODEX_HOME"];
+  return { platform, home: homedir(), ...(shell ? { shell } : {}), ...(terminal ? { terminal } : {}), ...(xdgConfigHome ? { xdgConfigHome } : {}), ...(claudeConfigDir ? { claudeConfigDir } : {}), ...(codexHome ? { codexHome } : {}), fs: nodeFs, exec: nodeExec };
+}

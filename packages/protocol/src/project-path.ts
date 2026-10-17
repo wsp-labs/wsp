@@ -1,0 +1,336 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Whether one absolute path sits inside another, where a daemon's roots file
+// sits, and everywhere wsp keeps something under a login's own home on a
+// machine it only reaches. The engine moves a project's agent state by the
+// first and the collector weighs a session's folder by it; the host and the
+// guest constant both read the second; the host's deploy writes the third and
+// the runtime reads them back, so no rule lives in either of them. Paths are
+// joined here rather than through node:path: this package is bundled into the
+// browser and imports nothing outside itself.
+
+import { TOOLS_PATH } from "./daemon-contract.js";
+import { DOCKER_NOTES_FOLDER } from "./docker-shim.js";
+import { shellQuote } from "./shell-quote.js";
+
+/** Whether path is the folder itself or sits inside it; a sibling that shares the prefix is not. */
+export function underProject(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
+}
+
+/** A folder git named by its real path, as cwd may name it: the path itself, then each tail of it cwd sits under, since
+ * a cwd reached through a link that only adds leading parts (/var for /private/var on a Mac) carries fewer of them. */
+function namesOf(real: string, cwd: string): string[] {
+  const names = [real];
+  for (let at = real.indexOf("/", 1); at > 0; at = real.indexOf("/", at + 1)) if (underProject(cwd, real.slice(at))) names.push(real.slice(at));
+  return names;
+}
+
+/** A path an agent's tool call named, absolute or from cwd, as git names it from the top of the repo at root; undefined
+ * for one outside it. An absolute path is matched under root as git names it, a relative one through cwd as namesOf
+ * reads it; a relative path under a link whose name differs from the real folder's own (/home/u/work for /data/w)
+ * matches nothing, and its file stays in the folder's list. */
+export function repoPathOf(path: string, cwd: string, root: string): string | undefined {
+  const parts: string[] = [];
+  for (const part of (path.startsWith("/") ? path : `${cwd}/${path}`).split("/")) {
+    if (part === "..") parts.pop();
+    else if (part !== "" && part !== ".") parts.push(part);
+  }
+  const full = `/${parts.join("/")}`;
+  const top = namesOf(root, cwd).find(t => full.startsWith(`${t}/`));
+  return top === undefined ? undefined : full.slice(top.length + 1);
+}
+
+/** The worktree cwd sits in, of the ones git lists for its repo by their real paths: the deepest, since a worktree may
+ * sit inside another; undefined where cwd is in none of them. */
+export function worktreeOf(cwd: string, worktrees: readonly string[]): string | undefined {
+  let deepest: { path: string; at: number } | undefined;
+  for (const path of worktrees) {
+    const at = Math.max(-1, ...namesOf(path, cwd).filter(name => underProject(cwd, name)).map(name => name.length));
+    if (at >= 0 && (deepest === undefined || at > deepest.at)) deepest = { path, at };
+  }
+  return deepest?.path;
+}
+
+/** The folder Claude Code keeps one project's sessions and memory under, its projects directory name: the resolved
+ * path with every character outside A-Z a-z 0-9 replaced by a dash. Two paths that differ only in a character the
+ * rule replaces collide under one key, which is the CLI's own behaviour and not something to work around. It sits
+ * here because the collector reads it for the memory row, the runtime hands it to a launch as the project's key and
+ * the engine moves a project's state by it, and none of the three may own the rule.
+ * The machine's own copy of this rule is the engine's KEY_PY, for the one place nothing can run this. */
+export const claudeProjectKey = (path: string): string => path.replace(/[^A-Za-z0-9]/g, "-");
+
+/** Where Claude Code keeps one project's own memory under a state home: the keyed projects folder, and `memory`
+ * inside it. Written once here: the collector reads it on this computer, the runtime binds it into a workspace at
+ * the guest's state home and the engine finds it after a move. */
+export const claudeMemoryDir = (stateHome: string, key: string): string => `${stateHome.replace(/\/+$/, "")}/projects/${key}/memory`;
+
+/** A folder's own name, its last segment: what a project is called, what the import dialog and the register line
+ * call the folder, and what a permission prompt names a file by. */
+export const folderName = (path: string): string => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
+
+/** A piece of work's name as a folder name: lowercase, every run of anything else one dash, nothing hanging off
+ * either end, and cut short enough that the whole path stays typeable. A name with nothing usable in it reads as
+ * `work`, so a copy always has a folder to land in. */
+export function folderSlug(name: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/g, "");
+  return slug === "" ? "work" : slug;
+}
+
+/** The ssh name every workspace goes by on this computer, which an editor shows in its title bar: its name's slug
+ * under a prefix no host a person already has goes by. */
+export const SSH_ALIAS_PREFIX = "wsp-";
+export const sshAlias = (name: string): string => `${SSH_ALIAS_PREFIX}${folderSlug(name)}`;
+
+/** The machine a folder browser is walking, as far as the hidden rule cares: the home that machine reports, and
+ * whether it is a Mac. Absent either way, the dot rule stands alone, which is every machine wsp forks. */
+export interface FolderMachine {
+  readonly home?: string | null;
+  readonly mac?: boolean;
+}
+
+/** Whether a folder browser hides this folder: a dot-named one on any machine, and the Library a Mac keeps in the
+ * home itself, which the Finder hides there too. The home decides and not the path's shape, since a Mac home sits
+ * wherever the login puts it (a lab account under /Users/Shared holds one), and a Library somebody made inside
+ * their own work is theirs. A home holds twenty of these and none is what somebody browsing for their work is
+ * looking for; they are folders like any other to everything else, so a path typed or pasted whole still opens one. */
+export function hiddenFolder(path: string, machine: FolderMachine = {}): boolean {
+  const at = path.replace(/\/+$/, "");
+  if (folderName(at).startsWith(".")) return true;
+  const home = machine.home?.replace(/\/+$/, "");
+  return machine.mac === true && home !== undefined && home !== "" && at === `${home}/Library`;
+}
+
+/** The folders of a Mac home whose contents macOS keeps behind a permission prompt per program, iCloud Drive and
+ * the cloud folders among them, and the media folders beside them, as paths under the home. Listing one, or reading
+ * any path inside it, holds the read until the person answers the prompt. */
+const MAC_GUARDED = ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"];
+
+/** Whether a folder browser stays out of this folder unless a path was typed into it: one of the folders a Mac
+ * guards in its home. Shown as a row, never looked inside on its own. */
+export function guardedFolder(path: string, machine: FolderMachine = {}): boolean {
+  const home = machine.home?.replace(/\/+$/, "");
+  if (machine.mac !== true || home === undefined || home === "") return false;
+  const at = path.replace(/\/+$/, "");
+  return MAC_GUARDED.some(name => at === `${home}/${name}`);
+}
+
+/** The name of the folder a path sits in, empty where it sits at the root or is a bare name. */
+export const parentFolderName = (path: string): string => {
+  const parts = path.replace(/\/+$/, "").split("/");
+  return parts.length < 2 ? "" : parts[parts.length - 2]!;
+};
+
+/** The PATH a daemon on a computer that runs workspaces resolves a command through, and the one every script of
+ * the recipe job on such a computer exports: the tools PATH with every directory under that computer's home taken
+ * out, and nothing of the unit's own PATH, which is the person's login shell's and may name the home too. A
+ * workspace there has the computer's home bound in read-write, so a directory under it is a directory a process
+ * inside a workspace writes, and a command found through one would run as root outside every namespace. What is
+ * left is the computer's own system directories, which a workspace reads through an overlay of its own or a tool
+ * root bound in read-only. The daemon's twin is probe_path in the frames crate and the contract fixture holds the
+ * two to one text. */
+export function probePath(home: string): string {
+  const at = home.replace(/\/+$/, "");
+  return TOOLS_PATH.split(":").filter(dir => dir !== "" && !underProject(dir, at)).join(":");
+}
+
+/** The file naming the imported project folders a daemon may browse, one absolute path per line. It sits beside the
+ * home of whichever daemon reads it: DAEMON_ROOTS_PATH is this answered for a guest, whose home is /root, and this
+ * computer's own daemon answers it for the person's home. */
+export function rootsPathIn(home: string): string {
+  return `${home.replace(/\/+$/, "")}/.wsp/roots`;
+}
+
+/** The folder every turn and every exec starts in on a computer somebody owns, wsp's own under their home. Not the
+ * home itself: a turn that starts there is one `cd` from the checkouts they work in themselves, and the first build
+ * thread run on a local workspace committed inside the person's own repo from there (measured 2026-09-08). One rule
+ * for this computer and for a computer joined as a place, since both are somebody's own. */
+export function workFolderIn(home: string): string {
+  return `${home.replace(/\/+$/, "")}/wsp-work`;
+}
+
+/** Everywhere the daemon on a computer the person owns keeps something, whether wsp put it there over ssh or the
+ * computer dialled in as a place. A machine wsp forked is root's and lays everything under /root; a computer
+ * somebody already owns is reached under their own login, so every path sits in one folder of wsp's own under
+ * their home and nothing needs root to write. The host's deploy builds the machine side of this and the runtime
+ * reads the token and the port back off it, which is why the rule is here and in neither of them. */
+export function placeDaemonPaths(home: string): {
+  wsp: string;
+  dir: string;
+  bundle: string;
+  inbox: string;
+  tokenPath: string;
+  /** Where the daemon writes the port it was given, the one thing the host cannot know before it is up. */
+  portFile: string;
+  /** Where a run's script, log and exit code go: wsp's own folder and not one every login on the machine shares,
+   * since another account's temporary folder is theirs and a turn that cannot write in it would launch nothing. */
+  runDir: string;
+  /** Where the parts of a file arriving over the link are appended before the whole of it is landed on a machine
+   * this computer holds. The same folder rule: wsp's own under the login's home, never one every account shares. */
+  putDir: string;
+  openSocket: string;
+  /** The socket the daemon binds for the threads running on that computer itself, the login's alone. */
+  guestSocket: string;
+  /** Where the wsp a thread running on that computer itself sits, first on its PATH: two lines onto the daemon,
+   * which dial the socket above for that thread's sessions and nothing else. The place's own folder, never
+   * `~/.wsp/bin`, where the app and the install line keep the person's wsp on the same login. */
+  guestBin: string;
+  /** Where the docker beside that wsp appends a thread's compose notes, one file per thread (`dockerShim`). */
+  dockerNotes: string;
+  manifestPath: string;
+  profileFile: string;
+  unitDir: string;
+  binDir: string;
+  /** The browser shim: what BROWSER names there, posting each page to the daemon's socket. */
+  openShim: string;
+  rootsPath: string;
+  /** What a computer joined as a place keeps beside the daemon's own files: the wsp it belongs to, the key it
+   * proves itself with, and what its agent has printed. They sit in the same folder as everything else wsp keeps
+   * there, so one sweep takes the lot. */
+  placeFile: string;
+  placeKey: string;
+  placeLog: string;
+  /** What stood before the add at the paths outside the home it or its setup writes, so a leave takes back only what
+   * wsp made: each path NUL-terminated, written by the add's deploy before anything of wsp's lands. */
+  placeFound: string;
+  /** That record while the deploy is still writing it, renamed onto it once whole. */
+  placeFoundPart: string;
+  /** The join code the add lands for the join to spend, which the join deletes before it dials. */
+  joinCode: string;
+  /** Where the install a project's landing runs there writes its output, one log per project (`placeInstallLog`). */
+  installLogs: string;
+  /** Beside the token: the daemon's minute readings, and the folder of the sshd it starts for a workspace. */
+  readings: string;
+  sshDir: string;
+} {
+  const at = home.replace(/\/+$/, "");
+  const wsp = `${at}/.wsp`;
+  return {
+    wsp,
+    dir: `${wsp}/daemon`,
+    bundle: `${wsp}/daemon.tgz`,
+    inbox: `${wsp}/inbox`,
+    tokenPath: `${wsp}/daemon-token`,
+    portFile: `${wsp}/daemon.port`,
+    runDir: `${wsp}/run`,
+    putDir: `${wsp}/put`,
+    openSocket: `${wsp}/open.sock`,
+    guestSocket: `${wsp}/daemon.sock`,
+    guestBin: `${wsp}/place-bin`,
+    dockerNotes: `${wsp}/${DOCKER_NOTES_FOLDER}`,
+    manifestPath: `${wsp}/manifest.json`,
+    profileFile: `${wsp}/profile.sh`,
+    unitDir: `${at}/.config/systemd/user`,
+    binDir: `${at}/.local/bin`,
+    openShim: `${at}/.local/bin/wsp-open`,
+    rootsPath: rootsPathIn(at),
+    placeFile: `${wsp}/place.json`,
+    placeKey: `${wsp}/place-key.pem`,
+    placeLog: `${wsp}/place.log`,
+    placeFound: `${wsp}/place-found`,
+    placeFoundPart: `${wsp}/place-found.part`,
+    joinCode: `${wsp}/join-code`,
+    installLogs: `${wsp}/install-logs`,
+    readings: `${wsp}/readings`,
+    sshDir: `${wsp}/ssh`,
+  };
+}
+
+/** The login files wsp puts its one line in on that computer, the first always and the rest only where they stand:
+ * `.profile`, which sh reads and bash reads where neither of the others stands, then bash's own two, since a bash
+ * login reads the first of the three it finds and nothing after it (bash(1), INVOCATION). Making either of bash's
+ * would hide the person's own `.profile` from their next login. */
+export const placeLoginFiles = (home: string): string[] => {
+  const at = home.replace(/\/+$/, "");
+  return [`${at}/.profile`, `${at}/.bash_profile`, `${at}/.bash_login`];
+};
+
+/** The log a project's landing on that computer writes its install's output to, which a leave takes with its folder. */
+export const placeInstallLog = (home: string, projectId: string): string => `${placeDaemonPaths(home).installLogs}/${projectId}.log`;
+
+/** How much of a box's place file is read: a real one is well under a kilobyte, and the box is the untrusted side. */
+const HELD_PLACE_READ_BYTES = 65_536;
+
+/** What the read below says in place of the file where a join left something it cannot read, followed by `file` or
+ * `key` for which of the two stands. */
+export const PLACE_LEFT_LINE = "WSP_PLACE_LEFT";
+
+/** The line the read below prints before anything else of its own, after a newline of its own: sshd hands the
+ * command to the login's shell, and a bash built with SSH_SOURCE_BASHRC runs ~/.bashrc first, whose output lands
+ * ahead of the read's and may end with no newline. */
+export const PLACE_HELD_LINE = "WSP_PLACE_HELD";
+
+/** The place file on a box, read over ssh before anything of wsp's lands, before a forward's new port is written
+ * into it, and before a new login is kept as that box's: nothing after its own line where it holds none. Where the
+ * join on that box would refuse what stands as broken (an empty or unreadable file, a dangling link, a key with no
+ * file beside it) it says so, since the join only refuses once the bundle has landed. Every line exits 0. */
+export const heldPlaceScript = (home: string): string => {
+  const at = placeDaemonPaths(home);
+  const [file, key] = [shellQuote(at.placeFile), shellQuote(at.placeKey)];
+  return [
+    `echo; echo ${PLACE_HELD_LINE}`,
+    `if [ -e ${file} ]; then { [ -f ${file} ] && [ ! -s ${file} ] && echo '${PLACE_LEFT_LINE} file'; head -c ${HELD_PLACE_READ_BYTES} ${file} 2>/dev/null || echo '${PLACE_LEFT_LINE} file'; }`,
+    `elif [ -L ${file} ]; then echo '${PLACE_LEFT_LINE} file'`,
+    `elif [ -e ${key} ] || [ -L ${key} ]; then echo '${PLACE_LEFT_LINE} key'; fi; true`,
+  ].join("\n");
+};
+
+/** What the job that puts the recipe on a computer you own keeps there: the scratch its long steps run under, the
+ * log it appends a line to as it goes, and the outcome it writes at the end, which is what a person at that
+ * computer's own shell reads without the host. All of it under the one folder wsp already owns there, so a
+ * workspace on that computer never sees it: every workspace has its own `.wsp` bound over the computer's. */
+export function placeProvisionPaths(home: string): { dir: string; runDir: string; log: string; result: string; staging: string; landed: string; landing: string; asked: string } {
+  const dir = `${placeDaemonPaths(home).wsp}/provision`;
+  // staging: the person's own agent files as they came off their computer, before a single one is landed.
+  // landed: what wsp put in the agents' homes there and what it left there, so a later run knows its own copy
+  // from a file the person has since written; landing is that list while the run is still going on.
+  // asked: the paths one read of what stands there was given, written down because they come over on that read's
+  // own input and a shell cannot hold them any other way; the read takes it away again.
+  return { dir, runDir: `${dir}/run`, log: `${dir}/log`, result: `${dir}/result.json`, staging: `${dir}/files`, landed: `${dir}/landed`, landing: `${dir}/landing`, asked: `${dir}/asked` };
+}
+
+/** Every path a leave takes off a computer joined as a place, in the order they go: the place file, its key and the
+ * agent's log, then everything the daemon, an installer over ssh and the recipe's job put under wsp's own folder,
+ * then the browser shim and its xdg-open name. That folder itself is not here: the app and the install line keep
+ * the person's own wsp in it and a host on the same login keeps its state there, so a leave takes it only once it
+ * is empty, and every write under it, the daemon's or the host's over the link, needs its own row here. The work folder is not here either: what the person's threads wrote there is theirs. The daemon sweeps
+ * by this list when its host asks over the link and wsp leave sweeps by it at the terminal. */
+export function placeOwnedPaths(home: string): string[] {
+  const at = placeDaemonPaths(home);
+  return [
+    at.placeFile,
+    at.placeKey,
+    at.placeLog,
+    at.placeFound,
+    at.placeFoundPart,
+    at.joinCode,
+    at.dir,
+    placeProvisionPaths(home).dir,
+    at.bundle,
+    at.inbox,
+    at.tokenPath,
+    at.rootsPath,
+    at.profileFile,
+    at.openSocket,
+    at.guestSocket,
+    `${at.guestBin}/wsp`,
+    `${at.guestBin}/docker`,
+    at.guestBin,
+    at.dockerNotes,
+    at.runDir,
+    at.portFile,
+    at.manifestPath,
+    at.putDir,
+    at.installLogs,
+    at.readings,
+    at.sshDir,
+    at.openShim,
+    `${at.binDir}/xdg-open`,
+  ];
+}
+
+/** What a stand-in provider keeps in the folder a harness names for it: the records every host on that state file
+ * reads, so two of them see one fleet, and a folder per machine standing in for that machine's disk. The layout is
+ * written here because the harness that seeds the records and the host that answers out of them both name it and
+ * neither may guess. */
+export const standInRecordsPath = (root: string): string => `${root.replace(/\/+$/, "")}/records.json`;
+export const standInMachinePath = (root: string, machineId: string): string => `${root.replace(/\/+$/, "")}/machines/${machineId}`;

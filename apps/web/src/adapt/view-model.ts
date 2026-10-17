@@ -1,0 +1,562 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The view models the transplanted chat, sidebar, browser and terminal
+// components accept, hand-written in plain TypeScript from t3code's
+// session-logic.ts, MessagesTimeline.logic.ts, sidebarProjectGrouping.ts,
+// useDiscoveredLocalServers.ts and contracts (commit 57a66608). Fields the
+// wsp wire cannot fill today are kept when a copied component reads them and
+// dropped when nothing does. Everything here is data: no React, no schemas.
+import type { AttachmentRecord, FilePatch, MachineState, PermissionOption, PermissionOutcome, ReachState, SessionOrigin, SessionStatus, SubagentView, SubRow, ThreadCapWait, ThreadPlacement, TurnLimit, WorkspacePhase, WorkspaceState, WorkspaceStatus, WorkspaceView, PlanStep, TurnChangedFile, TurnTokens } from "@wsp/protocol";
+
+// --- chat -------------------------------------------------------------------
+
+export type ChatMessageRole = "user" | "assistant" | "system";
+
+/** The thread a person's message was sent on, which the host keeps its images under. */
+export interface SentOn {
+  readonly workspaceId: string;
+  readonly threadId: string;
+}
+
+export interface ChatMessage {
+  readonly id: string;
+  readonly role: ChatMessageRole;
+  readonly text: string;
+  readonly turnId: string | null;
+  readonly streaming: boolean;
+  /** A user message sent into the turn while it ran, not the one that opened it. */
+  readonly steered?: boolean;
+  /** A message whose turn its computer's threads at once still holds back. */
+  readonly waiting?: boolean;
+  /** The images the person's message carried, as the runtime kept them: their type, weight and name, never their
+   * pixels. Present on the message that opened the turn and only when it carried one. */
+  readonly attachments?: ReadonlyArray<AttachmentRecord>;
+  /** The id the client minted for the send this message opened, echoed by the runtime; the client that made the send
+   * still holds those images and draws them from it. */
+  readonly requestId?: string;
+  /** The thread the message was sent on, which the host keeps its images under for every other client. */
+  readonly sentOn?: SentOn;
+  /** ISO time, or "" when the wire carried none (session events are unstamped). */
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type WorkLogToolLifecycleStatus = "inProgress" | "completed" | "failed" | "declined" | "stopped";
+
+export type ToolLifecycleItemType =
+  | "command_execution"
+  | "file_change"
+  | "mcp_tool_call"
+  | "dynamic_tool_call"
+  | "collab_agent_tool_call"
+  | "web_search"
+  | "image_view";
+
+export type ProviderRequestKind = "command" | "file-read" | "file-change" | "mcp-elicitation";
+
+/** A row's tone picks its glyph and colours from one table; notice is a fact the runtime states (a cut, a line told), never an outcome. */
+export type WorkLogTone = "thinking" | "tool" | "notice" | "error" | "compaction";
+
+/** Which wire event produced a work row; the copied rows key chrome on it. */
+export type WorkLogSourceKind = "tool.started" | "tool.completed" | "reasoning" | "runtime.error" | "runtime.notify" | "runtime.notice" | "runtime.resume" | "runtime.starting" | "harness.note" | "harness.compaction";
+
+export interface WorkLogEntry extends CallResult {
+  readonly id: string;
+  readonly createdAt: string;
+  readonly turnId: string | null;
+  /** Stable across the in-progress and completed states of one tool call. */
+  readonly toolCallId?: string;
+  readonly label: string;
+  readonly detail?: string;
+  /** The one collapsed line for a row whose detail is prose (reasoning): its first line, cut like a tool preview. */
+  readonly preview?: string;
+  readonly command?: string;
+  /** The Bash tool's description: the harness's own sentence for the call, shown in place of the command and its state word. */
+  readonly description?: string;
+  readonly changedFiles?: ReadonlyArray<string>;
+  readonly tone: WorkLogTone;
+  readonly toolTitle?: string;
+  readonly itemType?: ToolLifecycleItemType;
+  readonly requestKind?: ProviderRequestKind;
+  readonly toolLifecycleStatus?: WorkLogToolLifecycleStatus;
+  readonly sourceActivityKind: WorkLogSourceKind;
+  /** The thread a wsp run or fork call opened, as its answer names it. */
+  readonly spawned?: string;
+}
+
+/** What a call's result says beyond its first line, as its row draws it, field by field so a row the fold builds
+ * again compares equal to the one before: a command's output as the transcript kept
+ * it, its exit code where the agent named one, how long it ran, and the bytes of the whole where the text holds less;
+ * an edit's hunks per file, and whether the transcript's cap left lines out of them. */
+export interface CallResult {
+  readonly output?: string;
+  readonly exitCode?: number;
+  readonly durationMs?: number;
+  readonly bytes?: number;
+  readonly patch?: ReadonlyArray<FilePatch>;
+  readonly patchCut?: true;
+}
+
+/** One step of the agent's list, with how long it took where the list set it working and later marked it done. */
+export interface TaskStep extends PlanStep {
+  /** The step's words and how many steps with those words came before it: one step's key across the list's rewrites. */
+  readonly key: string;
+  readonly durationMs?: number;
+  /** When a step at work began, where the list's events said so. */
+  readonly startedAt?: number;
+}
+
+/** The agent's step list for one turn as it last wrote it. */
+export interface TurnPlan {
+  readonly turnId: string;
+  readonly steps: ReadonlyArray<TaskStep>;
+}
+
+export interface ProposedPlan {
+  readonly id: string;
+  readonly turnId: string | null;
+  readonly planMarkdown: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly implementedAt: string | null;
+}
+
+/** One permission prompt the harness relayed into the chat, as its row reads it: the tool it wants to run, the
+ * options a person may pick, and, once it is closed, how it closed. The turn is blocked while outcome is null, so an
+ * open row is what the thread is waiting on. */
+export interface PermissionPrompt {
+  readonly askId: string;
+  readonly turnId: string | null;
+  /** The agent's own session id, as the prompt's row carries it, which sessions.answer takes. */
+  readonly sessionId: string;
+  readonly toolName: string;
+  /** The tool's input as the harness sent it, JSON. */
+  readonly input: string;
+  readonly detail?: string;
+  /** The subagent whose run raised it, by the call that launched that subagent; absent on the thread's own agent's
+   * prompts. The row sits inside that subagent's fold. */
+  readonly parentToolUseId?: string;
+  readonly options: ReadonlyArray<PermissionOption>;
+  readonly createdAt: string;
+  /** Null while nobody has answered; the outcome the wire recorded once one is closed. */
+  readonly outcome: PermissionOutcome | null;
+  /** The option that closed it, where one did. */
+  readonly optionId: string | null;
+}
+
+/** One line a subagent wrote, inside its own fold: its prose, its reasoning, or one tool call with what that call
+ * answered. Flat rather than the parent's own timeline, since a subagent's run is read as a list of what it did. */
+export interface SubagentLine extends CallResult {
+  readonly id: string;
+  readonly createdAt: string;
+  readonly kind: "text" | "thinking" | "tool";
+  readonly label: string;
+  readonly detail?: string;
+  readonly status?: WorkLogToolLifecycleStatus;
+  /** The tool call a tool line is, as its input arrived: what the subagent's page groups and words it by. */
+  readonly call?: { readonly name: string; readonly input: string };
+  /** The launching call's own answer, the run's last line: its first line, which a done run's own words already say
+   * whole and a failed run's bar says. */
+  readonly answer?: true;
+}
+
+/** stopped is a subagent the turn ended under: the harness kills what it started, so a run whose launch never
+ * answered did not finish and did not fail either. */
+export type SubagentState = "running" | "done" | "failed" | "stopped";
+
+/** One subagent an agent launched inside its own turn, as its fold reads it: what it was asked to do, what it has
+ * written so far, what it is waiting on, and how it ended. Every line a subagent writes reaches the thread among
+ * the parent's, keyed by the call that launched it, and this is what that key gathers. */
+export interface SubagentRun {
+  /** The tool call that launched it, which is the only handle the wire gives it. */
+  readonly parentToolUseId: string;
+  readonly turnId: string | null;
+  /** The task's own description, the fold's title; the tool call's line where the call described none. */
+  readonly title: string;
+  /** What its lead asked it, whole, from the launching call; null where the call carried no prompt. */
+  readonly prompt: string | null;
+  readonly lines: ReadonlyArray<SubagentLine>;
+  /** The prompts this subagent's own run raised, open and closed, drawn inside its fold. */
+  readonly prompts: ReadonlyArray<PermissionPrompt>;
+  /** Why it failed, the first line of the error its launching call answered with; absent on any other end. */
+  readonly failure?: string;
+  readonly state: SubagentState;
+  readonly startedAt: string;
+  readonly endedAt: string | null;
+}
+
+export type TimelineEntry =
+  | { readonly id: string; readonly kind: "message"; readonly createdAt: string; readonly message: ChatMessage }
+  | { readonly id: string; readonly kind: "permission"; readonly createdAt: string; readonly permission: PermissionPrompt }
+  | { readonly id: string; readonly kind: "subagent"; readonly createdAt: string; readonly subagent: SubagentRun }
+  | { readonly id: string; readonly kind: "proposed-plan"; readonly createdAt: string; readonly proposedPlan: ProposedPlan }
+  | { readonly id: string; readonly kind: "work"; readonly createdAt: string; readonly entry: WorkLogEntry };
+
+export type TurnState = "running" | "completed" | "interrupted" | "error";
+
+export interface TurnChanges {
+  readonly from: string;
+  readonly to: string;
+  readonly files: ReadonlyArray<TurnChangedFile>;
+  /** In a folder other threads worked in too: what else changed there, whoever wrote it, where the agent named its own
+   * edits; absent with shared, files are the folder's. */
+  readonly others?: ReadonlyArray<TurnChangedFile>;
+  readonly shared?: true;
+}
+
+/** One wsp session run is one turn; the chat's footer and folds read this. */
+export interface TurnSummary {
+  readonly turnId: string;
+  readonly sessionId: string;
+  readonly state: TurnState;
+  /** The turn's reply is in (session.done) while its state is still running: the agent process lives past its reply. */
+  readonly replied: boolean;
+  readonly prompt: string | null;
+  readonly model: string | null;
+  readonly durationMs: number | null;
+  /** How much of durationMs the turn stood on a permission prompt nobody had answered; null on a turn that waited
+   * on nobody. The footer and the fold take it off the duration, so Worked for counts work. */
+  readonly waitedMs: number | null;
+  readonly costUsd: number | null;
+  /** What the turn read and wrote, and what the model held at its end, as its agent counted them; null on a turn whose
+   * agent reported none. */
+  readonly tokens: TurnTokens | null;
+  /** What the agent held after its latest call this turn, and the most it can hold where its agent said, read while
+   * the turn runs and kept by a turn that ended with no result; absent before its first call. */
+  readonly held?: { readonly context: number; readonly window?: number };
+  /** What the turn changed in its folder, between the snapshots at its launch and its end; null on one that changed nothing. */
+  readonly changes: TurnChanges | null;
+  readonly error: string | null;
+  /** The turn was stopped here because its computer could not be reached: error says so, and the thread shows it. */
+  readonly unreached?: boolean;
+  readonly startedAt: string | null;
+  readonly completedAt: string | null;
+  /** What the turn kept to rewind to once it was over: the checkpoint of the files (null where none was taken) and
+   * the harness's anchor for its end (null where it named none). Null until the turn's session.checkpoint lands. */
+  readonly checkpoint: { readonly ref: string | null; readonly based?: true; readonly anchor: string | null; readonly kept?: string } | null;
+  /** The agent wrote the thread's slate during the turn: its last reply carries one line saying so. */
+  readonly slated?: true;
+  /** The usage limit that stopped the turn, off its result; null on a turn that ended another way. */
+  readonly limit?: TurnLimit | null;
+  /** The turn came with a fork from the thread it was forked from: it forks again, and never rewinds. */
+  readonly copied?: true;
+}
+
+export type ToolGroupAction = "read" | "edit" | "command" | "code-search" | "search" | "other" | "update";
+export type ToolGroupSummaryKind = ToolGroupAction | "dynamic-tool" | "agent-tool" | "tone-tool" | "mixed";
+
+/** A call drawn as its child's row: the thread's runtime id, or the subagent's launching call. */
+export type SpawnCall = { readonly id: string; readonly thread: string } | { readonly id: string; readonly subagent: string };
+
+export type MessagesTimelineRow =
+  | {
+      readonly kind: "work";
+      readonly id: string;
+      readonly createdAt: string;
+      readonly groupedEntries: ReadonlyArray<WorkLogEntry>;
+      readonly isExpandedToolGroup: boolean;
+    }
+  | {
+      readonly kind: "work-live";
+      readonly id: string;
+      readonly createdAt: string;
+      readonly entry: WorkLogEntry;
+      readonly groupedEntries: ReadonlyArray<WorkLogEntry>;
+      readonly groupId: string;
+      readonly expanded: boolean;
+      readonly active: boolean;
+    }
+  | {
+      readonly kind: "work-toggle";
+      readonly id: string;
+      readonly createdAt: string;
+      readonly groupId: string;
+      readonly hiddenCount: number;
+      readonly expanded: boolean;
+      readonly summary: string;
+      readonly summaryKind: ToolGroupSummaryKind;
+      readonly hasFailure: boolean;
+    }
+  | {
+      /** The calls one turn made in a row that each started a child this thread holds, drawn as the children's rows. */
+      readonly kind: "spawn";
+      readonly id: string;
+      readonly createdAt: string;
+      readonly calls: ReadonlyArray<SpawnCall>;
+    }
+  | {
+      readonly kind: "turn-fold";
+      readonly id: string;
+      readonly createdAt: string;
+      readonly turnId: string;
+      readonly label: string;
+      /** null on a stopped turn's line, which folds nothing and so opens nothing. */
+      readonly expanded: boolean | null;
+    }
+  | {
+      readonly kind: "message";
+      readonly id: string;
+      readonly createdAt: string;
+      readonly message: ChatMessage;
+      readonly durationStart: string;
+      readonly showAssistantMeta: boolean;
+      readonly showAssistantCopyButton: boolean;
+      readonly assistantCopyStreaming: boolean;
+    }
+  | { readonly kind: "proposed-plan"; readonly id: string; readonly createdAt: string; readonly proposedPlan: ProposedPlan }
+  | {
+      readonly kind: "permission";
+      readonly id: string;
+      readonly createdAt: string;
+      readonly permission: PermissionPrompt;
+      /** Who raised it, where the thread reading this row did not: the thread this one's own call is waiting behind.
+       * Absent on every prompt of the thread's own turn. */
+      readonly asker?: string;
+    }
+  | { readonly kind: "subagent"; readonly id: string; readonly createdAt: string; readonly subagent: SubagentRun }
+  | {
+      readonly kind: "working";
+      readonly id: string;
+      readonly createdAt: string | null;
+      /** A prompt of this turn is open and nobody has answered it, so the turn is stopped on a question and the
+       * elapsed count is time the person has kept it waiting, not time it worked. */
+      readonly waitingOnYou: boolean;
+    }
+  | { readonly kind: "thinking"; readonly id: string; readonly createdAt: string | null }
+  /** Where a fork's own history starts, after the turns it was handed. */
+  | { readonly kind: "fork"; readonly id: string; readonly createdAt: string | null }
+  /** A sub-thread's machine being made, or made, under the message it was made for: the start, when the agent first
+   * answered after it, and that message's words, which Try again sends again. */
+  | { readonly kind: "machine-start"; readonly id: string; readonly createdAt: string | null; readonly start: MachineStart; readonly answeredAt: number | null; readonly prompt: string | null };
+
+/** A sub-thread's latest machine start and what its line names beside it: the agent, its picks and the project. */
+export interface MachineStart {
+  readonly workspaceId: string;
+  readonly threadId: string | undefined;
+  /** The thread's agent by its id and the thread by its title, which a send again names. */
+  readonly harness: string;
+  readonly title: string;
+  readonly sub: SubRow;
+  readonly agent: string;
+  readonly model?: string | undefined;
+  readonly effort?: string | undefined;
+  readonly project: string;
+}
+
+// --- composer prompts ---------------------------------------------------------
+
+export type ProviderApprovalDecision = "accept" | "acceptForSession" | "acceptAlways" | "decline" | "cancel";
+
+export interface ProviderApprovalOption {
+  readonly decision: ProviderApprovalDecision;
+  readonly label: string;
+}
+
+export interface PendingApproval {
+  readonly requestId: string;
+  readonly requestKind: ProviderRequestKind;
+  readonly createdAt: string;
+  readonly detail?: string;
+  readonly appName?: string;
+  readonly options?: ReadonlyArray<ProviderApprovalOption>;
+}
+
+export interface UserInputQuestionOption {
+  readonly label: string;
+  readonly description: string;
+}
+
+export interface UserInputQuestion {
+  readonly id: string;
+  readonly header: string;
+  readonly question: string;
+  readonly options: ReadonlyArray<UserInputQuestionOption>;
+  readonly multiSelect: boolean;
+}
+
+export interface PendingUserInput {
+  readonly requestId: string;
+  readonly createdAt: string;
+  readonly questions: ReadonlyArray<UserInputQuestion>;
+}
+
+// --- browser pane -----------------------------------------------------------
+
+export interface PreviewableServer {
+  readonly host: string;
+  readonly port: number;
+  /** Navigation target: the minted preview route when one exists, else the loopback url. */
+  readonly url: string;
+  readonly processName: string | null;
+  readonly pid: number | null;
+  readonly terminal: { readonly threadId: string; readonly terminalId: string } | null;
+  readonly source: "scanner" | "configured";
+  /** Loopback form of the same server; history keys off this, never the volatile url. */
+  readonly requestedUrl: string;
+}
+
+// --- sidebar ----------------------------------------------------------------
+
+export type EnvironmentPresence = "local-only" | "remote-only" | "mixed";
+
+/** Green is running only; paused draws hollow; everything else is zinc (the colour law). */
+export type StatusIndicatorTone = "running" | "paused" | "neutral";
+
+/** Colour is the component's job (tokens); the adapter names the state and whether it pulses. */
+export interface StatusIndicator {
+  readonly label: string;
+  readonly tone: StatusIndicatorTone;
+  readonly pulse: boolean;
+}
+
+export interface SidebarThreadSnapshot {
+  readonly id: string;
+  /** The runtime's thread id, what a click pins; null for a row the runtime stamped none on, which selects the workspace only. */
+  readonly threadId: string | null;
+  /** The latest turn's runtime session id, what a stop interrupts. */
+  readonly sessionId: string;
+  readonly workspaceId: string;
+  /** The user's prompt when the runtime recorded one, else the Claude session id, else the row id. */
+  readonly title: string;
+  readonly status: SessionStatus;
+  /** Whether a turn of this thread ever did work, as the protocol's fold reads the rows. */
+  readonly ran: boolean;
+  /** Set while Undo rewind can still put back the files the thread's last rewind replaced. */
+  readonly rewound?: boolean;
+  /** The agent's own session the latest turn ran, by the agent's id for it, and the folder that turn ran in: what a
+   * terminal resumes. Absent until the agent announced one. */
+  readonly harnessSession?: { readonly id: string; readonly folder: string };
+  readonly startedAt: string | null;
+  readonly endedAt: string | null;
+  readonly indicator: StatusIndicator | null;
+  /** The agent running inside the thread, by its harness id. */
+  readonly harness: string;
+  /** Who opened the thread, as the protocol's fold answers it. */
+  readonly startedBy: SessionOrigin;
+  /** The name of the workspace's project the thread's folder sits in; null outside every project or before a turn named one. */
+  readonly project: string | null;
+  /** The thread whose own agent opened this one; null on every thread a person or the command line opened. The row
+   * is drawn one step in under it. */
+  readonly parentThreadId: string | null;
+  /** The send to several models that opened this thread, which the sidebar draws its threads together by; null on a
+   * thread opened alone. */
+  readonly attempt: string | null;
+  /** The model the thread was opened on, off its opening turn's row; null where that row names none. */
+  readonly model: string | null;
+  /** The lead of the permission prompt the thread is stopped on, as the protocol's fold reads it; null while it is
+   * waiting on nobody. */
+  readonly asking: string | null;
+  /** Why the thread's agent cannot start or read its own store on that computer now, in the host's words; absent while
+   * nothing stops it. */
+  readonly setupRefusal?: string;
+  /** The computer's threads at once the latest turn waits on before it starts; absent on a turn not held. */
+  readonly capped?: ThreadCapWait;
+  /** A sub-thread's machine on its cloud: its state, the work holding it and when it goes or went. */
+  readonly sub?: SubRow;
+  /** When the keep of its napping machine's disk runs out, ms epoch, as the thread carries it. */
+  readonly diskKeptUntil?: number;
+  /** The line its workspace's last wake left when the provider had deleted the machine's disk. */
+  readonly diskGone?: string;
+  /** The usage limit that stopped the latest turn, as the protocol's fold reads it; null on a turn that ended another
+   * way. resumeAt is the reset the turn is armed to go on at, null while nobody pressed Resume at reset. */
+  readonly limit?: TurnLimit | null;
+  readonly resumeAt?: number | null;
+  /** What the thread has spent, as the protocol's fold adds its rows up; null where no turn of it reported a
+   * figure, which is not the same as nothing spent. */
+  readonly costUsd: number | null;
+  /** The latest turn ended and no window has shown the thread since, as the protocol's threadUnread reads it. */
+  readonly unread: boolean;
+  /** When a window last showed the thread and when the person settled it, as the host keeps them; null where it
+   * holds none. */
+  readonly readAt: string | null;
+  readonly settledAt: string | null;
+  /** The thread asks, is stopped behind a thread that asks, or holds a finish or a failure nobody has seen, as the
+   * protocol's threadNeedsYou reads it: what the jump, the dock's count and the menu bar count. */
+  readonly needsYou: boolean;
+  /** The person's marks, as the host keeps them: the key Pinned sorts it by, which a pin stamps with its moment, the
+   * key the list sorts it by in place of its start, when its snooze ends while it has not, and the section they
+   * dragged it into; null where it holds none. Both keys stay epoch-ms numbers: a key between two neighbours carries
+   * a fraction that an ISO string would cut. */
+  readonly pinnedAt: number | null;
+  readonly order: number | null;
+  readonly snoozedUntil: string | null;
+  readonly section: ThreadPlacement | null;
+  /** The agent's own subagents of every turn, in the order they started; empty where it ran none. A lead's tree draws
+   * each under this thread, never as a thread of its own. */
+  readonly subagents: ReadonlyArray<SubagentView>;
+  /** The last line of the latest turn's reply and why that turn failed, as the host keeps them; null where it holds
+   * none. */
+  readonly lastLine: string | null;
+  readonly failure: string | null;
+  /** When the person folded the thread's tree in the sidebar, as the host keeps it; null while it stands open. */
+  readonly foldedAt: string | null;
+  /** The thread this one restarts, with whether it failed and when it ended where its workspace's rows hold it; null
+   * on a thread that restarts none. */
+  readonly replaces: { readonly threadId: string; readonly failed: boolean; readonly endedAt: string | null } | null;
+  /** The thread that restarts this one; null while none does. */
+  readonly replacedBy: string | null;
+  /** The thread this one was forked from, with its title as the host says it now. */
+  readonly forkedFrom?: { readonly threadId: string; readonly title: string };
+}
+
+/** A send whose thread the runtime has written no row for yet: what the sidebar draws in place of that row, so the
+ * thread whose message is in the transcript is in the list at the same moment. The message is the title, since it is
+ * the title the runtime writes when its row arrives. */
+export interface Launch {
+  /** The send's own id, which is what its refusal drops it by. */
+  readonly requestId: string;
+  readonly title: string;
+  /** The agent the send named, so the row wears the mark the runtime's row will wear. */
+  readonly harness: string;
+}
+
+/** One wsp workspace (a machine) as a sidebar project; its sessions are the threads. */
+export interface SidebarProjectSnapshot {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly displayName: string;
+  readonly groupedProjectCount: number;
+  readonly environmentPresence: EnvironmentPresence;
+  readonly allRemoteMembersAreDesktopLocal: boolean;
+  readonly remoteEnvironmentLabels: ReadonlyArray<string>;
+  readonly workspace: WorkspaceView;
+  readonly status: WorkspaceStatus | null;
+  readonly phase: WorkspacePhase;
+  readonly machineState: MachineState | null;
+  readonly reach: ReachState | null;
+  /** The one state word's key: phase, machine state and reach folded by the protocol. */
+  readonly state: WorkspaceState;
+  readonly indicator: StatusIndicator;
+  readonly threads: ReadonlyArray<SidebarThreadSnapshot>;
+}
+
+// --- terminal ---------------------------------------------------------------
+
+export type TerminalSessionStatus = "starting" | "running" | "exited" | "error";
+
+interface TerminalEventBase {
+  readonly threadId: string;
+  readonly terminalId: string;
+  readonly sequence?: number;
+}
+
+export type TerminalAttachStreamEvent =
+  | (TerminalEventBase & { readonly type: "output"; readonly data: string })
+  | (TerminalEventBase & { readonly type: "exited"; readonly exitCode: number | null; readonly exitSignal: number | null })
+  | (TerminalEventBase & { readonly type: "activity"; readonly hasRunningSubprocess: boolean; readonly label: string });
+
+// --- composer catalog -------------------------------------------------------------
+
+export interface ProviderSlashCommand {
+  readonly name: string;
+  readonly description?: string;
+  readonly input?: { readonly hint: string };
+  /** Where the announcement says this command came from, as the CLI spells it in the name itself; absent where the
+   * name says nothing about it. The menu groups on this and on nothing else, so a CLI that names no source is drawn
+   * in one list rather than under headings the client made up. */
+  readonly source?: string;
+}
+
+export interface HarnessCatalog {
+  readonly harness: string;
+  readonly slashCommands: ReadonlyArray<ProviderSlashCommand>;
+}

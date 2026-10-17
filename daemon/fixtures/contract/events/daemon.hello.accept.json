@@ -1,0 +1,7 @@
+[
+  {
+    "type": "daemon.hello",
+    "root": "/root",
+    "version": 17
+  }
+]

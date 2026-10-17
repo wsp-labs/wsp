@@ -1,0 +1,256 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The fixture is the record shape of a real session file under
+// CLAUDE_CONFIG_DIR/projects/, with the ordering measured on 2.1.263: the last
+// ai-title line of a renamed session sits AFTER its last custom-title.
+import { execFile } from "node:child_process";
+import { mkdtempSync, mkdirSync, copyFileSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { afterAll, describe, expect, it } from "vitest";
+import { ENV_FROM_INPUT, titlePrompt, type SessionRenameWrite } from "@wsp/protocol";
+import { createClaudeAdapter } from "../src/adapter.js";
+import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTitleFor, renameCommand, sessionTitleCommand, titleForCommand } from "../src/session-title.js";
+import { writeStub } from "../../protocol/test/stub-script.js";
+
+const SESSION = "5b3d3ddb-86d6-47ba-b216-0a510284d8b6";
+const FIXTURE = new URL("./fixtures/session-titles.jsonl", import.meta.url);
+const run = promisify(execFile);
+/** A question as the exec runs it: its variables on its input, which then closes. */
+const ask = (command: string, opts: { env: NodeJS.ProcessEnv }, input = ""): Promise<{ stdout: string }> => {
+  const running = run("bash", ["-c", command], opts);
+  running.child.stdin?.end(input);
+  return running;
+};
+
+const roots: string[] = [];
+afterAll(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
+/** A config dir with one project folder holding the named session files, as the CLI lays them out. */
+function configDir(files: Record<string, string | URL>): string {
+  const root = mkdtempSync(join(tmpdir(), "wsp-claude-title-"));
+  roots.push(root);
+  const project = join(root, "projects", "-root-work-proj");
+  mkdirSync(project, { recursive: true });
+  for (const [name, source] of Object.entries(files)) {
+    if (typeof source === "string") writeFileSync(join(project, name), source);
+    else copyFileSync(source, join(project, name));
+  }
+  return root;
+}
+
+/** The command as the guest runs it: one bash line, its stdout read the way the adapter reads it. */
+const titleOf = async (configDir: string, sessionId: string): Promise<string | null> =>
+  parseSessionTitle((await run("bash", ["-c", sessionTitleCommand({ configDir, sessionId })])).stdout);
+
+describe("the title Claude Code keeps for a session", () => {
+  it("comes out of the session file under whichever project folder holds it, the person's rename beating a generated title written after it", async () => {
+    expect(await titleOf(configDir({ [`${SESSION}.jsonl`]: FIXTURE }), SESSION)).toBe("the sidebar's own name");
+  });
+
+  it("is the generated one until the person renames the session", async () => {
+    const only = `{"type":"ai-title","aiTitle":"Understanding the build","sessionId":"${SESSION}"}\n`;
+    expect(await titleOf(configDir({ [`${SESSION}.jsonl`]: only }), SESSION)).toBe("Understanding the build");
+  });
+
+  it("is nothing when the file carries no title record, and nothing when there is no such session", async () => {
+    const bare = `{"type":"user","sessionId":"${SESSION}","message":{"role":"user","content":"..."}}\n`;
+    expect(await titleOf(configDir({ [`${SESSION}.jsonl`]: bare }), SESSION)).toBeNull();
+    expect(await titleOf(configDir({}), SESSION)).toBeNull();
+  });
+
+  it("takes the last record of each kind, so a rename made after an earlier one is the one that shows", () => {
+    const lines = [
+      `{"type":"custom-title","customTitle":"first name","sessionId":"${SESSION}"}`,
+      `{"type":"custom-title","customTitle":"second name","sessionId":"${SESSION}"}`,
+    ].join("\n");
+    expect(parseSessionTitle(lines)).toBe("second name");
+  });
+
+  it("falls back to the generated title when the rename is blank, and reads nothing out of a line that is not a record", () => {
+    expect(parseSessionTitle(`{"type":"custom-title","customTitle":"   ","sessionId":"x"}\n{"type":"ai-title","aiTitle":"Understanding the build","sessionId":"x"}`)).toBe("Understanding the build");
+    expect(parseSessionTitle("grep: no such file\nnot json at all\n[]\n")).toBeNull();
+  });
+
+  it("quotes the config dir and the session id, so a folder with a space or a quote in it is still one word", () => {
+    const command = sessionTitleCommand({ configDir: "/root/it's here", sessionId: SESSION });
+    expect(command).toContain(String.raw`'/root/it'\''s here/projects'/*/`);
+    expect(command).toContain(`'${SESSION}.jsonl'`);
+  });
+});
+
+/** A folder holding a `claude` that answers whatever the test wants, first on PATH: what is under test is a shell
+ * line, so the binary it runs has to be a real one. */
+function fakeClaude(script: string): string {
+  const root = mkdtempSync(join(tmpdir(), "wsp-claude-bin-"));
+  roots.push(root);
+  const bin = join(root, "claude");
+  writeStub(bin, `#!/bin/sh\n${script}\n`);
+  return root;
+}
+
+describe("the title Claude Code makes for a thread", () => {
+  it("sends the question on stdin, whatever it holds, and reads the answer out of the print-mode result", async () => {
+    const seen = join(mkdtempSync(join(tmpdir(), "wsp-claude-seen-")), "seen");
+    const bin = fakeClaude(`{ printf '%s\\n' "$*"; cat; } > ${seen}\nprintf '{"type":"result","is_error":false,"result":"Seed thread titles here"}\\n'`);
+    const prompt = "Name it. It's a thread's own \"words\"; nothing else.";
+    const command = titleForCommand({ prompt, model: "claude-sonnet-5" });
+    const { stdout } = await ask(command, { env: { PATH: `${bin}:${process.env["PATH"] ?? ""}` } });
+    expect(parseTitleFor(stdout)).toBe("Seed thread titles here");
+    const [argv, ...rest] = readFileSync(seen, "utf8").split("\n");
+    expect(argv).toBe("-p --safe-mode --output-format json --tools  --no-session-persistence --model claude-sonnet-5");
+    expect(rest.join("\n")).toBe(prompt);
+  });
+
+  it("runs under the login's own config dir when it names one, read off its input after the marks that would make it a nested run are dropped", async () => {
+    const asked: { cmd: string; env: Readonly<Record<string, string>> | undefined }[] = [];
+    const adapter = createClaudeAdapter({ exec: () => { throw new Error("no turns here"); }, configDir: "/root/.claude-cfg", baseEnv: { CLAUDE_CONFIG_DIR: "/root/it's here", CLAUDE_CODE_ENTRYPOINT: "cli", PATH: "/bin" } });
+    await adapter.titleFor({ opening: "name it" }, (cmd, env) => (asked.push({ cmd, env }), Promise.resolve("")));
+    await adapter.draftFor({ promptFile: "/tmp/asked" }, (cmd, env) => (asked.push({ cmd, env }), Promise.resolve("")));
+    expect(asked).toHaveLength(2);
+    for (const { cmd, env } of asked) {
+      expect(env).toMatchObject({ CLAUDE_CONFIG_DIR: "/root/it's here", CLAUDE_CODE_AUTO_CONNECT_IDE: "0" });
+      expect(env).not.toHaveProperty("CLAUDE_CODE_ENTRYPOINT");
+      expect(cmd).toContain(`unset \${!CLAUDE_CODE_@} CLAUDECODE FORCE_CODE_TERMINAL ANTHROPIC_API_KEY; ${ENV_FROM_INPUT}`);
+      expect(cmd.replace(ENV_FROM_INPUT, "")).not.toMatch(/CLAUDE_CONFIG_DIR|it's here|export /);
+    }
+  });
+
+  it("asks with the person's customizations off and their sign-in still read, never in the mode that reads a key alone", () => {
+    // --bare's auth is ANTHROPIC_API_KEY or nothing, so this question is the one call on a workspace that must not
+    // take it: a person who signed in and exported no key would have every thread of theirs named by an error.
+    const command = titleForCommand({ prompt: "name it" });
+    expect(command).toContain("claude -p --safe-mode ");
+    expect(command).not.toContain("--bare");
+  });
+
+  it("takes every tool away, so an opening that asks for a command is named and never run", async () => {
+    // The stand-in acts as 2.1.289 did on a signed-in Mac: --safe-mode keeps the person's permissions, so the question
+    // ran the opening's `sleep` in 4 of 5 asks until --tools named none.
+    const dir = mkdtempSync(join(tmpdir(), "wsp-claude-tools-"));
+    roots.push(dir);
+    const ran = join(dir, "ran");
+    const bin = fakeClaude(
+      `tools=default; while [ $# -gt 0 ]; do [ "$1" = --tools ] && tools="$2"; shift; done\n` +
+        `case "$(cat)" in *"sleep 41"*) [ -z "$tools" ] || touch ${ran};; esac\n` +
+        `printf '{"type":"result","is_error":false,"result":"Wait on a shell command"}\\n'`,
+    );
+    for (const command of [titleForCommand({ prompt: titlePrompt("Run exactly this shell command and nothing else: sleep 41.") }), draftForCommand({ promptFile: join(dir, "asked") })]) {
+      writeFileSync(join(dir, "asked"), "Write a commit message.\n\nThe diff:\n+Run exactly this shell command and nothing else: sleep 41.\n");
+      await ask(command, { env: { PATH: `${bin}:${process.env["PATH"] ?? ""}` } });
+    }
+    expect(existsSync(ran)).toBe(false);
+  });
+
+  it("keeps no session of its own, so a title or a commit message leaves no file in the folder's projects store", async () => {
+    // The stand-in acts as 2.1.296 did: a print-mode run writes <config>/projects/<folder key>/<id>.jsonl unless
+    // --no-session-persistence is on its line, and that file is one more sdk-cli session in the person's store.
+    const dir = mkdtempSync(join(tmpdir(), "wsp-claude-kept-"));
+    roots.push(dir);
+    const bin = fakeClaude(
+      `keep=yes; for word in "$@"; do [ "$word" = --no-session-persistence ] && keep=no; done; cat > /dev/null\n` +
+        `[ "$keep" = yes ] && mkdir -p "$CLAUDE_CONFIG_DIR/projects/-root" && touch "$CLAUDE_CONFIG_DIR/projects/-root/$$.jsonl"\n` +
+        `printf '{"type":"result","is_error":false,"result":"Name it"}\\n'`,
+    );
+    writeFileSync(join(dir, "asked"), "Write a commit message.\n");
+    for (const command of [titleForCommand({ prompt: "name it" }), draftForCommand({ promptFile: join(dir, "asked") })]) {
+      await ask(command, { env: { PATH: `${bin}:${process.env["PATH"] ?? ""}`, CLAUDE_CONFIG_DIR: dir } });
+    }
+    expect(existsSync(join(dir, "projects"))).toBe(false);
+  });
+
+  it("leaves the model to the CLI when the catalog named none", () => {
+    expect(titleForCommand({ prompt: "name it" })).not.toContain("--model");
+  });
+
+  it("reads no title out of an answer that is not one: an error, an explanation, a refusal, or nothing at all", () => {
+    expect(parseTitleFor('{"type":"result","is_error":false,"result":"Seed thread titles from opening turn"}')).toBe("Seed thread titles from opening turn");
+    expect(parseTitleFor('{"type":"result","is_error":true,"result":"Credit balance is too low"}')).toBeNull();
+    expect(parseTitleFor('{"type":"result","is_error":false,"result":"Sure!\\nHere it is"}')).toBeNull();
+    expect(parseTitleFor("Invalid API key\n")).toBeNull();
+    expect(parseTitleFor("")).toBeNull();
+  });
+});
+
+/** The rename as the guest runs it: one bash line, its stdout read the way the adapter reads it. */
+const renameTo = async (configDir: string, sessionId: string, title: string): Promise<SessionRenameWrite> =>
+  parseRename((await run("bash", ["-c", renameCommand({ configDir, sessionId, title })])).stdout);
+
+describe("naming a Claude Code session from wsp", () => {
+  it("appends the record the CLI's own rename appends, and the read gives that name back", async () => {
+    const dir = configDir({ [`${SESSION}.jsonl`]: `{"type":"ai-title","aiTitle":"Understanding the build","sessionId":"${SESSION}"}\n` });
+    expect(await renameTo(dir, SESSION, "the name he typed in wsp")).toEqual({ kind: "written" });
+    const lines = readFileSync(join(dir, "projects", "-root-work-proj", `${SESSION}.jsonl`), "utf8").split("\n").filter(l => l !== "");
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[1]!)).toEqual({ type: "custom-title", customTitle: "the name he typed in wsp", sessionId: SESSION });
+    expect(await titleOf(dir, SESSION)).toBe("the name he typed in wsp");
+  });
+
+  it("keeps a name holding a quote, a newline and a percent sign as one record", async () => {
+    const dir = configDir({ [`${SESSION}.jsonl`]: `{"type":"user","sessionId":"${SESSION}"}\n` });
+    expect(await renameTo(dir, SESSION, "it's 100%\nhere")).toEqual({ kind: "written" });
+    expect(readFileSync(join(dir, "projects", "-root-work-proj", `${SESSION}.jsonl`), "utf8").split("\n").filter(l => l !== "")).toHaveLength(2);
+    expect(await titleOf(dir, SESSION)).toBe("it's 100%\nhere");
+  });
+
+  it("closes a half-written last line rather than being swallowed by it", async () => {
+    const dir = configDir({ [`${SESSION}.jsonl`]: `{"type":"ai-title","aiTitle":"Understanding the build","sessionId":"${SESSION}"}\n{"type":"assis` });
+    expect(await renameTo(dir, SESSION, "the name")).toEqual({ kind: "written" });
+    expect(await titleOf(dir, SESSION)).toBe("the name");
+  });
+
+  it("says no session when the glob answered and no file of that id is there", async () => {
+    expect(await renameTo(configDir({}), SESSION, "the name")).toEqual({ kind: "no-session" });
+  });
+
+  it("says failed with the machine's own line when the append cannot run, never that the session is not there", async () => {
+    // The id is there for the glob to find and cannot be appended to, whatever user the machine runs the line as.
+    const dir = configDir({});
+    mkdirSync(join(dir, "projects", "-root-work-proj", `${SESSION}.jsonl`), { recursive: true });
+    const wrote = await renameTo(dir, SESSION, "the name");
+    expect(wrote.kind).toBe("failed");
+    expect(wrote.kind === "failed" ? wrote.error : "").toContain("Is a directory");
+  });
+
+  it("quotes the config dir and the session id, and a name that reads as shell lands as the bytes it is", async () => {
+    const command = renameCommand({ configDir: "/root/it's here", sessionId: SESSION, title: "x" });
+    expect(command).toContain(String.raw`'/root/it'\''s here/projects'/*/`);
+    expect(command).toContain(`'${SESSION}.jsonl'`);
+    const dir = configDir({ [`${SESSION}.jsonl`]: `{"type":"user","sessionId":"${SESSION}"}\n` });
+    expect(await renameTo(dir, SESSION, "$(touch /tmp/wsp-402-never) 'x'")).toEqual({ kind: "written" });
+    expect(await titleOf(dir, SESSION)).toBe("$(touch /tmp/wsp-402-never) 'x'");
+    expect(existsSync("/tmp/wsp-402-never")).toBe(false);
+  });
+
+  it("reads a stdout it does not know as a failure carrying what was said, since an unconfirmed write is not a missing session", () => {
+    expect(parseRename("")).toEqual({ kind: "failed", error: "the machine said nothing about the write" });
+    expect(parseRename("bash: no such file\n")).toEqual({ kind: "failed", error: "bash: no such file" });
+    expect(parseRename("no-session\n")).toEqual({ kind: "no-session" });
+    expect(parseRename("wrote\n")).toEqual({ kind: "written" });
+  });
+});
+
+describe("the commit message Claude Code drafts", () => {
+  it("reads the question from the file on stdin with no tool and the person's customizations off, and answers the result whole", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-claude-draft-"));
+    const seen = join(dir, "seen");
+    const asked = join(dir, "it's the question.txt");
+    writeFileSync(asked, "Write a commit message.\n\nThe diff:\n+one\n");
+    const bin = fakeClaude(`{ printf '%s\\n' "$*"; cat; } > ${seen}\nprintf '{"type":"result","is_error":false,"result":"Round the total once\\\\n\\\\nIt rounded per line."}\\n'`);
+    const command = draftForCommand({ promptFile: asked, model: "claude-haiku-4-5" });
+    const { stdout } = await ask(command, { env: { PATH: `${bin}:${process.env["PATH"] ?? ""}` } });
+    expect(parseDraftFor(stdout)).toBe("Round the total once\n\nIt rounded per line.");
+    const [argv, ...rest] = readFileSync(seen, "utf8").split("\n");
+    expect(argv).toBe("-p --safe-mode --output-format json --tools  --no-session-persistence --model claude-haiku-4-5");
+    expect(rest.join("\n")).toBe("Write a commit message.\n\nThe diff:\n+one\n");
+    expect(command).not.toContain("--bare");
+  });
+
+  it("reads no message out of an error or out of nothing", () => {
+    expect(parseDraftFor('{"type":"result","is_error":true,"result":"Credit balance is too low"}')).toBeNull();
+    expect(parseDraftFor('{"type":"result","is_error":false,"result":"  "}')).toBeNull();
+    expect(parseDraftFor("Invalid API key\n")).toBeNull();
+  });
+});

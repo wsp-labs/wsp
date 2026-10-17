@@ -1,0 +1,295 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// One MCP server in an agent's own config on one computer or workspace: added,
+// removed, or turned off and on, by the agent's format module over the text
+// read off the target, then written back as that computer's login by a rename
+// from beside it, so a write that stops partway leaves the file as it was. A
+// file keeps its mode, a new one is the login's alone, a file that is a link
+// out of the folder it belongs to is never written through, and a file the
+// agent wrote between the read and the write is left as the agent left it. The
+// values a person typed go into this computer's own file as typed; another
+// computer's file names a variable for each, and the value goes to the vault.
+import { posix } from "node:path";
+import { CONFIG_LINK_EXIT, MCP_AGENTS, agentName, ownServerConfig, rowVariableLine, catalogEntry, configRefusal, configWriteLine, insideBase, stillStands, type McpAgent, type McpTransport } from "@wsp/catalog";
+import { nodeHost, tilde, type Host } from "@wsp/collect";
+import { configLanded } from "@wsp/engine";
+import {
+  hasControlChar,
+  noServerSwitchRefusal,
+  noServersConfigRefusal,
+  noSuchServerRefusal,
+  serverNameFormatRefusal,
+  serverNameRefusal,
+  serverThereRefusal,
+  shellQuote,
+  type McpScope,
+  type ServerAdd,
+  type ServerAsk,
+} from "@wsp/protocol";
+import { projectOf, type AgentsOn, type ServersActs } from "@wsp/runtime";
+import type { ServerVault } from "./env-keys.js";
+import { serverListedHere } from "./agents-here.js";
+import { keyOwner } from "./providers.js";
+import { firstLine, roadOf, type Road } from "./target-road.js";
+
+const usage = (sentence: string): Error => Object.assign(new Error(sentence), { kind: "usage" });
+
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+const VARIABLE_REF = /\$\{([^}]*)\}/g;
+
+/** The server with every `${NAME}` its arguments or address hold for a variable the person gave written as `to`
+ * says; `at` is the argument or the address it stands in. Any other `${...}` stands as typed. */
+function withVariables(t: McpTransport, given: Readonly<Record<string, string>>, to: (name: string, at: string) => string): McpTransport {
+  const put = (at: string): string => at.replace(VARIABLE_REF, (ref, name: string) => (Object.hasOwn(given, name) ? to(name, at) : ref));
+  return t.kind === "stdio" ? { ...t, args: t.args.map(put) } : { ...t, url: put(t.url) };
+}
+
+/** The server a person typed, as the format modules place it, each variable an argument or the address names still
+ * named there; refused in a sentence that never repeats a value. */
+export function serverTransport(ask: Omit<ServerAdd, "agent" | "name" | "project">): McpTransport {
+  const command = ask.command?.trim() ?? "";
+  const url = ask.url?.trim() ?? "";
+  const env = ask.env ?? {};
+  const headers = ask.headers ?? {};
+  if (command !== "" && url !== "") throw usage("A server is a command or an address, not both.");
+  if (command === "" && url === "") throw usage("A server needs a command to run or an address to reach.");
+  for (const [name, value] of Object.entries(env)) {
+    if (!ENV_NAME.test(name)) throw usage("A variable's name is letters, digits and underscores, not starting with a digit, so nothing was written.");
+    if (hasControlChar(value)) throw usage("A variable's value holds a control character, so nothing was written.");
+  }
+  if (command !== "") {
+    if (Object.keys(headers).length > 0) throw usage("Headers go with an address; a command takes variables.");
+    if (hasControlChar(command) || (ask.args ?? []).some(hasControlChar)) throw usage("The command holds a control character, so nothing was written.");
+    return { kind: "stdio", command, args: [...(ask.args ?? [])], env: { ...env } };
+  }
+  const named = [...url.matchAll(VARIABLE_REF)].map(m => m[1]);
+  const stray = Object.keys(env).find(name => !named.includes(name));
+  if (stray !== undefined) throw usage(`An address takes headers, and a variable only where it names it, so ${stray} goes in the address as \${${stray}} or not at all.`);
+  let parsed: URL | undefined;
+  try {
+    parsed = hasControlChar(url) ? undefined : new URL(url);
+  } catch {
+    parsed = undefined;
+  }
+  if (parsed === undefined || (parsed.protocol !== "https:" && parsed.protocol !== "http:")) throw usage("The address is not one that starts with https:// or http://.");
+  for (const [name, value] of Object.entries(headers)) {
+    if (!HEADER_NAME.test(name)) throw usage("A header's name is letters, digits and the marks ! # $ % & ' * + - . ^ _ ` | ~, so nothing was written.");
+    if (hasControlChar(value)) throw usage("A header's value holds a control character, so nothing was written.");
+  }
+  return { kind: "http", url, headers: { ...headers } };
+}
+
+const checkName = (name: string): void => {
+  if (name.trim() === "" || hasControlChar(name)) throw usage(serverNameRefusal);
+};
+
+/** The agent's MCP config the act is for, by the scope: the files it reads in the home (the first that is there is the
+ * config), or the project's, and the folder the file must stay inside. `folder` names Claude Code's servers kept for
+ * the home folder itself, or for a project's folder, inside its user file. `store` is a store outside the home, which the write makes where it is
+ * not there yet. */
+interface Config {
+  agent: McpAgent;
+  files: string[];
+  base: string;
+  folder?: string;
+  store?: string;
+}
+
+function mcpAgent(agentId: string): McpAgent {
+  const agent = MCP_AGENTS.find(a => a.id === agentId);
+  if (agent === undefined) throw usage(catalogEntry(agentId) === undefined ? `The catalog has no agent ${agentId}.` : noServersConfigRefusal(agentName(agentId)));
+  return agent;
+}
+
+/** A name the agent's format writes and reads back as that same name; any other is refused before a line runs. */
+function checkNameKept(agent: McpAgent, name: string, transport: McpTransport): void {
+  const kept = agent.mcp.format.read(agent.mcp.format.place(undefined, name, transport).text, "/").some(s => s.name === name);
+  if (!kept) throw usage(serverNameFormatRefusal(agentName(agent.id)));
+}
+
+function configOf(road: Road, on: AgentsOn, agentId: string, scope: McpScope): Config {
+  const agent = mcpAgent(agentId);
+  const home = road.host.home;
+  const project = projectOf(on);
+  const projectNamed = (): string => {
+    if (project === undefined) throw usage("A project's server is changed from a thread of that project, or from its computer's page.");
+    return project;
+  };
+  if (scope !== "project") {
+    const own = ownServerConfig(agent, home, road.host.stores?.[agentId]);
+    const folder = scope === "home" ? home : scope === "local" ? projectNamed() : undefined;
+    return { agent, ...own, ...(own.base !== home ? { store: own.base } : {}), ...(folder !== undefined ? { folder } : {}) };
+  }
+  const at = projectNamed();
+  const files = (agent.mcp.projectFiles ?? []).map(f => posix.join(at, f));
+  if (files.length === 0) throw usage(noServersConfigRefusal(agentName(agentId)));
+  return { agent, files, base: at };
+}
+
+/** The config as it stands: the file it is, its text and the checksum a write compares, or no file yet. */
+export interface Read {
+  file: string;
+  text?: string;
+  sum?: string;
+}
+
+export async function readConfig(road: Road, config: Pick<Config, "files" | "base">): Promise<Read> {
+  const q = shellQuote;
+  const line = [
+    // A store not made yet holds no config; macOS's realpath refuses a missing folder where GNU's answers it.
+    `[ -e ${q(config.base)} ] || { echo none; exit 0; }`,
+    `b=$(realpath ${q(config.base)}) || exit 1`,
+    `for f in ${config.files.map(q).join(" ")}; do`,
+    '  if [ -e "$f" ] || [ -L "$f" ]; then',
+    `    r=$(realpath "$f" 2>/dev/null) || { printf '%s\\000%s\\000' "$f" "$(readlink "$f")"; exit ${CONFIG_LINK_EXIT}; }`,
+    `    ${insideBase('"$f"')}`,
+    '    [ -f "$r" ] || exit 1',
+    `    printf 'at\\t%s\\t%s\\t%s\\n' "$f" "$(wc -c < "$r" | tr -d ' ')" "$(cksum < "$r")"`,
+    '    cat "$r"',
+    "    exit 0",
+    "  fi",
+    "done",
+    "echo none",
+  ].join("\n");
+  const res = await road.run(line);
+  if (res.exitCode === CONFIG_LINK_EXIT) throw usage(configRefusal(res, config.files[0]!, p => tilde(road.host.home, p))!);
+  const cut = res.stdout.indexOf("\n");
+  const head = cut < 0 ? res.stdout : res.stdout.slice(0, cut);
+  if (res.exitCode !== 0) throw new Error(`${tilde(road.host.home, config.files[0]!)} could not be read: ${firstLine(res)}`);
+  if (head === "none") return { file: config.files[0]! };
+  const [at, file = "", size = "", sum = ""] = head.split("\t");
+  const text = res.stdout.slice(cut + 1);
+  if (at !== "at" || Buffer.byteLength(text) !== Number(size)) throw new Error(`${tilde(road.host.home, file)} came back cut short, so it was not changed.`);
+  return { file, text, sum };
+}
+
+/** Writes the text over what was read, as the login, by the one config write. */
+export async function writeConfig(road: Road, config: Pick<Config, "base" | "store">, read: Read, text: string): Promise<void> {
+  const bytes = new TextEncoder().encode(text);
+  // A store outside the home is made by its agent's sign-in there, a box's logins folder among them: one not made yet
+  // is made as that sign-in makes it, the folder alone, so nothing above it is.
+  const make = config.store === undefined ? "" : `[ -d ${shellQuote(config.store)} ] || mkdir ${shellQuote(config.store)} || exit 1\n`;
+  const res = await road.run(`${make}${configWriteLine({ file: read.file, base: config.base, bytes: bytes.length, ...(read.sum !== undefined ? { sum: read.sum } : {}) })}`, bytes);
+  configLanded(res, read.file, p => tilde(road.host.home, p));
+}
+
+/** The format's own words for text it could not take, named by the file. */
+function formatted<T>(file: string, run: () => T): T {
+  try {
+    return run();
+  } catch (e) {
+    throw usage(`${file}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** Whether the text defines the server in that scope: a project's file holds its servers at its root. */
+const defines = (config: Config, text: string, home: string, ask: ServerAsk): { disabled: boolean } | undefined => {
+  const want = config.folder !== undefined ? "home" : "user";
+  const found = config.agent.mcp.format.read(text, config.folder ?? home).find(s => s.name === ask.name && s.scope === want);
+  return found === undefined ? undefined : { disabled: found.disabled === true };
+};
+
+/** Why a value is refused under a name another server's value is already kept by: `holders` are those servers, and
+ * none where the vault recorded nobody for it, in `file`. */
+export const serverVariableHeldLine = (name: string, holders: readonly string[], file: string): string =>
+  holders.length > 0
+    ? `${name} already holds the value ${holders.join(" and ")} ${holders.length > 1 ? "were" : "was"} added with, so nothing was written; give this server's variable another name, or free it by removing ${holders.join(" and ")} with wsp servers remove.`
+    : `${name} already holds another value in ${file}, and no server is recorded for it, so nothing was written; give this server's variable another name, or take that line out of the file.`;
+
+export interface ServersActsOptions {
+  /** This computer's Host; the node one, over this login's home, unless a test names another. */
+  here?: () => Host;
+  /** The place of record for every value passed: a value typed for another computer is kept there alone, by the
+   * variable its file names instead. */
+  vault?: ServerVault;
+}
+
+export function serversActs(o: ServersActsOptions = {}): ServersActs {
+  const here = o.here ?? nodeHost;
+  /** Hands the values to the vault as the server's, refusing before anything is written a name that is a key's, or
+   * one the vault holds with another value for any server but this one alone: the reference every copy writes would
+   * then read that other value. The same server again with a new value is its rotation. */
+  const record = (values: Readonly<Record<string, string>>, server: string): void => {
+    for (const name of Object.keys(values)) {
+      const owner = keyOwner(name);
+      if (owner !== undefined) throw usage(`${rowVariableLine(name, owner)}.`);
+    }
+    const vault = o.vault;
+    if (vault === undefined || Object.keys(values).length === 0) return;
+    const held = vault.held();
+    const owners = vault.owners();
+    for (const name of Object.keys(values)) {
+      const by = owners[name] ?? [];
+      const rotation = by.length === 1 && by[0] === server;
+      if (held[name] !== undefined && held[name] !== values[name] && !rotation) throw usage(serverVariableHeldLine(name, by.filter(s => s !== server), tilde(here().home, vault.file)));
+    }
+    vault.hold(values, server);
+  };
+  /** The server's file read, the change made to its text, and the text written back. */
+  const change = async (on: AgentsOn, ask: ServerAsk, edit: (config: Config, text: string, shown: string, standing: { disabled: boolean }) => string): Promise<{ file: string }> => {
+    checkName(ask.name);
+    const road = await roadOf(on, here, "the server");
+    const config = configOf(road, on, ask.agent, ask.scope ?? "user");
+    const read = await readConfig(road, config);
+    const shown = tilde(road.host.home, read.file);
+    const standing = read.text === undefined ? undefined : defines(config, read.text, road.host.home, ask);
+    if (read.text === undefined || standing === undefined) throw usage(noSuchServerRefusal(ask.name, shown));
+    const next = edit(config, read.text, shown, standing);
+    await writeConfig(road, config, read, next);
+    return { file: shown };
+  };
+  return {
+    add: async (on, ask) => {
+      checkName(ask.name);
+      const transport = serverTransport(ask);
+      checkNameKept(mcpAgent(ask.agent), ask.name, transport);
+      const road = await roadOf(on, here, "the server");
+      const config = configOf(road, on, ask.agent, ask.project === true ? "project" : "user");
+      const read = await readConfig(road, config);
+      const shown = tilde(road.host.home, read.file);
+      if (read.text !== undefined && defines(config, read.text, road.host.home, { agent: ask.agent, name: ask.name }) !== undefined) throw usage(serverThereRefusal(ask.name, shown));
+      const given = ask.env ?? {};
+      const format = config.agent.mcp.format;
+      // This computer's own file is the person's and holds the value as they typed it, for agents started outside
+      // wsp; the vault is still the place of record, so a copy of that file can write the value back by name.
+      if (on.kind === "here") {
+        const placed = formatted(shown, () => format.place(read.text, ask.name, withVariables(transport, given, name => given[name]!)));
+        const recorded = Object.fromEntries(Object.entries(given).filter(([, value]) => value !== ""));
+        record(recorded, ask.name);
+        await writeConfig(road, config, read, placed.text);
+        return { file: shown };
+      }
+      const byName = withVariables(transport, given, (name, at) => {
+        if (format.argRef === undefined) throw usage(`${agentName(ask.agent)} reads no variable inside a server's ${transport.kind === "stdio" ? "arguments" : "address"}, so ${at} cannot travel without its value and nothing was written.`);
+        return format.argRef(name);
+      });
+      const placed = formatted(shown, () => format.place(read.text, ask.name, byName));
+      const named = await format.refer(placed.text, ask.name, [], new Set([...Object.keys(o.vault?.held() ?? {}), ...Object.keys(given)])).catch((e: unknown) =>
+        formatted(shown, () => {
+          throw e;
+        }),
+      );
+      const unread = named.servers.find(sv => sv.unread !== undefined)?.unread;
+      if (unread !== undefined) throw usage(`${ask.name} ${unread}. Nothing was written.`);
+      formatted(shown, () => stillStands(named.entries, [{ name: ask.name, values: given }]));
+      // An address's variables live in no entry of the file, so only the vault carries them.
+      const values: Record<string, string> = { ...given, ...Object.fromEntries(named.servers.flatMap(sv => Object.entries(sv.values))) };
+      if (Object.keys(values).length > 0 && o.vault === undefined) throw new Error("There is no vault here to hold the server's values, so nothing was written.");
+      record(values, ask.name);
+      await writeConfig(road, config, read, named.text);
+      return { file: shown };
+    },
+    remove: async (on, ask) => {
+      const removed = await change(on, ask, (config, text, shown) => formatted(shown, () => config.agent.mcp.format.remove(text, [ask.name], config.folder)).text);
+      if (o.vault !== undefined && !(await serverListedHere(here(), ask.name))) o.vault.release(ask.name);
+      return removed;
+    },
+    toggle: (on, ask) =>
+      change(on, ask, (config, text, shown, standing) => {
+        const enable = config.agent.mcp.format.enable;
+        if (enable === undefined) throw usage(noServerSwitchRefusal(agentName(config.agent.id)));
+        if (standing.disabled === !ask.on) throw usage(`${ask.name} is already ${ask.on ? "on" : "off"}.`);
+        return formatted(shown, () => enable(text, ask.name, ask.on, config.folder)).text;
+      }),
+  };
+}

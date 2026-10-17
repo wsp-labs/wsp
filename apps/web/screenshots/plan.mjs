@@ -1,0 +1,249 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The reading of a surfaces list, apart from the browser that photographs it:
+// what a surface is allowed to say, the selector each click word folds into,
+// the name every file takes and the index a reader opens first. Kept separate
+// so a list can be checked without a host, a build or a browser. A surface may
+// name the fixture it is served from, since one state file cannot hold both a
+// person whose image is built and one whose image never was.
+
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { threadId } from "./fixture-state.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+/** The widths every list is shot at when it names none: a desktop window and a phone. */
+const DEFAULT_WIDTHS = [1440, 390];
+/** The window height each width gets, so a shot is a window rather than a full-page scroll. The desktop app opens
+ * at 1280 by 800, which is the window a design reading is held to. */
+const DEFAULT_HEIGHTS = { 1440: 900, 1280: 800, 390: 844 };
+const THEMES = ["light", "dark"];
+/** Milliseconds a surface rests before its shot when it names none: enough for a popup's opening and
+ * the transition the stylesheet runs on colours, which would otherwise be caught part way. */
+const DEFAULT_SETTLE_MS = 450;
+
+const NAME = /^[a-z0-9][a-z0-9-]*$/;
+/** A step kept for one width: the digits, a colon, then the step itself. Only leading digits count, so an
+ * attribute value with a colon in it (`row-id=ws:ws_api`) is left whole. */
+const AT_WIDTH = /^(\d+):(.+)$/;
+/** A step that presses a key rather than clicking. The narrow window opens with the right panel over the
+ * whole shell and no control of its own on top, so Escape is the only way to the sidebar under it. */
+const KEY = /^key:(.+)$/;
+/** A step that types into whatever the step before it left focused, which is how a surface reaches a state a
+ * person only gets to by writing something: a path in a field, and the refusal the app answers it with. */
+const TYPE = /^type:(.+)$/;
+/** A step that scrolls the nearest scrolling box around a data attribute by that many pixels, which is how a shot
+ * reaches a list part way down: `scroll:22:sidebar-tree`. */
+const SCROLL = /^scroll:(\d+):(.+)$/;
+/** A step that puts focus on a data attribute without clicking it, for a control whose keys only answer while it
+ * is focused and whose centre is a button a click would press: the panel launcher's arrows. */
+const FOCUS = /^focus:(.+)$/;
+/** A step that opens a row's own menu, a right-click on a data attribute, as a person reaches a thread's Snooze. */
+const MENU = /^menu:(.+)$/;
+/** A step that rests the pointer on a data attribute, for what shows only under it: a reply's Rewind to here and its footer. */
+const HOVER = /^hover:(.+)$/;
+/** A step that attaches a file of that name and that many bytes through the composer's own picker, as a person picks
+ * one: what a file over the cap or a message with a file looks like. */
+const FILE = /^file:([^:]+):(\d+)$/;
+/** A step that hands a project's Icon row the file a person picks: a logo the window fits, or a 20000 px image it
+ * refuses before decoding. */
+const IMAGE = /^image:(logo|huge)$/;
+/** A step that picks up one data attribute and holds it over another, the pointer still down when the shot is
+ * taken, `dy` pixels into the second where it names any and at its middle where not: a tree mid-drag, its drop line
+ * and the heads a drag shows. `drag:row-id=thread:notes > row-id=thread:webhook@40`. */
+const DRAG = /^drag:(.+?) > (.+?)(?:@(-?\d+))?$/;
+/** The one step that is none of those: the network under the window goes, which is what a window on another computer
+ * sees the moment the computer running wsp falls asleep. The rows stay as they were last known. */
+const OFFLINE = "offline";
+/** A step that takes the pointer off every control, to the window's top-left corner: a press that closed a drawer
+ * leaves the pointer over whatever the drawer covered, and that row would draw its hover in the shot. */
+const POINTER_OFF = "pointer-off";
+
+const fail = message => {
+  throw new Error(`surfaces list: ${message}`);
+};
+
+/** The CSS selector a data attribute word means. `row-id=ws:ws_api` is that attribute at that value,
+ * `agents-row` is the attribute being there at all; nothing here reaches past a data attribute, so a
+ * list cannot point the harness at a class name the next restyle moves. */
+export function selectorFor(word) {
+  if (typeof word !== "string" || word === "") fail("a click or wait word is a non-empty string");
+  const split = word.indexOf("=");
+  const attr = split === -1 ? word : word.slice(0, split);
+  if (!NAME.test(attr)) fail(`"${attr}" is not a data attribute name (lowercase, digits and dashes)`);
+  if (split === -1) return `[data-${attr}]`;
+  return `[data-${attr}="${word.slice(split + 1).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"]`;
+}
+
+/** A thread of a fixture, as a list names it: the word the fixture calls that thread, turned into the id the
+ * fixture mints for it. The ids are UUIDs, since the harness refuses a session id of any other shape, so a list
+ * written with the ids themselves in it would be rewritten every time one is minted. */
+const withThreadId = word => (typeof word === "string" ? word.replace(/thread:([a-z][a-z0-9-]*)$/, (_, name) => `thread:${threadId(name)}`) : word);
+
+/** A step as the driver takes it: a click on a data attribute or a key press, and the width it belongs to
+ * where the word named one. The narrow window keeps the sidebar behind a toggle and the wide one does not,
+ * so the step that opens it is a step for one width rather than a second surface with its own file names. */
+export function stepFor(word, widths) {
+  const kept = AT_WIDTH.exec(typeof word === "string" ? word : "");
+  const width = kept === null ? undefined : Number(kept[1]);
+  if (width !== undefined && !widths.includes(width)) fail(`a step is kept for width ${width}, which the list does not shoot`);
+  const bare = kept === null ? word : kept[2];
+  const key = KEY.exec(typeof bare === "string" ? bare : "");
+  const typed = TYPE.exec(typeof bare === "string" ? bare : "");
+  const scrolled = SCROLL.exec(typeof bare === "string" ? bare : "");
+  const focused = FOCUS.exec(typeof bare === "string" ? bare : "");
+  const menu = MENU.exec(typeof bare === "string" ? bare : "");
+  const hovered = HOVER.exec(typeof bare === "string" ? bare : "");
+  const filed = FILE.exec(typeof bare === "string" ? bare : "");
+  const imaged = IMAGE.exec(typeof bare === "string" ? bare : "");
+  const dragged = DRAG.exec(typeof bare === "string" ? bare : "");
+  const step =
+    bare === OFFLINE ? { offline: true }
+    : bare === POINTER_OFF ? { pointerOff: true }
+    : scrolled !== null ? { scroll: { by: Number(scrolled[1]), within: selectorFor(scrolled[2]) } }
+    : typed !== null ? { type: typed[1] }
+    : focused !== null ? { focus: selectorFor(withThreadId(focused[1])) }
+    : menu !== null ? { menu: selectorFor(withThreadId(menu[1])) }
+    : hovered !== null ? { hover: selectorFor(withThreadId(hovered[1])) }
+    : filed !== null ? { file: { name: filed[1], bytes: Number(filed[2]) } }
+    : imaged !== null ? { image: imaged[1] }
+    : dragged !== null ? { drag: { from: selectorFor(withThreadId(dragged[1])), to: selectorFor(withThreadId(dragged[2])), ...(dragged[3] === undefined ? {} : { dy: Number(dragged[3]) }) } }
+    : key === null ? { click: selectorFor(withThreadId(bare)) }
+    : { key: key[1] };
+  return width === undefined ? step : { width, ...step };
+}
+
+/** What the index says a step was. */
+const stepWords = step =>
+  step.offline === true ? "the network going"
+  : step.pointerOff === true ? "the pointer off the page's controls"
+  : step.scroll !== undefined ? `scrolling ${step.scroll.by} px around \`${step.scroll.within}\``
+  : step.type !== undefined ? `typing \`${step.type}\``
+  : step.focus !== undefined ? `focus on \`${step.focus}\``
+  : step.menu !== undefined ? `the menu of \`${step.menu}\``
+  : step.hover !== undefined ? `the pointer on \`${step.hover}\``
+  : step.file !== undefined ? `attaching \`${step.file.name}\` of ${step.file.bytes} bytes`
+  : step.image !== undefined ? `picking the ${step.image} image for the project`
+  : step.drag !== undefined ? `\`${step.drag.from}\` dragged and held over \`${step.drag.to}\``
+  : step.key !== undefined ? `the ${step.key} key`
+  : `\`${step.click}\``;
+
+const surfaceFrom = (raw, index, widths) => {
+  if (raw === null || typeof raw !== "object") fail(`surface ${index} is not an object`);
+  const { name, at, steps, wait, settleMs, fixture, remote, fresh, mac, height, reason } = raw;
+  if (typeof name !== "string" || !NAME.test(name)) fail(`surface ${index} needs a name of lowercase words and dashes, got ${JSON.stringify(name)}`);
+  if (typeof at !== "string" || !at.startsWith("/")) fail(`${name}: "at" is the route or hash the page opens, starting with /`);
+  if (steps !== undefined && !Array.isArray(steps)) fail(`${name}: "steps" is an array of data attribute words, key presses and typed words`);
+  if (settleMs !== undefined && (typeof settleMs !== "number" || settleMs < 0)) fail(`${name}: "settleMs" is a count of milliseconds`);
+  if (remote !== undefined && typeof remote !== "boolean") fail(`${name}: "remote" says whether the page is served to another computer`);
+  if (mac !== undefined && typeof mac !== "boolean") fail(`${name}: "mac" says whether the page is drawn as the Mac window, over its glass`);
+  if (fresh !== undefined && typeof fresh !== "boolean") fail(`${name}: "fresh" says whether the shot changes what the host holds, and so takes a host of its own`);
+  if (height !== undefined && (!Number.isInteger(height) || height < 1)) fail(`${name}: "height" is the window height in whole pixels, for a surface taller than its width's window`);
+  const own = raw.widths;
+  if (own !== undefined && (!Array.isArray(own) || own.length === 0 || own.some(w => !widths.includes(w)))) fail(`${name}: "widths" picks one or more from the list's own ${widths.join(", ")}`);
+  if (fixture !== undefined && (typeof fixture !== "string" || !NAME.test(fixture))) fail(`${name}: "fixture" is the name of a fixture the state file serves`);
+  // A surface shot at fewer widths than the list says why, so a width is never dropped without a word.
+  const narrowed = own !== undefined && widths.some(w => !own.includes(w));
+  if (narrowed && (typeof reason !== "string" || reason.trim() === "")) fail(`${name}: shot at ${own.join(" and ")} of ${widths.join(", ")}, it needs a "reason" saying why the others are left out`);
+  if (!narrowed && reason !== undefined) fail(`${name}: shot at every width the list takes, so a "reason" has nothing to explain`);
+  return {
+    name,
+    at,
+    steps: (steps ?? []).map(word => stepFor(word, widths)),
+    ...(wait !== undefined ? { wait: selectorFor(withThreadId(wait)) } : {}),
+    ...(fixture !== undefined ? { fixture } : {}),
+    settleMs: settleMs ?? DEFAULT_SETTLE_MS,
+    widths: own ?? widths,
+    remote: remote === true,
+    fresh: fresh === true,
+    mac: mac === true,
+    ...(height !== undefined ? { height } : {}),
+    ...(narrowed ? { reason: reason.trim() } : {}),
+  };
+};
+
+/** A surfaces list as the driver takes it, or an error naming the entry at fault. */
+export function readSurfaces(raw) {
+  if (raw === null || typeof raw !== "object") fail("the file holds an object with a surfaces array");
+  const widths = raw.widths ?? DEFAULT_WIDTHS;
+  if (!Array.isArray(widths) || widths.length === 0 || widths.some(w => !Number.isInteger(w) || w < 1)) fail('"widths" is a non-empty array of whole pixel widths');
+  const heights = { ...DEFAULT_HEIGHTS, ...(raw.heights ?? {}) };
+  for (const w of widths) if (!Number.isInteger(heights[w]) || heights[w] < 1) fail(`width ${w} has no height; give one in "heights"`);
+  if (!Array.isArray(raw.surfaces) || raw.surfaces.length === 0) fail("the list names no surfaces");
+  const surfaces = raw.surfaces.map((s, i) => surfaceFrom(s, i, widths));
+  const seen = new Set();
+  for (const s of surfaces) {
+    if (seen.has(s.name)) fail(`two surfaces are called ${s.name}; one would overwrite the other's files`);
+    seen.add(s.name);
+  }
+  return { widths, heights, surfaces };
+}
+
+/** One file of the surfaces folder as a surface: named by its file, which it may not contradict. */
+const shippedSurface = (folder, name) => {
+  const raw = JSON.parse(readFileSync(join(folder, `${name}.json`), "utf8"));
+  if (raw !== null && typeof raw === "object" && "name" in raw) fail(`${name}.json: the file's own name is the surface's name, so it carries no "name"`);
+  return { name, ...raw };
+};
+
+/** The widths a surfaces folder is shot at, from the widths.json beside it. */
+const shippedWidths = folder => JSON.parse(readFileSync(join(folder, "..", "widths.json"), "utf8"));
+
+/** The list this repo ships, in the shape `readSurfaces` takes: one file per surface in `surfaces/`, named by its file,
+ * and the widths every surface is shot at from `widths.json`. One file each, so two tickets adding a surface never edit
+ * the same file (one shared list conflicted on nine landings). */
+export function shippedSurfaces(folder = join(HERE, "surfaces")) {
+  const surfaces = readdirSync(folder)
+    .filter(file => file.endsWith(".json"))
+    .map(file => file.slice(0, -".json".length))
+    .sort()
+    .map(name => shippedSurface(folder, name));
+  return { ...shippedWidths(folder), surfaces };
+}
+
+/** The list a `--surfaces` file names: a list as `readSurfaces` takes one, or one file of the surfaces folder, which is
+ * that surface alone at the folder's widths, so a ticket photographs its own surface by its file. */
+export function surfacesIn(path) {
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  if (raw !== null && typeof raw === "object" && "surfaces" in raw) return raw;
+  return { ...shippedWidths(dirname(path)), surfaces: [shippedSurface(dirname(path), basename(path, ".json"))] };
+}
+
+export const shotName = (surface, theme, width) => `${surface}-${theme}-${width}.png`;
+
+/** Every shot a list asks for, in the order the driver takes them, each carrying the steps its own width
+ * keeps and the file it lands in. Widest first, so a run watched from the terminal shows the window a
+ * reviewer reads first. */
+export function shotPlan(list) {
+  const shots = [];
+  for (const width of list.widths) {
+    for (const theme of THEMES) {
+      for (const surface of list.surfaces) {
+        if (!surface.widths.includes(width)) continue;
+        const steps = surface.steps.filter(s => s.width === undefined || s.width === width).map(({ width: _kept, ...step }) => step);
+        shots.push({ name: surface.name, at: surface.at, steps, wait: surface.wait, ...(surface.fixture === undefined ? {} : { fixture: surface.fixture }), settleMs: surface.settleMs, remote: surface.remote, fresh: surface.fresh, mac: surface.mac, theme, width, height: surface.height ?? list.heights[width], file: shotName(surface.name, theme, width) });
+      }
+    }
+  }
+  return shots;
+}
+
+/** The index a reader opens first: what each surface is, then its files as a table a person and an agent
+ * both read. Only shots that were actually written are listed, so a missed one cannot be reviewed by
+ * accident from a stale file left by an earlier run. */
+export function indexMarkdown(list, written, meta) {
+  const has = new Set(written);
+  const plan = shotPlan(list);
+  const lines = ["# wsp UI screenshots", "", `Taken ${meta.at} from ${meta.sha} on ${meta.branch}.`, "", `${written.length} of ${plan.length} files, widths ${list.widths.join(" and ")}, light and dark.`, ""];
+  for (const surface of list.surfaces) {
+    const rows = plan.filter(s => s.name === surface.name && has.has(s.file));
+    if (rows.length === 0) continue;
+    const road = `Route \`${surface.at}\`${surface.remote ? ", served to a window on another computer" : ""}${surface.mac ? ", drawn as the Mac window over a stand-in desktop" : ""}${surface.steps.length > 0 ? `, then ${surface.steps.map(s => `${stepWords(s)}${s.width === undefined ? "" : ` (at ${s.width} only)`}`).join(", ")}` : ""}${surface.fixture === undefined ? "" : `, served from the ${surface.fixture} fixture`}.`;
+    const reason = surface.reason === undefined ? [] : [`Shot at ${surface.widths.join(" and ")} alone: ${surface.reason.charAt(0).toLowerCase()}${surface.reason.slice(1)}`, ""];
+    lines.push(`## ${surface.name}`, "", road, "", ...reason, "| theme | width | file |", "| --- | --- | --- |");
+    for (const row of rows) lines.push(`| ${row.theme} | ${row.width} | [${row.file}](${row.file}) |`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}

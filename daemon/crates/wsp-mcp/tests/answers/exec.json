@@ -1,0 +1,264 @@
+{
+  "tool": "exec",
+  "cases": [
+    {
+      "case": "output and the folder",
+      "arguments": {
+        "thread": "thread-7f3a9c21e4b5",
+        "argv": [
+          "sh",
+          "-c",
+          "echo hi"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"thread-7f3a9c21e4b5\"}]}",
+        "workspaces.get": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.wake": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.exec": "{\"id\":1,\"ok\":true,\"execId\":\"exec-1\",\"cwd\":\"/root/wsp\"}"
+      },
+      "pushed": {
+        "workspaces.exec": [
+          "{\"type\":\"exec.output\",\"execId\":\"exec-0\",\"text\":\"someone else's\"}",
+          "{\"type\":\"exec.output\",\"execId\":\"exec-1\",\"text\":\"hi \u0085 \\\"there\\\"\"}",
+          "{\"type\":\"exec.output\",\"execId\":\"exec-1\",\"text\":\"é\"}",
+          "{\"type\":\"exec.exit\",\"execId\":\"exec-1\",\"exitCode\":3}"
+        ]
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"hi \\u0085 \\\"there\\\"\\né\"}],\"structuredContent\":{\"exitCode\":3,\"output\":[\"hi \\u0085 \\\"there\\\"\",\"é\"],\"cwd\":\"/root/wsp\"}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.get",
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5"
+        },
+        {
+          "op": "workspaces.wake",
+          "workspaceId": "ws-1"
+        },
+        {
+          "op": "workspaces.exec",
+          "workspaceId": "ws-1",
+          "argv": [
+            "sh",
+            "-c",
+            "echo hi"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "no folder named and no output",
+      "arguments": {
+        "thread": "thread-7f3a9c21e4b5",
+        "argv": [
+          "true"
+        ],
+        "cwd": "/tmp"
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"thread-7f3a9c21e4b5\"}]}",
+        "workspaces.get": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"napping\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.wake": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.exec": "{\"id\":1,\"ok\":true,\"execId\":\"exec-2\"}"
+      },
+      "pushed": {
+        "workspaces.exec": [
+          "{\"type\":\"exec.exit\",\"execId\":\"exec-2\",\"exitCode\":null}"
+        ]
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"\"}],\"structuredContent\":{\"exitCode\":null,\"output\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.get",
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5"
+        },
+        {
+          "op": "workspaces.wake",
+          "workspaceId": "ws-1"
+        },
+        {
+          "op": "workspaces.exec",
+          "workspaceId": "ws-1",
+          "argv": [
+            "true"
+          ],
+          "cwd": "/tmp"
+        }
+      ]
+    },
+    {
+      "case": "no folder named runs in the thread's own",
+      "arguments": {
+        "thread": "thread-7f3a9c21e4b5",
+        "argv": [
+          "pwd"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"thread-7f3a9c21e4b5\",\"cwd\":\"/root/wsp/packages\"}]}",
+        "workspaces.get": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.wake": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.exec": "{\"id\":1,\"ok\":true,\"execId\":\"exec-4\",\"cwd\":\"/root/wsp/packages\"}"
+      },
+      "pushed": {
+        "workspaces.exec": [
+          "{\"type\":\"exec.exit\",\"execId\":\"exec-4\",\"exitCode\":0}"
+        ]
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"\"}],\"structuredContent\":{\"exitCode\":0,\"output\":[],\"cwd\":\"/root/wsp/packages\"}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.get",
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5"
+        },
+        {
+          "op": "workspaces.wake",
+          "workspaceId": "ws-1"
+        },
+        {
+          "op": "workspaces.exec",
+          "workspaceId": "ws-1",
+          "argv": [
+            "pwd"
+          ],
+          "cwd": "/root/wsp/packages"
+        }
+      ]
+    },
+    {
+      "case": "the machine went away",
+      "arguments": {
+        "thread": "thread-7f3a9c21e4b5",
+        "argv": [
+          "true"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"thread-7f3a9c21e4b5\"}]}",
+        "workspaces.get": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.wake": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}}",
+        "workspaces.exec": "{\"id\":1,\"ok\":true,\"execId\":\"exec-3\"}"
+      },
+      "pushed": {
+        "workspaces.exec": [
+          "{\"type\":\"exec.exit\",\"execId\":\"exec-3\",\"exitCode\":null,\"error\":\"the machine stopped answering\"}"
+        ]
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"the machine stopped answering\"}],\"structuredContent\":{\"error\":\"the machine stopped answering\",\"class\":\"provider\",\"exit\":1},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.get",
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5"
+        },
+        {
+          "op": "workspaces.wake",
+          "workspaceId": "ws-1"
+        },
+        {
+          "op": "workspaces.exec",
+          "workspaceId": "ws-1",
+          "argv": [
+            "true"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "a relative folder",
+      "arguments": {
+        "thread": "thread-7f3a9c21e4b5",
+        "argv": [
+          "true"
+        ],
+        "cwd": "src"
+      },
+      "replies": {},
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"--cwd is a path on the machine, absolute, and got \\\"src\\\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.\"}],\"structuredContent\":{\"error\":\"--cwd is a path on the machine, absolute, and got \\\"src\\\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": []
+    },
+    {
+      "case": "gone",
+      "arguments": {
+        "thread": "thread-7f3a9c21e4b5",
+        "argv": [
+          "true"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"thread-7f3a9c21e4b5\"}]}",
+        "workspaces.get": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"gone\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\",\"gone\":\"\"}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"attic-work's machine is gone with its disk, so work that was not pushed is lost; rebuild it to exec, which brings back its home folder from the last saved nap\"}],\"structuredContent\":{\"error\":\"attic-work's machine is gone with its disk, so work that was not pushed is lost; rebuild it to exec, which brings back its home folder from the last saved nap\",\"class\":\"provider\",\"exit\":1},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.get",
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5"
+        }
+      ]
+    },
+    {
+      "case": "no such thread",
+      "arguments": {
+        "thread": "nope",
+        "argv": [
+          "true"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[]}",
+        "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"no thread nope\"}],\"structuredContent\":{\"error\":\"no thread nope\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "projects.list"
+        }
+      ]
+    },
+    {
+      "case": "a project's name",
+      "arguments": {
+        "thread": "wsp",
+        "argv": [
+          "true"
+        ]
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[]}",
+        "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"wsp is a project; wsp exec takes a thread, as wsp threads wsp lists them. Name a thread by its id.\"}],\"structuredContent\":{\"error\":\"wsp is a project; wsp exec takes a thread, as wsp threads wsp lists them. Name a thread by its id.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "projects.list"
+        }
+      ]
+    }
+  ]
+}

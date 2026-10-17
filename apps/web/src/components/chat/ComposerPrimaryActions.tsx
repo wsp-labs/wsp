@@ -1,0 +1,312 @@
+// Adapted from pingdotgg/t3code apps/web/src/components/chat/ComposerPrimaryActions.tsx at 57a66608 (MIT).
+// Differs from upstream: the settings hook and the sidebar stage artwork inside the send button are removed (no settings, no artwork), so the send button keeps the plain branch; the unavailable label says workspace, not environment; the stop button takes isInterruptPending and, while it holds, is disabled, labelled Stopping and shows the send button's spinner in place of the square; the send button takes wakesFirst and reads Wake and send while the machine is paused, since the send wakes it; and a send held by a reason is drawn as a held primary is, the accent off it until it can be pressed, and says that reason on hover, where upstream faded it to a third of itself and said nothing.
+import { memo, type PointerEventHandler } from "react";
+import { ChevronDownIcon, ChevronLeftIcon } from "lucide-react";
+import { COMPOSER_STATE_WORDS } from "../../composer-state-words.js";
+import { cn } from "../../lib/utils";
+import { Button, OUTLINE_SURFACE } from "../ui/button";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
+import { Spinner } from "../ui/spinner";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+
+interface PendingActionState {
+  questionIndex: number;
+  isLastQuestion: boolean;
+  canAdvance: boolean;
+  isResponding: boolean;
+  isComplete: boolean;
+}
+
+interface ComposerPrimaryActionsProps {
+  compact: boolean;
+  pendingAction: PendingActionState | null;
+  isRunning: boolean;
+  showPlanFollowUpPrompt: boolean;
+  promptHasText: boolean;
+  isSendBusy: boolean;
+  sendDisabledReason: string | null;
+  isConnecting: boolean;
+  isEnvironmentUnavailable: boolean;
+  isPreparingWorktree: boolean;
+  hasSendableContent: boolean;
+  preserveComposerFocusOnPointerDown?: boolean;
+  /** Enter-to-send is disabled on mobile viewports, where stop would otherwise
+   * be the only primary action and a running turn could not be steered. */
+  showSendWhileRunning?: boolean;
+  /** The interrupt request is on the wire and unanswered; the turn's end or the reply clears it. */
+  isInterruptPending?: boolean;
+  /** The machine is paused and the send wakes it first: the button says so, and nothing else about it changes. */
+  wakesFirst?: boolean;
+  /** What the send button says in words instead of its arrow, where one send goes to several models. */
+  sendLabel?: string | undefined;
+  onPreviousPendingQuestion: () => void;
+  onInterrupt: () => void;
+  onImplementPlanInNewThread: () => void;
+}
+
+/** The send button's name while the machine is paused: one send wakes it and sends, so the button says both. Both
+ * words, and every other state's below, come from the one file the harness that drives this app reads too. */
+export const WAKE_AND_SEND_LABEL = COMPOSER_STATE_WORDS.wakeAndSend;
+export const SEND_LABEL = COMPOSER_STATE_WORDS.send;
+
+export const formatPendingPrimaryActionLabel = (input: {
+  compact: boolean;
+  isLastQuestion: boolean;
+  isResponding: boolean;
+  questionIndex: number;
+}) => {
+  if (input.isResponding) {
+    return "Submitting...";
+  }
+  if (input.compact) {
+    return input.isLastQuestion ? "Submit" : "Next";
+  }
+  if (!input.isLastQuestion) {
+    return "Next question";
+  }
+  return input.questionIndex > 0 ? "Submit answers" : "Submit answer";
+};
+
+const preventPointerFocus: PointerEventHandler<HTMLElement> = (event) => {
+  event.preventDefault();
+};
+
+export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
+  compact,
+  pendingAction,
+  isRunning,
+  showPlanFollowUpPrompt,
+  promptHasText,
+  isSendBusy,
+  sendDisabledReason,
+  isConnecting,
+  isEnvironmentUnavailable,
+  isPreparingWorktree,
+  hasSendableContent,
+  preserveComposerFocusOnPointerDown = false,
+  showSendWhileRunning = false,
+  isInterruptPending = false,
+  wakesFirst = false,
+  sendLabel,
+  onPreviousPendingQuestion,
+  onInterrupt,
+  onImplementPlanInNewThread,
+}: ComposerPrimaryActionsProps) {
+  const pointerFocusProps = preserveComposerFocusOnPointerDown
+    ? { onPointerDown: preventPointerFocus }
+    : undefined;
+  const isSendDisabled = sendDisabledReason !== null;
+
+  const renderStopGenerationButton = (insidePendingAction: boolean) => (
+    <button
+      type="button"
+      className={cn(
+        "flex cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-white shadow-xs shadow-destructive/24 inset-shadow-[0_1px_--theme(--color-white/16%)] transition-all duration-150 hover:bg-destructive hover:scale-105 active:inset-shadow-[0_1px_--theme(--color-black/8%)] active:shadow-none disabled:pointer-events-none disabled:shadow-none",
+        insidePendingAction
+          ? "size-8 sm:size-7"
+          : showSendWhileRunning && hasSendableContent
+            ? "size-9 sm:size-8"
+            : "size-8 sm:h-8 sm:w-8",
+      )}
+      {...pointerFocusProps}
+      onClick={onInterrupt}
+      disabled={isInterruptPending}
+      aria-label={isInterruptPending ? "Stopping" : "Stop generation"}
+    >
+      {isInterruptPending ? (
+        <Spinner className="size-3.5" aria-hidden="true" />
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+          <rect x="2" y="2" width="8" height="8" rx="1.5" />
+        </svg>
+      )}
+    </button>
+  );
+
+  if (pendingAction) {
+    return (
+      <div className={cn("flex items-center justify-end", compact ? "gap-1.5" : "gap-2")}>
+        {isRunning ? renderStopGenerationButton(true) : null}
+        {pendingAction.questionIndex > 0 ? (
+          compact ? (
+            <Button
+              size="icon"
+              variant="outline"
+              className="rounded-full"
+              {...pointerFocusProps}
+              onClick={onPreviousPendingQuestion}
+              disabled={pendingAction.isResponding}
+              aria-label="Previous question"
+            >
+              <ChevronLeftIcon className="size-3.5" />
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="rounded-full"
+              {...pointerFocusProps}
+              onClick={onPreviousPendingQuestion}
+              disabled={pendingAction.isResponding}
+            >
+              Previous
+            </Button>
+          )
+        ) : null}
+        <Button
+          type="submit"
+          className={cn(
+            "rounded-full bg-message-action text-message-action-foreground hover:bg-message-action-hover",
+            compact ? "px-3" : "px-4",
+          )}
+          {...pointerFocusProps}
+          disabled={
+            isEnvironmentUnavailable ||
+            pendingAction.isResponding ||
+            (pendingAction.isLastQuestion ? !pendingAction.isComplete : !pendingAction.canAdvance)
+          }
+        >
+          {formatPendingPrimaryActionLabel({
+            compact,
+            isLastQuestion: pendingAction.isLastQuestion,
+            isResponding: pendingAction.isResponding,
+            questionIndex: pendingAction.questionIndex,
+          })}
+        </Button>
+      </div>
+    );
+  }
+
+  if (showPlanFollowUpPrompt) {
+    if (promptHasText) {
+      return (
+        <Button
+          type="submit"
+          className={cn(
+            "rounded-full bg-message-action text-message-action-foreground hover:bg-message-action-hover",
+            compact ? "px-3" : "px-4",
+          )}
+          {...pointerFocusProps}
+          disabled={isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable}
+        >
+          {isConnecting || isSendBusy ? "Sending…" : "Refine"}
+        </Button>
+      );
+    }
+
+    return (
+      <div data-chat-composer-implement-actions="true" className="flex items-center justify-end">
+        <Button
+          type="submit"
+          className="rounded-l-full rounded-r-none bg-message-action px-4 text-message-action-foreground hover:bg-message-action-hover"
+          {...pointerFocusProps}
+          disabled={isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable}
+        >
+          {isConnecting || isSendBusy ? "Sending…" : "Implement"}
+        </Button>
+        <Menu>
+          <MenuTrigger
+            render={
+              <Button
+                variant="default"
+                className="rounded-l-none rounded-r-full border-l-message-action-foreground/20 bg-message-action px-2 text-message-action-foreground hover:bg-message-action-hover"
+                aria-label="Implementation actions"
+                {...pointerFocusProps}
+                disabled={isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable}
+              />
+            }
+          >
+            <ChevronDownIcon className="size-3.5" />
+          </MenuTrigger>
+          <MenuPopup align="end" side="top">
+            <MenuItem
+              disabled={isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable}
+              onClick={() => void onImplementPlanInNewThread()}
+            >
+              Implement in a new thread
+            </MenuItem>
+          </MenuPopup>
+        </Menu>
+      </div>
+    );
+  }
+
+  const sendButton = (
+    <button
+      type="submit"
+      className={cn(
+        "relative isolate flex h-9 items-center justify-center overflow-hidden rounded-full border border-transparent shadow-xs transition-all duration-150 enabled:cursor-pointer enabled:inset-shadow-[0_1px_--theme(--color-white/16%)] hover:scale-105 active:inset-shadow-[0_1px_--theme(--color-black/8%)] active:shadow-none disabled:pointer-events-none disabled:shadow-none disabled:hover:scale-100 sm:h-8",
+        sendLabel === undefined ? "w-9 sm:w-8" : "px-3.5 text-[13px] font-medium",
+        // Held for a reason it can name, the window's one loud thing stops being loud: it takes the held tier in the
+        // same slot and the accent back the moment the block lifts. An empty box is not held, it is simply empty,
+        // and stays the fainter accent it has always been.
+        isSendDisabled
+          ? `${OUTLINE_SURFACE} text-muted-foreground`
+          : "bg-foreground text-background hover:bg-foreground/90 disabled:opacity-30",
+      )}
+      {...pointerFocusProps}
+      disabled={
+        isSendBusy ||
+        isSendDisabled ||
+        isConnecting ||
+        isEnvironmentUnavailable ||
+        !hasSendableContent
+      }
+      aria-label={
+        isEnvironmentUnavailable
+          ? COMPOSER_STATE_WORDS.workspaceUnavailable
+          : sendDisabledReason
+            ? sendDisabledReason
+            : isConnecting
+              ? COMPOSER_STATE_WORDS.connecting
+              : isPreparingWorktree
+                ? COMPOSER_STATE_WORDS.preparingWorktree
+                : isSendBusy
+                  ? COMPOSER_STATE_WORDS.sending
+                  : wakesFirst
+                    ? WAKE_AND_SEND_LABEL
+                    : (sendLabel ?? SEND_LABEL)
+      }
+      title={sendDisabledReason === null && wakesFirst ? WAKE_AND_SEND_LABEL : undefined}
+    >
+      {isConnecting || isSendBusy ? (
+        <Spinner className="size-3.5" aria-hidden="true" />
+      ) : sendLabel !== undefined ? (
+        sendLabel
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path
+            d="M7 11.5V2.5M7 2.5L3 6.5M7 2.5L11 6.5"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </button>
+  );
+
+  // A disabled button takes no pointer, so the reason it is held rides a tooltip on the span around it.
+  const send =
+    sendDisabledReason !== null ? (
+      <Tooltip>
+        <TooltipTrigger render={<span data-send-held={sendDisabledReason} className="inline-flex" />}>{sendButton}</TooltipTrigger>
+        <TooltipPopup side="top" className="max-w-72 text-pretty">
+          {sendDisabledReason}
+        </TooltipPopup>
+      </Tooltip>
+    ) : (
+      sendButton
+    );
+
+  if (!isRunning) {
+    return send;
+  }
+
+  return (
+    <>
+      {renderStopGenerationButton(false)}
+      {showSendWhileRunning && hasSendableContent ? send : null}
+    </>
+  );
+});

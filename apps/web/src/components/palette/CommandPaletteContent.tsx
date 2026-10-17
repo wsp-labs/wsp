@@ -1,0 +1,73 @@
+// Adapted from pingdotgg/t3code apps/web/src/components/CommandPaletteContent.tsx at 57a66608 (MIT).
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import type { ComponentProps, ReactNode } from "react";
+
+import { Command, CommandFooter, CommandInput, CommandPanel } from "../ui/command.js";
+import { Kbd, KbdGroup } from "../ui/kbd.js";
+
+type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children"> & {
+  readonly children: ReactNode;
+  readonly escapeLabel?: ReactNode;
+  readonly footerActionLabel?: ReactNode;
+  /** More keys the dialog takes, each said after Enter's. */
+  readonly footerKeys?: ReadonlyArray<{ readonly keys: string; readonly label: ReactNode }>;
+  readonly footerTrailing?: ReactNode;
+  readonly inputAccessory?: ReactNode;
+  readonly inputProps: ComponentProps<typeof CommandInput>;
+  readonly panelClassName?: string;
+  readonly testId?: string;
+};
+
+/**
+ * Shared command palette chrome. Palette modes provide their query behavior,
+ * results, and optional input accessory while retaining one input, panel, and
+ * keyboard-hint gutter.
+ */
+export function CommandPaletteContent({
+  children,
+  escapeLabel = "Close",
+  footerActionLabel,
+  footerKeys = [],
+  footerTrailing,
+  inputAccessory,
+  inputProps,
+  panelClassName,
+  testId,
+  ...commandProps
+}: CommandPaletteContentProps) {
+  return (
+    <div className="contents" data-testid={testId}>
+      <Command {...commandProps}>
+        <div className="relative">
+          <CommandInput {...inputProps} />
+          {inputAccessory}
+        </div>
+        <CommandPanel className={panelClassName}>{children}</CommandPanel>
+        <CommandFooter className="gap-3 max-sm:flex-col max-sm:items-start">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <KbdGroup className="items-center gap-1.5">
+              <Kbd>
+                <ArrowUpIcon />
+              </Kbd>
+              <Kbd>
+                <ArrowDownIcon />
+              </Kbd>
+              <span>Navigate</span>
+            </KbdGroup>
+            {[...(footerActionLabel !== undefined ? [{ keys: "Enter", label: footerActionLabel }] : []), ...footerKeys].map(key => (
+              <KbdGroup key={key.keys} className="items-center gap-1.5">
+                <Kbd>{key.keys}</Kbd>
+                <span>{key.label}</span>
+              </KbdGroup>
+            ))}
+            <KbdGroup className="items-center gap-1.5">
+              <Kbd>Esc</Kbd>
+              <span>{escapeLabel}</span>
+            </KbdGroup>
+          </div>
+          {footerTrailing}
+        </CommandFooter>
+      </Command>
+    </div>
+  );
+}

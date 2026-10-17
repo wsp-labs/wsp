@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "jsx": "react-jsx", "lib": ["ES2023", "DOM", "DOM.Iterable"], "moduleResolution": "Bundler", "module": "ESNext", "noEmit": true },
+  "include": ["test", "scripts"]
+}

@@ -1,0 +1,398 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The agents report off one target, read through the collector's Host: this
+// computer's own, or machineHost over a computer's link, a workspace or a fork,
+// every line as the login the computer was added with. Everything is read off
+// config and presence: no MCP server is asked, started or knocked on and no
+// login file is opened, so a read costs a handful of round trips. A server's
+// state is what its tools connect answers, asked apart from the read.
+import { userInfo } from "node:os";
+import { posix } from "node:path";
+import { CATALOG_AGENTS, MCP_AGENTS, TOOL_PREFIX, addressesToAsk, installsOnFirstRun, needsOwnCredential, serverValuesOf, harnessLine, signInRoadOf, versionOf, type AgentEntry, type McpAgent, type McpServer, type TurnServer } from "@wsp/catalog";
+import { detectPlugins, detectSkills, nodeHost, readCheckout, readTurnServers, skillRoots, stdioLine, tilde, type Host } from "@wsp/collect";
+import { landedServersScript, mcpRowId, NO_DIGEST, parseLandedServers, targetLogin, type TargetLogin } from "@wsp/engine";
+import { MCP_SERVER_NAME, agentVersionWord, cloudServerOffLine, compareVersions, controlNameRefusal, hasControlChar, shellQuote, strictVersion, takesMcpServers, type AgentRow, type AgentSignInState, type AgentsProject, type McpRow, type PlaceProvisionRow } from "@wsp/protocol";
+import { GUEST_WSP_MCP, harnessCatalog, projectOf, vaultSignIn, type AgentsOn, type AgentsRead, type AgentsReader } from "@wsp/runtime";
+import { machineHost, type MachineHost } from "./machine-host.js";
+import { bearerIn, resolveServer, serverTools, signInOf } from "./server-tools.js";
+import { signInProbes, type SignInProbes } from "./sign-in-probe.js";
+
+const READ_MS = 20_000;
+/** How long one agent's own version or status command is given where the computer has a timeout command. */
+const COMMAND_S = 15;
+
+/** Every place each agent's command answers from on the login PATH, in PATH order and tab-separated, one line per
+ * agent; empty where it is not there. */
+const WHERE = 'for b; do (IFS=:; for d in $PATH; do [ -f "$d/$b" ] && [ -x "$d/$b" ] && printf "%s\\t" "$d/$b"; done); echo; done';
+
+/** The app a wrapper folder on PATH belongs to, off the folder's name (`cmux-cli-shims`, `mise/shims`); nothing
+ * for a folder that is no wrapper's. */
+function wrapperApp(path: string): string | undefined {
+  const dirs = posix.dirname(path).split("/");
+  const dir = dirs.at(-1) ?? "";
+  if (!/shims$/.test(dir)) return undefined;
+  const app = dir.replace(/-?(cli-)?shims$/, "");
+  return (app !== "" ? app : dirs.at(-2))?.replace(/^\./, "");
+}
+
+/** Where an agent is installed off every match on PATH: the first that is no wrapper's, and the app whose wrapper
+ * answers before it. A wrapper alone leaves no path, since its folder is often a temporary one. */
+function installedAt(matches: readonly string[]): { found: boolean; path?: string; via?: string } {
+  const real = matches.find(m => wrapperApp(m) === undefined);
+  const via = matches[0] === undefined ? undefined : wrapperApp(matches[0]);
+  return { found: matches.length > 0, ...(real !== undefined ? { path: real } : {}), ...(via !== undefined ? { via } : {}) };
+}
+/** Each command run side by side under its own bound, then each one's exit code and output in the order asked. */
+export const eachScript = (seconds: number): string => [
+  'd=$(mktemp -d) || exit 1',
+  // macOS has no timeout command, and a probe that hung there outlived every batch until hundreds piled up
+  // (2026-10-06). perl stands in: it runs the probe in a process group of its own and kills that group at the bound,
+  // so the kill can only reach the probe and its children, and a probe that ends leaves nothing waiting.
+  `if command -v timeout >/dev/null 2>&1; then bound() { timeout ${seconds} "$@"; }`,
+  `elif command -v perl >/dev/null 2>&1; then bound() { perl -e '$t = shift; $p = fork; defined $p or exit 126; if (!$p) { setpgrp(0, 0); exec @ARGV or exit 127 } setpgrp($p, $p); $SIG{ALRM} = sub { kill 9, -$p; exit 137 }; alarm $t; waitpid($p, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' ${seconds} "$@"; }`,
+  'else bound() { "$@"; }; fi',
+  "i=0",
+  'for c; do ( bound sh -c "$c" > "$d/$i" 2>&1 < /dev/null; echo $? > "$d/$i.x" ) & i=$((i+1)); done',
+  "wait",
+  "i=0",
+  "for c; do printf '\\036%s\\037' \"$(cat \"$d/$i.x\" 2>/dev/null)\"; head -c 16384 \"$d/$i\" 2>/dev/null; i=$((i+1)); done",
+  'rm -rf "$d"',
+  "printf '\\036END\\n'",
+].join("\n");
+
+interface Said {
+  code: number;
+  output: string;
+}
+
+/** Each command's exit code and output, run on the target side by side; nothing for any where the run failed. */
+async function each(host: Host, commands: readonly string[]): Promise<(Said | undefined)[]> {
+  if (commands.length === 0) return [];
+  const out = await host.exec.run("sh", ["-c", eachScript(COMMAND_S), "sh", ...commands], { timeoutMs: READ_MS + 5_000 });
+  if (out === undefined) return commands.map(() => undefined);
+  const records = out.split("\x1e").slice(1, commands.length + 1);
+  return commands.map((_, i) => {
+    const [code, ...rest] = (records[i] ?? "").split("\x1f");
+    return code === undefined || code === "" || !/^\d+$/.test(code) ? undefined : { code: Number(code), output: rest.join("\x1f") };
+  });
+}
+
+/** The shown form of how a server is reached: its command with every value hidden, or its url's host. */
+function transportOf(server: McpServer, home: string): McpRow["transport"] {
+  const t = server.transport;
+  if (t.kind === "stdio") return { kind: "stdio", line: stdioLine(t, home) };
+  try {
+    return { kind: "http", host: new URL(t.url).host };
+  } catch {
+    return { kind: "http", host: "" };
+  }
+}
+
+/** A server's sign-in off its config alone: a command or a static header needs none, a token read from the
+ * environment is the environment's, anything else is unknown until its tools connect answers. */
+const authOf = (server: McpServer): McpRow["auth"] =>
+  server.transport.kind === "stdio" ? "open" : server.envRefs.length > 0 ? "env-key" : Object.keys(server.transport.headers).length > 0 ? "open" : "unknown";
+
+/** Names the definition sets, and those it reads that `held` holds; never a value, and a name nobody holds may be one
+ * written to read like a reference. */
+const envNamesOf = (server: McpServer, held: ReadonlySet<string>): string[] => [...new Set([...(server.transport.kind === "stdio" ? Object.keys(server.transport.env) : []), ...server.envRefs.filter(n => held.has(n))])].sort();
+
+const MCP_ORDER = new Map(MCP_AGENTS.map((a, i) => [a.id, i]));
+const byAgent = (a: Pick<McpRow, "agent">, b: Pick<McpRow, "agent">): number => MCP_ORDER.get(a.agent)! - MCP_ORDER.get(b.agent)!;
+
+interface Servers {
+  rows: McpRow[];
+  wsp: Set<string>;
+  refused: string[];
+}
+
+/** Every server a turn of each agent gets at home, and in each project the read covers, by the catalog's one
+ * resolver: the user scope and the home folder's own once, and each project's local and project servers under it. On
+ * a cloud machine (`brokered`, the probes that say which addresses ask for a sign-in) nothing signs in, and a server
+ * that needs the person's sign-in or key is off. */
+async function serversOf(host: Host, projects: readonly AgentsProject[], held: ReadonlySet<string>, brokered: SignInProbes | undefined): Promise<Servers> {
+  const found: { row: McpRow; server: McpServer }[] = [];
+  const wsp = new Set<string>();
+  const refused: string[] = [];
+  const push = (agent: McpAgent, servers: readonly TurnServer[], project?: AgentsProject): void => {
+    for (const { server: s, scope, file } of servers) {
+      if (hasControlChar(s.name)) {
+        const line = controlNameRefusal(tilde(host.home, file));
+        if (!refused.includes(line)) refused.push(line);
+        continue;
+      }
+      if (project === undefined && s.name === MCP_SERVER_NAME) wsp.add(agent.id);
+      const login = agent.mcp.login;
+      const signInLine = brokered === undefined && login !== undefined && "command" in login ? harnessLine(agent.id, login.command(s.name), { stores: host.stores, folder: project?.path }) : undefined;
+      const row: McpRow = {
+        agent: agent.id,
+        name: s.name,
+        scope: project === undefined ? (scope === "local" ? "home" : "user") : scope === "local" ? "local" : "project",
+        file: tilde(host.home, file),
+        transport: transportOf(s, host.home),
+        envNames: envNamesOf(s, held),
+        auth: authOf(s),
+        enabled: s.disabled !== true,
+        ...(project !== undefined ? { project: { ...project, path: tilde(host.home, project.path) } } : {}),
+        ...(signInLine !== undefined ? { signInLine } : {}),
+      };
+      found.push({ row, server: s });
+    }
+  };
+  // One read of each project's checkout, which every agent's servers there are keyed by.
+  const checkouts = projects.map(p => readCheckout(host, p.path));
+  await Promise.all(
+    MCP_AGENTS.map(async agent => {
+      const [mine, theirs] = await Promise.all([readTurnServers(host, agent, host.home, { own: true }), Promise.all(projects.map((p, i) => checkouts[i]!.then(checkout => readTurnServers(host, agent, p.path, { checkout }))))]);
+      push(agent, mine);
+      theirs.forEach((servers, i) => push(agent, servers.filter(s => s.scope !== "user"), projects[i]));
+    }),
+  );
+  if (brokered !== undefined) await brokered.ask(addressesToAsk(found.map(f => f.server)));
+  const rows = found.map(({ row, server }) => (brokered !== undefined && needsOwnCredential(server, brokered.known) ? { ...row, off: cloudServerOffLine(row.name) } : row));
+  return { rows: rows.sort((a, b) => byAgent(a, b) || a.scope.localeCompare(b.scope) || (a.project?.name ?? "").localeCompare(b.project?.name ?? "") || a.name.localeCompare(b.name)), wsp, refused };
+}
+
+/** What wsp's recipe job put into the agents' files on a computer you own, off the list it keeps beside the job;
+ * nothing where the list could not be read, which leaves every row's answer unsaid rather than no. */
+async function recipeServers(host: Host): Promise<Set<string> | undefined> {
+  const said = await host.exec.run("bash", ["-c", landedServersScript(host.home)], { timeoutMs: READ_MS });
+  return said === undefined ? undefined : new Set([...parseLandedServers(said)].filter(([, digest]) => digest !== NO_DIGEST).map(([id]) => id));
+}
+
+/** The vendor's command that brings an agent up to the newest version, where what stands is older; nothing where either
+ * version is not a plain release number, since two such words are never compared. */
+export function updateOf(row: Pick<AgentRow, "id" | "version">, latest: string | undefined): AgentRow["update"] {
+  const command = CATALOG_AGENTS.find(a => a.id === row.id)?.updateLine;
+  const have = strictVersion(row.version ?? "");
+  const to = strictVersion(latest ?? "");
+  return command !== undefined && have !== undefined && to !== undefined && compareVersions(have, to) < 0 ? { to, command } : undefined;
+}
+
+/** The wsp server a turn's launch hands each installed agent whose adapter takes servers on its launch, where no
+ * config of that agent names wsp already: a config's own row stays as it is, since the launch's server replaces it
+ * under the same name. */
+function launchRows(agents: readonly AgentEntry[], configured: ReadonlySet<string>): McpRow[] {
+  const line = [GUEST_WSP_MCP.command, ...GUEST_WSP_MCP.args].join(" ");
+  return agents
+    .filter(a => !configured.has(a.id) && takesMcpServers(harnessCatalog(a.id)))
+    .map(a => ({ agent: a.id, name: MCP_SERVER_NAME, scope: "user", launch: true, transport: { kind: "stdio", line }, envNames: [], auth: "open", enabled: true }));
+}
+
+/** The agents a computer's setup installed there itself, off its rows: one it found already there reads present. */
+const setupInstalled = (rows: readonly PlaceProvisionRow[] | undefined): Set<string> =>
+  new Set((rows ?? []).flatMap(r => (r.outcome === "installed" && r.id.startsWith("agents/") ? [r.id.slice("agents/".length)] : [])));
+
+/** A version read whose command exited non-zero. */
+const UNREAD = Symbol("unread");
+
+/** What a box's own report already says, which is read there once per dial and not asked again. */
+interface BoxSaid {
+  signIns?: Record<string, AgentSignInState>;
+  versions?: Record<string, string>;
+  setupRows?: readonly PlaceProvisionRow[];
+}
+
+/** The report off one Host. `box` carries what a computer you joined reported, which stands in for the version
+ * and sign-in reads; everywhere else each agent's own version flag and status command answer, run side by side.
+ * `launched` is a target whose turns are launched with the wsp server: any but this computer, where a session the
+ * person starts outside wsp reads only the config. `brokered` is a machine whose credentials the host keeps, with the
+ * probes that say which addresses ask for a sign-in. */
+export async function readAgents(host: Host, o: { user: string; vault: Readonly<Record<string, string>>; projects?: readonly AgentsProject[]; box?: BoxSaid; launched?: boolean; brokered?: SignInProbes; pluginStores?: Readonly<Record<string, string>> }): Promise<AgentsRead> {
+  const projects = o.projects ?? [];
+  const refused: string[] = [];
+  const agents: readonly AgentEntry[] = CATALOG_AGENTS;
+  // A plugin's skills are listed under the plugin's name and follow its switch, so the one find of every skill waits
+  // for the plugins, which read in two round trips.
+  // On this computer the plugins are read in the folders its own launches read, which is what the switch writes.
+  const plugins = detectPlugins(withStores(host, o.pluginStores), { projects });
+  const [where, servers, found, skills, recipe] = await Promise.all([
+    host.exec.run("sh", ["-c", WHERE, "sh", ...agents.map(a => a.bin)], { timeoutMs: READ_MS }),
+    serversOf(host, projects, new Set(Object.keys(o.vault)), o.brokered),
+    plugins,
+    plugins.then(p => skillRoots(host, { projects, plugins: p.agents })).then(roots => detectSkills(host, roots)),
+    o.box !== undefined ? recipeServers(host) : Promise.resolve(undefined),
+  ]);
+  if (where === undefined) refused.push("agents: the login PATH could not be read");
+  if (o.box !== undefined && recipe === undefined) refused.push("servers: the list of what wsp's recipe put there could not be read");
+  const lines = (where ?? "").split("\n");
+  const at = new Map(agents.map((a, i) => [a.id, installedAt((lines[i] ?? "").split("\t").filter(m => m !== ""))]));
+  const onPath = agents.filter(a => at.get(a.id)!.found);
+  // A command that installs its agent when run is never run here: a read bound at COMMAND_S would end the download it
+  // started, and every read after it would start it again.
+  const firstRun = await installsOnFirstRun(script => host.exec.run("sh", ["-c", script], { timeoutMs: READ_MS }), onPath.map(a => a.bin));
+  const installs = new Set(onPath.filter((_, i) => firstRun[i]).map(a => a.id));
+  const installed = onPath.filter(a => !installs.has(a.id));
+  const box = o.box;
+  const ours = setupInstalled(box?.setupRows);
+  const launch = o.launched === true ? launchRows(onPath, servers.wsp) : [];
+  const [versions, statuses] = await Promise.all([
+    box?.versions !== undefined ? Promise.resolve(installed.map(a => box.versions?.[a.id])) : each(host, installed.map(a => `${shellQuote(a.bin)} --version`)).then(r => r.map(s => (s === undefined ? undefined : s.code !== 0 ? UNREAD : s.output.split("\n")[0]))),
+    box !== undefined ? Promise.resolve([]) : each(host, installed.map(a => harnessLine(a.id, a.signIn.status?.typed ?? a.signIn.status?.command ?? "false", { stores: host.stores }))),
+  ]);
+  const rows: AgentRow[] = agents.map(a => {
+    const { found, path, via } = at.get(a.id)!;
+    const i = installed.indexOf(a);
+    const said = i < 0 ? undefined : versions[i];
+    const version = said === undefined || said === UNREAD || said.trim() === "" ? undefined : agentVersionWord(said);
+    const status = i < 0 ? undefined : statuses[i];
+    const pinned = a.latest === undefined ? undefined : strictVersion(versionOf(a.installRoad) ?? "");
+    const ownLogin = box === undefined && status !== undefined && a.signIn.status !== undefined && a.signIn.status.signedIn(status.output, status.code);
+    // An agent its first run has yet to install has no login of its own there, so the vault's key is all it has.
+    const signIn: AgentRow["signIn"] = box !== undefined ? (box.signIns?.[a.id] ?? "unknown") : installs.has(a.id) ? vaultSignIn(a.id, o.vault) : status === undefined ? "unknown" : ownLogin ? "signed-in" : vaultSignIn(a.id, o.vault);
+    // The status module's own words for how the login stands, which name a variable and never hold its value.
+    const signInDetail = ownLogin ? a.signIn.status?.detail?.(status!.output, new Map()) : undefined;
+    const signInKind = ownLogin ? a.signIn.status?.kind?.(status!.output) : undefined;
+    const signInPlan = ownLogin ? a.signIn.status?.plan?.(status!.output) : undefined;
+    return {
+      id: a.id,
+      name: a.name,
+      installed: found,
+      ...(version !== undefined ? { version } : {}),
+      ...(pinned !== undefined ? { pinned } : {}),
+      road: !found ? "none" : ours.has(a.id) ? "wsp" : path === undefined ? "shim" : path.startsWith(`${TOOL_PREFIX}/`) ? "wsp" : "own",
+      ...(installs.has(a.id) ? { installsOnFirstRun: true as const } : {}),
+      ...(said === UNREAD ? { versionUnread: true as const } : {}),
+      ...(path !== undefined ? { path: tilde(host.home, path) } : {}),
+      ...(via !== undefined ? { via } : {}),
+      signIn: !found ? "none" : signIn,
+      signInRoad: signInRoadOf(a.signIn),
+      wspTools: servers.wsp.has(a.id) || launch.some(r => r.agent === a.id),
+      ...(found && signInDetail !== undefined ? { signInDetail } : {}),
+      ...(found && signInKind !== undefined ? { signInKind } : {}),
+      ...(found && signInPlan !== undefined ? { signInPlan } : {}),
+    };
+  });
+  const all = [...launch, ...servers.rows].sort(byAgent);
+  // A server carried with a project is written down under the project's folder there, as the box holds it.
+  const folderOf = new Map(projects.map(p => [p.id, p.path]));
+  const rowId = (r: McpRow): string | undefined => (r.scope === "local" ? (r.project === undefined ? undefined : mcpRowId(r.agent, folderOf.get(r.project.id) ?? r.project.path, r.name)) : mcpRowId(r.agent, r.scope === "home", r.name));
+  const serverRows = recipe === undefined ? all : all.map(r => {
+    const id = r.scope === "project" || r.launch === true ? undefined : rowId(r);
+    return id === undefined ? r : { ...r, inRecipe: recipe.has(id) };
+  });
+  return {
+    home: host.home,
+    user: o.user,
+    agents: rows,
+    skills: skills.skills,
+    servers: serverRows,
+    plugins: found.plugins,
+    refused: [...refused, ...servers.refused, ...skills.refused, ...found.refused],
+    ...(o.projects !== undefined ? { projects: projects.map(p => ({ ...p, path: tilde(host.home, p.path) })) } : {}),
+  };
+}
+
+/** A Host pointed at the stores named, beside any it has. */
+export const withStores = (host: Host, stores: Readonly<Record<string, string>> | undefined): Host => (stores === undefined || Object.keys(stores).length === 0 ? host : { ...host, stores: { ...host.stores, ...stores } });
+
+/** What a read or a tools ask answers once its reader is closed, one cut short among them: the commands it ran were
+ * ended, so what they left says nothing of the agents. */
+export const READER_CLOSED = "this host is closing; it reads no agents and asks no server for its tools";
+
+/** The reader the runtime is wired with: this computer's own Host for this computer and a workspace on it, and
+ * machineHost for everything else, after one read of who its lines run as. A computer you joined hands a command
+ * its stdin, so the variables a started server is given ride there. Each server's tools answer is kept here. */
+export function agentsReader(o: {
+  vault: () => Readonly<Record<string, string>>;
+  here?: () => Host;
+  now?: () => number;
+  toolsMs?: number;
+  log?: (line: string) => void;
+  /** The login shell's environment on this computer, which a command server checked here runs with. */
+  loginEnv?: () => Promise<Readonly<Record<string, string>>>;
+  /** Each agent's newest version by id as this host last read it off its vendor; none leaves every row without one. */
+  latest?: () => Promise<Readonly<Record<string, string>>>;
+  /** By agent id, the text of the store that agent keeps its http servers' sign-ins in on this computer, read at each
+   * call; an agent with none sends no bearer from here. */
+  signInStores?: Readonly<Record<string, () => Promise<string | undefined>>>;
+  /** What says which remote addresses with no header ask for a sign-in; one asking from this host without it. */
+  probes?: SignInProbes;
+}): AgentsReader & { forget(key: string): void; close(): void } {
+  const probes = o.probes ?? signInProbes();
+  const brokeredOn = (on: AgentsOn): boolean => on.kind === "machine" && on.brokered === true;
+  /** Whether a server is off on a cloud machine, its address asked first where only the probe can tell. */
+  const offOnCloud = async (s: McpServer): Promise<boolean> => {
+    await probes.ask(addressesToAsk([s]));
+    return needsOwnCredential(s, probes.known);
+  };
+  const kept = serverTools({ now: o.now ?? Date.now, log: o.log ?? (line => console.warn(line)), ...(o.toolsMs !== undefined ? { deadlineMs: o.toolsMs } : {}) });
+  const closing = new AbortController();
+  const refuseClosed = (): void => {
+    if (closing.signal.aborted) throw new Error(READER_CLOSED);
+  };
+  const here = (): Host => {
+    const host = o.here?.() ?? nodeHost();
+    return { ...host, exec: { ...host.exec, run: (cmd, args, opts) => host.exec.run(cmd, args, { ...opts, signal: closing.signal }) } };
+  };
+  const hostOf = async (on: Exclude<AgentsOn, { kind: "here" }>): Promise<{ host: MachineHost; user: string; runAs?: string; login: TargetLogin }> => {
+    const login = await targetLogin(on.machine, on.kind === "box" ? on.login : {});
+    const host = machineHost(on.machine, login, on.kind === "box" ? { stdin: true } : { land: on.machine });
+    return { host: { ...host, ...(on.stores !== undefined ? { stores: on.stores } : {}), ...(on.kind === "machine" && on.seeds !== undefined ? { seeds: on.seeds } : {}) }, user: login.user, ...(login.runAs !== undefined ? { runAs: login.runAs } : {}), login };
+  };
+  const readOn = async (on: AgentsOn): Promise<AgentsRead> => {
+    if (on.kind === "here") {
+      const host = here();
+      return readAgents(host, { user: userInfo().username, vault: o.vault(), ...(on.projects !== undefined ? { projects: on.projects } : {}), ...(on.stores !== undefined ? { pluginStores: on.stores } : {}) });
+    }
+    const { host, user, runAs } = await hostOf(on);
+    const box = on.kind === "box" ? { ...(on.signIns !== undefined ? { signIns: on.signIns } : {}), ...(on.versions !== undefined ? { versions: on.versions } : {}), ...(on.setupRows !== undefined ? { setupRows: on.setupRows } : {}) } : undefined;
+    const read = await readAgents(host, { user, vault: o.vault(), launched: true, ...(brokeredOn(on) ? { brokered: probes } : {}), ...(on.projects !== undefined ? { projects: on.projects } : {}), ...(box !== undefined ? { box } : {}) });
+    return { ...read, refused: [...read.refused, ...host.refused], ...(runAs !== undefined ? { runAs } : {}) };
+  };
+  return {
+    read: async (on: AgentsOn, ask?: { latest?: boolean }) => {
+      refuseClosed();
+      // A failed ask costs the newest version alone, and the person's switch off asks nothing.
+      const none: Readonly<Record<string, string>> = {};
+      const [read, latest] = await Promise.all([readOn(on), ask?.latest === false ? none : (o.latest?.().catch(() => none) ?? none)]);
+      refuseClosed();
+      return {
+        ...read,
+        agents: read.agents.map(a => {
+          if (latest[a.id] === undefined) return a;
+          const update = a.installed ? updateOf(a, latest[a.id]) : undefined;
+          return { ...a, latest: latest[a.id], ...(update !== undefined ? { update } : {}) };
+        }),
+      };
+    },
+    tools: async (on, ask) => {
+      refuseClosed();
+      const host = on.kind === "here" ? here() : (await hostOf(on)).host;
+      const project = projectOf(on);
+      const env = on.kind === "here" ? await o.loginEnv?.() : undefined;
+      // A turn's servers get the vault's values, in its launch or its environment, so a reference reads them here too.
+      const values = { ...serverValuesOf(o.vault()), ...env };
+      return kept.tools(host, ask, { values, ...(project !== undefined ? { project } : {}), ...(env !== undefined ? { env } : {}), ...(brokeredOn(on) ? { off: offOnCloud } : {}) });
+    },
+    server: async (on, ask) => {
+      refuseClosed();
+      const project = projectOf(on);
+      if (on.kind !== "here") {
+        // A turn there gets the vault's values; nothing of this computer's login or its files is read for it.
+        const { host, login } = await hostOf(on);
+        const values = serverValuesOf(o.vault());
+        const found = await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}), ...(brokeredOn(on) ? { off: offOnCloud } : {}) });
+        const signIn = signInOf(host, ask.agent, ask.name, found.transport, found.cwd);
+        return { ...found, env: values, login, ...(signIn !== undefined ? { signIn } : {}) };
+      }
+      const env = (await o.loginEnv?.()) ?? {};
+      const values = { ...serverValuesOf(o.vault()), ...env };
+      const host = here();
+      const found = await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}) });
+      // A turn hands its servers the vault's values under the login's own; nothing of wsp's own reaches them.
+      const base = Object.fromEntries(Object.entries(values).filter(([k]) => !k.startsWith("WSP_")));
+      const signIn = signInOf(host, ask.agent, ask.name, found.transport, found.cwd);
+      const store = o.signInStores?.[ask.agent];
+      if (signIn === undefined || store === undefined) return { ...found, env: base };
+      return { ...found, env: base, signIn: { ...signIn, read: async () => bearerIn(await store(), signIn.bearer) } };
+    },
+    signsIn: async urls => {
+      // An address asked before with no answer is asked again behind the launch, so no launch waits on it twice.
+      void probes.ask(urls.filter(u => probes.tried(u)));
+      await probes.ask(urls.filter(u => !probes.tried(u)));
+      return probes.known;
+    },
+    forget: key => kept.forget(key),
+    close: () => closing.abort(),
+  };
+}

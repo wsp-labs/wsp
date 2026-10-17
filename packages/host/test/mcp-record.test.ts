@@ -1,0 +1,923 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// What the tool server in the daemon binary serves and says, recorded off this
+// package: the handshake's words and every tool as this server lists it, each
+// with WSP_CLOUD off and on, the sentences its dial and its aim refuse with,
+// the exit classes, the words it refuses bad arguments in, and one answer per
+// tool it serves, byte for byte, for its own contract test to replay, with the
+// ops each call asked. The Rust side reads these files and never a build of
+// this package, so a verb's
+// description or a refusal keeps one home, here, and a change to either fails
+// this suite until the record is written again.
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { PassThrough } from "node:stream";
+import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
+import { CATALOG, agentName } from "@wsp/catalog";
+import { SEAL_REFUSAL } from "@wsp/keys";
+import { CLOUD_ENV, cloudFromEnv, compareVersions, seedNotHereRefusal, seedSaveRefusal, placeSetRefusal, placeRenameRefusal, placeSshOtherRefusal, usageRefusal, type RefusalHalves, configDirSignInLine, EXIT_CODES, HERE_PLACE_ID, HOST_CLOSED_LINE, HOST_KEY_ENV, HOST_STOPPING_CLOSE, HOST_STOPPING_LINE, NOT_DELIVERED_LINE, HOST_TOKEN_ENV, HOST_URL_ENV, KIND_CLASS, TURN_TOKEN_ENV, LAUNCHED_WITH, LOOPBACK, SKILL_PREVIEW_BYTES, WS_PATH, isLoopback, isUrl, isWildcard, servedHostname, wsUrlOf, hostNoKeyLine, jsonLine, NEWER_TURN_LINE, noMessagesLine, noReplyLine, NO_TERMINAL_CONFIG_LINE, refusalLine, scopedNoPairLine, commandWords, authRefusal, deviceAuthOldHostLine, noSuchPlaceRefusal, pairKeyRefusal, problemListsOf, SEAL_CLIENT, unclosedQuoteRefusal, validatorRefusal, PROVIDER_KEY_WORDS, RecipeFile, type PendingComputer, type PlaceSpend, type PlaceView, type ServerToolsAnswer } from "@wsp/protocol";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { hostExitedLine, noHostAnsweredLine, startingHostLine, upArgs } from "../src/host-start.js";
+import { hostLogPath, hostTokenPath, lockPathFor, POLL_MS, SERVICE_WAIT_MS, STARTED_BY_ENV } from "../src/host-lock.js";
+import { deviceKeyPath, relayRecordPath } from "../src/account.js";
+import { PROBE_MS } from "../src/service.js";
+import { defaultHomeIn } from "../src/serving-home.js";
+import { addressNotPairedLine, aliasOk, deviceRefusedLine, dialWindowMs, hostsDir, NAME_ONE_HOST, noAnswerRefusal, noAnswerWithin, noSuchHostAmong, READ_THE_HOSTS, severalAccountHostsLine } from "../src/hosts.js";
+import { GUEST_SERVED } from "../src/guest-mcp.js";
+import { mcpServer, type Dialer } from "../src/mcp.js";
+import { recipeCases, TURN_ANSWERED, turnWords, type TurnCase } from "./mcp-record-turns.js";
+import { absolutePath, afterWorktreeLine, afterWorktreeBlankLine, AFTER_WORKTREE_BLANK_FIX, TRACKER_SHAPE_FIX, trackerShapeLine, trackersLine, DEFAULTS_LABELS, defaultsValueLine, noDefaultsAnsweredLine, RELEASE_WORDS, releaseRefusal, agentSetNothingLine, agentSetupNothingLine, defaultAgentLine, ENV_NAME_FIX, envNameLine, FROM_WORDS, newThreadsHeadLine, NOTHING_TO_SET_FIX, PICKER_WORDS, projectSetNothingLine, SETUP_WORDS, setupOnLine, startsOnLine, startsOnOwnLine, agentCopyWords, aimedBothLine, aimedUsage, c1Escaped, CLOSE_GRACE_MS, goneFromLine, hasTool, hostTokenMissingLine, isInAlsoLine, isInLine, noHostServingLine, noSkillHitsLine, notHeaderLine, otherVersion, PLACES_FIX, previewCutLine, projectOffComputerLine, projectScopeLine, projectUnnamedLine, SERVER_TOOL_COLUMNS, SKILL_HIT_COLUMNS, skillsShPlacelessLine, threadOf, toolLines, toolName, toolsAddedLine, toolsProjectBareLine, turnedInLine, turnedLine, UNAUTHORIZED_CLOSE, unsetVariableLine, VERBS, workspaceOf, type HostClient } from "../src/verbs.js";
+import { VERSION } from "../src/version.js";
+import { releaseLineOf, roadOf } from "../src/daemon-fix.js";
+
+/** Pairs of releases whose order the binary's own reading is held to. */
+const RELEASE_ORDER_SAMPLES: readonly (readonly [string, string])[] = [
+  ["0.2.0", "0.1.9"], ["0.1.10", "0.1.9"], ["0.2", "0.2.0"], ["1.0.0-rc.2", "1.0.0-rc.10"], ["1.0.0", "1.0.0-rc.1"],
+  ["1.0.0-alpha", "1.0.0-beta"], ["1.0.0+build.5", "1.0.0"], ["1.0.0-rc", "1.0.0-rc.1"], ["0.0.1", "0.2.0"],
+];
+
+/** Where the binary sits on each road, which it reads its road off: an npm install, the app's bundle, a checkout. */
+const RELEASE_ROAD_SAMPLES = [
+  "/usr/local/lib/node_modules/@wsp-labs/wsp/daemon/aarch64-apple-darwin/wsp-daemon",
+  "/Applications/wsp.app/Contents/Resources/daemon/wsp-daemon",
+  "/Users/dev/wsp/packages/wspx/daemon/aarch64-apple-darwin/wsp-daemon",
+];
+import { ADD_TOOL_FIX, ADD_TOOL_MS, addToolRefusal } from "../src/setup-follow.js";
+import { PLUGIN_KIND_WORDS, pluginTurnedWords } from "../src/verbs/agents-help.js";
+import { WORKSPACE_ANSWERED, workspaceWords } from "./mcp-record-workspaces.js";
+import { SLATE_ANSWERED } from "./mcp-record-slates.js";
+import { READS } from "./mcp-record-reads.js";
+
+const CRATE = fileURLToPath(new URL("../../../daemon/crates/wsp-mcp/", import.meta.url));
+const RECORD = join(CRATE, "record");
+const ANSWERS = join(CRATE, "tests", "answers");
+/** The record's files beside the answers. */
+const RECORDED_FILES = ["refusals.json", "sealed.json", "release.json"];
+
+/** Every file the record holds, by its path under the crate, with the text it must hold. */
+type Files = Map<string, string>;
+
+const fileText = (value: unknown): string => `${jsonLine(value, 2)}\n`;
+
+/** A client on this package's server with no host behind it: what it lists, and what it refuses before a tool runs. */
+async function withServer<T>(use: (client: Client) => Promise<T>): Promise<T> {
+  const server = mcpServer("/nonexistent/state.json", { env: {} });
+  const [toClient, toServer] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "record", version: "0" });
+  await server.connect(toServer);
+  await client.connect(toClient);
+  try {
+    return await use(client);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}
+
+/** What this package's server lists and greets with in one state of WSP_CLOUD, and what a thread's own server greets
+ * with. The flag is read once as each module loads, so the modules are loaded afresh under it. */
+async function servedIn(cloud: boolean): Promise<{ instructions: string; scoped: string; scopedNoSlate: string; tools: Record<string, unknown>[] }> {
+  vi.resetModules();
+  vi.stubEnv(CLOUD_ENV, cloud ? "1" : "");
+  try {
+    const { mcpServer: fresh } = await import("../src/mcp.js");
+    const greeted = async (scoped: boolean, noSlate = false): Promise<{ instructions: string; tools: Record<string, unknown>[] }> => {
+      const server = fresh("/nonexistent/state.json", { env: {}, scoped, noSlate });
+      const [toClient, toServer] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "record", version: "0" });
+      await server.connect(toServer);
+      await client.connect(toClient);
+      const said = { instructions: client.getInstructions() ?? "", tools: (await client.listTools()).tools as Record<string, unknown>[] };
+      await client.close();
+      await server.close();
+      return said;
+    };
+    const { instructions, tools } = await greeted(false);
+    return { instructions, scoped: (await greeted(true)).instructions, scopedNoSlate: (await greeted(true, true)).instructions, tools };
+  } finally {
+    vi.unstubAllEnvs();
+  }
+}
+
+/** Arguments the validator refuses before a tool runs, one per shape the tools' inputs take: a wrong type on each kind
+ * of field, a missing required field, a list too short, an item of the wrong type, an integer that is a fraction or
+ * past its bounds, a number at its exclusive bound, a word no enum holds, and a value neither side of a union takes. */
+const REFUSED: readonly [string, Record<string, unknown>][] = [
+  ["threads", { project: 5 }],
+  ["run", {}],
+  ["run", { project: "w", message: 3, agent: true }],
+  ["run", { project: {}, message: [] }],
+  ["run", { message: "m", branch: 7 }],
+  ["exec", { thread: "t", argv: [] }],
+  ["exec", { thread: "t", argv: [1, "a", null] }],
+  ["exec", { thread: "t", argv: "ls" }],
+  ["exec", { workspace: "w", argv: ["ls"] }],
+  ["commit", { workspace: "w" }],
+  ["stop", { thread: null }],
+  ["stop", { thread: "t", subagent: 3 }],
+  ["delete", { thread: "w", confirm: "yes" }],
+  ["delete", { thread: 3 }],
+  ["worktree", { project: "p" }],
+  ["worktree_remove", { project: "p", branch: "b", force: "yes" }],
+  ["computers_set", { computer: "attic", nap: 2.5 }],
+  ["computers_set", { computer: "attic", nap: -1 }],
+  ["computers_set", { computer: "attic", nap: 181 }],
+  ["computers_set", { computer: "attic", spawn: "yes" }],
+  ["computers_set", { computer: "attic", turn_limit: 1.5 }],
+  ["computers_set", { computer: "attic", turn_limit: -1 }],
+  ["computers_set", { computer: "attic", turn_limit: 25 }],
+  ["computers_set", { computer: "boat", size: "big" }],
+  ["computers_set", { computer: "boat", size: 4 }],
+  ["computers_set", { computer: "boat", delete_after: 1441 }],
+  ["computers_set", { computer: "boat", delete_after: 2.5 }],
+  ["skills_search", { query: "q", limit: 0 }],
+  ["skills_search", { query: "q", limit: 1000 }],
+  ["threads_wait", { threads: [] }],
+  ["threads_wait", { threads: ["t"], timeout: 0 }],
+  ["skills_show", { skill: "x", project: 3 }],
+  ["recipe", { set: [1] }],
+];
+
+/** Each refusal as the text this package's server answers it with. */
+const refusals = (): Promise<{ tool: string; arguments: Record<string, unknown>; text: string }[]> =>
+  withServer(async client => {
+    const said = [];
+    for (const [tool, args] of REFUSED) {
+      const result = await client.callTool({ name: tool, arguments: args });
+      const text = (result.content as { text: string }[])[0]!.text;
+      if (!text.includes("Input validation error")) throw new Error(`${tool} ${JSON.stringify(args)} was not refused before it ran: ${text}`);
+      said.push({ tool, arguments: args, text });
+    }
+    return said;
+  });
+
+/** Command lines held to the split a server's command is sent as, each with the words it splits into, or null where a
+ * quote is never closed: quotes of both kinds, escapes in and out of them, and the spaces JavaScript's \s takes. */
+const COMMAND_LINES = [
+  String.raw`npx -y '@scope/pkg ${"$"}{X}' "a \"b\" \\ \n" c\ d` + "\te",
+  "  lead  trail  ",
+  "''",
+  '""x',
+  "a''b",
+  '"open',
+  "'open",
+  "end\\",
+  "end\\\\",
+  "",
+  "nbsp\u00a0split nel\u0085kept bom\ufeffsplit em\u2003split line\u2028split",
+];
+
+/** What a call throws, as its sentence. */
+async function thrown(call: () => Promise<unknown>): Promise<string> {
+  try {
+    await call();
+  } catch (e) {
+    return (e as Error).message;
+  }
+  throw new Error("the call did not refuse");
+}
+
+/** The text a tool answers one call with against a host that answers each op with its recorded frame. */
+async function toolText(tool: string, args: Record<string, unknown>, replies: Record<string, string>): Promise<string> {
+  const line = JSON.parse((await answeredLine(tool, args, replies)).line) as { result: { content: { text: string }[] } };
+  return line.result.content[0]!.text;
+}
+
+const session = (id: string) => ({ id, workspaceId: "w", harness: "claude", status: "completed" });
+
+/** The sentences in the shape the Rust side fills: each `{name}` is a value it knows only at the time it says it.
+ * A sentence whose words depend on a count is recorded through a stand-in list that answers the placeholders, and
+ * one written inside a verb is recorded off the verb's own answer to a call that makes it say it. A refusal's fix is
+ * `{usage}`, which the tool fills with its own. */
+async function words(): Promise<Record<string, unknown>> {
+  const standIn = { length: "{count}", join: () => "{aliases}" } as unknown as string[];
+  const tools = (answer: Partial<ServerToolsAnswer>): string[] => toolLines("{name}", { auth: "{auth}" as ServerToolsAnswer["auth"], readAt: "", ...answer });
+  const answering = (replies: Record<string, string>): HostClient => answeringHost(replies, []);
+  return {
+    noHostServing: noHostServingLine("{state}"),
+    hostTokenMissing: hostTokenMissingLine("{path}"),
+    noAnswer: noAnswerRefusal("{where}", "{why}").message,
+    noAnswerWithin: noAnswerWithin("{where}", "{ms}" as unknown as number).message,
+    hostClosed: HOST_CLOSED_LINE,
+    hostStopping: HOST_STOPPING_LINE,
+    notDelivered: NOT_DELIVERED_LINE,
+    noSuchHostNone: refusalLine(noSuchHostAmong("{alias}", []), READ_THE_HOSTS),
+    noSuchHostSome: refusalLine(noSuchHostAmong("{alias}", ["{known}"]), READ_THE_HOSTS),
+    severalHosts: refusalLine(severalAccountHostsLine(standIn), NAME_ONE_HOST),
+    addressNotPaired: refusalLine(addressNotPairedLine("{url}"), READ_THE_HOSTS),
+    hostNoKey: hostNoKeyLine("{where}"),
+    launchedWith: LAUNCHED_WITH,
+    deviceRefused: deviceRefusedLine("{alias}"),
+    pairKey: pairKeyRefusal("{url}"),
+    deviceAuthOldHost: deviceAuthOldHostLine("{where}"),
+    scopedNoPair: scopedNoPairLine,
+    startingHost: startingHostLine("{state}", "{log}"),
+    noHostAnswered: noHostAnsweredLine("{state}", SERVICE_WAIT_MS),
+    hostExited: hostExitedLine("{state}", "{ended}", "{log}"),
+    herePlaceId: HERE_PLACE_ID,
+    agentNames: Object.fromEntries(CATALOG.map(e => [e.id, agentName(e.id)])),
+    // The binary fills these and picks its road's line off its own path, held to the node line's reading by roadSamples.
+    release: {
+      said: RELEASE_WORDS.said("{mine}", "{host}", "{theirs}"),
+      hostHere: RELEASE_WORDS.hostHere("{state}"),
+      hostAt: RELEASE_WORDS.hostAt("{where}"),
+      restart: RELEASE_WORDS.restart,
+      reopenApp: RELEASE_WORDS.reopenApp("{mine}"),
+      restartUp: RELEASE_WORDS.restartUp,
+      initFinish: RELEASE_WORDS.initFinish,
+      updateThere: RELEASE_WORDS.updateThere("{mine}"),
+      updateHere: RELEASE_WORDS.updateHere("{line}", "{theirs}"),
+      roads: Object.fromEntries((["npm", "app", "checkout"] as const).map(road => [road, releaseLineOf(road, "{version}")])),
+      roadSamples: Object.fromEntries(RELEASE_ROAD_SAMPLES.map(path => [path, roadOf({ argv: [process.execPath, path] })])),
+      orderSamples: RELEASE_ORDER_SAMPLES.map(([a, b]) => [a, b, Math.sign(compareVersions(a, b))]),
+    },
+    noSuchPlace: noSuchPlaceRefusal("{word}", ["{held}"]),
+    placesFix: PLACES_FIX,
+    aimedUsage: aimedUsage("{tool}"),
+    aimedBoth: refusalLine(aimedBothLine, "{usage}"),
+    projectUnnamed: refusalLine(projectUnnamedLine, "{usage}"),
+    projectOffComputer: refusalLine(projectOffComputerLine("{value}"), "{usage}"),
+    toolsProjectBare: refusalLine(toolsProjectBareLine, "{usage}"),
+    skillsShPlaceless: refusalLine(skillsShPlacelessLine("{skill}"), "{usage}"),
+    unsetVariable: refusalLine(unsetVariableLine("{variable}"), "{usage}"),
+    notHeader: refusalLine(notHeaderLine("{pair}"), "{usage}"),
+    unclosedQuote: refusalLine(unclosedQuoteRefusal, "{usage}"),
+    projectScope: refusalLine(projectScopeLine("{scope}"), "{usage}"),
+    noSkillHits: noSkillHitsLine,
+    skillHitColumns: SKILL_HIT_COLUMNS,
+    previewBytes: SKILL_PREVIEW_BYTES,
+    previewCut: previewCutLine("{kb}" as unknown as number),
+    isIn: isInLine("{name}", "{path}"),
+    isInAlso: isInAlsoLine("{name}", "{path}", "{copies}"),
+    agentCopy: agentCopyWords("{agent}", "{path}"),
+    goneFrom: goneFromLine("{name}", "{from}"),
+    turnedOn: turnedLine("{name}", true),
+    turnedOff: turnedLine("{name}", false),
+    turnedOnIn: turnedInLine("{name}", true, "{file}"),
+    turnedOffIn: turnedInLine("{name}", false, "{file}"),
+    pluginTurnedOn: pluginTurnedWords("{id}", true, "{agent}"),
+    pluginTurnedOff: pluginTurnedWords("{id}", false, "{agent}"),
+    pluginKinds: PLUGIN_KIND_WORDS.map(([kind, one, many]) => [kind, one, many]),
+    toolsAdded: toolsAddedLine("{agent}", "{file}"),
+    serverToolsHead: tools({})[0],
+    serverToolsHeld: tools({ holder: "{holder}" })[0],
+    serverToolsRefused: tools({ refused: "{refused}" })[1],
+    serverToolsNone: tools({ tools: [] })[1],
+    serverToolColumns: SERVER_TOOL_COLUMNS,
+    commandWords: Object.fromEntries(COMMAND_LINES.map(line => [line, commandWords(line) ?? null])),
+    hostWouldNotRead: refusalLine(validatorRefusal(JSON.stringify([{ code: "custom", path: [] }]))!, "usage: {usage}"),
+    bothTargets: Object.fromEntries(await Promise.all(["agents", "skills", "servers", "plugins"].map(async tool => [tool, await toolText(tool, { thread: "w", on: "c" }, {})]))),
+    folderHere: await toolText("folders", { folder: "{path}" }, {}),
+    folderOn: await toolText("folders", { folder: "{path}", on: "{name}" }, { "places.list": reply({ places: [{ id: "p", kind: "computer", name: "{name}" }] }) }),
+    noThread: await thrown(() => threadOf(answering({ "sessions.list": reply({ sessions: [] }) }), "{ref}")),
+    threadsStartWith: (await thrown(() => threadOf(answering({ "sessions.list": reply({ sessions: [session("{ref}a"), session("{ref}b")] }) }), "{ref}"))).replace(/^2 /, "{count} "),
+    noMessages: noMessagesLine("{thread}"),
+    noReply: noReplyLine("{thread}"),
+    newerTurn: NEWER_TURN_LINE,
+    noTerminalConfig: NO_TERMINAL_CONFIG_LINE,
+    add: { refused: refusalLine(addToolRefusal("{word}"), ADD_TOOL_FIX), providers: Object.keys(PROVIDER_KEY_WORDS), ceilingMs: ADD_TOOL_MS },
+    providerNames: Object.fromEntries(Object.entries(PROVIDER_KEY_WORDS).map(([id, row]) => [id, row.name])),
+    usages: Object.fromEntries(VERBS.filter(hasTool).flatMap(v => ("usage" in v ? [[toolName(v.name), v.usage]] : []))),
+    defaults: {
+      agentSetNothing: refusalLine(agentSetNothingLine, NOTHING_TO_SET_FIX),
+      agentSetupNothing: refusalLine(agentSetupNothingLine, NOTHING_TO_SET_FIX),
+      projectSetNothing: refusalLine(projectSetNothingLine, NOTHING_TO_SET_FIX),
+      afterWorktreeBlank: refusalLine(afterWorktreeBlankLine, AFTER_WORKTREE_BLANK_FIX),
+      trackerShape: refusalLine(trackerShapeLine("{word}"), TRACKER_SHAPE_FIX).replace(JSON.stringify("{word}"), "{quoted}"),
+      defaultAgent: defaultAgentLine("{agent}"),
+      startsOwn: startsOnOwnLine("{agent}"),
+      startsOn: startsOnLine("{agent}", "{said}"),
+      hides: PICKER_WORDS.hide("{models}"),
+      listsFirst: PICKER_WORDS.order("{models}"),
+      adds: PICKER_WORDS.custom("{models}"),
+      envName: refusalLine(envNameLine("{named}", "{quoted}"), ENV_NAME_FIX),
+      configAbsolute: (await thrown(async () => absolutePath("--config is a folder on that computer", "{path}"))).replace(JSON.stringify("{path}"), "{quoted}"),
+      setupOn: setupOnLine("{name}", true),
+      setupOff: setupOnLine("{name}", false),
+      setup: SETUP_WORDS,
+      signInAgain: `${configDirSignInLine("{agent}")}.`,
+      newThreadsHead: newThreadsHeadLine("{project}"),
+      afterWorktree: afterWorktreeLine("{command}"),
+      trackers: trackersLine(["{trackers}"]),
+      from: FROM_WORDS,
+      noDefaultsAnswered: noDefaultsAnsweredLine("{project}"),
+      labels: DEFAULTS_LABELS,
+      valueLine: defaultsValueLine("{label}", "{value}", "{from}"),
+    },
+  };
+}
+
+/** Where the host the tool server dials is found and how long each step waits: the files beside the state and under
+ * the wsp home, read by name off a state and a home at the root, the variables that aim a line, and the numbers the
+ * dial and a start wait by. Probes for the alias rule ride along, each with the answer the rule here gives it. */
+function host(): Record<string, unknown> {
+  const beside = (path: string): string => relative("/state", path);
+  return {
+    files: { lock: beside(lockPathFor("/state/state.json")), token: beside(hostTokenPath("/state/state.json")), log: beside(hostLogPath("/state/state.json")), relay: beside(relayRecordPath("/state/state.json")), hosts: relative("/home", hostsDir("/home")), home: relative("/user", defaultHomeIn("/user")), deviceKey: relative("/home", deviceKeyPath("/home")) },
+    env: { host: "WSP_HOST", home: "WSP_HOME", url: HOST_URL_ENV, token: HOST_TOKEN_ENV, key: HOST_KEY_ENV, startedBy: STARTED_BY_ENV, cloud: CLOUD_ENV },
+    clouds: Object.fromEntries(["1", "", "0", "true", " 1"].map(word => [word, cloudFromEnv({ [CLOUD_ENV]: word })])),
+    startedBy: "verb",
+    wsPath: WS_PATH,
+    nearWindowMs: dialWindowMs({ kind: "here" }),
+    farWindowMs: dialWindowMs({ kind: "url", url: "https://far.example" }),
+    closeGraceMs: CLOSE_GRACE_MS,
+    unauthorizedClose: UNAUTHORIZED_CLOSE,
+    stoppingClose: HOST_STOPPING_CLOSE,
+    startWaitMs: SERVICE_WAIT_MS,
+    upArgs: upArgs("{state}"),
+    pollMs: POLL_MS,
+    probeMs: PROBE_MS,
+    loopback: LOOPBACK,
+    sealClient: SEAL_CLIENT,
+    sealRefusal: SEAL_REFUSAL,
+    loopbacks: Object.fromEntries(["localhost", "::1", "[::1]", "127.0.0.1", "127.1.2.3", "127.0.0.1.2", "10.0.0.1", "example.com", "0.0.0.0"].map(word => [word, isLoopback(word)])),
+    wildcards: Object.fromEntries(["0.0.0.0", "::", "127.0.0.1", "::1", ""].map(word => [word, isWildcard(word)])),
+    urls: Object.fromEntries(
+      ["http://127.0.0.1:4000", "https://box.example.com/", "HTTPS://Box.Example.com:443/pre/fix//", "ws://[::1]:9/", "wss://h.example:8443/a?b=c#d", "http://user:pw@host.example:80/x", "box.example.com", "ftp://x.example"].map(word => [word, { isUrl: isUrl(word), hostname: servedHostname(word) ?? null, ws: isUrl(word) ? wsUrlOf(word) : null }]),
+    ),
+    aliases: Object.fromEntries(["attic", "A.b_c-9", "9lives", "-lead", ".dot", "a..b", "a/b", "a b", "", "x".repeat(64), "x".repeat(65)].map(alias => [alias, aliasOk(alias)])),
+  };
+}
+
+/** What the host answers an op the case gave no reply, after the op's name. */
+const NOT_IN_RECORD = "is not in this record";
+/** Every op a recorded call asked with no reply: a refusal no host sends, which a `.catch` can hide in its line. */
+const unanswered: string[] = [];
+
+/** A host as far as one tool call asks it: each op answered with the frame a host would send, parsed as the dial
+ * parses it, a refusal thrown with its kind as the dial throws it; the frame under `<op> #<n>` answers that op's nth
+ * ask where a case names one, so two records read through one op can differ. Each op it is asked lands in `asked` with its
+ * fields as they cross the socket. The frames `pushed` names for an op reach every listener while it is under way,
+ * before its reply, and after the reply to `closes` the host lets the socket go as it stops. */
+function answeringHost(replies: Record<string, string>, asked: Record<string, unknown>[], pushed: Record<string, string[]> = {}, closes?: string): HostClient & { gone(): boolean } {
+  type Frame = Parameters<Parameters<HostClient["onFrame"]>[0]>[0];
+  const listeners = new Set<(f: Frame) => void>();
+  let code: number | undefined;
+  let close: (code: number) => void = () => {};
+  const closed = new Promise<number>(done => (close = done));
+  const seen = new Map<string, number>();
+  return {
+    request: async <T extends Record<string, unknown>>(op: string, params: Record<string, unknown> = {}): Promise<T> => {
+      const nth = (seen.get(op) ?? 0) + 1;
+      seen.set(op, nth);
+      const fields = JSON.parse(JSON.stringify({ op, ...params })) as Record<string, unknown>;
+      // A start's request id is minted fresh on every call, so it is noted as the one stand-in both sides write.
+      if ("requestId" in fields) fields["requestId"] = "<request id>";
+      asked.push(fields);
+      const answer = replies[`${op} #${nth}`] ?? replies[op];
+      if (answer === undefined) unanswered.push(`${op} #${nth}, beside ${Object.keys(replies).join(", ") || "no replies"}`);
+      const frame = JSON.parse(answer ?? JSON.stringify({ ok: false, error: `${op} ${NOT_IN_RECORD}` })) as Record<string, unknown>;
+      for (const f of pushed[op] ?? []) for (const fn of [...listeners]) fn(JSON.parse(f) as Frame);
+      if (op === closes) {
+        setImmediate(() => {
+          code = HOST_STOPPING_CLOSE;
+          close(HOST_STOPPING_CLOSE);
+        });
+      }
+      if (frame["ok"] !== true) throw Object.assign(new Error(String(frame["error"])), typeof frame["kind"] === "string" ? { kind: frame["kind"] } : {}, problemListsOf(frame));
+      return frame as T;
+    },
+    events: async () => {},
+    onFrame: fn => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    closed,
+    closeWords: () => (code === HOST_STOPPING_CLOSE ? HOST_STOPPING_LINE : HOST_CLOSED_LINE),
+    close: () => {},
+    terminate: () => {},
+    gone: () => code !== undefined,
+  };
+}
+
+/** This package's server and its escape as a process with the cloud on loads them: the flag is read once as each
+ * module loads, so they are loaded afresh under it, once. */
+let cloudModules: Promise<{ mcpServer: typeof mcpServer; c1Escaped: typeof c1Escaped }> | undefined;
+function modulesIn(cloud: boolean): Promise<{ mcpServer: typeof mcpServer; c1Escaped: typeof c1Escaped }> {
+  if (!cloud) return Promise.resolve({ mcpServer, c1Escaped });
+  cloudModules ??= (async () => {
+    vi.resetModules();
+    vi.stubEnv(CLOUD_ENV, "1");
+    try {
+      const [{ mcpServer: fresh }, { c1Escaped: escaped }] = [await import("../src/mcp.js"), await import("../src/verbs.js")];
+      return { mcpServer: fresh, c1Escaped: escaped };
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  })();
+  return cloudModules;
+}
+
+/** The one line this server writes on stdio for one call against that host, through the same escaping the real one
+ * writes through with the cloud off unless `cloud` says it is on, and every op the call asked the host; a host that
+ * went is dialled again as a fresh one. With
+ * `result`, the tool answers that and asks nothing, for a tool whose answer is read off this computer rather than off
+ * a host. */
+async function answeredLine(
+  tool: string,
+  args: Record<string, unknown>,
+  replies: Record<string, string>,
+  extra: Pick<TurnCase, "pushed" | "closes" | "env" | "cloud"> & { result?: Record<string, unknown>; refused?: Error; guest?: boolean } = {},
+): Promise<{ line: string; asked: Record<string, unknown>[] }> {
+  const { mcpServer, c1Escaped } = await modulesIn(extra.cloud === true);
+  const asked: Record<string, unknown>[] = [];
+  let host = answeringHost(replies, asked, extra.pushed, extra.closes);
+  const dial = Object.assign(
+    async () => {
+      if (extra.refused !== undefined) throw extra.refused;
+      if (host.gone()) host = answeringHost(replies, asked, extra.pushed, extra.closes);
+      return host;
+    },
+    { close: async () => {} },
+  ) as Dialer;
+  const verb = VERBS.filter(hasTool).find(v => toolName(v.name) === tool);
+  // A session from inside a machine is served as the host's guest kind serves it, on the launch's own variables alone.
+  const guest = extra.guest === true;
+  const answered = guest && verb !== undefined && GUEST_SERVED.skip(verb) ? undefined : extra.result;
+  // The guest door opens no session without a token, and the session's launch always carries it.
+  const env = guest ? { [HOST_TOKEN_ENV]: "guest-token", ...Object.fromEntries(Object.entries(extra.env ?? {}).filter(([key]) => GUEST_ENV.includes(key))) } : (extra.env ?? {});
+  const skip = (v: (typeof VERBS)[number]): boolean => (answered !== undefined && v === verb) || (guest && GUEST_SERVED.skip(v));
+  // A server on this computer runs in some folder, as the binary does; one in no project reads the list and finds none.
+  const server = mcpServer("/nonexistent/state.json", { env, dial, skip, ...(guest ? { elsewhere: GUEST_SERVED.elsewhere } : { cwd: tmpdir() }) });
+  if (answered !== undefined && verb !== undefined) {
+    server.registerTool(tool, { description: verb.tool.description, inputSchema: verb.tool.input, outputSchema: verb.tool.output }, async () => answered as never);
+  }
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let written = "";
+  output.on("data", (chunk: Buffer) => (written += chunk.toString("utf8")));
+  await server.connect(new StdioServerTransport(input, c1Escaped(output)));
+  input.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: tool, arguments: args } })}\n`);
+  for (let waited = 0; !written.includes("\n") && waited < 5_000; waited += 10) await new Promise(r => setTimeout(r, 10));
+  await server.close();
+  return { line: written.slice(0, written.indexOf("\n")), asked };
+}
+
+/** What a guest session's tools read their values off: the pair its launch carries and the turn's token. */
+const GUEST_ENV: readonly string[] = [HOST_URL_ENV, HOST_TOKEN_ENV, TURN_TOKEN_ENV];
+
+/** A case answered as a session from inside a machine is answered, kept only where it is not the host road's answer. */
+function withGuest<T extends { line: string; asked: Record<string, unknown>[] }>(answer: T, guest: { line: string; asked: Record<string, unknown>[] }): T | (T & { guest: typeof guest }) {
+  return guest.line === answer.line && JSON.stringify(guest.asked) === JSON.stringify(answer.asked) ? answer : { ...answer, guest };
+}
+
+/** Rows that carry what a byte compare has to survive: a C1 control and DEL, a quote, a backslash, a newline, text
+ * past ASCII, a key a JavaScript object orders first because it reads as an index, a fraction that prints long. */
+const PLACE: PlaceView = {
+  id: "place-9",
+  kind: "computer",
+  name: "attic",
+  label: "zingzy's \u0085box\u007f \"one\" \\ two\nthree 🧪",
+  default: false,
+  os: "linux",
+  shape: { cpu: 8, memMb: 16384 },
+  diskFreeBytes: 123456789012,
+  present: true,
+  agentVersions: { claude: "2.1.0", "2": "an index key" },
+  forks: { running: 1, room: 2 },
+};
+const CLOUD: PlaceView = { id: "place-solari", kind: "provider", name: "solari", default: true, rateUsdPerHour: 0.1 + 0.2 };
+/** Boat's row as the owner's plan reads it, with the size and the delete delay a sub-thread's machine takes. */
+const BOAT: PlaceView = {
+  id: "box",
+  kind: "provider",
+  name: "box",
+  default: false,
+  rateUsdPerHour: 0.018,
+  sizes: [
+    { cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
+    { cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
+    { cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+  ],
+  plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"] },
+  starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
+  size: { cpu: 2, memMb: 4096 },
+  sizeDefault: { cpu: 2, memMb: 4096 },
+  deleteAfterMs: 1_800_000,
+};
+/** A second computer the person added, holding the name a rename of the first asks for. */
+const SPOO: PlaceView = { id: "place-7", kind: "computer", name: "spoo", default: false, present: true };
+const SPEND: PlaceSpend = { place: "place-solari", todayUsd: 1.25, monthUsd: 30, rateUsdPerHour: 0.035 };
+
+const reply = (body: Record<string, unknown>): string => JSON.stringify({ id: 1, ok: true, ...body });
+
+const refused = (error: string, kind?: string): string => JSON.stringify({ id: 1, ok: false, error, ...(kind !== undefined ? { kind } : {}) });
+/** A usage refusal as the host sends one, its fix half beside the line it ends. */
+const refusedHalves = (said: RefusalHalves): string => JSON.stringify({ id: 1, ok: false, error: usageRefusal(said.happened, said.fix).message, kind: "usage", fix: said.fix });
+
+/** A refusal as the host sends one off the error the runtime threw: its line, its kind and its fix half. */
+const refusedError = (e: Error): string => JSON.stringify({ id: 1, ok: false, error: e.message, kind: (e as { kind?: string }).kind, fix: (e as { fix?: string }).fix });
+
+/** Two rows of a seed menu: an environment file and a package tree. */
+const SEED_ENV = { path: ".env", dir: false, bytes: 1_126, kind: "config", why: "environment file", picked: false };
+const SEED_MODULES = { path: "node_modules", dir: true, bytes: 831_520_768, kind: "rebuilt", why: "rebuilt on the box", picked: false };
+
+/** The calls recorded per tool, each a case name, the arguments and what the host answered each op with. */
+type Answered = Record<string, TurnCase[]>;
+
+/** A workspace and a computer a tool aims at by name. */
+const WORKSPACE = { id: "ws_1", name: "landing", machineId: "m1", phase: "running", golden: "snap_gold", createdAt: "2026-09-25T00:00:00.000Z", project: { id: "pr_1", name: "api", path: "/root/api", computer: "place-9" } };
+/** The thread the aimed cases name, on WORKSPACE. */
+const AIMED_THREAD = reply({ sessions: [{ id: "s-1", workspaceId: WORKSPACE.id, harness: "claude", status: "completed", threadId: "t-landing \u0085" }] });
+const AIMED = { "sessions.list": AIMED_THREAD, "workspaces.get": reply({ workspace: WORKSPACE }), "places.list": reply({ places: [PLACE, CLOUD] }) };
+const PLACES_LIST = reply({ places: [PLACE, CLOUD] });
+/** One plugin's row as the host answers it: its fields out of a parse's order, with words a person reads. */
+const PLUGIN_ROW = { on: true, id: "brag@brag", agent: "claude", name: "brag", marketplace: "brag", scope: "user", version: "0.4.0", path: "~/.claude/plugins/cache/brag/brag/0.4.0", description: "Turn a project into a launch video \u0085 🧪", source: "latent-spaces/brag", brings: { skills: ["brag:brag", "brag:brag-slim"], commands: [], subagents: [], hooks: [], servers: [], lsp: [], apps: [] } };
+
+const RECIPE = { name: "laptop \u0085 \"one\" 🧪", slug: "laptop-one", summary: "2 agents, 1 CLI", machines: ["attic"], file: RecipeFile.parse({ name: "laptop \u0085 \"one\" 🧪", agents: { claude: { signin: "vault" }, codex: { signin: "machine" } }, clis: { "cargo-nextest": { via: "cargo", needs: ["build-essential"] } } }) };
+
+/** The recipe tools pass the host's answer through. */
+const RECIPES: Answered = {
+  recipes: [
+    { case: "one", arguments: {}, replies: { "recipes.list": reply({ recipes: [RECIPE] }) } },
+    { case: "none", arguments: {}, replies: { "recipes.list": reply({ recipes: [] }) } },
+  ],
+  recipes_show: [
+    { case: "one", arguments: { name: "laptop-one" }, replies: { "recipes.get": reply({ recipe: RECIPE, hash: "sha256:9f" }) } },
+    { case: "no such recipe", arguments: { name: "desk" }, replies: { "recipes.get": refused("there is no recipe desk; the recipes are laptop-one", "not-found") } },
+  ],
+  recipes_save: [
+    { case: "saved", arguments: { name: "laptop one", from: "attic" }, replies: { "recipes.save": reply({ recipe: RECIPE }) } },
+    { case: "a computer set up before picks", arguments: { name: "desk", from: "attic" }, replies: { "recipes.save": refused("attic was set up before picks were kept", "usage") } },
+  ],
+  recipes_remove: [{ case: "removed", arguments: { name: "laptop-one" }, replies: { "recipes.remove": reply({ recipe: RECIPE }) } }],
+};
+
+/** An add part way: picked, joined, its floor on, a step that failed for want of a word only the person has. */
+const PENDING: PendingComputer = {
+  id: "a_1",
+  address: "root@203.0.113.7",
+  sshPort: 2222,
+  name: "attic",
+  placeId: "place-9",
+  step: "choosing",
+  choices: RecipeFile.parse({ name: "laptop \u0085 \"one\" 🧪", clis: { ripgrep: { via: "brew" } } }),
+  startedAt: "2026-10-03T10:00:00.000Z",
+  failed: { said: "attic said \"no\"\nat the floor", fix: "Run it again." },
+};
+
+const WAIT = { row: "signins/codex", label: "Codex \u0085 \"cli\"", url: "https://auth.openai.com/codex/device", code: "ABCD-EFGH", expiresAt: "2026-10-03T10:15:00.000Z", state: "waiting" };
+const SETTING_UP = { ...PLACE, setup: { state: "running", addId: "a_1", startedAt: "2026-10-03T10:00:00.000Z", steps: [{ step: "floor", state: "done", ms: 41_000 }, { step: "signins", state: "running", note: "Codex \u0085 waits" }], waiting: [WAIT] } };
+const SET_UP = { ...PLACE, setup: { ...SETTING_UP.setup, state: "done", finishedAt: "2026-10-03T10:05:00.000Z", steps: [{ step: "floor", state: "done", ms: 41_000 }, { step: "folders", state: "failed", note: "api did not clone" }], waiting: [] }, applied: { hash: "h1", at: "2026-10-03T10:05:00.000Z", rows: [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed", step: "clis", ms: 1_500 }] } };
+
+/** The add tool reads the row its add or its resume made, and refuses a word that is no computer before asking. */
+const ADD: Answered = {
+  add: [
+    { case: "a sign-in waits on the person", arguments: { address: "root@203.0.113.7", recipe: "laptop-one", name: "attic", ssh_port: 2222, ssh_key: "/home/dev/.ssh/id", host_key: "ssh-ed25519 AAAA" }, replies: { "places.add": reply({ addId: "a_1", place: SETTING_UP }), "places.list": reply({ places: [SETTING_UP, CLOUD] }) } },
+    { case: "resumed past a wait to its end", arguments: { address: "attic", resume: true, later: true }, replies: { "places.setup": reply({ place: SETTING_UP }), "places.list": reply({ places: [CLOUD, SET_UP] }) } },
+    { case: "joined, waiting on its picks", arguments: { address: "attic" }, replies: { "places.add": reply({ addId: "a_1", place: PLACE, pending: PENDING }), "places.list": reply({ places: [PLACE] }) } },
+    { case: "a project's folder", arguments: { address: "/Users/dev/app" }, replies: {} },
+    { case: "a provider", arguments: { address: "solari" }, replies: {} },
+    { case: "the install refused", arguments: { address: "root@203.0.113.7" }, replies: { "places.add": refused("root@203.0.113.7 did not answer on port 22", "unreachable") } },
+  ],
+};
+
+/** The skill and server tools: every road to the target, each line the text says, and each refusal before the host
+ * is asked. The host's rows come in an order of their own with a key no schema holds, which the answer drops. */
+const SKILLS_AND_SERVERS: Answered = {
+  skills_search: [
+    {
+      case: "hits",
+      arguments: { query: "review code", limit: 2 },
+      replies: {
+        "skills.search": reply({
+          skills: [
+            { name: "code-review \u0085\ttabbed\nsplit 🧪", installs: 123456, id: "zingzy/skills/code-review", extra: true, source: "zingzy/skills", skillId: "code-review" },
+            { id: "a/b/c", source: "a/b", skillId: "c", name: "c", installs: 0 },
+          ],
+        }),
+      },
+    },
+    { case: "none", arguments: { query: "nothing" }, replies: { "skills.search": reply({ skills: [] }) } },
+    { case: "refused", arguments: { query: "" }, replies: { "skills.search": refused("the query is empty", "usage") } },
+  ],
+  skills_show: [
+    { case: "skills.sh", arguments: { skill: "o/r/s" }, replies: { "skills.get": reply({ preview: { text: "# S\n\u001b[31mred\u0085\tend\r", size: 70000 } }) } },
+    { case: "here", arguments: { skill: "review" }, replies: { "skills.preview": reply({ preview: { size: 12, text: "# Review 🧪", more: 1 } }) } },
+    { case: "on a project", arguments: { skill: "review", on: "attic", project: "api" }, replies: { ...AIMED, "skills.preview": reply({ preview: { text: "x", size: 65536 } }) } },
+    { case: "in a workspace", arguments: { skill: "review", thread: "t-landing", project: true }, replies: { ...AIMED, "skills.preview": reply({ preview: { text: "x", size: 65537 } }) } },
+    { case: "skills.sh on a computer", arguments: { skill: "o/r/s", on: "attic" }, replies: {} },
+    { case: "both aimed", arguments: { skill: "review", thread: "t-landing", on: "attic" }, replies: {} },
+    { case: "project unnamed", arguments: { skill: "review", on: "attic", project: true }, replies: {} },
+    { case: "project off a computer", arguments: { skill: "review", project: "api" }, replies: {} },
+    { case: "no such computer", arguments: { skill: "review", on: "nowhere" }, replies: AIMED },
+    { case: "another version", arguments: { skill: "review", thread: "t-landing" }, replies: { "sessions.list": AIMED_THREAD, "workspaces.get": reply({}) } },
+    { case: "refused", arguments: { skill: "gone" }, replies: { "skills.preview": refused("There is no skill named gone there.", "not-found") } },
+  ],
+  skills_add: [
+    {
+      case: "copies",
+      arguments: { skill: "zingzy/skills/code\u0085review", agent: ["codex", "zed-x"] },
+      replies: { "skills.add": reply({ added: { agents: [{ path: "~/.codex/skills/code-review", agent: "codex" }, { agent: "zed-x", path: "~/.zed\n/skills" }], path: "~/.agents/skills/code-review", more: 1 } }) },
+    },
+    { case: "alone", arguments: { skill: "plain" }, replies: { "skills.add": reply({ added: { path: "~/.agents/skills/plain", agents: [] } }) } },
+    { case: "a project on a computer", arguments: { skill: "o/r/s", on: "place-solari", project: "api", agent: [] }, replies: { ...AIMED, "skills.add": reply({ added: { path: "/root/api/.agents/skills/s", agents: [] } }) } },
+    { case: "refused", arguments: { skill: "o/r/s", thread: "t-landing" }, replies: { ...AIMED, "skills.add": refused("landing is napping, and its skills are read and changed only while it runs; wake it first") } },
+  ],
+  skills_remove: [
+    { case: "removed", arguments: { name: "review\tx", thread: "t-landing", project: true }, replies: { ...AIMED, "skills.remove": reply({ removed: ["~/.agents/skills/review", "~/.claude/skills/review\u0085"] }) } },
+    { case: "both aimed", arguments: { name: "review", thread: "t-landing", on: "attic" }, replies: {} },
+    { case: "refused", arguments: { name: "wsp" }, replies: { "skills.remove": refused("wsp's own skill is always on", "usage") } },
+  ],
+  skills_disable: [
+    { case: "off", arguments: { name: "review", on: "attic" }, replies: { ...AIMED, "skills.toggle": reply({ paths: ["~/.agents/skills/review/SKILL.md.off"] }) } },
+    { case: "refused", arguments: { name: "gone" }, replies: { "skills.toggle": refused("There is no skill named gone there.", "not-found") } },
+  ],
+  skills_enable: [{ case: "on", arguments: { name: "review" }, replies: { "skills.toggle": reply({ paths: [] }) } }],
+  servers_tools: [
+    {
+      case: "tools",
+      arguments: { name: "linear", agent: "claude" },
+      replies: {
+        "servers.tools": reply({
+          answer: {
+            readAt: "2026-09-27T00:00:00.000Z",
+            tools: [
+              { description: "Finds issues\nacross teams", name: "search_issues", params: [{ required: true, name: "query", type: "string", extra: 1 }, { name: "limit", required: false, description: "how many" }] },
+              { name: "whoami" },
+            ],
+            auth: "signed-in",
+            extra: "dropped",
+          },
+        }),
+      },
+    },
+    { case: "held", arguments: { name: "notion", agent: "codex", refresh: true }, replies: { "servers.tools": reply({ answer: { auth: "unknown", holder: "codex", readAt: "2026-09-27T00:00:00.000Z" } }) } },
+    { case: "refused by the server", arguments: { name: "slow", agent: "zed-x", thread: "t-landing" }, replies: { ...AIMED, "servers.tools": reply({ answer: { auth: "failed", refused: "Did not answer in 20 s.", readAt: "2026-09-27T00:00:00.000Z" } }) } },
+    { case: "no tools", arguments: { name: "empty", agent: "claude", on: "attic", project: "api", refresh: false }, replies: { ...AIMED, "servers.tools": reply({ answer: { auth: "open", tools: [], readAt: "2026-09-27T00:00:00.000Z" } }) } },
+    { case: "not yet asked", arguments: { name: "empty", agent: "claude" }, replies: { "servers.tools": reply({ answer: { auth: "open", readAt: "2026-09-27T00:00:00.000Z" } }) } },
+    { case: "project bare", arguments: { name: "x", agent: "claude", on: "attic", project: "" }, replies: {} },
+    { case: "project off a computer", arguments: { name: "x", agent: "claude", project: "api" }, replies: {} },
+    { case: "refused", arguments: { name: "x", agent: "claude" }, replies: { "servers.tools": refused("claude has no MCP server named x", "not-found") } },
+  ],
+  servers_add: [
+    {
+      case: "command",
+      arguments: { name: "linear", agent: "claude", command: String.raw`npx -y '@scope/pkg ${"$"}{X}' "a \"b\"" c\ d	e`, env: ["WSP_RECORD_KEY"] },
+      env: { WSP_RECORD_KEY: "sk-ant-x" },
+      replies: { "servers.add": reply({ file: "~/.claude.json" }) },
+    },
+    { case: "address", arguments: { name: "remote", agent: "codex", url: "https://mcp.example/sse", header: ["Authorization=WSP_RECORD_KEY"], thread: "t-landing", project: true }, env: { WSP_RECORD_KEY: "sk-ant-x" }, replies: { ...AIMED, "servers.add": reply({ file: "/root/api/.codex/config.toml" }) } },
+    { case: "unset variable", arguments: { name: "x", agent: "claude", command: "x", env: ["WSP_RECORD_UNSET"] }, replies: {} },
+    { case: "not a header", arguments: { name: "x", agent: "claude", url: "https://x.example", header: ["Authorization"] }, replies: {} },
+    { case: "header with no variable", arguments: { name: "x", agent: "claude", url: "https://x.example", header: ["Authorization="] }, replies: {} },
+    { case: "unclosed quote", arguments: { name: "x", agent: "claude", command: "npx 'x" }, replies: {} },
+    { case: "project unnamed", arguments: { name: "x", agent: "claude", command: "x", on: "attic", project: true }, replies: {} },
+    { case: "refused", arguments: { name: "x", agent: "claude", command: "" }, replies: { "servers.add": refused("claude already has a server named x in ~/.claude.json", "usage") } },
+  ],
+  servers_remove: [
+    { case: "scoped", arguments: { name: "linear", agent: "claude", scope: "home" }, replies: { "servers.remove": reply({ file: "~/.claude.json" }) } },
+    { case: "a project on a computer", arguments: { name: "linear", agent: "claude", on: "attic", project: "api" }, replies: { ...AIMED, "servers.remove": reply({ file: "/root/api/.mcp.json" }) } },
+    { case: "project and another scope", arguments: { name: "linear", agent: "claude", project: true, scope: "user" }, replies: {} },
+    { case: "local beside a named project", arguments: { name: "kept", agent: "claude", on: "attic", project: "api", scope: "local" }, replies: { ...AIMED, "servers.remove": reply({ file: "~/.claude-cfg/.claude.json" }) } },
+    { case: "refused", arguments: { name: "linear", agent: "claude" }, replies: { "servers.remove": refused("claude has no MCP server named linear", "not-found") } },
+  ],
+  servers_disable: [
+    { case: "off", arguments: { name: "linear", agent: "codex", thread: "t-landing", scope: "project", project: true }, replies: { ...AIMED, "servers.toggle": reply({ file: "/root/api/.codex/config.toml" }) } },
+    { case: "refused", arguments: { name: "linear", agent: "claude" }, replies: { "servers.toggle": refused("Claude Code keeps no switch per server that wsp turns, so nothing was changed.", "usage") } },
+  ],
+  servers_enable: [{ case: "on", arguments: { name: "linear", agent: "gemini" }, replies: { "servers.toggle": reply({ file: "~/.gemini/settings.json" }) } }],
+  plugins_disable: [
+    { case: "off", arguments: { plugin: "brag@brag", agent: "claude", thread: "t-landing" }, replies: { ...AIMED, "plugins.toggle": reply({ plugin: { ...PLUGIN_ROW, on: false, later: "kept" } }) } },
+    { case: "refused", arguments: { plugin: "nope@brag", agent: "claude" }, replies: { "plugins.toggle": refused("There is no plugin nope@brag for Claude Code there, so nothing was switched.", "usage") } },
+  ],
+  plugins_enable: [{ case: "on", arguments: { plugin: "brag@brag", agent: "codex", on: "attic" }, replies: { "places.list": PLACES_LIST, "plugins.toggle": reply({ plugin: { ...PLUGIN_ROW, agent: "codex" } }) } }],
+  agents_addtools: [
+    { case: "added", arguments: { agent: "claude" }, replies: { "agents.addTools": reply({ file: "~/.claude.json" }) } },
+    { case: "an agent the catalog does not know", arguments: { agent: "zed-x" }, replies: { "agents.addTools": reply({ file: "~/.zed/settings.json", more: true }) } },
+    { case: "refused", arguments: { agent: "codex" }, replies: { "agents.addTools": refused("Codex is not installed here", "not-found") } },
+  ],
+};
+
+const ANSWERED: Answered = {
+  ...SKILLS_AND_SERVERS,
+  ...WORKSPACE_ANSWERED,
+  computers: [
+    { case: "rows", arguments: {}, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "cost.spend": reply({ places: [SPEND] }) } },
+    { case: "an add pending", arguments: {}, replies: { "places.list": reply({ places: [PLACE], pending: [PENDING] }), "cost.spend": reply({ places: [] }) } },
+    { case: "a cloud with its plan and the starts used", arguments: {}, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "cost.spend": reply({ places: [] }) } },
+    { case: "empty", arguments: {}, replies: { "places.list": reply({ places: [] }), "cost.spend": reply({ places: [] }) } },
+    { case: "refused", arguments: {}, replies: { "places.list": JSON.stringify({ id: 1, ok: false, error: "the token this line presented is not one this host holds", kind: "auth" }), "cost.spend": reply({ places: [] }) } },
+  ],
+  computers_set: [
+    { case: "threads set", arguments: { computer: "attic", threads: 2 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 2 }, capDefault: { threads: 8 }, settings: { threads: 2 }, running: 0 } }) } },
+    { case: "reset by id", arguments: { computer: "place-9", reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, running: 1 } }) } },
+    { case: "a cloud by the name its rows give it, in any case", cloud: true, arguments: { computer: "Solari", machines: 5, reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refused(placeSetRefusal({ id: "place-solari", kind: "provider", name: "solari", takesForks: true }, { machines: 5 }, ["threads"])!, "usage") } },
+    { case: "a cloud's machines and spend", cloud: true, arguments: { computer: "solari", machines: 5, spend: 2.5, reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refused(placeSetRefusal({ id: "place-solari", kind: "provider", name: "solari", takesForks: true }, { machines: 5, spendPerDayUsd: 2.5 }, ["threads"])!, "usage") } },
+    { case: "a sub-thread's size and delete delay on a cloud", arguments: { computer: "boat", size: "4x8", delete_after: 60 }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": reply({ place: { ...BOAT, settings: { size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 }, size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 } }) } },
+    { case: "a delete delay of none", arguments: { computer: "boat", delete_after: 0, reset: ["size"] }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": reply({ place: { ...BOAT, settings: { deleteAfterMs: 0 }, deleteAfterMs: 0 } }) } },
+    { case: "a size no cloud sells", arguments: { computer: "boat", size: "3x5" }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": refused(placeSetRefusal(BOAT, { size: { cpu: 3, memMb: 5120 } })!, "usage") } },
+    { case: "a size word that names no size", arguments: { computer: "boat", size: "0x4" }, replies: { "places.list": reply({ places: [PLACE, BOAT] }) } },
+    { case: "a size word on a computer, which takes no size", arguments: { computer: "attic", size: "0x4" }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": refused(placeSetRefusal({ ...PLACE, takesForks: true }, {}, ["size"])!, "usage") } },
+    { case: "nap after and never", arguments: { computer: "attic", nap: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { napMs: null }, napMs: null, running: 0 } }) } },
+    { case: "nap after in minutes", arguments: { computer: "attic", nap: 45, threads: 3 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 3 }, capDefault: { threads: 8 }, settings: { threads: 3, napMs: 2_700_000 }, napMs: 2_700_000, running: 0 } }) } },
+    { case: "no turn limit", arguments: { computer: "attic", turn_limit: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { turnLimitMs: null }, turnLimitMs: null, turnLimitDefault: null, running: 0 } }) } },
+    { case: "a turn limit in hours", arguments: { computer: "solari", turn_limit: 12 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...CLOUD, settings: { turnLimitMs: 43_200_000 }, turnLimitMs: 43_200_000, turnLimitDefault: 21_600_000 } }) } },
+    { case: "agents may not start agents", arguments: { computer: "attic", spawn: "off", max_depth: 2 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { spawn: { spawn: false, maxMachines: 3, maxDepth: 2 } }, spawn: { spawn: false, maxMachines: 3, maxDepth: 2 }, running: 0 } }) } },
+    { case: "a new name", arguments: { computer: "attic", name: "hetzner" }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, name: "hetzner", cap: { threads: 8 }, capDefault: { threads: 8 }, running: 0 } }) } },
+    { case: "a name another computer holds", arguments: { computer: "attic", name: "spoo", threads: 2 }, replies: { "places.list": reply({ places: [PLACE, SPOO] }), "places.set": refusedHalves(placeRenameRefusal(PLACE, "spoo", [PLACE, SPOO])!) } },
+    { case: "a new ssh login", arguments: { computer: "attic", ssh: "root@hetzner" }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, running: 0 } }) } },
+    { case: "a login that reaches another computer", arguments: { computer: "attic", ssh: "root@spoo" }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refusedHalves(placeSshOtherRefusal("root@spoo", "attic")) } },
+    { case: "a recipe beside a new name, in one set", arguments: { computer: "attic", name: "hetzner", recipe: "laptop" }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, name: "hetzner", recipe: "laptop", cap: { threads: 8 }, capDefault: { threads: 8 }, running: 0 } }) } },
+    { case: "nothing to set", arguments: { computer: "attic" }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refused(placeSetRefusal({ id: "place-9", kind: "computer", name: "attic", takesForks: true }, {})!, "usage") } },
+    { case: "no such computer", arguments: { computer: "nowhere", threads: 1 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }) } },
+  ],
+  conversations: [
+    {
+      case: "two agents' rows, an open one, a thread's, and a held line",
+      arguments: { project: "lab" },
+      replies: {
+        "conversations.list": reply({
+          rows: [
+            { agent: "codex", id: "01a12813-cd12-7a12-9b13-e76892906ff0", title: "lab terminal thread \u0085 \"tui\"", firstPrompt: "first prompt from codex-tui", branch: "feat/x", cwd: "/work/acme/lab", lastAt: 1_791_673_748_000, bytes: 2_048.5, origin: "terminal", live: false, letsGo: "Codex lets go about a minute after its window closes.", extra: "dropped" },
+            { agent: "claude", id: "7414323d-e71b-4957-8b56-eefdf6bfa350", title: "lab codewords", cwd: "/work/acme/lab-wt", lastAt: 1_791_673_566_000, origin: "terminal", live: true },
+            { agent: "claude", id: "e615a6ab-a2f2-4b10-8fd6-0dc38bf99c28", title: "café", cwd: "/work/acme/lab", lastAt: 5, bytes: 10, origin: "wsp", live: false, thread: "thread-4b1c2a7e" },
+          ],
+          held: [{ agent: "claude", said: "Claude Code conversations on attic were not read", fix: "Update attic with wsp add attic --update to list them." }],
+        }),
+      },
+    },
+    { case: "one agent's, none kept", arguments: { agent: "codex" }, replies: { "conversations.list": reply({ rows: [], held: [] }) } },
+    { case: "refused", arguments: { project: "nowhere" }, replies: { "conversations.list": refused("no project nowhere. Read the projects with wsp projects.", "not-found") } },
+  ],
+  projects_seed: [
+    {
+      case: "the menu with nothing picked yet, nothing saved",
+      arguments: { project: "lab" },
+      replies: { "projects.seed": reply({ project: "lab", folder: "/work/acme/lab", rows: [SEED_ENV, { ...SEED_MODULES, extra: "dropped" }], picked: { paths: [], bytes: 0, missing: [] }, saved: false }) },
+    },
+    {
+      case: "a path kept, one cut and the picks saved, one saved path gone from the folder",
+      arguments: { project: "lab", keep: [".env"], cut: ["node_modules"], none: true, confirm: true },
+      replies: { "projects.seed": reply({ project: "lab", folder: "/work/acme/lab", rows: [{ ...SEED_ENV, picked: true }, SEED_MODULES], picked: { paths: [".env"], bytes: 1_126, missing: [".env.old"] }, saved: true }) },
+    },
+    { case: "a thread's own token asking for the save", arguments: { project: "lab", keep: [".env"], confirm: true }, replies: { "projects.seed": refusedError(seedSaveRefusal("lab", { keep: [".env"] })) } },
+    { case: "a project on another computer", arguments: { project: "lab" }, replies: { "projects.seed": refusedError(seedNotHereRefusal("lab", "attic")) } },
+  ],
+  ...RECIPES,
+  ...ADD,
+  usage: [
+    {
+      case: "an account read and one with no reading, and a day of use by agent",
+      arguments: {},
+      replies: {
+        "usage.accounts": reply({
+          accounts: [
+            { key: "claude:vault-token", agent: "claude", label: "Claude Code with your sign-in", computers: ["zingzy's MacBook Pro", "Boat"], note: "not read yet: shows after its next turn" },
+            { key: "codex:acct_7f3a", agent: "codex", label: "dév@example.com", computers: ["Boat"], plan: "plus", windows: [{ kind: "session", usedPercent: 34.5, resetsAt: 1_790_700_000_000 }, { kind: "week", usedPercent: 12 }], status: "ok", readAt: 1_790_650_000_000 },
+          ],
+        }),
+        "usage.used": reply({
+          used: {
+            range: "day",
+            split: "agent",
+            rows: [
+              { key: "codex", label: "Codex \u0085 \"cli\"", tokens: { input: 1_500, output: 150, cached: 400 }, costList: 0.0123, priced: true },
+              { key: "claude", label: "Claude Code", tokens: { input: 7, output: 3, cached: 0 }, costReported: 0.5, costList: 0.01, priced: false },
+            ],
+            series: [{ t: 1_790_640_000_000, tokens: 1_660 }],
+            since: 1_790_640_000_000,
+            until: 1_790_650_000_000,
+          },
+        }),
+      },
+    },
+    {
+      case: "a week by project with nothing used",
+      arguments: { range: "week", by: "project" },
+      replies: { "usage.accounts": reply({ accounts: [] }), "usage.used": reply({ used: { range: "week", split: "project", rows: [], series: [], since: 1_790_130_000_000, until: 1_790_650_000_000 } }) },
+    },
+    {
+      case: "a day by source",
+      arguments: { by: "source" },
+      replies: {
+        "usage.accounts": reply({ accounts: [] }),
+        "usage.used": reply({
+          used: {
+            range: "day",
+            split: "source",
+            rows: [
+              { key: "log", label: "Outside wsp", tokens: { input: 11, output: 1, cached: 0 }, costList: 0.0001, priced: true, turns: 0 },
+              { key: "wsp", label: "wsp threads", tokens: { input: 10, output: 1, cached: 0 }, costReported: 0.5, priced: true, turns: 1 },
+            ],
+            series: [],
+            since: 1_790_130_000_000,
+            until: 1_790_650_000_000,
+          },
+        }),
+      },
+    },
+    { case: "refused", arguments: {}, replies: { "usage.accounts": refused("usage.accounts is not a thread's to ask for", "auth"), "usage.used": reply({ used: { range: "day", split: "agent", rows: [], series: [], since: 0, until: 0 } }) } },
+  ],
+  ...TURN_ANSWERED,
+  ...READS,
+  ...SLATE_ANSWERED,
+};
+
+/** The record, made where nothing of the computer recording it reaches it: a clock a read prints is in UTC, which
+ * the replay reads in too, and a tool that reads the person's own files finds a home with none in it. */
+async function recorded<T>(make: () => Promise<T>): Promise<T> {
+  const kept = { TZ: process.env["TZ"], HOME: process.env["HOME"], XDG_CONFIG_HOME: process.env["XDG_CONFIG_HOME"] };
+  const home = mkdtempSync(join(tmpdir(), "wsp-mcp-record-home-"));
+  Object.assign(process.env, { TZ: "UTC", HOME: home, XDG_CONFIG_HOME: join(home, ".config") });
+  try {
+    return await make();
+  } finally {
+    for (const [key, value] of Object.entries(kept)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+/** Written once for both cases: every answer is recorded twice, on the host's road and as a guest's. */
+let written: Promise<Files> | undefined;
+const regenerated = (): Promise<Files> => (written ??= recorded(regeneratedHere));
+
+async function regeneratedHere(): Promise<Files> {
+  const files: Files = new Map();
+  const [off, on] = [await servedIn(false), await servedIn(true)];
+  const readsHere = VERBS.filter(hasTool).filter(GUEST_SERVED.skip).map(v => toolName(v.name));
+  files.set("record/server.json", fileText({ name: "wsp", version: VERSION, instructions: { cloudOff: off.instructions, cloudOn: on.instructions, scopedCloudOff: off.scoped, scopedCloudOn: on.scoped, scopedNoSlateCloudOff: off.scopedNoSlate, scopedNoSlateCloudOn: on.scopedNoSlate }, protocolVersions: SUPPORTED_PROTOCOL_VERSIONS, latestProtocolVersion: LATEST_PROTOCOL_VERSION, readsHere }));
+  files.set("record/exit.json", fileText({ codes: EXIT_CODES, kinds: KIND_CLASS }));
+  files.set("record/words.json", fileText({ ...(await words()), workspaces: await workspaceWords(answeredLine, replies => answeringHost(replies, [])) }));
+  files.set("record/host.json", fileText(host()));
+  files.set("tests/refusals.json", fileText(await refusals()));
+  // A host that did not prove the pinned key, refused where the dial refuses it: the whole line the tool answers.
+  const sealedUrl = "http://127.0.0.1:{port}";
+  files.set("tests/sealed.json", fileText({ tool: "computers", url: sealedUrl, line: (await answeredLine("computers", {}, {}, { refused: authRefusal(pairKeyRefusal(sealedUrl)) })).line }));
+  // A host of another release on this computer, refused at its auth answer on the address a turn's launch left: the
+  // whole line, its fix the one the road it names takes.
+  files.set("tests/release.json", fileText({ tool: "computers", url: sealedUrl, theirs: "0.0.1", road: "service", line: (await answeredLine("computers", {}, {}, { refused: releaseRefusal(VERSION, "0.0.1", { where: sealedUrl, here: true }, "service") })).line }));
+  // Each tool as it is listed with the cloud off and on, and null in the state that lists no such tool.
+  const entry = (tools: Record<string, unknown>[], name: string): Record<string, unknown> | null => tools.find(t => t["name"] === name) ?? null;
+  for (const name of new Set([...off.tools, ...on.tools].map(t => String(t["name"])))) files.set(`record/tools/${name}.json`, fileText({ cloudOff: entry(off.tools, name), cloudOn: entry(on.tools, name) }));
+  files.set("record/turns.json", fileText(await turnWords()));
+  for (const [tool, cases] of Object.entries(ANSWERED)) {
+    const answered = [];
+    for (const c of cases) answered.push(withGuest({ ...c, ...(await answeredLine(tool, c.arguments, c.replies, c)) }, await answeredLine(tool, c.arguments, c.replies, { ...c, guest: true })));
+    files.set(`tests/answers/${tool}.json`, fileText({ tool, cases: answered }));
+  }
+  for (const [tool, cases] of Object.entries(recipeCases())) {
+    const answered = [];
+    for (const { result, ...c } of cases) answered.push(withGuest({ ...c, replies: {}, ...(await answeredLine(tool, c.arguments, {}, result !== undefined ? { result } : {})) }, await answeredLine(tool, c.arguments, {}, { ...(result !== undefined ? { result } : {}), guest: true })));
+    files.set(`tests/answers/${tool}.json`, fileText({ tool, cases: answered }));
+  }
+  return files;
+}
+
+const committedUnder = (dir: string, prefix: string): string[] => {
+  try {
+    return readdirSync(dir, { recursive: true, withFileTypes: true })
+      .filter(e => e.isFile() && e.name.endsWith(".json"))
+      .map(e => `${prefix}${join(e.parentPath, e.name).slice(dir.length + 1)}`)
+      .sort();
+  } catch {
+    return [];
+  }
+};
+
+describe("the record the daemon binary's tool server serves from", () => {
+  // Every recorded answer is a call through this package's server, seconds on a CI runner: made once, with room, so
+  // a case below only compares and a tool added to the record cannot push it past the per-test budget.
+  let files: Files;
+  beforeAll(async () => {
+    files = await regenerated();
+  }, 60_000);
+
+  it("equals its regeneration: the handshake, every listed tool, the sentences, the exit classes and each recorded answer", async () => {
+    if (process.env["WSP_WRITE_RECORD"] === "1") {
+      for (const stale of [RECORD, ANSWERS, ...RECORDED_FILES.map(name => join(CRATE, "tests", name))]) rmSync(stale, { recursive: true, force: true });
+      for (const [rel, text] of files) {
+        mkdirSync(join(CRATE, rel, ".."), { recursive: true });
+        writeFileSync(join(CRATE, rel), text);
+      }
+    }
+    const ask = `daemon/crates/wsp-mcp is behind this package. Write it again with WSP_WRITE_RECORD=1 pnpm exec vitest run packages/host/test/mcp-record.test.ts and commit what changed under daemon/crates/wsp-mcp`;
+    expect([...committedUnder(RECORD, "record/"), ...committedUnder(ANSWERS, "tests/answers/"), ...RECORDED_FILES.filter(name => existsSync(join(CRATE, "tests", name))).map(name => `tests/${name}`)].sort(), ask).toEqual([...files.keys()].sort());
+    for (const [rel, text] of files) expect(readFileSync(join(CRATE, rel), "utf8"), `${rel}: ${ask}`).toBe(text);
+  });
+
+  it("records an answer the server would print for every case, the refusal as the tool error its class names", async () => {
+    const { cases } = JSON.parse(files.get("tests/answers/computers.json")!) as { cases: { case: string; line: string }[] };
+    const byCase = new Map(cases.map(c => [c.case, JSON.parse(c.line) as { result: { isError?: boolean; structuredContent: Record<string, unknown> } }]));
+    expect(byCase.get("rows")!.result.isError).toBeUndefined();
+    expect(byCase.get("refused")!.result).toMatchObject({ isError: true, structuredContent: { class: "auth", exit: EXIT_CODES.auth } });
+    // A case whose host answer the tool's own output schema refuses records the SDK's refusal and holds nothing.
+    for (const [rel, text] of files) {
+      if (!rel.startsWith("tests/answers/")) continue;
+      for (const c of (JSON.parse(text) as { cases: { case: string; line: string; guest?: { line: string } }[] }).cases) {
+        for (const line of [c.line, c.guest?.line ?? ""]) expect(line, `${rel} ${c.case}`).not.toContain("Output validation error");
+      }
+    }
+    expect(unanswered, "ops a case or a sentence asked with no reply").toEqual([]);
+    // The C1 control and DEL reach stdout escaped, in the text and in the structured copy alike.
+    const rows = cases.find(c => c.case === "rows")!.line;
+    expect(rows).not.toMatch(/[\x7f-\x9f]/);
+    expect(rows).toContain("\\u0085");
+  });
+});

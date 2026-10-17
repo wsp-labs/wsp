@@ -1,0 +1,1303 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! What a computer joined as a place says about itself, the key it proves itself with, and what its leave takes.
+//! The report is read off the home the daemon was pointed at and the words it was started with, at every dial
+//! rather than once: a laptop gains a Docker, loses a disk and is renamed under wsp rather than by it. Signing and
+//! verifying are wsp-seal's; the bytes they cover are the protocol's.
+
+use std::collections::{BTreeMap, HashSet};
+use std::os::unix::ffi::OsStrExt as _;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
+
+use sha2::{Digest as _, Sha256};
+use wsp_frames::{
+    is_under_path, landed_files_script, numbers, outside_marks, outside_sweep_script, own_marks, place_daemon_paths, place_owned_paths,
+    words, Base64Bytes, PlaceFile, PlacePublicKey, PlaceReport, PlaceSignature, Platform, WorkspaceSize,
+};
+
+use crate::under_home::{prune_empty, remove_empty_under_home, remove_under_home, Removed};
+
+mod file;
+mod login_lines;
+mod outside;
+mod update;
+mod versions;
+pub(crate) use file::{read_place_file, read_place_key};
+pub(crate) use login_lines::sweep_login_lines;
+pub(crate) use outside::{leave_here, leave_takes_runtime, unsaved_under};
+#[cfg(test)]
+pub(crate) use update::update_part;
+pub(crate) use update::{install_daemon, running_daemon, sweep_updates, take_update_part};
+use versions::version_line;
+pub(crate) use versions::WspBuild;
+
+/// This place's signature over the transcript, with the pkcs8 PEM key wsp join wrote.
+pub(crate) fn sign_place_bytes(private_key_pem: &str, bytes: &[u8]) -> Result<PlaceSignature, String> {
+    let signed = wsp_seal::sign(private_key_pem, bytes).map_err(|e| format!("the place key does not read as pkcs8 PEM: {e}"))?;
+    Ok(Base64Bytes::from_bytes(&signed))
+}
+
+/// Whether the key given (SPKI DER, base64) made this signature over these bytes. A key that will not parse is a
+/// refusal rather than a failure: the answer came off the wire.
+pub(crate) fn verify_place_bytes(public_key: &PlacePublicKey, bytes: &[u8], signature: &PlaceSignature) -> bool {
+    wsp_seal::verify(&public_key.to_bytes(), bytes, &signature.to_bytes())
+}
+
+/// One agent to look for on this computer, as the --agents flag spells it: the catalog id and the command name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AgentBin {
+    pub(crate) id: String,
+    pub(crate) bin: String,
+}
+
+/// `id=command` pairs; a pair missing either half is dropped, since the report has nothing to look for.
+pub(crate) fn parse_agents(words: &[String]) -> Vec<AgentBin> {
+    words
+        .iter()
+        .filter_map(|word| {
+            let (id, bin) = word.split_once('=')?;
+            (!id.is_empty() && !bin.is_empty()).then(|| AgentBin { id: id.to_owned(), bin: bin.to_owned() })
+        })
+        .collect()
+}
+
+/// How long one `<bin> --version` gets to answer: a binary that hangs costs one dial that long and never the link.
+pub(crate) const VERSION_DEADLINE: Duration = Duration::from_secs(5);
+/// What the report carries of the logins folder, as the wire bounds it: how many names and how long each.
+const LOGINS_MAX: usize = 64;
+const LOGIN_PATH_MAX: usize = 200;
+
+/// Where the first executable of that name on this PATH sits, or nothing: the one reading of what stands on this
+/// computer, since the agents list and the version read must never disagree about whether an agent is there.
+fn found_at(name: &str, path: &str) -> Option<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    path.split(':')
+        .filter(|dir| !dir.is_empty())
+        .map(|dir| Path::new(dir).join(name))
+        .find(|at| std::fs::metadata(at).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false))
+}
+
+/// Where the agents on this computer are looked for: the one tools PATH every process inside a workspace here
+/// starts with, and the PATH this daemon's own unit was given after it. A unit's PATH is the distribution's
+/// default, which names neither Homebrew's bins nor the directory an agent's own installer writes into, so an
+/// agent the recipe installed sits on no line of it and a report read on it alone leaves that agent and its
+/// version out. Finding that a file stands somewhere runs nothing, which is why this list may name directories
+/// under the home the workspaces share while the list the version read runs on may not.
+pub(crate) fn presence_path(unit: Option<&str>) -> String {
+    presence_path_over(numbers::TOOLS_PATH, unit.unwrap_or_default())
+}
+
+/// The two lists as one, the tools first: a command on both is read from where a workspace here would run it.
+/// Written apart from the reading above so a case can hand it a tools list and a unit PATH of its own.
+fn presence_path_over(tools: &str, unit: &str) -> String {
+    if unit.is_empty() {
+        return tools.to_owned();
+    }
+    format!("{tools}:{unit}")
+}
+
+/// The PATH this daemon runs a command through, which on a computer that runs workspaces the start set to the
+/// probe list: no directory under the home a workspace writes, so a file planted there is never run as root.
+pub(crate) fn run_path() -> String {
+    std::env::var("PATH").unwrap_or_default()
+}
+
+/// Which of the agents asked for stand on this computer, by catalog id. The one reading behind the report's list
+/// and the version read, so an agent on one of them is on the other.
+fn agents_on(agents: &[AgentBin], path: &str) -> Vec<String> {
+    agents.iter().filter(|agent| found_at(&agent.bin, path).is_some()).map(|agent| agent.id.clone()).collect()
+}
+
+/// What the last version read of one agent found: the file it ran, as that file was then, and what it printed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AgentRead {
+    at: PathBuf,
+    size: u64,
+    modified: Option<SystemTime>,
+    line: String,
+}
+
+/// Every agent's version line, held between dials against the binary it came from. A daemon is not restarted by an
+/// update that installs a newer agent, so the line is read again at a dial where that binary's path, size or
+/// modification time moved, and handed back untouched where none of the three did: one stat per agent per dial.
+#[derive(Debug, Default)]
+pub(crate) struct AgentVersions {
+    held: BTreeMap<String, AgentRead>,
+}
+
+impl AgentVersions {
+    /// Stats each agent's binary and runs it again where it moved. An agent that is no longer on the PATH drops
+    /// off, so the report never carries a version for a binary that is not there.
+    pub(crate) fn refresh(&mut self, agents: &[AgentBin], path: &str, deadline: Duration) {
+        let mut fresh = BTreeMap::new();
+        for agent in agents {
+            let Some(at) = found_at(&agent.bin, path) else { continue };
+            let meta = std::fs::metadata(&at).ok();
+            let size = meta.as_ref().map(std::fs::Metadata::len).unwrap_or(0);
+            let modified = meta.as_ref().and_then(|m| m.modified().ok());
+            match self.held.remove(&agent.id) {
+                Some(read) if read.at == at && read.size == size && read.modified == modified => {
+                    fresh.insert(agent.id.clone(), read);
+                }
+                _ => {
+                    if let Some(line) = version_line(&at, deadline) {
+                        fresh.insert(agent.id.clone(), AgentRead { at, size, modified, line });
+                    }
+                }
+            }
+        }
+        self.held = fresh;
+    }
+
+    /// The lines as the report carries them, by catalog id.
+    pub(crate) fn lines(&self) -> BTreeMap<String, String> {
+        self.held.iter().map(|(id, read)| (id.clone(), read.line.clone())).collect()
+    }
+}
+
+/// Where this computer keeps the logins every workspace on it shares, as the runtime spells it and nothing here
+/// does. Nothing on a computer whose runtime boots no workspace at all, which is every computer that is not Linux.
+#[cfg(target_os = "linux")]
+fn logins_dir(runtime_root: &Path) -> Option<PathBuf> {
+    Some(wsp_runtime::bundle::Layout::new(runtime_root).logins())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn logins_dir(_runtime_root: &Path) -> Option<PathBuf> {
+    None
+}
+
+/// The files under that directory: what a sign-in here wrote and every workspace on this computer shares.
+pub(crate) fn logins_present(runtime_root: &Path) -> Vec<String> {
+    logins_dir(runtime_root).map(|dir| names_under(&dir)).unwrap_or_default()
+}
+
+/// Every file under a directory, one level of directories deep, each named under it. Which tool a name belongs to
+/// is the host's to say, since this daemon carries no catalog; what does not fit the wire's bounds is left out
+/// rather than sent and refused with the whole report.
+fn names_under(dir: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Ok(kind) = entry.file_type() else { continue };
+        if kind.is_dir() {
+            let Ok(inner) = std::fs::read_dir(entry.path()) else { continue };
+            for file in inner.flatten() {
+                if file.file_type().map(|k| !k.is_dir()).unwrap_or(false) {
+                    out.push(format!("{name}/{}", file.file_name().to_string_lossy()));
+                }
+            }
+        } else {
+            out.push(name);
+        }
+    }
+    out.retain(|p| p.len() <= LOGIN_PATH_MAX && is_under_path(p));
+    out.sort();
+    out.truncate(LOGINS_MAX);
+    out
+}
+
+/// How much room is left on the volume a setup installs onto and how big it is, the two numbers its floor and its
+/// size check read. The volume is wsp's install folder's, or where that is not there yet the nearest folder above
+/// it, which is where the first install makes it; the install loop's df walks up the same way.
+fn install_room(system_root: &Path) -> Option<(u64, u64)> {
+    let prefix = system_root.join(numbers::TOOL_PREFIX.trim_start_matches('/'));
+    disk_room(prefix.ancestors().find(|folder| folder.exists())?)
+}
+
+/// How much room is left on the volume the folder sits on and how big it is, or nothing when this computer will
+/// not say.
+fn disk_room(folder: &Path) -> Option<(u64, u64)> {
+    let fs = nix::sys::statfs::statfs(folder).ok()?;
+    #[cfg_attr(target_os = "macos", allow(clippy::unnecessary_fallible_conversions))]
+    let block = u64::try_from(fs.block_size()).ok()?;
+    Some((fs.blocks_available() * block, fs.blocks() * block))
+}
+
+/// node's os.arch() words for the machines wsp runs on; anything else travels as Rust names it.
+fn arch_word() -> String {
+    match std::env::consts::ARCH {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        "x86" => "ia32",
+        "powerpc64" => "ppc64",
+        other => other,
+    }
+    .to_owned()
+}
+
+#[cfg(target_os = "linux")]
+fn total_memory_bytes() -> u64 {
+    nix::sys::sysinfo::sysinfo().map(|s| s.ram_total()).unwrap_or(0)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn total_memory_bytes() -> u64 {
+    std::process::Command::new("sysctl")
+        .args(["-n", "hw.memsize"])
+        .output()
+        .ok()
+        .and_then(|out| String::from_utf8_lossy(&out.stdout).trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn os_line() -> String {
+    match nix::sys::utsname::uname() {
+        Ok(u) => format!("{} {}", u.sysname().to_string_lossy(), u.release().to_string_lossy()),
+        Err(_) => std::env::consts::OS.to_owned(),
+    }
+}
+
+fn user_name() -> String {
+    nix::unistd::User::from_uid(nix::unistd::getuid())
+        .ok()
+        .flatten()
+        .map(|u| u.name)
+        .or_else(|| std::env::var("USER").ok())
+        .unwrap_or_default()
+}
+
+/// What this report is built from: the file, the home, the words the daemon was started with.
+pub(crate) struct ReportInput<'a> {
+    pub(crate) file: &'a PlaceFile,
+    pub(crate) home: &'a Path,
+    pub(crate) wsp_argv: &'a [String],
+    pub(crate) agents: &'a [AgentBin],
+    /// What each of those agents last answered its version flag with, read on the blocking pool before the report
+    /// is built rather than here: building a report runs nothing.
+    pub(crate) agent_versions: &'a BTreeMap<String, String>,
+    /// The daemon version the wsp in those words was built with, read beside the agents' versions.
+    pub(crate) wsp_daemon_version: Option<u32>,
+    pub(crate) daemon_port: u16,
+    pub(crate) dialed: &'a str,
+    /// The PATH this daemon's unit gave it, which the login row carries and the presence read looks along.
+    pub(crate) unit_path: Option<&'a str>,
+    /// Where this daemon keeps the workspaces it runs; the copy word is probed under it.
+    pub(crate) runtime_root: &'a Path,
+    /// The folder this computer's /opt sits under, which the disk is read off: `/`, or what a test hands in.
+    pub(crate) system_root: &'a Path,
+}
+
+/// Why this computer runs no workspace, as the row carries it: its own reason first, the kernel's and the
+/// login's, then where this daemon's root was put. A root inside one of the directories every workspace reads
+/// through an overlay is refused by the open, so the row says so rather than reading ready and then refusing
+/// every create. One reading, so the row and the open cannot part ways.
+fn workspaces_blocked_by(its_own: Option<String>, runtime_root: &Path) -> Option<String> {
+    its_own.or_else(|| wsp_runtime::doctor::root_under_a_lower(runtime_root))
+}
+
+/// The words the report says this computer runs wsp by: the ones the daemon was started with, else the bare word.
+pub(crate) fn report_wsp(argv: &[String]) -> Vec<String> {
+    if argv.is_empty() {
+        vec!["wsp".to_owned()]
+    } else {
+        argv.to_vec()
+    }
+}
+
+/// What this computer says about itself on this link, in the shape the host parses.
+pub(crate) fn place_report(input: &ReportInput<'_>) -> PlaceReport {
+    let path = input.unit_path.unwrap_or_default().to_owned();
+    let room = install_room(input.system_root);
+    let wsp = report_wsp(input.wsp_argv);
+    let doctor = wsp_runtime::doctor::assess(&wsp_runtime::doctor::read_facts());
+    let blocked = workspaces_blocked_by(doctor.blocked.clone(), input.runtime_root);
+    let runs_workspaces = blocked.is_none();
+    PlaceReport {
+        name: input.file.name.clone(),
+        platform: if cfg!(target_os = "macos") { Platform::Darwin } else { Platform::Linux },
+        arch: arch_word(),
+        os: os_line(),
+        shape: WorkspaceSize {
+            cpu: std::thread::available_parallelism().map_or(1.0, |n| n.get() as f64),
+            mem_mb: (total_memory_bytes() as f64 / (1024.0 * 1024.0)).round() as u64,
+        },
+        disk_free_bytes: room.map(|(free, _)| free),
+        disk_size_bytes: room.map(|(_, size)| size),
+        model: crate::mac_model::mac_model(),
+        login: [
+            ("HOME".to_owned(), input.home.to_string_lossy().into_owned()),
+            ("USER".to_owned(), user_name()),
+            ("PATH".to_owned(), path),
+        ]
+        .into_iter()
+        .collect(),
+        runs_workspaces,
+        workspaces_blocked: blocked,
+        engine: doctor.engine.word().to_owned(),
+        // How a copy of a project is made here, probed on the disk under the runtime's own root, and only
+        // where a workspace runs here at all: a computer that boots none has no copy to describe, and the probe
+        // is not run for one.
+        copies: runs_workspaces.then(|| wsp_runtime::copy::copies_word(input.runtime_root)),
+        daemon_version: numbers::DAEMON_VERSION,
+        daemon_port: std::num::NonZeroU16::new(input.daemon_port),
+        wsp,
+        dialed: input.dialed.to_owned(),
+        // Read on the tools PATH before the unit's own, while the login above carries the unit's PATH as it
+        // stands: what this daemon was started with is a fact about the unit, and where its agents are is not.
+        agents: agents_on(input.agents, &presence_path(input.unit_path)),
+        agent_versions: input.agent_versions.clone(),
+        // Read at every dial, since a sign-in on this computer changes it between one link and the next.
+        logins: Some(logins_present(input.runtime_root)),
+        // The door's three are the link's to fill: what became of the door is held there, as is the unit read.
+        wsp_door: None,
+        wsp_door_blocked: None,
+        daemon_unit: None,
+        takes_runtime: Some(leave_takes_runtime(place_found(input.home).as_ref(), input.runtime_root)),
+        wsp_daemon_version: input.wsp_daemon_version,
+    }
+}
+
+/// The ownership read as this computer runs it: the one script text the engine renders, through a plain sh. Handed
+/// in rather than run from inside the sweep so a case can read the script that was run and when it was run.
+pub(crate) fn sh_stdout(script: &str) -> String {
+    sh_stdout_within(script, Duration::from_millis(u64::from(numbers::EXEC_TIMEOUT_DEFAULT_MS)))
+}
+
+/// By its own path: the script is POSIX sh, and a daemon under a service unit holds almost no PATH to find one on.
+const SH: &str = "/bin/sh";
+
+/// The same read under a bound, which every run of ours has: the script hashes a file per line of the list, and one
+/// of those files on a mount that has stopped answering would otherwise hang the leave for as long as the mount
+/// does, with the link's host waiting on a reply that never comes. Past the bound the process this started is
+/// killed by the pid it was started with and the read answers nothing, which keeps every file of the person's.
+fn sh_stdout_within(script: &str, within: Duration) -> String {
+    let child = std::process::Command::new(SH)
+        .arg("-c")
+        .arg(script)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    let Ok(child) = child else { return String::new() };
+    let pid = nix::unistd::Pid::from_raw(i32::try_from(child.id()).unwrap_or(-1));
+    let (said, wait) = std::sync::mpsc::channel();
+    // stdout is read as it comes and not after the wait: a list long enough to fill the pipe would stop a child
+    // that nothing is reading from, and a child that never exits is the one thing this bound is here for.
+    let reading = std::thread::spawn(move || {
+        let read = child.wait_with_output().map(|out| String::from_utf8_lossy(&out.stdout).into_owned());
+        let _ = said.send(read.unwrap_or_default());
+    });
+    let answer = wait.recv_timeout(within);
+    if answer.is_err() && pid.as_raw() > 0 {
+        let _ = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL);
+    }
+    let _ = reading.join();
+    answer.unwrap_or_default()
+}
+
+/// Takes wsp off this computer and answers what went: first every file wsp itself landed in the agents' homes here
+/// whose bytes are still the ones wsp left, read by the one ownership script, then the paths the protocol names, in
+/// its order, then wsp's own folder where nothing of the person's or a host's is left in it. The read comes first
+/// because the list it reads sits in the provision folder that walk takes. A path is there when it exists as a link
+/// or a file, since the browser name is a symlink whose target may already be gone. A file the person has written
+/// since is on no line of that read and stays.
+pub(crate) fn sweep_place_home(home: &Path, read: &dyn Fn(&str) -> String) -> Vec<String> {
+    let mut removed = Vec::new();
+    for rel in own_marks(&read(&landed_files_script(home))) {
+        let path = home.join(&rel);
+        match remove_under_home(home, Path::new(&rel)) {
+            Removed::Gone => {
+                removed.push(path.to_string_lossy().into_owned());
+                if let Some(parent) = path.parent() {
+                    prune_empty(home, parent);
+                }
+            }
+            Removed::Linked => removed.push(words::place_kept_for_link(path.to_string_lossy())),
+            Removed::TooDeep => removed.push(words::place_kept_too_deep(path.to_string_lossy())),
+            Removed::Absent => {}
+        }
+    }
+    for path in place_owned_paths(home) {
+        let Ok(rel) = path.strip_prefix(home) else { continue };
+        match remove_under_home(home, rel) {
+            Removed::Gone => removed.push(path.to_string_lossy().into_owned()),
+            Removed::Linked => removed.push(words::place_kept_for_link(path.to_string_lossy())),
+            Removed::TooDeep => removed.push(words::place_kept_too_deep(path.to_string_lossy())),
+            Removed::Absent => {}
+        }
+    }
+    let wsp = place_daemon_paths(home).wsp;
+    if wsp.strip_prefix(home).is_ok_and(|rel| remove_empty_under_home(home, rel)) {
+        removed.push(wsp.to_string_lossy().into_owned());
+    }
+    removed
+}
+
+/// Takes the workspace AppArmor profile a root install loaded off this computer: unloaded while its file is still
+/// there, since the kernel holds a profile by name and a bare removal would leave it loaded for a binary that is
+/// gone, then the file. Answers the path when it went; nothing when there was none to take.
+pub(crate) fn sweep_workspace_profile(profile: &Path, found: &HashSet<PathBuf>, read: &dyn Fn(&str) -> String) -> Option<String> {
+    if !profile.is_file() {
+        return None;
+    }
+    if found.contains(profile) {
+        return Some(words::place_stood_before(profile.to_string_lossy()));
+    }
+    let quoted = format!("'{}'", profile.to_string_lossy().replace('\'', r"'\''"));
+    read(&format!("command -v apparmor_parser >/dev/null 2>&1 && apparmor_parser -R {quoted} 2>/dev/null; true"));
+    std::fs::remove_file(profile).ok().map(|()| profile.to_string_lossy().into_owned())
+}
+
+/// Takes what the setup wrote outside the home off this computer, read off the list in wsp's install folder by the
+/// one leave script the host's own leave runs, so it goes before that folder does. `root` is the folder /usr/local
+/// and /opt sit under, empty for this computer's own. The bound is the host's own for that script: it hashes every
+/// binary the setup wrote, and one killed part way leaves the rest behind once the list goes with the folder.
+pub(crate) fn sweep_outside_home(root: &str) -> Vec<String> {
+    outside_marks(&sh_stdout_within(&outside_sweep_script(root), Duration::from_secs(60)))
+}
+
+/// The paths the add found standing before it wrote anything, off the record its deploy left under the home. None
+/// where the record is missing, unreadable, past the cap or does not end on its end entry: a computer joined before
+/// the record existed, one joined at its own terminal and a deploy killed while writing it all read alike, and the
+/// leave then takes nothing outside the home. Read before the home's sweep, which takes the record with wsp's folder.
+pub(crate) fn place_found(home: &Path) -> Option<HashSet<PathBuf>> {
+    let path = place_daemon_paths(home).place_found;
+    let meta = std::fs::symlink_metadata(&path).ok()?;
+    let end = format!("{}\0", numbers::PLACE_FOUND_END);
+    if !meta.is_file() || meta.len() > numbers::PLACE_FOUND_MAX_BYTES + end.len() as u64 {
+        return None;
+    }
+    let bytes = std::fs::read(&path).ok()?;
+    let body = bytes.strip_suffix(end.as_bytes())?;
+    if !body.is_empty() && !body.ends_with(b"\0") {
+        return None;
+    }
+    Some(body.split(|b| *b == 0).filter(|path| !path.is_empty()).map(|path| PathBuf::from(std::ffi::OsStr::from_bytes(path))).collect())
+}
+
+/// Takes wsp's install folder off this computer, by the record of what stood before the add. Every link in the links
+/// folder the record does not name whose own target is under the prefix and is no path the record names, then the
+/// prefix whole where it did not stand; where it stood, every path under it the record does not name, deepest first,
+/// a folder only once it is empty, so a folder still holding a path from before stays with it. A link is read, never
+/// followed, so a command of the computer's own there and a link pointing anywhere else stay; a prefix that is itself
+/// a link stays too, since what it points at is not wsp's. The host's own leave takes the same paths by the same rule.
+pub(crate) fn sweep_tool_prefix(prefix: &Path, links: &Path, found: &HashSet<PathBuf>) -> Vec<String> {
+    let Ok(meta) = std::fs::symlink_metadata(prefix) else { return Vec::new() };
+    if !meta.is_dir() {
+        return vec![words::place_kept_for_link(prefix.to_string_lossy())];
+    }
+    // The list of what the setup wrote outside the home goes last in a leave that finished; one still holding lines
+    // is the only record of what a leave cut short left behind.
+    if std::fs::symlink_metadata(prefix.join("landed")).is_ok_and(|list| list.is_file() && list.len() > 0) {
+        return vec![words::place_outside_left(prefix.to_string_lossy())];
+    }
+    let stood = found.contains(prefix);
+    let mut removed = Vec::new();
+    for entry in std::fs::read_dir(links).into_iter().flatten().flatten() {
+        let link = entry.path();
+        if found.contains(&link) {
+            continue;
+        }
+        let Ok(target) = std::fs::read_link(&link) else { continue };
+        let target = lexical(&links.join(target));
+        if target.starts_with(prefix) && !(stood && found.contains(&target)) && std::fs::remove_file(&link).is_ok() {
+            removed.push(link.to_string_lossy().into_owned());
+        }
+    }
+    if !stood {
+        if std::fs::remove_dir_all(prefix).is_ok() {
+            removed.push(prefix.to_string_lossy().into_owned());
+        }
+        return removed;
+    }
+    let mut gone = Vec::new();
+    take_unfound(prefix, found, &mut gone);
+    // The topmost path that went stands for everything under it.
+    let all: HashSet<&Path> = gone.iter().map(PathBuf::as_path).collect();
+    removed.extend(
+        gone.iter().filter(|path| path.parent().is_none_or(|up| !all.contains(up))).map(|path| path.to_string_lossy().into_owned()),
+    );
+    removed.push(words::place_stood_before(prefix.to_string_lossy()));
+    removed
+}
+
+/// Every path under a folder the record does not name, children before their folder, each folder only once empty;
+/// a link is removed as itself and never followed. What went is appended in the order it went.
+fn take_unfound(folder: &Path, found: &HashSet<PathBuf>, gone: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(folder).into_iter().flatten().flatten() {
+        let path = entry.path();
+        let Ok(meta) = std::fs::symlink_metadata(&path) else { continue };
+        if meta.is_dir() {
+            take_unfound(&path, found, gone);
+        }
+        if found.contains(&path) {
+            continue;
+        }
+        let taken = if meta.is_dir() { std::fs::remove_dir(&path) } else { std::fs::remove_file(&path) };
+        if taken.is_ok() {
+            gone.push(path);
+        }
+    }
+}
+
+/// A path with its `.` and `..` read off by name alone, which is how a link's target is read against the folder it
+/// sits in without following anything.
+fn lexical(path: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for part in path.components() {
+        match part {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// Lowercase hex sha256 of some bytes, as the host spells the one it names on the frame.
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The home the place keeps its files under: --home, else HOME, else the root.
+pub(crate) fn place_home(given: Option<&Path>) -> PathBuf {
+    given.map(Path::to_path_buf).or_else(|| std::env::var_os("HOME").map(PathBuf::from)).unwrap_or_else(|| PathBuf::from("/"))
+}
+
+#[cfg(test)]
+mod version_tests;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ed25519_dalek::pkcs8::{EncodePrivateKey, EncodePublicKey};
+    use ed25519_dalek::SigningKey;
+    use wsp_frames::{place_link_transcript, place_refusal_transcript, LinkEphemerals, LinkRole};
+
+    fn pair() -> (String, PlacePublicKey) {
+        let mut seed = [0u8; 32];
+        getrandom::fill(&mut seed).unwrap();
+        let key = SigningKey::from_bytes(&seed);
+        let der = key.verifying_key().to_public_key_der().unwrap();
+        let public = Base64Bytes::parse(&base64::Engine::encode(&base64::engine::general_purpose::STANDARD, der.as_bytes())).unwrap();
+        (key.to_pkcs8_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF).unwrap().to_string(), public)
+    }
+
+    #[test]
+    fn a_signature_verifies_under_its_own_key_and_no_other_over_no_other_bytes() {
+        let (pem, public) = pair();
+        let (_, other) = pair();
+        let pair_of = LinkEphemerals { challenger: "CCC=", answerer: "DDD=" };
+        let bytes = place_link_transcript(LinkRole::Place, "p_1", "AAA=", "BBB=", pair_of);
+        let sig = sign_place_bytes(&pem, &bytes).unwrap();
+        assert!(verify_place_bytes(&public, &bytes, &sig));
+        assert!(!verify_place_bytes(&other, &bytes, &sig));
+        assert!(!verify_place_bytes(&public, &place_link_transcript(LinkRole::Host, "p_1", "AAA=", "BBB=", pair_of), &sig));
+        // The ephemerals are inside the bytes, so a carrier that swapped one has a signature over nothing.
+        let swapped = LinkEphemerals { challenger: "CCC=", answerer: "EEE=" };
+        assert!(!verify_place_bytes(&public, &place_link_transcript(LinkRole::Place, "p_1", "AAA=", "BBB=", swapped), &sig));
+        assert!(sign_place_bytes("not a key", &bytes).is_err());
+    }
+
+    #[test]
+    fn signing_matches_the_node_side_byte_for_byte() {
+        let text = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/place-link-signing.json")).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let s = |k: &str| fixture[k].as_str().unwrap().to_owned();
+        let b64 = |k: &str| base64::Engine::decode(&base64::engine::general_purpose::STANDARD, s(k)).unwrap();
+        let (place_ephemeral, host_ephemeral) = (s("placeEphemeral"), s("hostEphemeral"));
+        let host_bytes = place_link_transcript(
+            LinkRole::Host,
+            &s("placeId"),
+            &s("placeNonce"),
+            &s("hostNonce"),
+            LinkEphemerals { challenger: &place_ephemeral, answerer: &host_ephemeral },
+        );
+        let place_bytes = place_link_transcript(
+            LinkRole::Place,
+            &s("placeId"),
+            &s("hostNonce"),
+            &s("placeNonce"),
+            LinkEphemerals { challenger: &host_ephemeral, answerer: &place_ephemeral },
+        );
+        assert_eq!(host_bytes, b64("hostTranscript"));
+        assert_eq!(place_bytes, b64("placeTranscript"));
+        let public = Base64Bytes::parse(&s("publicKey")).unwrap();
+        assert_eq!(sign_place_bytes(&s("privateKeyPem"), &host_bytes).unwrap().as_str(), s("hostSignature"));
+        assert_eq!(sign_place_bytes(&s("privateKeyPem"), &place_bytes).unwrap().as_str(), s("placeSignature"));
+        assert!(verify_place_bytes(&public, &place_bytes, &Base64Bytes::parse(&s("placeSignature")).unwrap()));
+
+        // The refusal a host gives before it has proved anything, which this side verifies rather than signs.
+        let refusal = place_refusal_transcript(&s("placeId"), &s("placeNonce"), &s("refusalSentence"));
+        assert_eq!(refusal, b64("refusalTranscript"));
+        let signature = Base64Bytes::parse(&s("refusalSignature")).unwrap();
+        assert!(verify_place_bytes(&public, &refusal, &signature));
+        // The nonce is in the bytes, so one dial's refusal proves nothing at the next.
+        assert!(!verify_place_bytes(&public, &place_refusal_transcript(&s("placeId"), &s("hostNonce"), &s("refusalSentence")), &signature));
+    }
+
+    #[test]
+    fn agents_are_id_command_pairs_and_only_those_on_path_are_reported() {
+        assert_eq!(
+            parse_agents(&["a1=sh".to_owned(), "broken".to_owned(), "=x".to_owned(), "b2=no-such-agent-command".to_owned()]).len(),
+            2
+        );
+        assert_eq!(found_at("sh", "/nonexistent:/bin:/usr/bin"), Some(PathBuf::from("/bin/sh")));
+        assert_eq!(found_at("no-such-agent-command", "/bin:/usr/bin"), None);
+        assert_eq!(found_at("sh", ""), None);
+    }
+
+    /// A place's daemon runs unattended under a service unit: a word that is not a pair costs the report one agent
+    /// row, and refusing the flag would cost the person the whole computer until somebody edits its unit.
+    #[test]
+    fn a_word_that_is_not_an_id_command_pair_is_dropped_and_the_rest_of_the_list_stands() {
+        let read =
+            parse_agents(&["a1=sh".to_owned(), "broken".to_owned(), "=no-id".to_owned(), "no-command=".to_owned(), "b2=bash".to_owned()]);
+        assert_eq!(
+            read,
+            vec![AgentBin { id: "a1".to_owned(), bin: "sh".to_owned() }, AgentBin { id: "b2".to_owned(), bin: "bash".to_owned() }]
+        );
+        // The command may carry an = of its own; only the first one splits the word.
+        assert_eq!(
+            parse_agents(&["a1=sh -c echo a=b".to_owned()]),
+            vec![AgentBin { id: "a1".to_owned(), bin: "sh -c echo a=b".to_owned() }]
+        );
+    }
+
+    #[test]
+    fn the_logins_folder_is_read_as_the_names_under_it_and_nothing_else() {
+        let logins = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(logins.path().join("codex")).unwrap();
+        // A tool whose sign-in made its folder and wrote nothing yet is not a login that stands.
+        std::fs::create_dir_all(logins.path().join("gemini")).unwrap();
+        std::fs::write(logins.path().join("codex/auth.json"), "{}").unwrap();
+        assert_eq!(names_under(logins.path()), vec!["codex/auth.json".to_owned()]);
+        // A computer with no logins folder at all says none, which is what a box before its first sign-in is.
+        assert!(names_under(&logins.path().join("nowhere")).is_empty());
+        assert!(logins_present(&logins.path().join("nowhere")).is_empty());
+    }
+
+    #[test]
+    fn the_report_reads_its_disk_off_the_volume_wsp_installs_onto_not_the_homes() {
+        // Two volumes: the home on the disk the temp folder sits on, the computer's /opt on a tmpfs.
+        let home = tempfile::tempdir().unwrap();
+        let Ok(system) = tempfile::tempdir_in("/dev/shm") else {
+            eprintln!("skipped: no /dev/shm here to put a second volume on");
+            return;
+        };
+        let size_of = |path: &Path| disk_room(path).map(|(_, size)| size);
+        if size_of(system.path()) == size_of(home.path()) {
+            eprintln!("skipped: /dev/shm and the temp folder answer the same size, so they are not two volumes here");
+            return;
+        }
+        std::fs::create_dir_all(home.path().join("wsp-work")).unwrap();
+        let file =
+            PlaceFile::parse(r#"{"placeId":"p","name":"box","hostName":"h","hostUrls":[],"hostPublicKey":"k","keyPath":"/k"}"#).unwrap();
+        let report = |system_root: &Path| {
+            place_report(&ReportInput {
+                file: &file,
+                home: home.path(),
+                wsp_argv: &[],
+                agents: &[],
+                agent_versions: &BTreeMap::new(),
+                wsp_daemon_version: None,
+                daemon_port: 1,
+                dialed: "http://h:1",
+                unit_path: None,
+                runtime_root: home.path(),
+                system_root,
+            })
+        };
+        // wsp's install folder is not there before its first install, so the read is the folder it would be made in.
+        assert_eq!(report(system.path()).disk_size_bytes, size_of(system.path()));
+        std::fs::create_dir_all(system.path().join(numbers::TOOL_PREFIX.trim_start_matches('/'))).unwrap();
+        assert_eq!(report(system.path()).disk_size_bytes, size_of(system.path()));
+    }
+
+    #[test]
+    fn the_report_is_read_off_the_home_and_the_words_given() {
+        let home = tempfile::tempdir().unwrap();
+        let file =
+            PlaceFile::parse(r#"{"placeId":"p","name":"old-macbook","hostName":"h","hostUrls":[],"hostPublicKey":"k","keyPath":"/k"}"#)
+                .unwrap();
+        let agents = parse_agents(&["a1=sh".to_owned(), "b2=no-such-agent-command".to_owned()]);
+        let argv = ["/usr/local/bin/node".to_owned(), "/opt/wsp/bin.js".to_owned()];
+        let versions: BTreeMap<String, String> = [("a1".to_owned(), "1.2.3".to_owned())].into_iter().collect();
+        let report = place_report(&ReportInput {
+            file: &file,
+            home: home.path(),
+            wsp_argv: &argv,
+            agents: &agents,
+            agent_versions: &versions,
+            wsp_daemon_version: Some(136),
+            daemon_port: 4321,
+            dialed: "http://h:1",
+            unit_path: Some("/units/own/bin:/usr/bin"),
+            runtime_root: &home.path().join("runtime"),
+            system_root: Path::new("/"),
+        });
+        assert_eq!(report.name, "old-macbook");
+        assert_eq!(report.wsp, argv);
+        assert_eq!(report.agents, vec!["a1"]);
+        // The versions read before the report was built, and the logins folder read as this dial found it: a
+        // report from this daemon always carries the list, empty or not, which is what tells it from an older one.
+        assert_eq!(report.agent_versions, versions);
+        assert_eq!(report.logins, Some(logins_present(&home.path().join("runtime"))));
+        assert_eq!(report.login["HOME"], home.path().to_string_lossy());
+        // The PATH the row carries is the one this daemon's unit gave it, read at start before the probe list
+        // took its place: what the person's login shell gives is a fact about that computer, and the list this
+        // daemon runs a command through is not.
+        assert_eq!(report.login["PATH"], "/units/own/bin:/usr/bin");
+        assert_eq!(report.daemon_port.map(|p| p.get()), Some(4321));
+        assert_eq!(report.dialed, "http://h:1");
+        assert!(report.shape.cpu > 0.0 && report.shape.mem_mb > 0);
+        assert!(report.disk_free_bytes.is_some());
+        assert!(report.disk_size_bytes.is_some_and(|size| size > 0 && size >= report.disk_free_bytes.unwrap_or(0)));
+        assert_eq!(report.daemon_version, numbers::DAEMON_VERSION);
+        assert_eq!(report.wsp_daemon_version, Some(136));
+        // runs_workspaces and engine are the doctor's reading of this box; on this Linux test box it runs them.
+        assert_eq!(report.engine, wsp_runtime::doctor::engine_on_path(&std::env::var("PATH").unwrap_or_default()).word());
+        // The copy word rides with runs_workspaces: a box that boots workspaces says how it copies a project,
+        // and a computer that boots none says nothing rather than a word nothing would use.
+        assert_eq!(report.copies.is_some(), report.runs_workspaces);
+        let bare = place_report(&ReportInput {
+            file: &file,
+            home: home.path(),
+            wsp_argv: &[],
+            agents: &[],
+            agent_versions: &BTreeMap::new(),
+            wsp_daemon_version: None,
+            daemon_port: 1,
+            dialed: "http://h:1",
+            unit_path: None,
+            runtime_root: home.path(),
+            system_root: Path::new("/"),
+        });
+        assert_eq!(bare.wsp, vec!["wsp"]);
+        // And the root the daemon was given is part of that reading: under one of the directories every
+        // workspace overlays, the open refuses it, so the row says why and carries no copy word rather than
+        // reading ready and refusing every create.
+        let under = std::path::Path::new("/var/wsp-under-a-lower");
+        let bad = place_report(&ReportInput {
+            file: &file,
+            home: home.path(),
+            wsp_argv: &[],
+            agents: &[],
+            agent_versions: &BTreeMap::new(),
+            wsp_daemon_version: None,
+            daemon_port: 1,
+            dialed: "http://h:1",
+            unit_path: None,
+            runtime_root: under,
+            system_root: Path::new("/"),
+        });
+        assert!(!bad.runs_workspaces);
+        assert_eq!(bad.copies, None);
+        // Which reason the row carries is one reading, held here on every computer this builds for: the
+        // computer's own first, where it has one, and the root's where it has none.
+        let its_own = "wsp runs workspaces on a Linux computer, and this computer is not one".to_owned();
+        assert_eq!(workspaces_blocked_by(Some(its_own.clone()), under), Some(its_own));
+        assert_eq!(workspaces_blocked_by(None, under), wsp_runtime::doctor::root_under_a_lower(under));
+        assert!(workspaces_blocked_by(None, under).is_some_and(|said| said.contains("/var")));
+        assert_eq!(workspaces_blocked_by(None, std::path::Path::new(wsp_runtime::DEFAULT_ROOT)), None);
+        // And the row's own reason is whichever of the two this computer gave, never a word written here.
+        let first = wsp_runtime::doctor::assess(&wsp_runtime::doctor::read_facts()).blocked;
+        assert_eq!(bad.workspaces_blocked, workspaces_blocked_by(first, under));
+        // The shape the host parses is the shape this serialises to.
+        serde_json::from_value::<PlaceReport>(serde_json::to_value(&report).unwrap()).unwrap();
+    }
+
+    /// The bytes of the three files the committed ledger names, in its order: what the run that landed them put
+    /// there, so the read that hashes a file against the ledger's third column answers for the first two.
+    const LANDED_BYTES: [&str; 3] = ["the skill wsp landed\n", "{\"wsp\":true}\n", "wsp = true\n"];
+
+    /// The ledger both sides' cases build a fake home from, as rows of (home-relative path, the bytes wsp left).
+    fn ledger_rows() -> Vec<(String, String)> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/contract/landed.tsv");
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let rows: Vec<(String, String)> = text
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .zip(LANDED_BYTES)
+            .map(|(line, bytes)| {
+                let fields: Vec<&str> = line.split('\t').collect();
+                let standing = fields[2];
+                let held: String = Sha256::digest(bytes.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+                assert_eq!(standing, held, "landed.tsv names bytes for {} that this case does not write", fields[0]);
+                (fields[0].to_owned(), bytes.to_owned())
+            })
+            .collect();
+        assert_eq!(rows.len(), LANDED_BYTES.len(), "landed.tsv holds a line per set of bytes here");
+        rows
+    }
+
+    /// A home with the ledger and what it names: the first two files as wsp left them, the third rewritten by the
+    /// person since, and one file of theirs no line names.
+    fn home_with_landed_files() -> (tempfile::TempDir, Vec<(String, String)>) {
+        let home = tempfile::tempdir().unwrap();
+        let rows = ledger_rows();
+        let at = place_daemon_paths(home.path());
+        std::fs::create_dir_all(&at.wsp).unwrap();
+        let provision = wsp_frames::place_provision_paths(home.path());
+        std::fs::create_dir_all(&provision.dir).unwrap();
+        let tsv = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/contract/landed.tsv");
+        std::fs::copy(&tsv, &provision.landed).unwrap();
+        for (index, (rel, bytes)) in rows.iter().enumerate() {
+            let path = home.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, if index + 1 == rows.len() { "the person wrote this\n" } else { bytes }).unwrap();
+        }
+        std::fs::write(home.path().join(".claude/theirs.md"), "mine\n").unwrap();
+        // A line the servers step wrote: a key in an agent's own file, no path under the home, and the digest of
+        // the entry wsp left under that name. Nothing on the disk stands at it and nothing is taken for it.
+        let mut ledger = std::fs::read_to_string(&provision.landed).unwrap();
+        ledger.push_str("agents/mcp/claude/context7\tdeadbeef\tdeadbeef\n");
+        std::fs::write(&provision.landed, ledger).unwrap();
+        (home, rows)
+    }
+
+    /// sh with a sha256sum to find: BSD carries none on every release, and the script the leave runs is the
+    /// engine's own, which hashes with it.
+    fn with_sha256sum() -> (tempfile::TempDir, impl Fn(&str) -> String) {
+        let bin = tempfile::tempdir().unwrap();
+        let shim = bin.path().join("sha256sum");
+        std::fs::write(&shim, "#!/bin/sh\nexec shasum -a 256 \"$@\"\n").unwrap();
+        std::fs::set_permissions(&shim, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        // Last on the PATH, so a computer with the real one runs that and the shim is there for one that has none.
+        let path = format!("{}:{}", std::env::var("PATH").unwrap_or_default(), bin.path().to_string_lossy());
+        let read = move |script: &str| {
+            let out = std::process::Command::new("/bin/sh").arg("-c").arg(script).env("PATH", &path).output().unwrap();
+            String::from_utf8_lossy(&out.stdout).into_owned()
+        };
+        (bin, read)
+    }
+
+    #[test]
+    fn the_leave_takes_wsps_own_landed_files_and_keeps_the_one_the_person_changed() {
+        let (home, rows) = home_with_landed_files();
+        let (_bin, read) = with_sha256sum();
+        let swept = sweep_place_home(home.path(), &read);
+        let took = |rel: &str| swept.contains(&home.path().join(rel).to_string_lossy().into_owned());
+        // The two whose bytes are still wsp's go and are named; the one the person rewrote is on no line of the
+        // read, so it stays and the leave says nothing about it.
+        for (rel, _) in rows.iter().take(2) {
+            assert!(!home.path().join(rel).exists(), "{rel}");
+            assert!(took(rel), "{swept:?}");
+        }
+        let (kept, _) = rows.last().unwrap();
+        assert!(home.path().join(kept).exists(), "{kept}");
+        assert!(!took(kept), "{swept:?}");
+        // A folder wsp's own files left empty goes with them, up to but not into the folder the agent itself owns.
+        assert!(!home.path().join(".claude/skills").exists());
+        assert!(home.path().join(".claude").is_dir());
+        assert!(home.path().join(".codex").is_dir());
+        assert_eq!(std::fs::read_to_string(home.path().join(".claude/theirs.md")).unwrap(), "mine\n");
+        // The list's server line named no path, so the leave took nothing for it and made nothing at its name.
+        assert!(!home.path().join("agents").exists());
+        assert!(!swept.iter().any(|took| took.contains("agents/mcp")), "{swept:?}");
+        // And wsp's own folder goes too, since the sweep left it empty, the provision folder and the ledger with it.
+        assert!(!place_daemon_paths(home.path()).wsp.exists());
+        assert!(swept.contains(&place_daemon_paths(home.path()).wsp.to_string_lossy().into_owned()));
+    }
+
+    #[test]
+    fn the_ledger_is_read_before_the_folder_that_holds_it_goes() {
+        let (home, rows) = home_with_landed_files();
+        let ledger = wsp_frames::place_provision_paths(home.path()).landed;
+        let (_bin, read) = with_sha256sum();
+        // The one thing the order buys: at the moment the read runs, the list it reads is still there.
+        let ledger_at_read = ledger.clone();
+        let watched = move |script: &str| {
+            assert!(ledger_at_read.exists(), "the ownership read ran after the folder holding the ledger had gone");
+            read(script)
+        };
+        sweep_place_home(home.path(), &watched);
+        assert!(!ledger.exists());
+        assert!(!home.path().join(&rows[0].0).exists());
+    }
+
+    #[test]
+    fn a_read_that_would_not_return_is_killed_at_its_bound_and_answers_nothing() {
+        // What a file on a mount that has stopped answering does to the read that hashes it: the sweep waits for
+        // the bound and no longer, and a leave over the link answers its host rather than hanging inside it.
+        let started = std::time::Instant::now();
+        let said = sh_stdout_within("printf 'wsp-own\t.claude/settings.json\n'; while :; do sleep 1; done", Duration::from_millis(300));
+        assert_eq!(said, "", "a read that ran past its bound answered with what it had printed so far");
+        assert!(started.elapsed() < Duration::from_secs(5), "the bound was not what ended the read: {:?}", started.elapsed());
+        // A read that answers inside the bound is the whole of what it printed.
+        assert_eq!(
+            sh_stdout_within("printf 'wsp-own\t.claude/settings.json\n'", Duration::from_secs(5)),
+            "wsp-own\t.claude/settings.json\n"
+        );
+        assert_eq!(sh_stdout_within("exit 7", Duration::from_secs(5)), "");
+    }
+
+    /// A workspace on a computer somebody owns writes in that computer's home, so a folder wsp's list names there
+    /// can be a link it planted. The leave removes through the folders themselves, so a link where a folder was
+    /// ends the walk: the file the link points at is the computer's own and is still there afterwards.
+    #[test]
+    fn a_link_where_a_folder_was_leaves_what_it_points_at_standing_and_is_said() {
+        let home = tempfile::tempdir().unwrap();
+        let at = place_daemon_paths(home.path());
+        std::fs::create_dir_all(&at.wsp).unwrap();
+        // The box's own bin, with the two names the fixed list ends on, and the shared bin a workspace replaced
+        // with a link to it.
+        let theirs = tempfile::tempdir().unwrap();
+        for name in ["wsp-open", "xdg-open"] {
+            std::fs::write(theirs.path().join(name), "the computer's own\n").unwrap();
+        }
+        std::fs::create_dir_all(home.path().join(".local")).unwrap();
+        std::os::unix::fs::symlink(theirs.path(), &at.bin_dir).unwrap();
+        // And a row of the ledger whose folder is a link the same way, pointing at a file of the computer's own.
+        let planted = tempfile::tempdir().unwrap();
+        std::fs::write(planted.path().join("settings.json"), "the computer's own\n").unwrap();
+        std::os::unix::fs::symlink(planted.path(), home.path().join(".claude")).unwrap();
+        let read = |_: &str| format!("{}\t.claude/settings.json\n", wsp_frames::OWN_MARK);
+
+        let swept = sweep_place_home(home.path(), &read);
+
+        for name in ["wsp-open", "xdg-open"] {
+            assert_eq!(std::fs::read_to_string(theirs.path().join(name)).unwrap(), "the computer's own\n", "{name}");
+        }
+        assert_eq!(std::fs::read_to_string(planted.path().join("settings.json")).unwrap(), "the computer's own\n");
+        // The links themselves are the workspace's doing and are left alone; what the leave says is that it took
+        // nothing at those three paths and why.
+        for path in [at.bin_dir.join("wsp-open"), at.bin_dir.join("xdg-open"), home.path().join(".claude/settings.json")] {
+            let said = words::place_kept_for_link(path.to_string_lossy());
+            assert!(swept.contains(&said), "{swept:?} does not say {said}");
+            assert!(!swept.contains(&path.to_string_lossy().into_owned()), "{swept:?} took a path through a link");
+        }
+        // Wsp's own folder is under no link and goes once the sweep has left it empty.
+        assert!(!at.wsp.exists());
+        assert!(swept.contains(&at.wsp.to_string_lossy().into_owned()));
+    }
+
+    #[test]
+    fn the_leave_names_a_folder_of_wsps_it_left_for_holding_folders_deeper_than_it_goes() {
+        let home = tempfile::tempdir().unwrap();
+        let provision = wsp_frames::place_provision_paths(home.path()).dir;
+        std::fs::create_dir_all(provision.join("files")).unwrap();
+        std::fs::write(provision.join("files/settings.json"), "staged\n").unwrap();
+        crate::under_home::tests::nest(&provision.join("deep"), 70);
+
+        let swept = sweep_place_home(home.path(), &|_| String::new());
+
+        let said = words::place_kept_too_deep(provision.to_string_lossy());
+        assert!(swept.contains(&said), "{swept:?} does not say {said}");
+        // Wsp's own folder still holds the provision folder, so it stays and is not said to have gone.
+        let wsp = place_daemon_paths(home.path()).wsp;
+        assert!(wsp.exists());
+        assert!(!swept.contains(&wsp.to_string_lossy().into_owned()), "{swept:?}");
+        assert!(!provision.join("files").exists(), "what lay above the depth stayed too");
+    }
+
+    #[test]
+    fn a_home_with_no_ledger_loses_nothing_of_the_persons() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(home.path().join(".claude/skills/wsp")).unwrap();
+        std::fs::write(home.path().join(".claude/skills/wsp/SKILL.md"), "theirs\n").unwrap();
+        let (_bin, read) = with_sha256sum();
+        assert!(sweep_place_home(home.path(), &read).is_empty());
+        assert!(home.path().join(".claude/skills/wsp/SKILL.md").exists());
+    }
+
+    #[test]
+    fn the_sweep_takes_what_is_there_in_the_protocols_order_and_leaves_the_work_folder() {
+        let home = tempfile::tempdir().unwrap();
+        let at = place_daemon_paths(home.path());
+        std::fs::create_dir_all(&at.wsp).unwrap();
+        std::fs::create_dir_all(&at.bin_dir).unwrap();
+        std::fs::write(&at.token_path, "t\n").unwrap();
+        std::fs::write(&at.place_key, "k").unwrap();
+        std::fs::write(&at.place_file, "{}").unwrap();
+        std::fs::create_dir_all(at.dir.join("inner")).unwrap();
+        std::os::unix::fs::symlink("/nonexistent/wsp-open", at.bin_dir.join("xdg-open")).unwrap();
+        let work = home.path().join("wsp-work");
+        std::fs::create_dir_all(&work).unwrap();
+        std::fs::create_dir_all(&at.put_dir).unwrap();
+        std::fs::write(at.put_dir.join("797"), "half an update").unwrap();
+        let swept = sweep_place_home(home.path(), &|_| String::new());
+        let names: Vec<_> = [&at.place_file, &at.place_key, &at.dir, &at.token_path, &at.put_dir, &at.bin_dir.join("xdg-open"), &at.wsp]
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(swept, names);
+        assert!(!at.wsp.exists());
+        for path in [&at.place_file, &at.place_key, &at.dir, &at.token_path] {
+            assert!(!path.exists(), "{}", path.display());
+        }
+        assert!(std::fs::symlink_metadata(at.bin_dir.join("xdg-open")).is_err());
+        assert!(work.exists());
+        assert!(sweep_place_home(home.path(), &|_| String::new()).is_empty());
+    }
+
+    #[test]
+    fn a_landings_install_log_and_what_a_killed_add_left_go_and_wsps_folder_with_them() {
+        let home = tempfile::tempdir().unwrap();
+        let at = place_daemon_paths(home.path());
+        std::fs::create_dir_all(&at.wsp).unwrap();
+        std::fs::write(&at.token_path, "t\n").unwrap();
+        std::fs::create_dir_all(&at.install_logs).unwrap();
+        for left in [at.install_logs.join("p_abc123.log"), at.place_found_part.clone(), at.join_code.clone()] {
+            std::fs::write(&left, "left").unwrap();
+        }
+        let swept = sweep_place_home(home.path(), &|_| String::new());
+        let left: Vec<_> = std::fs::read_dir(&at.wsp).map(|d| d.map(|e| e.unwrap().file_name()).collect()).unwrap_or_default();
+        assert!(left.is_empty(), "left under ~/.wsp: {left:?}");
+        assert_eq!(swept.last(), Some(&at.wsp.to_string_lossy().into_owned()));
+    }
+
+    #[test]
+    fn the_persons_own_wsp_and_a_hosts_state_stay_byte_for_byte_with_wsps_folder_around_them() {
+        let home = tempfile::tempdir().unwrap();
+        let at = place_daemon_paths(home.path());
+        std::fs::create_dir_all(at.wsp.join("bin")).unwrap();
+        let theirs =
+            [(at.wsp.join("bin/wsp"), "#!/bin/sh\necho the install line's wsp\n"), (at.wsp.join("state.json"), "{\"workspaces\":[]}\n")];
+        for (path, text) in &theirs {
+            std::fs::write(path, text).unwrap();
+        }
+        std::fs::write(&at.place_file, "{}").unwrap();
+        std::fs::create_dir_all(at.wsp.join("readings")).unwrap();
+        let swept = sweep_place_home(home.path(), &|_| String::new());
+        for (path, text) in &theirs {
+            assert_eq!(std::fs::read_to_string(path).unwrap(), *text, "{}", path.display());
+        }
+        assert!(!swept.contains(&at.wsp.to_string_lossy().into_owned()), "{swept:?}");
+        let mut left: Vec<_> = std::fs::read_dir(&at.wsp).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, ["bin", "state.json"]);
+    }
+
+    #[test]
+    fn wsps_install_folder_goes_with_every_command_linked_out_of_it_and_nothing_else_there() {
+        let root = tempfile::tempdir().unwrap();
+        let prefix = root.path().join("opt-wsp");
+        let links = root.path().join("usr-local-bin");
+        std::fs::create_dir_all(prefix.join("uv/tools/ruff/bin")).unwrap();
+        std::fs::write(prefix.join("uv/tools/ruff/bin/ruff"), "#!/bin/sh\n").unwrap();
+        std::fs::create_dir_all(&links).unwrap();
+        std::os::unix::fs::symlink(prefix.join("uv/tools/ruff/bin/ruff"), links.join("ruff")).unwrap();
+        // A relative link reads by where it sits, and one whose target is already gone still points under it.
+        std::os::unix::fs::symlink("../opt-wsp/pnpm/bin/tsc", links.join("tsc")).unwrap();
+        // The computer's own: a file, a link elsewhere, and a folder that only starts like the prefix.
+        std::fs::write(links.join("jq"), "#!/bin/sh\n").unwrap();
+        std::os::unix::fs::symlink("/usr/bin/env", links.join("env2")).unwrap();
+        let old = root.path().join("opt-wsp-old");
+        std::fs::create_dir_all(&old).unwrap();
+        std::os::unix::fs::symlink(&old, links.join("old")).unwrap();
+        let swept = sweep_tool_prefix(&prefix, &links, &HashSet::new());
+        let said = |p: PathBuf| p.to_string_lossy().into_owned();
+        let mut taken = swept.clone();
+        taken.sort();
+        let mut wanted = vec![said(links.join("ruff")), said(links.join("tsc")), said(prefix.clone())];
+        wanted.sort();
+        assert_eq!(taken, wanted);
+        assert_eq!(swept.last(), Some(&said(prefix.clone())), "the folder goes after the links into it");
+        assert!(!prefix.exists());
+        let mut left: Vec<_> = std::fs::read_dir(&links).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, ["env2", "jq", "old"]);
+        assert!(old.exists());
+        assert!(sweep_tool_prefix(&prefix, &links, &HashSet::new()).is_empty());
+    }
+
+    #[test]
+    fn an_install_folder_whose_outside_list_still_has_lines_stays_with_its_links_and_is_said() {
+        let root = tempfile::tempdir().unwrap();
+        let prefix = root.path().join("opt-wsp");
+        let links = root.path().join("usr-local-bin");
+        std::fs::create_dir_all(prefix.join("go/bin")).unwrap();
+        std::fs::create_dir_all(&links).unwrap();
+        std::os::unix::fs::symlink(prefix.join("go/bin/x"), links.join("x")).unwrap();
+        std::fs::write(prefix.join("landed"), "dir\t/opt/gcloud\n").unwrap();
+        assert_eq!(sweep_tool_prefix(&prefix, &links, &HashSet::new()), [words::place_outside_left(prefix.to_string_lossy())]);
+        assert!(prefix.join("landed").exists() && std::fs::symlink_metadata(links.join("x")).is_ok());
+        // A list the leave finished with is gone, and an empty one holds nothing back.
+        std::fs::write(prefix.join("landed"), "").unwrap();
+        assert!(sweep_tool_prefix(&prefix, &links, &HashSet::new()).contains(&prefix.to_string_lossy().into_owned()));
+        assert!(!prefix.exists());
+    }
+
+    #[test]
+    fn an_install_folder_that_is_a_link_stays_and_is_said() {
+        let root = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        std::fs::write(elsewhere.path().join("keep"), "theirs").unwrap();
+        let prefix = root.path().join("opt-wsp");
+        std::os::unix::fs::symlink(elsewhere.path(), &prefix).unwrap();
+        let swept = sweep_tool_prefix(&prefix, &root.path().join("usr-local-bin"), &HashSet::new());
+        assert_eq!(swept, [words::place_kept_for_link(prefix.to_string_lossy())]);
+        assert!(elsewhere.path().join("keep").exists());
+    }
+
+    #[test]
+    fn the_workspace_profile_is_unloaded_before_its_file_goes_and_named_in_what_the_leave_took() {
+        let etc = tempfile::tempdir().unwrap();
+        let profile = etc.path().join("wsp-workspace");
+        std::fs::write(&profile, "profile wsp-workspace {}\n").unwrap();
+        let asked = std::cell::RefCell::new(Vec::<(String, bool)>::new());
+        let read = |script: &str| {
+            asked.borrow_mut().push((script.to_owned(), profile.exists()));
+            String::new()
+        };
+        assert_eq!(sweep_workspace_profile(&profile, &HashSet::new(), &read), Some(profile.to_string_lossy().into_owned()));
+        assert!(!profile.exists());
+        let asked = asked.into_inner();
+        assert_eq!(asked.len(), 1);
+        assert!(asked[0].0.contains(&format!("apparmor_parser -R '{}'", profile.display())), "{}", asked[0].0);
+        assert!(asked[0].1, "the profile was unloaded while its file was still there");
+        // A computer that never loaded one is asked nothing and says nothing.
+        let never = |_: &str| -> String { panic!("nothing to unload") };
+        assert_eq!(sweep_workspace_profile(&profile, &HashSet::new(), &never), None);
+    }
+
+    /// The record a joined add's deploy writes under the home: each path NUL-terminated, then the end entry.
+    pub(super) fn record_under(home: &Path, paths: &[PathBuf]) -> PathBuf {
+        let at = place_daemon_paths(home).place_found;
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        let mut bytes = Vec::new();
+        for path in paths {
+            bytes.extend_from_slice(path.as_os_str().as_encoded_bytes());
+            bytes.push(0);
+        }
+        bytes.extend_from_slice(numbers::PLACE_FOUND_END.as_bytes());
+        bytes.push(0);
+        std::fs::write(&at, bytes).unwrap();
+        at
+    }
+
+    /// Every path under a folder, read without following a link.
+    fn under(folder: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(folder).into_iter().flatten().flatten() {
+            out.push(entry.path());
+            if entry.file_type().unwrap().is_dir() {
+                under(&entry.path(), out);
+            }
+        }
+    }
+
+    /// What the deploy's listing names on a box as it stands: the profile where it stands, the prefix and every path
+    /// under it, and every link in the links folder, as find walks them without following a link.
+    pub(super) fn standing(profile: &Path, prefix: &Path, links: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        if profile.exists() {
+            out.push(profile.to_path_buf());
+        }
+        if prefix.is_dir() {
+            out.push(prefix.to_path_buf());
+            under(prefix, &mut out);
+        }
+        for entry in std::fs::read_dir(links).into_iter().flatten().flatten() {
+            if entry.file_type().unwrap().is_symlink() {
+                out.push(entry.path());
+            }
+        }
+        out
+    }
+
+    /// Everything under a folder, relative to it and sorted.
+    pub(super) fn tree(root: &Path) -> Vec<String> {
+        let mut paths = Vec::new();
+        under(root, &mut paths);
+        let mut out: Vec<String> = paths.iter().map(|path| path.strip_prefix(root).unwrap().to_string_lossy().into_owned()).collect();
+        out.sort();
+        out
+    }
+
+    /// A box as it stood before a joined add, under a root of its own: a profile, an install folder holding a file of
+    /// its own and a toolchain, and a command of its own linked out of that toolchain.
+    pub(super) struct BoxOfItsOwn {
+        pub(super) home: tempfile::TempDir,
+        pub(super) root: tempfile::TempDir,
+        pub(super) profile: PathBuf,
+        pub(super) prefix: PathBuf,
+        pub(super) links: PathBuf,
+    }
+
+    pub(super) fn box_of_its_own() -> BoxOfItsOwn {
+        let home = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let profile = root.path().join("etc/apparmor.d/wsp-workspace");
+        let prefix = root.path().join(numbers::TOOL_PREFIX.trim_start_matches('/'));
+        let links = root.path().join(numbers::TOOL_LINKS_DIR.trim_start_matches('/'));
+        std::fs::create_dir_all(profile.parent().unwrap()).unwrap();
+        std::fs::write(&profile, "profile theirs {}\n").unwrap();
+        std::fs::create_dir_all(prefix.join("rustup/toolchains/theirs/bin")).unwrap();
+        std::fs::write(prefix.join("rustup/settings.toml"), "theirs\n").unwrap();
+        std::fs::write(prefix.join("rustup/toolchains/theirs/bin/rustc"), "theirs\n").unwrap();
+        std::fs::write(prefix.join("keep"), "theirs").unwrap();
+        // A name holding a newline, which a record split on lines would read as two names neither of which is it.
+        std::fs::write(prefix.join("two\nlines"), "theirs").unwrap();
+        std::fs::create_dir_all(&links).unwrap();
+        std::os::unix::fs::symlink(prefix.join("rustup/toolchains/theirs/bin/rustc"), links.join("rustc-theirs")).unwrap();
+        BoxOfItsOwn { home, root, profile, prefix, links }
+    }
+
+    /// What the setup does after the add on such a box: a toolchain of its own inside the rustup it found, a command
+    /// linked out of it, and a manager's folder of its own.
+    pub(super) fn setup_installed(at: &BoxOfItsOwn) {
+        std::fs::create_dir_all(at.prefix.join("rustup/toolchains/stable/bin")).unwrap();
+        std::fs::write(at.prefix.join("rustup/toolchains/stable/bin/rustc"), "wsp's\n").unwrap();
+        std::os::unix::fs::symlink(at.prefix.join("rustup/toolchains/stable/bin/rustc"), at.links.join("rustc")).unwrap();
+        std::fs::create_dir_all(at.prefix.join("uv/bin")).unwrap();
+        std::fs::write(at.prefix.join("uv/bin/uv"), "wsp's\n").unwrap();
+    }
+
+    pub(super) fn install_root(at: &BoxOfItsOwn) -> String {
+        at.root.path().to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn a_profile_the_add_found_standing_stays_loaded_and_is_said() {
+        let at = box_of_its_own();
+        record_under(at.home.path(), std::slice::from_ref(&at.profile));
+        let found = place_found(at.home.path()).unwrap();
+        let never = |_: &str| -> String { panic!("a profile that stood before the add is not unloaded") };
+        assert_eq!(sweep_workspace_profile(&at.profile, &found, &never), Some(words::place_stood_before(at.profile.to_string_lossy())));
+        assert_eq!(std::fs::read_to_string(&at.profile).unwrap(), "profile theirs {}\n");
+    }
+
+    #[test]
+    fn a_record_past_the_cap_reads_as_none() {
+        let home = tempfile::tempdir().unwrap();
+        let record = record_under(home.path(), &[]);
+        assert_eq!(place_found(home.path()), Some(HashSet::new()));
+        let file = std::fs::OpenOptions::new().write(true).open(&record).unwrap();
+        file.set_len(numbers::PLACE_FOUND_MAX_BYTES + 64).unwrap();
+        assert!(place_found(home.path()).is_none());
+    }
+
+    #[test]
+    fn a_folder_made_since_that_holds_a_path_from_before_stays() {
+        let at = box_of_its_own();
+        // A path the record names, under a folder it does not: the folder is not empty, so it stays with it.
+        std::fs::create_dir_all(at.prefix.join("since")).unwrap();
+        std::fs::write(at.prefix.join("since/old"), "theirs").unwrap();
+        record_under(at.home.path(), &[at.prefix.clone(), at.prefix.join("since/old")]);
+        sweep_tool_prefix(&at.prefix, &at.links, &place_found(at.home.path()).unwrap());
+        assert!(at.prefix.join("since/old").exists());
+        assert!(!at.prefix.join("keep").exists());
+    }
+
+    #[test]
+    fn the_leave_outside_the_home_takes_what_the_list_names_as_wsp_left_it_and_nothing_else() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonical root");
+        let bin = root.join("usr/local/bin");
+        std::fs::create_dir_all(&bin).expect("bin");
+        std::fs::create_dir_all(root.join("opt/wsp")).expect("prefix");
+        std::fs::write(bin.join("claude"), "claude 2.1.280\n").expect("claude");
+        std::fs::write(bin.join("jq"), "the box's own jq\n").expect("jq");
+        std::fs::write(bin.join("gopls"), "the person's own gopls\n").expect("gopls");
+        // claude as wsp left it, gopls at bytes the person has written since; jq is on no line.
+        let ledger = format!(
+            "{}\t{}\n{}\t{}\n",
+            sha256_hex(b"claude 2.1.280\n"),
+            bin.join("claude").display(),
+            sha256_hex(b"gopls as wsp left it\n"),
+            bin.join("gopls").display()
+        );
+        std::fs::write(root.join("opt/wsp/landed"), ledger).expect("ledger");
+        let swept = sweep_outside_home(&root.to_string_lossy());
+        assert_eq!(swept, [bin.join("claude").to_string_lossy().into_owned()]);
+        assert!(!bin.join("claude").exists());
+        assert!(bin.join("jq").exists() && bin.join("gopls").exists());
+        assert!(!root.join("opt/wsp/landed").exists(), "a leave that finished takes its list too");
+    }
+}

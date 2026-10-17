@@ -1,0 +1,520 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The host's events that become notices: each one said when its home is off
+// screen and left alone when the person is already looking at it, the waits
+// keyed until the event that closes them, and the noise said nowhere.
+import { act, render } from "@testing-library/react";
+import { NEEDS_YOU, SKIPPED_FOR_NOW, askingLine, initNeedsYouLine, setupNeedsYouLine, waitLine, type InitJob, type PlaceView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Api, ProtocolEvent } from "../src/protocol/client.js";
+import { useStore } from "../src/protocol/store.js";
+import { HOST_NOTICE_WORDS, useHostNotices } from "../src/notices/hostNotices.js";
+import { useNotices, type Notice } from "../src/notices/store.js";
+import { closeAdd, openSetup, useAddFlow } from "../src/settings/add/addFlow.js";
+import { closeCloudAdd, goCloud, openCloudAdd } from "../src/settings/add/cloudFlow.js";
+import { useSettingsStore } from "../src/settings/settingsStore.js";
+import { resetAskedToNotify } from "../src/shell/needsYou.js";
+
+const WS: WorkspaceView = { id: "ws_1", name: "api", machineId: "m1", phase: "running", golden: "snap_g", createdAt: "2026-09-10T00:00:00Z", project: { id: "pr_api", name: "the-project", path: "/root", computer: "default" } };
+const ROW: SessionView = { id: "s1", workspaceId: "ws_1", harness: "claude", status: "running", threadId: "thr_1", prompt: "fix the login page" };
+const BOX = { id: "pl_box", kind: "computer", name: "spoo", present: true } as unknown as PlaceView;
+const JOB: InitJob = { id: "init_1", road: "manual", phase: "signing-in", keys: { solari: true }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 1, total: 2 }, log: [] };
+const NEED = { what: "sign in to GitHub CLI login", since: 1_760_000_000_000 };
+const ASKED = {
+  type: "session.permission" as const,
+  workspaceId: "ws_1",
+  sessionId: "s1",
+  turnId: "turn_1",
+  threadId: "thr_1",
+  askId: "ask_1",
+  toolName: "Bash",
+  detail: "Check wsp version",
+  input: '{"command":"wsp --version"}',
+  options: [{ id: "allow", label: "Allow", effect: "allow" as const }],
+};
+const ENDED = { type: "session.end" as const, workspaceId: "ws_1", sessionId: "s1", turnId: "turn_1", threadId: "thr_1", exitCode: 1, sawResult: false };
+
+const notices = (): Notice[] => useNotices.getState().notices;
+const texts = (): string[] => notices().map(n => n.text);
+
+let emit: (e: ProtocolEvent) => void;
+let mounted: ReturnType<typeof render>;
+
+function Harness() {
+  useHostNotices();
+  return null;
+}
+
+beforeEach(async () => {
+  window.localStorage.clear();
+  vi.stubGlobal("Notification", undefined);
+  resetAskedToNotify();
+  const listeners = new Set<(e: ProtocolEvent) => void>();
+  const api = {
+    listWorkspaces: vi.fn(async () => [WS]),
+    watchStatuses: vi.fn(async () => []),
+    capabilities: vi.fn(async () => ({ upgrade: false, snapshot: false })),
+    getGolden: vi.fn(async () => ({ versions: [] })),
+    listSessions: vi.fn(async () => [ROW]),
+    subscribe: (fn: (e: ProtocolEvent) => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  } as unknown as Api;
+  closeAdd();
+  useStore.setState({ api: null, initJob: null, settingsOpen: false, addComputerOpen: false, selectedId: null, selectedThreadId: null, freshThread: false, workspaces: [], sessions: {}, places: [], release: null });
+  useStore.getState().bind(api);
+  // The bind's own reads land first, then the page is put where each case starts: nothing selected.
+  await act(async () => await new Promise(resolve => setTimeout(resolve, 0)));
+  useStore.setState({ workspaces: [WS], sessions: { ws_1: [ROW] }, places: [BOX], selectedId: null, selectedThreadId: null });
+  useSettingsStore.getState().go({ kind: "group", group: "appearance" });
+  useSettingsStore.setState({ buildShown: null });
+  act(() => useNotices.getState().clear());
+  emit = e => act(() => listeners.forEach(fn => fn(e)));
+  mounted = render(<Harness />);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  delete (window as unknown as { __WSP__?: unknown }).__WSP__;
+  delete window.wsp;
+  act(() => useNotices.getState().clear());
+});
+
+const openThread = (): void => act(() => useStore.setState({ selectedId: "ws_1", selectedThreadId: "thr_1", settingsOpen: false }));
+const remount = (): void => {
+  mounted.unmount();
+  act(() => useNotices.getState().clear());
+  mounted = render(<Harness />);
+};
+const releaseView = (version: string): ReleaseView => ({ state: "read", latest: { version, tag: `v${version}`, url: `https://example.test/v${version}`, publishedAt: "2026-09-24T00:00:00Z" } });
+const openComputers = (): void => {
+  act(() => {
+    useStore.setState({ settingsOpen: true });
+    useSettingsStore.getState().go({ kind: "group", group: "computers" });
+  });
+};
+
+describe("a computer's install and its link", () => {
+  it("an add that failed while Computers is not showing is an error with an Open onto Computers; showing, it is the sheet's to say", () => {
+    emit({ type: "place.stage", addId: "a_1", step: "connect", state: "running" });
+    emit({ type: "place.stage", addId: "a_1", step: "connect", state: "failed", note: "spoo names no user" });
+    expect(notices()).toMatchObject([{ kind: "error", text: HOST_NOTICE_WORDS.notAdded("spoo names no user"), action: { word: "Open" } }]);
+    act(() => notices()[0]!.action!.run());
+    expect(useStore.getState().settingsOpen).toBe(true);
+    expect(useSettingsStore.getState().at).toEqual({ kind: "group", group: "computers" });
+
+    act(() => useNotices.getState().clear());
+    emit({ type: "place.stage", addId: "a_2", step: "connect", state: "failed", note: "spoo names no user" });
+    expect(notices()).toEqual([]);
+  });
+
+  it("a join and a setup that ended away are said under the computer's name: ready is done, waiting on the person is a note, failed is an error", () => {
+    emit({ type: "place.stage", addId: "a_1", placeId: "pl_box", step: "join", state: "done", note: "engine none" });
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "failed", said: "the base tools did not install: curl" });
+    emit({ type: "place.setup", addId: "a_2", placeId: "pl_box", end: "needs-you", said: "Codex waits on you to sign in" });
+    expect(notices().map(n => [n.kind, n.text, n.where])).toEqual([
+      ["note", setupNeedsYouLine("spoo", "Codex waits on you to sign in"), "spoo"],
+      ["error", HOST_NOTICE_WORDS.notSetUp("spoo", "the base tools did not install: curl"), "spoo"],
+      ["done", HOST_NOTICE_WORDS.joined("spoo"), "spoo"],
+    ]);
+    // The Open lands on Add a computer, open on that computer's running steps.
+    act(() => notices()[0]!.action!.run());
+    expect(useAddFlow.getState()).toMatchObject({ open: true, placeId: "pl_box", step: "running" });
+  });
+
+  it("a setup that ended is said ready once its rows are read, with the Computers list showing too: what it left, and where to finish it", () => {
+    const steps = [{ step: "floor" as const, state: "done" as const }, { step: "agents" as const, state: "done" as const }];
+    const skipped: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "signins/claude", label: "Claude Code", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW }] };
+    const read = (): void => act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "done", addId: "a_1", startedAt: "x", steps, waiting: [] }, applied: skipped }] }));
+    act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "running", addId: "a_1", startedAt: "x", steps, waiting: [] } }] }));
+    openComputers();
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "ready" });
+    // The end rides ahead of the rows it ended with, which the list's next read brings.
+    expect(notices()).toEqual([]);
+    read();
+    expect(notices().map(n => [n.kind, n.text, n.detail, n.where])).toEqual([["done", "spoo is ready: threads you start on it run there", "Claude Code sign-in skipped. Finish it from spoo's page in Settings.", "spoo"]]);
+    // Read again, or ended again, it is not said twice.
+    read();
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "ready" });
+    read();
+    expect(notices()).toHaveLength(1);
+    act(() => notices()[0]!.action!.run());
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+  });
+
+  it("a setup that ended with a folder not moved and no sign-in waiting says it needs you, as the notification outside does, once, with the Computers list showing", () => {
+    const failed: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "folders/wsp", label: "wsp", outcome: "failed", step: "folders", note: "the clone failed" }] };
+    const read = (): void => act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "done", addId: "a_folder", startedAt: "x", steps: [{ step: "folders", state: "failed" }], waiting: [] }, applied: failed }] }));
+    act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "running", addId: "a_folder", startedAt: "x", steps: [], waiting: [] } }] }));
+    openComputers();
+    emit({ type: "place.setup", addId: "a_folder", placeId: "pl_box", end: "needs-you", said: "wsp: the clone failed" });
+    read();
+    read();
+    expect(notices().map(n => [n.kind, n.text, n.detail, n.where])).toEqual([["note", setupNeedsYouLine("spoo", "wsp: the clone failed"), undefined, "spoo"]]);
+    act(() => notices()[0]!.action!.run());
+    expect(useAddFlow.getState()).toMatchObject({ open: true, placeId: "pl_box", step: "running" });
+  });
+
+  it("a setup that ended with nothing left says the ready line alone, its Open on the dialog's ready steps", () => {
+    emit({ type: "place.setup", addId: "a_2", placeId: "pl_box", end: "ready" });
+    act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "done", addId: "a_2", startedAt: "x", steps: [{ step: "floor", state: "done" }], waiting: [] }, applied: { hash: "h", at: "x", rows: [] } }] }));
+    expect(notices().map(n => [n.kind, n.text, n.detail])).toEqual([["done", "spoo is ready: threads you start on it run there", undefined]]);
+    act(() => notices()[0]!.action!.run());
+    expect(useAddFlow.getState()).toMatchObject({ open: true, placeId: "pl_box", step: "running" });
+  });
+
+  it("a setup's ready line waits on the read that brings its end: not the computer coming back, not a read asked before the end", () => {
+    const run = (state: "running" | "done"): PlaceView => ({ ...BOX, setup: { state, addId: "a_3", startedAt: "x", steps: [{ step: "floor", state: "done" }], waiting: [] }, applied: { hash: "h", at: "x", rows: state === "running" ? [] : [{ id: "signins/claude", label: "Claude Code", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW }] } });
+    act(() => useStore.setState({ places: [run("running")] }));
+    emit({ type: "place.setup", addId: "a_3", placeId: "pl_box", end: "ready" });
+    emit({ type: "place.present", placeId: "pl_box", from: "x" });
+    act(() => useStore.setState({ places: [run("running")] }));
+    expect(notices()).toEqual([]);
+    act(() => useStore.setState({ places: [run("done")] }));
+    expect(notices().map(n => [n.text, n.detail])).toEqual([["spoo is ready: threads you start on it run there", "Claude Code sign-in skipped. Finish it from spoo's page in Settings."]]);
+  });
+
+  it("a setup's steps say nothing, and a sign-in that waits on the person says so once, opening the dialog there", () => {
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", line: { step: "floor", state: "running" } });
+    expect(notices()).toEqual([]);
+    const wait = { row: "signins/codex", label: "Codex", url: "https://auth.example/device", code: "ABCD-1234", expiresAt: "2026-10-03T10:00:00Z", state: "waiting" as const };
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", wait });
+    expect(notices().map(n => [n.kind, n.text, n.where])).toEqual([["waiting", setupNeedsYouLine("spoo", waitLine(wait)), "spoo"]]);
+    act(() => notices()[0]!.action!.run());
+    expect(useAddFlow.getState()).toMatchObject({ open: true, placeId: "pl_box", step: "running" });
+    // The wait ran out: its toast goes. With the dialog on that computer, the end is already in front of the person.
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", wait: { ...wait, state: "expired" } });
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "failed", said: "node did not install" });
+    expect(notices()).toEqual([]);
+  });
+
+  it("a sign-in's wait is said once, in the app and outside it, through the frames the runtime sends for it, and its toast goes with the wait", () => {
+    const said: unknown[] = [];
+    window.wsp = { sayOutside: (line: unknown) => void said.push(line), onNeedsYouOpen: () => () => {} };
+    try {
+      remount();
+      // The runtime's own sequence: the wait as the sign-in starts, then again once the relay read the page, then the code.
+      const bare = { row: "signins/codex", label: "Codex", expiresAt: "2026-10-03T10:00:00Z", state: "waiting" as const };
+      emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", wait: bare });
+      emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", wait: { ...bare, url: "https://auth.example/device" } });
+      emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", wait: { ...bare, url: "https://auth.example/device", code: "ABCD-1234" } });
+      expect(said).toHaveLength(1);
+      // One toast, which says the newest of what the wait knows.
+      expect(notices().map(n => n.text)).toEqual([setupNeedsYouLine("spoo", waitLine({ ...bare, url: "https://auth.example/device", code: "ABCD-1234" }))]);
+      // The wait left the record (the person signed in): its toast goes, and a later wait for the same sign-in is said again.
+      act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "running", addId: "a_1", startedAt: "x", steps: [], waiting: [] } }] }));
+      expect(notices()).toEqual([]);
+      emit({ type: "place.setup", addId: "a_2", placeId: "pl_box", wait: bare });
+      expect(said).toHaveLength(2);
+    } finally {
+      delete (window as { wsp?: unknown }).wsp;
+    }
+  });
+
+  it("a setup's wait and its end are still handed to the shell with Add a computer open on it, since only the shell knows the window lost focus", () => {
+    const said: { title: string }[] = [];
+    window.wsp = { sayOutside: (line: { title: string }) => void said.push(line), onNeedsYouOpen: () => () => {} };
+    try {
+      remount();
+      act(() => openSetup("pl_box"));
+      emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", wait: { row: "signins/codex", label: "Codex", expiresAt: "2026-10-03T10:00:00Z", state: "waiting" } });
+      emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "failed", said: "node did not install" });
+      expect(said.map(l => l.title)).toEqual([NEEDS_YOU, "spoo: setup failed"]);
+      // The dialog in front already says both, so neither is a toast.
+      expect(notices()).toEqual([]);
+    } finally {
+      delete (window as { wsp?: unknown }).wsp;
+    }
+  });
+
+  it("a computer's own page showing keeps its setup off the toasts", () => {
+    act(() => {
+      useStore.setState({ settingsOpen: true });
+      useSettingsStore.getState().go({ kind: "computer", id: "pl_box" });
+    });
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "failed", said: "node did not install" });
+    expect(notices()).toEqual([]);
+  });
+
+  it("a computer gone quiet never pops as a notice, however long it stays quiet and whatever the runtime knows of why", () => {
+    vi.useFakeTimers();
+    emit({ type: "place.absent", placeId: "pl_box" });
+    emit({ type: "place.absent", placeId: "pl_box", said: "spoo can no longer boot the image: its kernel has no overlay filesystem" });
+    act(() => vi.advanceTimersByTime(10 * 60_000));
+    expect(notices()).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("a thread's end, its prompts and its line to me", () => {
+  it("a thread that died with no reply on a thread not open is an error naming it, and Open opens that thread", () => {
+    emit(ENDED);
+    expect(notices()).toMatchObject([{ kind: "error", text: HOST_NOTICE_WORDS.threadStopped("fix the login page", "exit 1"), where: "api", action: { word: "Open" } }]);
+    act(() => notices()[0]!.action!.run());
+    expect([useStore.getState().selectedId, useStore.getState().selectedThreadId]).toEqual(["ws_1", "thr_1"]);
+  });
+
+  it("the turn's own failure sentence is what the notice says, where the harness gave one", () => {
+    emit({ type: "session.done", workspaceId: "ws_1", sessionId: "s1", turnId: "turn_1", threadId: "thr_1", result: { status: "failed", error: "claude exited 1 before it started" } });
+    emit(ENDED);
+    expect(texts()).toEqual([HOST_NOTICE_WORDS.threadStopped("fix the login page", "claude exited 1 before it started")]);
+  });
+
+  it("a turn somebody stopped is no failure, whatever its exit", () => {
+    emit({ type: "session.done", workspaceId: "ws_1", sessionId: "s1", turnId: "turn_1", threadId: "thr_1", result: { status: "interrupted" } });
+    emit({ ...ENDED, exitCode: null });
+    expect(notices()).toEqual([]);
+    // The next turn's failure on the same thread is still said: the stop was that turn's alone.
+    emit({ ...ENDED, turnId: "turn_2" });
+    expect(notices()).toHaveLength(1);
+  });
+
+  it("an end that is no failure, or one the runtime gave a reason for, says nothing; nor does one on the thread open", () => {
+    emit({ ...ENDED, exitCode: 0 });
+    emit({ ...ENDED, sawResult: true });
+    emit({ ...ENDED, reason: "paused" });
+    expect(notices()).toEqual([]);
+    openThread();
+    emit(ENDED);
+    expect(notices()).toEqual([]);
+  });
+
+  it("a thread in the same workspace but not the one open is off screen", () => {
+    act(() => useStore.setState({ selectedId: "ws_1", selectedThreadId: "thr_other" }));
+    emit(ENDED);
+    expect(notices()).toHaveLength(1);
+  });
+
+  it("an end naming no thread is off screen while another thread of its workspace is open, and on screen as the latest one", () => {
+    const { threadId: _t, ...unthreaded } = ENDED;
+    const { threadId: _r, ...bare } = ROW;
+    act(() => useStore.setState({ sessions: { ws_1: [{ ...ROW, id: "s0", threadId: "thr_other" }, bare] }, selectedId: "ws_1", selectedThreadId: "thr_other" }));
+    emit(unthreaded);
+    expect(notices()).toHaveLength(1);
+    act(() => useNotices.getState().clear());
+    act(() => useStore.setState({ selectedThreadId: null }));
+    emit(unthreaded);
+    expect(notices()).toEqual([]);
+  });
+
+  it("a prompt on a thread not open waits under its key until the prompt closes", () => {
+    emit(ASKED);
+    expect(notices()).toMatchObject([{ kind: "waiting", text: askingLine(ASKED), where: "api", action: { word: "Open" } }]);
+    expect(notices()[0]!.key).toBeDefined();
+    emit({ type: "session.permission.closed", workspaceId: "ws_1", sessionId: "s1", turnId: "turn_1", threadId: "thr_1", askId: "ask_1", outcome: "allowed" });
+    expect(notices()).toEqual([]);
+  });
+
+  it("a prompt whose turn was cut goes with the turn, and a prompt on the thread open is never a notice", () => {
+    emit(ASKED);
+    emit({ ...ENDED, exitCode: null, reason: "stopped" });
+    expect(notices()).toEqual([]);
+    openThread();
+    emit(ASKED);
+    expect(notices()).toEqual([]);
+  });
+
+  it("a line to me is a note with an Open onto its thread; a line to another thread, or to me on the thread open, says nothing", () => {
+    const line = "thread c452d1e8 finished (completed, 8m 12s, $1.94): all green";
+    const notify = { type: "session.notify" as const, workspaceId: "ws_1", sessionId: "s1", turnId: "turn_1", threadId: "thr_1", text: line };
+    emit({ ...notify, notify: "thr_parent" });
+    expect(notices()).toEqual([]);
+    emit({ ...notify, notify: "me" });
+    expect(notices()).toMatchObject([{ kind: "note", text: line, where: "api", action: { word: "Open" } }]);
+    act(() => useNotices.getState().clear());
+    openThread();
+    emit({ ...notify, notify: "me" });
+    expect(notices()).toEqual([]);
+  });
+});
+
+describe("the image build", () => {
+  it("a need waits under its key with an Open onto Computers when its job names no place, and ends when a view carries no need or another one", () => {
+    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+    expect(notices()).toMatchObject([{ kind: "waiting", text: initNeedsYouLine(NEED.what), action: { word: "Open" } }]);
+    // A view of the same standing need leaves it.
+    emit({ type: "init.job", job: { ...JOB, needsYou: NEED } });
+    expect(notices()).toHaveLength(1);
+    act(() => notices()[0]!.action!.run());
+    expect(useStore.getState().settingsOpen).toBe(true);
+    expect(useSettingsStore.getState().at).toEqual({ kind: "group", group: "computers" });
+    act(() => useStore.setState({ settingsOpen: false }));
+    emit({ type: "init.job", job: JOB });
+    expect(notices()).toEqual([]);
+
+    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+    emit({ type: "init.job", job: { ...JOB, needsYou: { what: "sign in to Claude Code login", since: NEED.since + 1 } } });
+    expect(notices()).toEqual([]);
+  });
+
+  it("a need the host no longer holds on a fresh read goes too", () => {
+    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+    act(() => useStore.setState({ initJob: { ...JOB, phase: "done" } }));
+    expect(notices()).toEqual([]);
+  });
+
+  it("a build that failed or sealed while its page was not showing is said once per job", () => {
+    emit({ type: "init.job", job: { ...JOB, phase: "failed", error: "the provider ran out of machines" } });
+    emit({ type: "init.job", job: { ...JOB, phase: "failed", error: "the provider ran out of machines" } });
+    emit({ type: "init.job", job: { ...JOB, id: "init_2", phase: "done", golden: { version: 3 } } });
+    emit({ type: "init.job", job: { ...JOB, id: "init_2", phase: "done", golden: { version: 3 } } });
+    expect(notices().map(n => [n.kind, n.text])).toEqual([
+      ["done", HOST_NOTICE_WORDS.imageSealed(3)],
+      ["error", HOST_NOTICE_WORDS.imageNotBuilt("the provider ran out of machines")],
+    ]);
+  });
+
+  it("a need with its build's own page showing is the page's to say; leaving that page says it with an Open back onto it, and coming back ends it", () => {
+    const job: InitJob = { ...JOB, place: { id: "pl_box", name: "spoo" }, needsYou: NEED };
+    act(() => {
+      useStore.setState({ initJob: job, settingsOpen: true });
+      useSettingsStore.getState().go({ kind: "computer", id: "pl_box" });
+      useSettingsStore.getState().showBuild("pl_box");
+    });
+    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+    expect(notices()).toEqual([]);
+    // Computers is showing, but not the build: the list draws no sign-in.
+    act(() => {
+      useSettingsStore.getState().hideBuild("pl_box");
+      useSettingsStore.getState().go({ kind: "group", group: "computers" });
+    });
+    expect(notices()).toMatchObject([{ kind: "waiting", text: initNeedsYouLine(NEED.what), action: { word: "Open" } }]);
+    act(() => notices()[0]!.action!.run());
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+    act(() => useSettingsStore.getState().showBuild("pl_box"));
+    expect(notices()).toEqual([]);
+  });
+
+  it("a need arriving with another page up waits with an Open onto the build's page", () => {
+    act(() => useStore.setState({ initJob: { ...JOB, place: { id: "pl_box", name: "spoo" } } }));
+    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+    act(() => notices()[0]!.action!.run());
+    expect(useStore.getState().settingsOpen).toBe(true);
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+  });
+
+  it("a build that ended with its page showing says nothing; one that failed away opens that page", () => {
+    const placed: InitJob = { ...JOB, place: { id: "pl_box", name: "spoo" } };
+    act(() => {
+      useStore.setState({ settingsOpen: true });
+      useSettingsStore.getState().go({ kind: "computer", id: "pl_box" });
+      useSettingsStore.getState().showBuild("pl_box");
+    });
+    emit({ type: "init.job", job: { ...placed, phase: "failed", error: "boom" } });
+    expect(notices()).toEqual([]);
+    act(() => {
+      useSettingsStore.getState().hideBuild("pl_box");
+      useStore.setState({ settingsOpen: false });
+    });
+    emit({ type: "init.job", job: { ...placed, id: "init_2", phase: "failed", error: "boom" } });
+    expect(notices().map(n => n.text)).toEqual([HOST_NOTICE_WORDS.imageNotBuilt("boom")]);
+    act(() => notices()[0]!.action!.run());
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+  });
+
+  it("a build sent to the background says its computer is ready with the image's version, in the app and outside it, with an Open onto its page", () => {
+    const said: { title: string; body: string }[] = [];
+    window.wsp = { sayOutside: (line: { title: string; body: string }) => void said.push(line), onNeedsYouOpen: () => () => {} };
+    try {
+      remount();
+      act(() => useStore.setState({ settingsOpen: true }));
+      emit({ type: "init.job", job: { ...JOB, place: { id: "pl_box", name: "spoo" }, phase: "done", golden: { version: 1 } } });
+      expect(notices()).toMatchObject([{ kind: "done", text: "spoo is ready", detail: "Image v1 sealed.", where: "spoo", action: { word: "Open" } }]);
+      expect(said).toMatchObject([{ title: "spoo is ready", body: "Image v1 sealed" }]);
+      act(() => notices()[0]!.action!.run());
+      expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+    } finally {
+      delete (window as { wsp?: unknown }).wsp;
+    }
+  });
+
+  it("a build watched to its end in Add a cloud provider is said by the dialog alone, and still goes out on the shell's road", () => {
+    const said: { title: string }[] = [];
+    window.wsp = { sayOutside: (line: { title: string }) => void said.push(line), onNeedsYouOpen: () => () => {} };
+    try {
+      remount();
+      act(() => {
+        openCloudAdd("pl_box");
+        goCloud("building");
+      });
+      emit({ type: "init.job", job: { ...JOB, place: { id: "pl_box", name: "spoo" }, phase: "done", golden: { version: 1 } } });
+      expect(notices()).toEqual([]);
+      expect(said.map(l => l.title)).toEqual(["spoo is ready"]);
+    } finally {
+      act(() => closeCloudAdd());
+      delete (window as { wsp?: unknown }).wsp;
+    }
+  });
+
+  it("a build that was cancelled says nothing", () => {
+    emit({ type: "init.job", job: { ...JOB, phase: "cancelled" } });
+    expect(notices()).toEqual([]);
+  });
+});
+
+describe("a workspace gone and a newer release", () => {
+  it("a workspace gone at the provider while another is selected is an error; selected, it says nothing", () => {
+    emit({ type: "workspace.gone", workspaceId: "ws_1", machineId: "m1", reason: "the provider no longer knows m1" });
+    expect(notices()).toMatchObject([{ kind: "error", text: HOST_NOTICE_WORDS.gone("api", "the provider no longer knows m1"), where: "api", action: { word: "Open" } }]);
+    act(() => useNotices.getState().clear());
+    act(() => useStore.setState({ selectedId: "ws_1" }));
+    emit({ type: "workspace.gone", workspaceId: "ws_1", machineId: "m1", reason: "the provider no longer knows m1" });
+    expect(notices()).toEqual([]);
+  });
+
+  it("a thread the runtime ended because its machine went is one notice, the machine's", () => {
+    emit({ ...ENDED, exitCode: null, reason: "the provider no longer knows m1" });
+    emit({ type: "workspace.gone", workspaceId: "ws_1", machineId: "m1", reason: "the provider no longer knows m1" });
+    expect(texts()).toEqual([HOST_NOTICE_WORDS.gone("api", "the provider no longer knows m1")]);
+  });
+
+  it("a newer release is no notice, on a browser tab or an app that replaces itself: the sidebar's card says it", async () => {
+    (window as unknown as { __WSP__?: unknown }).__WSP__ = { version: "0.1.0" };
+    act(() => useStore.setState({ release: releaseView("0.2.0") }));
+    expect(notices()).toEqual([]);
+    window.wsp = { version: "0.1.0", updatesInPlace: true, getBundle: async () => ({ ok: true }), quitAndOpen: async () => ({ ok: true }), hosts: async () => ({ here: "zingzy's MacBook Pro", current: null, hosts: [] }) };
+    mounted.unmount();
+    mounted = render(<Harness />);
+    act(() => useStore.setState({ release: { ...releaseView("0.3.0"), installed: "0.3.0" } }));
+    await act(async () => await new Promise(resolve => setTimeout(resolve, 0)));
+    expect(notices()).toEqual([]);
+  });
+});
+
+describe("the workspace a notice names", () => {
+  it("names this computer's own workspace by the computer's name, never its host name or this Mac", () => {
+    const itself: WorkspaceView = { ...WS, name: "zingzys-MacBook-Pro.local", kind: "local", golden: "" };
+    const here = { id: "here", kind: "computer", name: "zingzys-MacBook-Pro.local", label: "zingzy's MacBook Pro", present: true } as unknown as PlaceView;
+    act(() => useStore.setState({ workspaces: [itself], places: [here, BOX] }));
+    emit(ENDED);
+    emit(ASKED);
+    emit({ type: "session.notify", workspaceId: "ws_1", sessionId: "s1", turnId: "turn_1", threadId: "thr_1", text: "all green", notify: "me" });
+    emit({ type: "workspace.gone", workspaceId: "ws_1", machineId: "m1", reason: "the machine is gone" });
+    expect(notices().map(n => n.where)).toEqual(["zingzy's MacBook Pro", "zingzy's MacBook Pro", "zingzy's MacBook Pro", "zingzy's MacBook Pro"]);
+    expect(texts()).toContain(HOST_NOTICE_WORDS.gone("zingzy's MacBook Pro", "the machine is gone"));
+    for (const n of notices()) expect(`${n.text} ${n.where}`).not.toMatch(/zingzys-MacBook-Pro\.local|this Mac/);
+  });
+});
+
+describe("the noise", () => {
+  it("presence, naps, wakes, forwards, projects, creates and image stages are said nowhere", () => {
+    emit({ type: "place.present", placeId: "pl_box", from: "10.0.0.9" });
+    emit({ type: "workspace.napped", workspaceId: "ws_1" });
+    emit({ type: "workspace.woken", workspaceId: "ws_1", machineId: "m1" });
+    emit({ type: "forward.open", forward: { workspaceId: "ws_1", port: 3000, localPort: 3000 } } as unknown as ProtocolEvent);
+    emit({ type: "project.removed", projectId: "pr_api" } as unknown as ProtocolEvent);
+    emit({ type: "workspace.created", workspace: WS });
+    emit({ type: "golden.stage", stage: "building", message: "building" } as unknown as ProtocolEvent);
+    emit({ type: "place.stage", addId: "a_1", step: "wsp", state: "running" });
+    emit({ type: "place.stage", addId: "a_1", step: "wsp", state: "done" });
+    expect(notices()).toEqual([]);
+  });
+});
+
+describe("what the host did on its own", () => {
+  it("is one note in the host's own words, once", () => {
+    emit({ type: "host.notice", message: "2 old copies kept with work in them; see ~/.wsp/copies-kept.txt", seq: 1 } as ProtocolEvent);
+    expect(notices()).toEqual([expect.objectContaining({ kind: "note", text: "2 old copies kept with work in them; see ~/.wsp/copies-kept.txt" })]);
+  });
+});

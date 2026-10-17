@@ -1,0 +1,46 @@
+[
+  {
+    "id": 1,
+    "op": "git.diff",
+    "cwd": "repo",
+    "scope": "unstaged"
+  },
+  {
+    "id": 1,
+    "op": "git.diff",
+    "cwd": "repo",
+    "scope": "branch",
+    "path": "src/a.ts"
+  },
+  {
+    "id": 1,
+    "op": "git.diff",
+    "cwd": "repo",
+    "scope": "staged"
+  },
+  {
+    "id": 1,
+    "op": "git.diff",
+    "cwd": "/root/repo",
+    "scope": "branch",
+    "machineId": "wsp-a"
+  },
+  {
+    "id": 1,
+    "op": "git.diff",
+    "cwd": "repo",
+    "scope": "head",
+    "paths": [
+      "src/a.ts",
+      "a*b.txt"
+    ]
+  },
+  {
+    "id": 1,
+    "op": "git.diff",
+    "cwd": "repo",
+    "scope": "head",
+    "path": "src/a.ts",
+    "whole": true
+  }
+]

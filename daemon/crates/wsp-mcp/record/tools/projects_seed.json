@@ -1,0 +1,278 @@
+{
+  "cloudOff": {
+    "name": "projects_seed",
+    "description": "What git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: every path with its size, its kind (config, rebuilt, data, never for a login, unknown), the words its row ends in and whether it is picked. The picks start from the ones saved for the folder, else from nothing, since nothing git ignores is sent until the person saves picks; none empties them, keep adds paths off the menu and cut takes them away, each relative to the folder. A path git tracks or that is not there, the repository's own .git and a login are refused by name; a saved path no longer in the folder stays saved and is named in picked.missing. confirm saves the picks, which every later sub-thread of the project takes, as the same record wsp add --remember keeps; without it the menu is answered and nothing is saved. A thread's own token reads the menu and is refused the save, with the line to hand the person. A project whose folder is on another computer is refused.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "the project, by name or id; its folder must be on this computer"
+        },
+        "keep": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "paths off the menu to send, each relative to the project's folder"
+        },
+        "cut": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "paths off the menu to keep on this computer"
+        },
+        "none": {
+          "type": "boolean",
+          "description": "send nothing git ignores"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "true saves the picks; without it the menu is answered and nothing is saved"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "dir": {
+                "type": "boolean"
+              },
+              "bytes": {
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "config",
+                  "secret",
+                  "rebuilt",
+                  "data",
+                  "never",
+                  "unknown"
+                ]
+              },
+              "why": {
+                "type": "string"
+              },
+              "picked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "dir",
+              "bytes",
+              "kind",
+              "why",
+              "picked"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "picked": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "bytes": {
+              "type": "integer"
+            },
+            "missing": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "paths",
+            "bytes",
+            "missing"
+          ],
+          "additionalProperties": false
+        },
+        "saved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "project",
+        "folder",
+        "rows",
+        "picked",
+        "saved"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "projects_seed",
+    "description": "What git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: every path with its size, its kind (config, rebuilt, data, never for a login, unknown), the words its row ends in and whether it is picked. The picks start from the ones saved for the folder, else from nothing, since nothing git ignores is sent until the person saves picks; none empties them, keep adds paths off the menu and cut takes them away, each relative to the folder. A path git tracks or that is not there, the repository's own .git and a login are refused by name; a saved path no longer in the folder stays saved and is named in picked.missing. confirm saves the picks, which every later sub-thread of the project takes, as the same record wsp add --remember keeps; without it the menu is answered and nothing is saved. A thread's own token reads the menu and is refused the save, with the line to hand the person. A project whose folder is on another computer is refused.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "the project, by name or id; its folder must be on this computer"
+        },
+        "keep": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "paths off the menu to send, each relative to the project's folder"
+        },
+        "cut": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "paths off the menu to keep on this computer"
+        },
+        "none": {
+          "type": "boolean",
+          "description": "send nothing git ignores"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "true saves the picks; without it the menu is answered and nothing is saved"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "dir": {
+                "type": "boolean"
+              },
+              "bytes": {
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "config",
+                  "secret",
+                  "rebuilt",
+                  "data",
+                  "never",
+                  "unknown"
+                ]
+              },
+              "why": {
+                "type": "string"
+              },
+              "picked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "dir",
+              "bytes",
+              "kind",
+              "why",
+              "picked"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "picked": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "bytes": {
+              "type": "integer"
+            },
+            "missing": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "paths",
+            "bytes",
+            "missing"
+          ],
+          "additionalProperties": false
+        },
+        "saved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "project",
+        "folder",
+        "rows",
+        "picked",
+        "saved"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

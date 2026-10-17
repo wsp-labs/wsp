@@ -1,0 +1,13 @@
+[
+  {
+    "id": 1,
+    "op": "stdio.write",
+    "stdioId": "s1"
+  },
+  {
+    "id": 1,
+    "op": "stdio.write",
+    "stdioId": "s1",
+    "data": 1
+  }
+]

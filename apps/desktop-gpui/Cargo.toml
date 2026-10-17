@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The desktop app's own workspace, apart from daemon/'s, so GPUI's dependency tree never moves daemon/Cargo.lock.
+[workspace]
+resolver = "2"
+members = ["host-client"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false

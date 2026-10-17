@@ -1,0 +1,242 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Fills the terminal registry from the store: one WorkspaceTerminals per
+// workspace for as long as it exists, one daemon link while it runs, the
+// host's own socket is live and, for a folder on this computer, something on
+// screen reads it. A napping workspace keeps its model (tabs,
+// scrollback mirror) with the channel down; wake dials again and the model
+// re-attaches its ptys. The same link is the browser's only source of ports:
+// the daemon pushes port events only to sockets that asked with ports.watch,
+// and a subscription dies with the channel, so every live transition asks again.
+// This computer's own terminal, readings and processes ride a link of their
+// own, to its daemon by place.
+import { HERE_PLACE_ID, readingRoad, workspaceKind, type DaemonLinkStatus } from "@wsp/protocol";
+import { getBrowser } from "../browser/model.js";
+import { daemonWireHeld, onDaemonWireHeld, provideDaemonHello, provideDaemonWire } from "../files/wire.js";
+import { errorText } from "../lib/utils.js";
+import { getLive } from "../machine/live.js";
+import { feedPortEvent, syncPorts } from "../machine/ports.js";
+import { getProcs } from "../machine/procs.js";
+import type { Api } from "../protocol/client.js";
+import type { useStore } from "../protocol/store.js";
+import { anyPanelOpen, useRightPanelStore } from "../rightPanelStore.js";
+import { paneOf } from "../panes.js";
+import { useSignInStore } from "../shell/signInStore.js";
+import { connectDaemonLink, type DaemonLink, type DaemonLinkOptions } from "./daemon-link.js";
+import { HERE_KEY } from "./computer.js";
+import { anyDrawerOpen, selectTerminalUiState, useTerminalDrawerStore } from "./drawerStore.js";
+import { NOT_OPENED_YET, provideTerminals, WorkspaceTerminals, type TerminalWire } from "./link.js";
+
+export interface WiringOptions extends Pick<DaemonLinkOptions, "heartbeatMs" | "backoffMs"> {
+  /** Keystrokes reach the runtime as one workspaces.touch per this window; the idle window is minutes, so 30 s loses nothing. */
+  touchMinMs?: number;
+}
+
+interface Wired {
+  wt: WorkspaceTerminals;
+  link: DaemonLink | null;
+  /** When the runtime last heard this workspace was typed into. */
+  touched: number;
+}
+
+export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}): () => void {
+  const wired = new Map<string, Wired>();
+  /** The transport every link here was dialled on. */
+  let bound: Api | null = null;
+  const { touchMinMs = 30_000, ...linkOpts } = opts;
+
+  const unlink = (entry: Pick<Wired, "link">): void => {
+    entry.link?.close();
+    entry.link = null;
+  };
+
+  // This computer's own terminal: its model is there from the start so the drawer has one to read, and its daemon
+  // is dialled only once that drawer or a pane that reads it has been opened, since the host starts the daemon on
+  // the first dial.
+  const hereWire: TerminalWire = { request: (op, params) => (here.link ? here.link.request(op, params) : Promise.reject(new Error("not answering"))) };
+  const here: Pick<Wired, "link" | "wt"> = { link: null, wt: new WorkspaceTerminals(hereWire) };
+  provideTerminals(HERE_KEY, here.wt);
+  provideDaemonWire(HERE_KEY, hereWire);
+  let hereWanted = false;
+  const hereStatus = (s: DaemonLinkStatus): void => {
+    getLive(HERE_KEY).feedStatus(s);
+    getProcs(HERE_KEY).feedStatus(s);
+  };
+  const syncHere = (api: Api, hostUp: boolean): void => {
+    hereWanted ||=
+      selectTerminalUiState(useTerminalDrawerStore.getState().byWorkspaceId, HERE_KEY).terminalOpen ||
+      ((panel => panel?.isOpen === true && panel.surfaces.some(s => s.id === panel.activeSurfaceId && paneOf(s.kind).readsHere === true))(useRightPanelStore.getState().byWorkspaceId[HERE_KEY]));
+    // A page that only reads this computer's daemon holds the link for as long as it stands: the link's readings and
+    // port watch would run on for the window's life after it.
+    const up = hostUp && (hereWanted || daemonWireHeld(HERE_KEY));
+    if (up && !here.link) {
+      const link = connectDaemonLink({
+        ...linkOpts,
+        daemon: api.daemon,
+        target: { placeId: HERE_PLACE_ID },
+        wasLive: here.wt.everLive(),
+        onEvent: e => {
+          if (e.type === "sys.sample") getLive(HERE_KEY).feedSample(e);
+          else if (e.type === "proc.snapshot" || e.type === "proc.changes") getProcs(HERE_KEY).feed(e);
+          else if (e.type === "port.open" || e.type === "port.close") feedPortEvent(HERE_KEY, e);
+          else here.wt.feedEvent(e);
+        },
+        onStatus: (s, refusal) => {
+          if (s === "live") {
+            link.request("sys.watch").then(
+              () => getLive(HERE_KEY).feedUnavailable(null),
+              (e: unknown) => getLive(HERE_KEY).feedUnavailable(errorText(e)),
+            );
+            // The daemon's port read runs for the host's own watch whoever else asks; this socket adds its diff.
+            link.request("ports.watch").then(r => syncPorts(HERE_KEY, r["ports"]), () => {});
+          }
+          if (s !== "dead") {
+            here.wt.feedStatus(s, refusal);
+            hereStatus(s);
+          }
+        },
+      });
+      here.link = link;
+    } else if (!up && here.link) {
+      unlink(here);
+      const parked: DaemonLinkStatus = here.wt.everLive() ? "connecting" : NOT_OPENED_YET;
+      here.wt.feedStatus(parked);
+      hereStatus(parked);
+    }
+  };
+
+  /** Whether something on screen reads a workspace's daemon: a mounted surface reads its wire, its drawer or right
+   * panel is open, or its terminal holds tabs. */
+  const onScreen = (id: string, wt: WorkspaceTerminals): boolean =>
+    daemonWireHeld(id) ||
+    anyDrawerOpen(useTerminalDrawerStore.getState().byWorkspaceId, id) ||
+    anyPanelOpen(useRightPanelStore.getState().byWorkspaceId, id) ||
+    wt.tabs().length > 0;
+
+  const sync = (): void => {
+    const { api, workspaces, conn } = store.getState();
+    if (!api) return;
+    // A host that came back on a fresh token is dialled by a new client, whose socket reads live before the store
+    // holds its api: a link made in between rides the client that is gone, so every link follows the api it binds.
+    if (api !== bound) {
+      bound = api;
+      for (const entry of wired.values()) unlink(entry);
+      unlink(here);
+    }
+    // Every channel rides the host's socket, so a host socket that is not live is a workspace that is not running:
+    // the links are parked rather than left typing into channels the redial has already taken away.
+    const hostUp = conn === "live";
+    const seen = new Set<string>();
+    for (const w of workspaces) {
+      seen.add(w.id);
+      let entry = wired.get(w.id);
+      if (!entry) {
+        const fresh: Wired = { link: null, touched: 0, wt: undefined as unknown as WorkspaceTerminals };
+        const wire: TerminalWire = {
+          request: (op, params) => {
+            if (op === "pty.write" && Date.now() - fresh.touched >= touchMinMs) {
+              fresh.touched = Date.now();
+              store.getState().api?.touch?.(w.id).catch(() => {});
+            }
+            return fresh.link ? fresh.link.request(op, params) : Promise.reject(new Error("not answering"));
+          },
+        };
+        fresh.wt = new WorkspaceTerminals(wire);
+        entry = fresh;
+        wired.set(w.id, entry);
+        provideTerminals(w.id, entry.wt);
+        provideDaemonWire(w.id, wire);
+      }
+      const { wt } = entry;
+      // Whose reading the Live rows wait on: this computer's own are read in the host and arrive on the page's
+      // socket (machine/hostLive.ts), so asking its daemon for the same stream would set a second sampler going on
+      // the same machine and put a link's health over figures that do not ride that link.
+      const sysFromDaemon = readingRoad(workspaceKind(w), "metrics") === "daemon";
+      // A machine's link carries its sign-in pages and ports whoever looks; a folder on this computer is dialled only
+      // while it is on screen, since 125 folders held 125 links pinging every 10 s.
+      const up = w.phase === "running" && hostUp && (sysFromDaemon || onScreen(w.id, wt));
+      if (up && !entry.link) {
+        const browser = getBrowser(w.id);
+        const link = connectDaemonLink({
+          ...linkOpts,
+          daemon: api.daemon,
+          target: { workspaceId: w.id },
+          wasLive: wt.everLive(),
+          onEvent: e => {
+            if (e.type === "port.open" || e.type === "port.close") {
+              browser.feedEvent({ ...e, workspaceId: w.id });
+              feedPortEvent(w.id, e);
+              if (e.type === "port.close") useSignInStore.getState().portClosed(w.id, e.port);
+            } else if (e.type === "browser.open") useSignInStore.getState().announce(w.id, e.url, e.port);
+            else if (e.type === "daemon.hello") provideDaemonHello(w.id, { root: e.root, version: e.version });
+            else if (e.type === "sys.sample") getLive(w.id).feedSample(e);
+            else if (e.type === "proc.snapshot" || e.type === "proc.changes") getProcs(w.id).feed(e);
+            else wt.feedEvent(e);
+          },
+          // "dead" is the link we closed on purpose; the model keeps the word it had instead.
+          onStatus: (s, refusal) => {
+            if (s === "live") {
+              link.request("ports.watch").then(r => {
+                browser.syncPorts(r["ports"]);
+                syncPorts(w.id, r["ports"]);
+              }, () => {});
+              if (sysFromDaemon)
+                link.request("sys.watch").then(
+                  () => getLive(w.id).feedUnavailable(null),
+                  (e: unknown) => getLive(w.id).feedUnavailable(errorText(e)),
+                );
+            }
+            if (s !== "dead") {
+              wt.feedStatus(s, refusal);
+              if (sysFromDaemon) getLive(w.id).feedStatus(s);
+              getProcs(w.id).feedStatus(s);
+            }
+          },
+        });
+        entry.link = link;
+      } else if (!up && entry.link) {
+        // The model keeps its tabs and their scrollback across a park, so what a person is waiting on is what the
+        // model has been and not how old this link object is: one that has been live is coming back, one that never
+        // was is still starting.
+        const parked: DaemonLinkStatus = wt.everLive() ? "connecting" : NOT_OPENED_YET;
+        unlink(entry);
+        // Only a computer that keeps the memory keeps a shell through a nap; anywhere else the stop ends it.
+        if ((w.phase === "pausing" || w.phase === "napping") && w.pauseMode !== "memory") wt.feedStop();
+        wt.feedStatus(parked);
+        if (sysFromDaemon) getLive(w.id).feedStatus(parked);
+        getProcs(w.id).feedStatus(parked);
+      }
+    }
+    syncHere(api, hostUp);
+    for (const [id, entry] of wired) {
+      if (seen.has(id)) continue;
+      unlink(entry);
+      wired.delete(id);
+      provideTerminals(id, null);
+      provideDaemonWire(id, null);
+      provideDaemonHello(id, null);
+      useSignInStore.getState().forget(id);
+    }
+  };
+
+  const unsubscribe = store.subscribe(sync);
+  const unsubscribeDrawer = useTerminalDrawerStore.subscribe(sync);
+  const unsubscribePanel = useRightPanelStore.subscribe(sync);
+  const unsubscribeHeld = onDaemonWireHeld(sync);
+  sync();
+  return () => {
+    unsubscribe();
+    unsubscribeDrawer();
+    unsubscribePanel();
+    unsubscribeHeld();
+    unlink(here);
+    provideTerminals(HERE_KEY, null);
+    provideDaemonWire(HERE_KEY, null);
+    for (const [id, entry] of wired) {
+      unlink(entry);
+      provideTerminals(id, null);
+      provideDaemonWire(id, null);
+      provideDaemonHello(id, null);
+    }
+    wired.clear();
+  };
+}

@@ -1,0 +1,542 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The usage records as the runtime keeps them: a turn's end files its tokens
+// under the sign-in its machine ran it with, a limit the harness printed files
+// that account's reading, and the two answers never add one into the other.
+import { randomBytes } from "node:crypto";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { DEVICE_OPS, HERE_PLACE_ID, THREAD_OPS, USAGE_WORDS, type AdapterEvent, type DaemonFrame, type DaemonResponse, type HarnessLimit, type TurnResult, type UsageLogsReply } from "@wsp/protocol";
+import type { DaemonChannel, DaemonChannelOptions } from "../src/daemon-channel.js";
+import { createRuntime, type HarnessAdapterFactory, type Runtime } from "../src/runtime.js";
+import { memoryStore } from "../src/store.js";
+import { createOn, fakeLocal, projectOn, stubBackend, tokenGuest } from "./stub-backend.js";
+import { fakeAppServer } from "../../adapter-codex/test/fake-app-server.js";
+
+/** A harness whose one turn prints what the case gives it before its result. */
+const turning = (result: TurnResult, before: (sessionId: string) => AdapterEvent[] = () => []): HarnessAdapterFactory => () => ({
+  steers: false,
+  start: options => {
+    const sessionId = `sess-${Math.random().toString(36).slice(2, 8)}`;
+    const finished = (async () => {
+      options.onEvent({ type: "session.start", sessionId, model: "claude-opus-5" });
+      for (const e of before(sessionId)) options.onEvent(e);
+      options.onEvent({ type: "turn.done", sessionId, result });
+      options.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+      return result;
+    })();
+    return { localId: sessionId, finished, interrupt: async () => {} };
+  },
+});
+
+const OAUTH = { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-test-token" };
+const window: HarnessLimit = { windows: [{ kind: "session", usedPercent: 40, resetsAt: Date.now() + 3_600_000 }, { kind: "week", usedPercent: 12 }], status: "ok" };
+
+let rt: Runtime | undefined;
+afterEach(async () => {
+  await rt?.close();
+  rt = undefined;
+});
+
+async function runtimeWith(adapter: HarnessAdapterFactory, vault: Record<string, string> = OAUTH) {
+  const backend = stubBackend();
+  backend.execImpl = tokenGuest;
+  rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: adapter }, vault: () => vault, pricesFetch: async () => ({}) });
+  const ws = await createOn(rt, { golden: "snap_g", name: "usage" });
+  return { rt, ws };
+}
+
+describe("a turn's end in the ledger", () => {
+  it("files the turn's tokens and the harness's cost under the vault's sign-in, the workspace's project and its computer", async () => {
+    const result: TurnResult = { status: "completed", text: "done", costUsd: 0.12, model: "claude-opus-5", tokens: { input: 2_000, output: 300, cached: 1_500, cacheWrite: 200 } };
+    const { rt, ws } = await runtimeWith(turning(result));
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const byAccount = await rt.usage.used({ range: "day", split: "account" });
+    expect(byAccount.rows).toEqual([{ key: "claude:vault-token", label: "Claude Code with your sign-in", agent: "claude", tokens: { input: 2_000, output: 300, cached: 1_500, cacheWrite: 200, reasoning: 0 }, costReported: 0.12, priced: true, turns: 1 }]);
+    const byProject = await rt.usage.used({ range: "day", split: "project" });
+    expect(byProject.rows.map(r => r.label)).toEqual([ws.project.name]);
+    const byAgent = await rt.usage.used({ range: "day", split: "agent" });
+    expect(byAgent.rows.map(r => r.label)).toEqual(["Claude Code"]);
+  });
+
+  it("files one row per model a turn used, each with its own tokens and cost, so the model split adds up", async () => {
+    const result: TurnResult = {
+      status: "completed",
+      text: "done",
+      costUsd: 1.25,
+      model: "claude-opus-5-5[1m]",
+      tokens: { input: 2_000, output: 300 },
+      models: [
+        { model: "claude-opus-5-5[1m]", tokens: { input: 2_000, output: 300, cached: 1_500, cacheWrite: 200, reasoning: 0 }, costUsd: 1 },
+        { model: "claude-haiku-4-5-20251001", tokens: { input: 900, output: 40, cached: 0, cacheWrite: 800, reasoning: 0 }, costUsd: 0.25 },
+      ],
+    };
+    const { rt, ws } = await runtimeWith(turning(result));
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const byModel = await rt.usage.used({ range: "day", split: "model" });
+    expect(byModel.rows.map(r => [r.key, r.label, r.tokens.input, r.costReported, r.turns])).toEqual([
+      ["claude:claude-opus-5-5", "Opus 5.5", 2_000, 1, 1],
+      ["claude:claude-haiku-4-5-20251001", "Haiku 4.5", 900, 0.25, 0],
+    ]);
+    const byAgent = await rt.usage.used({ range: "day", split: "agent" });
+    expect(byAgent.rows.map(r => [r.key, r.tokens.input, r.costReported, r.turns])).toEqual([["claude", 2_900, 1.25, 1]]);
+  });
+
+  it("names every model on the split, one no agent's table lists by a name built from its id", async () => {
+    const used = (model: string) => ({ model, tokens: { input: 10, output: 1, cached: 0, cacheWrite: 0, reasoning: 0 }, costUsd: 0.01 });
+    const result: TurnResult = { status: "completed", text: "done", costUsd: 0.03, tokens: { input: 30, output: 3 }, models: [used("claude-sonnet-5-5"), used("gpt-6-astra"), used("claude-nimbus-7-2-20270101")] };
+    const { rt, ws } = await runtimeWith(turning(result));
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const byModel = await rt.usage.used({ range: "day", split: "model" });
+    expect(byModel.rows.map(r => r.label).sort()).toEqual(["Claude Nimbus 7.2", "GPT-6-Astra", "Sonnet 5.5"]);
+  });
+
+  it("files nothing for a turn that reported no tokens and no cost", async () => {
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done" }));
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    expect((await rt.usage.used({ range: "day", split: "agent" })).rows).toEqual([]);
+  });
+});
+
+describe("what an account draws right now", () => {
+  it("reads off the calls its running turns report, on the account each turn runs on", async () => {
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done", tokens: { input: 10, output: 1 } }, sessionId => [{ type: "limit", sessionId, limit: window }, { type: "turn.usage", sessionId, tokens: 30_000 }, { type: "turn.usage", sessionId, tokens: 15_000 }]));
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const { accounts } = await rt.usage.accounts();
+    expect(accounts.find(a => a.key === "claude:vault-token")?.burn).toEqual({ tokensPerMinute: 3_000, threads: 1 });
+  });
+
+  it("files a live call when the host receives it, whatever the clock of the machine it ran on says", async () => {
+    const behind = Date.now() - 20 * 60_000;
+    const ahead = Date.now() + 20 * 60_000;
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done", tokens: { input: 10, output: 1 } }, sessionId => [{ type: "limit", sessionId, limit: window }, { type: "turn.usage", sessionId, tokens: 1_500, at: behind }, { type: "turn.usage", sessionId, tokens: 3_000, at: ahead }]));
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const { accounts } = await rt.usage.accounts();
+    expect(accounts.find(a => a.key === "claude:vault-token")?.burn).toEqual({ tokensPerMinute: 300, threads: 1 });
+  });
+});
+
+describe("an account's limits", () => {
+  it("keeps the reading a turn printed under the account the turn ran on, and the ledger's answer carries none of it", async () => {
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done", tokens: { input: 10, output: 1 } }, sessionId => [{ type: "limit", sessionId, limit: window }]));
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const { accounts } = await rt.usage.accounts();
+    expect(accounts).toEqual([
+      expect.objectContaining({ key: "claude:vault-token", agent: "claude", label: "Claude Code with your sign-in", windows: window.windows, status: "ok", readAt: expect.any(Number) }),
+    ]);
+    expect(accounts[0]!.computers).toHaveLength(1);
+    const used = await rt.usage.used({ range: "day", split: "account" });
+    expect(JSON.stringify(used)).not.toContain("usedPercent");
+  });
+
+  it("says a turn signed in with a key has no plan limit", async () => {
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done" }, sessionId => [{ type: "limit", sessionId, limit: { windows: [], keyed: true } }]), { ANTHROPIC_API_KEY: "sk-ant-api-test" });
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    expect((await rt.usage.accounts()).accounts).toEqual([expect.objectContaining({ key: "claude:vault-key", note: "pays per token, no plan limit", label: "Claude Code with an API key" })]);
+  });
+});
+
+describe("one name per account", () => {
+  const namesOf = async (rt: Runtime): Promise<{ listed: string[]; used: string[] }> => ({
+    listed: (await rt.usage.accounts()).accounts.map(a => a.label),
+    used: (await rt.usage.used({ range: "day", split: "account" })).rows.map(r => r.label),
+  });
+
+  it("names a computer's own login that bills a key as the key, in the limits and in what was used alike", async () => {
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done", tokens: { input: 10, output: 1 } }, sessionId => [{ type: "limit", sessionId, limit: { windows: [], keyed: true } }]), {});
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    expect(await namesOf(rt)).toEqual({ listed: ["Claude Code with an API key"], used: ["Claude Code with an API key"] });
+  });
+
+  it("names an account the harness named by its plan, in the limits and in what was used alike", async () => {
+    const limit: HarnessLimit = { ...window, plan: "max", account: { id: "acct-1", label: "dev@example.com" } };
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done", tokens: { input: 10, output: 1 } }, sessionId => [{ type: "limit", sessionId, limit }]), {});
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    expect(await namesOf(rt)).toEqual({ listed: ["Claude Code with Claude Max"], used: ["Claude Code with Claude Max"] });
+  });
+});
+
+describe("plan alerts off the readings turns print", () => {
+  it("tells every client once a reading crosses 70% of a window, and not again for a reading no worse", async () => {
+    let used = 40;
+    const { rt, ws } = await runtimeWith(turning({ status: "completed", text: "done" }, sessionId => [{ type: "limit", sessionId, limit: { windows: [{ kind: "session", usedPercent: used, resetsAt: Date.now() + 3_600_000 }], status: "ok" } }]));
+    const said: unknown[] = [];
+    rt.events.on("*", e => void (e.type === "usage.alert" && said.push(e)));
+    const turn = async (): Promise<void> => {
+      await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    };
+    await turn();
+    expect(said).toEqual([]);
+    used = 74;
+    await turn();
+    expect(said).toEqual([expect.objectContaining({ type: "usage.alert", key: "claude:vault-token", agent: "claude", label: "Claude Code with your sign-in", alert: { kind: "low", window: "session", step: 70 } })]);
+    used = 75;
+    await turn();
+    expect(said).toHaveLength(1);
+  });
+});
+
+describe("this computer's own sign-ins", () => {
+  it("lists each agent signed in here off this computer's own read, before any turn has reported a limit", async () => {
+    const asked: unknown[] = [];
+    const row = (id: string, signIn: string) => ({ id, name: id, installed: true, road: "npm", signIn, signInRoad: "login", wspTools: false });
+    const backend = stubBackend();
+    rt = createRuntime({
+      backend,
+      store: memoryStore(),
+      adapters: {},
+      vault: () => ({}),
+      pricesFetch: async () => ({}),
+      agentsReader: {
+        read: async (on, o) => (asked.push([on, o]), { home: "/Users/maya", user: "maya", agents: [row("claude", "signed-in"), row("codex", "signed-in"), row("opencode", "signed-in"), row("gemini", "none")], skills: [], servers: [], refused: [] }) as never,
+        tools: async () => ({ auth: "open", readAt: "2026-09-25T12:00:00.000Z" }) as never,
+      },
+    });
+    const { accounts } = await rt.usage.accounts();
+    expect(accounts.map(a => [a.key, a.note, a.computers.length])).toEqual([
+      ["claude@here", "not read yet: shows after its next turn", 1],
+      ["codex@here", "not read yet: shows after its next turn", 1],
+      ["opencode@here", "reports no plan limit", 1],
+    ]);
+    // A read for the accounts asks no vendor for its newest version.
+    expect(asked).toEqual([[{ kind: "here" }, { latest: false }]]);
+  });
+
+  it("reads this computer's sign-ins once a minute however many usage reads ask, and shares a read still out", async () => {
+    let reads = 0;
+    let now = 1_000_000;
+    const row = (id: string) => ({ id, name: id, installed: true, road: "npm", signIn: "signed-in", signInRoad: "login", wspTools: false });
+    rt = createRuntime({
+      backend: stubBackend(),
+      store: memoryStore(),
+      adapters: {},
+      vault: () => ({}),
+      pricesFetch: async () => ({}),
+      clock: { now: () => now, schedule: (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); return () => clearTimeout(t); } } as never,
+      agentsReader: {
+        read: async () => (reads++, await new Promise(r => setTimeout(r, 20)), { home: "/Users/maya", user: "maya", agents: [row("claude")], skills: [], servers: [], refused: [] }) as never,
+        tools: async () => ({ auth: "open", readAt: "2026-09-25T12:00:00.000Z" }) as never,
+      },
+    });
+    await Promise.all(Array.from({ length: 40 }, () => rt!.usage.accounts()));
+    for (let i = 0; i < 10; i++) await rt!.usage.accounts();
+    expect(reads).toBe(1);
+    now += 61_000;
+    await rt!.usage.accounts();
+    expect(reads).toBe(2);
+  });
+
+  it("reads sign-ins again at once when a write there says the agents changed, without waiting out the hold", async () => {
+    let reads = 0;
+    const row = (id: string) => ({ id, name: id, installed: true, road: "npm", signIn: "signed-in", signInRoad: "login", wspTools: false });
+    rt = createRuntime({
+      backend: stubBackend(),
+      store: memoryStore(),
+      adapters: {},
+      vault: () => ({}),
+      pricesFetch: async () => ({}),
+      agentsReader: {
+        read: async () => (reads++, { home: "/Users/maya", user: "maya", agents: [row("claude")], skills: [], servers: [], refused: [] }) as never,
+        tools: async () => ({ auth: "open", readAt: "2026-09-25T12:00:00.000Z" }) as never,
+      },
+      skillsActs: { toggle: async () => ({ paths: [] }) } as never,
+    });
+    await rt!.usage.accounts();
+    expect(reads).toBe(1);
+    await rt!.agents.skillsToggle({ placeId: HERE_PLACE_ID }, { name: "pdf", on: false });
+    await rt!.usage.accounts();
+    expect(reads).toBe(2);
+  });
+});
+
+/** This computer with a daemon that answers usage.logs with the rows the case hands it, read again at each ask, and
+ * refuses every other frame as one with nothing to read. */
+function logsHere(rows: () => UsageLogsReply["rows"]) {
+  const asks = { count: 0 };
+  const local = { ...fakeLocal(mkdtempSync(join(tmpdir(), "wsp-usage-local-"))), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
+  const daemonChannel = async (_o: DaemonChannelOptions): Promise<DaemonChannel> => ({
+    send: async (frame: DaemonFrame) => {
+      if (frame.op !== "usage.logs") return { id: 1, ok: false, error: `no ${frame.op} here` } as DaemonResponse;
+      asks.count++;
+      return { id: 1, ok: true, rows: rows(), limits: [] } as unknown as DaemonResponse;
+    },
+    close: () => {},
+    closed: new Promise(() => {}),
+  });
+  return { local, daemonChannel, asks };
+}
+
+describe("work done outside wsp", () => {
+  const logRow = (session: string, folder: string, input: number) => ({ agent: "claude", session, at: Date.now(), model: "claude-opus-5", folder, tokens: { input, output: 1, cached: 0, cacheWrite: 0, reasoning: 0 } });
+
+  it("files the logs' rows as outside wsp, a folder inside a project under it and any other under no project, and reads none once turned off", async () => {
+    const backend = stubBackend();
+    backend.execImpl = tokenGuest;
+    let project = "";
+    const here = logsHere(() => [logRow("s-in", `${project}/src`, 40), logRow("s-out", "/somewhere/else", 5)]);
+    rt = createRuntime({
+      backend,
+      store: memoryStore(),
+      adapters: { claude: turning({ status: "completed", text: "done" }) },
+      pricesFetch: async () => ({}),
+      local: here.local,
+      daemonChannel: here.daemonChannel,
+    });
+    // A log on this computer is work in a folder here, so it maps to this computer's projects alone.
+    const held = await projectOn(rt, HERE_PLACE_ID);
+    project = held.path;
+    const rows = (await rt.usage.used({ range: "day", split: "project", outside: true })).rows;
+    const used = await rt.usage.used({ range: "day", split: "project", outside: true });
+    expect(rows.map(r => [r.label, r.tokens.input])).toEqual([
+      [held.name, 40],
+      ["No project", 5],
+    ]);
+    // The answer says whose logs it counted and where, by the agent's name and the computer's.
+    expect(used.logs).toEqual({ agents: ["Claude Code"], computers: [expect.any(String)] });
+    // Only a reader that asks for them gets them: the command line and its tool, whose answer an agent reads, never do.
+    expect((await rt.usage.used({ range: "day", split: "project" })).rows).toEqual([]);
+    await rt.preferences.set({ usageLogs: false });
+    const off = here.asks.count;
+    expect((await rt.usage.used({ range: "day", split: "project", outside: true })).rows).toEqual([]);
+    expect(here.asks.count).toBe(off);
+  });
+});
+
+describe("work outside wsp on this computer", () => {
+  it("is filed under this computer's own login, not under the vault's token that a thread here ran on", async () => {
+    const backend = stubBackend();
+    const here = logsHere(() => [{ agent: "claude", session: "s-terminal", at: Date.now(), model: "claude-opus-5", folder: "/somewhere", tokens: { input: 7, output: 1, cached: 0, cacheWrite: 0, reasoning: 0 } }]);
+    rt = createRuntime({
+      backend,
+      store: memoryStore(),
+      adapters: { claude: turning({ status: "completed", text: "done", tokens: { input: 10, output: 1 } }, sessionId => [{ type: "limit", sessionId, limit: window }]) },
+      vault: () => OAUTH,
+      pricesFetch: async () => ({}),
+      local: here.local,
+      daemonChannel: here.daemonChannel,
+    });
+    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "here" });
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const rows = (await rt.usage.used({ range: "day", split: "account", outside: true })).rows;
+    expect(rows.map(r => [r.key, r.label, r.tokens.input])).toEqual([
+      ["claude:vault-token", "Claude Code with your sign-in", 10],
+      ["claude@here", expect.stringMatching(/^Claude Code signed in on /), 7],
+    ]);
+  });
+});
+
+describe("the split by source", () => {
+  it("sets the turns wsp's threads ran beside the other sessions this computer's agents logged, each as one row", async () => {
+    const backend = stubBackend();
+    const here = logsHere(() => [
+      { agent: "claude", session: "s-terminal", at: Date.now(), model: "claude-opus-5", folder: "/somewhere", tokens: { input: 7, output: 1, cached: 0, cacheWrite: 0, reasoning: 0 } },
+      { agent: "codex", session: "s-codex", at: Date.now(), model: "gpt-5", folder: "/elsewhere", tokens: { input: 4, output: 2, cached: 0, cacheWrite: 0, reasoning: 0 } },
+    ]);
+    rt = createRuntime({
+      backend,
+      store: memoryStore(),
+      adapters: { claude: turning({ status: "completed", text: "done", costUsd: 0.5, tokens: { input: 10, output: 1 } }) },
+      vault: () => OAUTH,
+      pricesFetch: async () => ({}),
+      local: here.local,
+      daemonChannel: here.daemonChannel,
+    });
+    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "here" });
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    // The door asks for no logs, as the command line and the binary's tool server do: the split reads them itself.
+    const used = await rt.usage.used({ range: "day", split: "source" });
+    expect(used.split).toBe("source");
+    expect(used.rows.map(r => [r.key, r.label, r.tokens.input, r.costReported, r.turns, r.agent])).toEqual([
+      ["log", USAGE_WORDS.outsideWsp, 11, undefined, undefined, undefined],
+      ["wsp", "wsp threads", 10, 0.5, 1, undefined],
+    ]);
+    // Every other split asked so holds wsp's threads alone.
+    expect((await rt.usage.used({ range: "day", split: "agent" })).rows.map(r => r.tokens.input)).toEqual([10]);
+  });
+});
+
+describe("a wsp thread's own transcript", () => {
+  it("is never filed as outside wsp, even from a turn that reported no tokens and so filed no row", async () => {
+    const backend = stubBackend();
+    backend.execImpl = tokenGuest;
+    const fixed: HarnessAdapterFactory = () => ({
+      steers: false,
+      start: options => {
+        const finished = (async () => {
+          const result: TurnResult = { status: "completed", text: "done" };
+          options.onEvent({ type: "session.start", sessionId: "sess-wsp", model: "claude-opus-5" });
+          options.onEvent({ type: "turn.done", sessionId: "sess-wsp", result });
+          options.onEvent({ type: "session.end", sessionId: "sess-wsp", exitCode: 0, sawResult: true });
+          return result;
+        })();
+        return { localId: "sess-wsp", finished, interrupt: async () => {} };
+      },
+    });
+    const row = (session: string) => ({ agent: "claude", session, at: Date.now(), model: "claude-opus-5", folder: "/somewhere", tokens: { input: 9, output: 1, cached: 0, cacheWrite: 0, reasoning: 0 } });
+    const here = logsHere(() => [row("sess-wsp"), row("sess-mine")]);
+    rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: fixed }, vault: () => OAUTH, pricesFetch: async () => ({}), local: here.local, daemonChannel: here.daemonChannel });
+    const ws = await createOn(rt, { golden: "snap_g", name: "usage" });
+    await (await rt.sessions.start(ws.id, { prompt: "go" })).finished;
+    const rows = (await rt.usage.used({ range: "day", split: "agent", outside: true })).rows;
+    expect(rows.map(r => [r.key, r.tokens.input])).toEqual([["claude", 9]]);
+  });
+});
+
+describe("a computer's readings", () => {
+  async function readingsFrom(answer: (frame: Record<string, unknown>) => DaemonResponse) {
+    const frames: Record<string, unknown>[] = [];
+    const backend = stubBackend();
+    backend.execImpl = tokenGuest;
+    const open = async (_o: DaemonChannelOptions): Promise<DaemonChannel> => ({
+      send: async (frame: DaemonFrame) => {
+        frames.push(frame as unknown as Record<string, unknown>);
+        return answer(frame as unknown as Record<string, unknown>);
+      },
+      close: () => {},
+      closed: new Promise(() => {}),
+    });
+    rt = createRuntime({ backend, store: memoryStore(), adapters: {}, daemonToken: "cafef00d".repeat(3), daemonChannel: open, pricesFetch: async () => ({}) });
+    const ws = await createOn(rt, { golden: "snap_g", name: "boat" });
+    backend.machines[0]!.previewUrl = async () => ({ url: "http://127.0.0.1:7070", token: "e", expiresAt: Date.now() + 3_600_000 });
+    return { rt, ws, frames };
+  }
+
+  it("asks the machine's daemon for its kept minutes over the range, folded into the range's step", async () => {
+    const point = { at: Date.now() - 600_000, cpu: 12.5, load1: 0.3, mem: { used: 1, total: 4 }, disk: { used: 2, total: 8 } };
+    const { rt, ws, frames } = await readingsFrom(frame => ({ id: 1, ok: true, ...(frame["op"] === "sys.history" ? { points: [point], stepMs: 1_800_000, truncated: false } : {}) }) as DaemonResponse);
+    const answer = await rt.usage.readings({ workspaceId: ws.id }, "week");
+    expect(answer.points).toEqual([point]);
+    expect(answer.to - answer.from).toBe(7 * 86_400_000);
+    expect(frames.find(f => f["op"] === "sys.history")).toMatchObject({ op: "sys.history", from: answer.from, to: answer.to, stepMs: 1_800_000 });
+  });
+
+  it("asks for the last fifteen minutes at the daemon's fifteen-second reads, the window the Computers list opens on", async () => {
+    const { rt, ws, frames } = await readingsFrom(frame => ({ id: 1, ok: true, ...(frame["op"] === "sys.history" ? { points: [], stepMs: 15_000, truncated: false } : {}) }) as DaemonResponse);
+    const answer = await rt.usage.readings({ workspaceId: ws.id }, "15m");
+    expect(answer.to - answer.from).toBe(15 * 60_000);
+    expect(frames.find(f => f["op"] === "sys.history")).toMatchObject({ op: "sys.history", from: answer.from, to: answer.to, stepMs: 15_000 });
+  });
+
+  it("hands on a daemon's refusal as it said it: one from before it kept readings names the op, and the page reads any refusal as no readings", async () => {
+    const { rt, ws } = await readingsFrom(frame => (frame["op"] === "sys.history" ? { id: 1, ok: false, error: "unknown op: sys.history" } : { id: 1, ok: true }) as DaemonResponse);
+    await expect(rt.usage.readings({ workspaceId: ws.id }, "day")).rejects.toThrow("unknown op: sys.history");
+  });
+});
+
+describe("a turn's read of the banked resets", () => {
+  it("has a turn read the account's resets in full where its last full read is missing, and not again while it is fresh", async () => {
+    const asked: (boolean | undefined)[] = [];
+    const codex: HarnessAdapterFactory = () => ({
+      steers: false,
+      start: options => {
+        asked.push(options.limitDetails);
+        const sessionId = `sess-${asked.length}`;
+        const finished = (async () => {
+          const result: TurnResult = { status: "completed", text: "done" };
+          options.onEvent({ type: "session.start", sessionId, model: "gpt-5.5" });
+          const credits = options.limitDetails === true ? { count: 2, credits: [{ id: "rc_1", status: "available" as const, expiresAt: Date.now() + 86_400_000 }] } : { count: 2 };
+          options.onEvent({ type: "limit", sessionId, limit: { windows: [{ kind: "session", usedPercent: 10 }], account: { id: "acct_7f3a", label: "dev@example.com" }, credits } });
+          options.onEvent({ type: "turn.done", sessionId, result });
+          options.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+          return result;
+        })();
+        return { localId: sessionId, finished, interrupt: async () => {} };
+      },
+    });
+    const backend = stubBackend();
+    backend.execImpl = tokenGuest;
+    rt = createRuntime({ backend, store: memoryStore(), adapters: { codex }, vault: () => ({}), pricesFetch: async () => ({}) });
+    const ws = await createOn(rt, { golden: "snap_g", name: "usage" });
+    await (await rt.sessions.start(ws.id, { prompt: "go", harness: "codex" })).finished;
+    await new Promise(resolve => setTimeout(resolve, 20));
+    await (await rt.sessions.start(ws.id, { prompt: "again", harness: "codex" })).finished;
+    expect(asked).toEqual([true, undefined]);
+    expect((await rt.usage.accounts()).accounts.find(a => a.key === "codex:acct_7f3a")?.credits).toMatchObject({ count: 2, nextExpiresAt: expect.any(Number) });
+  });
+});
+
+describe("spending a banked reset", () => {
+  const snapshot = (used: number) => ({ limitId: "codex", primary: { usedPercent: used, windowDurationMins: 300, resetsAt: 1_790_700_000 }, secondary: null, planType: "plus", rateLimitReachedType: null });
+  const limits = (used: number, availableCount: number) => ({
+    result: { rateLimits: snapshot(used), rateLimitsByLimitId: { codex: snapshot(used) }, accountId: "acct_7f3a", rateLimitResetCredits: { availableCount, credits: [] } },
+  });
+
+  it("runs on this computer under its own login, files the reads before and after it, and answers the account's row", async () => {
+    const server = fakeAppServer({
+      "account/read": { result: { account: { type: "chatgpt", email: "dev@example.com", planType: "plus" }, requiresOpenaiAuth: true } },
+      "account/rateLimits/read": [limits(100, 2), limits(0, 1)],
+      "account/rateLimitResetCredit/consume": { result: { outcome: "reset" } },
+    });
+    const root = mkdtempSync(join(tmpdir(), "wsp-usage-reset-"));
+    const row = (id: string) => ({ id, name: id, installed: true, road: "npm", signIn: "signed-in", signInRoad: "login", wspTools: false });
+    try {
+      rt = createRuntime({
+        backend: stubBackend(),
+        store: memoryStore(),
+        adapters: {},
+        pricesFetch: async () => ({}),
+        local: { ...fakeLocal(root), home: id => (id === "codex" ? server.home : join(root, `.${id}`)), env: () => ({ PATH: server.path, HOME: root }) },
+        agentsReader: { read: async () => ({ home: root, user: "maya", agents: [row("codex")], skills: [], servers: [], refused: [] }) as never, tools: async () => ({ auth: "open", readAt: "2026-09-25T12:00:00.000Z" }) as never },
+      });
+      const answer = await rt.usage.reset({ account: "codex@here" });
+      expect(answer).toMatchObject({ outcome: "reset", said: expect.stringMatching(/^Reset used: Codex signed in on .+'s windows start again now, 1 left$/), account: { key: "codex:acct_7f3a", credits: { count: 1 } } });
+      const consume = server.requests().find(r => r["method"] === "account/rateLimitResetCredit/consume");
+      expect(consume?.["params"]).toEqual({ idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+      expect((await rt.usage.accounts()).accounts.find(a => a.key === "codex:acct_7f3a")).toMatchObject({ windows: [{ kind: "session", usedPercent: 0 }], credits: { count: 1 } });
+    } finally {
+      server.remove();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("carries a launch variable the person set for the agent in the run's environment, never in a file under the run folder", async () => {
+    const server = fakeAppServer({
+      "account/read": { result: { account: { type: "chatgpt", email: "dev@example.com", planType: "plus" }, requiresOpenaiAuth: true } },
+      "account/rateLimits/read": [limits(100, 2), limits(0, 1)],
+      "account/rateLimitResetCredit/consume": { result: { outcome: "reset" } },
+    });
+    const root = mkdtempSync(join(tmpdir(), "wsp-usage-reset-"));
+    const runDir = join(root, "runs");
+    const key = `sk-x-${randomBytes(8).toString("hex")}`;
+    const row = (id: string) => ({ id, name: id, installed: true, road: "own", signIn: "signed-in", signInRoad: "terminal", wspTools: false });
+    /** At each launch, the variable as the run's environment holds it and every file under the run folder holding it. */
+    const launches: { env: string | undefined; holding: string[] }[] = [];
+    const local = fakeLocal(root);
+    try {
+      rt = createRuntime({
+        backend: stubBackend(),
+        store: memoryStore(),
+        // Only an agent this host runs takes a setup; the reset itself starts no turn of it.
+        adapters: { codex: turning({ status: "completed", text: "" }) },
+        pricesFetch: async () => ({}),
+        local: {
+          ...local,
+          execStream: o => (command, options) => {
+            const stream = local.execStream(o)(command, options);
+            const files = readdirSync(runDir, { recursive: true, withFileTypes: true }).filter(e => e.isFile());
+            launches.push({ env: options.env["CODEX_GATEWAY_TOKEN"], holding: files.filter(e => readFileSync(join(e.parentPath, e.name), "utf8").includes(key)).map(e => e.name) });
+            return stream;
+          },
+          home: id => (id === "codex" ? server.home : join(root, `.${id}`)),
+          env: () => ({ PATH: server.path, HOME: root }),
+        },
+        agentsReader: { read: async () => ({ home: root, user: "maya", agents: [row("codex")], skills: [], servers: [], refused: [] }) as never, tools: async () => ({ auth: "open", readAt: "2026-09-25T12:00:00.000Z" }) as never },
+      });
+      await rt.agents.setup(HERE_PLACE_ID, "codex", { env: { CODEX_GATEWAY_TOKEN: key } });
+      expect(await rt.usage.reset({ account: "codex@here" })).toMatchObject({ outcome: "reset" });
+      // The read, then the spend that reads again after it.
+      expect(launches).toHaveLength(2);
+      for (const launch of launches) expect(launch).toEqual({ env: key, holding: [] });
+    } finally {
+      server.remove();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("is the person's own act: no thread's token and no paired computer may ask it", () => {
+    expect(THREAD_OPS).not.toContain("usage.reset");
+    expect(DEVICE_OPS).not.toContain("usage.reset");
+  });
+});

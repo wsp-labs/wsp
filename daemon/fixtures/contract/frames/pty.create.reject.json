@@ -1,0 +1,27 @@
+[
+  {
+    "op": "pty.create"
+  },
+  {
+    "id": 1,
+    "op": "pty.create",
+    "cols": "80"
+  },
+  {
+    "id": 1,
+    "op": "pty.create",
+    "env": {
+      "TERM": 1
+    }
+  },
+  {
+    "id": 1,
+    "op": "pty.create",
+    "machineId": 1
+  },
+  {
+    "id": 1,
+    "op": "pty.create",
+    "run": 1
+  }
+]

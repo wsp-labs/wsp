@@ -1,0 +1,504 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! Verbs beside the daemon: run in the foreground, do one thing, exit. `runtime ask` answers one machine frame
+//! from the runtime under a root, so a create or a wake can be driven and timed on a box with nothing else
+//! running. `runtime create` and `runtime exec` are the fresh processes the daemon runs youki's clone in;
+//! `runtime init` is a workspace's first process. `copy` makes and removes the copy a workspace on the computer
+//! somebody sits at is, and the worktree a thread on another branch works in: the host runs it as a child and reads
+//! one JSON line back, so the road picking and the rules live in the daemon's own code without the door answering a
+//! new op.
+
+use std::net::{Ipv4Addr, SocketAddr};
+use std::path::{Path, PathBuf};
+
+use clap::Subcommand;
+use wsp_frames::{numbers, CarryModule, CopyAsk, CopyRoadName};
+use wsp_runtime::copy_road::branch;
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum Verb {
+    /// The protocol version this binary speaks, the number its hello carries, on one line: what a checkout's
+    /// tooling asks before it serves a host with a binary a build may have left behind.
+    Version,
+    /// The workspace runtime's own verbs.
+    Runtime {
+        #[command(subcommand)]
+        verb: RuntimeVerb,
+    },
+    /// The copy a workspace on the computer somebody sits at is made of: one JSON line on stdout when it stands,
+    /// one sentence on stderr and exit 1 when it does not.
+    Copy {
+        #[command(subcommand)]
+        verb: CopyVerb,
+    },
+    /// What a leave of this computer would take that no remote holds: one line per checkout or workspace under the
+    /// runtime's folder named, and nothing where it holds none. The command line's own leave reads it before it takes
+    /// anything, so both leaves read the checkouts one way.
+    Unsaved { root: PathBuf },
+    /// The wsp a process inside this machine runs: the whole line goes to the host over this machine's own daemon.
+    /// Nothing here reads a verb or a flag, so the words the host's command line takes are the words that work.
+    #[command(disable_help_flag = true)]
+    Wsp {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        line: Vec<String>,
+    },
+    /// The wsp a thread on a computer somebody joined runs: the whole line goes to the host over the door named,
+    /// the socket that computer's daemon binds for its threads, and over nothing else.
+    #[command(disable_help_flag = true)]
+    WspDoor {
+        /// The unit the daemon serving that door runs under, which the refusal for a door that is gone names.
+        #[arg(long)]
+        unit: Option<String>,
+        door: PathBuf,
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        line: Vec<String>,
+    },
+    /// The wsp command on the computer the host runs on: a `wsp mcp` line that names its state is served by this
+    /// binary's own tool server where it carries one, and every other line runs as the wsp the words after
+    /// --wsp-argv name, which is also the wsp the tool server brings a host up with and runs the recipe tools as.
+    /// The line follows `--`, whole.
+    #[command(disable_help_flag = true)]
+    Forward {
+        #[arg(long = "wsp-argv", value_name = "word", required = true, action = clap::ArgAction::Append, allow_hyphen_values = true)]
+        wsp_argv: Vec<String>,
+        #[arg(last = true)]
+        line: Vec<String>,
+    },
+    /// The wsp tools for an agent on this computer: an MCP server on stdio, dialling the host the state file names as
+    /// the command line does. The state is named on purpose, since which file a bare wsp works on is the command
+    /// line's rule, and a host or a thread's scope still needs it: the recipe tools run the wsp on it. The words
+    /// after --wsp-argv are the wsp that brings a host up when none serves it. --guest is the host serving a session
+    /// from inside a machine: a path or a folder it names is on that machine, and a tool that reads this computer is
+    /// not listed.
+    #[cfg(feature = "mcp")]
+    Mcp {
+        #[arg(long, value_name = "file")]
+        state: PathBuf,
+        #[arg(long, value_name = "alias")]
+        host: Option<String>,
+        #[arg(long)]
+        scoped: bool,
+        #[arg(long = "no-slate", requires = "scoped")]
+        no_slate: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, requires = "scoped")]
+        guest: bool,
+        #[arg(long = "wsp-argv", value_name = "word", action = clap::ArgAction::Append, allow_hyphen_values = true)]
+        wsp_argv: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum RuntimeVerb {
+    /// One machine frame answered by the runtime under the root, as the daemon answers it on its link: the frame's
+    /// JSON without its id, the reply printed with the milliseconds the op took. Not for a root a daemon is serving,
+    /// which is why the root has no default: it is named on purpose every time.
+    Ask {
+        /// The frame: {"op":"machine.create","spec":{"kind":"sandbox","cpu":1,"memMb":512}}
+        frame: String,
+        /// The runtime root the frame is answered under; never the one a running daemon serves.
+        #[arg(long, value_name = "dir")]
+        root: PathBuf,
+    },
+    /// youki's create for the bundle the daemon wrote under <root>/run/<id>; the daemon runs this as a fresh process.
+    Create {
+        #[arg(long, value_name = "dir")]
+        root: PathBuf,
+        #[arg(long)]
+        id: String,
+    },
+    /// A command inside a workspace as a tenant, this process's stdio as the command's; exits with its code, 124
+    /// past the deadline. Without a deadline it runs until it ends, which is what a person's shell does, and the
+    /// pid file is where the tenant's pid on this computer is written the moment it is made.
+    Exec {
+        #[arg(long, value_name = "dir")]
+        root: PathBuf,
+        #[arg(long)]
+        id: String,
+        #[arg(long, value_name = "n")]
+        timeout_ms: Option<u64>,
+        #[arg(long, value_name = "file")]
+        pid_file: Option<PathBuf>,
+        #[arg(last = true, required = true)]
+        cmd: Vec<String>,
+    },
+    /// The terminal a workspace's pane runs on, run inside that workspace as the command of a plain exec: the pty
+    /// is opened there, the shell put on its slave, and this process is the wire between that pty and the exec's
+    /// own pipes. Not a verb anything on a computer runs: the daemon spells this line, and the binary that
+    /// answers it is the one bound inside every workspace as its init.
+    Pty {
+        #[arg(long, value_name = "n")]
+        cols: u16,
+        #[arg(long, value_name = "n")]
+        rows: u16,
+        /// The folder the shell starts in, as the workspace sees it.
+        #[arg(long, value_name = "dir")]
+        cwd: PathBuf,
+        /// Where the size of the pane is read at every window-change signal.
+        #[arg(long, value_name = "file")]
+        size_file: PathBuf,
+        /// One name=value the shell carries beyond the workspace's own environment, once per name.
+        #[arg(long, value_name = "name=value")]
+        env: Vec<String>,
+        #[arg(last = true, required = true)]
+        cmd: Vec<String>,
+    },
+    /// A workspace's first process: runs the boot command and reaps what it leaves behind.
+    Init {
+        #[arg(last = true, required = true)]
+        cmd: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum CopyVerb {
+    /// Copies the folder to a path of its own by the best road this computer has, then makes it a clean checkout.
+    Make {
+        /// The project folder, which is the top of a git work tree.
+        #[arg(long, value_name = "dir")]
+        from: PathBuf,
+        /// Where the copy lands; it must not be there yet.
+        #[arg(long, value_name = "dir")]
+        to: PathBuf,
+        /// The ref the copy is reset to; the folder's default branch when absent.
+        #[arg(long, value_name = "ref")]
+        base: Option<String>,
+        /// A directory removed from the copy so it rebuilds at the new path, once per directory.
+        #[arg(long, value_name = "dir")]
+        exclude: Vec<String>,
+        /// Apparent size above which the directory clone is not taken.
+        #[arg(long, default_value_t = u64::MAX, value_name = "n")]
+        size_line_bytes: u64,
+        /// A road named outright; the picker's own choice when absent.
+        #[arg(long, value_name = "clonefile|worktree", value_parser = road_of)]
+        road: Option<CopyRoadName>,
+    },
+    /// Takes a copy away by the road that made it.
+    Remove {
+        #[arg(long, value_name = "dir")]
+        from: PathBuf,
+        #[arg(long, value_name = "dir")]
+        to: PathBuf,
+        #[arg(long, value_name = "clonefile|worktree", value_parser = road_of)]
+        road: CopyRoadName,
+    },
+    /// The worktree a thread on a branch works in: the one already holding the branch, else one made under the
+    /// host's folder with the config files and the named dependency directories carried in.
+    Worktree {
+        /// The top of the project's repository.
+        #[arg(long, value_name = "dir")]
+        from: PathBuf,
+        /// The host's own folder; worktrees go under its `worktrees` folder.
+        #[arg(long, value_name = "dir")]
+        home: PathBuf,
+        /// The project's id, the folder its worktrees sit in.
+        #[arg(long, value_name = "id")]
+        project: String,
+        /// The branch: checked out as it stands when it exists, made at the folder's HEAD when it does not.
+        #[arg(long, value_name = "name")]
+        branch: String,
+        /// One ecosystem as JSON (id, lockfiles, carry, never, installed): each folder of a new worktree holding one
+        /// of its lockfiles carries its directories under that folder in by one clone each, once per module.
+        #[arg(long, value_name = "json", value_parser = module_of)]
+        module: Vec<CarryModule>,
+        /// A checkpoint ref a new branch is forked from: it starts at the commit the checkpoint was taken on, with the
+        /// checkpoint's files laid in uncommitted; refused for a branch that exists.
+        #[arg(long, value_name = "ref")]
+        checkpoint: Option<String>,
+    },
+    /// Mounts again the overlays of a worktree wsp made where a restart took them, before a turn or a command runs
+    /// there; one whose folder holds anything now is left as it stands.
+    WorktreeMount {
+        #[arg(long, value_name = "dir")]
+        from: PathBuf,
+        #[arg(long, value_name = "dir")]
+        home: PathBuf,
+        /// The worktree's path, as `copy worktree` answered it.
+        #[arg(long, value_name = "dir")]
+        path: PathBuf,
+    },
+    /// Takes away the frozen copies a project's worktrees sat on, the project going; one a worktree still sits on stays.
+    WorktreeForget {
+        #[arg(long, value_name = "dir")]
+        from: PathBuf,
+        #[arg(long, value_name = "dir")]
+        home: PathBuf,
+        /// The project's id, which names the folder its worktrees sit in.
+        #[arg(long, value_name = "id")]
+        project: String,
+    },
+    /// Takes away a worktree wsp made; refused while it holds uncommitted files, unless forced.
+    WorktreeRemove {
+        #[arg(long, value_name = "dir")]
+        from: PathBuf,
+        #[arg(long, value_name = "dir")]
+        home: PathBuf,
+        /// The worktree's path, as `copy worktree` answered it.
+        #[arg(long, value_name = "dir")]
+        path: PathBuf,
+        /// Removes it with its uncommitted files.
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+/// One module as the host writes it on the line.
+fn module_of(json: &str) -> Result<CarryModule, String> {
+    serde_json::from_str(json).map_err(|e| format!("{json} is not a module: {e}"))
+}
+
+/// The road a person or a host names on the line, read through the words the wire carries and nothing of its own.
+fn road_of(word: &str) -> Result<CopyRoadName, String> {
+    CopyRoadName::of_word(word).ok_or_else(|| format!("{word} is not a road: {}", CopyRoadName::words()))
+}
+
+/// The copy, with its report as the one line on stdout. Nothing else is printed there, so a caller reads the line
+/// and parses it; the reason a copy was refused goes to stderr as one sentence.
+fn copy(verb: CopyVerb) -> i32 {
+    let done = match verb {
+        CopyVerb::Make { from, to, base, exclude, size_line_bytes, road } => {
+            let ask = CopyAsk {
+                from: from.to_string_lossy().into_owned(),
+                to: to.to_string_lossy().into_owned(),
+                base,
+                exclude,
+                size_line_bytes,
+                road,
+            };
+            wsp_runtime::copy_road::make(&ask).and_then(|report| serde_json::to_string(&report).map_err(|e| e.to_string()))
+        }
+        CopyVerb::Remove { from, to, road } => wsp_runtime::copy_road::remove(&from, &to, road).map(|()| String::new()),
+        CopyVerb::Worktree { from, home, project, branch, module, checkpoint } => {
+            let ask = branch::Ask {
+                from: &from,
+                home: &home,
+                project: &project,
+                branch: &branch,
+                modules: &module,
+                checkpoint: checkpoint.as_deref(),
+            };
+            branch::make(&ask).and_then(|report| serde_json::to_string(&report).map_err(|e| e.to_string()))
+        }
+        CopyVerb::WorktreeMount { from, home, path } => branch::mount(&from, &home, &path).map(|()| String::new()),
+        CopyVerb::WorktreeForget { from, home, project } => branch::forget(&from, &home, &project).map(|()| String::new()),
+        CopyVerb::WorktreeRemove { from, home, path, force } => {
+            branch::remove(&from, &home, &path, force).and_then(|gone| serde_json::to_string(&gone).map_err(|e| e.to_string()))
+        }
+    };
+    match done {
+        Ok(line) => {
+            if !line.is_empty() {
+                println!("{line}");
+            }
+            0
+        }
+        Err(why) => {
+            eprintln!("{why}");
+            1
+        }
+    }
+}
+
+pub(crate) fn run(verb: Verb) -> i32 {
+    match verb {
+        Verb::Version => {
+            println!("{}", numbers::DAEMON_VERSION);
+            0
+        }
+        Verb::Runtime { verb: RuntimeVerb::Ask { frame, root } } => linux::ask(&root, &frame),
+        Verb::Runtime { verb: RuntimeVerb::Create { root, id } } => linux::create(&root, &id),
+        Verb::Runtime { verb: RuntimeVerb::Exec { root, id, timeout_ms, pid_file, cmd } } => {
+            linux::exec(&root, &id, cmd, timeout_ms, pid_file)
+        }
+        Verb::Runtime { verb: RuntimeVerb::Pty { cols, rows, cwd, size_file, env, cmd } } => {
+            linux::pty(cols, rows, cwd, size_file, &env, cmd)
+        }
+        Verb::Runtime { verb: RuntimeVerb::Init { cmd } } => linux::init(&cmd),
+        Verb::Copy { verb } => copy(verb),
+        Verb::Unsaved { root } => match wsp_daemon::leave_unsaved(&root) {
+            Ok(lines) => {
+                for line in lines {
+                    println!("{line}");
+                }
+                0
+            }
+            Err(why) => {
+                eprintln!("{why}");
+                1
+            }
+        },
+        Verb::Wsp { line } => {
+            let daemon = SocketAddr::from((Ipv4Addr::LOCALHOST, numbers::DEFAULT_PORT));
+            wsp_guest::run(
+                &line,
+                &|name| std::env::var(name).ok(),
+                daemon,
+                Path::new(numbers::DEFAULT_TOKEN_PATH),
+                Path::new(numbers::GUEST_DAEMON_SOCKET_PATH),
+            )
+        }
+        Verb::WspDoor { unit, door, line } => wsp_guest::run_at_door(&line, &|name| std::env::var(name).ok(), &door, unit.as_deref()),
+        Verb::Forward { wsp_argv, line } => {
+            #[cfg(feature = "mcp")]
+            if let Some(served) = served_here(&line, &wsp_argv) {
+                return wsp_mcp::run(&served);
+            }
+            wsp_guest::run_here(&line, &wsp_argv)
+        }
+        #[cfg(feature = "mcp")]
+        Verb::Mcp { state, host, scoped, no_slate, json, guest, wsp_argv } => {
+            wsp_mcp::run(&wsp_mcp::Args { state, host, scoped, no_slate, json, guest, wsp: wsp_argv })
+        }
+    }
+}
+
+/// A forwarded line read as this binary's own verbs read it.
+#[cfg(feature = "mcp")]
+#[derive(clap::Parser)]
+#[command(no_binary_name = true)]
+struct Forwarded {
+    #[command(subcommand)]
+    verb: Verb,
+}
+
+/// A `wsp mcp` line that names its state, as every config wsp writes does, served from this binary's own tool server
+/// with the wsp this forwarder was handed, so no process of the wsp's stays up for the session. Any other mcp line
+/// (no state named, install, help, a flag the tool server does not take) is the command line's, which resolves the
+/// state and answers in its own words.
+#[cfg(feature = "mcp")]
+fn served_here(line: &[String], wsp: &[String]) -> Option<wsp_mcp::Args> {
+    if line.first().map(String::as_str) != Some("mcp") {
+        return None;
+    }
+    match <Forwarded as clap::Parser>::try_parse_from(line).ok()?.verb {
+        Verb::Mcp { state, host, scoped, no_slate, json, guest: false, wsp_argv } if wsp_argv.is_empty() => {
+            Some(wsp_mcp::Args { state, host, scoped, no_slate, json, guest: false, wsp: wsp.to_vec() })
+        }
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod linux {
+    use std::path::{Path, PathBuf};
+    use std::time::Duration;
+
+    use wsp_runtime::runtime::{helper_create, helper_exec, helper_failure_line, HELPER_FAILED};
+
+    pub(super) fn ask(root: &Path, frame: &str) -> i32 {
+        match answer(root, frame) {
+            Ok((reply, ms)) => {
+                println!("{reply}");
+                println!("{ms} ms");
+                0
+            }
+            Err(e) => {
+                eprintln!("runtime ask: {e}");
+                1
+            }
+        }
+    }
+
+    /// The frame under a fresh id, answered by the ops on a runtime of this process's own; the network's forwards
+    /// live on that runtime and end with the process. A snapshot is a job the ops name at once, so the verb asks
+    /// after it every second, each reading on stderr, and prints the reading that ends it.
+    fn answer(root: &Path, frame: &str) -> Result<(String, u128), Box<dyn std::error::Error>> {
+        let mut frame: serde_json::Value = serde_json::from_str(frame)?;
+        frame["id"] = serde_json::Value::from(1);
+        let exe = std::env::current_exe()?;
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        runtime.block_on(async {
+            // No door of its own: this process answers one frame and ends, so no port of it is a workspace's
+            // to reach at the gateway.
+            let ops = wsp_runtime::ops::Ops::open(root, exe, 0)?;
+            ops.restore().await?;
+            let started = std::time::Instant::now();
+            let mut reply = ops.answer(Some(wsp_frames::RequestId::from(1)), &frame).await;
+            let job = serde_json::from_str::<serde_json::Value>(&reply).ok().and_then(|v| v["job"].as_str().map(str::to_owned));
+            if let Some(job) = job {
+                loop {
+                    let ask = serde_json::json!({ "id": 1, "op": "machine.snapshotJob", "job": job });
+                    reply = ops.answer(Some(wsp_frames::RequestId::from(1)), &ask).await;
+                    let read: serde_json::Value = serde_json::from_str(&reply)?;
+                    if read["state"] != "running" {
+                        break;
+                    }
+                    eprintln!("{} ms {reply}", started.elapsed().as_millis());
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+            Ok((reply, started.elapsed().as_millis()))
+        })
+    }
+
+    pub(super) fn create(root: &Path, id: &str) -> i32 {
+        crate::score::for_workspace();
+        match helper_create(root, id) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("{}", helper_failure_line(&e));
+                HELPER_FAILED
+            }
+        }
+    }
+
+    pub(super) fn exec(root: &Path, id: &str, cmd: Vec<String>, timeout_ms: Option<u64>, pid_file: Option<PathBuf>) -> i32 {
+        crate::score::for_workspace();
+        match helper_exec(root, id, cmd, timeout_ms.map(Duration::from_millis), pid_file) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("{}", helper_failure_line(&e));
+                HELPER_FAILED
+            }
+        }
+    }
+
+    /// Inside the workspace: the pty, the shell on it, and the wire between that pty and this process's pipes.
+    pub(super) fn pty(cols: u16, rows: u16, cwd: PathBuf, size_file: PathBuf, env: &[String], cmd: Vec<String>) -> i32 {
+        let ask = wsp_runtime::pty::Ask {
+            cols,
+            rows,
+            cwd,
+            size_file,
+            env: env.iter().filter_map(|pair| pair.split_once('=')).map(|(k, v)| (k.to_owned(), v.to_owned())).collect(),
+            argv: cmd,
+        };
+        wsp_runtime::pty::run(&ask)
+    }
+
+    pub(super) fn init(cmd: &[String]) -> i32 {
+        wsp_runtime::init::run(cmd)
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+mod linux {
+    use std::path::{Path, PathBuf};
+
+    const NOT_HERE: &str = "workspaces run on Linux alone";
+
+    pub(super) fn ask(_root: &Path, _frame: &str) -> i32 {
+        eprintln!("runtime ask: {NOT_HERE}");
+        1
+    }
+
+    pub(super) fn create(_root: &Path, _id: &str) -> i32 {
+        eprintln!("runtime create: {NOT_HERE}");
+        1
+    }
+
+    pub(super) fn exec(_root: &Path, _id: &str, _cmd: Vec<String>, _timeout_ms: Option<u64>, _pid_file: Option<PathBuf>) -> i32 {
+        eprintln!("runtime exec: {NOT_HERE}");
+        1
+    }
+
+    pub(super) fn pty(_cols: u16, _rows: u16, _cwd: PathBuf, _size_file: PathBuf, _env: &[String], _cmd: Vec<String>) -> i32 {
+        eprintln!("runtime pty: {NOT_HERE}");
+        1
+    }
+
+    pub(super) fn init(_cmd: &[String]) -> i32 {
+        eprintln!("runtime init: {NOT_HERE}");
+        1
+    }
+}

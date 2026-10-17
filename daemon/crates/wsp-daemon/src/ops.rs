@@ -1,0 +1,1978 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The op switch behind the door: one request text in, one reply text out, with the events an op raises going out
+//! through the socket's own channel.
+
+use std::collections::HashMap;
+use std::num::NonZeroU16;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use serde::Serialize;
+use serde_json::Value;
+use wsp_frames::{
+    numbers, words, DaemonErrorCode, DaemonErrorResponse, DaemonOp, Empty, FsReadEncoding, GuestOpen, GuestOpenReply, InboxRescanReply,
+    ManifestGetReply, ManifestRecordReply, ManifestRestartScriptReply, PlaceLeaveReply, PortsWatchReply, PtyAttachReply, PtyCreateReply,
+    PtyListReply, Reply, RequestId, DAEMON_OPS, GUEST_OPS, MACHINE_OPS, MACHINE_OPS_ON_ANY_ROAD,
+};
+
+use crate::exec::{run_exec, ExecOptions};
+use crate::git::Asked::{Read as Reads, Work as Works};
+use crate::guest::SESSION_TAKEN;
+use crate::manifest::RecordInput;
+use crate::paths::OpError;
+use crate::pty::{passwd_row, process_env, pump, PtyCreateOpts};
+use crate::roads::guest_road_serves;
+use crate::sys::SocketWatch;
+use crate::tunnel::{lenient_base64, Tunnels};
+#[cfg(not(target_os = "linux"))]
+use crate::workspace::no_such_workspace;
+#[cfg(target_os = "linux")]
+use crate::workspace::workspaces_of;
+mod road;
+mod runner;
+mod sys_proc;
+mod update;
+use crate::{
+    bring_back, frame_text as text, fs, git, hosts, paths, ssh, transcripts, tunnel, usage_logs, Ctx, Listener, Outbound, Outgoing,
+};
+pub(crate) use road::Road;
+use runner::Runner;
+
+type Detach = Box<dyn FnOnce() + Send>;
+
+/// What one authed socket holds between frames.
+pub(crate) struct Conn {
+    /// The number no other socket in this daemon has, which is what the guest table and the broadcast list key on.
+    pub(crate) key: u64,
+    /// Set when the auth frame named a port: only tunnel ops on it and ping are answered.
+    pub(crate) scope: Option<NonZeroU16>,
+    pub(crate) out: Outbound,
+    pub(crate) road: Road,
+    /// The token this socket came through the door with, held so a rotation can tell the sockets the old one
+    /// opened from the ones the new one did. None on the link and inside a workspace, which take no token.
+    pub(crate) token: Option<String>,
+    pub(crate) tunnels: Tunnels,
+    pub(crate) stdios: crate::stdio::Stdios,
+    /// What the socket's close undoes: every pty, mode and watcher listener an op on it made. None once closed, so an
+    /// op still being answered when the socket went undoes itself at once instead of outliving it.
+    detaches: Mutex<Option<Vec<Detach>>>,
+    /// This socket's proc.watch, so proc.unwatch can end it before the socket does and a second watch on the same
+    /// socket asks for a whole snapshot rather than a second subscription.
+    proc_watch: Arc<sys_proc::ProcWatch>,
+    /// This socket's sys.watch, so sys.unwatch can end it before the socket does and a second watch on the same socket
+    /// is no second subscription. The close's undo for it and for proc_watch are the first two in the list, so a
+    /// watch and unwatch every time a page opens adds nothing to it.
+    sys_watch: Arc<SocketWatch>,
+    /// The one guest session this socket opened, which ends with it.
+    guest: Mutex<Option<String>>,
+    /// The port watches this socket named, each by the key it holds in the daemon's one port watch.
+    port_watches: Mutex<HashMap<String, u64>>,
+}
+
+impl Conn {
+    pub(crate) fn new(key: u64, scope: Option<NonZeroU16>, out: Outbound, road: Road, token: Option<String>) -> Conn {
+        let (sys_watch, proc_watch) = (Arc::<SocketWatch>::default(), Arc::<sys_proc::ProcWatch>::default());
+        let (sys, procs) = (Arc::clone(&sys_watch), Arc::clone(&proc_watch));
+        let unwatch: Vec<Detach> = vec![Box::new(move || sys.unwatch()), Box::new(move || procs.unwatch())];
+        Conn {
+            key,
+            scope,
+            out,
+            road,
+            token,
+            tunnels: Tunnels::default(),
+            stdios: crate::stdio::Stdios::default(),
+            detaches: Mutex::new(Some(unwatch)),
+            proc_watch,
+            sys_watch,
+            guest: Mutex::new(None),
+            port_watches: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// The workspace this socket was opened inside; none for every other road.
+    pub(crate) fn workspace(&self) -> Option<String> {
+        match &self.road {
+            Road::Workspace(id) => Some(id.clone()),
+            Road::Inbound | Road::Link | Road::Computer => None,
+        }
+    }
+
+    pub(crate) fn guest_session(&self) -> Option<String> {
+        self.guest.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Binds this socket to the session it just opened; a socket that already holds one opens no second.
+    pub(crate) fn take_guest(&self, session: String) -> Result<(), OpError> {
+        let mut held = self.guest.lock().unwrap_or_else(|e| e.into_inner());
+        if held.is_some() {
+            return Err(OpError::coded(DaemonErrorCode::BadRequest, SESSION_TAKEN));
+        }
+        *held = Some(session);
+        Ok(())
+    }
+
+    fn on_close(&self, detach: Detach) {
+        match &mut *self.detaches.lock().unwrap_or_else(|e| e.into_inner()) {
+            Some(pending) => pending.push(detach),
+            None => detach(),
+        }
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        self.detaches.lock().unwrap_or_else(|e| e.into_inner()).is_none()
+    }
+
+    /// Takes a subscription on only while the socket is still open, and keeps what undoes it: an op that awaited
+    /// something takes nothing on for a client that has left, since the close drains what this socket holds once and
+    /// a subscription made after that drain is one nothing removes.
+    fn while_open(&self, take: impl FnOnce() -> Option<Detach>) {
+        if let Some(pending) = &mut *self.detaches.lock().unwrap_or_else(|e| e.into_inner()) {
+            pending.extend(take());
+        }
+    }
+
+    pub(crate) fn close(&self) {
+        let detaches = self.detaches.lock().unwrap_or_else(|e| e.into_inner()).take();
+        for detach in detaches.into_iter().flatten() {
+            detach();
+        }
+        self.tunnels.close_all();
+        self.stdios.close_all();
+    }
+}
+
+pub(crate) fn ok(id: Option<RequestId>) -> String {
+    text(&Reply::new(id, Empty {}))
+}
+
+fn fail(id: Option<RequestId>, error: impl Into<String>) -> String {
+    text(&DaemonErrorResponse::new(id, error))
+}
+
+pub(crate) fn refuse(id: Option<RequestId>, code: DaemonErrorCode, error: impl Into<String>) -> String {
+    text(&DaemonErrorResponse::new(id, error).with_code(code))
+}
+
+/// The id as the reply echoes it: the string or number the frame carried, null for anything else.
+fn id_of(frame: &Value) -> Option<RequestId> {
+    frame.get("id").and_then(|v| serde_json::from_value(v.clone()).ok())
+}
+
+/// The op as the unknown-op sentence names it: the string itself, or the JSON of whatever else was there.
+fn op_word(frame: &Value) -> String {
+    match frame.get("op") {
+        None => "undefined".to_owned(),
+        Some(Value::String(s)) => s.clone(),
+        Some(other) => other.to_string(),
+    }
+}
+
+/// A port-scoped socket is there to tunnel one port; ping keeps it alive and nothing else is its business.
+fn in_port_scope(port: NonZeroU16, frame: &Value) -> bool {
+    match frame.get("op").and_then(Value::as_str) {
+        Some("ping" | "tunnel.write" | "tunnel.close") => true,
+        Some("tunnel.open") => frame.get("port").and_then(Value::as_u64) == Some(u64::from(port.get())),
+        _ => false,
+    }
+}
+
+/// An op's outcome on the wire: the body under the ok envelope, or the failure with its code when it carries one.
+pub(crate) fn answer<T: Serialize>(id: Option<RequestId>, result: Result<T, OpError>) -> String {
+    match result {
+        Ok(body) => text(&Reply::new(id, body)),
+        Err(OpError { code: Some(code), message }) => refuse(id, code, message),
+        Err(OpError { code: None, message }) => fail(id, message),
+    }
+}
+
+/// One frame in, one reply out. The reply is the text to write, or the leave's, which the loop writes and then stops on.
+pub(crate) async fn handle(conn: &Arc<Conn>, ctx: &Arc<Ctx>, raw: &str) -> Outgoing {
+    // Any JSON value is a frame, as the node daemon reads it; a non-object simply carries no op and no id.
+    let Ok(frame) = serde_json::from_str::<Value>(raw) else {
+        return Outgoing::Text(text(&DaemonErrorResponse::new(None, words::INVALID_JSON)));
+    };
+    let id = id_of(&frame);
+    if let Some(port) = conn.scope {
+        if !in_port_scope(port, &frame) {
+            return Outgoing::Text(refuse(id, DaemonErrorCode::Forbidden, words::port_scope_refusal(port.get())));
+        }
+    }
+    let op = frame.get("op").and_then(Value::as_str);
+    if conn.road.guests() {
+        // A socket inside a workspace answers ping and the guest's own two ops and refuses every other op this
+        // daemon knows, the machine ops and the two place ops among them: nothing inside a workspace reads the
+        // computer it sits on, lists its neighbours or drives anything there.
+        let served = op == Some("ping") || op.is_some_and(|name| guest_road_serves(&conn.road, ctx.is_place(), name));
+        let known = op.is_some_and(|name| DAEMON_OPS.contains(&name) || MACHINE_OPS.contains(&name));
+        if known && !served {
+            return Outgoing::Text(refuse(id, DaemonErrorCode::Forbidden, words::NOT_ON_THIS_ROAD));
+        }
+    }
+    if conn.road == Road::Link {
+        // The road that opened this socket answers its own ops before the daemon's switch sees them.
+        match op {
+            Some("place.leave") => {
+                let home = crate::place::place_home(ctx.options.home.as_deref());
+                let profile = ctx.options.apparmor_profile.clone().unwrap_or_else(|| wsp_frames::numbers::WORKSPACE_APPARMOR_PATH.into());
+                let install = ctx.options.install_root.as_deref().map(|root| root.to_string_lossy().into_owned()).unwrap_or_default();
+                let runtime =
+                    ctx.options.runtime_root.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::RUNTIME_ROOT).into());
+                let force = frame.get("force").and_then(Value::as_bool).unwrap_or(false);
+                let projects: Vec<String> = frame
+                    .get("projects")
+                    .and_then(Value::as_array)
+                    .map(|named| named.iter().filter_map(|n| n.as_str().map(str::to_owned)).collect())
+                    .unwrap_or_default();
+                let swept = fs::blocking(move || Ok(crate::place::leave_here(&home, &profile, &install, &runtime, force, &projects)))
+                    .await
+                    .unwrap_or_else(|_| Ok(Vec::new()));
+                return match swept {
+                    Ok(swept) => Outgoing::Leave(text(&Reply::new(id, PlaceLeaveReply { swept }))),
+                    Err(why) => Outgoing::Text(refuse(id, DaemonErrorCode::BadRequest, why)),
+                };
+            }
+            Some("place.update") => return update::place_update(ctx, id, &frame).await,
+            Some(name) if MACHINE_OPS.contains(&name) => return Outgoing::Text(machine_answer(ctx, id, name, &frame).await),
+            _ => {}
+        }
+    } else if let Some(name) = op.filter(|name| conn.road == Road::Inbound && MACHINE_OPS_ON_ANY_ROAD.contains(name)) {
+        // A socket that dialled in holds this daemon's token, so a person at this computer may ask it what it is
+        // running and how one workspace is doing. Both only read; the rest of the machine ops stay the link's.
+        return Outgoing::Text(machine_answer(ctx, id, name, &frame).await);
+    }
+    Outgoing::Text(handle_op(conn, ctx, &frame, id, op).await)
+}
+
+async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<RequestId>, op: Option<&str>) -> String {
+    match op {
+        Some("ping") => ok(id),
+        // The two place ops and every machine op that does anything are the link's; one sentence for the one rule,
+        // as the node daemon says it. The two machine ops that only read were answered above, on whichever road
+        // they came in on.
+        Some(name) if name == "place.leave" || name == "place.update" || MACHINE_OPS.contains(&name) => {
+            refuse(id, DaemonErrorCode::Forbidden, words::NOT_ON_THIS_ROAD)
+        }
+        // The guest ops are the roads table's: a guest's two where a guest process lives, the host's three where
+        // the host is, and every other socket refused each of them.
+        Some(name) if GUEST_OPS.contains(&name) && !guest_road_serves(&conn.road, ctx.is_place(), name) => {
+            refuse(id, DaemonErrorCode::Forbidden, words::NOT_ON_THIS_ROAD)
+        }
+        Some(name @ ("fs.image" | "fs.hash" | "http.post")) => crate::slate_reads::serve(conn, ctx, id, name, frame).await,
+        Some(name @ ("stdio.open" | "stdio.write" | "stdio.close")) => crate::stdio::serve(conn, ctx, id, name, frame),
+        Some(
+            name @ ("pty.create"
+            | "pty.attach"
+            | "pty.detach"
+            | "pty.write"
+            | "pty.resize"
+            | "pty.kill"
+            | "pty.tab"
+            | "pty.list"
+            | "exec"
+            | "fs.list"
+            | "fs.files"
+            | "fs.read"
+            | "fs.search"
+            | "fs.folders"
+            | "git.status"
+            | "git.diff"
+            | "git.snapshot"
+            | "git.range"
+            | "git.turn"
+            | "git.push"
+            | "git.pr"
+            | "git.prRead"
+            | "git.prView"
+            | "git.runLog"
+            | "git.prMerge"
+            | "git.repoRead"
+            | "git.update"
+            | "git.startOn"
+            | "git.branchCompare"
+            | "git.mergeIn"
+            | "git.issueRead"
+            | "git.prCheckout"
+            | "git.prDiff"
+            | "git.prReview"
+            | "git.prReply"
+            | "git.prResolve"
+            | "git.prReact"
+            | "git.prList"
+            | "git.discard"
+            | "git.commit"
+            | "fs.write"
+            | "git.checkpoint"
+            | "git.restore"
+            | "git.checkpointDrop"
+            | "git.worktrees"
+            | "git.branches"
+            | "git.switchNew"
+            | "git.fetchBranch"
+            | "ports.watch"
+            | "manifest.get"
+            | "manifest.record"
+            | "manifest.restartScript"
+            | "inbox.watch"
+            | "inbox.rescan"
+            | "tunnel.open"
+            | "ssh.start"
+            | "tunnel.write"
+            | "tunnel.close"
+            | "sys.watch"
+            | "sys.unwatch"
+            | "sys.history"
+            | "usage.logs"
+            | "transcripts.list"
+            | "transcripts.read"
+            | "proc.watch"
+            | "proc.unwatch"
+            | "proc.scopes"
+            | "proc.inspect"
+            | "proc.list"
+            | "proc.kill"
+            | "container.stop"
+            | "guest.open"
+            | "guest.send"
+            | "guest.watch"
+            | "guest.reply"
+            | "guest.close"),
+        ) => {
+            // The typed frame: what the protocol's schema refuses, this refuses as a bad request.
+            match serde_json::from_value::<DaemonOp>(frame.clone()) {
+                Ok(typed) => serve(conn, ctx, id, name, typed).await,
+                Err(e) => refuse(id, DaemonErrorCode::BadRequest, e.to_string()),
+            }
+        }
+        Some(name) if DAEMON_OPS.contains(&name) => refuse(id, DaemonErrorCode::Unsupported, not_built(name)),
+        _ => fail(id, words::unknown_op(&op_word(frame))),
+    }
+}
+
+/// A machine op on the link: the workspace runtime answers where this daemon opened one; where the root it was
+/// given is the reason it opened none, the reading of that root is the answer, so somebody asking what this
+/// computer can do reads why rather than a line that names the op; and for every other reason, that line.
+#[cfg(target_os = "linux")]
+async fn machine_answer(ctx: &Ctx, id: Option<RequestId>, name: &str, frame: &Value) -> String {
+    match (&ctx.runtime, &ctx.runtime_refusal) {
+        (Some(ops), _) => ops.answer(id, frame).await,
+        (None, Some(reason)) => text(&DaemonErrorResponse::new(id, reason.clone())),
+        (None, None) => text(&wsp_runtime::answer_machine_op(id, name)),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn machine_answer(_ctx: &Ctx, id: Option<RequestId>, name: &str, _frame: &Value) -> String {
+    text(&wsp_runtime::answer_machine_op(id, name))
+}
+
+/// An op the protocol names that this daemon does not serve yet.
+pub(crate) fn not_built(op: &str) -> String {
+    format!("{op} is not served by this daemon yet")
+}
+
+fn no_such_pty(pty_id: &str) -> String {
+    format!("no such pty: {pty_id}")
+}
+
+/// The real path a request names, inside the daemon's root or a folder the roots file names as of this op.
+async fn locate(ctx: &Ctx, requested: &str) -> Result<PathBuf, OpError> {
+    let root = PathBuf::from(&ctx.root);
+    let roots_path = ctx.roots_path();
+    let requested = requested.to_owned();
+    fs::blocking(move || paths::resolve_inside(&paths::roots_now(&root, &roots_path)?, &requested)).await
+}
+
+/// The folder a diff may answer for, as the runner sees paths: the outermost root the folder resolved under on this
+/// computer, since every fs op reads anywhere under any root, or a workspace's own `/`, which nothing sits above.
+async fn bound_of(ctx: &Ctx, machine: Option<&str>, at: &Path) -> Result<PathBuf, OpError> {
+    if machine.is_some() {
+        return Ok(PathBuf::from("/"));
+    }
+    let (root, roots_path, at) = (PathBuf::from(&ctx.root), ctx.roots_path(), at.to_path_buf());
+    fs::blocking(move || {
+        let roots = paths::roots_now(&root, &roots_path)?;
+        let real = roots.iter().filter_map(|r| std::fs::canonicalize(r).ok()).filter(|r| paths::is_inside(r, &at));
+        Ok(real.min_by_key(|r| r.as_os_str().len()).unwrap_or(at))
+    })
+    .await
+}
+
+/// A refusal the workspace runtime gave, as this switch answers it: the workspace it does not know carries the
+/// same code a daemon running no workspaces answers with, and every other sentence is the runtime's own.
+#[cfg(target_os = "linux")]
+pub(crate) fn from_runtime(e: wsp_runtime::ops::OpError) -> OpError {
+    match e.kind {
+        Some(wsp_frames::MachineErrorKind::Missing) => OpError::coded(DaemonErrorCode::NotFound, e.message),
+        _ => OpError::plain(e.message),
+    }
+}
+
+/// Where a path a frame names is read, and how a program for it is run: on this computer as ever, or under one
+/// workspace's rootfs with git run inside that workspace. A path for a workspace is absolute, since the daemon
+/// reading it has no working directory inside that workspace and a git run there starts in the folder the frame
+/// names; then it is held to the wire's own plain-path rule and resolved against the rootfs, so `..` and a symlink
+/// that leaves the workspace are refused exactly as a path that leaves a root is.
+async fn road(ctx: &Ctx, machine: Option<&str>, requested: &str, asked: git::Asked) -> Result<(Runner, PathBuf, PathBuf), OpError> {
+    let Some(machine) = machine else {
+        let at = locate(ctx, requested).await?;
+        return Ok((Runner::Here(git::here::Here::new()), at.clone(), at));
+    };
+    if !Path::new(requested).is_absolute() {
+        return Err(OpError::coded(DaemonErrorCode::BadRequest, not_absolute(requested, machine)));
+    }
+    workspace_road(ctx, machine, requested, asked).await
+}
+
+/// The same for one workspace this computer runs: the path under its rootfs, read on this side, and the runner
+/// that runs a program inside it.
+#[cfg(target_os = "linux")]
+async fn workspace_road(ctx: &Ctx, machine: &str, requested: &str, asked: git::Asked) -> Result<(Runner, PathBuf, PathBuf), OpError> {
+    let ops = workspaces_of(ctx, machine)?;
+    let rootfs = ops.rootfs_of_running(machine).map_err(from_runtime)?;
+    // The refusals name the path as the frame gave it: a person reads the folder as the workspace sees it, and
+    // where this computer keeps that workspace's files is no part of the answer.
+    let joined = wsp_runtime::bundle::inside(&rootfs, requested).map_err(|_| paths::outside_root(requested))?;
+    let named = requested.to_owned();
+    let under = fs::blocking(move || paths::resolve_inside_named(&[rootfs], &joined.to_string_lossy(), &named)).await?;
+    Ok((Runner::Inside(git::inside::Inside::new(ops, machine, asked)), under, PathBuf::from(requested)))
+}
+
+/// A stopped workspace's copy on this computer and the path it is mounted at inside, where the folder a status
+/// frame names is in it: nothing inside a stopped workspace can run git, so its branch is read off the copy's git
+/// directory. None while it runs, and for a folder outside the copy, which then takes the road every op takes and
+/// is refused as stopped there.
+#[cfg(target_os = "linux")]
+fn copy_at_rest(ctx: &Ctx, machine: Option<&str>, cwd: &str) -> Result<Option<(PathBuf, String)>, OpError> {
+    let (Some(machine), Some(ops)) = (machine, ctx.runtime.as_ref()) else { return Ok(None) };
+    if !Path::new(cwd).is_absolute() {
+        return Ok(None);
+    }
+    let Some((copy, root)) = ops.copy_of_stopped(machine).map_err(from_runtime)? else { return Ok(None) };
+    Ok(in_copy(&root, cwd).then_some((copy, root)))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn copy_at_rest(_ctx: &Ctx, _machine: Option<&str>, _cwd: &str) -> Result<Option<(PathBuf, String)>, OpError> {
+    Ok(None)
+}
+
+/// Whether a folder is the copy's own mount point or under it, read as written: a `..` is never under anything.
+#[cfg(target_os = "linux")]
+fn in_copy(root: &str, cwd: &str) -> bool {
+    let cwd = Path::new(cwd);
+    !cwd.components().any(|part| matches!(part, std::path::Component::ParentDir)) && cwd.starts_with(root)
+}
+
+/// What a frame asks of a pty inside a workspace: its size, a shell it names, the folder, and a reply's command.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+struct InsideAsk {
+    cols: Option<NonZeroU16>,
+    rows: Option<NonZeroU16>,
+    shell: Option<String>,
+    cwd: String,
+    run: Option<String>,
+}
+
+/// A pty inside one workspace this computer runs: the shell opens in the folder the frame names, which is
+/// absolute and is asked for, since this daemon has no working directory inside a workspace and a pty without one
+/// would open a shell in the computer's own home, which every workspace has bound in. The pty is held beside this
+/// daemon's own and every op on it names the same workspace.
+#[cfg(target_os = "linux")]
+async fn pty_inside(ctx: &Arc<Ctx>, id: Option<RequestId>, machine: &str, ask: InsideAsk) -> String {
+    let InsideAsk { cols, rows, shell, cwd, run } = ask;
+    let opened = async {
+        let ops = workspaces_of(ctx, machine)?;
+        let (cols, rows) = (cols.map_or(80, NonZeroU16::get), rows.map_or(24, NonZeroU16::get));
+        let running = ops.pty_in(machine, cols, rows, &cwd, shell.as_deref(), run.as_deref()).await.map_err(from_runtime)?;
+        let spawned = ctx.ptys.lock().unwrap_or_else(|e| e.into_inner()).take_inside(machine, cols, rows, running, run.is_some());
+        let reply = PtyCreateReply { pty_id: spawned.id.clone(), pid: spawned.pid };
+        tokio::spawn(pump(Arc::clone(ctx), spawned));
+        Ok(reply)
+    };
+    answer(id, opened.await)
+}
+
+/// And on a computer whose daemon runs no workspace at all, which is every machine this daemon is inside: the
+/// missing refusal, the same one a workspace that is gone answers.
+#[cfg(not(target_os = "linux"))]
+async fn pty_inside(_ctx: &Arc<Ctx>, id: Option<RequestId>, machine: &str, _ask: InsideAsk) -> String {
+    answer::<Empty>(id, Err(no_such_workspace(machine)))
+}
+
+/// The port a tunnel carries to: on this machine's own loopback, or on one workspace's inside its namespace.
+async fn dial_port(ctx: &Arc<Ctx>, machine: Option<String>, port: u16) -> Result<tokio::net::TcpStream, String> {
+    let Some(machine) = machine else { return tunnel::connect_loopback(port).await };
+    dial_inside(ctx, &machine, port).await
+}
+
+#[cfg(target_os = "linux")]
+async fn dial_inside(ctx: &Arc<Ctx>, machine: &str, port: u16) -> Result<tokio::net::TcpStream, String> {
+    let ops = workspaces_of(ctx, machine).map_err(|e| e.message)?;
+    ops.dial_in(machine, port).await.map_err(|e| from_runtime(e).message)
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn dial_inside(_ctx: &Arc<Ctx>, machine: &str, _port: u16) -> Result<tokio::net::TcpStream, String> {
+    Err(no_such_workspace(machine).message)
+}
+
+/// The ssh server of this machine, or of the workspace named.
+async fn ssh_start(ctx: &Arc<Ctx>, machine: Option<&str>, key: &str) -> Result<wsp_frames::SshStartReply, OpError> {
+    match machine {
+        None if ctx.options.place_file.is_some() => Err(OpError::coded(DaemonErrorCode::BadRequest, words::SSH_NOT_ON_A_PLACE)),
+        None => ctx.sshd.start(ssh::Machine::Here, key).await,
+        Some(machine) => ssh_inside(ctx, machine, key).await,
+    }
+}
+
+#[cfg(target_os = "linux")]
+async fn ssh_inside(ctx: &Arc<Ctx>, machine: &str, key: &str) -> Result<wsp_frames::SshStartReply, OpError> {
+    let ops = workspaces_of(ctx, machine)?;
+    ctx.sshd.start(ssh::Machine::Inside { ops: &ops, id: machine }, key).await
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn ssh_inside(_ctx: &Arc<Ctx>, machine: &str, _key: &str) -> Result<wsp_frames::SshStartReply, OpError> {
+    Err(no_such_workspace(machine))
+}
+
+/// What a path for a workspace that is not absolute is refused with, wherever a frame names one: this daemon has
+/// no working directory inside a workspace, so a folder there is the frame's to give whole. One sentence, read by
+/// the files and git road and by the pane's.
+fn not_absolute(at: &str, machine: &str) -> String {
+    format!("{at} is not an absolute path inside {machine}")
+}
+
+/// What a pty for a workspace with no folder named is refused with: the frame says which workspace, and the host
+/// fills the folder in from the workspace's own checkout before it sends one.
+fn no_folder(machine: &str) -> String {
+    format!("a pty inside {machine} needs the folder it opens in")
+}
+
+/// And on a computer whose daemon runs no workspace at all, which is every machine this daemon is inside: the
+/// missing refusal, the same one a workspace that is gone answers.
+#[cfg(not(target_os = "linux"))]
+async fn workspace_road(_ctx: &Ctx, machine: &str, _requested: &str, _asked: git::Asked) -> Result<(Runner, PathBuf, PathBuf), OpError> {
+    Err(no_such_workspace(machine))
+}
+
+async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &str, op: DaemonOp) -> String {
+    match op {
+        DaemonOp::PtyCreate { cols, rows, shell, cwd, env, run, machine_id } => {
+            if let Some(machine) = machine_id {
+                // The folder is the frame's and absolute, whatever workspace it named and whether this computer
+                // runs one: a pty for a workspace with no folder would open a shell in the computer's own home,
+                // which every workspace here has bound in, so it is a bad request before anything is looked up.
+                let Some(cwd) = cwd else { return refuse(id, DaemonErrorCode::BadRequest, no_folder(&machine)) };
+                if !Path::new(&cwd).is_absolute() {
+                    return refuse(id, DaemonErrorCode::BadRequest, not_absolute(&cwd, &machine));
+                }
+                return pty_inside(ctx, id, &machine, InsideAsk { cols, rows, shell, cwd, run }).await;
+            }
+            let opts = PtyCreateOpts { cols: cols.map(NonZeroU16::get), rows: rows.map(NonZeroU16::get), shell, cwd, env, run };
+            let spawned = ctx.ptys.lock().unwrap_or_else(|e| e.into_inner()).create(&opts, &process_env(), passwd_row().as_ref());
+            match spawned {
+                Ok(spawned) => {
+                    let reply = PtyCreateReply { pty_id: spawned.id.clone(), pid: spawned.pid };
+                    tokio::spawn(pump(Arc::clone(ctx), spawned));
+                    text(&Reply::new(id, reply))
+                }
+                Err(e) => fail(id, e.to_string()),
+            }
+        }
+        DaemonOp::PtyAttach { pty_id, machine_id } => {
+            // Keyed by the socket rather than by the attach, so a second attach on the same socket replaces the
+            // first and the detach below takes off what this socket holds.
+            let key = conn.key;
+            let listener = || Listener { key, out: conn.out.clone() };
+            let live = {
+                let mut ptys = ctx.ptys.lock().unwrap_or_else(|e| e.into_inner());
+                let Some(session) = ptys.of(&pty_id, machine_id.as_deref()) else { return fail(id, no_such_pty(&pty_id)) };
+                session.attach(listener());
+                session.on_exit(listener());
+                session.exited.is_none().then_some(session.pid)
+            };
+            // An exited pty tells the newcomer so at once and is never probed again.
+            if let Some(pid) = live {
+                ctx.modes.attach(&pty_id, pid, listener());
+            }
+            let (ctx2, pty) = (Arc::clone(ctx), pty_id.clone());
+            conn.on_close(Box::new(move || {
+                if let Some(session) = ctx2.ptys.lock().unwrap_or_else(|e| e.into_inner()).get_mut(&pty) {
+                    session.detach(key);
+                }
+                ctx2.modes.detach(&pty, key);
+            }));
+            text(&Reply::new(id, PtyAttachReply { pty_id }))
+        }
+        DaemonOp::PtyDetach { pty_id, machine_id } => {
+            let mut ptys = ctx.ptys.lock().unwrap_or_else(|e| e.into_inner());
+            let Some(session) = ptys.of(&pty_id, machine_id.as_deref()) else { return fail(id, no_such_pty(&pty_id)) };
+            session.detach(conn.key);
+            drop(ptys);
+            ctx.modes.detach(&pty_id, conn.key);
+            ok(id)
+        }
+        DaemonOp::PtyWrite { pty_id, data, machine_id } => {
+            let written = match ctx.ptys.lock().unwrap_or_else(|e| e.into_inner()).of(&pty_id, machine_id.as_deref()) {
+                Some(session) => {
+                    session.write(&data);
+                    true
+                }
+                None => false,
+            };
+            if !written {
+                return fail(id, no_such_pty(&pty_id));
+            }
+            // A person typing into a workspace is that workspace working, whatever the shell does with it.
+            if let Some(machine) = &machine_id {
+                ctx.workspace_touched(machine);
+            }
+            ok(id)
+        }
+        DaemonOp::PtyResize { pty_id, cols, rows, machine_id } => {
+            match ctx.ptys.lock().unwrap_or_else(|e| e.into_inner()).of(&pty_id, machine_id.as_deref()) {
+                Some(session) => match session.resize(cols.get(), rows.get()) {
+                    Ok(()) => ok(id),
+                    Err(e) => fail(id, e.to_string()),
+                },
+                None => fail(id, no_such_pty(&pty_id)),
+            }
+        }
+        DaemonOp::PtyKill { pty_id, machine_id } => {
+            let mut ptys = ctx.ptys.lock().unwrap_or_else(|e| e.into_inner());
+            if ptys.of(&pty_id, machine_id.as_deref()).is_none() {
+                return fail(id, no_such_pty(&pty_id));
+            }
+            ctx.modes.remove(&pty_id);
+            ptys.destroy(&pty_id);
+            ok(id)
+        }
+        DaemonOp::PtyTab { pty_id, machine_id } => {
+            if !ctx.ptys.lock().unwrap_or_else(|e| e.into_inner()).tab(&pty_id, machine_id.as_deref()) {
+                return fail(id, no_such_pty(&pty_id));
+            }
+            ok(id)
+        }
+        DaemonOp::PtyList { machine_id } => {
+            let ptys = ctx.ptys.lock().unwrap_or_else(|e| e.into_inner()).list(machine_id.as_deref());
+            text(&Reply::new(id, PtyListReply { ptys }))
+        }
+        DaemonOp::Exec { cmd, timeout_ms, stdin } => {
+            let env: Vec<_> = std::env::vars_os().collect();
+            let opts = ExecOptions {
+                timeout: Duration::from_millis(u64::from(timeout_ms.unwrap_or(numbers::EXEC_TIMEOUT_DEFAULT_MS))),
+                stdin: stdin.as_deref().map(lenient_base64),
+                output_max: numbers::EXEC_OUTPUT_MAX,
+            };
+            text(&Reply::new(id, run_exec(Path::new(&ctx.root), &env, &cmd, opts).await))
+        }
+        DaemonOp::FsList { path, gitignore, machine_id } => {
+            let listed = async {
+                let (runner, under, at) = road(ctx, machine_id.as_deref(), &path, Reads).await?;
+                fs::list_dir(under, &at, gitignore == Some(true), numbers::FS_LIST_CAP_ENTRIES, &runner).await
+            };
+            answer(id, listed.await)
+        }
+        DaemonOp::FsFiles { cwd, machine_id } => {
+            let listed = async {
+                let (runner, under, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                ctx.files.of(&runner, under, &at).await
+            };
+            answer(id, listed.await)
+        }
+        DaemonOp::FsRead { path, encoding, machine_id } => {
+            let read = async {
+                let (_, under, _) = road(ctx, machine_id.as_deref(), &path, Reads).await?;
+                fs::read_file_bounded(under, encoding.unwrap_or(FsReadEncoding::Utf8), numbers::FS_READ_CAP_BYTES).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::FsSearch { path, query, mode, machine_id } => {
+            let found = async {
+                let (_, under, _) = road(ctx, machine_id.as_deref(), &path, Reads).await?;
+                fs::search(under, query, mode).await
+            };
+            answer(id, found.await)
+        }
+        DaemonOp::FsFolders { dir, hidden, repos, projects } => {
+            let (home, projects) = (PathBuf::from(&ctx.root), projects.unwrap_or_default());
+            if repos == Some(true) {
+                return answer(id, fs::list_repos(home, projects).await);
+            }
+            answer(id, fs::list_folders(home, projects, dir, hidden == Some(true)).await)
+        }
+        DaemonOp::GitStatus { cwd, machine_id } => {
+            let read = async {
+                if let Some((copy, root)) = copy_at_rest(ctx, machine_id.as_deref(), &cwd)? {
+                    return fs::blocking(move || git::stored::status(&copy, &root)).await;
+                }
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                git::git_status(&runner, &at).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitDiff { cwd, scope, path, paths, whole, machine_id } => {
+            let diff = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                let bound = bound_of(ctx, machine_id.as_deref(), &at).await?;
+                let paths = paths.unwrap_or_default();
+                git::git_diff(&runner, &at, &bound, scope, path.as_deref(), &paths, whole == Some(true), numbers::GIT_DIFF_CAP_BYTES).await
+            };
+            answer(id, diff.await)
+        }
+        DaemonOp::GitDiscard { cwd, path, machine_id } => {
+            let discarded = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                git::write::discard(&runner, &at, &path).await
+            };
+            answer(id, discarded.await)
+        }
+        DaemonOp::GitCommit { cwd, message, paths, machine_id } => {
+            let committed = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                git::write::commit(&runner, &at, &message, &paths).await
+            };
+            answer(id, committed.await)
+        }
+        DaemonOp::FsWrite { path, contents, machine_id } => {
+            let wrote = async {
+                // The folder resolves inside a root like any path; the leaf is the write's own to open, without
+                // following a link that stands in its place.
+                let requested = Path::new(&path);
+                let (Some(name), Some(parent)) = (requested.file_name(), requested.parent()) else {
+                    return Err(OpError::coded(DaemonErrorCode::BadRequest, format!("{path} names no file")));
+                };
+                let parent = match parent.to_string_lossy() {
+                    folder if folder.is_empty() => ".".to_owned(),
+                    folder => folder.into_owned(),
+                };
+                let (runner, under, named) = road(ctx, machine_id.as_deref(), &parent, Reads).await?;
+                // Opened from the root the way of running opens it on this side, every folder below it by descriptor.
+                let open = git::Runs::on_this_side(&runner, &named)
+                    .ok_or_else(|| OpError::plain(format!("{path} cannot be opened on this computer")))?
+                    .open;
+                fs::write_file(open, under, name.to_owned(), path.clone(), contents, numbers::FS_WRITE_CAP_BYTES).await
+            };
+            answer(id, wrote.await)
+        }
+        DaemonOp::GitCheckpoint { cwd, thread, turn, scope, machine_id } => {
+            // A read: a turn's end records its tree and must not start the workspace's quiet clock over.
+            let taken = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                git::checkpoint::checkpoint(&runner, &at, scope.as_deref(), &thread, &turn).await
+            };
+            answer(id, taken.await)
+        }
+        DaemonOp::GitRestore { cwd, checkpoint, scope, machine_id } => {
+            let restored = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                git::checkpoint::restore(&runner, &at, scope.as_deref(), &checkpoint).await
+            };
+            answer(id, restored.await)
+        }
+        DaemonOp::GitCheckpointDrop { cwd, scope, thread, machine_id } => {
+            // A read as a checkpoint is: forgetting a thread is no work done in the workspace.
+            let dropped = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                git::checkpoint::drop_thread(&runner, &at, scope.as_deref(), &thread).await
+            };
+            answer(id, dropped.await)
+        }
+        DaemonOp::GitWorktrees { cwd, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                git::branches::worktrees(&runner, &at).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitBranches { cwd, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                git::branches::branches(&runner, &at).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitSwitchNew { cwd, branch, machine_id } => {
+            let put = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                git::write::switch_new(&runner, &at, &branch).await
+            };
+            answer(id, put.await)
+        }
+        DaemonOp::GitFetchBranch { cwd, remote, branch, into, machine_id } => {
+            let fetched = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                git::write::fetch_branch(&runner, &at, &remote, &branch, into.as_deref()).await
+            };
+            answer(id, fetched.await)
+        }
+        DaemonOp::GitSnapshot { cwd, machine_id } => {
+            let taken = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                git::git_snapshot(&runner, &at).await
+            };
+            answer(id, taken.await)
+        }
+        DaemonOp::GitRange { cwd, from, to, path, machine_id } => {
+            let diff = async {
+                // Refused before anything is built from them: a value git would read as an option never reaches it.
+                if !git::is_full_sha(&from) || !git::is_full_sha(&to) {
+                    return Err(OpError::coded(
+                        DaemonErrorCode::BadRequest,
+                        "from and to are each a commit's full sha, 40 or 64 hex digits",
+                    ));
+                }
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                let bound = bound_of(ctx, machine_id.as_deref(), &at).await?;
+                git::git_range(&runner, &at, &bound, &from, &to, path.as_deref(), numbers::GIT_DIFF_CAP_BYTES).await
+            };
+            answer(id, diff.await)
+        }
+        DaemonOp::GitTurn { cwd, from, to, path, machine_id } => {
+            let diff = async {
+                // Refused before anything is built from them: a value git would read as an option never reaches it.
+                if !git::is_full_sha(&from) || !git::is_full_sha(&to) {
+                    return Err(OpError::coded(
+                        DaemonErrorCode::BadRequest,
+                        "from and to are each a commit's full sha, 40 or 64 hex digits",
+                    ));
+                }
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                let bound = bound_of(ctx, machine_id.as_deref(), &at).await?;
+                git::git_turn(&runner, &at, &bound, &from, &to, path.as_deref(), numbers::GIT_DIFF_CAP_BYTES).await
+            };
+            answer(id, diff.await)
+        }
+        DaemonOp::GitPush { cwd, base, token, machine_id } => {
+            let pushed = async {
+                let (runner, _, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
+                bring_back::push(&runner, &at, base.as_deref()).await
+            };
+            answer(id, pushed.await)
+        }
+        DaemonOp::GitPr { cwd, base, title, body, token, machine_id } => {
+            let opened = async {
+                let (runner, _, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
+                let (remote, remote_url) = bring_back::remote_url(&runner, &at).await?;
+                let base = bring_back::base_of(&runner, &at, &remote, base.as_deref()).await?;
+                let branch = bring_back::head_for(&runner, &at, &base).await?;
+                let ask = hosts::Ask { cwd: &at, remote_url: &remote_url };
+                hosts::open(&runner, &ask, &base, &branch, title.as_deref(), body.as_deref()).await
+            };
+            answer(id, opened.await)
+        }
+        // The reads and the merge below name the repository by the remote the frame carries, which the host took off
+        // the project's own record: the folder is only where gh runs, and nothing in it is read, so an agent writing
+        // its copy's configuration cannot point a read, and still less a merge, at another repository.
+        DaemonOp::GitPrRead { cwd, remote, branch, number, seen, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                let pick = match (number, branch.as_deref()) {
+                    (Some(n), _) => hosts::Pick::Number(n),
+                    (None, Some(branch)) => hosts::Pick::Branch(branch),
+                    (None, None) => {
+                        return Err(OpError::coded(DaemonErrorCode::BadRequest, "git.prRead names a branch or a number".to_owned()))
+                    }
+                };
+                hosts::read(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, &pick, seen.as_deref()).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitPrView { cwd, remote, number, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                hosts::page(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitRunLog { cwd, remote, run_id, job_id, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                hosts::run_log(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, run_id, job_id).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitPrMerge { cwd, remote, number, method, auto, head_oid, machine_id } => {
+            let merged = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                hosts::merge(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number, method, auto, &head_oid).await
+            };
+            answer(id, merged.await)
+        }
+        DaemonOp::GitIssueRead { cwd, remote, number, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                hosts::issue(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number).await
+            };
+            answer(id, read.await)
+        }
+        // The one git host line run inside a copy rather than beside it: the copy is the one just made from a project
+        // the person added, and the host is read off its own remote.
+        DaemonOp::GitPrCheckout { cwd, number, token, machine_id } => {
+            let checked = async {
+                let (runner, _, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
+                hosts::checkout(&runner, &at, number).await
+            };
+            answer(id, checked.await)
+        }
+        DaemonOp::GitPrDiff { cwd, remote, number, max_bytes, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                hosts::diff(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number, max_bytes).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitPrReply { cwd, remote, number, reply_to, thread_id, body, machine_id } => {
+            let posted = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                hosts::reply(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number, reply_to, thread_id.as_deref(), &body).await
+            };
+            answer(id, posted.await)
+        }
+        DaemonOp::GitPrResolve { cwd, remote, number, thread_id, resolved, machine_id } => {
+            let done = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                hosts::resolve(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number, &thread_id, resolved).await
+            };
+            answer(id, done.await)
+        }
+        DaemonOp::GitPrReact { cwd, remote, number, subject, content, on, machine_id } => {
+            let done = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                hosts::react(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number, &subject, content, on).await
+            };
+            answer(id, done.await)
+        }
+        DaemonOp::GitPrReview { cwd, remote, number, head_oid, event, body, comments, machine_id } => {
+            let posted = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
+                hosts::review(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, number, &head_oid, event, &body, &comments).await
+            };
+            answer(id, posted.await)
+        }
+        DaemonOp::GitRepoRead { cwd, remote, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                hosts::repo_settings(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitUpdate { cwd, base, token, machine_id } => {
+            let updated = async {
+                let (runner, _, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
+                git::write::update(&runner, &at, base.as_deref()).await
+            };
+            answer(id, updated.await)
+        }
+        DaemonOp::GitStartOn { cwd, branch, token, machine_id } => {
+            let put = async {
+                let (runner, _, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
+                git::write::start_on(&runner, &at, &branch).await
+            };
+            answer(id, put.await)
+        }
+        DaemonOp::GitBranchCompare { cwd, remote, base, head } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, None, &cwd, Reads).await?;
+                hosts::compare(&runner, &hosts::Ask { cwd: &at, remote_url: &remote }, &base, &head).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::GitMergeIn { cwd, branch, from, token, machine_id } => {
+            let merged = async {
+                // A copy's folder is fetched from only where both copies sit on the computer this daemon is, never
+                // inside a workspace, where no other copy is visible.
+                if from.is_some() && (machine_id.is_some() || ctx.options.kind != "local") {
+                    return Err(OpError::coded(DaemonErrorCode::Forbidden, words::MERGE_FROM_HERE_ONLY));
+                }
+                let (runner, _, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
+                let from = match from {
+                    Some(path) => Some(locate(ctx, &path).await?),
+                    None => None,
+                };
+                git::write::merge_in(&runner, &at, &branch, from.as_deref().and_then(Path::to_str)).await
+            };
+            answer(id, merged.await)
+        }
+        DaemonOp::GitPrList { cwd, machine_id } => {
+            let read = async {
+                let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Reads).await?;
+                hosts::list(&runner, &at).await
+            };
+            answer(id, read.await)
+        }
+        DaemonOp::PortsWatch { roots, folder, cgroups, watch } => {
+            let held = Arc::downgrade(ctx);
+            let spot: crate::ports::OnChanges = Arc::new(move |events| {
+                if let Some(ctx) = held.upgrade() {
+                    crate::relay::note_opens(&ctx, events);
+                }
+            });
+            // An unnamed watch is the socket's own; a named one holds a key of its own, so one socket carries a watch
+            // per name and a second watch under a name only names its roots again.
+            let key = match &watch {
+                None => conn.key,
+                Some(name) => {
+                    *conn.port_watches.lock().unwrap_or_else(|e| e.into_inner()).entry(name.clone()).or_insert_with(|| ctx.next_key())
+                }
+            };
+            let (ports, fresh) = ctx
+                .ports
+                .watch(key, conn.out.clone(), crate::ports::Scope::of(roots, folder, cgroups.unwrap_or_default()), watch, spot)
+                .await;
+            if fresh {
+                let ctx2 = Arc::clone(ctx);
+                conn.on_close(Box::new(move || ctx2.ports.unsubscribe(key)));
+            }
+            text(&Reply::new(id, PortsWatchReply { ports }))
+        }
+        DaemonOp::ManifestGet => {
+            text(&Reply::new(id, ManifestGetReply { entries: ctx.manifest.lock().unwrap_or_else(|e| e.into_inner()).entries() }))
+        }
+        DaemonOp::ManifestRecord { cmd, cwd, port } => {
+            let recorded = ctx.manifest.lock().unwrap_or_else(|e| e.into_inner()).record(RecordInput { cmd, cwd, port });
+            match recorded {
+                Ok(entry) => text(&Reply::new(id, ManifestRecordReply { entry })),
+                Err(e) => fail(id, e.to_string()),
+            }
+        }
+        DaemonOp::ManifestRestartScript => text(&Reply::new(
+            id,
+            ManifestRestartScriptReply { script: ctx.manifest.lock().unwrap_or_else(|e| e.into_inner()).restart_script() },
+        )),
+        DaemonOp::InboxWatch => match ctx.inbox.get_or_start(ctx) {
+            Ok(running) => {
+                let key = ctx.next_key();
+                running.subscribe(Listener { key, out: conn.out.clone() });
+                conn.on_close(Box::new(move || running.unsubscribe(key)));
+                ok(id)
+            }
+            Err(e) => fail(id, e.to_string()),
+        },
+        DaemonOp::InboxRescan => {
+            let files = ctx.inbox.get_or_start(ctx).and_then(|running| running.state.lock().unwrap_or_else(|e| e.into_inner()).rescan());
+            match files {
+                Ok(files) => {
+                    // The events land before the reply does, on the socket's one channel.
+                    for event in &files {
+                        conn.out.send_event(event);
+                    }
+                    text(&Reply::new(id, InboxRescanReply { count: files.len() as u64 }))
+                }
+                Err(e) => fail(id, e.to_string()),
+            }
+        }
+        DaemonOp::GuestOpen { kind, token, turn_token, argv, cwd } => {
+            answer(id, ctx.guests.open(conn, GuestOpen { kind, token, turn_token, argv, cwd }).map(|session| GuestOpenReply { session }))
+        }
+        DaemonOp::GuestSend { message } => answer(id, ctx.guests.send(conn, message).map(|()| Empty {})),
+        DaemonOp::GuestWatch => {
+            ctx.guests.watch(conn);
+            ok(id)
+        }
+        DaemonOp::GuestReply { session, message } => answer(id, ctx.guests.reply(conn, &session, message).map(|()| Empty {})),
+        DaemonOp::GuestClose { session, error } => answer(id, ctx.guests.close(conn, &session, error).map(|()| Empty {})),
+        DaemonOp::TunnelOpen { tunnel_id, port, machine_id } => {
+            let port = port.get();
+            // A tunnel to a machine's ssh server is a session into it, held for as long as the tunnel stands.
+            let session = ctx.sshd.session(machine_id.as_deref().unwrap_or_default(), port);
+            let dial = dial_port(ctx, machine_id.clone(), port);
+            answer(id, Tunnels::open(conn, tunnel_id, dial, machine_id, session).await.map(|()| Empty {}))
+        }
+        DaemonOp::SshStart { authorized_key, machine_id } => answer(id, ssh_start(ctx, machine_id.as_deref(), &authorized_key).await),
+        DaemonOp::TunnelWrite { tunnel_id, data } => answer(id, conn.tunnels.write(&tunnel_id, lenient_base64(&data)).map(|()| Empty {})),
+        DaemonOp::TunnelClose { tunnel_id } => {
+            conn.tunnels.close(&tunnel_id);
+            ok(id)
+        }
+        op if sys_proc::serves(&op) => sys_proc::serve(conn, ctx, id, name, op).await,
+        DaemonOp::UsageLogs { stores } => answer(id, usage_logs::serve(&conn.road, ctx, stores).await),
+        DaemonOp::TranscriptsList { root, dirs, cwds } => answer(id, transcripts::serve_list(&conn.road, ctx, root, dirs, cwds).await),
+        DaemonOp::TranscriptsRead { root, dirs, session, last, tail } => {
+            answer(id, transcripts::serve_read(&conn.road, ctx, root, dirs, session, last.get(), tail.map(std::num::NonZeroU32::get)).await)
+        }
+        _ => refuse(id, DaemonErrorCode::Unsupported, not_built(name)),
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    mod ptys_and_ports;
+    use super::*;
+    use crate::Options;
+    use serde_json::json;
+    use std::io::Write;
+    use tokio::sync::mpsc;
+
+    pub(crate) struct Bench {
+        pub(super) ctx: Arc<Ctx>,
+        _token: tempfile::NamedTempFile,
+        root: tempfile::TempDir,
+    }
+
+    pub(crate) fn bench() -> Bench {
+        let mut token = tempfile::NamedTempFile::new().unwrap();
+        writeln!(token, "t").unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let mut options = Options::new(token.path());
+        options.root = Some(root.path().to_path_buf());
+        options.roots_path = Some(root.path().join("roots"));
+        options.manifest_path = Some(root.path().join("manifest.json"));
+        Bench { ctx: Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap()), _token: token, root }
+    }
+
+    pub(crate) fn conn(scope: Option<u16>) -> (Arc<Conn>, mpsc::UnboundedReceiver<Outgoing>) {
+        conn_on(scope, Road::Inbound)
+    }
+
+    /// A daemon of a computer somebody owns: the place file is what the roads table reads, and on this platform
+    /// it turns no runtime on, so the bench is the switch alone.
+    pub(crate) fn place_bench() -> Bench {
+        let mut token = tempfile::NamedTempFile::new().unwrap();
+        writeln!(token, "t").unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let mut options = Options::new(token.path());
+        options.root = Some(root.path().to_path_buf());
+        options.roots_path = Some(root.path().join("roots"));
+        options.manifest_path = Some(root.path().join("manifest.json"));
+        options.place_file = Some(root.path().join("place.json"));
+        Bench { ctx: Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap()), _token: token, root }
+    }
+
+    pub(crate) fn conn_on(scope: Option<u16>, road: Road) -> (Arc<Conn>, mpsc::UnboundedReceiver<Outgoing>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (Arc::new(Conn::new(1, scope.and_then(NonZeroU16::new), Outbound(tx), road, None)), rx)
+    }
+
+    pub(crate) async fn reply(bench: &Bench, conn: &Arc<Conn>, frame: Value) -> Value {
+        serde_json::from_str(handle(conn, &bench.ctx, &frame.to_string()).await.text()).unwrap()
+    }
+
+    async fn reply_raw(bench: &Bench, conn: &Arc<Conn>, raw: &str) -> Value {
+        serde_json::from_str(handle(conn, &bench.ctx, raw).await.text()).unwrap()
+    }
+
+    /// A daemon whose ssh programs are the stand-ins: a python listener for sshd and a keygen that writes a line.
+    fn ssh_bench(dir: &std::path::Path) -> Bench {
+        let mut token = tempfile::NamedTempFile::new().unwrap();
+        writeln!(token, "t").unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let mut options = Options::new(token.path());
+        options.root = Some(root.path().to_path_buf());
+        options.roots_path = Some(root.path().join("roots"));
+        options.manifest_path = Some(root.path().join("manifest.json"));
+        options.ssh_programs = Some(crate::ssh::tests::stand_ins(dir));
+        options.ssh_idle_ms = Some(300);
+        Bench { ctx: Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap()), _token: token, root }
+    }
+
+    #[tokio::test]
+    async fn ssh_start_answers_the_port_and_the_host_key_and_a_tunnel_to_that_port_is_a_session_the_server_outlives_by_the_idle_window() {
+        let dir = tempfile::tempdir().unwrap();
+        let b = ssh_bench(dir.path());
+        let (c, mut rx) = conn(None);
+        let started = reply(&b, &c, json!({"id": 1, "op": "ssh.start", "authorizedKey": crate::ssh::tests::KEY})).await;
+        assert_eq!(started["ok"], true, "{started}");
+        let port = started["port"].as_u64().unwrap();
+        assert_eq!(started["hostKey"], "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHostKeyHostKeyHostKeyHostKeyHostKeyHostKey1 wsp");
+        let opened = reply(&b, &c, json!({"id": 2, "op": "tunnel.open", "tunnelId": "s1", "port": port})).await;
+        assert_eq!(opened, json!({"id": 2, "ok": true}));
+        // The stand-in's banner comes back as the tunnel's first bytes, naming no workspace on this machine's own.
+        let first = loop {
+            let out = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await.unwrap().unwrap();
+            let v: Value = serde_json::from_str(out.text()).unwrap();
+            if v["type"] == "tunnel.data" {
+                break v;
+            }
+        };
+        assert_eq!(first, json!({"type": "tunnel.data", "tunnelId": "s1", "data": "U1NILTIuMC1zdGFuZC1pbg0K"}));
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        assert!(tokio::net::TcpStream::connect(("127.0.0.1", port as u16)).await.is_ok(), "the server went while a session stood");
+        reply(&b, &c, json!({"id": 3, "op": "tunnel.close", "tunnelId": "s1"})).await;
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        assert!(!crate::ssh::tests::stand_in_runs(dir.path()), "the server outlived its idle window");
+    }
+
+    /// The dial is the op's to choose (this machine's loopback, or inside a fork); what the tunnel says back names
+    /// the workspace the dial was for on every frame, so the host hands each frame to that workspace's road alone.
+    #[tokio::test]
+    async fn a_tunnel_opened_for_a_workspace_names_it_on_every_frame_it_sends_back_and_one_for_this_machine_names_none() {
+        for (machine, named) in [(Some("fk_1".to_owned()), json!("fk_1")), (None, Value::Null)] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            tokio::spawn(async move {
+                let (mut s, _) = listener.accept().await.unwrap();
+                tokio::io::AsyncWriteExt::write_all(&mut s, b"SSH-2.0-fork\r\n").await.unwrap();
+            });
+            let (c, mut rx) = conn(None);
+            let dial = async move { tokio::net::TcpStream::connect(("127.0.0.1", port)).await.map_err(|e| e.to_string()) };
+            Tunnels::open(&c, "t1".to_owned(), dial, machine.clone(), None).await.unwrap();
+            let mut said = Vec::new();
+            while said.len() < 2 {
+                let out = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await.unwrap().unwrap();
+                let v: Value = serde_json::from_str(out.text()).unwrap();
+                if v["type"] == "tunnel.data" || v["type"] == "tunnel.end" {
+                    said.push(v);
+                }
+            }
+            assert_eq!(said[0]["type"], "tunnel.data");
+            assert_eq!(said[0]["data"], "U1NILTIuMC1mb3JrDQo=");
+            assert_eq!(said[1]["type"], "tunnel.end");
+            for frame in &said {
+                assert_eq!(frame["machineId"], named, "{frame}");
+                assert_eq!(frame.get("machineId").is_some(), machine.is_some(), "{frame}");
+            }
+        }
+    }
+
+    /// A daemon that answers for the workspaces on a computer somebody owns runs as root there, and an ssh server
+    /// with no workspace named would let the person's editor key in as that computer's root.
+    #[tokio::test]
+    async fn a_place_daemon_starts_no_ssh_server_on_its_own_computer() {
+        let b = place_bench();
+        let (c, _rx) = conn(None);
+        assert_eq!(
+            reply(&b, &c, json!({"id": 1, "op": "ssh.start", "authorizedKey": crate::ssh::tests::KEY})).await,
+            json!({"id": 1, "ok": false, "code": "bad-request", "error": words::SSH_NOT_ON_A_PLACE})
+        );
+    }
+
+    #[tokio::test]
+    async fn ssh_start_refuses_a_key_that_is_not_one_ed25519_line_and_a_workspace_this_daemon_does_not_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let b = ssh_bench(dir.path());
+        let (c, _rx) = conn(None);
+        assert_eq!(
+            reply(&b, &c, json!({"id": 1, "op": "ssh.start", "authorizedKey": "ssh-rsa AAAAB3 you@mac"})).await,
+            json!({"id": 1, "ok": false, "code": "bad-request", "error": words::SSH_KEY_SHAPE})
+        );
+        assert_eq!(reply(&b, &c, json!({"id": 1, "op": "ssh.start", "authorizedKey": ""})).await["code"], "bad-request");
+        assert_eq!(
+            reply(&b, &c, json!({"id": 1, "op": "ssh.start", "authorizedKey": crate::ssh::tests::KEY, "machineId": "wsp-x"})).await,
+            json!({"id": 1, "ok": false, "code": "not-found", "error": "no such workspace: wsp-x"})
+        );
+        assert_eq!(
+            reply(&b, &c, json!({"id": 1, "op": "tunnel.open", "tunnelId": "t", "port": 22, "machineId": "wsp-x"})).await,
+            json!({"id": 1, "ok": false, "error": "no such workspace: wsp-x"})
+        );
+    }
+
+    #[tokio::test]
+    async fn ping_answers_the_bare_ok_envelope() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        assert_eq!(reply(&b, &c, json!({"id": 1, "op": "ping"})).await, json!({"id": 1, "ok": true}));
+        assert_eq!(reply(&b, &c, json!({"id": "a", "op": "ping", "pad": "x"})).await, json!({"id": "a", "ok": true}));
+        assert_eq!(reply(&b, &c, json!({"op": "ping"})).await, json!({"id": null, "ok": true}));
+    }
+
+    #[tokio::test]
+    async fn invalid_json_is_answered_under_a_null_id() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        assert_eq!(reply_raw(&b, &c, "{nope").await, json!({"id": null, "ok": false, "error": "invalid json"}));
+        assert_eq!(reply_raw(&b, &c, "{\"id\": 1, \"op\": ").await, json!({"id": null, "ok": false, "error": "invalid json"}));
+    }
+
+    #[tokio::test]
+    async fn a_json_value_that_is_not_an_object_is_an_unknown_op_as_the_node_daemon_reads_it() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        for raw in ["[1,2,3]", "42", "\"x\"", "null", "true"] {
+            assert_eq!(reply_raw(&b, &c, raw).await, json!({"id": null, "ok": false, "error": "unknown op: undefined"}), "{raw}");
+        }
+        let (scoped, _rx) = conn(Some(8123));
+        assert_eq!(reply_raw(&b, &scoped, "[1,2,3]").await["code"], "forbidden");
+    }
+
+    /// A merge from a copy's folder is this computer's alone: a daemon of any other kind refuses it, and so does this
+    /// computer's own for a frame naming a workspace, whose git runs where no other copy is visible. Nothing is run.
+    #[tokio::test]
+    async fn a_merge_from_a_folder_is_refused_on_any_daemon_but_this_computers_own_and_for_a_workspace() {
+        let refused = json!({"id": 1, "ok": false, "code": "forbidden", "error": words::MERGE_FROM_HERE_ONLY});
+        let b = bench();
+        let (c, _rx) = conn(None);
+        let frame = json!({"id": 1, "op": "git.mergeIn", "cwd": ".", "branch": "child/one", "from": "."});
+        assert_eq!(reply(&b, &c, frame.clone()).await, refused);
+        let mut here = bench();
+        Arc::get_mut(&mut here.ctx).unwrap().options.kind = "local".to_owned();
+        let mut named = frame;
+        named["machineId"] = json!("wsp-a");
+        assert_eq!(reply(&here, &c, named).await, refused);
+    }
+
+    #[tokio::test]
+    async fn an_unknown_op_is_named_never_silent() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        assert_eq!(
+            reply(&b, &c, json!({"id": 3, "op": "sys.explode"})).await,
+            json!({"id": 3, "ok": false, "error": "unknown op: sys.explode"})
+        );
+        assert_eq!(reply(&b, &c, json!({"id": 4})).await, json!({"id": 4, "ok": false, "error": "unknown op: undefined"}));
+        assert_eq!(reply(&b, &c, json!({"id": 5, "op": 7})).await, json!({"id": 5, "ok": false, "error": "unknown op: 7"}));
+    }
+
+    #[tokio::test]
+    async fn every_op_the_protocol_names_is_served_so_the_not_built_refusal_has_nothing_left_to_name() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        for op in DAEMON_OPS {
+            assert_ne!(reply(&b, &c, json!({"id": 1, "op": op})).await["code"], "unsupported", "{op}");
+        }
+    }
+
+    #[tokio::test]
+    async fn link_only_ops_are_forbidden_on_an_inbound_socket_but_the_two_that_only_read() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        for op in ["place.leave", "place.update"] {
+            assert_eq!(
+                reply(&b, &c, json!({"id": 1, "op": op})).await,
+                json!({"id": 1, "ok": false, "code": "forbidden", "error": words::NOT_ON_THIS_ROAD}),
+                "{op}"
+            );
+        }
+        for op in MACHINE_OPS {
+            if MACHINE_OPS_ON_ANY_ROAD.contains(&op) {
+                continue;
+            }
+            assert_eq!(
+                reply(&b, &c, json!({"id": 2, "op": op})).await,
+                json!({"id": 2, "ok": false, "code": "forbidden", "error": "not on this road"}),
+                "{op}"
+            );
+        }
+        // The listing and one workspace's reading are answered on this road: a client here holds the daemon's own
+        // token and neither op drives anything. This bench holds no runtime, so the answer is the backend's.
+        for op in MACHINE_OPS_ON_ANY_ROAD {
+            assert_eq!(
+                reply(&b, &c, json!({"id": 3, "op": op, "machineId": "wsp-x"})).await,
+                json!({"id": 3, "ok": false, "error": format!("this computer's backend has no {op}")}),
+                "{op}"
+            );
+        }
+    }
+
+    /// The eight ops a layer store answered: they are on no road now, on the link least of all, so the daemon
+    /// names them the way it names any op it does not serve. A workspace on a computer somebody joined is a copy
+    /// of that computer, so there is no snapshot to save, no template to name and nothing to list.
+    #[tokio::test]
+    async fn the_snapshot_and_template_ops_are_no_longer_ops_this_daemon_serves() {
+        let b = bench();
+        let (link, _rx) = conn_on(None, Road::Link);
+        for op in [
+            "machine.snapshot",
+            "machine.snapshotJob",
+            "machine.deleteSnapshot",
+            "machine.listSnapshots",
+            "machine.promoteSnapshot",
+            "machine.getTemplate",
+            "machine.listTemplates",
+            "machine.deleteTemplate",
+        ] {
+            assert!(!MACHINE_OPS.contains(&op), "{op} is still a machine op");
+            assert_eq!(
+                reply(&b, &link, json!({"id": 9, "op": op, "machineId": "wsp-x", "name": "v1", "snapshotId": "sha256:aa", "templateId": "wsp/dev:template", "job": "j"})).await,
+                json!({"id": 9, "ok": false, "error": words::unknown_op(op)}),
+                "{op}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn on_the_link_every_machine_op_is_answered_by_the_runtime_stub_and_the_leave_sweeps_then_stops() {
+        let b = bench();
+        let (link, _rx) = conn_on(None, Road::Link);
+        for op in MACHINE_OPS {
+            assert_eq!(
+                reply(&b, &link, json!({"id": 3, "op": op})).await,
+                json!({"id": 3, "ok": false, "error": format!("this computer's backend has no {op}")}),
+                "{op}"
+            );
+        }
+        // An inbound socket on the same daemon is answered the two that read and refused the rest.
+        let (inbound, _rx2) = conn(None);
+        assert_eq!(
+            reply(&b, &inbound, json!({"id": 4, "op": "machine.list"})).await["error"],
+            "this computer's backend has no machine.list"
+        );
+        assert_eq!(reply(&b, &inbound, json!({"id": 4, "op": "machine.kill"})).await["error"], words::NOT_ON_THIS_ROAD);
+        let home = tempfile::tempdir().unwrap();
+        let at = wsp_frames::place_daemon_paths(home.path());
+        std::fs::create_dir_all(&at.wsp).unwrap();
+        std::fs::write(&at.place_file, "{}").unwrap();
+        std::fs::write(&at.token_path, "t\n").unwrap();
+        // The profile a root leave takes off is this case's own, and names no profile the kernel holds: the unload and
+        // the removal run for real as root, and the machine's own profile is never theirs to take.
+        let profile = home.path().join("apparmor.d").join("wsp-workspace");
+        std::fs::create_dir_all(profile.parent().unwrap()).unwrap();
+        std::fs::write(&profile, "not a profile\n").unwrap();
+        // wsp's install a root leave takes is this case's too: a prefix under its home, one link into it and one of
+        // the computer's own beside it, so the real sweep runs as root and the machine's /opt/wsp is never its to take.
+        let prefix = home.path().join("opt/wsp");
+        let links = home.path().join("usr/local/bin");
+        let tool = links.join("tool");
+        std::fs::create_dir_all(prefix.join("bin")).unwrap();
+        std::fs::create_dir_all(&links).unwrap();
+        std::fs::write(prefix.join("bin/tool"), "tool\n").unwrap();
+        std::os::unix::fs::symlink("../../../opt/wsp/bin/tool", &tool).unwrap();
+        std::os::unix::fs::symlink("/usr/bin/env", links.join("env")).unwrap();
+        let machines = std::path::Path::new(wsp_frames::numbers::WORKSPACE_APPARMOR_PATH);
+        let machines_before = std::fs::read(machines).ok();
+        let mut options = Options::new(b._token.path());
+        options.home = Some(home.path().to_path_buf());
+        options.apparmor_profile = Some(profile.clone());
+        options.install_root = Some(home.path().to_path_buf());
+        let ctx = Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap());
+        let out = handle(&link, &ctx, &json!({"id": 21, "op": "place.leave"}).to_string()).await;
+        let Outgoing::Leave(text) = &out else { panic!("a leave stops the daemon after its reply") };
+        // Each part of wsp's own folder is named for the line it puts in front of a person, and the folder itself
+        // goes last, so nothing under it is left on a computer the person joined; a root leave then takes the profile,
+        // the link into the prefix and the prefix.
+        let said: Value = serde_json::from_str(text).unwrap();
+        for path in said["swept"].as_array().unwrap() {
+            assert!(std::path::Path::new(path.as_str().unwrap()).starts_with(home.path()), "the leave took {path}, outside its temp root");
+        }
+        let root = nix::unistd::geteuid().is_root();
+        let mut swept = vec![at.place_file.to_string_lossy(), at.token_path.to_string_lossy(), at.wsp.to_string_lossy()];
+        if root {
+            swept.extend([profile.to_string_lossy(), tool.to_string_lossy(), prefix.to_string_lossy()]);
+        }
+        assert_eq!(said, json!({"id": 21, "ok": true, "swept": swept}));
+        assert!(!at.place_file.exists() && !at.token_path.exists() && !at.wsp.exists());
+        assert_eq!(profile.exists(), !root);
+        assert_eq!(prefix.exists(), !root);
+        assert_eq!(tool.symlink_metadata().is_ok(), !root);
+        assert!(links.join("env").symlink_metadata().is_ok(), "the leave took a link that is not into wsp's prefix");
+        assert_eq!(std::fs::read(machines).ok(), machines_before, "the leave touched this machine's own profile");
+    }
+
+    #[tokio::test]
+    async fn an_update_takes_its_parts_on_the_link_and_refuses_a_gap_and_bytes_the_host_did_not_name() {
+        let b = bench();
+        let (link, _rx) = conn_on(None, Road::Link);
+        let home = tempfile::tempdir().unwrap();
+        let mut options = Options::new(b._token.path());
+        options.home = Some(home.path().to_path_buf());
+        let ctx = Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap());
+        // Never the sha of what this sends: the exe a landing moves over is this test binary's own, so a part that
+        // matched would replace the runner under itself. The landing is proved in place.rs against a temp file.
+        let sha = "0".repeat(64);
+        let part = |seq: u64, last: bool, data: &str| json!({"id": 9, "op": "place.update", "uploadId": "u1", "seq": seq, "last": last, "data": data, "sha256": sha});
+        let said = |out: &Outgoing| serde_json::from_str::<Value>(out.text()).unwrap();
+
+        // A part that is not the first with nothing landed drops the upload and says which part.
+        let gap = handle(&link, &ctx, &part(1, false, "AAAA").to_string()).await;
+        assert!(matches!(gap, Outgoing::Text(_)), "a refused part ended the daemon");
+        assert_eq!(said(&gap), json!({"id": 9, "ok": false, "error": words::update_out_of_order(1, 0, "u1")}));
+
+        // Every part but the last is a plain ok and lands nothing.
+        let first = handle(&link, &ctx, &part(0, false, "AAAA").to_string()).await;
+        assert_eq!(said(&first), json!({"id": 9, "ok": true}));
+        assert_eq!(std::fs::read(crate::place::update_part(home.path(), "u1")).unwrap(), vec![0, 0, 0]);
+
+        // The last part is checked against the sha256 the host named before anything is moved, and the daemon
+        // stays up when the bytes are not the ones it was promised.
+        let wrong = handle(&link, &ctx, &part(1, true, "AAAA").to_string()).await;
+        assert!(matches!(wrong, Outgoing::Text(_)), "a binary the host did not name ended the daemon");
+        assert_eq!(said(&wrong)["ok"], json!(false));
+        assert!(said(&wrong)["error"].as_str().unwrap().starts_with("the update u1 landed as sha256 "), "{}", said(&wrong));
+        assert!(!crate::place::update_part(home.path(), "u1").exists(), "the dropped upload stays on disk");
+
+        // A frame the schema refuses is a bad request, never a landing.
+        let bad = handle(
+            &link,
+            &ctx,
+            &json!({"id": 9, "op": "place.update", "uploadId": "../x", "seq": 0, "last": true, "data": "", "sha256": sha}).to_string(),
+        )
+        .await;
+        assert_eq!(said(&bad)["code"], json!("bad-request"));
+    }
+
+    /// A root the open refuses: nothing is made under it and every machine op answers the open's own sentence,
+    /// so the person asking what this computer can do reads why rather than a line that names the op. The root
+    /// here is a path under one of the directories every workspace overlays; it is never created, since the
+    /// refusal comes before the first directory.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn a_root_the_open_refuses_leaves_its_reason_on_every_machine_op() {
+        let mut token = tempfile::NamedTempFile::new().unwrap();
+        writeln!(token, "t").unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let under = std::path::Path::new("/var/wsp-under-a-lower");
+        let mut options = Options::new(token.path());
+        options.place_file = Some(home.path().join("place.json"));
+        options.runtime_root = Some(under.to_path_buf());
+        let ctx = Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap());
+        let (link, _rx) = conn_on(None, Road::Link);
+        let said = wsp_runtime::doctor::root_under_a_lower(under).expect("a root under /var read as clear of it");
+        for op in ["machine.backend", "machine.checkKey", "machine.create", "machine.list"] {
+            let reply: Value = serde_json::from_str(
+                handle(&link, &ctx, &json!({"id": 6, "op": op, "spec": {"kind": "sandbox"}}).to_string()).await.text(),
+            )
+            .unwrap();
+            assert_eq!(reply, json!({"id": 6, "ok": false, "error": said}), "{op}");
+        }
+        assert!(!under.exists(), "the open made a folder under a root it refused");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn a_place_daemon_answers_the_machine_ops_on_its_link_from_the_workspace_runtime() {
+        let mut token = tempfile::NamedTempFile::new().unwrap();
+        writeln!(token, "t").unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let runtime_root = tempfile::tempdir().unwrap();
+        let mut options = Options::new(token.path());
+        options.place_file = Some(home.path().join("place.json"));
+        options.runtime_root = Some(runtime_root.path().to_path_buf());
+        let ctx = Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap());
+        let (link, _rx) = conn_on(None, Road::Link);
+        let listed: Value =
+            serde_json::from_str(handle(&link, &ctx, &json!({"id": 1, "op": "machine.list"}).to_string()).await.text()).unwrap();
+        assert_eq!(listed, json!({"id": 1, "ok": true, "machines": []}));
+        let lost: Value = serde_json::from_str(
+            handle(&link, &ctx, &json!({"id": 2, "op": "machine.get", "machineId": "wsp-x"}).to_string()).await.text(),
+        )
+        .unwrap();
+        assert_eq!(lost, json!({"id": 2, "ok": false, "error": "no such workspace: wsp-x", "kind": "missing", "status": 404}));
+        // What the open makes under the root it was given, and nothing of a layer store: the workspaces, the
+        // runtime's own state and the copies a workspace's project is made as.
+        for dir in ["run", "state", "copies"] {
+            assert!(runtime_root.path().join(dir).is_dir(), "the open made no {dir} under the runtime root");
+        }
+        assert!(!runtime_root.path().join("layers").exists(), "the open made a layer store under the runtime root");
+        // The same op inbound is answered by the same runtime, and the reading of a workspace it has not got is
+        // that workspace missing rather than the road refusal; an op that drives something is still refused.
+        let (inbound, _rx2) = conn(None);
+        let listed: Value =
+            serde_json::from_str(handle(&inbound, &ctx, &json!({"id": 3, "op": "machine.list"}).to_string()).await.text()).unwrap();
+        assert_eq!(listed, json!({"id": 3, "ok": true, "machines": []}));
+        let read: Value = serde_json::from_str(
+            handle(&inbound, &ctx, &json!({"id": 4, "op": "machine.metrics", "machineId": "wsp-x"}).to_string()).await.text(),
+        )
+        .unwrap();
+        assert_eq!(read, json!({"id": 4, "ok": false, "error": "no such workspace: wsp-x", "kind": "missing", "status": 404}));
+        let refused: Value = serde_json::from_str(
+            handle(&inbound, &ctx, &json!({"id": 5, "op": "machine.pause", "machineId": "wsp-x"}).to_string()).await.text(),
+        )
+        .unwrap();
+        assert_eq!(refused["error"], words::NOT_ON_THIS_ROAD);
+    }
+
+    /// A files or git frame that names a workspace is answered for that workspace by the daemon of the computer
+    /// holding it. This bench runs no workspaces at all, which is every computer that is not a place: each of them
+    /// answers the one missing refusal, and the same frame without a workspace named resolves under this
+    /// daemon's own roots as it always has.
+    #[tokio::test]
+    async fn a_frame_that_names_a_workspace_this_daemon_does_not_run_is_refused_as_missing() {
+        let b = bench();
+        let (sock, _rx) = conn(None);
+        for op in ["fs.list", "fs.read"] {
+            let reply = reply(&b, &sock, json!({"id": 1, "op": op, "path": "/root/repo", "machineId": "wsp-x"})).await;
+            assert_eq!(reply, json!({"id": 1, "ok": false, "code": "not-found", "error": "no such workspace: wsp-x"}), "{op}");
+        }
+        for op in ["git.status", "git.push", "git.pr", "git.update"] {
+            let reply = reply(&b, &sock, json!({"id": 1, "op": op, "cwd": "/root/repo", "machineId": "wsp-x"})).await;
+            assert_eq!(reply, json!({"id": 1, "ok": false, "code": "not-found", "error": "no such workspace: wsp-x"}), "{op}");
+        }
+        for frame in [
+            json!({"id": 1, "op": "git.prRead", "cwd": "/root/repo", "remote": "git@github.com:o/r.git", "number": 3, "machineId": "wsp-x"}),
+            json!({"id": 1, "op": "git.prView", "cwd": "/root/repo", "remote": "git@github.com:o/r.git", "number": 3, "machineId": "wsp-x"}),
+            json!({"id": 1, "op": "git.runLog", "cwd": "/root/repo", "remote": "git@github.com:o/r.git", "runId": 1, "jobId": 2, "machineId": "wsp-x"}),
+            json!({"id": 1, "op": "git.repoRead", "cwd": "/root/repo", "remote": "git@github.com:o/r.git", "machineId": "wsp-x"}),
+        ] {
+            let out = reply(&b, &sock, frame.clone()).await;
+            assert_eq!(out, json!({"id": 1, "ok": false, "code": "not-found", "error": "no such workspace: wsp-x"}), "{frame}");
+        }
+        let search = reply(
+            &b,
+            &sock,
+            json!({"id": 1, "op": "fs.search", "path": "/root/repo", "query": "x", "mode": "files", "machineId": "wsp-x"}),
+        )
+        .await;
+        assert_eq!(search, json!({"id": 1, "ok": false, "code": "not-found", "error": "no such workspace: wsp-x"}));
+        let diff = reply(&b, &sock, json!({"id": 1, "op": "git.diff", "cwd": "/root/repo", "scope": "branch", "machineId": "wsp-x"})).await;
+        assert_eq!(diff, json!({"id": 1, "ok": false, "code": "not-found", "error": "no such workspace: wsp-x"}));
+        for frame in [
+            json!({"id": 1, "op": "git.discard", "cwd": "/root/repo", "path": "a.txt", "machineId": "wsp-x"}),
+            json!({"id": 1, "op": "git.commit", "cwd": "/root/repo", "message": "m", "paths": ["a.txt"], "machineId": "wsp-x"}),
+            json!({"id": 1, "op": "fs.write", "path": "/root/repo/a.txt", "contents": "x", "machineId": "wsp-x"}),
+        ] {
+            let out = reply(&b, &sock, frame.clone()).await;
+            assert_eq!(out, json!({"id": 1, "ok": false, "code": "not-found", "error": "no such workspace: wsp-x"}), "{frame}");
+        }
+        // The same refusal a machine op on the link answers for a workspace this computer does not run, so a
+        // workspace that is gone and a computer that runs none read as one thing.
+        assert_eq!(wsp_runtime::no_such_workspace("wsp-x"), "no such workspace: wsp-x");
+        // A relative path for a workspace is refused before anything is read: this daemon has no working directory
+        // inside that workspace, and a git run there starts in the folder the frame names. The host sends the
+        // checkout's own absolute path.
+        for (op, key) in [("fs.list", "path"), ("git.status", "cwd")] {
+            let reply = reply(&b, &sock, json!({"id": 1, "op": op, key: "repo", "machineId": "wsp-x"})).await;
+            assert_eq!(
+                reply,
+                json!({"id": 1, "ok": false, "code": "bad-request", "error": "repo is not an absolute path inside wsp-x"}),
+                "{op}"
+            );
+        }
+        // And with no workspace named, the path is this daemon's own: a folder outside every root is refused as it
+        // always was, and nothing here reads a workspace at all.
+        let outside = reply(&b, &sock, json!({"id": 2, "op": "git.status", "cwd": "/etc"})).await;
+        assert_eq!(outside["code"], "outside-root");
+    }
+
+    /// A stopped workspace's branch is read for a folder in its copy and nowhere else, so a frame naming another
+    /// folder is refused as stopped rather than answered with the copy's branch.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_folder_is_in_the_copy_at_its_mount_point_or_under_it_and_never_through_a_parent() {
+        assert!(in_copy("/root/app", "/root/app"));
+        assert!(in_copy("/root/app", "/root/app/src/"));
+        assert!(!in_copy("/root/app", "/root/application"));
+        assert!(!in_copy("/root/app", "/root/app/../other"));
+        assert!(!in_copy("/root/app", "/root"));
+    }
+
+    #[tokio::test]
+    async fn the_guest_ops_are_the_inbound_roads_and_the_link_is_refused_every_one() {
+        let b = bench();
+        let (link, _rx) = conn_on(None, Road::Link);
+        for op in GUEST_OPS {
+            assert_eq!(
+                reply(&b, &link, json!({"id": 1, "op": op, "session": "g0", "message": {}})).await,
+                json!({"id": 1, "ok": false, "code": "forbidden", "error": words::NOT_ON_THIS_ROAD}),
+                "{op}"
+            );
+        }
+        // The same socket still answers the ops that are not the guest road's.
+        assert_eq!(reply(&b, &link, json!({"id": 2, "op": "ping"})).await, json!({"id": 2, "ok": true}));
+        // And an inbound socket opens a session, which is what the link was refused.
+        let (inbound, _rx2) = conn(None);
+        let opened =
+            reply(&b, &inbound, json!({"id": 3, "op": "guest.open", "kind": "cli", "token": "", "argv": [], "cwd": "/root"})).await;
+        assert_eq!(opened["ok"], json!(true));
+        assert!(opened["session"].is_string(), "{opened}");
+    }
+
+    /// The roads table, read on every road a socket of this daemon can come in on. A process inside a workspace
+    /// opens a session and speaks on it and reaches nothing else of the computer that workspace sits on: not the
+    /// listing of its neighbours, not one of their readings, not a pty, not an exec, not the guest sessions the
+    /// host watches.
+    #[tokio::test]
+    async fn a_socket_inside_a_workspace_serves_the_guests_two_ops_and_ping_and_refuses_every_other() {
+        let b = place_bench();
+        let (inside, _rx) = conn_on(None, Road::Workspace("wsp-a".to_owned()));
+        assert_eq!(reply(&b, &inside, json!({"id": 1, "op": "ping"})).await, json!({"id": 1, "ok": true}));
+        let opened = reply(&b, &inside, json!({"id": 2, "op": "guest.open", "kind": "cli", "token": "", "argv": [], "cwd": "/root"})).await;
+        assert_eq!(opened["ok"], json!(true), "{opened}");
+        // The second of the guest's two: this socket holds a session now, so the send is answered rather than
+        // turned away at the road.
+        assert_eq!(reply(&b, &inside, json!({"id": 3, "op": "guest.send", "message": {}})).await, json!({"id": 3, "ok": true}));
+        let refused = |id: i64| json!({"id": id, "ok": false, "code": "forbidden", "error": words::NOT_ON_THIS_ROAD});
+        for op in DAEMON_OPS.iter().filter(|op| !matches!(**op, "ping" | "guest.open" | "guest.send")) {
+            assert_eq!(reply(&b, &inside, json!({"id": 4, "op": op, "session": "g0", "message": {}})).await, refused(4), "{op}");
+        }
+        for op in MACHINE_OPS {
+            assert_eq!(reply(&b, &inside, json!({"id": 5, "op": op, "machineId": "wsp-b"})).await, refused(5), "{op}");
+        }
+        // The two the daemon answers on every other road, named: a process inside a workspace lists no workspace
+        // of this computer and reads no neighbour's metrics.
+        for op in ["machine.list", "machine.metrics", "place.leave", "place.update"] {
+            assert_eq!(reply(&b, &inside, json!({"id": 6, "op": op, "machineId": "wsp-b"})).await, refused(6), "{op}");
+        }
+    }
+
+    /// The other three rows of the same table: the host's three ops belong to the link of a computer's own daemon
+    /// and to the inbound socket of a daemon inside a machine, and a place daemon's own inbound socket, which a
+    /// person at that computer holds its token for, serves none of the five.
+    #[tokio::test]
+    async fn the_guest_roads_are_where_a_guest_lives_and_where_the_host_is() {
+        let b = place_bench();
+        let (link, _rx) = conn_on(None, Road::Link);
+        for op in ["guest.watch", "guest.reply", "guest.close"] {
+            let said = reply(&b, &link, json!({"id": 1, "op": op, "session": "g0", "message": {}})).await;
+            assert_ne!(said["code"], json!("forbidden"), "{op}: {said}");
+        }
+        for op in ["guest.open", "guest.send"] {
+            assert_eq!(
+                reply(&b, &link, json!({"id": 2, "op": op, "kind": "cli", "token": "", "argv": [], "cwd": "/root", "message": {}})).await,
+                json!({"id": 2, "ok": false, "code": "forbidden", "error": words::NOT_ON_THIS_ROAD}),
+                "{op}"
+            );
+        }
+        let (inbound, _rx2) = conn_on(None, Road::Inbound);
+        for op in GUEST_OPS {
+            assert_eq!(
+                reply(
+                    &b,
+                    &inbound,
+                    json!({"id": 3, "op": op, "kind": "cli", "token": "", "argv": [], "cwd": "/root", "session": "g0", "message": {}})
+                )
+                .await,
+                json!({"id": 3, "ok": false, "code": "forbidden", "error": words::NOT_ON_THIS_ROAD}),
+                "{op}"
+            );
+        }
+    }
+
+    /// The workspace a session belongs to is the daemon's own reading of which socket it arrived on, and it rides
+    /// every frame of that session up to the host. A reply reaches the socket that opened the session and no
+    /// other, so a session of one workspace can never be read or answered as another's.
+    #[tokio::test]
+    async fn a_session_carries_the_workspace_its_socket_was_inside_and_reaches_that_socket_alone() {
+        let b = place_bench();
+        let (host, mut watching) = conn_on(None, Road::Link);
+        assert_eq!(reply(&b, &host, json!({"id": 1, "op": "guest.watch"})).await["ok"], json!(true));
+        let open = json!({"id": 2, "op": "guest.open", "kind": "cli", "token": "dev-1.tok", "argv": ["threads"], "cwd": "/root"});
+        let (a_side, mut a_events) = conn_on(None, Road::Workspace("wsp-a".to_owned()));
+        let (b_side, mut b_events) = conn_on(None, Road::Workspace("wsp-b".to_owned()));
+        let a = reply(&b, &a_side, open.clone()).await["session"].as_str().unwrap().to_owned();
+        let other = reply(&b, &b_side, open).await["session"].as_str().unwrap().to_owned();
+        let mut opened = Vec::new();
+        for _ in 0..2 {
+            let frame: Value = serde_json::from_str(watching.recv().await.unwrap().text()).unwrap();
+            opened.push((frame["session"].clone(), frame["machineId"].clone()));
+        }
+        opened.sort_by_key(|(session, _)| session.to_string());
+        assert_eq!(opened, [(json!(a), json!("wsp-a")), (json!(other), json!("wsp-b"))]);
+        // The message a guest sends rides up with the same name on it.
+        assert_eq!(reply(&b, &a_side, json!({"id": 3, "op": "guest.send", "message": {"hello": 1}})).await["ok"], json!(true));
+        let said: Value = serde_json::from_str(watching.recv().await.unwrap().text()).unwrap();
+        assert_eq!(said, json!({"type": "guest.message", "session": a, "message": {"hello": 1}, "machineId": "wsp-a"}));
+        // And the host's answer goes to the socket that opened that session: the other workspace hears nothing.
+        let answered = json!({"id": 4, "op": "guest.reply", "session": a, "message": {"exit": 3}});
+        assert_eq!(reply(&b, &host, answered).await["ok"], json!(true));
+        let down: Value = serde_json::from_str(a_events.recv().await.unwrap().text()).unwrap();
+        assert_eq!(down, json!({"type": "guest.message", "session": a, "message": {"exit": 3}, "machineId": "wsp-a"}));
+        assert!(b_events.try_recv().is_err(), "a session of one workspace reached another's socket");
+        // A session opened on a daemon inside a machine names no workspace at all: that machine is the one the
+        // host dialled.
+        let b2 = bench();
+        let (fork_host, mut fork_watching) = conn(None);
+        reply(&b2, &fork_host, json!({"id": 1, "op": "guest.watch"})).await;
+        let (inbound, _rx) = conn(None);
+        reply(&b2, &inbound, json!({"id": 2, "op": "guest.open", "kind": "cli", "token": "", "argv": [], "cwd": "/root"})).await;
+        let frame: Value = serde_json::from_str(fork_watching.recv().await.unwrap().text()).unwrap();
+        assert_eq!(frame["type"], "guest.opened");
+        assert_eq!(frame.get("machineId"), None, "{frame}");
+    }
+
+    #[tokio::test]
+    async fn a_port_scoped_socket_answers_ping_and_tunnel_ops_on_its_port_alone() {
+        let b = bench();
+        // A guest listening on the loopback, so the one in-scope tunnel really opens.
+        let guest = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let guest_port = guest.local_addr().unwrap().port();
+        let (scoped, mut rx) = conn(Some(guest_port));
+        assert_eq!(reply(&b, &scoped, json!({"id": 1, "op": "ping"})).await, json!({"id": 1, "ok": true}));
+        let refused = json!({"id": 1, "ok": false, "code": "forbidden", "error": words::port_scope_refusal(guest_port)});
+        for op in [
+            "pty.create",
+            "pty.list",
+            "fs.list",
+            "git.status",
+            "ports.watch",
+            "sys.watch",
+            "proc.watch",
+            "proc.inspect",
+            "proc.list",
+            "proc.kill",
+            "manifest.get",
+            "inbox.watch",
+            "machine.create",
+            "place.leave",
+            "exec",
+            "nonsense",
+        ] {
+            assert_eq!(reply(&b, &scoped, json!({"id": 1, "op": op, "path": ".", "cwd": ".", "scope": "staged"})).await, refused, "{op}");
+        }
+        assert_eq!(reply(&b, &scoped, json!({"id": 1, "op": "tunnel.open", "tunnelId": "t", "port": guest_port + 1})).await, refused);
+        assert_eq!(
+            reply(&b, &scoped, json!({"id": 1, "op": "tunnel.open", "tunnelId": "t", "port": guest_port})).await,
+            json!({"id": 1, "ok": true})
+        );
+        let (mut guest_side, _) = guest.accept().await.unwrap();
+        assert_eq!(
+            reply(&b, &scoped, json!({"id": 2, "op": "tunnel.write", "tunnelId": "t", "data": "R0VU"})).await,
+            json!({"id": 2, "ok": true})
+        );
+        let mut got = [0u8; 3];
+        let read = tokio::io::AsyncReadExt::read_exact(&mut guest_side, &mut got);
+        tokio::time::timeout(std::time::Duration::from_secs(5), read).await.expect("the bytes reach the guest").unwrap();
+        assert_eq!(&got, b"GET");
+        assert_eq!(reply(&b, &scoped, json!({"id": 3, "op": "tunnel.close", "tunnelId": "t"})).await, json!({"id": 3, "ok": true}));
+        let end = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv()).await.unwrap().unwrap();
+        assert_eq!(serde_json::from_str::<Value>(end.text()).unwrap(), json!({"type": "tunnel.end", "tunnelId": "t"}));
+        assert_eq!(reply(&b, &scoped, json!({"id": 4, "op": "tunnel.write", "tunnelId": "t", "data": ""})).await["code"], "not-found");
+    }
+
+    #[tokio::test]
+    async fn a_frame_the_protocol_refuses_is_a_bad_request_and_a_pty_nobody_opened_is_named() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        for frame in [
+            json!({"id": 1, "op": "exec", "cmd": 3}),
+            json!({"id": 1, "op": "exec", "cmd": "echo x", "timeoutMs": -1}),
+            json!({"id": 1, "op": "exec", "cmd": "echo x", "stdin": 3}),
+            json!({"id": 1, "op": "pty.resize", "ptyId": "pty_1", "cols": "wide"}),
+            json!({"id": 1, "op": "pty.resize", "ptyId": "pty_1", "cols": 0, "rows": 24}),
+            json!({"id": 1, "op": "pty.create", "cols": 80, "rows": 0}),
+        ] {
+            let out = reply(&b, &c, frame.clone()).await;
+            assert_eq!((out["ok"].as_bool(), out["code"].as_str()), (Some(false), Some("bad-request")), "{frame}");
+        }
+        assert_eq!(
+            reply(&b, &c, json!({"id": 2, "op": "pty.write", "ptyId": "pty_9", "data": "x"})).await,
+            json!({"id": 2, "ok": false, "error": "no such pty: pty_9"})
+        );
+        assert_eq!(reply(&b, &c, json!({"id": 3, "op": "pty.attach", "ptyId": "pty_9"})).await["error"], "no such pty: pty_9");
+        assert_eq!(reply(&b, &c, json!({"id": 4, "op": "pty.kill", "ptyId": "pty_9"})).await["error"], "no such pty: pty_9");
+        assert_eq!(reply(&b, &c, json!({"id": 5, "op": "pty.list"})).await, json!({"id": 5, "ok": true, "ptys": []}));
+    }
+
+    #[tokio::test]
+    async fn a_frame_the_protocol_refuses_is_a_bad_request_and_a_coded_refusal_carries_its_code() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        for frame in [
+            json!({"id": 1, "op": "fs.list", "path": 7}),
+            json!({"id": 1, "op": "fs.list"}),
+            json!({"id": 1, "op": "fs.read", "path": "x", "encoding": "hex"}),
+            json!({"id": 1, "op": "git.status"}),
+            json!({"id": 1, "op": "git.diff", "cwd": ".", "scope": "all"}),
+            json!({"id": 1, "op": "git.diff", "cwd": "."}),
+            json!({"id": 1, "op": "git.diff", "cwd": ".", "scope": "staged", "path": 3}),
+            json!({"id": 1, "op": "tunnel.open", "tunnelId": "x", "port": 0}),
+            json!({"id": 1, "op": "tunnel.open", "tunnelId": "x", "port": 70000}),
+            json!({"id": 1, "op": "tunnel.open", "port": 8080}),
+            json!({"id": 1, "op": "tunnel.write", "tunnelId": "x"}),
+            json!({"id": 1, "op": "manifest.record", "cwd": "/root"}),
+            json!({"id": 1, "op": "manifest.record", "cmd": "x", "cwd": "/root", "port": "80"}),
+        ] {
+            let out = reply(&b, &c, frame.clone()).await;
+            assert_eq!((out["ok"].as_bool(), out["code"].as_str()), (Some(false), Some("bad-request")), "{frame}");
+        }
+        let missing = b.root.path().join("none.txt");
+        assert_eq!(
+            reply(&b, &c, json!({"id": 2, "op": "fs.read", "path": "none.txt"})).await,
+            json!({"id": 2, "ok": false, "code": "not-found", "error": "none.txt does not exist"})
+        );
+        assert_eq!(reply(&b, &c, json!({"id": 3, "op": "fs.list", "path": missing})).await["code"], "not-found");
+        assert_eq!(
+            reply(&b, &c, json!({"id": 4, "op": "git.status", "cwd": "/etc"})).await,
+            json!({"id": 4, "ok": false, "code": "outside-root", "error": "/etc resolves outside the folders wsp serves here"})
+        );
+        let listed = reply(&b, &c, json!({"id": 5, "op": "fs.list", "path": "."})).await;
+        assert_eq!(listed, json!({"id": 5, "ok": true, "entries": [], "truncated": false, "total": 0}));
+        assert_eq!(
+            reply(&b, &c, json!({"id": 6, "op": "tunnel.write", "tunnelId": "nobody", "data": ""})).await,
+            json!({"id": 6, "ok": false, "code": "not-found", "error": "no such tunnel: nobody"})
+        );
+    }
+
+    #[tokio::test]
+    async fn fs_write_saves_a_file_under_a_root_and_refuses_a_path_that_leaves_it_or_a_link_in_its_place() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        std::fs::write(b.root.path().join("note.txt"), "old\n").unwrap();
+        let saved = reply(&b, &c, json!({"id": 1, "op": "fs.write", "path": "note.txt", "contents": "new\n"})).await;
+        assert_eq!(saved, json!({"id": 1, "ok": true, "bytes": 4}));
+        assert_eq!(std::fs::read_to_string(b.root.path().join("note.txt")).unwrap(), "new\n");
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), "secret\n").unwrap();
+        std::os::unix::fs::symlink(outside.path(), b.root.path().join("away")).unwrap();
+        let far = outside.path().join("secret.txt").to_string_lossy().into_owned();
+        for path in ["../secret.txt".to_owned(), "away/secret.txt".to_owned(), far] {
+            let out = reply(&b, &c, json!({"id": 2, "op": "fs.write", "path": path, "contents": "taken\n"})).await;
+            assert_eq!(out["code"], "outside-root", "{path}: {out}");
+        }
+        assert_eq!(std::fs::read_to_string(outside.path().join("secret.txt")).unwrap(), "secret\n");
+        std::os::unix::fs::symlink(b.root.path().join("note.txt"), b.root.path().join("link.txt")).unwrap();
+        assert_eq!(
+            reply(&b, &c, json!({"id": 3, "op": "fs.write", "path": "link.txt", "contents": "x"})).await,
+            json!({"id": 3, "ok": false, "code": "not-a-file", "error": "link.txt is not a regular file"})
+        );
+        assert_eq!(reply(&b, &c, json!({"id": 4, "op": "fs.write", "path": "..", "contents": "x"})).await["code"], "bad-request");
+        assert_eq!(std::fs::read_to_string(b.root.path().join("note.txt")).unwrap(), "new\n");
+    }
+
+    #[tokio::test]
+    async fn the_manifest_round_trips_and_the_inbox_names_a_directory_it_cannot_read() {
+        let b = bench();
+        let (c, _rx) = conn(None);
+        let recorded = reply(&b, &c, json!({"id": 1, "op": "manifest.record", "cmd": "pnpm dev", "cwd": "/root/app", "port": 5173})).await;
+        assert_eq!(recorded["ok"], true);
+        assert_eq!(recorded["entry"]["id"], "proc_1");
+        assert_eq!((recorded["entry"]["cmd"].as_str(), recorded["entry"]["port"].as_u64()), (Some("pnpm dev"), Some(5173)));
+        let listed = reply(&b, &c, json!({"id": 2, "op": "manifest.get"})).await;
+        assert_eq!(listed["entries"].as_array().unwrap().len(), 1);
+        let script = reply(&b, &c, json!({"id": 3, "op": "manifest.restartScript"})).await;
+        assert!(script["script"].as_str().unwrap().contains("port_listening '1435'"));
+        assert!(b.root.path().join("manifest.json").exists());
+
+        let mut options = Options::new(b._token.path());
+        options.inbox_dir = Some(b.root.path().join("no-inbox"));
+        options.manifest_path = Some(b.root.path().join("m2.json"));
+        let without = Bench {
+            ctx: Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap()),
+            _token: tempfile::NamedTempFile::new().unwrap(),
+            root: tempfile::tempdir().unwrap(),
+        };
+        let refused = reply(&without, &c, json!({"id": 4, "op": "inbox.watch"})).await;
+        assert_eq!(refused["ok"], false);
+        assert!(refused["error"].as_str().unwrap().contains("No such file"), "{refused}");
+    }
+
+    #[test]
+    fn what_an_op_registers_after_its_socket_closed_is_undone_at_once() {
+        let (c, _rx) = conn(None);
+        let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = Arc::clone(&ran);
+        c.on_close(Box::new(move || flag.store(true, std::sync::atomic::Ordering::SeqCst)));
+        assert!(!ran.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(!c.is_closed());
+        c.close();
+        assert!(c.is_closed());
+        assert!(ran.load(std::sync::atomic::Ordering::SeqCst));
+        let late = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = Arc::clone(&late);
+        c.on_close(Box::new(move || flag.store(true, std::sync::atomic::Ordering::SeqCst)));
+        assert!(late.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn tunnel_bytes_are_read_as_nodes_buffer_reads_base64() {
+        assert_eq!(lenient_base64("aGVsbG8="), b"hello");
+        assert_eq!(lenient_base64("aGVsbG8"), b"hello");
+        assert_eq!(lenient_base64("aGVs\nbG8="), b"hello");
+        assert_eq!(lenient_base64(""), b"");
+    }
+
+    #[test]
+    fn what_an_attach_registers_after_its_socket_closed_is_undone_at_once() {
+        let (c, _rx) = conn(None);
+        let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = Arc::clone(&ran);
+        c.on_close(Box::new(move || flag.store(true, std::sync::atomic::Ordering::SeqCst)));
+        assert!(!ran.load(std::sync::atomic::Ordering::SeqCst));
+        c.close();
+        assert!(ran.load(std::sync::atomic::Ordering::SeqCst));
+        let late = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = Arc::clone(&late);
+        c.on_close(Box::new(move || flag.store(true, std::sync::atomic::Ordering::SeqCst)));
+        assert!(late.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn stdin_is_read_as_nodes_buffer_reads_base64() {
+        assert_eq!(lenient_base64("aGVsbG8="), b"hello");
+        assert_eq!(lenient_base64("aGVsbG8"), b"hello");
+        assert_eq!(lenient_base64("aGVs\nbG8="), b"hello");
+        assert_eq!(lenient_base64(""), b"");
+    }
+}

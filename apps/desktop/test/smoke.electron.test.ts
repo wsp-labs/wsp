@@ -1,0 +1,1606 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Drives the packaged app (pnpm --filter @wsp/desktop build first). Gated on
+// WSP_DESKTOP_SMOKE=1 so the unit suite stays free of a 200 MB binary.
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import { connect } from "node:net";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { CATALOG_AGENTS } from "@wsp/catalog";
+import { LAUNCHD_PATH, computerNameHere, placeWiring, serve, serviceManagerFor, servingHost, shimPath, startHost, stopService, systemRunner, workspaceAsset, type CliIO, type HostHandle, type InstallReport } from "@wsp/host";
+import { BROWSER_PARTITION, DAEMON_VERSION, GET_THE_APP_WORD, HOST_WORDS, LAUNCH_ENV, STATE_SHAPE, type TurnResult } from "@wsp/protocol";
+import { createRuntime, memoryStore, sqliteStore, STATE_SHAPE_KEY, tokenDigest, type HarnessAdapterFactory, type Runtime } from "@wsp/runtime";
+import { _electron as electron, type ElectronApplication, type Page } from "playwright";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { stubBackend } from "../../../packages/host/test/stub-backend.js";
+import { WORKSPACE_WORDS } from "../../web/src/actions/format.js";
+import { ADD_COMPUTER_WORDS, SETTINGS_WORDS } from "../../web/src/settings/format.js";
+import { threadRowId } from "../../web/src/sidebar/rowGrammar.js";
+import { FIRST_RUN_WORDS } from "../../web/src/sidebar/words.js";
+import { VERSION } from "../../../packages/host/src/version.js";
+import { alive, APP_URL, appWindows, builtApp, loginShell, windowAt } from "./launched-app.js";
+import { menuShapeOf, workspaceMenuShape } from "./workspace-menu.js";
+import { notForThisPage } from "../src/origin.js";
+import { QUIT_WORD } from "../src/quit.js";
+import { TRAY_WORDS, type TrayAct, type TrayModel } from "../src/tray.js";
+import { windowOptions } from "../src/window.js";
+import { gateLoop, writeStub } from "../../../packages/protocol/test/stub-script.js";
+
+const SMOKE = process.env["WSP_DESKTOP_SMOKE"] === "1";
+// Every app and wsp this file starts inherits this process's environment, so a smoke run from inside a wsp thread
+// would dial the host that thread runs on as that thread, and one run from an Electron process would start the app
+// as node. The smoke runs as a person at a terminal.
+for (const name of [...LAUNCH_ENV, "ELECTRON_RUN_AS_NODE"]) delete process.env[name];
+const FAKE_SOLARI = "slr_live_fake_desktop_smoke";
+/** What the loopback page carries of the host's token: its sha256, hex. The token itself is in no page. */
+const DIGEST = /^[0-9a-f]{64}$/;
+
+const GOLDEN = {
+  head: 1,
+  versions: [
+    { version: 1, snapshotId: "snap_gold", baseTemplate: "base", setupSha: "x", createdAt: "2026-09-01T00:00:00Z", smoke: { cmd: "true", exitCode: 0 } },
+  ],
+};
+
+/** The build a store this file opens says wrote it. */
+const SMOKE_WRITER = { wsp: "smoke", daemon: DAEMON_VERSION, bin: "smoke" };
+
+/** A state file's text as an earlier build wrote one, which the app's host imports at its first start. */
+const stateText = (collections: Record<string, unknown>): string => JSON.stringify({ ...collections, [STATE_SHAPE_KEY]: { shape: STATE_SHAPE, ...SMOKE_WRITER, at: "2026-09-01T00:00:00.000Z" } });
+
+/** What wsp init leaves behind once a golden is sealed, in the store's on-disk shape. */
+function seedGolden(home: string): void {
+  writeFileSync(join(home, "state.json"), stateText({ goldens: { default: GOLDEN } }));
+}
+
+/** One local workspace record as wsp add and wsp new --local leave it, in the store's on-disk shape: a project of
+ * this computer and the workspace working it in place, which is the whole of what a computer that never held a
+ * provider key has. */
+const LOCAL_WORKSPACE = {
+  id: "ws_1",
+  name: "seeded-mac",
+  kind: "local",
+  machineId: "local",
+  phase: "running",
+  golden: "",
+  createdAt: "2026-09-01T00:00:00.000Z",
+  project: "pr_1",
+  spec: {},
+  size: { cpu: 8, memMb: 16384 },
+  firstLife: false,
+  idleWindowMs: null,
+};
+
+function seedLocalWorkspace(home: string): void {
+  const folder = join(home, "work", LOCAL_WORKSPACE.name);
+  mkdirSync(folder, { recursive: true });
+  const project = {
+    id: LOCAL_WORKSPACE.project,
+    name: LOCAL_WORKSPACE.name,
+    computer: "here",
+    source: { kind: "folder", path: folder },
+    path: folder,
+    remote: "",
+    defaultBranch: "main",
+    memoryKey: folder.replace(/[^A-Za-z0-9]/g, "-"),
+    memoryDir: join(home, ".claude", "projects", folder.replace(/[^A-Za-z0-9]/g, "-"), "memory"),
+    createdAt: LOCAL_WORKSPACE.createdAt,
+  };
+  // A thread here runs in the project's own folder, a checkout on main with one commit, so the branch the host reads
+  // off it is main; a record with a copy is one the host moves off at boot and drops.
+  const git = (...args: string[]) => spawnSync("git", ["-c", "user.name=smoke", "-c", "user.email=smoke@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: folder, stdio: "ignore" });
+  git("init", "-q", "-b", "main");
+  git("commit", "-q", "--allow-empty", "-m", "seeded");
+  const workspace = { ...LOCAL_WORKSPACE, portBase: 3100 };
+  writeFileSync(join(home, "state.json"), stateText({ projects: { [project.id]: project }, workspaces: { [LOCAL_WORKSPACE.id]: workspace } }));
+}
+
+/** The project a fixture host's workspaces are copies of: a repo on the provider computer that host serves, which
+ * is what wsp add records. A workspace is one project's copy, so a host holding none refuses to make one. */
+async function seedProject(host: HostHandle): Promise<void> {
+  await host.addProject("https://github.com/dev/first.git", "default");
+}
+
+/** A record of a host on the account under the launch's own wsp home, as wsp hosts leaves one: the list the shell
+ * reads has a host in it the window is not on, which is what a page on a host somewhere else may not learn. */
+function seedAccountHost(home: string, alias: string, url: string, token: string): void {
+  mkdirSync(join(home, "hosts"), { recursive: true });
+  writeFileSync(join(home, "hosts", `${alias}.json`), JSON.stringify({ url, deviceId: "d_seed", deviceToken: token, pairedAt: "2026-09-01T00:00:00.000Z", via: { kind: "account", hostId: `h${alias}` } }));
+}
+
+/** The lock and the token file a host serving this home left beside its state, which is what the window reads to
+ * attach to it: a page on a port is no reason to, whoever is serving there. */
+function seedServingLock(home: string, at: { port: number; token: string }, over: { pid?: number; startedBy?: string } = {}): void {
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(home, "host.lock"), JSON.stringify({ pid: process.pid, port: at.port, startedAt: new Date().toISOString(), ...over }));
+  writeFileSync(join(home, "host-token"), `${at.token}\n`);
+}
+
+/** Waits for the window to open on the seeded project: a folder record no thread names draws no sidebar row, and the
+ * New thread composer names the project it starts in. */
+function openedOnSeeded(win: Page): Promise<void> {
+  return win.locator(`[data-new-thread-project='${LOCAL_WORKSPACE.project}']`).waitFor();
+}
+
+interface Launched {
+  app: ElectronApplication;
+  home: string;
+  /** HOME as the app was launched, which the service's unit sits under. */
+  user: string;
+  /** The state file the launch serves, whose service the teardown takes away. */
+  statePath: string;
+  /** What the app printed, read out when a case fails: nothing else in a CI log shows why a window never came. */
+  said: string[];
+}
+
+const ONBOARDING_URL = /onboarding\.html/;
+/** Where the photographed states go, beside the render tests' own. */
+const SHOTS = join(tmpdir(), "wsp-render");
+/** The words every notice about the app and its host being two releases shares. */
+const VERSION_LINE = /this app is/;
+
+const PAGE = `<!doctype html><html><head><title>wsp</title></head><body><script>window.__WSP__ = window.__WSP__ || { token: "" };</script></body></html>`;
+
+function fakeWebDir(): string {
+  const webDir = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-web-"));
+  writeFileSync(join(webDir, "index.html"), PAGE);
+  return webDir;
+}
+
+/** The environment a fixture host's runtime is given, said here rather than inherited from the shell that started
+ * the run. The settings page is one of the surfaces behind labs, so a case that opens it turns labs on. */
+const LABS_ON = { WSP_LABS: "1" };
+
+function testRuntime(seedGolden = false, env: Record<string, string> = {}, adapters: Record<string, HarnessAdapterFactory> = {}): Runtime {
+  const store = memoryStore();
+  if (seedGolden) void store.put("goldens", "default", GOLDEN);
+  // The place wiring every host a person starts has: the key it proves is what a pairing code names and what the
+  // computer taking that code holds it to, so a fixture host without one hands out a code nothing can spend.
+  const statePath = join(mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-state-")), "state.json");
+  return createRuntime({ backend: stubBackend(), store, adapters, env, placeLinks: placeWiring(statePath) });
+}
+
+function fixtureHost(): Promise<HostHandle> {
+  return startHost({ runtime: testRuntime(), webDir: fakeWebDir(), port: 0 });
+}
+
+/** A pid that was real a moment ago and is not alive now. */
+function deadPid(): number {
+  const child = spawnSync(process.execPath, ["-e", "0"]);
+  expect(child.status).toBe(0);
+  return child.pid;
+}
+
+/** This launch's login shell: a script printing the PATH the case gave, or else the fixture's own bin folder in front
+ * of the four folders launchd gives an app, which is what a person's shell prints on their Mac. A launch handed
+ * launchd's set reads it, and so does the service's host, which starts with that set; so this is what decides which
+ * agents the app finds. Without one the app would read the shell of the Mac running the suite and find its agents
+ * instead of the fixture's. A case's own PATH is its stub folder before those four too: the suite's PATH holds a
+ * stand-in for every agent, and a host that finds them runs each one's version and sign-in commands. */
+function loginShellIn(home: string, path: string | undefined): string {
+  const bin = join(home, "bin");
+  mkdirSync(bin, { recursive: true });
+  return loginShell(join(home, "login-shell"), path ?? `${bin}:${LAUNCHD_PATH.join(":")}`);
+}
+
+/** HOME is the temp dir too, so the app's ~/.wsp and the service unit it writes under ~/Library never touch this
+ * machine's: the unit's label carries the digest of the temp state file, so it is never the owner's own. A value of
+ * undefined removes that variable, the way a Finder launch has no WSP_HOME. */
+async function launch(env: Record<string, string | undefined>, prepare: (home: string) => void = () => {}): Promise<Launched> {
+  const home = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-"));
+  prepare(home);
+  return launchIn(home, env);
+}
+
+/** The app launched again on a home an earlier launch left behind, which is what a relaunch is. */
+async function launchIn(home: string, env: Record<string, string | undefined>): Promise<Launched> {
+  const cwd = join(home, "cwd");
+  mkdirSync(cwd, { recursive: true });
+  const inherited = { ...process.env };
+  delete inherited["SOLARI_API_KEY"];
+  delete inherited["ANTHROPIC_API_KEY"];
+  // The app reads WSP_DESKTOP_SMOKE to know it is driven: the bundle runs out of dist, and the move to Applications
+  // it would otherwise offer has nobody to press a button.
+  const merged = { ...inherited, HOME: home, WSP_HOME: home, WSP_DESKTOP_SMOKE: "1", SHELL: loginShellIn(home, env["PATH"]), ...env };
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(merged)) if (v !== undefined) clean[k] = v;
+  const user = clean["HOME"]!;
+  const statePath = join(clean["WSP_HOME"] ?? join(user, ".wsp"), "state.json");
+  // Playwright emulates a light prefers-color-scheme in the renderer unless told not to; the page's system theme has to
+  // read the Mac's own appearance, the one the window's glass is drawn from, or the two sides split in the shot.
+  const app = await electron.launch({ executablePath: builtApp(), cwd, env: clean, colorScheme: null });
+  const said: string[] = [];
+  const keep = (chunk: Buffer): void => void said.push(...chunk.toString().split("\n").filter(line => line.trim() !== ""));
+  app.process().stdout?.on("data", keep);
+  app.process().stderr?.on("data", keep);
+  return { app, home, user, statePath, said };
+}
+
+/** The service a launch installed, as this computer's manager names it. */
+const serviceAt = (launched: Pick<Launched, "user" | "statePath">) => ({ statePath: launched.statePath, home: launched.user, uid: process.getuid?.() ?? 0 });
+
+/** Takes away whatever service the launch installed, with the manager's own stop, and waits until nothing serves its
+ * state file. A launch that attached to a fixture's host installed none, and the stop finds nothing. */
+async function stopServiceOf(launched: Pick<Launched, "user" | "statePath">): Promise<void> {
+  const manager = serviceManagerFor(process.platform);
+  if (manager === undefined) return;
+  const lock = servingHost(launched.statePath);
+  const stopped = await stopService(manager, serviceAt(launched), systemRunner);
+  if (stopped.held && lock !== undefined) await vi.waitFor(() => expect(alive(lock.pid)).toBe(false), { timeout: 30_000, interval: 100 });
+}
+
+/** Where a long case stands, by time since it began, read out when it fails: a stall shows as the last step named. */
+const trail: string[] = [];
+let trailFrom = Date.now();
+const step = (name: string): void => void trail.push(`+${Date.now() - trailFrom} ms ${name}`);
+
+/** Quits the app. A plain quit is every road out of the app but the menu's own row, and asks nothing; the other
+ * answer is the menu's Quit, pressed as a person presses it, with the question it asks answered by that button. */
+async function quit(app: ElectronApplication, answer: "Quit" | "Quit and stop wsp" = "Quit"): Promise<void> {
+  if (answer === "Quit") return app.close();
+  const exited = new Promise<void>(resolve => app.process().once("exit", () => resolve()));
+  await app.evaluate(({ Menu, dialog }, [label, row]) => {
+    dialog.showMessageBox = (async (...args: unknown[]) => {
+      const options = args.at(-1) as { buttons?: string[] };
+      return { response: options.buttons?.indexOf(label) ?? 0, checkboxChecked: false };
+    }) as typeof dialog.showMessageBox;
+    const find = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => {
+      for (const item of items) {
+        if (item.label === row) return item;
+        const inner = item.submenu === undefined || item.submenu === null ? undefined : find(item.submenu.items);
+        if (inner !== undefined) return inner;
+      }
+      return undefined;
+    };
+    const item = find(Menu.getApplicationMenu()?.items ?? []);
+    if (item === undefined) throw new Error(`no ${row} row in the menu`);
+    item.click();
+  }, [answer, QUIT_WORD] as const);
+  await exited;
+}
+
+/** A host of another release, as an app attached to one it did not start meets it. The real host serves the page and
+ * runs the runtime; this stands in front of it on its own port and rewrites the one version in the boot object, so
+ * the window is a real window on a real host that happens to have been built apart from it. Faking the app's half
+ * instead would need a lever in the shipped shell, since a packaged bundle's own version cannot be moved. */
+async function hostOfVersion(upstream: HostHandle, version: string): Promise<{ port: number; server: Server }> {
+  const server = createServer((req, res) => {
+    void (async () => {
+      const body = req.method === "GET" || req.method === "HEAD" ? undefined : Buffer.concat(await collect(req));
+      const from = await fetch(`http://127.0.0.1:${upstream.port}${req.url ?? "/"}`, {
+        method: req.method ?? "GET",
+        ...(body !== undefined ? { body } : {}),
+      });
+      const type = from.headers.get("content-type") ?? "application/octet-stream";
+      const bytes = type.startsWith("text/html")
+        ? Buffer.from((await from.text()).replace(`"version":"${VERSION}"`, `"version":"${version}"`))
+        : Buffer.from(await from.arrayBuffer());
+      res.writeHead(from.status, { "content-type": type, "content-length": bytes.length });
+      res.end(bytes);
+    })().catch(() => res.writeHead(502).end());
+  });
+  // The page dials the runtime on its own origin's /ws, so the stand-in carries the upgrade through to the real host
+  // byte for byte; without it the window is a page with a toast and no runtime behind it.
+  server.on("upgrade", (req, socket, head) => {
+    const through = connect(upstream.port, "127.0.0.1", () => {
+      const line = [`${req.method} ${req.url} HTTP/${req.httpVersion}`, ...req.rawHeaders.map((h, i) => (i % 2 === 0 ? `${h}: ${req.rawHeaders[i + 1]}` : undefined)).filter(h => h !== undefined), "", ""].join("\r\n");
+      through.write(line);
+      if (head.length > 0) through.write(head);
+      socket.pipe(through).pipe(socket);
+    });
+    through.on("error", () => socket.destroy());
+    socket.on("error", () => through.destroy());
+  });
+  return { port: await listenOn(server), server };
+}
+
+function collect(req: NodeJS.ReadableStream): Promise<Buffer[]> {
+  return new Promise(resolve => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => resolve(chunks));
+  });
+}
+
+function listenOn(server: Server): Promise<number> {
+  return new Promise(resolve => {
+    server.listen(0, "127.0.0.1", () => {
+      const addr = server.address();
+      resolve(typeof addr === "object" && addr !== null ? addr.port : 0);
+    });
+  });
+}
+
+/** A page served on a loopback port the way a process inside a workspace serves one: it asks for a service worker on
+ * its own origin when the test says so, and answers on either spelling of loopback, so the page on one holds a
+ * frame on the other. */
+function workerPage(): Promise<{ port: number; server: Server }> {
+  const server = createServer((req, res) => {
+    const path = (req.url ?? "/").split("?")[0];
+    if (path === "/sw.js") {
+      res.writeHead(200, { "content-type": "text/javascript" }).end("self.addEventListener('fetch', () => {});");
+      return;
+    }
+    const port = Number((req.headers.host ?? "").split(":")[1] ?? 0);
+    const nested = path === "/nested" ? "" : `<iframe src="http://127.0.0.1:${port}/nested"></iframe>`;
+    const asks = '<script>window.registerWorker = () => navigator.serviceWorker.register("/sw.js").then(() => "registered", e => "refused: " + e.name);</script>';
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(`<!doctype html><html><body>${nested}${asks}</body></html>`);
+  });
+  return listenOn(server).then(port => ({ port, server }));
+}
+
+/** Runs a script in a page of the browser tab's guest, its top page or a frame inside it, by the url it is on, once the
+ * page has defined its worker ask. A guest is a webview's own contents, which no window holds as a frame, so it is
+ * reached from the main process. */
+function inGuest(app: ElectronApplication, url: string, script: string): Promise<unknown> {
+  return vi.waitFor(
+    () =>
+      app.evaluate(
+        async ({ webContents }, { url, script }) => {
+          const frames = webContents
+            .getAllWebContents()
+            .filter(contents => contents.getType() === "webview")
+            .flatMap(contents => contents.mainFrame.framesInSubtree);
+          const frame = frames.find(f => f.url === url);
+          if (frame === undefined || !(await frame.executeJavaScript('"registerWorker" in window'))) throw new Error(`no guest page ready at ${url}, saw ${JSON.stringify(frames.map(f => f.url))}`);
+          return frame.executeJavaScript(script);
+        },
+        { url, script },
+      ),
+    { timeout: 30_000, interval: 100 },
+  );
+}
+
+async function bootOf(page: Page): Promise<{ tokenHash: string; token?: string; version: string }> {
+  await page.waitForLoadState("domcontentloaded");
+  return page.evaluate(() => (window as unknown as { __WSP__: { tokenHash: string; token?: string; version: string } }).__WSP__);
+}
+
+interface DesktopWindow {
+  wsp: { capturePreview(workspaceId: string): Promise<void>; workspacePreview(workspaceId: string): Promise<string | undefined>; setTheme(theme: string): void };
+}
+
+function readPreview(page: Page, workspaceId: string): Promise<string | undefined> {
+  return page.evaluate(id => (window as unknown as DesktopWindow).wsp.workspacePreview(id), workspaceId);
+}
+
+/** A thread's picture as the page files it, under the theme drawn now. */
+function readThreadPicture(page: Page, threadId: string): Promise<string | undefined> {
+  return page.evaluate(id => (window as unknown as DesktopWindow).wsp.workspacePreview(`${document.documentElement.dataset["theme"] ?? ""}/${id}`), threadId);
+}
+
+/** A page in both themes: the shell's theme source is flipped, since the onboarding page follows the system's. */
+async function photograph(app: ElectronApplication, page: Page, name: string): Promise<string[]> {
+  mkdirSync(SHOTS, { recursive: true });
+  const files: string[] = [];
+  for (const theme of ["dark", "light"] as const) {
+    await app.evaluate(({ nativeTheme }, t) => {
+      nativeTheme.themeSource = t;
+    }, theme);
+    await page.waitForFunction(t => window.matchMedia("(prefers-color-scheme: dark)").matches === (t === "dark") && document.documentElement.classList.contains("dark") === (t === "dark"), theme);
+    // The page holds transitions off for one frame across the flip, as the app does; the shot waits past that frame and
+    // any hover fade, and shows the screen at rest, without the focus ring of the button Enter would press.
+    await page.waitForTimeout(400);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const file = join(SHOTS, `${name}-${theme}.png`);
+    await page.screenshot({ path: file });
+    files.push(file);
+  }
+  await app.evaluate(({ nativeTheme }) => {
+    nativeTheme.themeSource = "system";
+  });
+  return files;
+}
+
+/** The app window's page as a file. The sidebar is the window's glass, which a page capture paints clear. */
+async function photographPage(win: Page, file: string): Promise<string> {
+  mkdirSync(SHOTS, { recursive: true });
+  await win.screenshot({ path: file });
+  return file;
+}
+
+/** The onboarding page's two-agent fixture: Claude Code and Codex by their config alone and a PATH with none, so what
+ * the screen finds is what was put here. */
+function twoAgents(home: string): void {
+  mkdirSync(join(home, ".claude"));
+  writeFileSync(join(home, ".claude", "settings.json"), "{}\n");
+  mkdirSync(join(home, ".codex"));
+  writeFileSync(join(home, ".codex", "config.toml"), "");
+}
+
+/** Claude Code as a turn on this computer meets it, on a PATH of its own: it opens the session the host named, says
+ * one line, and waits for the gate file before it says its reply, so a turn is running for as long as a case needs.
+ * Each turn's pid is a line of its own in the pid file, where the case can check it is alive and stop it. */
+function claudeStandIn(dir: string, gate: string, pidFile: string, o: { asks?: boolean } = {}): void {
+  mkdirSync(dir, { recursive: true });
+  const say = (id: number, text: string): string =>
+    `printf '%s\\n' '{"type":"assistant","message":{"id":"msg_${id}","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[{"type":"text","text":"${text}"}],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}},"parent_tool_use_id":null,"session_id":"'"$sid"'","uuid":"u${id}"}'`;
+  writeStub(
+    join(dir, "claude"),
+    [
+      "#!/bin/bash",
+      `sid=""; mode=bypassPermissions; while [ $# -gt 0 ]; do case "$1" in --session-id|--resume) sid="$2"; shift;; --permission-mode) mode="$2"; shift;; esac; shift; done`,
+      // Anything that names no session is the catalog's probe, which a version line answers.
+      `[ -z "$sid" ] && { echo "2.1.280 (Claude Code)"; exit 0; }`,
+      // The CLI reads its prompt before it says anything, and a turn whose prompt never reached it is one a restarted
+      // host ends, so the pid is the stand-in's word that its turn is under way.
+      "IFS= read -r prompt",
+      `echo $$ >> ${JSON.stringify(pidFile)}`,
+      `printf '%s\\n' '{"type":"system","subtype":"init","cwd":"'"$PWD"'","session_id":"'"$sid"'","tools":[],"mcp_servers":[],"model":"claude-sonnet-4-5","permissionMode":"'"$mode"'","slash_commands":[],"apiKeySource":"none","uuid":"init"}'`,
+      say(1, "reading the ticket"),
+      // As long as the longest case: the restart case writes its gate only after a host restart and a second launch.
+      gateLoop(gate, { limitS: 120 }),
+      // With asks, the gate raises a prompt for a Bash call over the CLI's own control channel, and the turn goes on
+      // once an answer comes back down stdin, whichever window or menu gave it.
+      ...(o.asks === true
+        ? [
+            `printf '%s\\n' '{"type":"control_request","request_id":"ask_1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"sleep 5"},"description":"sleep 5","tool_use_id":"toolu_1"}}'`,
+            `while IFS= read -r line; do case "$line" in *control_response*) break;; esac; done`,
+          ]
+        : []),
+      say(2, "wrote the fix"),
+      `printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"duration_ms":10,"num_turns":1,"result":"wrote the fix","session_id":"'"$sid"'","total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":1},"uuid":"r1"}'`,
+      "cat > /dev/null",
+      "",
+    ].join("\n"),
+  );
+}
+
+async function refused(url: string): Promise<boolean> {
+  try {
+    await fetch(url);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/** The window's frame as the shell set it and the header row as the page drew it, read on a launched app. */
+async function macHeader(app: ElectronApplication, win: Page) {
+  const frame = await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0]!;
+    return { id: w.id, buttons: w.getWindowButtonPosition(), bounds: w.getBounds(), content: w.getContentBounds(), title: w.getTitle() };
+  });
+  const page = await win.evaluate(() => {
+    const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
+    const region = (selector: string) => (style(selector) as unknown as { webkitAppRegion: string }).webkitAppRegion;
+    const buttons = (selector: string) => Array.from(document.querySelector(selector)!.querySelectorAll("button")).map(b => (getComputedStyle(b) as unknown as { webkitAppRegion: string }).webkitAppRegion);
+    return {
+      pageToggles: document.querySelectorAll("header [data-slot=sidebar-trigger]").length,
+      htmlClass: document.documentElement.className,
+      container: style("[data-slot=sidebar-container]").backgroundColor,
+      headerHeight: document.querySelector("[data-slot=sidebar-header]")!.getBoundingClientRect().height,
+      sidebarHeader: region("[data-slot=sidebar-header]"),
+      pageHeader: region("header [data-header-row]"),
+      sidebarButtons: buttons("[data-slot=sidebar-header]"),
+      pageButtons: buttons("header"),
+      sidebarWidth: document.querySelector("[data-slot=sidebar-container]")!.getBoundingClientRect().width,
+    };
+  });
+  return { frame, page };
+}
+
+/** A point of the window, in css pixels across and a fraction of the height down. */
+type WindowPoint = { x: number; y: number };
+
+/** For each theme, at each point: the alpha the window's capture holds there and the alpha the page's own
+ * backgrounds stack to at the element under it, both out of 255. */
+async function readPainted<K extends string>(app: ElectronApplication, win: Page, id: number, points: Record<K, WindowPoint>): Promise<Record<"light" | "dark", Record<K, { captured: number; declared: number }>>> {
+  const out = {} as Record<"light" | "dark", Record<K, { captured: number; declared: number }>>;
+  for (const theme of ["light", "dark"] as const) {
+    // The app's page sets the shell's theme source back to system, so the side is picked where the page reads it.
+    await win.emulateMedia({ colorScheme: theme });
+    // The page holds transitions off for one frame across the flip; once it lets them back every colour is at rest,
+    // and a frame after that the window has painted it.
+    await win.waitForFunction(t => document.documentElement.classList.contains("dark") === (t === "dark") && !document.documentElement.classList.contains("no-transitions"), theme);
+    await win.evaluate(() => new Promise<void>(done => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+    const declared = await win.evaluate(pts => {
+      const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d")!;
+      const alphaOf = (color: string): number => {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, 1, 1);
+        return ctx.getImageData(0, 0, 1, 1).data[3]! / 255;
+      };
+      const stacked = (p: { x: number; y: number }): number => {
+        let clear = 1;
+        for (let el: Element | null = document.elementFromPoint(p.x, p.y * window.innerHeight); el !== null; el = el.parentElement) clear *= 1 - alphaOf(getComputedStyle(el).backgroundColor);
+        return Math.round((1 - clear) * 255);
+      };
+      return Object.fromEntries(Object.entries(pts).map(([k, p]) => [k, stacked(p as { x: number; y: number })]));
+    }, points as Record<string, WindowPoint>);
+    const captured = await app.evaluate(async ({ BrowserWindow }, args) => {
+      const image = await BrowserWindow.fromId(args.id)!.webContents.capturePage();
+      const { width, height } = image.getSize();
+      const bitmap = image.toBitmap();
+      const scale = width / args.cssWidth;
+      return Object.fromEntries(Object.entries(args.points).map(([k, p]) => [k, bitmap[(Math.round(p.y * height) * width + Math.round(p.x * scale)) * 4 + 3]!]));
+    }, { id, cssWidth: await win.evaluate(() => window.innerWidth), points: points as Record<string, WindowPoint> });
+    out[theme] = Object.fromEntries(Object.keys(points).map(k => [k, { captured: captured[k]!, declared: declared[k]! }])) as Record<K, { captured: number; declared: number }>;
+  }
+  await win.emulateMedia({ colorScheme: null });
+  return out;
+}
+
+interface MenuRow {
+  label: string;
+  checked: boolean;
+  enabled: boolean;
+}
+
+/** The rows of the menu bar's Hosts menu as the shell built them. */
+function hostsMenuRows(app: ElectronApplication): Promise<MenuRow[]> {
+  return app.evaluate(({ Menu }, word) => {
+    const hosts = Menu.getApplicationMenu()?.items.find(item => item.label === word)?.submenu;
+    if (hosts === undefined) throw new Error(`no ${word} menu`);
+    return hosts.items.filter(item => item.type !== "separator").map(item => ({ label: item.label, checked: item.checked, enabled: item.enabled }));
+  }, HOST_WORDS.hosts);
+}
+
+/** Clicks one row of the Hosts menu, as a person would from the menu bar. */
+function hostsMenu(app: ElectronApplication, label: string): Promise<void> {
+  return app.evaluate(({ Menu }, [word, row]) => {
+    const hosts = Menu.getApplicationMenu()?.items.find(item => item.label === word)?.submenu;
+    const item = hosts?.items.find(i => i.label === row);
+    if (item === undefined) throw new Error(`no row ${row} in the ${word} menu`);
+    item.click();
+  }, [HOST_WORDS.hosts, label] as const);
+}
+
+// Each launch boots Electron and a host; the default 5s test timeout is too tight.
+describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
+  let launched: Launched | undefined;
+  let existing: HostHandle | undefined;
+  let standIn: Server | undefined;
+  afterEach(async ({ task }) => {
+    if (task.result?.state === "fail" && launched !== undefined) {
+      const log = join(dirname(launched.statePath), "host.log");
+      const running = spawnSync("ps", ["-A", "-o", "pid,ppid,etime,stat,command"], { encoding: "utf8", timeout: 10_000 }).stdout.split("\n").filter(line => line.includes(launched!.home) || line.includes(builtApp()));
+      console.error([`steps:`, ...trail, `processes:`, ...running, `the app said:`, ...launched.said.slice(-40), `${log}:`, ...(existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").slice(-40) : ["(none)"])].join("\n"));
+    }
+    trail.length = 0;
+    const app = launched?.app;
+    // A case that timed out may leave the app stuck; its pid is the one this suite started, and the service it
+    // installed is taken away whatever state the app is in.
+    let child: ReturnType<ElectronApplication["process"]> | undefined;
+    try {
+      child = app?.process();
+    } catch {
+      // Playwright lets go of a closed app's process, and a case that quit it itself has nothing left to stop.
+    }
+    if (app !== undefined) await Promise.race([quit(app).catch(() => {}), new Promise(resolve => setTimeout(resolve, 10_000))]);
+    if (child !== undefined && child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    if (launched) {
+      await stopServiceOf(launched);
+      rmSync(launched.home, { recursive: true, force: true });
+    }
+    launched = undefined;
+    await existing?.close();
+    existing = undefined;
+    if (standIn !== undefined) await new Promise<void>(resolve => standIn!.close(() => resolve()));
+    standIn = undefined;
+    vi.unstubAllEnvs();
+  }, 60_000);
+
+  it("is built", () => {
+    expect(existsSync(builtApp())).toBe(true);
+  });
+
+  it("opens one window, titled wsp, on the service it installed, whose parent is the manager and not the app; a quit leaves it serving and the next launch attaches; Quit and stop wsp leaves nothing", async () => {
+    trailFrom = Date.now();
+    step("launch");
+    // Claude Code by its config alone, for the agent the service writes the wsp tools into.
+    launched = await launch({ SOLARI_API_KEY: FAKE_SOLARI }, home => {
+      seedGolden(home);
+      mkdirSync(join(home, ".claude"));
+    });
+    const { home, user, statePath } = launched;
+    step("launched; waiting for the window");
+    const win = await windowAt(launched.app, APP_URL);
+    step("window");
+    const boot = await bootOf(win);
+    const url = win.url();
+    expect(url).toMatch(APP_URL);
+    expect(await win.title()).toBe("wsp");
+    expect(boot.tokenHash).toMatch(DIGEST);
+    expect(boot.token).toBeUndefined();
+    expect(appWindows(launched.app)).toHaveLength(1);
+
+    // The unit is this launch's own, under its temp home, and it runs the wsp command the app wrote.
+    const manager = serviceManagerFor(process.platform)!;
+    const at = serviceAt(launched);
+    const unit = manager.unit(at);
+    expect(unit.path.startsWith(user)).toBe(true);
+    expect(readFileSync(unit.path, "utf8")).toContain(shimPath(home));
+    const holds = (): { code: number; output: string } => {
+      const [cmd, ...args] = manager.holds(at);
+      const ran = spawnSync(cmd!, args, { encoding: "utf8", timeout: 20_000 });
+      return { code: ran.status ?? -1, output: `${ran.stdout}${ran.stderr}` };
+    };
+    expect(manager.holding(holds())).toBe(true);
+    const host = servingHost(statePath)!;
+    expect(host.startedBy).toBe("service");
+    const parent = Number(spawnSync("ps", ["-o", "ppid=", "-p", String(host.pid)], { encoding: "utf8", timeout: 20_000 }).stdout.trim());
+    expect(parent).not.toBe(launched.app.process().pid);
+    if (process.platform === "darwin") expect(parent).toBe(1);
+    const env = { ...process.env, HOME: user, WSP_HOME: home };
+    step("wsp status");
+    expect(spawnSync(shimPath(home), ["status"], { encoding: "utf8", env, timeout: 20_000 }).stdout).toContain(`service     ${manager.words} ${unit.name}, loaded`);
+    // The service runs wsp behind the command the app wrote, so what it writes into an agent's config runs that
+    // command and never the app's binary, which is node only under the variable the command sets.
+    step("wsp agents addtools");
+    const added = spawnSync(shimPath(home), ["agents", "addtools", "claude"], { encoding: "utf8", env, cwd: join(home, "cwd"), timeout: 20_000 });
+    expect(added.status, `${added.stdout}${added.stderr}`).toBe(0);
+    expect((JSON.parse(readFileSync(join(user, ".claude.json"), "utf8")) as { mcpServers: { wsp: { command: string } } }).mcpServers.wsp.command).toBe(shimPath(home));
+
+    step("quit");
+    await quit(launched.app);
+    expect(await refused(url)).toBe(false);
+    expect(alive(host.pid)).toBe(true);
+
+    step("relaunch");
+    launched = await launchIn(home, { SOLARI_API_KEY: FAKE_SOLARI });
+    step("relaunched; waiting for the window");
+    const again = await windowAt(launched.app, APP_URL);
+    expect(again.url()).toBe(url);
+    expect(servingHost(statePath)?.pid).toBe(host.pid);
+
+    step("quit and stop wsp");
+    await quit(launched.app, "Quit and stop wsp");
+    step("stopped");
+    expect(servingHost(statePath)).toBeUndefined();
+    expect(alive(host.pid)).toBe(false);
+    expect(await refused(url)).toBe(true);
+    expect(existsSync(unit.path)).toBe(false);
+    const gone = holds();
+    expect(manager.absent(gone), gone.output).toBe(true);
+    if (process.platform === "darwin") expect(gone.code).toBe(113);
+  });
+
+  it("the window's theme source follows the page, which draws the side this computer is set to", async () => {
+    launched = await launch({ SOLARI_API_KEY: FAKE_SOLARI }, seedGolden);
+    const win = await windowAt(launched.app, APP_URL);
+    await bootOf(win);
+    const source = () => launched!.app.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
+    // The one value the page ever says, whatever a pin before it was: no screen picks a side, so the frame and the
+    // page cannot draw two.
+    await vi.waitFor(async () => expect(await source()).toBe("system"));
+    // The page left on System draws the side the computer's appearance takes, dark and then light, with nothing
+    // reloaded between, and the side the Mac itself is set to once the emulation lets go. The appearance is emulated
+    // on the page: a pin on the shell's source is a second say over the page's own, and the page takes it back.
+    const pageSide = () => win.evaluate(() => ({ media: window.matchMedia("(prefers-color-scheme: dark)").matches, dark: document.documentElement.classList.contains("dark") }));
+    for (const side of ["dark", "light"] as const) {
+      await win.emulateMedia({ colorScheme: side });
+      await vi.waitFor(async () => expect(await pageSide()).toEqual({ media: side === "dark", dark: side === "dark" }));
+      expect(await source()).toBe("system");
+    }
+    await win.emulateMedia({ colorScheme: null });
+    const macDark = await launched.app.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors);
+    await vi.waitFor(async () => expect(await pageSide()).toEqual({ media: macDark, dark: macDark }));
+    await launched.app.evaluate(({ nativeTheme }) => {
+      nativeTheme.themeSource = "dark";
+    });
+    await win.reload();
+    await vi.waitFor(async () => expect(await source()).toBe("system"));
+  });
+
+  it("photographs its own page for a workspace and hands the picture back to the page", async () => {
+    launched = await launch({ SOLARI_API_KEY: FAKE_SOLARI }, seedGolden);
+    const win = await windowAt(launched.app, APP_URL);
+    await bootOf(win);
+    expect(await readPreview(win, "ws_a")).toBeUndefined();
+    await win.evaluate(id => (window as unknown as DesktopWindow).wsp.capturePreview(id), "ws_a");
+    expect(await readPreview(win, "ws_a")).toMatch(/^data:image\/png;base64,\w/);
+    expect(await readPreview(win, "ws_b")).toBeUndefined();
+  });
+
+  it("puts the picture of the thread the person left on that thread's switcher card", async () => {
+    // The switcher holds one card per thread, so two turns stay working in the seeded project, live in the sidebar
+    // for the walk to land on.
+    const agents = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-agents-"));
+    const pidFile = join(agents, "claude.pids");
+    claudeStandIn(join(agents, "bin"), join(agents, "gate"), pidFile);
+    const env = { PATH: `${join(agents, "bin")}:${LAUNCHD_PATH.join(":")}` };
+    try {
+      launched = await launch(env, seedLocalWorkspace);
+      const { home } = launched;
+      const win = await windowAt(launched.app, APP_URL);
+      await openedOnSeeded(win);
+      for (const task of ["fix the cart", "fix the login"]) {
+        const ran = spawnSync(shimPath(home), ["run", LOCAL_WORKSPACE.name, "--agent", "claude", "--detach", task], { encoding: "utf8", env: { ...process.env, ...env, HOME: home, WSP_HOME: home }, cwd: join(home, "cwd"), timeout: 30_000 });
+        expect(ran.status, `${ran.stdout}${ran.stderr}`).toBe(0);
+      }
+      const rows = win.locator("[data-row-id^='thread:']");
+      await vi.waitFor(async () => expect(await rows.count()).toBe(2), { timeout: 30_000, interval: 100 });
+      const [opened] = await rows.evaluateAll(found => found.map(r => r.getAttribute("data-row-id")!.slice("thread:".length)));
+      await win.click(`[data-row-id='${threadRowId(opened!)}']`);
+
+      // A tap: the chord's step and its release, which is what asks for a picture of the thread being left. The
+      // capture is an ipc round trip the tap only started, and the overlay reads the pictures once, when it opens.
+      await win.keyboard.down("Control");
+      await win.keyboard.press("Tab");
+      await win.keyboard.up("Control");
+      await win.waitForSelector("[data-workspace-switcher]", { state: "detached" });
+      await vi.waitFor(async () => expect(await readThreadPicture(win, opened!)).toMatch(/^data:image\/png;base64,\w/), { timeout: 30_000, interval: 100 });
+
+      await win.keyboard.down("Control");
+      await win.keyboard.press("Tab");
+      await win.waitForSelector("[data-workspace-switcher]");
+      const shot = win.locator(`[data-thread-card='${opened}'] [data-card-preview] img`);
+      await shot.waitFor();
+      expect(await shot.getAttribute("src")).toMatch(/^data:image\/png;base64,\w/);
+      // The picture decodes off the main thread; its size is a fact only once it has.
+      expect(await shot.evaluate((img: HTMLImageElement) => img.decode().then(() => img.naturalWidth))).toBeGreaterThan(0);
+      await win.keyboard.up("Control");
+    } finally {
+      for (const pid of existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim().split("\n").map(Number) : []) if (alive(pid)) process.kill(pid, "SIGKILL");
+      rmSync(agents, { recursive: true, force: true });
+    }
+  });
+
+  it("first launch with no key: the welcome, then the agents found here ticked, Open wsp gives them the tools and opens the app on the first run, whose Add a project holds the door to another computer, and the shim runs", async () => {
+    // Labs on, since the settings page the door to another computer opens is a labs surface. The PATH is launchd's
+    // own, what a Finder or Dock launch is handed, so this run is the one a tester's Mac makes.
+    launched = await launch({ PATH: LAUNCHD_PATH.join(":"), WSP_LABS: "1" }, twoAgents);
+    const { app, home } = launched;
+    const shim = shimPath(home);
+    // The command is installed before any window, so an agent configured on the next screen has something to run.
+    expect(existsSync(shim)).toBe(true);
+    const page = await windowAt(app, ONBOARDING_URL);
+    await page.waitForLoadState("domcontentloaded");
+    expect(await page.title()).toBe("wsp");
+    // Nothing scrolls, on any screen, at the size the app opens its windows at; a shorter window scrolls by design. The
+    // runner's screen can be smaller than that size, and the window then opens clamped to it, so the size is set here
+    // and read back.
+    const opened = windowOptions(process.platform, VERSION);
+    const size = { width: opened.width!, height: opened.height! };
+    const pageWindow = await app.browserWindow(page);
+    await pageWindow.evaluate((win, want) => win.setSize(want.width, want.height), size);
+    const got = await pageWindow.evaluate(win => win.getSize());
+    const area = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workAreaSize);
+    console.info(`onboarding window: ${got.join("x")} for ${size.width}x${size.height}, screen work area ${area.width}x${area.height}`);
+    expect(got).toEqual([size.width, size.height]);
+    const fits = (): Promise<boolean> => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight && document.body.scrollHeight <= window.innerHeight);
+    // The page draws with the app's stylesheet: its tokens resolve here, and the dark class is the app's own switch.
+    const tokens = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      return { background: style.getPropertyValue("--background").trim(), mono: style.getPropertyValue("--font-mono").trim(), primary: style.getPropertyValue("--primary").trim() };
+    });
+    expect(tokens.background).not.toBe("");
+    expect(tokens.primary).not.toBe("");
+    expect(tokens.mono).toContain("ui-monospace");
+    // The app's stylesheet clears html and body under the desktop class for the glass; this page paints its own ground.
+    expect(await page.$eval(".ground", el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    // The welcome is the mark and one button, and nothing behind it: a Mac is never a place, so no join screen.
+    expect(await page.$$eval("#welcome h1, #welcome p", els => els.length)).toBe(0);
+    expect(await page.$$eval("#welcome button", els => els.map(el => el.id))).toEqual(["start"]);
+    expect(await page.textContent("#start")).toContain("Get started");
+    expect(await page.$("#computer")).toBeNull();
+    expect(await page.$$eval(".setup", els => els.map(el => `${el.id}:${(el as HTMLElement).hidden}`))).toEqual(["welcome:false", "agents:true"]);
+    expect(await fits()).toBe(true);
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    expect(await page.$$eval(":focus-visible", els => els.length)).toBe(0);
+    console.info(`welcome: ${(await photograph(app, page, "onboarding-welcome")).join(" ")}`);
+    // The scan is the recipe scan's own: one row per catalog agent, the two on this fixture's PATH ticked and the
+    // rest held, and the line under the card says where agents installed later get the tools.
+    const here = CATALOG_AGENTS.filter(a => a.id === "claude" || a.id === "codex");
+    await page.waitForFunction(() => (document.querySelector("#line")?.textContent ?? "") !== "", undefined, { timeout: 30_000 });
+    await page.click("#start");
+    expect(await page.$$eval(".setup", els => els.map(el => `${el.id}:${(el as HTMLElement).hidden}`))).toEqual(["welcome:true", "agents:false"]);
+    expect(await page.$$eval("#rows .row", els => els.length)).toBe(CATALOG_AGENTS.length);
+    expect(await page.$$eval("#rows input:checked", els => els.map(el => (el as HTMLInputElement).value))).toEqual(here.map(a => a.id));
+    expect(await page.$$eval("#rows input:disabled", els => els.length)).toBe(CATALOG_AGENTS.length - here.length);
+    expect(await page.textContent("#line")).toBe("Agents you install later get the tools from Settings.");
+    expect(await page.textContent("#open")).toContain("Open wsp");
+    // The column is the sheet screen's, and nothing scrolls.
+    expect(await page.$eval("#agents", el => el.getBoundingClientRect().width)).toBe(560);
+    expect(await fits()).toBe(true);
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    expect(await page.$$eval(":focus-visible", els => els.length)).toBe(0);
+    console.info(`agents: ${(await photograph(app, page, "onboarding-agents")).join(" ")}`);
+
+    // Enter is the keycap: the tools into both agents found here, then the app. An event asked for after it has
+    // fired never arrives, and the finish closes this window while the key is in flight.
+    const closed = page.waitForEvent("close");
+    await page.keyboard.press("Enter");
+    const win = await windowAt(app, APP_URL);
+    const boot = await bootOf(win);
+    expect(boot.tokenHash).toMatch(DIGEST);
+    await closed;
+    await vi.waitFor(() => expect(appWindows(app)).toHaveLength(1), { timeout: 10_000, interval: 50 });
+    // A workspace is one project's copy, so this press records neither: the app opens on the first run, whose one
+    // button opens Add a project. The screen standing is what says the host read the state back, so the file holds
+    // everything the launch wrote by then.
+    await win.waitForSelector("[data-k=first-run]");
+    const state = sqliteStore(join(home, "state.json"), SMOKE_WRITER);
+    expect(await state.keys("workspaces")).toEqual([]);
+    expect(await state.keys("projects")).toEqual([]);
+    expect(existsSync(join(home, ".env"))).toBe(false);
+    expect(await win.locator("[data-row-id^='ws:']").count()).toBe(0);
+    // The tick was live, so both agents found here carry the wsp server and its skill, with the shim as the command.
+    expect(JSON.parse(readFileSync(join(home, ".claude.json"), "utf8"))).toEqual({ mcpServers: { wsp: { command: shim, args: ["mcp", "--state", join(home, "state.json")] } } });
+    expect(existsSync(join(home, ".claude", "skills", "wsp", "SKILL.md"))).toBe(true);
+    expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toContain("[mcp_servers.wsp]");
+
+    // The first run's one button opens Add a project, whose computers column holds the door for the person who came
+    // for a box.
+    const add = win.locator("[data-k=first-run] [data-k=add-project]");
+    await add.waitFor();
+    expect(await add.textContent()).toBe(FIRST_RUN_WORDS.add);
+    const shots: string[] = [];
+    // The shots show the shell at rest: no focus ring from the click that just happened, and the theme painted. One
+    // side only: the page says system and nothing else, so the app draws the side this computer is set to and a shot
+    // of the other one is this Mac's appearance to change, not this run's.
+    const rest = async (): Promise<void> => {
+      await win.evaluate(() => {
+        (document.activeElement as HTMLElement | null)?.blur();
+        return new Promise<void>(done => requestAnimationFrame(() => requestAnimationFrame(() => done())));
+      });
+    };
+    await rest();
+    shots.push(await photographPage(win, join(SHOTS, "app-first-run.png")));
+    await add.click();
+    const door = win.locator("[role=dialog] [data-k=add-computer]");
+    await door.click();
+    // The door closes Add a project and opens Settings on Computers under Add a computer, one dialog of its own.
+    const adding = win.locator("[role=dialog][data-add-computer]");
+    await adding.waitFor();
+    await vi.waitFor(async () => expect(await win.getByRole("dialog").count()).toBe(1));
+    await win.locator("[data-settings-page] [data-k=add-computer-button]").waitFor({ state: "attached" });
+    expect(await adding.textContent()).toContain(ADD_COMPUTER_WORDS.title);
+    expect(await adding.textContent()).not.toMatch(/wsp init|terminal/i);
+    await rest();
+    shots.push(await photographPage(win, join(SHOTS, "app-add-computer.png")));
+    await win.keyboard.press("Escape");
+    await adding.waitFor({ state: "detached" });
+    await win.keyboard.press("Escape");
+    await win.locator("[data-settings-page]").waitFor({ state: "detached" });
+    await win.locator("[data-k=first-run]").waitFor();
+    console.info(`the app on first launch: ${shots.join(" ")}`);
+
+    // The shim is the wsp command: it runs the bundled host as node, and an install through it writes the shim too.
+    const env = { ...process.env, HOME: home, WSP_HOME: home };
+    const version = spawnSync(shim, ["--version"], { encoding: "utf8", env });
+    expect(version.stderr).toBe("");
+    expect(version.stdout).toBe(`wsp ${VERSION}\n`);
+    const installed = spawnSync(shim, ["mcp", "install", "--agent", "codex", "--json", "--state", join(home, "state.json")], { encoding: "utf8", env, cwd: join(home, "cwd") });
+    expect(installed.status).toBe(0);
+    const report = JSON.parse(installed.stdout) as InstallReport;
+    expect(report.server).toEqual({ command: shim, args: ["mcp", "--state", join(home, "state.json")] });
+    expect(report.installed.map(p => p.id)).toEqual(["codex"]);
+  });
+
+  it("with every tick taken off Open wsp is held, says why, and leaves every agent's config alone", async () => {
+    launched = await launch({ PATH: "/usr/bin:/bin" }, twoAgents);
+    const { app, home } = launched;
+    const page = await windowAt(app, ONBOARDING_URL);
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForFunction(() => (document.querySelector("#line")?.textContent ?? "") !== "", undefined, { timeout: 30_000 });
+    await page.click("#start");
+    for (const id of ["claude", "codex"]) await page.click(`#rows input[value=${id}]`);
+    expect(await page.$$eval("#rows input:checked", els => els.length)).toBe(0);
+    expect(await page.isDisabled("#open")).toBe(true);
+    expect(await page.textContent("#line")).toBe("Tick at least one agent. wsp works through the agents you give it.");
+    expect(appWindows(app).filter(w => APP_URL.test(w.url()))).toHaveLength(0);
+    // The fixture's own files are what the scan found the two agents by; neither gained the wsp server.
+    expect(existsSync(join(home, ".claude.json"))).toBe(false);
+    expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toBe("");
+    expect(existsSync(join(home, ".claude", "skills", "wsp"))).toBe(false);
+    expect(await sqliteStore(join(home, "state.json"), SMOKE_WRITER).keys("workspaces")).toEqual([]);
+  });
+
+  it("with no provider key the welcome opens while nothing is recorded, and a recorded local workspace opens the app on it instead", async () => {
+    // The two launches differ by the seed alone, so what decides the window is the record and not the missing key.
+    launched = await launch({});
+    const welcome = await windowAt(launched.app, ONBOARDING_URL);
+    await welcome.waitForLoadState("domcontentloaded");
+    expect(await welcome.textContent("#start")).toContain("Get started");
+    expect(appWindows(launched.app).filter(w => APP_URL.test(w.url()))).toHaveLength(0);
+    await quit(launched.app);
+    await stopServiceOf(launched);
+    rmSync(launched.home, { recursive: true, force: true });
+
+    launched = await launch({}, seedLocalWorkspace);
+    const win = await windowAt(launched.app, APP_URL);
+    const boot = await bootOf(win);
+    expect(boot.tokenHash).toMatch(DIGEST);
+    await openedOnSeeded(win);
+    // The composer names the branch the seeded project folder stands on.
+    await win.locator("[data-composer-branch='main']").waitFor();
+    // Nothing was started on the way in.
+    expect(await win.locator("[data-row-id^='thread:']").count()).toBe(0);
+    expect(appWindows(launched.app).filter(w => ONBOARDING_URL.test(w.url()))).toHaveLength(0);
+    expect(existsSync(join(launched.home, ".env"))).toBe(false);
+  });
+
+  it("two turns on this computer outlive a SIGTERM to the service's host: the manager starts a new one, the next launch reads both working and both replies land", async () => {
+    // What wsp restart and a crash both come to: the host the manager started ends, and the manager starts it again.
+    // The manager ends what is left of the job's own process group with it, so a turn outlives it only by leading a
+    // group of its own. Two turns, since every turn on this computer shares its run folder.
+    const agents = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-agents-"));
+    const gate = join(agents, "gate");
+    const pidFile = join(agents, "claude.pids");
+    claudeStandIn(join(agents, "bin"), gate, pidFile);
+    const env = { PATH: `${join(agents, "bin")}:${LAUNCHD_PATH.join(":")}` };
+    let claudes: number[] = [];
+    try {
+      launched = await launch(env, seedLocalWorkspace);
+      const { home } = launched;
+      const win = await windowAt(launched.app, APP_URL);
+      await openedOnSeeded(win);
+      const wsp = (...args: string[]): string => {
+        const ran = spawnSync(shimPath(home), args, { encoding: "utf8", env: { ...process.env, ...env, HOME: home, WSP_HOME: home }, cwd: join(home, "cwd") });
+        expect(ran.status, `${ran.stdout}${ran.stderr}`).toBe(0);
+        return ran.stdout;
+      };
+      for (const task of ["fix the cart", "fix the login"]) wsp("run", LOCAL_WORKSPACE.name, "--agent", "claude", "--detach", task);
+      claudes = await vi.waitFor(
+        () => {
+          const pids = readFileSync(pidFile, "utf8").trim().split("\n").map(Number);
+          expect(pids).toHaveLength(2);
+          return pids;
+        },
+        { timeout: 30_000, interval: 100 },
+      );
+      const statuses = (page: Page): Promise<(string | null)[]> => page.locator("[data-row-id^='thread:'] [data-thread-status]").evaluateAll(marks => marks.map(m => m.getAttribute("data-thread-status")));
+      await vi.waitFor(async () => expect(await statuses(win)).toEqual(["working", "working"]), { timeout: 30_000, interval: 100 });
+      const threads = await win.locator("[data-row-id^='thread:']").evaluateAll(rows => rows.map(r => r.getAttribute("data-row-id")!.slice("thread:".length)));
+
+      const { statePath } = launched;
+      const first = servingHost(statePath)!;
+      expect(first.startedBy).toBe("service");
+      process.kill(first.pid, "SIGTERM");
+      const second = await vi.waitFor(
+        async () => {
+          const now = servingHost(statePath);
+          expect(now !== undefined && now.pid !== first.pid && !alive(first.pid) && !(await refused(`http://127.0.0.1:${now.port}/`))).toBe(true);
+          return now!;
+        },
+        { timeout: 40_000, interval: 250 },
+      );
+      if (process.platform === "darwin") expect(Number(spawnSync("ps", ["-o", "ppid=", "-p", String(second.pid)], { encoding: "utf8", timeout: 20_000 }).stdout.trim())).toBe(1);
+      expect(claudes.filter(pid => !alive(pid)), "a turn went with the host").toEqual([]);
+
+      await quit(launched.app);
+      launched = await launchIn(home, env);
+      const again = await windowAt(launched.app, APP_URL);
+      await vi.waitFor(async () => expect(await statuses(again)).toHaveLength(2), { timeout: 30_000, interval: 100 });
+      // Read for a while rather than once: a turn written off on the way back reads working until the re-opened reader
+      // finds its process gone.
+      for (let i = 0; i < 20; i++) {
+        expect(await statuses(again)).toEqual(["working", "working"]);
+        await again.waitForTimeout(150);
+      }
+      expect(claudes.filter(pid => !alive(pid)), "the next launch ended a turn").toEqual([]);
+      writeFileSync(gate, "go\n");
+      for (const thread of threads) await vi.waitFor(() => expect(wsp("thread", "read", thread)).toContain("wrote the fix"), { timeout: 30_000, interval: 250 });
+    } finally {
+      for (const pid of claudes) if (alive(pid)) process.kill(pid, "SIGKILL");
+      rmSync(agents, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it.runIf(process.platform === "darwin")(
+    "with no window open, the menu bar's Quit answered Quit ends the app and leaves wsp serving",
+    async () => {
+      launched = await launch({}, seedLocalWorkspace);
+      const { app, statePath } = launched;
+      const win = await windowAt(app, APP_URL);
+      await openedOnSeeded(win);
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(w => w.close()));
+      await vi.waitFor(() => expect(appWindows(app)).toHaveLength(0), { timeout: 10_000, interval: 100 });
+      const host = servingHost(statePath)!;
+      const exited = new Promise<"exited">(resolve => app.process().once("exit", () => resolve("exited")));
+      const picked = Date.now();
+      // The question is answered Quit as a person answers it, and the row is the menu bar's own, picked with no window.
+      await app.evaluate(({ dialog }, answer) => {
+        dialog.showMessageBox = (async (...args: unknown[]) => {
+          const options = args.at(-1) as { buttons?: string[] };
+          return { response: options.buttons?.indexOf(answer) ?? 0, checkboxChecked: false };
+        }) as typeof dialog.showMessageBox;
+        (globalThis as unknown as { wspTray: { pick(what: TrayAct): void } }).wspTray.pick({ kind: "quit" });
+      }, "Quit");
+      const ended = await Promise.race([exited, new Promise<"still running">(resolve => setTimeout(() => resolve("still running"), 15_000))]);
+      // How long the quit takes is what a check made the moment the row is picked would race.
+      console.error(ended === "exited" ? `the app quit ${Date.now() - picked} ms after the menu bar's Quit` : ["the app after the menu bar's Quit:", ...launched.said.slice(-20)].join("\n"));
+      expect(ended).toBe("exited");
+      expect(alive(host.pid)).toBe(true);
+      expect(servingHost(statePath)?.pid).toBe(host.pid);
+      await stopServiceOf(launched);
+    },
+    60_000,
+  );
+
+  /** Answers the quit's question with `answer` from here on, as a person would, and runs `then` inside the app once
+   * it has answered: what the case needs to land while the answer is being acted on. */
+  const answerQuit = (app: ElectronApplication, answer: string, then: "activate" | "nothing" = "nothing"): Promise<void> =>
+    app.evaluate(({ app: electronApp, dialog }, [label, after]) => {
+      electronApp.on("browser-window-created", () => console.error("smoke: a window opened"));
+      dialog.showMessageBox = (async (...args: unknown[]) => {
+        const options = args.at(-1) as { buttons?: string[] };
+        // The activate a Dock click or macOS hands the app, landing while the answer is still being carried out.
+        if (after === "activate") setTimeout(() => electronApp.emit("activate"), 50);
+        return { response: options.buttons?.indexOf(label) ?? 0, checkboxChecked: false };
+      }) as typeof dialog.showMessageBox;
+    }, [answer, then] as const);
+
+  it.runIf(process.platform === "darwin")(
+    "with no window open, the menu bar's Quit and stop wsp stops wsp and ends the app, and an activate during the stop opens nothing",
+    async () => {
+      launched = await launch({}, seedLocalWorkspace);
+      const { app, statePath } = launched;
+      const win = await windowAt(app, APP_URL);
+      await openedOnSeeded(win);
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(w => w.close()));
+      await vi.waitFor(() => expect(appWindows(app)).toHaveLength(0), { timeout: 10_000, interval: 100 });
+      const host = servingHost(statePath)!;
+      const exited = new Promise<"exited">(resolve => app.process().once("exit", () => resolve("exited")));
+      await answerQuit(app, "Quit and stop wsp", "activate");
+      await app.evaluate(() => (globalThis as unknown as { wspTray: { pick(what: TrayAct): void } }).wspTray.pick({ kind: "quit" }));
+      const ended = await Promise.race([exited, new Promise<"still running">(resolve => setTimeout(() => resolve("still running"), 40_000))]);
+      expect(ended, launched.said.slice(-20).join("\n")).toBe("exited");
+      expect(launched.said.filter(line => line.includes("smoke: a window opened")), "a window opened while wsp was stopping").toEqual([]);
+      await vi.waitFor(() => expect(alive(host.pid)).toBe(false), { timeout: 30_000, interval: 200 });
+      expect(servingHost(statePath), "the stop was undone: something serves the state file again").toBeUndefined();
+    },
+    120_000,
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "a quit whose question is cancelled leaves the app as it was: Open from the menu bar opens a window again",
+    async () => {
+      launched = await launch({}, seedLocalWorkspace);
+      const { app } = launched;
+      const win = await windowAt(app, APP_URL);
+      await openedOnSeeded(win);
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(w => w.close()));
+      await vi.waitFor(() => expect(appWindows(app)).toHaveLength(0), { timeout: 10_000, interval: 100 });
+      await answerQuit(app, "Cancel");
+      await app.evaluate(() => (globalThis as unknown as { wspTray: { pick(what: TrayAct): void } }).wspTray.pick({ kind: "quit" }));
+      await app.evaluate(() => (globalThis as unknown as { wspTray: { pick(what: TrayAct): void } }).wspTray.pick({ kind: "openApp" }));
+      const again = await windowAt(app, APP_URL);
+      await openedOnSeeded(again);
+      expect(app.process().exitCode).toBeNull();
+    },
+    60_000,
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "with the window closed, the menu bar counts a working thread and holds the computer awake, marks the prompt it raises, and its Allow lets the turn finish",
+    async () => {
+      const agents = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-agents-"));
+      const gate = join(agents, "gate");
+      const pidFile = join(agents, "claude.pids");
+      claudeStandIn(join(agents, "bin"), gate, pidFile, { asks: true });
+      const env = { PATH: `${join(agents, "bin")}:${LAUNCHD_PATH.join(":")}` };
+      try {
+        launched = await launch(env, seedLocalWorkspace);
+        const { app, home } = launched;
+        const win = await windowAt(app, APP_URL);
+        await openedOnSeeded(win);
+        const appPid = app.process().pid!;
+        await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(w => w.close()));
+        await vi.waitFor(() => expect(appWindows(app)).toHaveLength(0), { timeout: 10_000, interval: 100 });
+        const wsp = (...args: string[]): string => {
+          const ran = spawnSync(shimPath(home), args, { encoding: "utf8", env: { ...process.env, ...env, HOME: home, WSP_HOME: home }, cwd: join(home, "cwd"), timeout: 30_000 });
+          expect(ran.status, `${ran.stdout}${ran.stderr}`).toBe(0);
+          return ran.stdout;
+        };
+        const menu = (): Promise<{ model: TrayModel | undefined; awake: boolean }> =>
+          app.evaluate(() => {
+            const handle = (globalThis as unknown as { wspTray: { model(): TrayModel | undefined; awake(): boolean } }).wspTray;
+            return { model: handle.model(), awake: handle.awake() };
+          });
+        // The app's own pid or one of its helpers': which of them Chromium takes the assertion in is Chromium's. pmset
+        // lists it by process as NoIdleSleepAssertion, which its summary counts as PreventUserIdleSystemSleep.
+        const ours = (): number[] => [appPid, ...spawnSync("ps", ["-A", "-o", "pid=,ppid="], { encoding: "utf8", timeout: 20_000 }).stdout.split("\n").map(l => l.trim().split(/\s+/).map(Number)).filter(([, ppid]) => ppid === appPid).map(([pid]) => pid!)];
+        const held = (): boolean => {
+          const pids = ours();
+          return spawnSync("pmset", ["-g", "assertions"], { encoding: "utf8", timeout: 20_000 }).stdout.split("\n").some(line => /NoIdleSleepAssertion|PreventUserIdleSystemSleep/.test(line) && pids.some(pid => line.includes(`pid ${pid}(`)));
+        };
+        // At full access the host allows a tool's prompt itself, so the turn runs where a prompt reaches the person.
+        const thread = wsp("run", LOCAL_WORKSPACE.name, "--agent", "claude", "--access", "ask", "--detach", "print a line, then run sleep 5").trim().split(/\s+/).find(word => /^[0-9a-f]{8,}$/.test(word));
+
+        // Working: the count reads 1 and this computer is held awake, which pmset names by the app's own pid.
+        await vi
+          .waitFor(async () => expect(await menu()).toMatchObject({ model: { title: "1", needsYou: false }, awake: true }), { timeout: 30_000, interval: 200 })
+          .catch(async (e: unknown) => {
+            const turns = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim() : "(no turn started)";
+            console.error(["the menu:", JSON.stringify(await menu()), "the threads:", wsp("threads", "--json"), "the stand-in's turns:", turns].join("\n"));
+            throw e;
+          });
+        // Chromium takes the assertion on a task of its own, a moment after the app asked for it.
+        await vi.waitFor(() => expect(held()).toBe(true), { timeout: 10_000, interval: 250 }).catch((e: unknown) => {
+          console.error([`the app and its helpers: ${ours().join(" ")}`, spawnSync("pmset", ["-g", "assertions"], { encoding: "utf8", timeout: 20_000 }).stdout].join("\n"));
+          throw e;
+        });
+
+        // Asking: the mark stands, the row offers Allow, and a thread waiting on the person is not working.
+        writeFileSync(gate, "go\n");
+        const allow = await vi.waitFor(
+          async () => {
+            const { model, awake } = await menu();
+            expect(model?.needsYou).toBe(true);
+            expect(awake).toBe(false);
+            const row = model!.rows.find(r => r.kind === "thread");
+            const pick = row?.kind === "thread" ? row.actions.find(a => a.label === TRAY_WORDS.allow) : undefined;
+            expect(pick).toBeDefined();
+            return pick!.act;
+          },
+          { timeout: 30_000, interval: 200 },
+        );
+        await app.evaluate((_electron, act) => (globalThis as unknown as { wspTray: { pick(what: TrayAct): void } }).wspTray.pick(act), allow);
+
+        // Allowed: the turn finishes, the menu has no live row, the assertion is gone and the dock counts the finish
+        // nobody has seen yet.
+        await vi.waitFor(async () => expect((await menu()).model?.rows.some(r => r.kind === "thread")).toBe(false), { timeout: 30_000, interval: 200 });
+        expect((await menu()).awake).toBe(false);
+        await vi.waitFor(() => expect(held()).toBe(false), { timeout: 10_000, interval: 250 });
+        await vi.waitFor(async () => expect(await app.evaluate(({ app: electronApp }) => electronApp.getBadgeCount())).toBe(1), { timeout: 10_000, interval: 200 });
+        if (thread !== undefined) expect(wsp("thread", "read", thread)).toContain("wrote the fix");
+      } finally {
+        for (const pid of existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim().split("\n").map(Number) : []) if (alive(pid)) process.kill(pid, "SIGKILL");
+        rmSync(agents, { recursive: true, force: true });
+      }
+    },
+    120_000,
+  );
+
+  it("no page in the browser tab's guest registers a service worker on a loopback origin, and after the Hosts menu reload no session the app made runs one", async () => {
+    const served = await workerPage();
+    standIn = served.server;
+    // A workspace no thread names has no row and no actions, so one turn runs to its reply first and its thread is
+    // what the person opens.
+    const agents = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-agents-"));
+    const gate = join(agents, "gate");
+    writeFileSync(gate, "go\n");
+    claudeStandIn(join(agents, "bin"), gate, join(agents, "claude.pids"));
+    const env = { PATH: `${join(agents, "bin")}:${LAUNCHD_PATH.join(":")}` };
+    launched = await launch(env, seedLocalWorkspace);
+    const win = await windowAt(launched.app, APP_URL);
+    await openedOnSeeded(win);
+    const { home } = launched;
+    const ran = spawnSync(shimPath(home), ["run", LOCAL_WORKSPACE.name, "--agent", "claude", "fix the cart"], { encoding: "utf8", env: { ...process.env, ...env, HOME: home, WSP_HOME: home }, cwd: join(home, "cwd"), timeout: 30_000 });
+    rmSync(agents, { recursive: true, force: true });
+    expect(ran.status, `${ran.stdout}${ran.stderr}`).toBe(0);
+    await win.click("[data-row-id^='thread:']");
+    // The browser tab on this computer's own workspace is where a person types a port in, and its page is a guest.
+    await win.keyboard.press("Meta+k");
+    await win.locator("[data-command-palette]").getByText(WORKSPACE_WORDS.openBrowser, { exact: true }).click();
+    await win.fill("[data-preview-url-input]", `localhost:${served.port}`);
+    await win.press("[data-preview-url-input]", "Enter");
+    const top = `http://localhost:${served.port}/`;
+    const nested = `http://127.0.0.1:${served.port}/nested`;
+    // The road the finding names is the 127.0.0.1 frame, which is the nested one; the localhost page is the same
+    // rule read on the other spelling, and neither may plant a worker on a port the kernel hands out again.
+    expect(await inGuest(launched.app, top, "registerWorker()")).toMatch(/^refused/);
+    expect(await inGuest(launched.app, nested, "registerWorker()")).toMatch(/^refused/);
+    // The rule is the worker's alone: the page keeps its own storage.
+    expect(await inGuest(launched.app, top, 'localStorage.setItem("wsp-smoke", "kept"); localStorage.getItem("wsp-smoke")')).toBe("kept");
+    // And the move a person makes through the Hosts menu loads the host page with the session swept first. The window
+    // is on that url already, so the reload is its own navigation of the main frame, waited for as one.
+    const reloaded = win.waitForEvent("framenavigated", { predicate: frame => frame === win.mainFrame() });
+    await hostsMenu(launched.app, computerNameHere());
+    await reloaded;
+    expect(win.url()).toMatch(APP_URL);
+    // The window's session and the guests' are the only two the app makes.
+    expect(await launched.app.evaluate(({ session }, partition) => [session.defaultSession, session.fromPartition(partition)].map(s => Object.keys(s.serviceWorkers.getAllRunning()).length), BROWSER_PARTITION)).toEqual([0, 0]);
+  });
+
+  it("does not attach to a host on the port that no lock beside the resolved home names: the first launch runs", async () => {
+    // Any login on this computer can bind a port and answer with the boot line; the lock beside the state file of
+    // the home this launch resolved is what says a host of the owner's is serving, and there is none here.
+    existing = await fixtureHost();
+    launched = await launch({ WSP_HOME: undefined });
+    const page = await windowAt(launched.app, ONBOARDING_URL);
+    await page.waitForLoadState("domcontentloaded");
+    expect(await page.textContent("#start")).toContain("Get started");
+    expect(appWindows(launched.app).filter(w => APP_URL.test(w.url()))).toHaveLength(0);
+    expect(servingHost(launched.statePath)?.port).not.toBe(existing.port);
+    await quit(launched.app);
+    // The host on that port was never touched: it is still serving, with the page it was serving before.
+    expect(await refused(`http://127.0.0.1:${existing.port}/`)).toBe(false);
+  });
+
+  it("attached to a host of a later release, says so in a notice with the releases page behind its button", async () => {
+    existing = await startHost({ runtime: testRuntime(true, LABS_ON), webDir: workspaceAsset("web"), port: 0 });
+    const stand = await hostOfVersion(existing, "9.9.9");
+    standIn = stand.server;
+    launched = await launch({ WSP_HOME: undefined }, home => seedServingLock(join(home, ".wsp"), { port: stand.port, token: existing!.authToken }));
+    const win = await windowAt(launched.app, APP_URL);
+    const notice = win.locator("[data-notice]", { hasText: VERSION_LINE });
+    await notice.waitFor();
+    expect(await notice.textContent()).toContain(`this app is ${VERSION}, the host is 9.9.9: get the new app`);
+    expect(await notice.locator("[data-notice-action]").textContent()).toBe(GET_THE_APP_WORD);
+    // The settings page names both halves as well, on General's Version card, so the notice is never the only place the numbers are.
+    // The palette's Settings row is the road through it.
+    await win.keyboard.press("Meta+k");
+    await win.locator("[data-command-palette]").getByText(SETTINGS_WORDS.title, { exact: true }).click();
+    await win.waitForSelector("[data-settings-page]");
+    await win.locator("[data-k=settings-general]").click();
+    await win.waitForSelector("[data-settings-at=general]");
+    expect(await win.locator("[data-k=app-version] [data-settings-word]").textContent()).toBe(VERSION);
+    expect(await win.locator("[data-k=host-version] [data-settings-word]").textContent()).toBe("9.9.9");
+  });
+
+  it("attached to a host of an earlier release a verb started, replaces it with its own service and opens on its own release", async () => {
+    existing = await startHost({ runtime: testRuntime(true), webDir: workspaceAsset("web"), port: 0 });
+    const stand = await hostOfVersion(existing, "0.0.1");
+    standIn = stand.server;
+    // The older host's own process: the app stops it by the pid its lock names, as wsp down does.
+    const older = spawn("sleep", ["300"], { stdio: "ignore" });
+    try {
+      launched = await launch({ WSP_HOME: undefined }, home => {
+        seedLocalWorkspace(join(home, ".wsp"));
+        seedServingLock(join(home, ".wsp"), { port: stand.port, token: existing!.authToken }, { pid: older.pid!, startedBy: "verb" });
+      });
+      const win = await windowAt(launched.app, APP_URL);
+      await openedOnSeeded(win);
+      expect((await bootOf(win)).version).toBe(VERSION);
+      expect(new URL(win.url()).port).not.toBe(String(stand.port));
+      expect(servingHost(launched.statePath)?.startedBy).toBe("service");
+      expect(alive(older.pid!)).toBe(false);
+      expect(await win.locator("[data-notice]", { hasText: VERSION_LINE }).count()).toBe(0);
+    } finally {
+      older.kill();
+    }
+  });
+
+  it("attached to a host of its own release, says nothing at all", async () => {
+    existing = await startHost({ runtime: testRuntime(true), webDir: workspaceAsset("web"), port: 0 });
+    launched = await launch({ WSP_HOME: undefined }, home => seedServingLock(join(home, ".wsp"), { port: existing!.port, token: existing!.authToken }));
+    const win = await windowAt(launched.app, APP_URL);
+    await win.waitForSelector("[data-slot=sidebar-container]");
+    // The page asks the shell for its hosts on load and says the versions once that answers; a second ask answers
+    // after the first, and a frame later anything it said is drawn.
+    await win.evaluate(async () => {
+      await (window as unknown as { wsp: { hosts(): Promise<unknown> } }).wsp.hosts();
+      await new Promise<void>(done => requestAnimationFrame(() => requestAnimationFrame(() => done())));
+    });
+    expect(await win.locator("[data-notice]", { hasText: VERSION_LINE }).count()).toBe(0);
+  });
+
+  it("keeps a log and crash dumps under ~/.wsp/logs: a forced error in main and in the page each land in app.log with a time, and a forced renderer crash leaves a dump that is never uploaded and a line", async () => {
+    existing = await startHost({ runtime: testRuntime(true), webDir: workspaceAsset("web"), port: 0 });
+    launched = await launch({ WSP_HOME: undefined }, home => seedServingLock(join(home, ".wsp"), { port: existing!.port, token: existing!.authToken }));
+    const logs = join(launched.home, ".wsp", "logs");
+    const TIME = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z /;
+    /** The log's entries, each line that opens with its time, the time taken off; a stack's lines open with none. */
+    const entries = (): string[] => (existsSync(join(logs, "app.log")) ? readFileSync(join(logs, "app.log"), "utf8").split("\n").filter(line => TIME.test(line)).map(line => line.replace(TIME, "")) : []);
+    const win = await windowAt(launched.app, APP_URL);
+    await win.waitForSelector("[data-slot=sidebar-container]");
+    expect(await launched.app.evaluate(({ crashReporter }) => crashReporter.getUploadToServer())).toBe(false);
+    await launched.app.evaluate(() => void setTimeout(() => void Promise.reject(new Error("forced main error"))));
+    await win.evaluate(() => void setTimeout(() => {
+      throw new Error("forced renderer error");
+    }));
+    await vi.waitFor(() => expect(entries()).toContain("error main: unhandled rejection: Error: forced main error"), { timeout: 10_000, interval: 100 });
+    await vi.waitFor(() => expect(entries()).toContain("error renderer: uncaught at /: Uncaught Error: forced renderer error"), { timeout: 10_000, interval: 100 });
+    expect(entries().filter(e => e.startsWith(`info attached http://127.0.0.1:${existing!.port} (wsp ${VERSION}, state `))).toHaveLength(1);
+    await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.forcefullyCrashRenderer());
+    // The reason is the platform's: Linux crashes the renderer outright, while macOS dumps it as hung and shuts it down.
+    const gone = new RegExp(`^error renderer gone: [a-z-]+ \\(exit -?\\d+\\) at http://127\\.0\\.0\\.1:${existing.port}/; dumps in .*${join(".wsp", "logs", "crashes").replace(/\//g, "\\/")}$`);
+    await vi.waitFor(() => expect(entries().filter(e => gone.test(e)), entries().join("\n")).toHaveLength(1), { timeout: 10_000, interval: 100 });
+    // Crashpad files a dump under the folder's own pending or completed, by platform and by upload state.
+    const crashFiles = (): string[] => readdirSync(join(logs, "crashes"), { recursive: true }) as string[];
+    await vi.waitFor(() => expect(crashFiles().filter(file => file.endsWith(".dmp")), crashFiles().join("\n")).not.toHaveLength(0), { timeout: 20_000, interval: 200 });
+  });
+
+  it.runIf(process.platform === "linux")("Settings > General's Open logs opens the logs folder in the file manager", async () => {
+    existing = await startHost({ runtime: testRuntime(true), webDir: workspaceAsset("web"), port: 0 });
+    // The file manager a Linux desktop opens a folder with, standing in first on the app's PATH: it says what it was handed.
+    const stubs = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-open-"));
+    const opened = join(stubs, "opened");
+    writeStub(join(stubs, "xdg-open"), `#!/bin/sh\nprintf '%s\\n' "$1" >> ${JSON.stringify(opened)}\n`);
+    try {
+      launched = await launch({ WSP_HOME: undefined, PATH: `${stubs}:${process.env["PATH"] ?? ""}` }, home => seedServingLock(join(home, ".wsp"), { port: existing!.port, token: existing!.authToken }));
+      const win = await windowAt(launched.app, APP_URL);
+      await win.locator("[data-k=settings-row]").click();
+      await win.locator("[data-k=settings-general]").click();
+      const open = win.locator("[data-k=open-logs]");
+      await open.scrollIntoViewIfNeeded();
+      await photographPage(win, join(SHOTS, "settings-general-logs.png"));
+      await open.click();
+      await vi.waitFor(() => expect(existsSync(opened) ? readFileSync(opened, "utf8") : "").toBe(`${join(launched!.home, ".wsp", "logs")}\n`), { timeout: 10_000, interval: 100 });
+    } finally {
+      rmSync(stubs, { recursive: true, force: true });
+    }
+  });
+
+  it("a turn that finished while the window was away is a system notification with the page's line by default, held past a collection, its click raises the window on that thread, and a click after the window closed opens it again", async () => {
+    // A harness whose turn ends when the case says, so it ends with the window hidden.
+    const ends: (() => void)[] = [];
+    const claude: HarnessAdapterFactory = () => ({
+      steers: false,
+      start: ({ onEvent }) => {
+        const sessionId = `sess_${ends.length}`;
+        const finished = new Promise<TurnResult>(resolve =>
+          ends.push(() => {
+            const result: TurnResult = { status: "completed", text: "done" };
+            onEvent({ type: "session.start", sessionId, cwd: "/root", model: "claude-opus-5" });
+            onEvent({ type: "turn.done", sessionId, result });
+            onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+            resolve(result);
+          }),
+        );
+        return { localId: sessionId, finished, interrupt: async () => {} };
+      },
+    });
+    const runtime = testRuntime(true, {}, { claude });
+    existing = await startHost({ runtime, webDir: workspaceAsset("web"), port: 0 });
+    await seedProject(existing);
+    const first = await existing.createWorkspace("first");
+    launched = await launch({ WSP_HOME: undefined }, home => seedServingLock(join(home, ".wsp"), { port: existing!.port, token: existing!.authToken }));
+    const { app } = launched;
+    const win = await windowAt(app, APP_URL);
+    const threads: string[] = [];
+    for (const prompt of ["fix the cart", "fix the login"]) threads.push((await runtime.sessions.start(first.id, { prompt, harness: "claude", startedBy: "cli" })).view().threadId!);
+    await win.waitForSelector(`[data-row-id='${threadRowId(threads[1]!)}']`);
+    // Every Notification the shell shows, by a weak hold, with what it was built with and what the system said; once
+    // the collections are read, the next ones are held here too, so a refused one can still be clicked.
+    await app.evaluate(({ Notification }) => {
+      type Seen = { note: WeakRef<Electron.Notification>; title: string; body: string; silent: boolean; said?: string };
+      const seen: Seen[] = [];
+      const clickable: Electron.Notification[] = [];
+      Object.assign(globalThis, { __notes: seen, __clickable: clickable });
+      const show = Notification.prototype.show;
+      Notification.prototype.show = function (this: Electron.Notification) {
+        const at: Seen = { note: new WeakRef(this), title: this.title, body: this.body, silent: this.silent };
+        seen.push(at);
+        if ((globalThis as { __hold?: boolean }).__hold === true) clickable.push(this);
+        this.on("show", () => (at.said = "shown"));
+        this.on("failed", (_event, error) => (at.said = error));
+        show.call(this);
+      };
+    });
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(w => w.hide()));
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(w => w.isFocused()))).toBe(false);
+    ends[0]!();
+    ends[1]!();
+    type Seen = { title: string; body: string; silent: boolean; said?: string; alive: boolean };
+    const notes = (): Promise<Seen[]> =>
+      app.evaluate(async () => {
+        const gc = process.getBuiltinModule("node:vm").runInNewContext("gc") as () => void;
+        for (let i = 0; i < 3; i++) {
+          await new Promise(resolve => setImmediate(resolve));
+          gc();
+        }
+        return (globalThis as unknown as { __notes: { note: WeakRef<object>; title: string; body: string; silent: boolean; said?: string }[] }).__notes.map(({ note, ...rest }) => ({ ...rest, alive: note.deref() !== undefined }));
+      });
+    await app.evaluate(() => process.getBuiltinModule("node:v8").setFlagsFromString("--expose-gc"));
+    const said = await vi.waitFor(
+      async () => {
+        const seen = await notes();
+        expect(seen.map(n => n.title)).toEqual(["fix the cart finished", "fix the login finished"]);
+        expect(seen.every(n => n.said !== undefined)).toBe(true);
+        return seen;
+      },
+      { timeout: 15_000, interval: 200 },
+    );
+    // What macOS answered, which this case reads and does not judge: a bundle with no Developer ID is refused, and the
+    // shell says so on its log. One it showed is held past the collections; one it refused is let go.
+    console.error(`the system said: ${said.map(n => `${n.title} / ${n.body}: ${n.said}`).join(" | ")}`);
+    expect(said.map(n => n.silent)).toEqual([true, true]);
+    for (const n of said) expect(n.alive).toBe(n.said === "shown");
+    for (const n of said) if (n.said !== "shown") expect(launched.said).toContain(`notification not shown: ${n.said}`);
+
+    // A second turn on each, then a click on the older line: the window comes back and the page opens the thread that
+    // line named, not the one said after it.
+    await app.evaluate(() => Object.assign(globalThis, { __hold: true }));
+    for (const [i, thread] of threads.entries()) await runtime.sessions.start(first.id, { prompt: `again ${i}`, thread, harness: "claude", startedBy: "cli" });
+    ends[2]!();
+    ends[3]!();
+    await vi.waitFor(async () => expect(await app.evaluate(() => (globalThis as unknown as { __clickable: unknown[] }).__clickable.length)).toBe(2), { timeout: 15_000, interval: 200 });
+    await app.evaluate(() => (globalThis as unknown as { __clickable: Electron.Notification[] }).__clickable[0]!.emit("click"));
+    await vi.waitFor(async () => expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(w => w.isVisible()))).toBe(true), { timeout: 10_000, interval: 100 });
+    await win.waitForSelector(`[data-row-id='${threadRowId(threads[0]!)}'][data-active='true']`, { timeout: 10_000 });
+
+    // The window closed, as a Mac closes it to the menu bar, and a held notification clicked after: Electron throws on
+    // the destroyed window, so the app opens a window again instead.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(w => w.close()));
+    await vi.waitFor(() => expect(appWindows(app)).toHaveLength(0), { timeout: 10_000, interval: 100 });
+    await app.evaluate(() => (globalThis as unknown as { __clickable: Electron.Notification[] }).__clickable[1]!.emit("click"));
+    await windowAt(app, APP_URL);
+    expect(launched.said.filter(line => /destroyed|uncaught/i.test(line))).toEqual([]);
+  });
+
+  it("attaches to a host serving a custom home when that home is named on its launch, with no port hint", async () => {
+    const user = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-user-"));
+    const custom = join(user, "custom-home");
+    const quiet: CliIO = { log: () => {}, error: () => {}, ask: () => Promise.reject(new Error("prompt")), askSecret: () => Promise.reject(new Error("prompt")) };
+    vi.stubEnv("SOLARI_API_KEY", FAKE_SOLARI);
+    vi.stubEnv("HOME", user);
+    vi.stubEnv("WSP_HOME", custom);
+    existing = await serve(quiet, { port: 0, statePath: join(custom, "state.json"), webDir: fakeWebDir(), runtime: testRuntime(true) });
+    vi.unstubAllEnvs();
+    // The host wrote every file of its own under the home it serves and nothing under the person's own.
+    expect(existsSync(join(custom, "host.lock"))).toBe(true);
+    expect(existsSync(join(user, ".wsp"))).toBe(false);
+
+    launched = await launch({ HOME: user, WSP_HOME: custom });
+    const win = await windowAt(launched.app, APP_URL);
+    const boot = await bootOf(win);
+    expect(win.url()).toBe(`http://127.0.0.1:${existing.port}/`);
+    expect(boot.tokenHash).toBe(tokenDigest(existing.authToken));
+    await quit(launched.app);
+    expect(await refused(`http://127.0.0.1:${existing.port}/`)).toBe(false);
+    rmSync(user, { recursive: true, force: true });
+  });
+
+  it("a right-click on a workspace row builds the native menu from the workspace registry through the bridge", async () => {
+    // A host over the stub backend with one workspace, serving the built web app, so the sidebar has a row to right-click.
+    existing = await startHost({ runtime: testRuntime(true), webDir: workspaceAsset("web"), port: 0 });
+    await seedProject(existing);
+    const first = await existing.createWorkspace("first");
+    launched = await launch({ WSP_HOME: undefined }, home => seedServingLock(join(home, ".wsp"), { port: existing!.port, token: existing!.authToken }));
+    const win = await windowAt(launched.app, APP_URL);
+    const row = `[data-row-id='ws:${first.id}']`;
+    await win.waitForSelector(row);
+    // A native menu blocks until it is dismissed, so the main process keeps the template it would have shown and closes on nothing.
+    await launched.app.evaluate(({ Menu }) => {
+      type Kept = { type?: string; label?: string; enabled?: boolean; toolTip?: string; accelerator?: string | null };
+      const kept: Kept[][] = [];
+      (globalThis as { __menus?: Kept[][] }).__menus = kept;
+      const build = Menu.buildFromTemplate.bind(Menu);
+      Menu.buildFromTemplate = template => {
+        kept.push(template.map(({ type, label, enabled, toolTip, accelerator }) => ({ type, label, enabled, toolTip, accelerator })));
+        const menu = build(template);
+        menu.popup = options => options?.callback?.();
+        return menu;
+      };
+    });
+    await win.click(row, { button: "right" });
+    await win.waitForFunction(() => true);
+    const menus = await launched.app.evaluate(() => (globalThis as { __menus?: { type?: string; label?: string; enabled?: boolean; toolTip?: string; accelerator?: string | null }[][] }).__menus ?? []);
+    expect(menus).toHaveLength(1);
+    const rows = menus[0]!;
+    // The rows the registry says, in its order and parted where its groups part, so an action added to the registry
+    // never brings this case with it. Labels and separator places are read as one list: a separator that moved is a
+    // failure here, not only a wrong count.
+    expect(menuShapeOf(rows)).toEqual(workspaceMenuShape(first));
+    expect(rows.find(r => r.label === WORKSPACE_WORDS.rename)).toMatchObject({ enabled: true });
+    expect(rows.find(r => r.label === WORKSPACE_WORDS.openTerminal)).toMatchObject({ enabled: true, accelerator: "CommandOrControl+J" });
+    // The shell's page got the native menu, not the in-app one.
+    expect(await win.locator("[data-context-menu]").count()).toBe(0);
+  });
+
+  it("moves to a host on the account from the Hosts menu, lists both with the current one marked, and This Mac takes the window back", async () => {
+    existing = await fixtureHost();
+    const at = `http://127.0.0.1:${existing.port}`;
+    launched = await launch({ SOLARI_API_KEY: FAKE_SOLARI }, home => {
+      seedGolden(home);
+      // Two hosts on the account, so the window opens here rather than on either; the one on loopback is dialled
+      // with no key pinned, since there is no road between two ports of one computer for anybody to stand on.
+      seedAccountHost(home, "box", at, existing!.authToken);
+      seedAccountHost(home, "attic", "http://attic.example:4400", "tok-seed");
+    });
+    const win = await windowAt(launched.app, APP_URL);
+    const home = win.url();
+    await win.waitForSelector("[data-slot=sidebar-container]");
+    const here = computerNameHere();
+    // The page names no host of its own; the shell's Hosts menu is where the window's host is marked, once the shell
+    // has answered which one it is on.
+    await vi.waitFor(async () => {
+      expect((await hostsMenuRows(launched!.app)).find(r => r.checked)?.label).toBe(here);
+    }, { timeout: 10_000, interval: 100 });
+    await hostsMenu(launched.app, "box");
+    await win.waitForURL(`${at}/`);
+    // The shell's own menu lists every host on the account, so the owner still moves from one to another while the
+    // window stands on a host somewhere else. It is rebuilt once the page is up, which is a beat after the window moved.
+    await vi.waitFor(async () => {
+      expect(await hostsMenuRows(launched!.app)).toEqual([
+        { label: here, checked: false, enabled: true },
+        { label: "attic", checked: false, enabled: true },
+        { label: "box", checked: true, enabled: true },
+      ]);
+    }, { timeout: 30_000, interval: 100 });
+    // The page that host serves is shown this computer and that host alone, and what it asks of this computer is
+    // refused in one sentence naming the channel, before anything on this computer is read or written.
+    const asked = await win.evaluate(async () => {
+      const wsp = (
+        window as unknown as {
+          wsp: {
+            hosts(): Promise<{ here: string; current: string | null; hosts: { alias: string }[] }>;
+            localFonts(family: string): Promise<unknown>;
+            switchHost(alias: string | null): Promise<unknown>;
+          };
+        }
+      ).wsp;
+      const said = async (call: () => Promise<unknown>): Promise<string> => {
+        try {
+          await call();
+          return "answered";
+        } catch (e) {
+          return (e as Error).message;
+        }
+      };
+      return {
+        hosts: await wsp.hosts(),
+        fonts: await said(() => wsp.localFonts("Menlo")),
+        elsewhere: await said(() => wsp.switchHost("attic")),
+      };
+    });
+    expect(asked.hosts.hosts.map(h => h.alias)).toEqual(["box"]);
+    expect(asked.hosts.here).toBe(here);
+    expect(asked.fonts).toContain(notForThisPage("fonts:local"));
+    expect(asked.elsewhere).toContain(notForThisPage("hosts:switch"));
+    // The move home is the one move that page may ask for, and the record it could not read still stands after it.
+    await win.evaluate(() => {
+      void (window as unknown as { wsp: { switchHost(alias: string | null): Promise<unknown> } }).wsp.switchHost(null);
+    });
+    await win.waitForURL(home);
+    expect(existsSync(join(launched.home, "hosts", "attic.json"))).toBe(true);
+    await hostsMenu(launched.app, "box");
+    await win.waitForURL(`${at}/`);
+    await hostsMenu(launched.app, here);
+    await win.waitForURL(home);
+    await vi.waitFor(async () => {
+      expect((await hostsMenuRows(launched!.app)).map(r => r.checked)).toEqual([true, false, false]);
+    }, { timeout: 30_000, interval: 100 });
+    // The app's own host was never stopped by the move, nor by the quit.
+    await quit(launched.app);
+    expect(await refused(home)).toBe(false);
+  });
+
+  it("a host under some other home is nothing to a launch that names none: the first launch runs on ~/.wsp", async () => {
+    launched = await launch({ WSP_HOME: undefined }, home => {
+      const custom = join(home, "old-home");
+      mkdirSync(custom);
+      writeFileSync(join(custom, "host.lock"), JSON.stringify({ pid: deadPid(), port: 1, startedAt: "2026-09-01T00:00:00.000Z" }));
+    });
+    const page = await windowAt(launched.app, ONBOARDING_URL);
+    await page.waitForLoadState("domcontentloaded");
+    expect(await page.textContent("#start")).toContain("Get started");
+    expect(existsSync(shimPath(join(launched.home, ".wsp")))).toBe(true);
+    expect(existsSync(join(launched.home, "old-home", "bin"))).toBe(false);
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "on macOS the header row is the frame: the lights sit inside it, both header rows drag, and the window paints nothing under the page, whose dark sidebar lets the glass through",
+    async () => {
+      launched = await launch({ SOLARI_API_KEY: FAKE_SOLARI }, seedGolden);
+      const win = await windowAt(launched.app, APP_URL);
+      await win.waitForSelector("[data-slot=sidebar-container]");
+      const app = launched.app;
+      const { frame, page } = await macHeader(app, win);
+      expect(frame.buttons).toEqual({ x: 16, y: 19 });
+      expect(frame.content.height).toBe(frame.bounds.height);
+      expect(frame.title).toBe("wsp");
+
+      expect(page.htmlClass.split(" ")).toContain("desktop-mac");
+      expect(page.container).toBe("rgba(0, 0, 0, 0)");
+      expect(page.headerHeight).toBe(52);
+      expect(page.pageToggles).toBe(0);
+      expect(page.sidebarHeader).toBe("drag");
+      expect(page.pageHeader).toBe("drag");
+      expect(page.pageButtons.length).toBeGreaterThan(1);
+      expect([...page.sidebarButtons, ...page.pageButtons].every(r => r === "no-drag")).toBe(true);
+
+      // Each theme lays its own share of ground over the glass, so the window is read in both: at a point in the
+      // sidebar and one in the main column, the page's capture holds exactly the alpha the page's own backgrounds
+      // stack to there, which is what says the window under them is clear.
+      const points = { sidebar: { x: page.sidebarWidth / 2, y: 0.7 }, main: { x: page.sidebarWidth + 200, y: 0.7 } };
+      // The page follows the computer's own Reduce transparency, which a Mac with no graphics to spare turns on by
+      // itself, so the glass is read with the setting held off and then held on, whatever this machine asks for.
+      const reduces = await win.evaluate(() => matchMedia("(prefers-reduced-transparency: reduce)").matches);
+      const cdp = await win.context().newCDPSession(win);
+      const transparency = (value: "no-preference" | "reduce") => cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-transparency", value }] });
+      await transparency("no-preference");
+      const painted = await readPainted(app, win, frame.id, points);
+      console.info(`painted alpha by theme (this machine reduces transparency: ${reduces}): ${JSON.stringify(painted)}`);
+      for (const theme of ["light", "dark"] as const) {
+        for (const at of ["sidebar", "main"] as const) expect(Math.abs(painted[theme][at].captured - painted[theme][at].declared)).toBeLessThanOrEqual(2);
+      }
+      // Dark mode stands the whole window on the glass: the sidebar's share lets it through. Light mode keeps the main
+      // column's solid ground.
+      expect(painted.dark.sidebar.captured).toBeLessThan(255);
+      expect(painted.dark.sidebar.captured).toBeGreaterThan(0);
+      expect(painted.light.main.captured).toBe(255);
+      // Reduce transparency on, every glass takes its solid ground: the dark sidebar lets nothing through.
+      await transparency("reduce");
+      const solid = await readPainted(app, win, frame.id, { sidebar: points.sidebar });
+      expect(solid.dark.sidebar).toEqual({ captured: 255, declared: 255 });
+    },
+  );
+});

@@ -1,0 +1,259 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The Workspace pane of the right panel: load, memory and disk as line
+// charts over the last two minutes, the workspace's facts in two mono lines,
+// and the registry's actions for it. On this computer's own panel the facts
+// are this computer's and there is nothing to act on.
+import { useId } from "react";
+import { ActivityIcon, AppWindowIcon, CpuIcon, HourglassIcon, LaptopIcon, MemoryStickIcon, ReceiptIcon } from "lucide-react";
+import { Chips, type ChipItem } from "../ui/chips.js";
+import { ComputerGlyph } from "../../settings/ComputerGlyph.js";
+import { HERE_PLACE_ID, SUB_STRIP, hereName, diskTone, fmtBytesOfTotal, fmtCpus, fmtMemGb, fmtSize, kindWords, readingRoad, workspaceKind, workspaceStateOf, workspaceWord, type SizeTone, type SysSample, type WorkspaceView } from "@wsp/protocol";
+import { runAction } from "../../actions/contextMenu.js";
+import { actionIfAny, resolveActions, rowLabelOf } from "../../actions/registry.js";
+import { useWorkspaceVerbs } from "../../actions/verbs.js";
+import { workspaceActions, workspaceTarget } from "../../actions/workspaceActions.js";
+import { TONE_TEXT } from "../../lib/tone.js";
+import { cn } from "../../lib/utils.js";
+import { LIVE_WINDOW, staleWord, useWorkspaceLive, type StaleWord } from "../../machine/live.js";
+import { useAbsentComputer, useCost, usePlaces, useSidebarProjects, useStatus, useWorkspace } from "../../protocol/store.js";
+import { useMinuteClockWhen } from "../status/useMinuteClock.js";
+import { subMachineFacts } from "../../sidebar/tileCard.js";
+import { placeName } from "../../settings/places.js";
+import { whereRuns } from "../../sidebar/workspaceRows.js";
+import { Button, DANGER_BUTTON } from "../ui/button.js";
+import { ScrollArea } from "../ui/scroll-area.js";
+
+/** The registry's actions this pane draws, in this order; the open verbs live on the tab strip and the row. */
+const PANE_ACTIONS = ["phase", "start-daemon", "rebuild", "bring-back", "export-project", "delete", "forget"] as const;
+/** The acts a sub-machine's pane leaves out. */
+const SUB_LEAVES: ReadonlySet<string> = new Set(["phase", "rebuild", "bring-back"]);
+
+export function MachineSurface({ workspaceId }: { workspaceId: string }) {
+  const workspace = useWorkspace(workspaceId);
+  const absent = useAbsentComputer(workspaceId);
+  const live = useWorkspaceLive(workspaceId);
+  // A local workspace's figures are read by the host, so its daemon being down says nothing about them.
+  const daemonRead = workspace === null || readingRoad(workspaceKind(workspace), "metrics") === "daemon";
+  const stale = workspace === null ? null : ((daemonRead ? absent?.away : undefined) ?? staleWord(workspace.phase, live.reach === "live"));
+  return (
+    <div className="flex h-full min-h-0 flex-col" data-machine>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-5 px-5 py-5">
+          <Charts samples={live.samples} stale={stale} unavailable={live.unavailable} />
+          {workspace === null ? <HereFacts /> : <Facts workspace={workspace} />}
+        </div>
+      </ScrollArea>
+      {workspace !== null && <Actions workspace={workspace} />}
+    </div>
+  );
+}
+
+const share = (m: { used: number; total: number }): number => (m.total > 0 ? m.used / m.total : 0);
+
+function Charts({ samples, stale, unavailable }: { samples: SysSample[]; stale: StaleWord; unavailable: string | null }) {
+  // Load has no ceiling of its own, so its line is drawn against the highest reading in the window, never below one.
+  const loadTop = Math.max(1, ...samples.map(s => s.load1));
+  const row = { samples, stale, unavailable };
+  return (
+    <div className="flex flex-col gap-8">
+      <Chart {...row} label="Load" k="load" y={s => s.load1 / loadTop} text={s => s.load1.toFixed(2)} tone={() => "muted"} />
+      <Chart {...row} label="Memory" k="mem" y={s => share(s.mem)} text={s => fmtBytesOfTotal(s.mem.used, s.mem.total)} tone={s => diskTone(s.mem.used, s.mem.total)} />
+      <Chart {...row} label="Disk" k="disk" y={s => share(s.disk)} text={s => fmtBytesOfTotal(s.disk.used, s.disk.total)} tone={s => diskTone(s.disk.used, s.disk.total)} />
+    </div>
+  );
+}
+
+const CHART_W = 100;
+const CHART_H = 96;
+const CHART_PAD = 1;
+/** The line takes the figure's tone where the figure has one, so memory near full draws in the caution ink. */
+const TONE_LINE: Record<SizeTone, string> = { ...TONE_TEXT, muted: "text-foreground/80" };
+
+/** Sixty slots across with the newest sample in the last one, so a young series grows in from the right. */
+export function chartPoints(samples: readonly SysSample[], y: (s: SysSample) => number): { x: number; y: number }[] {
+  const span = CHART_H - 2 * CHART_PAD;
+  return samples.map((s, i) => ({
+    x: ((LIVE_WINDOW - samples.length + i) / (LIVE_WINDOW - 1)) * CHART_W,
+    y: CHART_PAD + (1 - Math.min(1, Math.max(0, y(s)))) * span,
+  }));
+}
+
+interface ChartProps {
+  label: string;
+  k: string;
+  samples: SysSample[];
+  /** The sample's height as a share of the chart, 0 to 1. */
+  y: (s: SysSample) => number;
+  text: (s: SysSample) => string;
+  tone: (s: SysSample) => SizeTone;
+  stale: StaleWord;
+  unavailable: string | null;
+}
+
+function Chart({ label, k, samples, y, text, tone, stale, unavailable }: ChartProps) {
+  const points = chartPoints(samples, y);
+  const last = samples[samples.length - 1];
+  const word = stale ?? (unavailable !== null ? "unavailable" : last === undefined ? "pending" : null);
+  return (
+    <div data-chart={k} {...(stale !== null ? { "data-stale": stale } : {})} className="py-1">
+      <div className="flex items-baseline justify-between gap-2 font-mono text-[13px] tabular-nums">
+        <span className="font-sans text-xs text-muted-foreground">{label}</span>
+        <span
+          className={cn("truncate", word !== null ? "text-muted-foreground" : last !== undefined ? TONE_TEXT[tone(last)] : undefined)}
+          data-k={k}
+          {...(word === "unavailable" && unavailable !== null ? { title: unavailable } : {})}
+        >
+          {word ?? (last !== undefined ? text(last) : "")}
+        </span>
+      </div>
+      <ChartPlot
+        runs={[points]}
+        label={`${label} over the last two minutes`}
+        end={stale === null}
+        className={cn("mt-3", stale !== null ? "text-muted-foreground/40" : last !== undefined ? TONE_LINE[tone(last)] : "text-foreground/80")}
+      />
+      <div className="mt-1.5 flex justify-between font-mono text-[11px] text-muted-foreground">
+        <span>2 min</span>
+        <span>now</span>
+      </div>
+    </div>
+  );
+}
+
+/** Points at chart scale for readings over a span of time: x by the reading's time between from and to, y its share. */
+export function spanPoints<T extends { at: number }>(readings: readonly T[], from: number, to: number, y: (r: T) => number): { x: number; y: number }[] {
+  const span = CHART_H - 2 * CHART_PAD;
+  return readings.map(r => ({ x: (Math.min(1, Math.max(0, (r.at - from) / Math.max(1, to - from))) * CHART_W), y: CHART_PAD + (1 - Math.min(1, Math.max(0, y(r)))) * span }));
+}
+
+/** One series in the chart's grammar: the rule lines, each run of points as a line over a faint fill, and a dot on
+ * the newest point. Separate runs draw no line between them, so a stretch with no reading is a gap. A chart too
+ * small for the fill draws the line alone, since fills under short runs read as bars. A plot a few pixels tall
+ * keeps the zero baseline alone and fills stronger, or its area reads as a plain line. */
+export function ChartPlot({ runs, label, end, fill = true, rules = true, fillOpacity = 0.2, marked, className, height = "h-24" }: { runs: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>; label: string; end: boolean; fill?: boolean; rules?: boolean; fillOpacity?: number; /** A point a reader is on, drawn as the newest one is. */ marked?: { x: number; y: number } | undefined; className?: string; height?: string }) {
+  const fade = useId();
+  const drawn = runs.filter(run => run.length > 0);
+  const newest = drawn[drawn.length - 1]?.at(-1);
+  return (
+    <div className={cn("relative", className)}>
+      <svg className={cn("block w-full", height)} viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" role="img" aria-label={label}>
+        {(rules ? [0.25, 0.5, 0.75, 1] : []).map(at => (
+          <line key={at} x1={0} x2={CHART_W} y1={CHART_PAD + (1 - at) * (CHART_H - 2 * CHART_PAD)} y2={CHART_PAD + (1 - at) * (CHART_H - 2 * CHART_PAD)} className="stroke-border" strokeWidth={1} strokeDasharray={at === 1 ? undefined : "2 3"} vectorEffect="non-scaling-stroke" />
+        ))}
+        <line x1={0} x2={CHART_W} y1={CHART_H - CHART_PAD} y2={CHART_H - CHART_PAD} className={rules ? "stroke-border" : "stroke-border/60"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <defs>
+          <linearGradient id={fade} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="currentColor" stopOpacity={fillOpacity} />
+            <stop offset="1" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {drawn.map((run, i) => {
+          // A single point draws as a dot through the round cap.
+          const d = run.map((p, j) => `${j === 0 ? "M" : "L"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join("") + (run.length === 1 ? `L${run[0]!.x.toFixed(2)} ${run[0]!.y.toFixed(2)}` : "");
+          return (
+            <g key={i}>
+              {fill && run.length > 1 && <path d={`${d}L${run[run.length - 1]!.x.toFixed(2)} ${CHART_H}L${run[0]!.x.toFixed(2)} ${CHART_H}Z`} fill={`url(#${fade})`} stroke="none" data-chart-area />}
+              <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" data-chart-line />
+            </g>
+          );
+        })}
+      </svg>
+      {newest !== undefined && end ? (
+        <span aria-hidden data-chart-end className="absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ring-2 ring-background" style={{ left: `${(newest.x / CHART_W) * 100}%`, top: `${(newest.y / CHART_H) * 100}%` }} />
+      ) : null}
+      {marked === undefined ? null : (
+        <span aria-hidden data-chart-mark className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ring-2 ring-background" style={{ left: `${(marked.x / CHART_W) * 100}%`, top: `${(marked.y / CHART_H) * 100}%` }} />
+      )}
+    </div>
+  );
+}
+
+function FactChips({ items, path }: { items: readonly (ChipItem | null)[]; path?: string }) {
+  return (
+    <div className="flex flex-col gap-2.5" data-facts>
+      <Chips items={items} />
+      {path === undefined ? null : (
+        <p className="truncate font-mono text-[11px] text-muted-foreground" title={path}>
+          {path}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Facts({ workspace }: { workspace: WorkspaceView }) {
+  const status = useStatus(workspace.id);
+  const places = usePlaces();
+  const absent = useAbsentComputer(workspace.id);
+  const state = absent?.word ?? workspaceWord(workspaceStateOf(workspace, status), workspace.pauseMode);
+  const size = status ? fmtSize(status.size, kindWords(workspaceKind(workspace)).cpu) : null;
+  const sub = useSubThread(workspace.id);
+  const cost = useCost(sub === undefined ? null : workspace.id);
+  const now = useMinuteClockWhen(sub !== undefined);
+  const facts = sub?.sub === undefined ? null : subMachineFacts(sub.sub, sub.status === "running", cost?.accruedUsd ?? null, now, sub.diskKeptUntil);
+  return (
+    <FactChips
+      items={[
+        { text: state, icon: ActivityIcon },
+        { text: whereRuns(places, { workspace, status }), icon: LaptopIcon },
+        status ? { text: fmtCpus(status.size.cpu, kindWords(workspaceKind(workspace)).cpu), icon: CpuIcon } : null,
+        status ? { text: fmtMemGb(status.size.memMb), icon: MemoryStickIcon } : null,
+        facts?.cost === undefined ? null : { text: facts.cost, icon: ReceiptIcon },
+        facts?.goes === undefined ? null : { text: facts.goes, icon: HourglassIcon },
+      ]}
+      path={workspace.project.path}
+    />
+  );
+}
+
+function HereFacts() {
+  const place = usePlaces().find(p => p.id === HERE_PLACE_ID);
+  if (place === undefined) return null;
+  return (
+    <FactChips
+      items={[
+        { text: placeName(place), glyph: <ComputerGlyph place={place} className="size-3 text-muted-foreground" /> },
+        place.os === undefined ? null : { text: place.os, icon: AppWindowIcon },
+        place.shape ? { text: fmtCpus(place.shape.cpu, "cores"), icon: CpuIcon } : null,
+        place.shape ? { text: fmtMemGb(place.shape.memMb), icon: MemoryStickIcon } : null,
+      ]}
+    />
+  );
+}
+
+/** The sub-thread a sub-machine runs alone, where the workspace is one. */
+function useSubThread(workspaceId: string) {
+  return useSidebarProjects().find(p => p.id === workspaceId)?.threads.find(t => t.sub !== undefined);
+}
+
+function Actions({ workspace }: { workspace: WorkspaceView }) {
+  const status = useStatus(workspace.id);
+  const places = usePlaces();
+  const verbs = useWorkspaceVerbs();
+  // A sub-machine's life is its delete timer's and a message makes a new one, so it offers no pause, wake or rebuild;
+  // its branch is the agent's to push, so no bring back, and its export says what it does: a copy to this computer.
+  const sub = useSubThread(workspace.id) !== undefined;
+  const resolved = resolveActions(workspaceActions, workspaceTarget(workspace, status, places), verbs);
+  const actions = PANE_ACTIONS.filter(id => !(sub && SUB_LEAVES.has(id))).flatMap(id => actionIfAny(resolved, id) ?? []);
+  const wordOf = (action: (typeof actions)[number]): string => (sub && action.id === "export-project" ? SUB_STRIP.copyTo(hereName(places)) : (action.buttonWord ?? action.title));
+  if (actions.length === 0) return null;
+  return (
+    <footer className="flex flex-wrap gap-1.5 border-t border-border/60 px-3 py-2.5" data-machine-actions>
+      {actions.map(action => (
+        <Button
+          key={action.id}
+          size="xs"
+          variant="outline"
+          className={cn(action.destructive && DANGER_BUTTON)}
+          disabled={action.refusal !== null}
+          title={action.refusal ?? action.hint ?? undefined}
+          aria-label={sub && action.id === "export-project" ? wordOf(action) : rowLabelOf(action)}
+          data-action={action.id}
+          onClick={() => void runAction(action)}
+        >
+          {wordOf(action)}
+        </Button>
+      ))}
+    </footer>
+  );
+}

@@ -1,0 +1,230 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+name: daemon
+
+# The Rust daemon under daemon/ has its own gate, run on a land/** push that touches it or the wire it is held to,
+# every night on main and on a run started by hand: format, lints as errors, the tests, the release build, the static
+# musl build, and the wire suite driven against the built binary, which is the contract every daemon speaking the
+# protocol is held to. It sits in its own workflow so the paths filter leaves the node jobs in ci.yml exactly as they
+# are. A push to main carries a commit its land/** run already tested, so it runs nothing here.
+on:
+  push:
+    branches:
+      - "land/**"
+    paths:
+      - "daemon/**"
+      - "packages/daemon/**"
+      - "packages/protocol/**"
+      - "packages/host/test/mcp-binary*.ts"
+      - ".github/workflows/daemon.yml"
+  schedule:
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daemon-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.9.0"
+
+jobs:
+  daemon-rust:
+    name: Format, lint, test, build, wire suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup show
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-rust-${{ runner.os }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-rust-${{ runner.os }}-
+      - name: The one C library the daemon links
+        # libcontainer applies the seccomp filter through libseccomp; the build links its archive statically,
+        # from a directory of its own so the musl link never sees glibc's libc.a beside it.
+        run: |
+          sudo apt-get install -y --no-install-recommends libseccomp-dev
+          ./scripts/libseccomp-archive.sh
+      - name: Format
+        run: cargo fmt --check
+      # The tool server is a feature of the binary the guest build leaves off; the lints and the tests read it on.
+      - name: Lints
+        run: cargo clippy --locked --all-targets --features wsp-daemon-bin/mcp -- -D warnings
+      - name: Tests
+        run: cargo test --locked --features wsp-daemon-bin/mcp
+      # The protocol package re-exports the TypeScript wsp-frames writes, checked in so a build needs no cargo. The
+      # folder is written again from nothing here, and any difference from the checkout fails: a hand edit, a file
+      # added or removed by hand, or a change to the crate whose types were not written.
+      - name: The TypeScript types are the ones the crate writes
+        run: ./scripts/ts-types.sh --check
+      - name: Release build
+        run: cargo build --locked --release --features wsp-daemon-bin/mcp
+      # What an agent pays at every session start is the shipped profile's, so the budget is measured there, and the
+      # figure is printed on a pass too, so a change that moves it is read off the log.
+      - name: The tool server's budget, in the shipped profile
+        run: cargo test --locked --release --features wsp-daemon-bin/mcp -p wsp-daemon-bin --test bin the_tool_server -- --nocapture
+      - name: C compiler for the musl target, and libseccomp built against musl
+        # ring carries C, and its build looks for x86_64-linux-musl-gcc, which musl-tools provides. The static
+        # binary links a libseccomp built against musl, since the distribution's archive is glibc's.
+        run: |
+          sudo apt-get install -y --no-install-recommends musl-tools gperf
+          ./scripts/libseccomp-archive.sh musl
+      - name: Static musl build
+        run: LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo build --locked --release --target x86_64-unknown-linux-musl
+      # The tests above run a glibc debug build, where every C symbol resolves and nothing is thrown away. The
+      # shipped binary is static musl under fat link time optimisation, where a weakly declared C symbol that
+      # nothing pulls out of the archive resolves to address zero and the first call to it takes the process
+      # down. That is what a plain copy of a project did on a box, with no test able to see it, so the crate
+      # that touches the disk runs its own tests in the shipped profile too. One crate, since the whole suite in
+      # this profile costs minutes of link time for nothing the job above does not already cover.
+      - name: The runtime's tests in the shipped profile
+        run: LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo test --locked --release --target x86_64-unknown-linux-musl -p wsp-runtime
+      # The live cases drive the kernel as root, so they run on a box and nowhere else, and a box carries no
+      # toolchain to build them with. Built here as static test executables and uploaded beside the daemon, so
+      # the proof on a box is a download and a run rather than a Rust install on a computer serving something.
+      # One per crate that owns live cases, since each reaches functions of its own crate and neither can hold
+      # the other's: the daemon binary's carries the machine ops against the kernel and the network's cases, the
+      # runtime crate's the mount cases and the two claim cases. A box runs each with --ignored, which is the
+      # gate: the runs above read them ignored.
+      - name: The live test executables for a box
+        run: |
+          LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo test --locked --release --target x86_64-unknown-linux-musl \
+            -p wsp-daemon-bin --test runtime_live --no-run --message-format=json > /tmp/runtime-live.json
+          LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo test --locked --release --target x86_64-unknown-linux-musl \
+            -p wsp-runtime --lib --no-run --message-format=json > /tmp/wsp-runtime-lib.json
+          built=$(jq -r 'select(.executable != null) | select(.target.name == "runtime_live") | .executable' /tmp/runtime-live.json | tail -1)
+          test -n "$built"
+          cp "$built" "runtime_live-x86_64-unknown-linux-musl"
+          # The lib target of the runtime crate, whose name carries the underscore cargo gives it.
+          lib=$(jq -r 'select(.executable != null) | select(.target.name == "wsp_runtime") | select(.target.kind | index("lib")) | .executable' /tmp/wsp-runtime-lib.json | tail -1)
+          test -n "$lib"
+          cp "$lib" "wsp_runtime-tests-x86_64-unknown-linux-musl"
+          for made in runtime_live wsp_runtime-tests; do
+            file "$made-x86_64-unknown-linux-musl"
+            sha256sum "$made-x86_64-unknown-linux-musl" > "$made-x86_64-unknown-linux-musl.sha256"
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-live-x86_64-unknown-linux-musl
+          path: |
+            daemon/runtime_live-x86_64-unknown-linux-musl
+            daemon/runtime_live-x86_64-unknown-linux-musl.sha256
+            daemon/wsp_runtime-tests-x86_64-unknown-linux-musl
+            daemon/wsp_runtime-tests-x86_64-unknown-linux-musl.sha256
+          if-no-files-found: error
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      # Staged as the command stages it, which refuses a Linux binary that names a shared library: a static-pie
+      # binary loads none, so such a name is a call to address zero at its first use.
+      - name: The static binary staged
+        working-directory: .
+        run: node packages/wspx/scripts/daemon-binary.mjs --triple x86_64-unknown-linux-musl
+      # The wire suite as the contract: every daemon test drives a binary, and here it is the one this job built
+      # rather than the static one staged above, so a change to daemon/ is gated on the binary it produced.
+      # The tool server in the same binary, held to the one the host package serves, its sealed dial held to the
+      # runtime's own door, and every recorded answer replayed through the line wsp mcp runs.
+      - name: Wire suite against the binary
+        working-directory: .
+        env:
+          WSP_DAEMON_BIN: daemon/target/release/wsp-daemon
+          WSP_MCP_BIN: daemon/target/release/wsp-daemon
+        run: pnpm exec vitest run --minWorkers=1 --maxWorkers=1 packages/daemon packages/host/test/mcp-binary.test.ts packages/host/test/mcp-binary-seal.test.ts packages/host/test/mcp-binary-replay.test.ts
+
+  # The two Linux daemons this head would ship, uploaded on every run so staging one on another computer is a
+  # download from the run that built the head instead of a release dispatched by hand. Outside a run that is
+  # `node packages/wspx/scripts/daemon-binary.mjs --from-run <id>` naming this run: the script reads the run's
+  # record, refuses a head repository or a head commit that is not the checkout's, and downloads the artifacts
+  # itself, since a fork's pull request runs the fork's copy of this file and any condition written here is the
+  # fork's to delete. The build and the artifact names are the release job's, so that script reads an artifact
+  # from either the same way. Each binary is staged through that script before it goes up, so the refusal of a musl
+  # binary that names a shared library runs on the bytes uploaded, and the sha256 travels beside it.
+  daemon-artifacts:
+    name: Linux daemon ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+          rustup show
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-artifacts-${{ matrix.target }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-artifacts-${{ matrix.target }}-
+      # Each binary is built on its own chip's runner, so the static link needs no cross toolchain.
+      - name: C compiler for the musl target, and libseccomp built against musl
+        run: |
+          sudo apt-get install -y --no-install-recommends musl-tools gperf
+          ./scripts/libseccomp-archive.sh musl
+      # The build reads its features off the flag script, and the staging after it is node too.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Build
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          LIBSECCOMP_LIB_PATH="$PWD/target/libseccomp/musl" cargo build --locked --release --target "$TARGET" -p wsp-daemon-bin $(node ../packages/wspx/scripts/daemon-features.mjs "$TARGET")
+          cp "target/$TARGET/release/wsp-daemon" "wsp-daemon-$TARGET"
+          ls -l "wsp-daemon-$TARGET"
+          file "wsp-daemon-$TARGET"
+      - name: The binary staged, as the command stages it
+        working-directory: .
+        env:
+          TARGET: ${{ matrix.target }}
+        run: node packages/wspx/scripts/daemon-binary.mjs --triple "$TARGET" --from "daemon/wsp-daemon-$TARGET"
+      - name: Its sha256, beside it
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          sha256sum "wsp-daemon-$TARGET" > "wsp-daemon-$TARGET.sha256"
+          cat "wsp-daemon-$TARGET.sha256"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wsp-daemon-${{ matrix.target }}
+          path: |
+            daemon/wsp-daemon-${{ matrix.target }}
+            daemon/wsp-daemon-${{ matrix.target }}.sha256
+          if-no-files-found: error

@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "op": "stdio.open",
+    "stdioId": "s1"
+  },
+  {
+    "id": 1,
+    "op": "stdio.open",
+    "stdioId": "s1",
+    "cmd": ""
+  },
+  {
+    "id": 1,
+    "op": "stdio.open",
+    "stdioId": "s1",
+    "cmd": "exec cat",
+    "env": {
+      "WSP_THREAD": 1
+    }
+  }
+]

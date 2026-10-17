@@ -1,0 +1,510 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// `wsp add <user@host> --recipe <name>` and the add tool: the install's
+// steps and the setup's steps as frames, a sign-in that waits on the person
+// as a frame of its own, the result last, and the tool that never waits on
+// the person. The host is a fake that plays one add; the box's own checks
+// and the plan off a computer's picks are read here too.
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { writeStub } from "../../protocol/test/stub-script.js";
+import { dirname, join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import type { Manifest } from "@wsp/collect";
+import { keysKeptLine, PLACE_SUDO_KIND, RecipeFile, SETUP_STEP_WORDS, TOOL_PREFIX, type AddLine, type PlaceSetup, type PlaceView, type PlaceWait } from "@wsp/protocol";
+import { sshWordReach, type SshLocalRun } from "@wsp/engine";
+import { PassThrough } from "node:stream";
+import { gunzipSync } from "node:zlib";
+import { addCommand, addFlags, choosingLine, followSetup, parsePlaceCheck, placeCheckRefusal, placeCheckRows, PLACE_CHECK_SCRIPT, PLACE_CHECK_SPARE_BYTES, RESUME_FLAGS_REFUSAL, SETUP_FLAGS_REFUSAL, sudoPasswordAsk } from "../src/places.js";
+import { picksRows, placeProvisioner } from "../src/place-provision.js";
+import { addComputer, ADD_TOOL_FIX, watchSetup } from "../src/setup-follow.js";
+import { captured } from "./verbs-fixture.js";
+
+const dirs: string[] = [];
+afterEach(() => {
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+const tmp = (name: string): string => {
+  const dir = mkdtempSync(join(tmpdir(), `wsp-${name}-`));
+  dirs.push(dir);
+  return dir;
+};
+
+const WAIT: PlaceWait = { row: "signins/codex", label: "Codex", url: "https://auth.openai.com/codex/device", code: "ABCD-EFGH", expiresAt: "2026-10-03T10:15:00.000Z", state: "waiting" };
+const PLACE: PlaceView = { id: "p_1", kind: "computer", name: "spoo", default: true, present: true, takesForks: true };
+const RUNNING: PlaceSetup = { state: "running", addId: "a_x", startedAt: "2026-10-03T10:01:00.000Z", steps: [], waiting: [] };
+
+/** A host that plays one add: the install's steps, the setup's, a sign-in that waits and its landing when the test
+ * says, and the end. The row it lists moves with what it said. */
+function fakeHost(o: { end?: "ready" | "failed"; signIn?: boolean; pending?: boolean; running?: string; sudoPassword?: string } = {}) {
+  const asked: { op: string; params?: Record<string, unknown> }[] = [];
+  const frames: ((frame: Record<string, unknown>) => void)[] = [];
+  let row: PlaceView = PLACE;
+  let addId = "";
+  const say = (frame: Record<string, unknown>): void => {
+    for (const fn of [...frames]) fn(frame);
+  };
+  /** The person signs in: the wait goes from the row and the setup says it is ready. */
+  const land = (): void => {
+    row = { ...row, setup: { ...row.setup!, waiting: [] } };
+    say({ type: "place.setup", addId, placeId: PLACE.id, end: "ready" });
+  };
+  const play = (): void => {
+    say({ type: "place.stage", addId, step: "connect", state: "done", note: "Ubuntu 24.04" });
+    say({ type: "place.stage", addId, step: "check", state: "done", note: "root, systemd, cgroup v2" });
+    say({ type: "place.stage", addId, step: "join", state: "done", placeId: PLACE.id });
+    say({ type: "place.setup", addId, placeId: PLACE.id, line: { step: "floor", state: "done", ms: 41_000 } });
+    if (o.signIn === true) say({ type: "place.setup", addId, placeId: PLACE.id, wait: WAIT });
+    say({ type: "place.setup", addId, placeId: PLACE.id, line: { step: "clis", state: "done", ms: 9_000 } });
+    const state = o.end === "failed" ? "failed" : "done";
+    row = { ...row, setup: { ...RUNNING, addId, state, finishedAt: "x", steps: [{ step: "floor", state: "done", ms: 41_000 }, { step: "clis", state: "done", ms: 9_000 }], waiting: o.signIn === true ? [WAIT] : [], ...(state === "failed" ? { said: "no agent installed: Codex" } : {}) }, applied: { hash: "h", at: "x", rows: [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed" }] } };
+    say({ type: "place.setup", addId, placeId: PLACE.id, end: o.end ?? (o.signIn === true ? "needs-you" : "ready") });
+  };
+  const client = {
+    request: async (op: string, params?: Record<string, unknown>) => {
+      asked.push({ op, ...(params === undefined ? {} : { params }) });
+      if (op === "places.list") return { places: [row] };
+      if (op !== "places.add" && op !== "places.setup") throw new Error(`unexpected op ${op}`);
+      if (o.sudoPassword !== undefined && params?.["sudoPassword"] !== o.sudoPassword) {
+        const said = params?.["sudoPassword"] === undefined ? "root@10.0.0.9 runs sudo only with dev's password" : "sudo on root@10.0.0.9 did not take that password";
+        throw Object.assign(new Error(`${said}. Type it in Add a computer in the app, or at wsp add in a terminal.`), { kind: PLACE_SUDO_KIND });
+      }
+      // A setup already under way answers its own stream, not the one the caller minted.
+      addId = o.running ?? String(params!["addId"] ?? "a_tool");
+      if (o.pending === true) {
+        say({ type: "place.stage", addId, step: "join", state: "done", placeId: PLACE.id });
+        return { addId, place: PLACE, pending: { id: addId, address: "root@10.0.0.9", step: "floor", choices: RecipeFile.parse({ name: "spoo" }), startedAt: "x", placeId: PLACE.id } };
+      }
+      row = { ...PLACE, setup: { ...RUNNING, addId } };
+      const answer = { addId, place: row };
+      // The frames land after the reply, as the setup runs on behind the add.
+      setTimeout(play, 5);
+      return answer;
+    },
+    events: async () => {},
+    onFrame: (fn: (frame: Record<string, unknown>) => void) => {
+      frames.push(fn);
+      return () => frames.splice(frames.indexOf(fn), 1);
+    },
+    closeWords: () => "",
+    closed: new Promise(() => {}),
+    close: () => {},
+    terminate: () => {},
+  };
+  return { client, asked, land };
+}
+
+/** The ssh config a dial reads: every word comes back as its own host. */
+const plainConfig: SshLocalRun = async (_file, args) => ({ exitCode: 0, stdout: `user root\nhostname ${args.at(-1)}\nport 22\n`, stderr: "" });
+
+function deps(client: unknown, opened: string[] = []): Parameters<typeof addCommand>[4] {
+  return {
+    dial: async () => client as never,
+    now: () => 0,
+    run: (async () => ({ exitCode: 0, stdout: "", stderr: "" })) as never,
+    platform: "linux",
+    checkKey: async () => ({ state: "taken" }),
+    terminal: { input: new PassThrough() as never, output: new PassThrough() as never },
+    open: async url => (opened.push(url), true),
+    placeLink: async () => ({ link: { op: async () => ({ ok: true }), onEvent: () => () => {} }, close: async () => undefined }),
+    signIn: async () => ({ signedIn: false }),
+    sshWord: (word, o) => sshWordReach(word, o, plainConfig),
+    heldHostKey: async () => "ssh-ed25519 SHA256:held",
+    offeredHostKey: async () => ({ key: "ssh-ed25519 SHA256:offered" }),
+  };
+}
+
+const opts = (home: string): Parameters<typeof addCommand>[1] => ({ statePath: join(home, "state.json"), home, env: { HOME: home, WSP_HOME: home } });
+
+describe("wsp add <user@host> --recipe", () => {
+  it("prints the install's steps and the setup's as setup frames, a sign-in that waits as a waiting frame, and the computer last", async () => {
+    const io = captured();
+    const host = fakeHost({ signIn: true });
+    const code = await addCommand(io, opts(tmp("add-json")), ["root@10.0.0.9"], addFlags(undefined, undefined, undefined, undefined, undefined, undefined, undefined, {}, undefined, undefined, { recipe: "laptop", later: true, json: true }), deps(host.client));
+    expect(code).toBe(0);
+    expect(io.errors).toEqual([]);
+    const objects = io.lines.map(l => JSON.parse(l) as Record<string, unknown>);
+    // JSON alone on stdout, each frame one field of the tool's output, the result the output less those fields.
+    expect(objects.map(o => Object.keys(o))).toEqual([["setup"], ["setup"], ["setup"], ["setup"], ["waiting"], ["setup"], ["computer"]]);
+    expect(objects.slice(0, 4).map(o => (o["setup"] as AddLine).step)).toEqual(["connect", "check", "join", "floor"]);
+    expect(objects[4]!["waiting"]).toEqual(WAIT);
+    expect((objects.at(-1)!["computer"] as PlaceView).setup?.waiting).toEqual([WAIT]);
+    // The recipe rides the add itself: the host reads it before it dials, and sets the computer up from it.
+    expect(host.asked.find(a => a.op === "places.add")?.params).toMatchObject({ address: "root@10.0.0.9", recipe: "laptop" });
+  });
+
+  it("at a terminal prints the page and the code, opens the page here, and waits on the person until the sign-in lands", async () => {
+    const io = { ...captured(), isTTY: true };
+    const host = fakeHost({ signIn: true });
+    const opened: string[] = [];
+    let done = false;
+    const running = addCommand(io, opts(tmp("add-wait")), ["root@10.0.0.9"], { recipe: "laptop" }, deps(host.client, opened)).then(code => ((done = true), code));
+    await new Promise(resolve => setTimeout(resolve, 80));
+    expect(done).toBe(false);
+    expect(io.lines).toContain("  ? Codex waits on you to sign in at https://auth.openai.com/codex/device with code ABCD-EFGH");
+    expect(opened).toEqual([WAIT.url]);
+    host.land();
+    expect(await running).toBe(0);
+    // The steps as a terminal reads them, each with what it took, and the tally at the end.
+    expect(io.lines).toContain("  · the base tools (41s)");
+    expect(io.lines).toContain("spoo: 1 installed: GitHub CLI");
+  });
+
+  it("with --later leaves the sign-in waiting, opens no page even at a terminal, says so at the end and exits 0", async () => {
+    const io = { ...captured(), isTTY: true };
+    const host = fakeHost({ signIn: true });
+    const opened: string[] = [];
+    expect(await addCommand(io, opts(tmp("add-later")), ["root@10.0.0.9"], { recipe: "laptop", later: true }, deps(host.client, opened))).toBe(0);
+    expect(opened).toEqual([]);
+    expect(io.lines.at(-1)).toBe("  ? Codex waits on you to sign in at https://auth.openai.com/codex/device with code ABCD-EFGH");
+  });
+
+  it("exits 1 where a step that blocks stopped the setup, with why", async () => {
+    const io = captured();
+    const host = fakeHost({ end: "failed" });
+    expect(await addCommand(io, opts(tmp("add-failed")), ["root@10.0.0.9"], { recipe: "laptop" }, deps(host.client))).toBe(1);
+    expect(io.lines.at(-1)).toBe("spoo: no agent installed: Codex");
+  });
+
+  it("at a terminal asks once for the password sudo wants there, without echo, and adds again carrying it in that one request", async () => {
+    const asked: string[] = [];
+    const io = { ...captured(), isTTY: true, askSecret: async (q: string) => (asked.push(q), "Tq-not-a-real-pw") };
+    const host = fakeHost({ sudoPassword: "Tq-not-a-real-pw", pending: true });
+    expect(await addCommand(io, opts(tmp("add-sudo")), ["dev@10.0.0.9"], {}, deps(host.client))).toBe(0);
+    expect(asked).toEqual([sudoPasswordAsk("dev@10.0.0.9", false)]);
+    // One line: a hint under it would be drawn twice once the prompt is answered.
+    expect(sudoPasswordAsk("dev@10.0.0.9", false)).not.toContain("\n");
+    const adds = host.asked.filter(a => a.op === "places.add");
+    expect(adds.map(a => a.params?.["sudoPassword"])).toEqual([undefined, "Tq-not-a-real-pw"]);
+    // The one stream both tries ride, and nothing the person reads holds the password.
+    expect(adds[0]!.params?.["addId"]).toBe(adds[1]!.params?.["addId"]);
+    expect(io.screen).not.toContain("Tq-not-a-real-pw");
+  });
+
+  it("asks again where sudo did not take it, up to sudo's own three, and off a terminal says the host's sentence asking nothing", async () => {
+    const asked: string[] = [];
+    const io = { ...captured(), isTTY: true, askSecret: async (q: string) => (asked.push(q), "wrong") };
+    await expect(addCommand(io, opts(tmp("add-sudo-wrong")), ["dev@10.0.0.9"], {}, deps(fakeHost({ sudoPassword: "right" }).client))).rejects.toThrow("sudo on root@10.0.0.9 did not take that password");
+    expect(asked).toEqual([sudoPasswordAsk("dev@10.0.0.9", false), sudoPasswordAsk("dev@10.0.0.9", true), sudoPasswordAsk("dev@10.0.0.9", true)]);
+    const piped = captured();
+    const host = fakeHost({ sudoPassword: "right" });
+    await expect(addCommand(piped, opts(tmp("add-sudo-pipe")), ["dev@10.0.0.9"], {}, deps(host.client))).rejects.toThrow("runs sudo only with dev's password. Type it in Add a computer in the app, or at wsp add in a terminal.");
+    expect(host.asked.filter(a => a.op === "places.add")).toHaveLength(1);
+  });
+
+  it("without a recipe says the computer waits on its picks and how to give them, and follows nothing", async () => {
+    const io = captured();
+    const host = fakeHost({ pending: true });
+    expect(await addCommand(io, opts(tmp("add-pending")), ["root@10.0.0.9"], {}, deps(host.client))).toBe(0);
+    expect(io.lines.at(-1)).toBe(choosingLine("spoo"));
+    expect(host.asked.map(a => a.op)).toEqual(["places.add"]);
+  });
+
+  it("with --resume sets up the computer named from the recipe given, and refuses the flags of a join beside it", async () => {
+    const io = captured();
+    const host = fakeHost();
+    expect(await addCommand(io, opts(tmp("add-resume")), ["spoo"], { resume: true, recipe: "laptop" }, deps(host.client))).toBe(0);
+    expect(host.asked.find(a => a.op === "places.setup")?.params).toMatchObject({ ref: "spoo", recipe: "laptop" });
+    await expect(addCommand(captured(), opts(tmp("add-resume-name")), ["spoo"], { resume: true, name: "box" }, deps(host.client))).rejects.toThrow(RESUME_FLAGS_REFUSAL);
+  });
+
+  it("with --resume on a setup already running follows that run on its own stream to the end", async () => {
+    const io = captured();
+    const host = fakeHost({ running: "a_running" });
+    const followed = addCommand(io, opts(tmp("add-follow")), ["spoo"], { resume: true }, deps(host.client));
+    expect(await Promise.race([followed, new Promise<"stuck">(r => setTimeout(() => r("stuck"), 1_000))])).toBe(0);
+    expect(io.lines.some(l => l.includes(SETUP_STEP_WORDS.clis))).toBe(true);
+  });
+
+  it("refuses a recipe, --later and --json on an add that is not a computer's", async () => {
+    const host = fakeHost();
+    for (const flags of [{ recipe: "laptop" }, { later: true }, { json: true }]) {
+      await expect(addCommand(captured(), opts(tmp("add-folder")), ["/Users/dev/code/app"], flags, deps(host.client))).rejects.toThrow(SETUP_FLAGS_REFUSAL);
+      await expect(addCommand(captured(), opts(tmp("add-bare")), [], flags, deps(host.client))).rejects.toThrow(SETUP_FLAGS_REFUSAL);
+    }
+    expect(host.asked).toEqual([]);
+  });
+});
+
+describe("following a setup from the command line", () => {
+  it("hears the end that lands while it reads the row, rather than waiting on a frame that never comes", async () => {
+    const listeners: ((frame: Record<string, unknown>) => void)[] = [];
+    let reads = 0;
+    const client = {
+      request: async (op: string) => {
+        if (op !== "places.list") throw new Error(`unexpected op ${op}`);
+        reads += 1;
+        if (reads > 1) return { places: [{ ...PLACE, setup: { ...RUNNING, state: "done" } }] };
+        for (const fn of [...listeners]) fn({ type: "place.setup", addId: "a_x", placeId: PLACE.id, end: "ready" });
+        return { places: [{ ...PLACE, setup: RUNNING }] };
+      },
+      onFrame: (fn: (frame: Record<string, unknown>) => void) => {
+        listeners.push(fn);
+        return () => listeners.splice(listeners.indexOf(fn), 1);
+      },
+      closed: new Promise(() => {}),
+      closeWords: () => "",
+    };
+    const watch = watchSetup(client as never, "a_x");
+    const followed = await Promise.race([followSetup(client as never, PLACE.id, watch), new Promise<"stuck">(r => setTimeout(() => r("stuck"), 500))]);
+    expect(followed).not.toBe("stuck");
+    expect(reads).toBe(2);
+  });
+});
+
+describe("the add tool", () => {
+  it("answers at the first sign-in waiting on the person, with its page, and never waits on them", async () => {
+    const host = fakeHost({ signIn: true });
+    const answer = await addComputer(host.client as never, { address: "root@10.0.0.9", recipe: "laptop" });
+    expect(answer.waiting).toEqual([WAIT]);
+    expect(answer.setup.map(l => l.step)).toEqual(["floor", "clis"]);
+    expect(answer.computer.id).toBe(PLACE.id);
+    expect(host.asked.filter(a => a.op !== "places.list")).toEqual([{ op: "places.add", params: { address: "root@10.0.0.9", recipe: "laptop" } }]);
+  });
+
+  it("answers at the end once nothing waits, and goes on past a sign-in it was told to leave waiting", async () => {
+    const ready = await addComputer(fakeHost().client as never, { address: "spoo", recipe: "laptop" });
+    expect([ready.computer.setup?.state, ready.waiting]).toEqual(["done", []]);
+    const later = await addComputer(fakeHost({ signIn: true }).client as never, { address: "spoo", recipe: "laptop", later: true });
+    expect([later.computer.setup?.state, later.waiting]).toEqual(["done", [WAIT]]);
+  });
+
+  it("refuses a project's source and a provider in the words that send them elsewhere, asking the host nothing", async () => {
+    const host = fakeHost();
+    await expect(addComputer(host.client as never, { address: "/Users/dev/code/app" })).rejects.toThrow(ADD_TOOL_FIX);
+    await expect(addComputer(host.client as never, { address: "https://github.com/dev/app.git" })).rejects.toMatchObject({ kind: "usage" });
+    await expect(addComputer(host.client as never, { address: "box" })).rejects.toThrow("box is not one");
+    expect(host.asked).toEqual([]);
+  });
+
+  it("called again with resume while the setup runs, answers that run's next wait rather than a refusal", async () => {
+    const answer = await addComputer(fakeHost({ running: "a_running", signIn: true }).client as never, { address: "spoo", resume: true });
+    expect(answer.waiting).toEqual([WAIT]);
+  });
+
+  it("answers at its ceiling with how far the add got", async () => {
+    const host = fakeHost({ signIn: true });
+    const answer = await addComputer(host.client as never, { address: "root@10.0.0.9", recipe: "laptop", later: true }, { ceilingMs: 0 });
+    expect(answer.computer.setup?.state).toBeDefined();
+  });
+});
+
+describe("the checks a box passes before anything of wsp's goes on it", () => {
+  const read = (lines: string[]): ReturnType<typeof parsePlaceCheck> => parsePlaceCheck(lines.map(l => `wsp-check ${l}`).join("\n"));
+  const need = 400 * 1024 ** 2 + PLACE_CHECK_SPARE_BYTES;
+
+  it("passes root on systemd with cgroup v2 and the room, and refuses each that is missing in a sentence naming the fix", () => {
+    expect(placeCheckRefusal("spoo", read(["uid 0", "systemd yes", "cgroup2 yes", `free ${10 * 1024 ** 3}`]), need)).toBeUndefined();
+    expect(placeCheckRefusal("spoo", read(["uid 1000", "systemd yes"]), need)).toContain("not root");
+    // A box that answers a uid other than root under the road to root is refused in the one sentence naming both fixes.
+    const asUser = placeCheckRefusal("dev@10.0.0.9", read(["uid 1000"]), need)!;
+    expect(asUser).toContain("wsp needs root to keep itself running");
+    expect(asUser).toContain("add root@10.0.0.9 instead or give that user passwordless sudo");
+    // An alias is named by the host it reaches, beside the ssh config line that makes the alias log in as root.
+    const asAlias = placeCheckRefusal("spoo", read(["uid 1000"]), need, "65.21.4.12")!;
+    expect(asAlias).toContain("add root@65.21.4.12 instead");
+    expect(asAlias).toContain("User root under Host spoo");
+    // The app draws these on the check's row, so neither says an internal word or a command for a terminal.
+    for (const said of [asUser, asAlias, placeCheckRefusal("spoo", read(["uid 0", "systemd no"]), need)!]) {
+      expect(said).not.toMatch(/\bdaemons?\b/i);
+      expect(said).not.toMatch(/\bwsp (add|remove|leave|join|computers)\b/);
+    }
+    expect(placeCheckRefusal("spoo", read(["uid 0", "systemd no"]), need)).toContain("runs no systemd");
+    expect(placeCheckRefusal("spoo", read(["uid 0", "systemd yes", "cgroup2 no"]), need)).toContain("no cgroup v2");
+    expect(placeCheckRefusal("spoo", read(["uid 0", "systemd yes", "cgroup2 yes", `free ${1024 ** 3}`]), need)).toContain(`1 GB free on the disk wsp installs onto (${TOOL_PREFIX})`);
+  });
+
+  it("times each check on the box itself, since the three are read in one run, and each row carries its own time", () => {
+    const checked = read(["uid 0", "ms root 2", "systemd yes", "cgroup2 yes", "ms system 3", `free ${10 * 1024 ** 3}`, "ms disk 14"]);
+    expect(placeCheckRows("spoo", checked, need).map(r => [r.step, r.ms])).toEqual([
+      ["root", 2],
+      ["system", 3],
+      ["disk", 14],
+    ]);
+    // A box whose date cannot count milliseconds says no time, and no row makes one up.
+    expect(placeCheckRows("spoo", read(["uid 0", "systemd yes", "cgroup2 yes"]), need).map(r => r.ms)).toEqual([undefined, undefined, undefined]);
+  });
+
+  it("runs on a shell whose date cannot count milliseconds without an error, and says the facts all the same", () => {
+    const ran = spawnSync("/bin/sh", ["-c", PLACE_CHECK_SCRIPT], { encoding: "utf8" });
+    expect(ran.stderr).toBe("");
+    const checked = parsePlaceCheck(ran.stdout);
+    expect(checked.uid).toBe(process.getuid!());
+    for (const ms of Object.values(checked.ms ?? {})) expect(Number.isInteger(ms)).toBe(true);
+    // A date that counts nanoseconds, as GNU's does, times every check.
+    const bin = mkdtempSync(join(tmpdir(), "wsp-check-date-"));
+    writeStub(join(bin, "date"), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} -e 'console.log(String(process.hrtime.bigint()))'\n`);
+    const timed = spawnSync("/bin/sh", ["-c", PLACE_CHECK_SCRIPT], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } });
+    rmSync(bin, { recursive: true, force: true });
+    expect(Object.keys(parsePlaceCheck(timed.stdout).ms ?? {}).sort()).toEqual(["disk", "root", "system"]);
+  });
+
+  it("reads the free disk off the volume wsp installs onto, not the one the home sits on", () => {
+    // Two volumes: the home on one with 50 GB free, every other folder, wsp's install folder among them, on one with 3 GB.
+    const bin = mkdtempSync(join(tmpdir(), "wsp-check-df-"));
+    const home = join(bin, "home");
+    mkdirSync(home);
+    const handed = join(bin, "handed");
+    writeStub(join(bin, "df"), `#!/bin/sh\necho "$2" >> ${handed}\ncase "$2" in ${home}*) free=52428800 ;; *) free=3145728 ;; esac\necho "Filesystem 1024-blocks Used Available Capacity Mounted on"\necho "fake 104857600 1 $free 1% /"\n`);
+    const ran = spawnSync("/bin/sh", ["-c", PLACE_CHECK_SCRIPT], { encoding: "utf8", env: { ...process.env, HOME: home, PATH: `${bin}:${process.env["PATH"] ?? ""}` } });
+    const folders = readFileSync(handed, "utf8").trim().split("\n");
+    rmSync(bin, { recursive: true, force: true });
+    expect(parsePlaceCheck(ran.stdout).freeBytes).toBe(3 * 1024 ** 3);
+    // wsp's install folder, or the nearest folder above it that is there, where the first install makes it.
+    const above = (dir: string): string[] => (dir === "/" ? ["/"] : [dir, ...above(dirname(dir))]);
+    for (const folder of folders) expect(above(TOOL_PREFIX)).toContain(folder);
+    expect(placeCheckRefusal("spoo", read(["uid 0", "systemd yes", "cgroup2 yes", `free ${3 * 1024 ** 3}`]), 4 * 1024 ** 3)).toContain(`3 GB free on the disk wsp installs onto (${TOOL_PREFIX})`);
+  });
+
+  it("refuses nothing a box would not say, and reads no line that is not its own", () => {
+    expect(placeCheckRefusal("spoo", read([]), need)).toBeUndefined();
+    expect(parsePlaceCheck("uid 1000\nwsp-check systemd yes\n")).toEqual({ systemd: true });
+  });
+});
+
+describe("the plan off a computer's picks", () => {
+  /** A Mac with two agents, a server each and the same one under both, two CLIs and a crate. */
+  const manifest: Manifest = {
+    entries: [
+      { rung: "agents", id: "agents/claude", label: "Claude Code", paths: ["~/.claude/settings.json", "~/.claude/skills", "~/.claude/plugins/installed_plugins.json"], bytes: 1, default: "bring" },
+      { rung: "agents", id: "agents/codex", label: "Codex", paths: ["~/.codex/config.toml"], bytes: 1, default: "bring" },
+      { rung: "agents", id: "agents/mcp/claude/linear", label: "linear", group: "Claude Code MCP servers", paths: [], bytes: 0, default: "bring" },
+      { rung: "agents", id: "agents/mcp/codex/linear", label: "linear", group: "Codex MCP servers", paths: [], bytes: 0, default: "bring" },
+      { rung: "agents", id: "agents/mcp/claude/notion", label: "notion", group: "Claude Code MCP servers", paths: [], bytes: 0, default: "bring" },
+      { rung: "tools", id: "tools/brew/jq", label: "jq", paths: [], bytes: 0, default: "bring", linux: "yes" },
+      { rung: "tools", id: "tools/brew/bat", label: "bat", paths: [], bytes: 0, default: "bring", linux: "yes" },
+      { rung: "tools", id: "tools/cargo/cargo-nextest", label: "cargo-nextest", paths: [], bytes: 0, default: "bring", linux: "yes", version: "0.9.100" },
+      { rung: "shell", id: "shell/zshrc", label: "~/.zshrc", paths: ["~/.zshrc"], bytes: 1, default: "bring", login: "zsh" },
+    ],
+  };
+  const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, mcp: { linear: { agents: ["claude"] } }, clis: { bat: { via: "brew" } } });
+
+  it("ticks the picks and nothing else: the agent with its own files less its skills and plugins, the server for its agent, the CLI by its manager", () => {
+    const rows = picksRows(manifest, picks, { home: "/Users/dev", brew: new Map() });
+    const ticked = rows.filter(e => e.bring === true).map(e => e.id);
+    expect(ticked).toEqual(expect.arrayContaining(["agents/claude", "agents/mcp/claude/linear", "tools/brew/bat"]));
+    for (const id of ["agents/codex", "agents/mcp/codex/linear", "agents/mcp/claude/notion", "tools/brew/jq", "tools/cargo/cargo-nextest", "shell/zshrc"]) expect(ticked).not.toContain(id);
+    expect(rows.find(e => e.id === "agents/claude")?.paths).toEqual(["~/.claude/settings.json"]);
+  });
+
+  /** A server whose definition carries a key, under both agents, and the picks that tick it for both. */
+  const keyed: Manifest = {
+    entries: [
+      ...manifest.entries,
+      { rung: "agents", id: "agents/mcp/claude/sentry", label: "sentry", group: "Claude Code MCP servers", paths: [], bytes: 0, default: "bring", consent: true, keys: ["SENTRY_ACCESS_TOKEN"] },
+      { rung: "agents", id: "agents/mcp/codex/sentry", label: "sentry", group: "Codex MCP servers", paths: [], bytes: 0, default: "bring", consent: true, keys: ["SENTRY_ACCESS_TOKEN"] },
+    ],
+  };
+  const sentry = (copy: boolean): RecipeFile => ({ ...picks, agents: { ...picks.agents, codex: { signin: "vault" } }, mcp: { ...picks.mcp, sentry: { agents: ["claude", "codex"] } }, ...(copy ? { copyKeys: true as const } : {}) });
+
+  it("answers copy on a server that carries a key only where the picks said yes to copying keys, and on no other row", () => {
+    const yes = picksRows(keyed, sentry(true), { home: "/Users/dev", brew: new Map() });
+    expect(yes.filter(e => e.rung === "agents" && e.choice !== undefined).map(e => [e.id, e.bring, e.choice])).toEqual([
+      ["agents/mcp/claude/sentry", true, "copy"],
+      ["agents/mcp/codex/sentry", true, "copy"],
+    ]);
+    const no = picksRows(keyed, sentry(false), { home: "/Users/dev", brew: new Map() });
+    expect(no.filter(e => e.id.endsWith("/sentry")).map(e => [e.id, e.bring, e.choice])).toEqual([
+      ["agents/mcp/claude/sentry", true, "skip"],
+      ["agents/mcp/codex/sentry", true, "skip"],
+    ]);
+    // A yes on a server that carries nothing answers nothing: a plain server travels on its tick.
+    const plain = picksRows(keyed, { ...picks, mcp: { linear: { agents: ["claude"] } }, copyKeys: true }, { home: "/Users/dev", brew: new Map() });
+    expect(plain.find(e => e.id === "agents/mcp/claude/linear")).toMatchObject({ bring: true });
+    expect(plain.find(e => e.id === "agents/mcp/claude/linear")?.choice).toBeUndefined();
+  });
+
+  it("keeps a server that carries a key on a yes, and on a no sets it aside saying which keys it needed and where the yes is given", async () => {
+    const home = tmp("plan-keys");
+    const provision = placeProvisioner({ statePath: join(home, "state.json"), home, platform: "darwin", collect: async () => keyed, brew: async () => new Map() });
+    const scopes = (plan: Awaited<ReturnType<typeof provision.setup>>) => plan.mcp?.agents.map(a => [a.id, a.scopes.flatMap(s => s.keep), a.scopes.flatMap(s => s.drop.map(d => [d.name, d.reason, ...(d.keys === undefined ? [] : [d.keys])]))]);
+    expect(scopes(await provision.setup(sentry(true), { home: "/root" }))).toEqual([
+      ["claude", ["linear", "sentry"], [["notion", "unticked"]]],
+      ["codex", ["sentry"], [["linear", "unticked"]]],
+    ]);
+    const no = await provision.setup(sentry(false), { home: "/root" });
+    expect(scopes(no)).toEqual([
+      ["claude", ["linear"], [["notion", "unticked"], ["sentry", keysKeptLine(["SENTRY_ACCESS_TOKEN"]), ["SENTRY_ACCESS_TOKEN"]]]],
+      ["codex", [], [["linear", "unticked"], ["sentry", keysKeptLine(["SENTRY_ACCESS_TOKEN"]), ["SENTRY_ACCESS_TOKEN"]]]],
+    ]);
+    // A computer that follows no recipe, the add's default, gives the yes on the server's own row; one that follows a
+    // recipe gives it on that recipe's page, by its name.
+    expect(keysKeptLine(["SENTRY_ACCESS_TOKEN"])).toBe("not copied: it needs SENTRY_ACCESS_TOKEN; to send it, press Copy the keys on this row in the computer's Setup in Settings > Computers");
+    const followed = await provision.setup(sentry(false), { home: "/root", recipe: "Builders" });
+    expect(followed.mcp?.agents[0]?.scopes[0]?.drop.find(d => d.name === "sentry")?.reason).toBe("not copied: it needs SENTRY_ACCESS_TOKEN; to send it, pick Copy the keys under MCP servers on the recipe Builders in Settings > Recipes");
+  });
+
+  it("puts a plugin on, and takes one off, pointed at the folder Claude Code's threads there read, never its default home", async () => {
+    const home = tmp("plan-plugins");
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(join(home, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ acme: { source: { source: "github", repo: "acme/plugins" } } }));
+    const provision = placeProvisioner({ statePath: join(home, "state.json"), home, platform: "darwin", collect: async () => manifest, brew: async () => new Map() });
+    const stores = { claude: "/root/.claude-cfg", codex: "/wsp/logins/codex" };
+    const plan = await provision.setup({ ...picks, plugins: { "lint@acme": {} } }, { home: "/root", stores }, new Set(["plugins"]));
+    expect(plan.plugins?.map(p => p.cmd)).toEqual([["export CLAUDE_CONFIG_DIR='/root/.claude-cfg'; claude plugin marketplace add 'acme/plugins' || true", "claude plugin install 'lint@acme' --json </dev/null"].join("\n")]);
+    const full = await provision.setup({ ...picks, plugins: { "lint@acme": {} } }, { home: "/root", stores });
+    expect(full.plugins?.[0]?.cmd.split("\n")[0]).toBe("export CLAUDE_CONFIG_DIR='/root/.claude-cfg'; claude plugin marketplace add 'acme/plugins' || true");
+    const undo = await provision.undo!({ ...picks, plugins: { "lint@acme": {} } }, [{ kind: "plugins", name: "lint@acme" }], { home: "/root", stores });
+    expect(undo[0]?.cmd?.split("\n").at(-1)).toBe("export CLAUDE_CONFIG_DIR='/root/.claude-cfg'; claude plugin uninstall 'lint@acme' </dev/null");
+  });
+
+  it("asks for the C toolchain only where a picked row needs it, lands skills at their real path and never a bash file", async () => {
+    const home = tmp("plan-picks");
+    const real = join(home, "checkout", "unslop");
+    mkdirSync(real, { recursive: true });
+    writeFileSync(join(real, "SKILL.md"), "---\nname: unslop\n---\n");
+    mkdirSync(join(home, ".claude", "skills"), { recursive: true });
+    symlinkSync(real, join(home, ".claude", "skills", "unslop"));
+    writeFileSync(join(home, ".zshrc"), "export GITHUB_TOKEN=ghp_x\nalias g=git\n");
+    writeFileSync(join(home, ".bashrc"), "alias g=git\n");
+    const provision = placeProvisioner({ statePath: join(home, "state.json"), home, platform: "darwin", collect: async () => manifest, brew: async () => new Map() });
+    const plain = await provision.setup(picks, { home: "/root" });
+    expect(plain.compiler).toBe(false);
+    const building = await provision.setup({ ...picks, clis: { "cargo-nextest": { via: "cargo", needs: ["build-essential"] } } }, { home: "/root" });
+    expect(building.compiler).toBe(true);
+    const full = await provision.setup({ ...picks, skills: { unslop: { from: "~/.claude/skills" }, gone: { from: "~/.claude/skills" } }, configs: { shell: {} } }, { home: "/root" });
+    expect(full.skills?.lands.map(l => l.dest)).toEqual([".claude/skills/unslop"]);
+    const packed = await full.skills!.pack();
+    expect(packed.files).toBe(1);
+    expect(full.skipped).toEqual([expect.objectContaining({ id: "skills/gone" })]);
+    expect(full.configs?.lands.map(l => l.dest)).toEqual([".zshrc"]);
+    const configs = await full.configs!.pack();
+    const landed = gunzipSync(configs.tar).toString("utf8");
+    expect(landed).toContain("alias g=git");
+    expect(landed).not.toContain("ghp_x");
+    expect(full.configTools?.map(t => t.label)).toEqual(["zsh"]);
+  });
+
+  it("sends a skill only as a folder holding SKILL.md under its own name, never another folder of this computer", async () => {
+    const home = tmp("plan-skills");
+    mkdirSync(join(home, ".ssh"), { recursive: true });
+    writeFileSync(join(home, ".ssh", "id_ed25519"), "PRIVATE");
+    mkdirSync(join(home, ".claude", "skills", "notes"), { recursive: true });
+    writeFileSync(join(home, ".claude", "skills", "notes", "todo.md"), "x");
+    const provision = placeProvisioner({ statePath: join(home, "state.json"), home, platform: "darwin", collect: async () => manifest, brew: async () => new Map() });
+    const plan = await provision.setup({ ...picks, skills: { ".ssh": { from: "~" }, "../../.ssh": { from: "~/.claude/skills" }, notes: { from: "~/.claude/skills" } } }, { home: "/root" });
+    expect(plan.skills).toBeUndefined();
+    expect(plan.skipped.map(s => s.id).sort()).toEqual(["skills/../../.ssh", "skills/.ssh", "skills/notes"]);
+  });
+
+  it("follows a link inside a skill only to a file, and names a linked folder rather than sending what it holds", async () => {
+    const home = tmp("plan-links");
+    mkdirSync(join(home, ".ssh"), { recursive: true });
+    writeFileSync(join(home, ".ssh", "id_ed25519"), "PRIVATE KEY BYTES");
+    writeFileSync(join(home, "notes.md"), "shared notes");
+    const good = join(home, ".claude", "skills", "good");
+    mkdirSync(good, { recursive: true });
+    writeFileSync(join(good, "SKILL.md"), "---\nname: good\n---\n");
+    symlinkSync(join(home, ".ssh"), join(good, "keys"));
+    symlinkSync(join(home, "notes.md"), join(good, "notes.md"));
+    const provision = placeProvisioner({ statePath: join(home, "state.json"), home, platform: "darwin", collect: async () => manifest, brew: async () => new Map() });
+    const plan = await provision.setup({ ...picks, skills: { good: { from: "~/.claude/skills" } } }, { home: "/root" });
+    const packed = await plan.skills!.pack();
+    const tar = gunzipSync(packed.tar).toString("utf8");
+    expect(tar).not.toContain("PRIVATE KEY BYTES");
+    expect(tar).not.toContain("keys/id_ed25519");
+    expect(tar).toContain("shared notes");
+    expect(packed.files).toBe(2);
+    expect(packed.skipped).toEqual([expect.objectContaining({ path: ".claude/skills/good/keys", note: expect.stringContaining("links to a folder") })]);
+  });
+});

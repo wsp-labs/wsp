@@ -1,0 +1,954 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The daemon server. Every socket, inbound or the link a place opened, passes one door: the auth frame first,
+//! checked against the token file as it is at that moment, then the op switch. Nothing is served before the door
+//! passes a socket and nothing here binds anything but the address it was told.
+
+mod auth;
+mod beneath;
+mod bring_back;
+mod clock;
+mod containers;
+mod door;
+mod engine_http;
+mod exec;
+mod files;
+mod fs;
+mod git;
+mod guest;
+mod hash;
+mod hosts;
+mod http_post;
+mod image;
+mod inbox;
+mod kill;
+#[cfg(target_os = "macos")]
+mod libproc;
+mod link;
+mod mac_model;
+mod manifest;
+mod mode;
+mod ops;
+mod paths;
+mod pipe;
+mod place;
+mod ports;
+mod proc;
+mod proc_local;
+mod proc_owner;
+#[cfg(target_os = "macos")]
+mod proc_track;
+mod pty;
+mod readings;
+mod readings_history;
+mod relay;
+mod roads;
+/// The seal a place link agrees in its handshake. Public so the suite that drives both ends of a link can
+/// stand on the host's side of it, which in the product is node's own.
+pub use wsp_seal as seal;
+mod slate_reads;
+mod ssh;
+mod stdio;
+mod sys;
+mod sys_local;
+mod transcripts;
+mod tunnel;
+mod under_home;
+mod urls;
+mod usage_logs;
+mod workspace;
+
+pub use link::place_backoff_ms;
+pub use pipe::Doors;
+
+/// What a leave of this computer would take that no remote holds, one line per checkout or workspace under the
+/// runtime's folder: the read the daemon's own leave makes, for the command line's leave to make the same way. An
+/// error where a folder of the runtime's could not be listed.
+pub fn leave_unsaved(runtime: &Path) -> Result<Vec<String>, String> {
+    place::unsaved_under(runtime)
+}
+
+use std::collections::HashMap;
+use std::io;
+use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use tokio::net::{TcpListener, UnixListener};
+use tokio::sync::mpsc;
+use wsp_frames::{numbers, DaemonEvent};
+
+use crate::ops::Road;
+use crate::paths::OpError;
+
+/// What a daemon is started with: one field per flag the binary takes, so the harness and the deploy scripts spell
+/// one thing. Fields the door does not read yet are held for the modules that will.
+#[derive(Debug, Clone)]
+pub struct Options {
+    pub host: String,
+    pub port: u16,
+    /// The token file, read at every auth frame so the host can rotate it while the daemon runs.
+    pub token_path: PathBuf,
+    /// The directory every fs and git path resolves inside; HOME when absent.
+    pub root: Option<PathBuf>,
+    pub roots_path: Option<PathBuf>,
+    /// Which kind of machine this daemon serves, which picks the modules its readings come from. A word rather than
+    /// the enum: a kind the registry lacks is refused at the watch, in the words the pane prints, not at start.
+    pub kind: String,
+    pub work_folder: Option<PathBuf>,
+    pub inbox_dir: Option<PathBuf>,
+    pub inbox_quiet_ms: Option<u64>,
+    pub inbox_poll_ms: Option<u64>,
+    pub manifest_path: Option<PathBuf>,
+    pub run_dir: Option<PathBuf>,
+    pub log_dir: Option<PathBuf>,
+    pub open_socket_path: Option<PathBuf>,
+    pub proc_root: Option<PathBuf>,
+    pub passwd_path: Option<PathBuf>,
+    pub ports_interval_ms: Option<u64>,
+    pub sys_interval_ms: Option<u64>,
+    pub proc_interval_ms: Option<u64>,
+    pub mode_interval_ms: Option<u64>,
+    pub auth_deadline_ms: Option<u64>,
+    /// How long a guest session stands with nobody watching it before it ends to its guest.
+    pub guest_unwatched_ms: Option<u64>,
+    /// How often the token watcher reads the file; the rule's own second unless a case shortens it.
+    pub token_watch_ms: Option<u64>,
+    pub place_file: Option<PathBuf>,
+    /// The PATH this daemon's unit handed it, read once at start before the probe list took its place. A place
+    /// daemon runs nothing on it; the report carries it as what the person's login shell gives, and the presence
+    /// read looks along it, since reading that a tool stands somewhere runs nothing.
+    pub unit_path: Option<String>,
+    pub home: Option<PathBuf>,
+    pub wsp_argv: Vec<String>,
+    pub agents: Vec<String>,
+    pub link_connect_ms: Option<u64>,
+    pub link_quiet_ms: Option<u64>,
+    pub link_refused_retry_ms: Option<u64>,
+    pub link_backoff_ms: Option<u64>,
+    /// Where a place's daemon keeps the layers and the workspaces it runs.
+    pub runtime_root: Option<PathBuf>,
+    /// The binary the workspace runtime runs as its helper and as every workspace's init: this process's own where
+    /// nothing names one, which is the daemon binary in every place a daemon runs. A test opens a daemon inside its
+    /// own process, whose executable is the test and not a daemon, so it names the daemon binary it was built
+    /// beside; nothing on a machine names it, so nothing on a machine behaves differently for it being here.
+    pub runtime_helper: Option<PathBuf>,
+    /// The OpenSSH programs and folders an editor's server is made of; Ubuntu's own where unset.
+    pub ssh_programs: Option<ssh::Programs>,
+    /// How long a server with no session open stands before it and all it started is ended.
+    pub ssh_idle_ms: Option<u64>,
+    /// The workspace AppArmor profile a leave run as root takes off; the one a root install writes where unset. A
+    /// test names a file under its own temp home, since a leave there would otherwise take the machine's own.
+    pub apparmor_profile: Option<PathBuf>,
+    /// The folder a leave run as root takes wsp's install out of: the prefix under it, the links into the prefix and
+    /// what the setup listed under its /usr/local and /opt. The computer's own / where unset; a test names its own
+    /// temp folder, since a leave there would otherwise take the machine's own /opt/wsp.
+    pub install_root: Option<PathBuf>,
+    /// Where this daemon keeps its readings a minute apart; its token's folder's readings where unset.
+    pub readings_dir: Option<PathBuf>,
+    /// How often the kept readings read the computer; the rule's own where unset. Only a case has use for another.
+    pub readings_interval_ms: Option<u64>,
+    /// The folder a thread's docker writes its compose notes in: the host's, for this computer's daemon; the place's
+    /// own `docker-notes` where unset.
+    pub docker_notes: Option<PathBuf>,
+    /// The two doors a machine whose credentials the host keeps serves its agents on, which are served only where
+    /// this daemon is such a machine's: a cloud guest, not a place. None serves neither.
+    pub doors: Option<Doors>,
+}
+
+impl Options {
+    /// The in-guest shape: 0.0.0.0:7070, the guest token file, a cloud machine.
+    pub fn new(token_path: impl Into<PathBuf>) -> Options {
+        Options {
+            host: numbers::DEFAULT_HOST.to_owned(),
+            port: numbers::DEFAULT_PORT,
+            token_path: token_path.into(),
+            root: None,
+            roots_path: None,
+            kind: "cloud".to_owned(),
+            work_folder: None,
+            inbox_dir: None,
+            inbox_quiet_ms: None,
+            inbox_poll_ms: None,
+            manifest_path: None,
+            run_dir: None,
+            log_dir: None,
+            open_socket_path: None,
+            proc_root: None,
+            passwd_path: None,
+            ports_interval_ms: None,
+            sys_interval_ms: None,
+            proc_interval_ms: None,
+            mode_interval_ms: None,
+            auth_deadline_ms: None,
+            guest_unwatched_ms: None,
+            token_watch_ms: None,
+            place_file: None,
+            unit_path: None,
+            home: None,
+            wsp_argv: Vec::new(),
+            agents: Vec::new(),
+            link_connect_ms: None,
+            link_quiet_ms: None,
+            link_refused_retry_ms: None,
+            link_backoff_ms: None,
+            runtime_root: None,
+            runtime_helper: None,
+            ssh_programs: None,
+            ssh_idle_ms: None,
+            apparmor_profile: None,
+            install_root: None,
+            readings_dir: None,
+            readings_interval_ms: None,
+            docker_notes: None,
+            doors: None,
+        }
+    }
+
+    /// Whether this daemon serves the doors and parks pipes for them: it is named them, which only a provider's
+    /// machine's unit does, and it is a cloud guest's daemon.
+    pub(crate) fn serves_doors(&self) -> bool {
+        self.doors.is_some() && self.kind == "cloud" && self.place_file.is_none()
+    }
+}
+
+/// Every frame the daemon writes is one JSON object; serialising the wire types cannot fail.
+pub(crate) fn frame_text(value: &impl serde::Serialize) -> String {
+    serde_json::to_string(value).expect("a frame serialises")
+}
+
+/// One item on a socket's outbound channel: a frame to write, or the last reply of an op that ends this daemon,
+/// after which the loop stops. A leave ends it for good; an update ends it so whatever supervises it starts the
+/// binary the host just sent.
+pub(crate) enum Outgoing {
+    Text(String),
+    /// A guest frame and the bytes it holds against its workspace: the count goes back once the frame is written,
+    /// and with the frame if the channel it waits on is dropped, so what the cap counts is what is really waiting.
+    Guest(String, guest::GuestBytes),
+    Leave(String),
+    Restart(String),
+    /// The token this socket authed with is no longer the file's: it is closed 4401 with one sentence and nothing
+    /// else of this daemon's ends.
+    Rotated,
+}
+
+impl Outgoing {
+    #[cfg(test)]
+    pub(crate) fn text(&self) -> &str {
+        match self {
+            Outgoing::Text(t) | Outgoing::Guest(t, _) | Outgoing::Leave(t) | Outgoing::Restart(t) => t,
+            Outgoing::Rotated => wsp_frames::words::AUTH_TOKEN_ROTATED,
+        }
+    }
+}
+
+/// The way frames reach one socket from anywhere in the daemon: its serve loop writes what arrives here, in order,
+/// so a handler's events and its reply cannot cross.
+#[derive(Clone)]
+pub(crate) struct Outbound(pub(crate) mpsc::UnboundedSender<Outgoing>);
+
+impl Outbound {
+    /// False once the socket is gone, which is how a listener learns it may be dropped.
+    pub(crate) fn send_text(&self, text: &str) -> bool {
+        self.0.send(Outgoing::Text(text.to_owned())).is_ok()
+    }
+
+    pub(crate) fn send(&self, out: Outgoing) -> bool {
+        self.0.send(out).is_ok()
+    }
+
+    pub(crate) fn send_event(&self, event: &DaemonEvent) -> bool {
+        self.send_text(&frame_text(event))
+    }
+}
+
+/// One line of the daemon's log, as the binary prints it on stderr and the suite reads it.
+pub type Log = Box<dyn Fn(&str) + Send + Sync>;
+/// The same log where more than one holder writes to it: the samplers log their start and stop.
+pub(crate) type SharedLog = Arc<dyn Fn(&str) + Send + Sync>;
+
+/// One socket's interest in a pty's data, its exit or its mode; the key is what detaches it when the socket closes.
+pub(crate) struct Listener {
+    pub(crate) key: u64,
+    pub(crate) out: Outbound,
+}
+
+/// What every socket's handler reads: the options as given, the root the hello announces, the ptys and their mode
+/// watcher, and every authed unscoped socket for the events the daemon pushes without being asked.
+pub(crate) struct Ctx {
+    pub(crate) options: Options,
+    pub(crate) root: String,
+    pub(crate) auth_deadline: Duration,
+    pub(crate) ptys: Mutex<pty::PtyManager>,
+    pub(crate) modes: Arc<mode::ModeWatcher>,
+    pub(crate) manifest: Mutex<manifest::ProcessManifest>,
+    pub(crate) spotter: Mutex<relay::CallbackSpotter>,
+    pub(crate) ports: Arc<ports::PortWatch>,
+    pub(crate) inbox: inbox::InboxWatch,
+    /// The file lists fs.files keeps, one per folder asked about.
+    pub(crate) files: files::FileLists,
+    /// The guest sessions open on this machine, and the socket the host watches them from.
+    pub(crate) guests: Arc<guest::Guests>,
+    /// The ssh servers an editor reaches this machine and its workspaces through, one per machine.
+    pub(crate) sshd: Arc<ssh::Servers>,
+    /// Where the daemon's lines go: stderr in the binary, a test's own list otherwise.
+    log: SharedLog,
+    /// The two samplers, built on the first watch so a daemon nobody asks reads nothing; one each for the daemon.
+    sys: Mutex<Option<Arc<sys::SysSampler>>>,
+    procs: Mutex<Option<Arc<proc::ProcSampler>>>,
+    /// Told once a leave has been answered, which is what ends the daemon.
+    pub(crate) stop: tokio::sync::Notify,
+    /// The workspaces a place's daemon runs and answers the machine ops on its link with; none where no place file
+    /// turned the link on or the runtime root could not be opened.
+    #[cfg(target_os = "linux")]
+    pub(crate) runtime: Option<Arc<wsp_runtime::ops::Ops>>,
+    /// Why there is no runtime, where the root it was given is the reason: the doctor's reading of that root,
+    /// which every machine op answers instead of the line that names the op alone. None for every other reason,
+    /// where the log carries it and the ops name the op, as they always have.
+    #[cfg(target_os = "linux")]
+    pub(crate) runtime_refusal: Option<String>,
+    authed: Mutex<HashMap<u64, Outbound>>,
+    /// Every socket that came through the door on a token, by its key: what it authed with and how to reach it.
+    /// The broadcast list above is not this one, since a port-scoped socket hears no events and still holds a
+    /// token a rotation has to take away.
+    tokened: Mutex<HashMap<u64, (String, Outbound)>>,
+    /// The door this daemon holds inside each workspace it runs, by workspace: the accept loop and the socket
+    /// file it binds, which sits in that workspace's own wsp folder and so inside that workspace alone.
+    workspace_doors: Mutex<HashMap<String, WorkspaceDoor>>,
+    keys: AtomicU64,
+    /// The readings this daemon keeps a minute apart for as long as it runs and its last fifteen minutes of reads,
+    /// which sys.history reads back.
+    pub(crate) history: Arc<readings_history::History>,
+    /// What each agent store file came to at its last usage.logs, for as long as this daemon runs.
+    pub(crate) usage_logs: Arc<usage_logs::UsageCache>,
+    /// What became of the door on this computer itself: nothing where it stands, why where it does not. Unset on a
+    /// daemon that is no place, which binds none.
+    pub(crate) computer_door: std::sync::OnceLock<Option<String>>,
+    /// The pipes the host parked here, which the doors' connections take.
+    pub(crate) pipes: Arc<pipe::Pipes>,
+    /// The doors as this daemon bound them, which the git and gh of an op with a token are pointed at. Unset where
+    /// its HTTP door is not bound.
+    pub(crate) doors: std::sync::OnceLock<Doors>,
+}
+
+/// One workspace's door: the task accepting on the socket inside that workspace, which a stop ends, and the
+/// sockets that door is serving right now, which is what the cap on it is read against.
+pub(crate) struct WorkspaceDoor {
+    task: tokio::task::JoinHandle<()>,
+    sockets: Arc<AtomicUsize>,
+}
+
+impl Ctx {
+    /// Reads the manifest file once; a manifest that is there but cannot be read refuses the start, as it does for
+    /// the node daemon.
+    /// The port is the runtime's, and no workspace runs where there is no runtime.
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
+    pub(crate) fn new(options: Options, log: Log, daemon_port: u16) -> io::Result<Ctx> {
+        let root = resolved_root(options.root.as_deref());
+        let auth_deadline = Duration::from_millis(options.auth_deadline_ms.unwrap_or(numbers::AUTH_DEADLINE_MS));
+        let proc_root = options.proc_root.clone().unwrap_or_else(|| PathBuf::from("/proc"));
+        let interval = options.mode_interval_ms.map_or(mode::DEFAULT_INTERVAL, Duration::from_millis);
+        let modes = Arc::new(mode::ModeWatcher::new(mode::linux_mode_probe(&proc_root), interval));
+        let manifest_path = options.manifest_path.clone().unwrap_or_else(|| PathBuf::from(numbers::DEFAULT_MANIFEST_PATH));
+        let manifest = manifest::ProcessManifest::load(Some(manifest_path), options.run_dir.as_deref(), options.log_dir.as_deref())?;
+        let interval = options.ports_interval_ms.map_or(ports::DEFAULT_INTERVAL, Duration::from_millis);
+        let given = options.proc_root.as_deref();
+        let ports = Arc::new(
+            ports::PortWatch::new(ports::source_for(given), ports::lineage_for(given), ports::cwd_for(given), interval)
+                .with_cgroups(ports::cgroup_for(given)),
+        );
+        let guest_unwatched = Duration::from_millis(options.guest_unwatched_ms.unwrap_or(numbers::GUEST_UNWATCHED_MS));
+        #[cfg(target_os = "linux")]
+        let (runtime, runtime_refusal) = open_runtime(&options, &log, daemon_port);
+        // Beside the token, in the daemon's own folder: a box keeps them under /root/.wsp/readings.
+        let readings_dir = options.readings_dir.clone().unwrap_or_else(|| {
+            options
+                .token_path
+                .parent()
+                .map_or_else(|| PathBuf::from(wsp_frames::READINGS_FOLDER), |dir| dir.join(wsp_frames::READINGS_FOLDER))
+        });
+        let history = Arc::new(readings_history::History::new(readings_dir, numbers::READINGS_KEPT_DAYS, numbers::READINGS_CAP_BYTES));
+        let hold_max = options.doors.as_ref().map_or(Duration::from_millis(numbers::PIPE_HOLD_MAX_MS), |doors| doors.hold_max);
+        let sshd = Arc::new(ssh::Servers::new(
+            options.ssh_programs.clone().unwrap_or_default(),
+            Duration::from_millis(options.ssh_idle_ms.unwrap_or(numbers::SSH_IDLE_MS)),
+            &options.token_path,
+        ));
+        Ok(Ctx {
+            options,
+            root,
+            auth_deadline,
+            ptys: Mutex::new(pty::PtyManager::default()),
+            modes,
+            manifest: Mutex::new(manifest),
+            spotter: Mutex::new(relay::CallbackSpotter::new()),
+            ports,
+            inbox: inbox::InboxWatch::default(),
+            files: files::FileLists::default(),
+            guests: Arc::new(guest::Guests::new(guest_unwatched)),
+            sshd,
+            log: Arc::from(log),
+            sys: Mutex::new(None),
+            procs: Mutex::new(None),
+            stop: tokio::sync::Notify::new(),
+            #[cfg(target_os = "linux")]
+            runtime,
+            #[cfg(target_os = "linux")]
+            runtime_refusal,
+            authed: Mutex::new(HashMap::new()),
+            tokened: Mutex::new(HashMap::new()),
+            workspace_doors: Mutex::new(HashMap::new()),
+            keys: AtomicU64::new(1),
+            history,
+            usage_logs: Arc::default(),
+            computer_door: std::sync::OnceLock::new(),
+            pipes: Arc::new(pipe::Pipes::new(hold_max)),
+            doors: std::sync::OnceLock::new(),
+        })
+    }
+
+    pub(crate) fn log(&self, line: &str) {
+        (self.log)(line);
+    }
+
+    /// One workspace of this computer's is working, so its quiet clock starts over: what a pty inside it says on
+    /// every keystroke and every chunk it prints. Nothing on a daemon that runs no workspace.
+    pub(crate) fn workspace_touched(&self, machine: &str) {
+        #[cfg(target_os = "linux")]
+        if let Some(runtime) = &self.runtime {
+            runtime.touched(machine);
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = machine;
+    }
+
+    /// Whether this daemon is a computer's own rather than one inside a machine, which is what the guest roads
+    /// table reads: the same fact the workspace runtime is opened on.
+    pub(crate) fn is_place(&self) -> bool {
+        self.options.place_file.is_some()
+    }
+
+    /// The door inside one workspace, on the path the runtime names for it: a file in the folder of that
+    /// workspace's own that is mounted over the wsp folder inside it. The file itself is the gate, since it is in
+    /// that workspace's mount namespace and in no other's, and a process inside reaches the two guest ops through
+    /// it and no more. A door already held for this workspace is replaced, which is what a boot after a daemon
+    /// restart finds.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub(crate) fn open_workspace_door(self: &Arc<Self>, id: &str, at: &Path) {
+        let at = at.to_path_buf();
+        let listener = match relay::listen_open_socket(&at) {
+            Ok(listener) => listener,
+            Err(e) => return self.log(&format!("workspace {id} has no door inside it: {}: {e}", at.display())),
+        };
+        // Root on this computer owns it and nothing else here may open it; inside, the workspace's own root is
+        // the only one that can see it at all.
+        if let Err(e) = owner_only(&at) {
+            return self.log(&format!("workspace {id} has no door inside it: {}: {e}", at.display()));
+        }
+        let ctx = Arc::clone(self);
+        let workspace = id.to_owned();
+        let mut doors = self.workspace_doors.lock().unwrap_or_else(|e| e.into_inner());
+        // The count is the workspace's own and not one door's: a door replaced after this daemon restarted takes
+        // the count on, since the sockets the one before it is serving are still that workspace's sockets.
+        let sockets = doors.get(id).map_or_else(|| Arc::new(AtomicUsize::new(0)), |held| Arc::clone(&held.sockets));
+        let task = tokio::spawn(door::serve_guests(listener, ctx, Road::Workspace(workspace), Arc::clone(&sockets)));
+        if let Some(old) = doors.insert(id.to_owned(), WorkspaceDoor { task, sockets }) {
+            old.task.abort();
+        }
+    }
+
+    /// The door on this computer itself, for a thread of the person's that runs here as the login it was joined
+    /// with: a socket in wsp's own folder under that login's home, the login's alone, and the wsp beside it that a
+    /// turn finds first on its PATH and that dials it and nothing else. Bound at every start, so a daemon updated in
+    /// place serves it and the wsp names the binary that runs now. A session opened on it names no workspace: the
+    /// host reads which thread it is off the token it carries. What became of it is kept for the report, since a
+    /// thread launched with the tools on a door that is not there would show them failed.
+    fn open_computer_door(self: &Arc<Self>) {
+        let home = place::place_home(self.options.home.as_deref());
+        let at = wsp_frames::place_daemon_paths(&home);
+        let opened = (|| {
+            let listener = relay::listen_open_socket(&at.guest_socket).map_err(|e| format!("{}: {e}", at.guest_socket.display()))?;
+            owned_by_home(&at.guest_socket, &home).map_err(|e| format!("{}: {e}", at.guest_socket.display()))?;
+            write_wsp_shim(self.options.runtime_helper.as_deref(), &at.guest_bin, &at.guest_socket, own_unit().as_deref())
+                .map_err(|e| format!("{}: {e}", at.guest_bin.join("wsp").display()))?;
+            Ok::<_, String>(listener)
+        })();
+        let kept = match opened {
+            Ok(listener) => {
+                tokio::spawn(door::serve_guests(listener, Arc::clone(self), Road::Computer, Arc::new(AtomicUsize::new(0))));
+                None
+            }
+            Err(e) => {
+                self.log(&format!("this computer's threads have no wsp tools: {e}"));
+                Some(e)
+            }
+        };
+        let _ = self.computer_door.set(kept);
+        if let Err(e) = write_docker_shim(&at.guest_bin, &at.docker_notes) {
+            self.log(&format!("this computer's threads run docker unlabelled: {}: {e}", at.guest_bin.join("docker").display()));
+        }
+    }
+
+    /// The door goes with the workspace it was inside: this ends the loop, and the file it was bound on is the
+    /// runtime's to take off, since the folder it sits in is the workspace's own and a workspace may be stopped
+    /// by something other than the daemon that bound it.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub(crate) fn close_workspace_door(&self, id: &str) {
+        let held = self.workspace_doors.lock().unwrap_or_else(|e| e.into_inner()).remove(id);
+        if let Some(door) = held {
+            door.task.abort();
+        }
+    }
+
+    /// The file naming the folders beyond the root that ops may reach, which are the project folders.
+    pub(crate) fn roots_path(&self) -> PathBuf {
+        self.options.roots_path.clone().unwrap_or_else(|| PathBuf::from(numbers::DAEMON_ROOTS_PATH))
+    }
+
+    /// What this machine's own two modules are built from; the kind picks which modules those are.
+    fn readings_options(&self) -> readings::ReadingsOptions {
+        readings::ReadingsOptions {
+            root: PathBuf::from(&self.root),
+            work_folder: self.options.work_folder.clone().unwrap_or_else(|| PathBuf::from(&self.root)),
+            proc_root: self.options.proc_root.clone().unwrap_or_else(|| PathBuf::from("/proc")),
+            passwd_path: self.options.passwd_path.clone().unwrap_or_else(|| PathBuf::from("/etc/passwd")),
+            platform: std::env::consts::OS,
+        }
+    }
+
+    /// The load sampler, or the refusal for a kind that reads neither of its readings.
+    pub(crate) fn sys_sampler(&self) -> Result<Arc<sys::SysSampler>, OpError> {
+        let mut held = self.sys.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(sampler) = held.as_ref() {
+            return Ok(Arc::clone(sampler));
+        }
+        let kind = readings::readings_for(&self.options.kind, std::env::consts::OS)?;
+        let interval = Duration::from_millis(self.options.sys_interval_ms.unwrap_or(numbers::SAMPLER_INTERVAL_MS));
+        let sampler = sys::SysSampler::new((kind.metrics)(&self.readings_options()), interval, Arc::clone(&self.log));
+        *held = Some(Arc::clone(&sampler));
+        Ok(sampler)
+    }
+
+    /// The processes sampler, or the same refusal.
+    pub(crate) fn proc_sampler(self: &Arc<Self>) -> Result<Arc<proc::ProcSampler>, OpError> {
+        let mut held = self.procs.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(sampler) = held.as_ref() {
+            return Ok(Arc::clone(sampler));
+        }
+        let kind = readings::readings_for(&self.options.kind, std::env::consts::OS)?;
+        // An exited pty's pid can be reused by a stranger; only live shells carry the label. Weak, since the sampler
+        // lives inside the context it reads.
+        let ctx = Arc::downgrade(self);
+        let ptys: proc::PtyPids =
+            Arc::new(move || ctx.upgrade().map_or_else(Vec::new, |ctx| ctx.ptys.lock().unwrap_or_else(|e| e.into_inner()).labels()));
+        let interval = Duration::from_millis(self.options.proc_interval_ms.unwrap_or(numbers::PROC_INTERVAL_MS));
+        let opts = proc::ProcSamplerOptions {
+            self_pid: std::process::id(),
+            ptys,
+            first: interval.min(Duration::from_millis(numbers::SAMPLER_INTERVAL_MS)),
+            interval,
+            now: Arc::new(sys::now_ms),
+            log: Arc::clone(&self.log),
+        };
+        let sampler = proc::ProcSampler::new((kind.processes)(&self.readings_options()), opts);
+        if kind.containers {
+            sampler.read_containers(self.container_reader());
+        }
+        *held = Some(Arc::clone(&sampler));
+        Ok(sampler)
+    }
+
+    /// The engine's containers on this computer, read with the person's own Docker setup and the notes its threads'
+    /// docker writes.
+    fn container_reader(&self) -> Arc<containers::ContainerReader> {
+        let home = self.options.home.clone().or_else(|| std::env::var_os("HOME").map(PathBuf::from));
+        let notes = self
+            .options
+            .docker_notes
+            .clone()
+            .unwrap_or_else(|| wsp_frames::place_daemon_paths(&place::place_home(self.options.home.as_deref())).docker_notes);
+        let readings = self.readings_options();
+        containers::ContainerReader::new(containers::ReaderOptions {
+            home,
+            docker_host: std::env::var("DOCKER_HOST").ok(),
+            notes,
+            proc_root: readings.proc_root,
+            cgroup_root: PathBuf::from("/sys/fs/cgroup"),
+            cgroups: cfg!(target_os = "linux"),
+            stats_every: containers::STATS_EVERY,
+            retry: containers::RETRY_EVERY,
+            now: Arc::new(sys::now_ms),
+            log: Arc::clone(&self.log),
+        })
+    }
+
+    /// A number no other socket or listener in this daemon has.
+    pub(crate) fn next_key(&self) -> u64 {
+        self.keys.fetch_add(1, Ordering::Relaxed)
+    }
+
+    pub(crate) fn add_authed(&self, key: u64, out: Outbound) {
+        self.authed.lock().unwrap_or_else(|e| e.into_inner()).insert(key, out);
+    }
+
+    pub(crate) fn remove_authed(&self, key: u64) {
+        self.authed.lock().unwrap_or_else(|e| e.into_inner()).remove(&key);
+        self.tokened.lock().unwrap_or_else(|e| e.into_inner()).remove(&key);
+    }
+
+    /// Remembers what one socket came through the door with, so a rotation can find it again.
+    pub(crate) fn add_tokened(&self, key: u64, token: String, out: Outbound) {
+        self.tokened.lock().unwrap_or_else(|e| e.into_inner()).insert(key, (token, out));
+    }
+
+    /// Cuts every socket whose token is not the bytes the file holds now, compared in constant time. A socket
+    /// that authed on the new token in the same breath as the rotation, which is how the host rotates and dials,
+    /// holds those bytes and stays; the link and the sockets inside a workspace hold no token and are not here.
+    pub(crate) fn cut_stale_tokens(&self, held: &str) {
+        self.tokened.lock().unwrap_or_else(|e| e.into_inner()).retain(|_, (token, out)| {
+            if auth::same(token, held) {
+                return true;
+            }
+            out.send(Outgoing::Rotated);
+            false
+        });
+    }
+
+    /// Pushed to every authed unscoped socket, not to subscribers: the host's link reconnects through the edge and
+    /// would lose a subscription with it. A port-scoped socket is there to tunnel one port and hears none of it.
+    pub(crate) fn broadcast(&self, event: &DaemonEvent) {
+        let text = frame_text(event);
+        self.authed.lock().unwrap_or_else(|e| e.into_inner()).retain(|_, out| out.send_text(&text));
+    }
+}
+
+/// A bound daemon: the listener is open and the address is known, nothing is accepted until run.
+pub struct Daemon {
+    listener: TcpListener,
+    open_socket: Option<UnixListener>,
+    doors: Option<pipe::Bound>,
+    ctx: Arc<Ctx>,
+    terminated: tokio::signal::unix::Signal,
+}
+
+impl Daemon {
+    /// Binds the address and reads the token file once, so a daemon with no token to check against never starts;
+    /// binds the open socket too when one is named, so a shim that cannot be heard is a start that failed. Lines go
+    /// to stderr.
+    pub async fn bind(options: Options) -> io::Result<Daemon> {
+        Daemon::bind_with(options, Box::new(|line| eprintln!("{line}"))).await
+    }
+
+    /// The same, with the log going where the caller says.
+    pub async fn bind_with(mut options: Options, log: Log) -> io::Result<Daemon> {
+        // Before the listener, before any task and before a single child of this process could exist: a daemon on
+        // a computer that runs workspaces resolves every command it runs through the probe list and no other, since
+        // the home it shares with its workspaces is written from inside them. Every child inherits it from here:
+        // the exec handler's bash, the git and gh reads, each pty, the leave's sh, and every script the recipe job
+        // sends. The unit's own PATH is kept for the report and the presence read, which run nothing.
+        if options.place_file.is_some() {
+            options.unit_path = Some(std::env::var("PATH").unwrap_or_default());
+            std::env::set_var("PATH", wsp_frames::probe_path(&place::place_home(options.home.as_deref())));
+        }
+        if auth::current_token(&options.token_path).is_none() {
+            return Err(io::Error::other(wsp_frames::words::NO_TOKEN_AT_START));
+        }
+        let listener = TcpListener::bind((options.host.as_str(), options.port)).await?;
+        let open_socket = match &options.open_socket_path {
+            Some(path) => Some(relay::listen_open_socket(path)?),
+            None => None,
+        };
+        // The port the listener above actually bound, which is the one a workspace must not reach at its
+        // gateway: the option may name zero and let the kernel pick.
+        let daemon_port = listener.local_addr()?.port();
+        let doors = match options.doors.clone() {
+            Some(doors) if options.serves_doors() => Some(pipe::bind(doors).await),
+            _ => None,
+        };
+        let ctx = Arc::new(Ctx::new(options, log, daemon_port)?);
+        // Only a bound HTTP door is named to an op's git: one that failed to bind may be another process's port.
+        if let Some(bound) = doors.as_ref().filter(|bound| bound.serves_http()) {
+            let _ = ctx.doors.set(bound.doors.clone());
+        }
+        #[cfg(target_os = "linux")]
+        if let Some(runtime) = &ctx.runtime {
+            if let Err(e) = runtime.restore().await {
+                ctx.log(&format!("workspace forwards not restored: {e}"));
+            }
+            // From here the runtime names every boot and every stop, and every workspace already running is named
+            // now, so a daemon that restarted under them holds a door inside each.
+            if let Err(e) = runtime.watch(Arc::new(WorkspaceDoors(Arc::downgrade(&ctx)))) {
+                ctx.log(&format!("workspaces have no doors inside them: {e}"));
+            }
+        }
+        // Installed before the listening line goes out, since a SIGTERM landing mid-install is dropped, not acted on.
+        let terminated = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        Ok(Daemon { listener, open_socket, doors, ctx, terminated })
+    }
+
+    pub fn local_addr(&self) -> SocketAddr {
+        self.listener.local_addr().expect("a bound listener has an address")
+    }
+
+    /// The HTTP door's address as bound, where this daemon serves one.
+    pub fn http_door(&self) -> Option<SocketAddr> {
+        self.doors.as_ref().filter(|bound| bound.serves_http()).map(|bound| bound.doors.http)
+    }
+
+    /// Accepts until a leave answered on the link ends the daemon; each socket gets its own task and its own door.
+    /// A place file turns the outbound link on beside the listener.
+    pub async fn run(self) -> io::Result<()> {
+        // Before the link, whose report says whether this computer's threads have the wsp tools.
+        if self.ctx.is_place() {
+            self.ctx.open_computer_door();
+        }
+        if self.ctx.options.place_file.is_some() {
+            let port = self.local_addr().port();
+            tokio::spawn(link::run(Arc::clone(&self.ctx), port));
+        }
+        if let Some(open_socket) = self.open_socket {
+            tokio::spawn(relay::serve_open_socket(open_socket, Arc::clone(&self.ctx)));
+        }
+        if let Some(doors) = self.doors {
+            pipe::serve(doors, &self.ctx);
+        }
+        tokio::spawn(auth::watch(Arc::clone(&self.ctx)));
+        // The readings are kept whether or not anybody watches, off the same module a watch reads, at their own pace.
+        if let Ok(kind) = readings::readings_for(&self.ctx.options.kind, std::env::consts::OS) {
+            let every = Duration::from_millis(self.ctx.options.readings_interval_ms.unwrap_or(numbers::READINGS_EVERY_MS));
+            tokio::spawn(readings_history::record((kind.metrics)(&self.ctx.readings_options()), Arc::clone(&self.ctx.history), every));
+        }
+        let ctx = Arc::clone(&self.ctx);
+        // A copy sits beside its project folder, so a removal a stop cut short is left in the folder a root sits in.
+        std::thread::spawn(move || {
+            if let Ok(roots) = paths::roots_now(Path::new(&ctx.root), &ctx.roots_path()) {
+                let beside = wsp_runtime::copy_road::aside::beside(&roots[1..]);
+                for failed in wsp_runtime::copy_road::aside::sweep(beside, |p| std::fs::remove_dir_all(p)) {
+                    ctx.log(&failed.to_string());
+                }
+            }
+        });
+        // An update or a restart ends this daemon with SIGTERM, and the ssh servers it started would outlive it,
+        // known to no daemon after it.
+        let mut terminated = self.terminated;
+        loop {
+            let accepted = tokio::select! {
+                accepted = self.listener.accept() => accepted,
+                _ = self.ctx.stop.notified() => {
+                    self.ctx.sshd.end_all().await;
+                    return Ok(());
+                }
+                _ = terminated.recv() => {
+                    self.ctx.sshd.end_all().await;
+                    return Ok(());
+                }
+            };
+            let (stream, _) = accepted?;
+            // As node's ws does: without it a pty's small frames sit behind the peer's delayed ACK, 40 ms measured.
+            let _ = stream.set_nodelay(true);
+            let ctx = Arc::clone(&self.ctx);
+            tokio::spawn(door::serve(stream, ctx));
+        }
+    }
+}
+
+/// The workspace runtime a place's daemon serves on its link, under the runtime root, and where the root itself
+/// is the reason there is none, the sentence that says so. A daemon that is not a place serves no runtime and
+/// says nothing of the sort; a root this process cannot open says why once in the log, and every machine op
+/// there answers the line that names the op, as it always has. The one exception is where the root was put: that
+/// is the person's own choice and the reason every create under it would fail, so the reading travels to the
+/// ops, since somebody asking what this computer can do reads the host's answer and not this log.
+#[cfg(target_os = "linux")]
+fn open_runtime(options: &Options, log: &Log, daemon_port: u16) -> (Option<Arc<wsp_runtime::ops::Ops>>, Option<String>) {
+    if options.place_file.is_none() {
+        return (None, None);
+    }
+    let root = options.runtime_root.clone().unwrap_or_else(|| PathBuf::from(wsp_runtime::DEFAULT_ROOT));
+    // Read before the open, which refuses the same root itself: nothing is made under it either way, and the
+    // sentence is the one the host reads when it asks what this computer can do.
+    if let Some(said) = wsp_runtime::doctor::root_under_a_lower(&root) {
+        log(&format!("workspace runtime not served: {said}"));
+        return (None, Some(said));
+    }
+    let exe = match options.runtime_helper.clone().map(Ok).unwrap_or_else(std::env::current_exe) {
+        Ok(exe) => exe,
+        Err(e) => {
+            log(&format!("workspace runtime not served: this binary's own path is unknown: {e}"));
+            return (None, None);
+        }
+    };
+    match wsp_runtime::ops::Ops::open(&root, exe, daemon_port) {
+        Ok(ops) => {
+            for id in ops.stopped_at_open() {
+                log(&format!("workspace {id} found stopped at start: its init is gone"));
+            }
+            let unfinished = ops.unfinished_at_open();
+            if !unfinished.is_empty() {
+                log(&format!(
+                    "creates that never finished swept: {} half made copies, {} claimed folders with no workspace in them",
+                    unfinished.copies.len(),
+                    unfinished.claims.len()
+                ));
+            }
+            let net_swept = ops.net_swept_at_open();
+            if !net_swept.links.is_empty() || net_swept.rules {
+                log(&format!(
+                    "workspace network swept: {} links{}",
+                    net_swept.links.len(),
+                    if net_swept.rules { ", the rules" } else { "" }
+                ));
+            }
+            (Some(Arc::new(ops)), None)
+        }
+        Err(e) => {
+            log(&format!("workspace runtime not served: {}: {e}", root.display()));
+            (None, None)
+        }
+    }
+}
+
+/// The daemon's own hook on the workspaces this computer runs: a door inside each one as it boots, and the door
+/// away as it stops. Weak, since the runtime it is handed to lives on the context that holds it.
+#[cfg(target_os = "linux")]
+struct WorkspaceDoors(std::sync::Weak<Ctx>);
+
+#[cfg(target_os = "linux")]
+impl wsp_runtime::ops::Watches for WorkspaceDoors {
+    fn booted(&self, id: &str, socket: &Path) {
+        if let Some(ctx) = self.0.upgrade() {
+            ctx.open_workspace_door(id, socket);
+        }
+    }
+
+    fn stopped(&self, id: &str) {
+        if let Some(ctx) = self.0.upgrade() {
+            ctx.close_workspace_door(id);
+        }
+    }
+}
+
+/// The root the hello announces: the --root given, else HOME, made absolute and normalised as node's path.resolve
+/// does.
+/// A workspace's door made its owner's alone, the name changed and never what a link at it names: the door sits in
+/// the workspace's wsp home, where a process inside can put a link at the name between the bind and this.
+fn owner_only(at: &Path) -> std::io::Result<()> {
+    use nix::sys::stat::{fchmodat, FchmodatFlags, Mode};
+    fchmodat(nix::fcntl::AT_FDCWD, at, Mode::from_bits_truncate(0o600), FchmodatFlags::NoFollowSymlink).map_err(std::io::Error::from)
+}
+
+/// The computer's door made the login's alone: owned by whoever owns the home it sits under, and that owner's
+/// mode, the name changed and never what a link at it names.
+fn owned_by_home(at: &Path, home: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    let owner = std::fs::metadata(home)?;
+    nix::unistd::fchownat(
+        nix::fcntl::AT_FDCWD,
+        at,
+        Some(nix::unistd::Uid::from_raw(owner.uid())),
+        Some(nix::unistd::Gid::from_raw(owner.gid())),
+        nix::fcntl::AtFlags::AT_SYMLINK_NOFOLLOW,
+    )
+    .map_err(std::io::Error::from)?;
+    owner_only(at)
+}
+
+/// The wsp a thread on this computer runs: two lines onto this binary naming the door, in the place's own folder, which
+/// no workspace mounts and no app or install line writes, written through its descriptor so a link at the name is
+/// taken off rather than written through.
+#[cfg(target_os = "linux")]
+fn write_wsp_shim(helper: Option<&Path>, bin: &Path, door: &Path, unit: Option<&str>) -> std::io::Result<()> {
+    let exe = helper.map_or_else(std::env::current_exe, |helper| Ok(helper.to_path_buf()))?;
+    std::fs::create_dir_all(bin)?;
+    let shim = wsp_frames::computer_wsp_shim(&exe.to_string_lossy(), &door.to_string_lossy(), unit);
+    wsp_runtime::bundle::write_file_in(bin, "wsp", shim.as_bytes(), 0o755).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+/// The docker a thread on this computer finds beside its wsp, which labels the containers it makes. Apart from the
+/// door: a thread without its wsp tools still runs docker.
+#[cfg(target_os = "linux")]
+fn write_docker_shim(bin: &Path, notes: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(bin)?;
+    let shim = wsp_frames::docker_shim(&bin.to_string_lossy(), &notes.to_string_lossy());
+    wsp_runtime::bundle::write_file_in(bin, "docker", shim.as_bytes(), 0o755).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn write_docker_shim(_: &Path, _: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn write_wsp_shim(_: Option<&Path>, _: &Path, _: &Path, _: Option<&str>) -> std::io::Result<()> {
+    Err(std::io::Error::other("this daemon writes the wsp for a computer's threads on Linux only"))
+}
+
+/// The systemd unit this daemon runs under, the one the join wrote, read off its own cgroup rather than worked out
+/// again from the home: what a person restarts to bind the door again. Nothing where it runs under no such unit.
+pub(crate) fn own_unit() -> Option<String> {
+    unit_in(&std::fs::read_to_string("/proc/self/cgroup").ok()?)
+}
+
+/// The unit a cgroup v2 line names when it is the system service the join writes, `wsp-place-<tag>.service` under
+/// the system slice. Anything else is nothing: a restart of a login's user manager, or of a user unit the system
+/// manager does not know, is no fix to hand a person.
+fn unit_in(cgroup: &str) -> Option<String> {
+    let path = cgroup.lines().find_map(|line| line.strip_prefix("0::"))?;
+    let mut parts = path.trim_start_matches('/').split('/');
+    let (Some("system.slice"), Some(unit)) = (parts.next(), parts.next()) else { return None };
+    let tag = unit.strip_prefix("wsp-place-")?.strip_suffix(".service")?;
+    (!tag.is_empty() && tag.bytes().all(|b| b.is_ascii_alphanumeric())).then(|| unit.to_owned())
+}
+
+fn resolved_root(root: Option<&Path>) -> String {
+    let given = root.map(Path::to_path_buf).or_else(|| std::env::var_os("HOME").map(PathBuf::from)).unwrap_or_else(|| PathBuf::from("/"));
+    paths::absolute(&given).to_string_lossy().into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_unit_is_the_system_service_the_join_writes_and_nothing_else() {
+        assert_eq!(unit_in("0::/system.slice/wsp-place-ecffdb75.service\n").as_deref(), Some("wsp-place-ecffdb75.service"));
+        assert_eq!(unit_in("0::/system.slice/wsp-place-ecffdb75.service/daemon\n").as_deref(), Some("wsp-place-ecffdb75.service"));
+        // A place unit from before places were system units sits in a login's user manager, where systemctl without
+        // --user finds no such unit.
+        assert_eq!(unit_in("0::/user.slice/user-0.slice/user@0.service/app.slice/wsp-place-b0c27c4c.service/daemon\n"), None);
+        // A daemon started by hand from a login's shell: the deepest service is that login's whole user manager.
+        assert_eq!(
+            unit_in("0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-rc119036e08074b0c9a83888367f5f4ef.scope\n"),
+            None
+        );
+        assert_eq!(unit_in("0::/user.slice/user-0.slice/session-3.scope\n"), None);
+        assert_eq!(unit_in("0::/system.slice/ssh.service\n"), None);
+        assert_eq!(unit_in("0::/system.slice/wsp-place-a b.service\n"), None);
+        assert_eq!(unit_in("1:name=systemd:/system.slice/wsp-place-ecffdb75.service\n"), None);
+    }
+
+    #[test]
+    fn a_door_is_made_its_owners_alone_and_a_link_at_its_name_moves_nothing() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let door = dir.path().join("door.sock");
+        let _held = std::os::unix::net::UnixListener::bind(&door).unwrap();
+        owner_only(&door).unwrap();
+        assert_eq!(std::fs::symlink_metadata(&door).unwrap().permissions().mode() & 0o777, 0o600);
+        let theirs = dir.path().join("passwd");
+        std::fs::write(&theirs, "root:x\n").unwrap();
+        std::fs::set_permissions(&theirs, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let planted = dir.path().join("planted.sock");
+        std::os::unix::fs::symlink(&theirs, &planted).unwrap();
+        let _ = owner_only(&planted);
+        assert_eq!(std::fs::metadata(&theirs).unwrap().permissions().mode() & 0o777, 0o644);
+    }
+
+    #[test]
+    fn the_root_is_absolute_and_normalised() {
+        assert_eq!(resolved_root(Some(Path::new("/srv/work/../work/./here"))), "/srv/work/here");
+        assert_eq!(resolved_root(Some(Path::new("/a/b/../../../c"))), "/c");
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(resolved_root(Some(Path::new("sub"))), cwd.join("sub").to_string_lossy());
+    }
+}

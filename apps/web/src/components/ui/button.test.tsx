@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The one drawing of a keycap that cannot be pressed yet, which every sheet and
+// dialog reads off this component rather than spelling again: its own variant,
+// disabled, marked, at the one disabled step, in the size and slot the live one
+// has.
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { Button } from "./button.js";
+
+afterEach(cleanup);
+
+const classesOf = (word: string): string[] => screen.getByRole("button", { name: word }).className.split(" ");
+
+describe("a held keycap", () => {
+  it("keeps the variant it was asked for, disabled and marked", () => {
+    render(<Button held>Add</Button>);
+    const add = screen.getByRole("button", { name: "Add" }) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    expect(add.hasAttribute("data-held")).toBe(true);
+    expect(classesOf("Add")).toEqual(expect.arrayContaining(["bg-primary"]));
+  });
+
+  it("takes the variant back and lets go the moment it is no longer held", () => {
+    render(<Button held>Add</Button>);
+    const held = { size: classesOf("Add").filter(c => c.startsWith("h-") || c.startsWith("px-")), word: screen.getByRole("button", { name: "Add" }).textContent };
+    cleanup();
+    render(<Button>Add</Button>);
+    const live = screen.getByRole("button", { name: "Add" }) as HTMLButtonElement;
+    expect(live.disabled).toBe(false);
+    expect(live.hasAttribute("data-held")).toBe(false);
+    expect(classesOf("Add")).toEqual(expect.arrayContaining(["bg-primary"]));
+    // The switch moves nothing: same size classes, same word, same slot.
+    expect({ size: classesOf("Add").filter(c => c.startsWith("h-") || c.startsWith("px-")), word: live.textContent }).toEqual(held);
+  });
+
+  it("dims to the one disabled step every control takes, and to nothing else", () => {
+    render(<Button held>Add</Button>);
+    const held = classesOf("Add");
+    cleanup();
+    render(<Button disabled>Add</Button>);
+    expect(held).toEqual(classesOf("Add"));
+    expect(held).toContain("disabled:opacity-64");
+  });
+
+  it("stays disabled when the caller disables for its own reason as well", () => {
+    render(
+      <Button held disabled={false}>
+        Save
+      </Button>,
+    );
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("leaves a busy keycap its own variant, since busy is not held", () => {
+    render(
+      <Button disabled>
+        Removing…
+      </Button>,
+    );
+    const busy = screen.getByRole("button", { name: "Removing…" }) as HTMLButtonElement;
+    expect(busy.disabled).toBe(true);
+    expect(busy.hasAttribute("data-held")).toBe(false);
+    expect(classesOf("Removing…")).toEqual(expect.arrayContaining(["bg-primary"]));
+  });
+});

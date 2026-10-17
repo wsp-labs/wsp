@@ -1,0 +1,399 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Puts the MCP server into a local agent's config and the wsp skill into its
+// skills folder, under the person's home. This file decides the one command
+// that runs this same wsp against this state file; the catalog entry's own
+// config module says where it goes and in what format.
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, dirname, join, sep } from "node:path";
+import { CATALOG_AGENTS, MCP_AGENTS, MCP_AGENT_IDS, configSum, skillsDirOf, type AgentEntry, type McpAgent, type Placed } from "@wsp/catalog";
+import { writeConfigHere } from "@wsp/engine";
+import { tilde } from "@wsp/collect";
+import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, mcpServerCommandLine, nextInsideAgentLine, WSP_TOOL_TIMEOUT_SEC, type McpServerSpec } from "@wsp/protocol";
+import { placeSections, removeSections } from "./agents-md.js";
+import { daemonBinaryHere } from "./assets.js";
+import { SKILL_NAME, wspSkill } from "./skill.js";
+import { realState } from "./serving-home.js";
+import { VERSION } from "./version.js";
+
+/** The name the server has in every agent's config; the protocol's, since the runtime builds a launch that carries
+ * the same server for a turn on a machine. */
+export { MCP_SERVER_NAME };
+
+/** The package `npx` fetches wsp from. */
+const NPM_PACKAGE = "@wsp-labs/wsp";
+
+/** The folder under npm's cache where npx keeps what it ran; a path through it dies with a cache sweep. */
+const NPX_CACHE_DIR = "_npx";
+
+/** What the install reads of the process it runs in, to say how an agent starts this same wsp again. */
+export interface RunningWsp {
+  execPath: string;
+  execArgv: readonly string[];
+  argv: readonly string[];
+  version: string;
+  PATH: string | undefined;
+  /** The shim this process runs behind, when it does: the desktop's bundled command sits inside the app bundle,
+   * which moves, so an agent's config runs the shim the app wrote instead. */
+  shim?: string;
+  /** The daemon binary that serves the wsp tools on this computer, or false where it carries no tool server; asked
+   * of the binary itself when unset. */
+  toolServer?: string | false;
+}
+
+export const runningWsp = (): RunningWsp => ({ execPath: process.execPath, execArgv: process.execArgv, argv: process.argv, version: VERSION, PATH: process.env.PATH });
+
+/** This computer's own path, without the folders the caller's launcher made for itself. A harness that starts a
+ * process puts wrappers of its own, under a temp folder, first on its path; those wrappers dial back into that
+ * harness, and one asked for its version by a stand-in machine's catalog probe never answered (measured 2026-09-13,
+ * two of them left running for nine minutes). A command a machine runs is one this computer has, not one this
+ * process happened to be handed. */
+export function thisComputersPath(PATH: string | undefined = process.env.PATH, temps: readonly string[] = [tmpdir(), "/tmp"]): string {
+  return (PATH ?? "")
+    .split(delimiter)
+    .filter(dir => dir !== "" && !temps.some(temp => dir === temp || dir.startsWith(`${temp}/`)))
+    .join(delimiter);
+}
+
+/** The command a shell would run from PATH: the first folder that holds one. */
+export function onPath(bin: string, PATH: string | undefined): string | undefined {
+  return (PATH ?? "")
+    .split(delimiter)
+    .filter(dir => dir !== "")
+    .map(dir => join(dir, bin))
+    .find(file => existsSync(file));
+}
+
+/** The agents this computer has, in catalog order: the ones whose own command a shell would find on PATH. What an
+ * install takes when nobody named one and there is no terminal to ask at. */
+export function agentsOnPath(PATH: string | undefined): string[] {
+  return CATALOG_AGENTS.filter(a => onPath(a.bin, PATH) !== undefined).map(a => a.id);
+}
+
+export function sameFile(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return false;
+  }
+}
+
+/** The npx that ships beside this node, so the agent's shorter PATH (a GUI launch has less than a shell) never
+ * matters; the bare word only when none sits there. */
+function npxBeside(execPath: string): string {
+  const beside = join(dirname(execPath), "npx");
+  return existsSync(beside) ? beside : "npx";
+}
+
+/** How this same wsp is started again, the one rule every road that has to say it reads: an agent's own config, and
+ * the host a verb brings up for itself. Run out of npx's cache, the command is npx with this version pinned: the
+ * cache path goes with a sweep or a version bump, and the pin brings the same wsp back. Run behind the desktop's
+ * shim, the command is that shim. Run as the wsp on PATH, the command is that binary. Any other start (a checkout,
+ * a bin folder PATH does not hold) is this node with the flags and script it was given. */
+export function wspCommand(run: RunningWsp): McpServerSpec {
+  if (run.shim !== undefined) return { command: run.shim, args: [] };
+  const script = run.argv[1];
+  if (fromNpxCache(run)) return { command: npxBeside(run.execPath), args: ["-y", `${NPM_PACKAGE}@${run.version}`] };
+  const wsp = onPath("wsp", run.PATH);
+  if (script !== undefined && wsp !== undefined && sameFile(script, wsp)) return { command: wsp, args: [] };
+  return { command: run.execPath, args: [...run.execArgv, script ?? "wsp"] };
+}
+
+const fromNpxCache = (run: RunningWsp): boolean => run.argv[1]?.split(sep).includes(NPX_CACHE_DIR) === true;
+
+let askedToolServer: string | false | undefined;
+
+/** Whether this binary carries the tool server, asked of the binary as its own help names the verb's flag: just 0 is
+ * any program's answer to anything, and the usage line takes whatever name the binary was run by. */
+export function carriesToolServer(binary: string): boolean {
+  const asked = spawnSync(binary, ["mcp", "--help"], { encoding: "utf8", timeout: 5_000 });
+  return asked.status === 0 && asked.stdout.includes("--wsp-argv");
+}
+
+/** The daemon binary this computer serves the wsp tools from, where it carries the tool server, asked of the binary
+ * once per process: the Mac's release build does, and a Linux host's is the static guest build, which does not. */
+export function toolServerHere(): string | false {
+  if (askedToolServer !== undefined) return askedToolServer;
+  try {
+    const binary = daemonBinaryHere();
+    askedToolServer = carriesToolServer(binary) ? binary : false;
+  } catch {
+    askedToolServer = false;
+  }
+  return askedToolServer;
+}
+
+export const toolServerOf = (run: RunningWsp): string | false => run.toolServer ?? toolServerHere();
+
+/** The words the tool server is handed this same wsp by, which it brings a host up with and runs the recipe tools. */
+const handedWsp = (run: RunningWsp): string[] => {
+  const wsp = wspCommand(run);
+  return [wsp.command, ...wsp.args].flatMap(word => ["--wsp-argv", word]);
+};
+
+/** The binary an agent's config launches, where it launches one: never behind the desktop's shim or out of npx's
+ * cache, whose binaries move. */
+const configBinary = (run: RunningWsp): string | false => (run.shim === undefined && !fromNpxCache(run) ? toolServerOf(run) : false);
+
+/** The line that starts the wsp tools on stdio, for an agent's own config: the daemon binary's tool server where
+ * this computer's binary has one, so no node process stays up for a session. The desktop's shim keeps its own line,
+ * since its forwarder serves it from the binary it runs and the app bundle that binary sits in moves; so does a wsp
+ * run out of npx's cache, whose binary goes with the cache. */
+export function mcpServerCommand(run: RunningWsp): McpServerSpec {
+  const binary = configBinary(run);
+  if (binary !== false) return { command: binary, args: ["mcp", ...handedWsp(run)] };
+  const wsp = wspCommand(run);
+  return { command: wsp.command, args: [...wsp.args, "mcp"] };
+}
+
+/** What `wsp mcp` runs where this computer's binary has the tool server: the binary, on the state the command line
+ * resolved and the flags it was given, handed this same wsp. None where the binary carries no tool server. */
+export function toolServerLine(statePath: string, given: { host?: string; scoped?: boolean; "no-slate"?: boolean; json?: boolean }, run: RunningWsp): McpServerSpec | undefined {
+  const binary = toolServerOf(run);
+  if (binary === false) return undefined;
+  const flags = [...(given.host !== undefined ? ["--host", given.host] : []), ...(given.scoped === true ? ["--scoped"] : []), ...(given["no-slate"] === true ? [NO_SLATE_MCP_ARG] : []), ...(given.json === true ? ["--json"] : [])];
+  return { command: binary, args: ["mcp", "--state", statePath, ...flags, ...handedWsp(run)] };
+}
+
+/** The server every agent's config gets: the command that runs this same wsp, then `--state <path>`, so the
+ * agent's own cwd never picks another state file. Against a host on another computer it is `--host <alias>`
+ * instead: that host serves its own state, and a path on this computer would name a file the line never reads. */
+export function mcpServerSpec(statePath: string, run: RunningWsp = runningWsp(), opts: { host?: string } = {}): McpServerSpec {
+  const wsp = mcpServerCommand(run);
+  const host = opts.host !== undefined ? ["--host", opts.host] : [];
+  // The binary runs this wsp on the state for the recipe tools whatever host the tools dial, so its line always
+  // names it; the command line resolves the state itself.
+  if (configBinary(run) !== false) return { command: wsp.command, args: [...wsp.args, "--state", statePath, ...host] };
+  return { command: wsp.command, args: [...wsp.args, ...(opts.host !== undefined ? host : ["--state", statePath])] };
+}
+
+/** Brings the wsp tools a config already holds up to this computer's binary, where the entry is this wsp's own node
+ * line and the binary carries the tool server, so a config written before the switch stops keeping a node process
+ * up for every session. Only a line naming this state file moves, and the host it named stays named. A line this
+ * wsp did not write (another command, the desktop's shim, npx's) is left as it is. Answers the files rewritten,
+ * `~/`-relative. */
+export function refreshServers(home: string, statePath: string, run: RunningWsp): string[] {
+  if (configBinary(run) === false) return [];
+  const node = mcpServerCommand({ ...run, toolServer: false });
+  const written: string[] = [];
+  for (const agent of MCP_AGENTS) {
+    const file = mcpConfigFile(agent, home);
+    const entry = wspEntry(agent, file, home);
+    if (entry === undefined || !namesState(entry.held, statePath)) continue;
+    const { was, held } = entry;
+    if (held.command !== node.command || !node.args.every((word, i) => held.args[i] === word)) continue;
+    const host = flagOf(held.args.slice(node.args.length), "--host");
+    const server = mcpServerSpec(flagOf(held.args, "--state")!, run, host !== undefined ? { host } : {});
+    const placed = agent.mcp.format.place(was.toString("utf8"), MCP_SERVER_NAME, { kind: "stdio", command: server.command, args: [...server.args], env: held.env, toolTimeoutSec: WSP_TOOL_TIMEOUT_SEC });
+    writeConfigHere(file.abs, home, configSum(was), placed.text, p => tilde(home, p));
+    written.push(file.tilde);
+  }
+  return written;
+}
+
+/** The wsp server the agent's config file under `home` holds for the whole login, as written there. */
+function wspEntry(agent: McpAgent, file: { abs: string }, home: string): { was: Buffer; held: { command: string; args: readonly string[]; env: Readonly<Record<string, string>> } } | undefined {
+  if (!existsSync(file.abs)) return undefined;
+  const was = readFileSync(file.abs);
+  const held = agent.mcp.format.read(was.toString("utf8"), home).find(s => s.name === MCP_SERVER_NAME && s.scope === "user")?.transport;
+  return held?.kind === "stdio" ? { was, held } : undefined;
+}
+
+const flagOf = (args: readonly string[], flag: string): string | undefined => {
+  const at = args.indexOf(flag);
+  return at === -1 ? undefined : args[at + 1];
+};
+
+/** Whether a wsp line names this state file, the two read as the file system knows them: an agent dials the host on
+ * the state its entry names, so that host alone keeps the agent's wsp files up to date. */
+const namesState = (held: { args: readonly string[] }, statePath: string): boolean => {
+  const named = flagOf(held.args, "--state");
+  return named !== undefined && realState(named) === realState(statePath);
+};
+
+/** Whether the agent's wsp entry under `home` names this state file. */
+function dialsState(agent: AgentEntry, home: string, statePath: string): boolean {
+  const mcp = MCP_AGENTS.find(a => a.id === agent.id);
+  const entry = mcp === undefined ? undefined : wspEntry(mcp, mcpConfigFile(mcp, home), home);
+  return entry !== undefined && namesState(entry.held, statePath);
+}
+
+/** The one line a refresh of the configs says, and only where it rewrote one. */
+export const serversRefreshedLine = (files: readonly string[]): string => `The wsp tools now run this wsp's own tool server in ${files.join(", ")}`;
+
+export interface Installed {
+  agent: string;
+  /** `~/`-relative; absent when the catalog knows no MCP config for the agent yet, and then nothing was written. */
+  path?: string;
+  /** The skill's file, `~/`-relative. */
+  skill: string;
+  /** The project's own instruction files the wsp section now sits in, absolute; absent when no project was named. */
+  docs?: string[];
+}
+
+/** The config the server goes into under `home`: the first of the agent's files that exists, else the first. */
+export function mcpConfigFile(agent: McpAgent, home: string): { tilde: string; abs: string } {
+  const files = agent.mcp.files.map(f => ({ tilde: f, abs: join(home, f.slice(2)) }));
+  return files.find(f => existsSync(f.abs)) ?? files[0]!;
+}
+
+/** The skill's file under `home`, in the agent's skills folder. */
+export function skillFile(agent: AgentEntry, home: string): { tilde: string; abs: string } {
+  const tilde = `${skillsDirOf(agent)}/${SKILL_NAME}/SKILL.md`;
+  return { tilde, abs: join(home, tilde.slice(2)) };
+}
+
+/** Writes the skill into the agent's skills folder under `home`, replacing an earlier copy. */
+function installSkill(agent: AgentEntry, home: string): string {
+  const file = skillFile(agent, home);
+  mkdirSync(dirname(file.abs), { recursive: true });
+  writeFileSync(file.abs, wspSkill());
+  return file.tilde;
+}
+
+/** Brings up to this wsp's the skill copy of every agent whose wsp entry names this state file, and writes none where
+ * there is none: a copy an install wrote once falls behind the binary at the next release, and an agent reading the
+ * old words calls a verb that is gone. Answers the files it rewrote, `~/`-relative. An agent that never took the
+ * skill is left alone, since writing one uninvited puts wsp in a folder nobody asked it into, and so is one that
+ * dials another host, whose copy is that host's to keep. */
+export function refreshSkills(home: string, statePath: string): string[] {
+  const written: string[] = [];
+  const skill = wspSkill();
+  for (const agent of CATALOG_AGENTS) {
+    if (!dialsState(agent, home, statePath)) continue;
+    const file = skillFile(agent, home);
+    try {
+      if (readFileSync(file.abs, "utf8") === skill) continue;
+    } catch {
+      continue;
+    }
+    writeFileSync(file.abs, skill);
+    written.push(file.tilde);
+  }
+  return written;
+}
+
+/** The one line a refresh says, and only where it rewrote something: the files, so a person reading it knows
+ * exactly what changed under their home, said once rather than once per agent. */
+export const skillsRefreshedLine = (files: readonly string[]): string => `The wsp skill now matches this wsp in ${files.join(", ")}`;
+
+/** The catalog's agent under this id; an id it does not know is refused with the ids that do have an MCP config. */
+function agentEntry(agentId: string): AgentEntry {
+  const entry = CATALOG_AGENTS.find(a => a.id === agentId);
+  if (entry === undefined) throw new Error(`no agent ${agentId} in the catalog; agents with an MCP config: ${MCP_AGENT_IDS}`);
+  return entry;
+}
+
+/** Writes the server into the agent's config under `home`, created with its folder when it is not there, the skill
+ * into its skills folder, and with a project named, the wsp section into that project's own instruction files. Says
+ * which agent and which files. */
+export function installMcp(agentId: string, server: McpServerSpec, home: string, project?: string): Installed {
+  const entry = agentEntry(agentId);
+  const landed = (): Pick<Installed, "skill" | "docs"> => {
+    const skill = installSkill(entry, home);
+    return { skill, ...(project === undefined ? {} : { docs: placeSections(entry, project) }) };
+  };
+  const agent = MCP_AGENTS.find(a => a.id === agentId);
+  if (agent === undefined) return { agent: entry.name, ...landed() };
+  const file = mcpConfigFile(agent, home);
+  const was = existsSync(file.abs) ? readFileSync(file.abs) : undefined;
+  let placed: Placed;
+  try {
+    placed = agent.mcp.format.place(was?.toString("utf8"), MCP_SERVER_NAME, { kind: "stdio", command: server.command, args: [...server.args], env: {}, toolTimeoutSec: WSP_TOOL_TIMEOUT_SEC });
+  } catch (e) {
+    throw new Error(`${file.tilde}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  writeConfigHere(file.abs, home, was === undefined ? undefined : configSum(was), placed.text, p => tilde(home, p));
+  return { agent: entry.name, path: file.tilde, ...landed() };
+}
+
+/** One agent as `--remove` leaves it: the project's instruction files the wsp section came out of, absolute, empty
+ * when none of them held one. The agent's own config and the skill are not touched. */
+export interface Removed {
+  agent: string;
+  docs: string[];
+}
+
+/** Takes the wsp section out of the agent's instruction files under `project`. */
+export function removeMcp(agentId: string, project: string): Removed {
+  const entry = agentEntry(agentId);
+  return { agent: entry.name, docs: removeSections(entry, project) };
+}
+
+/** One `wsp mcp install` as a machine reads it: every agent that took the server or the skill under the catalog id
+ * it was asked for, and every one that took neither with the reason, so a caller naming several is not left
+ * guessing which of them landed. */
+export interface InstallReport {
+  /** The command every written config now runs. */
+  server: McpServerSpec;
+  installed: Array<Installed & { id: string }>;
+  failures: Array<{ id: string; error: string }>;
+}
+
+/** One `wsp mcp install --remove` as a machine reads it. */
+export interface RemoveReport {
+  removed: Array<Removed & { id: string }>;
+  failures: Array<{ id: string; error: string }>;
+}
+
+/** Runs one road per agent in turn and keeps going past one that fails: an id the catalog does not know must not
+ * cost the agents named beside it. */
+function eachAgent<T>(agentIds: Iterable<string>, road: (id: string) => T): { done: Array<T & { id: string }>; failures: Array<{ id: string; error: string }> } {
+  const done: Array<T & { id: string }> = [];
+  const failures: Array<{ id: string; error: string }> = [];
+  for (const id of agentIds) {
+    try {
+      done.push({ id, ...road(id) });
+    } catch (e) {
+      failures.push({ id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return { done, failures };
+}
+
+/** Installs for each agent in turn: the server, the skill, and with a project named, the section in its own
+ * instruction files. */
+export function installEach(agentIds: Iterable<string>, server: McpServerSpec, home: string, project?: string): InstallReport {
+  const { done, failures } = eachAgent(agentIds, id => installMcp(id, server, home, project));
+  return { server, installed: done, failures };
+}
+
+/** Takes the wsp section out of each agent's instruction files under `project`; nothing else of an install goes. */
+export function removeEach(agentIds: Iterable<string>, project: string): RemoveReport {
+  const { done, failures } = eachAgent(agentIds, id => removeMcp(id, project));
+  return { removed: done, failures };
+}
+
+/** What an install says, for the command and the wizard alike: the agent and its file, or the by-hand line when the
+ * catalog knows no config and the server was not written; last, where the skill went. */
+export function installLines(placed: Installed): string[] {
+  const lines = placed.path === undefined ? [`${placed.agent}: the catalog has no MCP config for it yet, so the server was not written; add it by hand.`] : [`${placed.agent} now has the wsp tools: ${placed.path}`];
+  lines.push(`The wsp skill went to ${placed.skill}`);
+  if (placed.docs !== undefined && placed.docs.length > 0) lines.push(`The wsp section is in ${placed.docs.join(" and ")}`);
+  return lines;
+}
+
+/** What a `--remove` says for one agent: the files the section came out of, or that none of them held one. */
+export function removeLines(removed: Removed): string[] {
+  return removed.docs.length === 0
+    ? [`${removed.agent}: no wsp section in this folder; nothing was changed.`]
+    : [`${removed.agent}: the wsp section is out of ${removed.docs.join(" and ")}`];
+}
+
+/** The line after every agent's own: the command their configs now run, once; none when no config took the server. */
+export function registeredLine(report: InstallReport): string | undefined {
+  return report.installed.some(p => p.path !== undefined) ? mcpServerCommandLine(report.server.command, report.server.args) : undefined;
+}
+
+/** The last line an install prints: what to do next inside the first agent that took it, which is where the work
+ * happens from here. None when no agent took anything. */
+export function nextLine(report: InstallReport): string | undefined {
+  const first = report.installed[0];
+  if (first === undefined) return undefined;
+  const entry = agentEntry(first.id);
+  return nextInsideAgentLine(entry.bin, entry.firstMove);
+}
+
+/** What an install says in place of the section's line when the folder it ran in is not a project. */
+export const notAProjectLine = (folder: string): string => `${folder} is not in a project, so no AGENTS.md or CLAUDE.md was written there.`;

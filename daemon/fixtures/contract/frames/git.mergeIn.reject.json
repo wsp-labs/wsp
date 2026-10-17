@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "op": "git.mergeIn",
+    "cwd": "repo"
+  },
+  {
+    "id": 1,
+    "op": "git.mergeIn",
+    "branch": "child/one"
+  },
+  {
+    "id": 1,
+    "op": "git.mergeIn",
+    "cwd": "repo",
+    "branch": "child/one",
+    "from": 4
+  },
+  {
+    "id": 9,
+    "op": "git.mergeIn",
+    "cwd": "/root/acme",
+    "branch": "wsp/fix-login",
+    "token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  }
+]

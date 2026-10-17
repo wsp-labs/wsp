@@ -1,0 +1,90 @@
+{
+  "owner": {
+    "id": {
+      "id": "h_048cb33a"
+    }
+  },
+  "reads": {
+    "since": {
+      "at": 1791912105418
+    }
+  },
+  "projects": {
+    "pr_429f38d3": {
+      "id": "pr_429f38d3",
+      "name": "lab",
+      "computer": "default",
+      "source": {
+        "kind": "git",
+        "url": "https://github.com/acme/lab.git"
+      },
+      "path": "/root/lab",
+      "remote": "https://github.com/acme/lab.git",
+      "defaultBranch": "main",
+      "memoryKey": "-root-lab",
+      "memoryDir": "/root/.claude-cfg/projects/-root-lab/memory",
+      "base": "main",
+      "createdAt": "2026-10-13T17:21:45.419Z"
+    }
+  },
+  "creates": {},
+  "workspaces": {
+    "ws_be677449": {
+      "id": "ws_be677449",
+      "name": "fix-login",
+      "kind": "cloud",
+      "machineId": "m1",
+      "phase": "running",
+      "golden": "snap_g",
+      "createdAt": "2026-10-13T17:21:45.420Z",
+      "project": "pr_429f38d3",
+      "spec": {},
+      "size": {
+        "cpu": 2,
+        "memMb": 4096
+      },
+      "firstLife": true,
+      "base": "main",
+      "shape": {
+        "cpu": 2,
+        "memMb": 4096,
+        "createdAt": "2026-10-13T17:21:45.421Z"
+      }
+    }
+  },
+  "workspace-names": {
+    "ws_be677449": {
+      "workspaceId": "ws_be677449",
+      "name": "fix-login",
+      "project": "pr_429f38d3"
+    }
+  },
+  "cost-histories": {
+    "ws_be677449": {
+      "workspaceId": "ws_be677449",
+      "points": [
+        {
+          "type": "workspace.cost",
+          "workspaceId": "ws_be677449",
+          "phase": "running",
+          "rateUsdPerHour": 0.11000000000000001,
+          "awakeMs": 0,
+          "accruedUsd": 0,
+          "at": "2026-10-13T17:21:45.435Z"
+        }
+      ],
+      "where": {
+        "kind": "cloud",
+        "machineId": "m1",
+        "provider": "default"
+      }
+    }
+  },
+  "$shape": {
+    "shape": 2,
+    "wsp": "0.3.6",
+    "daemon": 157,
+    "bin": "/usr/local/bin/wsp",
+    "at": "2026-10-13T17:21:45.435Z"
+  }
+}

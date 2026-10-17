@@ -1,0 +1,278 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// What one word to wsp add names, what a project is called, where its
+// checkout sits inside a workspace of it, and which workspace a folder on
+// this computer belongs to: the command line, the runtime and the app all
+// read these here.
+import { describe, expect, it } from "vitest";
+import { cloneFailedLine, cloneUrlRefusal, noComputerForSourceLine, addedProjectLine, addedProjectOn, addingProjectLine, ADD_FORMS_LINE, projectSourceOf, computerNamed, folderName, guardedFolder, HERE_PLACE_ID, hiddenFolder, isMacMachine, goldenForkName, homeShortened, kindWords, landsOn, MEMORY_KEPT_CLAUSE, cwdOutsideLine, noBranchesLine, ProjectGolden, projectNameOf, projectPathOn, projectLeftOnComputerLine, projectsInPlace, type ProjectSource, type ProjectView, REGISTERING_LINE, registeredLine, registerTakesNoConsentLine, sameSourceRefusal, sourceKind, threadOpenedLine, workspaceLands, worktreeSetupLine, worktreeStepWords, type WorkspaceProject, WorkspaceView } from "../src/index.js";
+
+const spoo: WorkspaceProject = { name: "spoo", dest: "/root/spoo", importedAt: "2026-09-01T00:00:00Z", size: 1024 };
+const wsp: WorkspaceProject = { name: "wsp", dest: "/root/wsp", importedAt: "2026-09-02T00:00:00Z" };
+const ref = { id: "pr_1a2b3c4d", name: "spoo-landing", path: "/root/spoo-landing", computer: "pl_box" };
+const view = { id: "ws_1", name: "b2", machineId: "m1", phase: "running", golden: "snap_g", createdAt: "2026-09-06T09:00:00.000Z", project: ref };
+
+const folderSource = (path: string): ProjectSource => ({ kind: "folder", path });
+const gitSource = (url: string): ProjectSource => ({ kind: "git", url });
+
+
+describe("what one word to wsp add names", () => {
+  it("a login is a computer, a url or a repo path is a repo, a path is a folder, and anything else is refused with the three forms", () => {
+    expect(sourceKind("root@spoo")).toBe("computer");
+    expect(sourceKind("root@178.156.161.168")).toBe("computer");
+    expect(sourceKind("git@github.com:spoo-me/frontend.git")).toBe("git");
+    expect(sourceKind("https://github.com/spoo-me/frontend")).toBe("git");
+    expect(sourceKind("spoo-me/frontend.git")).toBe("git");
+    expect(sourceKind("/Users/dev/wsp")).toBe("folder");
+    expect(sourceKind("~/spoo/spoo-landing")).toBe("folder");
+    expect(sourceKind("./frontend")).toBe("folder");
+    // A path is a path first: a folder somebody called repo.git is theirs on this computer, not a url.
+    expect(sourceKind("/Users/me/repo.git")).toBe("folder");
+    expect(() => sourceKind("spoo")).toThrow(ADD_FORMS_LINE);
+    // owner/repo is the word the host's own command line takes; the host in front of it names the other host.
+    expect(sourceKind("spoo-me/frontend")).toBe("github");
+    expect(sourceKind("gitlab.com/dev/thing")).toBe("gitlab");
+    // The record keeps the word that command reads: no host in front of it and no .git after it.
+    expect(projectSourceOf("gitlab.com/dev/thing.git", "gitlab")).toEqual({ kind: "gitlab", repo: "dev/thing" });
+    expect(projectSourceOf("spoo-me/frontend", "github")).toEqual({ kind: "github", repo: "spoo-me/frontend" });
+  });
+
+  it("a project is named by its repo's last word without .git, or by the folder's own name", () => {
+    expect(projectNameOf(gitSource("https://github.com/spoo-me/frontend.git"))).toBe("frontend");
+    expect(projectNameOf(gitSource("https://github.com/spoo-me/frontend"))).toBe("frontend");
+    expect(projectNameOf(gitSource("git@github.com:spoo-me/frontend.git"))).toBe("frontend");
+    expect(projectNameOf(folderSource("/Users/z/spoo/spoo-landing"))).toBe("spoo-landing");
+    expect(projectNameOf(folderSource("/Users/z/spoo/spoo-landing/"))).toBe("spoo-landing");
+  });
+
+  it("the checkout sits under the folder the landing road names, and a folder of yours is worked where it sits", () => {
+    expect(projectPathOn(gitSource("https://github.com/spoo-me/frontend"), "spoo-landing", "/srv")).toBe("/srv/spoo-landing");
+    expect(projectPathOn(gitSource("https://github.com/spoo-me/frontend"), "spoo-landing", "/root")).toBe("/root/spoo-landing");
+    // A folder is its own path whatever the road says, which is why the road that clones nothing names no folder.
+    expect(projectPathOn(folderSource("/Users/z/spoo/spoo-landing"), "spoo-landing")).toBe("/Users/z/spoo/spoo-landing");
+    // And a repo on such a computer is a wiring fault, refused before any path is spelled for it.
+    expect(() => projectPathOn(gitSource("https://github.com/spoo-me/frontend"), "spoo-landing")).toThrow("holds no checkout of its own");
+  });
+
+  it("which sources a computer takes is its kind's own row, so no road decides it for itself", () => {
+    // A computer that clones takes a repo any of the three ways it can be named, and a folder on this computer,
+    // which it clones from that folder's own remote and seeds what git ignores onto. This computer clones a repo
+    // into a folder the person names and works that folder.
+    expect(kindWords("local").projectSources).toEqual(["git", "github", "gitlab", "folder"]);
+    expect(kindWords("cloud").projectSources).toEqual(["git", "github", "gitlab", "folder"]);
+    // Copying the folder beside itself is its own word: a computer that clones takes a folder as a source and
+    // still holds a checkout of it, so the two cannot be read off one list.
+    expect([kindWords("local").copiesFolder, kindWords("cloud").copiesFolder]).toEqual([true, false]);
+  });
+
+  it("the refusals name the project, the folder and the computer", () => {
+    expect(sameSourceRefusal("spoo-landing", "spoo")).toBe("that source is already a project on spoo, spoo-landing; one source on one computer is one project");
+    expect(cwdOutsideLine("~/elsewhere", "spoo")).toBe("~/elsewhere is not in spoo or a worktree of it; wsp add it first");
+    expect(noBranchesLine("notes")).toBe("notes is not a git repo, so it has no branches");
+    expect(threadOpenedLine("th_1", "spoo", "~/.wsp/worktrees/pr_1/feat-x")).toBe("thread th_1 on spoo in ~/.wsp/worktrees/pr_1/feat-x");
+    expect(threadOpenedLine("th_1", undefined, "~/spoo")).toBe("thread th_1 in ~/spoo");
+  });
+});
+
+describe("the project a workspace holds", () => {
+  it("a workspace view carries exactly one project; a view with none, and one still carrying the old list, is not a view", () => {
+    expect(WorkspaceView.parse(view)).toEqual(view);
+    const { project: _dropped, ...noProject } = view;
+    expect(WorkspaceView.safeParse(noProject).success).toBe(false);
+    expect(WorkspaceView.safeParse({ ...noProject, projects: [spoo, wsp] }).success).toBe(false);
+    // A view that carries both does not carry the list on: one stored home per fact, and the wire says so.
+    expect("projects" in WorkspaceView.parse({ ...view, projects: [spoo] })).toBe(false);
+  });
+
+  it("a view carries the kind's own folder where the kind names one, the last branch of the rule, so a client shows the folder the runtime will open rather than guessing it", () => {
+    expect(WorkspaceView.parse({ ...view, kind: "local", folder: "/Users/dev/wsp-work" })).toEqual({ ...view, kind: "local", folder: "/Users/dev/wsp-work" });
+    expect(WorkspaceView.parse(view)).not.toHaveProperty("folder");
+  });
+
+  it("a view carries the machine's home where the kind knows it, so a client shortens a folder under it to ~ the way the machine's own shell would", () => {
+    expect(WorkspaceView.parse({ ...view, home: "/root" })).toEqual({ ...view, home: "/root" });
+    expect(WorkspaceView.parse(view)).not.toHaveProperty("home");
+    expect(homeShortened("/root/spoo", "/root")).toBe("~/spoo");
+    expect(homeShortened("/root", "/root")).toBe("~");
+    expect(homeShortened("/rooted/spoo", "/root")).toBe("/rooted/spoo");
+    expect(homeShortened("/root/spoo", undefined)).toBe("/root/spoo");
+  });
+});
+
+describe("what a computer is called in a row", () => {
+  it("is this computer's own word for the computer the host runs on, and the name this wsp holds for every other", () => {
+    const named = new Map([["pl_box", "hetzner"]]);
+    expect(computerNamed(HERE_PLACE_ID, named, "darwin")).toBe("this Mac");
+    expect(computerNamed(HERE_PLACE_ID, named, "linux")).toBe("this computer");
+    expect(computerNamed("pl_box", named, "linux")).toBe("hetzner");
+    // A caller that could not read the list says the id rather than inventing a name for it.
+    expect(computerNamed("pl_box", undefined, "darwin")).toBe("pl_box");
+  });
+
+  it("the line a recorded project answers with names the computer the same way, and on this computer the command that opens a thread", () => {
+    const project = {
+      id: "pr_1",
+      name: "spoo-landing",
+      computer: "pl_box",
+      source: { kind: "git" as const, url: "https://github.com/dev/spoo.git" },
+      path: "/root/spoo-landing",
+      remote: "https://github.com/dev/spoo.git",
+      defaultBranch: "main",
+      memoryKey: "-root-spoo-landing",
+      memoryDir: "/wsp/projects/pr_1/memory",
+      createdAt: "t",
+    };
+    expect(addedProjectLine(project, new Map([["pl_box", "hetzner"]]), "darwin")).toBe(
+      "spoo-landing pr_1: https://github.com/dev/spoo.git on hetzner, at /root/spoo-landing",
+    );
+    // This computer's own word is the host's platform's, never a default: a line written on a Linux host says
+    // this computer where a Mac says this Mac, and neither reads the other's word.
+    const here = { ...project, id: "pr_2", name: "wsp", computer: HERE_PLACE_ID, source: { kind: "folder" as const, path: "/Users/dev/wsp" }, path: "/Users/dev/wsp" };
+    expect(addedProjectLine(here, new Map(), "darwin")).toContain("on this Mac, at /Users/dev/wsp");
+    expect(addedProjectLine(here, new Map(), "linux")).toContain("on this computer, at /Users/dev/wsp");
+    // A project here takes a thread at once, and the line says the one that opens it.
+    expect(addedProjectLine(here, new Map(), "darwin").split("\n")[1]).toBe(`open a thread on it with: wsp run 'wsp' "<message>"`);
+    // The add's own stage says that one sentence and no other: a caller holding the computer's word already,
+    // which is the road the landing takes, reads the same line off it.
+    expect(addedProjectOn(project, "hetzner")).toBe(addedProjectLine(project, new Map([["pl_box", "hetzner"]]), "darwin"));
+  });
+
+  it("the line the add starts with says what is being recorded and from where, and counts nothing it carries", () => {
+    const folder: ProjectSource = { kind: "folder", path: "/Users/dev/spoo-landing" };
+    // A seed travels with it, so what travels is the seeding's own line in the menu's counts and this one says
+    // none of it: a count of ticked files here read as the whole of a seed carrying a memory folder too.
+    expect(addingProjectLine("spoo-landing", folder, true)).toBe("spoo-landing from /Users/dev/spoo-landing.");
+    // Nothing of the person's folder goes with a repo the computer clones itself, which nothing else says.
+    expect(addingProjectLine("spoo-ts", { kind: "git", url: "https://github.com/dev/spoo.git" }, false)).toBe("spoo-ts from https://github.com/dev/spoo.git, nothing seeded.");
+  });
+
+  it("the remove on a computer you joined leaves the project's folder there as it is, and says so", () => {
+    // The clause has one home, which the tool describing the remove reads too.
+    expect(MEMORY_KEPT_CLAUSE).toBe("the memory its agent keeps on that computer stays");
+    expect(projectLeftOnComputerLine("spoo-landing", "spoo", "/root/spoo-landing")).toBe("spoo-landing is no longer a project on spoo; its folder /root/spoo-landing stays there as it is");
+  });
+});
+
+describe("getting a project onto a machine", () => {
+  it("a register says nothing was copied, and the flags a copy takes have no meaning here", () => {
+    expect(REGISTERING_LINE).toBe("already on this computer, registering");
+    expect(registeredLine("/Users/dev/wsp")).toBe("wsp registered at /Users/dev/wsp; nothing was copied.");
+    expect(registerTakesNoConsentLine(["--keep"])).toBe("--keep has no meaning on this computer: the folder is registered at its path and nothing is carried, cut or replaced");
+    expect(registerTakesNoConsentLine(["keep", "agents"])).toBe("keep, agents have no meaning on this computer: the folder is registered at its path and nothing is carried, cut or replaced");
+    expect(folderName("/Users/dev/wsp/")).toBe("wsp");
+    expect(folderName("wsp")).toBe("wsp");
+  });
+
+  it("a folder browser hides the machine's own folders: the dot-named ones anywhere, and a Mac home's own Library", () => {
+    const mac = { home: "/Users/dev", mac: true };
+    // A dot-named folder is the machine's own wherever it sits, and with nothing known about the machine at all.
+    expect(hiddenFolder("/Users/dev/.config", mac)).toBe(true);
+    expect(hiddenFolder("/root/.wsp")).toBe(true);
+    expect(hiddenFolder("/Users/dev/code", mac)).toBe(false);
+    // The Library the Mac keeps in the home itself, which its Finder hides too.
+    expect(hiddenFolder("/Users/dev/Library", mac)).toBe(true);
+    expect(hiddenFolder("/Users/dev/Library/", mac)).toBe(true);
+    // A home is wherever the login puts it, and a lab account's is not /Users/<name>: the home decides, not the
+    // path's shape, or every persona home on a Mac gets the junk drawer back.
+    expect(hiddenFolder("/Users/Shared/lab/priya/Library", { home: "/Users/Shared/lab/priya", mac: true })).toBe(true);
+    expect(hiddenFolder("/var/folders/t/session/Library", { home: "/var/folders/t/session", mac: true })).toBe(true);
+    // A Library somebody made inside their own work is theirs, and so is one on a machine that is not a Mac.
+    expect(hiddenFolder("/Users/dev/code/app/Library", mac)).toBe(false);
+    expect(hiddenFolder("/root/Library", { home: "/root", mac: false })).toBe(false);
+    expect(hiddenFolder("/Users/dev/Library", { home: "/Users/dev" })).toBe(false);
+    expect(hiddenFolder("/Users/dev/Library")).toBe(false);
+  });
+
+  it("a folder browser stays out of the folders a Mac guards in its home, and of none of that name anywhere else", () => {
+    const mac = { home: "/Users/dev", mac: true };
+    for (const name of ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"]) {
+      expect(guardedFolder(`/Users/dev/${name}`, mac)).toBe(true);
+      expect(guardedFolder(`/Users/dev/${name}/`, mac)).toBe(true);
+    }
+    // Inside one is somewhere the person went, and one inside their own work is theirs.
+    expect(guardedFolder("/Users/dev/Documents/GitHub", mac)).toBe(false);
+    expect(guardedFolder("/Users/dev/code/Documents", mac)).toBe(false);
+    // Nothing else guards a home's Desktop.
+    expect(guardedFolder("/home/dev/Desktop", { home: "/home/dev", mac: false })).toBe(false);
+    expect(guardedFolder("/Users/dev/Desktop")).toBe(false);
+  });
+
+  it("a machine says it is a Mac by the name its maker gives it, or by the kernel where it had nothing better", () => {
+    expect(isMacMachine("macOS 15.5")).toBe(true);
+    expect(isMacMachine("Darwin 25.4.0")).toBe(true);
+    expect(isMacMachine("Ubuntu 24.04.1 LTS")).toBe(false);
+    expect(isMacMachine("Debian GNU/Linux 12 (bookworm)")).toBe(false);
+    // A machine that has answered nothing yet has said nothing to hide.
+    expect(isMacMachine(undefined)).toBe(false);
+    expect(isMacMachine("")).toBe(false);
+  });
+});
+
+describe("a project golden's manifest", () => {
+  it("lists every project the snapshot carries, so a fork is told what it gets; a manifest with one project under the old field is not a golden", () => {
+    const golden = { snapshotId: "snap_p", projects: [spoo, wsp], golden: "snap_g", version: 3, workspaceId: "ws_1", workspaceName: "b2", createdAt: "2026-09-06T09:00:00.000Z" };
+    expect(ProjectGolden.parse(golden)).toEqual(golden);
+    expect(ProjectGolden.safeParse({ ...golden, projects: undefined, project: spoo }).success).toBe(false);
+    expect(projectsInPlace([spoo, wsp])).toBe(" with spoo, wsp in place");
+    expect(projectsInPlace([])).toBe("");
+    // A fork of the golden goes by the newest project it carries, the name new --from takes for it.
+    expect(goldenForkName(golden)).toBe("wsp");
+    expect(goldenForkName({ ...golden, projects: [] })).toBe("snap_p");
+  });
+});
+
+describe("where a workspace of a project lands", () => {
+  const here = { id: HERE_PLACE_ID, name: "zingzy-mbp" };
+  const solari = { id: "solari", name: "Solari" };
+  const box = { id: "p_2", name: "hetzner" };
+
+  it("copies a folder on this computer for a project here, forks on the host's own provider for one there, and lands anywhere else on the place it names", () => {
+    expect(workspaceLands(HERE_PLACE_ID, "solari")).toEqual({ at: "here" });
+    expect(workspaceLands("solari", "solari")).toEqual({ at: "wired" });
+    expect(workspaceLands("p_2", "solari")).toEqual({ at: "place", place: "p_2" });
+    expect(workspaceLands("solari", undefined)).toEqual({ at: "place", place: "solari" });
+  });
+
+  it("puts a project here on this computer's row and never on the provider the host forks on", () => {
+    expect(landsOn(HERE_PLACE_ID, here)).toBe(true);
+    expect(landsOn(HERE_PLACE_ID, solari)).toBe(false);
+    expect(landsOn("solari", solari)).toBe(true);
+    expect(landsOn("Solari", solari)).toBe(true);
+    expect(landsOn("hetzner", box)).toBe(true);
+    expect(landsOn("p_2", solari)).toBe(false);
+  });
+});
+
+describe("a repo cloned on this computer", () => {
+  it("takes an https url, an ssh url, git's scp form and owner/repo, and nothing a transport or an option could hide in", () => {
+    for (const word of ["https://github.com/spoo-me/spoo.me", "https://gitlab.example.com:8443/team/app.git", "ssh://git@github.com/spoo-me/spoo.me.git", "ssh://github.com/spoo-me/spoo.me.git", "ssh://deploy-bot.v2@host.example/srv/app.git", "ssh://git@host.example:2222/srv/app.git", "git@github.com:spoo-me/spoo.me.git", "spoo-me/spoo.me", "gitlab.com/team/app"]) {
+      expect(cloneUrlRefusal(word), word).toBeUndefined();
+    }
+    for (const word of ["file:///etc", "ext::sh -c touch% /tmp/x", "http://github.com/a/b", "git://github.com/a/b", "https://user:token@github.com/a/b", "https://-oProxyCommand=x/a/b", "ssh://-oProxyCommand=evil/x", "git@-oProxyCommand=x:a/b", "git@host:-x/y", "https://github.com/a/b --upload-pack=x", "-uhttps://github.com/a/b", "-a/b", "https://", "ssh://git@github.com", "ssh://-oProxyCommand=true@github.com/a/b", "ssh://git$(id)@github.com/a/b", "ssh://gi%60t@github.com/a/b", "ssh://a:b@github.com/x", "ssh://git@-host/a/b", "-git@github.com:a/b", "git$x@github.com:a/b"]) {
+      expect(cloneUrlRefusal(word), word).toBe(`${word} is not a repo address wsp clones; give its https or ssh url, or owner/repo`);
+    }
+  });
+
+  it("says git's own last line when a clone fails, and how to sign in when the failure is a sign-in", () => {
+    expect(cloneFailedLine("Cloning into '/x'...\nfatal: destination path '/x' already exists and is not an empty directory.\n")).toBe("fatal: destination path '/x' already exists and is not an empty directory.");
+    const signIn = "; sign in with gh auth login, or use the repo's ssh url";
+    expect(cloneFailedLine("Cloning into '/x'...\nfatal: could not read Username for 'https://github.com': terminal prompts disabled\n")).toBe(`fatal: could not read Username for 'https://github.com': terminal prompts disabled${signIn}`);
+    expect(cloneFailedLine("remote: Repository not found.\nfatal: repository 'https://github.com/me/private.git/' not found\n")).toBe(`fatal: repository 'https://github.com/me/private.git/' not found${signIn}`);
+    expect(cloneFailedLine("git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n")).toBe(`fatal: Could not read from remote repository.${signIn}`);
+    expect(cloneFailedLine("GraphQL: Could not resolve to a Repository with the name 'me/private'. (repository)\n")).toBe(`GraphQL: Could not resolve to a Repository with the name 'me/private'. (repository)${signIn}`);
+    expect(cloneFailedLine("")).toBe("the clone failed and said nothing");
+  });
+
+  it("a url with no computer names both roads: here into a folder, or a computer that clones", () => {
+    expect(noComputerForSourceLine("https://github.com/a/b", ["spoo"])).toBe("https://github.com/a/b is a repo: clone it here with --into <folder>, or name the computer that clones it with --on spoo");
+    expect(noComputerForSourceLine("a/b", [])).toBe("a/b is a repo: clone it here with --into <folder>");
+  });
+});
+
+describe("what a new worktree ran before its first thread", () => {
+  it("says each command on a line of its own, so a command holding a separator reads as one", () => {
+    const after = 'read answer; echo "got:$answer"';
+    expect(worktreeSetupLine([worktreeStepWords("cargo fetch --locked", "daemon"), worktreeStepWords(after, ".", { exitCode: 1, said: "" })])).toBe(
+      ["Before this thread started, its new worktree ran:", "- cargo fetch --locked in daemon", `- ${after} (exited 1)`].join("\n"),
+    );
+  });
+});

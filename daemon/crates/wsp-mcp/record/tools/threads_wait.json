@@ -1,0 +1,256 @@
+{
+  "cloudOff": {
+    "name": "threads_wait",
+    "description": "Blocks until one of the named threads leaves running and answers with that thread's end: its id, status (completed, interrupted or failed), how long it worked, what it cost and the last line of its reply, and on a sub-thread result, what its machine was read to hold, the text being the one line a notify sends. One thread per call: a caller that started three builders calls this three times, dropping each returned id from the list, since a thread already over comes back at once and would come back again. With timeout, the seconds to wait before answering with nothing and timedOut true, so other work fits between calls; keep it under your own tool call limit and call again. This blocks, so it is for a shell script and not for your own conversation. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer. Never poll threads for a state change.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "thread ids, or prefixes that each pick one"
+        },
+        "timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "seconds to wait; absent waits until one of the threads finishes"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "finished": {
+          "type": "object",
+          "properties": {
+            "threadId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "interrupted",
+                "failed"
+              ]
+            },
+            "durationMs": {
+              "type": "number"
+            },
+            "costUsd": {
+              "type": "number"
+            },
+            "reply": {
+              "type": "string",
+              "description": "the last non-empty line of the reply, or the error when there is no reply"
+            },
+            "result": {
+              "type": "object",
+              "properties": {
+                "branch": {
+                  "type": "string"
+                },
+                "pushedSha": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "commits": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unpushed": {
+                  "$ref": "#/properties/finished/properties/result/properties/commits"
+                },
+                "changed": {
+                  "$ref": "#/properties/finished/properties/result/properties/commits"
+                },
+                "onBranch": {
+                  "type": "string"
+                },
+                "norepo": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "readFailed": {
+                  "type": "string"
+                },
+                "readAt": {
+                  "type": "string"
+                },
+                "pushRefused": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "branch",
+                "pushedSha",
+                "commits",
+                "unpushed",
+                "changed",
+                "readAt"
+              ],
+              "additionalProperties": false,
+              "description": "on a sub-thread, what its machine was read to hold at the end: the branch, the sha pushed, the commits it brings and the work not pushed"
+            }
+          },
+          "required": [
+            "threadId",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "the thread that left running; absent when the timeout passed first"
+        },
+        "timedOut": {
+          "type": "boolean",
+          "const": true,
+          "description": "set when the timeout passed with every named thread still running"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "threads_wait",
+    "description": "Blocks until one of the named threads leaves running and answers with that thread's end: its id, status (completed, interrupted or failed), how long it worked, what it cost and the last line of its reply, and on a sub-thread result, what its machine was read to hold, the text being the one line a notify sends. One thread per call: a caller that started three builders calls this three times, dropping each returned id from the list, since a thread already over comes back at once and would come back again. With timeout, the seconds to wait before answering with nothing and timedOut true, so other work fits between calls; keep it under your own tool call limit and call again. This blocks, so it is for a shell script and not for your own conversation. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer. Never poll threads for a state change.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "thread ids, or prefixes that each pick one"
+        },
+        "timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "seconds to wait; absent waits until one of the threads finishes"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "finished": {
+          "type": "object",
+          "properties": {
+            "threadId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "interrupted",
+                "failed"
+              ]
+            },
+            "durationMs": {
+              "type": "number"
+            },
+            "costUsd": {
+              "type": "number"
+            },
+            "reply": {
+              "type": "string",
+              "description": "the last non-empty line of the reply, or the error when there is no reply"
+            },
+            "result": {
+              "type": "object",
+              "properties": {
+                "branch": {
+                  "type": "string"
+                },
+                "pushedSha": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "commits": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unpushed": {
+                  "$ref": "#/properties/finished/properties/result/properties/commits"
+                },
+                "changed": {
+                  "$ref": "#/properties/finished/properties/result/properties/commits"
+                },
+                "onBranch": {
+                  "type": "string"
+                },
+                "norepo": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "readFailed": {
+                  "type": "string"
+                },
+                "readAt": {
+                  "type": "string"
+                },
+                "pushRefused": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "branch",
+                "pushedSha",
+                "commits",
+                "unpushed",
+                "changed",
+                "readAt"
+              ],
+              "additionalProperties": false,
+              "description": "on a sub-thread, what its machine was read to hold at the end: the branch, the sha pushed, the commits it brings and the work not pushed"
+            }
+          },
+          "required": [
+            "threadId",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "the thread that left running; absent when the timeout passed first"
+        },
+        "timedOut": {
+          "type": "boolean",
+          "const": true,
+          "description": "set when the timeout passed with every named thread still running"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

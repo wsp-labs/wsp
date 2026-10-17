@@ -1,0 +1,1584 @@
+// Adapted from pingdotgg/t3code apps/web/src/components/chat/MessagesTimeline.test.tsx at 57a66608 (MIT).
+// Differs from upstream: the XSS probe global is __xss instead of the branded name; cases for removed features are dropped.
+import { createRef, type ReactNode, type Ref } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { act, fireEvent, render, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { LegendListRef } from "@legendapp/list/react";
+import { runBlockKey, type AttachmentRecord, type SessionEvent } from "@wsp/protocol";
+import { MessagesTimeline, WORK_TONES } from "./MessagesTimeline";
+import { deriveSession, type TimelineEntry, type TurnSummary, type WorkLogEntry, type WorkLogTone } from "./adapt";
+import { fileFactsOf, fileOf, useComposerFilesStore } from "./composerFiles";
+
+// jsdom has no object URLs; a thumbnail only needs one string per image.
+URL.createObjectURL = (): string => "blob:wsp/1";
+URL.revokeObjectURL = (): void => {};
+
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+vi.mock("@legendapp/list/react", async () => {
+  const legendListTestId = "legend-list";
+
+  const LegendList = (props: {
+    data: Array<{ id: string }>;
+    keyExtractor: (item: { id: string }) => string;
+    renderItem: (args: { item: { id: string } }) => ReactNode;
+    ListHeaderComponent?: ReactNode;
+    ListFooterComponent?: ReactNode;
+    anchoredEndSpace?: {
+      anchorIndex: number;
+    };
+    maintainScrollAtEnd?:
+      | boolean
+      | {
+          animated?: boolean;
+          on?: {
+            dataChange?: boolean;
+            itemLayout?: boolean;
+            layout?: boolean;
+          };
+        };
+    ref?: Ref<LegendListRef>;
+  }) => {
+    return (
+      <div
+        data-testid={legendListTestId}
+        data-anchor-index={props.anchoredEndSpace?.anchorIndex}
+        data-maintain-scroll-at-end={props.maintainScrollAtEnd ? "enabled" : undefined}
+        data-maintain-scroll-at-end-animated={
+          typeof props.maintainScrollAtEnd === "object"
+            ? props.maintainScrollAtEnd.animated
+            : undefined
+        }
+        data-maintain-scroll-at-end-data-change={
+          typeof props.maintainScrollAtEnd === "object"
+            ? props.maintainScrollAtEnd.on?.dataChange
+            : undefined
+        }
+        data-maintain-scroll-at-end-item-layout={
+          typeof props.maintainScrollAtEnd === "object"
+            ? props.maintainScrollAtEnd.on?.itemLayout
+            : undefined
+        }
+        data-maintain-scroll-at-end-layout={
+          typeof props.maintainScrollAtEnd === "object"
+            ? props.maintainScrollAtEnd.on?.layout
+            : undefined
+        }
+      >
+        {props.ListHeaderComponent}
+        {props.data.map((item) => (
+          <div key={props.keyExtractor(item)}>{props.renderItem({ item })}</div>
+        ))}
+        {props.ListFooterComponent}
+      </div>
+    );
+  };
+
+  return { LegendList };
+});
+
+const MESSAGE_CREATED_AT = "2026-03-17T19:12:28.000Z";
+
+function buildProps() {
+  return {
+    isWorking: false,
+    activeTurnStartedAt: null,
+    listRef: createRef<LegendListRef | null>(),
+    turns: [],
+    turnDiffSummaryByAssistantMessageId: new Map(),
+    threadKey: "thread-1",
+    onOpenTurnDiff: () => {},
+    rewindableMessageIds: new Set<string>(),
+    onRewind: () => {},
+    onImageExpand: () => {},
+    markdownCwd: undefined,
+    resolvedTheme: "light" as const,
+    timestampFormat: "locale" as const,
+    workspaceRoot: undefined,
+    anchorMessageId: null,
+    onAnchorReady: () => {},
+    contentInsetEndAdjustment: 0,
+    liveFollowEnabled: true,
+    onIsAtEndChange: () => {},
+    onManualNavigation: () => {},
+  };
+}
+
+function buildTurn(
+  turnId: string,
+  state: TurnSummary["state"],
+  startedAt: string | null,
+  completedAt: string | null,
+): TurnSummary {
+  return {
+    turnId,
+    sessionId: "session-1",
+    state,
+    replied: state !== "running",
+    prompt: null,
+    model: null,
+    durationMs: null,
+    waitedMs: null,
+    costUsd: null,
+    tokens: null,
+    changes: null,
+    error: null,
+    startedAt,
+    completedAt,
+    checkpoint: null,
+  };
+}
+
+function buildLongUserMessageText(tail = "deep hidden detail only after expand") {
+  return Array.from({ length: 9 }, (_, index) =>
+    index === 8 ? tail : `Line ${index + 1}: ${"verbose prompt content ".repeat(8).trim()}`,
+  ).join("\n");
+}
+
+function buildUserTimelineEntry(text: string) {
+  return {
+    id: "message-1",
+    kind: "message" as const,
+    createdAt: MESSAGE_CREATED_AT,
+    message: {
+      id: "message-1",
+      role: "user" as const,
+      text,
+      turnId: null,
+      createdAt: MESSAGE_CREATED_AT,
+      updatedAt: MESSAGE_CREATED_AT,
+      streaming: false,
+    },
+  };
+}
+
+/** A person's message that carried images: the runtime's records, and the request id whichever client made the send
+ * still holds their bytes under. */
+function buildUserTimelineEntryWithImages(text: string, attachments: AttachmentRecord[], requestId?: string) {
+  const entry = buildUserTimelineEntry(text);
+  return { ...entry, message: { ...entry.message, attachments, ...(requestId !== undefined ? { requestId } : {}) } };
+}
+
+function buildAssistantTimelineEntry(text: string) {
+  const entry = buildUserTimelineEntry(text);
+  return {
+    ...entry,
+    message: {
+      ...entry.message,
+      role: "assistant" as const,
+    },
+  };
+}
+
+describe("MessagesTimeline", () => {
+  it("renders elapsed time for a completed turn", () => {
+    const turnId = "turn-with-fold";
+    const assistantEntry = buildAssistantTimelineEntry("Done.");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        turns={[
+          buildTurn(turnId, "completed", "2026-03-17T19:12:20.000Z", "2026-03-17T19:12:28.000Z"),
+        ]}
+        timelineEntries={[
+          {
+            id: "work-entry-with-fold",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:22.000Z",
+            entry: {
+              id: "work-with-fold",
+              createdAt: "2026-03-17T19:12:22.000Z",
+              turnId,
+              label: "Ran command",
+              tone: "tool",
+              toolLifecycleStatus: "completed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            ...assistantEntry,
+            message: { ...assistantEntry.message, turnId },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Worked for 8.0s");
+  });
+
+  it("draws a stopped turn's line under its rows as words, with nothing to open", () => {
+    const turnId = "turn-stopped";
+    const assistantEntry = buildAssistantTimelineEntry("Halfway there.");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        turns={[buildTurn(turnId, "interrupted", "2026-03-17T19:12:20.000Z", "2026-03-17T19:12:28.000Z")]}
+        timelineEntries={[{ ...assistantEntry, message: { ...assistantEntry.message, turnId } }]}
+      />,
+    );
+
+    expect(markup.indexOf("You stopped after 8.0s")).toBeGreaterThan(markup.indexOf("Halfway there."));
+    expect(markup).not.toMatch(/<button[^>]*>(?:(?!<\/button>).)*You stopped/);
+  });
+
+  it("keeps a settled reply's row to its copy and its time, whatever the turn ran on and read", () => {
+    const turnId = "turn-with-meta";
+    const assistantEntry = buildAssistantTimelineEntry("Done.");
+    const turn = { ...buildTurn(turnId, "completed", "2026-03-17T19:12:20.000Z", "2026-03-17T19:12:28.000Z"), model: "claude-sonnet-4-5", tokens: { input: 22_564, output: 251, cached: 0, context: 4_269, window: 200_000 } };
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        turns={[turn as never]}
+        timelineEntries={[{ ...assistantEntry, message: { ...assistantEntry.message, turnId } }]}
+      />,
+    );
+    const row = markup.slice(markup.indexOf("data-reply-meta"));
+    expect(row).toContain("data-reply-time");
+    expect(markup).not.toContain("claude-sonnet-4-5");
+    expect(markup).not.toMatch(/22\.6k in|251 out/);
+  });
+
+  it("keeps assistant changed-files headers sticky below the thread header", () => {
+    const assistantMessageId = "message-assistant-with-files";
+    const turnId = "turn-with-files";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        turns={[buildTurn(turnId, "completed", MESSAGE_CREATED_AT, MESSAGE_CREATED_AT)]}
+        timelineEntries={[
+          {
+            id: assistantMessageId,
+            kind: "message",
+            createdAt: MESSAGE_CREATED_AT,
+            message: {
+              id: assistantMessageId,
+              role: "assistant",
+              text: "Updated the fixture.",
+              turnId,
+              createdAt: MESSAGE_CREATED_AT,
+              updatedAt: MESSAGE_CREATED_AT,
+              streaming: false,
+            },
+          },
+        ]}
+        turnDiffSummaryByAssistantMessageId={
+          new Map([
+            [
+              assistantMessageId,
+              {
+                turnId,
+                files: [{ path: "src/README.md", kind: "modified", additions: 2, deletions: 1 }],
+                moved: [],
+              },
+            ],
+          ])
+        }
+      />,
+    );
+
+    expect(markup).toContain("sticky top-2 z-10");
+    expect(markup).not.toContain("self-start");
+    expect(markup).toContain("size-3");
+    expect(markup).toContain('aria-label="Expand all folders"');
+    expect(markup).toContain('aria-label="Open diff"');
+    expect(markup).toContain("1 changed file");
+  });
+
+  it("keeps a turn's own files apart from what else changed in its folder, and draws both under its reply", () => {
+    const scoped = { workspaceId: "ws_s", sessionId: "sess_s", turnId: "turn_s", threadId: "thread_s" } as const;
+    const own = { path: "slate.md", kind: "added", additions: 4, deletions: 0 };
+    const theirs = { path: "scripts/login.ts", kind: "modified", additions: 1, deletions: 3 };
+    const model = deriveSession([
+      { type: "session.start", ...scoped, at: 0, prompt: "write the slate" },
+      { type: "session.delta", ...scoped, at: 1, kind: "text", text: "Wrote the slate." },
+      { type: "session.done", ...scoped, at: 2, result: { status: "completed", text: "Wrote the slate." } },
+      { type: "session.changes", ...scoped, at: 3, from: "a".repeat(40), to: "b".repeat(40), files: [own], others: [theirs], moved: [], shared: true },
+    ]);
+    const changes = model.turns[0]!.changes!;
+    expect(changes).toMatchObject({ files: [own], others: [theirs], shared: true });
+    const reply = model.timeline.findLast(e => e.kind === "message")!;
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        turns={model.turns}
+        timelineEntries={model.timeline}
+        turnDiffSummaryByAssistantMessageId={new Map([[reply.id, { turnId: "turn_s", files: changes.files, moved: [], others: changes.others! }]])}
+      />,
+    );
+    expect(markup).toContain("1 changed file");
+    expect(markup).toContain("Also changed in this folder");
+  });
+
+  it("reads a scroller standing at its own bottom as the end, though the list's sizes still hold a taller composer", async () => {
+    const { resolveTimelineIsAtEnd } = await import("./MessagesTimeline.logic");
+    // The composer settled 92 px shorter after the first draw: the content now fits, the scroller is at its bottom, and
+    // the list's own length still counts the old inset, so a scroll at that moment read the view as not at the end.
+    const stale = { isAtEnd: false, contentLength: 709, scroll: 0, scrollLength: 649 };
+    expect(resolveTimelineIsAtEnd(stale, 0, { scrollHeight: 649, scrollTop: 0, clientHeight: 649 })).toBe(true);
+    expect(resolveTimelineIsAtEnd(stale, 0, { scrollHeight: 1400, scrollTop: 0, clientHeight: 649 })).toBe(false);
+  });
+
+  it("treats only the strict list end as the live edge", async () => {
+    const {
+      resolveTimelineIsAtEnd,
+      resolveTimelineMinimapHasPersistentGutter,
+      resolveTimelineMinimapHeightStyle,
+      resolveTimelineMinimapHitStripWidth,
+      resolveTimelineMinimapIndexFromPointer,
+      resolveTimelineMinimapInteractiveWidth,
+      resolveTimelineMinimapTopPercent,
+    } = await import("./MessagesTimeline.logic");
+
+    expect(resolveTimelineIsAtEnd({ isAtEnd: true })).toBe(true);
+    expect(resolveTimelineIsAtEnd(undefined)).toBeUndefined();
+    // Within the pixel band above the content bottom counts as the end...
+    expect(
+      resolveTimelineIsAtEnd({
+        isAtEnd: false,
+        contentLength: 2000,
+        scroll: 1170,
+        scrollLength: 800,
+      }),
+    ).toBe(true);
+    // ...but half a viewport up (LegendList's isNearEnd territory) does not.
+    expect(
+      resolveTimelineIsAtEnd({
+        isAtEnd: false,
+        contentLength: 2000,
+        scroll: 900,
+        scrollLength: 800,
+      }),
+    ).toBe(false);
+    // The composer inset is part of contentLength and must not count as
+    // distance-to-end.
+    expect(
+      resolveTimelineIsAtEnd(
+        { isAtEnd: false, contentLength: 2100, scroll: 1170, scrollLength: 800 },
+        100,
+      ),
+    ).toBe(true);
+    // Geometry missing (older state shape): fall back to the strict flag.
+    expect(resolveTimelineIsAtEnd({ isAtEnd: false })).toBe(false);
+
+    expect(resolveTimelineMinimapHeightStyle(5)).toBe("min(32px, calc(100vh - 18rem))");
+    expect(resolveTimelineMinimapTopPercent(2, 5)).toBe(50);
+    expect(
+      resolveTimelineMinimapIndexFromPointer({
+        itemCount: 101,
+        railTop: 100,
+        railHeight: 500,
+        pointerY: 350,
+      }),
+    ).toBe(50);
+    expect(
+      resolveTimelineMinimapIndexFromPointer({
+        itemCount: 101,
+        railTop: 100,
+        railHeight: 500,
+        pointerY: 999,
+      }),
+    ).toBe(100);
+    expect(resolveTimelineMinimapHasPersistentGutter(832)).toBe(false);
+    expect(resolveTimelineMinimapHasPersistentGutter(863)).toBe(false);
+    expect(resolveTimelineMinimapHasPersistentGutter(864)).toBe(true);
+
+    // No usable gutter (zoomed in / narrow pane): the strip must go inert
+    // instead of overlaying the centered content column.
+    expect(resolveTimelineMinimapHitStripWidth(768)).toBe(0);
+    expect(resolveTimelineMinimapHitStripWidth(792)).toBe(0);
+    // Partial gutter: strip shrinks to what fits between the viewport edge
+    // and the content column.
+    expect(resolveTimelineMinimapHitStripWidth(820)).toBe(14);
+    // Full gutter: unchanged 40px-wide strip.
+    expect(resolveTimelineMinimapHitStripWidth(872)).toBe(40);
+    expect(resolveTimelineMinimapHitStripWidth(1400)).toBe(40);
+    expect(resolveTimelineMinimapHitStripWidth(0)).toBe(0);
+    expect(resolveTimelineMinimapHitStripWidth(Number.NaN)).toBe(0);
+
+    // The collapsed target stays narrow, but an open preview keeps its full
+    // 20rem width plus the 2rem offset from the minimap rail interactive.
+    expect(resolveTimelineMinimapInteractiveWidth(0, false)).toBe(0);
+    expect(resolveTimelineMinimapInteractiveWidth(14, false)).toBe(14);
+    expect(resolveTimelineMinimapInteractiveWidth(40, false)).toBe(40);
+    expect(resolveTimelineMinimapInteractiveWidth(0, true)).toBe("22rem");
+    expect(resolveTimelineMinimapInteractiveWidth(14, true)).toBe("22rem");
+    expect(resolveTimelineMinimapInteractiveWidth(40, true)).toBe("22rem");
+  });
+
+  it("keeps reserved end space when tool work starts while reading history", () => {
+    const turnId = "turn-with-active-tool";
+    const firstEntry = buildUserTimelineEntry("Run the command.");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+        anchorMessageId={firstEntry.message.id}
+        liveFollowEnabled={false}
+        timelineEntries={[
+          firstEntry,
+          {
+            id: "entry-active-tool",
+            kind: "work",
+            createdAt: MESSAGE_CREATED_AT,
+            entry: {
+              id: "work-active-tool",
+              createdAt: MESSAGE_CREATED_AT,
+              turnId,
+              toolCallId: "call-active-tool",
+              label: "Run command",
+              tone: "tool",
+              itemType: "command_execution",
+              command: "git status",
+              toolLifecycleStatus: "inProgress",
+              sourceActivityKind: "tool.started",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('data-anchor-index="0"');
+    expect(markup).not.toContain('data-maintain-scroll-at-end="enabled"');
+  });
+
+  it("hands end-following back to the list once the send anchor is released", () => {
+    const firstEntry = buildUserTimelineEntry("First prompt.");
+    const secondEntry = {
+      ...buildUserTimelineEntry("Newest prompt."),
+      id: "message-2",
+      message: {
+        ...buildUserTimelineEntry("Newest prompt.").message,
+        id: "message-2",
+      },
+    };
+    const timelineEntries = [firstEntry, secondEntry];
+
+    // While the send anchor holds the end space open, ChatView owns streaming
+    // scrolls and LegendList must not re-pin behind it.
+    expect(
+      renderToStaticMarkup(
+        <MessagesTimeline
+          {...buildProps()}
+          anchorMessageId={firstEntry.message.id}
+          timelineEntries={timelineEntries}
+        />,
+      ),
+    ).not.toContain('data-maintain-scroll-at-end="enabled"');
+
+    // Dropping the anchor is what actually gives end-following back, so
+    // returning to the live edge has to release it — re-enabling live follow
+    // alone leaves nothing pinned to the stream.
+    expect(
+      renderToStaticMarkup(
+        <MessagesTimeline
+          {...buildProps()}
+          anchorMessageId={null}
+          timelineEntries={timelineEntries}
+        />,
+      ),
+    ).toContain('data-maintain-scroll-at-end="enabled"');
+
+    // Reading history still wins over both.
+    expect(
+      renderToStaticMarkup(
+        <MessagesTimeline
+          {...buildProps()}
+          anchorMessageId={null}
+          liveFollowEnabled={false}
+          timelineEntries={timelineEntries}
+        />,
+      ),
+    ).not.toContain('data-maintain-scroll-at-end="enabled"');
+  });
+
+  it("renders collapse controls for long user messages", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[buildUserTimelineEntry(buildLongUserMessageText())]}
+      />,
+    );
+
+    expect(markup).toContain("Show full message");
+    expect(markup).toContain('data-maintain-scroll-at-end="enabled"');
+    expect(markup).toContain('data-maintain-scroll-at-end-animated="false"');
+    expect(markup).toContain('data-maintain-scroll-at-end-data-change="true"');
+    expect(markup).toContain('data-maintain-scroll-at-end-item-layout="true"');
+    expect(markup).toContain('data-maintain-scroll-at-end-layout="true"');
+    expect(markup).toContain('data-user-message-collapsed="true"');
+    expect(markup).toContain('data-user-message-fade="true"');
+    expect(markup).toContain('data-user-message-footer="true"');
+    // The toggle stands at the right end of the faded band at the clamp's foot, not in a row under it, and the words fade to
+    // nothing above it so no blank strip sits between the text and the toggle.
+    expect(markup).toContain('class="flex items-center justify-end absolute inset-x-0 bottom-0" data-user-message-footer="true"');
+    expect(markup).toContain("transparent calc(100% - 1.5rem)");
+  });
+
+  it("puts nothing above a message sent into a running turn: the bubble's hover says it, and a plain one says nothing", () => {
+    const entry = buildUserTimelineEntry("when it ends, say pineapple");
+    const steered = renderToStaticMarkup(
+      <MessagesTimeline {...buildProps()} timelineEntries={[{ ...entry, message: { ...entry.message, steered: true } }]} />,
+    );
+    expect(steered).not.toMatch(/>steered</);
+    expect(steered).toMatch(/data-user-message-steered="true"[^>]*title="Sent while the agent was working"|title="Sent while the agent was working"[^>]*data-user-message-steered="true"/);
+    const plain = renderToStaticMarkup(<MessagesTimeline {...buildProps()} timelineEntries={[entry]} />);
+    expect(plain).not.toContain("Sent while the agent was working");
+    expect(plain).not.toContain("data-user-message-steered");
+  });
+
+  it("does not render collapse controls for short user messages", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[buildUserTimelineEntry("Short prompt.")]}
+      />,
+    );
+
+    expect(markup).not.toContain("Show full message");
+    expect(markup).toContain('data-user-message-collapsible="false"');
+    expect(markup).toContain("rounded-2xl bg-message p-3");
+  });
+
+  it("preserves arbitrary XML-like tags and comparisons in rendered user messages", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          buildUserTimelineEntry(
+            [
+              'Without reading a file, do you have <global-agent-instructions scope="workspace">',
+              'Before <nested data-value="a&b">inside</nested> after',
+              "</global-agent-instructions> in your context?",
+              "Comparison: 2 < 3 and 5 > 4.",
+            ].join("\n"),
+          ),
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("&lt;global-agent-instructions scope=&quot;workspace&quot;&gt;");
+    expect(markup).toContain(
+      "Before &lt;nested data-value=&quot;a&amp;b&quot;&gt;inside&lt;/nested&gt; after",
+    );
+    expect(markup).toContain("&lt;/global-agent-instructions&gt; in your context?");
+    expect(markup).toContain("Comparison: 2 &lt; 3 and 5 &gt; 4.");
+  });
+
+  it("preserves XML-like source inside user code spans and fences", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          buildUserTimelineEntry(
+            [
+              'Inline `<tag attr="x">`',
+              "",
+              "```xml",
+              '<root><child enabled="true" /></root>',
+              "```",
+            ].join("\n"),
+          ),
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("&lt;tag attr=&quot;x&quot;&gt;");
+    expect(markup).toContain("&lt;root&gt;&lt;child enabled=&quot;true&quot; /&gt;&lt;/root&gt;");
+  });
+
+  it("renders unsafe user HTML as inert source text", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          buildUserTimelineEntry(
+            '<script>globalThis.__xss = 1</script><img src="x" onerror="globalThis.__xss = 2">',
+          ),
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("&lt;script&gt;globalThis.__xss = 1&lt;/script&gt;");
+    expect(markup).toContain(
+      "&lt;img src=&quot;x&quot; onerror=&quot;globalThis.__xss = 2&quot;&gt;",
+    );
+    expect(markup).not.toMatch(/<script(?:\s|>)/i);
+    expect(markup).not.toMatch(/<img(?:\s|>)/i);
+  });
+
+  it("sanitizes executable HTML while preserving supported assistant markup", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          buildAssistantTimelineEntry(
+            [
+              '<details open onclick="globalThis.__xss = 1">',
+              "<summary>Safe details</summary>",
+              "<script>globalThis.__xss = 2</script>",
+              '<img src="x" onerror="globalThis.__xss = 3">',
+              '<a href="javascript:globalThis.__xss = 4">Unsafe link</a>',
+              "</details>",
+            ].join(""),
+          ),
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Safe details");
+    expect(markup).not.toMatch(/<script(?:\s|>)/i);
+    expect(markup).not.toContain("onclick=");
+    expect(markup).not.toContain("onerror=");
+    expect(markup).not.toContain("javascript:");
+    expect(markup).not.toContain("globalThis.__xss");
+  });
+
+  it("draws a sub-thread's start line between the message its machine was made for and the agent's reply", () => {
+    const at = Date.parse(MESSAGE_CREATED_AT);
+    const brief = buildUserTimelineEntry("Fix the flaky upload test.");
+    const reply = { ...buildAssistantTimelineEntry("On it."), id: "message-2", createdAt: new Date(at + 16_000).toISOString() };
+    const spawn = { startedAt: at - 33_000, machine: { since: at - 33_000, id: "bx_7k2q9", states: ["ready"], ms: 31_000 }, readyAt: at - 1_000, log: [] };
+    const machineStart = { workspaceId: "ws_a", threadId: "th_1", harness: "claude", title: "fix", sub: { state: "running" as const, on: "box", machine: "fix", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix", spawn }, agent: "Claude Code", project: "web" };
+    const { container } = render(<MessagesTimeline {...buildProps()} timelineEntries={[brief, reply]} machineStart={machineStart} />);
+    const text = container.textContent ?? "";
+    expect(container.querySelector("[data-spawn-line=done]")?.textContent).toBe("Started on Boat in 49s");
+    expect(text.indexOf("Fix the flaky upload test.")).toBeLessThan(text.indexOf("Started on Boat"));
+    expect(text.indexOf("Started on Boat")).toBeLessThan(text.indexOf("On it."));
+  });
+
+  it("draws a failed resume's start line open on its step, Try again sending the message the host kept and taking it out of the composer", async () => {
+    const at = Date.parse(MESSAGE_CREATED_AT);
+    const said = "Boat gave two machines in a row that could not run commands (bx_1, bx_2); Boat is restoring badly right now.";
+    const fix = "Start it again in a few minutes.";
+    const brief = buildUserTimelineEntry("Fix the flaky upload test.");
+    const reply = { ...buildAssistantTimelineEntry("Pushed it."), id: "message-2", createdAt: new Date(at + 60_000).toISOString() };
+    const spawn = { startedAt: at + 3_599_000, machine: { since: at + 3_599_000, id: "bx_2", states: ["provisioning"] }, failed: { step: "machine" as const, said, fix }, asked: "what was the word?", log: [] };
+    const machineStart = { workspaceId: "ws_a", threadId: "th_1", harness: "claude", title: "fix", sub: { state: "released" as const, on: "box", machine: "fix", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix", spawn }, agent: "Claude Code", project: "web" };
+    const startSession = vi.fn(async () => ({ id: "s", workspaceId: "ws_a" }));
+    const { useStore } = await import("../../protocol/store");
+    useStore.setState({ api: { startSession } as never });
+    // The composer put the refused message back as its draft.
+    const { useComposerDraftStore } = await import("./composerDraftStore");
+    useComposerDraftStore.getState().setDraft("th_1", { prompt: "what was the word?", cursor: 18 });
+    const { container } = render(<MessagesTimeline {...buildProps()} timelineEntries={[brief, reply]} machineStart={machineStart} />);
+    expect(container.querySelector("[data-spawn-line=failed]")).not.toBeNull();
+    expect((container.textContent ?? "").split(said).length - 1).toBe(1);
+    fireEvent.click(container.querySelector("[data-k=spawn-try-again]")!);
+    expect(startSession).toHaveBeenCalledTimes(1);
+    expect(startSession).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws_a", thread: "th_1", prompt: "what was the word?" }));
+    // Try again sent it, so the composer no longer holds it to be sent a second time.
+    expect(useComposerDraftStore.getState().drafts["th_1"]?.prompt ?? "").toBe("");
+    useStore.setState({ api: null });
+  });
+
+  it("draws an insight block as a note labelled Insight, with no star and no dashes", () => {
+    const text = ["Reading first.", "", "`★ Insight " + "─".repeat(37) + "`", "- The list remounts rows.", "- So no row takes focus.", "`" + "─".repeat(49) + "`", "", "Now the edit."].join("\n");
+    const { container } = render(<MessagesTimeline {...buildProps()} timelineEntries={[buildAssistantTimelineEntry(text)]} />);
+    const note = container.querySelector('[role="note"][data-insight]');
+    expect(note?.querySelector("p")?.textContent).toBe("Insight");
+    expect([...(note?.querySelectorAll("li") ?? [])].map(li => li.textContent)).toEqual(["The list remounts rows.", "So no row takes focus."]);
+    expect(container.textContent).toContain("Reading first.");
+    expect(container.textContent).toContain("Now the edit.");
+    expect(container.textContent).not.toMatch(/[★─]/u);
+    expect(container.querySelectorAll("code")).toHaveLength(0);
+  });
+
+  it("names a shell block after an insight by its place in the whole reply, so its recorded run still draws", () => {
+    const text = ["Before.", "`★ Insight " + "─".repeat(37) + "`", "A point.", "`" + "─".repeat(49) + "`", "", "```sh", "kill 60082", "```"].join("\n");
+    const block = runBlockKey("message-1", text.indexOf("```sh"));
+    const ended = { type: "session.run", workspaceId: "ws_a", sessionId: "s", threadId: "th_1", turnId: "turn-1", runId: "run-1", block, command: "kill 60082", state: "exited", exitCode: 1, output: "No such process" } as const;
+    const entry = buildAssistantTimelineEntry(text);
+    const { container } = render(
+      <MessagesTimeline
+        {...buildProps()}
+        replyRuns={{ workspaceId: "ws_a", threadId: "th_1", cwd: "/work/copy", runs: new Map([[block, ended]]) }}
+        timelineEntries={[{ ...entry, message: { ...entry.message, turnId: "turn-1" } }]}
+      />,
+    );
+    expect(container.querySelector("[data-reply-run-output]")?.textContent).toBe("No such process");
+  });
+
+  it("keeps the copy button for collapsed long user messages", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[buildUserTimelineEntry(buildLongUserMessageText())]}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Copy link"');
+    expect(markup).toContain('data-user-message-collapsed="true"');
+    expect(markup).toContain('data-user-message-footer="true"');
+  });
+
+  it("summarizes changed files in one line", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "entry-1",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            entry: {
+              id: "work-1",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              turnId: null,
+              label: "Updated files",
+              tone: "tool",
+              changedFiles: ["C:/Users/mike/dev-stuff/repo/apps/web/src/session-logic.ts"],
+              sourceActivityKind: "tool.completed",
+            },
+          },
+        ]}
+        workspaceRoot="C:/Users/mike/dev-stuff/repo"
+      />,
+    );
+
+    expect(markup).toContain("Changed 1 file");
+    expect(markup).not.toContain("C:/Users/mike/dev-stuff/repo/apps/web/src/session-logic.ts");
+  });
+
+  it("keeps mixed-success tool groups neutral", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "entry-failed",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            entry: {
+              id: "work-failed",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              turnId: null,
+              label: "Run search",
+              tone: "tool",
+              itemType: "command_execution",
+              toolLifecycleStatus: "failed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            id: "entry-completed",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:29.000Z",
+            entry: {
+              id: "work-completed",
+              createdAt: "2026-03-17T19:12:29.000Z",
+              turnId: null,
+              label: "Run tests",
+              tone: "tool",
+              itemType: "command_execution",
+              toolLifecycleStatus: "completed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Ran 2 commands");
+    expect(markup).not.toContain('aria-label="Tool call failed"');
+  });
+
+  it("keeps the collapsed summary icon neutral when the group ends in a failure", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "entry-completed",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            entry: {
+              id: "work-completed",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              turnId: null,
+              label: "Run tests",
+              tone: "tool",
+              itemType: "command_execution",
+              toolLifecycleStatus: "completed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            id: "entry-failed",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:29.000Z",
+            entry: {
+              id: "work-failed",
+              createdAt: "2026-03-17T19:12:29.000Z",
+              turnId: null,
+              label: "Run lint",
+              tone: "tool",
+              itemType: "command_execution",
+              toolLifecycleStatus: "failed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Ran 2 commands");
+    expect(markup).toContain("lucide-terminal");
+    expect(markup).not.toContain("lucide-x");
+    expect(markup).not.toContain("text-destructive");
+    // The failure stays discoverable for screen readers.
+    expect(markup).toContain("tool call failed");
+  });
+
+  it("keeps mixed work logs neutral after a later tool call succeeds", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "entry-failed",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            entry: {
+              id: "work-failed",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              turnId: null,
+              label: "Run search",
+              tone: "tool",
+              itemType: "command_execution",
+              toolLifecycleStatus: "failed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            id: "entry-info",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:29.000Z",
+            entry: {
+              id: "work-info",
+              createdAt: "2026-03-17T19:12:29.000Z",
+              turnId: null,
+              label: "Status updated",
+              tone: "notice",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            id: "entry-completed",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:30.000Z",
+            entry: {
+              id: "work-completed",
+              createdAt: "2026-03-17T19:12:30.000Z",
+              turnId: null,
+              label: "Run tests",
+              tone: "tool",
+              itemType: "command_execution",
+              toolLifecycleStatus: "completed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Ran 2 commands and received 1 update");
+    expect(markup).not.toContain('aria-label="Hidden work includes a failure"');
+  });
+
+  it("shows the animated one-line label for a live tool group", () => {
+    const turnId = "turn-live";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+        timelineEntries={[
+          {
+            id: "entry-live",
+            kind: "work",
+            createdAt: MESSAGE_CREATED_AT,
+            entry: {
+              id: "work-live",
+              createdAt: MESSAGE_CREATED_AT,
+              turnId,
+              toolCallId: "call-live",
+              label: "Run tests",
+              tone: "tool",
+              itemType: "command_execution",
+              command: "pnpm test",
+              toolLifecycleStatus: "inProgress",
+              sourceActivityKind: "tool.started",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Working for");
+    expect(markup).toContain('Running <span class="font-mono">pnpm test</span>');
+    expect(markup).toContain("live-activity-focus");
+  });
+
+  it("mutes a live server call's title after its words at rest, and lights both in the sweep", () => {
+    const turnId = "turn-live";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+        timelineEntries={[
+          {
+            id: "entry-live",
+            kind: "work",
+            createdAt: MESSAGE_CREATED_AT,
+            entry: {
+              id: "work-live",
+              createdAt: MESSAGE_CREATED_AT,
+              turnId,
+              toolCallId: "call-live",
+              label: "Use wsp's run",
+              toolTitle: "Use wsp's run",
+              detail: "Login test",
+              tone: "tool",
+              itemType: "mcp_tool_call",
+              toolLifecycleStatus: "inProgress",
+              sourceActivityKind: "tool.started",
+            },
+          },
+        ]}
+      />,
+    );
+
+    const at = markup.indexOf("live-activity-focus");
+    const [resting, sweep] = [markup.slice(0, at), markup.slice(at)];
+    expect(resting).toContain(`Use wsp&#x27;s run <span class="text-muted-foreground">Login test</span>`);
+    expect(sweep).toContain(`Use wsp&#x27;s run <span>Login test</span>`);
+  });
+
+  const promptEntry = (id: string, turnId: string, outcome: "allowed" | null): TimelineEntry => ({
+    id,
+    kind: "permission",
+    createdAt: MESSAGE_CREATED_AT,
+    permission: {
+      askId: `ask-${id}`,
+      turnId,
+      sessionId: "session-1",
+      toolName: "Write",
+      input: JSON.stringify({ file_path: "/tmp/hello.txt", content: "banana" }),
+      options: [{ id: "allow", label: "Allow", effect: "allow" }],
+      createdAt: MESSAGE_CREATED_AT,
+      outcome,
+      optionId: outcome === null ? null : "allow",
+    },
+  });
+
+  it.each([
+    ["answered", "Working for", "allowed" as const],
+    ["open", "Waiting for you", null],
+  ])("counts the time under an %s prompt as %s", (_state, lead, outcome) => {
+    const turnId = "turn-asking";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+        timelineEntries={[promptEntry("entry-permission", turnId, outcome)]}
+      />,
+    );
+
+    // The elapsed count says what the thread is doing: an open prompt is time the person has kept it waiting,
+    // and the turn is stopped on the question rather than working.
+    expect(markup).toContain(lead);
+    expect(markup).not.toContain(lead === "Working for" ? "Waiting for you" : "Working for");
+  });
+
+  it("counts a working turn as working while an older turn's prompt is still drawn open", () => {
+    // A host that restarted while a prompt stood open leaves that prompt in the transcript with no outcome on it:
+    // the runtime cuts the row short at load and records nothing that closes the question. The row's own word reads
+    // the latest turn and says Working, so the counter has to read that turn's prompts and no others.
+    const settled = "turn-cut";
+    const running = "turn-now";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(settled, "completed", MESSAGE_CREATED_AT, MESSAGE_CREATED_AT), buildTurn(running, "running", MESSAGE_CREATED_AT, null)]}
+        timelineEntries={[promptEntry("entry-cut", settled, null)]}
+      />,
+    );
+
+    expect(markup).toContain("Working for");
+    expect(markup).not.toContain("Waiting for you");
+  });
+
+  it("scopes a live row failure to the tool named by the row", () => {
+    const turnId = "turn-live";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+        timelineEntries={[
+          {
+            id: "entry-failed",
+            kind: "work",
+            createdAt: MESSAGE_CREATED_AT,
+            entry: {
+              id: "work-failed",
+              createdAt: MESSAGE_CREATED_AT,
+              turnId,
+              toolCallId: "call-failed",
+              label: "Run lint",
+              tone: "tool",
+              itemType: "command_execution",
+              command: "pnpm lint",
+              toolLifecycleStatus: "failed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            id: "entry-running",
+            kind: "work",
+            createdAt: MESSAGE_CREATED_AT,
+            entry: {
+              id: "work-running",
+              createdAt: MESSAGE_CREATED_AT,
+              turnId,
+              toolCallId: "call-running",
+              label: "Run tests",
+              tone: "tool",
+              itemType: "command_execution",
+              command: "pnpm test",
+              toolLifecycleStatus: "inProgress",
+              sourceActivityKind: "tool.started",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('Running <span class="font-mono">pnpm test</span>');
+    expect(markup).not.toContain("tool call failed");
+  });
+
+  it("renders initial thinking as the shared live activity row", () => {
+    const turnId = "turn-live";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+        timelineEntries={[]}
+      />,
+    );
+
+    expect(markup).toContain("Thinking");
+    expect(markup).toContain("lucide-brain");
+    expect(markup).toContain('data-timeline-row-id="live-activity-row"');
+  });
+
+  it("keeps the completed command in the shared activity row with a past-tense label", () => {
+    const turnId = "turn-live";
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        isWorking
+        activeTurnStartedAt={MESSAGE_CREATED_AT}
+        turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+        timelineEntries={[
+          {
+            id: "entry-completed",
+            kind: "work",
+            createdAt: MESSAGE_CREATED_AT,
+            entry: {
+              id: "work-completed",
+              createdAt: MESSAGE_CREATED_AT,
+              turnId,
+              toolCallId: "call-completed",
+              label: "Run lint",
+              tone: "tool",
+              itemType: "command_execution",
+              command: "pnpm lint",
+              toolLifecycleStatus: "completed",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('Ran <span class="font-mono">pnpm lint</span>');
+    expect(markup).toContain("lucide-terminal");
+    expect(markup).toContain("live-activity-focus");
+    expect(markup).not.toContain("Running ");
+    expect(markup).not.toContain("Thinking");
+    expect(markup).not.toContain('data-timeline-row-kind="thinking"');
+  });
+
+  it("labels a command row with its whole first line in mono, or with the harness's description in prose", () => {
+    const turnId = "turn-live";
+    const commandEntry = (id: string, command: string, description?: string): TimelineEntry => ({
+      id: `entry-${id}`,
+      kind: "work",
+      createdAt: MESSAGE_CREATED_AT,
+      entry: {
+        id: `work-${id}`,
+        createdAt: MESSAGE_CREATED_AT,
+        turnId,
+        toolCallId: `call-${id}`,
+        label: "Bash",
+        tone: "tool",
+        itemType: "command_execution",
+        command,
+        ...(description !== undefined ? { description } : {}),
+        toolLifecycleStatus: "completed",
+        sourceActivityKind: "tool.completed",
+      },
+    });
+    const renderLive = (entry: TimelineEntry) =>
+      renderToStaticMarkup(
+        <MessagesTimeline
+          {...buildProps()}
+          isWorking
+          activeTurnStartedAt={MESSAGE_CREATED_AT}
+          turns={[buildTurn(turnId, "running", MESSAGE_CREATED_AT, null)]}
+          timelineEntries={[entry]}
+        />,
+      );
+
+    const plain = renderLive(commandEntry("status", "cd /repo && git status"));
+    expect(plain).toContain('Ran <span class="font-mono">cd /repo &amp;&amp; git status</span>');
+    expect(plain).not.toContain("Ran cd<");
+
+    const described = renderLive(commandEntry("described", "cd /repo && git status", "Show working tree status"));
+    expect(described).toContain("<span>Show working tree status</span>");
+    expect(described).not.toContain("Ran ");
+    expect(described).not.toContain("font-mono");
+  });
+
+  it("keeps failed lifecycle entries discoverable in mixed activity summaries", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "entry-info",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:27.000Z",
+            entry: {
+              id: "work-info",
+              createdAt: "2026-03-17T19:12:27.000Z",
+              turnId: null,
+              label: "Status updated",
+              tone: "notice",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            id: "entry-1",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            entry: {
+              id: "work-1",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              turnId: null,
+              label: "Glob",
+              tone: "tool",
+              toolLifecycleStatus: "failed",
+              detail: "No files found",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Received 1 update and used 1 tool, tool call failed"');
+    // Ordinary tool failures render muted, not red.
+    expect(markup).not.toContain("text-destructive");
+  });
+
+  it("keeps the red treatment for severe orchestration failures", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "entry-info",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:27.000Z",
+            entry: {
+              id: "work-info",
+              createdAt: "2026-03-17T19:12:27.000Z",
+              turnId: null,
+              label: "Status updated",
+              tone: "notice",
+              sourceActivityKind: "tool.completed",
+            },
+          },
+          {
+            id: "entry-turn-failed",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            entry: {
+              id: "work-turn-failed",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              turnId: null,
+              label: "Provider turn start failed",
+              tone: "error",
+              sourceActivityKind: "runtime.error",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("lucide-circle-alert");
+    expect(markup).toContain("text-destructive");
+  });
+
+  it("groups settled tool calls behind a toggle row and renders assistant markdown", async () => {
+    const userEntry = buildUserTimelineEntry("List the files.");
+    const assistantBase = buildAssistantTimelineEntry(
+      ["Here is the listing helper:", "", "```ts", "const answer = 42;", "```"].join("\n"),
+    );
+    const assistantEntry = {
+      ...assistantBase,
+      id: "message-assistant",
+      message: { ...assistantBase.message, id: "message-assistant" },
+    };
+    const timelineEntries: TimelineEntry[] = [
+      userEntry,
+      assistantEntry,
+      {
+        id: "entry-command",
+        kind: "work",
+        createdAt: "2026-03-17T19:12:29.000Z",
+        entry: {
+          id: "work-command",
+          createdAt: "2026-03-17T19:12:29.000Z",
+          turnId: null,
+          label: "Ran command",
+          tone: "tool",
+          itemType: "command_execution",
+          command: "ls",
+          toolLifecycleStatus: "completed",
+          sourceActivityKind: "tool.completed",
+        },
+      },
+      {
+        id: "entry-thinking",
+        kind: "work",
+        createdAt: "2026-03-17T19:12:30.000Z",
+        entry: {
+          id: "work-thinking",
+          createdAt: "2026-03-17T19:12:30.000Z",
+          turnId: null,
+          label: "Thinking",
+          tone: "thinking",
+          preview: "quiet reasoning",
+          detail: "quiet reasoning, at length",
+          sourceActivityKind: "reasoning",
+        },
+      },
+    ];
+
+    // Markdown code blocks suspend while their highlighter loads.
+    const view = await act(async () =>
+      render(
+        <MessagesTimeline
+          {...buildProps()}
+          turns={[
+            buildTurn("turn-settled", "completed", MESSAGE_CREATED_AT, "2026-03-17T19:12:31.000Z"),
+          ]}
+          timelineEntries={timelineEntries}
+        />,
+      ),
+    );
+    const { container, getByRole } = view;
+
+    expect(container.textContent).toContain("List the files.");
+    expect(container.textContent).toContain("Here is the listing helper:");
+    expect(container.textContent).toContain("const answer = 42;");
+    expect(container.querySelector("code")).not.toBeNull();
+
+    // Reasoning is not a tool: the collapsed group counts the command only and shows neither.
+    const toggle = getByRole("button", { name: "Ran 1 command" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector('[data-timeline-row-kind="work"]')).toBeNull();
+    expect(container.textContent).not.toContain("quiet reasoning");
+
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+
+    expect(getByRole("button", { name: "Ran 1 command" }).getAttribute("aria-expanded")).toBe(
+      "true",
+    );
+    const expandedGroup = container.querySelector('[data-timeline-row-kind="work"]');
+    expect(expandedGroup).not.toBeNull();
+    const commandRow = within(expandedGroup as HTMLElement).getByRole("button", { name: "Ran ls" });
+    expect(commandRow.getAttribute("aria-expanded")).toBe("false");
+    expect(commandRow.querySelector(".font-mono")?.textContent).toBe("ls");
+    // The reasoning row collapses to its preview line and expands to the full text.
+    const thinkingRow = within(expandedGroup as HTMLElement).getByRole("button", {
+      name: "quiet reasoning",
+    });
+    expect(thinkingRow.getAttribute("aria-expanded")).toBe("false");
+    expect((expandedGroup as HTMLElement).textContent).not.toContain("at length");
+
+    await act(async () => {
+      fireEvent.click(thinkingRow);
+    });
+
+    expect(thinkingRow.getAttribute("aria-expanded")).toBe("true");
+    expect((expandedGroup as HTMLElement).textContent).toContain("quiet reasoning, at length");
+
+    await act(async () => {
+      fireEvent.click(commandRow);
+    });
+
+    // Open, the command stays the heading; a result with no words says so under it.
+    expect(commandRow.getAttribute("aria-expanded")).toBe("true");
+    expect(commandRow.querySelector(".font-mono")?.textContent).toBe("ls");
+    expect((expandedGroup as HTMLElement).textContent).not.toContain("Command");
+    expect((expandedGroup as HTMLElement).textContent).toContain("No output");
+  });
+
+  it("a person's message with images this client did not send shows one muted mono line per image, the words the command line prints", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[buildUserTimelineEntryWithImages("what does this show?", [{ mediaType: "image/png", bytes: 1_258_291, name: "shot.png" }])]}
+      />,
+    );
+    expect(markup).toContain("[image 1 MB png]");
+    expect(markup).toContain("what does this show?");
+    // No pixels to draw: this tab holds none and no host is bound to read them back from.
+    expect(markup).not.toContain("<img");
+  });
+
+  it("shows the thumbnails when this client holds the bytes it sent, and each opens the image at full size", async () => {
+    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])], "shot.png", { type: "image/png" });
+    const image = await fileOf(file, await fileFactsOf(file));
+    act(() => useComposerFilesStore.setState({ sent: { req_1: [image] } }));
+    const view = render(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[buildUserTimelineEntryWithImages("what does this show?", [{ mediaType: "image/png", bytes: 12, name: "shot.png" }], "req_1")]}
+      />,
+    );
+    const thumb = view.container.querySelector<HTMLElement>("[data-chat-image-row=true] [data-chat-image='shot.png'] img");
+    expect(thumb).not.toBeNull();
+    expect(view.container.textContent).not.toContain("[image");
+    fireEvent.click(view.getByRole("button", { name: "Open image 1 at full size" }));
+    const full = await vi.waitFor(() => document.querySelector<HTMLImageElement>("[data-slot=dialog-popup] img")!);
+    expect(full.getAttribute("src")).toBe(thumb!.getAttribute("src"));
+    act(() => useComposerFilesStore.setState({ sent: {} }));
+    view.unmount();
+  });
+
+  it("a message with no image draws no image row at all", () => {
+    const markup = renderToStaticMarkup(<MessagesTimeline {...buildProps()} timelineEntries={[buildUserTimelineEntry("plain")]} />);
+    expect(markup).not.toContain("data-chat-image-row");
+  });
+
+});
+
+describe("a notice row: the cut-turn row and the notify row", () => {
+  const scoped = { workspaceId: "ws_n", sessionId: "sess_n", turnId: "turn_n" };
+  const cutStart: SessionEvent = { type: "session.start", ...scoped, at: 1_000, prompt: "carry on", afterCut: true };
+  const settled: SessionEvent[] = [
+    cutStart,
+    { type: "session.delta", ...scoped, at: 2_000, kind: "text", text: "picking up where it stopped" },
+    { type: "session.notify", ...scoped, at: 2_500, notify: "me", text: "thread thread_c finished (completed, 1.5s): picking up" },
+    { type: "session.done", ...scoped, at: 3_000, result: { status: "completed", durationMs: 1500, text: "picking up where it stopped" } },
+    { type: "session.end", ...scoped, at: 3_100, exitCode: 0, sawResult: true },
+  ];
+  // The row's glyphs, without the disclosure chevron every row carries.
+  const glyphs = (el: Element): string[] =>
+    [...new Set([...el.querySelectorAll("svg")].flatMap(svg => [...svg.classList].filter(c => c.startsWith("lucide-") && !c.startsWith("lucide-chevron"))))];
+
+  it("a subagent's tool line reads as what the call is doing until its result lands, and as what it did after", () => {
+    const inside = { workspaceId: "ws_1", sessionId: "s_1", turnId: "u1", threadId: "thread_a" } as const;
+    const opened: SessionEvent[] = [
+      { type: "session.start", ...inside, at: 0, prompt: "have a look" },
+      { type: "session.delta", ...inside, at: 1, kind: "tool_use", toolName: "Task", toolUseId: "agent_1", text: JSON.stringify({ description: "write it" }) },
+      { type: "session.delta", ...inside, at: 2, kind: "tool_use", toolName: "Write", toolUseId: "toolu_1", parentToolUseId: "agent_1", text: JSON.stringify({ file_path: "kai.txt" }) },
+    ];
+    const lineOf = (events: SessionEvent[]): string | undefined => {
+      const entry = deriveSession(events).timeline.find(row => row.kind === "subagent");
+      return entry?.kind === "subagent" ? entry.subagent.lines.at(-1)?.label : undefined;
+    };
+    expect(lineOf(opened)).toBe("writing kai.txt");
+    expect(lineOf([...opened, { type: "session.delta", ...inside, at: 3, kind: "tool_result", toolUseId: "toolu_1", parentToolUseId: "agent_1", text: "File created successfully at: kai.txt" }])).toBe("wrote kai.txt");
+
+    // A call whose input the harness streams in pieces reads as the whole of it in both tenses, as the parent's own
+    // calls do: neither line is written off one piece.
+    const streamed: SessionEvent[] = [
+      ...opened.slice(0, 2),
+      { type: "session.delta", ...inside, at: 2, kind: "tool_use", toolName: "Write", toolUseId: "toolu_2", parentToolUseId: "agent_1", text: '{"file_path":"src/' },
+      { type: "session.delta", ...inside, at: 3, kind: "tool_use", toolUseId: "toolu_2", parentToolUseId: "agent_1", text: 'kai.txt"}' },
+    ];
+    expect(lineOf(streamed)).toBe("writing src/kai.txt");
+    expect(lineOf([...streamed, { type: "session.delta", ...inside, at: 4, kind: "tool_result", toolUseId: "toolu_2", parentToolUseId: "agent_1", text: "ok" }])).toBe("wrote src/kai.txt");
+  });
+
+  it("on a settled turn both rows open from the fold as muted mono text under the info glyph, with no check mark, no cross and no failure", async () => {
+    const model = deriveSession(settled);
+    const { container, getByRole } = await act(async () =>
+      render(<MessagesTimeline {...buildProps()} turns={model.turns} timelineEntries={model.timeline} />),
+    );
+    expect(container.querySelector('[data-timeline-row-kind="work"]')).toBeNull();
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: "Worked for 1.5s" }));
+    });
+
+    const rows = [...container.querySelectorAll('[data-timeline-row-kind="work"]')];
+    expect(rows.map(r => r.textContent)).toEqual([
+      "Previous turn was cut; resuming",
+      "thread thread_c finished (completed, 1.5s): picking up",
+    ]);
+    for (const row of rows) {
+      expect(glyphs(row)).toEqual(["lucide-info"]);
+      const label = row.querySelector(".truncate") as HTMLElement;
+      expect(label.className).toContain("font-mono");
+      expect(label.className).toContain("text-muted-foreground");
+      expect(row.querySelector(".text-icon-muted")).not.toBeNull();
+      expect(row.innerHTML).not.toContain("text-destructive");
+      expect(row.innerHTML).not.toContain("failed");
+    }
+  });
+
+  it("on a running turn the cut row is the latest activity, drawn with the info glyph in muted mono and without the shimmer", () => {
+    const model = deriveSession([cutStart]);
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline {...buildProps()} isWorking={model.running} activeTurnStartedAt="2026-03-17T19:12:28.000Z" turns={model.turns} timelineEntries={model.timeline} />,
+    );
+    const live = markup.slice(markup.indexOf('data-timeline-row-kind="work-live"'), markup.indexOf('data-timeline-row-kind="thinking"'));
+    expect(live).toContain("Previous turn was cut; resuming");
+    expect(live).toContain("lucide-info");
+    expect(live).not.toContain("lucide-check");
+    expect(live).not.toContain("lucide-hammer");
+    expect(live).toContain("font-mono text-muted-foreground");
+    expect(live).not.toContain("Tool call failed");
+  });
+});
+
+describe("the tone table owns every work glyph", () => {
+  const TURN = "turn_tones";
+  const workEntry = (tone: WorkLogTone, extra: Partial<WorkLogEntry> = {}): TimelineEntry => ({
+    id: `entry-${tone}`,
+    kind: "work",
+    createdAt: MESSAGE_CREATED_AT,
+    entry: { id: `work-${tone}`, createdAt: MESSAGE_CREATED_AT, turnId: TURN, label: `${tone} row`, tone, sourceActivityKind: "tool.completed", ...extra },
+  });
+  const drawn = (row: Element) => {
+    const svg = [...row.querySelectorAll("svg")].find(el => ![...el.classList].some(c => c.startsWith("lucide-chevron")))!;
+    return {
+      glyph: [...svg.classList].find(c => c.startsWith("lucide-") && c !== "lucide")!,
+      iconClass: svg.parentElement!.className,
+      labelClass: row.querySelector(".truncate")?.className ?? "",
+    };
+  };
+  const renderSettled = async (entries: TimelineEntry[]) => {
+    const view = await act(async () => render(<MessagesTimeline {...buildProps()} timelineEntries={entries} />));
+    // The turn folds first and the group toggles inside it; open whatever is still closed until nothing is.
+    for (let closed = view.queryAllByRole("button", { expanded: false }); closed.length > 0; closed = view.queryAllByRole("button", { expanded: false })) {
+      await act(async () => { fireEvent.click(closed[0]!); });
+    }
+    return view.container.querySelectorAll('[data-timeline-row-kind="work"]');
+  };
+  const renderLive = async (entry: TimelineEntry) => {
+    const view = await act(async () =>
+      render(<MessagesTimeline {...buildProps()} isWorking activeTurnStartedAt={MESSAGE_CREATED_AT} turns={[buildTurn(TURN, "running", MESSAGE_CREATED_AT, null)]} timelineEntries={[entry]} />),
+    );
+    return view.container.querySelector('[data-timeline-row-kind="work-live"]')!;
+  };
+
+  const settledEntries: Record<WorkLogTone, TimelineEntry> = {
+    thinking: workEntry("thinking", { detail: "weighing the options", sourceActivityKind: "reasoning" }),
+    tool: workEntry("tool", { toolLifecycleStatus: "completed" }),
+    notice: workEntry("notice", { sourceActivityKind: "runtime.notify" }),
+    error: workEntry("error"),
+    compaction: workEntry("compaction", { sourceActivityKind: "harness.compaction" }),
+  };
+  const settledDrawing = {
+    thinking: { glyph: "lucide-brain", iconClass: "flex size-6 shrink-0 items-center justify-center text-foreground", labelClass: "min-w-0 flex-1 truncate text-secondary-label" },
+    tool: { glyph: "lucide-zap", iconClass: "flex size-6 shrink-0 items-center justify-center text-icon-muted", labelClass: "min-w-0 flex-1 truncate text-secondary-label" },
+    notice: { glyph: "lucide-info", iconClass: "flex size-6 shrink-0 items-center justify-center text-icon-muted", labelClass: "min-w-0 flex-1 truncate font-mono text-muted-foreground" },
+    error: { glyph: "lucide-circle-alert", iconClass: "flex size-6 shrink-0 items-center justify-center text-icon-muted", labelClass: "min-w-0 flex-1 truncate text-secondary-label" },
+    compaction: { glyph: "lucide-minimize2", iconClass: "flex size-6 shrink-0 items-center justify-center text-icon-muted", labelClass: "min-w-0 flex-1 truncate text-secondary-label" },
+  } satisfies Record<WorkLogTone, ReturnType<typeof drawn>>;
+
+  it.each(Object.keys(settledDrawing) as WorkLogTone[])("a settled %s row draws its glyph and colours as before", async tone => {
+    const rows = await renderSettled([settledEntries[tone]]);
+    expect(rows).toHaveLength(1);
+    expect(drawn(rows[0]!)).toEqual(settledDrawing[tone]);
+  });
+
+  const liveDrawing = {
+    thinking: { glyph: "lucide-brain", iconClass: "flex size-6 shrink-0 items-center justify-center text-foreground", labelClass: "min-w-0 flex-1 truncate" },
+    tool: { glyph: "lucide-zap", iconClass: "flex size-6 shrink-0 items-center justify-center text-icon-muted", labelClass: "min-w-0 flex-1 truncate" },
+    notice: { glyph: "lucide-info", iconClass: "flex size-6 shrink-0 items-center justify-center text-icon-muted", labelClass: "min-w-0 flex-1 truncate" },
+  } satisfies Partial<Record<WorkLogTone, ReturnType<typeof drawn>>>;
+
+  it.each(Object.keys(liveDrawing) as Array<keyof typeof liveDrawing>)("a live %s row draws its glyph and colours as before", async tone => {
+    const entry = tone === "tool" ? workEntry("tool", { toolLifecycleStatus: "inProgress", sourceActivityKind: "tool.started" }) : settledEntries[tone];
+    const live = await renderLive(entry);
+    expect(drawn(live)).toEqual(liveDrawing[tone]);
+  });
+
+  const kindDrawing: Array<[string, Partial<WorkLogEntry>, string]> = [
+    ["a file read", { requestKind: "file-read" }, "lucide-eye"],
+    ["a file change", { itemType: "file_change", changedFiles: ["/x/a.ts"] }, "lucide-square-pen"],
+    ["a command", { itemType: "command_execution", command: "pnpm test" }, "lucide-terminal"],
+    ["a code search", { toolTitle: "Grep" }, "lucide-search"],
+    ["a web search", { itemType: "web_search" }, "lucide-globe"],
+    ["an MCP call", { itemType: "mcp_tool_call" }, "lucide-wrench"],
+    ["a dynamic tool call", { itemType: "dynamic_tool_call" }, "lucide-hammer"],
+    ["a subagent call", { itemType: "collab_agent_tool_call" }, "lucide-bot"],
+    ["a plain tool call with no item type", {}, "lucide-zap"],
+    ["a notice that is tool-like", { tone: "notice", requestKind: "mcp-elicitation" }, "lucide-info"],
+  ];
+
+  it.each(kindDrawing)("a settled row for %s draws its glyph as before", async (_name, extra, glyph) => {
+    const rows = await renderSettled([workEntry("tool", { toolLifecycleStatus: "completed", ...extra })]);
+    expect(rows).toHaveLength(1);
+    expect(drawn(rows[0]!).glyph).toBe(glyph);
+  });
+
+  it.each(kindDrawing)("a live row for %s draws its glyph as before", async (_name, extra, glyph) => {
+    const live = await renderLive(workEntry("tool", { toolLifecycleStatus: "inProgress", sourceActivityKind: "tool.started", ...extra }));
+    expect(drawn(live).glyph).toBe(glyph);
+  });
+
+  it("a failed tool row, settled or live, draws the error tone's glyph from the table", async () => {
+    const ErrorGlyph = WORK_TONES.error.Glyph;
+    const tableGlyph = [...render(<ErrorGlyph />).container.querySelector("svg")!.classList].find(c => c.startsWith("lucide-") && c !== "lucide")!;
+    expect(tableGlyph).toMatch(/^lucide-/);
+
+    const rows = await renderSettled([workEntry("tool", { toolLifecycleStatus: "failed" }), settledEntries.error]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.querySelector('[aria-label="Tool call failed"]')).not.toBeNull();
+    expect(drawn(rows[0]!).glyph).toBe(tableGlyph);
+    expect(drawn(rows[1]!).glyph).toBe(tableGlyph);
+
+    const live = await renderLive(workEntry("tool", { toolLifecycleStatus: "declined" }));
+    expect(live.querySelector('[aria-label="Tool call failed"]')).not.toBeNull();
+    expect(drawn(live).glyph).toBe(tableGlyph);
+  });
+});

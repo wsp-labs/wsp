@@ -1,0 +1,375 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { nodeHost } from "@wsp/collect";
+import { loginPathLine, STATE_SHAPE } from "@wsp/protocol";
+import { createRuntime, jsonFileStore, STATE_SHAPE_KEY } from "@wsp/runtime";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { up, type CliIO } from "../src/cli.js";
+import { STARTED_BY_ENV } from "../src/host-lock.js";
+import { cliSource } from "./cli-source.js";
+import { stateWriterHere } from "../src/version.js";
+import { LAUNCHD_PATH, loginEnvOf, loginFolders, needsLoginPath, takeLoginPath } from "../src/login-path.js";
+import type { HostHandle } from "../src/server.js";
+import { SEALED_GOLDEN } from "./sealed-golden.js";
+import { stubBackend } from "./stub-backend.js";
+import { writeStub } from "../../protocol/test/stub-script.js";
+
+const PAGE = `<!doctype html>
+<html><head></head><body><div id="root"></div>
+<script>window.__WSP__ = window.__WSP__ || { token: "" };</script>
+</body></html>
+`;
+
+const pidsIn = (file: string): number[] => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(l => l !== "").map(Number) : []);
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const noPrompt = (q: string): Promise<string> => Promise.reject(new Error(`unexpected prompt: ${q}`));
+
+describe("the login shell PATH", () => {
+  let dir: string;
+  /** The file a fake shell touches when it runs, so a shell that must never run can be shown not to have. */
+  let ran: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-login-path-"));
+    ran = join(dir, "ran");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A stand-in for the person's login shell: it records that it ran, then does what the case needs. */
+  function fakeShell(body: string): string {
+    const file = join(dir, "shell");
+    writeStub(file, `#!/bin/sh\n: > ${JSON.stringify(ran)}\n${body}\n`);
+    return file;
+  }
+
+  const launchd = (): NodeJS.ProcessEnv => ({ PATH: LAUNCHD_PATH.join(":") });
+
+  /** A login shell already run, handed to the rules that are about what it printed rather than about running one:
+   * a real process for those makes the case wait on a loaded machine and cost the shell's own time limit. */
+  const printing = (out: string) => (): Promise<string> => Promise.resolve(out);
+
+  it("a host handed launchd's PATH runs the login shell and takes what it prints", async () => {
+    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: fakeShell(`printf 'PATH=%s\\0' "/Users/dev/.local/bin:/opt/homebrew/bin:/usr/bin:/bin"`) };
+    const lines: string[] = [];
+    await takeLoginPath({ env, log: l => lines.push(l) });
+    // The one case that runs a process, so it is the one that proves the shell is really launched and read.
+    expect(existsSync(ran)).toBe(true);
+    expect(env["PATH"]).toBe("/Users/dev/.local/bin:/opt/homebrew/bin:/usr/bin:/bin");
+    expect(lines).toEqual([]);
+  });
+
+  it("the four system folders in any order and nothing else are launchd's set; every other PATH was meant by whoever set it", () => {
+    expect(needsLoginPath({ PATH: "/sbin:/usr/bin:/usr/sbin:/bin" })).toBe(true);
+    expect(needsLoginPath({ PATH: LAUNCHD_PATH.join(":") })).toBe(true);
+    expect(needsLoginPath({ PATH: `/opt/homebrew/bin:${LAUNCHD_PATH.join(":")}` })).toBe(false);
+    expect(needsLoginPath({ PATH: "/usr/bin:/bin:/usr/sbin" })).toBe(false);
+    expect(needsLoginPath({ PATH: "/usr/bin:/usr/bin:/bin:/sbin" })).toBe(false);
+    // What a service manager's unit file or a test runner hands down: fewer folders than a login shell gives, but
+    // chosen, so the rc files are never read over it.
+    expect(needsLoginPath({ PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" })).toBe(false);
+    expect(needsLoginPath({})).toBe(false);
+  });
+
+  it("on Linux the host the service started and an AppImage launch read the login shell, since neither PATH is the person's", async () => {
+    // systemd hands a user unit its manager's PATH, and a desktop launch hands an AppImage the session's with the
+    // image's own mount in front; neither has the folders a person's profile adds, ~/.local/bin among them.
+    const systemd = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+    expect(needsLoginPath({ PATH: systemd, [STARTED_BY_ENV]: "service" }, "linux")).toBe(true);
+    expect(needsLoginPath({ PATH: `/tmp/.mount_wsp.Ab12Cd:/tmp/.mount_wsp.Ab12Cd/usr/sbin:${systemd}`, APPIMAGE: "/home/dev/wsp.AppImage" }, "linux")).toBe(true);
+    // A line typed in a terminal, and a host such a line started, run on the PATH that terminal chose.
+    expect(needsLoginPath({ PATH: systemd }, "linux")).toBe(false);
+    expect(needsLoginPath({ PATH: systemd, [STARTED_BY_ENV]: "verb" }, "linux")).toBe(false);
+    // On a Mac launchd's own four folders stay the whole trigger.
+    expect(needsLoginPath({ PATH: "/opt/homebrew/bin:/usr/bin:/bin", [STARTED_BY_ENV]: "service" }, "darwin")).toBe(false);
+    const env: NodeJS.ProcessEnv = { PATH: systemd, [STARTED_BY_ENV]: "service", SHELL: "/bin/bash" };
+    await takeLoginPath({ env, log: () => {}, read: printing("PATH=/home/dev/.local/bin:/usr/local/bin:/usr/bin:/bin\0"), platform: "linux" });
+    expect(env["PATH"]).toBe("/home/dev/.local/bin:/usr/local/bin:/usr/bin:/bin");
+  });
+
+  it("a host whose PATH is not launchd's set never runs the shell", async () => {
+    const env: NodeJS.ProcessEnv = { PATH: "/opt/homebrew/bin:/usr/bin:/bin", SHELL: "/bin/zsh" };
+    const lines: string[] = [];
+    let asked = false;
+    await takeLoginPath({
+      env,
+      log: l => lines.push(l),
+      read: async () => {
+        asked = true;
+        return "/should/not/be/read";
+      },
+    });
+    expect(asked).toBe(false);
+    expect(env["PATH"]).toBe("/opt/homebrew/bin:/usr/bin:/bin");
+    expect(lines).toEqual([]);
+  });
+
+  it("a shell that fails or runs past its limit leaves the PATH alone and says so in one line", async () => {
+    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: "/bin/zsh" };
+    const lines: string[] = [];
+    await takeLoginPath({ env, log: l => lines.push(l), read: () => Promise.resolve(undefined) });
+    expect(env["PATH"]).toBe(LAUNCHD_PATH.join(":"));
+    expect(lines).toEqual([loginPathLine("/bin/zsh failed or ran past 15 s")]);
+  });
+
+  it("a shell whose rc file leaves a job holding its output open is read once it answers, and the job ends with it", async () => {
+    const pids = join(dir, "pids");
+    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: fakeShell(`sleep 300 & echo $! >> ${JSON.stringify(pids)}\nprintf 'PATH=%s\\0' "/Users/dev/.local/bin:/usr/bin:/bin"`) };
+    const started = Date.now();
+    try {
+      await takeLoginPath({ env, log: () => {} });
+      expect(Date.now() - started).toBeLessThan(5_000);
+      expect(env["PATH"]).toBe("/Users/dev/.local/bin:/usr/bin:/bin");
+      expect(pidsIn(pids).length).toBe(1);
+      await vi.waitFor(() => expect(pidsIn(pids).filter(alive)).toEqual([]));
+    } finally {
+      for (const pid of pidsIn(pids)) if (alive(pid)) process.kill(pid, "SIGKILL");
+    }
+  }, 30_000);
+
+  it("a shell that prints nothing leaves the PATH alone and says so in one line", async () => {
+    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: "/bin/zsh" };
+    const lines: string[] = [];
+    await takeLoginPath({ env, log: l => lines.push(l), read: printing("") });
+    expect(env["PATH"]).toBe(LAUNCHD_PATH.join(":"));
+    expect(lines).toEqual([loginPathLine("/bin/zsh printed nothing")]);
+  });
+
+  it("no SHELL at all leaves the PATH alone and says so in one line", async () => {
+    const env = launchd();
+    const lines: string[] = [];
+    await takeLoginPath({ env, log: l => lines.push(l) });
+    expect(env["PATH"]).toBe(LAUNCHD_PATH.join(":"));
+    expect(lines).toEqual([loginPathLine("SHELL names no login shell")]);
+  });
+
+  it("an rc file that greets the person first costs nothing: the first variable starts after the last newline", async () => {
+    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: "/bin/zsh" };
+    await takeLoginPath({ env, log: () => {}, read: printing("hello from your dotfiles\nPATH=/Users/dev/.local/bin:/usr/bin\0HOME=/Users/dev\0") });
+    expect(env["PATH"]).toBe("/Users/dev/.local/bin:/usr/bin");
+  });
+
+  it("wsp up on launchd's PATH resolves it before the host serves, and every lookup after it inherits it", async () => {
+    const home = join(dir, "custom");
+    const webDir = join(home, "web");
+    mkdirSync(webDir, { recursive: true });
+    writeFileSync(join(webDir, "index.html"), PAGE);
+    const statePath = join(home, "state", "state.json");
+    mkdirSync(join(home, "state"), { recursive: true });
+    writeFileSync(statePath, JSON.stringify({ goldens: { default: SEALED_GOLDEN }, [STATE_SHAPE_KEY]: { shape: STATE_SHAPE, ...stateWriterHere(), at: new Date().toISOString() } }));
+    // A tool only the login shell's PATH names, so a lookup that finds it read the resolved PATH and nothing else.
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeStub(join(bin, "wsp-fake-tool"), "#!/bin/sh\nexit 0\n");
+
+    vi.stubEnv("SOLARI_API_KEY", "slr_live_fake_login_path_key");
+    vi.stubEnv("ANTHROPIC_API_KEY", undefined);
+    vi.stubEnv("HOME", join(dir, "user"));
+    vi.stubEnv("WSP_HOME", home);
+    vi.stubEnv("SHELL", fakeShell(`printf 'PATH=%s\\0' ${JSON.stringify(`${bin}:${LAUNCHD_PATH.join(":")}`)}`));
+    vi.stubEnv("PATH", LAUNCHD_PATH.join(":"));
+
+    const io: CliIO = { log: () => {}, error: () => {}, ask: noPrompt, askSecret: noPrompt };
+    const handle: HostHandle | undefined = await up(io, {
+      port: 0,
+      statePath,
+      webDir,
+      runtime: createRuntime({ backend: stubBackend(), store: jsonFileStore(statePath, stateWriterHere()), adapters: {} }),
+    });
+    if (handle === undefined) throw new Error("up refused a state with a sealed golden");
+    try {
+      expect(process.env["PATH"]).toBe(`${bin}:${LAUNCHD_PATH.join(":")}`);
+      expect(await nodeHost().exec.which("wsp-fake-tool")).toBe(true);
+      expect((await fetch(`http://127.0.0.1:${handle.port}/`)).status).toBe(200);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  // The order law src/login-path.ts states, held road by road. The read is once per process, so saying it on each
+  // road is free.
+  it("every road that builds a runtime awaits the read before it", () => {
+    const source = cliSource();
+    // Each top level declaration of cli.ts and cli/, so a road is judged on its own body and not on the file's order.
+    const roads = source.split(/\n(?=(?:export )?(?:async )?function |(?:export )?const [A-Za-z]+: )/);
+    const builders = roads.filter(road => road.includes("makeRuntime(") && !road.includes("export function makeRuntime("));
+    expect(builders.length).toBeGreaterThan(0);
+    for (const road of builders) {
+      const name = /^(?:export )?(?:async )?(?:function|const) (\w+)/.exec(road)?.[1] ?? road.slice(0, 40);
+      expect(road.indexOf("adoptLoginPath("), `${name} builds a runtime without reading the login shell PATH first`).toBeGreaterThanOrEqual(0);
+      expect(road.indexOf("adoptLoginPath("), `${name} builds its runtime before the read`).toBeLessThan(road.indexOf("makeRuntime("));
+    }
+  });
+
+  // The wsp command needs no PATH and a launch is expected to have written it by the time a window is up, so the
+  // read, which waits on a shell, goes after it and before everything that does need the PATH.
+  it("the desktop window writes the command, then reads the PATH, then opens anything", () => {
+    const main = readFileSync(new URL("../../../apps/desktop/src/main.ts", import.meta.url), "utf8");
+    const shim = main.indexOf("installCommand();");
+    const read = main.indexOf("await adoptLoginPath(");
+    const service = main.indexOf("await openWindow()");
+    expect(shim, "the desktop never writes the wsp command").toBeGreaterThanOrEqual(0);
+    expect(read, "the desktop never reads the login shell PATH").toBeGreaterThanOrEqual(0);
+    expect(shim, "the read waits on a shell before the command is written").toBeLessThan(read);
+    expect(read, "the service is written before the login shell PATH is read").toBeLessThan(service);
+  });
+});
+
+describe("the agents' keys in the login shell", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-login-keys-"));
+    vi.stubEnv("HOME", dir);
+    vi.stubEnv("ZDOTDIR", undefined);
+    vi.stubEnv("BASH_ENV", undefined);
+    vi.stubEnv("ANTHROPIC_API_KEY", undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** The person's own shell, reading the rc file their agent's setup told them to write the key into. */
+  async function keyThrough(shell: string, rc: string): Promise<{ env: NodeJS.ProcessEnv; lines: string[] }> {
+    writeFileSync(join(dir, rc), "export ANTHROPIC_API_KEY=sk-ant-x-login-shell-fake\n");
+    const env: NodeJS.ProcessEnv = { PATH: LAUNCHD_PATH.join(":"), SHELL: shell };
+    const lines: string[] = [];
+    await takeLoginPath({ env, log: l => lines.push(l) });
+    return { env, lines };
+  }
+
+  it.runIf(existsSync("/bin/zsh"))("a key exported in ~/.zshrc reaches a host launchd started, and no line says it", async () => {
+    const { env, lines } = await keyThrough("/bin/zsh", ".zshrc");
+    expect(env["ANTHROPIC_API_KEY"]).toBe("sk-ant-x-login-shell-fake");
+    expect(env["PATH"]).not.toBe(LAUNCHD_PATH.join(":"));
+    expect(lines.join("\n")).not.toContain("sk-ant-x-login-shell-fake");
+  }, 30_000);
+
+  it("a key exported in ~/.bash_profile reaches a host launchd started, and no line says it", async () => {
+    const { env, lines } = await keyThrough("/bin/bash", ".bash_profile");
+    expect(env["ANTHROPIC_API_KEY"]).toBe("sk-ant-x-login-shell-fake");
+    expect(lines.join("\n")).not.toContain("sk-ant-x-login-shell-fake");
+  }, 30_000);
+
+  it("takes only the variables an agent signs in with, and a key the launch was handed stands", async () => {
+    const env: NodeJS.ProcessEnv = { PATH: LAUNCHD_PATH.join(":"), SHELL: "/bin/zsh", ANTHROPIC_API_KEY: "sk-ant-x-handed" };
+    const out = ["PATH=/Users/dev/.local/bin:/usr/bin", "ANTHROPIC_API_KEY=sk-ant-x-rc", "OPENAI_API_KEY=sk-x-openai-rc", "AWS_SECRET_ACCESS_KEY=fake-aws-rc", ""].join("\0");
+    await takeLoginPath({ env, log: () => {}, read: () => Promise.resolve(out) });
+    expect(env["ANTHROPIC_API_KEY"]).toBe("sk-ant-x-handed");
+    expect(env["OPENAI_API_KEY"]).toBe("sk-x-openai-rc");
+    expect(env["AWS_SECRET_ACCESS_KEY"]).toBeUndefined();
+  });
+
+  it("keeps the folders the agents keep their logins in apart, off the environment, and a folder the launch was handed stands", async () => {
+    const env: NodeJS.ProcessEnv = { PATH: LAUNCHD_PATH.join(":"), SHELL: "/bin/zsh", CODEX_HOME: "/Users/dev/.codex-handed" };
+    const out = ["PATH=/Users/dev/.local/bin:/usr/bin", "CLAUDE_CONFIG_DIR=/Users/dev/.claude-cfg", "CODEX_HOME=/Users/dev/.codex-rc", ""].join("\0");
+    const folders: Record<string, string> = {};
+    const taken = await takeLoginPath({ env, log: () => {}, read: () => Promise.resolve(out), folders });
+    expect(folders).toEqual({ CLAUDE_CONFIG_DIR: "/Users/dev/.claude-cfg" });
+    // On the environment it would move where local turns keep their agents' stores, so it is never put there.
+    expect(env["CLAUDE_CONFIG_DIR"]).toBeUndefined();
+    expect(env["CODEX_HOME"]).toBe("/Users/dev/.codex-handed");
+    expect(taken).toEqual({});
+    // The collector is handed them as its host's own folders, which is where it looks for the logins.
+    expect(loginFolders(folders)).toEqual({ claudeConfigDir: "/Users/dev/.claude-cfg" });
+    expect(loginFolders({ CLAUDE_CONFIG_DIR: "/a", CODEX_HOME: "/b" })).toEqual({ claudeConfigDir: "/a", codexHome: "/b" });
+  });
+
+  it("a host whose PATH was meant takes no key from the login shell either", async () => {
+    const env: NodeJS.ProcessEnv = { PATH: "/opt/homebrew/bin:/usr/bin:/bin", SHELL: "/bin/zsh" };
+    await takeLoginPath({ env, log: () => {}, read: () => Promise.resolve("PATH=/x\0ANTHROPIC_API_KEY=sk-ant-x-rc\0") });
+    expect(env["ANTHROPIC_API_KEY"]).toBeUndefined();
+  });
+});
+
+describe("the login shell's environment", () => {
+  it("reads every variable env -0 printed, past a greeting an rc file printed first, a value's newlines kept", () => {
+    const out = ["Welcome back\nHOME=/Users/ada", "TOKEN=sk-x-fake", "MULTI=one\ntwo", "EMPTY=", ""].join("\0");
+    expect(loginEnvOf(out)).toEqual({ HOME: "/Users/ada", TOKEN: "sk-x-fake", MULTI: "one\ntwo", EMPTY: "" });
+    expect(loginEnvOf("")).toEqual({});
+  });
+});
+
+describe("the login shell's environment", () => {
+  it("is read even when an rc file waits on its input, since the shell's input is closed", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-login-env-"));
+    const shell = join(dir, "sh");
+    writeStub(shell, `#!/bin/sh\nread answer\nprintf 'WSP_FROM_RC=yes\\0'\n`);
+    const was = process.env["SHELL"];
+    process.env["SHELL"] = shell;
+    vi.resetModules();
+    try {
+      const { loginEnv } = await import("../src/login-path.js");
+      const started = Date.now();
+      expect(await loginEnv()).toMatchObject({ WSP_FROM_RC: "yes" });
+      expect(Date.now() - started).toBeLessThan(5_000);
+    } finally {
+      if (was === undefined) delete process.env["SHELL"];
+      else process.env["SHELL"] = was;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("is answered off the start's own read where it took a key, so a launch from Finder runs the shell once", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-login-env-"));
+    const runs = join(dir, "runs");
+    const shell = join(dir, "sh");
+    writeStub(shell, `#!/bin/sh\necho ran >> ${JSON.stringify(runs)}\nprintf 'PATH=/Users/dev/.local/bin:/usr/bin\\0ANTHROPIC_API_KEY=sk-ant-x-rc\\0'\n`);
+    vi.stubEnv("SHELL", shell);
+    vi.stubEnv("PATH", LAUNCHD_PATH.join(":"));
+    vi.stubEnv("ANTHROPIC_API_KEY", undefined);
+    vi.resetModules();
+    try {
+      const { adoptLoginPath, loginKeysNow } = await import("../src/login-path.js");
+      await adoptLoginPath(() => {});
+      let whole = 0;
+      expect(await loginKeysNow(async () => (whole++, {}))).toEqual({ ANTHROPIC_API_KEY: "sk-ant-x-rc" });
+      expect(whole).toBe(0);
+      expect(readFileSync(runs, "utf8").trim().split("\n")).toHaveLength(1);
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the whole environment where the start took no key, as a launch from a terminal does", async () => {
+    vi.resetModules();
+    const { loginKeysNow } = await import("../src/login-path.js");
+    expect(await loginKeysNow(async () => ({ ANTHROPIC_API_KEY: "sk-ant-x-rc" }))).toEqual({ ANTHROPIC_API_KEY: "sk-ant-x-rc" });
+  });
+
+  it("is read once the shell answers when an rc file leaves a job holding its output open, and the job ends with it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-login-env-"));
+    const shell = join(dir, "sh");
+    const pids = join(dir, "pids");
+    writeStub(shell, `#!/bin/sh\nsleep 300 & echo $! >> ${JSON.stringify(pids)}\nprintf 'WSP_FROM_RC=yes\\0'\n`);
+    const was = process.env["SHELL"];
+    process.env["SHELL"] = shell;
+    vi.resetModules();
+    try {
+      const { loginEnv } = await import("../src/login-path.js");
+      const started = Date.now();
+      expect(await loginEnv()).toMatchObject({ WSP_FROM_RC: "yes" });
+      expect(Date.now() - started).toBeLessThan(5_000);
+      expect(pidsIn(pids).length).toBe(1);
+      await vi.waitFor(() => expect(pidsIn(pids).filter(alive)).toEqual([]));
+    } finally {
+      for (const pid of pidsIn(pids)) if (alive(pid)) process.kill(pid, "SIGKILL");
+      if (was === undefined) delete process.env["SHELL"];
+      else process.env["SHELL"] = was;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});

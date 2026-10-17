@@ -1,0 +1,792 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// One action registry per object kind: every entry carries its words, its
+// enabled rule from the object's state, its keybinding and its handler, and
+// the palette, the row buttons, the Machine tab and the context menus all
+// read the same list. These tests pin the rules per kind and the shapes the
+// menus are built from.
+import { agentName } from "@wsp/catalog";
+import { PauseIcon, PlayIcon, SquareIcon } from "lucide-react";
+import { describe, expect, it, vi } from "vitest";
+import { taskStopRefusedLine, taskStopUnsupportedLine, goneRefusal, kindWords, machineWord, notAnsweringYet, ownDaemonDown, threadForgetRefusal, threadMarkdown, threadMessages, workspaceState, workspaceWord, type HarnessCatalog, type PlaceView, type SessionEvent, type SessionSettleResult, type SessionStatus, type WorkspaceState, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { CLIENT_CANNOT_MARK, CLIENT_CANNOT_OPEN, TERMINAL_WORDS, THREAD_STILL_RUNNING_HERE, THREAD_WORDS, WORKSPACE_WORDS, terminalRefusedLine } from "../src/actions/format.js";
+import { placeMenu } from "../src/actions/menuPlacement.js";
+import { actionById, actionIfAny, resolveActions, toMenuItems } from "../src/actions/registry.js";
+import { terminalActions, type TerminalVerbs } from "../src/actions/terminalActions.js";
+import { settledFoldActions, threadActions, threadTarget, type ThreadTarget, type ThreadVerbs } from "../src/actions/threadActions.js";
+import { workspaceActions, workspaceTarget, type WorkspaceTarget, type WorkspaceVerbs } from "../src/actions/workspaceActions.js";
+import { DEFAULT_RESOLVED_KEYBINDINGS } from "../src/keybindingDefaults.js";
+import { MAX_TERMINALS_PER_GROUP } from "../src/terminal/groups.js";
+import { stopSubagent } from "../src/actions/verbs.js";
+import type { SidebarThreadSnapshot } from "../src/adapt/index.js";
+import { childActs, leadActs, partOf, type Tree } from "../src/components/threads/leadTree.js";
+import { useNotices } from "../src/notices/store.js";
+import { useStore } from "../src/protocol/store.js";
+
+/** A target in one folded state, spelled as the phase, machine state and reach that fold to it. */
+const workspace = (state: WorkspaceState, over: Partial<WorkspaceTarget> = {}): WorkspaceTarget => ({
+  id: "ws_a",
+  displayName: "api",
+  machineId: "m_a",
+  kind: "cloud",
+  phase: state === "paused" ? "napping" : state === "unreachable" ? "running" : state === "waiting" ? "queued" : state,
+  machineState: state === "gone" ? "gone" : null,
+  reach: state === "gone" ? "gone" : state === "paused" ? "napping" : state === "unreachable" ? "unreachable" : "reachable",
+  reason: null,
+  wakeRefused: null,
+  absent: null,
+  ...over,
+});
+
+function workspaceVerbs(over: Partial<WorkspaceVerbs> = {}): WorkspaceVerbs {
+  return {
+    togglePhase: vi.fn(async () => {}),
+    openTerminal: vi.fn(async () => {}),
+    openBrowser: vi.fn(),
+    newThread: vi.fn(),
+    newThreadHere: vi.fn(),
+    bringBack: vi.fn(async () => {}),
+    deleteWorkspace: vi.fn(),
+    copyText: vi.fn(async () => {}),
+    rebuild: vi.fn(async () => {}),
+    restartDaemon: vi.fn(async () => {}),
+    forget: vi.fn(),
+    rename: vi.fn(),
+    exportProject: vi.fn(),
+    ...over,
+  };
+}
+
+const enabled = (actions: ReturnType<typeof resolveActions>) => actions.filter(a => a.refusal === null).map(a => a.id);
+const titles = (actions: ReturnType<typeof resolveActions>) => actions.map(a => a.title);
+
+describe("workspace actions", () => {
+  it("a running workspace offers pause, terminal, browser, new thread, bring back, the project trips, rename and copy id; fork, rebuild and forget carry their refusal", () => {
+    const verbs = workspaceVerbs();
+    const actions = resolveActions(workspaceActions, workspace("running"), verbs);
+    // The rebuild, the start and the forget are roads out of a state this workspace is not in, so they are not
+    // drawn at all: a row held with a reason a person cannot clear is furniture.
+    expect(titles(actions)).toEqual([
+      "Pause api",
+      WORKSPACE_WORDS.newThread,
+      WORKSPACE_WORDS.openTerminal,
+      WORKSPACE_WORDS.openBrowser,
+      WORKSPACE_WORDS.bringBack,
+      WORKSPACE_WORDS.exportProject,
+      WORKSPACE_WORDS.rename,
+      WORKSPACE_WORDS.fork,
+      WORKSPACE_WORDS.copyId,
+      WORKSPACE_WORDS.delete,
+    ]);
+    expect(enabled(actions)).toEqual(["phase", "new-thread", "open-terminal", "open-browser", "bring-back", "export-project", "rename", "copy-id", "delete"]);
+    expect(actionById(actions, "rename").refusal).toBeNull();
+    // A workspace name is this computer's own record, so the box opens whatever the machine is doing.
+    expect(actionById(resolveActions(workspaceActions, workspace("gone"), verbs), "rename").refusal).toBeNull();
+    // A client with no rename verb says so rather than opening a box nothing would take.
+    expect(actionById(resolveActions(workspaceActions, workspace("running"), workspaceVerbs({ rename: undefined })), "rename").refusal).toBe("This client cannot rename tasks");
+    // The look actions are gone from the registry, so no surface can offer a picker for a colour or a glyph.
+    expect(actions.map(action => action.id)).not.toContain("icon");
+    expect(actions.map(action => action.id)).not.toContain("theme");
+    expect(actionById(actions, "fork").refusal).toBe("Running a copy of a task is not in the runtime yet; make a second task of the same project from the plus on its row");
+    expect(actionIfAny(actions, "rebuild")).toBeUndefined();
+    expect(actionIfAny(actions, "forget")).toBeUndefined();
+    expect(actionIfAny(actions, "start-daemon")).toBeUndefined();
+  });
+
+  it("pause and wake are one slot: the word follows the state, and the moving states refuse it with a word", () => {
+    const verbs = workspaceVerbs();
+    expect(actionById(resolveActions(workspaceActions, workspace("running"), verbs), "phase").title).toBe("Pause api");
+    expect(actionById(resolveActions(workspaceActions, workspace("unreachable"), verbs), "phase").title).toBe("Pause api");
+    const paused = actionById(resolveActions(workspaceActions, workspace("paused"), verbs), "phase");
+    expect(paused.title).toBe("Wake api");
+    expect(paused.refusal).toBeNull();
+    expect(actionById(resolveActions(workspaceActions, workspace("pausing"), verbs), "phase").refusal).toBe("Task is pausing; it can be woken once it is paused");
+    // A held spawn says what it waits for: a free computer, or its cloud's next start (Q18).
+    expect(actionById(resolveActions(workspaceActions, workspace("waiting", { queue: { since: "2026-10-12T00:00:00.000Z", why: "slot" } }), verbs), "phase").refusal).toBe("Task is waiting for a free computer on its cloud; it starts on its own when one frees");
+    expect(actionById(resolveActions(workspaceActions, workspace("waiting", { queue: { since: "2026-10-12T00:00:00.000Z", why: "minute" } }), verbs), "phase").refusal).toBe("Task is waiting for its cloud's next start; it starts on its own when one is free");
+    // A waking workspace is the one moving state with something to offer: the stop on the host's own asking again.
+    const waking = actionById(resolveActions(workspaceActions, workspace("waking"), verbs), "phase");
+    expect(waking.title).toBe(WORKSPACE_WORDS.stopWake);
+    expect(waking.refusal).toBeNull();
+    expect(waking.rowLabel).toBe("Stop api");
+    expect(actionById(resolveActions(workspaceActions, workspace("gone"), verbs), "phase").refusal).toBe(goneRefusal(undefined, "wake"));
+    // A machine wsp neither forked nor pays for is neither paused nor woken by wsp, so the slot is not there.
+    expect(actionIfAny(resolveActions(workspaceActions, workspace("running", { kind: "local" }), verbs), "phase")).toBeUndefined();
+  });
+
+  it("a folder on a computer the person joined offers no machine verb, no bring back and no export: it is their own checkout there", () => {
+    const box = workspace("running", { kind: "place", displayName: "spoo-ts" });
+    const actions = resolveActions(workspaceActions, box, workspaceVerbs());
+    expect(titles(actions)).toEqual([WORKSPACE_WORDS.newThread, WORKSPACE_WORDS.openTerminal, WORKSPACE_WORDS.openBrowser, WORKSPACE_WORDS.rename, WORKSPACE_WORDS.copyId, WORKSPACE_WORDS.delete]);
+  });
+
+  it("this computer offers neither the machine verbs nor the fork, and keeps every verb that is about the work", () => {
+    const mac = workspace("running", { kind: "local", displayName: "zingzy-mac" });
+    const actions = resolveActions(workspaceActions, mac, workspaceVerbs());
+    // Nothing here pauses, wakes, rebuilds or forks this computer, so the row offers none of it.
+    expect(titles(actions)).toEqual([
+      WORKSPACE_WORDS.newThread,
+      WORKSPACE_WORDS.openTerminal,
+      WORKSPACE_WORDS.openBrowser,
+      WORKSPACE_WORDS.bringBack,
+      WORKSPACE_WORDS.exportProject,
+      WORKSPACE_WORDS.rename,
+      WORKSPACE_WORDS.copyId,
+      WORKSPACE_WORDS.delete,
+    ]);
+    expect(actionById(actions, "new-thread").refusal).toBeNull();
+    expect(actionById(actions, "open-terminal").refusal).toBeNull();
+    expect(actionById(actions, "copy-id").refusal).toBeNull();
+    expect(actionById(actions, "delete").refusal).toBeNull();
+    // The delete's hover says what it does to this kind's machine, in that kind's own words.
+    expect(actionById(actions, "delete").hint).toBe(`Its ${kindWords("local").onDelete.asked}`);
+  });
+
+  it("the start of a daemon is drawn only where this host holds the process that is missing", () => {
+    const reading = { word: "Stopped", said: "zingzy's MacBook Pro's terminals and files stopped", sentence: "zingzy's MacBook Pro's terminals and files stopped", line: "stopped, start again", start: "Start again" } as WorkspaceTarget["absent"];
+    const down = resolveActions(workspaceActions, workspace("running", { kind: "local", absent: reading }), workspaceVerbs());
+    expect(actionById(down, "start-daemon").refusal).toBeNull();
+    expect(actionById(resolveActions(workspaceActions, workspace("running", { kind: "local", absent: reading }), workspaceVerbs({ restartDaemon: undefined })), "start-daemon").refusal).toBe("This window cannot reconnect it");
+    expect(actionIfAny(resolveActions(workspaceActions, workspace("running", { kind: "local" }), workspaceVerbs()), "start-daemon")).toBeUndefined();
+  });
+
+  it("a gone workspace offers rebuild and forget and refuses the machine actions; a zombie offers rebuild alone; a client without the verbs says so", () => {
+    const verbs = workspaceVerbs();
+    const gone = resolveActions(workspaceActions, workspace("gone"), verbs);
+    expect(enabled(gone)).toEqual(["rebuild", "rename", "copy-id", "forget"]);
+    // The delete is the road for a machine that is still there; a gone one has only its record left to lose.
+    expect(actionIfAny(gone, "delete")).toBeUndefined();
+    expect(actionById(gone, "new-thread").refusal).toBe("New threads wait for the rebuild");
+    expect(actionById(gone, "open-terminal").refusal).toBe(goneRefusal(undefined, "open a terminal"));
+    expect(actionById(gone, "open-browser").refusal).toBe(goneRefusal(undefined, "preview"));
+    const zombie = resolveActions(workspaceActions, workspace("unreachable", { reach: "zombie" }), verbs);
+    expect(actionById(zombie, "rebuild").refusal).toBeNull();
+    // A zombie is a machine that is still there, so the road out of it is the delete and not the forget.
+    expect(actionIfAny(zombie, "forget")).toBeUndefined();
+    expect(actionById(zombie, "delete").refusal).toBeNull();
+    const bare = resolveActions(workspaceActions, workspace("gone"), workspaceVerbs({ rebuild: undefined, forget: undefined }));
+    expect(actionById(bare, "rebuild").refusal).toBe("This client cannot rebuild tasks");
+    expect(actionById(bare, "forget").refusal).toBe("This client cannot forget tasks");
+    // Bringing a folder home: the machine must answer, and the client must have the folder ops; a browser tab
+    // without them says so. Nothing imports any more: a project is recorded with wsp add and a workspace is one's copy.
+    expect(actionById(zombie, "export-project").refusal).toBe("Projects wait for the rebuild");
+    expect(actionById(resolveActions(workspaceActions, workspace("paused"), verbs), "export-project").refusal).toBeNull();
+    const noTrips = resolveActions(workspaceActions, workspace("running"), workspaceVerbs({ exportProject: undefined }));
+    expect(actionById(noTrips, "export-project").refusal).toBe("This client cannot export projects");
+    expect(actionById(resolveActions(workspaceActions, workspace("paused"), verbs), "open-browser").refusal).toBe("Workspace is paused; wake it to preview");
+    expect(actionById(resolveActions(workspaceActions, workspace("waking"), verbs), "open-browser").refusal).toBe("Workspace is waking; previews open when it is running");
+    expect(actionById(resolveActions(workspaceActions, workspace("waking"), verbs), "bring-back").refusal).toBe("Workspace is waking; git actions open when it is running");
+    expect(actionById(resolveActions(workspaceActions, workspace("unreachable"), verbs), "bring-back").refusal).toBe("Workspace is unreachable; git actions open when the machine answers");
+    expect(actionById(resolveActions(workspaceActions, workspace("paused"), verbs), "bring-back").refusal).toBe("Workspace is paused; wake it to push");
+  });
+
+  it("every handler reaches its verb with the workspace, and copy id copies the machine id", async () => {
+    const verbs = workspaceVerbs();
+    const actions = resolveActions(workspaceActions, workspace("running"), verbs);
+    await actionById(actions, "phase").run();
+    await actionById(actions, "new-thread").run();
+    await actionById(actions, "open-terminal").run();
+    await actionById(actions, "open-browser").run();
+    await actionById(actions, "bring-back").run();
+    await actionById(actions, "copy-id").run();
+    await actionById(actions, "export-project").run();
+    expect(verbs.exportProject).toHaveBeenCalledWith("ws_a");
+    expect(verbs.togglePhase).toHaveBeenCalledWith("ws_a");
+    expect(verbs.newThreadHere).toHaveBeenCalledWith("ws_a");
+    expect(verbs.newThread).not.toHaveBeenCalled();
+    expect(verbs.openTerminal).toHaveBeenCalledWith("ws_a");
+    expect(verbs.openBrowser).toHaveBeenCalledWith("ws_a");
+    expect(verbs.bringBack).toHaveBeenCalledWith("ws_a");
+    expect(verbs.copyText).toHaveBeenCalledWith("m_a");
+    const gone = resolveActions(workspaceActions, workspace("gone"), verbs);
+    await actionById(gone, "rebuild").run();
+    await actionById(gone, "forget").run();
+    expect(verbs.rebuild).toHaveBeenCalledWith("ws_a");
+    expect(verbs.forget).toHaveBeenCalledWith("ws_a");
+  });
+
+  it("a button on the object's own surface reads its word, its icon and its hover text from the entry, so a button never says two things", () => {
+    const verbs = workspaceVerbs();
+    const phaseOf = (state: WorkspaceState, over: Partial<WorkspaceTarget> = {}) => actionById(resolveActions(workspaceActions, workspace(state, over), verbs), "phase");
+    expect([phaseOf("running").buttonWord, phaseOf("unreachable").buttonWord, phaseOf("paused").buttonWord, phaseOf("gone").buttonWord]).toEqual(["Pause", "Pause", "Wake", "Wake"]);
+    expect([phaseOf("pausing").buttonWord, phaseOf("waking").buttonWord]).toEqual(["Pausing…", "Stop"]);
+    expect([phaseOf("running").icon, phaseOf("paused").icon, phaseOf("waking").icon]).toEqual([PauseIcon, PlayIcon, SquareIcon]);
+    expect(phaseOf("running").hint).toBe("Pause api and every thread on it; its files are kept");
+    expect(phaseOf("paused").hint).toBe("Wake api and every thread on it, with its files as they were");
+    expect(phaseOf("waking").hint).toBe("Stop waking api");
+    // A record that still says running while the provider holds the machine paused reads Wake, as its label does.
+    const behind = phaseOf("running", { machineState: "paused" });
+    expect([behind.buttonWord, behind.rowLabel, behind.title]).toEqual(["Wake", "Wake api", "Wake api"]);
+    const gone = resolveActions(workspaceActions, workspace("gone", { reason: "machine m_a is gone at the provider: Not found" }), verbs);
+    expect(actionById(gone, "forget").buttonWord).toBe("Forget");
+    expect(actionById(gone, "forget").hint).toBe("Its computer is gone; forget the task to drop it from this computer");
+    expect(actionById(gone, "rebuild").buttonWord).toBe("Rebuild");
+    expect(actionById(gone, "rebuild").hint).toBe("machine m_a is gone at the provider: Not found");
+    expect(actionById(resolveActions(workspaceActions, workspace("unreachable", { reach: "zombie" }), verbs), "rebuild").hint).toBe("The task answers nothing; rebuild it from your image");
+    expect(actionById(gone, "copy-id").buttonWord).toBeNull();
+    expect(actionById(gone, "copy-id").hint).toBeNull();
+  });
+
+  it("one target builder serves every surface: the status's phase, machine state, reach and reason lead, the record fills in", () => {
+    const view: WorkspaceView = { id: "ws_a", name: "api", machineId: "m_old", project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" }, phase: "running", golden: "snap_g", createdAt: "2026-09-01T00:00:00Z", gone: "the record's words" };
+    const status: WorkspaceStatus = { ...view, machineId: "m_new", project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" }, phase: "napping", machineState: "paused", reach: { state: "napping" }, size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.11, reason: "the status's words" };
+    expect(workspaceTarget(view, status, [])).toEqual({ id: "ws_a", displayName: "api", kind: "cloud", machineId: "m_new", phase: "napping", machineState: "paused", reach: "napping", reason: "the status's words", wakeRefused: null, absent: null });
+    expect(workspaceTarget(view, null, [])).toEqual({ id: "ws_a", displayName: "api", kind: "cloud", machineId: "m_old", phase: "running", machineState: null, reach: null, reason: "the record's words", wakeRefused: null, absent: null });
+    // The record's own wake words ride apart from the reason, which the next status push replaces.
+    expect(workspaceTarget({ ...view, wakeRefused: "the provider answered none of 31 resume requests over 30m" }, null, []).wakeRefused).toBe("the provider answered none of 31 resume requests over 30m");
+    // A record from before local workspaces existed carries no kind and reads as a fork; one that does keeps it.
+    expect(workspaceTarget({ ...view, kind: "local" }, null, []).kind).toBe("local");
+    // The computer the host runs on carries the one reading of its own daemon, so a verb refused on it names the
+    // part that is down; every other kind's silence is its computer's link and is read off the places list.
+    const here = { ...view, kind: "local" as const };
+    const MAC_ROW: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true };
+    expect(workspaceTarget(here, { ...status, kind: "local", phase: "running", machineState: "running", reach: { state: "unreachable" } }, [MAC_ROW]).absent?.said).toBe("zingzy's MacBook Pro's terminals and files stopped");
+    expect(workspaceTarget(here, { ...status, kind: "local", phase: "running", machineState: "running", reach: { state: "reachable" } }, []).absent).toBeNull();
+    // A fork at a provider whose computer has stopped answering reads that computer's own sentence off the list,
+    // which is the same door and not a second rule: the reading is null while nothing on the list is away.
+    const laptop: PlaceView = { id: "pc_laptop", kind: "computer", name: "laptop", default: false, present: false };
+    const answering: PlaceView = { ...laptop, present: true };
+    const away = { ...view, kind: "cloud" as const, place: "pc_laptop" };
+    expect(workspaceTarget(away, null, [answering]).absent).toBeNull();
+    expect(workspaceTarget(away, null, [laptop]).absent?.said).toBe("laptop is not answering");
+    expect(workspaceTarget(view, { ...status, phase: "running", machineState: "running", reach: { state: "unreachable" } }, []).absent).toBeNull();
+  });
+
+  it("refuses a preview on this computer in the computer's own sentence, never by calling it unreachable", () => {
+    const here = workspace("unreachable", { kind: "local", absent: ownDaemonDown("zingzy's MacBook Pro") });
+    const actions = resolveActions(workspaceActions, here, workspaceVerbs({ forget: vi.fn() }));
+    expect(actionById(actions, "open-browser").refusal).toBe("zingzy's MacBook Pro's terminals and files stopped");
+    for (const action of actions) expect(action.refusal ?? "").not.toMatch(/unreachable/i);
+    // Neither road out of gone is drawn on a machine that is merely not answering: it is still there.
+    expect(actionIfAny(actions, "forget")).toBeUndefined();
+    const fork = resolveActions(workspaceActions, workspace("unreachable"), workspaceVerbs({ forget: vi.fn() }));
+    expect(actionById(fork, "open-browser").refusal).toBe("Workspace is unreachable; previews open when the machine answers");
+    expect(actionIfAny(fork, "forget")).toBeUndefined();
+  });
+
+  it("a paused machine the provider would not resume offers the rebuild beside the wake, with the record's own words on it", () => {
+    const words = "the provider answered none of 31 resume requests over 30m; the work on this machine's disk stays with the provider, and a rebuild starts a new machine from the image";
+    const target = workspace("paused", { wakeRefused: words });
+    const actions = resolveActions(workspaceActions, target, workspaceVerbs());
+    const rebuild = actionById(actions, "rebuild");
+    expect(rebuild.refusal).toBeNull();
+    expect(rebuild.hint).toBe(words);
+    // The wake stands beside it: the fault is the provider's and may pass, so nothing takes the other road away.
+    expect(actionById(actions, "phase").refusal).toBeNull();
+    expect(actionById(actions, "phase").buttonWord).toBe("Wake");
+    // The same machine before its wake ran out has nothing to rebuild, so the row is not drawn at all.
+    expect(actionIfAny(resolveActions(workspaceActions, workspace("paused"), workspaceVerbs()), "rebuild")).toBeUndefined();
+  });
+
+  it("a workspace that is not answering offers neither road out of gone, and its row says the state that is so", () => {
+    const actions = resolveActions(workspaceActions, workspace("unreachable"), workspaceVerbs());
+    // A person read these four rows apart in one list, each naming a road that opens only once the machine is
+    // gone; a machine that is merely not answering is not gone, so neither row is there to be read.
+    expect(actionIfAny(actions, "rebuild")).toBeUndefined();
+    expect(actionIfAny(actions, "forget")).toBeUndefined();
+    expect(workspaceWord(workspaceState(workspace("unreachable")))).toBe("Unreachable");
+    // A machine that does answer offers neither either, and the delete is the one road out of it.
+    const running = resolveActions(workspaceActions, workspace("running"), workspaceVerbs());
+    expect(actionIfAny(running, "rebuild")).toBeUndefined();
+    expect(actionById(running, "delete").refusal).toBeNull();
+  });
+  it("the row buttons' labels name the workspace, and the keybindings come from the one table", () => {
+    const actions = resolveActions(workspaceActions, workspace("gone"), workspaceVerbs());
+    expect(actionById(actions, "forget").rowLabel).toBe("Forget api");
+    expect(actionById(actions, "rebuild").rowLabel).toBe("Rebuild api");
+    expect(actionById(actions, "new-thread").rowLabel).toBe("New thread in api");
+    expect(actionById(actions, "phase").rowLabel).toBe("Wake api");
+    expect(actionById(resolveActions(workspaceActions, workspace("running"), workspaceVerbs()), "phase").rowLabel).toBe("Pause api");
+    expect(actionById(actions, "open-terminal").shortcutCommand).toBe("terminal.toggle");
+    // New thread here starts in this copy's folder, a different act from the project's New thread that owns the chord.
+    expect(actionById(actions, "new-thread").title).toBe("New thread here");
+    expect(actionById(actions, "new-thread").shortcutCommand).toBeUndefined();
+    expect(actionById(actions, "open-browser").shortcutCommand).toBe("preview.toggle");
+    expect(actionById(actions, "copy-id").shortcutCommand).toBeUndefined();
+  });
+});
+
+describe("thread actions", () => {
+  /** The agent's row as its machine answered it: renames is the adapter's answer there, as steers is. */
+  const row = (harness: string, over: Partial<HarnessCatalog> = {}): HarnessCatalog => ({
+    harness,
+    label: harness === "claude" ? "Claude Code" : harness,
+    source: "harness",
+    version: "2.1.263",
+    models: [],
+    efforts: [],
+    contextWindows: [],
+    permissionModes: [],
+    steers: false,
+    renames: true,
+    images: true,
+    ...over,
+  });
+  const thread = (
+    status: SessionStatus,
+    threadId: string | null = "thr_1",
+    harness = "claude",
+    machine: { catalog?: HarnessCatalog | null; state?: WorkspaceState; goneWords?: string } = {},
+    ran = true,
+  ): ThreadTarget =>
+    threadTarget(
+      { id: "thr_1", sessionId: "s1", threadId, workspaceId: "ws_a", harness, title: "fix the port list", status, ran, startedAt: null, endedAt: null, indicator: null, startedBy: "person", project: null, parentThreadId: null, attempt: null, model: null, asking: null, costUsd: null, unread: false, readAt: null, settledAt: null, needsYou: false, pinnedAt: null, order: null, snoozedUntil: null, section: null, subagents: [], lastLine: null, failure: null, foldedAt: null, replaces: null, replacedBy: null },
+      { catalog: machine.catalog === undefined ? row(harness) : machine.catalog, state: machine.state ?? "running", ...(machine.goneWords !== undefined ? { goneWords: machine.goneWords } : {}) },
+    );
+  const threadVerbs = (over: Partial<ThreadVerbs> = {}): ThreadVerbs => ({ stop: vi.fn(async () => {}), rename: vi.fn(), forget: vi.fn(), readEvents: vi.fn(async () => []), copyText: vi.fn(async () => {}), ...over });
+
+  it("copies the thread as Markdown off the events the host holds for its workspace, the thread's alone", async () => {
+    const scope = { workspaceId: "ws_a", sessionId: "s1" };
+    const events: SessionEvent[] = [
+      { type: "session.start", ...scope, threadId: "rt_1", turnId: "u1", prompt: "build it" },
+      { type: "session.delta", ...scope, threadId: "rt_1", turnId: "u1", kind: "text", text: "built" },
+      { type: "session.start", ...scope, sessionId: "s2", threadId: "rt_other", turnId: "u9", prompt: "not this one" },
+    ];
+    const readEvents = vi.fn(async () => events);
+    const copyText = vi.fn(async (_text: string) => {});
+    const actions = resolveActions(threadActions, thread("completed", "rt_1"), threadVerbs({ readEvents, copyText }));
+    expect(actionById(actions, "copy-markdown")).toMatchObject({ title: "Copy as Markdown", refusal: null });
+    await actionById(actions, "copy-markdown").run();
+    expect(readEvents).toHaveBeenCalledWith("ws_a", "rt_1");
+    expect(copyText).toHaveBeenCalledWith(threadMarkdown(threadMessages(events, "rt_1")));
+    expect(copyText.mock.calls[0]![0]).not.toContain("not this one");
+    expect(actionById(resolveActions(threadActions, thread("completed", null), threadVerbs()), "copy-markdown").refusal).toBe("This thread has no id yet");
+    expect(actionById(resolveActions(threadActions, thread("completed", "rt_1"), threadVerbs({ readEvents: undefined })), "copy-markdown").refusal).toBe("This client cannot read a thread");
+  });
+
+  it("a running thread offers stop, rename and copy link; forget carries the runtime's own refusal", async () => {
+    const verbs = threadVerbs();
+    const actions = resolveActions(threadActions, thread("running"), verbs);
+    expect(titles(actions)).toEqual([THREAD_WORDS.stop, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.copyLink, THREAD_WORDS.forget]);
+    expect(enabled(actions)).toEqual(["stop", "rename", "copy-markdown", "copy-link"]);
+    expect(actionById(actions, "forget").refusal).toBe(threadForgetRefusal("thr_1"));
+    await actionById(actions, "stop").run();
+    expect(verbs.stop).toHaveBeenCalledWith("s1");
+    // The rename opens the name on the row the thread's own key names, which a new turn does not move.
+    await actionById(actions, "rename").run();
+    expect(verbs.rename).toHaveBeenCalledWith("thr_1");
+  });
+
+  it("a thread no turn ever ran on offers the forget, which names the thread and its workspace; a client without the verb says so", async () => {
+    const verbs = threadVerbs();
+    const never = thread("failed", "thr_1", "claude", {}, false);
+    const actions = resolveActions(threadActions, never, verbs);
+    expect(actionById(actions, "forget").refusal).toBeNull();
+    await actionById(actions, "forget").run();
+    expect(verbs.forget).toHaveBeenCalledWith({ threadId: "thr_1", workspaceId: "ws_a" });
+    expect(actionById(resolveActions(threadActions, never, threadVerbs({ forget: undefined })), "forget").refusal).toBe("This client cannot forget a thread");
+    // A row the runtime stamped no thread id on names nothing to forget.
+    expect(actionById(resolveActions(threadActions, thread("completed", null, "claude", {}, false), threadVerbs()), "forget").refusal).toBe("This thread has no id yet");
+  });
+
+  it("a root thread offers Settle on its shortcut, which takes its whole tree and is held while one of it works; a thread under a root offers none", async () => {
+    const settle = vi.fn(async () => {});
+    const root = (working: boolean): ThreadTarget => ({ ...thread("completed"), root: { threadIds: ["thr_1", "thr_2"], workspaceIds: [], working, pinned: false, settled: false } });
+    const actions = resolveActions(threadActions, root(false), threadVerbs({ settle }));
+    expect(actionById(actions, "settle")).toMatchObject({ title: THREAD_WORDS.settle, refusal: null, shortcutCommand: "thread.settle" });
+    await actionById(actions, "settle").run();
+    expect(settle).toHaveBeenCalledWith(["thr_1", "thr_2"]);
+    expect(actionById(resolveActions(threadActions, root(true), threadVerbs({ settle })), "settle").refusal).toBe("A thread in it is still working");
+    expect(actionById(resolveActions(threadActions, root(false), threadVerbs()), "settle").refusal).toBe("This client cannot settle a thread");
+    expect(actionIfAny(resolveActions(threadActions, thread("completed"), threadVerbs({ settle })), "settle")).toBeUndefined();
+  });
+
+  it("a live root offers Pin or Unpin and Snooze after Rename, each on the root alone; a folded root offers Restore where Settle stood", async () => {
+    const mark = vi.fn(async () => {});
+    const snooze = vi.fn();
+    const restore = vi.fn(async () => {});
+    const root = (over: Partial<NonNullable<ThreadTarget["root"]>>): ThreadTarget => ({ ...thread("completed"), root: { threadIds: ["thr_1", "thr_2"], workspaceIds: [], working: false, pinned: false, settled: false, ...over } });
+    const live = resolveActions(threadActions, root({}), threadVerbs({ mark, snooze, restore, settle: vi.fn(async () => {}) }));
+    expect(titles(live)).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.copyLink, THREAD_WORDS.forget]);
+    await actionById(live, "pin").run();
+    expect(mark).toHaveBeenCalledWith(["thr_1"], { pinned: true });
+    await actionById(live, "snooze").run();
+    expect(snooze).toHaveBeenCalledWith("thr_1");
+    const pinned = resolveActions(threadActions, root({ pinned: true }), threadVerbs({ mark, snooze }));
+    expect(actionById(pinned, "pin").title).toBe(THREAD_WORDS.unpin);
+    await actionById(pinned, "pin").run();
+    expect(mark).toHaveBeenLastCalledWith(["thr_1"], { pinned: false });
+    const folded = resolveActions(threadActions, root({ settled: true }), threadVerbs({ mark, snooze, restore }));
+    expect(titles(folded)).toEqual([THREAD_WORDS.stop, THREAD_WORDS.restore, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.copyLink, THREAD_WORDS.forget]);
+    await actionById(folded, "restore").run();
+    expect(restore).toHaveBeenCalledWith(["thr_1", "thr_2"]);
+    // A client with no road to the marks says so, and a thread under a root offers none of them.
+    expect(actionById(resolveActions(threadActions, root({}), threadVerbs()), "pin").refusal).toBe(CLIENT_CANNOT_MARK);
+    expect(actionById(resolveActions(threadActions, root({ settled: true }), threadVerbs()), "restore").refusal).toBe("This client cannot restore a thread");
+    expect(["pin", "snooze", "restore"].map(id => actionIfAny(resolveActions(threadActions, thread("completed"), threadVerbs({ mark, snooze, restore })), id))).toEqual([undefined, undefined, undefined]);
+  });
+
+  it("the Settled row's Settle all read takes every read tree it is handed, and says so when there is none", async () => {
+    const settle = vi.fn(async () => {});
+    const [all] = resolveActions(settledFoldActions, { threadIds: ["thr_1", "thr_2", "thr_3"], workspaceIds: [] }, threadVerbs({ settle }));
+    expect(all).toMatchObject({ title: "Settle all read", refusal: null });
+    await all!.run();
+    expect(settle).toHaveBeenCalledWith(["thr_1", "thr_2", "thr_3"]);
+    expect(resolveActions(settledFoldActions, { threadIds: [], workspaceIds: [] }, threadVerbs({ settle }))[0]!.refusal).toBe("No read thread to settle");
+  });
+
+  it("a settled thread refuses stop; a client without the verb says so; a thread without an id has no link", () => {
+    expect(actionById(resolveActions(threadActions, thread("completed"), threadVerbs()), "stop").refusal).toBe("Thread is not running");
+    expect(actionById(resolveActions(threadActions, thread("running"), threadVerbs({ stop: undefined })), "stop").refusal).toBe("This client cannot stop a turn");
+    expect(actionById(resolveActions(threadActions, thread("running", null), threadVerbs()), "copy-link").refusal).toBe("This thread has no id yet");
+  });
+
+  it("reads whether a name is kept off the agent's own catalog row, and a row the runtime's table stood in for is no answer", () => {
+    const renameOf = (target: ThreadTarget, over: Partial<ThreadVerbs> = {}): string | null =>
+      actionById(resolveActions(threadActions, target, threadVerbs(over)), "rename").refusal;
+    expect(renameOf(thread("completed"))).toBeNull();
+    expect(renameOf(thread("completed", "thr_1", "codex", { catalog: row("codex") }))).toBeNull();
+    // The machine answered no for this agent: nothing offers the rename.
+    expect(renameOf(thread("completed", "thr_1", "gemini", { catalog: row("gemini", { renames: false }) }))).toBe("Rename in Gemini CLI is not kept");
+    // Nobody has asked that machine yet: the box opens and the runtime answers.
+    expect(renameOf(thread("completed", "thr_1", "gemini", { catalog: row("gemini", { renames: false, source: "table" }) }))).toBeNull();
+    expect(renameOf(thread("completed", "thr_1", "gemini", { catalog: null }))).toBeNull();
+    // The agent keeps a name and this client has no row to edit: that is the client's own refusal.
+    expect(renameOf(thread("completed"), { rename: undefined })).toBe("This client cannot rename a thread");
+    // An agent that keeps none refuses whatever the client has.
+    expect(renameOf(thread("completed", "thr_1", "gemini", { catalog: row("gemini", { renames: false }) }), { rename: undefined })).toBe("Rename in Gemini CLI is not kept");
+  });
+
+  it("a machine that is napping is woken by the rename itself, so only one that is gone refuses before the box opens", () => {
+    const renameOf = (state: WorkspaceState, goneWords?: string): string | null =>
+      actionById(resolveActions(threadActions, thread("completed", "thr_1", "claude", { state, ...(goneWords !== undefined ? { goneWords } : {}) }), threadVerbs()), "rename").refusal;
+    expect(renameOf("paused")).toBeNull();
+    expect(renameOf("waking")).toBeNull();
+    expect(renameOf("unreachable")).toBeNull();
+    expect(renameOf("gone")).toBe("This workspace's machine is gone with its disk, so work that was not pushed is lost; rebuild it to rename, which brings back its home folder from the last saved nap");
+    expect(renameOf("gone", "machine m1 is gone at the provider")).toBe("This workspace's machine is gone with its disk, so work that was not pushed is lost; rebuild it to rename, which brings back its home folder from the last saved nap (machine m1 is gone at the provider)");
+  });
+
+  describe("continue in terminal", () => {
+    const SESSION = "0c8e2b8e-5d6f-4c4e-9f3a-2b1c0d9e8f7a";
+    const resumable = (status: SessionStatus, folder = "/Users/dev/acme", catalog: HarnessCatalog | null = row("claude", { terminalResume: "claude --resume" }), elsewhere?: string): ThreadTarget =>
+      threadTarget(
+        { id: "thr_1", sessionId: "s1", threadId: "thr_1", workspaceId: "ws_a", harness: "claude", title: "fix the port list", status, ran: true, startedAt: null, endedAt: null, indicator: null, startedBy: "person", project: null, parentThreadId: null, attempt: null, model: null, asking: null, costUsd: null, unread: false, readAt: null, settledAt: null, needsYou: false, pinnedAt: null, order: null, snoozedUntil: null, section: null, subagents: [], lastLine: null, failure: null, foldedAt: null, replaces: null, replacedBy: null, harnessSession: { id: SESSION, folder } },
+        { catalog, state: "running", elsewhere },
+      );
+
+    it("copies the line that goes into the thread's folder and resumes its agent's session there, and says it copied", async () => {
+      useNotices.getState().clear();
+      const verbs = threadVerbs();
+      const actions = resolveActions(threadActions, resumable("completed"), verbs);
+      expect(actionById(actions, "continue-in-terminal")).toMatchObject({ title: THREAD_WORDS.continueInTerminal, refusal: null });
+      expect(actionIfAny(actions, "stop-continue-in-terminal")).toBeUndefined();
+      await actionById(actions, "continue-in-terminal").run();
+      expect(verbs.copyText).toHaveBeenCalledWith(`cd /Users/dev/acme && claude --resume ${SESSION}`);
+      expect(verbs.stop).not.toHaveBeenCalled();
+      expect(useNotices.getState().notices[0]).toMatchObject({ kind: "done", text: "Copied. Paste it in a terminal to go on with this thread there" });
+      // A thread on another computer: the line is for a terminal there, and the notice names it.
+      await actionById(resolveActions(threadActions, resumable("completed", "/root/acme", undefined, "hetzner"), verbs), "continue-in-terminal").run();
+      expect(useNotices.getState().notices[0]).toMatchObject({ text: "Copied. Paste it in a terminal on hetzner to go on with this thread there" });
+      // A folder sh would split is one word on the line.
+      const spaced = resolveActions(threadActions, resumable("completed", "/Users/dev/my repo"), verbs);
+      await actionById(spaced, "continue-in-terminal").run();
+      expect(verbs.copyText).toHaveBeenLastCalledWith(`cd '/Users/dev/my repo' && claude --resume ${SESSION}`);
+    });
+
+    it("is not offered for an agent whose row names no terminal resume, a row not read yet, or a thread whose agent announced no session", () => {
+      expect(actionIfAny(resolveActions(threadActions, resumable("completed", "/x", row("codex")), threadVerbs()), "continue-in-terminal")).toBeUndefined();
+      expect(actionIfAny(resolveActions(threadActions, resumable("completed", "/x", null), threadVerbs()), "continue-in-terminal")).toBeUndefined();
+      expect(actionIfAny(resolveActions(threadActions, thread("completed", "thr_1", "claude", { catalog: row("claude", { terminalResume: "claude --resume" }) }), threadVerbs()), "continue-in-terminal")).toBeUndefined();
+    });
+
+    it("while wsp holds the thread's process, says so and offers to stop it first: the stop goes to the thread's turn and the same line is copied", async () => {
+      useNotices.getState().clear();
+      const order: string[] = [];
+      const verbs = threadVerbs({ stop: vi.fn(async () => void order.push("stop")), copyText: vi.fn(async () => void order.push("copy")) });
+      const actions = resolveActions(threadActions, resumable("running"), verbs);
+      expect(actionById(actions, "continue-in-terminal").refusal).toBe(THREAD_STILL_RUNNING_HERE);
+      expect(actionById(actions, "stop-continue-in-terminal")).toMatchObject({ title: THREAD_WORDS.stopAndContinueInTerminal, refusal: null });
+      await actionById(actions, "stop-continue-in-terminal").run();
+      expect(verbs.stop).toHaveBeenCalledWith("s1");
+      expect(verbs.copyText).toHaveBeenCalledWith(`cd /Users/dev/acme && claude --resume ${SESSION}`);
+      expect(order).toEqual(["copy", "stop"]);
+      expect(useNotices.getState().notices[0]).toMatchObject({ kind: "done", text: THREAD_WORDS.terminalLineCopied() });
+      // A client with no road to a stop says so on the offer, and the line stays held.
+      const cannot = resolveActions(threadActions, resumable("running"), threadVerbs({ stop: undefined }));
+      expect(actionById(cannot, "stop-continue-in-terminal").refusal).toBe("This client cannot stop a turn");
+      expect(actionById(cannot, "continue-in-terminal").refusal).toBe(THREAD_STILL_RUNNING_HERE);
+    });
+  });
+
+  it("copy link writes the page's address for the thread", async () => {
+    const verbs = threadVerbs();
+    await actionById(resolveActions(threadActions, thread("completed"), verbs), "copy-link").run();
+    expect(verbs.copyText).toHaveBeenCalledWith(`${window.location.origin}${window.location.pathname}#w/ws_a/t/thr_1`);
+  });
+});
+
+
+describe("terminal actions", () => {
+  const terminalVerbs = (over: Partial<TerminalVerbs> = {}): TerminalVerbs => ({
+    copy: vi.fn(async () => {}),
+    paste: vi.fn(async () => {}),
+    clear: vi.fn(),
+    split: vi.fn(),
+    splitVertical: vi.fn(),
+    newTerminal: vi.fn(),
+    close: vi.fn(),
+    ...over,
+  });
+
+  it("copy needs a selection, split needs room, paste needs a clipboard, and the chords come from the one table", async () => {
+    const verbs = terminalVerbs();
+    const actions = resolveActions(terminalActions, { hasSelection: false, atSplitLimit: false }, verbs);
+    expect(titles(actions)).toEqual([TERMINAL_WORDS.copy, TERMINAL_WORDS.paste, TERMINAL_WORDS.clear, TERMINAL_WORDS.split, TERMINAL_WORDS.splitVertical, TERMINAL_WORDS.new, TERMINAL_WORDS.close]);
+    expect(actionById(actions, "copy").refusal).toBe("Nothing is selected");
+    expect(enabled(actions)).toEqual(["paste", "clear", "split", "split-vertical", "new", "close"]);
+    const full = resolveActions(terminalActions, { hasSelection: true, atSplitLimit: true }, verbs);
+    expect(actionById(full, "copy").refusal).toBeNull();
+    expect(actionById(full, "split").refusal).toBe(`Max ${MAX_TERMINALS_PER_GROUP} per group`);
+    expect(actionById(full, "split-vertical").refusal).toBe(`Max ${MAX_TERMINALS_PER_GROUP} per group`);
+    expect(actionById(resolveActions(terminalActions, { hasSelection: false, atSplitLimit: false }, terminalVerbs({ paste: undefined })), "paste").refusal).toBe("The clipboard cannot be read here");
+    const toolbar = resolveActions(terminalActions, { hasSelection: true, atSplitLimit: false }, terminalVerbs({ copy: undefined, clear: undefined }));
+    expect(actionById(toolbar, "copy").refusal).toBe("No terminal is active");
+    expect(actionById(toolbar, "clear").refusal).toBe("No terminal is active");
+    expect(actionById(actions, "split").shortcutCommand).toBe("terminal.split");
+    expect(actionById(actions, "new").shortcutCommand).toBe("terminal.new");
+    for (const id of ["paste", "clear", "split", "split-vertical", "new", "close"]) await actionById(actions, id).run();
+    await actionById(full, "copy").run();
+    for (const verb of Object.values(verbs)) expect(verb).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a terminal the link refused", () => {
+  it("says no terminal, on the workspace where the app holds its record, with the link's reason", () => {
+    expect(terminalRefusedLine("api", "not answering")).toBe("No terminal on api: not answering");
+    expect(terminalRefusedLine(undefined, "not answering")).toBe("No terminal: not answering");
+  });
+});
+
+describe("menu items from actions", () => {
+  it("carry the label, the group, the enabled bit, the refusal and the chord for the platform", () => {
+    const items = toMenuItems(resolveActions(workspaceActions, workspace("paused"), workspaceVerbs()), DEFAULT_RESOLVED_KEYBINDINGS, { platform: "MacIntel" });
+    expect(items.map(i => [i.id, i.label, i.group, i.enabled])).toEqual([
+      ["phase", "Wake api", "state", true],
+      ["new-thread", WORKSPACE_WORDS.newThread, "open", true],
+      ["open-terminal", WORKSPACE_WORDS.openTerminal, "open", true],
+      ["open-browser", WORKSPACE_WORDS.openBrowser, "open", false],
+      ["bring-back", WORKSPACE_WORDS.bringBack, "project", false],
+      ["export-project", WORKSPACE_WORDS.exportProject, "project", true],
+      ["rename", WORKSPACE_WORDS.rename, "edit", true],
+      ["fork", WORKSPACE_WORDS.fork, "edit", false],
+      ["copy-id", WORKSPACE_WORDS.copyId, "copy", true],
+      ["delete", WORKSPACE_WORDS.delete, "remove", true],
+    ]);
+    expect(items.find(i => i.id === "open-browser")?.refusal).toBe("Workspace is paused; wake it to preview");
+    expect(items.find(i => i.id === "open-terminal")).toMatchObject({ shortcut: "⌘J", accelerator: "CommandOrControl+J" });
+    // A tile's New thread here starts in that copy's folder: the chord is the project's New thread, so this row shows none.
+    expect(items.find(i => i.id === "new-thread")).toMatchObject({ label: "New thread here" });
+    expect(items.find(i => i.id === "new-thread")).not.toHaveProperty("shortcut");
+    expect(items.find(i => i.id === "phase")).not.toHaveProperty("shortcut");
+    expect(items.find(i => i.id === "phase")).not.toHaveProperty("refusal");
+    expect(items.find(i => i.id === "delete")?.destructive).toBe(true);
+    const linux = toMenuItems(resolveActions(workspaceActions, workspace("paused"), workspaceVerbs()), DEFAULT_RESOLVED_KEYBINDINGS, { platform: "Linux x86_64" });
+    expect(linux.find(i => i.id === "open-terminal")).toMatchObject({ shortcut: "Ctrl+J", accelerator: "CommandOrControl+J" });
+    // A terminal's chords are bound while a terminal has focus; read without that context they are nobody's.
+    const terminal = resolveActions(terminalActions, { hasSelection: false, atSplitLimit: false }, { split: () => {}, splitVertical: () => {}, newTerminal: () => {}, close: () => {} });
+    expect(toMenuItems(terminal, DEFAULT_RESOLVED_KEYBINDINGS, { platform: "MacIntel" }).find(i => i.id === "split")).not.toHaveProperty("shortcut");
+    expect(toMenuItems(terminal, DEFAULT_RESOLVED_KEYBINDINGS, { platform: "MacIntel", context: { terminalFocus: true } }).find(i => i.id === "split")).toMatchObject({ shortcut: "⌘D", accelerator: "CommandOrControl+D" });
+  });
+});
+
+describe("placing the in-app menu", () => {
+  const viewport = { width: 1000, height: 600 };
+
+  it("opens at the pointer when it fits", () => {
+    expect(placeMenu({ x: 100, y: 200 }, { width: 180, height: 240 }, viewport)).toEqual({ left: 100, top: 200 });
+  });
+
+  it("flips left of the pointer and up from it when the edge is near, and never leaves the margin", () => {
+    expect(placeMenu({ x: 900, y: 500 }, { width: 180, height: 240 }, viewport)).toEqual({ left: 720, top: 260 });
+    expect(placeMenu({ x: 990, y: 590 }, { width: 2000, height: 2000 }, viewport)).toEqual({ left: 8, top: 8 });
+  });
+});
+
+
+describe("a lead's child", () => {
+  interface Node {
+    readonly thread: SidebarThreadSnapshot;
+    readonly kids: Node[];
+  }
+  const snapshot = (id: string, status: SessionStatus, over: Partial<SidebarThreadSnapshot> = {}): SidebarThreadSnapshot => ({
+    id,
+    threadId: id,
+    sessionId: `s_${id}`,
+    workspaceId: "ws_a",
+    harness: "claude",
+    title: id,
+    status,
+    ran: true,
+    startedAt: "2026-10-09T11:00:00.000Z",
+    endedAt: status === "running" ? null : "2026-10-09T11:30:00.000Z",
+    indicator: null,
+    startedBy: "agent",
+    project: null,
+    parentThreadId: null,
+    attempt: null,
+    model: null,
+    asking: null,
+    costUsd: null,
+    unread: false,
+    readAt: null,
+    settledAt: null,
+    needsYou: false,
+    pinnedAt: null, order: null,
+    snoozedUntil: null,
+    section: null,
+    subagents: [],
+    lastLine: null,
+    failure: null,
+    foldedAt: null, replaces: null, replacedBy: null,
+    ...over,
+  });
+  const tree: Tree<Node> = { threadOf: n => n.thread, kidsOf: n => n.kids, nowMs: Date.parse("2026-10-09T12:00:00Z"), settleMs: null };
+  const at = (node: Node) => ({ node, thread: node.thread });
+
+  it("a restart's menu opens the thread it replaced, and the replaced one's menu opens its restart", async () => {
+    const open = vi.fn((_threadId: string) => {});
+    const restart = snapshot("thr_redo", "running", { replaces: { threadId: "thr_old", failed: false, endedAt: "2026-10-09T11:52:00.000Z" } });
+    const back = actionById(childActs(at({ thread: restart, kids: [] }), "live", tree, { open }), "open-replaced");
+    expect(back).toMatchObject({ title: "Open the thread it replaced", refusal: null });
+    await back.run();
+    expect(open).toHaveBeenCalledWith("thr_old");
+    const old = snapshot("thr_old", "interrupted", { replacedBy: "thr_redo", readAt: "2026-10-09T11:53:00.000Z", settledAt: "2026-10-09T11:53:00.000Z" });
+    const forward = actionById(childActs(at({ thread: old, kids: [] }), "settled", tree, { open }), "open-restart");
+    expect(forward).toMatchObject({ title: "Open its restart", refusal: null });
+    await forward.run();
+    expect(open).toHaveBeenLastCalledWith("thr_redo");
+    // A thread with no link has neither entry, and a client that cannot open a thread says so.
+    expect(childActs(at({ thread: snapshot("thr_plain", "running"), kids: [] }), "live", tree, { open }).map(a => a.id)).not.toContain("open-replaced");
+    expect(actionById(childActs(at({ thread: restart, kids: [] }), "live", tree, {}), "open-replaced").refusal).toBe(CLIENT_CANNOT_OPEN);
+  });
+
+  it("Stop subagent sends the task to its thread's session and words a refusal as the host does", async () => {
+    useNotices.getState().clear();
+    const refused = taskStopRefusedLine("Claude Code", "the task already finished");
+    const interruptSession = vi.fn(async () => ({ outcome: "refused" as const, error: refused }));
+    const lead = snapshot("thr_lead", "running", { subagents: [{ id: "task_1", title: "Read the open tickets", state: "running", startedAt: Date.parse("2026-10-09T11:59:00Z") }] });
+    const stopTask = vi.fn((task: { sessionId: string; task: string; harness: string; title: string }) => stopSubagent({ interruptSession }, task));
+    const [stop] = childActs({ subagent: lead.subagents[0]!, of: lead }, "live", tree, { stopTask });
+    expect(stop).toMatchObject({ id: "stop-subagent", title: "Stop subagent", refusal: null });
+    await stop!.run();
+    expect(interruptSession).toHaveBeenCalledWith("s_thr_lead", "task_1");
+    expect(useNotices.getState().notices[0]).toMatchObject({ kind: "error", text: refused, where: "Read the open tickets" });
+    // An agent that offers no stop of one subagent says so in the host's line, the agent named as the host names it.
+    interruptSession.mockResolvedValueOnce({ outcome: "unsupported" as never, error: undefined as never });
+    await stopSubagent({ interruptSession }, { sessionId: "s_thr_lead", task: "task_1", harness: "codex", title: "Probe" });
+    expect(useNotices.getState().notices[0]).toMatchObject({ kind: "error", text: taskStopUnsupportedLine(agentName("codex")) });
+    // The host words every refusal; one without words is never said as the bare outcome.
+    useNotices.getState().clear();
+    interruptSession.mockResolvedValueOnce({ outcome: "refused" as const, error: undefined as never });
+    await stopSubagent({ interruptSession }, { sessionId: "s_thr_lead", task: "task_1", harness: "claude", title: "Probe" });
+    expect(useNotices.getState().notices.map(n => n.text)).not.toContain(taskStopRefusedLine("Claude Code", "refused"));
+    // A stop the agent took says nothing more.
+    const count = useNotices.getState().notices.length;
+    interruptSession.mockResolvedValueOnce({ outcome: "accepted" as never, error: undefined as never });
+    await stopSubagent({ interruptSession }, { sessionId: "s_thr_lead", task: "task_1", harness: "claude", title: "Probe" });
+    expect(useNotices.getState().notices).toHaveLength(count);
+    // An ended subagent takes no act at all.
+    const ended = snapshot("thr_lead", "running", { subagents: [{ id: "task_2", title: "Done one", state: "done", startedAt: 1, endedAt: 2 }] });
+    expect(childActs({ subagent: ended.subagents[0]!, of: ended }, "settled", tree, { stopTask })).toEqual([]);
+  });
+
+  it("Settle on a child sends its own id, the host settling everything under it, is refused while anything under it works, says what was left, and Undo restores what the host settled", async () => {
+    useNotices.getState().clear();
+    const under = ["thr_build", "thr_review", "thr_probe"].map(threadId => ({ threadId, title: threadId }));
+    const settle = vi.fn(async (_ids: ReadonlyArray<string>): Promise<SessionSettleResult> => ({ settled: under, left: [] }));
+    const restore = vi.fn(async (_ids: ReadonlyArray<string>) => {});
+    const quiet: Node = { thread: snapshot("thr_build", "completed"), kids: [{ thread: snapshot("thr_review", "failed"), kids: [{ thread: snapshot("thr_probe", "completed"), kids: [] }] }] };
+    const acts = childActs(at(quiet), partOf(at(quiet), tree), tree, { settle, restore });
+    const act = actionById(acts, "settle");
+    expect(act).toMatchObject({ title: THREAD_WORDS.settle, refusal: null });
+    await act.run();
+    expect(settle).toHaveBeenCalledWith(["thr_build"]);
+    const notice = useNotices.getState().notices[0]!;
+    expect(notice).toMatchObject({ kind: "done", text: "Settled 3 threads", where: "thr_build" });
+    notice.action!.run();
+    expect(restore).toHaveBeenCalledWith(["thr_build", "thr_review", "thr_probe"]);
+    // What the host left is named on the toast, its Undo takes back only what moved, and a settle that moved nothing
+    // offers no way back.
+    settle.mockResolvedValueOnce({ settled: under.slice(1), left: [{ threadId: "thr_build", why: "already settled" }] });
+    await act.run();
+    expect(useNotices.getState().notices[0]).toMatchObject({ kind: "done", text: "Settled 2 threads. Left 1 thread: already settled" });
+    useNotices.getState().notices[0]!.action!.run();
+    expect(restore).toHaveBeenLastCalledWith(["thr_review", "thr_probe"]);
+    settle.mockResolvedValueOnce({ settled: [], left: [{ threadId: "thr_build", why: "still working: stop it first" }] });
+    await act.run();
+    expect(useNotices.getState().notices[0]).toMatchObject({ kind: "note", text: "Left 1 thread: still working: stop it first" });
+    expect(useNotices.getState().notices[0]!.action).toBeUndefined();
+    // A thread whose child still works offers the settle held, with the reason.
+    const busy: Node = { thread: snapshot("thr_build", "completed"), kids: [{ thread: snapshot("thr_review", "running"), kids: [] }] };
+    expect(actionById(childActs(at(busy), partOf(at(busy), tree), tree, { settle, restore }), "settle").refusal).toBe("A thread in it is still working");
+    // A settled child offers Restore, which sends its own id and the host brings its tree back.
+    const put = { ...quiet, thread: snapshot("thr_build", "completed", { settledAt: "2026-10-09T11:40:00.000Z" }) };
+    const back = actionById(childActs(at(put), "settled", tree, { settle, restore }), "restore");
+    await back.run();
+    expect(restore).toHaveBeenLastCalledWith(["thr_build"]);
+  });
+
+  it("a settle the host refuses shows the refusal alone, with no Settled toast and no Undo", async () => {
+    useNotices.getState().clear();
+    useStore.setState({ api: { settleThreads: async () => Promise.reject(new Error("A thread in it is still working")) } } as never);
+    try {
+      const settle = useStore.getState().settleThreads;
+      const quiet: Node = { thread: snapshot("thr_build", "completed"), kids: [] };
+      await actionById(childActs(at(quiet), "finished", tree, { settle }), "settle").run();
+      await leadActs(snapshot("thr_lead", "running", { title: "Coordinator" }), { threadIds: ["thr_build"], threads: 1 }, { settle })[0]!.run();
+      expect(useNotices.getState().notices.map(n => ({ kind: n.kind, text: n.text, undo: n.action?.word ?? null }))).toEqual([
+        { kind: "error", text: "A thread in it is still working", undo: null },
+        { kind: "error", text: "A thread in it is still working", undo: null },
+      ]);
+    } finally {
+      useStore.setState({ api: null } as never);
+    }
+  });
+
+  it("the lead's Settle N finished counts the threads it takes, sends each finished thread's own id, and its Undo takes back what the host settled", async () => {
+    useNotices.getState().clear();
+    const moved = ["thr_a", "thr_a1", "thr_b"].map(threadId => ({ threadId, title: threadId }));
+    const settle = vi.fn(async (_ids: ReadonlyArray<string>) => ({ settled: moved, left: [] }));
+    const restore = vi.fn(async (_ids: ReadonlyArray<string>) => {});
+    const [all] = leadActs(snapshot("thr_lead", "running", { title: "Coordinator" }), { threadIds: ["thr_a", "thr_b"], threads: 3 }, { settle, restore });
+    expect(all!.title).toBe("Settle 3 finished");
+    await all!.run();
+    expect(settle).toHaveBeenCalledWith(["thr_a", "thr_b"]);
+    expect(useNotices.getState().notices[0]).toMatchObject({ kind: "done", text: "Settled 3 threads" });
+    useNotices.getState().notices[0]!.action!.run();
+    expect(restore).toHaveBeenCalledWith(["thr_a", "thr_a1", "thr_b"]);
+  });
+});
+
+describe("a root tree's moves", () => {
+  const WS: WorkspaceView = { id: "ws_a", name: "api", machineId: "m_a", kind: "local", project: { id: "pr_1", name: "api", path: "/root/api", computer: "here" }, phase: "running", golden: "", createdAt: "2026-10-01T00:00:00.000Z" };
+  const row = (n: number, over: Record<string, unknown> = {}) => ({ id: `s${n}`, workspaceId: "ws_a", harness: "claude", status: "running" as const, threadId: `thr_${n}`, prompt: `tree ${n}`, startedAt: 1_800_000_000_000 - n * 60_000, ...over });
+
+  it("the palette carries Move up, Move down and Move to top for the open thread's root, held as its menu holds them, writing a drag's marks", async () => {
+    const markThreads = vi.fn(async () => {});
+    useStore.setState({ api: { markThreads } as never, workspaces: [WS], statuses: {}, landings: {}, heldKeys: {}, projects: [], places: [], sessions: { ws_a: [row(1), row(2), row(3), { ...row(4), parentThreadId: "thr_2", startedBy: "agent" }] }, selectedId: "ws_a", selectedThreadId: "thr_4" } as never);
+    const { openRootMoves } = await import("../src/shell/shellCommands.js");
+    const moves = openRootMoves();
+    // The open thread is a builder under thr_2: the moves are its root's.
+    expect(moves.map(a => [a.id, a.title, a.refusal])).toEqual([
+      ["move-up", "Move up", null],
+      ["move-down", "Move down", null],
+      ["move-top", "Move to top", null],
+    ]);
+    const { buildPaletteItems } = await import("../src/components/palette/paletteItems.js");
+    const rows = buildPaletteItems({ projects: [], selectedId: null, query: "", messageHits: [], canCreate: false, recorded: [], picks: [], asks: false, threadMoves: moves, handlers: { copyThreadMarkdown: null } as never, verbs: {} as never, places: [] }).actionItems;
+    expect(rows.filter(item => item.kind === "action" && item.value.startsWith("action:move-")).map(item => item.title)).toEqual(["Move up", "Move down", "Move to top"]);
+    await actionById(moves, "move-up").run();
+    expect(markThreads).toHaveBeenCalledWith(["thr_2"], { order: row(1).startedAt + 1 });
+    useStore.setState({ selectedThreadId: "thr_1", heldKeys: {} } as never);
+    const top = openRootMoves();
+    expect(actionById(top, "move-up").refusal).toBe("Already first");
+    expect(actionById(top, "move-top").refusal).toBe("Already first");
+    useStore.setState({ selectedThreadId: "thr_3" } as never);
+    expect(actionById(openRootMoves(), "move-down").refusal).toBe("Already last");
+    // A client that cannot mark offers them held.
+    useStore.setState({ api: {} as never } as never);
+    expect(openRootMoves().map(a => a.refusal)).toEqual([CLIENT_CANNOT_MARK, CLIENT_CANNOT_MARK, CLIENT_CANNOT_MARK]);
+    useStore.setState({ api: null, workspaces: [], sessions: {}, selectedId: null, selectedThreadId: null } as never);
+  });
+});

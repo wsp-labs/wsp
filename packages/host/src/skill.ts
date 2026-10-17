@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The wsp skill for agents on this computer, inlined at build time from the
+// one file in the repo, so the MCP server's instructions and the skill an
+// install writes cannot drift apart.
+/// <reference path="./markdown.d.ts" />
+import text from "../../../skills/wsp/SKILL.md";
+import { THREAD_AGENTS, WSP_SKILL_NAME } from "@wsp/catalog";
+import { ANOTHER_AGENT_WORDS, BACKGROUND_WORK_WORDS, COORDINATOR_HANDOFF, NOTIFY_CALLER } from "@wsp/protocol";
+import { CLOUD_ON } from "./cloud.js";
+import { skillFor } from "./cloud-text.js";
+
+export { BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, CLOUD_SPAN_END, NO_CLOUD_MARK, NO_CLOUD_SPAN_END, cloudText, skillFor } from "./cloud-text.js";
+
+export const SKILL_NAME = WSP_SKILL_NAME;
+
+/** The skill as this process reads it, worked out at each ask: an install and a tool server opening are the only
+ * askers, and holding it would keep a second copy of the file for the host's whole life. */
+export const wspSkill = (): string => skillFor(text, CLOUD_ON);
+
+/** The section that walks a person's setup, the numbered steps and the exact lines to watch for. */
+export const SETUP_HEADING = "## Setting a person up from nothing";
+
+/** The section of rules for running work: what a machine can do at once and what wastes it. */
+export const RULES_HEADING = "## Running work well";
+
+/** The verbs table an agent reads, and the section holding the one verb that blocks, which is a shell script's. A
+ * verb whose row sits in the wrong one of these teaches the wrong road, so the parity test pins where each is. */
+export const VERBS_HEADING = "## Verbs and tools";
+export const SHELL_HEADING = "### For a shell script";
+
+/** What wsp is and where the rest of it lives, between the agent line and the rules: the setup walkthrough and the
+ * rules past these three are the skill's, since the whole of them was cut off by Claude Code and copied into every
+ * deferred tool's entry by Codex. */
+const ESSENTIALS =
+  "Agents work on a project, a folder on one computer, as threads in the person's sidebar. Setup, every verb and the rules are in the wsp skill (`wsp mcp install --agent <id>` writes it).";
+
+/** The agents a thread runs on, from the adapter registry, so the instructions promise no agent the host refuses. */
+export function agentsLine(agents: readonly string[]): string {
+  return `The agents this host runs threads on, the only values ${CLOUD_ON ? "run and fork take" : "run takes"} as agent: ${agents.join(", ")}.`;
+}
+
+/** How much of a server's instructions an agent keeps: Claude Code cuts them to this many characters and drops the
+ * rest (measured on 2.1.284, "Server instructions truncated from 7992 to 2048 chars"). */
+export const INSTRUCTIONS_KEPT = 2048;
+
+/** What a slate is, carried second so it lands inside what Claude Code keeps, under 220 characters with its full stop;
+ * the skill's slate section sits past the cut. */
+export const SLATE_WORDS = "Each thread can own a slate, a live panel the person reads, presses and fills in: when they ask for a panel, dashboard, form, checklist, tracker or walkthrough, call slate_catalog, then slate_write naming the thread";
+
+/** What a thread's own tool server opens with, ahead of everything else: that the session is a thread with a slate
+ * beside it, keyed on what the person wants to do rather than on the names of pieces, since they say "I wanna see
+ * this live" and never "a panel". The slate tools' descriptions carry the same words, since tool search reads those. */
+export const THREAD_SLATE_WORDS =
+  "This session is a wsp thread with a slate, a live panel here the person sees while you work. When they want to see, watch, monitor or keep an eye on something (live data, traffic, metrics, a price, logs, a PR, what's unread, progress as it goes), a dashboard, something to fill in or tick off (a form, checklist or walkthrough) or a chart, donut, timeline, treemap, diagram or image, your first tool call is slate_catalog, then slate_write; a list in chat is not a slate. Show data fetched with another tool on the slate, not in chat. A one-off answer or an explanation stays in chat unless they ask to see it. Build and read it with the slate tools, never wsp from a shell. Once the slate is written, a request to see something lands there. A run with every={60} refreshes it with no turns; never poll in chat. Read the sketch a write answers before saying it works, then reply briefly: what you built and what waits on the person.";
+
+/** The MCP server's instructions, whole inside what Claude Code keeps: a thread's slate first, then what another agent
+ * is, since it is the one fact an agent acts on before it has read anything else, what wsp is and where the skill is,
+ * the agents the host has adapters for, and the two roads to a child's end with the background road. */
+export function instructionsOf(agents: readonly string[], scoped = false, slate = true): string {
+  const body = [[`${ANOTHER_AGENT_WORDS}.`, ...(scoped || !slate ? [] : [`${SLATE_WORDS}.`]), ESSENTIALS, agentsLine(agents)].join(" "), ...[`${NOTIFY_CALLER}, so nothing is polled.`, `${COORDINATOR_HANDOFF}.`, `${BACKGROUND_WORK_WORDS}.`].map(rule => `- ${rule}`)].join("\n");
+  return scoped && slate ? `${THREAD_SLATE_WORDS}\n\n${body}` : body;
+}
+
+/** The MCP server's instructions, worked out when a server opens, for the same reason; a thread's own server opens
+ * with its slate, unless another thread started that thread, which has no slate and hears nothing of one. */
+export const instructions = (scoped = false, slate = true): string => instructionsOf(THREAD_AGENTS, scoped, slate);

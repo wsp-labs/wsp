@@ -1,0 +1,205 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The theme rule: which side each value draws, the html element following the
+// record's pick and, under system, the computer's own scheme without a reload,
+// and the desktop shell told the picked value so its frame follows.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_PREFERENCES, DESKTOP_MAC_CLASS } from "@wsp/protocol";
+import { useStore } from "../src/protocol/store.js";
+import { REDUCED_TRANSPARENCY_QUERY, SOLID_CLASS, SYSTEM_DARK_QUERY, applyTheme, useThemeEffect, useTransparencyEffect } from "../src/settings/theme.js";
+import { SIDE_DEFAULT } from "../src/themes/index.js";
+
+const isDark = () => document.documentElement.classList.contains("dark");
+const themeId = () => document.documentElement.dataset["theme"];
+
+beforeEach(() => {
+  useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, labs: true } });
+  document.documentElement.classList.add("dark");
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.resetModules();
+  delete window.wsp;
+  window.localStorage.clear();
+  document.documentElement.classList.remove(DESKTOP_MAC_CLASS);
+  document.documentElement.classList.add("dark");
+});
+
+describe("the theme", () => {
+  it("light and dark pin a side; system takes the computer's; the side draws that side's pick, and the html carries its id", () => {
+    const picks = { lightTheme: "paper", darkTheme: "graphite" };
+    const combos = [
+      { theme: "light", systemDark: true, dark: false, id: "paper" },
+      { theme: "light", systemDark: false, dark: false, id: "paper" },
+      { theme: "dark", systemDark: false, dark: true, id: "graphite" },
+      { theme: "dark", systemDark: true, dark: true, id: "graphite" },
+      { theme: "system", systemDark: false, dark: false, id: "paper" },
+      { theme: "system", systemDark: true, dark: true, id: "graphite" },
+    ] as const;
+    for (const { theme, systemDark, dark, id } of combos) {
+      applyTheme({ theme, ...picks }, systemDark);
+      expect([theme, systemDark, isDark(), themeId()]).toEqual([theme, systemDark, dark, id]);
+    }
+  });
+
+  it("a pick this build does not know, or one from the other side, draws that side's default", () => {
+    applyTheme({ theme: "dark", lightTheme: "paper", darkTheme: "a-theme-from-a-later-build" }, false);
+    expect([isDark(), themeId()]).toEqual([true, SIDE_DEFAULT.dark.id]);
+    applyTheme({ theme: "light", lightTheme: SIDE_DEFAULT.dark.id, darkTheme: "graphite" }, false);
+    expect([isDark(), themeId()]).toEqual([false, SIDE_DEFAULT.light.id]);
+  });
+
+  it("holds transitions off for one frame across a flip, so no paint lands half way between two themes", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(cb => frames.push(cb));
+    applyTheme({ theme: "light", lightTheme: "paper", darkTheme: "graphite" }, true);
+    expect(document.documentElement.classList.contains("no-transitions")).toBe(true);
+    for (const cb of frames) cb(0);
+    expect(document.documentElement.classList.contains("no-transitions")).toBe(false);
+  });
+
+  it("the html element follows the computer's own scheme as it changes under system, and the record's pick pins a side", () => {
+    let systemDark = false;
+    const listeners = new Set<() => void>();
+    vi.spyOn(window, "matchMedia").mockImplementation(query => {
+      expect(query).toBe(SYSTEM_DARK_QUERY);
+      return { get matches() { return systemDark; }, media: query, addEventListener: (_: string, fn: () => void) => listeners.add(fn), removeEventListener: (_: string, fn: () => void) => listeners.delete(fn) } as unknown as MediaQueryList;
+    });
+    renderHook(() => useThemeEffect());
+    expect(isDark()).toBe(false);
+    act(() => {
+      systemDark = true;
+      for (const fn of listeners) fn();
+    });
+    expect(isDark()).toBe(true);
+    // The pick is a row in Settings: a side picked draws that side whatever the computer is set to.
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "light" } }));
+    expect(isDark()).toBe(false);
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "dark" } }));
+    expect(isDark()).toBe(true);
+    act(() => {
+      systemDark = false;
+      for (const fn of listeners) fn();
+    });
+    expect(isDark()).toBe(true);
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "system" } }));
+    expect(isDark()).toBe(false);
+    // A side's pick moves the page at once when that side is the one drawn, and waits otherwise.
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "system", darkTheme: "not-registered" } }));
+    expect(themeId()).toBe(SIDE_DEFAULT.light.id);
+    act(() => {
+      systemDark = true;
+      for (const fn of listeners) fn();
+    });
+    expect([isDark(), themeId()]).toEqual([true, SIDE_DEFAULT.dark.id]);
+  });
+
+  it("a load keeps the side and the width this browser last held, and nothing the page no longer picks", async () => {
+    window.localStorage.setItem("wsp:first-paint", JSON.stringify({ theme: "light", lightTheme: "linen", darkTheme: "denim", sidebarWidth: 312 }));
+    vi.resetModules();
+    const { useStore: bootStore } = await import("../src/protocol/store.js");
+    expect(bootStore.getState().preferences).toEqual({ ...DEFAULT_PREFERENCES, theme: "light", lightTheme: "linen", darkTheme: "denim", sidebarWidth: 312 });
+    act(() => bootStore.getState().applyEvent({ type: "preferences.changed", preferences: { ...DEFAULT_PREFERENCES, theme: "dark", darkTheme: "denim" } }));
+    // The sidebar's body and the labs flag are off what this browser keeps: neither is drawn and neither is read.
+    expect(JSON.parse(window.localStorage.getItem("wsp:first-paint")!)).toEqual({ theme: "dark", lightTheme: "paper", darkTheme: "denim" });
+    window.localStorage.setItem("wsp:first-paint", JSON.stringify({ theme: "sepia" }));
+    vi.resetModules();
+    const { useStore: cleanStore } = await import("../src/protocol/store.js");
+    expect(cleanStore.getState().preferences).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("the desktop shell hears the picked value, so the window's frame draws the same side as the page", () => {
+    const setTheme = vi.fn();
+    window.wsp = { setTheme };
+    renderHook(() => useThemeEffect());
+    expect(setTheme).toHaveBeenLastCalledWith("system");
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "light" } }));
+    expect(setTheme).toHaveBeenLastCalledWith("light");
+    // A theme pick is the page's own: the shell is told the mode word and nothing else.
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "light", lightTheme: "linen" } }));
+    expect(setTheme).toHaveBeenLastCalledWith("light");
+    expect(setTheme.mock.calls.every(([word]) => ["system", "light", "dark"].includes(word as string))).toBe(true);
+  });
+});
+
+describe("the window controls' ground and ink", () => {
+  afterEach(() => document.documentElement.classList.remove("wco"));
+
+  it("a window whose controls the shell draws over the page tells it each time the theme moves, after the theme is on the root", () => {
+    document.documentElement.classList.add("wco");
+    const themes: Array<string | undefined> = [];
+    window.wsp = { setTitleBar: () => themes.push(document.documentElement.dataset["theme"]) };
+    renderHook(() => useThemeEffect());
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "light", lightTheme: "linen" } }));
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "dark", darkTheme: "denim" } }));
+    expect(themes.slice(-2)).toEqual(["linen", "denim"]);
+  });
+
+  it("a window with no controls over the page, the Mac's or a tiling desktop's, tells the shell nothing", () => {
+    const setTitleBar = vi.fn();
+    window.wsp = { setTitleBar };
+    renderHook(() => useThemeEffect());
+    act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme: "light", lightTheme: "linen" } }));
+    expect(setTitleBar).not.toHaveBeenCalled();
+  });
+
+  it("draws the controls on the theme's ground, in its ink at the share the pane toggles' glyphs take", () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src", "index.css"), "utf8");
+    const wco = /\n\.wco \{([^}]*)\}/.exec(css)![1]!;
+    expect(wco).toContain("--titlebar-ground: var(--background);");
+    expect(wco).toContain("--titlebar-ink: color-mix(in srgb, var(--foreground) 80%, var(--background));");
+    const toggle = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src", "components", "ui", "toggle.tsx"), "utf8");
+    expect(toggle).toContain("[&_svg:not([class*='opacity-'])]:opacity-80");
+  });
+});
+
+describe("transparency", () => {
+  it("the html carries the solid class while the record's transparency is off, and drops it when it is on again", () => {
+    renderHook(() => useTransparencyEffect());
+    expect(document.documentElement.classList.contains(SOLID_CLASS)).toBe(false);
+    act(() => useStore.setState(s => ({ preferences: { ...s.preferences, transparency: false } })));
+    expect(document.documentElement.classList.contains(SOLID_CLASS)).toBe(true);
+    act(() => useStore.setState(s => ({ preferences: { ...s.preferences, transparency: true } })));
+    expect(document.documentElement.classList.contains(SOLID_CLASS)).toBe(false);
+  });
+
+  it("the computer's Reduce transparency makes the page solid and takes the window's glass off, whatever the record says", () => {
+    let reduced = true;
+    const listeners = new Set<() => void>();
+    vi.spyOn(window, "matchMedia").mockImplementation(query => {
+      expect(query).toBe(REDUCED_TRANSPARENCY_QUERY);
+      return { get matches() { return reduced; }, media: query, addEventListener: (_: string, fn: () => void) => listeners.add(fn), removeEventListener: (_: string, fn: () => void) => listeners.delete(fn) } as unknown as MediaQueryList;
+    });
+    const setGlass = vi.fn();
+    window.wsp = { setGlass };
+    document.documentElement.classList.add(DESKTOP_MAC_CLASS);
+    const solid = () => document.documentElement.classList.contains(SOLID_CLASS);
+    renderHook(() => useTransparencyEffect());
+    expect([solid(), setGlass.mock.lastCall]).toEqual([true, [false]]);
+    act(() => {
+      reduced = false;
+      for (const fn of listeners) fn();
+    });
+    expect([solid(), setGlass.mock.lastCall]).toEqual([false, [true]]);
+    act(() => useStore.setState(s => ({ preferences: { ...s.preferences, transparency: false } })));
+    expect([solid(), setGlass.mock.lastCall]).toEqual([true, [false]]);
+  });
+
+  it("the Linux app's page is solid whatever the record says, since its window has no glass to show", () => {
+    const setGlass = vi.fn();
+    window.wsp = { setGlass };
+    renderHook(() => useTransparencyEffect());
+    expect([document.documentElement.classList.contains(SOLID_CLASS), setGlass.mock.lastCall]).toEqual([true, [false]]);
+    act(() => useStore.setState(s => ({ preferences: { ...s.preferences, transparency: true } })));
+    expect(document.documentElement.classList.contains(SOLID_CLASS)).toBe(true);
+  });
+
+  it("a browser tab keeps its frost while the record's transparency is on", () => {
+    renderHook(() => useTransparencyEffect());
+    expect(document.documentElement.classList.contains(SOLID_CLASS)).toBe(false);
+  });
+});

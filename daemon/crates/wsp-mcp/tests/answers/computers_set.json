@@ -1,0 +1,499 @@
+{
+  "tool": "computers_set",
+  "cases": [
+    {
+      "case": "threads set",
+      "arguments": {
+        "computer": "attic",
+        "threads": 2
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":2},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":2},\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"attic\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 2\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"settings\\\": {\\n      \\\"threads\\\": 2\\n    },\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":2},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":2},\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "threads": 2
+        }
+      ]
+    },
+    {
+      "case": "reset by id",
+      "arguments": {
+        "computer": "place-9",
+        "reset": [
+          "threads"
+        ]
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":1}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"attic\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"running\\\": 1\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":1}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "reset": [
+            "threads"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "a cloud by the name its rows give it, in any case",
+      "cloud": true,
+      "arguments": {
+        "computer": "Solari",
+        "machines": 5,
+        "reset": [
+          "threads"
+        ]
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\"}],\"structuredContent\":{\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-solari",
+          "machines": 5,
+          "reset": [
+            "threads"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "a cloud's machines and spend",
+      "cloud": true,
+      "arguments": {
+        "computer": "solari",
+        "machines": 5,
+        "spend": 2.5,
+        "reset": [
+          "threads"
+        ]
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\"}],\"structuredContent\":{\"error\":\"Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-solari",
+          "machines": 5,
+          "spendPerDayUsd": 2.5,
+          "reset": [
+            "threads"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "a sub-thread's size and delete delay on a cloud",
+      "arguments": {
+        "computer": "boat",
+        "size": "4x8",
+        "delete_after": 60
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":4,\"memMb\":8192},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":3600000,\"settings\":{\"size\":{\"cpu\":4,\"memMb\":8192},\"deleteAfterMs\":3600000}}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"box\\\",\\n    \\\"kind\\\": \\\"provider\\\",\\n    \\\"name\\\": \\\"box\\\",\\n    \\\"default\\\": false,\\n    \\\"rateUsdPerHour\\\": 0.018,\\n    \\\"sizes\\\": [\\n      {\\n        \\\"cpu\\\": 2,\\n        \\\"memMb\\\": 4096,\\n        \\\"rateUsdPerHour\\\": 0.018\\n      },\\n      {\\n        \\\"cpu\\\": 4,\\n        \\\"memMb\\\": 8192,\\n        \\\"rateUsdPerHour\\\": 0.036\\n      },\\n      {\\n        \\\"cpu\\\": 8,\\n        \\\"memMb\\\": 16384,\\n        \\\"rateUsdPerHour\\\": 0.072\\n      }\\n    ],\\n    \\\"plan\\\": {\\n      \\\"key\\\": \\\"box_20\\\",\\n      \\\"trial\\\": false,\\n      \\\"machinesAtOnce\\\": 100,\\n      \\\"sizes\\\": [\\n        \\\"2x4\\\",\\n        \\\"4x8\\\",\\n        \\\"8x16\\\"\\n      ]\\n    },\\n    \\\"starts\\\": {\\n      \\\"minute\\\": {\\n        \\\"used\\\": 0,\\n        \\\"limit\\\": 12\\n      },\\n      \\\"hour\\\": {\\n        \\\"used\\\": 9,\\n        \\\"limit\\\": 60\\n      },\\n      \\\"day\\\": {\\n        \\\"used\\\": 187,\\n        \\\"limit\\\": 200\\n      }\\n    },\\n    \\\"size\\\": {\\n      \\\"cpu\\\": 4,\\n      \\\"memMb\\\": 8192\\n    },\\n    \\\"sizeDefault\\\": {\\n      \\\"cpu\\\": 2,\\n      \\\"memMb\\\": 4096\\n    },\\n    \\\"deleteAfterMs\\\": 3600000,\\n    \\\"settings\\\": {\\n      \\\"size\\\": {\\n        \\\"cpu\\\": 4,\\n        \\\"memMb\\\": 8192\\n      },\\n      \\\"deleteAfterMs\\\": 3600000\\n    }\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":4,\"memMb\":8192},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":3600000,\"settings\":{\"size\":{\"cpu\":4,\"memMb\":8192},\"deleteAfterMs\":3600000}}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "box",
+          "size": {
+            "cpu": 4,
+            "memMb": 8192
+          },
+          "deleteAfterMs": 3600000
+        }
+      ]
+    },
+    {
+      "case": "a delete delay of none",
+      "arguments": {
+        "computer": "boat",
+        "delete_after": 0,
+        "reset": [
+          "size"
+        ]
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":0,\"settings\":{\"deleteAfterMs\":0}}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"box\\\",\\n    \\\"kind\\\": \\\"provider\\\",\\n    \\\"name\\\": \\\"box\\\",\\n    \\\"default\\\": false,\\n    \\\"rateUsdPerHour\\\": 0.018,\\n    \\\"sizes\\\": [\\n      {\\n        \\\"cpu\\\": 2,\\n        \\\"memMb\\\": 4096,\\n        \\\"rateUsdPerHour\\\": 0.018\\n      },\\n      {\\n        \\\"cpu\\\": 4,\\n        \\\"memMb\\\": 8192,\\n        \\\"rateUsdPerHour\\\": 0.036\\n      },\\n      {\\n        \\\"cpu\\\": 8,\\n        \\\"memMb\\\": 16384,\\n        \\\"rateUsdPerHour\\\": 0.072\\n      }\\n    ],\\n    \\\"plan\\\": {\\n      \\\"key\\\": \\\"box_20\\\",\\n      \\\"trial\\\": false,\\n      \\\"machinesAtOnce\\\": 100,\\n      \\\"sizes\\\": [\\n        \\\"2x4\\\",\\n        \\\"4x8\\\",\\n        \\\"8x16\\\"\\n      ]\\n    },\\n    \\\"starts\\\": {\\n      \\\"minute\\\": {\\n        \\\"used\\\": 0,\\n        \\\"limit\\\": 12\\n      },\\n      \\\"hour\\\": {\\n        \\\"used\\\": 9,\\n        \\\"limit\\\": 60\\n      },\\n      \\\"day\\\": {\\n        \\\"used\\\": 187,\\n        \\\"limit\\\": 200\\n      }\\n    },\\n    \\\"size\\\": {\\n      \\\"cpu\\\": 2,\\n      \\\"memMb\\\": 4096\\n    },\\n    \\\"sizeDefault\\\": {\\n      \\\"cpu\\\": 2,\\n      \\\"memMb\\\": 4096\\n    },\\n    \\\"deleteAfterMs\\\": 0,\\n    \\\"settings\\\": {\\n      \\\"deleteAfterMs\\\": 0\\n    }\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":0,\"settings\":{\"deleteAfterMs\":0}}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "box",
+          "deleteAfterMs": 0,
+          "reset": [
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "a size no cloud sells",
+      "arguments": {
+        "computer": "boat",
+        "size": "3x5"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\"}],\"structuredContent\":{\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "box",
+          "size": {
+            "cpu": 3,
+            "memMb": 5120
+          }
+        }
+      ]
+    },
+    {
+      "case": "a size word that names no size",
+      "arguments": {
+        "computer": "boat",
+        "size": "0x4"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"0x4 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Name one of those with --size.\"}],\"structuredContent\":{\"error\":\"0x4 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Name one of those with --size.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        }
+      ]
+    },
+    {
+      "case": "a size word on a computer, which takes no size",
+      "arguments": {
+        "computer": "attic",
+        "size": "0x4"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"attic takes threads at once, nap after, turn limit, agents may start agents and levels deep, not size\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"attic takes threads at once, nap after, turn limit, agents may start agents and levels deep, not size\"}],\"structuredContent\":{\"error\":\"attic takes threads at once, nap after, turn limit, agents may start agents and levels deep, not size\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "reset": [
+            "size"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "nap after and never",
+      "arguments": {
+        "computer": "attic",
+        "nap": 0
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"napMs\":null},\"napMs\":null,\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"attic\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"settings\\\": {\\n      \\\"napMs\\\": null\\n    },\\n    \\\"napMs\\\": null,\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"napMs\":null},\"napMs\":null,\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "napMs": null
+        }
+      ]
+    },
+    {
+      "case": "nap after in minutes",
+      "arguments": {
+        "computer": "attic",
+        "nap": 45,
+        "threads": 3
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":3},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":3,\"napMs\":2700000},\"napMs\":2700000,\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"attic\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 3\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"settings\\\": {\\n      \\\"threads\\\": 3,\\n      \\\"napMs\\\": 2700000\\n    },\\n    \\\"napMs\\\": 2700000,\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":3},\"capDefault\":{\"threads\":8},\"settings\":{\"threads\":3,\"napMs\":2700000},\"napMs\":2700000,\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "threads": 3,
+          "napMs": 2700000
+        }
+      ]
+    },
+    {
+      "case": "no turn limit",
+      "arguments": {
+        "computer": "attic",
+        "turn_limit": 0
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"turnLimitMs\":null},\"turnLimitMs\":null,\"turnLimitDefault\":null,\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"attic\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"settings\\\": {\\n      \\\"turnLimitMs\\\": null\\n    },\\n    \\\"turnLimitMs\\\": null,\\n    \\\"turnLimitDefault\\\": null,\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"turnLimitMs\":null},\"turnLimitMs\":null,\"turnLimitDefault\":null,\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "turnLimitMs": null
+        }
+      ]
+    },
+    {
+      "case": "a turn limit in hours",
+      "arguments": {
+        "computer": "solari",
+        "turn_limit": 12
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004,\"settings\":{\"turnLimitMs\":43200000},\"turnLimitMs\":43200000,\"turnLimitDefault\":21600000}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-solari\\\",\\n    \\\"kind\\\": \\\"provider\\\",\\n    \\\"name\\\": \\\"solari\\\",\\n    \\\"default\\\": true,\\n    \\\"rateUsdPerHour\\\": 0.30000000000000004,\\n    \\\"settings\\\": {\\n      \\\"turnLimitMs\\\": 43200000\\n    },\\n    \\\"turnLimitMs\\\": 43200000,\\n    \\\"turnLimitDefault\\\": 21600000\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004,\"settings\":{\"turnLimitMs\":43200000},\"turnLimitMs\":43200000,\"turnLimitDefault\":21600000}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-solari",
+          "turnLimitMs": 43200000
+        }
+      ]
+    },
+    {
+      "case": "agents may not start agents",
+      "arguments": {
+        "computer": "attic",
+        "spawn": "off",
+        "max_depth": 2
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"spawn\":{\"spawn\":false,\"maxMachines\":3,\"maxDepth\":2}},\"spawn\":{\"spawn\":false,\"maxMachines\":3,\"maxDepth\":2},\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"attic\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"settings\\\": {\\n      \\\"spawn\\\": {\\n        \\\"spawn\\\": false,\\n        \\\"maxMachines\\\": 3,\\n        \\\"maxDepth\\\": 2\\n      }\\n    },\\n    \\\"spawn\\\": {\\n      \\\"spawn\\\": false,\\n      \\\"maxMachines\\\": 3,\\n      \\\"maxDepth\\\": 2\\n    },\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"settings\":{\"spawn\":{\"spawn\":false,\"maxMachines\":3,\"maxDepth\":2}},\"spawn\":{\"spawn\":false,\"maxMachines\":3,\"maxDepth\":2},\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "spawn": {
+            "spawn": false,
+            "maxDepth": 2
+          }
+        }
+      ]
+    },
+    {
+      "case": "a new name",
+      "arguments": {
+        "computer": "attic",
+        "name": "hetzner"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"hetzner\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "name": "hetzner"
+        }
+      ]
+    },
+    {
+      "case": "a name another computer holds",
+      "arguments": {
+        "computer": "attic",
+        "name": "spoo",
+        "threads": 2
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-7\",\"kind\":\"computer\",\"name\":\"spoo\",\"default\":false,\"present\":true}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"spoo is already the name of another computer. Pick a name no other computer goes by.\",\"kind\":\"usage\",\"fix\":\"Pick a name no other computer goes by.\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"spoo is already the name of another computer. Pick a name no other computer goes by.\"}],\"structuredContent\":{\"error\":\"spoo is already the name of another computer. Pick a name no other computer goes by.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "threads": 2,
+          "name": "spoo"
+        }
+      ]
+    },
+    {
+      "case": "a new ssh login",
+      "arguments": {
+        "computer": "attic",
+        "ssh": "root@hetzner"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"attic\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "ssh": "root@hetzner"
+        }
+      ]
+    },
+    {
+      "case": "a login that reaches another computer",
+      "arguments": {
+        "computer": "attic",
+        "ssh": "root@spoo"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself.\",\"kind\":\"usage\",\"fix\":\"Give the login that reaches attic itself.\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself.\"}],\"structuredContent\":{\"error\":\"root@spoo reaches a computer that is not attic, so nothing was saved. Give the login that reaches attic itself.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "ssh": "root@spoo"
+        }
+      ]
+    },
+    {
+      "case": "a recipe beside a new name, in one set",
+      "arguments": {
+        "computer": "attic",
+        "name": "hetzner",
+        "recipe": "laptop"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":true,\"place\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"recipe\":\"laptop\",\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"computer\\\": {\\n    \\\"id\\\": \\\"place-9\\\",\\n    \\\"kind\\\": \\\"computer\\\",\\n    \\\"name\\\": \\\"hetzner\\\",\\n    \\\"label\\\": \\\"zingzy's \\\\u0085box\\\\u007f \\\\\\\"one\\\\\\\" \\\\\\\\ two\\\\nthree 🧪\\\",\\n    \\\"default\\\": false,\\n    \\\"os\\\": \\\"linux\\\",\\n    \\\"shape\\\": {\\n      \\\"cpu\\\": 8,\\n      \\\"memMb\\\": 16384\\n    },\\n    \\\"diskFreeBytes\\\": 123456789012,\\n    \\\"present\\\": true,\\n    \\\"agentVersions\\\": {\\n      \\\"2\\\": \\\"an index key\\\",\\n      \\\"claude\\\": \\\"2.1.0\\\"\\n    },\\n    \\\"forks\\\": {\\n      \\\"running\\\": 1,\\n      \\\"room\\\": 2\\n    },\\n    \\\"recipe\\\": \\\"laptop\\\",\\n    \\\"cap\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"capDefault\\\": {\\n      \\\"threads\\\": 8\\n    },\\n    \\\"running\\\": 0\\n  }\\n}\"}],\"structuredContent\":{\"computer\":{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"hetzner\",\"label\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2},\"recipe\":\"laptop\",\"cap\":{\"threads\":8},\"capDefault\":{\"threads\":8},\"running\":0}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "name": "hetzner",
+          "recipe": "laptop"
+        }
+      ]
+    },
+    {
+      "case": "nothing to set",
+      "arguments": {
+        "computer": "attic"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"nothing to set on attic: it takes threads at once, nap after, turn limit, agents may start agents, levels deep, a new name and a new ssh login\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"nothing to set on attic: it takes threads at once, nap after, turn limit, agents may start agents, levels deep, a new name and a new ssh login\"}],\"structuredContent\":{\"error\":\"nothing to set on attic: it takes threads at once, nap after, turn limit, agents may start agents, levels deep, a new name and a new ssh login\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9"
+        }
+      ]
+    },
+    {
+      "case": "no such computer",
+      "arguments": {
+        "computer": "nowhere",
+        "threads": 1
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"no place named nowhere; you have attic, Solari. Run wsp computers.\"}],\"structuredContent\":{\"error\":\"no place named nowhere; you have attic, Solari. Run wsp computers.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        }
+      ]
+    }
+  ]
+}

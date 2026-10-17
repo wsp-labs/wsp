@@ -1,0 +1,67 @@
+export * from "./clock.js";
+export * from "./runtime.js";
+export * from "./serve.js";
+export * from "./status.js";
+export * from "./store.js";
+export * from "./sqlite-store.js";
+export * from "./machine-exec.js";
+export * from "./local-exec.js";
+export * from "./reach.js";
+export * from "./daemon-channel.js";
+export * from "./daemon-token.js";
+export { PIPE_BEHIND_AGAIN_MS, TOKEN_REFUSED_MAX_MS, tokenRefusals, tokenRefusedLine } from "./pipe.js";
+export * from "./devices.js";
+export * from "./places.js";
+export * from "./agents-read.js";
+export * from "@wsp/keys";
+export * from "./tunnel.js";
+export * from "./place-forward.js";
+export * from "./harness-catalog.js";
+export * from "./adapters.js";
+// Re-exported so clients can wire a backend without importing the
+// engine directly; the runtime is the only layer that drives it.
+export {
+  BROWSER_SHIM_PATH,
+  SolariBackend,
+  TOOLS_PATH,
+  describeAge,
+  goldenHead,
+  type SolariBackendOptions,
+  type GoldenManifest,
+  type GoldenVersion,
+  type Machine,
+  type ReapFailure,
+  type ReapResult,
+  type ReapedMachine,
+  type RetentionPlan,
+  type SparedMachine,
+  type GoldenImport,
+  type ImportLedger,
+  type ImportResult,
+  type PackedFiles,
+} from "@wsp/engine";
+// The protocol types the runtime API surface speaks.
+export type {
+  DaemonReachView,
+  EventUnion,
+  GoldenBuilderView,
+  GoldenStage,
+  HarnessCatalog,
+  HarnessOption,
+  MachineState,
+  ReachState,
+  ReachStatus,
+  SessionEvent,
+  SessionStatus,
+  SessionView,
+  WorkspacePhase,
+  WorkspaceSize,
+  WorkspaceStatus,
+  WorkspaceView,
+} from "@wsp/protocol";
+export { hostIdentity, localConfigDir } from "./host-id.js";
+export { SLATES } from "./lazy-slates.js";
+export type * from "./slates.js";
+export type * from "./slate-runs.js";
+export * from "./activity.js";
+export type { McpSignIn } from "./slate-mcp.js";

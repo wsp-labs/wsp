@@ -1,0 +1,375 @@
+name: release
+
+# A pushed v1.2.3 tag is the whole release: the draft with its notes, the four
+# daemon binaries, the mac disk image, the linux AppImage, the command line
+# package on npm through trusted publishing, and the draft turned into a
+# release once every part landed. Every bundle also goes up under a name no
+# version moves, which is what releases/latest/download serves and what the
+# site links. A run started by hand is the dry run and there is no box to untick:
+# the daemon binaries are built and uploaded as artifacts, the command line
+# package is staged with them, the mac disk image is built and checked, the
+# linux AppImage is built and started once, and nothing is drafted, attached
+# or published.
+# The tag runs the workflow of the commit it points at, so the check that the
+# commit stands on main's own line holds against a tag pushed by hand on the
+# wrong commit, not against a credential that strips the check from a commit
+# first; the ruleset on refs/tags/v* is the control against that credential.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# A job holds the grant its own steps use and no other, and no job holds the identity token beside a write on the
+# repository: a compromised dependency compiling in the daemon, mac or linux job runs under a read token, and the one
+# job that can mint the identity token npm trusts writes nothing here.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.9.0"
+
+jobs:
+  daemon:
+    name: Daemon ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-14
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The build reads its features off the flag script.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+          rustup show
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-release-${{ matrix.target }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-release-${{ matrix.target }}-
+      # Each Linux binary is a static musl build on its own chip's runner: ring carries C, which musl-tools compiles
+      # for the musl target, and libcontainer links a libseccomp built against musl by the script, from its pinned
+      # release. The darwin builds link no C library of their own. The features each target takes are the flag
+      # script's, the one place every road that builds a daemon reads them.
+      - name: C compiler for the musl target, and libseccomp built against musl
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends musl-tools gperf
+          ./scripts/libseccomp-archive.sh musl
+      # Public: a Mac daemon's tool server embeds no top-level cloud tool and no provider but Boat. The jobs that ship it read it for Solari.
+      - name: Build
+        env:
+          TARGET: ${{ matrix.target }}
+          PUBLIC_BUILD: "1"
+        run: |
+          FEATURES=$(node ../packages/wspx/scripts/daemon-features.mjs "$TARGET")
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            LIBSECCOMP_LIB_PATH="$PWD/target/libseccomp/musl" cargo build --locked --release --target "$TARGET" -p wsp-daemon-bin $FEATURES
+          else
+            cargo build --locked --release --target "$TARGET" -p wsp-daemon-bin $FEATURES
+          fi
+          cp "target/$TARGET/release/wsp-daemon" "wsp-daemon-$TARGET"
+          ls -l "wsp-daemon-$TARGET"
+          file "wsp-daemon-$TARGET"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wsp-daemon-${{ matrix.target }}
+          path: daemon/wsp-daemon-${{ matrix.target }}
+          if-no-files-found: error
+
+  draft:
+    name: Draft release
+    if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # The check below reads main's own line off origin/main, and a checkout of a tag brings no branch; the ref is
+      # named on both sides so the fetch writes it whatever refspec the checkout left configured.
+      - name: Main's own line, which the tag has to stand on
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      - name: The tag stands on main's line and says what the manifests say
+        id: version
+        run: |
+          version="$(node packages/wspx/scripts/tag-version.mjs "$GITHUB_REF_NAME")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # The right-click Open paragraph is for bundles no identity signed, and the certificate is what signs them.
+      - name: Write the notes
+        run: node packages/wspx/scripts/release-notes.mjs "$GITHUB_REF_NAME" ${{ secrets.CSC_LINK != '' && '--signed' || '' }} > notes.md
+      - name: Open the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null || echo none)"
+          case "$draft" in
+            none) gh release create "$GITHUB_REF_NAME" --draft --title "wsp $VERSION" --notes-file notes.md ;;
+            true) gh release edit "$GITHUB_REF_NAME" --title "wsp $VERSION" --notes-file notes.md ;;
+            *) echo "the release on $GITHUB_REF_NAME is already published; nothing here rewrites it"; exit 1 ;;
+          esac
+
+  mac:
+    name: macOS disk image
+    needs: [draft, daemon]
+    # On a run by hand the draft is skipped and this still runs, so the disk image is built and checked on a branch
+    # before a tag is the first build to check it.
+    if: ${{ !cancelled() && needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Every asset name this job works with comes from the one formatter, so nothing here spells one.
+      - name: The names this release's assets carry
+        env:
+          VERSION: ${{ needs.draft.outputs.version }}
+        run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: wsp-daemon-*
+          path: daemon-bins
+      - name: The daemon binaries, where the app's build stages them
+        run: node packages/wspx/scripts/daemon-binary.mjs --from-artifacts daemon-bins
+      # The certificate and the Apple account that sign and notarize the bundles reach this step alone. Unset, each
+      # arrives empty and the build signs ad hoc; electron-builder takes an empty CSC_LINK for a certificate and fails
+      # importing it, so that one is unset, while the other four read empty as unset.
+      # The PostHog project key is baked into the host by these builds and no other, so a dev build or a source run
+      # sends no usage counts. It ships inside every bundle, so it is a repository variable and not a secret.
+      - name: Build the bundles
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+          PUBLIC_BUILD: "1"
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$CSC_LINK" ]; then unset CSC_LINK; fi
+          pnpm --filter @wsp/desktop run build:mac
+      # A public release carries Boat and no Solari: Solari stays in the builds wsp's own development runs on.
+      - name: The app carries no Solari
+        run: node packages/wspx/scripts/public-check.mjs apps/desktop/build/app
+      # Each bundle's signature and the packaged tree, and with a certificate the check insists on a notarized,
+      # stapled bundle. It reads whether one signed from WSP_SIGNED, so the certificate's bytes stay in the
+      # environment of the build step and reach no test.
+      - name: Check the packaged trees
+        env:
+          WSP_SIGNED: ${{ secrets.CSC_LINK != '' && '1' || '' }}
+        run: pnpm --filter @wsp/desktop exec vitest run --minWorkers=1 --maxWorkers=1 test/signing.test.ts
+      # The universal tree this job will ship, launched and driven through Electron; the nightly desktop smoke runs
+      # the same cases on one chip's tree from main.
+      - name: Drive the packaged app with the smoke
+        run: pnpm --filter @wsp/desktop smoke
+      - name: Name the disk image after the release, and copy it to the name that never moves
+        run: |
+          shopt -s nullglob
+          set -- apps/desktop/dist/*.dmg
+          if [ "$#" -ne 1 ]; then
+            echo "expected one dmg in apps/desktop/dist, found $#"
+            exit 1
+          fi
+          mv "$1" "$MAC_DMG"
+          cp "$MAC_DMG" "$MAC_STABLE"
+      # The zip an installed app updates itself from; GitHub publishes its sha256 and size beside it, which the app
+      # checks before it unpacks anything.
+      - name: Name the zip after the release
+        run: |
+          shopt -s nullglob
+          set -- apps/desktop/dist/*.zip
+          if [ "$#" -ne 1 ]; then
+            echo "expected one zip in apps/desktop/dist, found $#"
+            exit 1
+          fi
+          mv "$1" "$MAC_ZIP"
+      - name: Attach them to the draft
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "$MAC_DMG" "$MAC_STABLE" "$MAC_ZIP" --clobber
+
+  linux:
+    name: Linux AppImage
+    needs: [draft, daemon]
+    # On a run by hand the draft is skipped and this still runs, so the AppImage is started on a branch before a tag
+    # is the first build to start it.
+    if: ${{ !cancelled() && needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The names this release's assets carry
+        env:
+          VERSION: ${{ needs.draft.outputs.version }}
+        run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: wsp-daemon-*
+          path: daemon-bins
+      - name: The daemon binaries, where the app's build stages them
+        run: node packages/wspx/scripts/daemon-binary.mjs --from-artifacts daemon-bins
+      - name: Build the bundle
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+          PUBLIC_BUILD: "1"
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+        run: pnpm --filter @wsp/desktop run build:linux
+      - name: The app carries no Solari
+        run: node packages/wspx/scripts/public-check.mjs apps/desktop/build/app
+      - name: Name the AppImage after the release, and copy it to the name that never moves
+        run: |
+          shopt -s nullglob
+          set -- apps/desktop/dist/*.AppImage
+          if [ "$#" -ne 1 ]; then
+            echo "expected one AppImage in apps/desktop/dist, found $#"
+            exit 1
+          fi
+          mv "$1" "$APPIMAGE"
+          cp "$APPIMAGE" "$APPIMAGE_STABLE"
+      # The file this job ships, started once on a virtual display as its desktop entry starts it, until its window
+      # has loaded its page; a library missing from the bundle or a launch that dies on boot fails the release here.
+      - name: Start the AppImage once and wait for its window's page
+        timeout-minutes: 5
+        run: xvfb-run --auto-servernum node apps/desktop/scripts/appimage-launch.mjs "$APPIMAGE"
+      - name: Attach them to the draft
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "$APPIMAGE" "$APPIMAGE_STABLE" --clobber
+
+  npm:
+    name: Command line package on npm
+    needs: [draft, daemon]
+    # On a run by hand the draft is skipped and this still runs, to stage the package with the four binaries.
+    if: ${{ !cancelled() && needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
+    runs-on: ubuntu-24.04
+    # Read because a block that names one grant sets every other to none and the checkout needs it; no write of any
+    # kind, so the job that builds every workspace package can publish and can touch nothing here.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing: the package on npm trusts this repository and this
+      # workflow file, so the runner's identity token is the credential and no
+      # npm token exists anywhere. It needs an npm newer than node 22 ships, at
+      # an exact version, since the latest dist-tag moves under that token.
+      - run: npm install -g npm@12.0.2
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: wsp-daemon-*
+          path: daemon-bins
+      - name: The daemon binaries, where the command's build stages them
+        run: node packages/wspx/scripts/daemon-binary.mjs --from-artifacts daemon-bins
+      - name: Build, with every daemon binary required
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+          PUBLIC_BUILD: "1"
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+        run: pnpm -r --filter '!./apps/www' --filter '!@wsp/desktop' build
+      - name: Every target the host names is in the package
+        run: node packages/wspx/scripts/daemon-binary.mjs --check
+      - name: The package carries no Solari
+        run: |
+          pnpm --filter @wsp-labs/wsp exec npm pack --pack-destination "$RUNNER_TEMP"
+          node packages/wspx/scripts/public-check.mjs "$RUNNER_TEMP"/wsp-labs-wsp-*.tgz
+      - name: Publish
+        if: ${{ github.event_name == 'push' }}
+        run: pnpm --filter @wsp-labs/wsp exec npm publish --provenance --access public
+
+  publish:
+    name: Publish the release
+    needs: [draft, mac, linux, npm]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The binaries are attached here and not from the job that publishes to npm, so no job holds the identity
+      # token and a write on this repository at once.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: wsp-daemon-*
+          path: daemon-bins
+      - name: Attach the binaries to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$GITHUB_REF_NAME" daemon-bins/*/wsp-daemon-* --clobber
+      # Latest is what releases/latest/download serves and what the site's download buttons link, so it is decided
+      # by version: a release below the one served today, or one carrying a prerelease part, moves neither. The flag
+      # is left unquoted because a prerelease answers two words.
+      - name: Turn the draft into a release, latest where its version says so
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # gh prints the API's error body on stdout and exits 1, so a repository serving no latest release is told
+          # apart by the 404 its stderr names and never by an empty answer; any other failure stops here and leaves
+          # the release a draft rather than guessing that nothing is served.
+          if ! current="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2> latest-error.txt)"; then
+            grep -q "HTTP 404" latest-error.txt || { cat latest-error.txt >&2; exit 1; }
+            current=""
+          fi
+          flag="$(node packages/wspx/scripts/latest-flag.mjs "$GITHUB_REF_NAME" "$current")"
+          echo "$GITHUB_REF_NAME against the release served as latest (${current:-none}): $flag"
+          gh release edit "$GITHUB_REF_NAME" --draft=false $flag

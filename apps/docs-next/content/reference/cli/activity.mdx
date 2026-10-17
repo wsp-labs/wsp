@@ -1,0 +1,24 @@
+# wsp activity
+
+{/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
+
+```text
+usage: wsp activity [<thread>] [--computer <computer>] [--wide]
+  this computer's processes, or a box's, as Settings > Activity lists them:
+  wsp's own, then each thread heaviest first with what it started, then what has
+  no thread, each with its kind, ports, memory and CPU; a thread named shows its
+  own alone, on this computer or the box it runs on
+
+  --computer    the computer to read: this one, which is the default, or a box
+                wsp computers lists
+  --wide        each process's pid and whole command line, the run script and
+                input pump of a turn on rows of their own, nothing cut to the
+                terminal's width
+  --json        print the raw protocol values, one JSON object per line, with
+                everything else on stderr
+  --state       the state file the host serves
+  --host        run the line against a host on your account, by the name wsp
+                hosts lists it under; WSP_HOST names one for a whole shell
+```
+
+MCP tool: [`activity`](/reference/mcp-tools#activity).

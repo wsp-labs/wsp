@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { useStore } from "../protocol/store.js";
+import type { SettingsGroupId } from "./groupIds.js";
+import { useSettingsStore } from "./settingsStore.js";
+
+/** One group's page in Settings: the Usage button in the sidebar's corner. */
+export function openSettingsGroup(group: SettingsGroupId): void {
+  useSettingsStore.getState().go({ kind: "group", group });
+  useStore.getState().openSettings();
+}
+
+/** One project's page in Settings, where its glyph and hue are picked: the switcher's gear and the row's menu both. */
+export function openProjectSettings(projectId: string): void {
+  useSettingsStore.getState().go({ kind: "project", id: projectId });
+  useStore.getState().openSettings();
+}
+
+/** One computer's page in Settings: the gear on its row in the sidebar's computer filter. */
+export function openComputerSettings(placeId: string): void {
+  useSettingsStore.getState().go({ kind: "computer", id: placeId });
+  useStore.getState().openSettings();
+}
+
+/** A computer's page in Settings with its Image card's recipe open: every Edit image outside that card. */
+export function openImageRecipe(placeId: string): void {
+  useSettingsStore.getState().go({ kind: "computer", id: placeId });
+  useSettingsStore.getState().askRecipe(placeId);
+  useStore.getState().openSettings();
+}

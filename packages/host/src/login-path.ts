@@ -1,0 +1,155 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The PATH the host runs under. launchd hands every app it starts the four
+// system folders and nothing a person installed, so a host opened from Finder
+// or the Dock cannot see claude, codex or any other tool in a user folder, and
+// neither can anything it looks up or spawns. One read of the login shell at
+// the host's start settles it for the whole process. That PATH is the whole
+// trigger on a Mac: any other one was meant by whoever set it, and replacing it
+// would make the start depend on the machine's rc files for no reason. Linux
+// has no such PATH to spot, so there the trigger is who started the process:
+// systemd hands the service its manager's PATH and a desktop hands an AppImage
+// the session's, and neither carries what the person's profile adds.
+//
+// Every road into the app awaits this before it builds a runtime, not merely
+// before it serves: building one asks this computer what it holds, and every
+// lookup and spawn the host makes on the way reads the PATH this process has at
+// that moment. The read is once per process, so a road that follows another
+// pays nothing for saying so.
+//
+// The same read carries the agents' sign-in variables the catalog declares,
+// where the launch was handed none: a key the person exports in an rc file is
+// the one their own claude signs in with, and a turn here starts from this
+// process's environment. CLAUDE_CONFIG_DIR and CODEX_HOME are kept apart, for
+// the readers that look for the person's own logins alone: on the environment
+// they would move where this host's local turns keep their agents' stores.
+import { VAULT_VARIABLES } from "@wsp/catalog";
+import { spawnRun } from "@wsp/collect";
+import { loginPathLine } from "@wsp/protocol";
+import { keyIn } from "./env-keys.js";
+import { STARTED_BY_ENV } from "./host-lock.js";
+
+/** The PATH launchd gives an app it starts. The order it comes in is not fixed, so the reading is a set. */
+export const LAUNCHD_PATH = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"];
+
+/** How long the login shell is given. A shell that sources a version manager on a busy machine can pass five
+ * seconds, and a host that then keeps launchd's PATH is this bug again, quieter; the start waits on this once, so
+ * the limit is only ever paid when the shell is broken. */
+const SHELL_LIMIT_MS = 15_000;
+
+export interface LoginShellDeps {
+  env: NodeJS.ProcessEnv;
+  log(line: string): void;
+  /** Runs the login shell and answers with everything it printed, or nothing where it failed or ran past its limit;
+   * the real one unless a test hands over its own. */
+  read?: (shell: string) => Promise<string | undefined>;
+  /** The platform the rule is read for; this one unless a test names another. */
+  platform?: string;
+  /** Where the login folders the launch lacks are written, by variable; never the environment. */
+  folders?: Record<string, string>;
+}
+
+/** Whether this launch has to ask the login shell: its PATH is launchd's own set, in any order and nothing else, or
+ * on Linux it is the service's host or an AppImage launch, whose PATH a manager or a desktop chose. */
+export function needsLoginPath(env: NodeJS.ProcessEnv, platform: string = process.platform): boolean {
+  if (platform === "linux" && (env[STARTED_BY_ENV] === "service" || (env["APPIMAGE"] ?? "") !== "")) return true;
+  const dirs = (env["PATH"] ?? "").split(":").filter(dir => dir !== "");
+  return dirs.length === LAUNCHD_PATH.length && LAUNCHD_PATH.every(dir => dirs.includes(dir));
+}
+
+/** A job an rc file leaves in the background keeps the shell's output open past its exit, so the shell leads a
+ * process group that dies with the read, and its input is closed so an rc file that reads it does not wait. */
+const runLoginShell = (shell: string, script: string): Promise<string | undefined> => spawnRun(shell, ["-ilc", script], process.env, { timeoutMs: SHELL_LIMIT_MS });
+
+/** The variables that move where Claude Code and Codex keep their logins. */
+const LOGIN_FOLDERS = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"] as const;
+
+/** The login folders this process's own read took from the login shell, where the launch had none. */
+const takenFolders: Record<string, string> = {};
+
+/** Where the person's own Claude Code and Codex keep their logins, as the collector's host takes them: what the
+ * login shell said where this launch was handed nothing. A launch that has them, the collector reads itself. */
+export function loginFolders(from: Readonly<Record<string, string>> = takenFolders): { claudeConfigDir?: string; codexHome?: string } {
+  const claude = from["CLAUDE_CONFIG_DIR"];
+  const codex = from["CODEX_HOME"];
+  return { ...(claude !== undefined ? { claudeConfigDir: claude } : {}), ...(codex !== undefined ? { codexHome: codex } : {}) };
+}
+
+/** The agents' sign-in variables the login shell put on this process: nothing where it put none. */
+export type LoginKeys = Readonly<Record<string, string>>;
+
+/** Puts the person's login shell PATH on the environment, with each agent's sign-in variable the launch lacks,
+ * writes the login folders it lacks into `folders`, and answers with the sign-in variables; or says in one line why the PATH this launch was given stands. A shell that fails,
+ * times out or prints nothing changes nothing. No line names a value. */
+export async function takeLoginPath(deps: LoginShellDeps): Promise<LoginKeys> {
+  if (!needsLoginPath(deps.env, deps.platform)) return {};
+  const shell = deps.env["SHELL"];
+  if (shell === undefined || shell === "") {
+    deps.log(loginPathLine("SHELL names no login shell"));
+    return {};
+  }
+  const out = await (deps.read ?? (sh => runLoginShell(sh, "env -0")))(shell);
+  if (out === undefined) {
+    deps.log(loginPathLine(`${shell} failed or ran past ${SHELL_LIMIT_MS / 1000} s`));
+    return {};
+  }
+  const login = loginEnvOf(out);
+  const path = (login["PATH"] ?? "").trim();
+  if (path === "") {
+    deps.log(loginPathLine(`${shell} printed nothing`));
+    return {};
+  }
+  deps.env["PATH"] = path;
+  const lacking = (name: string): boolean => keyIn(login, name) !== undefined && keyIn(deps.env, name) === undefined;
+  const taken = Object.fromEntries([...VAULT_VARIABLES].flatMap(name => (lacking(name) ? [[name, login[name]!]] : [])));
+  Object.assign(deps.env, taken);
+  for (const name of LOGIN_FOLDERS) if (lacking(name) && deps.folders !== undefined) deps.folders[name] = login[name]!;
+  return taken;
+}
+
+/** `env` with each of the keys the login shell lent this process that it holds no value for: a copy of the
+ * environment made before the read, such as the one a command line parsed, then reads the keys a turn here runs with. */
+export function withLoginKeys<E extends Readonly<Record<string, string | undefined>>>(env: E, taken: LoginKeys): E {
+  const missing = Object.entries(taken).filter(([name]) => keyIn(env, name) === undefined);
+  return missing.length === 0 ? env : { ...env, ...Object.fromEntries(missing) };
+}
+
+/** Every variable `env -0` printed, NUL between them; the first carries whatever an rc file printed before it, which
+ * ends at its last newline. */
+export function loginEnvOf(out: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  out.split("\0").forEach((entry, at) => {
+    const line = at === 0 ? entry.slice(entry.lastIndexOf("\n") + 1) : entry;
+    const eq = line.indexOf("=");
+    if (eq > 0 && /^[A-Za-z_][A-Za-z0-9_]*$/.test(line.slice(0, eq))) env[line.slice(0, eq)] = line.slice(eq + 1);
+  });
+  return env;
+}
+
+let loginEnvRead: Promise<Readonly<Record<string, string>>> | undefined;
+
+/** The person's login shell environment, read once per process the way its PATH is, for a process that should see what
+ * their own agent sees; nothing where the shell fails. */
+export function loginEnv(): Promise<Readonly<Record<string, string>>> {
+  const shell = process.env["SHELL"];
+  return (loginEnvRead ??=
+    shell === undefined || shell === ""
+      ? Promise.resolve({})
+      : runLoginShell(shell, "env -0").then(out => {
+          if (out === undefined) console.error(loginPathLine(`${shell} failed or ran past ${SHELL_LIMIT_MS / 1000} s printing its environment`));
+          return out === undefined ? {} : loginEnvOf(out);
+        }));
+}
+
+let taken: Promise<LoginKeys> | undefined;
+
+/** The login shell is asked once per process, at the host's start and before it looks any command up. */
+export function adoptLoginPath(log: (line: string) => void): Promise<LoginKeys> {
+  return (taken ??= takeLoginPath({ env: process.env, log, folders: takenFolders }));
+}
+
+/** The login shell's environment for a question about its keys: what this process's own read took, where it took
+ * any, so a launch from Finder runs no second shell; else the whole environment, read once. */
+export async function loginKeysNow(whole: () => Promise<Readonly<Record<string, string>>> = loginEnv): Promise<Readonly<Record<string, string>>> {
+  const took = (await taken) ?? {};
+  return Object.keys(took).length > 0 ? took : whole();
+}

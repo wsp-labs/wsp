@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The tree of branches' one tool: a child thread's branch merged into the folder its lead thread works in with a
+//! merge commit, the lead woken first where it sleeps.
+
+use serde::{Deserialize, Serialize};
+use serde_json::{Number, Value};
+
+use super::named::{child_of, thread_at, thread_label, Aim};
+use super::said::js_head;
+use super::workspace::{self, awake, counted_number, params, read, Workspace};
+use super::{input, Answer, Refused, Tool};
+use crate::host::Host;
+use crate::record::fill;
+
+type Arc<T> = std::sync::Arc<T>;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct MergeInIn {
+    pub lead: String,
+    pub child: String,
+}
+
+/// packages/protocol's MergeInResult, in its order.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct MergeInOut {
+    lead: String,
+    child: String,
+    branch: String,
+    merged: bool,
+    #[cfg_attr(test, schemars(with = "i64"))]
+    commits: Number,
+    conflicts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<i64>"))]
+    unpushed: Option<Number>,
+}
+
+const MERGE_IN_NAME: &str = "merge_in";
+
+pub const MERGE_IN: Tool = Tool {
+    name: MERGE_IN_NAME,
+    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/merge_in.json")),
+    call: |host, args| Box::pin(merge_in(host, args)),
+};
+
+/// The line a merge reads as: the files it stopped on, the commits it brought, or that there was nothing to take; and
+/// under it the commits a sub-thread's machine holds that no remote has, which the merge could not take.
+fn merge_in_line(done: &MergeInOut, child_id: &str) -> String {
+    let words = workspace::words();
+    let line = if !done.merged {
+        fill(&words.merge_conflicts, &[("lead", &done.lead), ("branch", &done.branch), ("paths", &done.conflicts.join(", "))])
+    } else if done.commits.as_f64() == Some(0.0) {
+        fill(&words.nothing_to_merge, &[("lead", &done.lead), ("child", &done.child)])
+    } else {
+        let merged = counted_number(&done.commits, &words.merged_in_one, &words.merged_in_many);
+        fill(&merged, &[("lead", &done.lead), ("branch", &done.branch), ("child", &done.child)])
+    };
+    match &done.unpushed {
+        Some(n) if n.as_f64().is_some_and(|n| n > 0.0) => {
+            let held = counted_number(n, &words.not_in_merge_one, &words.not_in_merge_many);
+            format!("{line}\n{}", fill(&held, &[("thread", &js_head(child_id, 8))]))
+        }
+        _ => line,
+    }
+}
+
+async fn merge_in(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
+    #[derive(Deserialize)]
+    struct Woken {
+        id: String,
+    }
+    let MergeInIn { lead, child } = input(MERGE_IN_NAME, arguments)?;
+    let client = host.client().await?;
+    let aim = Aim { line: "wsp merge in", or_computer: false, cloud: host.cloud() };
+    let (lead, source): (_, Workspace) = thread_at(&client, &lead, &aim).await?;
+    let (kid, _, kid_workspace) = child_of::<Value>(&client, &lead, &source.id, &child, &aim).await?;
+    let woken: Woken = read(&awake(&client, &source, "merge in").await?, "workspaces.wake")?;
+    let done: MergeInOut = client
+        .request(
+            "workspaces.mergeIn",
+            params([
+                ("workspaceId", Value::from(woken.id)),
+                ("child", Value::from(kid_workspace)),
+                ("threadId", Value::from(lead.runtime_id())),
+                ("childThreadId", Value::from(kid.runtime_id())),
+            ]),
+        )
+        .await?;
+    Ok(Answer::text(
+        merge_in_line(&MergeInOut { lead: thread_label(&lead), child: thread_label(&kid), ..done.clone() }, kid.runtime_id()),
+        &done,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::held::to_the_record;
+    use super::*;
+
+    #[test]
+    fn its_structs_are_the_recorded_schemas() {
+        to_the_record::<MergeInIn, MergeInOut>(MERGE_IN.listed);
+    }
+}

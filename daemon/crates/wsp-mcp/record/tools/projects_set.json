@@ -1,0 +1,728 @@
+{
+  "cloudOff": {
+    "name": "projects_set",
+    "description": "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. trackers is the whole list of repos besides the project's own, each owner/name, that gh on a sub-thread's machine may comment on, issues and pull requests both; every other gh write there stays refused. Answers what a new thread there now starts on, each value with where it came from, the after-worktree command and the trackers. reset puts a field back on the layer below: agent, model, effort or access, after-worktree takes the command away and trackers empties the list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "the project's name, or its id when two share a name"
+        },
+        "agent": {
+          "type": "string",
+          "description": "the agent a new thread on it runs, one of claude, codex, opencode, cursor"
+        },
+        "model": {
+          "type": "string",
+          "description": "the model a new thread on it starts on, by the agent's own slug"
+        },
+        "effort": {
+          "type": "string",
+          "description": "the effort a new thread on it starts at, by the agent's own word"
+        },
+        "access": {
+          "type": "string",
+          "description": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+        },
+        "after_worktree": {
+          "type": "string",
+          "description": "a shell line a new worktree of the project runs once at its top, after each ecosystem's own install"
+        },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "the whole list of repos, each owner/name, besides the project's own that gh on a sub-thread's machine may comment on"
+        },
+        "reset": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "model",
+              "effort",
+              "access",
+              "after-worktree",
+              "trackers"
+            ]
+          },
+          "description": "fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "computer": {
+              "type": "string"
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "folder"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "path"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "git"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "github"
+                    },
+                    "repo": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "repo"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "gitlab"
+                    },
+                    "repo": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "repo"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "remote": {
+              "type": "string"
+            },
+            "defaultBranch": {
+              "type": "string"
+            },
+            "memoryKey": {
+              "type": "string"
+            },
+            "memoryDir": {
+              "type": "string"
+            },
+            "checkout": {
+              "type": "string"
+            },
+            "seeded": {
+              "type": "object",
+              "properties": {
+                "files": {
+                  "type": "integer"
+                },
+                "bytes": {
+                  "type": "integer"
+                },
+                "memory": {
+                  "type": "string",
+                  "enum": [
+                    "landed",
+                    "kept",
+                    "none"
+                  ]
+                },
+                "memoryFiles": {
+                  "type": "integer"
+                },
+                "commits": {
+                  "type": "integer"
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "files",
+                "bytes",
+                "memory",
+                "commits",
+                "at"
+              ],
+              "additionalProperties": false
+            },
+            "installed": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                },
+                "seconds": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "row",
+                "command",
+                "at",
+                "seconds"
+              ],
+              "additionalProperties": false
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "snapshotId": {
+                  "type": "string"
+                },
+                "builtAt": {
+                  "type": "string"
+                },
+                "lockfileSha": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "snapshotId",
+                "builtAt"
+              ],
+              "additionalProperties": false
+            },
+            "base": {
+              "type": "string"
+            },
+            "git": {
+              "type": "object",
+              "properties": {
+                "top": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "top"
+              ],
+              "additionalProperties": false
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "computer",
+            "source",
+            "path",
+            "remote",
+            "defaultBranch",
+            "memoryKey",
+            "memoryDir",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "defaults": {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "from": {
+                  "type": "string",
+                  "enum": [
+                    "named",
+                    "project",
+                    "default",
+                    "catalog"
+                  ]
+                }
+              },
+              "required": [
+                "value",
+                "from"
+              ],
+              "additionalProperties": false
+            },
+            "model": {
+              "$ref": "#/properties/defaults/properties/agent"
+            },
+            "effort": {
+              "$ref": "#/properties/defaults/properties/agent"
+            },
+            "access": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "auto-edit",
+                    "full",
+                    "plan"
+                  ]
+                },
+                "mode": {
+                  "type": "string"
+                },
+                "from": {
+                  "$ref": "#/properties/defaults/properties/agent/properties/from"
+                }
+              },
+              "required": [
+                "value",
+                "mode",
+                "from"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "agent"
+          ],
+          "additionalProperties": false
+        },
+        "afterWorktree": {
+          "type": "string"
+        },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "project",
+        "defaults"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "projects_set",
+    "description": "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. trackers is the whole list of repos besides the project's own, each owner/name, that gh on a sub-thread's machine may comment on, issues and pull requests both; every other gh write there stays refused. Answers what a new thread there now starts on, each value with where it came from, the after-worktree command and the trackers. reset puts a field back on the layer below: agent, model, effort or access, after-worktree takes the command away and trackers empties the list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "the project's name, or its id when two share a name"
+        },
+        "agent": {
+          "type": "string",
+          "description": "the agent a new thread on it runs, one of claude, codex, opencode, cursor"
+        },
+        "model": {
+          "type": "string",
+          "description": "the model a new thread on it starts on, by the agent's own slug"
+        },
+        "effort": {
+          "type": "string",
+          "description": "the effort a new thread on it starts at, by the agent's own word"
+        },
+        "access": {
+          "type": "string",
+          "description": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+        },
+        "after_worktree": {
+          "type": "string",
+          "description": "a shell line a new worktree of the project runs once at its top, after each ecosystem's own install"
+        },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "the whole list of repos, each owner/name, besides the project's own that gh on a sub-thread's machine may comment on"
+        },
+        "reset": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "model",
+              "effort",
+              "access",
+              "after-worktree",
+              "trackers"
+            ]
+          },
+          "description": "fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "computer": {
+              "type": "string"
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "folder"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "path"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "git"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "github"
+                    },
+                    "repo": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "repo"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "gitlab"
+                    },
+                    "repo": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "repo"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "remote": {
+              "type": "string"
+            },
+            "defaultBranch": {
+              "type": "string"
+            },
+            "memoryKey": {
+              "type": "string"
+            },
+            "memoryDir": {
+              "type": "string"
+            },
+            "checkout": {
+              "type": "string"
+            },
+            "seeded": {
+              "type": "object",
+              "properties": {
+                "files": {
+                  "type": "integer"
+                },
+                "bytes": {
+                  "type": "integer"
+                },
+                "memory": {
+                  "type": "string",
+                  "enum": [
+                    "landed",
+                    "kept",
+                    "none"
+                  ]
+                },
+                "memoryFiles": {
+                  "type": "integer"
+                },
+                "commits": {
+                  "type": "integer"
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "files",
+                "bytes",
+                "memory",
+                "commits",
+                "at"
+              ],
+              "additionalProperties": false
+            },
+            "installed": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                },
+                "seconds": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "row",
+                "command",
+                "at",
+                "seconds"
+              ],
+              "additionalProperties": false
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "snapshotId": {
+                  "type": "string"
+                },
+                "builtAt": {
+                  "type": "string"
+                },
+                "lockfileSha": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "snapshotId",
+                "builtAt"
+              ],
+              "additionalProperties": false
+            },
+            "base": {
+              "type": "string"
+            },
+            "git": {
+              "type": "object",
+              "properties": {
+                "top": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "top"
+              ],
+              "additionalProperties": false
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "computer",
+            "source",
+            "path",
+            "remote",
+            "defaultBranch",
+            "memoryKey",
+            "memoryDir",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "defaults": {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "from": {
+                  "type": "string",
+                  "enum": [
+                    "named",
+                    "project",
+                    "default",
+                    "catalog"
+                  ]
+                }
+              },
+              "required": [
+                "value",
+                "from"
+              ],
+              "additionalProperties": false
+            },
+            "model": {
+              "$ref": "#/properties/defaults/properties/agent"
+            },
+            "effort": {
+              "$ref": "#/properties/defaults/properties/agent"
+            },
+            "access": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "auto-edit",
+                    "full",
+                    "plan"
+                  ]
+                },
+                "mode": {
+                  "type": "string"
+                },
+                "from": {
+                  "$ref": "#/properties/defaults/properties/agent/properties/from"
+                }
+              },
+              "required": [
+                "value",
+                "mode",
+                "from"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "agent"
+          ],
+          "additionalProperties": false
+        },
+        "afterWorktree": {
+          "type": "string"
+        },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "project",
+        "defaults"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

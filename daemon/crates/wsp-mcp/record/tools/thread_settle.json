@@ -1,0 +1,382 @@
+{
+  "cloudOff": {
+    "name": "thread_settle",
+    "description": "Settles each thread (by id, or a prefix of it) and every thread under it: they fold into the person's Settled in the sidebar, as the app's Settle does, and come back by themselves on their next turn. A thread with a thread working or asking anywhere in its tree is left whole, with why, as is one already settled; with finished, each thread named stays and every finished thread under it settles, a failed one staying for the person to read and one with work under it left with why. A thread settles itself and the threads under it, never its lead or a thread beside it. Settle each child once its report is acted on. The answer lists what settled and what was left, with why.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "the threads' ids, or prefixes that each name one, as threads lists them"
+        },
+        "finished": {
+          "type": "boolean",
+          "description": "settle the finished threads under each thread named, and not the thread itself"
+        },
+        "processes": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "keep"
+          ],
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "settled": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "left": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "why"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ended": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "forced": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "freed": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pid",
+              "ended",
+              "forced",
+              "left"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "settled",
+        "left"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "thread_settle",
+    "description": "Settles each thread (by id, or a prefix of it) and every thread under it: they fold into the person's Settled in the sidebar, as the app's Settle does, and come back by themselves on their next turn. A thread with a thread working or asking anywhere in its tree is left whole, with why, as is one already settled; with finished, each thread named stays and every finished thread under it settles, a failed one staying for the person to read and one with work under it left with why. A thread settles itself and the threads under it, never its lead or a thread beside it. Settle each child once its report is acted on. The answer lists what settled and what was left, with why.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "the threads' ids, or prefixes that each name one, as threads lists them"
+        },
+        "finished": {
+          "type": "boolean",
+          "description": "settle the finished threads under each thread named, and not the thread itself"
+        },
+        "processes": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "keep"
+          ],
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run. A thread on a cloud machine is not read and goes as before"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "settled": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "left": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "why"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ended": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "forced": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "freed": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pid",
+              "ended",
+              "forced",
+              "left"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "settled",
+        "left"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

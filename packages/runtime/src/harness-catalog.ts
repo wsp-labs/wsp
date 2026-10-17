@@ -1,0 +1,308 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// What each harness's CLI accepts at launch, as its own binary spells it, so
+// the composer's pickers offer only values the CLI will take. This table is
+// the fallback: an adapter that probes reads its lists from the binary on the
+// workspace's machine when it answers (catalogFromProbe), and the table lends
+// it the labels and descriptions the binary has no words for. Each row carries
+// the pin it was read against, its own command, version and day, since a row
+// that borrowed another agent's pin would tell the person the wrong thing
+// about the list in front of them. Gemini CLI, Pi and Hermes have no adapter
+// yet; their catalogs name the flags their CLIs document, so they carry no pin
+// of our own reading and the pickers are right the day one lands.
+// A list is empty where the CLI has no such flag or takes open values.
+import { CLAUDE_SCREEN_COMMANDS } from "@wsp/adapter-claude";
+import { DEFAULT_MODE, FORCE_MODE } from "@wsp/adapter-cursor";
+import { AUTO_MODE } from "@wsp/adapter-opencode";
+import { CATALOG_AGENTS, CLAUDE_CODE } from "@wsp/catalog";
+import { everyModel, notRunRefusal } from "@wsp/protocol";
+import type { HarnessCatalog, HarnessCatalogProbe, HarnessModel, HarnessOption } from "@wsp/protocol";
+import type { ToolAsks } from "./slate-mcp.js";
+
+/** What one row's table was read against: what was run on the row's own binary, the version it reported and the day it
+ * was read. A row served from the table carries this as its version, and the footer names the agent beside it, so the
+ * binary's own name is not repeated here. */
+interface TablePin {
+  /** What followed the binary, as it was typed: the flag or subcommand whose answer the lists below came from. */
+  read: string;
+  version: string;
+  date: string;
+}
+
+const option = (value: string, label: string, description?: string): HarnessOption => ({
+  value,
+  label,
+  ...(description !== undefined ? { description } : {}),
+});
+
+const capitalize = (value: string): string => (value === "xhigh" ? "Extra high" : value.charAt(0).toUpperCase() + value.slice(1));
+
+/** Effort levels in the CLI's own order, with the one a turn that names none runs marked, where the CLI has one. */
+const levels = (values: readonly string[], isDefault?: string): HarnessOption[] =>
+  values.map(value => (value === isDefault ? { ...option(value, capitalize(value)), isDefault: true } : option(value, capitalize(value))));
+
+const CLAUDE_CONTEXT_WINDOWS: HarnessOption[] = [option("200k", "200k"), { ...option("1m", "1M"), isDefault: true }];
+
+// The handshake lists each model's levels and names no default; the CLI documents high on every model that takes one (code.claude.com/docs/en/model-config, Adjust effort level).
+// The binary's baked-in table gives Opus 5.5 medium instead; harness-catalog.test.ts pins that difference and why high stays.
+const CLAUDE_EFFORTS: HarnessOption[] = levels(["low", "medium", "high", "xhigh", "max"], "high");
+
+// The table alone cannot say whether a harness steers, whether it keeps a person's name for a session, or whether it
+// reads an image: only its adapter, on a machine, knows any of the three. A client reads a table row as no answer
+// (keepsRename, readsImages), never as a no. mcpServers and asides are not among them: no binary decides either, so a
+// row names them here and adapters.test.ts pins every row to its adapter's own declaration.
+const fromTable = (
+  catalog: Omit<HarnessCatalog, "source" | "version" | "contextWindows" | "steers" | "renames" | "images"> & { contextWindows?: HarnessOption[]; pin?: TablePin },
+): HarnessCatalog => {
+  const { pin, ...rest } = catalog;
+  // The mode that asks nobody is where a thread starts until the person sets another for that agent or project.
+  const permissionModes = rest.permissionModes.map(o => (o.value === rest.bypassMode ? { ...o, isDefault: true } : o));
+  return {
+    source: "table",
+    version: pin === undefined ? null : `${pin.read} ${pin.version}, ${pin.date}`,
+    contextWindows: [],
+    steers: false,
+    renames: false,
+    images: false,
+    ...rest,
+    permissionModes,
+  };
+};
+
+export const HARNESS_CATALOGS: readonly HarnessCatalog[] = [
+  fromTable({
+    harness: "claude",
+    label: "Claude Code",
+    // The models below are the pinned binary's handshake; harness-catalog.test.ts holds them to its recording.
+    pin: { read: "--help", version: CLAUDE_CODE.version, date: "2026-10-10" },
+    // --mcp-config takes the servers as JSON on the launch (read off `claude --help` at 2.1.257, 2026-09-10).
+    mcpServers: true,
+    // A side question runs on a fork of the session, which the adapter makes; no binary decides it.
+    asides: true,
+    // Its control channel takes a mode change while a turn runs, and the prompt that turn is stopped on is answered
+    // with it, so an access picked mid-turn lands on the turn in front of the person.
+    movesAccess: true,
+    // A user message written to stream-json mid-turn takes image blocks as the opening one does.
+    steersImages: true,
+    screenCommands: [...CLAUDE_SCREEN_COMMANDS],
+    // The cheapest of the four at $0.10/$0.50 per Mtok, as the CLI's own handshake prices them (read 2026-10-10).
+    smallModel: "claude-haiku-5-5",
+    models: [
+      { ...option("claude-opus-5-5", "Opus 5.5"), isDefault: true, fast: true, efforts: ["low", "medium", "high", "xhigh", "max"], contextWindows: [] },
+      { ...option("claude-fable-5-1", "Fable 5.1"), efforts: ["low", "medium", "high", "xhigh", "max"], contextWindows: [] },
+      { ...option("claude-sonnet-5-5", "Sonnet 5.5"), efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "medium", contextWindows: [] },
+      { ...option("claude-haiku-5-5", "Haiku 5.5"), efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "medium", contextWindows: [] },
+    ],
+    // The pinned binary's own model catalog, which harness-catalog.test.ts holds these to: each is run as named, with
+    // the levels, default and 1M suffix it lists. Opus 4.0 and 4.1 are run as the latest Opus and Sonnet 4.0 is retired.
+    legacyModels: [
+      { ...option("claude-opus-5", "Opus 5"), fast: true, efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "high", contextWindows: ["200k", "1m"] },
+      { ...option("claude-opus-4-8", "Opus 4.8"), fast: true, efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "high", contextWindows: ["200k", "1m"] },
+      { ...option("claude-opus-4-7", "Opus 4.7"), fast: true, efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "xhigh", contextWindows: ["200k", "1m"] },
+      { ...option("claude-opus-4-6", "Opus 4.6"), fast: true, efforts: ["low", "medium", "high", "max"], contextWindows: ["200k", "1m"] },
+      { ...option("claude-opus-4-5", "Opus 4.5"), fast: true, efforts: [], contextWindows: ["200k", "1m"] },
+      { ...option("claude-fable-5", "Fable 5"), efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "high", contextWindows: [] },
+      { ...option("claude-sonnet-5", "Sonnet 5"), efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "high", contextWindows: [] },
+      { ...option("claude-sonnet-4-6", "Sonnet 4.6"), efforts: ["low", "medium", "high", "max"], contextWindows: ["200k", "1m"] },
+      { ...option("claude-sonnet-4-5", "Sonnet 4.5"), efforts: [], contextWindows: ["200k", "1m"] },
+      { ...option("claude-haiku-4-5-20251001", "Haiku 4.5"), efforts: [], contextWindows: [] },
+    ],
+    efforts: CLAUDE_EFFORTS,
+    contextWindows: CLAUDE_CONTEXT_WINDOWS,
+    // default is the mode this CLI raises its own prompts in: with --permission-prompt-tool they reach the host over
+    // the control channel and the person answers them in the chat (measured on 2.1.263, 2026-09-08). Plan maps to
+    // none: a headless plan turn's exit prompt is unmeasured over stream-json.
+    access: { ask: "default", "auto-edit": "acceptEdits", full: "bypassPermissions" },
+    bypassMode: "bypassPermissions",
+    // A reviewer's mode: every action that needs permission refused without asking, Bash included, so it reads and
+    // changes nothing; the diff rides its task. wsp offers no plan mode, though the binary lists one.
+    readOnlyMode: "dontAsk",
+    permissionModes: [
+      option("default", "Default", "Asks in the chat about each action that needs permission"),
+      option("acceptEdits", "Accept edits", "Edits files without asking; asks about commands that need permission"),
+      option("bypassPermissions", "Bypass", "Runs every action without asking"),
+      option("auto", "Auto", "The agent decides which actions to ask about; where the account has no such mode it asks as Default does"),
+      // A turn launched in manual comes back naming default as the mode it ran in, so its own report is no proof of it.
+      option("manual", "Manual", "Asks before every action"),
+      option("dontAsk", "Don't ask", "Refuses any action that needs permission, without asking"),
+    ],
+  }),
+  fromTable({
+    harness: "codex",
+    label: "Codex",
+    // The models and their efforts as the app-server's model/list answered them, each with the effort it reports for
+    // that model; the sandbox modes are the choices `codex --help` prints for -s. No codex model runs at two context
+    // windows, so it takes no window at all.
+    pin: { read: "app-server", version: "0.153.0", date: "2026-09-07" },
+    // Servers ride the launch as `-c mcp_servers.<name>...` overrides (checked with `codex mcp get` on 0.155.1).
+    mcpServers: true,
+    asides: true,
+    // The oldest generation model/list still offers, and the cheapest of them.
+    smallModel: "gpt-5.2",
+    models: [
+      { ...option("gpt-5.6-sol", "GPT-5.6-Sol"), isDefault: true, fast: true, efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], defaultEffort: "low" },
+      { ...option("gpt-5.6-terra", "GPT-5.6-Terra"), fast: true, efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], defaultEffort: "medium" },
+      { ...option("gpt-5.6-luna", "GPT-5.6-Luna"), fast: true, efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "medium" },
+    ],
+    // A generation behind 5.6; model/list names every model the binary runs, these two among them.
+    legacyListed: true,
+    legacyModels: [
+      { ...option("gpt-5.5", "GPT-5.5"), fast: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" },
+      { ...option("gpt-5.2", "GPT-5.2"), efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" },
+    ],
+    efforts: levels(["low", "medium", "high", "xhigh", "max", "ultra"], "low"),
+    // A sandboxed mode asks the person in the chat before the agent goes past its sandbox, over the app server's
+    // approval requests; no sandbox edits files without asking and runs nothing past it, so auto-edit maps to none.
+    access: { ask: "workspace-write", full: "danger-full-access", plan: "read-only" },
+    bypassMode: "danger-full-access",
+    // Sandboxed with on-request approvals, 0.155.1 called a tool marked readOnlyHint unasked and held one with no hints
+    // and a destructive one for approval (measured 2026-10-13); Claude Code 2.1.296 at default asked before all three.
+    readOnlyToolsFree: true,
+    // A reviewer's mode: the sandbox stops every write, .git included, so the diff rides its task.
+    readOnlyMode: "read-only",
+    permissionModes: [
+      option("read-only", "Read only", "Reads only; edits no files and runs no command that writes"),
+      option("workspace-write", "Workspace write", "Edits files and runs commands inside the working folder"),
+      option("danger-full-access", "Full access", "Runs every action without asking, with no folder off limits"),
+    ],
+  }),
+  fromTable({
+    harness: "gemini",
+    label: "Gemini CLI",
+    models: [],
+    efforts: [],
+    bypassMode: "yolo",
+    permissionModes: [
+      option("default", "Default", "Asks before every action"),
+      option("auto_edit", "Auto edit", "Edits files without asking"),
+      option("yolo", "Yolo", "Runs every action without asking"),
+    ],
+  }),
+  fromTable({
+    harness: "opencode",
+    label: "OpenCode",
+    // Models and their variants come off `opencode models --verbose` on the machine; the table has none of its own.
+    pin: { read: "run --help", version: "1.18.18", date: "2026-09-27" },
+    models: [],
+    efforts: [],
+    // Its one mode runs every action without asking, so full is the one word it takes.
+    access: { full: AUTO_MODE },
+    bypassMode: AUTO_MODE,
+    // Its one mode: a thread starts there on every kind of workspace, since the mode that would ask has nobody to ask.
+    permissionModes: [option(AUTO_MODE, "Auto", "Runs every action without asking, save what its own settings deny: a headless run has nobody to ask")],
+  }),
+  fromTable({
+    harness: "pi",
+    label: "Pi",
+    models: [],
+    efforts: levels(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
+    permissionModes: [],
+  }),
+  fromTable({
+    harness: "hermes",
+    label: "Hermes Agent",
+    models: [],
+    efforts: levels(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]),
+    bypassMode: "yolo",
+    permissionModes: [option("default", "Default", "Asks before a command that could do damage"), option("yolo", "Yolo", "Runs a command that could do damage without asking")],
+  }),
+  fromTable({
+    harness: "cursor",
+    label: "Cursor",
+    // No model list without a sign-in, so any model name passes to --model and the CLI answers for it.
+    pin: { read: "-h", version: "2026.09.26-dd393fe", date: "2026-09-27" },
+    models: [],
+    efforts: [],
+    // Its default proposes and applies nothing, which is what plan asks for.
+    access: { full: FORCE_MODE, plan: DEFAULT_MODE },
+    bypassMode: FORCE_MODE,
+    permissionModes: [
+      option(DEFAULT_MODE, "Default", "Proposes changes and runs no command; applies nothing"),
+      option(FORCE_MODE, "Force", "Edits files and runs every command without asking, save what its own settings deny"),
+    ],
+  }),
+];
+
+export function harnessCatalog(harness: string): HarnessCatalog | undefined {
+  return HARNESS_CATALOGS.find(c => c.harness === harness);
+}
+
+/** When a thread's agent asks before an MCP tool at the mode its turns run at, which a slate's tool runs follow: never
+ * at its bypass. A start stamps the row's marked mode, its bypass, so a thread names none only from before that; Claude
+ * Code and Codex launch such a thread at their bypass, and it reads as bypass for every agent here. */
+export function toolAsks(harness: string | undefined, mode: string | undefined): ToolAsks {
+  const row = harness === undefined ? undefined : harnessCatalog(harness);
+  if (mode === undefined || mode === row?.bypassMode) return "never";
+  return row?.readOnlyToolsFree === true ? "unless-read-only" : "every";
+}
+
+/** A model a binary's lists refused that this table carries, said as that binary's version not running it, with its
+ * agent's update where the binary is older than this table. */
+export function notRunRefused(lists: HarnessCatalog | undefined, model: string | undefined): Error | null {
+  return lists === undefined ? null : notRunRefusal(lists, harnessCatalog(lists.harness), model, CATALOG_AGENTS.find(a => a.id === lists.harness)?.updateLine);
+}
+
+/** Models an agent newer than its pin runs and the usage ledger meets in its logs: named, never offered at a start. */
+export const NAMED_ONLY: readonly HarnessOption[] = [option("gpt-6-astra", "GPT-6-Astra")];
+
+/** A model as a person reads it: its label in any agent's table, found as an agent names it, with a provider in front
+ * or a date after it; else a name built from its words, a version's numbers joined by dots; an empty id is no model. */
+export function modelLabel(model: string): string {
+  if (model === "") return "Model not named";
+  const bare = model.slice(model.lastIndexOf("/") + 1);
+  const undated = (id: string): string => id.replace(/-\d{8}$/, "");
+  const known = [...HARNESS_CATALOGS.flatMap(everyModel), ...NAMED_ONLY];
+  const found = known.find(o => o.value === bare) ?? known.find(o => undated(o.value) === undated(bare));
+  if (found !== undefined) return found.label;
+  const words = undated(bare).split("-").filter(w => w !== "");
+  const numeric = (w: string | undefined): boolean => w !== undefined && /^\d+$/.test(w);
+  return words.map((w, i) => (numeric(w) && numeric(words[i - 1]) ? `.${w}` : ` ${w.charAt(0).toUpperCase()}${w.slice(1)}`)).join("").trimStart() || bare;
+}
+
+/** The model a thread's title question runs on: the harness row's own smallest, where the catalog in front of us
+ * still lists it. Nothing where the harness names none and where the binary no longer offers the one it named, and
+ * the question then runs on whatever that CLI runs without a model. */
+export function smallestModel(catalog: HarnessCatalog | undefined): string | undefined {
+  if (catalog?.smallModel === undefined) return undefined;
+  return everyModel(catalog).some(m => m.value === catalog.smallModel) ? catalog.smallModel : undefined;
+}
+
+/** The binary's lists in the wire shape: its values and defaults win, the table lends labels and descriptions it knows.
+ * The table's legacy models are read against the answer as the row's legacyListed says.
+ * A model whose efforts the binary did not name keeps none of its own, so every effort the catalog lists stays open to
+ * it; each model carries the effort the binary reports for it, and the catalog's own mark is the one it reports for
+ * the model it would run, else the table's mark, which effortsFor reads for a model that names none. */
+export function catalogFromProbe(table: HarnessCatalog, probe: HarnessCatalogProbe): HarnessCatalog {
+  const known = (list: readonly HarnessOption[], value: string): HarnessOption | undefined => list.find(o => o.value === value);
+  const heard: HarnessModel[] = probe.models.map(m => ({
+    value: m.slug,
+    label: known(everyModel(table), m.slug)?.label ?? m.label,
+    ...(m.description !== undefined ? { description: m.description } : {}),
+    ...(m.isDefault ? { isDefault: true } : {}),
+    ...(m.efforts !== undefined ? { efforts: [...m.efforts] } : {}),
+    ...(m.defaultEffort !== undefined ? { defaultEffort: m.defaultEffort } : {}),
+    contextWindows: [...m.contextWindows],
+    ...((m.fast ?? everyModel(table).find(t => t.value === m.slug)?.fast) === true ? { fast: true } : {}),
+  }));
+  const listsLegacy = table.legacyListed === true;
+  const folded = (m: HarnessModel): boolean => listsLegacy && m.isDefault !== true && table.legacyModels?.some(l => l.value === m.value) === true;
+  const models = heard.filter(m => !folded(m));
+  const legacyModels = table.legacyModels === undefined ? undefined : listsLegacy ? heard.filter(folded) : table.legacyModels.filter(l => !heard.some(m => m.value === l.value));
+  // The binary named the effort its default model runs at, so its mark replaces the table's; where it named none the
+  // table's own mark stands, and the picker shows a default either way.
+  const defaultEffort = probe.models.find(m => m.isDefault)?.defaultEffort;
+  const effort = (value: string): HarnessOption => {
+    const base = known(table.efforts, value) ?? option(value, capitalize(value));
+    if (defaultEffort === undefined) return base;
+    const { isDefault: _fromTable, ...rest } = base;
+    return value === defaultEffort ? { ...rest, isDefault: true } : rest;
+  };
+  return {
+    ...table,
+    source: "harness",
+    version: probe.version,
+    models,
+    ...(legacyModels !== undefined ? { legacyModels } : {}),
+    efforts: probe.efforts.map(effort),
+    permissionModes: probe.permissionModes.map(value => known(table.permissionModes, value) ?? option(value, value)),
+  };
+}

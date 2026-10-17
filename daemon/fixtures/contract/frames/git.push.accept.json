@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "op": "git.push",
+    "cwd": "repo",
+    "base": "main"
+  },
+  {
+    "id": 2,
+    "op": "git.push",
+    "cwd": "repo"
+  },
+  {
+    "id": 1,
+    "op": "git.push",
+    "cwd": "/root/repo",
+    "base": "main",
+    "machineId": "wsp-a"
+  },
+  {
+    "id": 9,
+    "op": "git.push",
+    "cwd": "/root/acme",
+    "base": "main",
+    "token": "wsp-op-token-1"
+  }
+]

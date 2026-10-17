@@ -1,0 +1,1032 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Served by Vite to a real browser: the app shell over a fake api with three
+// workspaces (running, paused, gone) and four threads, in either theme
+// (?theme=light, each side's theme by id with ?lightTheme= and ?darkTheme=), with a toast over the centre pane (?toast=...) and with the
+// runtime replacing the first machine's helper (?helper=1) or the first
+// machine's link dropped after a near-full memory sample (?oom=1) or the
+// napping machine's last vault refused for its size (?vault=1), so a test
+// can measure the chrome's geometry, which jsdom cannot lay out. With
+// ?ws=<id> the centre holds that workspace's thread and composer, so the
+// refusal line above the box can be measured for the running, paused and gone
+// workspaces and the model picker's agent marks for their size and colour;
+// ?ws=ws_a&linger=1 replays a turn that replied but whose process has not
+// exited; ?ws=ws_a&chat=1 replays one whose reply is markdown of every kind the
+// chat draws, so the message body and its code blocks can be measured, and
+// whose init announced the CLI's slash commands, its own screens among them;
+// ?local=1&ws=ws_m&perm=1 replays a turn on this computer with one permission
+// prompt answered and one still open, so the relayed prompt row can be laid
+// out and photographed in both states, and an option clicked or an access
+// picked closes it the way the runtime's event does; &access=refused has that
+// turn's harness refuse the change its own row said it takes, which is the one
+// refusal the composer says under the box; &answer=not-found has the host refuse
+// a pick, which the prompt says under its options; ?local=1&ws=ws_m&fold=1 replays one
+// that fanned out to three subagents, one holding a prompt of its own and one
+// launched in the background, so a fold's body can be measured against its
+// header; ?shell=desktop puts a desktop bridge on the page so the workspace
+// switch chord reaches it; ?mac=1 marks the html the way the macOS preload
+// does; ?panel=terminal opens the right panel with a Browser tab and a
+// terminal over a fake daemon wire, the host answering a translucent Ghostty
+// config, so the pane's material can be measured with each tab active;
+// ?sidebar=<px> opens the sidebar at that remembered width so the rows can
+// be measured at several; ?spaces=1 opens it in the Spaces body, one
+// workspace under its header with an icon per workspace at the bottom;
+// ?look=1 gives the first two workspaces a theme and the first a glyph of its own,
+// ?many=<n> adds n more running forks so the space bar overflows;
+// ?archived=1 gives the first workspace two threads read and quiet for days, so
+// the Settled fold can be measured shut and opened;
+// ?inbox=<glyph> puts a sub-thread and a top-level thread in the Needs you inbox, the
+// project drawn in that glyph, so the mark on a sub-thread's glyph can be photographed;
+// ?images=<n> puts n images in the composer so the thumbnail row above the
+// text can be measured; ?size=file is the record saying the terminal's text size comes
+// from the Ghostty file; ?local=1 puts this computer in the list beside the
+// cloud machines, so a mixed list of both kinds can be measured; ?projects=1
+// gives the first workspace two projects, its threads folders inside them and
+// the record a last project for it, so the composer's project pick, the folder
+// line under the box and the thread rows' project word can be measured, and
+// this computer the same two and a third with a long name; ?efforts=1 gives
+// the claude row its effort and context lists so the composer's row carries
+// every picker; ?panel=preview opens the right panel inline with nothing in
+// it, the narrowest the centre column gets at a width; ?panel=browser&at=<address>
+// opens it on a browser tab framing that address, so the bar can be measured
+// with a path and a query in it; ?export=1 opens the dialog that brings a
+// folder home on ws_a; ?panel=machine opens the right panel on the Machine tab of
+// the workspace ?ws names, so its PROJECTS section can be measured with two
+// projects (ws_a under ?projects=1) and with none;
+// ?places=1 fills the places list with four computers, one of them
+// away with the longest name the spec draws; ?init=building puts the init job
+// mid-build so the cloud row's progress line can be measured; ?version=behind holds a shell older than the host that
+// served the page, so the one line the app says about it can be measured; ?host=1 runs the host-event rules on a
+// prompt and a dead thread, so the notices they raise can be photographed; ?toast= takes &kind= and &action= for
+// each kind of notice; ?silent=1 has the running and the napping machine both read no daemon, under the app's own
+// workspace-line rule, so only the running one is said. ?switcher=1 adds six
+// threads over two more projects, every workspace on a named computer and
+// each project a glyph and a hue of its own, so the switcher's row is full
+// past its six cards. ?pick=1 holds three projects, two on this Mac and one
+// on a joined box, with New thread set to ask, and opens the palette on the
+// page of projects it picks from; ?settings=general opens Settings on its
+// General page, ?settings=appearance on Appearance, ?settings=computer&places=1 on
+// the hetzner box's own page, whose crumbs carry the back chevron; ?linux=1 holds the page as
+// the Linux app's window does, the bridge on it and no Mac glass; ?panel=pr&ws=ws_a opens the Pull request pane on PR 838 (&pr=merged once merged, &pr=closed as it
+// stands, closed with its checks kept).
+import { useEffect } from "react";
+import { createRoot } from "react-dom/client";
+import { DAEMON_UPDATING, DEFAULT_PREFERENCES, DEFAULT_THEME, DESKTOP_MAC_CLASS, DESKTOP_WCO_CLASS, GOLDEN_STAGE_WORDS, SIGN_IN_OPEN_STATE, THEME_PRESETS, vaultOverCapLine, type HarnessCatalog, type ProjectIcon, type SessionEvent, type SessionView, type TerminalConfig, type WorkspaceView } from "@wsp/protocol";
+import { statusOf } from "../workspace-status";
+import { TooltipProvider } from "../../src/components/ui/tooltip";
+import type { Api, ProtocolEvent } from "../../src/protocol/client";
+import { getLive } from "../../src/machine/live";
+import { useHomeProject, useStore } from "../../src/protocol/store";
+import { ProjectHome } from "../../src/shell/ProjectHome";
+import { openCommandPalette } from "../../src/commandPaletteBus";
+import { openComputerSettings, openSettingsGroup } from "../../src/settings/openAt";
+import { useHostNotices } from "../../src/notices/hostNotices.js";
+import { addNotice, type NoticeKind } from "../../src/notices/store.js";
+import { useWorkspaceLineNotices } from "../../src/notices/workspaceLines.js";
+import { RIGHT_PANEL_WIDTH_STORAGE_KEY, useRightPanelStore } from "../../src/rightPanelStore";
+import { PR838_CLOSED, PR838_DIFF, PR838_FACT, PR838_MERGED, PR838_PAGE, pr838FactLately, pr838Lately } from "../fixtures/pr838";
+import { getBrowser } from "../../src/browser/model";
+import { recentsKey } from "../../src/browser/recents";
+import { useBrowserTabs } from "../../src/browser/tabs";
+import { useSshConsent } from "../../src/files/EditorConsent";
+import { parseAddress } from "../../src/browser/url";
+import { AppShell } from "../../src/shell/AppShell";
+import { useShellVersionEffect } from "../../src/shell/shellVersion";
+import { openPanelTerminal } from "../../src/shell/shellCommands";
+import { WorkspaceThread } from "../../src/shell/WorkspaceThread";
+import { useComposerFilesStore } from "../../src/components/chat/composerFiles";
+import { useComposerDraftStore } from "../../src/components/chat/composerDraftStore";
+import { requestProjectTrip } from "../../src/shell/shellRequests";
+import { openForkDraft } from "../../src/components/chat/ForkDialog";
+import { GhosttyTerminalSurface } from "../../src/terminal/ghostty/surface";
+import { provideTerminals, WorkspaceTerminals, type TerminalWire } from "../../src/terminal/link";
+import { applyTheme, useTransparencyEffect } from "../../src/settings/theme";
+import "../../src/index.css";
+import { caps } from "../caps.js";
+import { noDaemonApi } from "../fake-daemon-api.js";
+import { ACCESS_MODES } from "../fixtures/access-modes";
+
+const params = new URLSearchParams(window.location.search);
+const theme = params.get("theme") === "light" ? "light" : "dark";
+/** Each side's theme, by id (?lightTheme=, ?darkTheme=), the record's defaults where the query names none. */
+const picks = { lightTheme: params.get("lightTheme") ?? DEFAULT_PREFERENCES.lightTheme, darkTheme: params.get("darkTheme") ?? DEFAULT_PREFERENCES.darkTheme };
+applyTheme({ theme, ...picks }, theme === "dark");
+document.documentElement.classList.toggle(DESKTOP_MAC_CLASS, params.get("mac") === "1");
+// The bridge alone tells the page which shell holds it; with ?shell=desktop the chords a browser tab keeps for its
+// own tabs reach the page, which is what the switcher's chord needs. It carries the two picture calls, which is what
+// the switcher's well reads, and neither answers with a picture, so the wells draw empty.
+if (params.get("shell") === "desktop") {
+  window.wsp = { capturePreview: async () => undefined, workspacePreview: async () => undefined };
+}
+if (params.get("linux") === "1") {
+  document.documentElement.classList.add(DESKTOP_WCO_CLASS);
+  window.wsp = { ...window.wsp };
+}
+// The desktop's road: the folder picker is what a dialog draws for a folder on this computer.
+if (params.get("export") === "1") window.wsp = { ...window.wsp, pickFolder: async () => undefined };
+
+const view = (id: string, name: string, phase: WorkspaceView["phase"] = "running"): WorkspaceView => ({
+  id,
+  name,
+  machineId: `m_${id}`, project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" },
+  phase,
+  golden: "snap_g",
+  createdAt: "2026-09-05T11:00:00Z",
+});
+// The second workspace's copy is on a branch, so its row carries the meta line the two branchless rows have not.
+const cloud: WorkspaceView[] = [
+  view("ws_a", "api"),
+  { ...view("ws_b", "web", "napping"), worktree: { path: "/root/web", branch: "lockfile-bump", made: true } },
+  { ...view("ws_c", "old", "gone"), gone: "machine m_ws_c is gone at the provider: Not found" },
+];
+// ?vault=1: the napping workspace's last nap could not store a vault, so its row says the machine has no backup
+// since the day of the one that stands and the Machine tab names the cap the export was cut against.
+if (params.get("vault") === "1") Object.assign(cloud[1]!, { vaultedAt: "2026-09-08T07:10:04.444Z", vaultRefused: vaultOverCapLine(677_178_573, 209_715_200) });
+// ?projects=1: two projects on the first workspace, as two imports leave them, with the sizes the imports measured.
+const PROJECTS = [
+  { name: "spoo", dest: "/root/spoo", importedAt: "2026-09-04T10:00:00Z", size: 48_200_000 },
+  { name: "wsp", dest: "/root/wsp", importedAt: "2026-09-05T09:30:00Z", size: 133_000_000 },
+];
+const projects = params.get("projects") === "1";
+if (projects) Object.assign(cloud[0]!, { projects: PROJECTS });
+// ?local=1 adds this computer to the list, so a mixed list can be measured: two cloud rows and one local beside them.
+// With ?longproject=1 its project has a name longer than the composer's picker row is wide in a narrow window: the one
+// label a person names, which no width bounds.
+const LONG_PROJECT = { id: "pr_long", name: "customer-billing-service-platform", path: "/Users/zingzy/customer-billing-service-platform", computer: "default" };
+const MAC: WorkspaceView = { ...view("ws_m", "zingzy-mac"), kind: "local", machineId: "local", project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" }, golden: "", ...(projects ? { project: { id: "pr_api", name: "the-project", path: "/root", computer: "default" } } : {}), ...(params.get("longproject") === "1" ? { project: LONG_PROJECT } : {}) };
+// ?conversations=1 holds no workspace, so nothing is selected and the centre is a project's New thread page.
+const workspaces = params.get("conversations") === "1" ? [] : params.get("local") === "1" ? [...cloud, MAC] : cloud;
+// ?look=1 gives the first two workspaces a theme and the first a glyph of its own, and leaves the rest with neither, so
+// one page holds two themed spaces, a plain one and, with ?local=1, every kind's own glyph on the bar. The
+// first theme is a preset at the default grain and opacity; the second has three colours, grain and its own side pinned.
+if (params.get("look") === "1") {
+  Object.assign(workspaces[0]!, { theme: { ...DEFAULT_THEME, dots: [...THEME_PRESETS[1]!.dots], harmony: THEME_PRESETS[1]!.harmony }, glyph: "flask" });
+  Object.assign(workspaces[1]!, { theme: { ...DEFAULT_THEME, dots: [...THEME_PRESETS[2]!.dots], harmony: THEME_PRESETS[2]!.harmony, grain: 0.5, opacity: 0.7, mode: "dark" } });
+}
+// ?many=<n> adds n more running forks, so the space bar can be measured once its icons outgrow the footer.
+for (let i = 0; i < Number(params.get("many") ?? 0); i++) workspaces.push(view(`ws_x${i}`, `extra-${i}`));
+// The ticket's rows: long titles with the agent and both opener words. ws_a mixes a working thread with an idle
+// one; ws_b has only idle ones, the shape that used to draw no Idle header at all, one of them on Codex so both a
+// coloured and a monochrome agent mark sit in the shots.
+// Two of the first workspace's threads read and quiet for days, the interrupted one settled by hand, added only with
+// ?archived=1 so every other case keeps the four rows it measures: they fold into Settled at the foot of the list,
+// which is what the fold's own case reads.
+const archived: SessionView[] = params.get("archived") !== "1"
+  ? []
+  : [
+      { id: "s5", threadId: "s5", workspaceId: "ws_a", harness: "claude", status: "completed", prompt: "Rotate the daemon token and restart the host.", startedBy: "person", startedAt: Date.now() - 3 * 24 * 60 * 60_000, endedAt: Date.now() - 2 * 24 * 60 * 60_000, readAt: Date.now() - 2 * 24 * 60 * 60_000 },
+      { id: "s6", threadId: "s6", workspaceId: "ws_a", harness: "codex", status: "interrupted", prompt: "Drop the preview shim from the packing list.", startedBy: "cli", startedAt: Date.now() - 9 * 24 * 60 * 60_000, endedAt: Date.now() - 8 * 24 * 60 * 60_000, readAt: Date.now() - 8 * 24 * 60 * 60_000, settledAt: Date.now() - 7 * 24 * 60 * 60_000 },
+    ];
+// ?tones=1 adds a thread that failed and one waiting on a question, so the sidebar shows every state word's tone.
+const toned: SessionView[] = params.get("tones") !== "1"
+  ? []
+  : [
+      { id: "s13", threadId: "s13", workspaceId: "ws_b", harness: "claude", status: "failed", prompt: "Rebuild the search index.", startedBy: "person", startedAt: Date.now() - 20 * 60_000, endedAt: Date.now() - 15 * 60_000 },
+      { id: "s14", threadId: "s14", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Write the release notes.", startedBy: "person", startedAt: Date.now() - 10 * 60_000, asking: "Which version goes out?" } as SessionView,
+    ];
+// ?inbox=<glyph> adds a lead with a child waiting on a question and a thread of its own waiting on one, so the Needs
+// you inbox holds a sub-thread's tile beside a top-level one, and gives the first workspace's project that glyph.
+const inboxGlyph = params.get("inbox") as ProjectIcon | null;
+const inbox: SessionView[] = inboxGlyph === null
+  ? []
+  : [
+      { id: "s15", threadId: "s15", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Coordinator: the marathon", startedBy: "person", startedAt: Date.now() - 50 * 60_000 },
+      { id: "s16", threadId: "s16", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Build: box thread in the project", startedBy: "agent", parentThreadId: "s15", startedAt: Date.now() - 20 * 60_000, asking: "Run pnpm install?" } as SessionView,
+      { id: "s17", threadId: "s17", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Probe: send latency on the relay", startedBy: "person", startedAt: Date.now() - 15 * 60_000, asking: "Which relay?" } as SessionView,
+    ];
+// ?working=<n> adds n working threads to the first workspace, the first four begun 17 min, 19 min, 3 min and 42 s ago,
+// so working tiles can be photographed beside each other and a trace can hold many.
+const WORKING_AGES_MS = [17 * 60_000, 19 * 60_000, 3 * 60_000, 42_000];
+const working: SessionView[] = Array.from({ length: Number(params.get("working") ?? 0) }, (_, i) => ({
+  id: `s_w${i}`, threadId: `s_w${i}`, workspaceId: "ws_a", harness: i % 3 === 2 ? "codex" : "claude", status: "running", prompt: ["Fix the cart total rounding.", "Move the tax tables into one module.", "Retry the failed invoice webhooks.", "Shrink the hero image under 200 KB."][i % 4]!, startedBy: "person", startedAt: Date.now() - (WORKING_AGES_MS[i] ?? (i + 1) * 60_000),
+}));
+const sessions: SessionView[] = [
+  // With ?projects=1 the first thread works in spoo and the second deep inside wsp, so both rows carry a project word.
+  { id: "s1", threadId: "s1", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Now reply with exactly the word pong.", startedBy: "person", startedAt: Date.now() - 48 * 60_000, ...(projects ? { cwd: "/root/spoo" } : {}) },
+  { id: "s2", threadId: "s2", workspaceId: "ws_a", harness: "claude", status: "completed", prompt: "Reply with exactly the word hi.", startedBy: "cli", startedAt: Date.now() - 30 * 60_000, endedAt: Date.now() - 24 * 60_000, ...(projects ? { cwd: "/root/wsp/packages/host" } : {}) },
+  { id: "s3", threadId: "s3", workspaceId: "ws_b", harness: "codex", status: "completed", prompt: "Bump the lockfile and run the gate.", startedBy: "cli", startedAt: Date.now() - 90 * 60_000, endedAt: Date.now() - 80 * 60_000 },
+  { id: "s4", threadId: "s4", workspaceId: "ws_b", harness: "claude", status: "interrupted", prompt: "Drop the old preview shim.", startedBy: "person", startedAt: Date.now() - 120 * 60_000, endedAt: Date.now() - 110 * 60_000 },
+  ...archived,
+  ...toned,
+  ...inbox,
+  ...working,
+];
+// ?switcher=1: two more projects, one of them on this computer, and the threads on them, ten in all with the four above.
+const switcher = params.get("switcher") === "1";
+if (switcher) {
+  const on = (place: string) => (w: WorkspaceView): WorkspaceView => ({ ...w, place });
+  workspaces.splice(0, workspaces.length, ...workspaces.map(on("p_hetzner")));
+  workspaces.push(
+    { ...view("ws_d", "billing"), place: "p_hetzner", project: { id: "pr_billing", name: "billing", path: "/root/billing", computer: "default" } },
+    { ...view("ws_e", "docs-site"), kind: "local", machineId: "local", golden: "", project: { id: "pr_docs", name: "docs-site", path: "/Users/zingzy/docs-site", computer: "default" } },
+  );
+  const ago = (m: number): number => Date.now() - m * 60_000;
+  sessions.push(
+    { id: "s7", threadId: "s7", workspaceId: "ws_d", harness: "claude", status: "running", prompt: "Retry the failed invoice webhooks from last night.", startedBy: "person", startedAt: ago(6) },
+    { id: "s8", threadId: "s8", workspaceId: "ws_d", harness: "codex", status: "completed", prompt: "Add a test for the proration rounding.", startedBy: "person", startedAt: ago(40), endedAt: ago(33) },
+    { id: "s9", threadId: "s9", workspaceId: "ws_e", harness: "claude", status: "completed", prompt: "Rewrite the install page for the new CLI.", startedBy: "person", startedAt: ago(15), endedAt: ago(9) },
+    { id: "s10", threadId: "s10", workspaceId: "ws_e", harness: "codex", status: "completed", prompt: "Fix the broken links in the changelog.", startedBy: "cli", startedAt: ago(70), endedAt: ago(66) },
+    { id: "s11", threadId: "s11", workspaceId: "ws_d", harness: "claude", status: "interrupted", prompt: "Move the tax tables into one module.", startedBy: "person", startedAt: ago(150), endedAt: ago(140) },
+    { id: "s12", threadId: "s12", workspaceId: "ws_e", harness: "claude", status: "completed", prompt: "Shrink the hero image under 200 KB.", startedBy: "person", startedAt: ago(200), endedAt: ago(190) },
+  );
+}
+
+// Two agents the composer can start a thread on, so its picker draws a coloured mark and a monochrome one. Codex
+// carries the effort lists its app-server reports, each model with the effort that model runs at, so the effort
+// picker draws its default against a pick rather than against the binary.
+// The access modes are the CLI's own list as the runtime hands it out, the mode a new thread starts at marked.
+// ?efforts=1 gives the claude row the effort levels and context windows the runtime's table lists for it, so the
+// composer's row carries the effort picker beside the others and is as wide as it gets.
+const efforts = params.get("efforts") === "1";
+const CLAUDE_EFFORTS = ["Low", "Medium", "High", "Extra high", "Max"].map(label => ({ value: label.toLowerCase().replace(" ", ""), label, ...(label === "High" ? { isDefault: true } : {}) }));
+const CLAUDE_CONTEXT_WINDOWS = [{ value: "200k", label: "200k" }, { value: "1m", label: "1M", isDefault: true }];
+
+const catalogs: HarnessCatalog[] = [
+  {
+    harness: "claude",
+    label: "Claude Code",
+    source: "harness",
+    version: "2.1.257",
+    models: [{ value: "claude-opus-5", label: "Opus 5", isDefault: true, contextWindows: efforts ? ["200k", "1m"] : [] }],
+    efforts: efforts ? CLAUDE_EFFORTS : [],
+    contextWindows: efforts ? CLAUDE_CONTEXT_WINDOWS : [],
+    permissionModes: ACCESS_MODES.map(o => (o.value === "bypassPermissions" ? { ...o, isDefault: true } : o)),
+    steers: true,
+    renames: true,
+    images: true,
+    movesAccess: true,
+    compacts: "/compact",
+    access: { ask: "default", "auto-edit": "acceptEdits", full: "bypassPermissions" },
+    bypassMode: "bypassPermissions",
+    // The CLI's own screens, as the runtime's table names them; the chat replay announces them beside the rest.
+    screenCommands: [
+      { name: "login", control: "sign-in" },
+      { name: "logout", control: "sign-in" },
+      { name: "model", control: "model" },
+      { name: "permissions", control: "access" },
+      { name: "config", control: "settings" },
+      { name: "help", control: "docs" },
+    ],
+  },
+  {
+    harness: "codex",
+    label: "Codex",
+    source: "table",
+    version: "app-server 0.153.0, 2026-09-07",
+    models: [
+      { value: "gpt-5.6-sol", label: "GPT-5.6-Sol", isDefault: true, efforts: ["low", "medium", "high"], defaultEffort: "low" },
+      { value: "gpt-5.5", label: "GPT-5.5", efforts: ["low", "medium", "high"], defaultEffort: "medium" },
+    ],
+    efforts: [{ value: "low", label: "Low", isDefault: true }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }],
+    contextWindows: [],
+    permissionModes: [],
+    steers: false,
+    renames: false,
+    images: false,
+  },
+];
+
+/** A turn on this computer with a permission prompt open and one already answered, so the row can be laid out and
+ * photographed in both states; the local kind is what starts a thread at the access its harness asks in. */
+const perm = { workspaceId: MAC.id, sessionId: "s_perm", turnId: "turn_perm", threadId: "thr_perm" };
+const permOptions = [
+  { id: "allow", label: "Allow", effect: "allow" as const },
+  { id: "deny", label: "Deny", effect: "deny" as const },
+  { id: "mode:acceptEdits", label: "Allow, then Accept edits", effect: "mode" as const, mode: "acceptEdits" },
+];
+/** A page about two kilobytes long, the size the persona's prompt pasted into the chat before this row folded it. */
+const LANDING_PAGE = [
+  "<!DOCTYPE html>",
+  '<html lang="en">',
+  "  <head>",
+  '    <meta charset="utf-8" />',
+  '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
+  "    <title>Health</title>",
+  "    <style>",
+  "      body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 3rem 1.5rem; color: #18181b; }",
+  "      main { max-width: 38rem; margin: 0 auto; }",
+  "      h1 { font-size: 2rem; margin: 0 0 1rem; }",
+  "      p { margin: 0 0 1rem; }",
+  "      code { font-family: ui-monospace, monospace; background: #f4f4f5; padding: 0.1rem 0.3rem; }",
+  "    </style>",
+  "  </head>",
+  "  <body>",
+  "    <main>",
+  "      <h1>The api is up</h1>",
+  "      <p>",
+  "        This page is served by the health route. If you can read it, the process started, the port was free",
+  "        and the router matched. Nothing on it is clever, and that is on purpose.",
+  "      </p>",
+  "      <p>",
+  '        The route answers <code>GET /health</code> with <code>{ "ok": true }</code> and this page with the same',
+  "        words a person can read. One of the two is for a machine and the other is for whoever is paged at",
+  "        three in the morning.",
+  "      </p>",
+  "      <p>",
+  "        There is no script tag here and no stylesheet to fetch, so a browser that draws nothing is telling you",
+  "        about the network rather than about the page.",
+  "      </p>",
+  "    </main>",
+  "  </body>",
+  "</html>",
+  "",
+].join("\n");
+
+const prompting: SessionEvent[] = [
+  { type: "session.start", ...perm, prompt: "Add a health route and run the tests." },
+  { type: "session.delta", ...perm, kind: "text", text: "I will add the route, then run the suite." },
+  {
+    type: "session.permission",
+    ...perm,
+    askId: "ask_done",
+    toolName: "Write",
+    toolUseId: "toolu_1",
+    input: JSON.stringify({ file_path: "/Users/zingzy/api/src/health.ts", content: "export const health = () => ({ ok: true });\n" }),
+    detail: "health.ts",
+    options: permOptions,
+  },
+  { type: "session.permission.closed", ...perm, askId: "ask_done", outcome: "allowed", optionId: "allow" },
+  {
+    type: "session.permission",
+    ...perm,
+    askId: "ask_open",
+    toolName: "Bash",
+    toolUseId: "toolu_2",
+    input: JSON.stringify({ command: "pnpm exec vitest run --minWorkers=1 --maxWorkers=1 packages/api/test/health.test.ts packages/api/test/routes.test.ts", description: "Run the health route's test" }),
+    detail: "pnpm exec vitest run",
+    options: permOptions,
+  },
+  // A page of the size a person really meets, so the rule that an opened file leaves the buttons on the screen can
+  // be measured rather than asserted.
+  {
+    type: "session.permission",
+    ...perm,
+    askId: "ask_file",
+    toolName: "Write",
+    toolUseId: "toolu_4",
+    input: JSON.stringify({ file_path: "/Users/zingzy/api/public/index.html", content: LANDING_PAGE }),
+    detail: "index.html",
+    options: permOptions,
+  },
+  // One token longer than any row is wide, so the rule that a command is never broken inside a token can be measured.
+  {
+    type: "session.permission",
+    ...perm,
+    askId: "ask_long",
+    toolName: "Bash",
+    toolUseId: "toolu_3",
+    input: JSON.stringify({ command: `curl -fsSL https://registry.example.com/artifacts/${"a1b2c3d4e5".repeat(15)}/health.tar.gz` }),
+    options: permOptions,
+  },
+];
+
+/** The prompts the replay leaves open, and the page's own watchers: a click on an option and an access picked while
+ * the turn runs both close a prompt here the way the runtime's event does, so the row goes on the page. */
+const openAsks = new Set(prompting.filter(e => e.type === "session.permission").map(e => e.askId));
+for (const closed of prompting) if (closed.type === "session.permission.closed") openAsks.delete(closed.askId);
+const watching = new Set<(event: ProtocolEvent) => void>();
+const closePrompt = (askId: string, optionId: string): void => {
+  if (!openAsks.delete(askId)) return;
+  const closed: SessionEvent = { type: "session.permission.closed", ...perm, askId, outcome: optionId === "deny" ? "denied" : "allowed", optionId };
+  prompting.push(closed);
+  for (const fn of watching) fn(closed);
+};
+
+/** A turn that fanned out to three subagents, so the fold's own geometry can be measured against its header: two
+ * running, one of them holding a prompt, one finished, and one launched in the background whose only answer so far
+ * is the harness's note that it started. */
+const fan = { workspaceId: MAC.id, sessionId: "s_fan", turnId: "turn_fan", threadId: "thr_fan" };
+const LAUNCH_NOTE =
+  "Async agent launched successfully. (This tool result is internal metadata, never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: a057760";
+const launched = (id: string, description: string): SessionEvent => ({
+  type: "session.delta", ...fan, kind: "tool_use", toolName: "Agent", toolUseId: id,
+  text: JSON.stringify({ description, prompt: "go", subagent_type: "general-purpose" }),
+});
+const folding: SessionEvent[] = [
+  { type: "session.start", ...fan, prompt: "Count the alpha files, read beta's hostname, and watch gamma's disk." },
+  { type: "session.delta", ...fan, kind: "text", text: "Launching all three now." },
+  launched("toolu_a", "count alpha files"),
+  launched("toolu_b", "read beta hostname"),
+  launched("toolu_c", "check gamma disk"),
+  { type: "session.delta", ...fan, kind: "tool_result", toolUseId: "toolu_c", text: LAUNCH_NOTE },
+  { type: "session.delta", ...fan, kind: "text", text: "Reading the listing.", parentToolUseId: "toolu_a" },
+  {
+    type: "session.permission", ...fan, askId: "ask_child", toolName: "Bash", toolUseId: "toolu_a1",
+    parentToolUseId: "toolu_a", input: JSON.stringify({ command: "ls /etc | head -3" }), options: permOptions,
+  },
+  { type: "session.delta", ...fan, kind: "text", text: "Ran hostname.", parentToolUseId: "toolu_b" },
+  { type: "session.delta", ...fan, kind: "tool_result", toolUseId: "toolu_b", text: "dogfood-b1" },
+  { type: "session.delta", ...fan, kind: "text", text: "Root has 28G free.", parentToolUseId: "toolu_c" },
+];
+
+// ?chat=failed replays a turn the agent refused in its own words, which run past one line of the column.
+const failedTurn = { workspaceId: "ws_a", sessionId: "s1", turnId: "turn_1", threadId: "thr_failed" };
+const FAILED_WORDS = "Not logged in · Please run /login; sign in from a terminal on this computer, then send again";
+const failedHistory: SessionEvent[] = [
+  { type: "session.start", ...failedTurn, prompt: "Reply with exactly the word hi." },
+  { type: "session.done", ...failedTurn, result: { status: "failed", error: FAILED_WORDS, durationMs: 1200 } },
+  { type: "session.end", ...failedTurn, exitCode: 1, sawResult: true },
+];
+
+const linger = { workspaceId: "ws_a", sessionId: "s1", turnId: "turn_1", threadId: "thr_linger" };
+const lingering: SessionEvent[] = [
+  { type: "session.start", ...linger, prompt: "Start the dev server in the background and reply when it is up." },
+  { type: "session.delta", ...linger, kind: "text", text: "Server is live at :3000." },
+  { type: "session.done", ...linger, result: { status: "completed", durationMs: 900, costUsd: 0.001 } },
+];
+
+// ?chat=1 replays one answered turn whose reply is the markdown the chat actually has to draw: prose, a
+// sentence with inline code in it, a fenced block the highlighter colours, a quote, a list and a table. It is
+// the surface the ticket names, and the parts that can go wrong in light are the ones that carry their own
+// ground: a code block, an inline code chip and a quote's rule all sit on a near-white card.
+const chatTurn = { workspaceId: "ws_a", sessionId: "s1", turnId: "turn_2", threadId: "thr_chat" };
+const CHAT_MARKDOWN = [
+  "Bumped the lockfile and ran the gate. The failing file was `apps/web/test/tokens.test.ts`, which pins",
+  "the stylesheet's additions, so the new token needed the snapshot taken again.",
+  "",
+  "```ts",
+  'const ROW_META_CLASS = "font-mono text-[11px] tabular-nums";',
+  "export function metaLine(project: Project): string {",
+  "  // A machine wsp does not drive says what it is instead of what it costs.",
+  "  return driven(project) ? costLine(project) : machineLine(project);",
+  "}",
+  "```",
+  "",
+  "> The gate runs once, on the branch merged with origin/main in a fresh worktree.",
+  "",
+  "- `pnpm test` green without creds",
+  "- `tsc --noEmit` clean",
+  "",
+  "| file | tests | state |",
+  "| --- | --- | --- |",
+  "| tokens.test.ts | 5 | green |",
+  "| sidebar.test.tsx | 55 | green |",
+  "",
+  "Full notes in [the tracker](https://example.invalid/439).",
+  // ?links=1 adds links to a public, a private and an internal host, none of which the window may ask anyone about.
+  ...(params.get("links") === "1" ? ["", "The raw file is https://raw.githubusercontent.com/acme/lab/main/README.md, the build log [on the runner](https://build.internal:8080/logs), and the spec <http://example.com/spec>."] : []),
+].join("\n");
+// The init's slash_commands as the CLI lists them: the built-ins that run headless, its own screens, and a skill.
+const CHAT_SLASH_COMMANDS = ["compact", "context", "cost", "init", "review", "login", "logout", "model", "permissions", "config", "help", "unslop"];
+const chatHistory: SessionEvent[] = [
+  { type: "session.start", ...chatTurn, prompt: "Bump the lockfile and run the gate.", harness: { slashCommands: CHAT_SLASH_COMMANDS } },
+  { type: "session.delta", ...chatTurn, kind: "text", text: CHAT_MARKDOWN },
+  {
+    type: "session.done",
+    ...chatTurn,
+    // ?ring=1 has the reply say what the model held, so the top bar draws the context ring.
+    result: { status: "completed", durationMs: 2400, costUsd: 0.004, ...(params.get("ring") === "1" ? { tokens: { input: 78_000, output: 400, context: 78_400, window: 1_000_000 } } : {}) },
+  },
+];
+
+// ?chat=long&turns=<n>&tools=<m> replays n answered turns of m tool calls each, every call with its output, so a long
+// thread's first draw, the one Settings back to the thread pays, can be timed.
+const longHistory: SessionEvent[] = Array.from({ length: Number(params.get("turns") ?? 20) }, (_, t) => {
+  const turn = { ...chatTurn, turnId: `turn_long_${t}` };
+  const tools = Array.from({ length: Number(params.get("tools") ?? 20) }, (_, k): SessionEvent[] => [
+    { type: "session.delta", ...turn, kind: "tool_use", toolName: k % 2 === 0 ? "Bash" : "Read", toolUseId: `toolu_${t}_${k}`, text: JSON.stringify(k % 2 === 0 ? { command: `pnpm exec vitest run test/file-${k}.test.ts` } : { file_path: `/root/wsp/apps/web/src/file-${k}.ts` }) },
+    { type: "session.delta", ...turn, kind: "tool_result", toolUseId: `toolu_${t}_${k}`, text: `line one of ${k}\nline two\nline three`, isError: false },
+  ]).flat();
+  return [
+    { type: "session.start", ...turn, prompt: `Turn ${t}: run the next file and report.` },
+    ...tools,
+    { type: "session.delta", ...turn, kind: "text", text: CHAT_MARKDOWN },
+    { type: "session.done", ...turn, result: { status: "completed", durationMs: 2400, costUsd: 0.004 } },
+  ] satisfies SessionEvent[];
+}).flat();
+
+// ?chat=tasks replays a turn still running with its step list, which the composer's top edge carries attached.
+const tasksHistory: SessionEvent[] = [
+  { type: "session.start", ...chatTurn, prompt: "Bump the lockfile and run the gate." },
+  { type: "session.plan", ...chatTurn, steps: [{ text: "Bump the lockfile", state: "done" }, { text: "Run the gate", state: "working" }, { text: "Report", state: "pending" }] },
+  { type: "session.delta", ...chatTurn, kind: "text", text: "Running the gate now." },
+];
+
+// ?chat=diagram replays a reply with a Mermaid flowchart whose label carries a script tag, a Mermaid fence that does
+// not parse, a display formula and an inline one: what the renderer has to draw, and what it must never let through.
+const DIAGRAM_MARKDOWN = [
+  "The build steps:",
+  "",
+  "```mermaid",
+  "flowchart LR",
+  '  A[Install] --> B[Build]',
+  '  B --> C["Test <script>window.__mermaidRan = true</script>"]',
+  "```",
+  "",
+  "And the quadratic formula:",
+  "",
+  "$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$",
+  "",
+  "where $a \\neq 0$, at $3 to $5 a run.",
+  "",
+  "```mermaid",
+  "flowchart LR",
+  "  A -->",
+  "```",
+].join("\n");
+// ?chat=hostile&beacon=<url> replays a reply whose Mermaid fences each try a road to fetch the beacon while they render:
+// themeCSS url() in an init directive, the same through front matter with an @import, an image shape, a click link
+// to the beacon, and a click link to a path with no address in it. None may ask the beacon for anything, and none may
+// leave a link in the page.
+const beacon = params.get("beacon") ?? "http://127.0.0.1:9";
+const HOSTILE_MARKDOWN = [
+  "```mermaid",
+  `%%{init: {"themeCSS": ".node rect { fill: url(${beacon}/fill.svg#p) } .label { cursor: url(${beacon}/cursor.png), auto }"}}%%`,
+  "flowchart LR",
+  "  A[One] --> B[Two]",
+  "```",
+  "",
+  "```mermaid",
+  "---",
+  "config:",
+  `  themeCSS: "@import url('${beacon}/import.css');"`,
+  "---",
+  "flowchart LR",
+  "  C[Three] --> D[Four]",
+  "```",
+  "",
+  "```mermaid",
+  "flowchart LR",
+  `  E@{ img: "${beacon}/picture.png", label: "pic", w: 60, h: 60 }`,
+  "```",
+  "",
+  "```mermaid",
+  "flowchart LR",
+  "  F[Five] --> G[Six]",
+  `  click G href "${beacon}/clicked" _blank`,
+  "```",
+  "",
+  "```mermaid",
+  "flowchart LR",
+  "  H[Seven] --> I[Eight]",
+  '  click I href "/clicked"',
+  "```",
+].join("\n");
+const hostileHistory: SessionEvent[] = [
+  { type: "session.start", ...chatTurn, prompt: "Draw what the page said." },
+  { type: "session.delta", ...chatTurn, kind: "text", text: HOSTILE_MARKDOWN },
+  {
+    type: "session.done",
+    ...chatTurn,
+    // ?ring=1 has the reply say what the model held, so the top bar draws the context ring.
+    result: { status: "completed", durationMs: 2400, costUsd: 0.004, ...(params.get("ring") === "1" ? { tokens: { input: 78_000, output: 400, context: 78_400, window: 1_000_000 } } : {}) },
+  },
+];
+const diagramHistory: SessionEvent[] = [
+  { type: "session.start", ...chatTurn, prompt: "Draw the build and give me the formula." },
+  { type: "session.delta", ...chatTurn, kind: "text", text: DIAGRAM_MARKDOWN },
+  {
+    type: "session.done",
+    ...chatTurn,
+    // ?ring=1 has the reply say what the model held, so the top bar draws the context ring.
+    result: { status: "completed", durationMs: 2400, costUsd: 0.004, ...(params.get("ring") === "1" ? { tokens: { input: 78_000, output: 400, context: 78_400, window: 1_000_000 } } : {}) },
+  },
+];
+
+// ?conversations=1: the wsp project's conversations kept outside wsp, read through the resume picker, with the New thread
+// page the centre draws when nothing is selected.
+const conversationsShown = params.get("conversations") === "1";
+const outside = (id: string, title: string, minutes: number) => ({ agent: "claude", id, title, firstPrompt: title, branch: "main", cwd: "/Users/dev/wsp", lastAt: Date.now() - minutes * 60_000, bytes: 40_960, origin: "terminal" as const, live: false });
+const OUTSIDE = [outside("c1", "Resume picker plan", 12), outside("c2", "WSP website rework", 50), outside("c3", "Slate launch video scripts", 120)];
+const outsideRead = (title: string) => ({ cwd: "/Users/dev/wsp", title, rows: [{ who: "person" as const, text: `${title}: where were we?` }, { who: "agent" as const, text: `We were halfway through ${title}.` }] });
+
+// ?marks=1 lets a thread be pinned and snoozed and a project be exported, so the Snooze and Export dialogs open.
+// ?stop=1 lets a running thread be stopped, so its tile offers Stop on hover.
+const api: Api = {
+  ...(conversationsShown
+    ? {
+        conversationsList: async (project: string) => ({ rows: project === "pr_wsp" ? OUTSIDE : [], held: [] }),
+        conversationRead: async (o: { id: string }) => outsideRead(OUTSIDE.find(r => r.id === o.id)?.title ?? o.id),
+      }
+    : {}),
+  ...(params.get("marks") === "1" ? { markThreads: async () => {}, exportProject: async opts => ({ dest: opts.dest, files: 0, bytes: 0, excluded: [], agents: [] }) } : {}),
+  ...(params.get("stop") === "1" ? { interruptSession: async () => ({ outcome: "accepted" as const }) } : {}),
+  ...(params.get("consent") === "1" ? { editorList: async () => [{ id: "vscode", name: "VS Code", remote: true }], sshInclude: async () => false } : {}),
+  listWorkspaces: async () => workspaces,
+  getWorkspace: async id => workspaces.find(w => w.id === id)!,
+  createWorkspace: async () => workspaces[0]!,
+  watchStatuses: async () =>
+    workspaces.map(w =>
+      w.id === MAC.id
+        ? statusOf(w, { kind: "local", size: { cpu: 10, memMb: 16384 }, rateUsdPerHour: 0, facts: { os: "macOS 15.5", uptimeMs: 3 * 86_400_000 + 4 * 3_600_000, folder: "/Users/zingzy/wsp" } })
+        : params.get("silent") === "1" && w.phase !== "gone"
+          ? statusOf(w, { reach: { state: "no-daemon" } })
+          : statusOf(w, w.id !== "ws_a" ? {} : params.get("helper") === "1" ? { daemonNote: DAEMON_UPDATING } : params.get("oom") === "1" ? { reach: { state: "unreachable" } } : { idleAt: Date.now() + 15.5 * 60_000 }),
+    ),
+  forget: async () => {},
+  nap: async id => workspaces.find(w => w.id === id)!,
+  wake: async id => workspaces.find(w => w.id === id)!,
+  capabilities: async () => (caps()),
+  startSession: async o => ({ id: "s2", workspaceId: o.workspaceId, harness: "claude", status: "running" }),
+  portReach: async (_id, port) => ({ url: `https://m1-${port}.preview.example/?pt_token=e`, expiresAt: Date.now() + 3_600_000 }),
+  daemon: noDaemonApi,
+  sessionHistory: async id =>
+    id === MAC.id
+      ? params.get("perm") === "1"
+        ? prompting
+        : params.get("fold") === "1"
+          ? folding
+          : []
+      : id !== "ws_a"
+        ? []
+        : params.get("chat") === "1"
+          ? chatHistory
+          : params.get("chat") === "long"
+            ? longHistory
+            : params.get("chat") === "tasks"
+              ? tasksHistory
+          : params.get("chat") === "failed"
+            ? failedHistory
+            : params.get("chat") === "diagram"
+              ? diagramHistory
+              : params.get("chat") === "hostile"
+                ? hostileHistory
+                : params.get("linger") === "1"
+                  ? lingering
+                  : [],
+  // The row closes on the runtime's own event and never on this reply, so the fixture pushes it: a click on an
+  // option has to be seen landing, not only counted. ?answer=not-found is a host holding no turn under the row's id,
+  // which the prompt says under its options.
+  answerPermission: async (sessionId, askId, optionId) => {
+    if (params.get("answer") === "not-found") return "not-found";
+    closePrompt(askId, optionId);
+    return "answered";
+  },
+  // The pick reaches the running turn, and the prompt it is stopped on goes with it where the mode answers one.
+  // ?access=refused is the harness taking back what its row said it would take, which is the one thing the composer
+  // says under the box.
+  setSessionAccess: async (_sessionId, permissionMode) => {
+    if (params.get("access") === "refused") return "unsupported";
+    if (permissionMode === "bypassPermissions" || permissionMode === "acceptEdits") for (const askId of [...openAsks]) closePrompt(askId, "allow");
+    return "set";
+  },
+  listSnapshots: async () => ({ name: "default", head: null, versions: [] }),
+  snapshotStorage: async () => null,
+  rollbackSnapshot: async () => ({ lineage: { name: "default", head: null, versions: [] }, existingWorkspaces: "untouched" }),
+  listSessions: async () => sessions,
+  // The runtime keeps the name on the row, so the next listing carries it; the shell fixture does the same.
+  renameSession: async (sessionId, title) => {
+    const row = sessions.find(s => s.id === sessionId);
+    if (row !== undefined) row.harnessTitle = title;
+    return { outcome: "renamed" };
+  },
+  // The runtime holds the name on this computer, so the next listing carries it; the shell fixture does the same.
+  renameWorkspace: async (id, name) => {
+    const row = workspaces.find(w => w.id === id)!;
+    row.name = name;
+    return row;
+  },
+  // The look sits on the record beside the name, so the fixture writes it there and answers with the row.
+  setWorkspaceLook: async (id, look) => {
+    const row = workspaces.find(w => w.id === id)!;
+    if (look.theme !== undefined) {
+      if (look.theme === null) delete row.theme;
+      else row.theme = look.theme;
+    }
+    if (look.glyph !== undefined) {
+      if (look.glyph === null) delete row.glyph;
+      else row.glyph = look.glyph;
+    }
+    return row;
+  },
+  listHarnesses: async () => catalogs,
+  subscribe: fn => {
+    watching.add(fn);
+    return () => watching.delete(fn);
+  },
+  getGolden: async () => undefined,
+  hostTerminalConfig: async () => TRANSLUCENT,
+  listProjectGoldens: async () => [],
+  snapshotWorkspace: async id => ({ snapshotId: "snap_taken", projects: PROJECTS, golden: "snap_g", workspaceId: id, workspaceName: "api", createdAt: new Date().toISOString() }),
+};
+
+/** A Ghostty config with a background-opacity under 1, the shape whose translucency belongs to the canvas alone, and a
+ * font-size of 16, the size the pane's cells must take from the file. */
+const TRANSLUCENT: TerminalConfig = { files: ["/Users/dev/.config/ghostty/config"], fontFamily: [], fontSize: 16, palette: Array<null>(16).fill(null), windowPaddingX: { left: 14, right: 14 }, windowPaddingY: { top: 14, bottom: 14 }, backgroundOpacity: 0.85 };
+
+/** A daemon that holds the ptys the page opens and answers nothing else. */
+function fakeWire(): TerminalWire {
+  const held = new Set<string>();
+  return {
+    request: async (op, params = {}) => {
+      if (op === "pty.create") {
+        const ptyId = `p${held.size + 1}`;
+        held.add(ptyId);
+        return { ok: true, ptyId };
+      }
+      if (op === "pty.kill") held.delete(String(params["ptyId"]));
+      if (op === "pty.list") return { ok: true, ptys: [...held].map(id => ({ id, pid: 1, cols: 80, rows: 24, exited: false })) };
+      return { ok: true };
+    },
+  };
+}
+
+// ?version=behind puts a shell older than the host that served this page on the window, so the one line the app
+// says about it can be measured where it lands; the whole road runs, bridge and boot object both.
+if (params.get("version") === "behind") {
+  window.wsp = { ...window.wsp, version: "0.1.3" };
+  (window as unknown as { __WSP__?: { paired: boolean; version: string } }).__WSP__ = { paired: true, version: "0.1.5" };
+}
+const toast = params.get("toast");
+const shown = params.get("ws");
+useStore.setState({ conn: "live", ...(shown !== null ? { selectedId: shown } : {}) });
+const toastAction = params.get("action");
+if (toast !== null) addNotice({ kind: (params.get("kind") as NoticeKind | null) ?? "error", text: toast, where: params.get("where") ?? "spoo", ...(toastAction === null ? {} : { action: { word: toastAction, run: () => {} } }) });
+// ?sidebar=<px> is the width the host's record holds, and ?spaces=1 the body it holds; the fixture's api answers no
+// preferences op, so the record is put in place here as the host's answer would put it. The shell is where the
+// surfaces behind labs are shot, so labs is on unless ?labs=0 asks for the record a host without it serves.
+const sidebarWidth = params.get("sidebar");
+useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, theme, ...picks, labs: params.get("labs") !== "0", ...(sidebarWidth !== null ? { sidebarWidth: Number(sidebarWidth) } : {}), ...(params.get("spaces") === "1" ? { sidebarMode: "spaces" as const } : {}), ...(params.get("size") === "file" ? { terminalSize: "file" as const } : {}), ...(projects ? { project: { ws_a: "spoo", ws_m: "spoo" } } : {}) } });
+if (switcher) {
+  useStore.setState(s => ({
+    places: [
+      { id: "p_here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false },
+      { id: "p_hetzner", kind: "computer", name: "hetzner-box", default: false, present: true, takesForks: true },
+    ],
+    preferences: { ...s.preferences, projectLook: { pr_1: { icon: "rocket", hue: "violet" }, pr_billing: { icon: "database", hue: "amber" }, pr_docs: { icon: "book", hue: "teal" } } },
+  }));
+}
+if (inboxGlyph !== null) useStore.setState(s => ({ preferences: { ...s.preferences, projectLook: { pr_1: { icon: inboxGlyph, hue: "amber" } } } }));
+// ?places=1 fills the places list with the worst row the spec draws, a computer away with a long name beside
+// this Mac and a provider, so the pane's rows can be measured against a full list at every window.
+if (params.get("places") === "1") {
+  useStore.setState({
+    places: [
+      { id: "p_here", kind: "computer", name: "zingzy-mbp", default: true, present: true, shape: { cpu: 10, memMb: 16384 }, diskFreeBytes: 210_000_000_000, takesForks: false },
+      { id: "p_hetzner", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "docker", shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 38_000_000_000, forks: { running: 0, room: 3 } },
+      // The worst row the detail draws: a computer away with a login on its record and the longest refusal ssh
+      // hands back, which is the line that used to push the table past the card it sits in.
+      {
+        id: "p_laptop",
+        kind: "computer",
+        name: "old-macbook",
+        default: false,
+        present: false,
+        lastSeenAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+        shape: { cpu: 10, memMb: 16384 },
+        diskFreeBytes: 353_100_000_000,
+        takesForks: true,
+        road: { ssh: "root@65.21.4.12" },
+        dialled: { at: new Date(Date.now() - 20 * 60_000).toISOString(), answered: false, said: "ssh: connect to host 65.21.4.12 port 22: Connection refused" },
+      },
+      { id: "p_ascii", kind: "provider", name: "ascii", default: false, present: true, shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 40_000_000_000, takesForks: true, rateUsdPerHour: 0.018 },
+    ],
+  });
+}
+/** The app's own reading of the two halves, so ?version=behind runs the road the app runs and not a set toast. */
+function VersionRule() {
+  useShellVersionEffect();
+  return null;
+}
+// ?panel=pr opens the right panel at 480 px on the Pull request pane of the workspace ?ws names, over PR 838's page
+// moved in time to read as the mockup does; ?pr=merged has it merged, as the record keeps a settled one.
+if (params.get("panel") === "pr" && shown !== null) {
+  const pr = params.get("pr") === "merged" ? PR838_MERGED : params.get("pr") === "closed" ? PR838_CLOSED : pr838FactLately(Date.now());
+  const statuses = api.watchStatuses;
+  api.watchStatuses = async () => (await statuses()).map(s => (s.id === shown ? { ...s, pr, checkout: { branch: PR838_FACT.branch, ahead: 0, behind: 0, changed: 0, readAt: 1 } } : s));
+  const read = params.get("pr") === "closed" ? { ...PR838_PAGE, body: "" } : pr838Lately(Date.now());
+  // One line comment staged on 838's own diff, with reactions, so the Files tab's thread can be shot as the mockup draws it.
+  const staged = {
+    id: 838260,
+    nodeId: "PRRC_staged",
+    threadId: "PRRT_staged",
+    path: "apps/web/src/sidebar/Sidebar.logic.ts",
+    line: 260,
+    side: "RIGHT",
+    author: "Zingzy",
+    bot: false,
+    body: "Should-fix: a failed thread never folds by time here, but `isThreadSettleable` below lets Settle all read take it. Say in the sidebar test which rule wins.",
+    url: "",
+    at: read.comments[0]?.at ?? new Date().toISOString(),
+    resolved: false,
+    reactions: [{ content: "+1" as const, count: 2, mine: true }, { content: "eyes" as const, count: 1, mine: false }],
+  };
+  const page = { ...read, reviewComments: [...read.reviewComments, staged], postsAsYou: true };
+  api.pullRequestView = async () => page;
+  api.pullRequestDiff = async () => ({ diff: PR838_DIFF, truncated: false, left: [] });
+  api.pullRequestSend = async (_id, items) => {
+    page.sent = [...page.sent, ...items.map(i => ({ ...i, at: Date.now() }))];
+    return { outcome: "steered", threadId: "t1", agent: "claude", sent: page.sent };
+  };
+  // A reply into a thread lands as a line comment under it, one in the conversation as a comment, as GitHub answers.
+  api.pullRequestReply = async (_id, o) => {
+    const at = new Date().toISOString();
+    const root = page.reviewComments.find(c => c.id === o.replyTo);
+    return o.replyTo === undefined || root === undefined
+      ? { comment: { id: Date.now(), author: "Zingzy", bot: false, body: o.body, url: "", at } }
+      : { reviewComment: { ...root, id: Date.now(), author: "Zingzy", body: o.body, url: "", at, replyTo: root.id, ...(o.threadId !== undefined ? { threadId: o.threadId } : {}), reactions: [] } };
+  };
+  api.pullRequestResolve = async (_id, threadId, resolved) => ({ threadId, resolved });
+  api.pullRequestReact = async (_id, o) => ({ subject: o.subject, reactions: [{ content: o.content, count: 1, mine: o.on }] });
+  window.localStorage.setItem(RIGHT_PANEL_WIDTH_STORAGE_KEY, "480");
+  useRightPanelStore.setState({ byWorkspaceId: {} });
+  useRightPanelStore.getState().open(shown, "pr");
+}
+useStore.getState().bind(api);
+if (params.get("pick") === "1") {
+  const recorded = (id: string, name: string, computer: string, path: string) => ({ id, name, computer, source: { kind: "folder" as const, path }, path, remote: "", defaultBranch: "main", memoryKey: `-${name}`, memoryDir: "/m", createdAt: "t" });
+  useStore.setState(s => ({
+    places: [
+      { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true, present: true, mac: "macbook" },
+      { id: "p_hetzner", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true },
+    ],
+    projects: [recorded("pr_wsp", "wsp", "here", "/Users/zingzy/wsp"), recorded("pr_spoo", "spoo", "here", "/Users/zingzy/spoo"), recorded("pr_landing", "spoo-landing", "p_hetzner", "/root/spoo-landing")],
+    preferences: { ...s.preferences, newThreadIn: "ask", projectLook: { pr_wsp: { icon: "rocket", hue: "teal" }, pr_spoo: { icon: "globe", hue: "violet" } } },
+  }));
+  setTimeout(() => openCommandPalette({ page: "new-thread" }), 200);
+}
+if (conversationsShown) {
+  const recorded = (id: string, name: string, path: string) => ({ id, name, computer: "here", source: { kind: "folder" as const, path }, path, remote: "", defaultBranch: "main", memoryKey: `-${name}`, memoryDir: "/m", createdAt: "t" });
+  useStore.setState({
+    places: [{ id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true, present: true, mac: "macbook", home: "/Users/dev" }],
+    projects: [recorded("pr_wsp", "wsp", "/Users/dev/wsp"), recorded("pr_spoo", "spoo", "/Users/dev/spoo")],
+  });
+}
+const settingsGroup = params.get("settings");
+const settingsShown = settingsGroup === "general" || settingsGroup === "appearance";
+if (settingsShown) openSettingsGroup(settingsGroup);
+if (settingsGroup === "computer") openComputerSettings("p_hetzner");
+// ?init=building puts the init job mid-build on the store, as its events would, so the collapsed cloud row's progress
+// line can be measured and photographed; the fixture's golden is none, so the row is there.
+if (params.get("init") === "building") {
+  useStore.setState({
+    initJob: {
+      id: "init_1",
+      road: "manual",
+      phase: "building",
+      keys: { solari: true },
+      step: 0,
+      stoppable: true,
+      screens: [],
+      rows: [
+        { id: "stage/creating", kind: "stage", label: GOLDEN_STAGE_WORDS.creating, state: "done", ms: 14_000 },
+        { id: "stage/deploying-daemon", kind: "stage", label: GOLDEN_STAGE_WORDS["deploying-daemon"], state: "running", detail: "node v22", lines: ["apt-get install -y git curl", "node v22"] },
+        { id: "stage/applying-setup", kind: "stage", label: GOLDEN_STAGE_WORDS["applying-setup"], state: "waiting" },
+        { id: "stage/ready", kind: "stage", label: GOLDEN_STAGE_WORDS.ready, state: "waiting" },
+      ],
+      progress: { done: 1, total: 4 },
+      log: [],
+    },
+  });
+}
+// ?init=waiting puts the job at a sign-in whose page waits for the person, two of four stages over, so the button's
+// paused spinner and its words can be measured.
+if (params.get("init") === "waiting") {
+  useStore.setState({
+    initJob: {
+      id: "init_1",
+      road: "manual",
+      phase: "signing-in",
+      keys: { solari: true },
+      step: 0,
+      stoppable: true,
+      screens: [],
+      rows: [
+        { id: "stage/creating", kind: "stage", label: GOLDEN_STAGE_WORDS.creating, state: "done", ms: 14_000 },
+        { id: "stage/deploying-daemon", kind: "stage", label: GOLDEN_STAGE_WORDS["deploying-daemon"], state: "done", ms: 40_000 },
+        { id: "sign-in/gh", kind: "sign-in", tool: "gh", label: "GitHub CLI login", state: SIGN_IN_OPEN_STATE, page: "https://github.com/login/device", code: "8F4A-C21B" },
+        { id: "stage/ready", kind: "stage", label: GOLDEN_STAGE_WORDS.ready, state: "waiting" },
+      ],
+      progress: { done: 2, total: 4 },
+      needsYou: { what: "sign in to GitHub CLI login", since: Date.now() },
+      log: [],
+    },
+  });
+}
+// The meter's tick for the running machine, so its row's second line reads cost, rate and countdown together.
+useStore.getState().applyEvent({ type: "workspace.cost", workspaceId: "ws_a", phase: "running", rateUsdPerHour: 0.11, awakeMs: 2 * 3_600_000, accruedUsd: 0.29, at: new Date().toISOString() });
+// ?panel=closed shuts the right panel, which at a phone's width covers the thread it opens over.
+if (params.get("panel") === "closed" && shown !== null) useRightPanelStore.getState().close(shown);
+// ?panel=preview opens the right panel inline with nothing in it, the narrowest the centre column gets at a width.
+if (params.get("panel") === "preview" && shown !== null) {
+  useRightPanelStore.setState({ byWorkspaceId: {} });
+  useRightPanelStore.getState().open(shown, "preview");
+}
+// The fake route's host resolves nowhere, so the frame under the bar stays blank.
+const at = params.get("at");
+if (params.get("panel") === "browser" && shown !== null && at !== null) {
+  useRightPanelStore.setState({ byWorkspaceId: {} });
+  useRightPanelStore.getState().open(shown, "preview");
+  useRightPanelStore.getState().openBrowser(shown, useBrowserTabs.getState().createTab(shown, parseAddress(at)));
+}
+// ?panel=browser&list=1 opens the pane on its list of recent addresses and servers, which the address bar filters.
+if (params.get("panel") === "browser" && shown !== null && params.get("list") === "1") {
+  const ago = (m: number): number => Date.now() - m * 60_000;
+  window.localStorage.setItem(recentsKey(shown), JSON.stringify([{ url: "http://localhost:6006/?path=/story", title: "Storybook", lastVisitedAt: ago(4) }, { url: "http://localhost:5173/", title: "wsp", lastVisitedAt: ago(90) }]));
+  getBrowser(shown).syncPorts([{ port: 3000, pid: 3000, process: "node" }, { port: 5173, pid: 5173, process: "vite" }, { port: 8001, pid: 8001, process: "python3" }, { port: 9229, pid: 9229, process: "deno" }]);
+  useRightPanelStore.setState({ byWorkspaceId: {} });
+  useRightPanelStore.getState().open(shown, "preview");
+  useRightPanelStore.getState().openBrowser(shown, useBrowserTabs.getState().createTab(shown, null));
+}
+// ?consent=1 is an Open on ws_a waiting on the one question of the line in the person's ssh config.
+if (params.get("consent") === "1" && shown !== null) {
+  useStore.setState({ places: [{ id: "here", kind: "computer", name: "zingzy's MacBook Pro", default: true, present: true, takesForks: false }] });
+  useSshConsent.setState({ asking: { workspaceId: shown, run: async () => {} } });
+}
+if (params.get("panel") === "terminal" && shown !== null) {
+  const surfaces: GhosttyTerminalSurface[] = [];
+  const create = GhosttyTerminalSurface.create.bind(GhosttyTerminalSurface);
+  GhosttyTerminalSurface.create = async (mount, options) => { const s = await create(mount, options); surfaces.push(s); return s; };
+  Object.assign(window, { surfaces });
+  const terminals = new WorkspaceTerminals(fakeWire());
+  terminals.feedStatus("live");
+  provideTerminals(shown, terminals);
+  useRightPanelStore.setState({ byWorkspaceId: {} });
+  useRightPanelStore.getState().open(shown, "preview");
+  void openPanelTerminal(shown);
+}
+// ?images=<n> puts n images in the composer, as a paste would, so the thumbnail row can be measured; the bytes are a
+// tiny gradient of a known colour, since what is measured is the row and not the picture.
+if (params.get("images") !== null) {
+  const swatch = (hue: number): File => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = `hsl(${hue} 70% 55%)`;
+    ctx.fillRect(0, 0, 32, 32);
+    const bytes = Uint8Array.from(atob(canvas.toDataURL("image/png").split(",")[1]!), c => c.charCodeAt(0));
+    return new File([bytes], `shot-${hue}.png`, { type: "image/png" });
+  };
+  const count = Number(params.get("images")) || 1;
+  void useComposerFilesStore.getState().add(shown ?? "ws_a", Array.from({ length: count }, (_, i) => swatch(i * 60)));
+}
+if (params.get("oom") === "1") {
+  const GiB = 1024 ** 3;
+  getLive("ws_a").feedStatus("live");
+  getLive("ws_a").feedSample({ type: "sys.sample", cpu: 99, load1: 6.4, mem: { used: 3.59 * GiB, total: 3.94 * GiB }, disk: { used: 1, total: 10 }, at: 1 });
+  getLive("ws_a").feedStatus("connecting");
+}
+/** The app's own host-event rules, so ?host=1 runs the road a prompt and a dead thread take and not a set toast:
+ * both land on a workspace not open, pushed from an effect after the rules' own, so they are listening. */
+function HostRule() {
+  useHostNotices();
+  useEffect(() => {
+    const events: ProtocolEvent[] = [
+      { type: "session.end", workspaceId: "ws_b", sessionId: "s2", turnId: "turn_s2", threadId: "s2", exitCode: 1, sawResult: false, seq: 900 },
+      { type: "session.permission", workspaceId: "ws_b", sessionId: "s_host", turnId: "turn_host", threadId: "thr_host", askId: "ask_host", toolName: "Bash", detail: "Check the version", input: '{"command":"wsp --version"}', options: permOptions, seq: 901 },
+    ];
+    for (const event of events) for (const fn of watching) fn(event);
+  }, []);
+  return null;
+}
+/** The app's own glass rule, so the computer's Reduce transparency reaches the page as it does in the app. */
+function GlassRule() {
+  useTransparencyEffect();
+  return null;
+}
+function LineRule() {
+  useWorkspaceLineNotices();
+  return null;
+}
+/** The New thread page the centre draws with nothing selected, off the hook the centre reads. */
+function CentreHome() {
+  const project = useHomeProject();
+  return project === undefined ? null : (
+    <div className="flex min-h-0 flex-1 flex-col" data-terminal-beside>
+      <ProjectHome projectId={project.id} />
+    </div>
+  );
+}
+createRoot(document.getElementById("root")!).render(
+  <TooltipProvider>
+    <GlassRule />
+    {params.get("silent") === "1" ? <LineRule /> : null}
+    {params.get("version") === "behind" ? <VersionRule /> : null}
+    {params.get("host") === "1" ? <HostRule /> : null}
+    <AppShell>
+      {shown === null ? (
+        conversationsShown ? (
+          <CentreHome />
+        ) : (
+          <div />
+        )
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col" data-terminal-beside>
+          <WorkspaceThread workspaceId={shown} />
+        </div>
+      )}
+    </AppShell>
+  </TooltipProvider>,
+);
+// ?export=1: the dialog that brings a folder home, asked for once the sidebar is listening.
+if (params.get("export") === "1") {
+  const ask = (): void => {
+    if (document.querySelector("[data-sidebar-row]") === null) setTimeout(ask, 20);
+    else requestProjectTrip({ workspaceId: "ws_a", trip: "export" });
+  };
+  ask();
+}
+// ?fork=1: Fork from here on the shown thread's reply, which opens the New thread page under the fork's banner;
+// &queued=1 adds a held message waiting its turn, so the drawer's row stands between the banner and the box.
+if (params.get("fork") === "1" && shown !== null) {
+  const ask = (): void => {
+    if (document.querySelector("[data-chat-composer]") === null) return void setTimeout(ask, 20);
+    openForkDraft({ workspaceId: shown, threadId: "s2", title: "Reply with exactly the word hi.", harness: "claude", pick: { turnId: "t1", checkpoint: null, based: false, laterChanged: false }, branchFrom: null });
+    if (params.get("queued") === "1") {
+      // The fork's fresh view goes by its workspace's key.
+      useComposerDraftStore.getState().hold(shown);
+      useComposerDraftStore.getState().enqueue(shown, "Then run the tests.");
+    }
+  };
+  ask();
+}

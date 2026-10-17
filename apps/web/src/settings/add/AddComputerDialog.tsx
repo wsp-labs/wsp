@@ -1,0 +1,840 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Add a computer as one dialog, 560 px wide and one height across its steps:
+// the header carries the step's name, a line of what the step does and why,
+// and the step's place in the run as a quiet mono figure; the body is the
+// step's rows in the settings list grammar; the foot is the saved line once a
+// choice is kept, then Back and the primary. The running view is the same
+// rows in the order they were chosen, a row that needs the person opening
+// under itself with its acts. When every row is done, Next opens the ready
+// page: a wash of the theme's hero ink from the top edge behind the box's name
+// and the one act.
+import { CheckIcon, ExternalLinkIcon, KeyRoundIcon, ListChecksIcon, ServerIcon, XIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { fmtBytes, fmtDuration, HERE_PLACE_ID, hereName, NO_RECIPE, recipeCounts, recipeSummary, signInWayLabel, signInWaysFix, type SignInWay, type AgentsTarget, type PlaceSetupStep, type PlaceView, type ProjectIcon, type RecipeFile, type RecipeOptions, type SshHostSuggestion } from "@wsp/protocol";
+import { agentName, catalogEntry, keyEnvOf, mintsToken, signInWaysOf } from "@wsp/catalog";
+import { ActButton } from "../../components/agents/agentsParts.js";
+import { AGENTS_LIST_WORDS, agentSignInStart, catalogSignInRow, signInAct, wayStart, type RowAct, type RowsContext, type SignInStart } from "../../components/agents/agentsRows.js";
+import { SignInFlowView } from "../../components/agents/SignInFlowView.js";
+import { useAgentActs } from "../../components/agents/useAgentActs.js";
+import { useAgentsReport } from "../../components/agents/useAgentsReport.js";
+import { AddButton } from "../../components/ui/add-button.js";
+import { Button } from "../../components/ui/button.js";
+import { Dialog, DialogDescription, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../../components/ui/dialog.js";
+import { Input } from "../../components/ui/input.js";
+import { RadioGroup } from "../../components/ui/radio-group.js";
+import { Spinner } from "../../components/ui/spinner.js";
+import { desktopBridge } from "../../lib/desktopShell.js";
+import { APP_LOCALE } from "../../lib/timestampFormat.js";
+import { cn } from "../../lib/utils.js";
+import { useStore } from "../../protocol/store.js";
+import { failureOf, type Failure } from "../../protocol/failure.js";
+import { PROJECT_GLYPHS } from "../../projects/look.js";
+import { IconSelect } from "../../projects/LookPicker.js";
+import { useAdds } from "../adds.js";
+import { ComputerGlyph } from "../ComputerGlyph.js";
+import { ADD_COMPUTER_WORDS, FACT } from "../format.js";
+import { Grid, GridHead } from "../grid.js";
+import { GLYPH, NOTE, ROW_FIELD } from "../layout.js";
+import { placeName } from "../places.js";
+import { readRecipes, useRecipes } from "../recipesStore.js";
+import { Card, Line } from "../rows.js";
+import { CopyRow, DeviceCode, RefusalSlot } from "../sheetParts.js";
+import { STEP_TITLES, askedHostKey, askedSudo, closeAdd, connect, copyKeysOn, firstPick, go, readOptions, retrySetup, sayClosed, setupWithWay, setPicks, skipRow, setSaveAs, setUp, stepLine, stepsFor, tooBig, useAddFlow, weigh, type AddStep } from "./addFlow.js";
+import { everything, folderKey, folderLooks, fromRecipe, githubPick, noPicks, servable, tickUsedClis } from "./choices.js";
+import { AgentsPicks, Choice, ClisPicks, GitHubPicks, OtherPicks, PluginsPicks, ProjectsPicks, ServersPicks, SkillsPicks, type FolderOption } from "./PickLists.js";
+import { PickLine, PickRow } from "./PickRow.js";
+import { AddCloudDialog } from "./AddCloudDialog.js";
+import { useCloudFlow } from "./cloudFlow.js";
+import { checkRows, opensLog, runningSince, setupCount, setupRows, setupStanding, stepLogs, type StepLine } from "./setup.js";
+import { STEP_BODY, STEP_FRAME, STEP_HEAD, StepFoot } from "./StepDialog.js";
+import { CopyKeysAct, RetryActs, SkipAct, StepLog, StepRow } from "./StepRow.js";
+import { keyTakenAt } from "../../keyOwners.js";
+
+const sshLogin = (host: SshHostSuggestion): string => [host.user, host.hostName ?? host.alias].filter(Boolean).join("@");
+
+function WhereStep({ address, hostKey, hosts, hostsRefused, onPick }: { address: string; hostKey: string | undefined; hosts: readonly SshHostSuggestion[]; hostsRefused: Failure | null; onPick: (alias: string) => void }) {
+  const picked = hosts.find(host => host.alias === address.trim())?.alias ?? "";
+  return (
+    <>
+      <Input data-k="where-field" aria-label="Address" nativeInput autoFocus autoComplete="off" spellCheck={false} autoCapitalize="off" value={address} placeholder="user@host or an ssh alias" onChange={e => useAddFlow.setState({ address: e.target.value })} size="lg" className="font-mono" />
+      {hostKey !== undefined ? (
+        <div className="flex flex-col gap-2">
+          <p className={NOTE}>{address.trim()}'s host key is new to {hereName(useStore.getState().places)}.</p>
+          <CopyRow k="host-key" value={hostKey} />
+        </div>
+      ) : hostsRefused !== null ? (
+        <RefusalSlot k="ssh-hosts-refused" said={ADD_COMPUTER_WORDS.hostsNotRead(hostsRefused.said)} {...(hostsRefused.fix === undefined ? {} : { fix: hostsRefused.fix })} />
+      ) : hosts.length === 0 ? null : (
+        <RadioGroup value={picked} onValueChange={next => onPick(String(next))} className="gap-0">
+          <Grid id="ssh-hosts" head={<GridHead cells={[{ word: ADD_COMPUTER_WORDS.suggested }]} />}>
+            {hosts.map(host => (
+              <Choice key={host.alias} id={host.alias} picked={picked === "" || picked === host.alias} glyph={<ServerIcon aria-hidden className={GLYPH} />} name={host.alias} fact={sshLogin(host)} />
+            ))}
+          </Grid>
+        </RadioGroup>
+      )}
+    </>
+  );
+}
+
+/** The checks as rows. Where the login's sudo asks for a password, the root row asks for it: a field held in this
+ * step alone, sent with the next add and cleared as it goes. */
+function ChecksStep({ rows, asksSudo, onAgain }: { rows: readonly StepLine[]; asksSudo: boolean; onAgain: (sudoPassword?: string) => void }) {
+  const [password, setPassword] = useState("");
+  const again = (): void => {
+    const typed = password;
+    setPassword("");
+    onAgain(asksSudo ? typed : undefined);
+  };
+  return (
+    <Grid id="checks">
+      {rows.map(row => (
+        <StepRow
+          key={row.id}
+          row={row}
+          {...(row.state === "failed"
+            ? {
+                acts: (
+                  <>
+                    {asksSudo ? <Input data-k="sudo-password" aria-label="Password for sudo" type="password" autoFocus autoComplete="off" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && password !== "" && again()} className={cn(ROW_FIELD, "w-44 max-sm:w-36")} /> : null}
+                    <Button size="xs" variant="outline" data-k="try-again" held={asksSudo && password === ""} onClick={again}>
+                      Try again
+                    </Button>
+                  </>
+                ),
+              }
+            : {})}
+        />
+      ))}
+    </Grid>
+  );
+}
+
+/** The day a saved recipe was written, as the app spells a day. */
+const SAVED_DAY = new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric", year: "numeric" });
+
+function StartFromStep({ here, picks, options, onPick, from }: { here: string; picks: RecipeFile; options: RecipeOptions; onPick: (from: string, next: RecipeFile) => void; from: string }) {
+  const recipes = useRecipes(s => s.recipes) ?? [];
+  const looks = useStore(s => s.preferences.recipeLook);
+  const projects = useHereProjects();
+  const projectLooks = useFolderLooks();
+  const hereRow = useStore(s => s.places.find(p => p.id === HERE_PLACE_ID));
+  const all = everything(picks.name, options, projects, projectLooks);
+  return (
+    <RadioGroup
+      value={from}
+      onValueChange={next => {
+        const id = String(next);
+        const recipe = recipes.find(r => r.slug === id);
+        onPick(id, id === "here" ? all : id === "none" ? noPicks(picks.name) : recipe === undefined ? picks : fromRecipe(recipe.file, picks.name));
+      }}
+      className="gap-0"
+    >
+      <Grid id="start-from">
+        <Choice id="here" picked={from === "here"} glyph={hereRow === undefined ? <ListChecksIcon aria-hidden className={GLYPH} /> : <ComputerGlyph place={hereRow} className={GLYPH} />} name={`Everything on ${here}`} note={`${recipeSummary(all)}.`} />
+        {recipes.map(recipe => {
+          const Glyph = PROJECT_GLYPHS[looks?.[recipe.slug]?.icon ?? "folder"];
+          return <Choice key={recipe.slug} id={recipe.slug} picked={from === recipe.slug} glyph={<Glyph aria-hidden className={GLYPH} />} name={recipe.name} note={ADD_COMPUTER_WORDS.savedRecipe(recipe.summary, recipe.savedAt === undefined ? undefined : SAVED_DAY.format(new Date(recipe.savedAt)))} {...(recipe.machines.length === 0 ? {} : { fact: `on ${recipe.machines.join(", ")}` })} />;
+        })}
+        <Choice id="none" picked={from === "none"} glyph={<ListChecksIcon aria-hidden className={GLYPH} />} name="Pick each step" note="Nothing ticked." />
+      </Grid>
+    </RadioGroup>
+  );
+}
+
+/** The projects on the computer running the host, which is where folders are imported from. */
+function useHereProjects() {
+  const projects = useStore(s => s.projects);
+  return useMemo(() => projects.filter(p => p.computer === HERE_PLACE_ID), [projects]);
+}
+
+/** Each project's look as its folder row carries it, the image beside the glyph and hue. */
+function useFolderLooks() {
+  const projectLook = useStore(s => s.preferences.projectLook);
+  const projectIcon = useStore(s => s.preferences.projectIcon);
+  return useMemo(() => folderLooks(projectLook, projectIcon), [projectLook, projectIcon]);
+}
+
+/** What the host read of a folder of the computer running it, by its path: its size, whether it is private, and the
+ * commits no remote holds. */
+const folderFacts = (facts: RecipeOptions["folders"], path: string): Pick<FolderOption, "bytes" | "private" | "unpushed"> => {
+  const fact = facts?.find(f => f.path === path);
+  return { ...(fact?.bytes === undefined ? {} : { bytes: fact.bytes }), ...(fact?.private === undefined ? {} : { private: fact.private }), ...(fact?.unpushed === undefined ? {} : { unpushed: fact.unpushed }) };
+};
+
+function ProjectsStep({ picks, box, boxId, facts, onChange }: { picks: RecipeFile; box: string; boxId: string; facts: RecipeOptions["folders"]; onChange: (next: RecipeFile) => void }) {
+  const here = useHereProjects();
+  const looks = useFolderLooks();
+  const onBox = useStore(s => s.projects).filter(p => p.computer === boxId);
+  const [added, setAdded] = useState<readonly FolderOption[]>([]);
+  // A folder already in the picks that is no project here is one the person picked: it stands at the top.
+  const picked: FolderOption[] = Object.entries(picks.folders)
+    .filter(([key]) => !here.some(p => folderKey(p.name) === key) && !added.some(f => f.key === key))
+    .map(([key, row]) => ({ key, name: row.name ?? key, path: row.from, icon: row.icon ?? "folder", hue: row.hue ?? "neutral", ...(row.image === undefined ? {} : { image: row.image }), ...folderFacts(facts, row.from) }));
+  const folders: FolderOption[] = [...added, ...picked, ...here.map(p => ({ key: folderKey(p.name), name: p.name, path: p.path, remote: p.remote, icon: looks[p.id]?.icon ?? "folder", hue: looks[p.id]?.hue ?? "neutral", ...(looks[p.id]?.image === undefined ? {} : { image: looks[p.id]!.image }), ...folderFacts(facts, p.path) }))];
+  const pick = desktopBridge()?.pickFolder;
+  const addFolder = async (): Promise<void> => {
+    const path = await pick?.();
+    if (path === undefined) return;
+    const name = path.split("/").filter(Boolean).at(-1) ?? path;
+    const folder: FolderOption = { key: folderKey(name), name, path, icon: "folder", hue: "neutral" };
+    setAdded(rows => [folder, ...rows.filter(r => r.key !== folder.key)]);
+    onChange({ ...picks, folders: { ...picks.folders, [folder.key]: { from: path, name, icon: "folder", hue: "neutral", keep: [] } } });
+  };
+  return (
+    <>
+      <ProjectsPicks picks={picks} onChange={onChange} box={box} folders={folders} taken={name => onBox.some(p => p.name === name)} />
+      {pick === undefined ? null : (
+        <div className="flex">
+          <AddButton data-k="add-folder" onClick={() => void addFolder()}>
+            Add a folder…
+          </AddButton>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** A name the computer already has a project by, among the folders the picks import. */
+const nameTaken = (picks: RecipeFile, boxProjects: readonly { name: string }[]): boolean => Object.values(picks.folders).some(f => boxProjects.some(p => p.name === (f.name ?? "")));
+
+const names = (table: Record<string, unknown>): string => Object.keys(table).join(", ");
+
+function SummaryStep({ picks, box, place, here, recipeIcon }: { picks: RecipeFile; box: string; place: PlaceView | undefined; here: string; recipeIcon: ProjectIcon }) {
+  const saveAs = useAddFlow(s => s.saveAs);
+  const estimate = useAddFlow(s => s.estimate);
+  const free = estimate?.freeBytes ?? place?.diskFreeBytes;
+  const short = tooBig(estimate);
+  const counts = recipeCounts(picks);
+  const github = { vault: `Token from ${here}`, machine: `Sign in on ${box}`, skip: ADD_COMPUTER_WORDS.skipForNow }[githubPick(picks)];
+  const lines: [string, string][] = [
+    ["Agents", Object.keys(picks.agents).map(agentName).join(", ")],
+    ["MCP servers", names(picks.mcp)],
+    ["CLIs", names(picks.clis)],
+    ["Skills", String(counts.skills)],
+    ["Plugins", String(counts.plugins)],
+    ["GitHub", github],
+    ["Projects", Object.values(picks.folders).map(f => f.name ?? f.from).join(", ")],
+    ["Other config", [picks.configs.git === undefined ? undefined : "git", picks.configs.shell === undefined ? undefined : "shell"].filter(Boolean).join(", ")],
+  ];
+  const Glyph = PROJECT_GLYPHS[recipeIcon];
+  return (
+    <>
+      <Card id="summary-lines">
+        {lines.map(([label, value]) => (
+          <Line key={label} id={label} label={label} value={value === "" || value === "0" ? "None" : value} valueClass="fact" />
+        ))}
+        {estimate === null && free === undefined ? null : (
+          <Line
+            id="disk"
+            label={`Disk on ${box}`}
+            control={
+              <span
+                data-k="disk"
+                data-short={short}
+                {...(estimate === null || estimate.unmeasured === 0 ? {} : { title: ADD_COMPUTER_WORDS.unmeasured(estimate.unmeasured) })}
+                className={cn("text-[13px] tabular-nums sm:text-right", short ? "text-destructive-foreground" : "text-muted-foreground")}
+              >
+                {estimate === null ? `${fmtBytes(free!)} free` : ADD_COMPUTER_WORDS.diskLine(fmtBytes(estimate.neededBytes), fmtBytes(estimate.keptBytes), free === undefined ? undefined : fmtBytes(free))}
+              </span>
+            }
+          />
+        )}
+      </Card>
+      {short ? <RefusalSlot k="disk-short" {...ADD_COMPUTER_WORDS.diskShort(box, fmtBytes(free!), fmtBytes(estimate!.neededBytes), fmtBytes(estimate!.keptBytes))} /> : null}
+      <Card id="save-recipe">
+        <PickRow id="save" checked={saveAs.on} onCheckedChange={on => setSaveAs({ on })} glyph={<Glyph aria-hidden className={GLYPH} />} name="Save as a recipe" note="The next box starts from these picks.">
+          {saveAs.on ? (
+            <>
+              <PickLine label="Name">
+                <Input data-k="recipe-name" aria-label="Recipe name" value={saveAs.name} onChange={e => setSaveAs({ name: e.target.value })} className={cn(ROW_FIELD, "w-44 max-sm:w-36")} />
+              </PickLine>
+              <PickLine label="Icon">
+                <IconSelect icon={saveAs.icon} hue="neutral" onChange={icon => setSaveAs({ icon })} />
+              </PickLine>
+            </>
+          ) : null}
+        </PickRow>
+      </Card>
+    </>
+  );
+}
+
+/** A sign-in that waits on the person: the code, the tab opened again, Skip for now, and where it can be finished
+ * later. A wait that ran out says so and is run again by Retry. */
+function WaitBlock({ row, onRetry, onSkip, busy }: { row: StepLine; onRetry: () => void; onSkip: () => void; busy: boolean }) {
+  const wait = row.wait!;
+  if (wait.state === "expired") {
+    return (
+      <>
+        <p data-k="step-refusal" className="text-[13px] leading-[18px] text-destructive-foreground">
+          The sign-in page ran out.<span className="text-foreground"> Retry opens a fresh one.</span>
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <RetryActs onRetry={onRetry} busy={busy} />
+          <SkipAct word={ADD_COMPUTER_WORDS.skipForNow} onSkip={onSkip} busy={busy} />
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      <div data-sign-in-line className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-2">
+        {wait.code === undefined ? null : <DeviceCode code={wait.code} />}
+        {wait.url === undefined ? null : (
+          <Button size="xs" variant="outline" data-k="open-tab" onClick={() => void window.open(wait.url, "_blank", "noopener,noreferrer")}>
+            <ExternalLinkIcon aria-hidden className="size-3.5" />
+            Open the tab again
+          </Button>
+        )}
+        <SkipAct word={ADD_COMPUTER_WORDS.skipForNow} onSkip={onSkip} busy={busy} bare />
+      </div>
+      <p className={NOTE}>{ADD_COMPUTER_WORDS.signInLater}</p>
+    </>
+  );
+}
+
+/** How often an open step's output is read off the box's setup log while it runs: one tail of the log a read, for
+ * every step at once. */
+const OUTPUT_EVERY_MS = 3000;
+
+/** Each step's last lines of output, read while `want` holds (a row is open) and on a timer while `live` does (an
+ * open row is running), never on a render; a read still out when the next is due is not doubled. Nothing until the
+ * first read answers. */
+function useStepLogs(placeId: string, want: boolean, live: boolean): Partial<Record<PlaceSetupStep, string[]>> | null {
+  const api = useStore(s => s.api);
+  const [logs, setLogs] = useState<Partial<Record<PlaceSetupStep, string[]>> | null>(null);
+  useEffect(() => {
+    const read = api?.placesSetupLog;
+    if (!want || read === undefined) return;
+    let on = true;
+    let asking = false;
+    const tail = (): void => {
+      if (asking) return;
+      asking = true;
+      void read(placeId).then(
+        lines => {
+          asking = false;
+          if (!on) return;
+          const next = stepLogs(lines);
+          setLogs(was => (JSON.stringify(was) === JSON.stringify(next) ? was : next));
+        },
+        () => {
+          asking = false;
+        },
+      );
+    };
+    tail();
+    const timer = live ? setInterval(tail, OUTPUT_EVERY_MS) : undefined;
+    return () => {
+      on = false;
+      if (timer !== undefined) clearInterval(timer);
+    };
+  }, [api, placeId, want, live]);
+  return logs;
+}
+
+/** The steps of a setup with what each row asks, each act running its own row again and no other: Retry where a row
+ * did not land, Skip where it is an item the host can set aside, the wait where a sign-in does, and Sign in on the
+ * computer where a sign-in was skipped or failed, or each way of an agent that has several, its page and code drawn
+ * under the row as the computer's own Sign-ins draw them. A step that ran opens on a click to its last lines of
+ * output, and one that failed stands open until it is closed. */
+export function SetupList({ place, id = "setup", rows = setupRows(place, placeName(place)) }: { place: PlaceView; id?: string; rows?: readonly StepLine[] }) {
+  const api = useStore(s => s.api);
+  const box = placeName(place);
+  const target = useMemo<AgentsTarget>(() => ({ placeId: place.id }), [place.id]);
+  const signIns = useAgentActs(target);
+  const { report } = useAgentsReport(rows.some(row => row.signIn !== undefined) ? target : null);
+  // A refusal is said under the row whose act asked, where the person is looking, never at the foot of a long list.
+  const [refused, setRefused] = useState<{ row: string; failure: Failure } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [turned, setTurned] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const isOpen = (row: StepLine): boolean => opensLog(row) && (turned.get(row.id) ?? row.state === "failed");
+  const open = rows.filter(isOpen);
+  const logs = useStepLogs(place.id, open.length > 0, open.some(row => row.state === "working"));
+  const ask = (row: string, run: () => Promise<Failure | null>): void => {
+    setBusy(true);
+    void run().then(failure => {
+      setBusy(false);
+      // The host refuses a press while a setup or a sync runs there; the act works once it ends.
+      setRefused(failure === null ? null : { row, failure: failure.kind === "conflict" ? { ...failure, said: ADD_COMPUTER_WORDS.stillSettingUp(box), fix: undefined } : failure });
+    });
+  };
+  // A refusal says how the setup or a recipe's sync stood when it was pressed, so it goes once either moves on.
+  const setupState = place.setup?.state;
+  const syncState = place.sync?.state;
+  useEffect(() => setRefused(null), [setupState, syncState]);
+  const retry = (row: string) => (): void => ask(row, () => retrySetup(api, place.id, row));
+  // The yes lives on the picks a computer follows: a recipe's page gives it for every computer that follows one.
+  const ownPicks = place.recipe === undefined || place.recipe === NO_RECIPE;
+  const copyKeys = (row: string) => (): void => ask(row, () => copyKeysOn(api, place, row, box));
+  const skip = (row: string) => (): void => ask(row, () => skipRow(api, place.id, row));
+  const ctx: RowsContext = { where: "box", computer: box, heldWhy: null, ...(signIns === undefined ? {} : { acts: signIns }) };
+  // A token is made on the computer the host runs on, so its sign-in is that computer's.
+  const hereTarget = useMemo<AgentsTarget>(() => ({ placeId: HERE_PLACE_ID }), []);
+  const hereSignIns = useAgentActs(hereTarget);
+  const hereCtx: RowsContext = { where: "here", heldWhy: null, ...(hereSignIns === undefined ? {} : { acts: hereSignIns }) };
+  // A row draws one sign-in: a way started from one computer's sign-ins ends what the other's hold on that row, so a
+  // token made here never runs unseen behind the key's field, nor the field stand over a token's page.
+  const alone =
+    (row: string, mine: typeof signIns, run: () => void) =>
+    (): void => {
+      (mine === hereSignIns ? signIns : hereSignIns)?.cancel(row);
+      run();
+    };
+  // An agent with several ways offers each on its row, the one this computer was set up with first.
+  const waysOf = (row: StepLine): SignInWay[] => {
+    if (row.signIn === undefined) return [];
+    const ways = signInWaysOf(row.signIn);
+    const first = ways.find(w => w === place.picks?.agents[row.signIn!]?.signin);
+    return first === undefined ? ways : [first, ...ways.filter(w => w !== first)];
+  };
+  const wayAct = (row: StepLine, way: SignInWay): ReturnType<typeof signInAct> => {
+    const agent = row.signIn!;
+    // A computer that takes the key already failed for want of it, and a run again reads the same missing key: the
+    // key is asked for under the row and goes to the host's vault, which lands the row.
+    if (way === "key" && place.picks?.agents[agent]?.signin === "key") {
+      const start: SignInStart = { kind: "vault", agent, word: "key" };
+      const { flow } = signInAct(row.id, start, ctx);
+      return { act: { id: "key", label: signInWayLabel("key", box), icon: KeyRoundIcon, ...(signIns === undefined ? {} : { run: alone(row.id, signIns, () => signIns.start(row.id, start)) }) }, ...(flow === undefined ? {} : { flow }) };
+    }
+    if (way === "key") return { act: { id: "key", label: signInWayLabel("key", box), icon: KeyRoundIcon, run: () => ask(row.id, () => setupWithWay(api, place, agent, "key", row.id, box)) } };
+    const mine = way === "token" ? hereSignIns : signIns;
+    const made = signInAct(row.id, wayStart(agent, way), way === "token" ? hereCtx : ctx);
+    if (made.act.id !== "sign-in") return made;
+    const run = made.act.run;
+    return { ...made, act: { ...made.act, label: signInWayLabel(way, box), ...(run === undefined ? {} : { run: alone(row.id, mine, run) }) } };
+  };
+  // How it signs in there is the agents list's own rule, off that computer's report row where one is read.
+  const signInOf = (row: StepLine) => {
+    const road = row.signIn === undefined ? undefined : (report?.agents.find(a => a.id === row.signIn) ?? catalogSignInRow(row.signIn));
+    const start = road === undefined ? undefined : agentSignInStart(road, ctx);
+    return start === undefined ? undefined : signInAct(row.id, start, ctx);
+  };
+  // A sign-in drawn under its row is closed by Cancel there, never by the Sign in that opened it; one that failed
+  // offers its Sign in again.
+  const actOf = (row: StepLine, signIn: NonNullable<ReturnType<typeof signInOf>>): RowAct => {
+    if (signIn.act.id !== "sign-in") return signIn.act;
+    if (signIn.flow !== undefined && signIn.flow.flow.kind !== "run" && signIns !== undefined) return { id: "cancel", label: AGENTS_LIST_WORDS.cancel, icon: XIcon, run: () => signIns.cancel(row.id) };
+    return { ...signIn.act, label: ADD_COMPUTER_WORDS.signInOn(box) };
+  };
+  const acts = (row: StepLine): ReactNode => {
+    const ways = waysOf(row);
+    if (ways.length > 0 && row.wait === undefined && (row.state === "failed" || row.state === "skipped")) {
+      return (
+        <>
+          {ways.map(way => (
+            <ActButton key={way} act={wayAct(row, way).act} k={way === "machine" ? "sign-in" : `sign-in-${way}`} />
+          ))}
+          {row.state === "failed" && row.sub === true ? <SkipAct word={ADD_COMPUTER_WORDS.skip} onSkip={skip(row.id)} busy={busy} /> : null}
+        </>
+      );
+    }
+    const signIn = signInOf(row);
+    const signInButton = signIn === undefined ? null : <ActButton act={actOf(row, signIn)} k="sign-in" />;
+    if (row.state === "skipped" && row.copyKeys === true && ownPicks) return <CopyKeysAct onCopy={copyKeys(row.id)} busy={busy} />;
+    if (row.state === "skipped") return signInButton ?? undefined;
+    if (row.state !== "failed" || row.wait !== undefined) return undefined;
+    return (
+      <>
+        {signInButton ?? <RetryActs onRetry={retry(row.id)} busy={busy} />}
+        {row.sub === true ? <SkipAct word={ADD_COMPUTER_WORDS.skip} onSkip={skip(row.id)} busy={busy} /> : null}
+      </>
+    );
+  };
+  const flowOf = (row: StepLine): ReactNode => {
+    const ways = waysOf(row);
+    const flow = ways.length > 0 ? ways.map(way => wayAct(row, way).flow).find(f => f !== undefined) : signInOf(row)?.flow;
+    return flow === undefined ? undefined : <SignInFlowView view={flow} label={row.name} reserve={false} />;
+  };
+  // With the key's field open under it, the row's fix says to paste the key there, not to put it in the file first.
+  const here = useStore(s => hereName(s.places));
+  const worded = (row: StepLine): StepLine => {
+    const ways = waysOf(row);
+    if (!ways.includes("key") || wayAct(row, "key").flow?.flow.kind !== "vault") return row;
+    const signIn = catalogEntry(row.signIn!)?.signIn;
+    const keyEnv = signIn === undefined ? undefined : keyEnvOf(signIn);
+    const facts = { name: agentName(row.signIn!), here, box, field: true, ...(signIn !== undefined && mintsToken(signIn) ? { mint: signIn.mint } : {}), ...(keyEnv === undefined ? {} : { keyEnv }) };
+    return { ...row, fix: signInWaysFix(ways, facts) };
+  };
+  const under = (row: StepLine): ReactNode => {
+    const shown = row.wait !== undefined ? <WaitBlock row={row} onRetry={retry(row.id)} onSkip={skip(row.id)} busy={busy} /> : (flowOf(row) ?? (isOpen(row) && logs !== null ? <StepLog lines={logs[row.id as PlaceSetupStep]} /> : undefined));
+    if (refused?.row !== row.id) return shown;
+    return (
+      <>
+        {shown}
+        <RefusalSlot k="retry-refused" said={refused.failure.said} {...(refused.failure.fix === undefined ? {} : { fix: refused.failure.fix })} />
+      </>
+    );
+  };
+  const toggle = (row: StepLine) => (opensLog(row) ? { open: isOpen(row), onToggle: () => setTurned(was => new Map(was).set(row.id, !isOpen(row))) } : { open: false });
+  return (
+    <Grid id={id}>
+      {rows.map(row => (
+        <StepRow key={row.id} row={worded(row)} acts={acts(row)} toggle={toggle(row)}>
+          {under(row)}
+        </StepRow>
+      ))}
+    </Grid>
+  );
+}
+
+function RunningView({ place }: { place: PlaceView }) {
+  const drawn = setupRows(place, placeName(place));
+  const rows = drawn.map(row => {
+    if (row.state !== "working") return row;
+    const since = runningSince(place.setup, row.id);
+    return since === undefined ? row : { ...row, since };
+  });
+  const asks = rows.find(row => row.state === "needs-you" || row.state === "failed")?.id;
+  const shown = useRef(false);
+  // The list opens on the first row that waits on the person, once, when it first appears, so a long run never hides
+  // the one act it asks for.
+  useEffect(() => {
+    if (asks === undefined || shown.current) return;
+    shown.current = true;
+    document.querySelector(`[data-add-computer] [data-step-row="${CSS.escape(asks)}"]`)?.scrollIntoView({ block: "center" });
+  }, [asks]);
+  return <SetupList place={place} rows={rows} />;
+}
+
+/** The page after every row is done: one static wash in the theme's hero ink falling from the dialog's top edge, the
+ * place's glyph and name, what landed, and the one act. */
+export function ReadyPage({ place, line, act, k, onStart, onClose }: { place: PlaceView; line: string | undefined; act: string; k: string; onStart: () => void; onClose: () => void }) {
+  const name = placeName(place);
+  return (
+    <div data-k="ready-page" className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-xl px-6 py-12 text-center">
+      <span aria-hidden data-k="ready-wash" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-[radial-gradient(70%_100%_at_50%_0%,color-mix(in_srgb,var(--hero-field)_32%,transparent),transparent_100%)]" />
+      <span className="flex size-12 items-center justify-center rounded-lg border border-border bg-foreground/[0.04]">
+        <ComputerGlyph place={place} className="size-6 text-foreground/80" />
+      </span>
+      <h2 data-k="ready-title" className="mt-5 text-2xl/8 font-medium tracking-[-0.01em] text-foreground">
+        {name} is ready
+      </h2>
+      {line === undefined ? null : <p className={cn(NOTE, "mt-1.5")}>{line}</p>}
+      <div className="mt-7 flex items-center gap-2">
+        <Button data-k={k} onClick={onStart}>
+          {act}
+        </Button>
+        <Button variant="ghost" data-k="ready-close" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** How often the saved line's check draws in again at most: a run of ticks is one save said, not one flash a click. */
+const SAVED_EVERY_MS = 4000;
+
+/** The foot's left: the auto-save check and the one line. Keyed on the save it last drew for, so a save landing a few
+ * seconds after the last one drawn remounts it and its stroke draws in once more; a save inside that wait draws
+ * nothing, and nothing moves at rest. */
+function SavedLine() {
+  const n = useAddFlow(s => s.saves);
+  const drawn = useRef({ n, at: Date.now() });
+  if (n !== drawn.current.n && Date.now() - drawn.current.at >= SAVED_EVERY_MS) drawn.current = { n, at: Date.now() };
+  return (
+    <span data-k="saved" className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+      <CheckIcon key={drawn.current.n} aria-hidden className="autosave-check size-3.5 shrink-0" />
+      {ADD_COMPUTER_WORDS.saved}
+    </span>
+  );
+}
+
+const PICK_STEPS: ReadonlySet<AddStep> = new Set(["startfrom", "agents", "mcp", "clis", "skills", "plugins", "github", "projects", "other", "summary"]);
+
+/** Whether picks hold nothing at all, which is where a first pick step fills them with everything. */
+const empty = (picks: RecipeFile | null): boolean => picks === null || Object.values(recipeCounts(picks)).every(n => n === 0);
+
+/** The add dialog's one slot: Add a cloud provider where that was asked, else Add a computer. */
+export function AddComputerDialog() {
+  const cloud = useCloudFlow(s => s.open);
+  return cloud ? <AddCloudDialog /> : <ComputerDialog />;
+}
+
+function ComputerDialog() {
+  const flow = useAddFlow();
+  const api = useStore(s => s.api);
+  const places = useStore(s => s.places);
+  const projects = useStore(s => s.projects);
+  const projectLooks = useFolderLooks();
+  const setPreferences = useStore(s => s.setPreferences);
+  const recipes = useRecipes(s => s.recipes);
+  const job = useAdds(s => (flow.addId === null ? undefined : s.jobs[flow.addId]));
+  const [hosts, setHosts] = useState<SshHostSuggestion[]>([]);
+  const [hostsRefused, setHostsRefused] = useState<Failure | null>(null);
+  const here = hereName(places);
+  const place = flow.placeId === null ? undefined : places.find(p => p.id === flow.placeId);
+  const box = place === undefined ? flow.address.trim() : placeName(place);
+  const steps = stepsFor(recipes?.length ?? 0);
+
+  useEffect(() => {
+    if (!flow.open || api === null) return;
+    readRecipes(api);
+    // The running and ready views draw no options; the read is half a minute of the host's walk for nothing there.
+    const at = useAddFlow.getState().step;
+    if (at !== "running" && at !== "ready") readOptions(api);
+    void api.sshHosts?.().then(
+      found => {
+        setHosts(found);
+        setHostsRefused(null);
+      },
+      (e: unknown) => {
+        const failure = failureOf(e);
+        setHosts([]);
+        // A socket that may not ask is not a fault, and a lost one is said by the banner.
+        setHostsRefused(failure.kind === "ticket" || failure.disconnected ? null : failure);
+      },
+    );
+  }, [flow.open, api]);
+
+  // The computer joined: the add goes on to its picks, the pending add standing for it under the same id.
+  useEffect(() => {
+    if (job?.state === "done" && job.placeId !== undefined && flow.placeId === null) useAddFlow.setState({ placeId: job.placeId, pendingId: job.addId });
+  }, [job?.state, job?.placeId, flow.placeId, job?.addId]);
+
+  // The summary weighs the picks as they stand each time it opens, and again on any change to them.
+  useEffect(() => {
+    if (flow.step !== "summary" || api === null || flow.placeId === null || flow.picks === null) return;
+    weigh(api, flow.placeId, flow.picks);
+  }, [flow.step, api, flow.placeId, flow.picks]);
+
+  // A first pick step with nothing picked starts from everything the computer running the host has, once.
+  useEffect(() => {
+    if (!PICK_STEPS.has(flow.step) || flow.options === null || flow.from !== "here" || flow.saves > 0 || !empty(flow.picks)) return;
+    setPicks(api, everything(flow.picks?.name ?? box, flow.options, projects.filter(p => p.computer === HERE_PLACE_ID), projectLooks));
+  }, [flow.step, flow.options, flow.from, flow.saves, flow.picks, api, box, projects, projectLooks]);
+
+  // A sign-in the picks name that this computer cannot serve moves onto one it can, before anything is set up from it.
+  useEffect(() => {
+    if (flow.picks === null || flow.options === null) return;
+    const next = servable(flow.picks, flow.options);
+    if (next !== flow.picks) setPicks(api, next);
+  }, [flow.picks, flow.options, api]);
+
+  if (!flow.open) return null;
+
+  const keyAsked = flow.step === "checks" ? askedHostKey(job) : undefined;
+  const view: AddStep | "hostkey" = keyAsked !== undefined ? "hostkey" : flow.step;
+  const picks = flow.picks ?? noPicks(box);
+  const change = (next: RecipeFile): void => setPicks(api, next);
+  const close = (): void => {
+    if ((flow.step === "running" || flow.step === "ready") && place !== undefined) sayClosed(place);
+    closeAdd();
+  };
+  const next = (): void => {
+    const at = steps.indexOf(flow.step);
+    const to = steps[at + 1];
+    if (to !== undefined) go(to);
+  };
+  // The checks are this window's own install: a pending add opened again has none to go back to.
+  const backTo = steps[steps.indexOf(flow.step) - 1];
+  const canBack = backTo !== undefined && (backTo !== "checks" || flow.addId !== null);
+  const back = (): void => {
+    if (canBack) go(backTo);
+  };
+  const doConnect = (key?: string, sudoPassword?: string): void => {
+    if (api === null || flow.address.trim() === "") return;
+    connect(api, flow.address, key, sudoPassword);
+  };
+  const startTask = (): void => {
+    const project = projects.find(p => p.computer === flow.placeId);
+    closeAdd();
+    useStore.getState().closeSettings();
+    if (project !== undefined) useStore.getState().openProjectHome(project.id);
+  };
+
+  const options = flow.options;
+  const versions = places.find(p => p.id === HERE_PLACE_ID)?.agentVersions;
+  const boxProjects = projects.filter(p => p.computer === flow.placeId);
+  const optionsBody = (draw: (o: RecipeOptions) => ReactNode): ReactNode =>
+    options !== null ? (
+      draw(options)
+    ) : flow.optionsRefused !== null ? (
+      <RefusalSlot k="options-refused" said={flow.optionsRefused.said} {...(flow.optionsRefused.fix === undefined ? {} : { fix: flow.optionsRefused.fix })} />
+    ) : (
+      <div data-k="options-loading" className="flex flex-1 items-center justify-center">
+        <Spinner className="size-4 text-muted-foreground" />
+      </div>
+    );
+
+  const body = (): ReactNode => {
+    switch (view) {
+      case "where":
+        return <WhereStep address={flow.address} hostKey={undefined} hosts={hosts} hostsRefused={hostsRefused} onPick={alias => useAddFlow.setState({ address: alias })} />;
+      case "hostkey":
+        return <WhereStep address={flow.address} hostKey={keyAsked} hosts={[]} hostsRefused={null} onPick={() => {}} />;
+      case "checks":
+        return <ChecksStep rows={checkRows(job)} asksSudo={askedSudo(job)} onAgain={sudoPassword => (sudoPassword === undefined ? go("where") : doConnect(undefined, sudoPassword))} />;
+      case "startfrom":
+        return optionsBody(o => <StartFromStep here={here} picks={picks} options={o} from={flow.from} onPick={(from, next) => setPicks(api, next, from)} />);
+      case "agents":
+        return optionsBody(o => <AgentsPicks picks={picks} options={o} onChange={change} box={box} {...(versions === undefined ? {} : { versions })} />);
+      case "mcp":
+        return optionsBody(o => <ServersPicks picks={picks} options={o} onChange={change} box={box} />);
+      case "clis":
+        return optionsBody(o => (
+          <>
+            {o.clis.some(cli => (cli.calls ?? 0) > 0 && picks.clis[cli.name] === undefined) ? (
+              <div className="flex justify-end">
+                <Button size="xs" variant="outline" data-k="tick-used" onClick={() => change(tickUsedClis(picks, o))}>
+                  <ListChecksIcon aria-hidden className="size-3.5" />
+                  Select the ones your agents used
+                </Button>
+              </div>
+            ) : null}
+            <ClisPicks picks={picks} options={o} onChange={change} box={box} />
+          </>
+        ));
+      case "skills":
+        return optionsBody(o => <SkillsPicks picks={picks} options={o} onChange={change} box={box} />);
+      case "plugins":
+        return optionsBody(o => <PluginsPicks picks={picks} options={o} onChange={change} box={box} />);
+      case "github":
+        return optionsBody(o => <GitHubPicks picks={picks} options={o} onChange={change} box={box} here={here} />);
+      case "projects":
+        return <ProjectsStep picks={picks} box={box} boxId={flow.placeId ?? ""} facts={options?.folders} onChange={change} />;
+      case "other":
+        return optionsBody(o => <OtherPicks picks={picks} options={o} onChange={change} box={box} />);
+      case "summary":
+        return (
+          <>
+            <SummaryStep picks={picks} box={box} place={place} here={here} recipeIcon={flow.saveAs.icon} />
+            {flow.refused === null ? null : <RefusalSlot k="setup-refused" said={flow.refused.said} {...(flow.refused.fix === undefined ? {} : { fix: flow.refused.fix })} />}
+          </>
+        );
+      default:
+        return place === undefined ? null : <RunningView place={place} />;
+    }
+  };
+
+  const standing = place === undefined ? "running" : setupStanding(place);
+  const rows = place === undefined ? [] : setupRows(place, box);
+  const head = ((): { title: string; line?: string } => {
+    if (view === "where" || view === "hostkey") return { title: ADD_COMPUTER_WORDS.title, line: ADD_COMPUTER_WORDS.where };
+    if (view !== "running" && view !== "ready") return { title: STEP_TITLES[view], line: stepLine(view, box, here) };
+    if (standing === "failed") return { title: `Setup on ${box} failed` };
+    if (standing === "needs-you") return { title: `${box} needs you`, line: ADD_COMPUTER_WORDS.restDone };
+    if (standing === "ready") {
+      const took = place?.setup?.finishedAt === undefined ? undefined : Date.parse(place.setup.finishedAt) - Date.parse(place.setup.startedAt);
+      return { title: `${box} is ready`, ...(took === undefined || !Number.isFinite(took) ? {} : { line: `Set up in ${fmtDuration(took)}.` }) };
+    }
+    return { title: `Setting up ${box}` };
+  })();
+  const figure = ((): { words: string; why: string } => {
+    if (view === "running") {
+      const { done, of } = setupCount(rows);
+      return { words: `${done} of ${of} done`, why: `${done} of ${of} steps done` };
+    }
+    const at = steps.indexOf(view === "hostkey" ? "where" : view) + 1;
+    return { words: `${at} of ${steps.length}`, why: `Step ${at} of ${steps.length}` };
+  })();
+
+  const backButton = canBack ? (
+    <Button variant="outline" data-k="back" onClick={back}>
+      Back
+    </Button>
+  ) : null;
+  const primary = (word: string, run: () => void, held = false) => (
+    <Button data-k="continue" held={held} onClick={run}>
+      {word}
+    </Button>
+  );
+  const closeButton = (
+    <Button variant="outline" data-k="close" onClick={close}>
+      Close
+    </Button>
+  );
+  const foot = ((): ReactNode => {
+    switch (view) {
+      case "where":
+        return (
+          <>
+            <Button variant="outline" data-k="cancel" onClick={close}>
+              Cancel
+            </Button>
+            {primary("Connect", () => doConnect(), flow.address.trim() === "" || api?.addComputerOverSsh === undefined)}
+          </>
+        );
+      case "hostkey":
+        return (
+          <>
+            <Button variant="outline" data-k="cancel" onClick={close}>
+              Cancel
+            </Button>
+            {primary("Trust and connect", () => doConnect(keyAsked))}
+          </>
+        );
+      case "checks":
+        return (
+          <>
+            {backButton}
+            {primary("Continue", () => go(firstPick(recipes?.length ?? 0)), flow.placeId === null)}
+          </>
+        );
+      case "projects":
+        return (
+          <>
+            {backButton}
+            {primary("Continue", next, nameTaken(picks, boxProjects))}
+          </>
+        );
+      case "summary":
+        return (
+          <>
+            {backButton}
+            {primary(`Set up ${box}`, () => void (api === null ? undefined : setUp(api, (slug, icon) => void setPreferences({ recipeLook: { [slug]: { icon } } }))), place === undefined || empty(flow.picks) || flow.starting || tooBig(flow.estimate))}
+          </>
+        );
+      case "running":
+        return standing === "ready" ? (
+          <>
+            {closeButton}
+            {primary("Next", () => go("ready"))}
+          </>
+        ) : standing === "running" ? (
+          <Button variant="outline" data-k="close" onClick={close}>
+            Run in background
+          </Button>
+        ) : (
+          closeButton
+        );
+      default:
+        return (
+          <>
+            {backButton}
+            {primary("Continue", next)}
+          </>
+        );
+    }
+  })();
+  const saved = PICK_STEPS.has(view as AddStep);
+
+  return (
+    <Dialog open onOpenChange={(open, how) => (open || (how.reason === "escape-key" && keyTakenAt(how.event.target, "Escape")) ? undefined : close())}>
+      <DialogPopup data-add-computer={view} initialFocus={view === "where" || view === "hostkey" ? undefined : false} className={STEP_FRAME}>
+        {view === "ready" && place !== undefined ? (
+          <>
+            <DialogTitle className="sr-only">{head.title}</DialogTitle>
+            <ReadyPage place={place} line={place.picks === undefined ? undefined : `${recipeSummary(place.picks)}.`} act="Start a task here" k="start-task" onStart={startTask} onClose={close} />
+          </>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <DialogHeader className={STEP_HEAD}>
+              <div className="flex min-w-0 flex-col gap-1">
+                <DialogTitle>{head.title}</DialogTitle>
+                {head.line === undefined ? null : <DialogDescription>{head.line}</DialogDescription>}
+              </div>
+              <span data-k="progress" className={cn(FACT, "shrink-0 pt-0.5")} title={figure.why}>
+                {figure.words}
+              </span>
+            </DialogHeader>
+            <DialogPanel className={STEP_BODY}>{body()}</DialogPanel>
+            <StepFoot left={saved ? <SavedLine /> : null}>{foot}</StepFoot>
+          </div>
+        )}
+      </DialogPopup>
+    </Dialog>
+  );
+}

@@ -1,0 +1,21 @@
+# wsp agents key
+
+{/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
+
+```text
+usage: wsp agents key <agent> [--api-key]
+  puts an agent's token or API key into this host's vault, typed where nothing
+  echoes it; Claude Code's token is the one claude setup-token prints, Codex
+  signs in on this computer with its own login, which machines at a provider use
+  through wsp, and --api-key takes the agent's API key instead
+
+  --api-key    the value typed is the agent's API key, not the token its own
+               command mints; for a computer picked to use the key
+  --json       print the raw protocol values, one JSON object per line, with
+               everything else on stderr
+  --state      the state file the host serves
+  --host       read to say this line runs at its own host's terminal; it dials
+               no other
+```
+
+No MCP tool: takes a token typed at the host's own terminal into its vault, which is the person's to hand over.

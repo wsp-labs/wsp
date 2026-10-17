@@ -1,0 +1,90 @@
+// Adapted from pingdotgg/t3code apps/web/src/components/ui/popover.tsx at 57a66608 (MIT).
+"use client";
+
+import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
+
+import { cn } from "../../lib/utils";
+import { usePortalHost } from "./portal-host";
+import { TOOLTIP_SKIN } from "./hover-skin";
+
+const PopoverCreateHandle = PopoverPrimitive.createHandle;
+
+const Popover = PopoverPrimitive.Root;
+
+function PopoverTrigger({ className, children, ...props }: PopoverPrimitive.Trigger.Props) {
+  return (
+    <PopoverPrimitive.Trigger className={className} data-slot="popover-trigger" {...props}>
+      {children}
+    </PopoverPrimitive.Trigger>
+  );
+}
+
+function PopoverPopup({
+  children,
+  className,
+  viewportClassName,
+  side = "bottom",
+  align = "center",
+  sideOffset = 4,
+  alignOffset = 0,
+  tooltipStyle = false,
+  anchor,
+  ...props
+}: PopoverPrimitive.Popup.Props & {
+  viewportClassName?: string;
+  side?: PopoverPrimitive.Positioner.Props["side"];
+  align?: PopoverPrimitive.Positioner.Props["align"];
+  sideOffset?: PopoverPrimitive.Positioner.Props["sideOffset"];
+  alignOffset?: PopoverPrimitive.Positioner.Props["alignOffset"];
+  tooltipStyle?: boolean;
+  anchor?: PopoverPrimitive.Positioner.Props["anchor"];
+}) {
+  return (
+    <PopoverPrimitive.Portal container={usePortalHost()}>
+      <PopoverPrimitive.Positioner
+        align={align}
+        alignOffset={alignOffset}
+        anchor={anchor}
+        className="z-[130] h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-transform data-instant:transition-none"
+        data-slot="popover-positioner"
+        side={side}
+        sideOffset={sideOffset}
+      >
+        <PopoverPrimitive.Popup
+          className={cn(
+            "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-[12px] text-popover-foreground outline-none transition-[width,height,scale,translate,opacity] before:pointer-events-none before:absolute before:inset-0 before:rounded-[11px] before:shadow-[0_1px_--theme(--color-black/4%)] data-starting-style:opacity-0 dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            // The tooltip's own skin, so a card that holds a button reads as the hover cards that hold none.
+            tooltipStyle &&
+              cn(TOOLTIP_SKIN, "w-fit text-balance rounded-md text-xs before:rounded-[calc(var(--radius-md)-1px)] data-[side=top]:data-starting-style:translate-y-0.5 data-[side=bottom]:data-starting-style:-translate-y-0.5"),
+            !tooltipStyle &&
+              "dropdown-glass popover-shadow data-starting-style:scale-98",
+            className,
+          )}
+          data-slot="popover-popup"
+          {...props}
+        >
+          <PopoverPrimitive.Viewport
+            className={cn(
+              "relative size-full max-h-(--available-height) overflow-clip px-(--viewport-inline-padding) py-4 [--viewport-inline-padding:--spacing(4)] data-instant:transition-none **:data-current:data-ending-style:opacity-0 **:data-current:data-starting-style:opacity-0 **:data-previous:data-ending-style:opacity-0 **:data-previous:data-starting-style:opacity-0 **:data-current:w-[calc(var(--popup-width)-2*var(--viewport-inline-padding)-2px)] **:data-previous:w-[calc(var(--popup-width)-2*var(--viewport-inline-padding)-2px)] **:data-current:opacity-100 **:data-previous:opacity-100 **:data-current:transition-opacity **:data-previous:transition-opacity",
+              tooltipStyle
+                ? "py-1 [--viewport-inline-padding:--spacing(2)]"
+                : "not-data-transitioning:overflow-y-auto",
+              viewportClassName,
+            )}
+            data-slot="popover-viewport"
+          >
+            {children}
+          </PopoverPrimitive.Viewport>
+        </PopoverPrimitive.Popup>
+      </PopoverPrimitive.Positioner>
+    </PopoverPrimitive.Portal>
+  );
+}
+
+export {
+  PopoverCreateHandle,
+  Popover,
+  PopoverTrigger,
+  PopoverPopup,
+  PopoverPopup as PopoverContent,
+};

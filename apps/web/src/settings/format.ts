@@ -1,0 +1,757 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The words the settings page and its palette row say, one place, keyed by the
+// preference value where a value has words of its own.
+import { ACTIVITY_GROUP_WORDS, COPY_KEYS_WORD, fmtPx, keysKeptLine, listWords, nameList, offlineFor, type MidTurn, type NewThreadIn, type NotifyChoice, type OnQuit, type PlaceDialRoad, type PlaceProvisionRow, type ProductUsageOff, type SendKey, type ServerSignIn, type SettleAfter, type TerminalSizeSource, type ThemePreference, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";
+
+/** The muted sans with tabular figures a state word or a description of machine words wears, and the foreground one
+ * a value a person reads wears: an address, a size, a path, a time, a version. Two class strings the page, the sheet
+ * and the first run all draw with, so one type ladder holds across them. */
+export const FACT = "text-[13px] tabular-nums text-muted-foreground";
+export const VALUE = "text-sm tabular-nums text-foreground";
+
+/** A fact's slot where its words may take two lines: exactly two of the line's own line heights, held whether the
+ * words take one line or two, and cut at the second with the whole on the element's hover text. The height is read
+ * off the line itself (2lh) rather than written as a figure, so a slot and the text in it cannot disagree by the
+ * half pixel that moved the first run's button between one line and two. */
+export const TWO_LINE_SLOT = "min-h-[2lh] line-clamp-2";
+
+export const SETTINGS_WORDS = {
+  title: "Settings",
+  search: "Search settings",
+  searchPage: "Search",
+  nothingMatches: "Nothing matches.",
+  back: "Back",
+  backTo: (group: string): string => `Back to ${group}`,
+  restore: "Restore defaults",
+  resetRow: "Back to the default",
+  save: "Save",
+  cancel: "Cancel",
+  change: "Change",
+  appearance: "Appearance",
+  theme: "Theme",
+  mode: "Mode",
+  /** The grid of one side's themes, named by the side's word. */
+  themesOf: (side: string) => `${side} themes`,
+} as const;
+
+/** Settings > Appearance, the two font rows. */
+export const FONT_WORDS = {
+  head: "Type",
+  lede: "The faces and sizes the conversation and its code are read in.",
+  app: "App font",
+  appDescription: "The sidebar, replies and every page.",
+  code: "Code font",
+  codeDescription: "Code in replies, the changes and files.",
+  default: "Default",
+  textSize: "Reading size",
+  textSizeDescription: "Replies, your own messages and the box you write in.",
+  codeSize: "Code size",
+  codeSizeDescription: "Code in replies, tool output, the changes and files.",
+  px: (size: number): string => `${size} px`,
+  /** What the samples under the type rows say: a reply with a line of code, in the faces and sizes picked. */
+  sample: "The total rounded each line on its own, so three lines at 0.335 came to 1.00 or 1.01. It now rounds once:\n\n```ts\nexport const total = (lines: Line[]) => round(lines.reduce((sum, l) => sum + l.price, 0));\n```",
+} as const;
+
+/** Settings > Appearance's theme section. */
+export const THEME_SECTION_WORDS = {
+  lede: "Point at a theme to see this window in it.",
+  modeLede: (here: string): string => onceNamed(here, h => `Light, dark, or whichever side ${h} is on.`),
+} as const;
+
+/** Settings > Appearance's glass section, which holds the Transparency switch. */
+export const GLASS_WORDS = {
+  head: "Glass",
+  lede: "How wsp's window shows what is behind it.",
+} as const;
+
+/** Each side as its segment names it. */
+export const THEME_WORDS: Record<ThemePreference, string> = {
+  system: "System",
+  light: "Light",
+  dark: "Dark",
+};
+
+/** A sentence that names the computer the host runs on, said only once that name is known: until the places list
+ * arrives it is empty, since a stand-in word flashed in its place would be text that is not true. */
+export const onceNamed = (here: string, sentence: (here: string) => string): string => (here === "" ? "" : sentence(here));
+
+/** What a fact says after it about where it is, " on <name>", or nothing while the name is not known yet, so no line
+ * is left ending on a dangling "on". */
+export const onName = (name: string): string => onceNamed(name, n => ` on ${n}`);
+
+/** What the Computers pages say beyond the words the wire already carries in PLACES_WORDS: the list row, a
+ * computer's own page, its agents and the Remove dialog, which are this build's and are drawn nowhere else. No
+ * word is in both. */
+export const WHERE_WORDS = {
+  /** A place list the host refused, said where the list would stand. */
+  notRead: (said: string) => `Computers not read: ${said}`,
+  /** Puts this wsp's daemon on that computer; what it was set up with stays. One word in both states, held and
+   * dimmed while it runs: a label that changed to Updating moved the button's own width. */
+  update: "Update",
+  default: "default",
+  remove: "Remove",
+  removeTitle: (computer: string): string => `Remove ${computer}`,
+  removeDescription: (computer: string, here: string): string => onceNamed(here, h => `wsp comes off ${computer} and its threads' records leave ${h}. Your files there stay.`),
+  removeCloudDescription: "Deletes every machine and image snapshot wsp made there, then forgets the key.",
+  removing: "Removing…",
+  /** A remove the host answered as not made with no reason of its own: the record went before the ask landed. */
+  removeUnmade: (computer: string): string => `${computer} was not removed: this host no longer holds it.`,
+  /** The one button left once a remove went through with something still to say. */
+  done: "Done",
+  /** The fix under a cloud's refused key, where the dialog has turned to its Forget confirm. */
+  keyRefusedFix: (cloud: string): string => `Save a working key and remove ${cloud} again, or forget it here.`,
+  /** The confirm for a computer whose link is down while forks or projects stand on it: they leave as records. */
+  forget: "Forget",
+  forgetting: "Forgetting…",
+  /** The confirm where a task or a project folder there holds work no remote has, which the remove takes with it. */
+  removeAnyway: "Remove anyway",
+  /** The fix under that work's names: the ways to keep it, and what the button does. */
+  subsHeld: (titles: readonly string[]): string =>
+    `Work not pushed goes with ${titles.length === 1 ? "its machine" : "their machines"}: ${titles.join(", ")}. Ask ${titles.length === 1 ? "it" : "each"} to push first.`,
+  unsavedFixCloud: "Ask each sub-thread to push first; Remove anyway deletes that work with the machines.",
+  unsavedFix: "Export a task's project or push its branch, and copy a project folder's work off the computer from the path named; Remove anyway takes it with the computer.",
+  /** The slot's note while the host reads what goes with the computer, the confirm held until it lands. */
+  readingHolds: "Reading what goes with it.",
+  cancel: "Cancel",
+  /** Why a row's action is held: the op that carries it is not on the wire yet. */
+  notYet: "not on this wsp yet",
+  /** The button beside that reading, which asks the host to dial the computer once, worded by the road that dial
+   * would take: a frame on the link the computer is holding, or the ssh login it was installed over. A computer
+   * that joined by typing a code and is not answering has neither, and gets no button at all. */
+  dial: { link: "Try now", ssh: "Try over ssh" } satisfies Record<PlaceDialRoad, string>,
+  /** Its word while it is waiting on the answer: a pressed button keeps its variant and changes its word. */
+  dialling: "Dialling…",
+  /** What the app says when its own client carries no dial road, in place of a button that would ask nobody. A
+   * whole sentence, because it stands after one in the pane's slot and a clause opening in lower case after a
+   * full stop reads as a line that broke. */
+  cannotDial: "This wsp cannot dial a computer from here.",
+  cannotSaveKey: "This wsp cannot save a key from here.",
+  /** The first cell of each list's header row, which is the only name a section has. */
+  heads: { computer: "Computers", cores: "Cores", memory: "Memory", threads: "Threads", cloud: "Clouds", machines: "Machines", agents: "Agents", version: "Version", servers: "Tool servers", image: "Image", pending: "Pending", setup: "Setup" },
+  /** A cloud's row: its image's version and when it was sealed, or none yet, and how many machines run there now. */
+  imageSealed: (version: number, when: string): string => `Image v${version}, sealed ${when}`,
+  noImageYet: "No image yet",
+  running: (n: number): string => `${n} running`,
+  yourImage: "Your image",
+  /** Which wsp and daemon a computer runs, each part the host carries for it, the one fact they make read together. */
+  runs: (wsp: string | undefined, daemon: number | undefined): string[] => [wsp === undefined ? "" : `wsp ${wsp}`, daemon === undefined ? "" : `daemon ${daemon}`].filter(part => part !== ""),
+} as const;
+
+/** A word as the first of a sentence or a state: its first letter capitalised, the rest as written. */
+export const capitalised = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
+
+/** A row's state as the list's state cell says it: one capitalised word, the whole sentence on its hover. */
+export const PLACE_STATE_WORDS = {
+  ready: "Ready",
+  blocked: "Blocked",
+  behind: "Behind",
+  signIn: "Sign in",
+  needsSignIn: (agents: readonly string[]): string => `needs a sign-in: ${agents.join(", ")}`,
+} as const;
+
+/** A computer's Setup card once its setup ended: the one row, and the disclosure over the whole log. */
+export const SETUP_CARD_WORDS = {
+  title: "Setup",
+  done: "Done",
+  showLog: "Show setup log",
+  hideLog: "Hide setup log",
+  /** The rows of a setup that ended Done which did not land. */
+  failed: (names: string): string => `${names} failed`,
+} as const;
+
+/** How many of the rows a setup left the ready line names before it counts the rest. */
+const LEFT_NAMED = 3;
+
+/** What Add a computer says beyond PLACES_WORDS.sheet and the roads' own names. */
+export const ADD_COMPUTER_WORDS = {
+  title: "Add a computer",
+  /** The dialog's sentences, each said once where the rows do not say it. */
+  where: "A Linux box you have root on.",
+  saved: "Saved, you can finish later",
+  restDone: "Everything else is done.",
+  /** A setup closed while it runs or a sign-in waits, said where the person lands. */
+  beingSetUp: (box: string): string => `${box} is being set up; you can close this`,
+  saysWhenReady: "wsp says when it is ready.",
+  /** A setup that ended, said once, and what it left with where to finish it: the rows that missed, the first few by
+   * name. */
+  ready: (box: string): string => `${box} is ready: threads you start on it run there`,
+  left: (left: readonly string[], box: string): string =>
+    `${nameList(left.slice(0, LEFT_NAMED))}${left.length > LEFT_NAMED ? ` and ${left.length - LEFT_NAMED} more` : ""}. Finish ${left.length === 1 ? "it" : "them"} from ${box}'s page in Settings.`,
+  /** The act a sign-in that was skipped or failed offers: its own sign-in, run on the computer. */
+  signInOn: (box: string): string => `Sign in on ${box}`,
+  stillSettingUp: (box: string): string => `${box} is still being set up; press again once it is done.`,
+  signInLater: "You can sign in later in Settings.",
+  /** An agent ticked with nothing here to copy and no sign-in to run there: the token or key it takes, pasted on its
+   * row once the setup reaches it. */
+  pasteOnceSetUp: (word: "token" | "key"): string => `Signs in with a ${word} you paste once it is set up.`,
+  /** An agent whose login asks you to pick: it signs in at its own terminal on the computer, drawn on its row. */
+  atItsTerminalOnceSetUp: (box: string): string => `Signs in at its own terminal on ${box} once it is set up.`,
+  atItsTerminal: (box: string): string => `Signs in at its own terminal on ${box}.`,
+  /** A sign-in on the computer whose agent is still installing there, or did not install. */
+  waitsForInstall: (name: string): string => `Waits for ${name} to install.`,
+  notSignedInYet: "Not signed in yet.",
+  skipForNow: "Skip for now",
+  skip: "Skip",
+  /** A private repository ticked while GitHub is skipped: the box cannot clone it. */
+  needsGitHub: "Private; needs GitHub to clone. Go back to sign in, or skip it.",
+  /** A recipe the person saved, on Start from: that it is one, the day it was saved, and what it holds. */
+  savedRecipe: (summary: string, day: string | undefined): string => `A recipe you saved${day === undefined ? "" : ` on ${day}`}. ${summary.charAt(0).toUpperCase()}${summary.slice(1)}.`,
+  /** A folder with no origin remote: the add refuses it, since the computer clones the repo (noRemoteLine). */
+  noRemote: "No origin remote, so the add refuses it; push it somewhere first.",
+  /** What the GitHub row says once its step ended, by the way it signed in. */
+  tokenCopied: "Token copied.",
+  /** Who the token the GitHub row would copy signs in as, and what it may do. */
+  githubAccount: (account: string, scopes: readonly string[]): string => `Signed in as ${account}${scopes.length === 0 ? "" : ` with ${listWords(scopes)}`}.`,
+  /** The one question about the keys the ticked servers carry: copy them to the computer, or leave them here, each
+   * server named with what its keys go by and never a value. */
+  copyKeys: (box: string): string => `${COPY_KEYS_WORD} to ${box === "" ? "its computers" : box}`,
+  keysNamed: (servers: readonly { name: string; keys: readonly string[] }[]): string => `${servers.map(s => `${s.name}: ${s.keys.join(", ")}`).join("; ")}.`,
+  leaveKeys: (here: string): string => `Leave them on ${here}`,
+  keysLeft: (names: readonly string[], box: string): string => `${listWords(names)} ${names.length === 1 ? "is" : "are"} skipped on ${box === "" ? "its computers" : box} until you copy ${names.length === 1 ? "its keys" : "their keys"}.`,
+  /** A ticked server whose keys the answer leaves here. */
+  keysStay: "Skipped until you copy its keys.",
+  /** A server the setup set aside for want of a yes to copying its keys, by what they go by; on a computer that follows
+   * a recipe, with that recipe's page, where the yes is given. */
+  keysNotCopied: (keys: readonly string[], recipe?: string): string => (recipe === undefined ? `Not copied: it needs ${keys.length === 0 ? "a key" : listWords(keys)}.` : `${capitalised(keysKeptLine(keys, recipe))}.`),
+  /** How an MCP server signs in on the computer, by the kind the host read off its definition. */
+  serverSignIn: (kind: ServerSignIn, box: string): string =>
+    ({ none: "No sign-in.", key: "Key copied.", token: "Token copied.", oauth: box === "" ? "Signs in there." : `Signs in on ${box}.` })[kind],
+  skipped: "Skipped.",
+  signedInOn: (box: string): string => (box === "" ? "Signed in there." : `Signed in on ${box}.`),
+  signedInWithToken: `${capitalised(TOKEN_SIGN_IN_WORD)}.`,
+  /** A project's remote and what of it no remote holds: nothing, or the commits that travel with it. */
+  remoteLine: (remote: string, unpushed: number | undefined): string =>
+    `${remote}${unpushed === undefined ? "" : unpushed === 0 ? ", clean" : `, ${unpushed} unpushed ${unpushed === 1 ? "commit comes" : "commits come"} along`}.`,
+  /** The picks' bytes, the room the setup keeps free past them, and the room free there where the computer said. */
+  diskLine: (needed: string, kept: string, free?: string): string => `${needed} needed, ${kept} kept free${free === undefined ? "" : `, ${free} free`}`,
+  diskShort: (box: string, free: string, needed: string, kept: string): { said: string; fix: string } => ({ said: `${box} has ${free} free; these picks need ${needed}, and wsp keeps ${kept} free there.`, fix: `Untick some rows, or free room on ${box}.` }),
+  unmeasured: (n: number): string => `${n} picked ${n === 1 ? "row was" : "rows were"} not measured`,
+  tabOpened: "A tab opened in your browser.",
+  installed: "Installed and connected.",
+  addCloud: "Add a cloud provider",
+  replace: "Replace",
+  signInsOn: (computer: string): string => `Sign-ins on ${computer}`,
+  signInsWhy: (agents: readonly string[], computer: string): string =>
+    `${new Intl.ListFormat("en", { type: "conjunction" }).format(agents)} ${agents.length === 1 ? "keeps" : "keep"} one login for every workspace on ${computer}, so sign in once here.`,
+  suggested: "From your ssh config",
+  replaceKey: "Paste a new key to replace it",
+  /** Said only once the host lists that cloud as a computer: a key kept is not yet a place to fork on. */
+  keySaved: "key saved",
+  keyKept: "key kept; no computer yet",
+  getKey: "Get a key",
+  /** The first key for a cloud is an add: the key check and the cloud's row both follow it. */
+  add: "Add",
+  checking: "Checking",
+  keyRefused: (provider: { name: string; keyConsole?: string }): { said: string; fix: string } => ({
+    said: `${provider.name} refused that key.`,
+    fix: provider.keyConsole === undefined ? "Check it and paste it again." : `Check it at ${provider.keyConsole} and paste it again.`,
+  }),
+  hostsNotRead: (said: string): string => `Hosts from your ssh config not read: ${said}`,
+  /** What to do about a login ssh would not take, short enough that what ssh said and this together stand on the
+   * slot's two lines: a third line moves what is under them. There is no file picker on this road: the host reads
+   * the ssh agent and config as they stand, so the key a box wants is named where every other ssh client reads it. */
+  refusedFix: "Check the user and the address, or name a key in your ssh config.",
+  /** Under the root row where the login's sudo asks for a password: the field below it is where it goes. */
+  sudoFix: "Type it below; it goes to sudo there and is kept nowhere.",
+  /** An add the host no longer lists while nothing here waits on it: the host restarted, or never got the ask. */
+  hostLost: "The host lost track of this add, so how it ended is not known; add it again if the computer is not listed.",
+} as const;
+
+/** Each size source as its segment names it: whole at every width, since a cut segment is a defect. */
+export const TERMINAL_SIZE_WORDS: Record<TerminalSizeSource, string> = {
+  app: "App",
+  file: "Ghostty file",
+};
+
+/** The size the picked source hands the pane, as the word beside the control: the app's own size, or the file's,
+ * which is the app's again for a file that names none. */
+export const TERMINAL_SIZE_FACT: Record<TerminalSizeSource, (appPx: number, filePx: number | undefined) => string> = {
+  app: appPx => fmtPx(appPx),
+  file: (appPx, filePx) => fmtPx(filePx ?? appPx),
+};
+
+/** Settings > Account: the one row that says who this wsp is signed in to and what a sign-in buys. The second
+ * sentence is why the button is held: no op on the wire signs the app in yet. There is no word for being signed
+ * in or not: the button standing there is that state. Nothing about the account is said anywhere else in the
+ * window. */
+export const ACCOUNT_WORDS = {
+  title: "Account",
+  github: "GitHub",
+  signIn: "Sign in with GitHub",
+  signOut: "Sign out",
+  reach: "Sign in to use this wsp from outside your network. Not from the app yet.",
+  reachable: "Reachable from another device outside your network. Not from the app yet.",
+} as const;
+
+/** Settings > General. */
+export const GENERAL_WORDS = {
+  composer: "Composer",
+  sendWith: "Send with",
+  sendWithDescription: "The other key makes a new line. ⌘ on a Mac, Ctrl elsewhere.",
+  sendKeys: (mac: boolean): Record<SendKey, string> => ({ enter: "Enter", "mod-enter": mac ? "⌘ Enter" : "Ctrl Enter" }),
+  midTurn: "A message while a thread works",
+  midTurnDescription: "Queue waits for the turn to end; steer hands it to the agent now.",
+  midTurnChoices: { queue: "Queue", steer: "Steer" } satisfies Record<MidTurn, string>,
+  notifications: "Notifications",
+  notifyNeeds: "When a thread needs you",
+  notifyNeedsDescription: "A question, a permission prompt, a sign-in.",
+  notifyDone: "When a thread finishes",
+  notifyDoneDescription: "A thread you or the command line started; one an agent started reports to that agent.",
+  notifyChoices: { off: "Off", notify: "Notify", sound: "Sound", "notify-sound": "Notify and sound" } satisfies Record<NotifyChoice, string>,
+  planAlerts: "When a plan window runs low",
+  planAlertsDescription: "At 70% and 90% of a window, once each, and when an account is blocked.",
+  threads: "Threads",
+  newThreadIn: "New thread starts in",
+  newThreadInDescription: "Ask every time lists your projects before a new thread opens.",
+  newThreadInChoices: { current: "Current project", ask: "Ask every time" } satisfies Record<NewThreadIn, string>,
+  settleAfter: "Settle a thread after",
+  settleAfterDescription: "A read thread moves to Settled once it has been quiet this long.",
+  settleChoices: { "15m": "15 minutes", "1h": "1 hour", "2h": "2 hours", "1d": "1 day", never: "Never" } satisfies Record<SettleAfter, string>,
+  askDelete: "Ask before deleting",
+  askDeleteDescription: "A workspace with unpushed work always asks.",
+  openIn: "Open in",
+  editor: "Open files in",
+  editorDescription: "Where Open in editor goes, for a file in a thread or a whole workspace.",
+  noEditor: "No editor wsp opens files in is installed: VS Code, Cursor, Zed or a JetBrains IDE.",
+  startup: "Startup and quit",
+  onQuit: "When you quit",
+  onQuitDescription: (here: string): string => onceNamed(here, h => `Quitting the window leaves threads running on ${h}; quit and stop ends them too.`),
+  onQuitChoices: { ask: "Ask each time", keep: "Keep threads running", stop: "Stop wsp too" } satisfies Record<OnQuit, string>,
+  loginStart: "Start wsp at login",
+  loginStartDescription: (here: string): string => onceNamed(here, h => `wsp keeps running on ${h} with no window open, so threads carry on.`),
+  logs: "Logs",
+  appLogs: "App logs",
+  appLogsDescription: "The app's log and its crash reports. Nothing in them is sent anywhere.",
+  openLogs: "Open logs",
+} as const;
+
+export const PRIVACY_WORDS = {
+  title: "Privacy",
+  serverIcons: "Server icons from Google",
+  serverIconsDescription: "wsp asks Google for each public server's icon by host name; turning this off deletes the saved icons.",
+  agentVersions: "Newest agent versions",
+  agentVersionsDescription: "wsp asks npm, GitHub and each agent's maker for every agent's newest version, once a day.",
+  agentVersionsHeld: "Off on the host: WSP_UPDATE_CHECK is 0.",
+  usageLogs: "Agent logs",
+  usageLogsDescription: (here: string): string => onceNamed(here, h => `Usage counts what Claude Code, Codex and OpenCode logged on ${h} and on every computer you added, wsp's own threads there included. Each computer reads its own logs, and wsp shows what they count on the Usage page alone, never to an agent.`),
+  productUsage: "Anonymous usage counts",
+  productUsageDescription: "wsp sends PostHog counts of threads, turns, setups and failures; never a path, a prompt, a name or a key.",
+  productUsageOff: { env: "Off on the host: WSP_ANALYTICS is 0.", build: "Off in this build: it carries no PostHog key, so nothing is sent." } satisfies Record<ProductUsageOff, string>,
+} as const;
+
+/** Settings > Appearance's switch over the app's glass. */
+export const TRANSPARENCY_WORDS = {
+  title: "Transparency",
+  description: "Glass shows what is behind the window. Off, every surface is solid.",
+} as const;
+
+/** Settings > General's switch over the desktop app keeping the computer it runs on awake, drawn once that computer's
+ * name is known. */
+export const AWAKE_WORDS = {
+  keepAwake: (here: string): string => `Keep ${here} awake`,
+  keepAwakeDescription: "The wsp app stops it sleeping on its own while a thread works there.",
+} as const;
+
+/** Settings > Devices: every computer and browser paired with this wsp, and the one act on each. */
+export const DEVICES_WORDS = {
+  title: "Devices",
+  thisBrowser: "this browser",
+  paired: (when: string): string => `paired ${when}`,
+  seen: (seen: string): string => `seen ${seen} ago`,
+  /** A device this wsp heard from inside the minute: the span reads 0 min, which says nothing a person asked. */
+  seenNow: "seen just now",
+  revoke: "Revoke",
+  revokeTitle: (name: string): string => `Revoke ${name}?`,
+  revokeDescription: "It can no longer reach this wsp until it pairs again.",
+  none: "Nothing is paired with this wsp yet.",
+  /** A page served on a ticket socket is refused the list. */
+  refused: "Who is paired is read on the computer running wsp.",
+} as const;
+
+/** Settings > Agents: its title, the computer it reads and its four lists. */
+export const AGENTS_PAGE_WORDS = {
+  title: "Agents",
+  computer: "Computer",
+  tab: "Show",
+  tabs: { agents: "Agents", servers: "Tool servers", skills: "Skills", plugins: "Plugins" },
+  onComputer: (name: string): string => `Agents, tool servers, skills and plugins on ${name}`,
+  onComputerDescription: "Installed agents, their sign-ins, and the tools, skills and plugins they get.",
+  newThreads: "New threads",
+  defaultAgent: "Default agent",
+  defaultAgentDescription: "A project can set its own.",
+  on: (name: string): string => `On ${name}`,
+  /** The first card's head on the Tool servers and Skills tabs: its group, on the computer read. */
+  groupOn: (group: string, name: string): string => `${group} on ${name}`,
+  /** A state with the figure it answered with: a server connected with its tools. */
+  stateWith: (state: string, count: string): string => `${state} with ${count}`,
+  details: "Details",
+  /** The head over what the host could not read on the computer. */
+  notRead: "Not read",
+  skillFile: "SKILL.md",
+  removeName: (act: string, name: string): string => `${act} ${name}`,
+  notListed: "Not listed yet.",
+  notInstalled: "Not installed here",
+  checkedNow: (when: string): string => `checked ${when}`,
+  readAgain: "Read the agents again",
+  update: "Update",
+  updateTo: (version: string): string => `Update to ${version}`,
+  updateCopied: (command: string, computer: string): string => `Copied ${command}. Run it in a terminal on ${computer}.`,
+  turnOn: (agent: string, computer: string): string => `${agent} on ${computer}`,
+  /** How an agent's own login there stands, by the kind of login its status names. */
+  signedInAs: { "api-key": "Signed in with an API key", subscription: "Signed in with a subscription", oauth: "Signed in with OAuth" },
+  signedInWith: "Signed in with ",
+  model: "Model",
+  modelDescription: "The composer still changes it for one thread.",
+  effort: "Effort",
+  access: "Access",
+  accessDescription: (agent: string): string => `A project can set its own. Passed to ${agent} at every launch.`,
+  accessWords: { ask: "Ask", "auto-edit": "Auto-edit", full: "Full", plan: "Plan" },
+  models: "Models",
+  modelsDescription: "The ones switched on are the composer's picker, in this order.",
+  defaultModel: "default",
+  noThreadsYet: (agent: string): string => `wsp starts no threads on ${agent} yet, so it has nothing here to set.`,
+  reorder: (model: string): string => `Drag to reorder ${model}, or use the arrow keys`,
+  modelIdPlaceholder: "Add a model by its id",
+  /** What the page of an agent wsp starts no thread on holds, as a search row says it. */
+  agentHeadLine: "Version, sign-in, update and whether it is on",
+  /** An id the person added that the agent's own list of every model it runs leaves out; still run as named. */
+  notInList: (agent: string): string => `Not in ${agent}'s list`,
+  edit: "Edit",
+  change: SETTINGS_WORDS.change,
+  howItRuns: "How it runs",
+  program: "Program",
+  configFolder: "Config folder",
+  ownFolder: (agent: string): string => `${agent}'s own folder`,
+  launchArguments: "Launch arguments",
+  argumentsCount: (n: number): string => (n === 0 ? "No arguments." : `${n} ${n === 1 ? "argument" : "arguments"}.`),
+  environment: "Environment",
+  variablesCount: (n: number): string => (n === 0 ? "No variables." : `${n} ${n === 1 ? "variable" : "variables"}, values hidden.`),
+  save: SETTINGS_WORDS.save,
+  cancel: SETTINGS_WORDS.cancel,
+  putBack: (agent: string): string => `Use ${agent}'s own`,
+  programSheet: (agent: string, computer: string): string => `The program run in ${agent}'s place on ${computer}: a path, or a word on its PATH.`,
+  configSheet: (agent: string, computer: string): string => `The folder on ${computer} ${agent} keeps its config, sessions and sign-in in, under that computer's home.`,
+  argumentsSheet: (agent: string, computer: string): string => `Words added to every launch of ${agent} on ${computer}, as a shell would split them.`,
+  argumentsUnclosed: "A quote is never closed.",
+  environmentSheet: (agent: string, computer: string): string => `Variables every launch of ${agent} on ${computer} carries. A value is typed here once and never shown again.`,
+  variableName: "Name",
+  variableValue: "Value",
+  addVariable: "Add",
+  removeVariable: (name: string): string => `Remove ${name}`,
+  noVariables: "No variables yet.",
+  shown: (model: string): string => `Show ${model}`,
+  modelId: "Model id",
+  addModel: "Add",
+  removeModel: (model: string): string => `Remove ${model}`,
+} as const;
+
+/** Settings > Usage: its title and the words the lists carry beyond the wire's own in USAGE_WORDS. */
+export const USAGE_PAGE_WORDS = {
+  title: "Usage",
+  tabs: { used: "Usage", limits: "Limits" },
+  readAgain: "Read usage and limits again",
+  tab: "Show",
+  limits: "Limits",
+  session: "Session",
+  week: "Week",
+  used: "Used",
+  tokens: "Tokens",
+  range: "Range",
+  split: "Split by",
+  fresh: "Fresh in",
+  out: "Out",
+  cached: "Cached",
+  price: "Price",
+  noAccounts: "No agent is signed in on any computer.",
+  /** A read the host refused or never answered, said as that rather than as an empty answer. */
+  limitsRefused: (said: string): string => `The plan limits could not be read: ${said}`,
+  usedRefused: (said: string): string => `The usage could not be read: ${said}`,
+  windows: { session: "5-hour", week: "Week", week_opus: "Week, Opus", week_sonnet: "Week, Sonnet", month: "Month" } as Partial<Record<string, string>>,
+  reached: "Limit reached",
+  left: "left",
+  runsOut: (when: string): string => `Runs out ${when}`,
+  aheadOfPace: (resets: string): string => `Ahead of pace${resets === "" ? "" : `, ${resets}`}`,
+  underPace: (resets: string): string => `Under pace${resets === "" ? "" : `, ${resets}`}`,
+  onPace: (resets: string): string => `On pace${resets === "" ? "" : `, ${resets}`}`,
+  accounts: (n: number, agent: string): string => `${n} ${agent} accounts`,
+  burn: (tokens: string, threads: number): string => `Using ${tokens} tokens a minute across ${threads} ${threads === 1 ? "thread" : "threads"}`,
+  checked: (when: string): string => `checked ${when}`,
+  noPlanLimit: "No plan limit",
+  noLimit: (agents: readonly string[]): string => `${listWords(agents)} ${agents.length === 1 ? "reports" : "report"} no plan limit.`,
+  ranges: { day: "Today", week: "7 days", month: "30 days" },
+  splits: { agent: "Agent", account: "Account", computer: "Computer", project: "Project", model: "Model", source: "Source" },
+  estimate: "API estimate",
+  atListPrice: "at list price",
+  turns: "Turns",
+  turnsNote: "in threads wsp ran",
+  cacheHit: "Cache hit",
+  saved: (amount: string): string => `${amount} saved`,
+  cacheWrite: "Cache write",
+  /** What the totals count: wsp's threads, and the agents' own logs beside them where the range read any. */
+  counts: (outside: boolean): string => (outside ? "in wsp threads and outside wsp" : "in wsp threads only"),
+  chartHead: { day: "Tokens an hour", week: "Tokens a day", month: "Tokens a day" },
+  by: (split: string): string => `By ${split.toLowerCase()}`,
+  mix: "Where the tokens went",
+  agentAndModel: "Agent and model",
+  allOf: { agent: "All agents together", account: "All accounts together", computer: "All computers together", project: "All projects together", model: "All models together", source: "All sources together" },
+} as const;
+
+/** Settings > Activity: every thread's processes on one computer, with their memory, CPU, energy and ports. */
+export const ACTIVITY_WORDS = {
+  title: "Activity",
+  paletteNote: "Every thread's processes, memory and CPU",
+  views: { threads: "Threads", processes: "Processes", kinds: "Kinds", ports: "Ports" },
+  view: "View",
+  computer: "Computer",
+  filter: "Filter by name, port or thread",
+  every: "Every process",
+  memory: "Memory",
+  cpu: "CPU",
+  energy: "Power",
+  pid: "PID",
+  thread: "Thread",
+  port: "Port",
+  process: "Process",
+  reach: "Who can connect",
+  processes: "Processes",
+  ...ACTIVITY_GROUP_WORDS,
+  sampler: "Task manager",
+  samplerNote: "What reading this page costs",
+  end: "End",
+  endAll: "End all",
+  stop: "Stop",
+  open: "Open",
+  openPort: (port: number): string => `Open :${port} in a browser tab`,
+  openThread: "Open thread",
+  copyCommand: "Copy command",
+  copyPid: "Copy PID",
+  more: "More",
+  slate: (name: string): string => (name === "" ? "Slate" : `Slate: ${name}`),
+  ending: "Ending",
+  forceEnd: "Force end",
+  container: "Container",
+  up: (time: string): string => `Up ${time}`,
+  endContainer: "Stop the container, its data kept",
+  copyName: "Copy name",
+  copyContainerId: "Copy container ID",
+  containerNotes: {
+    label: "Its thread's docker started it",
+    compose: "Its compose project was last started from this thread",
+    loose: "No thread started it, so wsp leaves it to whoever did",
+    gone: "Its label names a thread wsp no longer knows",
+    goneCompose: "Its compose project was last started from a thread wsp no longer knows",
+  },
+  subagent: "Subagent",
+  subagentStates: { running: "Running", done: "Done", failed: "Failed", stopped: "Stopped" },
+  subagentNote: "Runs inside its agent, whose row holds its memory and CPU",
+  tokens: (n: string): string => `${n} tokens`,
+  needed: "wsp needs this to run",
+  shared: "Shared by the app and its tabs",
+  loopback: "Local only",
+  everyAddress: "Open to the network",
+  oneCore: "100% is one core",
+  energyNote: "CPU power, last 2 s",
+  of: (used: string): string => `of ${used} in use`,
+  threads: (n: number): string => (n === 1 ? "1 thread" : `${n} threads`),
+  processCount: (n: number): string => (n === 1 ? "1 process" : `${n} processes`),
+  nothing: "No thread is running anything.",
+  nothingMatches: "Nothing matches.",
+  pending: "Reading this computer's processes.",
+  paneNothing: "Nothing running for this thread",
+  openInActivity: "Open in Activity",
+  kind: "Kind",
+  allKinds: "All kinds",
+  allThreads: "All threads",
+  graph: (what: string): string => `${what} over the last minutes`,
+  stopTitle: (title: string): string => `Stop the turn in ${title}?`,
+  /** On a box a stop ends the thread's cgroup whole; here it ends the agent alone. */
+  stopSentence: (agent: string, endsAll: boolean): string =>
+    `${agent} stops where it is and the turn reads Interrupted. ${endsAll ? "Everything else the thread started on that computer ends with it, its dev and tool servers included." : "The dev server and tool servers it started keep running."}`,
+  stopTurn: "Stop turn",
+  /** End all on a slate's heading, its runs and the tool servers it keeps; `slate` is its title, "" where unread. */
+  endAllTitle: (slate: string): string => `End everything ${slate === "" ? "the slate" : slate} runs?`,
+  endAllSentence: (procs: number, memory: string): string => `${procs === 1 ? "1 process" : `${procs} processes`} holding ${memory} end, and what each started.`,
+  endAllPress: "End all",
+  cancel: "Cancel",
+  /** What a settle or a delete asks while the threads it takes still run processes beside their agents. */
+  leftTitle: (threads: number, title: string): string => (threads === 1 ? `Stop what ${title} still runs?` : `Stop what ${threads} threads still run?`),
+  /** What Stop ends: each process and what it started here, and a box thread's cgroup whole on that box. */
+  leftStops: (boxes: readonly string[], here: boolean): string =>
+    boxes.length === 0
+      ? "Stop ends each one and what it started."
+      : here
+        ? `Stop ends each one and what it started, and on ${listWords(boxes)} everything the thread started there.`
+        : `Stop ends everything the thread started on ${listWords(boxes)}.`,
+  leftSettle: (stops: string): string => `Settling leaves these running. ${stops}`,
+  leftDelete: (count: number, stops: string): string => `It still runs ${count === 1 ? "1 process" : `${count} processes`}. ${stops}`,
+  settleStop: "Settle and stop them",
+  settleKeep: "Settle, keep running",
+  deleteStop: "Delete and stop them",
+  deleteKeep: "Delete, keep running",
+  stopping: "Stopping…",
+  standing: (names: readonly string[]): string => `Still running after Stop: ${listWords(names)}.`,
+  close: "Close",
+  computerRow: "What runs here",
+  computerLine: (threads: number): string => (threads === 0 ? "No thread running, wsp's own parts" : `${threads === 1 ? "1 thread" : `${threads} threads`} running, and wsp's own parts`),
+} as const;
+
+/** Settings > Projects: the list, a project's own page and its one act. */
+export const PROJECTS_WORDS = {
+  look: "Look",
+  icon: "Icon",
+  iconDescription: "A glyph, or an image you choose. Drawn wherever the project shows.",
+  iconImage: "Icon",
+  chooseImage: "Choose an image",
+  chooseAnother: "Choose another image",
+  imageTitle: "Project icon",
+  imageLine: "How it draws on your light and dark themes.",
+  imageNote: "Drop or paste another image to replace this one.",
+  useImage: "Use icon",
+  hue: "Colour",
+  hueDescription: "The icon's colour, so the project reads at a glance.",
+  title: "Projects",
+  add: "Add a project",
+  on: (computer: string): string => `on ${computer}`,
+  none: "No projects yet.",
+  noneDescription: "A project is a folder on one of your computers.",
+  source: "Source",
+  sourceHover: "The folder or repository this project is.",
+  computer: "Computer",
+  computerHover: "Where the project lives and where its tasks run.",
+  remote: "Remote",
+  repository: "Repository",
+  open: "Open",
+  where: (source: string, computer: string): string => `${source} on ${computer}`,
+  threads: (n: number, running: number): string => `${n} ${n === 1 ? "thread" : "threads"}${running === 0 ? "" : `, ${running} running`}`,
+  remoteHover: "The repository it was cloned from.",
+  newWorkspaces: "New tasks",
+  remove: "Remove",
+  removeTitle: (name: string): string => `Remove ${name}`,
+  removeAsk: (name: string): string => `Remove ${name}?`,
+  /** Only the count: a project can carry dozens of workspaces, and their names are the Workspaces list's to show. */
+  inUse: (n: number): string => `${n === 1 ? "A workspace still uses it" : `${n} workspaces still use it`}. Delete ${n === 1 ? "it" : "them"} first.`,
+  /** One line by the computer's kind, matching the runtime's three landings. */
+  removeHere: "Its record leaves this wsp. Your folder stays as it is.",
+  removeOnComputer: (computer: string): string => `Its record leaves this wsp, and wsp's own clone of it on ${computer} goes with it.`,
+  removeAtCloud: (cloud: string): string => `Its record leaves this wsp, and its image at ${cloud} with it.`,
+  newThreads: "New threads in this project",
+  defaultAgent: "Default agent",
+  model: "Model",
+  access: "Access",
+  agentSet: "Set here for this project. The arrow goes back to the default for every project.",
+  agentUnset: "Unset, so a new thread takes the default for every project.",
+  ownSet: "Set here for this project. The arrow goes back to the agent's own.",
+  ownUnset: "Unset, so a new thread takes the agent's own.",
+  inherits: (value: string, from?: string): string => (from === undefined ? `Default (${value})` : `Default (${value}, from ${from})`),
+} as const;
+
+/** Settings > Keybindings: the four cards' heads and the keys that are not rules. */
+export const KEYBINDINGS_WORDS = {
+  title: "Keybindings",
+  windowAndPanels: "Window and panels",
+  workspacesAndThreads: "Tasks and threads",
+  terminal: "Terminal, while it has focus",
+  fixed: "Fixed",
+  sendMessage: "Send the message",
+  submitComment: "Submit a review comment",
+  leaveSettings: "Leave Settings",
+  closeWindow: "Close the window",
+} as const;
+
+/** Settings > General's Version card: the two halves of one release, and the road to the next. */
+export const ABOUT_WORDS = {
+  title: "Version",
+  wsp: "wsp",
+  upToDate: (when: string): string => `Up to date, checked ${when}`,
+  unreached: (checked: string | undefined, missed: string): string => (checked === undefined ? `Could not reach GitHub ${missed}` : `Checked ${checked}; could not reach GitHub ${missed}`),
+  available: (version: string): string => `${version} is out`,
+  checking: "Checking for updates",
+  checksOff: "Update checks are off",
+  checkNow: "Check for updates",
+  whatsNew: "What's new",
+  app: "App",
+  appHover: "The desktop shell holding this window.",
+  host: "Host",
+  hostHover: "The wsp that serves this page.",
+  unknown: "unknown",
+  releases: "Releases",
+  latest: "Latest",
+  readWhen: (ms: number): string => (ms < 60_000 ? "just now" : `${offlineFor(ms)} ago`),
+  readHover: (when: string): string => `Read from the releases page ${when}.`,
+  missedHover: (when: string, at: string): string => `Read ${when}; the releases page was not reached ${at}.`,
+  unreachedHover: (at: string): string => `The releases page was not reached ${at}.`,
+  offHover: "Update checks are off on the host: WSP_UPDATE_CHECK is 0.",
+  get: (version: string): string => `Get ${version}`,
+  downloading: "Downloading",
+  quitAndOpen: "Quit and open",
+  restartToUpdate: "Restart to update",
+  restartHost: "Restart host",
+  restartHover: "Drops open terminal panes, localhost forwards and any sign-in in progress; running turns continue.",
+  restartRuns: "Restart host runs them.",
+  restartThere: "A restart on the computer it runs on runs them.",
+  hostUpdateHover: (line: string, version: string): string => `The wsp that serves this page. ${line} gets ${version}.`,
+  hostInstalledHover: (installed: string, then: string): string => `The wsp that serves this page. Its files carry ${installed} now. ${then}`,
+} as const;
+
+/** What one row of the recipe on a computer came to, in the words the terminal's own lines say it in. The note a
+ * row carries follows the word where it says why, which is a row that failed or was set aside. */
+export const PROVISION_OUTCOME_WORDS: Record<PlaceProvisionRow["outcome"], string> = {
+  installed: "installed",
+  present: "already there",
+  failed: "failed",
+  skipped: "set aside",
+};
+
+/** A computer's own page: whether it runs an older wsp, the limits a person sets on it, and whether its threads may
+ * open threads. `here` is the name of the computer the host runs on, never "this Mac". */
+export const COMPUTER_PAGE_WORDS = {
+  behindTitle: (here: string): string => `Runs an older wsp than ${here}`,
+  behindUpdate: (name: string, here: string): string => `Threads still run there. Updating installs ${here}'s version on ${name} and restarts it; running threads carry on.`,
+  behindHereTitle: "Runs an older wsp than this app",
+  behindInstall: (fix: string): string => `Threads still run. Run ${fix} in a terminal to bring it level.`,
+  update: (name: string): string => `Update wsp on ${name}`,
+  updating: "Updating",
+  limits: "Limits",
+  threadsAtOnce: "Threads at once",
+  threadsLine: (n: number, name: string, mem: string): string => `New threads wait past this, except one a running thread waits on, which runs in that thread's place. The default is one thread for every 2 GB of memory, up to twice the cores, so ${n} on ${name}'s ${mem}.`,
+  threadsLineBare: "New threads wait past this, except one a running thread waits on, which runs in that thread's place.",
+  fewer: "One fewer",
+  more: "One more",
+  napTitle: "Nap a quiet workspace after",
+  napLine: "A workspace with no running turn stops and wakes on the next message.",
+  napNever: "Never",
+  turnLimitTitle: "Turn limit",
+  turnLimitLine: "Stops a turn that runs this long. Send to the thread to continue where it stopped.",
+  turnLimitOff: "Off",
+  machinesTitle: "Machines at once",
+  machinesLine: (name: string, plan: number | undefined): string =>
+    `How many machines may run on ${name} at once. A sub-thread past it waits for one to free.${plan === undefined ? "" : ` ${name}'s plan allows ${plan}.`}`,
+  spendTitle: "Spend per day",
+  spendLine: (name: string): string => `What ${name} may spend in a day before no new machine starts. Machines already running are left alone.`,
+  sizeTitle: "Machine size for a sub-thread",
+  sizeLine: "The size a sub-thread gets when the thread starting it names none.",
+  sizeChoice: (name: string, cpu: number, mem: string, rate: string | undefined): string => `${name.charAt(0).toUpperCase()}${name.slice(1)}, ${cpu} vCPU, ${mem}${rate === undefined ? "" : `, ${rate}`}`,
+  deleteTitle: "Delete a finished sub-thread's machine after",
+  deleteLine: "Its transcript and the agent's session are kept, and a message after the delete starts a new machine.",
+  deleteAtOnce: "At once",
+  threadsHere: "Threads here",
+  spawnTitle: "Agents may start agents",
+  spawnLine: (depth: number, machines?: number): string =>
+    `A thread here may open threads of its own, up to ${machines === undefined ? "" : `${machines} ${machines === 1 ? "machine" : "machines"} and `}${depth === 1 ? "one level deep" : `${depth} levels deep`}.`,
+  levelsTitle: "Levels deep",
+  levelsLine: "1 lets the thread you start open threads, 2 lets those open their own.",
+  nameTitle: "Name",
+  nameSheet: (name: string): string => `What ${name} is called in every list. Its projects and threads stay on it.`,
+  sshTitle: "SSH login",
+  sshNone: "It joined with a code and has no login.",
+  sshSheet: (name: string): string => `The login wsp uses to reach ${name}, as user@host.`,
+  sshChecking: (ssh: string, name: string): string => `Checking that ${ssh} reaches ${name}`,
+} as const;
+
+/** The Limits tab's banked resets line: what is banked, and the one act that spends one after asking. */
+export const RESET_LINE_WORDS = {
+  resets: "Resets",
+  use: "Use reset",
+  using: "Using reset",
+  cancel: "Cancel",
+} as const;

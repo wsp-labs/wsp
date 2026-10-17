@@ -1,0 +1,788 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// What a computer joined as a place says about itself, where it keeps the two
+// files that say which wsp it belongs to, and the sweep that takes wsp off it.
+// The daemon on the place builds its own report at every dial; this is the
+// host's side, where the join's first frame and the places list read this
+// computer's own row.
+
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmodSync, closeSync, constants, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { homedir, arch as osArch, platform, release, type as osType, uptime as upSeconds, userInfo } from "node:os";
+import { spawnRun } from "@wsp/collect";
+import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
+import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
+import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ScopeRead, type ServerPort } from "@wsp/engine";
+import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, DAEMON_VERSION, underProject, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, PLACE_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
+import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
+import { runAll, runFailureLine, serviceManagerFor, STOP_WAIT_MS, systemRunner, type ServiceAddress, type ServiceManager, type ServiceRunner } from "./service.js";
+
+/** Where a place keeps the file naming the wsp it belongs to, the private key it proves itself with, and the
+ * agent's log, since nobody is watching a terminal. All three sit in wsp's own folder under the person's home,
+ * beside the daemon's own files, so a leave takes one folder's worth; the protocol names them for both sides. */
+export const placeFilePath = (home: string): string => placeDaemonPaths(home).placeFile;
+export const placeKeyPath = (home: string): string => placeDaemonPaths(home).placeKey;
+export const placeLogPath = (home: string): string => placeDaemonPaths(home).placeLog;
+
+/** What a computer says about itself when it joins, before the host has named which address it dialed and which
+ * port its daemon bound: the daemon fills those two in on every link. */
+export type PlaceSelfReport = Omit<PlaceReport, "dialed" | "daemonPort">;
+
+/** The place file as it stands, or nothing when this computer is no place or what stands there is not read. The
+ * shape, the parse and the mode are the protocol's; this is the read on the host's side of the wire. It sits in a
+ * home a workspace writes and a leave reads it first, as root on a box, so it is read as the login files are. */
+export function readPlaceFile(path: string): PlaceFile | undefined {
+  try {
+    const read = readPlainHere(path, PLACE_READ_MAX_BYTES);
+    return "unread" in read ? undefined : parsePlaceFile(read.bytes.toString("utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+/** What of a join stands on this computer: a place file that parses is a join; one that does not, a dangling link
+ * at its path, or the key with no place file beside it (a join cut off between its two writes) is broken, named by
+ * the path that stands. Read by lstat, so a link counts as there whether or not it points anywhere. */
+export function joinStanding(home: string): { joined: PlaceFile } | { broken: string } | undefined {
+  const file = placeFilePath(home);
+  if (there(file)) {
+    const joined = readPlaceFile(file);
+    return joined !== undefined ? { joined } : { broken: file };
+  }
+  const key = placeKeyPath(home);
+  return there(key) ? { broken: key } : undefined;
+}
+
+/** Creates a file at the one mode wsp keeps its own at, only where nothing stands, a link included, and answers
+ * false where something does. */
+export function writeExclusive(path: string, text: string): boolean {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  try {
+    writeFileSync(path, text, { mode: PLACE_FILE_MODE, flag: "wx" });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw e;
+  }
+  chmodSync(path, PLACE_FILE_MODE);
+  return true;
+}
+
+/** Writes it only where none stands and never half: the text goes to a name of its own beside it, which is then
+ * linked onto the path, so a reader finds the whole file or no file. False where one already stands. */
+export function writePlaceFile(path: string, file: PlaceFile): boolean {
+  const temp = `${path}.${randomBytes(6).toString("hex")}`;
+  if (!writeExclusive(temp, placeFileText(file))) throw new Error(`${temp} is already there`);
+  try {
+    linkSync(temp, path);
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw e;
+  } finally {
+    rmSync(temp, { force: true });
+  }
+}
+
+/** The line that runs this same wsp again on this computer, word by word, for the tools a turn's agent is given
+ * later: the one rule an agent's own config is written from. */
+export function wspArgvOf(run: RunningWsp = runningWsp()): string[] {
+  const { command, args } = wspCommand(run);
+  return [command, ...args];
+}
+
+/** How much room is left on the volume a setup installs onto and how big it is, the two numbers its floor and its
+ * size check read; nothing when this computer will not say. The volume is wsp's install folder's, or where that is not
+ * there yet the nearest folder above it, which is where the first install makes it; the install loop's df walks up the
+ * same way. */
+function diskRoom(systemRoot = "/"): { free: number; size: number } | undefined {
+  let folder = join(systemRoot, TOOL_PREFIX);
+  while (!existsSync(folder) && dirname(folder) !== folder) folder = dirname(folder);
+  try {
+    const fs = statfsSync(folder);
+    return { free: Number(fs.bavail) * Number(fs.bsize), size: Number(fs.blocks) * Number(fs.bsize) };
+  } catch {
+    return undefined;
+  }
+}
+
+/** The login a turn on this computer runs under, as the ssh read records one: where the home is, who a turn runs
+ * as, the PATH a login shell here gives, and the folder each harness keeps its own sessions in where the person
+ * points it somewhere. Every path is held to the rule every machine's home is held to, since what is here lands in
+ * the commands the host runs on this computer. */
+export async function placeLogin(env: Readonly<Record<string, string | undefined>> = process.env, home = homedir()): Promise<Record<string, string>> {
+  // A login shell, and the same read a machine over ssh answers: the PATH a turn runs under here is the one this
+  // person's own shell gives, not the one the shell that typed wsp join happened to hold. The agent runs under a
+  // service with almost no environment, so reading its own would leave every tool they installed unfindable.
+  // HOME is handed in whatever this process holds: a service starts with almost none, and a login shell with no HOME
+  // reads no login file of theirs at all, so the read would answer the service's own PATH and call it the person's.
+  const values = await loginShellRead({ ...env, HOME: home });
+  const stores: Record<string, string> = {};
+  for (const name of SSH_STORE_VARS) {
+    const folder = values[`store:${name}`] ?? env[name];
+    if (folder !== undefined && folder !== "" && isPlainPath(folder)) stores[name] = folder;
+  }
+  return { ...stores, HOME: home, USER: userInfo().username, PATH: plainPath(values["path"] ?? env.PATH) };
+}
+
+/** One login shell on this computer for what it answers about itself, or nothing when the shell would not run: a
+ * computer without bash falls back to the environment this process holds, which is what it always had.
+ *
+ * By its own path and not by name: the whole point of the read is that the PATH this process holds is not the one a
+ * turn wants, so looking the shell up on that PATH would be reading the answer to find the question. */
+const LOGIN_SHELL = "/bin/bash";
+
+async function loginShellRead(env: Readonly<Record<string, string | undefined>>): Promise<Record<string, string>> {
+  const out = await spawnRun(LOGIN_SHELL, ["-lc", LOGIN_READ], env as NodeJS.ProcessEnv, { timeoutMs: LOGIN_READ_MS });
+  return out === undefined ? {} : readValues(out);
+}
+
+/** How long that shell gets. A person's login file can be slow; a report that waits on it forever is a link that
+ * never dials. */
+const LOGIN_READ_MS = 10_000;
+
+export interface PlaceReportOptions {
+  /** The name the host knows this computer by: what the place file holds, which is what wsp join was given or this
+   * computer's own name lowercased. */
+  name: string;
+  home?: string;
+  env?: Readonly<Record<string, string | undefined>>;
+  run?: RunningWsp;
+  /** The folder this computer's /opt sits under, which the disk is read off: the computer's own unless a caller hands
+   * another. */
+  systemRoot?: string;
+}
+
+/** The engine a project's own containers would run on here, off the login PATH; the docker-first rule is the
+ * protocol's, so the host and the node agent read it one way. */
+function engineOnPath(path: string | undefined): PlaceEngine {
+  return engineWord(onPath("docker", path) !== undefined, onPath("podman", path) !== undefined);
+}
+
+/** This computer's reading of whether its daemon runs workspaces here, in the daemon's own words so the host's
+ * own-machine row and a joined computer's report speak alike. The authoritative gate when a fork is asked for is
+ * still the daemon's self check, which mounts an overlay and makes a cgroup; this reads the same kernel facts and,
+ * as the doctor does, loads an overlay module the kernel does not list yet. */
+function selfDoctor(env: Readonly<Record<string, string | undefined>>): Pick<PlaceReport, "runsWorkspaces" | "engine"> & { workspacesBlocked?: string } {
+  const engine = engineOnPath(env.PATH);
+  const blocked = workspacesBlocked();
+  return { runsWorkspaces: blocked === undefined, engine, ...(blocked === undefined ? {} : { workspacesBlocked: blocked }) };
+}
+
+/** The one kernel reason this computer cannot run workspaces, or nothing when it can: the protocol's rule over the
+ * files this side reads. */
+const workspacesBlocked = (): string | undefined => workspacesBlockedBy({ platform: platform(), read: readTextOr, modprobe: modprobeAt(MODPROBE_PATH), euid: process.geteuid?.() });
+
+/** A module load or dry run takes milliseconds; the bound only keeps a loader that hangs from holding a join or a
+ * places list. */
+const MODPROBE_MS = 10_000;
+
+/** The kernel's module loader at `path`, run as the rule above asks. */
+export const modprobeAt =
+  (path: string): ModprobeRun =>
+  args => {
+    const run = spawnSync(path, args, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8", timeout: MODPROBE_MS });
+    return run.error !== undefined ? { error: (run.error as NodeJS.ErrnoException).code ?? run.error.message } : { ok: run.status === 0, stderr: run.stderr };
+  };
+
+/** A file's text, or nothing where it is not there, which is what the rule above reads absence as. */
+function readTextOr(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+/** What this computer is, read off the machine alone with no shell started: the part of the report the host's own
+ * row of the places list shows, which every verb that lists places reads. */
+export function placeFacts(opts: Omit<PlaceReportOptions, "run">): Pick<PlaceSelfReport, "name" | "platform" | "arch" | "os" | "shape" | "diskFreeBytes" | "diskSizeBytes" | "runsWorkspaces" | "engine" | "workspacesBlocked"> {
+  const env = opts.env ?? process.env;
+  const room = diskRoom(opts.systemRoot);
+  return {
+    name: opts.name,
+    platform: platform() === "darwin" ? "darwin" : "linux",
+    arch: osArch(),
+    os: `${osType()} ${release()}`,
+    shape: localShape(),
+    ...(room !== undefined ? { diskFreeBytes: room.free, diskSizeBytes: room.size } : {}),
+    // Whether the daemon runs workspaces here, and the engine a project's own containers would run on: the read-only
+    // twin of the daemon's self check, so what the doctor says and what a create does cannot part ways.
+    ...selfDoctor(env),
+  };
+}
+
+/** What this computer says about itself on every link. Read at each dial rather than once: a laptop gains an
+ * engine, loses a disk and is upgraded under wsp rather than by it. */
+export async function placeReport(opts: PlaceReportOptions): Promise<PlaceSelfReport> {
+  const home = opts.home ?? homedir();
+  const login = await placeLogin(opts.env ?? process.env, home);
+  return {
+    ...placeFacts({ ...opts, home }),
+    login,
+    uptimeMs: Math.max(0, Math.round(upSeconds() * 1000)),
+    daemonVersion: DAEMON_VERSION,
+    wsp: wspArgvOf(opts.run ?? runningWsp()),
+    wspDaemonVersion: DAEMON_VERSION,
+    // Off the login PATH rather than this process's: a service starts with almost none, and what the person can
+    // run here is what a turn on this computer will find.
+    agents: CATALOG_AGENTS.filter(a => onPath(a.bin, login["PATH"]) !== undefined).map(a => a.id),
+  };
+}
+
+/** What a sweep took off this computer, and what it left. */
+export interface PlaceSweep {
+  removed: string[];
+  kept: string[];
+}
+
+/** The person's own work, which a leave never touches: the folder their turns ran in is theirs, and a place that
+ * left a wsp keeps the files its threads wrote. */
+export const placeKeptLine = (folder: string): string => `${folder} stays: the work your threads did there is yours`;
+
+/** What a leave puts in front of each thing it took, and the one rule a host reading that leave back over ssh
+ * tells those lines by. The sentences a person reads around them (which wsp this computer left, what stays, what
+ * the host still has to be told) carry none, so the computer that prints them and the host that reads them back
+ * tell the two apart the same way. */
+const SWEPT_INDENT = "  ";
+export const sweptLine = (took: string): string => `${SWEPT_INDENT}${took}`;
+
+/** What a leave said it took, off everything that computer printed. Whatever else it said is a person's to read
+ * at that terminal and no part of what came off. */
+export const sweptSaid = (said: string): string[] =>
+  said
+    .split("\n")
+    .filter(line => line.startsWith(SWEPT_INDENT) && line.trim() !== "")
+    .map(line => line.trim());
+
+export interface PlaceSweepOptions {
+  home?: string;
+  /** How the ownership read and the profile's unload are run; this computer's own sh unless a caller hands another. */
+  sh?: (script: string) => string;
+  /** Which manager holds the place's unit; this computer's own unless a caller hands another, and a caller that
+   * means none (a computer wsp writes no unit for) hands undefined on purpose. */
+  manager?: ServiceManager | undefined;
+  run?: ServiceRunner;
+  uid?: number;
+  /** Where the workspace profile a root install loaded sits; the one every install writes unless a caller hands another. */
+  apparmorProfile?: string;
+  /** wsp's install folder and the folder its commands are linked into; the protocol's unless a caller hands others. */
+  tools?: ToolFolders;
+  /** The folder this computer's /usr/local and /opt sit under, for what the setup wrote outside the home: the
+   * computer's own unless a caller hands another. */
+  systemRoot?: string;
+  /** The folder the daemon here keeps its workspaces in, taken only where a caller names it: the leave on this
+   * computer names the protocol's, under the system root. */
+  runtimeRoot?: string;
+  /** The project folders under the runtime's projects folder the host's records name, which a leave over a runtime
+   * folder that stood before the add takes with wsp's own folders there. */
+  runtimeProjects?: readonly string[];
+  /** The cgroups wsp made here, taken only where a caller names them, as the runtime's folder is. */
+  cgroupRoots?: readonly string[];
+  /** This process's mount table, read off /proc unless a caller hands another; throws where it cannot be read. */
+  mountTable?: () => string;
+}
+
+/** The folder every manager installs under on a computer somebody owns, and the folder its commands are linked into. */
+export interface ToolFolders {
+  prefix: string;
+  links: string;
+}
+
+/** Which service the agent on this computer is, for the manager that holds it. Exported because the update road
+ * names that unit from the host, and a second spelling of it there would be a second copy of the rule. */
+export const placeService = (home: string, uid?: number): ServiceAddress => ({ role: "place", statePath: placeFilePath(home), home, uid: uid ?? process.getuid?.() ?? 0 });
+
+/** How long a leave gives the threads' cgroups to end: each thread's processes get their grace. */
+const THREADS_END_MS = 60_000;
+
+/** Takes wsp off this computer: every file wsp itself landed in the agents' homes here, every file that holds the
+ * agent up, the place file and the key, and every path the daemon, the installer and the recipe's job put under
+ * wsp's own folder here, read off the one list the ssh road's removal reads so nothing is named twice and nothing
+ * is guessed. The work folder stays, and the line says so.
+ *
+ * What wsp landed is read before anything goes, by the one ownership script the run that lands those files reads
+ * its own copies by: a path on the list beside that job whose bytes there are still the ones wsp left is wsp's to
+ * take, and a file the person has written since is not on that read at all. The list sits inside the folder the
+ * walk below takes, which is why the read comes first.
+ *
+ * The servers wsp merged into the agents' own files here come out the same way and for the same reason, key by
+ * key off that same list: those files are the agents' own from their first launch, so a leave that took the path
+ * would take the person's file, and one that took nothing would leave an agent starting a server whose command
+ * has gone.
+ *
+ * Every scope the manager could be holding a unit in, not only the one a join writes today: a computer joined
+ * before the place's unit became the machine's own has its file under that login's systemd, and a sweep that read
+ * one scope left that unit behind to come back under auto-restart with nothing to serve. Each line names the scope
+ * it came out of and says what the manager answered when it was told to stop it, so a person reads which of the
+ * two the leave took and whether anything of it is still running.
+ *
+ * The agent is stopped before its unit file goes, and the manager is reloaded after: a manager asked to stop a
+ * unit whose file has already gone stops nothing, and the agent kept running with the place file and the log it
+ * writes removed under it, until somebody restarted it by hand. This runs on the computer being left, where the
+ * agent is another process from this one; the host's own road asks the agent to sweep itself over the link.
+ *
+ * Nothing here fails the leave: a manager that refuses says so in its own line, which carries what it answered
+ * rather than the word the leave was after, and the files still go, since a person running this has already
+ * decided this computer is out of that wsp. */
+export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSweep> {
+  const home = opts.home ?? homedir();
+  const sh = opts.sh ?? shStdout;
+  // The add's record of what stood before it sits in wsp's folder here, which the walk below takes.
+  const found = placeFound(home);
+  // Before a single path of the list below goes: the list this read reads sits inside the provision folder that
+  // walk takes, and what it says is which files in the agents' homes here are still wsp's own copies.
+  const own = ownMarks(sh(landedFilesScript(home)));
+  // And what wsp merged into the agents' own files here, which no path of the list names: those files are the
+  // agents' own and stay, with wsp's keys taken out of them one by one. The same list, so this read comes first too.
+  const unmerged = await unmergeServers(hereServerPort(sh), home).catch(() => []);
+  const manager = opts.manager === undefined ? serviceManagerFor(platform()) : opts.manager;
+  const removed: string[] = [];
+  if (manager !== undefined) {
+    const address = placeService(home, opts.uid);
+    const run = opts.run ?? systemRunner;
+    for (const held of manager.held(address)) {
+      // What is running goes first, then the link the manager would start it again by, both while the unit file
+      // they name is still there; then the file, then the reload that leaves the manager holding nothing. Asked of
+      // every scope whether a file is there or not: a scope can hold the link that enables a unit whose file has
+      // already gone, and that link is what would start it again.
+      const stopRefused = await runAll(held.stop, run, STOP_WAIT_MS);
+      const forgetRefused = await runAll(held.forget, run);
+      if (!existsSync(held.unit.path)) continue;
+      rmSync(held.unit.path, { force: true });
+      const reloadRefused = await runAll(held.reload, run);
+      // What the manager answered, not what it was asked for: a stop that refused leaves the agent running, and a
+      // line saying it was stopped would be the one thing a person reading a leave cannot check. The first refusal
+      // of the three names its own command, so the line says which step it was.
+      const refused = stopRefused ?? forgetRefused ?? reloadRefused;
+      removed.push(`${held.words} ${held.unit.name} (${refused === undefined ? "stopped" : runFailureLine(refused)})`);
+    }
+    // A thread's turns stand in cgroups of their own, outside the agent's unit, so its stop left them running.
+    const ended = await run(["sh", "-c", threadCgroupsEndScript()], THREADS_END_MS);
+    removed.push(...(ended.code === 0 ? ended.output.split("\n").filter(line => line !== "") : [`the threads' processes there were not all ended: ${ended.output}`]));
+  }
+  for (const out of unmerged) if (!("unread" in out)) removed.push(...serversOutLines(out));
+  // Every file wsp itself landed in an agent's home here whose bytes are still the ones wsp left. A file the
+  // person has written since hashes differently, so the read never named it and it stays where it is.
+  for (const rel of own) {
+    const path = join(home, rel);
+    if (!there(path)) continue;
+    if (!foldersAreTheirOwn(home, path)) {
+      removed.push(placeKeptForLinkLine(path));
+      continue;
+    }
+    rmSync(path, { force: true });
+    removed.push(path);
+    prunedEmpty(home, dirname(path));
+  }
+  // The daemon on this computer is this process, so there is no second unit of its own; the paths are the ones
+  // the daemon writes, the ones an installer over ssh put there and the recipe's own folder, which on a computer
+  // that was joined by hand simply are not present.
+  for (const path of placeOwnedPaths(home)) {
+    // lstat, not exists: the browser name is a symlink to the shim beside it, and once the shim has gone the link
+    // is dangling, which every following-the-link read calls absent while the person is still left holding it.
+    if (!there(path)) continue;
+    if (!foldersAreTheirOwn(home, path)) {
+      removed.push(placeKeptForLinkLine(path));
+      continue;
+    }
+    rmSync(path, { recursive: true, force: true });
+    removed.push(path);
+  }
+  const wsp = placeDaemonPaths(home).wsp;
+  if (lstatSync(wsp, { throwIfNoEntry: false })?.isDirectory() === true) {
+    try {
+      rmdirSync(wsp);
+      removed.push(wsp);
+    } catch {
+      // Not empty: the person's own wsp or a host's state is in it.
+    }
+  }
+  // The workspace profile only root's install loaded, unloaded before its file goes, as the host's remove does it.
+  const profile = opts.apparmorProfile ?? WSP_WORKSPACE_APPARMOR_PATH;
+  const tools = opts.tools ?? { prefix: TOOL_PREFIX, links: TOOL_LINKS_DIR };
+  const root = (opts.uid ?? process.getuid?.()) === 0;
+  // Only root's jobs install outside the home, and only root can take it off. What the setup wrote outside wsp's
+  // install folder goes first, since the list naming it sits in that folder; that list hashes each path, so it
+  // needs no record of the add's.
+  const runtime = opts.runtimeRoot;
+  if (root) {
+    if (found === undefined) {
+      const standing = [profile, tools.prefix, ...(runtime === undefined ? [] : [runtime])].filter(there);
+      if (standing.length > 0) removed.push(placeOwnersUnknownLine(standing));
+      removed.push(...outsideMarks(sh(outsideSweepScript(opts.systemRoot))));
+    } else {
+      if (found.has(profile)) removed.push(placeStoodBeforeLine(profile));
+      else if (there(profile)) {
+        sh(apparmorOffStep(profile).join("\n"));
+        if (!there(profile)) removed.push(profile);
+      }
+      removed.push(...outsideMarks(sh(outsideSweepScript(opts.systemRoot))), ...sweepTools(tools, found));
+      if (runtime !== undefined) removed.push(...sweepRuntime(runtime, found, opts.mountTable ?? readMountTable, opts.runtimeProjects ?? []));
+    }
+    removed.push(...sweepCgroups(opts.cgroupRoots ?? []));
+  }
+  const said = unsourced(sshDaemonPlace({ home, path: "" }), home);
+  removed.push(...said.flatMap(one => ("removed" in one ? [one.removed] : [])));
+  const unread = unmerged.flatMap(out => ("unread" in out ? serversOutLines(out) : []));
+  return { removed, kept: [placeKeptLine(workFolderIn(home)), ...unread, ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
+}
+
+/** The paths the add found standing before it wrote anything, off the record its deploy left here. Nothing where
+ * the record is missing, unreadable, past the cap or does not end on its end entry: a computer joined before the
+ * record existed, one joined at its own terminal and a deploy killed while writing it all read alike, and the leave
+ * then takes nothing outside the home. */
+export function placeFound(home: string): ReadonlySet<string> | undefined {
+  const path = placeDaemonPaths(home).placeFound;
+  let text: string;
+  try {
+    const read = readPlainHere(path, PLACE_FOUND_MAX_BYTES + PLACE_FOUND_END.length + 1);
+    if ("unread" in read) return undefined;
+    text = read.bytes.toString("utf8");
+  } catch {
+    return undefined;
+  }
+  const end = `${PLACE_FOUND_END}\0`;
+  if (text !== end && !text.endsWith(`\0${end}`)) return undefined;
+  return new Set(text.slice(0, -end.length).split("\0").filter(entry => entry !== ""));
+}
+
+/** Takes the daemon's runtime folder off this computer, unless something is still mounted under it: a workspace running
+ * there reads through those mounts, and a removal would reach through them into whatever they show. A mount table that
+ * cannot be read keeps it for the same reason. Whole where wsp made it. Where the add found it standing, which is also
+ * what a folder an earlier wsp's remove left reads as, only what wsp made there goes: its `RUNTIME_FOLDERS` and the
+ * project folders the host's records name, each a single name under `RUNTIME_PROJECTS`; anything else there may be the
+ * person's and stays, and the folder goes only once nothing else is in it. A folder still standing after the try is
+ * said rather than answered as gone or as nothing. The daemon's leave takes it by the same rule. */
+export function sweepRuntime(root: string, found: ReadonlySet<string>, table: () => string, projects: readonly string[] = []): string[] {
+  if (!there(root)) return [];
+  let read: string;
+  try {
+    read = table();
+  } catch (e) {
+    return [placeKeptMountsUnreadLine(root, e instanceof Error ? e.message : String(e))];
+  }
+  const mount = mountsUnder(root, read)[0];
+  if (mount !== undefined) return [placeKeptMountedLine(root, mount)];
+  if (!found.has(root)) return takeWhole(root);
+  const held = join(root, RUNTIME_PROJECTS);
+  const oneName = (name: string): boolean => name !== "" && name !== "." && name !== ".." && !name.includes("/");
+  const went = [...RUNTIME_FOLDERS.map(name => join(root, name)), ...projects.filter(oneName).map(name => join(held, name))].filter(there).flatMap(takeWhole);
+  try {
+    rmdirSync(held);
+    went.push(held);
+  } catch {
+    // Something no record names is in it, or it was never there.
+  }
+  try {
+    rmdirSync(root);
+    return [...went, root];
+  } catch {
+    return [...went, placeStoodBeforeLine(root)];
+  }
+}
+
+function takeWhole(path: string): string[] {
+  try {
+    rmSync(path, { recursive: true, force: true });
+  } catch {
+    // What could not go stays, and the line below says it stands; the rest of the leave still runs.
+  }
+  return there(path) ? [placeRuntimeStandsLine(path)] : [path];
+}
+
+/** Takes the cgroups wsp made, deepest first, each only once nothing stands in it: a leave ends no process, and the
+ * kernel refuses the removal of a cgroup still holding one, which is then said. One that is not there is nothing. */
+export function sweepCgroups(roots: readonly string[]): string[] {
+  const empty = (at: string): void => {
+    for (const entry of readdirSync(at, { withFileTypes: true })) if (entry.isDirectory()) empty(join(at, entry.name));
+    rmdirSync(at);
+  };
+  return roots.filter(there).map(root => {
+    try {
+      empty(root);
+    } catch {
+      // The kernel's refusal: the line below says the cgroup stands.
+    }
+    return there(root) ? placeCgroupStandsLine(root) : root;
+  });
+}
+
+/** This process's mount table, every byte kept: a mount point anywhere on the computer may name bytes that are not
+ * UTF-8, and the paths it is held against are wsp's own. Throws where it cannot be read. */
+const readMountTable = (): string => readFileSync("/proc/self/mountinfo").toString("latin1");
+
+/** Every mount point at or under a folder, off a mountinfo table: the fifth field, its spaces and other odd bytes
+ * written as octal escapes. */
+export function mountsUnder(root: string, table: string): string[] {
+  return table
+    .split("\n")
+    .map(line => line.split(" ")[4])
+    .filter((field): field is string => field !== undefined)
+    .map(field => field.replace(/\\([0-7]{3})/g, (_, octal: string) => String.fromCharCode(parseInt(octal, 8))))
+    .filter(point => point === root || point.startsWith(`${root}/`));
+}
+
+/** Takes wsp's install folder off this computer, by the record of what stood before the add. Every link in the links
+ * folder the record does not name whose own target is under the prefix and is no path the record names, then the
+ * prefix whole where it did not stand; where it stood, every path under it the record does not name, deepest first,
+ * a folder only once it is empty, so a folder still holding a path from before stays with it. A link is read, never
+ * followed, so a command of the computer's own there and a link pointing anywhere else stay; a prefix that is itself
+ * a link stays too, since what it points at is not wsp's. The daemon's leave takes the same paths by the same rule. */
+export function sweepTools(at: ToolFolders, found: ReadonlySet<string>): string[] {
+  let prefix;
+  try {
+    prefix = lstatSync(at.prefix);
+  } catch {
+    return [];
+  }
+  if (!prefix.isDirectory()) return [placeKeptForLinkLine(at.prefix)];
+  // The list of what the setup wrote outside the home goes last in a leave that finished; one still holding lines is
+  // the only record of what a leave cut short left behind.
+  if (holdsLines(join(at.prefix, "landed"))) return [placeOutsideLeftLine(at.prefix)];
+  const stood = found.has(at.prefix);
+  const removed: string[] = [];
+  let names: string[];
+  try {
+    names = readdirSync(at.links);
+  } catch {
+    names = [];
+  }
+  for (const name of names) {
+    const link = join(at.links, name);
+    if (found.has(link)) continue;
+    let target: string;
+    try {
+      target = resolve(at.links, readlinkSync(link));
+    } catch {
+      continue;
+    }
+    if (target !== at.prefix && !target.startsWith(`${at.prefix}/`)) continue;
+    if (stood && found.has(target)) continue;
+    try {
+      unlinkSync(link);
+      removed.push(link);
+    } catch {
+      continue;
+    }
+  }
+  if (!stood) {
+    rmSync(at.prefix, { recursive: true, force: true });
+    if (!there(at.prefix)) removed.push(at.prefix);
+    return removed;
+  }
+  const gone = new Set<string>();
+  const walk = (folder: string): void => {
+    let entries: string[];
+    try {
+      entries = readdirSync(folder);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      const path = join(folder, name);
+      let kind;
+      try {
+        kind = lstatSync(path);
+      } catch {
+        continue;
+      }
+      if (kind.isDirectory()) walk(path);
+      if (found.has(path)) continue;
+      try {
+        if (kind.isDirectory()) rmdirSync(path);
+        else unlinkSync(path);
+        gone.add(path);
+      } catch {
+        continue;
+      }
+    }
+  };
+  walk(at.prefix);
+  // The topmost path that went stands for everything under it.
+  return [...removed, ...[...gone].filter(path => !gone.has(dirname(path))), placeStoodBeforeLine(at.prefix)];
+}
+
+/** Whether a file stands at that path with anything in it, read without following a link. */
+function holdsLines(path: string): boolean {
+  try {
+    const at = lstatSync(path);
+    return at.isFile() && at.size > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** The ownership read as this computer runs it: the one script the engine renders for the home, through a plain sh
+ * by its own path, since a daemon under a service unit holds almost no PATH to find one on. A read that would not
+ * run answers nothing, which keeps every file of the person's where it is. */
+const shStdout = (script: string): string => {
+  try {
+    return execFileSync(SH, ["-c", script], { encoding: "utf8", timeout: OWN_READ_MS });
+  } catch {
+    return "";
+  }
+};
+
+const SH = "/bin/sh";
+
+/** The port the unmerge runs on when it runs on the computer it is taking wsp off: that computer's own sh for
+ * the read of the list, its own file system for the read of the agents' files, and the one config write for
+ * putting one back. */
+function hereServerPort(sh: (script: string) => string): ServerPort {
+  return {
+    run: script => Promise.resolve(sh(script)),
+    read: (files, base) => Promise.resolve(configHere(files, base)),
+    write: (file, text, base) => {
+      writeConfigHere(file.path, base, file.sum, text);
+      return Promise.resolve();
+    },
+  };
+}
+
+/** The first of an agent's config files that is there, read as the login files are, at its real path where that sits
+ * inside `base`, as the remote read takes it. One that is there and not read keeps its servers, says why, and ends the
+ * look, since it is the file the agent reads. */
+function configHere(files: readonly string[], base: string): ScopeRead | undefined {
+  for (const path of files) {
+    let read: PlainRead;
+    try {
+      const real = realInside(path, base);
+      read = real === undefined ? { unread: "not-plain" } : readPlainHere(real, CONFIG_READ_MAX_BYTES);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") continue;
+      return { path, unread: e instanceof Error ? e.message : String(e) };
+    }
+    if ("unread" in read) return { path, unread: read.unread === "past-cap" ? CONFIG_PAST_CAP : CONFIG_NOT_PLAIN };
+    return { path, text: read.bytes.toString("utf8"), sum: configSum(read.bytes) };
+  }
+  return undefined;
+}
+
+/** The real path of `path` where it sits inside `base`, nothing where it sits out of it, a linked folder on the way
+ * included, and `path` itself where it does not resolve, which the no-link open then answers for. */
+function realInside(path: string, base: string): string | undefined {
+  let real: string;
+  try {
+    real = realpathSync(path);
+  } catch {
+    return path;
+  }
+  try {
+    return underProject(real, realpathSync(base)) ? real : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+type PlainRead = { bytes: Buffer; nlink: number } | { unread: "not-plain" | "past-cap" };
+
+/** A file in a home a workspace writes, read as a leave run as root reads one: a link reads as not a plain file, and
+ * any other failure to open throws. */
+function readPlainHere(path: string, cap: number): PlainRead {
+  let fd: number | undefined;
+  try {
+    // Opened with no link followed and without waiting, and read by the bytes it gives, never the size it states:
+    // opening what a link points at runs a fifo's other end or a device's driver, a fifo there would hold the leave,
+    // and a file that never ends would fill its memory.
+    fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
+    const at = fstatSync(fd);
+    if (!at.isFile()) return { unread: "not-plain" };
+    const most = Buffer.alloc(cap + 1);
+    const bytes = most.subarray(0, readSync(fd, most, 0, most.length, 0));
+    return bytes.length > cap ? { unread: "past-cap" } : { bytes, nlink: at.nlink };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ELOOP") return { unread: "not-plain" };
+    throw e;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** How long the read of what wsp owns here gets; it hashes one file per line of the list. */
+const OWN_READ_MS = 60_000;
+
+/** The folders wsp's own files left empty, taken from the file's own upwards. Never the first folder under the
+ * home: ~/.claude-cfg and ~/.codex are the agents' own to make and to keep, whatever wsp put inside them. */
+function prunedEmpty(home: string, from: string): void {
+  let at = from;
+  while (at !== home && at.startsWith(`${home}/`) && dirname(at) !== home) {
+    try {
+      // rmdir and not a recursive remove: a folder that is not empty is one holding something of the person's,
+      // and this walk stops at the first of those rather than reading what is in it.
+      rmdirSync(at);
+    } catch {
+      return;
+    }
+    at = dirname(at);
+  }
+}
+
+/** Whether every folder on the way to a path under the home is a folder of this computer's own. A workspace on a
+ * computer somebody owns writes in that home, so the shared .local/bin can be a link it planted, and a removal by
+ * name would follow that link and take the computer's own file of the name at the end. lstat, so a link reads as a
+ * link and not as what it points at; the check and the removal are two calls here, where the daemon's road makes
+ * them one by holding the folder open. */
+function foldersAreTheirOwn(home: string, path: string): boolean {
+  const parts = relative(home, path).split(sep);
+  if (parts[0] === "" || parts.includes("..")) return false;
+  let at = home;
+  for (const part of parts.slice(0, -1)) {
+    at = join(at, part);
+    try {
+      if (!lstatSync(at).isDirectory()) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Whether a path is there at all, link or file. */
+function there(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Takes wsp's own line back out of each of the person's own login files, which would otherwise print an error at
+ * every login for a file that is gone. Every line naming wsp's profile file goes, whatever spelling it was written
+ * in, since a computer joined before the line was guarded on that file carries the older one. Their file, so it is
+ * opened only when wsp's file is named in it and written back by the one config write. A link, a file with a second
+ * name, a file past the size any login file has, and anything that is not a plain file are left as they are, as the
+ * leave over the link leaves them. Answers, per file, the lines it took, the lines it left and why, or why it did not
+ * read the file, and nothing for a file that named none. */
+function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { kept: string })[] {
+  return (place.profileSources ?? []).flatMap(file => {
+    const said = unsourcedFrom(place, home, file);
+    return said === undefined ? [] : [said];
+  });
+}
+
+function unsourcedFrom(place: DaemonPlace, home: string, file: string): { removed: string } | { kept: string } | undefined {
+  let read: PlainRead;
+  try {
+    read = readPlainHere(file, LOGIN_READ_MAX_BYTES);
+  } catch {
+    return undefined;
+  }
+  if ("unread" in read) return { kept: read.unread === "past-cap" ? placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) : placeLoginUnreadLine(file) };
+  const { bytes } = read;
+  const twinned = read.nlink > 1;
+  const rows = bytes.toString("utf8").split("\n");
+  const gone = rows.filter(row => row.includes(place.profileFile));
+  if (gone.length === 0) return undefined;
+  const lines = gone.map(row => row.trim()).join("; ");
+  if (twinned) return { kept: placeLineStaysLine(lines, file, PLACE_LOGIN_LINKED) };
+  try {
+    writeConfigHere(file, home, configSum(bytes), rows.filter(row => !row.includes(place.profileFile)).join("\n"));
+  } catch (e) {
+    return { kept: placeLineStaysLine(lines, file, e instanceof Error ? e.message : String(e)) };
+  }
+  return { removed: placeLineOutLine(lines, file) };
+}

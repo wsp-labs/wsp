@@ -1,0 +1,128 @@
+/* The app's Tungsten theme (apps/web/src/themes/tungsten.css): warm soot with ivory ink. The class is doubled to win over
+ * Scalar's own .dark-mode, whatever order the two sheets load in. */
+.dark-mode.dark-mode {
+  --scalar-background-1: #121110;
+  --scalar-background-2: #1a1816;
+  --scalar-background-3: #211f1c;
+  --scalar-background-accent: rgb(236 230 220 / 8%);
+  --scalar-color-1: #ece6dc;
+  --scalar-color-2: #9c9288;
+  --scalar-color-3: #7d746b;
+  --scalar-color-accent: #ece6dc;
+  --scalar-border-color: #2a2623;
+
+  --scalar-color-green: #8fbf87;
+  --scalar-color-red: #e57368;
+  --scalar-color-orange: #e2a558;
+  --scalar-color-yellow: #e2a558;
+  --scalar-color-blue: #86b0e7;
+  --scalar-color-purple: #c4b5fd;
+
+  --scalar-button-1: #ece6dc;
+  --scalar-button-1-color: #141210;
+  --scalar-button-1-hover: #f6f1ea;
+
+  --scalar-header-background-1: #0f0e0d;
+  --scalar-header-border-color: #2a2623;
+  --scalar-header-color-1: #ece6dc;
+  --scalar-header-color-2: #a89d92;
+  --scalar-header-item-hover-background: rgb(236 230 220 / 4%);
+
+  --scalar-sidebar-background-1: #0f0e0d;
+  --scalar-sidebar-color-1: #ece6dc;
+  --scalar-sidebar-color-2: #a89d92;
+  --scalar-sidebar-color-active: #ece6dc;
+  --scalar-sidebar-border-color: #2a2623;
+  --scalar-sidebar-item-hover-background: rgb(236 230 220 / 4%);
+  --scalar-sidebar-item-hover-color: #ece6dc;
+  --scalar-sidebar-item-active-background: rgb(236 230 220 / 11%);
+  --scalar-sidebar-indent-border: #2a2623;
+  --scalar-sidebar-indent-border-hover: #373129;
+  --scalar-sidebar-indent-border-active: #ece6dc;
+  --scalar-sidebar-search-background: #121110;
+  --scalar-sidebar-search-border-color: #373129;
+  --scalar-sidebar-search-color: #a89d92;
+}
+
+/* Code blocks: a quiet card with an icon-only copy button in its corner. Scalar's button also prints the language word,
+ * which took a row of its own; shell lines wrap, while help text keeps its columns and scrolls. */
+.t-editor__code-container {
+  border: 1px solid var(--scalar-border-color);
+  border-radius: 10px;
+  background: var(--scalar-background-2);
+  overflow: hidden;
+}
+.t-editor__code-container pre.t-editor__code {
+  padding: 14px 48px 14px 16px;
+  background: transparent;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.t-editor__code-container[data-lang="sh"] pre.t-editor__code,
+.t-editor__code-container[data-lang="sh"] pre.t-editor__code *,
+.t-editor__code-container[data-lang="bash"] pre.t-editor__code,
+.t-editor__code-container[data-lang="bash"] pre.t-editor__code * {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.t-editor__language-picker {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 0;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0.6;
+  transition: opacity 150ms ease, background 150ms ease;
+}
+.t-editor__language-picker:hover {
+  opacity: 1;
+  background: rgb(236 230 220 / 6%);
+}
+.t-editor__language-picker svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* On the page a header button links to, Scalar draws its label in the header's ink, which is ivory on an ivory key. */
+.t-header__item--button .t-header__item--active {
+  color: var(--scalar-button-1-color);
+}
+
+/* Room around the blocks a page is built from, so pictures, tables and code do not touch the prose beside them. */
+.t-editor__heading[data-level="2"] {
+  margin-top: 56px;
+}
+.t-editor__heading[data-level="3"] {
+  margin-top: 36px;
+}
+p.t-editor__paragraph + p.t-editor__paragraph {
+  margin-top: 16px;
+}
+ul.t-editor__list,
+ol.t-editor__list {
+  margin-top: 16px;
+}
+.t-editor__list li + li {
+  margin-top: 6px;
+}
+figure.t-editor__image,
+figure.t-editor__table-wrapper,
+.t-editor__code-container {
+  margin-top: 28px;
+  margin-bottom: 28px;
+}
+figure.t-editor__image img {
+  display: block;
+  max-height: 460px;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: 12px;
+  filter: drop-shadow(0 20px 40px rgb(0 0 0 / 50%)) drop-shadow(0 2px 6px rgb(0 0 0 / 35%));
+}
+figure.t-editor__image figcaption {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--scalar-color-2);
+}

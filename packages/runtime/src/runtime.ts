@@ -1,0 +1,1285 @@
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync, type Dirent } from "node:fs";
+import { homedir, hostname, tmpdir } from "node:os";
+import { dirname, isAbsolute, join, posix, relative, resolve as resolvePathOn } from "node:path";
+import { CATALOG_AGENTS, DEFAULT_AGENT, GUEST_HOME, type ThreadAgent, TOOL_PREFIX, catalogIdOfRow, gitHostOf, remoteHost, serverValuesOf, guestEnv, installEnv, installHomes, loginHomeIn, sharedOn } from "@wsp/catalog";
+import {
+  BUILDER_IDLE_MS,
+  DAEMON_PORT,
+  INLINE_EXEC_MS,
+  MachineUnreachableError,
+  MoveUnansweredError,
+  NotFirstLifeError,
+  ResumeUnansweredError,
+  SnapshotFailedError,
+  BUILDER_LABEL,
+  CREATED_AT_LABEL,
+  GOLDEN_LABEL,
+  NAME_LABEL,
+  OWNER_LABEL,
+  SMOKE_LABEL,
+  WORKSPACE_LABEL,
+  WSP_LABEL,
+  lostWorkspace,
+  Workspace,
+  buildGolden,
+  destExists,
+  exportFolder,
+  exportPaths,
+  exportPathsInto,
+  goldenHead,
+  imageHash,
+  importImageVault,
+  refuseForeignMembers,
+  importInto,
+  isMissing,
+  NapRefusedError,
+  StopRefusedError,
+  installScript,
+  INSTALL_MS,
+  landBundle,
+  landBytes,
+  tarOf,
+  parseMergeOutput,
+  plural,
+  recipeHash,
+  agentHomes,
+  agentsOnMachine,
+  guestAgentHomes,
+  guestTmpPath,
+  parseStateListing,
+  projectInstalls,
+  stateListing,
+  killUntilGone,
+  readGone,
+  sightMachine,
+  type Sighting,
+  GoneWatch,
+  snapshotUntilGone,
+  MachineAliveError,
+  answerOf,
+  diskUse,
+  prepareBuilder,
+  reap,
+  refreshPreviewToken,
+  promoteVersion,
+  sealGolden,
+  goldenName,
+  projectSnapshotName,
+  splitByOwner,
+  snapshotMonthlyUsd,
+  templatesOf,
+  applyDelta,
+  applyGoldenImport,
+  upgradeBuilder,
+  nextSetupSha,
+  type Builder,
+  type BuildGoldenOptions,
+  type CacheRule,
+  type GoldenDelta,
+  type GoldenImport,
+  type ImportLedger,
+  type SealResult,
+  type ExecResult,
+  type GoldenManifest,
+  type KillConfirm,
+  type ListedMachine,
+  type Lifecycle,
+  type Machine,
+  type MachineBackend,
+  type MachineKind,
+  type MachineShape,
+  type MachineSpec,
+  type MachineState,
+  type PreviewReach,
+  type ReapFailure,
+  type ReapResult,
+  type ReapedMachine,
+  type RunOptions,
+  type RetentionPlan,
+  type SnapshotRow,
+  type TemplateRow,
+  type UnreadStore,
+  type VaultOptions,
+  type WspError,
+  type WorkspaceHooks,
+  type WorkspacePhase as EnginePhase,
+  retentionPlan,
+  rollback as rollbackGolden,
+  snapshotStorage,
+  applyMachineContext,
+  MEM_READ,
+  memMbOf,
+  readValues,
+  GUEST_TMP,
+  GUEST_USER_ENV,
+  landsBytes,
+  LOCAL_MACHINE_ID,
+  TOOLS_PATH,
+  DiskSyncError,
+  syncDisk,
+  DISK_USE_CMD,
+  diskUsePct,
+} from "@wsp/engine";
+import { AGENT_KEEP_MS, AGENTS_KEPT, isBrokered, placeDropStoppedLine, subHeldLine, type KeptAgent } from "@wsp/protocol";
+import type { AgentsReport, AgentsSignInEvent, AgentsTarget, DaemonFrame, DaemonResponse, EditorChoice, EditorId, RecipeFile, RecipeOptions, ServerAdd, ServerAsk, ServerToolsAnswer, SignInLine, SkillAdded, SkillHit, SkillPreview } from "@wsp/protocol";
+import type {
+  AdapterAttachOptions,
+  AdapterEvent,
+  AttachmentRoad,
+  Capabilities,
+  DaemonEvent,
+  DaemonReachView,
+  EventUnion,
+  ExecStream,
+  ExecStreamFactory,
+  GoldenBaseTool,
+  GoldenBuilderView,
+  GoldenLogin,
+  GoldenStage,
+  GoldenStep,
+  HarnessCatalog,
+  HarnessCatalogAnswer,
+  HostFolderListing,
+  InitJob,
+  InitJobEvent,
+  InitNeedsYouEvent,
+  InitRoad,
+  InitScreenId,
+  InitSetup,
+  Preferences,
+  PreferencesPatch,
+  Recipe,
+  RecipeDigest,
+  SealedImage,
+  SealedImageBuilt,
+  SealedImageCopy,
+  SealedImageView,
+  SealedProjectImage,
+  SealedVault,
+  ScreenCommand,
+  TerminalConfig,
+  TerminalScheme,
+  PortProbeView,
+  PortReachView,
+  ProjectAddStage,
+  ProjectAgentOutcome,
+  ProjectAgentResult,
+  ProjectExportResult,
+  ProjectExportStage,
+  ProjectGolden,
+  ProjectGoldenRemoved,
+  ProjectImportResult,
+  ProjectRef,
+  ProjectSource,
+  ProjectView,
+  ProjectImportStage,
+  ProjectPlan,
+  MachineBind,
+  SeedChoice,
+  SeedPlan,
+  WorkspaceCopy,
+  PermissionAsk,
+  PermissionOption,
+  PermissionOutcome,
+  ReachState,
+  SessionEvent,
+  SessionAccessResult,
+  SessionAnswerResult,
+  SessionInterruptOutcome,
+  SessionInterruptResult,
+  SessionRenameResult,
+  SessionRenameWrite,
+  SessionRenamer,
+  SessionStartOutcome,
+  SessionSteerResult,
+  SessionOrigin,
+  SessionAsker,
+  SessionAsideResult,
+  SessionRewindResult,
+  SessionReverter,
+  SessionTitleMaker,
+  SessionTitleReader,
+  SessionSearchResult,
+  SessionView,
+  StartPicks,
+  ThreadMarks,
+  TitleSource,
+  SnapshotStorage,
+  Attachment,
+  AttachmentRecord,
+  McpServerSpec,
+  TurnImage,
+  TurnResult,
+  TurnStatus,
+  SysSample,
+  WorkspaceCostEvent,
+  WorkspaceCreateStage,
+  Caller,
+  WorkspaceAgents,
+  WorkspaceKind,
+  PlaceSettings,
+  WorkspaceLook,
+  WorkspacePhase,
+  WorkspaceProject,
+  WorkspaceSize,
+  WorkspaceStatus,
+  WorkspaceView,
+  WorkspaceCreatingEvent,
+} from "@wsp/protocol";
+import { cloneLines, PROJECT_LANDINGS, projectLanding, readUnsaved, type Landed, type LandingDeps, type ProjectLanding } from "./project-landing.js";
+import { projectRemote, projectSource } from "./project-sources.js";
+import { vaultUnlistedRefusal, ThreadPlacement, ThreadScope, WorkspaceOrigin, branchUnreadRefusal, noParentWorkspaceLine, parentProjectRefusal, BringBackResult, GitPrReply, GitPushReply, GitCommitReply, GitDiscardReply, GitDiffReply, GitStatusReply, GitPrReadReply, GitPrViewReply, GitRunLogReply, GitPrMergeReply, GitRepoReadReply, GitUpdateReply, GitStartOnReply, GitBranchCompareReply, GitMergeInReply, DETACHED_HEAD, leadBusyRefusal, childStartedLine, forkNeedsPushLine, FIX_CHECK_OR_CHILD, childOnNoBranchRefusal, mergeChildPrompt, mergeIntoOwnRefusal, noRemoteForTreeLine, notTheLeadsChildRefusal, pushedForChildLine, uncommittedStayed, type MergeInResult, type TreeChild, type TreeFact, type TreeRecord, PR_POLL_MS, type PullRequestPage, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, REPLY_EMPTY_LINE, pullRequestPostLine, type ReactionContent, type PullRequestItem, type PullRequestSendResult, type PullRequestSent, GIT_DIFF_CAP_BYTES, pullRequestSendPrompt, checkFailedPrompt, conflictsPrompt, checkNotFailedRefusal, childPushedLine, isPullRequestFact, mergeMethodRefusal, noPullRequestRefusal, noSuchCheckRefusal, notOpenRefusal, pullRequestStoppedLine, pullRequestUnreadLine, AUTO_MERGE_OFF_LINE, type FixResult, type MergeMethod, type MergeResult, type PullRequestFact, type PullRequestRecord, type PullRequestSeen, DRAFT_NOTES, cleanCheckoutLine, commitMessage, cutDiff, draftPrompt, type Checkout, type CheckoutReply, type CommitDraft, type CommitDrafter, type ViewedMarks, agentsFrom, foldThreads, NAP_AFTER_MS, settingFor, runningOn as runningOnPlace, phaseHoldsSlot, placeAtLimitLine, placeSpendLimit, spendCapRefusal, agentsKindRefusal, agentsMayDrive, askerOf, MCP_SERVER_NAME, threadForgetRefusal, threadKeyOf, threadRan, threadWord, threadsFollowed, SPAWN_ACTS_ALLOWED, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, SCOPED_MCP_ARG, agentsOffRefusal, roadOf, scopeOf, spawnActRefusal, spawnCapRefusal, spawnGoldenRefusal, spawnDepthRefusal, spawnReachRefusal, workspaceIdOf, type SpawnAct, type ThreadWaitingOn, RUN_PERSONS_LINE, runOutputTail, type RunStep, type SessionRunEvent, NO_SLATE_MCP_ARG, PR_POLL_IDLE_MS } from "@wsp/protocol";
+import { ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE, asideUnsupportedLine, PLACE_WORKSPACE_PATH, THIS_COMPUTER, COPY_BUILD_FIX, copyAsksSignIns, refusal, copyFirstLine, isLocalWorkspace, imageCarriesCheckout, addedProjectOn, addingProjectLine, hereDaemonBehindLine, DAEMON_TOKEN_PATH, recipePins, mcpServersBlocked, actionRefusal, buildsImages, copyBuildOf, copyIsCurrent, type CopyBuild, forksNoMachines, IDLE_REASON, kindWords, readingRoad, namesSize, NO_PROVIDER_LINE, providerCannotRefusal, ALREADY_APPLIED, ALREADY_RUNNING, applyPreferencesPatch, serverIconsLeftLine, homeShortened, BLANK_NAME_REFUSAL, catalogRefused, CREATE_READY, DAEMON_INSTALL_FAILED, DAEMON_INSTALLING, DAEMON_RESTART_FAILED, DAEMON_RESTARTING, DAEMON_UPDATE_FAILED, DAEMON_UPDATING, DAEMON_VERSION, EMPTY_TITLE_LINE, threadRunsOnLine, fmtBytes, fmtDuration, folderName, forgetUndrivenRefusal, goldenImage, goneRefusal, goneWords, HOSTNAME_KEPT, hostnameSetLine, imagePathIn, inFolder, labsFromEnv, leadAsk, listedPick, everyModel, effortsFor, modelOf, machineCapRefusal, machineLacksLine, machineNeverAnswered, machineWord, napRefusedLine, NO_IMAGE_YET, nameDeletingRefusal, nameTakenRefusal, deleteRefusedLine, snapshotRefusedLine, NO_SUCH_TURN, noAdapterLine, noKindLine, noWorkspaceRefusal, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, NOT_GONE, GONE_UNCHECKED, goneUnconfirmedLine, type GoneSeenBy, NOTIFY_ME, notifyLine, offeredSize, askingLine, permissionModeOptionLabel, pickedOptions, preferencesFrom, RECORD_RESTORED, RESUME_UNANSWERED, refusalLine, registeredLine, REGISTERING_LINE, claudeMemoryDir, claudeProjectKey, folderOnCopyRefusal, cloneFailedLine, cloneIntoNeeded, cloneIntoTakenLine, cloneUrlRefusal, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, NAME_A_PROJECT_LINE, BRANCH_OR_CWD_LINE, notOnThisComputerLine, cwdOutsideLine, noCwdLine, noBranchesLine, notMadeWorktreeLine, THREAD_WORKING_LINE, threadOnMachineLine, OLD_COPY_WORDS, ProjectCopy, WORKTREE_BUSY_LINE, WORKTREE_FORCE_LINE, PR_BEHIND_WORDS, worktreeChangedLine, keptChangedLine, KEPT_RUNNING_LINE, KEPT_ABANDONED_LINE, type WorktreeFolder, type WorktreeSettled, type WorktreeMade, leftBehindLine, projectInUseRefusal, projectNameOf, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, copyTakesNone, kindForComputer, runsInFolder, DEVICE_OPS, relayedRecordRefusal, relayedRefusal, RUN_GONE_LINE, sendRefusal, shellLine, shellQuote, signInRefusalLine, SIZE_PICK_FIX, sizeGotLine, sizeRefusal, sizeWord, startingLine, startPicks, storedTitleSource, titleLine, TURN_TOKEN_ENV, turnImagesDir, underProject, undrivenRefusal, WAKE_STOPPED, wakeAskingAgainLine, wakeAsksIn, wakeGaveUpLine, workspaceState, buildPlaceAskLine, HERE_PLACE_ID, isJoinedComputer, NO_BUILD_PLACE_LINE, noSuchPlaceRefusal, noProjectImageLine, projectImageInUseRefusal, projectImageRefusedLine, projectImageStillListedLine, placeBuildsNoImageLine, placeForksNothingPickLine, placeForksNowhereLine, placeHoldsNoImageLine, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeDaemonPaths, placeDialBackLine, placeWentAwayLine, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, workspacePlace, workFolderIn, workspaceLands, REWIND_LATEST_LINE, REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE, REWIND_SHARED_LINE, REWIND_WORKING_LINE, rewindBesideLine, rewindChildrenLine, rewindKeptLine, rewindNoAnchorLine, attachmentRecord, attachmentKey, type KeptAttachment, filesBlocked, isImage, sendFilesDir, filePathIn, landFilesLine, filesNotLandedLine, attachedFilesPrompt, dropFilesLine, PERMISSION_DENIED_LINE, deniedLine } from "@wsp/protocol";
+import { agentsReads, type AgentsActs, type AgentsReader, type CallbackForwards, type ServerIcons, type ServersActs, type SignInAsk, type SkillAsk, type SkillsActs } from "./agents-read.js";
+import { groupExists } from "./local-exec.js";
+import { openDaemonChannel, type DaemonChannel, type DaemonChannelOptions } from "./daemon-channel.js";
+import { templateHost } from "./host-id.js";
+import { machineExecStream, type MachineExecOptions, type TurnWaiting } from "./machine-exec.js";
+import { GITHUB_TOKEN_ENV, isNoProvider, isPlaceAbsent, projectStateKey, putFiles, type Copier } from "@wsp/engine";
+import { baseModel, boxFullLine, DISK_FULL_PCT, diskFullLine, stopRefusedLine, threadMessages, threadSeed, workspaceMemMb } from "@wsp/protocol";
+import { folderMoveHeldLine, folderMoveStandsLine, holdsRepo, noRemoteLine, ownerRepoOf, projectForRepo, recipeFolderGoneLine, seedChoiceFrom } from "@wsp/protocol";
+import { taskStopRefusedLine, taskStopUnsupportedLine, type SubagentView, type TaskStop } from "@wsp/protocol";
+import { accessMode, accessRefusal, accessWordRefusal, agentOffLine, configDirLaunchRefusal, configDirRefusal, markedFor, modelIdRefusal, openDefaults, resolveThreadDefaults, setupView, shapeModels, withCustomModels, type AccessChoice, type AgentLaunch, type AgentRow, type AgentSetupSet, type ProjectOverrides, pickRefusal, type ResolvedFolder, type ThreadDefaults } from "@wsp/protocol";
+import { agentSetups, keyOf, realFolderHere, realFolderScript } from "./agent-setup.js";
+import { realClock, type Clock } from "./clock.js";
+import { writeDaemonRootsScript } from "./daemon-roots.js";
+import { assertTokenShape, daemonTokenFor, daemonTokenPathOf, rotateDaemonToken } from "./daemon-token.js";
+import { backstopMs, createIdlePolicy } from "./idle.js";
+import { connectDaemon, type DaemonReach } from "./reach.js";
+import { POLL_INTERVAL_MS, createStatusTracker, machineStateOf, phaseLeavingGone, providerSaid, type StatusApi, type StatusListOptions, type StatusWatchOptions } from "./status.js";
+import { makeDevices, type DeviceDoor, type ScopedRoad } from "./devices.js";
+import { loginHere, servableOptions } from "./places/helpers.js";
+import { heldImages } from "./images/held.js";
+import { makePlaceDoor, NO_PLACE_DOOR, PlaceForksNowhereError, PlaceProvisioningError, type PlaceDoor, type PlaceRecord, type PlaceWiring } from "./places.js";
+import type { BlobMark, Store } from "./store.js";
+import { memoryGitHubCache, type GitHubCache } from "./github-cache.js";
+import { RANGE_DAYS, READINGS_STEP_MS, SysHistoryReply, resetNoLoginsLine, type ReadingsAnswer, type PlaceView, type AccountsAnswer, type AgentSignInState, type ResetAnswer, type UsageRange, type UsageSplit, type UsedAnswer } from "@wsp/protocol";
+import { catalogFromProbe, harnessCatalog, modelLabel, smallestModel } from "./harness-catalog.js";
+import {
+  GitIssueReadReply,
+  GitPrDiffReply,
+  GitPrReviewReply,
+  START_WORDS,
+  fromTaskPrompt,
+  githubLinkOf,
+  isReviewRead,
+  lineInDiff,
+  reviewFromReply,
+  reviewReaskPrompt,
+  reviewTaskPrompt,
+  startName,
+  takenNameAfter,
+  withCloses,
+  type IssueRead,
+  PullRequest,
+  type ReviewDraft,
+  type ReviewPostResult,
+  type ReviewVerdict,
+  type StartResult,
+  type WorkspaceFrom,
+  SETTLE_MS,
+  threadSettled,
+} from "@wsp/protocol";
+import { PLAN_RESETS, secretsOf } from "./adapters.js";
+import { accountOf, accountOnComputer, accountRows, createBurn, createPriceTable, createUsageLedger, resetDetailsDue, usageComputerName, type Vaulted } from "./usage.js";
+import { planAlerts } from "./plan-alerts.js";
+import { HEAD_BYTES, HISTORY_PAGE_BYTES, HISTORY_PAGE_EVENTS, type HistoryPage, type ThreadFacts, type ThreadHead } from "@wsp/protocol";
+import type { EventSize, TranscriptRows } from "./sqlite-transcripts.js";
+import { eventBytes, headShape, numbered, pickNewest, readThread, type TranscriptReader } from "./transcript-reader.js";
+import { usageResets, type ResetPlace } from "./usage-reset.js";
+import { loginEnvOn, type HarnessSession, type HarnessAdapter, type StartPicksAsked } from "./types/harness.js";
+import { SLATE_PR_POLL_MS, CATALOG_TTL_MS, CATALOG_PROBE_TIMEOUT_MS, SESSION_TITLE_TTL_MS, CHECKOUT_TTL_MS, PR_PAGE_HOLD_MS, RATE_LIMIT_HOLD_MS, SESSION_TITLE_TIMEOUT_MS, SESSION_TITLE_REFRESH_MAX, TITLE_MAKE_TIMEOUT_MS, eventBus } from "./types/events.js";
+import { atProvider, type WorkspaceSpec, type CreatedWorkspace, type CreateWorkspaceOptions, type PackedState, type LandRequest, type ProjectImportOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, type SessionHandle, type PlaceBackends, wiredPlace, type GoldenRecipe, type GoldenExec, type SeedWiring, type RuntimeOptions, PROVIDER_READ_MS, GONE_CONFIRM_MS, type GoneOutcome, type FoundMachine, settled, WAKE_LATE_READ_MS, DAEMON_HELLO_TIMEOUT_MS, PORT_PROBE_TIMEOUT_MS, CLONE_MS, ADD_IS_A_COMPUTER_LINE, folderNamed, sameSource, NO_COPIER_HERE, lastLineOf, outcomeWords, LISTING_DEADLINE_MS, mergeOnMachine, homeOutcome, PORT_PROBE_BODY_CAP, VAULT_CAP_BYTES, VAULTS, until, shapeFault, VAULT_SKIP, setHostname, type GoldenPromotion, GRACE_MS, DAEMON_REVIVE_AGAIN_MS, DAEMON_LACKS_AGAIN_MS, type AdoptedMachine, type SweepResult, LOG_READ_EVERY_MS, RESET_EXEC_MS, type UsageDoor } from "./types/wiring.js";
+import type { Runtime, OrphansDeleted } from "./types/api.js";
+import { WORKSPACES, PROJECTS, SEED_CHOICES, GOLDENS, GOLDEN_RECIPES, PROJECT_GOLDENS, IMAGES, NO_COPY_RECIPE, NO_SEED_WIRING, IMAGE_VAULTS, copyKey, copyKeyParts, recipeKey, vaultKey, TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX, ATTACHMENTS, ATTACHMENT_KEYS, SESSIONS, WORKSPACE_NAMES, DROPPED, DROPPED_WATCH_MS, PREFERENCES, PREFERENCES_ID, READS, READS_ID, PAUSED_REASON, DELETED_REASON, RESTARTED_REASON, GONE_REASON, goneLogLine, sweptRunsLogLine, noTitleLogLine, noMadeTitleLogLine, noCheckpointLogLine, noNameWriteLogLine, restartCutLine, DAEMON_TOKEN_MISS_TTL_MS, TRANSCRIPT_CAP, TRANSCRIPT_BYTES, TOOL_RESULT_KEPT, TRANSCRIPTS_HELD, PENDING_FLUSH_BYTES, MAX_TIMER_MS, type TranscriptIndex, type Taken, transcriptUnreadLine, emptyIndex, forgetChild, foldEvent, indexOf, type TurnWritten, turnWritten, indexBytes, indexRead, snippetAround, SESSION_INDEX_CAP, TRANSCRIPT_FLUSH_MS, type NamedWorkspace, type DroppedMachine, type TranscriptRecord, type TurnLive, type TurnAsked, KEPT_CLOSE_WAIT_MS, type KeptProcess, type KeptLaunch, launchesAs, stampSessionFile, sameSessionFile, readAsked, readScope, readRoad, type ThreadRecord, type SessionIndexRecord, BUILDERS, OWNER, CREATES, KEY_PURPOSE_MAX, type PendingCreate, fingerprint, HELD_TTL_MS, HEARTBEAT_MS, isCapRefusal, pidAlive, type BuilderRecord, type LiveBuilder, PrepareStoppedError, deadMachine, isAbsentMachine, absentMachine, readBodyUpTo, forwardedCalls, DaemonRefusal, isNoHostCli, isNoGitCredential, type KindModule, type ImportReport, type ImportLanded, type WorkspaceLike, type StageFrame, type KeptImages, type ChildStart, type MachineMoment, type StoredBuilder, type LiveSession, type Reopened, type SessionEntry } from "./types/internal.js";
+import type { RuntimeContext, RuntimeCore, KindsArea, RulesArea, TranscriptsArea, SlatesArea, ChannelsArea, RecordsArea, ReachArea, PullRequestsArea, DaemonArea, MachinesArea, BootArea, CreateArea, FoldersArea, StartFromArea, WorkspacesArea, AgentsArea, ThreadsArea, TurnsArea, SessionsArea, BuildersArea, GoldenArea, ImageArea, ProjectsArea, UsageArea, ConversationsArea, StatusArea, PreferencesArea } from "./context.js";
+
+import { kindsArea } from "./machines/kinds.js";
+
+import { rulesArea } from "./account/rules.js";
+
+import { transcriptsArea } from "./threads/transcripts.js";
+
+import { slatesArea } from "./account/slates.js";
+
+import { channelsArea } from "./account/channels.js";
+import { procScopesArea } from "./account/proc-scopes.js";
+
+import { recordsArea } from "./images/records.js";
+
+import { reachArea } from "./machines/reach.js";
+
+import { pullRequestsArea } from "./account/pull-requests.js";
+
+import { daemonArea } from "./machines/daemon.js";
+
+import { machinesArea } from "./machines/machines.js";
+
+import { bootArea } from "./machines/boot.js";
+
+import { createArea } from "./machines/create.js";
+import { subSpawnArea } from "./machines/sub-spawn.js";
+import { subQueueArea } from "./machines/sub-queue.js";
+import { subLifeArea } from "./machines/sub-life.js";
+
+import { foldersArea } from "./projects/folders.js";
+
+import { startFromArea } from "./projects/start-from.js";
+import { readPublicMarketplaces, rereadPublic } from "./projects/branch-of-record.js";
+
+import { workspacesArea } from "./projects/workspaces.js";
+
+import { agentsArea } from "./threads/agents.js";
+
+import { threadsArea } from "./threads/threads.js";
+
+import { turnsArea } from "./threads/turns.js";
+
+import { sessionsArea } from "./threads/sessions.js";
+
+import { buildersArea } from "./images/builders.js";
+
+import { goldenArea } from "./images/golden.js";
+
+import { imageArea } from "./images/image.js";
+
+import { projectsArea } from "./projects/projects.js";
+
+import { usageArea } from "./account/usage.js";
+import { conversationsArea } from "./threads/conversations.js";
+import { waitsArea } from "./threads/waits.js";
+import { activityDoor } from "./activity.js";
+
+import { statusArea } from "./account/status.js";
+
+import { preferencesArea } from "./account/preferences.js";
+import { projectIconsArea } from "./projects/images.js";
+import { pipeArea } from "./pipe.js";
+
+export * from "./types/harness.js";
+export {
+  type EventListener,
+  type EventBus,
+  CATALOG_TTL_MS,
+  SESSION_TITLE_TTL_MS,
+  CHECKOUT_TTL_MS,
+  PR_PAGE_HOLD_MS,
+  RATE_LIMIT_HOLD_MS,
+  SESSION_TITLE_REFRESH_MAX,
+  TITLE_MAKE_TIMEOUT_MS,
+} from "./types/events.js";
+export {
+  type WorkspaceSpec,
+  type CreatedWorkspace,
+  type CreateWorkspaceOptions,
+  type PackedProject,
+  type StateRequest,
+  type PackedState,
+  type ProjectBundler,
+  type LandRequest,
+  type HostFolders,
+  type HostTerminalConfig,
+  type HostEditor,
+  type EditorRemote,
+  type HostSsh,
+  type InitDoor,
+  type RecipeShelf,
+  type LandedAgent,
+  type LandedProject,
+  type ProjectLander,
+  type ProjectExportOptions,
+  type ProjectImportOptions,
+  type SessionHandle,
+  type PlaceBackends,
+  wiredPlace,
+  type GoldenRecipe,
+  type GoldenExec,
+  type RunningExec,
+  type LocalWiring,
+  type HereDaemon,
+  type SeedWiring,
+  type RuntimeOptions,
+  type CodexClaims,
+  type WakeOptions,
+  ADD_IS_A_COMPUTER_LINE,
+  NO_COPIER_HERE,
+  PORT_PROBE_BODY_CAP,
+  type GoldenBuildRequest,
+  type GoldenPromotion,
+  type GoldenUpgradeResult,
+  GRACE_MS,
+  DAEMON_REVIVE_AGAIN_MS,
+  DAEMON_LACKS_AGAIN_MS,
+  type AdoptedMachine,
+  type SweepResult,
+  type OriginStatusApi,
+  type UsageDoor,
+} from "./types/wiring.js";
+export * from "./types/api.js";
+export {
+  NO_COPY_RECIPE,
+  NO_SEED_WIRING,
+  copyKey,
+  DROPPED_WATCH_MS,
+  UNRECORDED_DELETE_MS,
+  TRANSCRIPT_BYTES,
+  TOOL_RESULT_KEPT,
+  TRANSCRIPTS_HELD,
+  TRANSCRIPT_FLUSH_MS,
+  PrepareStoppedError,
+} from "./types/internal.js";
+
+export function createRuntime(opts: RuntimeOptions): Runtime {
+  const ctx = {} as RuntimeContext;
+  Object.assign(ctx, runtimeCore(ctx, opts));
+  Object.assign(ctx, { activity: activityDoor(ctx) });
+  Object.assign(ctx, kindsArea(ctx));
+
+  Object.assign(ctx, rulesArea(ctx));
+
+  Object.assign(ctx, transcriptsArea(ctx));
+
+  Object.assign(ctx, slatesArea(ctx));
+
+  Object.assign(ctx, channelsArea(ctx));
+  Object.assign(ctx, procScopesArea(ctx));
+
+  Object.assign(ctx, recordsArea(ctx));
+
+  Object.assign(ctx, reachArea(ctx));
+
+  Object.assign(ctx, pullRequestsArea(ctx));
+
+  Object.assign(ctx, daemonArea(ctx));
+
+  Object.assign(ctx, machinesArea(ctx));
+
+  Object.assign(ctx, bootArea(ctx));
+
+  Object.assign(ctx, createArea(ctx));
+  Object.assign(ctx, subSpawnArea(ctx));
+  Object.assign(ctx, subQueueArea(ctx));
+  Object.assign(ctx, subLifeArea(ctx));
+
+  Object.assign(ctx, foldersArea(ctx));
+
+  Object.assign(ctx, startFromArea(ctx));
+
+  Object.assign(ctx, workspacesArea(ctx));
+
+  Object.assign(ctx, agentsArea(ctx));
+
+  Object.assign(ctx, threadsArea(ctx));
+
+  Object.assign(ctx, turnsArea(ctx));
+
+  Object.assign(ctx, waitsArea(ctx));
+  Object.assign(ctx, sessionsArea(ctx));
+
+  Object.assign(ctx, buildersArea(ctx));
+
+  Object.assign(ctx, goldenArea(ctx));
+
+  Object.assign(ctx, imageArea(ctx));
+
+  Object.assign(ctx, projectsArea(ctx));
+
+  Object.assign(ctx, usageArea(ctx));
+
+  Object.assign(ctx, conversationsArea(ctx));
+
+  Object.assign(ctx, statusArea(ctx));
+
+  Object.assign(ctx, preferencesArea(ctx));
+  Object.assign(ctx, projectIconsArea(ctx));
+  return runtimeOf(ctx, pipeArea(ctx, r => isBrokered(r, atProvider(r.place, ctx.places) ? { kind: "provider" } : undefined)));
+}
+
+function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
+  const { backend, store, adapters } = opts;
+  const local = opts.local;
+  /** The place door once the host wired one; the kind's refusal when it did not, which is what every road on a kind
+   * this host does not serve answers. */
+  let placeDoor: PlaceDoor | undefined;
+  const bus = eventBus();
+  const providerReadMs = opts.providerReadMs ?? PROVIDER_READ_MS;
+  const goneConfirmMs = opts.goneConfirmMs ?? GONE_CONFIRM_MS;
+  const lateReadMs = opts.wake?.lateReadMs ?? WAKE_LATE_READ_MS;
+  const clock = opts.clock ?? realClock;
+  const githubCache = opts.githubCache ?? memoryGitHubCache();
+  /** What the provider says the machine is, bounded by its own read; undefined where the read could not be had. */
+  const readsState = (machine: Machine): Promise<MachineState | undefined> =>
+    until(machine.state(), clock.now() + providerReadMs, `state of ${machine.id}`, clock).catch(() => undefined);
+  /** What a read of the machine before a wake asks again comes to: a resume the backend gave up on went through
+   * after all, or as far as anything here can tell it did not. A read that could not be had leaves the resume
+   * unsent, and a machine the read calls gone meets its 404 on the next ask and settles gone. */
+  const tookTheResume = (reads: MachineState | undefined): boolean => reads === "running" || reads === "starting";
+  /** Resolves after ms on the runtime's clock. Unref'd: a host asked to exit while a wake waits to ask again exits. */
+  const sleeps = (ms: number): Promise<void> => new Promise<void>(resolve => clock.schedule(() => resolve(), ms, { unref: true }));
+  const daemonHelloTimeoutMs = opts.daemonHelloTimeoutMs ?? DAEMON_HELLO_TIMEOUT_MS;
+  const vaultCapBytes = opts.wake?.vaultCapBytes ?? VAULT_CAP_BYTES;
+  const defaultIdleWindowMs = opts.idle?.defaultWindowMs ?? NAP_AFTER_MS;
+  const hostId = opts.hostId ?? hostname();
+
+  const vaultPathsOf = async (m: Machine): Promise<string[]> => {
+    if (opts.vaultPaths) return opts.vaultPaths;
+    // Breadcrumb doubles as the guarantee that the export list is never empty.
+    await m.exec("date -u +%FT%TZ >> /root/.wsp-upgraded");
+    const ls = await m.exec("ls -A /root");
+    if (ls.exitCode !== 0) throw new Error(`vault enumeration failed: ${ls.stderr.slice(-200)}`);
+    return ls.stdout
+      .split("\n")
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !VAULT_SKIP.has(s))
+      .map(s => `/root/${s}`);
+  };
+  const vaultExport = async (m: Machine, o: Pick<VaultOptions, "maxBytes" | "leave"> = {}): Promise<Buffer> =>
+    exportPaths(m, await vaultPathsOf(m), { ...o, ...(opts.vaultCaches !== undefined ? { exclude: opts.vaultCaches } : {}) });
+  // One device door for this host: the ops the protocol server answers and the token every turn is launched with
+  // come out of the same table, so a scoped token is listed, matched and revoked by the rules a paired computer's
+  // token already lives under.
+  const deviceDoor = makeDevices(store);
+  /**
+   * The token a launch of a thread's agent drives this host with, the address it dials and the wsp server it runs: a
+   * device of this host's, scoped to the thread, which the caller takes back once the launch's process exits, so a
+   * token read out of a machine after it opens nothing. Minted whatever the switch says, since a launch with none
+   * reaches this host through the person's own wsp server and acts as them; the guard refuses what the switch
+   * refuses. Only where the workspace has a road to this host, since a token with nowhere to go is one more secret
+   * for nothing.
+   */
+  const threadLaunch = async (entry: LiveWorkspace, threadId: string, rootThreadId: string, o: { aside?: true } = {}): Promise<{ scoped?: Awaited<ReturnType<typeof deviceDoor.mint>>; env: Record<string, string>; wsp?: McpServerSpec }> => {
+    const reach = ctx.agentsReach(entry);
+    if (reach === undefined) return { env: {} };
+    // A machine whose credentials the host keeps gets placeholders of the kinds the broker says it holds now, and runs
+    // on the daemon this host ships, whose doors its env names; any other launch reads nothing, and waits on nothing
+    // before its mint.
+    if (ctx.brokered(entry.record)) {
+      // Beside the launch rather than ahead of it: a repo turned private moves the launches after this one.
+      void rereadPublic(ctx, entry).catch((e: unknown) => console.warn(`the visibility of ${entry.record.name}'s repo was not read again: ${e instanceof Error ? e.message : String(e)}`));
+      await Promise.all([ctx.readBroker(), ctx.daemonSettled(entry), readPublicMarketplaces(ctx)]);
+    }
+    const scoped = await deviceDoor.mint(`thread ${threadWord(threadId)}`, { kind: "thread", threadId, workspaceId: entry.record.id, rootThreadId }, Date.now(), { road: ctx.moduleOf(entry.record.kind).turnRoad, ...o });
+    return {
+      scoped,
+      env: {
+        [HOST_TOKEN_ENV]: scoped.deviceToken,
+        // The address and the key beside it only for a launch that dials one: its wsp pins the key before it sends
+        // the token, so a directory answer naming another host is refused.
+        ...(reach.url !== undefined ? { [HOST_URL_ENV]: reach.url, ...(placeDoor === undefined ? {} : { [HOST_KEY_ENV]: placeDoor.hostKey() }) } : {}),
+      },
+      ...(reach.wsp !== undefined ? { wsp: reach.wsp } : {}),
+    };
+  };
+  /** The app's own sign-in road, followed as a setup's row waiting on the person, with the stop that ends it. */
+  const followSignIn = async (target: AgentsTarget, ask: SignInAsk, emit: (e: AgentsSignInEvent) => void): Promise<{ leave(): void; stop(): void }> => {
+    const handle = await ctx.agentsRead.signIn(target, ask, emit);
+    return {
+      leave: () => handle.leave(),
+      stop: () => {
+        // A sign-in that already ended has nothing left to stop.
+        try {
+          ctx.agentsRead.signInStop(handle.signInId);
+        } catch {
+          return;
+        }
+      },
+    };
+  };
+  /** Puts the icon and the hue a recipe moved from `was` to `now` on a project, the rest of its look left as the
+   * person set it. */
+  const folderLook = async (projectId: string, was: RecipeFile["folders"][string], now: RecipeFile["folders"][string]): Promise<void> => {
+    const held = (await ctx.preferences.get()).projectLook[projectId];
+    const icon = was.icon !== now.icon ? now.icon : held?.icon;
+    const hue = was.hue !== now.hue ? now.hue : held?.hue;
+    await ctx.preferences.set({ projectLook: { [projectId]: icon === undefined && hue === undefined ? null : { ...(icon !== undefined ? { icon } : {}), ...(hue !== undefined ? { hue } : {}) } } });
+    if (was.image !== now.image) await (now.image === undefined ? ctx.projectIcons.set(projectId, null) : ctx.projectIcons.wear(projectId, now.image));
+  };
+  // The places joined to this host, over the one code store every code is spent from: the door holds the records
+  // and the links, and the two roads into the runtime it needs are the ordinary record and delete roads below.
+  if (opts.placeLinks !== undefined) {
+    const wiring = opts.placeLinks;
+    placeDoor = makePlaceDoor({
+      store,
+      devices: deviceDoor,
+      wiring,
+      // A thunk: the provider table is built below this, and the door reads it only when a line asks where a fork
+      // can land.
+      providers: () => places,
+      now: () => clock.now(),
+      schedule: (fn, ms) => clock.schedule(fn, ms, { unref: true }),
+      onStage: event => bus.emit(event),
+      onSetup: event => bus.emit(event),
+      copyBuild: placeId => copyRows.get(placeId),
+      napMs: defaultIdleWindowMs,
+      owner: async () => {
+        await ctx.ready();
+        return ctx.state.owner;
+      },
+      ...(opts.killConfirm !== undefined ? { killConfirm: opts.killConfirm } : {}),
+      ...(opts.local?.hereDaemon !== undefined ? { hereDaemon: opts.local.hereDaemon } : {}),
+      // Armed from now under the new window, on every workspace there whose window is its place's.
+      napChanged: placeId => {
+        for (const e of live.values()) if (e.record.phase === "running" && e.record.idleWindowMs === undefined && ctx.placeIdOf(e.record) === placeId) ctx.idle.touch(e.record.id);
+      },
+      // The same vault a turn is launched with: the word a computer's row says about an agent's sign-in and the
+      // secrets that turn actually gets are one reading, so a row cannot say a key stands that no turn would use.
+      ...(opts.vault !== undefined ? { vault: opts.vault } : {}),
+      ...(opts.recipes !== undefined ? { recipes: () => opts.recipes } : {}),
+      ...(opts.placeJoinWaitMs !== undefined ? { joinWaitMs: opts.placeJoinWaitMs } : {}),
+      ...(opts.placeUpdateWaitMs !== undefined ? { updateWaitMs: opts.placeUpdateWaitMs } : {}),
+      ...(opts.placeDialWaitMs !== undefined ? { dialWaitMs: opts.placeDialWaitMs } : {}),
+      ...(opts.placeFrameWaitMs !== undefined ? { frameWaitMs: opts.placeFrameWaitMs } : {}),
+      ...(opts.placeRelinkWaitMs !== undefined ? { relinkWaitMs: opts.placeRelinkWaitMs } : {}),
+      recording: {
+        // Reads the live records, so it waits on the one hydration every other road waits on: a place that dials a
+        // host nothing has asked a verb of yet would otherwise find no records at all.
+        holdsOn: async (placeId, read = true) => {
+          const { forks, projects, rows } = await standingOn(placeId);
+          const unsaved: string[] = [];
+          if (!read) return { ...rows, unsaved };
+          // Inside the fork, by the same read a project folder gets, woken first where it naps: the daemon's own read
+          // of a stopped copy counts only its checked-out branch and none of its edits.
+          for (const entry of forks) {
+            const run = async (cmd: string, o: { timeoutMs: number }): Promise<ExecResult> => {
+              if (entry.record.phase !== "running") await ctx.workspaces.wake(entry.record.id);
+              return ctx.workspaces.exec(entry.record.id, cmd, o);
+            };
+            const line = await readUnsaved(forkName(entry), ctx.checkoutOf(entry.record), run);
+            if (line !== undefined) unsaved.push(line);
+          }
+          for (const project of projects) {
+            const line = await ctx.projectsDoor.unsaved(project);
+            if (line !== undefined) unsaved.push(line);
+          }
+          return { ...rows, unsaved };
+        },
+        projectsOn: async placeId => {
+          await ctx.ready();
+          return [...projectsHeld.values()].filter(p => p.computer === placeId).map(p => ({ id: p.id, name: p.name, path: p.path, ...(p.checkout === undefined ? {} : { checkout: p.checkout }) }));
+        },
+        dropOn: async placeId => {
+          const { forks, folders, projects, rows } = await standingOn(placeId);
+          // Each goes by its own road, so one that refuses stops the rest, and the refusal names those already gone.
+          const went: string[] = [];
+          const each = async (name: string, drop: () => Promise<unknown>): Promise<void> => {
+            try {
+              await drop();
+            } catch (e) {
+              throw Object.assign(new Error(placeDropStoppedLine(e instanceof Error ? e.message : String(e), went)), e instanceof Error ? { ...e } : {});
+            }
+            went.push(name);
+          };
+          for (const entry of forks) await each(forkName(entry), () => ctx.workspaces.delete(entry.record.id));
+          // A project folder holding threads stops its project's remove, so its threads go with it first.
+          for (const entry of folders) await each(entry.record.name, () => ctx.workspaces.delete(entry.record.id));
+          for (const project of projects) await each(project.name, () => ctx.projectsDoor.remove(project.id, undefined, { force: true }));
+          return rows;
+        },
+        forgetOn: async placeId => {
+          const { forks, folders, projects, rows } = await standingOn(placeId);
+          for (const entry of [...forks, ...folders]) {
+            ctx.endSessions(entry.record.id, DELETED_REASON);
+            await ctx.drop(entry.record.id);
+          }
+          for (const project of projects) await forgetProject(project.id);
+          return rows;
+        },
+        runningOn: async (placeId, rows) => {
+          await ctx.ready();
+          const standing = [...live.values()].map(e => ({ ...e.record, provider: ctx.providerOf(e.record) }));
+          // A turn the cap holds back is no thread running there, so the row says the count it waits on.
+          return runningOnPlace(placeId, rows, standing, foldThreads([...sessions.values()].filter(s => !ctx.capHeld.has(s.turnId)).map(s => s.view)));
+        },
+        machinesOn: async placeId => {
+          await ctx.ready();
+          return [...live.values()].filter(e => e.record.machineId !== "" && ctx.placeIdOf(e.record) === placeId).map(e => e.record.machineId);
+        },
+        forgetRecordsOn: async placeId => {
+          await ctx.ready();
+          for (const entry of [...live.values()].filter(e => ctx.placeIdOf(e.record) === placeId && e.record.sub === undefined)) {
+            ctx.endSessions(entry.record.id, DELETED_REASON);
+            await ctx.drop(entry.record.id);
+          }
+          await ctx.releaseSubsOn(placeId, { forgot: true });
+        },
+        subHoldsOn: async placeId => {
+          await ctx.ready();
+          return [...live.values()].flatMap(e => {
+            const held = e.record.sub !== undefined && ctx.placeIdOf(e.record) === placeId ? ctx.subUnpushed(e) : undefined;
+            const threadId = held === undefined ? undefined : [...ctx.threadRecords].find(([, r]) => r.workspaceId === e.record.id)?.[0];
+            return held === undefined || threadId === undefined ? [] : [subHeldLine(threadId, held, e.record.sub!.branch)];
+          });
+        },
+        releaseRecordsOn: async placeId => {
+          await ctx.ready();
+          await ctx.releaseSubsOn(placeId);
+        },
+        imagesOn: placeId => heldImages(ctx).on(placeId),
+        dropImageOn: (placeId, id) => heldImages(ctx).drop(placeId, id),
+        spentToday: places => ctx.status.spend(places, clock.now()),
+        signInLine: (placeId, agent) => ctx.agentsRead.signInLine({ placeId }, { agent }),
+        storesOn: (placeId, home) => ctx.placeStores(placeId, home),
+        loginHere: agent => loginHere(ctx.homesHere, agent),
+        // The app's own sign-in road on that computer, read as a setup's row waiting on the person.
+        signIn: (placeId, agent, emit) => followSignIn({ placeId }, { agent, toolThere: true }, emit),
+        // A token is made on the computer the host runs on, by the same road the app's own sign-in there takes.
+        mintHere: (agent, emit) => followSignIn({ placeId: HERE_PLACE_ID }, { agent }, emit),
+        // The add's own road for a folder seeding a project on that computer, with what the pick keeps. A pick that
+        // moved its kept files alone puts the newly kept ones into the folder that stands and moves nothing. One that
+        // moved its source or name keeps the project's id and age, so what the person set under it carries and its
+        // place in the list stays; the old one goes by the remove's own road only once every refusal the add would
+        // read here has passed and its folder there is gone, since that folder holds the person's work.
+        addFolder: async (placeId, key, folder, move, stage) => {
+          const source = folder.from.replace(/^~(?=\/|$)/, homedir());
+          if (!existsSync(source)) throw new Error(recipeFolderGoneLine(source));
+          const plan = await ctx.projectsDoor.seedPlan(source, placeId);
+          if (plan.remote === null) throw new Error(noRemoteLine(source));
+          const seed = seedChoiceFrom(plan, folder.keep, []);
+          const old = move === undefined ? undefined : projectsHeld.get(move.id);
+          if (move !== undefined && old !== undefined && move.pick.from === folder.from && move.pick.name === folder.name) {
+            const kept = folder.keep.filter(path => !move.pick.keep.includes(path));
+            if (kept.length > 0) await ctx.projectsDoor.seedInto(old.id, plan, kept);
+            await folderLook(old.id, move.pick, folder);
+            return { id: `folders/${key}`, label: old.name, outcome: "installed", project: { id: old.id }, pick: folder, createdAt: old.createdAt };
+          }
+          if (old !== undefined) {
+            if (await ctx.projectsDoor.folderStands(old.id)) throw new Error(folderMoveStandsLine(old.path, placeDoor!.nameOf(placeId)));
+            // The project comes back under the same id, so what the person set on its look stays with it.
+            await ctx.projectsDoor.remove(old.id, undefined, { keepLook: true }).catch((e: unknown) => {
+              throw new Error(folderMoveHeldLine((e instanceof Error ? e.message : String(e)).split("\n")[0]!));
+            });
+          }
+          const createdAt = old?.createdAt ?? move?.createdAt;
+          const project = await ctx.projectsDoor.add({ source, on: placeId, ...(folder.name !== undefined ? { name: folder.name } : {}), seed, ...(move !== undefined ? { id: move.id } : {}), ...(createdAt !== undefined ? { createdAt } : {}), ...(stage !== undefined ? { report: stage } : {}) });
+          if (move !== undefined) await folderLook(project.id, move.pick, folder);
+          else {
+            if (folder.icon !== undefined || folder.hue !== undefined) await ctx.preferences.set({ projectLook: { [project.id]: { ...(folder.icon !== undefined ? { icon: folder.icon } : {}), ...(folder.hue !== undefined ? { hue: folder.hue } : {}) } } });
+            await ctx.projectIcons.wear(project.id, folder.image);
+          }
+          return { id: `folders/${key}`, label: project.name, outcome: "installed", project: { id: project.id }, pick: folder, createdAt: project.createdAt, ...(project.notice !== undefined ? { note: project.notice } : {}) };
+        },
+        folderRemote: async folder => (await ctx.remoteHere(folder.from.replace(/^~(?=\/|$)/, homedir()))).remote || undefined,
+        // A folder the recipe took out leaves this host's list; its checkout there is the person's and stays.
+        removeFolder: async (placeId, projectId) => {
+          const project = (await ctx.projectsDoor.list()).find(p => p.computer === placeId && p.id === projectId);
+          if (project === undefined) return;
+          const standing = [...live.values()].filter(e => e.record.project === project.id).map(e => e.record.name);
+          if (standing.length > 0) throw new Error(projectInUseRefusal(project.name, standing));
+          await forgetProject(project.id);
+        },
+        folderLook,
+      },
+    });
+    // The door's four events ride the one stream every other event rides, so the app follows a computer joining
+    // over the socket it already holds and no road subscribes to the door itself.
+    placeDoor.on(e => bus.emit(e));
+    placeDoor.on(e => {
+      if (e.type === "place.removed") copyRows.delete(e.placeId);
+    });
+    // A copy is built only when somebody asks for one, and a computer's setup was asked for: its end is when the
+    // image there can be read at all, which is the moment the tally beside it is written. A link builds nothing.
+    bus.on("place.setup", e => {
+      if (e.type !== "place.setup" || e.end === undefined) return;
+      void ctx.image.keepCurrent(e.placeId);
+    });
+    // A build on that computer is making its requests over the link that just went: the ones that may be asked
+    // again are waiting on it, so the stage they are in says what it is waiting for and says its own line again
+    // once the computer opens a socket.
+    placeDoor.on(e => {
+      if (e.type !== "place.absent" && e.type !== "place.present") return;
+      const gone = e.type === "place.absent";
+      for (const at of stageAt.values()) {
+        if (at.place !== e.placeId) continue;
+        // The whole frame the stage last sent, with the wait standing in for its line while the gap lasts: the step
+        // a reader clocks and the machines a failure left behind are facts of that stage and outlive a socket.
+        const detail = gone ? placeDialBackLine(placeDoor!.nameOf(e.placeId)) : at.frame.detail;
+        bus.emit({ ...at.frame, type: "golden.stage", ...(detail !== undefined ? { detail } : {}), ...(at.named ? { place: at.place } : {}) });
+      }
+    });
+    // A computer that dials back in is the moment a record nothing could be asked about can be read at last: only
+    // the ones this host is holding by a stand-in go through the hydration they would have had at host start, and
+    // a fork that was live through the blip is left exactly as it is. A laptop that slept and dialled again is the
+    // common case, so a wake, a nap or a delete in flight must not be thrown away by a presence beat.
+    placeDoor.on(e => {
+      if (e.type !== "place.present") return;
+      void (async () => {
+        await ctx.ready();
+        for (const raw of await store.list(WORKSPACES)) {
+          const stored = raw as WorkspaceRecord;
+          if (stored.place !== e.placeId || !ctx.isHeldAway(stored.id)) continue;
+          // This road runs after ready, so every session row is already in and the sync can wait out a running turn.
+          const entry = await ctx.hydrateWorkspace(raw);
+          if (entry !== undefined) void ctx.syncDaemon(entry);
+          else await ctx.rereadHeld(stored.id, "record load");
+        }
+        // Every row on that computer read unreachable while it was away, and a pane over a live socket says
+        // reconnecting until its row turns: the next tick is up to a whole poll away.
+        await ctx.status.poll(ctx.held().filter(h => workspacePlace(h.record) === e.placeId).map(h => h.record.id));
+      })().catch((err: unknown) => console.warn(`the records on ${placeDoor!.nameOf(e.placeId)} were not read again: ${err instanceof Error ? err.message : String(err)}`));
+    });
+  }
+  /** The machines a root thread's forks are landing but have no record for yet, by root: a slot is taken before
+   * the first await of a fork and handed back when it lands or fails, so the cap counts what is on its way too. */
+  const landing = new Map<string, number>();
+  const live = new Map<string, LiveWorkspace>();
+  /** Every project this host holds, by id, read from the store once at hydration and kept here: a workspace's view
+   * joins its project off this map on every read, and the map is the one place a project's name, path and computer
+   * are known without a store read. */
+  const projectsHeld = new Map<string, ProjectView>();
+  const setups = agentSetups(store);
+  const builders = new Map<string, LiveBuilder>();
+  /** Every machine a sweep, a landing or a replacement stops, read back behind the sweep and asked again while it stays. */
+  const gone = new GoneWatch({ ...(opts.killConfirm !== undefined ? { confirm: opts.killConfirm } : {}), warn: line => (ctx.state.sayStops ?? console.warn)(line) });
+  /** The prepare in flight per place and golden name; a second call for the same recipe joins it instead of running the stages twice on one machine. */
+  const preparing = new Map<string, { hash: string | undefined; promise: Promise<GoldenBuilderView> }>();
+  /** The copy build in flight per place and image name. A create landing there, a version cut and a person typing
+   * the line all ask for the same copy: the second and every later ask joins the first and takes the copy it seals,
+   * so one builder runs and this computer is read once. */
+  const copyBuilds = new Map<string, Promise<SealedImageBuilt>>();
+  /** The stage each build on a joined computer is in, by that computer and the image's name. A build there makes
+   * its requests over that computer's link, and a gap in it holds every one of them: the stage says so while it
+   * lasts and reads what it last read once the computer is back, rather than standing still under a line that is
+   * no longer true. */
+  const stageAt = new Map<string, { place: string; name: string; named: boolean; frame: StageFrame }>();
+  /** What each place's row says about its copy: the stage while a build runs there, the reason after one stopped,
+   * nothing once the copy stands. Written off the golden.stage frames naming the place, so a build reads the same on
+   * the row whoever started it. */
+  const copyRows = new Map<string, CopyBuild>();
+  bus.on("golden.stage", e => {
+    if (e.type !== "golden.stage" || e.place === undefined) return;
+    const build = copyBuildOf(e);
+    if (build === undefined) copyRows.delete(e.place);
+    else copyRows.set(e.place, build);
+  });
+  /** Whether a refusal before any build at a place is that place's row to say. A place that runs no workspaces has no
+   * copy to keep, a link that went is not a build to show, and a computer whose recipe is running is no build either:
+   * nothing was asked of its image and the job's own end asks again. */
+  const rowSaysFailure = (place: string, e: unknown): boolean =>
+    !(e instanceof PlaceForksNowhereError || e instanceof PlaceProvisioningError || isPlaceAbsent(e) || placeAway(place));
+  /** A computer this host holds no link to now: a laptop asleep, or one that went mid-ask. */
+  const placeAway = (place: string): boolean => placeDoor !== undefined && places.backend(place) === undefined && placeDoor.link(place) === undefined;
+  /** A failure said on the bus as the build's own failed frame, so the row, the app's store and the image card read
+   * the same stop. */
+  const frameStopped = (place: string, name: string, e: unknown): void => ctx.stageOf(name, place, true)("failed", e instanceof Error ? e.message : String(e));
+  /** A row read back from the store has no handle: its process died with the runtime that started it. */
+  /** The record of every thread this host holds, by thread id, persisted beside the workspace's rows. */
+  const threadRecords = new Map<string, ThreadRecord & { workspaceId: string }>();
+  /** The wake of each snooze still standing, by fold key, so every window re-reads the thread the moment it ends. */
+  const snoozeTimers = new Map<string, () => void>();
+  /** Arms the wake of a thread's snooze, over any it had; a moment past already has nothing to wake. A timer longer
+   * than setTimeout holds is re-armed on the way, and a wake finding the snooze moved or gone says nothing. */
+  const wakeAt = (threadId: string, until: number): void => {
+    snoozeTimers.get(threadId)?.();
+    snoozeTimers.delete(threadId);
+    const wait = until - clock.now();
+    if (wait <= 0) return;
+    const cancel = clock.schedule(
+      () => {
+        snoozeTimers.delete(threadId);
+        const record = threadRecords.get(threadId);
+        if (record?.snoozedUntil !== until) return;
+        if (clock.now() < until) wakeAt(threadId, until);
+        else bus.emit({ type: "thread.marked", workspaceId: record.workspaceId, threadIds: [threadId] });
+      },
+      Math.min(wait, MAX_TIMER_MS),
+      { unref: true },
+    );
+    snoozeTimers.set(threadId, cancel);
+  };
+  /** The timer of each Resume at reset still armed, by fold key. */
+  const resumeTimers = new Map<string, () => void>();
+  /** Arms the timer of a thread's Resume at reset, over any it had; a reset already past goes on at once. A timer
+   * longer than setTimeout holds is re-armed on the way, and one finding the arm moved or gone does nothing. */
+  const resumeOnReset = (threadId: string, at: number): void => {
+    resumeTimers.get(threadId)?.();
+    resumeTimers.delete(threadId);
+    const cancel = clock.schedule(
+      () => {
+        resumeTimers.delete(threadId);
+        if (threadRecords.get(threadId)?.limitResume?.at !== at) return;
+        if (clock.now() < at) resumeOnReset(threadId, at);
+        else void ctx.resumeAfterLimit(threadId).catch((e: unknown) => console.warn(`thread ${threadWord(threadId)} did not resume at its reset: ${e instanceof Error ? e.message : String(e)}`));
+      },
+      Math.min(Math.max(at - clock.now(), 0), MAX_TIMER_MS),
+      { unref: true },
+    );
+    resumeTimers.set(threadId, cancel);
+  };
+  /** `launch` is carried only by a row the start road wrote before its turn reached the machine, and settles when the
+   * turn's harness holds the row or the start gave it up: a send behind such a row waits on it, and the file never
+   * takes the row, since a restart could re-open nothing from it. */
+  const sessions = new Map<string, SessionEntry>();
+  /** What stands on one computer that its remove takes: the forks wsp made there, the projects recorded on it, and
+   * the rows a remove names them by, each fork with its own threads and each project with those of its workspaces
+   * elsewhere. Read off the live records, so it waits on the one hydration every other road waits on. */
+  const standingOn = async (placeId: string): Promise<{ forks: LiveWorkspace[]; folders: LiveWorkspace[]; projects: ProjectView[]; rows: { forks: { name: string; threads: number }[]; projects: { name: string; threads: number }[] } }> => {
+    await ctx.ready();
+    const threadsOf = (workspaceId: string): number => {
+      const ids = new Set([...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === workspaceId ? [threadId] : [])));
+      for (const s of sessions.values()) if (s.view.workspaceId === workspaceId && s.view.threadId !== undefined) ids.add(s.view.threadId);
+      return ids.size;
+    };
+    // A project folder there is the project's, whose threads its row counts; only a machine is a fork.
+    const standing = [...live.values()].filter(e => e.record.place === placeId);
+    const forks = standing.filter(e => !runsInFolder(e.record.kind));
+    const folders = standing.filter(e => runsInFolder(e.record.kind));
+    const projects = [...projectsHeld.values()].filter(p => p.computer === placeId);
+    const threadsOfProject = (projectId: string): number => [...live.values()].filter(e => e.record.project === projectId && !forks.includes(e)).reduce((n, e) => n + threadsOf(e.record.id), 0);
+    return {
+      forks,
+      folders,
+      projects,
+      rows: { forks: forks.map(e => ({ name: forkName(e), threads: threadsOf(e.record.id) })), projects: projects.map(p => ({ name: p.name, threads: threadsOfProject(p.id) })) },
+    };
+  };
+  /** A project's record out of this wsp, with nothing done on its computer. */
+  const forgetProject = async (projectId: string): Promise<void> => {
+    projectsHeld.delete(projectId);
+    await store.delete(PROJECTS, projectId);
+    bus.emit({ type: "project.removed", projectId });
+    await ctx.projectIcons.forget(projectId);
+  };
+  /** A fork as a remove names it: by its one thread's title, which is what the sidebar shows, else by its own name. */
+  const forkName = (entry: LiveWorkspace): string => {
+    const titles = foldThreads([...sessions.values()].filter(s => s.view.workspaceId === entry.record.id).map(s => s.view)).map(t => t.title);
+    return titles.length === 1 ? titles[0]! : entry.record.name;
+  };
+  /** Every exec stream still running, so the machine going away ends it the way it ends a session. */
+  const execs = new Set<{ workspaceId: string; end: (reason: string) => void }>();
+  const heldAtClose = new Set<() => void>();
+  const indexFlushes = new Map<string, Promise<void>>();
+  const bootWork = new Map<string, Promise<void>>();
+  /** The transcripts held whole, the one opened last at the end: at most TRANSCRIPTS_HELD, read again from their files
+   * once they fall out. A store that keeps them as rows holds none. */
+  const transcripts = new Map<string, SessionEvent[]>();
+  /** The state database's transcript rows. Where the store has none (the memory store, and the JSON store kept for one
+   * release by WSP_STATE_STORE) each transcript is a blob, and every switch on `rows` is that road: they go with it. */
+  const rows = store.transcripts;
+  /** Workspaces whose index did not read off their rows at boot: their flushes write events and leave the kept index
+   * alone, so the next boot reads it again. */
+  const unreadIndexes = new Set<string>();
+  /** Each workspace's events written since its transcript's last flush, which its file does not have yet. */
+  const pendingEvents = new Map<string, SessionEvent[]>();
+  const pendingBytes = new Map<string, number>();
+  /** Every transcript's index, held whether or not the transcript is. */
+  const transcriptIndex = new Map<string, TranscriptIndex>();
+  const indexFor = (workspaceId: string): TranscriptIndex => {
+    const held = transcriptIndex.get(workspaceId) ?? emptyIndex();
+    transcriptIndex.set(workspaceId, held);
+    return held;
+  };
+  /** The bytes each held transcript's events come to as JSON, kept beside it so a new event is not a walk of all of them. */
+  const transcriptBytes = new Map<string, number>();
+  /** Each event's size, measured once, for a transcript over its byte cap: one is walked whole at every event that
+   * lands. Only those, so a transcript inside it holds nothing more. */
+  const sizes = new WeakMap<SessionEvent, number>();
+  const sizeOf = (e: SessionEvent): number => {
+    const known = sizes.get(e);
+    if (known !== undefined) return known;
+    const size = eventBytes(e);
+    sizes.set(e, size);
+    return size;
+  };
+
+  /** Where this host can build a copy of its image, and which of them every road that names none means. */
+  const places: PlaceBackends = opts.places ?? wiredPlace("default", backend);
+  return {
+    opts, backend, store, adapters, local, placeDoor, bus, goneConfirmMs, lateReadMs, clock, githubCache, readsState,
+    tookTheResume, sleeps, daemonHelloTimeoutMs, vaultCapBytes, defaultIdleWindowMs, hostId, vaultExport,
+    deviceDoor, threadLaunch, landing, live, projectsHeld, setups, builders, gone, preparing, copyBuilds, stageAt,
+    copyRows, rowSaysFailure, placeAway, frameStopped, threadRecords, snoozeTimers, wakeAt, resumeTimers, resumeOnReset, sessions, execs, heldAtClose, bootWork,
+    indexFlushes, transcripts, rows, unreadIndexes, pendingEvents, pendingBytes, transcriptIndex, indexFor,
+    transcriptBytes, sizeOf, places,
+    state: {
+      sayStops: undefined, readsSince: 0, rootsRecheck: undefined, owner: "", copiesMoving: undefined,
+      sweepTimer: undefined, sweeping: undefined, sweepStopped: false, beat: undefined, closed: false, closing: false,
+      ticking: undefined, preferencesHeld: undefined,
+    },
+  };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): Runtime {
+  const {
+    opts, backend, store, adapters, local, placeDoor, bus, clock, deviceDoor, live, builders, gone, snoozeTimers,
+    indexFlushes, pendingEvents,
+  } = ctx;
+  return {
+    events: bus,
+    backend,
+    workspaces: ctx.workspaces,
+    projects: ctx.projects,
+    sessions: ctx.sessionsApi,
+    slates: ctx.slates,
+    devices: deviceDoor,
+    ...(placeDoor !== undefined ? { places: placeDoor } : {}),
+    // An agent's sign-in to copy is offered only where the vault or this computer's login can serve it, read at every ask.
+    ...(opts.recipes !== undefined
+      ? {
+          recipes: {
+            ...opts.recipes,
+            options: async folders => {
+              const options = await opts.recipes!.options(folders);
+              const homes = ctx.homesHere().catch(() => ({}));
+              const held = await Promise.all(options.agents.map(async a => ((await loginHere(() => homes, a.id)) === undefined ? [] : [a.id])));
+              return servableOptions(options, opts.vault?.() ?? {}, new Set(held.flat()));
+            },
+          },
+        }
+      : {}),
+    ownProcess: (threadId, pid, kind) => ctx.ownProcess(threadId, pid, kind),
+    hereChannel: async onEvent => ctx.killGuarded(ctx.scopedProcs(ctx.scopesHere, ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent))), true),
+    placeKills: channel => ctx.killGuarded(channel, false),
+    watchPlaceSys: async (placeId, fn) => {
+      if (placeId !== HERE_PLACE_ID) {
+        if (ctx.placeDoor === undefined) throw new Error(noSuchPlaceRefusal(placeId, []));
+        return ctx.placeDoor.watchSys(placeId, fn);
+      }
+      if (ctx.local?.sysSamples === undefined) throw new Error("this host reads nothing of the computer it runs on");
+      return ctx.local.sysSamples(fn);
+    },
+    agents: { ...ctx.agentsRead, homesHere: ctx.homesHere },
+    preferences: ctx.preferences,
+    usage: ctx.usage,
+    conversations: ctx.conversations,
+    activity: ctx.activity,
+    status: {
+      ...ctx.status,
+      // Which workspaces this caller is served is decided here, after the probes, off the same reading the other
+      // listing and every verb take: a record dropped while the probes ran leaves both lists at once, so nothing a
+      // person is shown is denied by the next line they type.
+      list: async (o, origin) => {
+        const rows = await ctx.status.list(o);
+        const shown = new Set(ctx.listedFor(origin).map(e => e.record.id));
+        return rows.filter(row => shown.has(row.id));
+      },
+      // A cost read answers for a workspace this host no longer holds, which is why the rule for a named id is read
+      // here rather than through entryOf, which refuses an id it does not know.
+      history: async (workspaceId, origin) => {
+        ctx.refuseNamed(workspaceId, origin);
+        return ctx.status.history(workspaceId);
+      },
+    },
+    harnesses: {
+      list: async (workspaceId, origin, at) => {
+        const prefs = await ctx.preferences.get();
+        const entry =
+          workspaceId !== undefined
+            ? await ctx.entryOf(workspaceId, ctx.talksToTreeOn(workspaceId, origin) ? undefined : origin)
+            : at?.project !== undefined
+              ? await ctx.projectHome(at.project, origin)
+              : at?.computer !== undefined
+                ? await ctx.computerHome(at.computer, origin)
+                : undefined;
+        const lists = await ctx.agentLists(entry);
+        const project = entry === undefined ? undefined : prefs.projectDefaults[entry.record.project];
+        const agent = ctx.defaultAgentOf(prefs, entry);
+        return lists.map(c => {
+          const own = prefs.agentDefaults[c.harness];
+          const unshaped = own === undefined && project === undefined ? {} : { unshaped: { models: c.models, ...(c.legacyModels !== undefined ? { legacyModels: c.legacyModels } : {}), efforts: c.efforts, permissionModes: c.permissionModes } };
+          return { ...shapeModels(ctx.defaultsOn(c, prefs, project).catalog, own?.models), ...unshaped, ...(c.harness === agent ? { isDefault: true } : {}) };
+        });
+      },
+    },
+    golden: ctx.golden,
+    image: ctx.image,
+    owner: async () => {
+      await ctx.ready();
+      return ctx.state.owner;
+    },
+    reap: async (olderThanMs, say) => {
+      if (say !== undefined) ctx.state.sayStops = say;
+      await ctx.ready();
+      await ctx.refreshBuilders();
+      // A stale record can never seal; stopping it is the only thing that ends its bill. A reusable one no
+      // process is using dies at six hours by our createdAt label, or at once when no age can be read: every
+      // get(id) on it resets the provider's rolling idle timer (measured), so the kill it was created with
+      // never fires while a host is up. Own builders get their heartbeat here, so other processes leave them be.
+      const failed: ReapFailure[] = [];
+      const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+      const grace = await ctx.expireGrace().catch((e: unknown) => {
+        failed.push({ message: `grace sweep: ${messageOf(e)}` });
+        return { reaped: [], failed: [] };
+      });
+      const reaped: ReapedMachine[] = grace.reaped;
+      failed.push(...grace.failed);
+      const now = Date.now();
+      for (const b of [...builders.values()]) {
+        if (b.life === "own") await ctx.hold(b);
+        const bornAt = Date.parse(b.builder.machine.labels?.[CREATED_AT_LABEL] ?? b.record.createdAt);
+        const ageMs = Number.isNaN(bornAt) ? undefined : now - bornAt;
+        const expired = b.life === "reusable" && (ageMs === undefined || ageMs >= BUILDER_IDLE_MS);
+        if (b.life !== "stale" && !expired) continue;
+        try {
+          await gone.stop(ctx.backendAt(b.record.place ?? ctx.places.wired), b.builder.machine);
+        } catch (e) {
+          failed.push({ id: b.record.id, message: `could not stop: ${messageOf(e)}; stays recorded, retried next sweep` });
+          continue;
+        }
+        await ctx.forgetBuilder(b.record.id);
+        reaped.push(
+          b.life === "stale"
+            ? { id: b.record.id, builder: true, reason: b.record.building === true ? "unfinished" : "recorded" }
+            : { id: b.record.id, builder: true, reason: "expired", ...(ageMs !== undefined ? { ageMs } : {}) },
+        );
+      }
+      const knownIds = (): string[] => [...live.values()].flatMap(e => [e.record.machineId, e.machine.id]).concat([...builders.keys()], [...ctx.inflight], reaped.map(r => r.id), gone.ids());
+      const result = (swept: ReapResult, adopted: AdoptedMachine[]): SweepResult => {
+        const allFailed = failed.concat(swept.failed ?? []);
+        return { reaped: reaped.concat(swept.reaped), spared: swept.spared, ...(allFailed.length > 0 ? { failed: allFailed } : {}), ...(adopted.length > 0 ? { adopted } : {}) };
+      };
+      // Before the listing, so a machine a lost create made and the replay named is in it to be recorded again.
+      reaped.push(...(await ctx.replayCreates(knownIds, failed).catch((e: unknown) => {
+        failed.push({ message: `asking lost creates again: ${messageOf(e)}` });
+        return [];
+      })));
+      // One listing per provider serves both halves of the sweep: the machines recorded again, then what the engine
+      // kills or spares. Every provider this host holds a key for, not only the one it forks on: a host forking on
+      // none holds Boat as a place, and a sweep of the wired provider alone never saw a box there.
+      const listings: { place: string; backend: MachineBackend; rows: ListedMachine[] }[] = [];
+      for (const place of [ctx.places.wired, ...ctx.places.list().filter(p => p !== ctx.places.wired)]) {
+        const at = place === ctx.places.wired ? backend : ctx.places.backend(place);
+        if (at === undefined) continue;
+        try {
+          listings.push({ place, backend: at, rows: await at.list() });
+        } catch (e) {
+          if (place === ctx.places.wired) {
+            failed.push({ message: messageOf(e) });
+            return result({ reaped: [], spared: [] }, []);
+          }
+          failed.push({ message: `${ctx.placeName(place)}: ${messageOf(e)}` });
+        }
+      }
+      // A recorded machine the listing lacks is read once: the listing is best effort, so only the read decides, and a
+      // read that finds the machine gone settles its record here rather than at the next poll or verb.
+      const listed = new Set(listings.flatMap(l => l.rows.map(row => row.id)));
+      for (const entry of [...live.values()]) {
+        if (entry.creating || entry.napping || entry.waking || entry.deleting) continue;
+        if (isAbsentMachine(entry.machine)) {
+          await ctx.rereadHeld(entry.record.id, "sweep").catch((e: unknown) => void failed.push({ message: messageOf(e) }));
+          continue;
+        }
+        // A machine the listing still carries under a record marked gone is read once: the read is what decides,
+        // and one that says running gives the record its machine back.
+        if (listed.has(entry.record.machineId)) {
+          if (entry.record.phase === "gone") await ctx.recoverGone(entry);
+          continue;
+        }
+        if (entry.record.phase === "gone") continue;
+        let answer: string | undefined;
+        const read = await entry.machine.state().catch((e: unknown) => {
+          if (!isMissing(e)) return undefined;
+          answer = providerSaid(e);
+          return "gone";
+        });
+        if (read === "gone") await ctx.adoptGone(entry, goneWords(entry.record.machineId, { by: "sweep", at: clock.now(), ...(answer !== undefined ? { answer } : {}) }));
+      }
+      const claimed = new Set(knownIds());
+      const adopted: AdoptedMachine[] = [];
+      for (const at of listings) {
+        const found = await ctx.adoptLost(at.rows, claimed, failed, at);
+        adopted.push(...found.adopted);
+        reaped.push(...found.reaped);
+      }
+      try {
+        const swept: ReapResult = { reaped: [], spared: [] };
+        for (const at of listings) {
+          const one = await reap({ backend: at.backend, owner: ctx.state.owner, listing: at.rows, stop: m => gone.stop(at.backend, m), knownIds: () => [...knownIds(), ...claimed], ...(olderThanMs !== undefined ? { olderThanMs } : {}) });
+          swept.reaped.push(...one.reaped);
+          swept.spared.push(...one.spared);
+          if (one.failed !== undefined) swept.failed = [...(swept.failed ?? []), ...one.failed];
+        }
+        const strayed = await ctx.sweepStrays(() => [...knownIds(), ...claimed], failed, listings.map(l => l.backend)).catch((e: unknown) => {
+          failed.push({ message: `machines named after this host's images: ${messageOf(e)}` });
+          return [];
+        });
+        return result({ ...swept, reaped: swept.reaped.concat(strayed) }, adopted);
+      } catch (e) {
+        failed.push({ message: messageOf(e) });
+        return result({ reaped: [], spared: [] }, adopted);
+      }
+    },
+    close: async () => {
+      ctx.state.closing = true;
+      clearInterval(ctx.state.rootsRecheck);
+      for (const write of [...ctx.heldAtClose]) write();
+      ctx.heldAtClose.clear();
+      await ctx.state.copiesMoving;
+      ctx.state.sweepStopped = true;
+      ctx.state.sweepTimer?.();
+      await ctx.state.sweeping;
+      await ctx.stopDiskWatch();
+      ctx.idle.close();
+      ctx.alerts.close();
+      ctx.slates.close();
+      // An agent's version or sign-in command that never answers would otherwise outlive this process.
+      opts.agentsReader?.close?.();
+      // What this host started on a machine finishes before it lets that machine go: the boot fires a daemon sync
+      // at every running workspace without waiting for it, and a write landing after the close is this process
+      // touching a computer it no longer holds. Each sync is a read and a write, so the wait is milliseconds.
+      await Promise.allSettled([...ctx.daemonSyncs.values()]);
+      await Promise.allSettled([...ctx.keptWrites.values()]);
+      await Promise.allSettled([...ctx.agentAsks]);
+      // A kept agent is no turn: it is ended rather than left idle with nothing to send to it, its tree at once, since
+      // an agent slow to exit on its EOF would outlast the reader that reaps its group (a tail pump was left behind
+      // so); the wait for it is short, and the next host's sweep ends what is left. Before the machines' readers go,
+      // since one on a joined computer is read through one, and its reader reaps its group and files there.
+      const keptGoing = [...ctx.keptAgents.keys()].map(threadId => {
+        const exited = ctx.keptAgents.get(threadId)!.agent.exited;
+        ctx.reapKept(threadId, { now: true });
+        return exited;
+      });
+      if (keptGoing.length > 0) await Promise.race([Promise.allSettled(keptGoing), new Promise(resolve => setTimeout(resolve, KEPT_CLOSE_WAIT_MS).unref())]);
+      // The turns running on machines are not ended: each leads a process group on its own machine and its log is
+      // there to be read again, so what this host lets go of is the reading of them, which is what holds this
+      // process open after its last line.
+      for (const stop of [...ctx.machineReading]) stop();
+      ctx.machineReading.clear();
+      pipes?.close();
+      await local?.close?.();
+      await placeDoor?.close();
+      ctx.state.closed = true;
+      ctx.state.beat?.();
+      ctx.state.beat = undefined;
+      for (const cancel of ctx.graceTimers.values()) cancel();
+      ctx.graceTimers.clear();
+      for (const cancel of snoozeTimers.values()) cancel();
+      snoozeTimers.clear();
+      for (const cancel of ctx.resumeTimers.values()) cancel();
+      ctx.resumeTimers.clear();
+      for (const entry of live.values()) entry.prPoll?.();
+      gone.close();
+      await ctx.state.ticking;
+      // A clean exit frees its builders at once; a crash leaves the heartbeat to age and the pid to die.
+      for (const b of [...builders.values()].filter(b => b.life === "own" && b.record.heldBy !== undefined)) {
+        delete b.record.heldBy;
+        await store.put(BUILDERS, b.record.id, b.record);
+      }
+      for (const id of new Set([...ctx.transcriptTimers.keys(), ...pendingEvents.keys()])) void ctx.flushTranscript(id);
+      await Promise.all([...ctx.transcriptQueue.values(), ...indexFlushes.values()]);
+    },
+  };
+}

@@ -1,0 +1,245 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+/// Which kind of machine a daemon serves, which picks the modules its readings come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkspaceKind {
+    Cloud,
+    Local,
+    Place,
+}
+
+impl WorkspaceKind {
+    /// The kind a word names on the wire, or nothing for a word that is not one.
+    pub fn from_word(word: &str) -> Option<WorkspaceKind> {
+        serde_json::from_value(serde_json::Value::String(word.to_owned())).ok()
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            WorkspaceKind::Cloud => "cloud",
+            WorkspaceKind::Local => "local",
+            WorkspaceKind::Place => "place",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "kebab-case")]
+pub enum DaemonErrorCode {
+    Unsupported,
+    OutsideRoot,
+    NotFound,
+    NotADirectory,
+    NotAFile,
+    NotAGitRepo,
+    BadRequest,
+    Forbidden,
+    /// No command line for the git host this remote names is on this computer, so the pull request waits; the push
+    /// itself went through, which is why a client reads this as a note beside the push rather than as a failure.
+    NoHostCli,
+    /// Git refused a fetch or a push for want of a credential on the computer it ran on: nothing moved, and the
+    /// fix is that computer's sign-in, which the lead's rows name beside the child whose push it stopped.
+    NoGitCredential,
+    /// The git host's command line refused a read for the account's rate limit, which no retry within the hour
+    /// lifts on its own.
+    RateLimited,
+    /// A push refused because the branch is the one the copy's remote starts every copy on, which no push of wsp's
+    /// moves: the caller words it for its own road, a fork, a thread's start or a bring back.
+    OnDefaultBranch,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum ProcSignal {
+    #[serde(rename = "TERM")]
+    Term,
+    #[serde(rename = "KILL")]
+    Kill,
+}
+
+/// What proc.kill signals: the pid alone, or the pid and every process under it. Never a process group: a thread
+/// spans many, and a group TERM took processes of other threads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum KillMode {
+    Pid,
+    Tree,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum FsReadEncoding {
+    Utf8,
+    Base64,
+}
+
+/// How an agent keeps the store usage.logs reads: Claude Code's transcripts, Codex's rollouts, OpenCode's database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum UsageLogFormat {
+    #[serde(rename = "claude-jsonl")]
+    ClaudeJsonl,
+    #[serde(rename = "codex-rollout")]
+    CodexRollout,
+    #[serde(rename = "opencode-sqlite")]
+    OpencodeSqlite,
+}
+
+/// Who one row of a transcript read is: the person's message, the agent's words, or one tool call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum TranscriptVoice {
+    Person,
+    Agent,
+    Tool,
+}
+
+/// What fs.search looks for: file paths, or lines of text inside the files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum FsSearchMode {
+    Files,
+    Text,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum GitDiffScope {
+    Branch,
+    Unstaged,
+    Staged,
+    /// Everything a commit could take: the worktree against HEAD, staged and unstaged edits folded together, and
+    /// every untracked file as a new one.
+    Head,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum FsEntryType {
+    File,
+    Dir,
+    Symlink,
+}
+
+/// Where a pull request stands, in the three words every host of them has: open, merged, or closed unmerged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum PullRequestState {
+    Open,
+    Merged,
+    Closed,
+}
+
+/// Whether a pull request can merge into its base as the host reads it; unknown while the host is still working it out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum Mergeable {
+    Mergeable,
+    Conflicting,
+    Unknown,
+}
+
+/// Where a pull request's review stands: nothing asked, approved, changes asked for, or a review the base requires.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewState {
+    None,
+    Approved,
+    ChangesAsked,
+    Required,
+}
+
+/// One check on a pull request's head, in the one word the host's command line gives every check whatever ran it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum CheckState {
+    Pass,
+    Fail,
+    Pending,
+    Skipped,
+    Cancelled,
+}
+
+/// The eight reactions GitHub offers, by the REST API's names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum ReactionContent {
+    #[serde(rename = "+1")]
+    ThumbsUp,
+    #[serde(rename = "-1")]
+    ThumbsDown,
+    #[serde(rename = "laugh")]
+    Laugh,
+    #[serde(rename = "hooray")]
+    Hooray,
+    #[serde(rename = "confused")]
+    Confused,
+    #[serde(rename = "heart")]
+    Heart,
+    #[serde(rename = "rocket")]
+    Rocket,
+    #[serde(rename = "eyes")]
+    Eyes,
+}
+
+/// How a pull request lands on its base: a merge commit, one squashed commit, or its commits rebased on top.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum MergeMethod {
+    Merge,
+    Squash,
+    Rebase,
+}
+
+/// What a posted review says of the pull request: a comment, an approval, or changes asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewEvent {
+    Comment,
+    Approve,
+    RequestChanges,
+}
+
+/// Which side of a diff a comment on a line is on: the old file's, or the new file's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum ReviewSide {
+    Left,
+    Right,
+}
+
+/// Which of a git host's two open lists an item came off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "kebab-case")]
+pub enum HostItemKind {
+    PullRequest,
+    Issue,
+}
+
+/// The slave termios ICANON bit as a word: line when set, raw when not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum PtyMode {
+    Line,
+    Raw,
+}

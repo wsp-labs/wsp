@@ -1,0 +1,782 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The two readings over the wire: the sys and proc cases the node daemon's suite pins, driven the way its clients
+//! drive them against a fake /proc tree, and the block where nothing a pane asks for stays pending.
+
+mod fake_proc;
+
+use std::io::Write;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use fake_proc::{fake_passwd, fake_proc_tree, write_proc, write_sys, FakeProc, FakeSys, BTIME};
+use futures_util::{SinkExt, StreamExt};
+use serde_json::{json, Value};
+use tokio::net::TcpStream;
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use wsp_daemon::{Daemon, Options};
+use wsp_frames::{words, DaemonEvent};
+
+const TOKEN: &str = "ops-token";
+
+struct Running {
+    addr: SocketAddr,
+    lines: Arc<Mutex<Vec<String>>>,
+    _token: tempfile::NamedTempFile,
+    /// The daemon's own pid and its parent's, the two proc.kill protects beside init.
+    pid: u32,
+    parent_pid: u32,
+}
+
+impl Running {
+    fn log(&self) -> Vec<String> {
+        self.lines.lock().unwrap().clone()
+    }
+
+    /// How many times the daemon logged one line.
+    fn logged(&self, line: &str) -> usize {
+        self.log().iter().filter(|l| *l == line).count()
+    }
+}
+
+async fn start(tune: impl FnOnce(&mut Options)) -> Running {
+    let mut token = tempfile::NamedTempFile::new().unwrap();
+    writeln!(token, "{TOKEN}").unwrap();
+    let mut options = Options::new(token.path());
+    // The kept readings wait a day, so no case writes them into the temp folder every case's token shares.
+    options.readings_interval_ms = Some(86_400_000);
+    options.host = "127.0.0.1".to_owned();
+    options.port = 0;
+    tune(&mut options);
+    let lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&lines);
+    let daemon = Daemon::bind_with(options, Box::new(move |line| sink.lock().unwrap().push(line.to_owned()))).await.unwrap();
+    let addr = daemon.local_addr();
+    tokio::spawn(daemon.run());
+    Running { addr, lines, _token: token, pid: std::process::id(), parent_pid: std::os::unix::process::parent_id() }
+}
+
+type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
+/// Every event frame any client in this file received, checked against the protocol at the end of each case.
+struct Client {
+    ws: Ws,
+    events: Vec<Value>,
+    next_id: u64,
+}
+
+impl Client {
+    async fn connect(addr: SocketAddr) -> Client {
+        let (ws, _) = connect_async(format!("ws://{addr}/")).await.unwrap();
+        let mut c = Client { ws, events: Vec::new(), next_id: 1 };
+        c.ws.send(Message::text(json!({ "id": 0, "op": "auth", "token": TOKEN }).to_string())).await.unwrap();
+        let reply = c.read_until_reply(0).await;
+        assert_eq!(reply["ok"], true);
+        c
+    }
+
+    async fn read_until_reply(&mut self, id: u64) -> Value {
+        loop {
+            let msg = tokio::time::timeout(Duration::from_secs(10), self.ws.next()).await.expect("the daemon answers within ten seconds");
+            match msg {
+                Some(Ok(Message::Text(t))) => {
+                    let v: Value = serde_json::from_str(&t).unwrap();
+                    if v.get("id") == Some(&json!(id)) {
+                        return v;
+                    }
+                    if v.get("type").is_some() {
+                        self.events.push(v);
+                    }
+                }
+                Some(Ok(_)) => continue,
+                other => panic!("the socket closed while {id} was pending: {other:?}"),
+            }
+        }
+    }
+
+    /// Sends a request and does not wait for its answer.
+    async fn send_frame(&mut self, op: &str, params: Value) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        let mut frame = json!({ "id": id, "op": op });
+        for (k, v) in params.as_object().unwrap() {
+            frame[k] = v.clone();
+        }
+        self.ws.send(Message::text(frame.to_string())).await.unwrap();
+        id
+    }
+
+    async fn request(&mut self, op: &str, params: Value) -> Value {
+        let id = self.send_frame(op, params).await;
+        self.read_until_reply(id).await
+    }
+
+    /// Reads whatever arrives for the given time, so events pushed without a request are seen.
+    async fn listen(&mut self, for_: Duration) {
+        let deadline = tokio::time::Instant::now() + for_;
+        while let Ok(Some(Ok(Message::Text(t)))) = tokio::time::timeout_at(deadline, self.ws.next()).await {
+            let v: Value = serde_json::from_str(&t).unwrap();
+            if v.get("type").is_some() {
+                self.events.push(v);
+            }
+        }
+    }
+
+    /// Reads until an event of the type arrives that the test accepts, or the wait runs out.
+    async fn wait_event(&mut self, ty: &str, within: Duration, accept: impl Fn(&Value) -> bool) -> Option<Value> {
+        let deadline = tokio::time::Instant::now() + within;
+        if let Some(found) = self.of(ty).into_iter().find(|e| accept(e)) {
+            return Some(found);
+        }
+        while let Ok(Some(Ok(msg))) = tokio::time::timeout_at(deadline, self.ws.next()).await {
+            if let Message::Text(t) = msg {
+                let v: Value = serde_json::from_str(&t).unwrap();
+                if v.get("type").is_none() {
+                    continue;
+                }
+                let hit = v["type"] == ty && accept(&v);
+                self.events.push(v.clone());
+                if hit {
+                    return Some(v);
+                }
+            }
+        }
+        None
+    }
+
+    fn of(&self, ty: &str) -> Vec<Value> {
+        self.events.iter().filter(|e| e["type"] == ty).cloned().collect()
+    }
+
+    /// Every event this client saw is one the protocol parses.
+    fn wire_clean(&self) {
+        for e in &self.events {
+            assert!(serde_json::from_value::<DaemonEvent>(e.clone()).is_ok(), "the protocol refuses {e}");
+        }
+    }
+
+    async fn close(mut self) {
+        self.wire_clean();
+        let _ = self.ws.close(None).await;
+    }
+}
+
+struct Tree {
+    root: tempfile::TempDir,
+    passwd: (tempfile::TempDir, std::path::PathBuf),
+}
+
+fn tree() -> Tree {
+    let root = fake_proc_tree(
+        &[
+            FakeProc { pid: 1, comm: Some("init".into()), ..FakeProc::default() },
+            FakeProc {
+                pid: 50,
+                ppid: Some(1),
+                comm: Some("node".into()),
+                ticks: Some((0, 0)),
+                cwd: Some("/root/app".into()),
+                ..FakeProc::default()
+            },
+            FakeProc { pid: 51, ppid: Some(50), comm: Some("sh".into()), ..FakeProc::default() },
+        ],
+        4096,
+    );
+    // The load the fake machine reports: 8000 kB with 6000 kB available reads as 2000 kB used.
+    write_sys(root.path(), &FakeSys { load1: Some(1.25), mem_total_kb: Some(8000), mem_available_kb: Some(6000) });
+    Tree { root, passwd: fake_passwd() }
+}
+
+fn with_tree(t: &Tree) -> impl FnOnce(&mut Options) + '_ {
+    move |o| {
+        o.proc_root = Some(t.root.path().to_path_buf());
+        o.passwd_path = Some(t.passwd.1.clone());
+        o.sys_interval_ms = Some(20);
+        o.proc_interval_ms = Some(20);
+        o.root = Some(t.root.path().to_path_buf());
+    }
+}
+
+#[tokio::test]
+async fn sys_watch_streams_one_samplers_samples_to_every_subscriber_and_stops_it_when_the_last_socket_closes() {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    assert_eq!(d.logged(words::SYS_SAMPLER_STARTED), 0);
+    let mut a = Client::connect(d.addr).await;
+    let mut b = Client::connect(d.addr).await;
+    assert_eq!(a.request("sys.watch", json!({})).await["ok"], true);
+    assert_eq!(b.request("sys.watch", json!({})).await["ok"], true);
+    // Both sockets saw the same stream, so the daemon ran one sampler, not one per socket. The second subscriber can
+    // miss the sample the first was already sent, so the wait is for a sample both hold and not for a count each.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let shared = loop {
+        a.listen(Duration::from_millis(30)).await;
+        b.listen(Duration::from_millis(30)).await;
+        let held_by_b = b.of("sys.sample");
+        if let Some(s) = a.of("sys.sample").into_iter().find(|s| held_by_b.iter().any(|t| t["at"] == s["at"])) {
+            break s;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "no sample reached both sockets");
+    };
+    // The load and the memory are the fake tree's; the cpu is a delta between two reads of one stat file, and the
+    // disk is the real volume under the daemon's root, so those two are numbers and not the tree's.
+    assert_eq!(shared["type"], "sys.sample");
+    assert_eq!(shared["load1"], json!(1.25));
+    assert_eq!(shared["mem"], json!({ "used": 2000 * 1024, "total": 8000 * 1024 }));
+    assert!(shared["cpu"].is_number());
+    assert!(shared["disk"]["total"].as_u64().unwrap() > 0);
+    assert!(shared["at"].is_number());
+    assert!(b.of("sys.sample").contains(&shared));
+    // Two watchers, one sampler: it started once and has not stopped.
+    assert_eq!(d.logged(words::SYS_SAMPLER_STARTED), 1);
+    assert_eq!(d.logged(words::SYS_SAMPLER_STOPPED), 0);
+
+    a.close().await;
+    // The close is a round trip the daemon has to read; the sampler the other socket holds keeps sampling for it.
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    let with_one_left = b.of("sys.sample").len();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while b.of("sys.sample").len() <= with_one_left {
+        assert!(tokio::time::Instant::now() < deadline, "the sampler stopped with a socket still watching");
+        b.listen(Duration::from_millis(30)).await;
+    }
+    assert_eq!(d.logged(words::SYS_SAMPLER_STOPPED), 0);
+
+    b.close().await;
+    // The last close stops the sampler: the stop is the line the daemon logs, and once it is there nothing starts it again.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while d.logged(words::SYS_SAMPLER_STOPPED) == 0 {
+        assert!(tokio::time::Instant::now() < deadline, "the sampler never stopped: {:?}", d.log());
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(80)).await;
+    assert_eq!((d.logged(words::SYS_SAMPLER_STARTED), d.logged(words::SYS_SAMPLER_STOPPED)), (1, 1));
+}
+
+#[tokio::test]
+async fn every_proc_frame_names_its_seq_and_a_watch_again_after_a_gap_makes_the_next_frame_a_whole_snapshot() {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut a = Client::connect(d.addr).await;
+    assert_eq!(a.request("proc.watch", json!({})).await["ok"], true);
+    let first = a.wait_event("proc.snapshot", Duration::from_secs(5), |_| true).await.expect("a whole snapshot first");
+    let seq = first["seq"].as_u64().expect("a snapshot names its seq");
+    let next = a.wait_event("proc.changes", Duration::from_secs(5), |_| true).await.expect("changes after it");
+    assert_eq!((next["base"].as_u64(), next["seq"].as_u64()), (Some(seq), Some(seq + 1)), "changes name the frame they apply to");
+    // The page missed a frame: it asks again on the socket it watches from, and the next frame it gets is whole.
+    let after = a.wait_event("proc.changes", Duration::from_secs(5), |e| e["seq"].as_u64() > Some(seq + 1)).await.expect("more changes");
+    let held = a.of("proc.snapshot").len();
+    assert_eq!(a.request("proc.watch", json!({})).await["ok"], true);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let again = loop {
+        a.listen(Duration::from_millis(10)).await;
+        let later = a
+            .events
+            .iter()
+            .find(|f| (f["type"] == "proc.snapshot" || f["type"] == "proc.changes") && f["seq"].as_u64() > after["seq"].as_u64());
+        if let Some(f) = later {
+            break f.clone();
+        }
+        assert!(tokio::time::Instant::now() < deadline, "no frame came after the watch again");
+    };
+    assert_eq!(again["type"], "proc.snapshot", "the frame after a watch again is whole");
+    assert_eq!(a.of("proc.snapshot").len(), held + 1);
+    assert_eq!(again["procs"].as_array().unwrap().len(), 3);
+    a.close().await;
+}
+
+#[tokio::test]
+async fn proc_watch_streams_snapshots_until_proc_unwatch_proc_inspect_reads_one_pid_proc_kill_refuses_the_protected_ones() {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut a = Client::connect(d.addr).await;
+    assert_eq!(a.request("proc.watch", json!({})).await["ok"], true);
+    // A second watch on the same socket is not a second subscription.
+    assert_eq!(a.request("proc.watch", json!({})).await["ok"], true);
+    write_proc(
+        t.root.path(),
+        &FakeProc {
+            pid: 50,
+            ppid: Some(1),
+            comm: Some("node".into()),
+            ticks: Some((4, 0)),
+            cwd: Some("/root/app".into()),
+            ..FakeProc::default()
+        },
+    );
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while a.of("proc.changes").is_empty() && tokio::time::Instant::now() < deadline {
+        a.listen(Duration::from_millis(10)).await;
+    }
+    // One whole list for the socket, then only what moved after it.
+    let snaps = a.of("proc.snapshot");
+    assert_eq!(snaps.len(), 1);
+    assert!(!a.of("proc.changes").is_empty());
+    assert_eq!((&snaps[0]["daemon"], &snaps[0]["total"]), (&json!(d.pid), &json!(3)));
+    let pids: Vec<u64> = snaps[0]["procs"].as_array().unwrap().iter().map(|p| p["pid"].as_u64().unwrap()).collect();
+    assert_eq!(pids, vec![1, 50, 51]);
+    assert_eq!((&snaps[0]["procs"][2]["ppid"], &snaps[0]["procs"][2]["cmdline"]), (&json!(50), &json!("sh")));
+    assert_eq!(d.logged(words::PROC_SAMPLER_STARTED), 1);
+
+    let inspected = a.request("proc.inspect", json!({ "pid": 50 })).await;
+    assert_eq!(
+        inspected,
+        json!({ "id": inspected["id"], "ok": true, "pid": 50, "cwd": "/root/app", "ports": [], "threads": 1, "children": [51] })
+    );
+    assert_eq!(a.request("proc.inspect", json!({ "pid": "x" })).await["code"], "bad-request");
+    assert_eq!(a.request("proc.inspect", json!({ "pid": 999_999 })).await["code"], "not-found");
+    // Above pid_max both ops refuse as bad-request.
+    assert_eq!(a.request("proc.inspect", json!({ "pid": 1u64 << 40 })).await["code"], "bad-request");
+    assert_eq!(a.request("proc.kill", json!({ "pid": 1u64 << 40, "signal": "TERM" })).await["code"], "bad-request");
+    let above = a.request("proc.kill", json!({ "pid": 4_194_305, "signal": "TERM" })).await;
+    assert_eq!((&above["code"], &above["error"]), (&json!("bad-request"), &json!("pid must be an integer between 1 and 4194304")));
+
+    for pid in [1, d.pid, d.parent_pid] {
+        assert_eq!(a.request("proc.kill", json!({ "pid": pid, "signal": "TERM" })).await["code"], "forbidden", "{pid}");
+    }
+    assert_eq!(a.request("proc.kill", json!({ "pid": 4_194_303, "signal": "HUP" })).await["code"], "bad-request");
+    assert_eq!(a.request("proc.kill", json!({ "pid": 4_194_303, "signal": "KILL" })).await["code"], "not-found");
+    assert_eq!(a.request("proc.kill", json!({ "pid": 4_194_303 })).await["code"], "bad-request");
+
+    assert_eq!(a.request("proc.unwatch", json!({})).await["ok"], true);
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    a.listen(Duration::from_millis(10)).await;
+    let after = a.of("proc.changes").len();
+    a.listen(Duration::from_millis(100)).await;
+    assert_eq!(a.of("proc.changes").len(), after);
+    assert_eq!(d.logged(words::PROC_SAMPLER_STOPPED), 1);
+    // An unwatch with no watch on the socket is still ok, and the close after it undoes nothing twice.
+    assert_eq!(a.request("proc.unwatch", json!({})).await["ok"], true);
+    a.close().await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert_eq!((d.logged(words::PROC_SAMPLER_STARTED), d.logged(words::PROC_SAMPLER_STOPPED)), (1, 1));
+}
+
+#[tokio::test]
+async fn an_exited_pty_stops_labelling_its_pid_so_a_stranger_who_reuses_it_carries_no_pty_id() {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut a = Client::connect(d.addr).await;
+    let created = a.request("pty.create", json!({ "shell": "bash", "cols": 40, "rows": 10 })).await;
+    assert_eq!(created["ok"], true, "{created}");
+    let pty_id = created["ptyId"].as_str().unwrap().to_owned();
+    let pid = created["pid"].as_u64().unwrap() as u32;
+    // The fake tree stands in for /proc: this entry is whatever process holds the pid, alive or reused.
+    write_proc(t.root.path(), &FakeProc { pid, ppid: Some(1), comm: Some("bash".into()), ..FakeProc::default() });
+    assert_eq!(a.request("proc.watch", json!({})).await["ok"], true);
+    let row_of = |snap: &Value| snap["procs"].as_array().unwrap().iter().find(|p| p["pid"] == json!(pid)).cloned();
+    let labelled = a.wait_event("proc.snapshot", Duration::from_secs(5), |s| row_of(s).is_some()).await.expect("the pid shows up");
+    assert_eq!(row_of(&labelled).unwrap()["pty"], json!(pty_id));
+
+    assert_eq!(a.request("pty.write", json!({ "ptyId": pty_id, "data": "exit\n" })).await["ok"], true);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let listed = a.request("pty.list", json!({})).await;
+        let exited = listed["ptys"].as_array().unwrap().iter().any(|p| p["id"] == json!(pty_id) && p["exited"] == true);
+        if exited {
+            break;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "the shell never exited: {listed}");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    // The frame after the exit can be one the sampler had already built, so the wait is on the change that dropped
+    // the label rather than on the next frame to arrive.
+    let after = a
+        .wait_event("proc.changes", Duration::from_secs(10), |s| row_of(s).is_some_and(|row| row.get("pty").is_none()))
+        .await
+        .expect("a snapshot without the label");
+    assert_eq!(row_of(&after).unwrap()["pid"], json!(pid));
+    assert_eq!(a.request("proc.unwatch", json!({})).await["ok"], true);
+    assert_eq!(a.request("pty.kill", json!({ "ptyId": pty_id })).await["ok"], true);
+    a.close().await;
+}
+
+#[tokio::test]
+async fn an_interval_flag_of_zero_still_streams_both_readings_instead_of_ending_the_daemon() {
+    let t = tree();
+    let d = start(|o| {
+        with_tree(&t)(o);
+        o.sys_interval_ms = Some(0);
+        o.proc_interval_ms = Some(0);
+    })
+    .await;
+    let mut c = Client::connect(d.addr).await;
+    assert_eq!(c.request("sys.watch", json!({})).await["ok"], true);
+    assert_eq!(c.request("proc.watch", json!({})).await["ok"], true);
+    assert!(c.wait_event("sys.sample", Duration::from_secs(10), |_| true).await.is_some());
+    assert!(c.wait_event("proc.snapshot", Duration::from_secs(10), |_| true).await.is_some());
+    assert_eq!(c.request("ping", json!({})).await["ok"], true);
+    c.close().await;
+}
+
+#[tokio::test]
+async fn a_kind_with_no_modules_refuses_both_watches_in_the_words_the_pane_prints() {
+    // Every kind in the enum has a module today, so the guard is proved against a kind that is not one.
+    let d = start(|o| o.kind = "plan9".to_owned()).await;
+    let mut c = Client::connect(d.addr).await;
+    for op in ["sys.watch", "proc.watch", "proc.inspect"] {
+        let res = c.request(op, json!({ "pid": 1 })).await;
+        assert_eq!((&res["ok"], &res["code"]), (&json!(false), &json!("unsupported")), "{op}");
+        assert!(res["error"].as_str().unwrap().starts_with("not on this kind"), "{res}");
+    }
+    assert!(d.log().is_empty());
+    c.close().await;
+}
+
+#[tokio::test]
+async fn a_metrics_module_that_cannot_read_this_machine_refuses_the_watch_with_its_own_words_so_no_row_sits_at_pending() {
+    // A /proc with nothing in it: the module names the file it could not read, and the pane prints that.
+    let empty = tempfile::tempdir().unwrap();
+    let d = start(|o| o.proc_root = Some(empty.path().to_path_buf())).await;
+    let mut c = Client::connect(d.addr).await;
+    let res = c.request("sys.watch", json!({})).await;
+    assert_eq!(res["ok"], false);
+    assert!(res["error"].as_str().unwrap().contains(empty.path().to_str().unwrap()), "{res}");
+    assert!(res.get("code").is_none());
+    assert_eq!(d.logged(words::SYS_SAMPLER_STARTED), 0);
+    c.close().await;
+}
+
+#[tokio::test]
+async fn a_processes_module_that_cannot_read_this_machine_refuses_the_watch_the_same_way() {
+    let missing = tempfile::tempdir().unwrap().path().join("no-such-proc");
+    let d = start(|o| o.proc_root = Some(missing.clone())).await;
+    let mut c = Client::connect(d.addr).await;
+    let res = c.request("proc.watch", json!({})).await;
+    assert_eq!(res["ok"], false);
+    assert!(res["error"].as_str().unwrap().contains("no-such-proc"), "{res}");
+    let res = c.request("proc.inspect", json!({ "pid": 1 })).await;
+    assert!(res["error"].as_str().unwrap().contains("no-such-proc"), "{res}");
+    assert_eq!(d.logged(words::PROC_SAMPLER_STARTED), 0);
+    c.close().await;
+}
+
+#[tokio::test]
+async fn a_socket_that_goes_while_the_probe_is_still_reading_takes_no_stream_on_so_nothing_is_left_polling_for_it() {
+    // A FIFO where the tree's stat is: both probes block on it until the test feeds it, which is after the socket
+    // went, so the read that was in flight when the client left is the one that lands on a closed socket.
+    let root = fake_proc_tree(&[FakeProc { pid: 1, ..FakeProc::default() }], 4096);
+    let stat = root.path().join("stat");
+    std::fs::remove_file(&stat).unwrap();
+    nix::unistd::mkfifo(&stat, nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap();
+    let d = start(|o| {
+        o.proc_root = Some(root.path().to_path_buf());
+        o.sys_interval_ms = Some(30);
+        o.proc_interval_ms = Some(30);
+    })
+    .await;
+    let mut c = Client::connect(d.addr).await;
+    c.send_frame("sys.watch", json!({})).await;
+    c.send_frame("proc.watch", json!({})).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    drop(c);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    // The write blocks until a reader holds the FIFO; a daemon that refused both watches before its probe would
+    // never open it, and that is a failure with a cause, not a case held to its timeout.
+    let text = format!("cpu  1 2 3 4 5 6 7 8 0 0\nbtime {BTIME}\nprocesses 100\n");
+    let fed = stat.clone();
+    let body = text.clone();
+    let feed = tokio::task::spawn_blocking(move || std::fs::write(&fed, body));
+    tokio::time::timeout(Duration::from_secs(5), feed)
+        .await
+        .expect("no probe opened the FIFO: the daemon refused the watches before reading")
+        .unwrap()
+        .unwrap();
+    // A probe the system scheduled late can come out of open() after that one writer has closed, and then waits in
+    // read() for a writer that never comes (seen on macOS under a background-priority pin): the blocking thread holds
+    // the runtime's drop, and the binary never ends. Every reader still on the FIFO is fed until none is left, and
+    // the FIFO then becomes a plain file, so a probe that opens after this reads it and cannot block.
+    drain_fifo(&stat, &text, Duration::from_secs(10)).await;
+    // Well past several of the samplers' intervals: a sampler left running would have logged its start.
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    assert_eq!(
+        d.log().iter().filter(|l| *l == words::SYS_SAMPLER_STARTED || *l == words::PROC_SAMPLER_STARTED).count(),
+        0,
+        "{:?}",
+        d.log()
+    );
+}
+
+/// Feeds `text` to every reader holding the FIFO at `path` until none has held it for a while, then puts a plain file
+/// with the same text in its place. A write-open that does not block finds a reader or answers ENXIO, which is how a
+/// reader still waiting is told from none. Fails, naming the FIFO, when a reader is still there once `within` is out.
+async fn drain_fifo(path: &std::path::Path, text: &str, within: Duration) {
+    use nix::errno::Errno;
+    use nix::fcntl::{open, OFlag};
+    use nix::sys::stat::Mode;
+    let deadline = tokio::time::Instant::now() + within;
+    let mut quiet_since = tokio::time::Instant::now();
+    loop {
+        match open(path, OFlag::O_WRONLY | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC, Mode::empty()) {
+            Ok(fd) => {
+                let _ = std::fs::File::from(fd).write_all(text.as_bytes());
+                quiet_since = tokio::time::Instant::now();
+            }
+            Err(Errno::ENXIO) => {
+                if quiet_since.elapsed() >= Duration::from_millis(300) {
+                    break;
+                }
+            }
+            Err(e) => panic!("the FIFO at {} could not be opened for writing: {e}", path.display()),
+        }
+        assert!(tokio::time::Instant::now() < deadline, "a probe still holds the FIFO at {} after {within:?}", path.display());
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let plain = path.with_extension("plain");
+    std::fs::write(&plain, text).unwrap();
+    std::fs::rename(&plain, path).unwrap();
+}
+
+#[tokio::test]
+async fn this_computers_own_kind_answers_both_watches_off_its_own_host_with_no_proc_anywhere() {
+    // The /proc named here does not exist, which is what a Mac has: a daemon serving this computer must answer
+    // without it, so a reading that arrives proves the host's own modules read it and not the guest's.
+    let work = tempfile::tempdir().unwrap();
+    let d = start(|o| {
+        o.kind = "local".to_owned();
+        o.work_folder = Some(work.path().to_path_buf());
+        o.proc_root = Some(work.path().join("no-such-proc"));
+        o.sys_interval_ms = Some(20);
+        o.proc_interval_ms = Some(20);
+    })
+    .await;
+    let mut c = Client::connect(d.addr).await;
+    assert_eq!(c.request("sys.watch", json!({})).await["ok"], true);
+    assert_eq!(c.request("proc.watch", json!({})).await["ok"], true);
+    let sample = c.wait_event("sys.sample", Duration::from_secs(10), |_| true).await.expect("a sample");
+    assert!(sample["load1"].is_number());
+    assert!(sample["mem"]["total"].as_u64().unwrap() > 0);
+    assert!(sample["disk"]["total"].as_u64().unwrap() > 0);
+    let snap = c.wait_event("proc.snapshot", Duration::from_secs(10), |_| true).await.expect("a snapshot");
+    let me = std::process::id();
+    assert!(snap["procs"].as_array().unwrap().iter().any(|p| p["pid"] == json!(me)));
+    assert_eq!(snap["daemon"], json!(d.pid));
+    let inspected = c.request("proc.inspect", json!({ "pid": me })).await;
+    assert_eq!((&inspected["ok"], &inspected["pid"]), (&json!(true), &json!(me)));
+    assert!(inspected.get("threads").is_none(), "{inspected}");
+    assert!(inspected["ports"].is_array());
+    c.close().await;
+}
+
+#[tokio::test]
+async fn a_watch_on_a_port_scoped_socket_is_refused_before_any_probe_runs() {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let (mut ws, _) = connect_async(format!("ws://{}/", d.addr)).await.unwrap();
+    ws.send(Message::text(json!({ "id": 0, "op": "auth", "token": TOKEN, "port": 8123 }).to_string())).await.unwrap();
+    let mut frames = Vec::new();
+    // The auth reply and the hello, then the refusal.
+    ws.send(Message::text(json!({ "id": 1, "op": "sys.watch" }).to_string())).await.unwrap();
+    while frames.len() < 3 {
+        if let Some(Ok(Message::Text(t))) = ws.next().await {
+            frames.push(serde_json::from_str::<Value>(&t).unwrap());
+        }
+    }
+    assert_eq!(frames[2]["code"], "forbidden");
+    assert!(d.log().is_empty());
+}
+
+#[tokio::test]
+async fn sys_history_answers_the_kept_minutes_folded_into_steps_and_refuses_a_range_with_no_width() {
+    let kept = tempfile::tempdir().unwrap();
+    // 2026-09-29T00:00:00Z and the ten minutes after it, one point each, as the daemon writes them.
+    let t0: i64 = 1_790_640_000_000;
+    let day: String = (0..10)
+        .map(|m| format!("{}\n", json!({ "at": t0 + m * 60_000, "cpu": m as f64 * 10.0, "load1": 1.0, "mem": { "used": m, "total": 100 }, "disk": { "used": 9, "total": 100 } })))
+        .collect();
+    std::fs::write(kept.path().join("2026-09-29.jsonl"), day).unwrap();
+    let dir = kept.path().to_path_buf();
+    let d = start(move |o| o.readings_dir = Some(dir)).await;
+    let mut c = Client::connect(d.addr).await;
+    let res = c.request("sys.history", json!({ "from": t0, "to": t0 + 600_000, "stepMs": 300_000 })).await;
+    assert_eq!(res["ok"], true, "{res}");
+    assert_eq!(res["stepMs"], 300_000);
+    assert_eq!(res["truncated"], false);
+    let points = res["points"].as_array().unwrap();
+    assert_eq!(points.len(), 2);
+    assert_eq!(
+        points[0],
+        json!({ "at": t0, "cpu": 20.0, "load1": 1.0, "mem": { "used": 4, "total": 100 }, "disk": { "used": 9, "total": 100 } })
+    );
+    // A range with no reading in it is an empty answer, not a refusal: a chart draws its gap.
+    let none = c.request("sys.history", json!({ "from": t0 + 86_400_000, "to": t0 + 2 * 86_400_000, "stepMs": 300_000 })).await;
+    assert_eq!(none["points"], json!([]));
+    for bad in [json!({ "from": t0, "to": t0, "stepMs": 300_000 }), json!({ "from": t0, "to": t0 + 1, "stepMs": 0 })] {
+        let refused = c.request("sys.history", bad).await;
+        assert_eq!((refused["ok"].clone(), refused["code"].clone()), (json!(false), json!("bad-request")), "{refused}");
+    }
+    c.close().await;
+}
+
+#[tokio::test]
+async fn sys_history_at_a_step_under_a_minute_answers_the_recorders_newest_reads() {
+    let t = tree();
+    let kept = tempfile::tempdir().unwrap();
+    let dir = kept.path().to_path_buf();
+    let d = start(|o| {
+        with_tree(&t)(o);
+        o.readings_dir = Some(dir);
+        o.readings_interval_ms = Some(20);
+    })
+    .await;
+    let mut c = Client::connect(d.addr).await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let points = loop {
+        let now = now_ms();
+        let res = c.request("sys.history", json!({ "from": now - 900_000, "to": now + 1, "stepMs": 10_000 })).await;
+        assert_eq!(res["ok"], true, "{res}");
+        let points = res["points"].as_array().unwrap().clone();
+        assert!(points.len() <= 60, "{}", points.len());
+        if points.len() == 60 {
+            break points;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "the reads never filled: {}", points.len());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let newest = points.last().unwrap();
+    assert!(now_ms() - newest["at"].as_i64().unwrap() < 15_000, "{newest}");
+    assert_eq!(newest["load1"], json!(1.25));
+    assert_eq!(newest["mem"], json!({ "used": 2000 * 1024, "total": 8000 * 1024 }));
+    c.close().await;
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64
+}
+
+#[tokio::test]
+async fn sys_unwatch_ends_this_sockets_watch_and_a_second_watch_on_one_socket_is_one_subscription() {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut a = Client::connect(d.addr).await;
+    let mut b = Client::connect(d.addr).await;
+    assert_eq!(a.request("sys.watch", json!({})).await["ok"], true);
+    assert_eq!(a.request("sys.watch", json!({})).await["ok"], true);
+    a.listen(Duration::from_millis(300)).await;
+    let ats: Vec<i64> = a.of("sys.sample").iter().map(|s| s["at"].as_i64().unwrap()).collect();
+    assert!(ats.len() > 2, "{ats:?}");
+    assert!(ats.windows(2).all(|w| w[0] < w[1]), "a sample arrived twice: {ats:?}");
+
+    // Another socket's watch holds the sampler past this one's unwatch, and this one hears nothing more.
+    assert_eq!(b.request("sys.watch", json!({})).await["ok"], true);
+    assert_eq!(a.request("sys.unwatch", json!({})).await["ok"], true);
+    a.listen(Duration::from_millis(60)).await;
+    let held = a.of("sys.sample").len();
+    a.listen(Duration::from_millis(200)).await;
+    assert_eq!(a.of("sys.sample").len(), held);
+    assert_eq!(d.logged(words::SYS_SAMPLER_STOPPED), 0);
+
+    // The last subscriber's unwatch stops the sampler with the socket still open; an unwatch with no watch is a no-op.
+    assert_eq!(b.request("sys.unwatch", json!({})).await["ok"], true);
+    assert_eq!(b.request("sys.unwatch", json!({})).await["ok"], true);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while d.logged(words::SYS_SAMPLER_STOPPED) == 0 {
+        assert!(tokio::time::Instant::now() < deadline, "the sampler never stopped: {:?}", d.log());
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    // A watch after the unwatch starts it again, and the socket's close stops it as before.
+    let last = a.of("sys.sample").last().unwrap()["at"].as_i64();
+    assert_eq!(a.request("sys.watch", json!({})).await["ok"], true);
+    assert!(a.wait_event("sys.sample", Duration::from_secs(10), |s| s["at"].as_i64() > last).await.is_some());
+    assert_eq!(d.logged(words::SYS_SAMPLER_STARTED), 2);
+    a.close().await;
+    b.close().await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while d.logged(words::SYS_SAMPLER_STOPPED) < 2 {
+        assert!(tokio::time::Instant::now() < deadline, "the sampler never stopped: {:?}", d.log());
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+#[tokio::test]
+async fn an_unwatch_sent_behind_a_watch_on_one_socket_ends_it() {
+    unwatch_behind_watch("sys", words::SYS_SAMPLER_STARTED, words::SYS_SAMPLER_STOPPED, &["sys.sample"]).await;
+    unwatch_behind_watch("proc", words::PROC_SAMPLER_STARTED, words::PROC_SAMPLER_STOPPED, &["proc.snapshot", "proc.changes"]).await;
+}
+
+/// Both frames go in one write, so the unwatch lands while the watch's probe still reads.
+async fn unwatch_behind_watch(readings: &str, started: &str, stopped: &str, frames: &[&str]) {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut c = Client::connect(d.addr).await;
+    let (w, u) = (90, 91);
+    c.ws.feed(Message::text(json!({ "id": w, "op": format!("{readings}.watch") }).to_string())).await.unwrap();
+    c.ws.feed(Message::text(json!({ "id": u, "op": format!("{readings}.unwatch") }).to_string())).await.unwrap();
+    c.ws.flush().await.unwrap();
+    let mut order = Vec::new();
+    while order.len() < 2 {
+        let msg = tokio::time::timeout(Duration::from_secs(10), c.ws.next()).await.unwrap().unwrap().unwrap();
+        let v: Value = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+        if v.get("id") == Some(&json!(w)) || v.get("id") == Some(&json!(u)) {
+            assert_eq!(v["ok"], true);
+            order.push(v["id"].as_u64().unwrap());
+        }
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    c.listen(Duration::from_millis(300)).await;
+    // The watch may never subscribe or may subscribe and leave; either way nothing reads for this socket.
+    let (started, stopped) = (d.logged(started), d.logged(stopped));
+    let n: usize = frames.iter().map(|f| c.of(f).len()).sum();
+    assert_eq!((started - stopped, n), (0, 0), "{readings}: replies {order:?}; the sampler still runs: {:?}", d.log());
+}
+
+#[tokio::test]
+async fn usage_logs_reads_the_home_this_daemon_serves_and_refuses_a_store_it_cannot_name() {
+    let home = tempfile::tempdir().unwrap();
+    let rollout = home.path().join(".codex/sessions/2026/09/29/rollout-a.jsonl");
+    std::fs::create_dir_all(rollout.parent().unwrap()).unwrap();
+    let lines = [
+        json!({ "timestamp": "2026-09-29T09:00:00.000Z", "type": "session_meta", "payload": { "id": "t1", "cwd": "/w/proj" } }),
+        json!({ "timestamp": "2026-09-29T09:00:01.000Z", "type": "turn_context", "payload": { "model": "gpt-5.5" } }),
+        json!({ "timestamp": "2026-09-29T09:01:00.000Z", "type": "event_msg", "payload": { "type": "token_count", "info": { "total_token_usage": { "input_tokens": 100, "output_tokens": 5 } }, "rate_limits": { "primary": { "used_percent": 42.0, "window_minutes": 300, "resets_at": 1_790_690_000 } } } }),
+    ];
+    std::fs::write(&rollout, lines.iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
+    let at = home.path().to_path_buf();
+    let d = start(move |o| o.home = Some(at)).await;
+    let mut c = Client::connect(d.addr).await;
+    let res =
+        c.request("usage.logs", json!({ "stores": [{ "agent": "codex", "format": "codex-rollout", "root": "~/.codex/sessions" }] })).await;
+    assert_eq!(res["ok"], true, "{res}");
+    assert_eq!(
+        res["rows"],
+        json!([{ "agent": "codex", "session": "t1", "at": 1_790_672_460_000_i64, "model": "gpt-5.5", "folder": "/w/proj", "tokens": { "input": 100, "output": 5, "cached": 0, "cacheWrite": 0, "reasoning": 0 } }])
+    );
+    assert_eq!(
+        res["limits"],
+        json!([{ "agent": "codex", "at": 1_790_672_460_000_i64, "primary": { "usedPercent": 42.0, "windowDurationMins": 300, "resetsAt": 1_790_690_000 } }])
+    );
+    let refused = c
+        .request("usage.logs", json!({ "stores": [{ "agent": "hermes", "format": "hermes-sqlite", "root": "~/.hermes/state.db" }] }))
+        .await;
+    assert_eq!((refused["ok"].clone(), refused["code"].clone()), (json!(false), json!("bad-request")), "{refused}");
+    c.close().await;
+}
+
+#[tokio::test]
+async fn transcripts_list_and_read_answer_a_conversation_under_the_home_this_daemon_serves() {
+    let home = tempfile::tempdir().unwrap();
+    let id = "7414323d-e71b-4957-8b56-eefdf6bfa350";
+    let file = home.path().join(format!(".claude/projects/-w-proj/{id}.jsonl"));
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let lines = [
+        json!({ "type": "user", "uuid": "u1", "parentUuid": null, "cwd": "/w/proj", "entrypoint": "cli", "gitBranch": "main", "message": { "role": "user", "content": "hello" } }),
+        json!({ "type": "assistant", "uuid": "a1", "parentUuid": "u1", "cwd": "/w/proj", "message": { "id": "m1", "content": [{ "type": "text", "text": "hi there" }] } }),
+        json!({ "type": "last-prompt", "lastPrompt": "hello", "leafUuid": "a1" }),
+    ];
+    std::fs::write(&file, lines.iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
+    let at = home.path().to_path_buf();
+    let d = start(move |o| o.home = Some(at)).await;
+    let mut c = Client::connect(d.addr).await;
+    let listed = c.request("transcripts.list", json!({ "root": "~/.claude/projects", "dirs": ["-w-proj"], "cwds": ["/w/proj"] })).await;
+    assert_eq!(listed["ok"], true, "{listed}");
+    assert_eq!(listed["rows"][0]["id"], id);
+    assert_eq!((listed["rows"][0]["title"].clone(), listed["rows"][0]["branch"].clone()), (json!("hello"), json!("main")));
+    let read = c.request("transcripts.read", json!({ "root": "~/.claude/projects", "dirs": ["-w-proj"], "session": id, "last": 10 })).await;
+    assert_eq!(read["ok"], true, "{read}");
+    assert_eq!(read["messages"], json!([{ "who": "person", "text": "hello" }, { "who": "agent", "text": "hi there" }]));
+    let refused =
+        c.request("transcripts.read", json!({ "root": "~/.claude/projects", "dirs": ["-w-proj"], "session": id, "last": 0 })).await;
+    assert_eq!((refused["ok"].clone(), refused["code"].clone()), (json!(false), json!("bad-request")), "{refused}");
+    c.close().await;
+}

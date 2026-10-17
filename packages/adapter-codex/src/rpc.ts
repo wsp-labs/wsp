@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The JSON-RPC lines wsp writes to `codex app-server` on its stdin and reads
+// back off its stdout, one object per line, as codex-cli 0.155.1's own schema
+// (`codex app-server generate-json-schema`) spells them. The server leaves the
+// jsonrpc field off every message it prints and takes messages without one.
+import type { AccessParams } from "./command.js";
+
+/** The ids of the requests a turn sends once each; a steer and an interrupt are numbered, since a turn may send several. */
+export const REQUEST = { initialize: "wsp-initialize", thread: "wsp-thread", turn: "wsp-turn", revert: "wsp-revert", turns: "wsp-turns", account: "wsp-account", rateLimits: "wsp-rate-limits", unsubscribe: "wsp-unsubscribe" } as const;
+
+/** A request id as the server sends one: a string or an integer, echoed back as it came. */
+export type RequestId = string | number;
+
+const line = (message: Record<string, unknown>): string => JSON.stringify(message);
+
+/** Only the fields the turn named, so a server default stands wherever wsp picked nothing. */
+const named = (fields: Record<string, string | undefined>): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(fields)) if (value !== undefined) out[key] = value;
+  return out;
+};
+
+export function initializeLine(): string {
+  return line({ id: REQUEST.initialize, method: "initialize", params: { clientInfo: { name: "wsp", title: "wsp", version: "1" } } });
+}
+
+export const INITIALIZED_LINE = line({ method: "initialized" });
+
+/** The sign-in the server runs on, whose answer names a ChatGPT account's email and plan, or a key. */
+export const ACCOUNT_READ_LINE = line({ id: REQUEST.account, method: "account/read", params: {} });
+
+/** The account's plan windows as they stand, with the banked resets' count; later changes arrive as
+ * account/rateLimits/updated. `details` asks for each reset in full too, which costs the backend one more lookup. */
+export function rateLimitsReadLine(details: boolean): string {
+  return line({ id: REQUEST.rateLimits, method: "account/rateLimits/read", params: details ? {} : { excludeResetCreditDetails: true } });
+}
+
+export interface ThreadOptions {
+  cwd?: string;
+  model?: string;
+  /** The model's faster output, on a model the catalog marks as offering it. */
+  serviceTier?: "fast";
+  access: AccessParams;
+  /** Config keys laid over the server's own config for this thread alone, each a dotted path to a string. */
+  config?: Readonly<Record<string, string>>;
+}
+
+const configOf = (o: ThreadOptions): { config?: Readonly<Record<string, string>> } => (o.config !== undefined && Object.keys(o.config).length > 0 ? { config: o.config } : {});
+
+export function threadStartLine(o: ThreadOptions): string {
+  return line({ id: REQUEST.thread, method: "thread/start", params: { ...named({ cwd: o.cwd, model: o.model, serviceTier: o.serviceTier }), ...o.access, ...configOf(o) } });
+}
+
+export function threadResumeLine(o: ThreadOptions & { threadId: string }): string {
+  return line({ id: REQUEST.thread, method: "thread/resume", params: { threadId: o.threadId, ...named({ cwd: o.cwd, model: o.model, serviceTier: o.serviceTier }), ...o.access, ...configOf(o) } });
+}
+
+/** A copy of the thread that is never written to disk, in a read-only sandbox that asks nobody: what a side question
+ * runs on, since no turn takes its tools off. excludeTurns leaves the history out of the reply alone, and 0.155.1
+ * refuses an ephemeral fork without it. */
+export function threadForkLine(o: { threadId: string; cwd?: string; model?: string; developerInstructions: string }): string {
+  return line({
+    id: REQUEST.thread,
+    method: "thread/fork",
+    params: { threadId: o.threadId, ephemeral: true, excludeTurns: true, sandbox: "read-only", approvalPolicy: "never", ...named({ cwd: o.cwd, model: o.model }), developerInstructions: o.developerInstructions },
+  });
+}
+
+/** A copy of the thread that is written to disk as a thread of its own, the original left as it was: what a thread
+ * another process writes is continued on, and with lastTurnId what a fork of a thread starts on, its history through
+ * that turn and nothing after. The fork keeps the source's turn ids (measured on 0.162.1). The answer names the copy,
+ * which the turn then runs on; excludeTurns leaves the history out of the reply alone. */
+export function threadCopyLine(o: ThreadOptions & { threadId: string; lastTurnId?: string }): string {
+  return line({ id: REQUEST.thread, method: "thread/fork", params: { threadId: o.threadId, ...(o.lastTurnId !== undefined ? { lastTurnId: o.lastTurnId } : {}), ephemeral: false, excludeTurns: true, ...named({ cwd: o.cwd, model: o.model, serviceTier: o.serviceTier }), ...o.access, ...configOf(o) } });
+}
+
+/** The thread let go of on this connection once its turn is over, so a process outside wsp may write it: the server
+ * unloads it once nobody is subscribed (another writer got in 61 s later on 0.162.1), and a later turn on the same
+ * server resumes it first, since a turn/start on the thread after this is never answered (measured on 0.162.1). */
+export function threadUnsubscribeLine(threadId: string): string {
+  return line({ id: REQUEST.unsubscribe, method: "thread/unsubscribe", params: { threadId } });
+}
+
+/** The thread's persisted history cut to the turns before one: that turn and every later one leave it. Files are
+ * not the server's to touch here. */
+export function threadRevertLine(o: { threadId: string; beforeTurnId: string }): string {
+  return line({ id: REQUEST.revert, method: "thread/revert", params: { threadId: o.threadId, beforeTurnId: o.beforeTurnId } });
+}
+
+/** One page of the thread's turns, newest first, each without its items: what a cut by count finds its boundary in. */
+export function threadTurnsListLine(o: { threadId: string; cursor: string | null; limit: number }): string {
+  return line({ id: REQUEST.turns, method: "thread/turns/list", params: { threadId: o.threadId, cursor: o.cursor, limit: o.limit, sortDirection: "desc", itemsView: "summary" } });
+}
+
+const textInput = (text: string) => ({ type: "text", text });
+
+export function turnStartLine(o: { threadId: string; text: string; images?: readonly string[]; effort?: string }): string {
+  const input = [textInput(o.text), ...(o.images ?? []).map(path => ({ type: "localImage", path }))];
+  return line({ id: REQUEST.turn, method: "turn/start", params: { threadId: o.threadId, input, ...named({ effort: o.effort }) } });
+}
+
+/** The server's own compaction of the thread's context, which it runs as a turn of its own: turn/started, a
+ * contextCompaction item, then turn/completed (measured on 0.155.1, 2026-10-05). Sent under the turn's id, so a
+ * refusal fails the turn as a turn/start refusal does. */
+export function threadCompactStartLine(o: { threadId: string }): string {
+  return line({ id: REQUEST.turn, method: "thread/compact/start", params: { threadId: o.threadId } });
+}
+
+export function turnSteerLine(id: string, o: { threadId: string; turnId: string; text: string }): string {
+  return line({ id, method: "turn/steer", params: { threadId: o.threadId, expectedTurnId: o.turnId, input: [textInput(o.text)] } });
+}
+
+/** Each interrupt is numbered, since a stop interrupts each subagent's turn as well as the lead's. */
+export function turnInterruptLine(o: { id: string; threadId: string; turnId: string }): string {
+  return line({ id: o.id, method: "turn/interrupt", params: { threadId: o.threadId, turnId: o.turnId } });
+}
+
+/** accept and decline are the only decisions wsp sends: acceptForSession would let one click pass every later prompt
+ * like it, and an execpolicy amendment writes policy into the person's config. */
+export function decisionLine(id: RequestId, decision: "accept" | "decline"): string {
+  return line({ id, result: { decision } });
+}
+
+/** The server waits on every request it sends, so one wsp does not serve is answered with an error. */
+export function refuseRequestLine(id: RequestId, method: string): string {
+  return line({ id, error: { code: -32601, message: `wsp does not answer ${method}` } });
+}
+
+export type RpcMessage =
+  | { kind: "response"; id: RequestId; result: unknown }
+  | { kind: "error"; id: RequestId; message: string }
+  | { kind: "notification"; method: string; params: Record<string, unknown>; emittedAtMs?: number }
+  | { kind: "request"; id: RequestId; method: string; params: Record<string, unknown> };
+
+function rec(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+const isId = (value: unknown): value is RequestId => typeof value === "string" || typeof value === "number";
+
+/** One line of the process's output as a message, or nothing where it is not one: codex's stderr shares the log. */
+export function readMessage(raw: string): RpcMessage | undefined {
+  const text = raw.trim();
+  if (!text.startsWith("{")) return undefined;
+  let message: Record<string, unknown> | undefined;
+  try {
+    message = rec(JSON.parse(text));
+  } catch {
+    return undefined;
+  }
+  if (message === undefined) return undefined;
+  const method = typeof message.method === "string" ? message.method : undefined;
+  const params = rec(message.params) ?? {};
+  if (method !== undefined) return isId(message.id) ? { kind: "request", id: message.id, method, params } : { kind: "notification", method, params, ...(typeof message.emittedAtMs === "number" ? { emittedAtMs: message.emittedAtMs } : {}) };
+  if (!isId(message.id)) return undefined;
+  const error = rec(message.error);
+  if (error !== undefined) return { kind: "error", id: message.id, message: typeof error.message === "string" ? error.message : "codex refused the request without saying why" };
+  return "result" in message ? { kind: "response", id: message.id, result: message.result } : undefined;
+}

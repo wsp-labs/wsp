@@ -1,0 +1,972 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { z } from "zod";
+import type { FsListReply as WireFsListReply } from "../generated/FsListReply.js";
+import type { FsFilesReply as WireFsFilesReply } from "../generated/FsFilesReply.js";
+import type { GitPrListReply as WireGitPrListReply } from "../generated/GitPrListReply.js";
+import type { GitCheckpointReply as WireGitCheckpointReply } from "../generated/GitCheckpointReply.js";
+import type { GitRestoreReply as WireGitRestoreReply } from "../generated/GitRestoreReply.js";
+import type { FsSearchReply as WireFsSearchReply } from "../generated/FsSearchReply.js";
+import type { GitCommitReply as WireGitCommitReply } from "../generated/GitCommitReply.js";
+import type { GitDiscardReply as WireGitDiscardReply } from "../generated/GitDiscardReply.js";
+import type { GitDiffFile as WireGitDiffFile } from "../generated/GitDiffFile.js";
+import type { FsImageReply as WireFsImageReply } from "../generated/FsImageReply.js";
+import type { FsHashReply as WireFsHashReply } from "../generated/FsHashReply.js";
+import type { FsWriteReply as WireFsWriteReply } from "../generated/FsWriteReply.js";
+import type { PullRequest as WirePullRequest } from "../generated/PullRequest.js";
+import type { GitPrReadReply as WireGitPrReadReply } from "../generated/GitPrReadReply.js";
+import type { GitIssueReadReply as WireGitIssueReadReply } from "../generated/GitIssueReadReply.js";
+import type { GitPrCheckoutReply as WireGitPrCheckoutReply } from "../generated/GitPrCheckoutReply.js";
+import type { GitPrDiffReply as WireGitPrDiffReply } from "../generated/GitPrDiffReply.js";
+import type { GitPrReviewReply as WireGitPrReviewReply } from "../generated/GitPrReviewReply.js";
+import type { GitPrViewReply as WireGitPrViewReply } from "../generated/GitPrViewReply.js";
+import type { CgroupMemory as WireCgroupMemory } from "../generated/CgroupMemory.js";
+import type { KillMode as WireKillMode } from "../generated/KillMode.js";
+import type { ProcKillReply as WireProcKillReply } from "../generated/ProcKillReply.js";
+import type { ProcKind as WireProcKind } from "../generated/ProcKind.js";
+import type { ProcListReply as WireProcListReply } from "../generated/ProcListReply.js";
+import type { ProcOwnedBy as WireProcOwnedBy } from "../generated/ProcOwnedBy.js";
+import type { ProcSignal as WireProcSignal } from "../generated/ProcSignal.js";
+import type { GitPrReplyReply as WireGitPrReplyReply } from "../generated/GitPrReplyReply.js";
+import type { GitPrResolveReply as WireGitPrResolveReply } from "../generated/GitPrResolveReply.js";
+import type { GitPrReactReply as WireGitPrReactReply } from "../generated/GitPrReactReply.js";
+import type { GitRunLogReply as WireGitRunLogReply } from "../generated/GitRunLogReply.js";
+import type { GitPrMergeReply as WireGitPrMergeReply } from "../generated/GitPrMergeReply.js";
+import type { GitRepoReadReply as WireGitRepoReadReply } from "../generated/GitRepoReadReply.js";
+import type { GitUpdateReply as WireGitUpdateReply } from "../generated/GitUpdateReply.js";
+import type { SshStartReply as WireSshStartReply } from "../generated/SshStartReply.js";
+import type { GitStartOnReply as WireGitStartOnReply } from "../generated/GitStartOnReply.js";
+import type { GitBranchCompareReply as WireGitBranchCompareReply } from "../generated/GitBranchCompareReply.js";
+import type { GitMergeInReply as WireGitMergeInReply } from "../generated/GitMergeInReply.js";
+import type { GitCheckpointDropReply as WireGitCheckpointDropReply } from "../generated/GitCheckpointDropReply.js";
+import type { GitWorktreesReply as WireGitWorktreesReply } from "../generated/GitWorktreesReply.js";
+import type { GitBranchesReply as WireGitBranchesReply } from "../generated/GitBranchesReply.js";
+import { GitBranchCompareReply, GitMergeInReply, GitStartOnReply } from "../tree.js";
+import { GitPrReadReply, GitPrViewReply, GitPrMergeReply, GitPrReactReply, GitPrReplyReply, GitPrResolveReply, GitRepoReadReply, GitRunLogReply, GitUpdateReply, MergeMethod, PullRequest, PR_REPLY_BODY_MAX, ReactionContent } from "../pull-request.js";
+import { GitIssueReadReply, GitPrCheckoutReply, GitPrDiffReply, GitPrReviewReply } from "../start.js";
+import { KILL_PIDS_MAX, SSH_KEY_MAX } from "../daemon-contract.js";
+import type { UsageStore as WireUsageStore } from "../generated/UsageStore.js";
+import type { HttpBearer as WireHttpBearer } from "../generated/HttpBearer.js";
+import type { HttpPostReply as WireHttpPostReply } from "../generated/HttpPostReply.js";
+import type { PipeOpen as WirePipeOpen } from "../generated/PipeOpen.js";
+import { cgroupPath, type Held, reqId, type Same, watchName } from "./helpers.js";
+import { EXEC_BODY_MAX, isHttpUrl, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, TRANSCRIPT_DIRS_MAX, USAGE_STORES_MAX } from "./limits.js";
+
+// --- daemon wire protocol (ws://0.0.0.0:7070, auth frame first, 4401 on anything else) ---
+
+/** Client-side health of a daemon link. opening: a link that has never been open is being dialled, so nothing is
+ * coming back yet and nothing may be promised back. connecting: a link that was open once is being dialled again.
+ * unanswered: a link that has never been open and whose first-answer bound has passed, so what it dials is not
+ * answering and the person is owed what to do instead of a wait. reauth-needed: the daemon refused the token the
+ * host sent. A browser link holds no token of its own, so it opens a channel again and the host dials with the one
+ * it holds now; the host's own link stops there. refused: the door answered the upgrade with a status, so no retry
+ * at the usual pace opens anything; the link holds this until a dial gets past the door, and retries at the ceiling.
+ * dead is terminal. The host's own link reports neither opening nor unanswered, as it reports no refusal: no person
+ * reads its words. */
+export const DaemonLinkStatus = z.enum(["opening", "connecting", "live", "reauth-needed", "refused", "unanswered", "dead"]);
+export type DaemonLinkStatus = z.infer<typeof DaemonLinkStatus>;
+
+/** The first frame on every daemon socket, the URL carries no token: answered {id, ok} then daemon.hello, or
+ * the socket closes 4401 with one sentence of reason. Anything else first, or nothing, closes the same way.
+ * A peer that sends more than a few KiB before this frame passes is closed 4401 too, so a client sends nothing
+ * more until it is answered. port scopes the socket to one guest port: only tunnel ops on that port and ping are
+ * answered, everything else is refused with code forbidden. pipe asks for a pipe rather than a control socket: one
+ * local connection's bytes, opened by PipeOpen. A daemon from before pipes ignores the field and answers it as a
+ * control socket, which pipeOpenOf reads as no pipe. */
+export const DaemonAuthRequest = z.object({
+  id: reqId,
+  op: z.literal("auth"),
+  token: z.string(),
+  port: z.number().int().min(1).max(65535).optional(),
+  pipe: z.boolean().optional(),
+});
+export type DaemonAuthRequest = z.infer<typeof DaemonAuthRequest>;
+
+/** Which loopback door on the machine a pipe's local connection came in on: the HTTP door for model calls and git,
+ * the gh door for gh. */
+export const PipeDoor = z.enum(["http", "gh"]);
+export type PipeDoor = z.infer<typeof PipeDoor>;
+
+/** The daemon's one text frame on a pipe, sent when a local connection takes it; the connection's bytes follow as
+ * binary frames both ways. heldMs is how long that connection waited for a pipe. */
+export const PipeOpen = z.object({ op: z.literal("pipe.open"), door: PipeDoor, heldMs: z.number().int().nonnegative() });
+export type PipeOpen = z.infer<typeof PipeOpen>;
+type PipeOpenHeld = Held<Same<PipeOpen, WirePipeOpen>>;
+
+/** The first text frame a daemon sends on a socket dialled as a pipe after its auth reply, read: the PipeOpen, or
+ * undefined for anything else, which is a daemon that serves no pipes greeting a control socket with daemon.hello.
+ * The caller closes that one socket and leaves the daemon's link alone. */
+export function pipeOpenOf(text: string): PipeOpen | undefined {
+  let frame: unknown;
+  try {
+    frame = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  const open = PipeOpen.safeParse(frame);
+  return open.success ? open.data : undefined;
+}
+
+/** The host's token for one op on a machine whose credentials the host keeps (git.push, git.startOn, git.update,
+ * git.mergeIn, git.pr, git.prCheckout): git's proxy password and gh's GH_TOKEN for the commands that op runs, and
+ * nothing else; absent, the op runs as it always has. */
+const opToken = z.string().max(GUEST_TOKEN_MAX).optional();
+
+// Replies carry no op, so each files/diff op has its own reply schema here
+// instead of a discriminated union; DaemonOkResponse stays the loose envelope.
+
+export const FsEntryType = z.enum(["file", "dir", "symlink"]);
+export type FsEntryType = z.infer<typeof FsEntryType>;
+/** name is the entry's own name in the listed directory; size is 0 for
+ * anything but a file; mtime is epoch milliseconds. */
+export const FsEntry = z.object({ name: z.string(), type: FsEntryType, size: z.number(), mtime: z.number() });
+export type FsEntry = z.infer<typeof FsEntry>;
+/** total counts the directory's entries after filtering; truncated means
+ * entries holds only the first cap of them. */
+export const FsListReply = z.object({ entries: z.array(FsEntry), truncated: z.boolean(), total: z.number() });
+export type FsListReply = WireFsListReply;
+type FsListReplyHeld = Held<Same<z.infer<typeof FsListReply>, FsListReply>>;
+
+/** The checkout's files under the folder asked about, relative to it; truncated means files holds only the first
+ * FS_FILES_CAP_ENTRIES of them. */
+export const FsFilesReply = z.object({ files: z.array(z.string()), truncated: z.boolean() });
+export type FsFilesReply = WireFsFilesReply;
+type FsFilesReplyHeld = Held<Same<z.infer<typeof FsFilesReply>, FsFilesReply>>;
+
+/** Which of a git host's two open lists an item came off. */
+export const HostItemKind = z.enum(["pull-request", "issue"]);
+export type HostItemKind = z.infer<typeof HostItemKind>;
+/** One open pull request or issue, its body cut at GIT_PR_LIST_BODY_CAP characters. */
+export const HostItem = z.object({ kind: HostItemKind, number: z.number().int(), title: z.string(), body: z.string(), url: z.string() });
+export type HostItem = z.infer<typeof HostItem>;
+/** The repository's open pull requests, then its open issues; empty with the note where nothing can be listed. */
+export const GitPrListReply = z.object({ items: z.array(HostItem), note: z.string().optional(), noCliFor: z.string().optional() });
+export type GitPrListReply = WireGitPrListReply;
+type GitPrListReplyHeld = Held<Same<z.infer<typeof GitPrListReply>, GitPrListReply>>;
+
+/** A checkpoint's ref, the commit it names, and whether its tree differs from the one that ref named before. */
+export const GitCheckpointReply = z.object({ ref: z.string(), commit: z.string(), changed: z.boolean(), based: z.boolean() });
+export type GitCheckpointReply = WireGitCheckpointReply;
+type GitCheckpointReplyHeld = Held<Same<z.infer<typeof GitCheckpointReply>, GitCheckpointReply>>;
+/** The checkpoint of the tree as it stood before a restore, which restores it again, and how many files moved. */
+export const GitRestoreReply = z.object({ before: z.string(), files: z.number().int() });
+export type GitRestoreReply = WireGitRestoreReply;
+type GitRestoreReplyHeld = Held<Same<z.infer<typeof GitRestoreReply>, GitRestoreReply>>;
+/** How many of one thread's checkpoint refs a git.checkpointDrop took away. */
+export const GitCheckpointDropReply = z.object({ dropped: z.number().int().nonnegative() });
+export type GitCheckpointDropReply = WireGitCheckpointDropReply;
+type GitCheckpointDropReplyHeld = Held<Same<z.infer<typeof GitCheckpointDropReply>, GitCheckpointDropReply>>;
+/** One worktree as git lists it: where, the branch it holds (absent when detached), its commit (absent on a bare
+ * repository), and whether its folder is gone while git still holds its record. */
+export const GitWorktree = z.object({ path: z.string(), branch: z.string().optional(), head: z.string().optional(), prunable: z.boolean().optional() });
+/** Every worktree of the repository a checkout belongs to, the repository's own folder first. */
+export const GitWorktreesReply = z.object({ worktrees: z.array(GitWorktree) });
+export type GitWorktreesReply = WireGitWorktreesReply;
+type GitWorktreesReplyHeld = Held<Same<z.infer<typeof GitWorktreesReply>, GitWorktreesReply>>;
+/** One local branch: its commit, when that commit was made in epoch seconds, its upstream and the worktree holding it. */
+export const GitLocalBranch = z.object({
+  name: z.string(),
+  oid: z.string(),
+  committed: z.number().int().nonnegative(),
+  upstream: z.string().optional(),
+  worktree: z.string().optional(),
+});
+/** A checkout's local branches, newest commit first and at most 500, and the one it is on, absent when detached. */
+export const GitBranchesReply = z.object({ current: z.string().optional(), branches: z.array(GitLocalBranch), truncated: z.boolean().optional() });
+export type GitBranchesReply = WireGitBranchesReply;
+type GitBranchesReplyHeld = Held<Same<z.infer<typeof GitBranchesReply>, GitBranchesReply>>;
+
+export const FsReadEncoding = z.enum(["utf8", "base64"]);
+export type FsReadEncoding = z.infer<typeof FsReadEncoding>;
+/** How many bytes an fs.write left in the file. */
+export const FsWriteReply = z.object({ bytes: z.number().int() });
+export type FsWriteReply = WireFsWriteReply;
+type FsWriteReplyHeld = Held<Same<z.infer<typeof FsWriteReply>, FsWriteReply>>;
+/** size is the whole file's byte length; content holds at most the first 2 MiB. */
+export const FsReadReply = z.object({ content: z.string(), size: z.number(), truncated: z.boolean() });
+export type FsReadReply = z.infer<typeof FsReadReply>;
+/** An fs.image's size, with its type and bytes only where they are an image under the cap. */
+export const FsImageReply = z.object({ size: z.number(), modified: z.number().optional(), inode: z.number().optional(), changed: z.number().optional(), mediaType: z.string().optional(), content: z.string().optional(), svg: z.boolean().optional() });
+export type FsImageReply = WireFsImageReply;
+type FsImageReplyHeld = Held<Same<z.infer<typeof FsImageReply>, FsImageReply>>;
+/** Each file an fs.hash found inside its root, by its path there, with the sha256 of its bytes, and the paths it was
+ * handed that land on anything but a folder outside the root, on a file inside past the most it hashes or over the
+ * size cap, or on something inside that is not a regular file; a daemon from before those leaves them out. */
+export const FsHashReply = z.object({
+  files: z.record(z.string(), z.string()),
+  outside: z.array(z.string()).optional(),
+  past: z.array(z.string()).optional(),
+  special: z.array(z.string()).optional(),
+});
+export type FsHashReply = WireFsHashReply;
+type FsHashReplyHeld = Held<Same<z.infer<typeof FsHashReply>, FsHashReply>>;
+
+export const FsSearchMode = z.enum(["files", "text"]);
+export type FsSearchMode = z.infer<typeof FsSearchMode>;
+/** path is relative to the folder searched; a text hit adds its line, from 1, and that line's text. truncated means
+ * the walk stopped at FS_SEARCH_CAP_FILES or FS_SEARCH_CAP_HITS, or at its time or byte budget, before it had looked
+ * everywhere. */
+export const FsSearchReply = z.object({
+  hits: z.array(z.object({ path: z.string(), line: z.number().int().positive().optional(), text: z.string().optional() })),
+  truncated: z.boolean(),
+});
+export type FsSearchReply = WireFsSearchReply;
+type FsSearchReplyHeld = Held<Same<z.infer<typeof FsSearchReply>, FsSearchReply>>;
+
+/** The word git's branch header, and the checkout read off it, carry as the branch of a head on none. */
+export const DETACHED_HEAD = "(detached)";
+
+/** Porcelain v2 branch header: head is "(detached)" off a branch, oid
+ * "(initial)" before the first commit; without an upstream, or with one whose
+ * tracking ref is gone, upstream is absent and ahead/behind count against the
+ * default branch. */
+export const GitBranch = z.object({
+  oid: z.string(),
+  head: z.string(),
+  upstream: z.string().optional(),
+  ahead: z.number(),
+  behind: z.number(),
+});
+export type GitBranch = z.infer<typeof GitBranch>;
+/** xy is the two-letter porcelain code ("??" untracked, "!!" ignored, "." for
+ * an unchanged side); origPath is set for renames and copies. */
+export const GitStatusEntry = z.object({ xy: z.string(), path: z.string(), origPath: z.string().optional() });
+export type GitStatusEntry = z.infer<typeof GitStatusEntry>;
+/** root is the working tree's top-level directory, absolute on the guest.
+ * editsUnread: a stopped workspace's branch was read and its entries were not,
+ * so an empty list says nothing about edits never committed. countsUnknown:
+ * its history was too long or too slow to walk, so ahead and behind say nothing. */
+export const GitStatusReply = z.object({
+  branch: GitBranch,
+  entries: z.array(GitStatusEntry),
+  root: z.string(),
+  editsUnread: z.boolean().optional(),
+  countsUnknown: z.boolean().optional(),
+  /** How many stashes the repository holds; absent where there are none. */
+  stashes: z.number().int().positive().optional(),
+  /** The branch the copy's remote starts every copy on, as the daemon's push guard reads it; absent where nothing
+   * names one, on a stopped workspace, and from a daemon older than the read. */
+  defaultBranch: z.string().optional(),
+});
+export type GitStatusReply = z.infer<typeof GitStatusReply>;
+
+/** branch: working tree against the merge-base with the default branch;
+ * unstaged: working tree against the index; staged: index against HEAD;
+ * head: working tree against HEAD with every untracked file as a new one, what a commit could take. */
+export const GitDiffScope = z.enum(["branch", "unstaged", "staged", "head"]);
+export type GitDiffScope = z.infer<typeof GitDiffScope>;
+/** kind is added, modified, deleted, renamed or copied; additions and deletions count lines, none for a binary. blob is
+ * the id git gives the file's worktree contents now, absent for a file that is gone: a viewed mark is kept against it,
+ * so a file that changes again reads unviewed with nothing compared anywhere. */
+export const GitDiffFile = z.object({ path: z.string(), kind: z.string(), additions: z.number(), deletions: z.number(), patch: z.string(), blob: z.string().optional() });
+export type GitDiffFile = WireGitDiffFile;
+type GitDiffFileHeld = Held<Same<z.infer<typeof GitDiffFile>, GitDiffFile>>;
+/** The file a git.discard put back as HEAD has it. */
+export const GitDiscardReply = z.object({ path: z.string() });
+export type GitDiscardReply = WireGitDiscardReply;
+type GitDiscardReplyHeld = Held<Same<z.infer<typeof GitDiscardReply>, GitDiscardReply>>;
+/** The commit a git.commit made: its id, its subject, and what it changed as git's short stat counts it. */
+export const GitCommitReply = z.object({ oid: z.string(), subject: z.string(), filesChanged: z.number().int(), insertions: z.number().int(), deletions: z.number().int() });
+export type GitCommitReply = WireGitCommitReply;
+type GitCommitReplyHeld = Held<Same<z.infer<typeof GitCommitReply>, GitCommitReply>>;
+// The pull request's shapes live beside its words; each is held to the type the daemon's crate writes.
+type PullRequestHeld = Held<Same<PullRequest, WirePullRequest>>;
+type GitPrReadReplyHeld = Held<Same<GitPrReadReply, WireGitPrReadReply>>;
+type GitIssueReadReplyHeld = Held<Same<GitIssueReadReply, WireGitIssueReadReply>>;
+type GitPrCheckoutReplyHeld = Held<Same<GitPrCheckoutReply, WireGitPrCheckoutReply>>;
+type GitPrDiffReplyHeld = Held<Same<GitPrDiffReply, WireGitPrDiffReply>>;
+type GitPrReviewReplyHeld = Held<Same<GitPrReviewReply, WireGitPrReviewReply>>;
+type GitPrViewReplyHeld = Held<Same<GitPrViewReply, WireGitPrViewReply>>;
+type GitPrReplyReplyHeld = Held<Same<GitPrReplyReply, WireGitPrReplyReply>>;
+type GitPrResolveReplyHeld = Held<Same<GitPrResolveReply, WireGitPrResolveReply>>;
+type GitPrReactReplyHeld = Held<Same<GitPrReactReply, WireGitPrReactReply>>;
+type GitRunLogReplyHeld = Held<Same<GitRunLogReply, WireGitRunLogReply>>;
+type GitPrMergeReplyHeld = Held<Same<GitPrMergeReply, WireGitPrMergeReply>>;
+type GitRepoReadReplyHeld = Held<Same<GitRepoReadReply, WireGitRepoReadReply>>;
+type GitUpdateReplyHeld = Held<Same<GitUpdateReply, WireGitUpdateReply>>;
+/** A workspace's ssh host key as this computer pins it: one `ssh-ed25519 <base64> [comment]` line and nothing
+ * more. The key is the daemon's word, and a root inside the workspace can answer in its place, so a second line or
+ * a marker (`@cert-authority`) would be a key this computer's ssh trusts for every wsp- alias. */
+export const SSH_HOST_KEY_LINE = /^ssh-ed25519 [A-Za-z0-9+/]+={0,2}( [!-~]+)?$/;
+/** Where a machine's own ssh server listens on its loopback, and its host key as one OpenSSH public key line. */
+export const SshStartReply = z.object({ port: z.number().int().min(1).max(65535), hostKey: z.string().min(1).max(SSH_KEY_MAX).regex(SSH_HOST_KEY_LINE) });
+export type SshStartReply = WireSshStartReply;
+type SshStartReplyHeld = Held<Same<z.infer<typeof SshStartReply>, SshStartReply>>;
+// The tree's three replies live beside its words; each is held to the type the daemon's crate writes.
+type GitStartOnReplyHeld = Held<Same<GitStartOnReply, WireGitStartOnReply>>;
+type GitBranchCompareReplyHeld = Held<Same<GitBranchCompareReply, WireGitBranchCompareReply>>;
+type GitMergeInReplyHeld = Held<Same<GitMergeInReply, WireGitMergeInReply>>;
+/** base is the ref the branch scope diffed against (null for other scopes);
+ * truncated means the 2 MiB patch budget cut files or a patch short. */
+export const GitDiffReply = z.object({ base: z.string().nullable(), files: z.array(GitDiffFile), truncated: z.boolean(), moved: z.array(z.string()).default([]) });
+export type GitDiffReply = z.infer<typeof GitDiffReply>;
+/** The commit a git.snapshot recorded, by its full sha. */
+export const GitSnapshotReply = z.object({ commit: z.string() });
+export type GitSnapshotReply = z.infer<typeof GitSnapshotReply>;
+
+/** One live or exited pty the daemon still holds; exited ones stay until pty.kill. */
+export const PtyListEntry = z.object({
+  id: z.string(),
+  pid: z.number(),
+  cols: z.number(),
+  rows: z.number(),
+  exited: z.boolean(),
+  /** Set on a pty that runs a reply's command and still belongs to that reply: no pane adopts it until pty.tab. */
+  reply: z.boolean().optional(),
+  /** Set by the host on a client's channel: the thread whose pane opened the pty, which a folder's threads share. */
+  thread: z.string().optional(),
+});
+export type PtyListEntry = z.infer<typeof PtyListEntry>;
+export const PtyListReply = z.object({ ptys: z.array(PtyListEntry) });
+export type PtyListReply = z.infer<typeof PtyListReply>;
+
+export const ProcSignal = z.enum(["TERM", "KILL"]);
+export type ProcSignal = z.infer<typeof ProcSignal>;
+type ProcSignalHeld = Held<Same<ProcSignal, WireProcSignal>>;
+/** What proc.kill signals: the pid alone, or the pid and every process under it. Never a process group: a thread spans
+ * many, and a group TERM took processes of other threads. */
+export const KillMode = z.enum(["pid", "tree"]);
+export type KillMode = z.infer<typeof KillMode>;
+type KillModeHeld = Held<Same<KillMode, WireKillMode>>;
+
+/** Every kind a process row names, Chrome's task manager's way: by what the person knows it as. The daemon stamps
+ * agent, slate and tool, the three it knows by fact; the page names the rest. */
+export const PROC_KINDS = ["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"] as const;
+export const ProcKind = z.enum(PROC_KINDS);
+export type ProcKind = z.infer<typeof ProcKind>;
+type ProcKindHeld = Held<Same<ProcKind, WireProcKind>>;
+
+/** The rung of the daemon's ladder that named the owner, first match wins: the thread's own process or a parent of
+ * it (`root`), a process a Mac's fork tracker followed from one of those (`fork`), a group seen under the thread
+ * (`group`), the WSP_THREAD mark in its environment (`env`), the thread's
+ * cgroup on a box (`cgroup`), a workspace's folder (`folder`, no thread), wsp's own coalition on a Mac (`coalition`,
+ * no thread). */
+export const ProcOwnedBy = z.enum(["root", "fork", "group", "env", "cgroup", "folder", "coalition"]);
+export type ProcOwnedBy = z.infer<typeof ProcOwnedBy>;
+type ProcOwnedByHeld = Held<Same<ProcOwnedBy, WireProcOwnedBy>>;
+
+/** The owner a row carries; `warm` says the thread is a warm agent's, started ahead of a send, and no thread has
+ * that id until a send claims it. */
+export const ProcOwner = z.object({ by: ProcOwnedBy, thread: z.string().optional(), workspace: z.string().optional(), warm: z.boolean().optional() });
+export type ProcOwner = z.infer<typeof ProcOwner>;
+
+/** One process as /proc/[pid] shows it. cpu is its busy share of one core
+ * over the interval (a threaded process can pass 100); rss in bytes;
+ * startedAt epoch milliseconds; cmdline the first 200 bytes with the NULs as
+ * spaces, empty for a kernel thread; pty names the daemon pty whose shell
+ * this is. The environment never travels: it holds tokens. */
+export const ProcEntry = z.object({
+  pid: z.number().int(),
+  ppid: z.number().int(),
+  user: z.string(),
+  state: z.string(),
+  comm: z.string(),
+  cmdline: z.string(),
+  cpu: z.number(),
+  rss: z.number(),
+  startedAt: z.number(),
+  pty: z.string().optional(),
+  /** The cgroup v2 path the process stands in, Linux only: what tells a thread's processes on a computer from
+   * another's, a server it detached included. */
+  cgroup: z.string().optional(),
+  /** The power its cpu work drew over the interval in milliwatts, from the kernel's per process energy counter: a Mac
+   * alone keeps one, so a row elsewhere, and a process's first reading, carry none. */
+  energyMw: z.number().optional(),
+  /** The process group, which outlives the parent a detached child loses. */
+  pgid: z.number().int().optional(),
+  /** Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's, and on a
+   * daemon from before proc.scopes. One named by a rung a newer daemon adds reads as absent, rather than dropping the
+   * frame it rides in. */
+  owner: ProcOwner.optional().catch(undefined),
+  /** A word a newer daemon adds reads as other here, rather than dropping the frame it rides in. */
+  kind: ProcKind.catch("other").optional(),
+  /** What a kill checks the pid still holds this process by, sent back as proc.kill's identity: the unique id on a Mac,
+   * the start ticks on a box; absent on this computer's ps road on Linux. */
+  id: z.string().optional(),
+});
+export type ProcEntry = z.infer<typeof ProcEntry>;
+
+/** How many threads one proc.scopes names, and how many pids each of a thread's lists holds; wsp-frames' proc_owner.rs
+ * holds the same two. */
+export const PROC_SCOPES_MAX = 256;
+export const PROC_SCOPE_PIDS_MAX = 64;
+
+/** One thread as the host names it to the computer its processes run on: its agent processes (the running turn's and
+ * the kept one), the groups its turns led, its folder, its cgroup on a box, and what the host started for it. */
+export const ProcScope = z.object({
+  thread: z.string().min(1).max(64),
+  workspace: z.string().max(64).optional(),
+  agents: z.array(z.number().int().nonnegative()).max(PROC_SCOPE_PIDS_MAX).optional(),
+  groups: z.array(z.number().int().nonnegative()).max(PROC_SCOPE_PIDS_MAX).optional(),
+  folder: z.string().max(4096).optional(),
+  warm: z.boolean().optional(),
+  cgroup: z.string().max(512).optional(),
+  pids: z.array(z.object({ pid: z.number().int().nonnegative(), kind: ProcKind })).max(PROC_SCOPE_PIDS_MAX).optional(),
+});
+export type ProcScope = z.infer<typeof ProcScope>;
+
+/** Which column a list of processes is ordered by: what is spending the cpu, or what is holding the memory. */
+export type ProcSort = "cpu" | "mem";
+
+/** Processes heaviest first on that column, ties broken by pid so one snapshot always lays out the same way. The
+ * app's pane sorts each set of siblings by this and the command line's own list reads it flat; a second copy of the
+ * rule is how the two would come to disagree about which process is the busiest. */
+export const byProcColumn =
+  (sort: ProcSort) =>
+  (a: ProcEntry, b: ProcEntry): number => {
+    const d = sort === "cpu" ? b.cpu - a.cpu : b.rss - a.rss;
+    return d !== 0 ? d : a.pid - b.pid;
+  };
+
+/** cwd is null when unreadable; ports are the TCP ports this pid listens on;
+ * children are the pids whose parent it is, as of the last snapshot. */
+export const ProcInspectReply = z.object({
+  pid: z.number().int(),
+  cwd: z.string().nullable(),
+  ports: z.array(z.number().int()),
+  /** Absent where the machine's own processes module cannot count them: this computer reads its processes with ps,
+   * which has no thread column on macOS. */
+  threads: z.number().int().optional(),
+  children: z.array(z.number().int()),
+});
+export type ProcInspectReply = z.infer<typeof ProcInspectReply>;
+
+/** One thread cgroup's memory on a box: its memory.stat anon and kernel bytes, which count what the thread's processes
+ * hold once however many of them share it, and leave out the page cache they read. */
+export const CgroupMemory = z.object({ cgroup: z.string(), memory: z.number().int().nonnegative() });
+export type CgroupMemory = z.infer<typeof CgroupMemory>;
+type CgroupMemoryHeld = Held<Same<CgroupMemory, WireCgroupMemory>>;
+
+/** proc.list's answer: the rows read at `at`, every process up to the cap, how many the machine had, and on a box each
+ * thread cgroup's memory. */
+export const ProcListReply = z.object({
+  at: z.number(),
+  daemon: z.number().int(),
+  total: z.number().int(),
+  procs: z.array(ProcEntry),
+  cgroups: z.array(CgroupMemory).optional(),
+});
+export type ProcListReply = z.infer<typeof ProcListReply>;
+type ProcListReplyHeld = Held<Same<ProcListReply, WireProcListReply>>;
+/** What a proc.kill did: every pid it signalled, those KILL was sent to once TERM's grace was up, and those still
+ * there after it. Absent fields are a daemon that signals one pid and answers nothing more. */
+export const ProcKillReply = z.object({
+  signalled: z.array(z.number().int()).optional(),
+  forced: z.array(z.number().int()).optional(),
+  left: z.array(z.number().int()).optional(),
+});
+export type ProcKillReply = z.infer<typeof ProcKillReply>;
+/** Every field a daemon of this version answers; the schema keeps each optional for the one before. */
+type ProcKillReplyHeld = Held<Same<Required<ProcKillReply>, WireProcKillReply>>;
+
+/** How much of a command's output one exec op carries back, stdout and stderr together. Past it the reply says
+ * truncated and the rest is dropped: the road is a WebSocket frame and a turn that cats a log would otherwise put
+ * the machine's whole disk through it. */
+export const EXEC_OUTPUT_MAX = 2 * 1024 * 1024;
+
+/** How long an exec frame that named no deadline of its own gets. Every caller on the host's side names one; this
+ * is what bounds a frame that did not, so nothing runs without end on a computer somebody owns. */
+export const EXEC_TIMEOUT_DEFAULT_MS = 20_000;
+
+/** The longest an exec frame may ask for, which is the cap the daemon holds its own timer to. A caller with a
+ * command that can run longer launches it detached and polls it instead. */
+export const EXEC_TIMEOUT_MAX_MS = 600_000;
+
+/** The exit code a command killed at its deadline answers with, on every road wsp runs one: the shell's own word
+ * for it, so a caller reads one number whether the command was launched detached on a guest or run by an exec op
+ * on a place. One home, since the two roads' guards are compared against each other in tests. */
+export const EXEC_DEADLINE_EXIT = 124;
+
+/** One command on this machine, for a host driving it over a link it did not open: `bash -c`, in the daemon's own
+ * root and environment, with the bytes for its stdin where the caller has any. The byte road a daemon token, a
+ * roots file and a project part take on a machine whose backend mints no signed URL. */
+export const DaemonExecRequest = z.object({
+  id: reqId,
+  op: z.literal("exec"),
+  cmd: z.string().max(EXEC_BODY_MAX),
+  timeoutMs: z.number().int().positive().max(EXEC_TIMEOUT_MAX_MS).optional(),
+  /** Bytes for the command's stdin, base64; absent closes stdin at once. */
+  stdin: z.string().optional(),
+});
+export type DaemonExecRequest = z.infer<typeof DaemonExecRequest>;
+
+export const DaemonExecReply = z.object({ exitCode: z.number().int(), stdout: z.string(), stderr: z.string(), truncated: z.boolean() });
+export type DaemonExecReply = z.infer<typeof DaemonExecReply>;
+
+/** What a guest session carries: the tool server's JSON-RPC messages, or one command line and its streams. */
+export const GuestKind = z.enum(["mcp", "cli"]);
+export type GuestKind = z.infer<typeof GuestKind>;
+
+/** One agent's store as the host names it to usage.logs: the catalog's id, the format, and where it is under the home
+ * the daemon serves, as `~/`; a root anywhere else reads as nothing. */
+export const UsageStore = z.object({ agent: z.string().min(1).max(64), format: z.enum(["claude-jsonl", "codex-rollout", "opencode-sqlite"]), root: z.string().min(1).max(4096) });
+export type UsageStore = WireUsageStore;
+type UsageStoreHeld = Held<Same<z.infer<typeof UsageStore>, UsageStore>>;
+
+/** Where a sign-in the agent keeps on that computer holds an http MCP server's bearer: a JSON file under the home the
+ * daemon serves, as `~/`, the keys down to the server's entry, and the field holding the token. */
+export const HttpBearer = z.object({ file: z.string().min(3).max(4096), at: z.array(z.string().min(1).max(1024)).max(8), field: z.string().min(1).max(255) });
+export type HttpBearer = WireHttpBearer;
+type HttpBearerHeld = Held<Same<z.infer<typeof HttpBearer>, HttpBearer>>;
+/** What an http MCP server answered an http.post made from that computer. */
+export const HttpPostReply = z.object({ status: z.number().int(), contentType: z.string().optional(), sessionId: z.string().optional(), body: z.string() });
+export type HttpPostReply = WireHttpPostReply;
+type HttpPostReplyHeld = Held<Same<z.infer<typeof HttpPostReply>, HttpPostReply>>;
+
+export const DaemonRequest = z.discriminatedUnion("op", [
+  /** machineId, on these seven and on no other op of this road: the workspace the pty belongs to, on a daemon
+   * that runs workspaces. A workspace on a computer somebody owns runs no daemon of its own, so the daemon of
+   * the computer holding it opens the shell inside that workspace's namespaces, in the folder the frame names,
+   * which is absolute and is asked for, since that daemon has no working directory inside a workspace. Without
+   * one the pty is the daemon's own computer's, which is every machine wsp forked; every later op on that pty
+   * names the same workspace, and one that names another, or none, is answered no such pty. */
+  z.object({
+    id: reqId,
+    op: z.literal("pty.create"),
+    cols: z.number().optional(),
+    rows: z.number().optional(),
+    shell: z.string().optional(),
+    cwd: z.string().optional(),
+    env: z.record(z.string()).optional(),
+    /** A command line the pty runs through the person's own shell and exits with: a reply's block run where it
+     * stands. Such a pty is that reply's, which pty.list marks, until pty.tab hands it to the panes. */
+    run: z.string().optional(),
+    machineId: z.string().optional(),
+  }),
+  z.object({ id: reqId, op: z.literal("pty.attach"), ptyId: z.string(), machineId: z.string().optional() }),
+  /** This socket's listeners off that pty, the mirror of pty.attach: a pane that closed stops the bytes of its
+   * own pty on a socket that many panes share. */
+  z.object({ id: reqId, op: z.literal("pty.detach"), ptyId: z.string(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("pty.write"), ptyId: z.string(), data: z.string(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("pty.resize"), ptyId: z.string(), cols: z.number(), rows: z.number(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("pty.kill"), ptyId: z.string(), machineId: z.string().optional() }),
+  /** With a workspace named, that workspace's ptys alone; without one, this daemon's own alone. */
+  z.object({ id: reqId, op: z.literal("pty.list"), machineId: z.string().optional() }),
+  /** With roots, the listeners of the processes they hold: each root's process group and every process under it,
+   * and with a folder, every process running in it. A watch that names no roots sees every listener on the machine,
+   * which is what the host's own watchers ask for. A second watch on the socket names its roots again; a watch
+   * given a name is one of its own beside the socket's, and every port event it sends carries that name. With
+   * cgroups, a process standing in one of them is the watch's too: a thread's on a computer the person joined. */
+  z.object({ id: reqId, op: z.literal("ports.watch"), roots: z.array(z.number().int().nonnegative()).optional(), folder: z.string().optional(), cgroups: z.array(cgroupPath).max(16).optional(), watch: watchName.optional() }),
+  z.object({ id: reqId, op: z.literal("manifest.get") }),
+  z.object({
+    id: reqId,
+    op: z.literal("manifest.record"),
+    cmd: z.string(),
+    cwd: z.string(),
+    port: z.number().optional(),
+  }),
+  z.object({ id: reqId, op: z.literal("manifest.restartScript") }),
+  z.object({ id: reqId, op: z.literal("inbox.watch") }),
+  z.object({ id: reqId, op: z.literal("inbox.rescan") }),
+  /** Streams sys.sample events to this socket every two seconds until
+   * sys.unwatch or the socket closes. One sampler serves every subscriber and
+   * stops with the last one; a second watch on one socket is no second
+   * subscription. The first sample lands one interval after the reply, since
+   * cpu is a delta. */
+  z.object({ id: reqId, op: z.literal("sys.watch") }),
+  z.object({ id: reqId, op: z.literal("sys.unwatch") }),
+  // The computer's readings the daemon kept a minute apart, between two instants, folded into steps of stepMs. A
+  // step under a minute answers the last fifteen minutes of reads as they were taken.
+  z.object({ id: reqId, op: z.literal("sys.history"), from: z.number().int(), to: z.number().int(), stepMs: z.number().int().nonnegative() }),
+  // What each agent's own store on the daemon's computer counted, for the stores the host names: counts, a model and
+  // a folder per session and half hour, and the newest plan reading a store kept, never a line of a transcript.
+  z.object({ id: reqId, op: z.literal("usage.logs"), stores: z.array(UsageStore).max(USAGE_STORES_MAX) }),
+  /** Claude Code's transcripts under a store root, one row each: under each folder of dirs, every session whose first
+   * recorded cwd is one of cwds, read off the first and last 64 KB of its file, never the conversation. */
+  z.object({ id: reqId, op: z.literal("transcripts.list"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(TRANSCRIPT_DIRS_MAX), cwds: z.array(z.string().max(4096)).max(TRANSCRIPT_DIRS_MAX) }),
+  /** One Claude Code session's conversation along the branch the CLI resumes: its newest `last` messages, each tool
+   * call one row, and how many messages came before them; with `tail`, off the file's last `tail` bytes alone, which a
+   * daemon before it ignores and reads the whole file. */
+  z.object({ id: reqId, op: z.literal("transcripts.read"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(TRANSCRIPT_DIRS_MAX), session: z.string().min(1).max(64), last: z.number().int().positive(), tail: z.number().int().positive().optional() }),
+  /** Streams the processes to this socket until proc.unwatch or the socket
+   * closes: one whole proc.snapshot first, two seconds after the reply since
+   * cpu is a delta (at once where the sampler is already running), then a
+   * proc.changes every two seconds naming the frame it follows. A socket
+   * already watching that watches again is sent a whole snapshot next. The
+   * daemon reads /proc only while some socket watches. With cgroups, each
+   * tick reads only the processes in them and every cgroup under each, and
+   * the daemon's own row: a box's threads, so a busy box is not read whole;
+   * a second watch names the set again. */
+  z.object({ id: reqId, op: z.literal("proc.watch"), cgroups: z.array(cgroupPath).max(16).optional() }),
+  z.object({ id: reqId, op: z.literal("proc.unwatch") }),
+  /** The threads whose processes these are, the whole list each time; every row proc.watch sends after it carries
+   * the owner and kind they name. */
+  z.object({ id: reqId, op: z.literal("proc.scopes"), scopes: z.array(ProcScope).max(PROC_SCOPES_MAX) }),
+  /** One process in depth, replied as a ProcInspectReply; this is the only op
+   * that scans /proc/net, and only for that pid's sockets. */
+  z.object({ id: reqId, op: z.literal("proc.inspect"), pid: z.number().int().positive() }),
+  /** Every process once, replied as a ProcListReply, for a reader that wants no stream: the rows a running sampler
+   * last read, else one scan of its own whose cpu reads 0. */
+  z.object({ id: reqId, op: z.literal("proc.list") }),
+  /** TERM sends TERM and, to whatever of the targets is still there after
+   * KILL_GRACE_MS, KILL; KILL sends KILL at once. mode picks the targets, the
+   * pid alone when absent. An identity that is not the pid's own (the
+   * row's id; the frame's own id is the request's) answers not-found; with
+   * no identity, so does a startedAt off the pid's own: exactly on a Mac or
+   * a box, by more than 2 s where the local Linux road reads starts off ps.
+   * Each target is signalled by the identity it was read with, so a pid that
+   * has since gone to another process is never signalled. On a box whose
+   * daemon is root, a target outside every /wsp-threads cgroup and not under
+   * the daemon is refused, as is a kernel thread on any Linux.
+   * pid 1, the daemon, its parent, every pid in protect, every pid in apps
+   * with everything under it short of the daemon's parent, every pid in
+   * agents (each turn's root and recorded agent) with each process from a
+   * root down to another of them, or past a recorded agent that runs as no
+   * such name (a launcher, npm's codex.js) down to one run as a name in
+   * agentBins, or with none recorded down to one run as such a name (its
+   * accounting name or argv[0]'s basename); the turns the daemon's own run
+   * folder records as held, each its root and agent; and in a /wsp-threads cgroup
+   * each process run as such a name with what stands above it in that
+   * cgroup (a box turn's run script and shell), are refused with code
+   * forbidden, in any mode that would reach them. The host writes agentBins
+   * on every frame, and protect, apps and agents, which are its own
+   * computer's pids, only on a frame for that computer. Replied as a
+   * ProcKillReply. */
+  z.object({
+    id: reqId,
+    op: z.literal("proc.kill"),
+    pid: z.number().int().positive(),
+    signal: ProcSignal,
+    mode: KillMode.optional(),
+    startedAt: z.number().int().optional(),
+    identity: z.string().max(32).optional(),
+    protect: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    apps: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    agents: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    agentBins: z.array(z.string().max(255)).max(64).optional(),
+  }),
+  /** Stops one container through the engine's own stop, two seconds from its TERM to its KILL, and never removes it.
+   * Named by the full id its row carries, never a name another container could answer to. One no label or compose note
+   * places under a thread, the person's own or a fork's, is refused with code forbidden. */
+  z.object({ id: reqId, op: z.literal("container.stop"), container: z.string().regex(/^[0-9a-f]{64}$/) }),
+  z.object({ id: reqId, op: z.literal("ping") }),
+  /** Lists one directory's direct children, each request under its own entry
+   * cap. Paths are relative to the daemon's home root (HOME unless started
+   * with --root) or absolute inside it or an imported project folder named in
+   * DAEMON_ROOTS_PATH; anything resolving outside every root, through .. or a
+   * symlink, is refused with code outside-root. gitignore hides .git and the
+   * entries git would ignore.
+   *
+   * machineId, on these ten and on no other op of this road: the workspace the frame is for, on a daemon that
+   * runs workspaces. A workspace on a computer somebody owns runs no daemon of its own, so the daemon of the
+   * computer holding it answers for it: the path then names the folder as that workspace sees it, a file is read
+   * through the workspace's own rootfs and a git operation runs inside the workspace, in its namespaces and its
+   * cgroup. Without one the path is resolved under the daemon's own roots, which is every other machine. A daemon
+   * that runs no workspace answers the missing refusal for any machineId. */
+  z.object({
+    id: reqId,
+    op: z.literal("fs.list"),
+    path: z.string(),
+    gitignore: z.boolean().optional(),
+    machineId: z.string().optional(),
+  }),
+  /** Every file of the checkout under cwd that git would show, tracked or untracked and never ignored, relative
+   * to cwd, answered from `git ls-files` and kept until a folder holding one of them changes. */
+  z.object({ id: reqId, op: z.literal("fs.files"), cwd: z.string(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("fs.read"), path: z.string(), encoding: FsReadEncoding.optional(), machineId: z.string().optional() }),
+  /** A slate's image by its whole path, answered with its bytes only where they are an image under FS_IMAGE_CAP_BYTES. */
+  z.object({ id: reqId, op: z.literal("fs.image"), path: z.string(), machineId: z.string().optional() }),
+  /** The files a slate's command names inside root, hashed: what an Always pins on the thread's own computer. */
+  z.object({ id: reqId, op: z.literal("fs.hash"), root: z.string(), paths: z.array(z.string()), machineId: z.string().optional() }),
+  /** Replaces an existing regular file's contents whole and answers an FsWriteReply: written beside it and renamed
+   * over, its mode and owner kept, never through a link standing where the file should be, and refused over
+   * FS_WRITE_CAP_BYTES. The folder resolves inside a root as fs.read's path does. */
+  z.object({ id: reqId, op: z.literal("fs.write"), path: z.string(), contents: z.string(), machineId: z.string().optional() }),
+  /** A reply's pty handed to the panes, still running: pty.list stops marking it, so every pane adopts it as a tab. */
+  z.object({ id: reqId, op: z.literal("pty.tab"), ptyId: z.string(), machineId: z.string().optional() }),
+  /** Searches under one folder, resolved as fs.list resolves its path: files answers every file whose path below the
+   * folder holds the query's letters in order, text every line of a text file there that holds the query, both
+   * case-insensitive. The walk reads the folder's .gitignore and .ignore files, leaves hidden names out, never
+   * follows a symlink, and skips a file over FS_READ_CAP_BYTES or holding a NUL byte; it answers what it found when a
+   * cap or its time budget stops it, with truncated set. */
+  z.object({ id: reqId, op: z.literal("fs.search"), path: z.string(), query: z.string(), mode: FsSearchMode, machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("git.status"), cwd: z.string(), machineId: z.string().optional() }),
+  /** paths names files from the checkout's top, each read as a letter-for-letter name; whole gives each patch its
+   * whole file in one hunk, which an editor over the new side needs. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.diff"),
+    cwd: z.string(),
+    scope: GitDiffScope,
+    path: z.string().optional(),
+    paths: z.array(z.string()).optional(),
+    whole: z.boolean().optional(),
+    machineId: z.string().optional(),
+  }),
+  /** Puts one changed file back as HEAD has it, or removes it where HEAD has none, and answers a GitDiscardReply;
+   * a file with no change is refused by name. */
+  z.object({ id: reqId, op: z.literal("git.discard"), cwd: z.string(), path: z.string(), machineId: z.string().optional() }),
+  /** Commits the named files and no others, untracked ones added first, with the message on git's stdin, hooks
+   * and all, and answers a GitCommitReply. A held index is waited on once; git knowing no author, and a hook that
+   * says no, are refused in one sentence each. */
+  z.object({ id: reqId, op: z.literal("git.commit"), cwd: z.string(), message: z.string(), paths: z.array(z.string()), machineId: z.string().optional() }),
+  /** Records the checkout as it stands, new files in and ignored ones out, as one commit on top of HEAD through an
+   * index of its own, so the checkout's own index is never written; answers a GitSnapshotReply. No ref names it. */
+  z.object({ id: reqId, op: z.literal("git.snapshot"), cwd: z.string(), machineId: z.string().optional() }),
+  /** The diff between two commits, each its full sha (40 or 64 hex digits) or the frame is refused before git runs; answers
+   * a GitDiffReply. */
+  z.object({ id: reqId, op: z.literal("git.range"), cwd: z.string(), from: z.string(), to: z.string(), path: z.string().optional(), machineId: z.string().optional() }),
+  /** What a turn changed between two of its snapshots, the agent's own work alone, each snapshot its full sha; answers
+   * a GitDiffReply with the moves it did not write on `moved`. git.range stays the pure diff of the two trees. */
+  z.object({ id: reqId, op: z.literal("git.turn"), cwd: z.string(), from: z.string(), to: z.string(), path: z.string().optional(), machineId: z.string().optional() }),
+  /** Pushes the branch the checkout is on to its remote and answers a GitPushReply. The base branch itself is
+   * refused: wsp makes no branch and pushes none of the branch the work started from. Without a base the
+   * checkout's own default branch is read, which is what a project recorded without one was cloned at. */
+  z.object({ id: reqId, op: z.literal("git.push"), cwd: z.string(), base: z.string().optional(), token: opToken, machineId: z.string().optional() }),
+  /** Opens the branch's pull request against the base through the git host's own signed-in command line, or
+   * answers with the one already open. Refused with code no-host-cli where that command line is not there. */
+  z.object({ id: reqId, op: z.literal("git.pr"), cwd: z.string(), base: z.string().optional(), title: z.string().optional(), body: z.string().optional(), token: opToken, machineId: z.string().optional() }),
+  /** A pull request by branch or by number through that same command line, the repository named off the remote the
+   * frame carries and never off the folder, where nothing is read and no git runs; answered as a GitPrReadReply, with
+   * no pull request where the host knows none. The host takes the remote off the project's own record. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.prRead"),
+    cwd: z.string(),
+    remote: z.string(),
+    branch: z.string().optional(),
+    number: z.number().int().nonnegative().optional(),
+    seen: z.string().optional(),
+    machineId: z.string().optional(),
+  }),
+  /** One pull request's page through that same command line, answered as a GitPrViewReply. */
+  z.object({ id: reqId, op: z.literal("git.prView"), cwd: z.string(), remote: z.string(), number: z.number().int().nonnegative(), machineId: z.string().optional() }),
+  /** The failed steps of one job of one run, its last CHECK_LOG_LINES lines, answered as a GitRunLogReply. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.runLog"),
+    cwd: z.string(),
+    remote: z.string(),
+    runId: z.number().int().nonnegative(),
+    jobId: z.number().int().nonnegative(),
+    machineId: z.string().optional(),
+  }),
+  /** Merges a pull request by the method named, or arms it to merge once its checks pass, only while its head is the
+   * commit named, and answers a GitPrMergeReply; a refusal is the command line's own last line. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.prMerge"),
+    cwd: z.string(),
+    remote: z.string(),
+    number: z.number().int().nonnegative(),
+    method: MergeMethod,
+    auto: z.boolean(),
+    headOid: z.string(),
+    machineId: z.string().optional(),
+  }),
+  /** An issue, or a pull request read as the issue it also is, by number in the repository the remote names, answered
+   * as a GitIssueReadReply with each body cut as a list cuts it. */
+  z.object({ id: reqId, op: z.literal("git.issueRead"), cwd: z.string(), remote: z.string(), number: z.number().int().nonnegative(), machineId: z.string().optional() }),
+  /** Puts the copy on a pull request's head branch through the git host's own command line, run inside the copy, the
+   * host read off the copy's own remote; answered as a GitPrCheckoutReply naming the branch, which tracks where the
+   * head lives. */
+  z.object({ id: reqId, op: z.literal("git.prCheckout"), cwd: z.string(), number: z.number().int().nonnegative(), token: opToken, machineId: z.string().optional() }),
+  /** A pull request's diff against its base, cut on a file's boundary at maxBytes, never past GIT_DIFF_CAP_BYTES and
+   * REVIEW_DIFF_MAX_BYTES where absent, answered as a GitPrDiffReply naming every file the cut left out. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.prDiff"),
+    cwd: z.string(),
+    remote: z.string(),
+    number: z.number().int().nonnegative(),
+    maxBytes: z.number().int().positive().optional(),
+    machineId: z.string().optional(),
+  }),
+  /** Posts one review in one call pinned to the head named: the verdict, the body and every comment on a line, a comment
+   * whose line falls outside the diff put into the body; answered as a GitPrReviewReply. A refusal is the command
+   * line's own last line. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.prReview"),
+    cwd: z.string(),
+    remote: z.string(),
+    number: z.number().int().nonnegative(),
+    headOid: z.string(),
+    event: z.enum(["comment", "approve", "request_changes"]),
+    body: z.string(),
+    comments: z.array(z.object({ id: z.string(), path: z.string(), line: z.number().int().nonnegative(), side: z.enum(["LEFT", "RIGHT"]), body: z.string() })),
+    machineId: z.string().optional(),
+  }),
+  /** Posts a reply as the signed-in person: under the comment on a line replyTo names, or, with none, as a new comment
+   * in the conversation, the body sent as typed on stdin; answered as a GitPrReplyReply, a line reply carrying the
+   * threadId the frame names. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.prReply"),
+    cwd: z.string(),
+    remote: z.string(),
+    number: z.number().int().nonnegative(),
+    replyTo: z.number().int().nonnegative().optional(),
+    threadId: z.string().optional(),
+    body: z.string().max(PR_REPLY_BODY_MAX),
+    machineId: z.string().optional(),
+  }),
+  /** Resolves or unresolves a review thread, named by its node id, as the signed-in person; answered as a
+   * GitPrResolveReply. A thread id that is not a node id's shape, or names a thread of any pull request but the
+   * repository's number given, is refused before the mutation runs. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.prResolve"),
+    cwd: z.string(),
+    remote: z.string(),
+    number: z.number().int().nonnegative(),
+    threadId: z.string(),
+    resolved: z.boolean(),
+    machineId: z.string().optional(),
+  }),
+  /** Adds or takes off one reaction on the item a node id names, as the signed-in person; answered as a GitPrReactReply
+   * with every reaction on it now. A subject that is not a node id's shape, or is not a comment or a review on the
+   * repository's pull request numbered, is refused before the mutation runs. */
+  z.object({
+    id: reqId,
+    op: z.literal("git.prReact"),
+    cwd: z.string(),
+    remote: z.string(),
+    number: z.number().int().nonnegative(),
+    subject: z.string(),
+    content: ReactionContent,
+    on: z.boolean(),
+    machineId: z.string().optional(),
+  }),
+  /** How the repository lets a pull request land, answered as a GitRepoReadReply. */
+  z.object({ id: reqId, op: z.literal("git.repoRead"), cwd: z.string(), remote: z.string(), machineId: z.string().optional() }),
+  /** Merges the base's latest commits from the remote into the checkout's branch and answers a GitUpdateReply. A
+   * checkout with changes no commit holds is refused with the files named; a merge that conflicts is taken back at
+   * once and answered with the files, the checkout left as it was. */
+  z.object({ id: reqId, op: z.literal("git.update"), cwd: z.string(), base: z.string().optional(), token: opToken, machineId: z.string().optional() }),
+  /** Puts the checkout on a branch as the remote holds it, fetched and reset with every untracked file dropped, and
+   * answers a GitStartOnReply: what a child's copy starts on, the branch its lead pushed. */
+  z.object({ id: reqId, op: z.literal("git.startOn"), cwd: z.string(), branch: z.string(), token: opToken, machineId: z.string().optional() }),
+  /** How far one branch is from a base, a branch or a commit, on the git host, through this computer's own command
+   * line with the repository named off the remote given, answered as a GitBranchCompareReply; a head the host lacks
+   * is not pushed. */
+  z.object({ id: reqId, op: z.literal("git.branchCompare"), cwd: z.string(), remote: z.string(), base: z.string(), head: z.string() }),
+  /** Merges another branch into the checkout's with a merge commit, from the remote or from a copy's folder on this
+   * computer, and answers a GitMergeInReply; refused over changes no commit holds, and a merge that conflicts is
+   * taken back and answered with the files. A folder is refused on any daemon but this computer's own. */
+  z.object({ id: reqId, op: z.literal("git.mergeIn"), cwd: z.string(), branch: z.string(), from: z.string().optional(), token: opToken, machineId: z.string().optional() }),
+  /** The repository's open pull requests and issues through that same command line, answered as a GitPrListReply.
+   * No command line for the host, or one nobody signed in, is an empty list with the note saying so. */
+  z.object({ id: reqId, op: z.literal("git.prList"), cwd: z.string(), machineId: z.string().optional() }),
+  /** Records the checkout's whole tree at a turn's end as a commit outside every branch, under the ref the daemon
+   * names from the scope (else the copy's folder), the thread and the turn, and answers a GitCheckpointReply. A
+   * thread keeps its newest hundred refs, the `-before-` refs counted. HEAD, the index and the branch never move. */
+  z.object({ id: reqId, op: z.literal("git.checkpoint"), cwd: z.string(), thread: z.string(), turn: z.string(), scope: z.string().optional(), machineId: z.string().optional() }),
+  /** Puts the tree back to one of the scope's checkpoints (else this copy's), recording the tree as it stood first,
+   * and answers a GitRestoreReply whose before restores it again. */
+  z.object({ id: reqId, op: z.literal("git.restore"), cwd: z.string(), checkpoint: z.string(), scope: z.string().optional(), machineId: z.string().optional() }),
+  /** Takes away one thread's checkpoint refs under the scope and no other thread's; answers a GitCheckpointDropReply. */
+  z.object({ id: reqId, op: z.literal("git.checkpointDrop"), cwd: z.string(), scope: z.string().optional(), thread: z.string(), machineId: z.string().optional() }),
+  /** Every worktree of the checkout's repository, its own folder first, read off git each time; a GitWorktreesReply. */
+  z.object({ id: reqId, op: z.literal("git.worktrees"), cwd: z.string(), machineId: z.string().optional() }),
+  /** The checkout's local branches, newest commit first, and the one it is on; a GitBranchesReply. */
+  z.object({ id: reqId, op: z.literal("git.branches"), cwd: z.string(), machineId: z.string().optional() }),
+  /** Puts the checkout on a new branch at its HEAD with every change carried along and nothing reset; answers a
+   * GitStartOnReply. */
+  z.object({ id: reqId, op: z.literal("git.switchNew"), cwd: z.string(), branch: z.string(), machineId: z.string().optional() }),
+  /** Fetches one branch of a remote, by name or URL, into a local branch (`into`, else the same name): made where it is
+   * not there, moved only forward where it is, never forced; answers a GitStartOnReply naming the local branch. */
+  z.object({ id: reqId, op: z.literal("git.fetchBranch"), cwd: z.string(), remote: z.string(), branch: z.string(), into: z.string().optional(), machineId: z.string().optional() }),
+  /** Replies with a HostFolderListing: one level of folders on the computer this daemon runs on, for the folder
+   * picker of a computer somebody owns. The roots are the home of the login the daemon runs as and each of
+   * `projects` the home does not hold; `dir` absent lists the home, and so does a folder inside the roots that is
+   * gone. A path outside the roots, a relative one, or one through a symlink that leaves them is refused with code
+   * outside-root. Folders only, one level, `repo` where the folder holds .git; the dot-named ones are counted and
+   * listed only when `hidden`. `repos` answers every repo under the roots instead, as this computer's repos listing
+   * does: REPO_DEPTH folders deep and REPO_CAP of them at most, walking into no repo, no link, no dot-named folder and
+   * nothing in CACHE_DIRS, each with its branch and when git last wrote there, most recent first. No file is read
+   * but a repo's HEAD. */
+  z.object({ id: reqId, op: z.literal("fs.folders"), dir: z.string().optional(), hidden: z.boolean().optional(), repos: z.boolean().optional(), projects: z.array(z.string()).optional() }),
+  /** One laptop-side connection to a guest loopback port, for the sign-in
+   * callback forward. The daemon dials 127.0.0.1 then ::1 (a Node 22 tool
+   * binds [::1] only). data is base64; the reply to tunnel.open comes after
+   * the guest accepted. */
+  /** machineId dials the port inside that workspace's own network namespace, on a daemon that runs workspaces. */
+  z.object({ id: reqId, op: z.literal("tunnel.open"), tunnelId: z.string(), port: z.number().int().min(1).max(65535), machineId: z.string().optional() }),
+  /** Starts the machine's own ssh server, or the named workspace's, on its loopback where none runs, with the one
+   * ed25519 public key given as all it lets in, and answers an SshStartReply. Refused in one sentence where the image
+   * has no /usr/sbin/sshd. The server and everything its sessions started are ended once its last session has been
+   * closed for SSH_IDLE_MS. */
+  z.object({ id: reqId, op: z.literal("ssh.start"), authorizedKey: z.string().min(1).max(SSH_KEY_MAX), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("tunnel.write"), tunnelId: z.string(), data: z.string() }),
+  z.object({ id: reqId, op: z.literal("tunnel.close"), tunnelId: z.string() }),
+  /** A command held open on pipes for the socket that opened it, an MCP server a slate calls: bash -c in the daemon's
+   * root, a process group of its own, killed at stdio.close or the socket's close. data is base64. */
+  /** env stands in the environment the command is spawned with, over the daemon's own: the thread's mark, which the
+   * owner ladder reads off the process from its first instant. A daemon from before it leaves it out. */
+  z.object({ id: reqId, op: z.literal("stdio.open"), stdioId: z.string(), cmd: z.string().min(1).max(EXEC_BODY_MAX), env: z.record(z.string()).optional() }),
+  z.object({ id: reqId, op: z.literal("stdio.write"), stdioId: z.string(), data: z.string() }),
+  z.object({ id: reqId, op: z.literal("stdio.close"), stdioId: z.string() }),
+  /** One POST to an http MCP server made from that computer, with the bearer of a sign-in the agent keeps there read
+   * there and put on the request alone. */
+  z.object({
+    id: reqId,
+    op: z.literal("http.post"),
+    url: z.string().refine(isHttpUrl, "http or https URL"),
+    headers: z.record(z.string(), z.string().max(8192)).refine(h => Object.keys(h).length <= 64, "at most 64 headers"),
+    body: z.string().max(EXEC_OUTPUT_MAX),
+    bearer: HttpBearer.optional(),
+    timeoutMs: z.number().int().positive().max(EXEC_TIMEOUT_MAX_MS).optional(),
+  }),
+  DaemonExecRequest,
+  /** Sweeps wsp off this computer and answers what it took, then the agent exits: the one op whose handler belongs
+   * to the link a place opened and not to the daemon's own switch. */
+  z.object({ id: reqId, op: z.literal("place.leave") }),
+  /** A process inside this machine opens a guest session: the tool server, or one command line. The daemon relays
+   * it up the socket the host holds and reads nothing of what rides here; the token is the thread's, and the host
+   * is what reads it. Sent on the inbound road alone, since no guest runs on a computer somebody owns. */
+  z.object({
+    id: reqId,
+    op: z.literal("guest.open"),
+    kind: GuestKind,
+    /** The thread's token off WSP_HOST_TOKEN, "" when the launch carried none; the host reads it, the daemon never does. */
+    token: z.string().max(GUEST_TOKEN_MAX),
+    turnToken: z.string().max(GUEST_TOKEN_MAX).optional(),
+    argv: z.array(z.string()).max(GUEST_ARGV_MAX),
+    cwd: z.string().max(GUEST_CWD_MAX),
+  }),
+  /** One message from the guest process on the session its socket opened. */
+  z.object({ id: reqId, op: z.literal("guest.send"), message: z.unknown() }),
+  /** The host asks to be handed every guest session this daemon opens; the last socket to ask is where they go. */
+  z.object({ id: reqId, op: z.literal("guest.watch") }),
+  /** The host's answer on a session, and the host ending one; both are refused on a socket that never watched. */
+  z.object({ id: reqId, op: z.literal("guest.reply"), session: z.string(), message: z.unknown() }),
+  z.object({ id: reqId, op: z.literal("guest.close"), session: z.string(), error: z.string().optional() }),
+  /** The daemon this host deploys, landed on the computer the link runs on and started in place of the one running
+   * there. The parts arrive as machine.putBytes's do, in seq order under one upload id on one socket; the part
+   * marked last is checked against sha256, moved over the binary the unit starts and answered, and then the agent
+   * ends so whatever supervises it starts the new one. Nothing on that computer is swept: the workspaces' records
+   * stay on its disk and the daemon that comes up reads them again.
+   *
+   * The other link op, and for the same reason: a binary is bytes and never a command line, since a command sits in
+   * a world readable /proc/<pid>/cmdline while it runs. */
+  z.object({
+    id: reqId,
+    op: z.literal("place.update"),
+    uploadId: z
+      .string()
+      .min(1)
+      .max(32)
+      .regex(/^[a-z0-9]+$/),
+    seq: z.number().int().min(0),
+    last: z.boolean(),
+    data: z.string(),
+    /** Lowercase hex sha256 of the whole binary, carried on every part and read on the last: a binary that landed
+     * short would otherwise be moved over the one the unit starts, and Restart=always would loop on it. */
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
+]);
+export type DaemonRequest = z.infer<typeof DaemonRequest>;
+
+/** The reply to guest.open: the id both sides name the session by. Every other guest op answers the empty ok. */
+export const GuestOpenReply = z.object({ session: z.string() });
+export type GuestOpenReply = z.infer<typeof GuestOpenReply>;
+
+/** What a cli session's messages carry: text for one of the two streams, then the code the line ended with. A tool
+ * server session carries the harness's own JSON-RPC, which has no shape of ours. */
+export const GuestCliMessage = z.union([
+  z.object({ stream: z.enum(["out", "err"]), text: z.string() }),
+  z.object({ exit: z.number().int() }),
+]);
+export type GuestCliMessage = z.infer<typeof GuestCliMessage>;

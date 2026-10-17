@@ -1,0 +1,473 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// One MCP server's tools and its state, off one connect: a command server is
+// started once on the target as the login, with its own command and
+// variables, and asked initialize then tools/list over its stdin; an address
+// is asked the same over curl from the target, since it may be reachable only
+// from there. That one answer is the server's state wherever it is drawn, so
+// it is kept a few minutes per target and per definition, shared by every
+// agent whose file names the same server, and asked again only on a refresh
+// or once a sign-in there forgets it. The deadline stops the server's process
+// group and every process of the login still carrying the run's marker in its
+// environment, which reaches a child that left the group but not one that
+// cleared its environment. No address is refused for being loopback or
+// private: a server on localhost in the person's own config is a real setup,
+// the ask runs on the computer that holds that config, and the config's
+// headers go only to its own URL, with no redirect followed. A server whose
+// address wants a sign-in is asked of
+// its harness, which keeps the token wsp never reads, two at a time and once
+// per server per sign-in or per ten minutes. A reference in the definition is
+// read from the values the caller hands over, as the agent reads it from its
+// turn's environment. Values reach the child through its environment or a
+// private file, never a command line another login can read, and every secret
+// handed to a server is hidden in what it says back.
+import { createHash } from "node:crypto";
+import { posix } from "node:path";
+import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, valueForms, type McpAgent, type McpCheckWord, type McpServer, type McpTransport, type TurnServer } from "@wsp/catalog";
+import { mcpRemoteOf, mcpRemoteTokenFile, readTurnServers, secretNamed, tilde, type Host } from "@wsp/collect";
+import { SERVER_NOT_SET_UP, SERVER_OFF, type McpSignIn, type ServerToolsAsk } from "@wsp/runtime";
+import { cloudServerOffLine, lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type HttpBearer, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
+import { ownServerFiles } from "./agents-here.js";
+
+export const TOOLS_DEADLINE_MS = 20_000;
+/** How long one server's answer stands before it is asked again. */
+export const TOOLS_KEPT_MS = 3 * 60_000;
+/** Servers asked at once on one host: a list that opens asks every one it checks. */
+const ASKS_AT_ONCE = 4;
+const HARNESS_KEPT_MS = 10 * 60_000;
+const HARNESS_AT_ONCE = 2;
+/** How long a harness is given to say whether it holds a server's sign-in. */
+const HARNESS_MS = 5_000;
+/** How long it is given to say so when its word renews a token near its end, which waits on the server's own token
+ * endpoint. */
+const RENEW_MS = 30_000;
+/** The most of a server's tools answer read back; a list past it is refused, never cut. */
+const ANSWER_CAP = 1024 * 1024;
+/** What of a server's stdout and stderr is kept on the target while it runs; past it the rest is read and dropped.
+ * dd a byte at a time, since head holds a small answer in its buffer where the wait for it cannot see it. */
+const OUT_CAP = 4 * ANSWER_CAP;
+const ERR_CAP = 64 * 1024;
+/** How many tenths of a second, at least, the readers may take to reach a gone server's end of file, beside its
+ * answer's own deadline. */
+const DRAIN_POLLS = 20;
+const PROTOCOL_VERSION = "2025-06-18";
+
+export const INITIALIZE = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } } });
+const INITIALIZED = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
+const TOOLS_LIST = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+
+/** Starts `"$@"` in `$1` (after the shift) in a process group of its own on a fifo, with a marker in its environment,
+ * sends initialize, waits for its answer, then initialized and tools/list, and waits for that answer; stops the group
+ * and every process carrying the marker when it came or the time ran out. Prints `\x1e<outcome> <exit>`, the tools
+ * answer's line, `\x1e`, then the tail of what it said on stderr. Outcome 0 answered, 1 exited first, 2 late. */
+const stdioScript = (seconds: string): string =>
+  [
+    'c=$1; shift; [ -n "$c" ] && cd "$c"',
+    'd=$(mktemp -d "${TMPDIR:-/tmp}/wsp-tools.XXXXXX") || exit 1',
+    // No EXIT trap: a job killed before it has exec'd runs this shell's EXIT trap on its way out, which removed the
+    // folder under a run still reading it, so every way out removes it itself.
+    "trap '' PIPE",
+    // The files stand before their readers do, so a reader that never got going costs the server's words, not the
+    // verdict: a missing file would fail the last line and the whole run would read as one that never started.
+    'mkfifo "$d/in" "$d/o" "$d/e" && : > "$d/out" && : > "$d/err" || { rm -rf "$d"; exit 1; }',
+    "m=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \\n')",
+    '[ -n "$m" ] || { rm -rf "$d"; exit 1; }',
+    `printf 'WSP_TOOLS_RUN=%s' "$m" > "$d/m"`,
+    // Apple's own binaries show no environment to a Mac's ps, so there only the group kill covers them.
+    'sweep() { local l; if [ -d /proc/self ]; then l=$(grep -lzxF -f "$d/m" /proc/[0-9]*/environ 2>/dev/null | cut -d/ -f3); ' +
+      'else l=$(ps eww -U "$(id -u)" -o pid=,command= | M="WSP_TOOLS_RUN=$m" awk \'index($0 " ", " " ENVIRON["M"] " ") { print $1 }\'); fi; [ -n "$l" ] && kill "-$1" $l 2>/dev/null; }',
+    // The host's bound on the run sends TERM to this shell's group alone, and set -m puts every job in its own.
+    'trap \'kill "$t" 2>/dev/null; kill -KILL -- "-$p" "-$ro" "-$re" 2>/dev/null; sweep KILL; rm -rf "$d"; exit 143\' TERM',
+    "set -m",
+    `{ dd bs=1 count=${OUT_CAP} of="$d/out" 2>/dev/null; cat > /dev/null; } < "$d/o" &`,
+    "ro=$!",
+    `{ dd bs=1 count=${ERR_CAP} of="$d/err" 2>/dev/null; cat > /dev/null; } < "$d/e" &`,
+    "re=$!",
+    'WSP_TOOLS_RUN=$m "$@" < "$d/in" > "$d/o" 2> "$d/e" &',
+    "p=$!",
+    'exec 3> "$d/in"',
+    `sleep ${seconds} &`,
+    "t=$!",
+    `seen() { grep -Eq "\\"id\\"[[:space:]]*:[[:space:]]*$1[[:space:]]*[,}]" "$d/out"; }`,
+    'upto() { while ! seen "$1"; do kill -0 "$p" 2>/dev/null || return 1; kill -0 "$t" 2>/dev/null || return 2; sleep 0.1; done; }',
+    `printf '%s\\n' ${shellQuote(INITIALIZE)} >&3`,
+    "upto 1; r=$?",
+    `[ "$r" = 0 ] && { printf '%s\\n%s\\n' ${shellQuote(INITIALIZED)} ${shellQuote(TOOLS_LIST)} >&3; upto 2; r=$?; }`,
+    "exec 3>&-",
+    'kill "$t" 2>/dev/null; kill -TERM -- "-$p" 2>/dev/null; sweep TERM; sleep 0.2; kill -KILL -- "-$p" 2>/dev/null; sweep KILL',
+    'wait "$p" 2>/dev/null; x=$?',
+    // The readers end at the server's end of file and may not have opened their files yet on a loaded computer. A
+    // child that escaped both kills can hold a pipe open, so the drain has a short bound of its own.
+    `n=0; while { kill -0 "$ro" || kill -0 "$re"; } 2>/dev/null && [ "$n" -lt ${DRAIN_POLLS} ]; do sleep 0.1; n=$((n + 1)); done`,
+    'kill -KILL -- "-$ro" "-$re" 2>/dev/null',
+    "printf '\\036%s %s\\n' \"$r\" \"$x\"",
+    `grep -E '"id"[[:space:]]*:[[:space:]]*2[[:space:]]*[,}]' "$d/out" | head -c ${ANSWER_CAP + 1}`,
+    "printf '\\036'",
+    'tail -c 2000 "$d/err"',
+    'rm -rf "$d"',
+  ].join("\n");
+
+/** Writes a curl config off the variables it was handed (the url and each header), so no value is on a command line,
+ * then posts initialize, initialized and tools/list with the session the first answer names, keeping each body under
+ * the cap on the target; a status is the last one its headers name. Prints
+ * `\x1e<status of initialize> <status of tools/list>`, the tools answer, `\x1e`, then curl's own last words. */
+const httpScript = (seconds: number): string =>
+  [
+    "command -v curl >/dev/null 2>&1 || { printf '\\036nocurl\\n'; exit 0; }",
+    'd=$(mktemp -d "${TMPDIR:-/tmp}/wsp-tools.XXXXXX") || exit 1',
+    "trap 'rm -rf \"$d\"' EXIT",
+    `end=$((SECONDS + ${seconds}))`,
+    'cq() { local v=${1//\\\\/\\\\\\\\}; v=${v//\\"/\\\\\\"}; v=${v//$\'\\r\'/\\\\r}; v=${v//$\'\\n\'/\\\\n}; printf \'"%s"\' "$v"; }',
+    "umask 077",
+    '{ printf \'url = %s\\n\' "$(cq "$WSP_MCP_URL")"; i=0; while v="WSP_MCP_H_$i"; [ -n "${!v+x}" ]; do printf \'header = %s\\n\' "$(cq "${!v}")"; i=$((i+1)); done; } > "$d/k"',
+    'sid=',
+    "post() { local t=$((end - SECONDS)); [ \"$t\" -gt 0 ] || t=1; curl -sS -m \"$t\" -K \"$d/k\" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' " +
+      `-H 'MCP-Protocol-Version: ${PROTOCOL_VERSION}' $\{sid:+-H "Mcp-Session-Id: $sid"} -D "$d/$2.h" -o - --data-binary "$1" 2>> "$d/e" | head -c ${ANSWER_CAP + 1} > "$d/$2.b"; ` +
+      `c=$(sed -n 's/^HTTP\\/[^ ]* \\([0-9][0-9]*\\).*/\\1/p' "$d/$2.h" 2>/dev/null | tail -n 1); echo "\${c:-000}"; }`,
+    `a=$(post ${shellQuote(INITIALIZE)} i)`,
+    'if [ "$a" = 200 ]; then',
+    "  sid=$(grep -i '^mcp-session-id:' \"$d/i.h\" | head -n 1 | cut -d: -f2- | tr -d ' \\r')",
+    `  post ${shellQuote(INITIALIZED)} n > /dev/null`,
+    `  b=$(post ${shellQuote(TOOLS_LIST)} l)`,
+    "fi",
+    "printf '\\036%s %s\\n' \"$a\" \"${b:-}\"",
+    `[ -f "$d/l.b" ] && head -c ${ANSWER_CAP + 1} "$d/l.b"`,
+    "printf '\\036'",
+    'tail -c 2000 "$d/e" 2>/dev/null',
+  ].join("\n");
+
+/** curl's last words, with any URL's user, password and query string cut off, since a token can ride in each. */
+const curlSaid = (err: string): string | undefined =>
+  lastLine(err)
+    ?.replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]*@/gi, "$1")
+    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s?#]*)[?#]\S*/gi, "$1");
+
+const WORD = /[A-Za-z0-9_]/;
+
+/** The text with each secret starred where it stands as a whole word, longest first, so a secret `1` leaves `10`. */
+function starred(text: string, secrets: readonly string[]): string {
+  for (const v of secrets) {
+    let out = "";
+    let from = 0;
+    for (let at = text.indexOf(v); at >= 0; at = text.indexOf(v, at + 1)) {
+      if (at < from || WORD.test(text[at - 1] ?? "") || WORD.test(text[at + v.length] ?? "")) continue;
+      out += `${text.slice(from, at)}***`;
+      from = at + v.length;
+    }
+    text = out + text.slice(from);
+  }
+  return text;
+}
+
+/** A server's own words with every control character gone, each line kept, so no escape of theirs reaches a terminal. */
+const clean = (v: string): string => v.split("\n").map(withoutControlChars).join("\n");
+
+const trimmed = (v: unknown): string | undefined => (typeof v === "string" && clean(v).trim() !== "" ? clean(v).trim() : undefined);
+
+/** A tool's parameters off its input schema: each property with the type the schema names (several joined, or none
+ * where it names a union another way) and whether `required` lists it. Nothing where the schema has no properties. */
+function paramsOf(schema: unknown): McpToolParam[] | undefined {
+  if (typeof schema !== "object" || schema === null) return undefined;
+  const { properties, required } = schema as { properties?: unknown; required?: unknown };
+  if (typeof properties !== "object" || properties === null || Array.isArray(properties)) return undefined;
+  const needed = new Set(Array.isArray(required) ? required.filter((r): r is string => typeof r === "string") : []);
+  const params = Object.entries(properties as Record<string, unknown>).map(([name, p]): McpToolParam => {
+    const prop = typeof p === "object" && p !== null ? (p as { type?: unknown; description?: unknown }) : {};
+    const types = typeof prop.type === "string" ? [prop.type] : Array.isArray(prop.type) ? prop.type.filter((t): t is string => typeof t === "string") : [];
+    const description = trimmed(prop.description);
+    return { name: withoutControlChars(name), ...(types.length > 0 ? { type: types.join(" or ") } : {}), required: needed.has(name), ...(description !== undefined ? { description } : {}) };
+  });
+  return params.length > 0 ? params : undefined;
+}
+
+/** The tools off a JSON-RPC answer to tools/list, or why there are none: the server's own error, or a list past the
+ * cap. An SSE body carries the answer on its `data:` lines. A server's error message may carry its own key, so the
+ * page is told its code and the message is only `said`, for the host's log. */
+function toolsOf(body: string): { tools: McpTool[] } | { refused: string; said?: string } {
+  if (body.length > ANSWER_CAP) return { refused: `its tools answer is over ${ANSWER_CAP / 1024 / 1024} MB and was not read` };
+  const candidates = body.split("\n").map(l => (l.startsWith("data:") ? l.slice(5).trim() : l.trim()));
+  for (const line of candidates) {
+    let msg: unknown;
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof msg !== "object" || msg === null || (msg as { id?: unknown }).id !== 2) continue;
+    const { result, error } = msg as { result?: { tools?: unknown }; error?: { code?: unknown; message?: unknown } };
+    if (error !== undefined) {
+      const refused = `it answered tools/list with ${typeof error.code === "number" ? `error ${error.code}` : "an error"}`;
+      return { refused, ...(typeof error.message === "string" ? { said: `${refused}: ${error.message}` } : {}) };
+    }
+    if (!Array.isArray(result?.tools)) break;
+    return {
+      tools: result.tools.flatMap((t: unknown) => {
+        if (typeof t !== "object" || t === null || typeof (t as { name?: unknown }).name !== "string") return [];
+        const { name, description, inputSchema } = t as { name: string; description?: unknown; inputSchema?: unknown };
+        const about = trimmed(description);
+        const params = paramsOf(inputSchema);
+        return [{ name: withoutControlChars(name), ...(about !== undefined ? { description: about } : {}), ...(params !== undefined ? { params } : {}) }];
+      }),
+    };
+  }
+  return { refused: "its answer to tools/list could not be read" };
+}
+
+type Asked = Omit<ServerToolsAnswer, "readAt">;
+
+/** The shell's own codes for a command it could not start say so in words; any other exit says its code. */
+export const exitedRefusal = (command: string, exit: string | undefined): string =>
+  exit === "127" ? `${command} was not found` : exit === "126" ? `${command} could not be run` : `it exited with ${exit ?? "no code"} before it answered`;
+
+const RUN_MARGIN_MS = 10_000;
+
+const SHELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+export const variableNameRefusal = (name: string): string => `its variable ${JSON.stringify(name)} is not a name a shell takes, so it was not started`;
+
+async function askStdio(host: Host, t: Extract<McpTransport, { kind: "stdio" }>, cwd: string, deadlineMs: number, now: () => number, log: (said: string) => void, hide: (said: string) => string, env: Readonly<Record<string, string>> = {}): Promise<Asked> {
+  const bad = Object.keys(t.env).find(k => !SHELL_NAME.test(k));
+  if (bad !== undefined) return { auth: "failed", refused: variableNameRefusal(bad) };
+  const began = now();
+  const bound = deadlineMs + RUN_MARGIN_MS;
+  const out = await host.exec.run("bash", ["-c", stdioScript((Math.max(100, deadlineMs) / 1000).toFixed(1)), "bash", cwd, t.command, ...t.args], { env: { ...env, ...t.env }, timeoutMs: bound });
+  if (out === undefined && now() - began >= bound) return { auth: "failed", refused: serverToolsLateRefusal(deadlineMs) };
+  const [, head = "", err = ""] = (out ?? "").split("\x1e");
+  const [status = "", ...rest] = head.split("\n");
+  const [outcome, exit] = status.trim().split(" ");
+  if (out === undefined || outcome === undefined || outcome === "") return { auth: "failed", refused: "it could not be started there" };
+  // What a server says on stderr may carry its own key, so it goes to the host's log and never onto the page.
+  if (outcome !== "0" && err.trim() !== "") log(`it said on stderr: ${err.trim()}`);
+  if (outcome === "2") return { auth: "failed", refused: serverToolsLateRefusal(deadlineMs) };
+  if (outcome === "1") return { auth: "failed", refused: exitedRefusal(t.command, exit) };
+  return read(rest.join("\n"), log, hide);
+}
+
+/** A command server's tools, off starting it. mcp-remote holding no sign-in there is asked of its address first, with
+ * the headers it would send: a start at an address that wants a sign-in begins a browser one, which leaves its files
+ * in mcp-remote's folder and prints the authorize URL into the log, so that one reads as needing a sign-in and is
+ * never started. One that gets its own token by `--client-credentials` needs no person, one that reads headers from a
+ * `--header-file` keys its sign-in by headers wsp does not read, and a version before 0.3.2 keeps it in a folder named
+ * by that version; each starts as any server does. */
+async function askCommand(host: Host, t: Extract<McpTransport, { kind: "stdio" }>, cwd: string, deadlineMs: number, now: () => number, log: (said: string) => void, hide: (said: string) => string, env: Readonly<Record<string, string>> = {}): Promise<Asked> {
+  const remote = mcpRemoteOf(t.args);
+  const its = { ...env, ...t.env };
+  if (remote !== undefined && remote.v1 && !remote.clientCredentials && !t.args.includes("--header-file") && (await host.fs.stat(mcpRemoteTokenFile(host, remote.hash, its))) === undefined) {
+    // mcp-remote reads a reference in a header's value from its own environment and leaves one it has no value for.
+    const headers = Object.fromEntries(Object.entries(remote.headers).map(([k, v]) => [k, v.replace(/\$\{([^}]+)}/g, (whole, name: string) => (Object.hasOwn(its, name) ? its[name]! : whole))]));
+    const asked = await askHttp(host, { kind: "http", url: remote.url, headers }, deadlineMs, log, hide);
+    if ("unauthorized" in asked) return { auth: "needs-sign-in" };
+    // A start would only wait out the same silence again, past the time its words name.
+    if (asked.refused === serverToolsLateRefusal(deadlineMs)) return asked;
+  }
+  return askStdio(host, t, cwd, deadlineMs, now, log, hide, env);
+}
+
+/** The tools answer as the page takes it, every word of the server's hidden by `hide`, with its own words sent to the log. */
+function read(body: string, log: (said: string) => void, hide: (said: string) => string): Asked {
+  const got = toolsOf(body);
+  const param = (p: McpToolParam): McpToolParam => ({ ...p, name: hide(p.name), ...(p.type !== undefined ? { type: hide(p.type) } : {}), ...(p.description !== undefined ? { description: hide(p.description) } : {}) });
+  if ("tools" in got) return { auth: "connected", tools: got.tools.map(t => ({ ...t, name: hide(t.name), ...(t.description !== undefined ? { description: hide(t.description) } : {}), ...(t.params !== undefined ? { params: t.params.map(param) } : {}) })) };
+  if (got.said !== undefined) log(got.said);
+  return { auth: "failed", refused: got.refused };
+}
+
+type HttpAsked = Asked | { unauthorized: true };
+
+async function askHttp(host: Host, t: Extract<McpTransport, { kind: "http" }>, deadlineMs: number, log: (said: string) => void, hide: (said: string) => string): Promise<HttpAsked> {
+  const env: Record<string, string> = { WSP_MCP_URL: t.url };
+  Object.entries(t.headers).forEach(([name, value], i) => (env[`WSP_MCP_H_${i}`] = `${name}: ${value}`));
+  const out = await host.exec.run("bash", ["-c", httpScript(Math.max(1, Math.ceil(deadlineMs / 1000))), "bash"], { env, timeoutMs: deadlineMs * 3 + RUN_MARGIN_MS });
+  const [, head = "", err = ""] = (out ?? "").split("\x1e");
+  const [status = "", ...rest] = head.split("\n");
+  if (out === undefined || status === "") return { auth: "failed", refused: "its address could not be asked from there" };
+  if (status === "nocurl") return { auth: "unknown", refused: "curl is not there to ask its address with" };
+  const [first = "", listed = ""] = status.trim().split(" ");
+  if (first === "401" || first === "403") return { unauthorized: true };
+  if (first === "000") return { auth: "failed", refused: /timed out/i.test(err) ? serverToolsLateRefusal(deadlineMs) : hide(curlSaid(err) ?? "its address did not answer") };
+  if (first !== "200") return { auth: "failed", refused: `its address answered initialize with ${first}` };
+  if (listed === "401" || listed === "403") return { unauthorized: true };
+  if (listed !== "200") return { auth: "failed", refused: `its address answered tools/list with ${listed === "" ? "nothing" : listed}` };
+  return read(rest.join("\n"), log, hide);
+}
+
+/** The harness's own word on a server whose address wants a sign-in wsp does not hold, asked with the store its
+ * threads there read. */
+async function askHarness(host: Host, agent: McpAgent, name: string, cwd: string, deadlineMs: number): Promise<McpCheckWord | undefined> {
+  const check = agent.mcp.check;
+  if (check === undefined) return undefined;
+  const out = await host.exec.run("bash", ["-c", `${harnessLine(agent.id, check.line(name), { stores: host.stores, folder: cwd })} 2>&1; true`], { timeoutMs: deadlineMs });
+  return out === undefined ? undefined : check.auth(out, name);
+}
+
+/** The sign-in the agent keeps on the computer `host` reads for an http server that names no Authorization header of
+ * its own: where its bearer is under the home there, for that computer's daemon to read; the agent's own word on it
+ * asked again, which renews a token near its end; and the line the person signs it in with there. Nothing for a command
+ * server, an agent whose store was never measured, or a store wsp points outside the home. */
+export function signInOf(host: Host, agentId: string, name: string, t: McpTransport, cwd: string): McpSignIn | undefined {
+  const agent = MCP_AGENTS.find(a => a.id === agentId);
+  const store = agent?.mcp.oauth;
+  const login = agent?.mcp.login;
+  if (agent === undefined || store === undefined || login === undefined || t.kind !== "http" || Object.keys(t.headers).some(k => k.toLowerCase() === "authorization")) return undefined;
+  const home = tilde(host.home, host.stores?.[agentId] ?? store.home);
+  if (!home.startsWith("~/")) return undefined;
+  const bearer = store.bearer({ name, url: t.url, headers: t.headers }, home, text => createHash("sha256").update(text).digest("hex"));
+  const line = "command" in login ? harnessLine(agentId, login.command(name), { stores: host.stores }) : login.inside(name);
+  return { bearer, line, renew: async () => (await askHarness(host, agent, name, cwd, RENEW_MS)) === "signed-in" };
+}
+
+/** The bearer a sign-in store's JSON holds where `b` names it, as a daemon reads it off the file: none where the text
+ * is no JSON or the entry or the token is not there. */
+export function bearerIn(text: string | undefined, b: HttpBearer): string | undefined {
+  let at: unknown;
+  try {
+    at = JSON.parse(text ?? "");
+  } catch {
+    return undefined;
+  }
+  for (const key of [...b.at, b.field]) at = typeof at === "object" && at !== null ? (at as Record<string, unknown>)[key] : undefined;
+  return typeof at === "string" && at !== "" ? at : undefined;
+}
+
+/** One server by that name as a turn there reads it, in the project's folder where one is named, else in the home:
+ * the agent's user scope first, as the report's own rows name it, else the first the agent reads. */
+async function findServer(host: Host, agent: McpAgent, name: string, project: string | undefined): Promise<TurnServer | undefined> {
+  const named = (await readTurnServers(host, agent, project ?? host.home)).filter(s => s.server.name === name);
+  return named.find(s => s.scope === "user") ?? named[0] ?? (project === undefined ? undefined : await untrustedServer(host, agent, name, project));
+}
+
+/** A server in the project's own file of an agent that reads that file only in a folder it trusts, which a turn there
+ * does not get, found by name so the check can say why rather than that it is not set up. */
+async function untrustedServer(host: Host, agent: McpAgent, name: string, project: string): Promise<TurnServer | undefined> {
+  if (agent.mcp.trusts === undefined) return undefined;
+  for (const file of (agent.mcp.projectFiles ?? []).map(f => posix.join(project, f))) {
+    const text = await host.fs.readText(file);
+    const server = text === undefined ? undefined : agent.mcp.format.read(text, project).find(s => s.name === name && s.scope === "user");
+    if (server !== undefined) return { server, scope: "project", file };
+  }
+  return undefined;
+}
+
+export const unsetReferenceRefusal = (name: string): string => `its config reads ${name}, which has no value there`;
+export const noSuchServerRefusal = (name: string, agent: string): string => `no MCP server called ${name} is in ${agent}'s config there; wsp servers lists them`;
+export const noMcpAgentRefusal = (agent: string): string => `${agent} is no agent whose MCP config wsp reads; one of ${MCP_AGENT_IDS}`;
+
+/** One server of an agent's config there, its references read: the folder it is asked from, and either the
+ * reference with no value or its transport with the values handed to it, which are secrets to hide from what it says. */
+async function readServer(host: Host, agentId: string, name: string, o: { project?: string; values?: Readonly<Record<string, string>> }): Promise<{ agent: McpAgent; found: TurnServer; cwd: string } & ({ missing: string } | { transport: McpTransport; secrets: string[] })> {
+  const agent = MCP_AGENTS.find(a => a.id === agentId);
+  if (agent === undefined) throw new Error(noMcpAgentRefusal(agentId));
+  const found = await findServer(host, agent, name, o.project);
+  if (found === undefined) throw Object.assign(new Error(noSuchServerRefusal(name, agent.name)), { code: SERVER_NOT_SET_UP });
+  const cwd = found.scope !== "user" && o.project !== undefined ? o.project : host.home;
+  const resolved = agent.mcp.format.resolve(found.server, n => o.values?.[n]);
+  if ("missing" in resolved) return { agent, found, cwd, missing: resolved.missing };
+  const t = resolved.transport;
+  // Every header is a secret, as a --header argument is in the report's rows; a variable is one by its name.
+  const given = t.kind === "stdio" ? Object.entries(t.env).flatMap(([k, v]) => (secretNamed(k) ? [v] : [])) : Object.values(t.headers);
+  return { agent, found, cwd, transport: t, secrets: [...new Set([...resolved.values, ...given].flatMap(valueForms))].filter(v => v !== "") };
+}
+
+/** One server for a client that keeps it running: a slate's tool and resource runs, which a switched-off server
+ * refuses, and one `off` answers true for: on a cloud machine, one that needs the person's sign-in or key. Listing its
+ * tools does not. */
+export async function resolveServer(host: Host, agentId: string, name: string, o: { project?: string; values?: Readonly<Record<string, string>>; off?: (server: McpServer) => Promise<boolean> }): Promise<{ transport: McpTransport; cwd: string; secrets: string[] }> {
+  const read = await readServer(host, agentId, name, o);
+  if (read.found.server.disabled === true) throw new Error(`${name} is switched off in ${read.agent.name}'s config`);
+  if (o.off !== undefined && (await o.off(read.found.server))) throw Object.assign(new Error(cloudServerOffLine(name)), { code: SERVER_OFF });
+  if ("missing" in read) throw new Error(unsetReferenceRefusal(read.missing));
+  const t = read.transport;
+  return { transport: t, cwd: t.kind === "stdio" ? (t.cwd ?? read.cwd) : read.cwd, secrets: read.secrets };
+}
+
+/** Whether the harness asked from `cwd` finds the name in two scopes, where it picks one itself and may start a
+ * command server of that name. */
+async function twiceAt(host: Host, agent: McpAgent, name: string, cwd: string): Promise<boolean> {
+  return (await readTurnServers(host, agent, cwd)).filter(s => s.server.name === name).length > 1;
+}
+
+/** Whether the agent reads a project's own file in `folder`, off its own config there. */
+async function trusted(host: Host, agent: McpAgent, folder: string): Promise<boolean> {
+  if (agent.mcp.trusts === undefined) return true;
+  const texts = await Promise.all(ownServerFiles(host, agent).map(f => host.fs.readText(f)));
+  return agent.mcp.trusts(texts.find(t => t !== undefined), folder);
+}
+
+/** Runs at most `n` of what it is handed at once, the rest in the order they came. */
+function atMost(n: number): <T>(f: () => Promise<T>) => Promise<T> {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async f => {
+    while (running >= n) await new Promise<void>(r => waiting.push(r));
+    running++;
+    try {
+      return await f();
+    } finally {
+      running--;
+      waiting.shift()?.();
+    }
+  };
+}
+
+export interface ServerTools {
+  /** One server's tools and state there, off the connect kept for it or a new one. */
+  /** `env` is the environment a command server starts with under its config's own: the login shell's, on this computer.
+   * `values` are what the definition's references are read from.
+   * `off` answers true for a server that does not run there, which answers why and is never started or asked. */
+  tools(host: Host, ask: ServerToolsAsk, o?: { project?: string; env?: Readonly<Record<string, string>>; values?: Readonly<Record<string, string>>; off?: (server: McpServer) => Promise<boolean> }): Promise<ServerToolsAnswer>;
+  /** Drops every answer and harness word kept for the target, which a sign-in there has just changed. */
+  forget(key: string): void;
+}
+
+export function serverTools(o: { now: () => number; deadlineMs?: number; log: (line: string) => void }): ServerTools {
+  const connects = new Map<string, { at: number; asked: Promise<HttpAsked> }>();
+  const words = new Map<string, { at: number; auth: Promise<McpCheckWord | undefined> }>();
+  const asking = atMost(ASKS_AT_ONCE);
+  const harnessing = atMost(HARNESS_AT_ONCE);
+  const deadlineMs = o.deadlineMs ?? TOOLS_DEADLINE_MS;
+
+  /** The word of the agent whose harness keeps the server's sign-in: the address's own needs-sign-in unless it says
+   * signed in or failed, or that the config its threads read has no such server. */
+  const harnessWord = async (host: Host, key: string, agent: McpAgent, name: string, cwd: string, now: number, project: string | undefined): Promise<Asked> => {
+    if (agent.mcp.check === undefined || (await twiceAt(host, agent, name, cwd))) return { auth: "unknown", holder: agent.id };
+    const at = `${key}\0${agent.id}\0${name}`;
+    let held = words.get(at);
+    if (held === undefined || now - held.at >= HARNESS_KEPT_MS) {
+      held = { at: now, auth: harnessing(() => askHarness(host, agent, name, cwd, HARNESS_MS)).catch(() => undefined) };
+      words.set(at, held);
+    }
+    const said = await held.auth;
+    if (said === "not-set-up") return { auth: "failed", refused: project !== undefined && !(await trusted(host, agent, cwd)) ? serverUntrustedLine(agent.name, name, project, cwd) : serverNotSetUpLine(agent.name, name) };
+    return { auth: said === "signed-in" || said === "failed" ? said : "needs-sign-in", holder: agent.id };
+  };
+
+  return {
+    async tools(host, ask, at = {}) {
+      const read = await readServer(host, ask.agent, ask.name, at);
+      const { agent, found, cwd } = read;
+      const now = o.now();
+      if (at.off !== undefined && (await at.off(found.server))) return { auth: "unknown", refused: cloudServerOffLine(ask.name), readAt: new Date(now).toISOString() };
+      if ("missing" in read) return { auth: "failed", refused: unsetReferenceRefusal(read.missing), readAt: new Date(now).toISOString() };
+      const t = read.transport;
+      const secrets = [...read.secrets].sort((a, b) => b.length - a.length);
+      const hide = (said: string): string => starred(said, secrets);
+      for (const [k, v] of connects) if (now - v.at >= TOOLS_KEPT_MS) connects.delete(k);
+      for (const [k, v] of words) if (now - v.at >= HARNESS_KEPT_MS) words.delete(k);
+      const runIn = t.kind === "stdio" ? (t.cwd ?? cwd) : "";
+      const key = `${ask.key}\0${createHash("sha256").update(JSON.stringify([t, runIn])).digest("hex")}`;
+      let held = connects.get(key);
+      if (ask.refresh === true || held === undefined) {
+        const log = (said: string): void => o.log(`servers tools: ${agent.id} ${ask.name} on ${ask.key}: ${hide(said)}`);
+        const mine: { at: number; asked: Promise<HttpAsked> } = { at: now, asked: asking(() => (t.kind === "stdio" ? askCommand(host, t, runIn, deadlineMs, o.now, log, hide, at.env) : askHttp(host, t, deadlineMs, log, hide))) };
+        // A connect that threw is not an answer, so the next ask makes its own.
+        mine.asked.catch(() => connects.get(key) === mine && connects.delete(key));
+        connects.set(key, mine);
+        held = mine;
+      }
+      const asked = await held.asked;
+      const answer = "unauthorized" in asked ? await harnessWord(host, ask.key, agent, ask.name, cwd, now, found.scope === "project" ? found.file : undefined) : asked;
+      return { ...answer, readAt: new Date(held.at).toISOString() };
+    },
+    forget(key) {
+      for (const map of [connects, words]) for (const k of [...map.keys()]) if (k.startsWith(`${key}\0`)) map.delete(k);
+    },
+  };
+}

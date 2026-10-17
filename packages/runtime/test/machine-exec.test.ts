@@ -1,0 +1,1991 @@
+import { randomBytes } from "node:crypto";
+import { execFile, execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EXEC_ENV, ExecFailedError, INLINE_EXEC_MS, MachineUnreachableError, MachineUnreached, PlaceAbsentError, type ExecResult, type Machine } from "@wsp/engine";
+import { EXEC_BODY_MAX, EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_MS, absentComputer, execFailedLine, machineUnreachableLine, machineUnreachedLine, TURN_IDLE_MS, shellQuote, workScoreLine } from "@wsp/protocol";
+import { AGENT_PID_FILE_ENV, endRun, type ExecStream } from "@wsp/protocol";
+import { createClaudeAdapter } from "@wsp/adapter-claude";
+import { gateLoop } from "../../protocol/test/stub-script.js";
+import { TREE_WORK_AWK, machineExecStream } from "../src/machine-exec.js";
+import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
+import { scriptGuest, type Step } from "./script-guest.js";
+import { stubBackend, type StubBackend, type StubMachine } from "./stub-backend.js";
+
+/** The bytes the provider counts: its request with the backend's wrapper around the command. */
+const solariBody = (cmd: string): number => Buffer.byteLength(JSON.stringify({ cmd: "bash", args: ["-c", `${EXEC_ENV}\n${cmd}`], timeoutMs: INLINE_EXEC_MS }));
+/** Every exec before the first poll: the launch, with the pieces ahead of it when the script needs them. */
+const launchCalls = (calls: readonly string[]): string[] => calls.slice(0, calls.findIndex(c => c.includes("__WSP_EOF_")));
+/** Forty kilobytes of command, as a turn whose prompt rides the command line would be. */
+const BIG_COMMAND = `claude -p ${shellQuote(Array.from({ length: 520 }, (_, i) => `line ${i} it's ünïcödé ${"y".repeat(50)}`).join("\n"))} </dev/null`;
+
+async function makeMachine(): Promise<{ backend: StubBackend; machine: StubMachine }> {
+  const backend = stubBackend();
+  await backend.create({ kind: "sandbox" });
+  return { backend, machine: backend.machines[0]! };
+}
+
+describe("machineExecStream", () => {
+  it("launches detached, streams log lines across polls, and resolves the exit code", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [
+      { append: '{"type":"system","subtype":"init"}\n{"type":"assist' },
+      { append: 'ant"}\n' },
+      { append: '{"type":"result"}\n', exit: 0 },
+      {}, // drain poll: exit visible, no new bytes
+    ]);
+    const factory = machineExecStream(machine, { pollMs: 5 });
+    const stream = factory("claude -p 'hi' </dev/null", { env: { CLAUDE_CONFIG_DIR: "/root/.claude-cfg" } });
+    const lines: string[] = [];
+    for await (const line of stream.lines) lines.push(line);
+    expect(lines).toEqual(['{"type":"system","subtype":"init"}', '{"type":"assistant"}', '{"type":"result"}']);
+    expect(await stream.exited).toBe(0);
+    // The environment rides the launch, ahead of the setsid that starts the script under it, and never the script.
+    expect(guest.getLaunch()).toContain("export CLAUDE_CONFIG_DIR='/root/.claude-cfg'\nsetsid bash ");
+    expect(guest.getScript()).not.toContain("CLAUDE_CONFIG_DIR");
+    expect(guest.getScript()).toContain("claude -p 'hi' </dev/null");
+  });
+
+  it("a run folder the machine will not make fails the launch, rather than reading as a run already there", async () => {
+    const { backend, machine } = await makeMachine();
+    // What a machine answers when the run folder belongs to another login on it: the mkdir fails and the folder is
+    // not there to claim. Read as a replay, the launch would say it went and leave the reader on a log nobody writes.
+    backend.execImpl = async (_m, cmd) =>
+      cmd.includes("WSP_LAUNCHED")
+        ? { exitCode: 1, stdout: "", stderr: "mkdir: cannot create directory '/tmp/wsp-run/ab12cd34ef56.d': Permission denied\n" }
+        : { exitCode: 0, stdout: "", stderr: "" };
+    const stream = machineExecStream(machine, { pollMs: 5 })("true", { env: {} });
+    const read = async (): Promise<string> => {
+      try {
+        for await (const _ of stream.lines) void _;
+        return "streamed it";
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    };
+    expect(await read()).toContain("remote launch failed");
+  });
+
+  it("a launch the machine answered nothing to names the handshake that never came, and never a bare exit 0", async () => {
+    const { backend, machine } = await makeMachine();
+    // The exec landed and the guest printed neither the handshake nor a reason. Exit 0 is success on every other
+    // road, so the code on its own reads as a run that started and left the reader polling a log nobody writes.
+    backend.execImpl = async () => ({ exitCode: 0, stdout: "", stderr: "" });
+    const stream = machineExecStream(machine, { pollMs: 5 })("true", { env: {} });
+    const message = await (async () => {
+      try {
+        for await (const _ of stream.lines) void _;
+        return "streamed it";
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    })();
+    expect(message).toBe(`remote launch failed on ${machine.id}: nothing came back saying WSP_LAUNCHED, the word the guest prints once the run is up; it printed nothing and exited 0`);
+    expect(message).not.toMatch(/exit 0:\s*$/);
+  });
+
+  it("a launch the machine refused carries what the machine said beside the code", async () => {
+    const { backend, machine } = await makeMachine();
+    backend.execImpl = async () => ({ exitCode: 1, stdout: "", stderr: "no run folder on this machine: /tmp/wsp-run/ab12cd34ef56.d\n" });
+    const stream = machineExecStream(machine, { pollMs: 5 })("true", { env: {} });
+    const message = await (async () => {
+      try {
+        for await (const _ of stream.lines) void _;
+        return "streamed it";
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    })();
+    expect(message).toBe(`remote launch failed on ${machine.id}: nothing came back saying WSP_LAUNCHED, the word the guest prints once the run is up; it exited 1 and said: no run folder on this machine: /tmp/wsp-run/ab12cd34ef56.d`);
+  });
+
+  it("when the poll sees the exit code the run's process group gets TERM then KILL after the log tail is read, and its files go", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "almost" }, { append: " done\n", exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude -p 'hi' & sleep 300 &", { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(await stream.exited).toBe(0);
+    expect(lines).toEqual(["almost done"]);
+    expect(guest.childAlive()).toBe(false);
+    expect(guest.files()).toEqual([]);
+    expect(guest.kills).toHaveLength(1);
+    const reap = guest.kills[0]!;
+    expect(reap).toMatch(/^P=\$\(cat '\/tmp\/wsp-run\/[a-f0-9]{12}'\.pid 2>\/dev\/null\); /);
+    expect(reap.indexOf("kill -TERM -- -$P")).toBeGreaterThan(-1);
+    expect(reap.indexOf("kill -TERM -- -$P")).toBeLessThan(reap.indexOf("kill -KILL -- -$P"));
+    expect(reap.indexOf("kill -KILL -- -$P")).toBeLessThan(reap.indexOf("rm -rf '/tmp/wsp-run/"));
+    expect(reap).toMatch(/rm -rf '\/tmp\/wsp-run\/[a-f0-9]{12}'\.\*; true$/);
+    const polls = guest.calls.filter(c => c.includes("__WSP_EOF_"));
+    expect(guest.calls.indexOf(reap)).toBeGreaterThan(guest.calls.indexOf(polls.at(-1)!));
+  });
+
+  it("a leader that died without an exit file still gets its group reaped and its files removed", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "partial output\n" }, { dead: true }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude -p 'hi'", { env: {} });
+    for await (const _ of stream.lines) void _;
+    expect(await stream.exited).toBeNull();
+    expect(guest.childAlive()).toBe(false);
+    expect(guest.files()).toEqual([]);
+  });
+
+  it("a command that fits one exec body launches in one exec, under the cap", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "hi\n", exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude -p 'hi' </dev/null", { env: { CLAUDE_CONFIG_DIR: "/root/.claude-cfg" } });
+    for await (const _ of stream.lines) void _;
+    expect(await stream.exited).toBe(0);
+    const launch = launchCalls(guest.calls);
+    expect(launch).toHaveLength(1);
+    expect(launch[0]).toMatch(/^mkdir -p '\/tmp\/wsp-run'\numask 077\nmkdir '\/tmp\/wsp-run\/[0-9a-f]{12}\.d' 2>\/dev\/null \|\| \{ \[ -d '\/tmp\/wsp-run\/[0-9a-f]{12}\.d' \] && \{ echo WSP_LAUNCHED; exit 0; \}; echo 'no run folder on this machine: \/tmp\/wsp-run\/[0-9a-f]{12}\.d' >&2; exit 1; \}\nset -o pipefail\nprintf %s '[A-Za-z0-9+/=]+' \| base64 -d > '\/tmp\/wsp-run\/[0-9a-f]{12}\.sh' \|\| exit 1\nexport WSP_AGENT_PID_FILE='\/tmp\/wsp-run\/[0-9a-f]{12}\.agent'\nexport CLAUDE_CONFIG_DIR='\/root\/\.claude-cfg'\nsetsid bash /);
+    expect(solariBody(launch[0]!)).toBeLessThanOrEqual(EXEC_BODY_MAX);
+  });
+
+  it("a 40 KB command goes up in pieces, every exec body under the cap, and the script decodes byte for byte", async () => {
+    expect(Buffer.byteLength(BIG_COMMAND)).toBeGreaterThan(40_000);
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "hi\n", exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })(BIG_COMMAND, { env: { CLAUDE_CONFIG_DIR: "/root/.claude-cfg" } });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(lines).toEqual(["hi"]);
+    expect(await stream.exited).toBe(0);
+    for (const c of guest.calls) expect(solariBody(c), c.slice(0, 80)).toBeLessThanOrEqual(EXEC_BODY_MAX);
+    const launch = launchCalls(guest.calls);
+    expect(launch.filter(c => c.endsWith("echo WSP_PIECE"))).toHaveLength(4);
+    expect(launch).toHaveLength(5);
+    // Every piece is written under the mask too: it holds the same bytes as the script it is cut from, and it waits
+    // on disk until the last exec joins the pieces and removes them.
+    for (const piece of launch.filter(c => c.endsWith("echo WSP_PIECE"))) {
+      const lines = piece.split("\n");
+      expect(lines[1]).toBe("umask 077");
+      expect(lines[2]!.startsWith("printf %s ")).toBe(true);
+    }
+    // The exit file is written under the same base as the script, and its path is quoted like every other; the agent's
+    // pid file rides the launch with the rest of the environment, ahead of setsid.
+    const base = launch.at(-1)!.match(/> '([^']*)\.sh'/)![1];
+    expect(guest.getScript()).toBe(`${workScoreLine()}\n${BIG_COMMAND}\necho $? > '${base}'.exit\n`);
+    expect(launch.at(-1)).toContain(`export ${AGENT_PID_FILE_ENV}='${base}.agent'\n`);
+  });
+
+  it("makes every file of a run under the login's own mask, from the claim folder down", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "hi\n", exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude -p 'hi'", { env: { ANTHROPIC_API_KEY: "sk-ant-x" }, input: ["one"] });
+    for await (const _ of stream.lines) void _;
+    const lines = launchCalls(guest.calls).at(-1)!.split("\n");
+    // Ahead of the claim's mkdir, so the folder the script, the input, the fifo, the log and the pid file land in
+    // is the login's own; another account on a machine the person owns must not read the key in those exports.
+    expect(lines[1]).toBe("umask 077");
+    expect(lines[2]!.startsWith("mkdir '/tmp/wsp-run/")).toBe(true);
+    expect(lines.indexOf("umask 077")).toBeLessThan(lines.findIndex(l => l.startsWith("setsid bash ")));
+  });
+
+  it("the run script puts the turn's processes at the work score before anything else, so a build that outgrows the machine dies before the daemon", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "hi\n", exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude -p 'hi'", { env: { PATH: "/root/.local/bin:/usr/bin" } });
+    for await (const _ of stream.lines) void _;
+    expect(guest.getScript().split("\n").slice(0, 2)).toEqual([workScoreLine(), "claude -p 'hi'"]);
+  });
+
+  it("reassembles multi-byte characters split across poll boundaries", async () => {
+    const { backend, machine } = await makeMachine();
+    const line = Buffer.from("café ☕ done\n", "utf8");
+    const guest = scriptGuest(backend, [
+      { append: line.subarray(0, 4) }, // splits the é
+      { append: line.subarray(4), exit: 0 },
+      {},
+    ]);
+    void guest;
+    const factory = machineExecStream(machine, { pollMs: 5 });
+    const stream = factory("echo done", { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(lines).toEqual(["café ☕ done"]);
+  });
+
+  it("ends with exit null when the process dies without writing an exit file", async () => {
+    const { backend, machine } = await makeMachine();
+    scriptGuest(backend, [{ append: "partial output\n" }, { dead: true }, {}]);
+    const factory = machineExecStream(machine, { pollMs: 5 });
+    const stream = factory("claude -p 'hi'", { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(lines).toEqual(["partial output"]);
+    expect(await stream.exited).toBeNull();
+  });
+
+  it("waits one more poll when the leader is gone before its exit file is there", async () => {
+    const { backend, machine } = await makeMachine();
+    scriptGuest(backend, [{ append: "almost\n" }, { dead: true }, { append: "done\n", exit: 0 }, {}]);
+    const factory = machineExecStream(machine, { pollMs: 5 });
+    const stream = factory("claude -p 'hi'", { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(lines).toEqual(["almost", "done"]);
+    expect(await stream.exited).toBe(0);
+  });
+
+  it("kill() SIGKILLs the process group and unblocks exited", async () => {
+    const { backend, machine } = await makeMachine();
+    // never exits on its own: every poll just says "up" with no new output
+    const guest = scriptGuest(backend, []);
+    const factory = machineExecStream(machine, { pollMs: 5 });
+    const stream = factory("sleep 9999", { env: {} });
+    setTimeout(() => stream.kill(), 25);
+    for await (const _ of stream.lines) void _;
+    expect(await stream.exited).toBeNull();
+    expect(guest.kills.some(k => k.includes("kill -KILL"))).toBe(true);
+    expect(guest.childAlive()).toBe(false);
+    expect(guest.files()).toEqual([]);
+  });
+
+  it("a run that exits 137 is asked about once, from when the turn started, and one this side killed is never asked", async () => {
+    const { backend, machine } = await makeMachine();
+    const asked: number[] = [];
+    const killedWhy = async (at: number): Promise<string> => (asked.push(at), "killed for memory");
+    scriptGuest(backend, [{ append: "working\n" }, { exit: 137 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5, now: () => 1_760_000_000_000, killedWhy })("claude -p 'hi'", { env: {} });
+    const lines: string[] = [];
+    await expect((async () => { for await (const l of stream.lines) lines.push(l); })()).rejects.toThrow("killed for memory");
+    expect(lines).toEqual(["working"]);
+    expect(await stream.exited).toBe(137);
+    expect(asked).toEqual([1_760_000_000_000]);
+
+    const again = await makeMachine();
+    scriptGuest(again.backend, []);
+    const stopped = machineExecStream(again.machine, { pollMs: 5, killedWhy })("sleep 9999", { env: {} });
+    setTimeout(() => stopped.kill(), 25);
+    for await (const _ of stopped.lines) void _;
+    expect(await stopped.exited).toBeNull();
+    expect(asked).toHaveLength(1);
+  });
+
+  it("without an input channel the command runs as before: no input file, no tail, and write rejects", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "hi\n", exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("echo hi", { env: {} });
+    await expect(stream.write("x")).rejects.toThrow(/channel/);
+    for await (const _ of stream.lines) void _;
+    expect(guest.getScript()).not.toContain("tail");
+    expect(guest.getLaunch()).not.toContain(".in");
+    expect(guest.writes).toEqual([]);
+  });
+
+  it("with an input channel the launch seeds the file and the script feeds it to the command through a tail whose pid it records and kills when the command ends", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: '{"type":"result"}\n', exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5, runDir: "/tmp/r" })("cd ~ && claude -p --input-format stream-json", { env: {}, input: ['{"type":"user","text":"go"}'] });
+    for await (const _ of stream.lines) void _;
+    expect(await stream.exited).toBe(0);
+    expect(guest.getInput()).toBe('{"type":"user","text":"go"}\n');
+    // Every path in the script is one quoted word, so a run folder with a space in it feeds the same command.
+    const base = guest.getLaunch().match(/mkfifo '(\/tmp\/r\/[a-f0-9]+)'\.fifo/)?.[1];
+    expect(base).toBeDefined();
+    const script = guest.getScript();
+    expect(script).toContain(`( tail -n +1 -f '${base}'.in > '${base}'.fifo & echo $! > '${base}'.tail )`);
+    expect(script).toContain(`} < '${base}'.fifo`);
+    expect(script).toContain("cd ~ && claude -p --input-format stream-json");
+    expect(script.indexOf(`echo $? > '${base}'.exit`)).toBeLessThan(script.indexOf(`kill $(cat '${base}'.tail)`));
+  });
+
+  it("a seeded prompt over the cap goes up in pieces ahead of the launch, every exec body under the cap, and the input file decodes byte for byte", async () => {
+    const prompt = `{"type":"user","text":${JSON.stringify(Array.from({ length: 520 }, (_, i) => `line ${i} it's ünïcödé ${"y".repeat(50)}`).join("\n"))}}`;
+    expect(Buffer.byteLength(prompt)).toBeGreaterThan(40_000);
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: '{"type":"result"}\n', exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude -p --input-format stream-json", { env: {}, input: [prompt] });
+    for await (const _ of stream.lines) void _;
+    expect(await stream.exited).toBe(0);
+    for (const c of guest.calls) expect(solariBody(c), c.slice(0, 80)).toBeLessThanOrEqual(EXEC_BODY_MAX);
+    const launch = launchCalls(guest.calls);
+    expect(launch.filter(c => c.endsWith("echo WSP_PIECE"))).toHaveLength(4);
+    expect(launch).toHaveLength(5);
+    expect(launch.at(-1)).toMatch(/mkdir '\/tmp\/wsp-run\/[a-f0-9]+\.d' 2>\/dev\/null \|\| \{ \[ -d '\/tmp\/wsp-run\/[a-f0-9]+\.d' \] && \{ echo WSP_LAUNCHED; exit 0; \}; echo 'no run folder on this machine: \/tmp\/wsp-run\/[a-f0-9]+\.d' >&2; exit 1; \}\nset -o pipefail\n.*\nmkfifo '\/tmp\/wsp-run\/[a-f0-9]+'\.fifo\nsetsid bash /s);
+    expect(guest.getInput()).toBe(`${prompt}\n`);
+    expect(guest.getScript()).toContain("claude -p --input-format stream-json");
+  });
+
+  it("write appends one base64-decoded line to the input file with one exec; a write after the stream ended rejects", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{}, {}, {}, { exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude", { env: {}, input: ["first"] });
+    expect(await stream.write('{"type":"user","text":"don\'t stop"}')).toBe("written");
+    expect(guest.writes).toHaveLength(1);
+    expect(guest.writes[0]).toMatch(/\| base64 -d >> '\/tmp\/wsp-run\/[a-f0-9]+\.in'/);
+    expect(guest.getInput()).toBe('first\n{"type":"user","text":"don\'t stop"}\n');
+    for await (const _ of stream.lines) void _;
+    await expect(stream.write("late")).rejects.toThrow(/ended/);
+    expect(guest.writes).toHaveLength(1);
+  });
+
+  it("a write after the command exited but before the poll saw it answers gone with one exec, appends nothing and leaves the idle clock alone", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{}, {}, {}, {}]);
+    let now = 0;
+    const stream = machineExecStream(machine, { pollMs: 200, idleMs: 1000, now: () => now })("claude", { env: {}, input: ["first"] });
+    const first = stream.lines[Symbol.asyncIterator]().next();
+    await new Promise(r => setTimeout(r, 20));
+    guest.exit(0);
+    now = 900;
+    expect(await stream.write("late")).toBe("gone");
+    expect(guest.writes).toHaveLength(1);
+    expect(guest.writes[0]).toMatch(/^mkdir -p '\/tmp\/wsp-run'\n\{ \[ -e '\/tmp\/wsp-run\/[a-f0-9]+'\.exit \] \|\| \[ ! -d '\/tmp\/wsp-run\/[a-f0-9]+\.d' \]; \} && \{ echo WSP_GONE; exit 0; \}\nif \[ -e '\/tmp\/wsp-run\/[a-f0-9]+'\.held \]; then [^\n]+; fi\nset -o pipefail\n\[ "\$\(cat '\/tmp\/wsp-run\/[a-f0-9]+\.in\.appended' 2>\/dev\/null\)" = '[0-9a-f]{12}\.0' \] \|\| \{ printf %s '[A-Za-z0-9+/=]+' \| base64 -d >> '\/tmp\/wsp-run\/[a-f0-9]+\.in' && printf %s '[0-9a-f]{12}\.0' > '[^']+'; \} \|\| exit 1\necho WSP_OK$/);
+    expect(guest.getInput()).toBe("first\n");
+    now = 1100;
+    await expect(first).rejects.toThrow(/^stopped after 0m 01s with no output for 0m$/);
+    expect(await stream.exited).toBeNull();
+  });
+
+  it("reads the agent's reply to a write at hurried polls, not at the next 1500 ms one, and goes back to 1500 ms after", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, []);
+    let clock = 0;
+    const naps: number[] = [];
+    const reading = new Set<() => void>();
+    // A full poll's wait never ends here, so only a write's hurry lets the reply through.
+    const sleep = (ms: number): Promise<void> => (naps.push(ms), ms >= 1500 ? new Promise<void>(() => {}) : new Promise<void>(r => setTimeout(r, 1)));
+    const stream = machineExecStream(machine, { pollMs: 1500, now: () => clock, sleep, reading })("codex app-server", { env: {}, input: ["first"] });
+    const lines = stream.lines[Symbol.asyncIterator]();
+    guest.append("started\n");
+    expect((await lines.next()).value).toBe("started");
+    clock = 3_001;
+    const reply = lines.next();
+    await vi.waitFor(() => expect(naps.at(-1)).toBe(1500));
+    expect(await stream.write("interrupt")).toBe("written");
+    guest.append("interrupted\n");
+    expect((await reply).value).toBe("interrupted");
+    expect(naps.at(-1)).toBe(200);
+    clock = 6_002;
+    void lines.next();
+    await vi.waitFor(() => expect(naps.at(-1)).toBe(1500));
+    for (const drop of reading) drop();
+  });
+
+  it("reads a launch at hurried polls until its first line, for 30 s at most, and for a while after every poll in those 30 s that took lines", async () => {
+    let clock = 0;
+    const naps: number[] = [];
+    const sleep = (ms: number): Promise<void> => (naps.push(ms), new Promise<void>(r => setTimeout(r, 1)));
+    const reading = new Set<() => void>();
+    const launch = async () => {
+      const { backend, machine } = await makeMachine();
+      const guest = scriptGuest(backend, []);
+      const lines = machineExecStream(machine, { pollMs: 1500, now: () => clock, sleep, reading })("claude -p", { env: {}, input: ["say hi"] }).lines[Symbol.asyncIterator]();
+      return { guest, lines };
+    };
+    const nextNaps = async (count: number): Promise<number[]> => {
+      const from = naps.length;
+      await vi.waitFor(() => expect(naps.length).toBeGreaterThanOrEqual(from + count));
+      return naps.slice(from, from + count);
+    };
+    const { guest, lines } = await launch();
+    const first = lines.next();
+    expect(await nextNaps(3)).toEqual([200, 200, 200]);
+    guest.append("init\n");
+    expect((await first).value).toBe("init");
+    const second = lines.next();
+    expect(await nextNaps(2)).toEqual([200, 200]);
+    clock += 3_001;
+    expect((await nextNaps(2)).at(-1)).toBe(1500);
+    guest.append("retry\n");
+    expect((await second).value).toBe("retry");
+    void lines.next();
+    expect(await nextNaps(2)).toEqual([200, 200]);
+    for (const drop of reading) drop();
+
+    const silent = (await launch()).lines;
+    void silent.next();
+    expect(await nextNaps(2)).toEqual([200, 200]);
+    clock += 30_001;
+    expect((await nextNaps(2)).at(-1)).toBe(1500);
+    for (const drop of reading) drop();
+
+    const late = await launch();
+    const opening = late.lines.next();
+    late.guest.append("init\n");
+    expect((await opening).value).toBe("init");
+    clock += 30_001;
+    const afterOpening = late.lines.next();
+    late.guest.append("tool result\n");
+    expect((await afterOpening).value).toBe("tool result");
+    void late.lines.next();
+    expect(await nextNaps(1)).toEqual([1500]);
+    for (const drop of reading) drop();
+  });
+
+  it("hands Claude Code each retry of a failing model call before it prints the next, from the turn's first, on a box's pace", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, []);
+    let clock = 0;
+    const SID = "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    const retry = (attempt: number): string => JSON.stringify({ type: "system", subtype: "api_retry", attempt, max_retries: 10, retry_delay_ms: 500 * 2 ** (attempt - 1), error_status: null, error: "unknown", session_id: SID });
+    // Claude Code 2.1.301 against a refused route: init after its servers came up, the first retry 17 ms after it and
+    // each next one at its backoff (0.56 s, 1.04 s, 2.36 s apart, measured).
+    const printed: [number, string | number][] = [
+      [4_050, JSON.stringify({ type: "system", subtype: "init", session_id: SID, cwd: "/root", tools: [], model: "claude-opus-5-5" })],
+      [4_067, retry(1)],
+      [4_627, retry(2)],
+      [5_667, retry(3)],
+      [8_031, retry(4)],
+      [9_000, JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "hi", session_id: SID, num_turns: 1, usage: { input_tokens: 1, output_tokens: 1 } })],
+      [9_010, 0],
+    ];
+    const due = (): void => {
+      for (let next = printed[0]; next !== undefined && next[0] <= clock; next = printed[0]) {
+        printed.shift();
+        if (typeof next[1] === "number") guest.exit(next[1]);
+        else guest.append(`${next[1]}\n`);
+      }
+    };
+    // An exec on Boat answers in 0.24 to 0.38 s, and the guest's shell reads the log halfway through it.
+    const answer = backend.execImpl;
+    backend.execImpl = async (m, cmd, stdin) => {
+      clock += 125;
+      due();
+      const res = await answer(m, cmd, stdin);
+      clock += 125;
+      return res;
+    };
+    const sleep = async (ms: number): Promise<void> => {
+      clock += ms;
+    };
+    const exec = machineExecStream(machine, { pollMs: 1500, now: () => clock, sleep });
+    const retries: { attempt: number; at: number }[] = [];
+    const adapter = createClaudeAdapter({ exec, configDir: "/root/.claude-cfg" });
+    await adapter.start({ prompt: "say hi", onEvent: e => void (e.type === "turn.retry" && retries.push({ attempt: e.attempt, at: clock })) }).finished;
+    expect(retries.map(r => r.attempt)).toEqual([1, 2, 3, 4]);
+    const nextPrinted = [4_627, 5_667, 8_031, 9_000];
+    for (const [i, r] of retries.entries()) expect(r.at, `retry ${r.attempt} reached the turn at ${r.at} ms`).toBeLessThan(nextPrinted[i]!);
+  });
+
+  it("closeInput kills the recorded tail pid and nothing else, once", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{}, {}, { exit: 0 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5 })("claude", { env: {}, input: ["first"] });
+    stream.closeInput();
+    stream.closeInput();
+    for await (const _ of stream.lines) void _;
+    const before = guest.kills.filter(k => !k.includes("rm -rf"));
+    expect(before).toHaveLength(1);
+    expect(before[0]).toMatch(/P=\$\(cat '\/tmp\/wsp-run\/[a-f0-9]+'\.tail 2>\/dev\/null\); \[ -n "\$P" \] && kill -TERM "\$P"/);
+    expect(before[0]).not.toContain("-- -");
+    stream.closeInput();
+    expect(guest.kills.filter(k => !k.includes("rm -rf"))).toHaveLength(1);
+  });
+
+  it("a write restarts the idle clock; past it the stream ends with the idle line and the process group is killed", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, []);
+    let now = 0;
+    const stream = machineExecStream(machine, { pollMs: 1, idleMs: 1000, now: () => now })("claude", { env: {}, input: ["first"] });
+    const it = stream.lines[Symbol.asyncIterator]();
+    const first = it.next();
+    now = 900;
+    await stream.write("more");
+    now = 1800;
+    await new Promise(r => setTimeout(r, 20));
+    expect(guest.kills).toEqual([]);
+    now = 2000;
+    await expect(first).rejects.toThrow(/^stopped after 0m 02s with no output for 0m$/);
+    expect(await stream.exited).toBeNull();
+    expect(guest.kills.some(k => k.includes("kill -KILL -- -$P"))).toBe(true);
+    expect(guest.childAlive()).toBe(false);
+    expect(guest.files()).toEqual([]);
+  });
+
+  it("a turn stopped on a question only a person can answer is not cut at the idle limit", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, []);
+    let now = 0;
+    let waiting = true;
+    const stream = machineExecStream(machine, { pollMs: 1, idleMs: 1000, now: () => now }, () => waiting)("claude", { env: {}, input: ["first"] });
+    const first = stream.lines[Symbol.asyncIterator]().next();
+    now = 9000;
+    await new Promise(r => setTimeout(r, 20));
+    expect(guest.kills).toEqual([]);
+    // The answer lands and the clock runs again from there.
+    waiting = false;
+    now = 9500;
+    await new Promise(r => setTimeout(r, 20));
+    expect(guest.kills).toEqual([]);
+    now = 10_600;
+    await expect(first).rejects.toThrow(/with no output for 0m$/);
+    expect(await stream.exited).toBeNull();
+  });
+
+  /** A guest whose clock moves one minute per poll and whose command prints one line a minute until `quietFromMs`,
+   * its process group doing `ticksPerPoll` of work every minute however quiet the log is. */
+  function minuteGuest(backend: StubBackend, quietFromMs: number, exitAtMs = Number.POSITIVE_INFINITY, ticksPerPoll = 0) {
+    const steps: Step[] = [];
+    const guest = scriptGuest(backend, steps);
+    const clock = { now: 0 };
+    const inner = backend.execImpl;
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (cmd.includes("__WSP_EOF_")) {
+        clock.now += 60_000;
+        const work = ticksPerPoll;
+        if (clock.now < quietFromMs) steps.push({ append: `tick ${clock.now / 60_000}\n`, work });
+        else if (clock.now >= exitAtMs) steps.push({ exit: 0, work });
+        else steps.push({ work });
+      }
+      return inner(m, cmd);
+    };
+    return { guest, clock };
+  }
+  /** A minute of one core, in the ticks the guest's read counts: what a test batch or a packager does per minute. */
+  const CORE_MINUTE = 6_000;
+
+  it("a stream that prints a line every minute runs past the old 15 minute wall clock and ends on its own exit", async () => {
+    const { backend, machine } = await makeMachine();
+    const { guest, clock } = minuteGuest(backend, 21 * 60_000, 21 * 60_000);
+    const stream = machineExecStream(machine, { pollMs: 1, now: () => clock.now })("claude", { env: {} });
+    const seen: string[] = [];
+    for await (const line of stream.lines) seen.push(line);
+    expect(seen).toHaveLength(20);
+    expect(seen.at(-1)).toBe("tick 20");
+    expect(clock.now).toBeGreaterThan(900_000);
+    expect(await stream.exited).toBe(0);
+    expect(guest.files()).toEqual([]);
+  });
+
+  it("a stream that goes silent is cut once no byte came for the idle limit, and the error names the rule and the turn's run", async () => {
+    const { backend, machine } = await makeMachine();
+    const { guest, clock } = minuteGuest(backend, 6 * 60_000);
+    const stream = machineExecStream(machine, { pollMs: 1, now: () => clock.now })("claude", { env: {} });
+    const seen: string[] = [];
+    await expect(
+      (async () => {
+        for await (const line of stream.lines) seen.push(line);
+      })(),
+    ).rejects.toThrow(/^stopped after 15m 00s with no output for 10m$/);
+    expect(seen).toHaveLength(5);
+    expect(clock.now).toBe(5 * 60_000 + TURN_IDLE_MS);
+    expect(await stream.exited).toBeNull();
+    expect(guest.kills.some(k => k.includes("kill -KILL -- -$P"))).toBe(true);
+    expect(guest.childAlive()).toBe(false);
+    expect(guest.files()).toEqual([]);
+  });
+
+  it("a run re-opened after a restart is cut at its first start plus the wall, not at the re-open plus the wall", async () => {
+    const { backend, machine } = await makeMachine();
+    const { guest, clock } = minuteGuest(backend, Number.POSITIVE_INFINITY);
+    const reading = new Set<() => void>();
+    const launched = machineExecStream(machine, { pollMs: 1, deadlineMs: 30 * 60_000, now: () => clock.now, reading })("claude", { env: {} });
+    await vi.waitFor(() => expect(guest.getLaunch()).not.toBe(""));
+    // The host goes and comes back twenty minutes into the turn; the next one re-opens the run by handle.
+    for (const drop of [...reading]) drop();
+    clock.now = 20 * 60_000;
+    const attached = (await machineExecStream(machine, { pollMs: 1, deadlineMs: 30 * 60_000, now: () => clock.now }).attach!(launched.run!, { input: false, startedAt: 0 })) as ExecStream;
+    await expect(
+      (async () => {
+        for await (const line of attached.lines) void line;
+      })(),
+    ).rejects.toThrow(/^stopped after 30m 00s at the 30m turn limit; send to continue where it stopped, or change the limit in Settings > Computers$/);
+    expect(clock.now).toBe(30 * 60_000);
+  });
+
+  it("a run that prints nothing while its process group works runs past the idle limit, and only the wall ends it", async () => {
+    const { backend, machine } = await makeMachine();
+    const { guest, clock } = minuteGuest(backend, 0, Number.POSITIVE_INFINITY, CORE_MINUTE);
+    const stream = machineExecStream(machine, { pollMs: 1, deadlineMs: 30 * 60_000, now: () => clock.now })("claude -p 'build it'", { env: {} });
+    const seen: string[] = [];
+    await expect(
+      (async () => {
+        for await (const line of stream.lines) seen.push(line);
+      })(),
+    ).rejects.toThrow(/^stopped after 30m 00s at the 30m turn limit; send to continue where it stopped, or change the limit in Settings > Computers$/);
+    expect(seen).toEqual([]);
+    expect(clock.now).toBe(30 * 60_000);
+    expect(await stream.exited).toBeNull();
+    expect(guest.childAlive()).toBe(false);
+  });
+
+  it("a run that prints nothing while its group does less than the work floor is still cut at the idle limit", async () => {
+    const { backend, machine } = await makeMachine();
+    const { guest, clock } = minuteGuest(backend, 0, Number.POSITIVE_INFINITY, 100);
+    const stream = machineExecStream(machine, { pollMs: 1, now: () => clock.now })("claude -p 'hi'", { env: {} });
+    await expect(
+      (async () => {
+        for await (const line of stream.lines) void line;
+      })(),
+    ).rejects.toThrow(/^stopped after 10m 00s with no output for 10m$/);
+    expect(clock.now).toBe(TURN_IDLE_MS);
+    expect(await stream.exited).toBeNull();
+    expect(guest.childAlive()).toBe(false);
+    expect(guest.files()).toEqual([]);
+  });
+
+  it("a road that goes dark holds the turn's idle clock, which goes on from the road's return", async () => {
+    const { backend, machine } = await makeMachine();
+    // Quiet from its first second, its exit written at the twenty fourth minute. The road is dark from the fifth
+    // minute to the twentieth, which on its own outlasts the idle limit.
+    const { guest, clock } = minuteGuest(backend, 0, 24 * 60_000);
+    const scripted = backend.execImpl;
+    let dark = 0;
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (cmd.includes("__WSP_EOF_") && clock.now >= 5 * 60_000 && clock.now < 20 * 60_000) {
+        clock.now += 60_000;
+        dark++;
+        throw new TypeError("fetch failed", { cause: Object.assign(new Error("getaddrinfo EAI_AGAIN edge.example"), { code: "EAI_AGAIN" }) });
+      }
+      return scripted(m, cmd);
+    };
+    const stream = machineExecStream(machine, { pollMs: 1, now: () => clock.now })("claude -p 'build it'", { env: {} });
+    for await (const line of stream.lines) void line;
+    expect(dark).toBeGreaterThan(TURN_IDLE_MS / 60_000);
+    expect(await stream.exited).toBe(0);
+    expect(clock.now).toBeGreaterThanOrEqual(24 * 60_000);
+    expect(guest.files()).toEqual([]);
+  });
+
+  it("the poll asks for the tree's work only once the stream has been quiet for half the idle limit, and never on a stream with no idle limit", async () => {
+    const { backend, machine } = await makeMachine();
+    const { guest, clock } = minuteGuest(backend, 0, 8 * 60_000, CORE_MINUTE);
+    const stream = machineExecStream(machine, { pollMs: 1, now: () => clock.now })("claude -p 'hi'", { env: {} });
+    for await (const _ of stream.lines) void _;
+    // One poll a minute on a silent stream, so the first five are inside the half of a ten minute limit.
+    const polls = guest.calls.filter(c => c.includes("__WSP_EOF_"));
+    expect(polls.slice(0, 5).some(c => c.includes("awk -v p="))).toBe(false);
+    expect(polls[5]).toContain(`W=$(awk -v p="$P" ${shellQuote(TREE_WORK_AWK)} /proc/[0-9]*/stat 2>/dev/null)`);
+
+    // The exec verb hands both limits infinite on purpose, and no reading could cut such a stream.
+    const forever = await makeMachine();
+    const exec = scriptGuest(forever.backend, [{}, {}, { append: "built\n", exit: 0 }, {}]);
+    const run = machineExecStream(forever.machine, { pollMs: 1, idleMs: Number.POSITIVE_INFINITY, deadlineMs: Number.POSITIVE_INFINITY })("pnpm build", { env: {} });
+    for await (const _ of run.lines) void _;
+    expect(exec.calls.filter(c => c.includes("__WSP_EOF_")).length).toBeGreaterThan(2);
+    expect(exec.calls.some(c => c.includes("awk -v p="))).toBe(false);
+
+    // The same program over a fake /proc: two processes in the group, one outside it, one named like a stat field.
+    const dir = mkdtempSync(join(tmpdir(), "wsp-proc-"));
+    dirs.push(dir);
+    const proc = (pid: number, comm: string, pgrp: number, utime: number, stime: number, io?: [number, number]): string => {
+      mkdirSync(join(dir, String(pid)));
+      writeFileSync(join(dir, String(pid), "stat"), `${pid} (${comm}) S 1 ${pgrp} 0 0 -1 0 0 0 0 0 ${utime} ${stime} 0 0 20 0 1 0 0\n`);
+      if (io !== undefined) writeFileSync(join(dir, String(pid), "io"), `rchar: ${io[0]}\nwchar: ${io[1]}\nread_bytes: 4096\n`);
+      return join(dir, String(pid), "stat");
+    };
+    const files = [proc(11, "bash", 11, 30, 12, [2 * 1_048_576, 1_048_576]), proc(12, "node (2)", 11, 400, 100), proc(13, "daemon", 13, 9_000, 9_000, [99 * 1_048_576, 0])];
+    const read = (pgrp: number): number => Number(execFileSync("awk", ["-v", `p=${pgrp}`, TREE_WORK_AWK, ...files], { encoding: "utf8" }).trim());
+    expect(read(11)).toBe(30 + 12 + 400 + 100 + 3);
+    expect(read(13)).toBe(9_000 + 9_000 + 99);
+    expect(read(99)).toBe(0);
+  });
+
+  /** Every awk a guest may carry that this computer has, each as the words that run it. */
+  const awksHere = (): string[][] =>
+    [["awk"], ["gawk"], ["mawk"], ["busybox", "awk"]].filter(([bin]) => {
+      try {
+        execFileSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" });
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  /** A fake /proc entry, given what the reading looks at in it. */
+  const fakeStat = (dir: string, pid: number, ppid: number, pgrp: number, utime: number, cutime = 0): string => {
+    mkdirSync(join(dir, String(pid)));
+    writeFileSync(join(dir, String(pid), "stat"), `${pid} (rustc) S ${ppid} ${pgrp} 0 0 -1 0 0 0 0 0 ${utime} 0 ${cutime} 0 20 0 1 0 0\n`);
+    return join(dir, String(pid), "stat");
+  };
+  const readWith = (awk: string[], root: number, files: string[]): string =>
+    execFileSync("sh", ["-c", `"$@" 2>/dev/null; true`, "sh", ...awk, "-v", `p=${root}`, TREE_WORK_AWK, ...files], { encoding: "utf8" }).trim();
+
+  it("a process that exits between the shell's glob and the read leaves the run's other processes counted, in every awk a guest may carry", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-proc-"));
+    dirs.push(dir);
+    const files = [fakeStat(dir, 21, 1, 21, 60), join(dir, "22", "stat"), fakeStat(dir, 23, 21, 21, 740)];
+    const awks = awksHere();
+    expect(awks.length).toBeGreaterThan(0);
+    for (const awk of awks) expect({ awk, work: readWith(awk, 21, files) }).toEqual({ awk, work: String(60 + 740) });
+  });
+
+  it("the run's whole tree counts, a tool command in a session of its own and an orphan left in the group included, and nothing outside it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-proc-"));
+    dirs.push(dir);
+    const files = [
+      fakeStat(dir, 30, 1, 30, 10),
+      fakeStat(dir, 31, 30, 30, 20, 100),
+      fakeStat(dir, 32, 31, 32, 40),
+      fakeStat(dir, 33, 32, 32, 300),
+      fakeStat(dir, 34, 1, 30, 5),
+      fakeStat(dir, 35, 1, 35, 9_000),
+      fakeStat(dir, 36, 35, 36, 7_000),
+    ];
+    for (const awk of awksHere()) expect({ awk, work: readWith(awk, 30, files) }).toEqual({ awk, work: String(10 + 20 + 100 + 40 + 300 + 5) });
+  });
+
+  it.skipIf(!existsSync("/proc/1/stat"))("a child in a session of its own counts while it burns CPU, as an agent's tool command does", async () => {
+    const group = spawn("sh", ["-c", `setsid sh -c 'while :; do :; done' & echo $!; exec sleep 30`], { detached: true, stdio: ["ignore", "pipe", "ignore"] });
+    const spinner = Number((await new Promise<Buffer>(resolve => group.stdout!.once("data", resolve))).toString().trim());
+    const read = (): number => Number(execFileSync("sh", ["-c", `awk -v p="$1" "$2" /proc/[0-9]*/stat 2>/dev/null`, "sh", String(group.pid), TREE_WORK_AWK], { encoding: "utf8" }).trim());
+    try {
+      const before = read();
+      await new Promise(resolve => setTimeout(resolve, 600));
+      expect(read() - before).toBeGreaterThanOrEqual(15);
+    } finally {
+      process.kill(-spinner, "SIGKILL");
+      process.kill(-group.pid!, "SIGKILL");
+    }
+  });
+
+  it.skipIf(!existsSync("/proc/1/stat"))("a child that burned CPU and was reaped stays in its run's reading, so a build's exiting compilers do not lower it", async () => {
+    const group = spawn("sh", ["-c", `timeout 0.5 sh -c 'while :; do :; done'; exec sleep 30`], { detached: true, stdio: "ignore" });
+    try {
+      await new Promise(resolve => setTimeout(resolve, 900));
+      const out = execFileSync("sh", ["-c", `awk -v p="$1" "$2" /proc/[0-9]*/stat 2>/dev/null`, "sh", String(group.pid), TREE_WORK_AWK], { encoding: "utf8" });
+      expect(Number(out.trim())).toBeGreaterThanOrEqual(20);
+    } finally {
+      process.kill(-group.pid!, "SIGKILL");
+    }
+  });
+
+  it("a stream that never goes quiet is still cut at the wall cap, and the error names the cap", async () => {
+    const { backend, machine } = await makeMachine();
+    const { guest, clock } = minuteGuest(backend, Number.POSITIVE_INFINITY);
+    const stream = machineExecStream(machine, { pollMs: 1, deadlineMs: 2 * 3_600_000, now: () => clock.now })("claude", { env: {} });
+    const seen: string[] = [];
+    await expect(
+      (async () => {
+        for await (const line of stream.lines) seen.push(line);
+      })(),
+    ).rejects.toThrow(/^stopped after 2h 00m 00s at the 2h turn limit; send to continue where it stopped, or change the limit in Settings > Computers$/);
+    expect(seen).toHaveLength(120);
+    expect(await stream.exited).toBeNull();
+    expect(guest.childAlive()).toBe(false);
+  });
+
+  it("tolerates exec failures mid-poll (a napping machine) and finishes after recovery", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "before nap\n" }, { append: "after wake\n", exit: 0 }, {}]);
+    void guest;
+    const inner = backend.execImpl;
+    let failures = 3;
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (cmd.includes("__WSP_EOF_") && failures > 0) {
+        failures--;
+        throw Object.assign(new Error("machine paused"), { kind: "conflict" });
+      }
+      return inner(m, cmd);
+    };
+    const factory = machineExecStream(machine, { pollMs: 5 });
+    const stream = factory("long task", { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(lines).toEqual(["before nap", "after wake"]);
+    expect(await stream.exited).toBe(0);
+  });
+
+  /** A guest whose launch fails `failures` times the way `make` says, each failed post costing five seconds of the
+   * clock as a DNS lookup that times out does; the stream's sleeps move the same clock. */
+  function unreachedGuest(backend: StubBackend, failures: number, make: () => Error, steps: Step[] = [{ append: "ran\n", exit: 0 }, {}]) {
+    const guest = scriptGuest(backend, steps);
+    const clock = { now: 0 };
+    const waits: number[] = [];
+    let launches = 0;
+    const inner = backend.execImpl;
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (cmd.includes("WSP_LAUNCHED")) {
+        launches++;
+        if (launches <= failures) {
+          clock.now += 5_000;
+          throw make();
+        }
+      }
+      return inner(m, cmd);
+    };
+    const opts = {
+      pollMs: 5,
+      now: () => clock.now,
+      sleep: async (ms: number): Promise<void> => {
+        waits.push(ms);
+        clock.now += ms;
+      },
+    };
+    return { guest, opts, launches: () => launches, backoffs: () => waits.filter(w => w !== 5) };
+  }
+  const fetchFailed = (): Error => new TypeError("fetch failed", { cause: Object.assign(new Error("getaddrinfo EAI_AGAIN api.example"), { code: "EAI_AGAIN" }) });
+  /** The rule's waits, each with the jitter it draws on top of its own base. */
+  const expectBackoffs = (waits: readonly number[], bases: readonly number[]): void => {
+    expect(waits).toHaveLength(bases.length);
+    waits.forEach((wait, i) => {
+      expect(wait).toBeGreaterThanOrEqual(bases[i]!);
+      expect(wait).toBeLessThan(bases[i]! + 250);
+    });
+  };
+
+  it("a launch nothing answered twice is posted again at the engine's backoff, and the turn runs", async () => {
+    const { backend, machine } = await makeMachine();
+    const g = unreachedGuest(backend, 2, fetchFailed);
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(lines).toEqual(["ran"]);
+    expect(await stream.exited).toBe(0);
+    expect(g.launches()).toBe(3);
+    expectBackoffs(g.backoffs(), [500, 1_000]);
+  });
+
+  it("a launch nothing answers for the whole link window fails the turn in the protocol's words, not the fetch's, and reaps the run", async () => {
+    const { backend, machine } = await makeMachine();
+    const g = unreachedGuest(backend, 99, fetchFailed);
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    const failure = await (async (): Promise<Error> => {
+      for await (const l of stream.lines) void l;
+      throw new Error("the stream ended without a failure");
+    })().catch((e: unknown) => e as Error);
+    expect(failure).toBeInstanceOf(MachineUnreached);
+    expect(failure.message).toBe(machineUnreachedLine(7, (failure as MachineUnreached).elapsedMs));
+    // Seven five-second posts and the waits between them run past the minute a name that will not resolve is given.
+    expect(failure.message).toMatch(/^the machine could not be reached from this computer after 7 attempts over 1m \d+s$/);
+    expect(failure.message).not.toContain("fetch failed");
+    expect(failure.message).not.toContain(machine.id);
+    expect(g.launches()).toBe(7);
+    expectBackoffs(g.backoffs(), [500, 1_000, 2_000, 4_000, 8_000, 10_000]);
+    expect(await stream.exited).toBeNull();
+    expect(g.guest.kills.length).toBe(1);
+    expect(g.guest.files()).toEqual([]);
+  });
+
+  it("a launch whose answer was lost after it ran is read as that run once the machine answers again, and is never posted twice", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "ran\n", exit: 0 }, {}]);
+    const clock = { now: 0 };
+    let landed = 0;
+    let dark = true;
+    const inner = backend.execImpl;
+    // The first post lands and its answer is lost; nothing answers after it until past the launch's own link window,
+    // inside the one the question about its run is given.
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (!dark) return inner(m, cmd);
+      if (cmd.includes("WSP_LAUNCHED") && landed === 0) {
+        landed++;
+        await inner(m, cmd);
+      }
+      clock.now += 5_000;
+      throw Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+    };
+    const opts = {
+      pollMs: 5,
+      now: () => clock.now,
+      sleep: async (ms: number): Promise<void> => {
+        clock.now += ms;
+        if (clock.now > 1.5 * LINK_RETRY_WINDOW_MS) dark = false;
+      },
+    };
+    const stream = machineExecStream(machine, opts)("claude -p hi", { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(lines).toEqual(["ran"]);
+    expect(await stream.exited).toBe(0);
+    expect(landed).toBe(1);
+    expect(guest.calls.filter(c => c.includes("WSP_LAUNCHED"))).toHaveLength(1);
+  });
+
+  /** The first launch post lands on the machine and its answer is lost with `lost`; every exec after it fails with
+   * `meanwhile` until `darkMs` of the stream's clock, then the machine answers again and holds the run. */
+  const landedThenDark = async (lost: () => Error, meanwhile: () => Error, darkMs: number, o: { asksUntilStopped?: true; stopAt?: number } = {}) => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "ran\n", exit: 0 }, {}]);
+    const inner = backend.execImpl;
+    const clock = { now: 0 };
+    let landed = 0;
+    let stream: ExecStream | undefined;
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (clock.now >= darkMs) return inner(m, cmd);
+      clock.now += 1_000;
+      if (o.stopAt !== undefined && clock.now >= o.stopAt) stream?.kill();
+      if (cmd.includes("WSP_LAUNCHED") && landed === 0) {
+        landed++;
+        await inner(m, cmd);
+        throw lost();
+      }
+      throw meanwhile();
+    };
+    const opts = { pollMs: 5, now: () => clock.now, sleep: async (ms: number): Promise<void> => void (clock.now += ms), ...(o.asksUntilStopped !== undefined ? { asksUntilStopped: o.asksUntilStopped } : {}) };
+    stream = machineExecStream(machine, opts)("claude -p hi", { env: {} });
+    const lines: string[] = [];
+    let failure: unknown;
+    try {
+      for await (const l of stream.lines) lines.push(l);
+    } catch (e) {
+      failure = e;
+    }
+    return { lines, failure, at: clock.now, launches: guest.calls.filter(c => c.includes("WSP_LAUNCHED")).length };
+  };
+  const reset = (): Error => Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+
+  it("a launch that ran and lost its answer to a link drop is read as that run while the box is not connected, never as a run that is not there", async () => {
+    const r = await landedThenDark(() => new Error("connection lost"), () => new PlaceAbsentError("lab-box is not connected"), 20_000);
+    expect(r.failure).toBeUndefined();
+    expect(r.lines).toEqual(["ran"]);
+    expect(r.launches).toBe(1);
+  });
+
+  it("a launch that ran and lost its answer is read as that run while the provider says the sandbox is not reachable", async () => {
+    const r = await landedThenDark(reset, () => new MachineUnreachableError("m1", "Sandbox is not reachable", 502, "the computer is not reachable"), 20_000);
+    expect(r.failure).toBeUndefined();
+    expect(r.lines).toEqual(["ran"]);
+    expect(r.launches).toBe(1);
+  });
+
+  it("a line's try whose launch ran and lost its answer keeps asking after its run past the link window, and reads it once the machine answers", async () => {
+    const r = await landedThenDark(reset, reset, 2.5 * LINK_RETRY_WINDOW_MS, { asksUntilStopped: true });
+    expect(r.failure).toBeUndefined();
+    expect(r.lines).toEqual(["ran"]);
+    expect(r.launches).toBe(1);
+  });
+
+  it("a line's try asking after its run ends at the stop and not before, in the launch's own words", async () => {
+    const r = await landedThenDark(reset, reset, 10 * LINK_RETRY_WINDOW_MS, { asksUntilStopped: true, stopAt: 5 * LINK_RETRY_WINDOW_MS });
+    expect(r.failure).toBeInstanceOf(MachineUnreached);
+    expect(r.at).toBeGreaterThanOrEqual(5 * LINK_RETRY_WINDOW_MS);
+    expect(r.at).toBeLessThan(6 * LINK_RETRY_WINDOW_MS);
+    expect(r.lines).toEqual([]);
+  });
+
+  /** A machine every exec of which fails the way `fail` says, each costing a second of the stream's clock. */
+  const darkMachine = async (fail: () => Error) => {
+    const { backend, machine } = await makeMachine();
+    scriptGuest(backend, [{ append: "ran\n", exit: 0 }, {}]);
+    const clock = { now: 0 };
+    const calls: string[] = [];
+    backend.execImpl = async (_m, cmd): Promise<ExecResult> => {
+      calls.push(cmd);
+      clock.now += 1_000;
+      throw fail();
+    };
+    const opts = { now: () => clock.now, sleep: async (ms: number): Promise<void> => void (clock.now += ms) };
+    const stream = machineExecStream(machine, opts)("claude -p hi", { env: {} });
+    const failure = await (async (): Promise<Error> => {
+      for await (const l of stream.lines) void l;
+      throw new Error("the stream ended without a failure");
+    })().catch((e: unknown) => e as Error);
+    return { machine, failure, at: clock.now, calls };
+  };
+
+  it("a launch the provider refuses fails at once in its words, and never asks after a run while every exec is refused", async () => {
+    const r = await darkMachine(() => Object.assign(new Error("gone"), { kind: "missing", status: 404 }));
+    expect(r.failure.message).toBe(`remote launch failed on ${r.machine.id}: gone`);
+    expect(r.calls.filter(c => c.includes("WSP_LAUNCHED"))).toHaveLength(1);
+    expect(r.calls.filter(c => c.includes("WSP_RUN"))).toEqual([]);
+    expect(r.at).toBeLessThan(10_000);
+  });
+
+  it("a launch whose posts went out to a computer that never answers again fails as unreached once the question about its run has had a link window, not at the turn's wall", async () => {
+    const r = await darkMachine(() => Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+    expect(r.failure).toBeInstanceOf(MachineUnreached);
+    expect(r.calls.some(c => c.includes("WSP_RUN"))).toBe(true);
+    expect(r.at).toBeGreaterThan(LINK_RETRY_WINDOW_MS);
+    expect(r.at).toBeLessThan(3 * LINK_RETRY_WINDOW_MS);
+  });
+
+  it("a launch none of whose posts left this computer fails without asking the machine about a run it never started", async () => {
+    const { backend, machine } = await makeMachine();
+    const g = unreachedGuest(backend, 99, fetchFailed);
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    await expect(
+      (async () => {
+        for await (const l of stream.lines) void l;
+      })(),
+    ).rejects.toBeInstanceOf(MachineUnreached);
+    expect(g.guest.calls.filter(c => c.includes("WSP_RUN"))).toEqual([]);
+  });
+
+  it("a launch that failed for any reason but the network fails at once, in the machine's own words", async () => {
+    const { backend, machine } = await makeMachine();
+    const g = unreachedGuest(backend, 99, () => Object.assign(new Error("gone"), { kind: "missing", status: 404 }));
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    await expect(
+      (async () => {
+        for await (const l of stream.lines) void l;
+      })(),
+    ).rejects.toThrow(`remote launch failed on ${machine.id}: gone`);
+    expect(g.launches()).toBe(1);
+    expect(g.backoffs()).toEqual([]);
+    expect(await stream.exited).toBeNull();
+  });
+
+  it("a launch on a computer that is not connected keeps that computer's own sentence, with no machine id wrapped round it", async () => {
+    const { backend, machine } = await makeMachine();
+    const sentence = absentComputer("old-laptop", null).sentence;
+    const g = unreachedGuest(backend, 99, () => new PlaceAbsentError(sentence));
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    const thrown = await (async () => {
+      try {
+        for await (const l of stream.lines) void l;
+      } catch (e) {
+        return e as Error;
+      }
+      return null;
+    })();
+    // The sentence the app holds the send with, word for word: a wrapper naming the machine put place:p_oldlaptop
+    // in front of the one line that says what to do.
+    expect(thrown?.message).toBe(sentence);
+    expect(thrown?.message).not.toContain(machine.id);
+    expect(thrown?.message).not.toContain("remote launch failed");
+  });
+
+  it("a launch the provider refuses because it cannot reach the machine fails once, in the provider's sentence with no machine id", async () => {
+    const { backend, machine } = await makeMachine();
+    const g = unreachedGuest(backend, 99, () => new MachineUnreachableError(machine.id, "Sandbox is not reachable", 502, machineUnreachableLine("Sandbox is not reachable")));
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    const thrown = await (async () => {
+      try {
+        for await (const l of stream.lines) void l;
+      } catch (e) {
+        return e as Error;
+      }
+      return null;
+    })();
+    expect(thrown?.message).toBe(machineUnreachableLine("Sandbox is not reachable"));
+    expect(thrown?.message).not.toContain(machine.id);
+    expect(thrown?.message).not.toContain("remote launch failed");
+    expect(g.launches()).toBe(1);
+    expect(g.backoffs()).toEqual([]);
+  });
+
+  it("a launch the provider refuses because it cannot run commands on the machine fails once, in that answer's sentence with no machine id", async () => {
+    const { backend, machine } = await makeMachine();
+    const g = unreachedGuest(backend, 99, () => new ExecFailedError(machine.id, "exec failed", 502));
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    const thrown = await (async () => {
+      try {
+        for await (const l of stream.lines) void l;
+      } catch (e) {
+        return e as Error;
+      }
+      return null;
+    })();
+    expect(thrown?.message).toBe(execFailedLine("exec failed"));
+    expect(thrown?.message).not.toContain(machine.id);
+    expect(thrown?.message).not.toContain("remote launch failed");
+    expect(g.launches()).toBe(1);
+    expect(g.backoffs()).toEqual([]);
+  });
+
+  it("a gateway status the edge answered is not retried by the launch: the backend already retried it, and the turn keeps the provider's words", async () => {
+    const { backend, machine } = await makeMachine();
+    const g = unreachedGuest(backend, 99, () => Object.assign(new Error("Service Unavailable"), { kind: "transient", status: 503 }));
+    const stream = machineExecStream(machine, g.opts)("claude -p hi", { env: {} });
+    await expect(
+      (async () => {
+        for await (const l of stream.lines) void l;
+      })(),
+    ).rejects.toThrow(`remote launch failed on ${machine.id}: Service Unavailable`);
+    expect(g.launches()).toBe(1);
+    expect(g.backoffs()).toEqual([]);
+  });
+});
+
+const dirs: string[] = [];
+const children: number[] = [];
+afterEach(() => {
+  // A red run leaves its guest's group going, its tail following a channel the rm takes: the group ends first.
+  for (const d of dirs.splice(0)) {
+    const run = join(d, "run");
+    for (const pid of existsSync(run) ? readdirSync(run).filter(f => f.endsWith(".pid")).map(f => Number(readFileSync(join(run, f), "utf8"))) : []) {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        continue;
+      }
+    }
+    rmSync(d, { recursive: true, force: true });
+  }
+  // The test asserts the child is gone; this keeps a red run from leaving a sleep behind on the Mac.
+  for (const pid of children.splice(0)) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      continue;
+    }
+  }
+});
+
+/** This machine's bash as the guest, given what a Linux machine has (`LINUX_SHELL_PRELUDE`). */
+/** `stdin` makes it a machine whose exec hands the command its input, as a computer you own does; without it the
+ * input is dropped, as a provider's exec drops it. `calls` is the text of every exec, in order. */
+function localGuest(o: { stdin?: boolean; shell?: string } = {}): { machine: Machine; runDir: string; calls: string[] } {
+  const dir = mkdtempSync(join(tmpdir(), "wsp-machine-exec-"));
+  dirs.push(dir);
+  const calls: string[] = [];
+  // Functions, not shim files: macOS assesses a freshly written executable at its first exec, 110 ms idle, seconds under load.
+  const prelude = `${LINUX_SHELL_PRELUDE}${o.shell ?? ""}`;
+  const machine = {
+    id: "local",
+    ...(o.stdin === true ? { takesStdin: true } : {}),
+    exec: (cmd: string, opts?: { stdin?: Uint8Array }) =>
+      new Promise<ExecResult>(resolve => {
+        calls.push(cmd);
+        const child = execFile("bash", ["-c", `${prelude}${cmd}`], { maxBuffer: 16 * 1024 * 1024 }, (e, stdout, stderr) => {
+          resolve({ exitCode: e === null ? 0 : ((e as { code?: number }).code ?? 1), stdout, stderr });
+        });
+        child.stdin?.end(o.stdin === true && opts?.stdin !== undefined ? Buffer.from(opts.stdin) : undefined);
+      }),
+  } as unknown as Machine;
+  return { machine, runDir: join(dir, "run"), calls };
+}
+
+describe("machineExecStream attaching to a run its process did not launch", () => {
+  /** The run is claimed by the launch alone: nothing iterates the launched stream, as a host that went down under
+   * its own reader did not. */
+  const abandoned = async (steps: Parameters<typeof scriptGuest>[1]) => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, steps);
+    const factory = machineExecStream(machine, { pollMs: 5 });
+    const launched = factory("claude -p hi", { env: {}, input: ["go"] });
+    await vi.waitFor(() => expect(guest.getLaunch()).not.toBe(""));
+    return { factory, guest, backend, machine, run: launched.run! };
+  };
+
+  it("reads the run's whole log from its first byte and ends on the exit the run left", async () => {
+    const { factory, run } = await abandoned([
+      { append: '{"type":"system","subtype":"init"}\n{"type":"assistant"}\n' },
+      { append: '{"type":"result"}\n', exit: 0 },
+    ]);
+    const stream = await factory.attach!(run, { input: true, startedAt: Date.now() });
+    expect(stream).not.toBe("gone");
+    const lines: string[] = [];
+    for await (const line of (stream as ExecStream).lines) lines.push(line);
+    expect(lines).toEqual(['{"type":"system","subtype":"init"}', '{"type":"assistant"}', '{"type":"result"}']);
+    expect(await (stream as ExecStream).exited).toBe(0);
+  });
+
+  it("hands over every line the run's channel took, the launch's own and each written since, so a re-opened turn knows what its harness was sent", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: '{"type":"system","subtype":"init"}\n' }, { append: '{"type":"result"}\n', exit: 0 }]);
+    const launched = machineExecStream(machine, { pollMs: 5 })("claude -p hi", { env: {}, input: ["go"] });
+    await vi.waitFor(() => expect(guest.getLaunch()).not.toBe(""));
+    expect(await launched.write('{"type":"user","uuid":"u1"}')).toBe("written");
+    const stream = (await machineExecStream(machine, { pollMs: 5 }).attach!(launched.run!, { input: true, startedAt: Date.now() })) as ExecStream;
+    expect(stream.taken).toEqual(["go", '{"type":"user","uuid":"u1"}']);
+    for await (const line of stream.lines) void line;
+    // A reader that writes nothing is handed nothing.
+    const { factory, run } = await abandoned([{ append: '{"type":"result"}\n', exit: 0 }]);
+    const reader = (await factory.attach!(run, { input: false, startedAt: Date.now() })) as ExecStream;
+    expect(reader.taken).toBeUndefined();
+    for await (const line of reader.lines) void line;
+  });
+
+  it("keeps the reply of a run that finished while no host read it, when it is re-opened past its wall", async () => {
+    // Everything the run printed, and its exit, were on the machine before anything re-opened it.
+    const { factory, run } = await abandoned([{ append: '{"type":"system","subtype":"init"}\n{"type":"assistant"}\n{"type":"result"}\n', exit: 0 }]);
+    const stream = (await factory.attach!(run, { input: true, startedAt: Date.now() - 7 * 3_600_000 })) as ExecStream;
+    const lines: string[] = [];
+    for await (const line of stream.lines) lines.push(line);
+    expect(lines).toEqual(['{"type":"system","subtype":"init"}', '{"type":"assistant"}', '{"type":"result"}']);
+    expect(await stream.exited).toBe(0);
+  });
+
+  it("keeps the reply of a finished run re-opened past its wall when the poll after the re-open fails once", async () => {
+    const { factory, backend, run } = await abandoned([{ append: '{"type":"system","subtype":"init"}\n{"type":"assistant"}\n{"type":"result"}\n', exit: 0 }]);
+    // The probe reached the machine; the first poll after it meets a gateway that falls over once.
+    const inner = backend.execImpl;
+    let failed = false;
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (!failed && cmd.includes("__WSP_EOF_")) {
+        failed = true;
+        throw new Error("gateway said 502");
+      }
+      return inner(m, cmd);
+    };
+    const stream = (await factory.attach!(run, { input: true, startedAt: Date.now() - 7 * 3_600_000 })) as ExecStream;
+    const lines: string[] = [];
+    for await (const line of stream.lines) lines.push(line);
+    expect(failed).toBe(true);
+    expect(lines).toEqual(['{"type":"system","subtype":"init"}', '{"type":"assistant"}', '{"type":"result"}']);
+    expect(await stream.exited).toBe(0);
+  });
+
+  it("cuts a turn re-opened past its wall on a machine that stays dark, once the reach window has passed", async () => {
+    const { backend, machine, run } = await abandoned([{ append: "while-away\n" }]);
+    const clock = { now: 0 };
+    const inner = backend.execImpl;
+    backend.execImpl = async (m, cmd): Promise<ExecResult> => {
+      if (!cmd.includes("__WSP_EOF_")) return inner(m, cmd);
+      clock.now += 10_000;
+      throw new Error("gateway said 502");
+    };
+    const factory = machineExecStream(machine, { pollMs: 1, now: () => clock.now });
+    const stream = (await factory.attach!(run, { input: true, startedAt: -7 * 3_600_000 })) as ExecStream;
+    await expect(
+      (async () => {
+        for await (const line of stream.lines) void line;
+      })(),
+    ).rejects.toThrow(/at the 6h turn limit; send to continue where it stopped, or change the limit in Settings > Computers$/);
+    expect(clock.now).toBeGreaterThanOrEqual(LINK_RETRY_WINDOW_MS);
+    expect(clock.now).toBeLessThan(LINK_RETRY_WINDOW_MS + 20_000);
+    expect(await stream.exited).toBeNull();
+  });
+
+  it("hands over what a run still going printed before it is cut, when it is re-opened past its wall", async () => {
+    const { factory, run } = await abandoned([{ append: "while-away\n" }]);
+    const stream = (await factory.attach!(run, { input: true, startedAt: Date.now() - 7 * 3_600_000 })) as ExecStream;
+    const lines: string[] = [];
+    await expect(
+      (async () => {
+        for await (const line of stream.lines) lines.push(line);
+      })(),
+    ).rejects.toThrow(/at the 6h turn limit; send to continue where it stopped, or change the limit in Settings > Computers$/);
+    expect(lines).toEqual(["while-away"]);
+    expect(await stream.exited).toBeNull();
+  });
+
+  it("takes a message into the run over the channel the launch left open", async () => {
+    const { factory, guest, run } = await abandoned([{ append: "one\n" }, { append: "two\n", exit: 0 }]);
+    const stream = (await factory.attach!(run, { input: true, startedAt: Date.now() })) as ExecStream;
+    expect(await stream.write('{"type":"user"}')).toBe("written");
+    expect(guest.getInput()).toBe('go\n{"type":"user"}\n');
+    for await (const line of stream.lines) void line;
+    expect(await stream.exited).toBe(0);
+  });
+
+  it("a machine that answers and no longer holds the run says gone, with no reader and no poll of its own", async () => {
+    const { factory, guest, run } = await abandoned([{ append: "never read\n", exit: 0 }]);
+    guest.sweep();
+    expect(await factory.attach!(run, { input: true, startedAt: Date.now() })).toBe("gone");
+    expect(guest.calls.filter(c => c.includes("__WSP_EOF_"))).toEqual([]);
+  });
+
+  it("a probe nothing answers leaves the run alone: no kill, no rm, and the reach window is what it waits out", async () => {
+    const { factory, guest, run } = await abandoned([{ append: "still working\n" }]);
+    guest.refuseProbes(new Error("gateway said 502"));
+    const failure = await factory.attach!(run, { input: true, startedAt: Date.now() }).then(
+      () => new Error("the probe answered where it should have failed"),
+      (e: unknown) => e as Error,
+    );
+    expect(failure.message).toBe("gateway said 502");
+    // The turn this attach was sent to save is still running, and its log is still there to be read next time.
+    expect(guest.kills).toEqual([]);
+    expect(guest.childAlive()).toBe(true);
+    expect(guest.files()).toContain(`${run}.sh`);
+  });
+
+  it("a probe whose road is out is asked again over the reach window before it gives up, and still leaves the run alone", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, [{ append: "still working\n" }]);
+    let clock = 0;
+    const factory = machineExecStream(machine, { pollMs: 5, now: () => clock, sleep: async ms => void (clock += ms) });
+    const launched = factory("claude -p hi", { env: {}, input: ["go"] });
+    await vi.waitFor(() => expect(guest.getLaunch()).not.toBe(""));
+    guest.refuseProbes(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } }));
+    const failure = await factory.attach!(launched.run!, { input: true, startedAt: Date.now() }).then(
+      () => new Error("the probe answered where it should have failed"),
+      (e: unknown) => e as Error,
+    );
+    expect(failure).toBeInstanceOf(MachineUnreached);
+    expect(guest.probes()).toBeGreaterThan(1);
+    expect(guest.kills).toEqual([]);
+    expect(guest.childAlive()).toBe(true);
+  });
+
+  it("a machine that answers neither way is not a run to end", async () => {
+    const { factory, guest, run } = await abandoned([{ append: "still working\n" }]);
+    guest.garbleProbes();
+    const failure = await factory.attach!(run, { input: true, startedAt: Date.now() }).then(
+      () => new Error("the probe answered where it should have failed"),
+      (e: unknown) => e as Error,
+    );
+    expect(failure.message).toContain("did not answer whether it still holds");
+    expect(guest.kills).toEqual([]);
+    expect(guest.childAlive()).toBe(true);
+  });
+
+  it("a handle this host could not have launched is refused before any shell text goes out", async () => {
+    const { factory, guest } = await abandoned([{ append: "still working\n" }]);
+    const before = guest.calls.length;
+    for (const bad of ["/tmp/wsp-run/../../etc/x", "/tmp/wsp-run/$(id)", "/etc/wsp-run/aabbccddeeff", "/tmp/wsp-run/nothex000000", "/tmp/wsp-run/aabbccddeef"]) {
+      await expect(factory.attach!(bad, { input: true, startedAt: Date.now() })).rejects.toThrow("is not a run this host could have launched");
+    }
+    expect(guest.calls.length).toBe(before);
+  });
+});
+
+describe("machineExecStream over this machine's bash", () => {
+  it("a launch posted twice under one base, as a retried exec does, starts the script once", async () => {
+    const { machine, runDir } = localGuest();
+    const marks = join(runDir, "..", "marks");
+    const retrying = {
+      id: "local",
+      exec: async (cmd: string, o?: { timeoutMs?: number }) => {
+        const first = await machine.exec(cmd, o);
+        return cmd.includes("echo WSP_LAUNCHED") ? machine.exec(cmd, o) : first;
+      },
+    } as unknown as Machine;
+    const stream = machineExecStream(retrying, { pollMs: 50, runDir })(`echo ran >> ${marks}; echo hi`, { env: { WSP_MARK: "x" } });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(await stream.exited).toBe(0);
+    expect(lines).toEqual(["hi"]);
+    expect(readFileSync(marks, "utf8")).toBe("ran\n");
+  });
+
+  it("an attach reads back only the last EXEC_CHUNK_BYTES of the run's channel, whole lines alone, since the agent can write that file", async () => {
+    const { machine, runDir } = localGuest();
+    const gate = join(runDir, "..", "gate");
+    const factory = machineExecStream(machine, { pollMs: 20, runDir });
+    const launched = factory(`${gateLoop(gate)}; echo done`, { env: {}, input: ["go"] });
+    await vi.waitFor(() => expect(existsSync(`${launched.run}.in`)).toBe(true));
+    const takenNow = async (): Promise<readonly string[] | undefined> => {
+      const stream = (await factory.attach!(launched.run!, { input: true, startedAt: Date.now() })) as ExecStream;
+      stream.closeInput();
+      return stream.taken;
+    };
+    expect(await takenNow()).toEqual(["go"]);
+    // A line past the cap, the turn's opening with its images say, then two messages within it.
+    writeFileSync(`${launched.run}.in`, `${"x".repeat(EXEC_CHUNK_BYTES)}\n{"uuid":"u1"}\n{"uuid":"u2"}\n`, { flag: "a" });
+    expect(await takenNow()).toEqual(['{"uuid":"u1"}', '{"uuid":"u2"}']);
+    writeFileSync(gate, "");
+    for await (const line of launched.lines) void line;
+  });
+});
+
+describe("machineExecStream keeping a key off the machine's disk", () => {
+  /** Every file under the run folder that holds `value`, read whole. */
+  const holding = (runDir: string, value: string): string[] =>
+    readdirSync(runDir, { recursive: true, withFileTypes: true })
+      .filter(e => e.isFile())
+      .map(e => join(e.parentPath, e.name))
+      .filter(path => readFileSync(path, "utf8").includes(value));
+
+  it.each([
+    { road: "a machine that takes stdin, where no exec text holds it either", stdin: true },
+    { road: "a provider's machine, whose exec drops stdin", stdin: false },
+  ])("a turn and an exec launched with a key reach it in their environment, and no file under the run folder holds it, on $road", async ({ stdin }) => {
+    const { machine, runDir, calls } = localGuest({ stdin });
+    const key = `sk-ant-x-${randomBytes(8).toString("hex")}`;
+    const gate = join(runDir, "..", "gate");
+    const factory = machineExecStream(machine, { pollMs: 20, runDir });
+    const seen = 'case "$ANTHROPIC_API_KEY" in sk-ant-x-*) echo "seen ${#ANTHROPIC_API_KEY}";; esac';
+    // A turn as an agent's launch makes one, its prompt on an input channel; an exec as the exec verb makes one.
+    const turn = factory(`${seen}; read -r line; echo "got $line"`, { env: { ANTHROPIC_API_KEY: key }, input: ["hello"] });
+    const exec = factory(`${seen}; ${gateLoop(gate)}`, { env: { ANTHROPIC_API_KEY: key } });
+    try {
+      const turnLines = turn.lines[Symbol.asyncIterator]();
+      const execLines = exec.lines[Symbol.asyncIterator]();
+      expect(await turnLines.next()).toEqual({ value: `seen ${key.length}`, done: false });
+      expect(await turnLines.next()).toEqual({ value: "got hello", done: false });
+      expect(await execLines.next()).toEqual({ value: `seen ${key.length}`, done: false });
+
+      // Both are running, the turn on its open channel and the exec on its gate, with every file of theirs on disk.
+      expect(holding(runDir, key)).toEqual([]);
+      // On a computer you own the launch's text is a world-readable command line; a provider's single-login machine
+      // keeps it there, and the image keeps it out of the logs.
+      if (stdin) expect(calls.filter(cmd => cmd.includes(key))).toEqual([]);
+
+      writeFileSync(gate, "");
+      expect(await execLines.next()).toEqual({ value: undefined, done: true });
+      turn.closeInput();
+      expect(await turnLines.next()).toEqual({ value: undefined, done: true });
+      expect([await exec.exited, await turn.exited]).toEqual([0, 0]);
+      expect(readdirSync(runDir)).toEqual([]);
+    } finally {
+      // A stream on this road reaps its run only while something reads it.
+      for (const stream of [turn, exec]) {
+        stream.kill();
+        await (async () => {
+          for await (const _ of stream.lines) void _;
+        })().catch(() => undefined);
+      }
+    }
+  }, 20_000);
+
+  it("a script an older host wrote with the key in it is gone once its run ends, read or swept", async () => {
+    const { machine, runDir } = localGuest();
+    const key = `sk-ant-x-${randomBytes(8).toString("hex")}`;
+    const gate = join(runDir, "..", "gate");
+    /** A run as a host before this one launched it: the environment as export lines at the top of its script. */
+    const older = async (id: string, command: string): Promise<string> => {
+      const b = shellQuote(join(runDir, id));
+      const script = `export ANTHROPIC_API_KEY=${shellQuote(key)}\n${command}\necho $? > ${b}.exit\n`;
+      const res = await machine.exec(`umask 077; mkdir -p ${shellQuote(runDir)} ${b}.d && printf %s ${shellQuote(script)} > ${b}.sh && { setsid bash ${b}.sh > ${b}.log 2>&1 & echo $! > ${b}.pid; }`);
+      expect(res.exitCode).toBe(0);
+      const pid = Number(readFileSync(`${join(runDir, id)}.pid`, "utf8").trim());
+      children.push(pid);
+      return join(runDir, id);
+    };
+    const read = await older("aaaaaaaaaaaa", `${gateLoop(gate)}; echo done`);
+    const ended = await older("bbbbbbbbbbbb", "echo done");
+    await vi.waitFor(() => expect(readFileSync(`${ended}.exit`, "utf8").trim()).toBe("0"), { timeout: 5_000 });
+    expect(holding(runDir, key).sort()).toEqual([`${read}.sh`, `${ended}.sh`]);
+
+    // The host that comes next re-opens the run its rows hold and sweeps the one they do not.
+    const next = machineExecStream(machine, { pollMs: 20, runDir });
+    const attached = (await next.attach!(read, { input: false, startedAt: Date.now() })) as ExecStream;
+    expect(await next.sweep!([read])).toEqual([ended]);
+    writeFileSync(gate, "");
+    const lines: string[] = [];
+    for await (const l of attached.lines) lines.push(l);
+    expect([lines, await attached.exited]).toEqual([["done"], 0]);
+    expect(readdirSync(runDir)).toEqual([]);
+  }, 20_000);
+});
+
+describe("machineExecStream reaping a real turn's process group", () => {
+  it("a child the command left in the background is gone once the turn ended, and the run directory is empty", async () => {
+    const { machine, runDir } = localGuest();
+    const childFile = join(runDir, "..", "child");
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })(`sleep 300 & echo $! > ${shellQuote(childFile)}; echo hi`, { env: {} });
+    const lines: string[] = [];
+    for await (const l of stream.lines) lines.push(l);
+    expect(await stream.exited).toBe(0);
+    expect(lines).toEqual(["hi"]);
+    const childPid = Number(readFileSync(childFile, "utf8").trim());
+    children.push(childPid);
+    expect(childPid).toBeGreaterThan(0);
+    await vi.waitFor(() => expect(() => process.kill(childPid, 0)).toThrow(), { timeout: 5000 });
+    expect(readdirSync(runDir)).toEqual([]);
+  }, 15_000);
+});
+
+describe("machineExecStream ending a run that ignores TERM", () => {
+  it("what it printed after the last poll is read before the KILL's reap takes the log, past one chunk of it", async () => {
+    const { machine, runDir } = localGuest();
+    // A poll slower than the grace, so no read falls between the TERM and the KILL: the lines are read at the end or never.
+    const stream = machineExecStream(machine, { pollMs: 1_500, runDir })(`trap 'head -c ${EXEC_CHUNK_BYTES + 1000} /dev/zero | tr "\\0" x; echo; echo last words' TERM; echo ready; ${gateLoop(join(runDir, "stop"))}`, { env: {} });
+    const lines = stream.lines[Symbol.asyncIterator]();
+    expect(await lines.next()).toEqual({ value: "ready", done: false });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const ended = endRun(stream, 300);
+    const rest: string[] = [];
+    for (let next = await lines.next(); next.done !== true; next = await lines.next()) rest.push(next.value);
+    await ended;
+    expect(rest).toContain("x".repeat(EXEC_CHUNK_BYTES + 1000));
+    expect(rest.at(-1)).toBe("last words");
+    expect(readdirSync(runDir)).toEqual([]);
+  }, 15_000);
+});
+
+describe("machineExecStream ending a run something outside its group still writes to", () => {
+  /** The guest at the far end of a link that takes `ms` each way round, as a cloud machine's exec does. */
+  const slowGuest = (ms: number): { machine: Machine; runDir: string } => {
+    const { machine, runDir } = localGuest();
+    return { machine: { ...machine, exec: async (cmd: string, o?: Parameters<Machine["exec"]>[1]) => (await new Promise(resolve => setTimeout(resolve, ms)), machine.exec(cmd, o)) } as Machine, runDir };
+  };
+  /** A command that starts a writer in a session of its own, holding the log at about 2 MB/s for `s` seconds, and
+   * writes the writer's group to `marker`. */
+  const leavesAWriter = (marker: string, s: number): string =>
+    `setsid sh -c 'end=$(($(date +%s) + ${s})); while [ $(date +%s) -lt $end ]; do head -c 65536 /dev/zero | tr "\\0" y; echo; sleep 0.03; done' & echo $! > ${shellQuote(marker)}; echo ready; sleep 30`;
+
+  it("a stop reads the log to the size it had at the KILL and ends, while the writer goes on printing", async () => {
+    const { machine, runDir } = slowGuest(200);
+    const marker = join(runDir, "..", "writer");
+    const stream = machineExecStream(machine, { pollMs: 100, runDir })(leavesAWriter(marker, 60), { env: {} });
+    let writer: number | undefined;
+    try {
+      const reading = (async () => {
+        for await (const _ of stream.lines) void _;
+      })();
+      await vi.waitFor(() => expect(readFileSync(marker, "utf8").trim()).not.toBe(""), { timeout: 5_000 });
+      writer = Number(readFileSync(marker, "utf8").trim());
+      await new Promise(resolve => setTimeout(resolve, 1_000));
+      stream.kill();
+      await reading;
+      await stream.exited;
+      // The stop ended while the writer still prints: on a link slower than the writer, a read to the end of the log
+      // ends only once the writer does.
+      expect(() => process.kill(-writer!, 0)).not.toThrow();
+      expect(readdirSync(runDir)).toEqual([]);
+    } finally {
+      if (writer !== undefined) {
+        try {
+          process.kill(-writer, "SIGKILL");
+        } catch {
+          // gone already
+        }
+      }
+    }
+  }, 30_000);
+
+  it("a launch read as failed takes the run's files and its claim, however much its log holds", async () => {
+    const { machine: guest, runDir } = localGuest();
+    const logged = (): number => readdirSync(runDir).filter(name => name.endsWith(".log")).reduce((sum, name) => sum + statSync(join(runDir, name)).size, 0);
+    // The run starts, and the launch's answer comes back without the word, once the log holds more than a chunk.
+    const machine = {
+      ...guest,
+      exec: async (cmd: string, o?: Parameters<Machine["exec"]>[1]) => {
+        const res = await guest.exec(cmd, o);
+        if (!cmd.includes("WSP_LAUNCHED")) return res;
+        await vi.waitFor(() => expect(logged()).toBeGreaterThan(EXEC_CHUNK_BYTES + 1000), { timeout: 5_000 });
+        return { ...res, stdout: "" };
+      },
+    } as Machine;
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })(`head -c ${EXEC_CHUNK_BYTES + 2000} /dev/zero | tr '\\0' x; echo; sleep 30`, { env: {} });
+    await expect(
+      (async () => {
+        for await (const _ of stream.lines) void _;
+      })(),
+    ).rejects.toThrow(/remote launch failed/);
+    expect(await stream.exited).toBeNull();
+    expect(readdirSync(runDir)).toEqual([]);
+  }, 15_000);
+});
+
+describe("machineExecStream sweeping the runs a connecting host does not hold", () => {
+  it("ends every claimed run but the ones it is named, takes their files, and leaves a named run running", async () => {
+    const { machine, runDir } = localGuest();
+    const factory = machineExecStream(machine, { pollMs: 20, runDir });
+    // Nothing iterates either stream, as a host that went down under its own reader did not.
+    const held = factory("sleep 300", { env: {} });
+    const orphan = factory("sleep 300", { env: {} });
+    const leader = async (base: string): Promise<number> => {
+      await vi.waitFor(() => expect(existsSync(`${base}.pid`)).toBe(true), { timeout: 5_000 });
+      const pid = Number(readFileSync(`${base}.pid`, "utf8").trim());
+      expect(pid).toBeGreaterThan(0);
+      children.push(pid);
+      return pid;
+    };
+    const heldPid = await leader(held.run!);
+    const orphanPid = await leader(orphan.run!);
+    const filesOf = (base: string): string[] => readdirSync(runDir).filter(name => name.startsWith(basename(base)));
+    // A claim of a shape this factory could not have minted is the guest's, not a run of ours to end.
+    mkdirSync(join(runDir, "notarun.d"));
+
+    expect(await factory.sweep!([held.run!])).toEqual([orphan.run!]);
+
+    await vi.waitFor(() => expect(() => process.kill(orphanPid, 0)).toThrow(), { timeout: 5_000 });
+    expect(filesOf(orphan.run!)).toEqual([]);
+    expect(() => process.kill(heldPid, 0)).not.toThrow();
+    expect(filesOf(held.run!).length).toBeGreaterThan(0);
+
+    // The same host, holding nothing: the run it was reading is a run nobody reads.
+    expect(await factory.sweep!([])).toEqual([held.run!]);
+    await vi.waitFor(() => expect(() => process.kill(heldPid, 0)).toThrow(), { timeout: 5_000 });
+    expect(readdirSync(runDir)).toEqual(["notarun.d"]);
+  }, 30_000);
+
+  it("a machine holding two hundred stale runs is swept a page at a time, every page under the exec body cap", async () => {
+    const stale = Array.from({ length: 200 }, (_, i) => `/tmp/wsp-run/${i.toString(16).padStart(12, "0")}`);
+    const calls: string[] = [];
+    const machine = {
+      id: "crowded",
+      exec: (cmd: string) => {
+        calls.push(cmd);
+        return Promise.resolve({ exitCode: 0, stdout: cmd.startsWith("for d in ") ? `${stale.map(base => `${base}.d`).join("\n")}\n` : "", stderr: "" });
+      },
+    } as unknown as Machine;
+
+    expect(await machineExecStream(machine).sweep!([])).toEqual(stale);
+
+    const reaps = calls.slice(1);
+    // Measured as the wire body the backend sends, the way every other call this file holds under the cap is.
+    for (const cmd of calls) expect(solariBody(cmd), cmd.slice(0, 80)).toBeLessThanOrEqual(EXEC_BODY_MAX);
+    expect(reaps.length).toBeGreaterThan(1);
+    // Every run is reaped once across the pages, and no page carries a run twice.
+    const reaped = stale.filter(base => reaps.filter(cmd => cmd.includes(`rm -rf '${base}'.*`)).length === 1);
+    expect(reaped).toEqual(stale);
+  });
+
+  it("a machine holding no run of this factory's is swept without a second word going out", async () => {
+    const { machine, runDir } = localGuest();
+    const calls: string[] = [];
+    const counted = { id: "local", exec: (cmd: string, o?: { timeoutMs?: number }) => (calls.push(cmd), machine.exec(cmd, o)) } as unknown as Machine;
+    expect(await machineExecStream(counted, { runDir }).sweep!([])).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("machineExecStream feeding a real process over the input channel", () => {
+  it("the seeded line and a later write reach the command's stdin in order, closeInput ends it, and the tail is gone after", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["hello"] });
+    const lines: string[] = [];
+    const reading = (async () => {
+      for await (const l of stream.lines) lines.push(l);
+    })();
+    const file = (suffix: string): string | undefined => readdirSync(runDir).find(f => f.endsWith(suffix));
+    await vi.waitFor(() => expect(readFileSync(join(runDir, file(".tail")!), "utf8").trim()).not.toBe(""), { timeout: 5000 });
+    const tailPid = Number(readFileSync(join(runDir, file(".tail")!), "utf8").trim());
+    expect(tailPid).toBeGreaterThan(0);
+    expect(await stream.write("world")).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["hello", "world"]), { timeout: 5000 });
+    stream.closeInput();
+    await reading;
+    expect(lines).toEqual(["hello", "world"]);
+    expect(await stream.exited).toBe(0);
+    await vi.waitFor(() => expect(() => process.kill(tailPid, 0)).toThrow(), { timeout: 5000 });
+  }, 15_000);
+
+  it("a write after the command exited answers gone and the input file keeps only what the process could read", async () => {
+    const { machine, runDir } = localGuest();
+    let holdPolls = false;
+    const held: (() => void)[] = [];
+    const gated = {
+      id: "local",
+      exec: async (cmd: string, o?: { timeoutMs?: number }) => {
+        if (holdPolls && cmd.includes("__WSP_EOF_")) await new Promise<void>(r => held.push(r));
+        return machine.exec(cmd, o);
+      },
+    } as unknown as Machine;
+    const stream = machineExecStream(gated, { pollMs: 20, runDir })("cat", { env: {}, input: ["hello"] });
+    const lines: string[] = [];
+    const reading = (async () => {
+      for await (const l of stream.lines) lines.push(l);
+    })();
+    const file = (suffix: string): string | undefined => readdirSync(runDir).find(f => f.endsWith(suffix));
+    await vi.waitFor(() => expect(readFileSync(join(runDir, file(".tail")!), "utf8").trim()).not.toBe(""), { timeout: 5000 });
+    holdPolls = true;
+    stream.closeInput();
+    await vi.waitFor(() => expect(file(".exit")).toBeDefined(), { timeout: 5000 });
+    expect(await stream.write("late")).toBe("gone");
+    expect(readFileSync(join(runDir, file(".in")!), "utf8")).toBe("hello\n");
+    holdPolls = false;
+    for (const release of held.splice(0)) release();
+    await reading;
+    expect(lines).toEqual(["hello"]);
+    expect(await stream.exited).toBe(0);
+    expect(readdirSync(runDir)).toEqual([]);
+  }, 15_000);
+});
+
+describe("machineExecStream holding a seed until it is due", () => {
+  const file = (runDir: string, suffix: string): string | undefined => readdirSync(runDir).find(f => f.endsWith(suffix));
+  const read = (stream: ExecStream): { lines: string[]; done: Promise<void> } => {
+    const lines: string[] = [];
+    const done = (async () => {
+      for await (const l of stream.lines) lines.push(l);
+    })();
+    return { lines, done };
+  };
+
+  it("starts the command at once, hands it the seed once due and not before, and leaves no held file", async () => {
+    const { machine, runDir } = localGuest();
+    let due: () => void = () => {};
+    const inputAfter = new Promise<void>(resolve => (due = resolve));
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["hello"], inputAfter });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(readFileSync(join(runDir, file(runDir, ".tail")!), "utf8").trim()).not.toBe(""), { timeout: 5000 });
+    expect(readFileSync(join(runDir, file(runDir, ".in")!), "utf8")).toBe("");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(lines).toEqual([]);
+    due();
+    await vi.waitFor(() => expect(lines).toEqual(["hello"]), { timeout: 5000 });
+    expect(file(runDir, ".held")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["hello"]);
+    expect(await stream.exited).toBe(0);
+  }, 15_000);
+
+  it("puts a line written before the seed is due after the seed, and hands the seed over once", async () => {
+    const { machine, runDir } = localGuest();
+    let due: () => void = () => {};
+    const inputAfter = new Promise<void>(resolve => (due = resolve));
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["hello"], inputAfter });
+    const { lines, done } = read(stream);
+    expect(await stream.write("world")).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["hello", "world"]), { timeout: 5000 });
+    due();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["hello", "world"]);
+  }, 15_000);
+
+  it("a host that attaches to a run whose seed is still held hands the seed over and reads it back as taken", async () => {
+    const { machine, runDir } = localGuest();
+    const factory = machineExecStream(machine, { pollMs: 20, runDir });
+    const launched = factory("cat", { env: {}, input: ["hello"], inputAfter: new Promise<void>(() => {}) });
+    await vi.waitFor(() => expect(file(runDir, ".held")).toBeDefined(), { timeout: 5000 });
+    const run = launched.run!;
+    const attached = await machineExecStream(machine, { pollMs: 20, runDir }).attach!(run, { input: true, startedAt: Date.now() });
+    expect(attached).not.toBe("gone");
+    const stream = attached as ExecStream;
+    expect(stream.taken).toEqual(["hello"]);
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["hello"]), { timeout: 5000 });
+    expect(file(runDir, ".held")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    expect(await stream.exited).toBe(0);
+    launched.kill();
+  }, 15_000);
+});
+
+describe("machineExecStream holding a line written ahead of when it is due", () => {
+  const file = (runDir: string, suffix: string): string | undefined => readdirSync(runDir).find(f => f.endsWith(suffix));
+  const read = (stream: ExecStream): { lines: string[]; done: Promise<void> } => {
+    const lines: string[] = [];
+    const done = (async () => {
+      for await (const l of stream.lines) lines.push(l);
+    })();
+    return { lines, done };
+  };
+
+  it("parks the line beside the run and appends it once due, after what the channel took before", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    let due: () => void = () => {};
+    stream.writeAfter!("two", new Promise<void>(resolve => (due = resolve)));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(lines).toEqual(["one"]);
+    due();
+    await vi.waitFor(() => expect(lines).toEqual(["one", "two"]), { timeout: 5000 });
+    expect(file(runDir, ".late")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one", "two"]);
+  }, 15_000);
+
+  it("drops the line when what it waits on is refused", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    let refuse: () => void = () => {};
+    stream.writeAfter!("two", new Promise<void>((_, reject) => (refuse = () => reject(new Error("stopped")))));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    refuse();
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeUndefined(), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one"]);
+  }, 15_000);
+
+  it("hands a held seed over once when a write lands as it comes due, and a prompt with the same words goes in each time, through the guest's own shell", async () => {
+    // The guest's cat reads a held seed at once and prints it a second later, so two hand-overs that ran at once would
+    // both have found the channel empty and both append it.
+    const { machine, runDir } = localGuest({ shell: 'cat() { case "$1" in *.held) local t; t=$(command cat "$1"); sleep 1; printf \'%s\\n\' "$t"; return ;; esac; command cat "$@"; }\n' });
+    let due: () => void = () => {};
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["seed"], inputAfter: new Promise<void>(resolve => (due = resolve)) });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(file(runDir, ".held")).toBeDefined(), { timeout: 5000 });
+    due();
+    expect(await stream.write("steer")).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "steer"]), { timeout: 5000 });
+    const yes = '{"type":"user","message":{"role":"user","content":[{"type":"text","text":"yes"}]},"parent_tool_use_id":null,"session_id":"s"}';
+    stream.writeAfter!(yes, Promise.resolve());
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "steer", yes]), { timeout: 5000 });
+    stream.writeAfter!(yes, Promise.resolve());
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "steer", yes, yes]), { timeout: 5000 });
+    await new Promise(resolve => setTimeout(resolve, 300));
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["seed", "steer", yes, yes]);
+  }, 20_000);
+
+  it("parks the line as the login's alone, as every other file of the run", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"], inputAfter: new Promise<void>(() => {}) });
+    const { done } = read(stream);
+    await vi.waitFor(() => expect(file(runDir, ".held")).toBeDefined(), { timeout: 5000 });
+    stream.writeAfter!("two", new Promise<void>(() => {}));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    const mode = (suffix: string): string => (statSync(join(runDir, file(runDir, suffix)!)).mode & 0o777).toString(8);
+    expect([mode(".in"), mode(".held"), mode(".late")]).toEqual(["600", "600", "600"]);
+    stream.kill();
+    await done.catch(() => undefined);
+  }, 15_000);
+
+  it("puts a line written while another is parked after the parked one", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    let due: () => void = () => {};
+    stream.writeAfter!("prompt", new Promise<void>(resolve => (due = resolve)));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    const steered = stream.write("steer");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    due();
+    expect(await steered).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["one", "prompt", "steer"]), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+  }, 15_000);
+
+  it("puts a line written in the tick before another is parked ahead of it, as a kept Codex writes thread/resume before its turn/start", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    const resumed = stream.write("resume");
+    stream.writeAfter!("turn", new Promise<void>(resolve => setTimeout(resolve, 200)));
+    expect(await resumed).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["one", "resume", "turn"]), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one", "resume", "turn"]);
+  }, 15_000);
+
+  it("hands two lines parked one after the other over in order, neither lost", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    let first: () => void = () => {};
+    let second: () => void = () => {};
+    stream.writeAfter!("two", new Promise<void>(resolve => (first = resolve)));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    stream.writeAfter!("three", new Promise<void>(resolve => (second = resolve)));
+    second();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    expect(lines).toEqual(["one"]);
+    first();
+    await vi.waitFor(() => expect(lines).toEqual(["one", "two", "three"]), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one", "two", "three"]);
+  }, 15_000);
+
+  it("a line parked while the seed is still held goes after the seed, which is not lost", async () => {
+    const { machine, runDir } = localGuest();
+    let due: () => void = () => {};
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["seed"], inputAfter: new Promise<void>(resolve => (due = resolve)) });
+    const { lines, done } = read(stream);
+    stream.writeAfter!("late", Promise.resolve());
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "late"]), { timeout: 5000 });
+    due();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["seed", "late"]);
+  }, 15_000);
+
+  it("a host that attaches to the run hands a parked line over once, after the channel's own", async () => {
+    const { machine, runDir } = localGuest();
+    const launched = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const first = read(launched);
+    await vi.waitFor(() => expect(first.lines).toEqual(["one"]), { timeout: 5000 });
+    launched.writeAfter!("two", new Promise<void>(() => {}));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    const attached = await machineExecStream(machine, { pollMs: 20, runDir }).attach!(launched.run!, { input: true, startedAt: Date.now() });
+    const stream = attached as ExecStream;
+    expect(stream.taken).toEqual(["one", "two"]);
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one", "two"]), { timeout: 5000 });
+    expect(file(runDir, ".late")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    launched.kill();
+  }, 15_000);
+});
+
+describe("machineExecStream polling a script that ends at once", () => {
+  // Twenty rounds of three to five real bash execs each: 3 s on an idle Mac, 24 s seen at load average 330.
+  it("keeps the last line and the exit code when the poll lands as the script ends", async () => {
+    const { machine, runDir } = localGuest();
+    const results: { lines: string[]; exited: number | null }[] = [];
+    for (let i = 0; i < 20; i++) {
+      const stream = machineExecStream(machine, { pollMs: 1, runDir })("echo hi", { env: {} });
+      const lines: string[] = [];
+      for await (const l of stream.lines) lines.push(l);
+      results.push({ lines, exited: await stream.exited });
+    }
+    expect(results).toEqual(Array.from({ length: 20 }, () => ({ lines: ["hi"], exited: 0 })));
+  }, 60_000);
+});
+
+describe("a reader that lets go of a run still going", () => {
+  it("ends its poll where it stands, settles nothing, reaps nothing, and the run is left on the machine", async () => {
+    const { backend, machine } = await makeMachine();
+    // A run that prints nothing and never ends, which is what a turn left running on a machine is.
+    const guest = scriptGuest(backend, []);
+    const reading = new Set<() => void>();
+    const factory = machineExecStream(machine, { pollMs: 10, reading });
+    const stream = factory("claude -p hi", { env: {} });
+    const polls = (): number => guest.calls.filter(c => c.includes("__WSP_EOF_")).length;
+    // Nothing awaits this: the reader is the poll, and letting go is what this case is about.
+    void (async () => {
+      for await (const line of stream.lines) void line;
+    })();
+    await vi.waitFor(() => expect(polls()).toBeGreaterThan(1));
+    // The reader registered itself with the wiring that made the factory, as the call that stops it.
+    expect(reading.size).toBe(1);
+
+    for (const stop of [...reading]) stop();
+    expect(reading.size).toBe(0);
+    const after = polls();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(polls()).toBe(after);
+    // The turn is not written off: nothing was signalled, nothing reaped, and the stream settles for nobody, so
+    // whoever owns that turn reads its log from the first byte when it opens it again.
+    expect(guest.kills).toEqual([]);
+    expect(guest.childAlive()).toBe(true);
+    expect(guest.files()).toContain(`${stream.run!}.sh`);
+    const settled = await Promise.race([stream.exited.then(() => "settled"), new Promise(resolve => setTimeout(() => resolve("still running"), 50))]);
+    expect(settled).toBe("still running");
+  });
+
+  it("is dropped from the set the moment its run ends, so a close after that stops nothing", async () => {
+    const { backend, machine } = await makeMachine();
+    scriptGuest(backend, [{ append: "done\n", exit: 0 }, {}]);
+    const reading = new Set<() => void>();
+    const stream = machineExecStream(machine, { pollMs: 5, reading })("claude -p hi", { env: {} });
+    for await (const line of stream.lines) void line;
+    expect(await stream.exited).toBe(0);
+    expect(reading.size).toBe(0);
+  });
+});
+
+describe("a reader let go of while its poll is in flight", () => {
+  it("starts no timer for the poll it comes back to, so nothing it held outlives the close", async () => {
+    // Counted, not named: the runner holds timers of its own, and what this case is about is the one this poll
+    // would add after it was let go. The poll is slow enough that such a timer is still there to be counted.
+    const timers = (): number => process.getActiveResourcesInfo().filter(kind => kind === "Timeout").length;
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, []);
+    const inner = backend.execImpl;
+    let inFlight = false;
+    let answer: (() => void) | undefined;
+    const holding = new Promise<void>(resolve => {
+      answer = resolve;
+    });
+    backend.execImpl = async (m, cmd) => {
+      if (cmd.includes("__WSP_EOF_") && answer !== undefined) {
+        inFlight = true;
+        await holding;
+      }
+      return inner(m, cmd);
+    };
+    const reading = new Set<() => void>();
+    const stream = machineExecStream(machine, { pollMs: 5_000, reading })("claude -p hi", { env: {} });
+    void (async () => {
+      for await (const line of stream.lines) void line;
+    })();
+    await vi.waitFor(() => expect(inFlight).toBe(true));
+
+    const before = timers();
+    for (const stop of [...reading]) stop();
+    answer!();
+    answer = undefined;
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(timers(), `left open: ${process.getActiveResourcesInfo().join(", ")}`).toBe(before);
+    // And the run is left as it was, as a dropped reader always leaves it.
+    expect(guest.kills).toEqual([]);
+    expect(guest.childAlive()).toBe(true);
+  });
+});
+
+describe("text a run reads that holds a value", () => {
+  it("lands in files of the run's own off the launch's input, the run handed the path, and no command and no environment of the run holds it", async () => {
+    const { machine, runDir, calls } = localGuest({ stdin: true });
+    const value = `lin_${randomBytes(8).toString("hex")}`;
+    const factory = machineExecStream(machine, { pollMs: 20, runDir });
+    // The mode through ls, since macOS's stat takes no -c.
+    const script = 'ls -l "$WSP_MCP_VALUES" | cut -c1-10; cat "$WSP_MCP_VALUES"; echo; read -r line; echo "got $line"; env | grep -c "^WSP_LAND" || true';
+    const stream = factory(script, { env: {}, input: [`seed ${value}`], secret: { files: { WSP_MCP_VALUES: `{"token":"${value}"}` }, input: true } });
+    const lines: string[] = [];
+    for await (const line of stream.lines) {
+      lines.push(line);
+      if (line === "0") stream.closeInput();
+    }
+    expect(lines).toEqual(["-rw-------", `{"token":"${value}"}`, `got seed ${value}`, "0"]);
+    expect(await stream.exited).toBe(0);
+    expect(calls.filter(cmd => cmd.includes(value))).toEqual([]);
+    expect(readdirSync(runDir)).toEqual([]);
+  });
+
+  it("is refused on a machine whose launch takes no input, before anything is started", () => {
+    const { machine, runDir, calls } = localGuest();
+    expect(() => machineExecStream(machine, { pollMs: 20, runDir })("true", { env: {}, secret: { files: { WSP_MCP_VALUES: "{}" } } })).toThrow("takes no input on its launch");
+    expect(calls).toEqual([]);
+  });
+});

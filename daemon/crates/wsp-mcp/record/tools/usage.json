@@ -1,0 +1,752 @@
+{
+  "cloudOff": {
+    "name": "usage",
+    "description": "Two answers that are never added together. accounts: every agent account signed in on any computer, the same one on three computers once, each with how much of its plan's windows is used and when each starts again, as that agent printed them in the last turn wsp ran on it; an agent that prints none reports no plan limit, a sign-in by API key pays per token with no plan window, and an account no turn has run on yet has no reading. used: the tokens the turns used over the range (today, the last seven days or the last thirty), split by agent, account, computer, project, model or source (a model once for each agent that ran it, and a row by agent, account or model naming its agent; every split counts the turns wsp's threads ran with the work the agents on this computer and on each joined one logged outside wsp, as each computer's own daemon read it, as the Usage page does, and by source the two stand as two rows), each row with the cost its agent reported, a list price off one table for every token and what the cache saved, input counting the cached and the written tokens, the turns wsp ran, and a series over the range with one line per row.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "range": {
+          "type": "string",
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ],
+          "description": "day (the default), week or month"
+        },
+        "by": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "account",
+            "computer",
+            "project",
+            "model",
+            "source"
+          ],
+          "description": "agent (the default), account, computer, project, model or source"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "accounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "agent": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "computers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "plan": {
+                "type": "string"
+              },
+              "windows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "session",
+                        "week",
+                        "week_opus",
+                        "week_sonnet",
+                        "month",
+                        "overage"
+                      ]
+                    },
+                    "usedPercent": {
+                      "type": "number"
+                    },
+                    "resetsAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "usedPercent"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "warning",
+                  "reached"
+                ]
+              },
+              "readAt": {
+                "type": "number"
+              },
+              "note": {
+                "type": "string",
+                "enum": [
+                  "reports no plan limit",
+                  "pays per token, no plan limit",
+                  "not read yet: shows after its next turn"
+                ]
+              },
+              "burn": {
+                "type": "object",
+                "properties": {
+                  "tokensPerMinute": {
+                    "type": "number"
+                  },
+                  "threads": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "tokensPerMinute",
+                  "threads"
+                ],
+                "additionalProperties": false
+              },
+              "address": {
+                "type": "string"
+              },
+              "credits": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "credits": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "available",
+                            "redeeming",
+                            "redeemed",
+                            "unknown"
+                          ]
+                        },
+                        "expiresAt": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "nextExpiresAt": {
+                    "type": "number"
+                  },
+                  "readAt": {
+                    "type": "number"
+                  },
+                  "detailAt": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "count",
+                  "readAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "key",
+              "agent",
+              "label",
+              "computers"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "used": {
+          "type": "object",
+          "properties": {
+            "range": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            },
+            "split": {
+              "type": "string",
+              "enum": [
+                "agent",
+                "account",
+                "computer",
+                "project",
+                "model",
+                "source"
+              ]
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "agent": {
+                    "type": "string"
+                  },
+                  "tokens": {
+                    "type": "object",
+                    "properties": {
+                      "input": {
+                        "type": "number"
+                      },
+                      "output": {
+                        "type": "number"
+                      },
+                      "cached": {
+                        "type": "number"
+                      },
+                      "cacheWrite": {
+                        "type": "number"
+                      },
+                      "reasoning": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "input",
+                      "output",
+                      "cached"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "costReported": {
+                    "type": "number"
+                  },
+                  "costList": {
+                    "type": "number"
+                  },
+                  "priced": {
+                    "type": "boolean"
+                  },
+                  "estimate": {
+                    "type": "number"
+                  },
+                  "saved": {
+                    "type": "number"
+                  },
+                  "turns": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "key",
+                  "label",
+                  "tokens",
+                  "priced"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "t": {
+                    "type": "number"
+                  },
+                  "tokens": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "t",
+                  "tokens"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "since": {
+              "type": "number"
+            },
+            "until": {
+              "type": "number"
+            },
+            "logs": {
+              "type": "object",
+              "properties": {
+                "agents": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "computers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "agents",
+                "computers"
+              ],
+              "additionalProperties": false
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": [
+                  "key",
+                  "label",
+                  "points"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "range",
+            "split",
+            "rows",
+            "series",
+            "since",
+            "until"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "accounts",
+        "used"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "usage",
+    "description": "Two answers that are never added together. accounts: every agent account signed in on any computer, the same one on three computers once, each with how much of its plan's windows is used and when each starts again, as that agent printed them in the last turn wsp ran on it; an agent that prints none reports no plan limit, a sign-in by API key pays per token with no plan window, and an account no turn has run on yet has no reading. used: the tokens the turns used over the range (today, the last seven days or the last thirty), split by agent, account, computer, project, model or source (a model once for each agent that ran it, and a row by agent, account or model naming its agent; every split counts the turns wsp's threads ran with the work the agents on this computer and on each joined one logged outside wsp, as each computer's own daemon read it, as the Usage page does, and by source the two stand as two rows), each row with the cost its agent reported, a list price off one table for every token and what the cache saved, input counting the cached and the written tokens, the turns wsp ran, and a series over the range with one line per row.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "range": {
+          "type": "string",
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ],
+          "description": "day (the default), week or month"
+        },
+        "by": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "account",
+            "computer",
+            "project",
+            "model",
+            "source"
+          ],
+          "description": "agent (the default), account, computer, project, model or source"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "accounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "agent": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "computers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "plan": {
+                "type": "string"
+              },
+              "windows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "session",
+                        "week",
+                        "week_opus",
+                        "week_sonnet",
+                        "month",
+                        "overage"
+                      ]
+                    },
+                    "usedPercent": {
+                      "type": "number"
+                    },
+                    "resetsAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "usedPercent"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "warning",
+                  "reached"
+                ]
+              },
+              "readAt": {
+                "type": "number"
+              },
+              "note": {
+                "type": "string",
+                "enum": [
+                  "reports no plan limit",
+                  "pays per token, no plan limit",
+                  "not read yet: shows after its next turn"
+                ]
+              },
+              "burn": {
+                "type": "object",
+                "properties": {
+                  "tokensPerMinute": {
+                    "type": "number"
+                  },
+                  "threads": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "tokensPerMinute",
+                  "threads"
+                ],
+                "additionalProperties": false
+              },
+              "address": {
+                "type": "string"
+              },
+              "credits": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "credits": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "available",
+                            "redeeming",
+                            "redeemed",
+                            "unknown"
+                          ]
+                        },
+                        "expiresAt": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "nextExpiresAt": {
+                    "type": "number"
+                  },
+                  "readAt": {
+                    "type": "number"
+                  },
+                  "detailAt": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "count",
+                  "readAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "key",
+              "agent",
+              "label",
+              "computers"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "used": {
+          "type": "object",
+          "properties": {
+            "range": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            },
+            "split": {
+              "type": "string",
+              "enum": [
+                "agent",
+                "account",
+                "computer",
+                "project",
+                "model",
+                "source"
+              ]
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "agent": {
+                    "type": "string"
+                  },
+                  "tokens": {
+                    "type": "object",
+                    "properties": {
+                      "input": {
+                        "type": "number"
+                      },
+                      "output": {
+                        "type": "number"
+                      },
+                      "cached": {
+                        "type": "number"
+                      },
+                      "cacheWrite": {
+                        "type": "number"
+                      },
+                      "reasoning": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "input",
+                      "output",
+                      "cached"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "costReported": {
+                    "type": "number"
+                  },
+                  "costList": {
+                    "type": "number"
+                  },
+                  "priced": {
+                    "type": "boolean"
+                  },
+                  "estimate": {
+                    "type": "number"
+                  },
+                  "saved": {
+                    "type": "number"
+                  },
+                  "turns": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "key",
+                  "label",
+                  "tokens",
+                  "priced"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "t": {
+                    "type": "number"
+                  },
+                  "tokens": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "t",
+                  "tokens"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "since": {
+              "type": "number"
+            },
+            "until": {
+              "type": "number"
+            },
+            "logs": {
+              "type": "object",
+              "properties": {
+                "agents": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "computers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "agents",
+                "computers"
+              ],
+              "additionalProperties": false
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": [
+                  "key",
+                  "label",
+                  "points"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "range",
+            "split",
+            "rows",
+            "series",
+            "since",
+            "until"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "accounts",
+        "used"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

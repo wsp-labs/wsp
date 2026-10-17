@@ -1,0 +1,1130 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The five groups beside Appearance and Computers: Projects with each
+// project's page and its one act, Devices with Revoke, Account's one row,
+// Keybindings as lines per platform, and General's Version card with the
+// newest release.
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { DEFAULT_KEYBINDINGS, parseKeybindingShortcut } from "../src/keybindingDefaults.js";
+import { KEYBINDING_COMMANDS, type KeybindingCommand } from "../src/keybindingTypes.js";
+import type { BootPayload, BundleOutcome, DesktopBridge, DeviceView, PlaceView, ProjectView, ReleaseView, WorkspaceView } from "@wsp/protocol";
+import { DAEMON_VERSION, DEFAULT_PREFERENCES, DESKTOP_MAC_CLASS, DEVICES_TICKET_REFUSAL, HOST_NO_RESTART_LINE, UP_RESTART_LINE, fmtBytes } from "@wsp/protocol";
+import { DisconnectedError, RequestError, type Api } from "../src/protocol/client.js";
+import { useStore } from "../src/protocol/store.js";
+import { EDITOR_SSH_WORDS } from "../src/files/EditorConsent.js";
+import { ABOUT_WORDS, ACCOUNT_WORDS, AWAKE_WORDS, COMPUTER_PAGE_WORDS, DEVICES_WORDS, FONT_WORDS, GENERAL_WORDS, KEYBINDINGS_WORDS, PRIVACY_WORDS, PROJECTS_WORDS, THEME_SECTION_WORDS, TRANSPARENCY_WORDS, WHERE_WORDS } from "../src/settings/format.js";
+import { builtWhen } from "../src/settings/image.js";
+import { chordsOf, keybindingCards } from "../src/settings/keybindings.js";
+import { CHORD_WORDS, JUMP_WORD, KEYBINDING_WORDS } from "../src/settings/keybindingWords.js";
+import { formatShortcutLabel } from "../src/keybindings.js";
+import { placeName } from "../src/settings/places.js";
+import { useSettingsStore } from "../src/settings/settingsStore.js";
+import { crumb, descriptionOf, lineLabels, lineOf, mountSettings, pageAt, resetSettings, rowOf, rowTitles, settingsApi, settle, wordOf } from "./settings-harness.js";
+import { lastNotice } from "./notice-text.js";
+import { useNotices } from "../src/notices/store.js";
+import { UPDATE_WORDS } from "../src/shell/update.js";
+import { pickOption } from "./select.js";
+
+const AT = "2026-09-12T09:14:00.000Z";
+const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true, present: true, takesForks: false };
+const box: PlaceView = { id: "p_spoo", kind: "computer", name: "spoo", default: false, present: true, takesForks: true };
+const solari: PlaceView = { id: "solari", kind: "provider", name: "solari", default: false, rateUsdPerHour: 0.11, takesForks: true };
+const project = (id: string, name: string, computer = "here", over: Partial<ProjectView> = {}): ProjectView => ({ id, name, computer, source: { kind: "folder", path: `/Users/dev/${name}` }, path: `/Users/dev/${name}`, remote: `https://github.com/dev/${name}.git`, defaultBranch: "main", memoryKey: `-Users-dev-${name}`, memoryDir: `/Users/dev/.claude-cfg/projects/-Users-dev-${name}/memory`, createdAt: AT, ...over });
+const view = (id: string, name: string, projectId: string): WorkspaceView => ({ id, name, machineId: `m_${id}`, kind: "local", project: { id: projectId, name: "spoo", path: "/Users/dev/spoo", computer: "here" }, phase: "running", golden: "", createdAt: AT });
+const device = (id: string, name: string, over: Partial<DeviceView> = {}): DeviceView => ({ id, name, createdAt: "2026-09-01T00:00:00Z", lastSeenAt: new Date(Date.now() - 12 * 60_000).toISOString(), ...over });
+
+const mount = async (over: Partial<Api>, group: "general" | "projects" | "devices" | "account" | "keybindings"): Promise<void> => {
+  mountSettings({ api: settingsApi(over).api, at: { kind: "group", group } });
+  await settle();
+};
+
+beforeEach(() => {
+  // The page's minute clock and these fixtures each read the clock, and a minute turning between two reads moves every "ago".
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.parse("2026-10-12T10:00:30Z"));
+  resetSettings();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  document.body.innerHTML = "";
+  delete window.wsp;
+  delete (window as unknown as { __WSP__?: unknown }).__WSP__;
+});
+
+describe("Projects", () => {
+  it("a refused project list is said where the rows stand, never as no projects", async () => {
+    useStore.setState({ projects: [], projectsRefused: { said: "projects.json is not valid JSON", fix: "Restore it from projects.json.bak.", kind: undefined, disconnected: false } });
+    await mount({}, "projects");
+    expect(rowOf("none")).toBeNull();
+    expect(document.querySelector("[data-settings-page] [data-k='projects-refused']")?.textContent).toBe("Projects not read: projects.json is not valid JSON Restore it from projects.json.bak.");
+  });
+
+  it("a refused remove is an error notice with the host's fix, and a lost socket says nothing", async () => {
+    let refuse: () => never = () => { throw new RequestError("a workspace stands on it Remove the workspace first.", "conflict", "Remove the workspace first."); };
+    useStore.setState({ places: [here, box], projects: [project("pr_landing", "landing", "p_spoo")] });
+    await mount({ projectsRemove: async () => refuse() } as Partial<Api>, "projects");
+    act(() => useSettingsStore.getState().go({ kind: "project", id: "pr_landing" }));
+    await settle();
+    fireEvent.click(document.querySelector<HTMLElement>("[data-k=remove-project]")!);
+    // A refused remove leaves the ask standing, so the second try is the same confirm pressed again.
+    const confirm = async (): Promise<void> => {
+      fireEvent.click(document.querySelector("[data-k=remove-project-confirm]")!);
+      await settle();
+    };
+    await confirm();
+    expect(useNotices.getState().notices.map(n => [n.kind, n.text])).toEqual([["error", "a workspace stands on it Remove the workspace first."]]);
+    useNotices.getState().clear();
+    refuse = () => { throw new DisconnectedError("lost"); };
+    await confirm();
+    expect(useNotices.getState().notices).toEqual([]);
+    // The ask is still open in its portal; unmount it before the page is wiped.
+    cleanup();
+  });
+
+  it("lists one row per project with its glyph, the computer it is on then its source, and the workspace count, and the empty state with the button", async () => {
+    useStore.setState({ places: [here, box], projects: [project("pr_spoo", "spoo"), project("pr_landing", "landing", "p_spoo", { source: { kind: "github", repo: "dev/landing" } })], workspaces: [{ ...view("ws_a", "pricing page", "pr_spoo"), kind: "cloud" }, { ...view("ws_b", "webhook retries", "pr_spoo"), kind: "cloud" }] });
+    await mount({}, "projects");
+    expect(rowTitles()).toEqual(["spoo", "landing"]);
+    expect(descriptionOf("pr_spoo")).toBe(`${placeName(here)} /Users/dev/spoo`);
+    expect(rowOf("pr_spoo")!.querySelector("svg")).not.toBeNull();
+    expect(wordOf("pr_spoo")).toBe("2");
+    expect(descriptionOf("pr_landing")).toBe("spoo dev/landing");
+    // A loaded zero is a fact: a blank where a sibling reads 2 cannot be told from a count that never arrived.
+    expect(wordOf("pr_landing")).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: PROJECTS_WORDS.add }));
+    await waitFor(() => expect(document.querySelector("[data-k=add-project]")).not.toBeNull());
+    act(() => useSettingsStore.getState().closeAddProject());
+    act(() => useStore.setState({ projects: [] }));
+    await settle();
+    // The one empty line every empty card speaks in, inside the card, in the quiet note.
+    expect(rowTitles()).toEqual([]);
+    expect(lineLabels()).toEqual([`${PROJECTS_WORDS.none} ${PROJECTS_WORDS.noneDescription}`]);
+    expect(screen.getByRole("button", { name: PROJECTS_WORDS.add })).toBeTruthy();
+  });
+
+  it("a project's page says its lines, its two rows, and Remove held with the refusal while a workspace stands, else asks with the line for the computer's kind and lands the runtime's answer as the toast", async () => {
+    const removed: string[] = [];
+    const spoo = project("pr_spoo", "spoo", "here", { base: "release", seeded: { files: 412, bytes: 3_250_000, memory: "landed", commits: 9, at: AT } });
+    useStore.setState({ places: [here, box, solari], projects: [spoo, project("pr_landing", "landing", "p_spoo"), project("pr_cloud", "cloud", "solari")], workspaces: [{ ...view("ws_a", "pricing page", "pr_spoo"), kind: "cloud" }] });
+    await mount(
+      {
+        projectsRemove: async (id: string) => {
+          removed.push(id);
+          return { said: "landing is no longer a project on spoo" };
+        },
+      } as Partial<Api>,
+      "projects",
+    );
+    fireEvent.click(rowOf("pr_spoo")!);
+    expect(pageAt()).toBe("project:pr_spoo");
+    expect(crumb()).toBe("Settings/Projects/spoo");
+    // The page opens on the project itself: its glyph, its name, where its folder is on one line, the thread count, and
+    // the repository on a row of its own, since a folder and a repository are two kinds of fact.
+    const head = document.querySelector("[data-settings-page] [data-k=project-head]")!;
+    expect(head.querySelector("[data-settings-title]")?.textContent).toBe("spoo");
+    expect(head.querySelector("[data-settings-description]")?.textContent).toBe(PROJECTS_WORDS.where("/Users/dev/spoo", "zingzy's MacBook Pro"));
+    expect(head.querySelector("[data-k=project-threads]")?.textContent).toBe(PROJECTS_WORDS.threads(0, 0));
+    expect(descriptionOf("remote")).toBe("https://github.com/dev/spoo.git");
+    // The page keeps to the project and what new threads in it take; no About card of facts.
+    expect(lineLabels()).toEqual([]);
+    expect([...document.querySelectorAll("[data-settings-page] [data-settings-head]")].map(h => h.textContent)).toEqual([PROJECTS_WORDS.look]);
+    expect(rowTitles()).toEqual([PROJECTS_WORDS.repository, PROJECTS_WORDS.icon, PROJECTS_WORDS.hue, "Remove spoo"]);
+    expect(rowOf("last-agent")).toBeNull();
+    // A workspace stands on it: the button is held with no title and the refusal is the description.
+    const remove = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=remove-project]")!;
+    expect(remove().hasAttribute("disabled")).toBe(true);
+    expect(remove().hasAttribute("title")).toBe(false);
+    // Held, it is the neutral outline at the one disabled step, with no hue of its own anywhere.
+    expect(remove().className).not.toMatch(/warning|bg-destructive/);
+    expect(remove().className).toContain("disabled:opacity-64");
+    expect(remove().className).toContain("border-input");
+    expect(descriptionOf("remove")).toBe(PROJECTS_WORDS.inUse(1));
+    // A project on a joined computer: the line names wsp's own clone there.
+    act(() => useSettingsStore.getState().go({ kind: "project", id: "pr_landing" }));
+    await settle();
+    expect(document.querySelector("[data-settings-page] [data-k=project-head] [data-settings-description]")?.textContent).toContain("on spoo");
+    expect(rowOf("last-agent")).toBeNull();
+    expect(descriptionOf("remove")).toBe(PROJECTS_WORDS.removeOnComputer("spoo"));
+    expect(remove().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(remove());
+    expect(document.querySelector("[data-k=remove-project-title]")?.textContent).toBe("Remove landing?");
+    expect(document.querySelector("[data-k=remove-project-sentence]")?.textContent).toBe(PROJECTS_WORDS.removeOnComputer("spoo"));
+    expect(document.querySelector<HTMLElement>("[data-k=remove-project-confirm]")!.className).toContain("bg-destructive");
+    fireEvent.click(document.querySelector("[data-k=remove-project-confirm]")!);
+    await waitFor(() => expect(removed).toEqual(["pr_landing"]));
+    await waitFor(() => expect(lastNotice()).toBe("landing is no longer a project on spoo"));
+    // The runtime's word on a removal that went through is not a failure.
+    expect(useNotices.getState().notices[0]?.kind).toBe("done");
+    expect(pageAt()).toBe("projects");
+    // A project at a cloud: the line names its image there.
+    act(() => useSettingsStore.getState().go({ kind: "project", id: "pr_cloud" }));
+    await settle();
+    expect(descriptionOf("remove")).toBe(PROJECTS_WORDS.removeAtCloud("Solari"));
+  });
+});
+
+describe("a project whose folder's record holds no thread", () => {
+  it("is not held by it: Remove stays open and asks with the line for this computer", async () => {
+    useStore.setState({ places: [here], projects: [project("pr_spoo", "spoo")], workspaces: [view("ws_a", "spoo", "pr_spoo")], sessions: {} });
+    await mount({ projectsRemove: async () => ({ said: "" }) } as Partial<Api>, "projects");
+    fireEvent.click(rowOf("pr_spoo")!);
+    expect(document.querySelector<HTMLElement>("[data-k=remove-project]")!.hasAttribute("disabled")).toBe(false);
+    expect(descriptionOf("remove")).toBe(PROJECTS_WORDS.removeHere);
+  });
+});
+
+describe("a project's Look", () => {
+  it("reads the record's look into the two selects and writes a pick as that project's look", async () => {
+    useStore.setState({ places: [here], projects: [project("pr_spoo", "spoo")], workspaces: [] });
+    const { api, sets } = settingsApi({}, { ...DEFAULT_PREFERENCES, labs: false, projectLook: { pr_spoo: { icon: "rocket" } } });
+    useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, labs: false, projectLook: { pr_spoo: { icon: "rocket" } } } });
+    mountSettings({ api, at: { kind: "project", id: "pr_spoo" } });
+    await settle();
+    const iconSelect = document.querySelector<HTMLElement>("[data-settings-page] [data-k=project-icon]")!;
+    const hueSelect = document.querySelector<HTMLElement>("[data-settings-page] [data-k=project-hue]")!;
+    expect(iconSelect.textContent).toBe("Rocket");
+    expect(hueSelect.textContent).toBe("Neutral");
+    await pickOption(hueSelect, "Teal");
+    await waitFor(() => expect(sets).toEqual([{ projectLook: { pr_spoo: { icon: "rocket", hue: "teal" } } }]));
+    // The select leaves a portal React must unmount itself before the file's teardown empties the body.
+    cleanup();
+  });
+});
+
+describe("Devices", () => {
+  it("a refused revoke is an error notice with the host's fix, and a lost socket says nothing", async () => {
+    let refuse: () => never = () => { throw new RequestError("that device is already gone Read the list again.", "gone", "Read the list again."); };
+    await mount({ devicesList: async () => [device("d_1", "zingzy-laptop")], devicesRevoke: async () => refuse() } as Partial<Api>, "devices");
+    fireEvent.click(rowOf("d_1")!.querySelector<HTMLElement>("[data-k=revoke]")!);
+    const confirm = async (): Promise<void> => {
+      fireEvent.click(document.querySelector("[data-k=revoke-confirm]")!);
+      await settle();
+    };
+    await confirm();
+    expect(useNotices.getState().notices.map(n => [n.kind, n.text])).toEqual([["error", "that device is already gone Read the list again."]]);
+    useNotices.getState().clear();
+    refuse = () => { throw new DisconnectedError("lost"); };
+    await confirm();
+    expect(useNotices.getState().notices).toEqual([]);
+    cleanup();
+  });
+
+  it("lists one row per unscoped device with paired and seen, names this browser, and Revoke asks, calls the host and rereads", async () => {
+    const revoked: string[] = [];
+    let devices: DeviceView[] = [device("d_1", "zingzy-laptop"), device("d_2", "Safari on iPhone", { here: true, lastSeenAt: new Date().toISOString() }), device("d_3", "a thread's token", { scope: { kind: "thread", workspaceId: "ws_a", threadId: "th_1", rootThreadId: "th_1" } })];
+    await mount(
+      {
+        devicesList: async () => devices,
+        devicesRevoke: async (id: string) => {
+          revoked.push(id);
+          devices = devices.filter(d => d.id !== id);
+        },
+      } as Partial<Api>,
+      "devices",
+    );
+    expect(rowTitles()).toEqual(["zingzy-laptop", DEVICES_WORDS.thisBrowser]);
+    expect(descriptionOf("d_1")).toMatch(/^paired Sep 1 \d\d:\d\d seen 1[12] min ago$/);
+    // A device heard from inside the minute says so in words rather than as a span of zero.
+    expect(descriptionOf("d_2")).toMatch(/^paired Sep 1 \d\d:\d\d seen just now$/);
+    // Facts read in the page's own sans, held to columns by their tabular figures.
+    expect(rowOf("d_1")?.querySelector("[data-settings-description]")?.className).toContain("tabular-nums");
+    expect(rowOf("d_1")?.querySelector("[data-settings-description]")?.className).not.toContain("font-mono");
+    // The door to the confirmation is neutral where it stands and red only under the pointer; the act itself, in
+    // the dialog, is the one red thing at rest.
+    const revoke = rowOf("d_1")!.querySelector<HTMLElement>("[data-k=revoke]")!;
+    expect(revoke.className).not.toMatch(/warning/);
+    expect(revoke.className).toContain("text-foreground");
+    expect(revoke.className).toContain("[:hover,[data-pressed]]:text-destructive-foreground");
+    fireEvent.click(revoke);
+    expect(document.querySelector("[data-k=revoke-title]")?.textContent).toBe("Revoke zingzy-laptop?");
+    expect(document.querySelector("[data-k=revoke-sentence]")?.textContent).toBe(DEVICES_WORDS.revokeDescription);
+    const confirm = document.querySelector<HTMLElement>("[data-k=revoke-confirm]")!;
+    expect(confirm.className).toContain("bg-destructive");
+    expect(confirm.className).not.toMatch(/warning/);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(revoked).toEqual(["d_1"]));
+    await waitFor(() => expect(rowTitles()).toEqual([DEVICES_WORDS.thisBrowser]));
+    // Account holds no second list of them.
+    act(() => useSettingsStore.getState().go({ kind: "group", group: "account" }));
+    await settle();
+    expect(document.body.textContent).not.toContain(DEVICES_WORDS.thisBrowser);
+  });
+
+  it("holds Revoke and says why in the row where this wsp carries no such request", async () => {
+    await mount({ devicesList: async () => [device("d_1", "zingzy-laptop")] } as Partial<Api>, "devices");
+    const revoke = (): HTMLButtonElement => document.querySelector<HTMLButtonElement>("[data-k=revoke]")!;
+    expect(revoke().disabled).toBe(true);
+    expect(revoke().hasAttribute("title")).toBe(false);
+    expect(descriptionOf("d_1")).toMatch(new RegExp(` ${WHERE_WORDS.notYet}$`));
+  });
+
+  it("says one line where nothing is paired, and one where a page served on a ticket socket is refused the list", async () => {
+    await mount({ devicesList: async () => [] } as Partial<Api>, "devices");
+    expect(lineLabels()).toEqual([DEVICES_WORDS.none]);
+    document.body.innerHTML = "";
+    resetSettings();
+    await mount({ devicesList: async () => Promise.reject(new RequestError(DEVICES_TICKET_REFUSAL, "ticket")) } as Partial<Api>, "devices");
+    expect(lineLabels()).toEqual([DEVICES_WORDS.refused]);
+  });
+});
+
+describe("Account", () => {
+  it("says nothing but the sentences and the held button with no title while nobody is signed in; signed in reads the login and offers Sign out", async () => {
+    await mount({ account: async () => ({ signedIn: false }) } as Partial<Api>, "account");
+    expect(rowTitles()).toEqual([ACCOUNT_WORDS.github]);
+    // No word for being signed in or not: the button standing there is that state, and the room is the sentence's.
+    expect(wordOf("github")).toBeUndefined();
+    expect(descriptionOf("github")).toBe(ACCOUNT_WORDS.reach);
+    const action = (): HTMLButtonElement => document.querySelector<HTMLButtonElement>("[data-k=account-action]")!;
+    expect(action().textContent).toBe(ACCOUNT_WORDS.signIn);
+    expect(action().disabled).toBe(true);
+    expect(action().hasAttribute("title")).toBe(false);
+    expect(action().className).toContain("disabled:opacity-64");
+    document.body.innerHTML = "";
+    resetSettings();
+    await mount({ account: async () => ({ signedIn: true, login: "zingzy" }) } as Partial<Api>, "account");
+    expect(wordOf("github")).toBe("zingzy");
+    expect(action().textContent).toBe(ACCOUNT_WORDS.signOut);
+    expect(descriptionOf("github")).toBe(ACCOUNT_WORDS.reachable);
+    // A host that refuses the read leaves the slot empty and keeps the sentence.
+    document.body.innerHTML = "";
+    resetSettings();
+    await mount({ account: async () => Promise.reject(new Error("this host keeps no account records")) } as Partial<Api>, "account");
+    expect(wordOf("github")).toBeUndefined();
+    expect(descriptionOf("github")).toBe(ACCOUNT_WORDS.reach);
+  });
+});
+
+describe("General", () => {
+  it("offers the editors installed where the host runs, each with its mark, the pick first and the first installed without one, and a pick writes the preference", async () => {
+    const editors = [{ id: "cursor", name: "Cursor" }, { id: "zed", name: "Zed" }, { id: "finder", name: "Finder" }];
+    const { api, sets } = settingsApi({ editorList: async () => editors } as Partial<Api>);
+    mountSettings({ api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(rowTitles()).toContain(GENERAL_WORDS.editor);
+    expect(descriptionOf("editor")).toBe(GENERAL_WORDS.editorDescription);
+    const select = document.querySelector<HTMLElement>("[data-settings-page] [data-k=editor]")!;
+    expect(select.textContent).toBe("Cursor");
+    // Every editor wears its mark, in the pick and in the list, the same marks the Open menu draws.
+    expect(select.querySelector("[data-editor-mark=cursor]")).not.toBeNull();
+    fireEvent.click(select);
+    const options = await screen.findAllByRole("option");
+    expect(options.map(option => option.querySelector("[data-editor-mark]")?.getAttribute("data-editor-mark"))).toEqual(["cursor", "zed", "finder"]);
+    await act(async () => void (await new Promise(r => setTimeout(r, 0))));
+    fireEvent.keyDown(options[1]!, { key: "Enter" });
+    fireEvent.click(options[1]!);
+    await waitFor(() => expect(sets).toEqual([{ editor: "zed" }]));
+    await waitFor(() => expect(select.querySelector("[data-editor-mark=zed]")).not.toBeNull());
+    // The pick's popup is a portal; unmounted before the page's own teardown empties the body under it.
+    cleanup();
+  });
+
+  it("draws the locked design's sections and rows in order, each with its line, in a browser tab", async () => {
+    mountSettings({ api: settingsApi({ editorList: async () => [] } as Partial<Api>).api, at: { kind: "group", group: "general" } });
+    await settle();
+    const heads = [...document.querySelectorAll("[data-settings-page] > section[data-settings-card] [data-settings-head]")].map(h => h.textContent);
+    expect(heads).toEqual(["Composer", "Notifications", "Threads", "Open in", "Startup and quit", ABOUT_WORDS.title]);
+    expect(rowTitles()).toEqual(["Send with", "A message while a thread works", "When a thread needs you", "When a thread finishes", "When a plan window runs low", "New thread starts in", "Settle a thread after", "Ask before deleting", "Open files in", ABOUT_WORDS.wsp]);
+    // On the defaults no row carries the arrow that puts it back.
+    expect(document.querySelectorAll("[data-settings-page] [data-k=row-reset]")).toHaveLength(0);
+    expect(descriptionOf("send-with")).toBe("The other key makes a new line. ⌘ on a Mac, Ctrl elsewhere.");
+    expect(descriptionOf("mid-turn")).toBe("Queue waits for the turn to end; steer hands it to the agent now.");
+    expect(descriptionOf("notify-needs")).toBe("A question, a permission prompt, a sign-in.");
+    expect(descriptionOf("notify-done")).toBe("A thread you or the command line started; one an agent started reports to that agent.");
+    expect(descriptionOf("plan-alerts")).toBe("At 70% and 90% of a window, once each, and when an account is blocked.");
+    expect(descriptionOf("new-thread-in")).toBe("Ask every time lists your projects before a new thread opens.");
+    expect(descriptionOf("settle-after")).toBe("A read thread moves to Settled once it has been quiet this long.");
+    expect(descriptionOf("ask-delete")).toBe("A workspace with unpushed work always asks.");
+    // The defaults: Enter, Queue, notify and sound for a need, a silent notification for a finish, alerts on, two hours, asks.
+    const checked = (k: string) => document.querySelector(`[data-k=${k}] [data-checked]`)?.textContent;
+    expect([checked("send-with"), checked("mid-turn")]).toEqual(["Enter", "Queue"]);
+    const said = (k: string) => document.querySelector(`[data-settings-page] [data-k=${k}]`)?.textContent;
+    expect([said("notify-needs"), said("notify-done"), said("new-thread-in"), said("settle-after")]).toEqual(["Notify and sound", "Notify", "Current project", "2 hours"]);
+    expect(document.querySelector("[data-k=plan-alerts]")!.getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector("[data-k=ask-delete]")!.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("writes each pick to the record: the send key in this computer's spelling, queue or steer, and each switch", async () => {
+    const { api, sets } = settingsApi({ editorList: async () => [] } as Partial<Api>);
+    mountSettings({ api, at: { kind: "group", group: "general" } });
+    await settle();
+    const segment = (k: string, value: string) => document.querySelector<HTMLElement>(`[data-k=${k}] [data-segment="${value}"]`)!;
+    expect(segment("send-with", "mod-enter").textContent).toBe(navigator.platform.startsWith("Mac") ? "⌘ Enter" : "Ctrl Enter");
+    fireEvent.click(segment("send-with", "mod-enter"));
+    fireEvent.click(segment("mid-turn", "steer"));
+    fireEvent.click(document.querySelector<HTMLElement>("[data-k=plan-alerts]")!);
+    fireEvent.click(document.querySelector<HTMLElement>("[data-k=ask-delete]")!);
+    await settle();
+    expect(sets).toEqual([{ sendWith: "mod-enter" }, { midTurn: "steer" }, { planAlerts: false }, { askDelete: false }]);
+  });
+
+  it("picks how a finished thread is said and when a read thread settles from the mock's words", async () => {
+    const { api, sets } = settingsApi({ editorList: async () => [] } as Partial<Api>);
+    mountSettings({ api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(await pickOption(document.querySelector("[data-settings-page] [data-k=notify-done]")!, "Sound")).toEqual(["Off", "Notify", "Sound", "Notify and sound"]);
+    await settle();
+    expect(await pickOption(document.querySelector("[data-settings-page] [data-k=settle-after]")!, "Never")).toEqual(["15 minutes", "1 hour", "2 hours", "1 day", "Never"]);
+    await settle();
+    expect(await pickOption(document.querySelector("[data-settings-page] [data-k=new-thread-in]")!, "Current project")).toEqual(["Current project", "Ask every time"]);
+    await settle();
+    expect(sets).toEqual([{ notifyDone: "sound" }, { settleAfter: "never" }, { newThreadIn: "current" }]);
+    cleanup();
+  });
+
+  it("in the desktop app, asks what a quit does and offers wsp at login over this computer's service, naming the computer", async () => {
+    const turned: boolean[] = [];
+    window.wsp = { loginStart: async () => true, setLoginStart: async (on: boolean) => (turned.push(on), on) };
+    useStore.setState({ places: [here, box] });
+    const { api, sets } = settingsApi({ editorList: async () => [] } as Partial<Api>);
+    mountSettings({ api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(rowTitles().slice(-4, -1)).toEqual(["When you quit", "Start wsp at login", "Keep zingzy's MacBook Pro awake"]);
+    expect(descriptionOf("on-quit")).toBe("Quitting the window leaves threads running on zingzy's MacBook Pro; quit and stop ends them too.");
+    expect(descriptionOf("login-start")).toBe("wsp keeps running on zingzy's MacBook Pro with no window open, so threads carry on.");
+    const login = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=login-start]")!;
+    expect(login().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(login());
+    await waitFor(() => expect(login().getAttribute("aria-checked")).toBe("false"));
+    expect(turned).toEqual([false]);
+    // Off is off its default, so the row carries the arrow, and the arrow turns it back on.
+    fireEvent.click(rowOf("login-start")!.querySelector<HTMLElement>("[data-k=row-reset]")!);
+    await waitFor(() => expect(login().getAttribute("aria-checked")).toBe("true"));
+    expect(turned).toEqual([false, true]);
+    expect(await pickOption(document.querySelector("[data-settings-page] [data-k=on-quit]")!, "Stop wsp too")).toEqual(["Ask each time", "Keep threads running", "Stop wsp too"]);
+    await settle();
+    expect(sets).toEqual([{ onQuit: "stop" }]);
+    cleanup();
+  });
+
+  it("puts an arrow on each row off its default, and the arrow writes that one field back", async () => {
+    const { api, sets } = settingsApi({ editorList: async () => [] } as Partial<Api>, { ...DEFAULT_PREFERENCES, labs: false, sendWith: "mod-enter", notifyDone: "notify-sound", newThreadIn: "ask", settleAfter: "1d", askDelete: false });
+    useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, sendWith: "mod-enter", notifyDone: "notify-sound", newThreadIn: "ask", settleAfter: "1d", askDelete: false } });
+    mountSettings({ api, at: { kind: "group", group: "general" } });
+    await settle();
+    const arrowed = [...document.querySelectorAll("[data-settings-page] [data-k=row-reset]")].map(b => b.closest("[data-settings-row]")!.getAttribute("data-settings-row"));
+    expect(arrowed).toEqual(["send-with", "notify-done", "new-thread-in", "settle-after", "ask-delete"]);
+    fireEvent.click(rowOf("settle-after")!.querySelector<HTMLElement>("[data-k=row-reset]")!);
+    await settle();
+    expect(sets).toEqual([{ settleAfter: "2h" }]);
+  });
+
+  it("offers no login switch where the shell registered no service", async () => {
+    window.wsp = { loginStart: async () => null };
+    mountSettings({ api: settingsApi({ editorList: async () => [] } as Partial<Api>).api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(rowTitles()).toContain("When you quit");
+    expect(rowTitles()).not.toContain("Start wsp at login");
+  });
+
+  it("says no editor is installed, with nothing to pick, where the host found none", async () => {
+    mountSettings({ api: settingsApi({ editorList: async () => [] } as Partial<Api>).api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(descriptionOf("editor")).toBe(GENERAL_WORDS.noEditor);
+    expect(document.querySelector("[data-settings-page] [data-k=editor]")).toBeNull();
+  });
+});
+
+describe("Appearance", () => {
+  it("holds the glass and the type rows, and no notification row, which General keeps per kind of moment", async () => {
+    const { api } = settingsApi();
+    mountSettings({ api, at: { kind: "group", group: "appearance" } });
+    await settle();
+    expect(rowTitles()).toEqual([TRANSPARENCY_WORDS.title, FONT_WORDS.app, FONT_WORDS.textSize, FONT_WORDS.code, FONT_WORDS.codeSize]);
+    expect(document.querySelector("[data-k=notify-sound]")).toBeNull();
+  });
+});
+
+describe("Transparency", () => {
+  it("is one switch on Appearance, on by default, that writes the record, and restores to on", async () => {
+    const { api, sets } = settingsApi();
+    mountSettings({ api, at: { kind: "group", group: "appearance" } });
+    await settle();
+    // The switch is the glass's, in its own card under the theme, never a font's.
+    const row = document.querySelector("[data-settings-page] [data-settings-row=transparency]")!;
+    expect(row.closest("[data-settings-card]")?.getAttribute("data-settings-card")).toBe("glass");
+    expect(document.querySelector("[data-settings-card=glass] [data-settings-head]")?.compareDocumentPosition(row)! & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(descriptionOf("transparency")).toBe(TRANSPARENCY_WORDS.description);
+    const toggle = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=transparency]")!;
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle());
+    await settle();
+    expect(sets).toEqual([{ transparency: false }]);
+    fireEvent.click(document.querySelector<HTMLElement>("[data-k=restore-defaults]")!);
+    await settle();
+    expect(sets.at(-1)).toMatchObject({ transparency: true });
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+  });
+});
+
+describe("Transparency on the Linux app", () => {
+  it("is not drawn, since the window draws no glass there, and Restore defaults does not stand for it alone", async () => {
+    window.wsp = {};
+    const record = { ...DEFAULT_PREFERENCES, transparency: false };
+    act(() => useStore.setState({ preferences: record }));
+    mountSettings({ api: settingsApi({}, record).api, at: { kind: "group", group: "appearance" } });
+    await settle();
+    expect(document.querySelector("[data-settings-card=glass]")).toBeNull();
+    expect(document.querySelector("[data-k=transparency]")).toBeNull();
+    expect(rowTitles()).toEqual([FONT_WORDS.app, FONT_WORDS.textSize, FONT_WORDS.code, FONT_WORDS.codeSize]);
+    expect(document.querySelector("[data-k=restore-defaults]")).toBeNull();
+  });
+
+  it("stays on the Mac app, whose window draws the glass", async () => {
+    window.wsp = {};
+    document.documentElement.classList.add(DESKTOP_MAC_CLASS);
+    try {
+      mountSettings({ api: settingsApi().api, at: { kind: "group", group: "appearance" } });
+      await settle();
+      expect(document.querySelector("[data-settings-card=glass] [data-k=transparency]")).not.toBeNull();
+    } finally {
+      document.documentElement.classList.remove(DESKTOP_MAC_CLASS);
+    }
+  });
+});
+
+describe("Keeping the computer awake", () => {
+  it("is one switch on General, on by default, that writes the record", async () => {
+    const { api, sets } = settingsApi({ editorList: async () => [] } as Partial<Api>);
+    useStore.setState({ places: [here] });
+    mountSettings({ api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(descriptionOf("keep-awake")).toBe(AWAKE_WORDS.keepAwakeDescription);
+    expect(`${AWAKE_WORDS.keepAwake(placeName(here))} ${AWAKE_WORDS.keepAwakeDescription}`).not.toMatch(/host|daemon|service/i);
+    const toggle = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=keep-awake]")!;
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle());
+    await settle();
+    expect(sets).toEqual([{ keepAwake: false }]);
+    expect(useStore.getState().preferences.keepAwake).toBe(false);
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("names the computer it keeps awake, once the computers are read", async () => {
+    useStore.setState({ places: [here, box] });
+    mountSettings({ api: settingsApi({ editorList: async () => [] } as Partial<Api>).api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(rowTitles()).toContain("Keep zingzy's MacBook Pro awake");
+    expect(document.querySelector("[data-k=keep-awake]")!.getAttribute("aria-label")).toBe("Keep zingzy's MacBook Pro awake");
+  });
+});
+
+describe("The computer wsp runs on, by its name", () => {
+  it("names it in every line about it once its name is known, says nothing of it before, and never calls it this computer", async () => {
+    const lines = (name: string): string[] => [THEME_SECTION_WORDS.modeLede(name), GENERAL_WORDS.onQuitDescription(name), GENERAL_WORDS.loginStartDescription(name), PRIVACY_WORDS.usageLogsDescription(name)];
+    expect(lines("")).toEqual(["", "", "", ""]);
+    expect([...lines("spoo"), AWAKE_WORDS.keepAwake("spoo")].filter(line => !line.includes("spoo"))).toEqual([]);
+    const said = [...lines("spoo"), GENERAL_WORDS.sendWithDescription, AWAKE_WORDS.keepAwakeDescription, COMPUTER_PAGE_WORDS.threadsLine(2, "spoo", "4 GB")];
+    expect(said.filter(line => /this computer/i.test(line))).toEqual([]);
+    // Until the computers are read no keep-awake switch stands, since its title is the name.
+    await mount({ editorList: async () => [] } as Partial<Api>, "general");
+    expect(rowOf("keep-awake")).toBeNull();
+    await act(async () => useStore.setState({ places: [here] }));
+    expect(rowOf("keep-awake")?.querySelector("[data-settings-title]")?.textContent).toBe("Keep zingzy's MacBook Pro awake");
+  });
+});
+
+describe("Editors over ssh", () => {
+  it("is one switch on General showing whether the line stands, and turning it off takes the line out", async () => {
+    let include = true;
+    const asked: (boolean | undefined)[] = [];
+    const { api } = settingsApi({ editorList: async () => [], sshInclude: async (on?: boolean) => (asked.push(on), on !== undefined && (include = on), include) } as Partial<Api>);
+    mountSettings({ api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(rowTitles()).toContain(EDITOR_SSH_WORDS.setting);
+    expect(descriptionOf("editor-ssh")).toBe(EDITOR_SSH_WORDS.settingNote);
+    const toggle = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=editor-ssh]")!;
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle());
+    await settle();
+    expect(asked).toEqual([undefined, false]);
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("is not drawn where the host carries no editor's ssh", async () => {
+    mountSettings({ api: settingsApi({ editorList: async () => [] } as Partial<Api>).api, at: { kind: "group", group: "general" } });
+    await settle();
+    expect(rowTitles()).not.toContain(EDITOR_SSH_WORDS.setting);
+  });
+});
+
+describe("Privacy", () => {
+  it("offers server icons from Google as one switch, on by default, that writes the record and restores to on", async () => {
+    const { api, sets } = settingsApi();
+    mountSettings({ api, at: { kind: "group", group: "privacy" } });
+    await settle();
+    expect(rowTitles()).toEqual([PRIVACY_WORDS.serverIcons, PRIVACY_WORDS.agentVersions, PRIVACY_WORDS.usageLogs, PRIVACY_WORDS.productUsage]);
+    expect(descriptionOf("server-icons")).toBe(PRIVACY_WORDS.serverIconsDescription);
+    expect(PRIVACY_WORDS.serverIconsDescription).toBe("wsp asks Google for each public server's icon by host name; turning this off deletes the saved icons.");
+    const toggle = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=server-icons]")!;
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle());
+    await settle();
+    expect(sets).toEqual([{ serverIcons: false }]);
+    expect(useStore.getState().preferences.serverIcons).toBe(false);
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-k=restore-defaults]")!);
+    await settle();
+    expect(sets.at(-1)).toEqual({ serverIcons: true, agentVersions: true, usageLogs: true, productUsage: true });
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("offers agent version checks as a second switch, on by default, and holds it off where the host's environment turned update checks off", async () => {
+    const { api, sets } = settingsApi();
+    mountSettings({ api, at: { kind: "group", group: "privacy" } });
+    await settle();
+    expect(descriptionOf("agent-versions")).toBe(PRIVACY_WORDS.agentVersionsDescription);
+    const toggle = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=agent-versions]")!;
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle());
+    await settle();
+    expect(sets).toEqual([{ agentVersions: false }]);
+    expect(useStore.getState().preferences.agentVersions).toBe(false);
+    act(() => useStore.setState({ preferences: { ...useStore.getState().preferences, agentVersions: true }, release: { state: "off", shape: "service" } }));
+    await settle();
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    expect(toggle().hasAttribute("data-disabled")).toBe(true);
+    expect(toggle().closest("[title]")?.getAttribute("title")).toBe(PRIVACY_WORDS.agentVersionsHeld);
+  });
+
+  it("offers anonymous usage counts as a switch, on by default, that writes productUsage and restores to on", async () => {
+    const { api, sets } = settingsApi();
+    mountSettings({ api, at: { kind: "group", group: "privacy" } });
+    await settle();
+    expect(descriptionOf("product-usage")).toBe("wsp sends PostHog counts of threads, turns, setups and failures; never a path, a prompt, a name or a key.");
+    const toggle = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=product-usage]")!;
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle());
+    await settle();
+    expect(sets).toEqual([{ productUsage: false }]);
+    expect(useStore.getState().preferences.productUsage).toBe(false);
+    fireEvent.click(document.querySelector<HTMLElement>("[data-k=restore-defaults]")!);
+    await settle();
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("holds the usage counts switch off, saying why, on a build with no key and where the host says WSP_ANALYTICS=0", async () => {
+    const said = { build: "Off in this build: it carries no PostHog key, so nothing is sent.", env: "Off on the host: WSP_ANALYTICS is 0." } as const;
+    for (const why of ["build", "env"] as const) {
+      (window as unknown as { __WSP__?: BootPayload }).__WSP__ = { wsPath: "/ws", paired: true, version: "0.2.0", productUsageOff: why };
+      try {
+        mountSettings({ api: settingsApi().api, at: { kind: "group", group: "privacy" } });
+        await settle();
+        const toggle = document.querySelector<HTMLElement>("[data-k=product-usage]")!;
+        expect(toggle.getAttribute("aria-checked")).toBe("false");
+        expect(toggle.hasAttribute("data-disabled")).toBe(true);
+        expect(toggle.closest("[title]")?.getAttribute("title")).toBe(said[why]);
+      } finally {
+        delete (window as unknown as { __WSP__?: BootPayload }).__WSP__;
+        cleanup();
+      }
+    }
+  });
+});
+
+describe("Keybindings", () => {
+  const mac = { platform: "MacIntel", desktopShell: true };
+  const label = (command: KeybindingCommand, read = mac): string[][] => chordsOf(DEFAULT_KEYBINDINGS, command, read);
+
+  it("words every command in the closed set, so a command added to it must get its words", () => {
+    expectTypeOf(KEYBINDING_WORDS).toEqualTypeOf<Record<KeybindingCommand, string>>();
+    for (const command of KEYBINDING_COMMANDS) expect(KEYBINDING_WORDS[command]).not.toBe("");
+  });
+
+  it("draws one line per default rule with the chord's keycaps per platform, both where a command has two, the nine jumps as one line, and drops in a tab what the tab keeps", () => {
+    expect(label("commandPalette.toggle")).toEqual([["⇧⌘P"], ["⌘K"]]);
+    expect(label("settings.toggle")).toEqual([["⌘,"]]);
+    expect(label("editor.open")).toEqual([["⌘O"]]);
+    expect(label("chat.new")).toEqual([["⌘T"]]);
+    expect(label("workspace.next")).toEqual([["⌥⌘Right"], ["⌃Tab"]]);
+    expect(label("rightPanel.nextTab")).toEqual([["⌃Tab"]]);
+    expect(label("rightPanel.previousTab")).toEqual([["⌃⇧Tab"]]);
+    expect(label("rightPanel.closeTab")).toEqual([["⌘W"]]);
+    expect(label("rightPanel.closeTab", { platform: "Linux x86_64", desktopShell: true })).toEqual([["Ctrl+W"]]);
+    expect(label("terminal.zoomIn")).toEqual([["⌘="], ["⇧⌘="]]);
+    expect(label("workspace.select.1")).toEqual([["⌘1"], ["⌘9"]]);
+    // On another platform the same rules read Ctrl.
+    expect(label("commandPalette.toggle", { platform: "Linux x86_64", desktopShell: true })).toEqual([["Ctrl+Shift+P"], ["Ctrl+K"]]);
+    // In a browser tab the chords the tab keeps are not drawn: New thread and the workspace switch on a Mac have none
+    // left and the thread switch keeps its arrows.
+    const tab = { platform: "MacIntel", desktopShell: false };
+    expect(label("chat.new", tab)).toEqual([]);
+    expect(label("workspace.next", tab)).toEqual([]);
+    expect(label("rightPanel.nextTab", tab)).toEqual([]);
+    expect(label("rightPanel.closeTab", tab)).toEqual([]);
+    expect(label("thread.next", tab)).toEqual([["⌥⌘Down"]]);
+    expect(label("workspace.select.1", tab)).toEqual([]);
+    const cards = keybindingCards(DEFAULT_KEYBINDINGS, mac);
+    expect(cards.map(card => card.head)).toEqual([KEYBINDINGS_WORDS.windowAndPanels, KEYBINDINGS_WORDS.workspacesAndThreads, KEYBINDINGS_WORDS.terminal, KEYBINDINGS_WORDS.fixed]);
+    expect(cards[0]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["Search", "Find a file", "Search in files", "Settings", "Toggle the sidebar", "Toggle the terminal drawer", "Toggle the right panel", "Next panel tab", "Previous panel tab", "Close panel tab", "Toggle the preview"]);
+    expect(cards[1]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["New thread", "Next task", "Previous task", "Next thread", "Previous thread", "Settle thread", "Next thread that needs you", "Find in thread", "Step to the older match", "Step to the newer match", "Open in editor", JUMP_WORD]);
+    expect(label("thread.find")).toEqual([["⌘F"]]);
+    expect(label("thread.findOlder")).toEqual([["⌘G"], ["F3"]]);
+    expect(cards[3]!.items.map(item => (item.kind === "line" ? [item.label, item.keys] : []))).toEqual([
+      [KEYBINDINGS_WORDS.sendMessage, [["Enter"]]],
+      [KEYBINDINGS_WORDS.submitComment, [["⌘Enter"]]],
+      [KEYBINDINGS_WORDS.leaveSettings, [["Esc"]]],
+      [KEYBINDINGS_WORDS.closeWindow, [["⇧⌘W"]]],
+    ]);
+    // The window's own chord is the desktop shell's: a browser tab closes itself on its own keys.
+    expect(keybindingCards(DEFAULT_KEYBINDINGS, { platform: "Linux x86_64", desktopShell: true })[3]!.items.find(item => item.id === "close-window")).toMatchObject({ keys: [["Ctrl+Shift+W"]] });
+    expect(keybindingCards(DEFAULT_KEYBINDINGS, tab)[3]!.items.map(item => item.id)).not.toContain("close-window");
+    // The send line reads the key the person picked on General, in the platform's spelling.
+    const sendKeys = (platform: string) => keybindingCards(DEFAULT_KEYBINDINGS, { platform, desktopShell: true }, undefined, "mod-enter")[3]!.items.find(item => item.id === "send");
+    expect(sendKeys("MacIntel")).toMatchObject({ keys: [["⌘Enter"]] });
+    expect(sendKeys("Linux x86_64")).toMatchObject({ keys: [["Ctrl+Enter"]] });
+  });
+
+  it("stands on the page as lines with keycaps, no row and no description", async () => {
+    window.wsp = {};
+    await mount({}, "keybindings");
+    expect(rowTitles()).toEqual([]);
+    expect(lineLabels()).toContain("Search");
+    expect(document.querySelectorAll("[data-settings-page] [data-slot=kbd]").length).toBeGreaterThan(10);
+    expect(document.querySelector("[data-settings-page] [data-command='chat.new'] [data-settings-keys]")?.textContent).toMatch(/^(⌘T|Ctrl\+T)$/);
+  });
+
+  const chordOf = (command: string): HTMLElement => document.querySelector<HTMLElement>(`[data-chord='${command}']`)!;
+  const press = (key: string, mods: Partial<KeyboardEventInit> = {}): void => {
+    fireEvent.keyDown(chordOf("sidebar.toggle"), { key, metaKey: navigator.platform.startsWith("Mac"), ctrlKey: !navigator.platform.startsWith("Mac"), ...mods });
+  };
+  const keysOf = (command: string): string => document.querySelector(`[data-command='${command}'] [data-settings-keys]`)?.textContent ?? "";
+
+  it("listens for a chord when its keycaps are pressed, writes the next one as the person's own, and redraws the line with it", async () => {
+    const { api, sets } = settingsApi();
+    mountSettings({ api, at: { kind: "group", group: "keybindings" } });
+    await settle();
+    fireEvent.click(chordOf("sidebar.toggle"));
+    expect(document.querySelector("[data-command='sidebar.toggle'] [data-k=capturing]")?.textContent).toBe(CHORD_WORDS.capturing);
+    expect(CHORD_WORDS.capturing).toBe("Press keys");
+    // A modifier on its own is not a chord yet: the line keeps listening.
+    press("Meta");
+    expect(sets).toEqual([]);
+    press("b", { shiftKey: true });
+    await settle();
+    expect(sets).toEqual([{ keybindings: { "sidebar.toggle": "mod+shift+b" } }]);
+    expect(document.querySelector("[data-k=capturing]")).toBeNull();
+    expect(keysOf("sidebar.toggle")).toBe(formatShortcutLabel(parseKeybindingShortcut("mod+shift+b")!, navigator.platform));
+    // Only lines that are rules change: the jumps and the fixed keys have no button.
+    expect(document.querySelector("[data-chord='workspace.select.1']")).toBeNull();
+    expect(document.querySelector("[data-settings-line=send] [data-chord]")).toBeNull();
+  });
+
+  it("refuses a chord another command holds, naming it in the error ink where the keycaps were until the next key, and Esc stops listening", async () => {
+    const { api, sets } = settingsApi();
+    mountSettings({ api, at: { kind: "group", group: "keybindings" } });
+    await settle();
+    fireEvent.click(chordOf("sidebar.toggle"));
+    press("j");
+    await settle();
+    const refused = document.querySelector("[data-command='sidebar.toggle'] [data-k=chord-refused]");
+    expect(refused?.textContent).toBe("Taken by Toggle the terminal drawer");
+    expect(refused?.className).toContain("text-error-foreground");
+    expect(sets).toEqual([]);
+    // The next key down clears it and the line listens on.
+    press("Shift", { shiftKey: true });
+    expect(document.querySelector("[data-k=chord-refused]")).toBeNull();
+    expect(document.querySelector("[data-k=capturing]")).not.toBeNull();
+    // A chord a browser tab keeps is refused whichever shell holds the page.
+    press("t");
+    expect(document.querySelector("[data-k=chord-refused]")?.textContent).toBe("Taken by New thread");
+    fireEvent.keyDown(chordOf("sidebar.toggle"), { key: "Escape" });
+    expect(document.querySelector("[data-k=capturing], [data-k=chord-refused]")).toBeNull();
+    expect(sets).toEqual([]);
+    // Esc while listening never leaves Settings.
+    expect(useStore.getState().settingsOpen).toBe(true);
+  });
+
+  it("offers Reset on a changed line alone and Restore defaults while any is changed, each putting the defaults back", async () => {
+    const record = { ...DEFAULT_PREFERENCES, labs: false, keybindings: { "sidebar.toggle": "mod+alt+s", "terminal.toggle": "mod+shift+y" } };
+    const { api, sets } = settingsApi({}, record);
+    act(() => useStore.setState({ preferences: record }));
+    mountSettings({ api, at: { kind: "group", group: "keybindings" } });
+    await settle();
+    const resets = (): string[] => [...document.querySelectorAll("[data-k=reset-chord]")].map(button => button.closest("[data-command]")!.getAttribute("data-command")!);
+    expect(resets()).toEqual(["sidebar.toggle", "terminal.toggle"]);
+    fireEvent.click(document.querySelector("[data-command='sidebar.toggle'] [data-k=reset-chord]")!);
+    await settle();
+    expect(sets).toEqual([{ keybindings: { "sidebar.toggle": null } }]);
+    expect(resets()).toEqual(["terminal.toggle"]);
+    expect(keysOf("sidebar.toggle")).toBe(["mod+shift+b", "mod+b"].map(key => formatShortcutLabel(parseKeybindingShortcut(key)!, navigator.platform)).join(""));
+    fireEvent.click(document.querySelector("[data-k=restore-defaults]")!);
+    await settle();
+    expect(Object.values(sets.at(-1)!.keybindings!).every(value => value === null)).toBe(true);
+    expect(useStore.getState().preferences.keybindings).toEqual({});
+    expect(resets()).toEqual([]);
+    expect(document.querySelector("[data-k=restore-defaults]")).toBeNull();
+  });
+});
+
+describe("General's Version card", () => {
+  const DAY = 24 * 60 * 60_000;
+  const read = (version: string, over: Partial<ReleaseView> = {}): ReleaseView => ({
+    state: "read",
+    latest: { version, tag: `v${version}`, url: `https://github.com/wsp-labs/wsp/releases/tag/v${version}`, publishedAt: AT },
+    // An hour past the day, so the page's minute clock reads the same whole days as this one.
+    checkedAt: new Date(Date.now() - 3 * DAY - 60 * 60_000).toISOString(),
+    triedAt: new Date(Date.now() - 3 * DAY - 60 * 60_000).toISOString(),
+    ...over,
+  });
+  // Whole minutes before the page's minute clock, which reads the minute floored.
+  const minutesAgo = (n: number): string => new Date(Math.floor(Date.now() / 60_000) * 60_000 - n * 60_000).toISOString();
+  const shell = (app: string | undefined, host: string | undefined): void => {
+    if (host === undefined) delete (window as unknown as { __WSP__?: unknown }).__WSP__;
+    else (window as unknown as { __WSP__?: unknown }).__WSP__ = { tokenHash: "a".repeat(64), wsPath: "/ws", paired: true, version: host };
+    if (app === undefined) delete window.wsp;
+    else window.wsp = { version: app };
+  };
+  const remount = async (release: ReleaseView | null = null): Promise<void> => {
+    document.body.innerHTML = "";
+    resetSettings();
+    useStore.setState({ release });
+    await mount({}, "general");
+  };
+  const mark = (): string | undefined => rowOf("version")?.querySelector("[data-settings-mark]")?.textContent ?? undefined;
+  const stateLine = (): string | undefined => descriptionOf("version");
+  const whatsNew = (): HTMLElement => document.querySelector<HTMLElement>("[data-k=whats-new]")!;
+  const show = async (release: ReleaseView | null): Promise<void> => {
+    act(() => useStore.setState({ release }));
+    await settle();
+  };
+  const buttons = (): string[] => [...document.querySelectorAll("[data-settings-card=version] button, [data-settings-card=version-parts] button")].map(b => b.textContent ?? "");
+  const generalMeta = (): string | undefined => document.querySelector("[data-k=settings-general] [data-settings-meta]")?.textContent ?? undefined;
+  const opens = (): string[] => {
+    const opened: string[] = [];
+    window.open = ((url: string) => {
+      opened.push(url);
+      return null;
+    }) as typeof window.open;
+    return opened;
+  };
+
+  it("is one row under General's last head, marked with the host's version, the app's where the host names none, unknown where neither does, and What's new opens the releases list before any reading", async () => {
+    shell("0.1.3", "0.1.5");
+    await mount({}, "general");
+    expect([...document.querySelectorAll("[data-settings-page] [data-settings-head]")].at(-1)?.textContent).toBe(ABOUT_WORDS.title);
+    expect(rowTitles().at(-1)).toBe(ABOUT_WORDS.wsp);
+    expect(mark()).toBe("0.1.5");
+    const opened = opens();
+    fireEvent.click(whatsNew());
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatch(/\/releases$/);
+    shell("0.1.3", undefined);
+    await remount();
+    expect(mark()).toBe("0.1.3");
+    shell(undefined, undefined);
+    window.wsp = {};
+    await remount();
+    expect(mark()).toBe(ABOUT_WORDS.unknown);
+  });
+
+  it("draws the App and Host lines, each in mono, only while the shell's app and the host run different versions", async () => {
+    shell("0.1.3", "0.1.5");
+    await mount({}, "general");
+    expect(lineLabels()).toEqual([ABOUT_WORDS.app, ABOUT_WORDS.host]);
+    expect(wordOf("app-version")).toBe("0.1.3");
+    expect(wordOf("host-version")).toBe("0.1.5");
+    expect(lineOf("host-version")?.querySelector("[data-settings-word]")?.className).not.toContain("font-mono");
+    shell("0.1.5", "0.1.5");
+    await remount();
+    expect(lineLabels()).toEqual([]);
+    expect(mark()).toBe("0.1.5");
+    // A browser tab has no app half to differ from.
+    shell(undefined, "0.1.5");
+    await remount();
+    expect(lineLabels()).toEqual([]);
+  });
+
+  it("says under the version whether a newer release waits, as the host last read it, with when it read it on What's new", async () => {
+    shell("0.2.0", "0.2.0");
+    await mount({}, "general");
+    expect(stateLine()).toBe(ABOUT_WORDS.checking);
+    expect(whatsNew().title).toBe("");
+    await show(read("0.3.0"));
+    expect(stateLine()).toBe(ABOUT_WORDS.available("0.3.0"));
+    expect(whatsNew().title).toBe(ABOUT_WORDS.readHover("3 d ago"));
+    // Ahead of the page's minute clock, as a reading the opening itself asked for is.
+    await show(read("0.3.0", { checkedAt: new Date(Date.now() + 5_000).toISOString() }));
+    expect(whatsNew().title).toBe(ABOUT_WORDS.readHover("just now"));
+    await show(read("0.2.0"));
+    expect(stateLine()).toBe(ABOUT_WORDS.upToDate("3 d ago"));
+    await show(read("0.1.0"));
+    expect(stateLine()).toBe(ABOUT_WORDS.upToDate("3 d ago"));
+    // A reading kept through a failed ask stands, with the failure on the hover.
+    const tried = new Date(Date.now() - 5 * 60_000).toISOString();
+    await show(read("0.3.0", { state: "unreached", triedAt: tried }));
+    expect(stateLine()).toBe(ABOUT_WORDS.available("0.3.0"));
+    expect(whatsNew().title).toBe(ABOUT_WORDS.missedHover("3 d ago", builtWhen(tried)));
+    // Level with a reading whose last ask failed is never up to date: the row says when it read and that the ask failed.
+    await show(read("0.2.0", { state: "unreached", triedAt: new Date().toISOString() }));
+    expect(stateLine()).toBe("Checked 3 d ago; could not reach GitHub just now");
+    await show(read("0.2.0", { state: "unreached", triedAt: minutesAgo(5) }));
+    expect(stateLine()).toBe(ABOUT_WORDS.unreached("3 d ago", "5 min ago"));
+    expect(stateLine()).not.toContain("Up to date");
+    await show({ state: "checking" });
+    expect(stateLine()).toBe(ABOUT_WORDS.checking);
+    await show({ state: "unreached", triedAt: minutesAgo(5) });
+    expect(stateLine()).toBe("Could not reach GitHub 5 min ago");
+    await show({ state: "unreached", triedAt: tried });
+    expect(whatsNew().title).toBe(ABOUT_WORDS.unreachedHover(builtWhen(tried)));
+    await show({ state: "off" });
+    expect(stateLine()).toBe(ABOUT_WORDS.checksOff);
+    expect(whatsNew().title).toBe(ABOUT_WORDS.offHover);
+  });
+
+  it("Check for updates asks the host at once, is held while the ask is out, and the row ends on the answer", async () => {
+    shell("0.2.0", "0.2.0");
+    const asks: Array<boolean | undefined> = [];
+    let answer!: (release: ReleaseView) => void;
+    const releaseCheck = async (force?: boolean): Promise<ReleaseView> => {
+      asks.push(force);
+      return force === true ? new Promise<ReleaseView>(resolve => (answer = resolve)) : useStore.getState().release!;
+    };
+    useStore.setState({ release: read("0.2.0", { state: "unreached", triedAt: new Date().toISOString() }) });
+    await mount({ releaseCheck }, "general");
+    const check = (): HTMLButtonElement => screen.getByRole("button", { name: ABOUT_WORDS.checkNow });
+    expect(buttons()).toEqual([ABOUT_WORDS.checkNow, ABOUT_WORDS.whatsNew]);
+    expect(asks).toEqual([undefined]);
+    fireEvent.click(check());
+    expect(asks).toEqual([undefined, true]);
+    // The host pushes its view with the ask out before it answers.
+    await show(read("0.2.0", { state: "checking" }));
+    expect(stateLine()).toBe(ABOUT_WORDS.checking);
+    expect(check().disabled).toBe(true);
+    await act(async () => answer(read("0.3.0", { checkedAt: new Date().toISOString() })));
+    await settle();
+    expect(stateLine()).toBe(ABOUT_WORDS.available("0.3.0"));
+    expect(buttons()).toEqual([ABOUT_WORDS.get("0.3.0"), ABOUT_WORDS.whatsNew]);
+    await show(read("0.2.0", { checkedAt: minutesAgo(2) }));
+    expect(stateLine()).toBe("Up to date, checked 2 min ago");
+    expect(check().disabled).toBe(false);
+    await show({ state: "off" });
+    expect(buttons()).toEqual([ABOUT_WORDS.whatsNew]);
+  });
+
+  it("reads the app's half as behind too, and a tab with no shell reads the host alone", async () => {
+    shell("0.2.0", "0.3.0");
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    expect(stateLine()).toBe(ABOUT_WORDS.available("0.3.0"));
+    expect(buttons()).toContain(ABOUT_WORDS.get("0.3.0"));
+    shell(undefined, "0.3.0");
+    await remount(read("0.3.0"));
+    expect(stateLine()).toBe(ABOUT_WORDS.upToDate("3 d ago"));
+    expect(buttons()).not.toContain(ABOUT_WORDS.get("0.3.0"));
+  });
+
+  it("offers Get with the release's page while behind, What's new opens the release read, and level or under the switch offers What's new alone", async () => {
+    shell("0.2.0", "0.2.0");
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    const opened = opens();
+    expect(buttons()).toEqual([ABOUT_WORDS.get("0.3.0"), ABOUT_WORDS.whatsNew]);
+    fireEvent.click(screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") }));
+    fireEvent.click(whatsNew());
+    expect(opened).toEqual(["https://github.com/wsp-labs/wsp/releases/tag/v0.3.0", "https://github.com/wsp-labs/wsp/releases/tag/v0.3.0"]);
+    await show(read("0.2.0"));
+    expect(buttons()).toEqual([ABOUT_WORDS.whatsNew]);
+    fireEvent.click(whatsNew());
+    expect(opened.at(-1)).toBe("https://github.com/wsp-labs/wsp/releases/tag/v0.2.0");
+    // Under the switch no number stands, so nothing is offered off a stale one and the notes are the whole list.
+    await show({ state: "off" });
+    expect(buttons()).toEqual([ABOUT_WORDS.whatsNew]);
+    fireEvent.click(whatsNew());
+    expect(opened.at(-1)).toMatch(/\/releases$/);
+  });
+
+  const HOVER = "Downloads the disk image and checks its sha256.";
+  const shellOn = (current: string | null, bundle: Pick<DesktopBridge, "getBundle" | "quitAndOpen">, app = "0.2.0", host = "0.2.0"): void => {
+    shell(app, host);
+    window.wsp = { version: app, bundleHover: HOVER, hosts: async () => ({ here: "this Mac", current, hosts: [] }), ...bundle };
+  };
+
+  it("in the app on its own host, Get downloads through the shell, says Downloading, then Quit and open, which hands over to the shell", async () => {
+    let done: (outcome: BundleOutcome) => void = () => undefined;
+    const getBundle = vi.fn((_ask: { version: string }) => new Promise<BundleOutcome>(resolve => (done = resolve)));
+    const quitAndOpen = vi.fn(async (): Promise<BundleOutcome> => ({ ok: true }));
+    shellOn(null, { getBundle, quitAndOpen });
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    const opened = opens();
+    const get = screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") });
+    await waitFor(() => expect(get.title).toBe(HOVER));
+    fireEvent.click(get);
+    expect(getBundle).toHaveBeenCalledWith({ version: "0.3.0" });
+    await waitFor(() => expect(buttons()).toEqual([ABOUT_WORDS.downloading, ABOUT_WORDS.whatsNew]));
+    expect(screen.getByRole("button", { name: ABOUT_WORDS.downloading }).hasAttribute("disabled")).toBe(true);
+    await act(async () => done({ ok: true }));
+    await waitFor(() => expect(buttons()).toEqual([ABOUT_WORDS.quitAndOpen, ABOUT_WORDS.whatsNew]));
+    fireEvent.click(screen.getByRole("button", { name: ABOUT_WORDS.quitAndOpen }));
+    await waitFor(() => expect(quitAndOpen).toHaveBeenCalledTimes(1));
+    expect(opened).toEqual([]);
+  });
+
+  it("in an app that replaces itself, the kept download's step is Restart to update, which hands over to the shell", async () => {
+    const getBundle = vi.fn(async (): Promise<BundleOutcome> => ({ ok: true }));
+    const quitAndOpen = vi.fn(async (): Promise<BundleOutcome> => ({ ok: true }));
+    shellOn(null, { getBundle, quitAndOpen });
+    window.wsp = { ...window.wsp, updatesInPlace: true };
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    await waitFor(() => expect(screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") }).title).toBe(HOVER));
+    fireEvent.click(screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") }));
+    fireEvent.click(await screen.findByRole("button", { name: ABOUT_WORDS.restartToUpdate }));
+    await waitFor(() => expect(quitAndOpen).toHaveBeenCalledTimes(1));
+    expect(buttons()).not.toContain(ABOUT_WORDS.quitAndOpen);
+  });
+
+  it("a download the shell refuses lands its line as an error notice and puts Get back", async () => {
+    const getBundle = vi.fn(async (): Promise<BundleOutcome> => ({ ok: false, error: "wsp-0.3.0-mac.dmg did not match the release's sha256 and was deleted" }));
+    shellOn(null, { getBundle, quitAndOpen: vi.fn() });
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    await waitFor(() => expect(screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") }).title).toBe(HOVER));
+    fireEvent.click(screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") }));
+    await waitFor(() => expect(useNotices.getState().notices.slice(0, 1).map(n => [n.kind, n.text])).toEqual([["error", UPDATE_WORDS.notReady("0.3.0", "wsp-0.3.0-mac.dmg did not match the release's sha256 and was deleted")]]));
+    expect(buttons()).toEqual([ABOUT_WORDS.get("0.3.0"), ABOUT_WORDS.whatsNew]);
+  });
+
+  it("an open the shell refuses lands its line as an error notice and puts Get back", async () => {
+    const quitAndOpen = vi.fn(async (): Promise<BundleOutcome> => ({ ok: false, error: "wsp-0.3.0-mac.dmg changed after it was checked and was not opened" }));
+    shellOn(null, { getBundle: vi.fn(async (): Promise<BundleOutcome> => ({ ok: true })), quitAndOpen });
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    await waitFor(() => expect(screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") }).title).toBe(HOVER));
+    fireEvent.click(screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") }));
+    fireEvent.click(await screen.findByRole("button", { name: ABOUT_WORDS.quitAndOpen }));
+    await waitFor(() => expect(useNotices.getState().notices.slice(0, 1).map(n => n.text)).toEqual(["wsp-0.3.0-mac.dmg changed after it was checked and was not opened"]));
+    await waitFor(() => expect(buttons()).toEqual([ABOUT_WORDS.get("0.3.0"), ABOUT_WORDS.whatsNew]));
+  });
+
+  it("where only the host is behind, Get is the link to the release's page and the shell downloads nothing", async () => {
+    const getBundle = vi.fn(async (): Promise<BundleOutcome> => ({ ok: true }));
+    const hosts = vi.fn(async () => ({ here: "this Mac", current: null, hosts: [] }));
+    shellOn(null, { getBundle, quitAndOpen: vi.fn() }, "0.3.0", "0.2.0");
+    window.wsp = { ...window.wsp, hosts };
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    const opened = opens();
+    await waitFor(() => expect(hosts).toHaveBeenCalled());
+    await settle();
+    const get = screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") });
+    expect(get.title).toBe("");
+    fireEvent.click(get);
+    expect(opened).toEqual(["https://github.com/wsp-labs/wsp/releases/tag/v0.3.0"]);
+    expect(getBundle).not.toHaveBeenCalled();
+  });
+
+  it("a remote page gets the link form: Get opens the release's page and asks the shell for nothing", async () => {
+    const getBundle = vi.fn(async (): Promise<BundleOutcome> => ({ ok: true }));
+    const hosts = vi.fn(async () => ({ here: "this Mac", current: "spoo", hosts: [] }));
+    shellOn("spoo", { getBundle, quitAndOpen: vi.fn() });
+    window.wsp = { ...window.wsp, hosts };
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "general");
+    const opened = opens();
+    await waitFor(() => expect(hosts).toHaveBeenCalled());
+    await settle();
+    const get = screen.getByRole("button", { name: ABOUT_WORDS.get("0.3.0") });
+    expect(get.title).toBe("");
+    fireEvent.click(get);
+    expect(opened).toEqual(["https://github.com/wsp-labs/wsp/releases/tag/v0.3.0"]);
+    expect(getBundle).not.toHaveBeenCalled();
+  });
+
+  const hostHover = (): string | undefined => lineOf("host-version")?.title;
+
+  // The app already on the release and the host still on the one before it, so the Host line stands to carry its hover.
+  it("offers Restart host in place of Get once the installed files are newer and a restart brings the host back, and the click asks the host", async () => {
+    shell("0.3.0", "0.2.0");
+    const hostRestart = vi.fn(async () => undefined);
+    useStore.setState({ release: read("0.3.0", { installed: "0.3.0", update: "npm i -g @wsp-labs/wsp@0.3.0" }) });
+    await mount({ hostRestart } as Partial<Api>, "general");
+    expect(buttons()).toEqual([ABOUT_WORDS.restartHost, ABOUT_WORDS.whatsNew]);
+    const restart = screen.getByRole("button", { name: ABOUT_WORDS.restartHost });
+    expect(restart.title).toBe(ABOUT_WORDS.restartHover);
+    for (const dropped of ["terminal panes", "localhost forwards", "sign-in in progress"]) expect(restart.title).toContain(dropped);
+    // The files are already the release, so the hover names the restart and not the install again.
+    expect(hostHover()).toBe(ABOUT_WORDS.hostInstalledHover("0.3.0", ABOUT_WORDS.restartRuns));
+    fireEvent.click(restart);
+    await waitFor(() => expect(hostRestart).toHaveBeenCalledTimes(1));
+  });
+
+  it("a restart the host refuses lands its line as an error notice", async () => {
+    shell("0.2.0", "0.2.0");
+    const hostRestart = vi.fn(async () => {
+      throw new RequestError("a socket let in on a ticket cannot restart this host");
+    });
+    useStore.setState({ release: read("0.3.0", { installed: "0.3.0" }) });
+    await mount({ hostRestart } as Partial<Api>, "general");
+    fireEvent.click(screen.getByRole("button", { name: ABOUT_WORDS.restartHost }));
+    await waitFor(() => expect(useNotices.getState().notices.slice(0, 1).map(n => n.text)).toEqual([UPDATE_WORDS.notRestarted("a socket let in on a ticket cannot restart this host")]));
+  });
+
+  it("draws no Restart where a restart would not bring the host back, and the Host hover says the terminal's line instead", async () => {
+    shell("0.3.0", "0.2.0");
+    useStore.setState({ release: read("0.3.0", { shape: "up", installed: "0.3.0", restartRefusal: UP_RESTART_LINE }) });
+    await mount({}, "general");
+    expect(buttons()).toEqual([ABOUT_WORDS.get("0.3.0"), ABOUT_WORDS.whatsNew]);
+    expect(hostHover()).toBe(ABOUT_WORDS.hostInstalledHover("0.3.0", UP_RESTART_LINE));
+  });
+
+  it("shows the host's own refusal as it arrives, whatever road it names, and draws no Restart", async () => {
+    shell("0.3.0", "0.2.0");
+    useStore.setState({ release: read("0.3.0", { installed: "0.3.0", restartRefusal: HOST_NO_RESTART_LINE }) });
+    await mount({}, "general");
+    expect(buttons()).toEqual([ABOUT_WORDS.get("0.3.0"), ABOUT_WORDS.whatsNew]);
+    expect(hostHover()).toBe(ABOUT_WORDS.hostInstalledHover("0.3.0", HOST_NO_RESTART_LINE));
+  });
+
+  it("draws no Restart on a page served to another computer, whose restart the host refuses", async () => {
+    shell("0.3.0", "0.2.0");
+    (window as unknown as { __WSP__?: unknown }).__WSP__ = { tokenHash: "a".repeat(64), wsPath: "/ws", paired: false, version: "0.2.0" };
+    useStore.setState({ release: read("0.3.0", { installed: "0.3.0" }) });
+    await mount({}, "general");
+    expect(buttons()).not.toContain(ABOUT_WORDS.restartHost);
+    expect(hostHover()).toBe(ABOUT_WORDS.hostInstalledHover("0.3.0", ABOUT_WORDS.restartThere));
+  });
+
+  it("the Host hover names the line that moves the host onto the release while it is behind, and the plain words otherwise", async () => {
+    shell("0.3.0", "0.2.0");
+    useStore.setState({ release: read("0.3.0", { update: "npm i -g @wsp-labs/wsp@0.3.0" }) });
+    await mount({}, "general");
+    expect(hostHover()).toBe(ABOUT_WORDS.hostUpdateHover("npm i -g @wsp-labs/wsp@0.3.0", "0.3.0"));
+    await show(read("0.2.0"));
+    expect(hostHover()).toBe(ABOUT_WORDS.hostHover);
+  });
+
+  it("the General row in the sidebar carries the newer version as its one mono word, and nothing while level", async () => {
+    shell("0.2.0", "0.2.0");
+    useStore.setState({ release: read("0.3.0") });
+    await mount({}, "devices");
+    expect(generalMeta()).toBe("0.3.0");
+    expect(document.querySelectorAll("[data-slot=sidebar] [data-settings-meta]").length).toBe(1);
+    await show(read("0.2.0"));
+    expect(generalMeta()).toBeUndefined();
+    await show({ state: "unreached" });
+    expect(generalMeta()).toBeUndefined();
+  });
+
+  it("draws no count of the computers whose daemon is behind: each one's own row on Computers says it, with its update", async () => {
+    shell("0.2.0", "0.2.0");
+    const behind = (id: string, name: string): PlaceView => ({ ...box, id, name, daemonVersion: DAEMON_VERSION - 3 });
+    useStore.setState({ places: [here, behind("p_spoo", "spoo"), behind("p_dev4", "dev4"), solari] });
+    await mount({}, "general");
+    expect(lineLabels()).toEqual([]);
+    expect(document.querySelector("[data-settings-page]")?.textContent).not.toMatch(/behind|spoo|dev4/i);
+  });
+
+  it("opening General asks the host to check, which its floor keeps to one ask, and the answer lands on the card", async () => {
+    shell("0.2.0", "0.2.0");
+    const releaseCheck = vi.fn(async () => read("0.3.0"));
+    await mount({ releaseCheck } as Partial<Api>, "devices");
+    expect(releaseCheck).not.toHaveBeenCalled();
+    act(() => useSettingsStore.getState().go({ kind: "group", group: "general" }));
+    await settle();
+    expect(releaseCheck).toHaveBeenCalledTimes(1);
+    expect(stateLine()).toBe(ABOUT_WORDS.available("0.3.0"));
+  });
+});

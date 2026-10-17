@@ -1,0 +1,33 @@
+[
+  {
+    "id": 1,
+    "op": "auth"
+  },
+  {
+    "op": "auth",
+    "token": "t"
+  },
+  {
+    "id": 1,
+    "op": "auth",
+    "token": "t",
+    "port": 70000
+  },
+  {
+    "id": 1,
+    "op": "auth",
+    "token": "t",
+    "port": 0
+  },
+  {
+    "id": 1,
+    "op": "auth",
+    "token": 5
+  },
+  {
+    "id": 0,
+    "op": "auth",
+    "token": "t",
+    "pipe": "yes"
+  }
+]

@@ -1,0 +1,441 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// What goes on a computer somebody owns, planned on this one. A computer's
+// picks name the agents, servers, CLIs, skills, plugins and configs it takes;
+// the rows are read off this computer as it is now, the agents' and the
+// servers' by the same roads a copy of the image reads them, every sign-in
+// left to the vault and no Keychain read at all. The skills and the configs
+// are this computer's files, packed here with their cuts made and landed there
+// through the list beside the job. What runs the plan is the engine's.
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { join, posix } from "node:path";
+import type { Host, Manifest, ManifestEntry, Platform } from "@wsp/collect";
+import { expand, nodeHost } from "@wsp/collect";
+import { CATALOG_AGENTS, COMPILER_ROW, aptNeedRows, setupNeedRows, MCP_AGENTS, SHARED_SKILLS, TOOL_PREFIX, catalogEntry, catalogIdOfRow, harnessLine, installHomes, ownSkillFolder, rewrittenRel, roadModule } from "@wsp/catalog";
+import {
+  agentStateFile,
+  mcpRowId,
+  newSetupRun,
+  parseMcpId,
+  provisionPlanOf,
+  toolSize,
+  pathLine,
+  projectServersStep,
+  provisionStep,
+  serverNeeds,
+  tarOf,
+  toolUninstall,
+  viaRoad,
+  withheld,
+  type BrewTable,
+  type PackFiles,
+  type ProvisionLanding,
+  type ProvisionPlan,
+  type SkippedPath,
+  type TarEntry,
+  type ToolInstall,
+} from "@wsp/engine";
+import { agentOfRow, GITHUB_CLI as GH, GITHUB_ROW, keysKeptLine, signInRowId, MCP_ID_PREFIX, probePath, toolRowId, type Recipe, type RecipeFile, type RecipeKind } from "@wsp/protocol";
+import type { GoldenImport, PlaceProvisioner, PlaceUndo } from "@wsp/runtime";
+import { serverVault } from "./env-keys.js";
+import { brewTableFor, copyRows, planImport } from "./image-recipe.js";
+import { stayedLine } from "./cloud-configs.js";
+import { CONFIG_PATHS, configTexts, type ConfigText } from "./recipe-configs.js";
+import { folderFiles, LINKED_FOLDER_NOTE } from "./folder-files.js";
+import { loadRecipe, smallRecipePath } from "./recipe-file.js";
+import { estimatePicks } from "./pick-sizes.js";
+import { agentOwnPaths } from "./recipes.js";
+import { withoutWspHere } from "./wsp-own.js";
+import { projectServersPlan } from "./project-servers.js";
+
+/** What the planner reads beside the picks: this computer's rungs and its Homebrew table, the same two readers wsp
+ * init and a copy's build take. */
+export interface ProvisionReaders {
+  statePath: string;
+  home: string;
+  platform: Platform;
+  collect(): Promise<Manifest>;
+  brew(): Promise<BrewTable>;
+  /** This computer, read for the package that installs wsp; the live one at `home` without it. */
+  here?: Host;
+}
+
+/** The one PATH every script of the job exports on that computer, and the folder every manager installs under there:
+ * its own system directories and wsp's own folder under /opt, with every directory under the home it shares with the
+ * workspaces on it left out, since a process inside one of them writes there and the job runs as root outside them. */
+const placePaths = (home: string): { path: string; prefix: string } => ({ path: probePath(home), prefix: TOOL_PREFIX });
+
+/** The small recipe the picks come to, for the roads that read one: the agents and the CLIs ticked, nothing else. */
+function smallOf(picks: RecipeFile): Recipe {
+  const source = { kind: "installed" as const, paths: [], bin: true };
+  return {
+    version: 1,
+    at: new Date().toISOString(),
+    histories: [],
+    rows: [
+      ...Object.keys(picks.agents).map(id => ({ id, kind: "agent" as const, on: true, source })),
+      ...Object.entries(picks.clis).map(([name, row]) => {
+        const id = toolRowId(row.via, name);
+        return { id: catalogIdOfRow({ id }) ?? id, kind: "tool" as const, on: true, source };
+      }),
+    ],
+  };
+}
+
+/** The folders an agent's row on this computer carries that the picks name one by one or never send: its skills
+ * folders, which travel skill by skill, and its plugins' folder, which never travels. */
+function pickedApart(agentId: string): string[] {
+  const a = CATALOG_AGENTS.find(entry => entry.id === agentId);
+  if (a === undefined) return [];
+  return [...a.skillRoots.user.map(r => r.dir), ...(a.pluginSkills === undefined ? [] : [posix.dirname(a.pluginSkills.index)])];
+}
+
+const under = (path: string, dir: string): boolean => path === dir || path.startsWith(`${dir}/`);
+
+/** This computer's rows with exactly the picks ticked: an agent with its own files less the folders picked apart, a
+ * server for each agent it is picked for, answered copy where it carries a key and the picks said yes to copying it,
+ * a CLI by the manager it came from or the catalog's row for it. */
+export function picksRows(manifest: Manifest, picks: RecipeFile, o: { home: string; brew: BrewTable }): ManifestEntry[] {
+  const rows = copyRows(manifest, { recipe: smallOf(picks), pins: [] }, o);
+  const tools = new Set(Object.entries(picks.clis).map(([name, row]) => toolRowId(row.via, name)));
+  const catalog = new Set([...tools].flatMap(id => catalogIdOfRow({ id }) ?? []));
+  return rows.map(e => {
+    const agent = agentOfRow(e);
+    if (agent !== undefined) {
+      const apart = pickedApart(agent);
+      return { ...e, bring: picks.agents[agent] !== undefined, paths: e.paths.filter(p => !apart.some(dir => under(p, dir))) };
+    }
+    const server = parseMcpId(e.id);
+    if (server !== undefined) {
+      const pick = picks.mcp[server.name];
+      return { ...e, bring: pick?.agents.includes(server.agent) === true, ...(e.consent === true && picks.copyKeys === true ? { choice: "copy" as const } : {}) };
+    }
+    if (e.rung === "tools") return { ...e, bring: tools.has(e.id) || catalog.has(catalogIdOfRow(e) ?? "") };
+    return { ...e, bring: false };
+  });
+}
+
+/** The plan with each ticked server set aside for want of a yes to copying its keys saying which keys, and where
+ * the yes is given: the recipe the computer follows, by name, or the server's own row where it follows none. */
+function keysKept(imp: GoldenImport, rows: readonly ManifestEntry[], recipe: string | undefined): GoldenImport {
+  if (imp.mcp === undefined) return imp;
+  const byId = new Map(rows.map(e => [e.id, e]));
+  const agents = imp.mcp.agents.map(a => ({
+    ...a,
+    scopes: a.scopes.map(s => ({
+      ...s,
+      drop: s.drop.map(d => {
+        const row = byId.get(mcpRowId(a.id, s.project !== undefined, d.name));
+        const keys = row?.keys ?? [];
+        return row?.bring === true && withheld(row) ? { ...d, reason: keysKeptLine(keys, recipe), keys } : d;
+      }),
+    })),
+  }));
+  return { ...imp, mcp: { ...imp.mcp, agents } };
+}
+
+/** An archive of files read here: each staged with its digest, those the computer already has at the same bytes
+ * left out when the road asks, the rest packed, and what was read and not sent named as skipped. */
+export function packOf(read: () => { files: readonly { dest: string; bytes: Buffer; mode: number }[]; skipped?: SkippedPath[] }): PackFiles {
+  return async leaveOut => {
+    const { files, skipped = [] } = read();
+    const staged = files.map(f => ({ ...f, digest: createHash("sha256").update(f.bytes).digest("hex") }));
+    const stood = new Set(leaveOut === undefined ? [] : await leaveOut(staged.map(f => ({ dest: f.dest, digest: f.digest }))));
+    const entries: TarEntry[] = staged.filter(f => !stood.has(f.dest)).map(f => ({ path: f.dest, mode: f.mode, content: f.bytes }));
+    const tar = tarOf(entries);
+    return {
+      tar,
+      bytes: tar.length,
+      unpacked: entries.reduce((n, e) => n + ("content" in e ? e.content.length : 0), 0),
+      skipped,
+      cut: [],
+      silenced: [],
+      macPaths: [],
+      files: entries.length,
+      stood: [...stood],
+    };
+  };
+}
+
+/** Where a skill lands for the picked agents: each agent's own skills folder, or the shared one for an agent that
+ * reads it, once each; the shared one alone when no agent is picked. */
+function skillRootsFor(picks: RecipeFile): string[] {
+  const agents = CATALOG_AGENTS.filter(a => picks.agents[a.id] !== undefined);
+  const roots = agents.map(a => ownSkillFolder(a, false)?.dir ?? SHARED_SKILLS);
+  return [...new Set(roots.length === 0 ? [SHARED_SKILLS] : roots)].map(dir => dir.slice(2));
+}
+
+/** The picked skills, each read at its real path here, so a skill this computer keeps as a link travels as the files
+ * it points at. A skill that is no longer here is set aside with that reason, and so is a name that is not one
+ * folder or a folder with no SKILL.md in it: only a skill leaves this computer by this road. */
+function skillsOf(picks: RecipeFile, home: string): { plan?: { lands: ProvisionLanding[]; pack: PackFiles }; skipped: { id: string; label: string; note: string }[] } {
+  const roots = skillRootsFor(picks);
+  const found: { name: string; dir: string }[] = [];
+  const skipped: { id: string; label: string; note: string }[] = [];
+  for (const [name, row] of Object.entries(picks.skills)) {
+    const at = join(expand({ home }, row.from), name);
+    if (name.includes("/") || name === "." || name === ".." || !existsSync(join(at, "SKILL.md"))) {
+      skipped.push({ id: `skills/${name}`, label: name, note: `no skill at ${row.from}/${name} on this computer` });
+      continue;
+    }
+    found.push({ name, dir: realpathSync(at) });
+  }
+  if (found.length === 0) return { skipped };
+  const lands = found.flatMap(s => roots.map(root => ({ id: `skills/${s.name}`, label: s.name, dest: `${root}/${s.name}` })));
+  const pack = packOf(() => {
+    const read = found.map(s => ({ s, held: folderFiles(s.dir) }));
+    return {
+      files: read.flatMap(({ s, held }) => held.files.flatMap(f => roots.map(root => ({ dest: `${root}/${s.name}/${f.rel}`, bytes: readFileSync(f.path), mode: statSync(f.path).mode & 0o777 })))),
+      skipped: read.flatMap(({ s, held }) => held.links.flatMap(link => roots.map(root => ({ id: `skills/${s.name}`, path: `${root}/${s.name}/${link}`, note: LINKED_FOLDER_NOTE })))),
+    };
+  });
+  return { plan: { lands, pack }, skipped };
+}
+
+const CONFIG_LABELS = { git: "git config", shell: "shell config" } as const;
+
+/** The picked configs as the files that land: the git files with what never travels cut, the shell's with every
+ * exported secret cut, each at its own path under the home there. */
+function configsOf(picks: RecipeFile, home: string): { lands: ProvisionLanding[]; pack: PackFiles } | undefined {
+  const texts: (ConfigText & { id: "git" | "shell" })[] = (["git", "shell"] as const).flatMap(id => (picks.configs[id] === undefined ? [] : configTexts(id, home).map(t => ({ ...t, id }))));
+  if (texts.length === 0) return undefined;
+  return {
+    lands: texts.map(t => ({ id: `configs/${t.id}`, label: CONFIG_LABELS[t.id], dest: t.rel })),
+    pack: packOf(() => ({
+      files: texts.map(t => ({ dest: t.rel, bytes: Buffer.from(t.text), mode: 0o644 })),
+      skipped: texts.filter(t => t.cut.length > 0).map(t => ({ id: `configs/${t.id}`, path: `~/${t.rel}`, note: stayedLine(t.cut) })),
+    })),
+  };
+}
+
+/** The login shell's own package where the shell row is picked and this computer logs into zsh or fish: the files
+ * that travel are that shell's, and root's passwd shell stays bash. */
+function shellPackage(picks: RecipeFile, manifest: Manifest, path: string, prefix: string): ProvisionPlan["configTools"] {
+  if (picks.configs.shell === undefined) return undefined;
+  const login = manifest.entries.find(e => e.rung === "shell" && e.login !== undefined)?.login;
+  if (login !== "zsh" && login !== "fish") return undefined;
+  const step = viaRoad({ road: "apt", packages: [login] }, login, path, prefix);
+  return "cmd" in step ? [{ id: `configs/shell/${login}`, label: login, manager: "apt", ...step, bin: login }] : undefined;
+}
+
+/** gh, where the GitHub row signs it in and the picks carry no gh among their CLIs: the catalog's own road. A row set
+ * aside takes none: its Sign in puts gh on first. */
+function githubTools(picks: RecipeFile, path: string, prefix: string): ProvisionPlan["github"] {
+  if (picks.configs.github === undefined || picks.configs.github.signin === "skip" || picks.clis[GH] !== undefined) return undefined;
+  const entry = catalogEntry(GH);
+  if (entry === undefined) return undefined;
+  const step = viaRoad(entry.installRoad, entry.bin, path, prefix);
+  return "cmd" in step ? [{ id: `github/${GH}`, label: entry.name, manager: entry.installRoad.road, ...step, bin: entry.bin }] : undefined;
+}
+
+/** The CLIs of a plan the kept servers need on first, read off this computer's copy of each config they travel in
+ * (`serverNeeds`): the servers wait on these alone, so they land beside the rest of the CLIs. A kept server that copy
+ * does not read, a config that does not parse among them, could run any CLI, so then the servers wait on all. */
+function serverTools(plan: ProvisionPlan, home: string): string[] {
+  const clis = plan.steps.slice(plan.agents);
+  // What the agents step puts on is there before any server starts.
+  const ready = new Set(plan.steps.slice(0, plan.agents).flatMap(s => s.bin ?? []));
+  const needs = new Set<ToolInstall>();
+  for (const agent of plan.mcp?.agents ?? []) {
+    const file = MCP_AGENTS.find(a => a.id === agent.id)?.mcp.files.map(f => expand({ home }, f)).find(f => existsSync(f));
+    const servers = file === undefined ? [] : (agent.scopes[0]?.format.read(readFileSync(file, "utf8"), home) ?? []);
+    for (const scope of agent.scopes) {
+      for (const name of scope.keep) {
+        const server = servers.find(s => s.name === name && (s.scope === "home") === (scope.project !== undefined));
+        if (server === undefined) return clis.map(s => s.id);
+        if (server.transport.kind !== "stdio") continue;
+        for (const row of serverNeeds(server.transport.command, clis, ready)) needs.add(row);
+      }
+    }
+  }
+  return clis.filter(s => needs.has(s)).map(s => s.id);
+}
+
+/** The steps whose plan reads this computer's manifest: the agents, the CLIs, the servers, the configs (the login
+ * shell), the floor and the machine context. */
+const READS_THIS_COMPUTER: ReadonlySet<string> = new Set(["floor", "agents", "clis", "mcp", "configs", "context"]);
+
+/** The picked plugins as the lines that put each on, by the agent's own commands there pointed at the folder its
+ * threads read, each from the marketplace this computer's index names for it. One whose marketplace this computer
+ * cannot name is set aside. */
+function pluginsOf(picks: RecipeFile, home: string, stores?: Readonly<Record<string, string>>): { plugins: NonNullable<ProvisionPlan["plugins"]>[number][]; skipped: { id: string; label: string; note: string }[] } {
+  const agent = CATALOG_AGENTS.find(a => a.plugins !== undefined && picks.agents[a.id] !== undefined);
+  const road = agent?.plugins;
+  const plugins: NonNullable<ProvisionPlan["plugins"]>[number][] = [];
+  const skipped: { id: string; label: string; note: string }[] = [];
+  const index = road === undefined || !existsSync(expand({ home }, road.marketplaces)) ? undefined : readFileSync(expand({ home }, road.marketplaces), "utf8");
+  for (const name of Object.keys(picks.plugins)) {
+    const marketplace = name.split("@")[1];
+    const source = road === undefined || index === undefined || marketplace === undefined ? undefined : road.sourceOf(index, marketplace);
+    if (agent === undefined || road === undefined || source === undefined) skipped.push({ id: `plugins/${name}`, label: name, note: road === undefined ? "no picked agent takes plugins" : "this computer names no marketplace for it" });
+    else plugins.push({ id: `plugins/${name}`, label: name, cmd: harnessLine(agent.id, road.install(name, source), { stores }), asked: out => road.asked(out, name) });
+  }
+  return { plugins, skipped };
+}
+
+/** How one catalog row comes off a computer by its own road, on the job's PATH: the line, or why there is none. */
+function catalogUninstall(id: string, path: string, prefix: string): Pick<PlaceUndo, "cmd" | "note"> {
+  const entry = catalogEntry(id);
+  if (entry === undefined) return { note: `no road wsp knows takes ${id} off` };
+  const r = roadModule(entry.installRoad).uninstall(entry.installRoad, entry.bin, installHomes(prefix));
+  return "cmd" in r ? { cmd: `${pathLine(path, prefix)}\n${r.cmd}` } : { note: r.note };
+}
+
+/** What taking rows out of a computer's picks runs there, each answering for the rows it applied: a CLI and an
+ * agent by their own roads, a skill and a config by the files wsp landed for them, a plugin by its agent's command,
+ * a folder by its project record, a server by the servers step, which takes out what wsp wrote and is no longer
+ * picked. Planned off the picks as they were, since the row is no longer in the ones now. */
+export async function undoPlan(before: RecipeFile, removed: readonly { kind: RecipeKind; name: string }[], on: { home: string; stores?: Readonly<Record<string, string>> }, brew: () => Promise<BrewTable>): Promise<PlaceUndo[]> {
+  const { path, prefix } = placePaths(on.home);
+  const roots = skillRootsFor(before);
+  const out: PlaceUndo[] = [];
+  for (const { kind, name } of removed) {
+    const key = `${kind}/${name}`;
+    switch (kind) {
+      case "skills":
+        out.push({ key, label: name, ids: [key, ...roots.map(root => `files/${root}/${name}`)], dests: roots.map(root => `${root}/${name}`) });
+        break;
+      case "configs": {
+        if (name === "github") {
+          // gh comes off only where this row's own step put it on; a gh among the CLIs is that row's.
+          out.push({ key, label: "GitHub", ids: [key, GITHUB_ROW, `github/${GH}`], owner: `github/${GH}`, ...catalogUninstall(GH, path, prefix) });
+          break;
+        }
+        const dests = CONFIG_PATHS[name as keyof typeof CONFIG_PATHS] ?? [];
+        out.push({ key, label: name, ids: [key, ...dests.map(d => `files/${d}`)], dests });
+        if (name === "shell") {
+          for (const login of ["zsh", "fish"]) {
+            const apt = { road: "apt" as const, packages: [login] };
+            const r = roadModule(apt).uninstall(apt, login);
+            out.push({ key: `configs/shell/${login}`, label: login, ids: [`configs/shell/${login}`], owner: `configs/shell/${login}`, ...("cmd" in r ? { cmd: `${pathLine(path, prefix)}\n${r.cmd}` } : { note: r.note }) });
+          }
+        }
+        break;
+      }
+      case "clis": {
+        const row = before.clis[name];
+        if (row === undefined) break;
+        const id = toolRowId(row.via, name);
+        const r = toolUninstall({ rung: "tools", id, label: name, paths: [], bytes: 0, default: "bring", bring: true }, await brew(), path, prefix);
+        // A tool that took hold with a command of its own lets go of it first, while its command is still there.
+        const entry = catalogEntry(catalogIdOfRow({ id }) ?? "");
+        const off = entry?.kind === "tool" ? entry.hook?.off : undefined;
+        out.push({ key, label: name, ids: [id], owner: id, ...("cmd" in r ? { cmd: off === undefined ? r.cmd : `${pathLine(path, prefix)}\n${off} || true\n${r.cmd}` } : { note: r.note }) });
+        break;
+      }
+      case "agents": {
+        // Its own files wsp landed come off with it, named where the plan landed them; a file it rewrites as it runs
+        // was never wsp's to keep.
+        const dests = agentOwnPaths(name).map(p => rewrittenRel(p.replace(/^~\//, "")));
+        out.push({ key, label: CATALOG_AGENTS.find(a => a.id === name)?.name ?? name, ids: [`agents/${name}`, signInRowId(name), ...dests.map(d => `files/${d}`)], owner: `agents/${name}`, dests, ...catalogUninstall(name, path, prefix) });
+        for (const need of aptNeedRows(name)) {
+          const apt = { road: "apt" as const, packages: [need.package] };
+          const r = roadModule(apt).uninstall(apt, need.command);
+          out.push({ key: need.id, label: need.package, ids: [need.id], owner: need.id, ...("cmd" in r ? { cmd: `${pathLine(path, prefix)}\n${r.cmd}` } : { note: r.note }) });
+        }
+        for (const need of setupNeedRows(name)) out.push({ key: need.id, label: need.label, ids: [need.id], owner: need.id, cmd: `${pathLine(path, prefix)}\n${need.off}` });
+        break;
+      }
+      case "plugins": {
+        const agent = CATALOG_AGENTS.find(a => a.plugins !== undefined && before.agents[a.id] !== undefined);
+        const road = agent?.plugins;
+        out.push({ key, label: name, ids: [key], owner: key, ...(agent === undefined || road === undefined ? { note: "no picked agent takes plugins" } : { cmd: `${pathLine(path, prefix)}\n${harnessLine(agent.id, road.uninstall(name), { stores: on.stores })}` }) });
+        break;
+      }
+      case "folders":
+        out.push({ key, label: before.folders[name]?.name ?? name, ids: [key], owner: key, folder: name });
+        break;
+      case "mcp":
+        out.push({ key, label: name, ids: (before.mcp[name]?.agents ?? []).map(agent => `${MCP_ID_PREFIX}${agent}/${name}`) });
+        break;
+    }
+  }
+  return out;
+}
+
+/** The host's side of the setup job: the plan off a computer's picks, the floor alone for a computer that joined
+ * before anything was picked, and each step the engine runs on the computer itself. `plan` is the recipe beside the
+ * state, which the doctor's road reads for a computer set up before picks were kept. */
+export function placeProvisioner(o: ProvisionReaders): PlaceProvisioner {
+  const here = (): Host => o.here ?? { ...nodeHost(), home: o.home };
+  return {
+    async plan(on) {
+      const recipePath = smallRecipePath(o.statePath);
+      if (!existsSync(recipePath)) return { noRecipe: recipePath };
+      const recipe = loadRecipe(recipePath);
+      const manifest = await o.collect();
+      const brew = await brewTableFor(manifest, o.brew);
+      const rows = copyRows(manifest, { recipe, pins: [] }, { home: o.home, brew });
+      const { path, prefix } = placePaths(on.home);
+      const imp = planImport(
+        rows.filter(e => e.bring === true),
+        { rows, small: recipe, home: o.home, platform: o.platform, brew, secrets: new Map(), vault: serverVault(o.statePath), keepFile: agentStateFile, path, prefix },
+      );
+      return provisionPlanOf(imp, recipe.at, path, prefix);
+    },
+    async setup(given, on, only) {
+      const picks = await withoutWspHere(here(), given);
+      const { path, prefix } = placePaths(on.home);
+      // A sync of the skills, the plugins, GitHub or the folders alone reads nothing of this computer's managers,
+      // agents or servers: those are seconds of reading for rows that are not moving.
+      if (only !== undefined && ![...only].some(step => READS_THIS_COMPUTER.has(step))) {
+        const skills = skillsOf(picks, o.home);
+        const plugins = pluginsOf(picks, o.home, on.stores);
+        const github = githubTools(picks, path, prefix);
+        return {
+          recipeAt: picks.name,
+          path,
+          prefix,
+          steps: [],
+          agents: 0,
+          compiler: false,
+          skipped: [...skills.skipped, ...plugins.skipped],
+          ...(skills.plan !== undefined ? { skills: skills.plan } : {}),
+          ...(plugins.plugins.length > 0 ? { plugins: plugins.plugins } : {}),
+          ...(github !== undefined ? { github } : {}),
+        };
+      }
+      const manifest = await o.collect();
+      const brew = await brewTableFor(manifest, o.brew);
+      const rows = picksRows(manifest, picks, { home: o.home, brew });
+      const imp = keysKept(
+        planImport(
+          rows.filter(e => e.bring === true),
+          // The files that travel with an agent are its own: its settings, its standing instructions and its configs.
+          // A dotfile, a login's store and a shell's rc go only as the configs the person picked.
+          { rows, small: smallOf(picks), home: o.home, platform: o.platform, brew, secrets: new Map(), vault: serverVault(o.statePath), keepFile: agentStateFile, path, prefix },
+        ),
+        rows,
+        on.recipe,
+      );
+      const skills = skillsOf(picks, o.home);
+      const configs = configsOf(picks, o.home);
+      const configTools = shellPackage(picks, manifest, path, prefix);
+      const plugins = pluginsOf(picks, o.home, on.stores);
+      const github = githubTools(picks, path, prefix);
+      // Each install carries what it is expected to take, so the loop on that computer keeps it free above its floor.
+      const sizes = new Map(rows.map(e => [e.id, toolSize(e, brew)?.bytes]));
+      const sized = { ...imp, tools: imp.tools.map(t => (sizes.get(t.id) === undefined ? t : { ...t, bytes: sizes.get(t.id)! })) };
+      const plan = provisionPlanOf(sized, picks.name, path, prefix, {
+        compiler: Object.values(picks.clis).some(row => row.needs?.includes(COMPILER_ROW) === true),
+        ...(skills.plan !== undefined ? { skills: skills.plan } : {}),
+        ...(configs !== undefined ? { configs } : {}),
+        ...(configTools !== undefined ? { configTools } : {}),
+        ...(plugins.plugins.length > 0 ? { plugins: plugins.plugins } : {}),
+        ...(github !== undefined ? { github } : {}),
+      });
+      const servers = serverTools(plan, o.home);
+      return { ...plan, ...(servers.length > 0 ? { serverTools: servers } : {}), skipped: [...plan.skipped, ...skills.skipped, ...plugins.skipped] };
+    },
+    floor: (machine, on, stage) => provisionStep(machine, { ...placePaths(on.home), recipeAt: "floor", steps: [], agents: 0, compiler: false, skipped: [] }, "floor", newSetupRun(), stage, on),
+    step: (machine, plan, step, run, stage, on) => provisionStep(machine, plan, step, run, stage, on),
+    projectServers: async (machine, picks, key, path, stage, on) => {
+      const folder = picks.folders[key];
+      const plan = folder === undefined ? undefined : await projectServersPlan({ here: here(), picks, folder, path, on, vault: serverVault(o.statePath) });
+      return plan === undefined ? [] : projectServersStep(machine, plan, placePaths(on.home).path, stage, on);
+    },
+    estimate: async picks => estimatePicks(await withoutWspHere(here(), picks), o.home),
+    undo: async (before, removed, on) => undoPlan(before, removed, on, async () => brewTableFor(await o.collect(), o.brew)),
+  };
+}
+
