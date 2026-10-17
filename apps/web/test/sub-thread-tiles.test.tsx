@@ -28,7 +28,7 @@ const thread = (over: Partial<SidebarThreadSnapshot>): SidebarThreadSnapshot => 
 function mount(over: Partial<SidebarThreadSnapshot>) {
   render(
     <SidebarProvider defaultOpen>
-      <ThreadTile thread={thread(over)} place={PLACE} model={null} time="3m" depth={1} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+      <ThreadTile thread={thread(over)} place={PLACE} model={null} time="3m" depth={1} selects={{ workspaceId: "ws_elsewhere" }} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
     </SidebarProvider>,
   );
 }
@@ -206,7 +206,7 @@ describe("a thread whose machine naps past the keep of its disk", () => {
     cleanup();
     render(
       <SidebarProvider defaultOpen>
-        <ThreadTile thread={thread({ parentThreadId: null, startedBy: "person", status: "completed", endedAt: "2026-09-27T04:00:00.000Z", diskKeptUntil: until })} place={PLACE} model={null} time="18d" depth={1} active={false} settled renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+        <ThreadTile thread={thread({ parentThreadId: null, startedBy: "person", status: "completed", endedAt: "2026-09-27T04:00:00.000Z", diskKeptUntil: until })} place={PLACE} model={null} time="18d" depth={1} selects={{ workspaceId: "ws_elsewhere" }} settled renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
       </SidebarProvider>,
     );
     expect(slot().dataset["threadStatus"]).toBe("resting");
