@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The desktop app's road to the host, with no UI in it: one socket dialled as wsp dials it (wsp-mcp's own dial, with
-//! the token beside the state file and the release check), the projects and threads the sidebar lists, and one
-//! thread's transcript followed live. The types the host sends are generated from record/protocol.json, which
-//! record.mjs writes off the protocol package's zod schemas.
+//! the token beside the state file and the release check), every op the web app sends as a typed call, the events the
+//! host pushes, the projects and threads the sidebar lists, and one thread's transcript followed live. The types the
+//! host sends and takes are generated from record/protocol.json, which record.mjs writes off the protocol package's
+//! zod schemas.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use wsp_mcp::client::{Client, Frames};
 use wsp_mcp::host::Host;
@@ -20,12 +22,28 @@ pub mod protocol {
     typify::import_types!(schema = "record/protocol.json");
 }
 
-use protocol::{HistoryPage, ProjectView, SessionEvent, SessionView};
+pub mod ops;
+
+use protocol::{
+    AgentsSignInEvent, AppProcsEvent, DaemonChannelEvent, EventUnion, HistoryPage, PlaceSysEvent, ProjectView, SessionEvent, SessionView,
+    WorkspaceSysEvent,
+};
 
 const RECORD: &str = include_str!("../record/protocol.json");
 
 /// HOST_ENV and the launch pair of LAUNCH_ENV in packages/protocol/src/env.ts.
 const AIMS_A_LINE: [&str; 4] = ["WSP_HOST", "WSP_HOST_URL", "WSP_HOST_TOKEN", "WSP_HOST_KEY"];
+
+/// One op the host serves: its request is the params record.mjs recorded for it, and its reply what the host answers
+/// once the frame's id and ok are taken off.
+pub trait Op: Serialize {
+    const NAME: &'static str;
+    type Reply: DeserializeOwned;
+}
+
+/// The reply of an op the host answers with nothing past its id and ok.
+#[derive(Debug, Deserialize)]
+pub struct Done {}
 
 pub struct HostClient {
     /// Keeps one socket across calls and dials again once it closes, as the tool server's host does.
@@ -42,6 +60,28 @@ impl HostClient {
         let host = Host::new(&args, &env, None);
         host.client().await?;
         Ok(HostClient { host })
+    }
+
+    /// One op and its reply, typed both ways.
+    pub async fn call<O: Op>(&self, op: O) -> Result<O::Reply, Failure> {
+        let params = match serde_json::to_value(&op) {
+            Ok(Value::Object(params)) => params,
+            Ok(other) => return Err(Failure::new(format!("{} takes an object, not {other}", O::NAME))),
+            Err(e) => return Err(Failure::new(format!("{}: {e}", O::NAME))),
+        };
+        let mut reply: Map<String, Value> = self.host.client().await?.request(O::NAME, params).await?;
+        reply.remove("id");
+        reply.remove("ok");
+        serde_json::from_value(Value::Object(reply))
+            .map_err(|e| Failure::new(format!("{} answered what its reply type does not read: {e}", O::NAME)))
+    }
+
+    /// Everything the host pushes on this socket from the moment this was asked, typed.
+    pub async fn events(&self) -> Result<Events, Failure> {
+        let client = self.host.client().await?;
+        let frames = client.frames();
+        client.events().await?;
+        Ok(Events { frames, _client: client })
     }
 
     pub async fn projects(&self) -> Result<Vec<ProjectView>, Failure> {
@@ -133,14 +173,61 @@ impl Thread {
     }
 }
 
+pub struct Events {
+    frames: Frames,
+    _client: Arc<Client>,
+}
+
+/// One frame the host pushed, by the schema the web app reads it with.
+#[derive(Debug)]
+pub enum Event {
+    Host(Box<EventUnion>),
+    SignIn(Box<AgentsSignInEvent>),
+    Daemon(Box<DaemonChannelEvent>),
+    Sys(Box<WorkspaceSysEvent>),
+    PlaceSys(Box<PlaceSysEvent>),
+    AppProcs(Box<AppProcsEvent>),
+    /// A frame of a type no recorded schema names, as it was sent.
+    Other(Value),
+}
+
+impl Events {
+    /// The next frame as it arrives; none once the socket is gone. A frame of a recorded type that does not read as
+    /// that type is a failure, since the record is then behind the host.
+    pub async fn next(&mut self) -> Option<Result<Event, Failure>> {
+        loop {
+            let text = self.frames.next().await?;
+            let Ok(frame) = serde_json::from_str::<Value>(&text) else { continue };
+            let Some(kind) = frame.get("type").and_then(Value::as_str).map(str::to_owned) else { continue };
+            let read = |e: serde_json::Error| Failure::new(format!("{kind}: {e}"));
+            return Some(match kind.as_str() {
+                "workspace.sys" => serde_json::from_value(frame).map(|e| Event::Sys(Box::new(e))).map_err(read),
+                "place.sys" => serde_json::from_value(frame).map(|e| Event::PlaceSys(Box::new(e))).map_err(read),
+                "app.procs" => serde_json::from_value(frame).map(|e| Event::AppProcs(Box::new(e))).map_err(read),
+                "agents.signIn" => serde_json::from_value(frame).map(|e| Event::SignIn(Box::new(e))).map_err(read),
+                _ if kind.starts_with("daemon.") => serde_json::from_value(frame).map(|e| Event::Daemon(Box::new(e))).map_err(read),
+                _ if host_event_types().contains(&kind) => serde_json::from_value(frame).map(|e| Event::Host(Box::new(e))).map_err(read),
+                _ => Ok(Event::Other(frame)),
+            });
+        }
+    }
+}
+
 /// The type of every event a transcript holds, read off the record the types were generated from.
 fn transcript_types() -> &'static HashSet<String> {
     static TYPES: OnceLock<HashSet<String>> = OnceLock::new();
-    TYPES.get_or_init(|| {
-        let record: Value = serde_json::from_str(RECORD).expect("record/protocol.json is JSON");
-        let variants = record["definitions"]["SessionEvent"]["anyOf"].as_array().cloned().unwrap_or_default();
-        variants.iter().filter_map(|v| v["properties"]["type"]["enum"][0].as_str().map(str::to_owned)).collect()
-    })
+    TYPES.get_or_init(|| types_of("SessionEvent"))
+}
+
+fn host_event_types() -> &'static HashSet<String> {
+    static TYPES: OnceLock<HashSet<String>> = OnceLock::new();
+    TYPES.get_or_init(|| types_of("EventUnion"))
+}
+
+fn types_of(union: &str) -> HashSet<String> {
+    let record: Value = serde_json::from_str(RECORD).expect("record/protocol.json is JSON");
+    let variants = record["definitions"][union]["anyOf"].as_array().cloned().unwrap_or_default();
+    variants.iter().filter_map(|v| v["properties"]["type"]["enum"][0].as_str().map(str::to_owned)).collect()
 }
 
 #[cfg(test)]
@@ -154,5 +241,32 @@ mod tests {
             assert!(types.contains(kind), "{kind} is not in the record");
         }
         assert!(!types.contains("thread.head"));
+        assert!(host_event_types().contains("thread.head"));
+    }
+
+    /// Two events of the union that each hold a `step`, one a word and one an object, read as their own types.
+    #[test]
+    fn a_field_two_events_shape_apart_reads_in_each() {
+        let place = r#"{"type":"place.stage","addId":"a","step":"connect","state":"running","seq":1}"#;
+        let golden = r#"{"type":"golden.stage","name":"default","stage":"creating","step":{"label":"l","command":"c"},"seq":2}"#;
+        for frame in [place, golden] {
+            serde_json::from_str::<EventUnion>(frame).unwrap_or_else(|e| panic!("{frame}: {e}"));
+        }
+    }
+
+    /// The parity of the calls with the record: each op record.mjs found the web app sending has its call here, under
+    /// the request type the record names for it, and no call is left for an op the record dropped.
+    #[test]
+    fn every_op_the_web_app_sends_has_a_call() {
+        let record: Value = serde_json::from_str(RECORD).unwrap();
+        let recorded: Vec<(String, String)> =
+            record["ops"].as_object().unwrap().iter().map(|(op, request)| (op.clone(), request.as_str().unwrap().to_owned())).collect();
+        let called: Vec<(String, String)> = ops::all().map(|(op, request)| (op.to_owned(), request.to_owned())).collect();
+        let lacking: Vec<_> = recorded.iter().filter(|op| !called.contains(op)).collect();
+        let stale: Vec<_> = called.iter().filter(|op| !recorded.contains(op)).collect();
+        assert!(
+            lacking.is_empty() && stale.is_empty(),
+            "ops the web app sends with no call here: {lacking:?}; calls for ops it no longer sends: {stale:?}"
+        );
     }
 }
