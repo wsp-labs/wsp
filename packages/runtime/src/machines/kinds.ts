@@ -6,7 +6,7 @@ import { CATALOG_AGENTS, GUEST_HOME, guestEnv, loginHomeIn, sharedLoginOf, share
 import { INLINE_EXEC_MS, installScript, INSTALL_MS, guestAgentHomes, PlaceFolderMachine, placeFolderBackend, projectInstalls, type Lifecycle, type MachineBackend, GUEST_TMP, GITHUB_TOKEN_ENV, LOCAL_MACHINE_ID, projectStateKey } from "@wsp/engine";
 import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneOnMachineFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, codexLoginUnreadRefusal, type BrokerStatus, type CodexClaims } from "@wsp/protocol";
 import { cloneLines, underLoginHome } from "../project-landing.js";
-import { landOnRecord } from "../projects/branch-of-record.js";
+import { landOnRecord, publicMarketplaces } from "../projects/branch-of-record.js";
 import { threadEnds } from "./thread-ends.js";
 import { PANE_HOLD_MS } from "../places/pane-ports.js";
 import { projectRemote, projectSource } from "../project-sources.js";
@@ -286,7 +286,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
     const refused = unbrokeredRefusal(harness) ?? (harness === "codex" && codexBroker === undefined ? codexLoginUnreadRefusal() : undefined);
     if (refused !== undefined) throw refused;
     const { claude, vault } = placeholdersOf(brokerSaid, token);
-    return { env: brokeredEnv(token, entry.record.branchOfRecord), vault, claude, ...codex };
+    return { env: brokeredEnv(token, entry.record.branchOfRecord, publicMarketplaces(ctx)), vault, claude, ...codex };
   };
   /** Before a road starts codex on a brokered workspace with no turn token: the broker read where no Codex login was
    * read since the host started or the last read named none, and the turn's refusal where it still names none, so

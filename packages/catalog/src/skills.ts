@@ -2,7 +2,7 @@
 // Where each agent loads skills from. An agent entry names its own folders
 // here; the reader lists every folder of every entry, so an agent the catalog
 // gains needs nothing in the reader.
-import { PLUGIN_SEED_ENV, shellQuote } from "@wsp/protocol";
+import { OWNER_REPO, PLUGIN_SEED_ENV, shellQuote } from "@wsp/protocol";
 import { SKILL_NAME } from "./context.js";
 import { editJson } from "./mcp.js";
 import { CLAUDE_CONFIG_DIR, CLAUDE_PLUGIN_SEED } from "./roads.js";
@@ -82,6 +82,8 @@ export interface PluginRoad {
   enabled(text: string): string[];
   /** Where a marketplace is fetched from, off that file's text; nothing where it names none. */
   sourceOf(text: string, marketplace: string): string | undefined;
+  /** Every GitHub repo, `owner/name`, that file fetches a marketplace from; none off a file that does not parse. */
+  githubRepos?(text: string): string[];
   /** The lines for one plugin, `name@marketplace`, from that source. */
   install(plugin: string, source: string): string;
   /** Why a plugin is set aside, off what its install printed, where it asked to run a command its marketplace
@@ -123,6 +125,18 @@ export const CLAUDE_PLUGINS: PluginRoad = {
       return at?.source === "github" ? at.repo : at?.url;
     } catch {
       return undefined;
+    }
+  },
+  githubRepos: text => {
+    try {
+      const known: unknown = JSON.parse(text);
+      if (!isObject(known)) return [];
+      return Object.values(known).flatMap(m => {
+        const at = isObject(m) && isObject(m.source) ? m.source : undefined;
+        return at?.source === "github" && typeof at.repo === "string" && OWNER_REPO.test(at.repo) ? [at.repo] : [];
+      });
+    } catch {
+      return [];
     }
   },
   settings: "~/.claude/settings.json",
