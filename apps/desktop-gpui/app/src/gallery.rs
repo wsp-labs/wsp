@@ -555,10 +555,12 @@ impl Gallery {
     fn row_menu() -> impl IntoElement {
         let act = |group: u8, glyph: Glyph, title: &'static str, destructive: bool| MenuAct {
             group,
-            glyph,
+            glyph: Some(glyph),
             title: title.into(),
             destructive,
             held: false,
+            why: None,
+            keys: None,
             run: Rc::new(|_, _| {}),
         };
         let acts = vec![

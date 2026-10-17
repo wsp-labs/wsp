@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The composer alone in the main column, as `desktop-gpui --screen composer` opens it for captures: at the foot of a
-//! thread column on the page's ground, on the thread the route opens, else the host's newest.
+//! thread column on the page's ground, on the thread the route opens, else the host's newest. `composer:<workspace>`
+//! opens it on a new thread there, as New thread does.
 
 use gpui_kit::component::v_flex;
 use gpui_kit::{prelude::*, Context, Entity, FocusHandle, KeyDownEvent, Task, Window};
@@ -16,6 +17,7 @@ pub struct ComposerScreen {
     composer: Entity<Composer>,
     /// The column's own focus, which a key typed outside any field lands on.
     focus: FocusHandle,
+    host: Host,
     link: Option<Entity<Link>>,
     note: Option<String>,
     _connect: Task<()>,
@@ -26,16 +28,37 @@ impl Screen for ComposerScreen {
     const PLACE: Place = Place::Main;
 
     fn new(host: Host, opened: Opened, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let composer = cx.new(|cx| {
-            let mut composer = Composer::new(window, cx);
-            composer.set_hold(Some(Hold::Connecting), cx);
-            composer
-        });
+        let composer = cx.new(|cx| Composer::new(window, cx));
+        let mut screen = ComposerScreen { composer, focus: cx.focus_handle(), host, link: None, note: None, _connect: Task::ready(()) };
+        screen.connect(opened, window, cx);
+        screen
+    }
+
+    /// Another `composer:<workspace>` while this one is open is another new thread, on a composer of its own.
+    fn show(&mut self, opened: Opened, window: &mut Window, cx: &mut Context<Self>) {
+        self.composer = cx.new(|cx| Composer::new(window, cx));
+        self.link = None;
+        self.note = None;
+        self.connect(opened, window, cx);
+    }
+}
+
+impl ComposerScreen {
+    /// Ties the composer to the thread `opened` names, else the host's newest, or to a new thread on its workspace.
+    fn connect(&mut self, opened: Opened, window: &mut Window, cx: &mut Context<Self>) {
+        self.composer.update(cx, |c, cx| c.set_hold(Some(Hold::Connecting), cx));
+        let host = self.host.clone();
         let wanted = opened.thread_id;
+        let new_on = opened.arg.map(String::from);
         let threads = host.run(|client| async move { client.threads().await });
         let reading = host.clone();
-        let connect = cx.spawn_in(window, async move |this, cx| {
+        self._connect = cx.spawn_in(window, async move |this, cx| {
             let read = async {
+                if let Some(workspace_id) = new_on {
+                    let target = Target { workspace_id, thread_id: None };
+                    let opened = Link::read(&reading, &target).await?;
+                    return Ok::<_, Failure>((target, opened));
+                }
                 let threads = threads.await?;
                 let row = match &wanted {
                     Some(id) => threads.into_iter().find(|t| t.thread_id.as_deref() == Some(id.as_str())),
@@ -61,11 +84,8 @@ impl Screen for ComposerScreen {
                 }
             });
         });
-        ComposerScreen { composer, focus: cx.focus_handle(), link: None, note: None, _connect: connect }
     }
-}
 
-impl ComposerScreen {
     pub fn composer(&self) -> &Entity<Composer> {
         &self.composer
     }

@@ -412,6 +412,50 @@ fn a_send_on_a_new_thread_opens_it_and_follows_it(cx: &mut TestAppContext) {
     assert_eq!(queued(&composer, cx), 0);
 }
 
+#[gpui_kit::test]
+fn the_screen_on_a_workspace_route_opens_a_new_thread_there(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::composer::screen::ComposerScreen;
+    use desktop_gpui::screens::{self, Opened};
+    let host = Host::start();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        ui::init(Side::Light, cx);
+        composer::init(cx);
+    });
+    let entry = screens::screen("composer").expect("the composer screen is registered");
+    let opened = Opened { arg: Some(host.target.workspace_id.clone().into()), ..Opened::default() };
+    let mut mounted = None;
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let screen = (entry.mount)(&host.shell(), opened, window, cx);
+        let view = screen.view.clone();
+        mounted = Some(screen);
+        Root::new(view, window, cx)
+    });
+    let mounted = mounted.unwrap();
+    let Ok(screen) = mounted.view.clone().downcast::<ComposerScreen>() else { panic!("the view is not the composer screen") };
+    let composer = cx.read(|cx| screen.read(cx).composer().clone());
+    until(cx, "the screen tied to the host", |cx| composer.read_with(cx, |c, _| c.hold().is_none()));
+    assert!(composer.read_with(cx, |c, _| c.fresh()), "the first thread's turn is not this composer's");
+    send(&composer, "a thread from New thread", cx);
+    until(cx, "the host listing a new thread whose first turn is the send", |_| {
+        let threads = host.runtime.block_on(host.client.threads()).unwrap();
+        threads.iter().any(|t| t.prompt.as_deref() == Some("a thread from New thread") && t.thread_id != host.target.thread_id)
+    });
+
+    // New thread again while the page is open: the frame shows the page again rather than building another.
+    let again = Opened { arg: Some(host.target.workspace_id.clone().into()), ..Opened::default() };
+    cx.update(|window, cx| (mounted.show)(again, window, cx));
+    let composer = cx.read(|cx| screen.read(cx).composer().clone());
+    until(cx, "the screen tied again", |cx| composer.read_with(cx, |c, _| c.hold().is_none()));
+    assert!(composer.read_with(cx, |c, _| c.fresh()), "the second new thread starts empty");
+    send(&composer, "a second new thread", cx);
+    until(cx, "a thread of its own for the second send", |_| {
+        let threads = host.runtime.block_on(host.client.threads()).unwrap();
+        threads.iter().any(|t| t.prompt.as_deref() == Some("a second new thread"))
+    });
+}
+
 #[test]
 fn a_conversation_kept_outside_wsp_is_listed() {
     let host = Host::start();
