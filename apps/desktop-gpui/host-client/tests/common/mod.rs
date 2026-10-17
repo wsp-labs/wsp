@@ -43,7 +43,7 @@ pub fn root() -> PathBuf {
 /// A host on a fresh state file in a folder of its own, stopped with this.
 pub struct Throwaway {
     pub dir: tempfile::TempDir,
-    host: Child,
+    host: Option<Child>,
 }
 
 /// What every process of the test runs in: the folder as its home, and the stand-in ahead of anything on PATH.
@@ -82,10 +82,21 @@ impl Throwaway {
         std::fs::write(&claude, STAND_IN).unwrap();
         std::fs::set_permissions(&claude, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
         let state = dir.path().join("state").join("state.json").to_string_lossy().into_owned();
-        let log = std::fs::File::create(dir.path().join("up.log")).unwrap();
-        let host =
-            node_in(dir.path(), &["up", "--port", "0", "--state", &state]).stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap();
-        let throwaway = Throwaway { dir, host };
+        let mut throwaway = Throwaway { dir, host: None };
+        throwaway.up(&state);
+        throwaway
+    }
+
+    /// Starts the host on this folder's state file and waits until it listens.
+    fn up(&mut self, state: &str) {
+        let log = std::fs::OpenOptions::new().create(true).append(true).open(self.dir.path().join("up.log")).unwrap();
+        let host = node_in(self.dir.path(), &["up", "--port", "0", "--state", state])
+            .stdout(log.try_clone().unwrap())
+            .stderr(log)
+            .spawn()
+            .unwrap();
+        self.host = Some(host);
+        let throwaway = &*self;
         let until = Instant::now() + Duration::from_secs(30);
         // The lock is written before the host listens, with port 0 until it does.
         let listening = || {
@@ -96,7 +107,26 @@ impl Throwaway {
             assert!(Instant::now() < until, "no host came up: {}", throwaway.log());
             std::thread::sleep(Duration::from_millis(100));
         }
-        throwaway
+    }
+
+    /// Stops the host and keeps its folder, so `restart` brings it back on the same state.
+    pub fn stop(&mut self) {
+        let Some(mut host) = self.host.take() else { return };
+        // SAFETY: a signal to the pid of the child this test spawned and has not yet reaped.
+        unsafe { libc::kill(host.id() as i32, libc::SIGTERM) };
+        let until = Instant::now() + Duration::from_secs(20);
+        while matches!(host.try_wait(), Ok(None)) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let _ = host.kill();
+        let _ = host.wait();
+        let _ = std::fs::remove_file(self.state().with_file_name("host.lock"));
+    }
+
+    pub fn restart(&mut self) {
+        self.stop();
+        let state = self.state().to_string_lossy().into_owned();
+        self.up(&state);
     }
 
     pub fn log(&self) -> String {
@@ -116,14 +146,7 @@ impl Throwaway {
 impl Drop for Throwaway {
     /// A terminated host stops its daemon and every turn's process on its way out; a killed one leaves them running.
     fn drop(&mut self) {
-        // SAFETY: a signal to the pid of the child this test spawned and has not yet reaped.
-        unsafe { libc::kill(self.host.id() as i32, libc::SIGTERM) };
-        let until = Instant::now() + Duration::from_secs(20);
-        while matches!(self.host.try_wait(), Ok(None)) && Instant::now() < until {
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        let _ = self.host.kill();
-        let _ = self.host.wait();
+        self.stop();
     }
 }
 
@@ -172,7 +195,7 @@ pub fn shared() -> &'static Shared {
         host.wsp(&["add", &folder.to_string_lossy()]);
         host.wsp(&["run", "repo", "first", "--agent", "claude"]);
         // Only once the host is whole: a panic above drops the Throwaway, which stops the host and removes its folder.
-        PID.store(host.host.id() as i32, Ordering::SeqCst);
+        PID.store(host.host.as_ref().expect("a running host").id() as i32, Ordering::SeqCst);
         let _ = DIR.set(host.dir.path().to_owned());
         // SAFETY: registers a function with no arguments that touches only the statics above.
         unsafe { libc::atexit(stop) };

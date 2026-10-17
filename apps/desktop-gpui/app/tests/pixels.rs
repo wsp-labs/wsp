@@ -8,7 +8,7 @@ use std::sync::Arc;
 use desktop_gpui::shell::layout;
 use desktop_gpui::sidebar::{Sidebar, ThreadItem, WIDTH};
 use desktop_gpui::thread_view::ThreadView;
-use desktop_gpui::ui::UiAssets;
+use desktop_gpui::ui::{ActivePalette, UiAssets};
 use gpui_kit::component::{ActiveTheme, Root};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{
@@ -106,7 +106,10 @@ fn render() -> (Capture, Colors) {
         Arc::new(UiAssets),
         gpui_kit::platform::current_headless_renderer,
     );
-    cx.update(gpui_kit::init);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+    });
     let (sidebar, thread_view) = cx.update(|cx| (cx.new(Sidebar::new), cx.new(ThreadView::new)));
     cx.update(|cx| {
         sidebar.update(cx, |s, cx| {
@@ -146,7 +149,7 @@ fn render() -> (Capture, Colors) {
     }
     let colors = cx.update(|cx| {
         let theme = cx.theme();
-        Colors { sidebar: rgb(theme.sidebar), background: rgb(theme.background), bubble: rgb(theme.secondary) }
+        Colors { sidebar: rgb(theme.sidebar), background: rgb(theme.background), bubble: rgb(cx.palette().accent) }
     });
     let (width, height) = image.dimensions();
     (Capture { width, height, scale, raw: image.into_raw() }, colors)
@@ -167,14 +170,18 @@ fn the_window_draws_the_sidebar_beside_the_transcript() {
     assert!(near(shot.at(width / 2., H - 10.), colors.sidebar), "sidebar at the bottom: {:?}", shot.at(width / 2., H - 10.));
     assert!(near(shot.at(W - 10., H - 10.), colors.background), "thread view at the bottom: {:?}", shot.at(W - 10., H - 10.));
 
-    // The person's bubble is the first row, flush with the 16 px right padding of the thread view's centred 768 px
-    // column. The row's 8 px top padding and the bubble's own put y = 14 inside the bubble's fill, above its text.
+    // The person's bubble is the first row, flush with the right edge of the thread view's centred 768 px column. The
+    // list's 16 px top space puts y = 22 inside the bubble's fill, above its 12 px padded text.
     let column_right = width + (W - width + 768.) / 2.;
-    let y = shot.device(14.);
+    let y = shot.device(22.);
     let bubble: Vec<u32> = (shot.device(width)..shot.device(W)).filter(|&x| near(shot.device_at(x, y), colors.bubble)).collect();
     let (first, last) = (bubble.first().copied().unwrap_or(0), bubble.last().copied().unwrap_or(0));
     assert!(!bubble.is_empty() && bubble.len() as u32 == last - first + 1, "no unbroken bubble fill at y = {y}: {} columns", bubble.len());
-    assert!(last.abs_diff(shot.device(column_right - 16.)) <= 2, "the bubble must end at the right padding, ends at {last}");
+    // Below the 18 px corner, the fill reaches the column's edge.
+    let below = shot.device(16. + 18.);
+    let edge = (shot.device(width)..shot.device(W)).rev().find(|&x| near(shot.device_at(x, below), colors.bubble)).unwrap_or(0);
+    assert!(edge.abs_diff(shot.device(column_right)) <= 2, "the bubble must end at the column's edge, ends at {edge}");
+    assert!(last < edge, "y = {y} is inside the bubble's rounded corner");
     assert!(first > shot.device(width + 200.), "the bubble must fit its text, starts at {first}");
 
     // The reply's prose and code put dark glyph pixels on the thread view's background.

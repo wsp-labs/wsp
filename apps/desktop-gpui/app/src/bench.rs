@@ -16,6 +16,17 @@ pub struct Args {
     pub glass: bool,
     /// The gallery of shared pieces in place of the app.
     pub gallery: bool,
+    /// One screen alone for captures, with `--open`'s thread in it.
+    pub screen: Option<String>,
+    /// The wsp theme a screen alone draws in, `paper` unless named.
+    pub theme: Option<String>,
+    /// A screen alone opens every fold, the first tool group and every failed call, as the captures click them.
+    pub unfold: bool,
+    /// A screen alone reads its timers at this time, in ms since the epoch, as the web captures freeze their clock.
+    pub now: Option<f64>,
+    /// A screen alone scrolls the person's message holding this text to this many pixels below the list's top, as a
+    /// web capture stands mid-way in a long thread: `<text>@<y>`.
+    pub reveal: Option<(String, f32)>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -26,9 +37,11 @@ pub struct Bench {
 }
 
 /// `desktop-gpui [--state <state.json>] [--glass] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`,
-/// or `desktop-gpui --gallery`.
+/// `desktop-gpui --gallery`, or `desktop-gpui --screen <name> --state <state.json> --open <id> [--theme <id>] [--unfold]
+/// [--now <ms>] [--reveal <text>@<y>]`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery) = (None, None, None, Vec::new(), None, false, false);
+    let (mut screen, mut theme, mut unfold, mut now, mut reveal) = (None, None, false, None, None);
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or(format!("{flag} takes a value"));
         match flag.as_str() {
@@ -39,6 +52,15 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--glass" => glass = true,
+            "--screen" => screen = Some(value()?),
+            "--theme" => theme = Some(value()?),
+            "--unfold" => unfold = true,
+            "--reveal" => {
+                let said = value()?;
+                let (text, y) = said.rsplit_once('@').ok_or("--reveal takes <text>@<y>")?;
+                reveal = Some((text.to_owned(), y.parse::<f32>().map_err(|e| format!("--reveal: {e}"))?));
+            }
+            "--now" => now = Some(value()?.parse::<f64>().map_err(|e| format!("--now: {e}"))?),
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -53,7 +75,13 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     if gallery && (bench.is_some() || open.is_some() || glass) {
         return Err("--gallery goes alone".to_owned());
     }
-    Ok(Args { state, bench, open, glass, gallery })
+    if screen.is_some() && (bench.is_some() || gallery || glass) {
+        return Err("--screen goes with --state, --open, --theme and --unfold only".to_owned());
+    }
+    if screen.is_none() && (theme.is_some() || unfold || now.is_some() || reveal.is_some()) {
+        return Err("--theme, --unfold, --now and --reveal go with --screen".to_owned());
+    }
+    Ok(Args { state, bench, open, glass, gallery, screen, theme, unfold, now, reveal })
 }
 
 /// The result JSON: frame times are milliseconds from the start of the scroll.
@@ -92,6 +120,14 @@ mod tests {
         assert!(parse(words("--gallery")).unwrap().gallery);
         assert!(parse(words("--gallery --open long")).is_err());
         assert!(parse(words("--gallery --glass")).is_err());
+        let alone = parse(words("--screen thread_view --state /s --open t --theme graphite --unfold --now 5")).unwrap();
+        assert_eq!(alone.now, Some(5.));
+        let at = parse(words("--screen thread_view --open t --reveal turn@189")).unwrap();
+        assert_eq!(at.reveal, Some(("turn".to_owned(), 189.)));
+        assert_eq!((alone.screen.as_deref(), alone.theme.as_deref(), alone.unfold), (Some("thread_view"), Some("graphite"), true));
+        assert!(parse(words("--screen thread_view --bench /o.json --bench-thread long")).is_err());
+        assert!(parse(words("--theme graphite")).is_err());
+        assert!(parse(words("--now 5")).is_err());
     }
 
     #[test]

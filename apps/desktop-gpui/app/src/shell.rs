@@ -7,13 +7,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use futures::channel::mpsc;
-use futures::StreamExt;
 use gpui_kit::component::{h_flex, ActiveTheme};
 use gpui_kit::{div, prelude::*, App, Context, Entity, StyleRefinement, Subscription, Task, Window};
 use tokio::runtime::Runtime;
-use wsp_host_client::protocol::SessionEvent;
-use wsp_host_client::{Env, Failure, HostClient, Live};
+use wsp_host_client::{Env, Failure, HostClient};
 
 use crate::bench::{self, PX_PER_S};
 use crate::glass::composer_glass;
@@ -27,24 +24,6 @@ const FOCUS_WAIT: Duration = Duration::from_secs(10);
 const UNFOCUSED: i32 = 3;
 /// How long a bench holds still after its scroll, so the run can read the app's memory after a full scroll.
 const HOLD: Duration = Duration::from_secs(10);
-
-enum Arrival {
-    History(Vec<SessionEvent>),
-    Event(Box<SessionEvent>),
-    Failed(String),
-}
-
-/// One thread followed live; dropping it stops the host task and the receiver.
-struct Following {
-    task: tokio::task::AbortHandle,
-    _receive: Task<()>,
-}
-
-impl Drop for Following {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
 
 type Presented = Rc<RefCell<Option<Instant>>>;
 
@@ -70,7 +49,6 @@ pub struct Shell {
     thread_view: Entity<ThreadView>,
     host: Option<Arc<HostClient>>,
     runtime: Arc<Runtime>,
-    following: Option<Following>,
     bench: Option<BenchRun>,
     glass: bool,
     _connect: Task<()>,
@@ -135,57 +113,17 @@ impl Shell {
             frame_ms: Vec::new(),
             switch: Vec::new(),
         });
-        Shell { sidebar, thread_view, host: None, runtime, following: None, bench, glass, _connect: connect, _selected: selected }
+        Shell { sidebar, thread_view, host: None, runtime, bench, glass, _connect: connect, _selected: selected }
     }
 
     /// Shows `item`'s transcript, read whole, then follows it live.
     fn open(&mut self, item: ThreadItem, cx: &mut Context<Self>) {
-        self.following = None;
-        self.thread_view.update(cx, |v, cx| v.show(&item.thread_id, cx));
-        let Some(host) = self.host.clone() else { return };
-        let (tx, mut rx) = mpsc::unbounded();
-        let task = self.runtime.spawn(async move {
-            let followed: Result<(), Failure> = async {
-                let mut thread = host.open(&item.workspace_id, &item.thread_id).await?;
-                _ = tx.unbounded_send(Arrival::History(std::mem::take(&mut thread.history)));
-                while let Some(next) = thread.next().await {
-                    if let Live::Event(event) = next? {
-                        _ = tx.unbounded_send(Arrival::Event(event));
-                    }
-                }
-                Ok(())
-            }
-            .await;
-            if let Err(failure) = followed {
-                _ = tx.unbounded_send(Arrival::Failed(failure.message));
-            }
-        });
-        let receive = cx.spawn(async move |this, cx| {
-            while let Some(arrival) = rx.next().await {
-                if this.update(cx, |this, cx| this.arrive(arrival, cx)).is_err() {
-                    break;
-                }
-            }
-        });
-        self.following = Some(Following { task: task.abort_handle(), _receive: receive });
-    }
-
-    fn arrive(&mut self, arrival: Arrival, cx: &mut Context<Self>) {
-        let benching = self.bench.is_some();
-        self.thread_view.update(cx, |v, cx| match arrival {
-            Arrival::History(events) => {
-                v.load(events, cx);
-                v.scroll_to_end(cx);
-            }
-            Arrival::Event(event) => v.push(*event, cx),
-            Arrival::Failed(failure) => {
-                if benching {
-                    eprintln!("desktop-gpui: {failure}");
-                    std::process::exit(1);
-                }
-                v.fail(failure, cx)
-            }
-        });
+        let Some(host) = self.host.clone() else {
+            self.thread_view.update(cx, |v, cx| v.show(&item.thread_id, cx));
+            return;
+        };
+        let (runtime, strict) = (self.runtime.clone(), self.bench.is_some());
+        self.thread_view.update(cx, |v, cx| v.follow(host, &runtime, &item, strict, cx));
     }
 
     /// One step of bench mode, run on every frame until it writes its result and quits.

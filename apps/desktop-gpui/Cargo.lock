@@ -1340,11 +1340,14 @@ dependencies = [
 name = "desktop-gpui"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "futures",
  "gpui-kit",
  "image",
+ "libc",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "wsp-host-client",
 ]

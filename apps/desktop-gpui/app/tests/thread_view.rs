@@ -10,9 +10,10 @@ use wsp_host_client::protocol::SessionEvent;
 
 const TURNS: usize = 300;
 
-/// Two rows, the person's message and a reply with a fenced code block; the turn never settles, so no fold hides a row.
-fn turn(turn: usize) -> [SessionEvent; 2] {
-    let pos = 2 * turn as u64 + 1;
+/// Two rows, the person's message and a reply with a fenced code block; the turn ends with no call to hide, so no
+/// fold stands in for any of it.
+fn turn(turn: usize) -> [SessionEvent; 4] {
+    let pos = 4 * turn as u64 + 1;
     let scope = serde_json::json!({"workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": format!("u{turn}")});
     let mut start = scope.clone();
     start.as_object_mut().unwrap().extend([
@@ -27,7 +28,18 @@ fn turn(turn: usize) -> [SessionEvent; 2] {
         ("kind".to_owned(), "text".into()),
         ("text".to_owned(), format!("Answer {turn}\n\n- one\n- `two`\n\n```rust\nlet turn = {turn};\n```").into()),
     ]);
-    [serde_json::from_value(start).unwrap(), serde_json::from_value(reply).unwrap()]
+    let ending = |kind: &str, at: u64, extra: serde_json::Value| {
+        let mut event = serde_json::json!({"workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": format!("u{turn}")});
+        event.as_object_mut().unwrap().extend([("type".to_owned(), kind.into()), ("pos".to_owned(), at.into())]);
+        event.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        serde_json::from_value::<SessionEvent>(event).unwrap()
+    };
+    [
+        serde_json::from_value(start).unwrap(),
+        serde_json::from_value(reply).unwrap(),
+        ending("session.done", pos + 2, serde_json::json!({"result": {"status": "completed"}})),
+        ending("session.end", pos + 3, serde_json::json!({"exitCode": 0, "sawResult": true})),
+    ]
 }
 
 fn transcript(turns: usize) -> Vec<SessionEvent> {
@@ -35,7 +47,10 @@ fn transcript(turns: usize) -> Vec<SessionEvent> {
 }
 
 fn window(cx: &mut TestAppContext) -> (Entity<ThreadView>, &mut VisualTestContext) {
-    cx.update(gpui_kit::init);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+    });
     let view = cx.new(ThreadView::new);
     let (_, cx) = cx.add_window_view(|window, cx| Root::new(view.clone(), window, cx));
     cx.simulate_resize(size(px(900.), px(600.)));
@@ -187,8 +202,8 @@ fn opened_on_a_long_reply(cx: &mut TestAppContext) -> (Entity<ThreadView>, &mut 
     let (view, cx) = window(cx);
     let long: String = (0..200).map(|i| format!("Line {i} of a reply that runs for several screens.\n\n")).collect();
     let mut events = transcript(3);
-    events.push(event(serde_json::json!({"type": "session.start", "pos": 7, "prompt": "Explain it all"})));
-    events.push(event(serde_json::json!({"type": "session.delta", "pos": 8, "kind": "text", "text": long})));
+    events.push(event(serde_json::json!({"type": "session.start", "pos": 13, "prompt": "Explain it all"})));
+    events.push(event(serde_json::json!({"type": "session.delta", "pos": 14, "kind": "text", "text": long})));
     view.update(cx, |v, cx| {
         v.show("t", cx);
         v.load(events, cx);
@@ -220,9 +235,25 @@ fn a_reply_growing_while_the_person_reads_it_does_not_move_the_view(cx: &mut Tes
     });
     cx.run_until_parked();
     let read = offset(&view, cx);
-    view.update(cx, |v, cx| v.push(event(serde_json::json!({"type": "session.delta", "pos": 9, "kind": "text", "text": "More."})), cx));
+    view.update(cx, |v, cx| v.push(event(serde_json::json!({"type": "session.delta", "pos": 15, "kind": "text", "text": "More."})), cx));
     cx.run_until_parked();
     assert_eq!(offset(&view, cx), read, "a delta to the reply being read moved the view");
+}
+
+#[gpui_kit::test]
+fn a_streaming_reply_takes_each_delta_into_the_document_it_already_parsed(cx: &mut TestAppContext) {
+    let (view, cx) = opened_on_a_long_reply(cx);
+    let (parsed, rows, kept) = view.read_with(cx, |v, _| (v.parsed(), v.rows().len(), v.kept()));
+    for i in 0..100 {
+        let delta = serde_json::json!({"type": "session.delta", "pos": 15 + i, "kind": "text", "text": format!(" word{i}")});
+        view.update(cx, |v, cx| v.push(event(delta), cx));
+        cx.run_until_parked();
+    }
+    let reply = view.read_with(cx, |v, _| v.rows().iter().rev().find(|r| r.text.starts_with("Line 0")).map(|r| r.text.clone()));
+    assert!(reply.is_some_and(|r| r.ends_with(" word99")), "the reply took every delta");
+    assert_eq!(view.read_with(cx, |v, _| v.rows().len()), rows, "deltas to the open reply add no row");
+    assert_eq!(view.read_with(cx, |v, _| v.parsed()), parsed, "a delta was parsed as a new document rather than appended");
+    assert_eq!(view.read_with(cx, |v, _| v.kept()), kept);
 }
 
 #[gpui_kit::test]

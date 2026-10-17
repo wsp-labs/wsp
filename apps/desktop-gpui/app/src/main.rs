@@ -25,6 +25,8 @@ fn main() {
     let env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let (bench, open, glass, gallery) = (args.bench, args.open, args.glass, args.gallery);
+    let alone = desktop_gpui::screens::thread_view::Capture { theme: args.theme, unfold: args.unfold, now: args.now, reveal: args.reveal };
+    let screen = args.screen;
     gpui_kit::application().with_assets(UiAssets).run(move |cx: &mut App| {
         gpui_kit::init(cx);
         cx.on_window_closed(|cx, _| {
@@ -33,10 +35,10 @@ fn main() {
             }
         })
         .detach();
+        let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
+        let side = if dark { Side::Dark } else { Side::Light };
         if gallery {
-            // Only the gallery loads wsp's themes; the main window keeps gpui-kit's default theme.
-            let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
-            ui::init(if dark { Side::Dark } else { Side::Light }, cx);
+            ui::init(side, cx);
             let bounds = Bounds::centered(None, size(px(760.), px(900.)), cx);
             cx.open_window(
                 WindowOptions {
@@ -53,6 +55,19 @@ fn main() {
             cx.activate(true);
             return;
         }
+        if let Some(screen) = screen {
+            let opened = match screen.as_str() {
+                "thread_view" => desktop_gpui::screens::thread_view::open_alone(state, env, runtime, open, alone, cx),
+                _ => Err(format!("no screen {screen}")),
+            };
+            if let Err(e) = opened {
+                eprintln!("desktop-gpui: {e}");
+                std::process::exit(64);
+            }
+            return;
+        }
+        // The thread view draws in wsp's palette, so the main window takes wsp's themes too.
+        ui::init(side, cx);
         // The Electron app's window size, so both benches scroll the same viewport.
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(
