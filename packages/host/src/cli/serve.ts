@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { computeRecipe, nodeHost, scanProject } from "@wsp/collect";
+import { computeRecipe, nodeHost, scanProject, type Host } from "@wsp/collect";
 import type { HostSsh, PlaceWiring, RestartDoor, Runtime } from "@wsp/runtime";
 import { writeOwn } from "@wsp/own-file";
 import { GUEST_HOME, THREAD_AGENTS } from "@wsp/catalog";
@@ -12,7 +12,7 @@ import { webDirFor } from "../assets.js";
 import { missingBundleFile } from "../doctor.js";
 import { releaseUpdateLine } from "../daemon-fix.js";
 import { agentsHere } from "../agents-here.js";
-import { InitJobs } from "../init-job.js";
+import { InitJobs, timedRuns } from "../init-job.js";
 import { envFileFor, keyIn, savedEnv, writeEnvFile, type Keys } from "../env-keys.js";
 import { keychainReader } from "../init-import.js";
 import { adoptLoginPath, withLoginKeys } from "../login-path.js";
@@ -20,7 +20,7 @@ import { readBrewTable } from "../init-brew.js";
 import { exitCodeOf } from "../init.js";
 import { recipePath } from "../init-recipe.js";
 import { historyCache } from "../recipe-file.js";
-import { alsoHere } from "../scan.js";
+import { scanTools } from "../scan.js";
 import { startCallbackRelay, systemOpener, type UrlOpener } from "../relay.js";
 import { addressLines, hostTokenPath, lockPathFor, programGone, releaseLock, rewriteLock, startedByEnv, STARTED_BY_ENV, takeLock, type HostStarted } from "../host-lock.js";
 import { starterFor } from "../host-start.js";
@@ -49,6 +49,8 @@ import { deployHostDaemon, goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProv
 function hostInitDoor(rt: Runtime, statePath: string, run: RunningWsp, openUrl: UrlOpener, log: (line: string) => void, providerEnv: ProviderEnv): InitJobs {
   const home = homedir();
   const os = hostPlatform();
+  // Every command the read runs lands in the host's log with its start and how long it took.
+  const here = (): Host => timedRuns(nodeHost(), log);
   return new InitJobs({
     rt,
     statePath,
@@ -70,15 +72,16 @@ function hostInitDoor(rt: Runtime, statePath: string, run: RunningWsp, openUrl: 
     agents: () => agentsHere(nodeHost(), { versions: false }),
     installTools: agents => installEach(agents, mcpServerSpec(statePath, run), home),
     mcpServer: () => mcpServerSpec(statePath, run),
+    log,
     read: {
-      collect: collectThisComputer,
-      recipe: (onHistory, onProject, onHistoryProgress) => computeRecipe(nodeHost(), { threadAgents: THREAD_AGENTS, onHistory, onProject, onHistoryProgress, cache: historyCache(statePath) }),
+      collect: onRung => collectThisComputer(onRung, here()),
+      recipe: (onHistory, onProject, onHistoryProgress) => computeRecipe(here(), { threadAgents: THREAD_AGENTS, onHistory, onProject, onHistoryProgress, cache: historyCache(statePath) }),
       scanProject: async folder => {
         const { path, exists } = projectFolder(folder);
         return exists ? scanProject(nodeHost(), path) : undefined;
       },
-      brew: () => readBrewTable(nodeHost()),
-      scan: alsoHere,
+      brew: () => readBrewTable(here()),
+      scan: recipe => scanTools(here(), recipe),
     },
     build: {
       secrets: keychainReader(),

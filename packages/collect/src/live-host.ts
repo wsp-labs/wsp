@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { execFileSync, spawn } from "node:child_process";
-import { createReadStream } from "node:fs";
-import { access, constants, readdir, readFile, stat } from "node:fs/promises";
+import { access, constants, open, readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 import type { Host, HostExec, HostFs, Platform, RunOptions, Stat } from "./host.js";
 
 // Plugin checkouts and dependency trees live under config dirs (nvim's lazy
@@ -83,24 +81,54 @@ export const nodeFs: HostFs = {
     await walkFiles(dir, out);
     return out.sort();
   },
-  async *lines(path) {
+  async *lines(path, holding) {
+    let file;
     try {
-      await access(path, constants.R_OK);
+      file = await open(path, "r");
     } catch {
       return;
     }
-    const stream = createReadStream(path);
-    const rl = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
-    // A read error is not forwarded by the line iterator; closing the interface ends it instead of hanging it.
-    stream.on("error", () => rl.close());
+    // Bytes are searched before anything is decoded: an agent's transcripts run to gigabytes, most of it tool output
+    // a reader skips, and a line reader that decoded every line took 13 times as long as reading the bytes.
+    const needle = holding === undefined ? undefined : Buffer.from(holding);
+    const chunk = Buffer.allocUnsafe(LINE_CHUNK);
+    let pieces: Buffer[] = [];
+    const take = (line: Buffer): string | undefined => {
+      if (needle !== undefined && line.indexOf(needle) === -1) return undefined;
+      const end = line.length > 0 && line[line.length - 1] === CR ? line.length - 1 : line.length;
+      return line.toString("utf8", 0, end);
+    };
     try {
-      yield* rl;
+      for (;;) {
+        let read: number;
+        try {
+          ({ bytesRead: read } = await file.read(chunk, 0, LINE_CHUNK, null));
+        } catch {
+          return;
+        }
+        if (read === 0) break;
+        const data = chunk.subarray(0, read);
+        let start = 0;
+        for (let nl = data.indexOf(LF); nl !== -1; nl = data.indexOf(LF, start)) {
+          const line = take(pieces.length === 0 ? data.subarray(start, nl) : Buffer.concat([...pieces, data.subarray(start, nl)]));
+          pieces = [];
+          start = nl + 1;
+          if (line !== undefined) yield line;
+        }
+        if (start < read) pieces.push(Buffer.from(data.subarray(start)));
+      }
+      const last = pieces.length === 0 ? undefined : take(Buffer.concat(pieces));
+      if (last !== undefined) yield last;
     } finally {
-      rl.close();
-      stream.destroy();
+      await file.close();
     }
   },
 };
+
+/** How much of a file one read of its lines takes. */
+const LINE_CHUNK = 1 << 20;
+const LF = 0x0a;
+const CR = 0x0d;
 
 async function onPath(bin: string): Promise<boolean> {
   for (const dir of (process.env["PATH"] ?? "").split(":")) {

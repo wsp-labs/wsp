@@ -148,6 +148,22 @@ describe("the key step", () => {
   });
 });
 
+describe("the reading step", () => {
+  it("moves to the agents on the frame the job's screens stand, after the reading frames the host sends while it reads", async () => {
+    const fake = host();
+    await openFromComputers(fake.api);
+    paste("boat_good");
+    await settle();
+    fireEvent.click(proceed());
+    await settle();
+    expect(document.querySelector("[data-k='options-loading']")).not.toBeNull();
+    for (let read = 1; read <= 40; read++) pushJob(jobOf({ phase: "reading", screens: [], rows: [{ id: "fact/history/claude", kind: "fact", label: "Claude Code", state: "running", detail: `${read * 100} sessions of 4000` }] }));
+    pushJob(jobOf());
+    expect(document.querySelector("[data-k='options-loading']")).toBeNull();
+    expect(document.querySelectorAll("[data-pick-list='cloud-agents'] [data-pick-row]")).toHaveLength(2);
+  });
+});
+
 describe("the CLIs step", () => {
   it("says a CLI that signs in goes on installed signed out, its calls in the mono tag", async () => {
     const tools: InitScreen = { ...screenOf("tools", [["gh", "GitHub CLI"], ["jq", "jq"]], ["gh", "jq"]), items: [{ id: "gh", label: "GitHub CLI", why: "41 calls", detail: [] }, { id: "jq", label: "jq", why: "12 calls", detail: [] }] };

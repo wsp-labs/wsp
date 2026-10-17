@@ -33,7 +33,7 @@ const LAPTOP = fakeHost({
     "git config --global --get user.name": "Dev Person\n",
     "git config --global --get user.email": "dev@example.com\n",
     "git config --global --get gpg.format": "ssh\n",
-    "brew bundle dump --file=-": 'tap "homebrew/bundle"\nbrew "gh"\nbrew "jq"\n',
+    "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": 'tap "homebrew/bundle"\nbrew "gh"\nbrew "jq"\n',
     "npm ls -g --depth=0 --json": JSON.stringify({ dependencies: { npm: { version: "10" }, pnpm: { version: "9.12.0" } } }),
     "go version": "go version go1.23.1 darwin/arm64\n",
     "go version -m /Users/dev/go/bin/gopls": "x\n\tpath\tgolang.org/x/tools/gopls\n\tmod\tgolang.org/x/tools/gopls\tv0.16.2\th1:abc=\n",
