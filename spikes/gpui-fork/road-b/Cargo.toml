@@ -1,0 +1,18 @@
+[package]
+name = "road-b"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+path = "src/view.rs"
+
+[dependencies]
+gpui = { package = "gpui-ce", git = "https://github.com/gpui-ce/gpui-ce", rev = "094fe979fc4bd9a7dd4544d75b147a9278afcecf" }
+gpui_platform = { package = "gpui_ce_platform", git = "https://github.com/gpui-ce/gpui-ce", rev = "094fe979fc4bd9a7dd4544d75b147a9278afcecf" }
+
+[dev-dependencies]
+gpui = { package = "gpui-ce", git = "https://github.com/gpui-ce/gpui-ce", rev = "094fe979fc4bd9a7dd4544d75b147a9278afcecf", features = ["test-support"] }
+gpui_wgpu = { package = "gpui_ce_wgpu", git = "https://github.com/gpui-ce/gpui-ce", rev = "094fe979fc4bd9a7dd4544d75b147a9278afcecf", features = ["test-support"] }
