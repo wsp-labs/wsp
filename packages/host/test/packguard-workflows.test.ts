@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { writeStub } from "../../protocol/test/stub-script.js";
-import { OVERSIZE_REFUSAL, UNREAD_PACK_REFUSAL, WORKFLOWS_REFUSAL, githubEntryReader, guardWorkflows, type GithubEntryReader } from "../src/packguard/workflows.js";
+import { OLD_GIT_REFUSAL, OVERSIZE_REFUSAL, UNREAD_PACK_REFUSAL, WORKFLOWS_REFUSAL, githubEntryReader, guardWorkflows, type GithubEntryReader } from "../src/packguard/workflows.js";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -178,15 +178,76 @@ describe("the .github/ guard", () => {
     expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
   });
 
-  it("indexes with the plain fsck check on a git before 2.44, which answers usage to fsck levels", async () => {
+  /** A git 2.43 in front of the real one: usage (129) to fsck levels and its own version, what `also` answers, the rest
+   * passed through. */
+  const oldGit = (root: string, also = ""): void => {
+    const real = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+    mkdirSync(join(root, "git-2.43"));
+    writeStub(join(root, "git-2.43", "git"), `#!/bin/sh\nfor a in "$@"; do case "$a" in --fsck-objects=*) exit 129;; --version) echo "git version 2.43.0"; exit 0;; ${also}esac; done\nexec ${real} "$@"\n`);
+    vi.stubEnv("PATH", `${join(root, "git-2.43")}:${process.env.PATH}`);
+  };
+
+  it("passes an ordinary push on a git before 2.44, which answers usage to fsck levels", async () => {
     const p = project();
     edit(p.work, "README", "hello from a machine\n");
     const { head, pack } = push(p, "wsp/t");
-    const real = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
-    mkdirSync(join(p.root, "old-git"));
-    writeStub(join(p.root, "old-git", "git"), `#!/bin/sh\nfor a in "$@"; do case "$a" in --fsck-objects=*) exit 129;; esac; done\nexec ${real} "$@"\n`);
-    vi.stubEnv("PATH", `${join(p.root, "old-git")}:${process.env.PATH}`);
+    oldGit(p.root);
     expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
+  });
+
+  it("passes a .gitmodules the pack leaves out on a git without fsck levels, as index-pack does", async () => {
+    const p = project({ ".gitmodules": '[submodule "x"]\n\tpath = x\n\turl = https://example.com/x\n' });
+    edit(p.work, "README", "hello from a machine\n");
+    const { head, pack } = push(p, "wsp/t");
+    oldGit(p.root);
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
+  });
+
+  it("passes an ordinary push on a git before 2.39.1, which dies on the .gitattributes check's name", async () => {
+    const p = project();
+    edit(p.work, "README", "hello from a machine\n");
+    const { head, pack } = push(p, "wsp/t");
+    oldGit(p.root, "fsck.gitattributesMissing=ignore) exit 128;; ");
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
+  });
+
+  it("names the git when its fsck cannot run on a git without fsck levels", async () => {
+    const p = project();
+    edit(p.work, "README", "hello from a machine\n");
+    const { head, pack } = push(p, "wsp/t");
+    oldGit(p.root, "fsck) exit 128;; ");
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: false, said: OLD_GIT_REFUSAL("2.43.0") });
+  });
+
+  it("passes a .gitattributes the pack leaves out on a git without fsck levels, which still runs that check", async () => {
+    const p = project({ ".gitattributes": "*.png binary\n" });
+    edit(p.work, "README", "hello from a machine\n");
+    const { head, pack } = push(p, "wsp/t");
+    oldGit(p.root);
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
+  });
+
+  it("still refuses a root tree that names .github twice on a git without fsck levels", async () => {
+    const p = project();
+    const main = git(p.work, "rev-parse", "HEAD");
+    edit(p.work, ".github/workflows/ci.yml", "on: [push, pull_request]\n");
+    const entry = (rev: string): Buffer => Buffer.concat([Buffer.from("40000 .github\0"), Buffer.from(git(p.work, "rev-parse", `${rev}:.github`), "hex")]);
+    const tree = execFileSync("git", ["hash-object", "-t", "tree", "--literally", "-w", "--stdin"], { cwd: p.work, env: ENV, input: Buffer.concat([entry(main), entry("HEAD")]) }).toString().trim();
+    const head = git(p.work, "commit-tree", "-p", "HEAD", "-m", "two entries", tree);
+    const pack = execFileSync("git", ["pack-objects", "--revs", "--stdout", "-q"], { cwd: p.work, env: ENV, input: `${head}\n^${main}\n` });
+    oldGit(p.root);
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: false, said: UNREAD_PACK_REFUSAL });
+  });
+
+  it("refuses a root tree entry named .git on a git without fsck levels, as index-pack's strict fsck does", async () => {
+    const p = project();
+    const main = git(p.work, "rev-parse", "HEAD");
+    const entry = (name: string): Buffer => Buffer.concat([Buffer.from(`40000 ${name}\0`), Buffer.from(git(p.work, "rev-parse", "HEAD:.github"), "hex")]);
+    const tree = execFileSync("git", ["hash-object", "-t", "tree", "--literally", "-w", "--stdin"], { cwd: p.work, env: ENV, input: Buffer.concat([entry(".git"), entry(".github")]) }).toString().trim();
+    const head = git(p.work, "commit-tree", "-p", "HEAD", "-m", "a .git entry", tree);
+    const pack = execFileSync("git", ["pack-objects", "--revs", "--stdout", "-q"], { cwd: p.work, env: ENV, input: `${head}\n^${main}\n` });
+    oldGit(p.root);
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: false, said: UNREAD_PACK_REFUSAL });
   });
 
   it("refuses a pack that edits .github/workflows/ci.yml, and one that adds a workflow", async () => {
