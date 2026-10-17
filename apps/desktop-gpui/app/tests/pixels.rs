@@ -10,7 +10,7 @@ use desktop_gpui::screens::app_shell::frame::{SIDEBAR_DEFAULT, TOPBAR};
 use desktop_gpui::screens::Route;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::sidebar::ThreadItem;
-use gpui_kit::component::{ActiveTheme, Root};
+use gpui_kit::component::Root;
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{px, size, AnyWindowHandle, AppContext, Bounds, HeadlessAppContext, Rgba, WindowBounds, WindowOptions};
 use wsp_host_client::protocol::SessionEvent;
@@ -138,9 +138,8 @@ fn render() -> (Capture, Colors) {
         image.save(path).unwrap();
     }
     let colors = cx.update(|cx| {
-        let theme = cx.theme();
         let p = desktop_gpui::ui::ActivePalette::palette(cx);
-        Colors { sidebar: rgb(p.sidebar), background: rgb(p.background), bubble: rgb(theme.secondary) }
+        Colors { sidebar: rgb(p.sidebar), background: rgb(p.background), bubble: rgb(p.accent) }
     });
     let (width, height) = image.dimensions();
     (Capture { width, height, scale, raw: image.into_raw() }, colors)
@@ -162,14 +161,14 @@ fn the_window_draws_the_sidebar_beside_the_transcript() {
     assert!(near(shot.at(width / 2., H - 10.), colors.sidebar), "sidebar at the bottom: {:?}", shot.at(width / 2., H - 10.));
     assert!(near(shot.at(W - 10., H - 10.), colors.background), "thread view at the bottom: {:?}", shot.at(W - 10., H - 10.));
 
-    // The person's bubble is the first row, flush with the 16 px right padding of the thread view's centred 768 px
-    // column. Across the middle of its one line the fill stands either side of the text.
+    // The person's bubble is the first row, flush with the right edge of the thread view's centred 768 px column, as
+    // the web's `items-end` sets it. Across the middle of its one line the fill stands either side of the text.
     let column_right = width + (W - width + 768.) / 2.;
-    let y = shot.device(top + 29.);
+    let y = shot.device(top + 16. + 23.);
     let bubble: Vec<u32> = (shot.device(width)..shot.device(W)).filter(|&x| shot.device_at(x, y) == colors.bubble).collect();
     let (first, last) = (bubble.first().copied().unwrap_or(0), bubble.last().copied().unwrap_or(0));
     assert!(!bubble.is_empty(), "no bubble fill at y = {y}");
-    assert!(last.abs_diff(shot.device(column_right - 16.)) <= 2, "the bubble must end at the right padding, ends at {last}");
+    assert!(last.abs_diff(shot.device(column_right)) <= 2, "the bubble must end at the column's edge, ends at {last}");
     assert!(first > shot.device(width + 200.), "the bubble must fit its text, starts at {first}");
 
     // The reply's prose and code put dark glyph pixels on the thread view's background.

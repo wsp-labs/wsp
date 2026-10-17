@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# Our patches over the published gpui-pre crates (backdrop blur, rounded clipping of children), kept as one diff per
-# crate in patches/ and applied to fresh copies in vendor/, which [patch.crates-io] in Cargo.toml points at.
-#   apply  unpack each pinned .crate (checksum-verified) into vendor/ and apply its patch; run after a fresh clone
+# Our patches over the published gpui-pre crates (backdrop blur, rounded clipping of children) and over crates of
+# gpui-kit's pinned commit (the markdown view's lists, task boxes, code block and table chrome), kept as one diff per
+# crate in patches/ and applied to fresh copies in vendor/, which Cargo.toml's [patch] tables point at.
+#   apply  unpack each pinned .crate (checksum-verified) and gpui-kit crate (by commit id) into vendor/ and apply its
+#          patch; run after a fresh clone
 #          and after a pull that changes patches/ (vendor/.applied keeps the patches it applied, for dev.sh to compare)
 #   save   rewrite patches/ from your edits under vendor/
 #   check  apply into a scratch folder and fail if a patch no longer applies or vendor/ differs from the result
 set -eu
+# A hook or a linked worktree sets these, and the gpui-kit fetch below would then write into that repository.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
 usage='usage: apps/desktop-gpui/scripts/gpui-patches.sh apply|save|check'
 cd "$(dirname "$0")/.."
@@ -18,6 +22,11 @@ gpui-pre-wgpu 0.3.9 5b1cdb26c1503bf9662ee8fbc5ab0b44b2deeee4b5c12dc67491ba6fb5fc
 gpui-pre-apple 0.3.9 b52f58893fe1a0836464428dfad2b5eaf42c9c303a9638f4c2aced5a69072a15'
 # gpui-pre-apple's build script reads these gpui-pre files from its own vendor/gpui to generate the Metal header.
 apple_mirror='src/scene.rs src/geometry.rs src/color.rs src/window.rs src/platform.rs'
+# gpui-kit's pinned commit and the crates of it we patch, by their folder under crates/. They unpack beside gpui-kit's
+# root manifest, which they inherit from, into vendor/gpui-kit-<short id>/, which Cargo.toml's workspace excludes.
+kit_rev=14f59330a4aa0cb5becf140e067d64a616328612
+kit_dir=gpui-kit-${kit_rev:0:7}
+kit_crates='base'
 
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
@@ -43,6 +52,38 @@ fetch() {
   echo "vendor/.crates/$file"
 }
 
+# Prints a git folder holding gpui-kit's pinned commit: cargo's own clone, our earlier fetch, or a fetch from GitHub.
+kit_source() {
+  local db
+  for db in "${CARGO_HOME:-$HOME/.cargo}"/git/db/gpui-kit-* vendor/.gpui-kit.git; do
+    if [ -d "$db" ] && [ "$(git -C "$db" rev-parse --verify --quiet "$kit_rev^{commit}")" = "$kit_rev" ]; then
+      echo "$db"
+      return
+    fi
+  done
+  mkdir -p vendor
+  git init --quiet --bare vendor/.gpui-kit.git
+  git -C vendor/.gpui-kit.git fetch --quiet --depth 1 https://github.com/longbridge/gpui-kit "$kit_rev" || {
+    echo "refused: could not fetch gpui-kit $kit_rev from GitHub, and cargo's git cache does not hold it" >&2
+    exit 1
+  }
+  if [ "$(git -C vendor/.gpui-kit.git rev-parse --verify --quiet "$kit_rev^{commit}")" != "$kit_rev" ]; then
+    echo "refused: gpui-kit's fetch did not bring commit $kit_rev" >&2
+    exit 1
+  fi
+  echo vendor/.gpui-kit.git
+}
+
+# Unpacks gpui-kit's root manifest and fresh copies of kit_crates into $1/$kit_dir.
+kit_unpack() {
+  local db
+  db=$(kit_source)
+  mkdir -p "$1/$kit_dir"
+  # shellcheck disable=SC2046,SC2086
+  git -C "$db" archive --format=tar -o "$scratch/gpui-kit.tar" "$kit_rev" Cargo.toml $(printf 'crates/%s ' $kit_crates)
+  tar -xf "$scratch/gpui-kit.tar" -C "$1/$kit_dir"
+}
+
 # Unpacks fresh, patched copies of every crate into $1.
 build() {
   local out=$1 name version sum dir file crate
@@ -63,6 +104,16 @@ build() {
   for file in $apple_mirror; do
     cp "$out/gpui-pre-0.3.9/$file" "$out/gpui-pre-apple-0.3.9/vendor/gpui/$file"
   done
+  kit_unpack "$out"
+  for crate in $kit_crates; do
+    file=patches/gpui-kit-$crate-${kit_rev:0:7}.patch
+    [ -f "$file" ] || { echo "refused: $file is missing" >&2; exit 1; }
+    [ -s "$file" ] || continue
+    (cd "$out/$kit_dir/crates/$crate" && GIT_CEILING_DIRECTORIES="$out" git apply -p1 --whitespace=nowarn "$root/$file") || {
+      echo "refused: $file no longer applies to gpui-kit ${kit_rev:0:7}" >&2
+      exit 1
+    }
+  done
 }
 
 scratch=$(mktemp -d)
@@ -76,6 +127,8 @@ case "${1:-}" in
       rm -rf "vendor/$name-$version"
       mv "$scratch/new/$name-$version" "vendor/$name-$version"
     done <<<"$crates"
+    rm -rf "vendor/$kit_dir"
+    mv "$scratch/new/$kit_dir" "vendor/$kit_dir"
     cat patches/*.patch >vendor/.applied
     echo "applied patches/ to fresh copies in vendor/"
     ;;
@@ -94,6 +147,17 @@ case "${1:-}" in
       (cd "$scratch/$name" && git diff --no-index --no-color --no-ext-diff --no-prefix a b >"$root/patches/$name-$version.patch") || true
       echo "patches/$name-$version.patch: $(grep -c '^diff --git' "patches/$name-$version.patch") files"
     done <<<"$crates"
+    kit_unpack "$scratch/kit"
+    for crate in $kit_crates; do
+      file=patches/gpui-kit-$crate-${kit_rev:0:7}.patch
+      mkdir -p "$scratch/kit-$crate"
+      mv "$scratch/kit/$kit_dir/crates/$crate" "$scratch/kit-$crate/a"
+      cp -R "vendor/$kit_dir/crates/$crate" "$scratch/kit-$crate/b"
+      rm -rf "$scratch/kit-$crate/b/target"
+      find "$scratch/kit-$crate" -name .DS_Store -exec rm -f {} +
+      (cd "$scratch/kit-$crate" && git diff --no-index --no-color --no-ext-diff --no-prefix a b >"$root/$file") || true
+      echo "$file: $(grep -c '^diff --git' "$file") files"
+    done
     cat patches/*.patch >vendor/.applied
     ;;
   check)
@@ -105,6 +169,10 @@ case "${1:-}" in
         status=1
       fi
     done <<<"$crates"
+    if ! diff -r -q -x target -x .DS_Store "$scratch/new/$kit_dir" "vendor/$kit_dir"; then
+      echo "vendor/$kit_dir differs from patches/gpui-kit-*-${kit_rev:0:7}.patch applied to a fresh copy; run save or apply" >&2
+      status=1
+    fi
     [ "$status" -eq 0 ] && echo "every patch applies, and vendor/ matches"
     exit "$status"
     ;;

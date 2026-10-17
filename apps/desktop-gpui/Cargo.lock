@@ -1350,6 +1350,7 @@ dependencies = [
  "lyon",
  "objc",
  "raw-window-handle",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
@@ -2239,7 +2240,6 @@ dependencies = [
 [[package]]
 name = "gpui-base"
 version = "0.7.3"
-source = "git+https://github.com/longbridge/gpui-kit?rev=14f59330a4aa0cb5becf140e067d64a616328612#14f59330a4aa0cb5becf140e067d64a616328612"
 dependencies = [
  "aho-corasick",
  "anyhow",

@@ -71,10 +71,34 @@ fn request<O: Op + serde::de::DeserializeOwned>(params: Value) -> Result<O, Fail
 }
 
 /// A request id per send, as the web app mints one for each `sessions.start` and `sessions.steer`.
-fn request_id() -> String {
+pub(crate) fn request_id() -> String {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
     format!("gpui-{now}-{}", NEXT.fetch_add(1, Ordering::Relaxed))
+}
+
+/// What a transcript says to the composer: whether it holds a message, the session of a turn still running, the sent
+/// prompts for Up and Down, and the running turn's steps.
+pub struct Seen {
+    any: bool,
+    running: Option<String>,
+    prompts: Vec<(String, String)>,
+    plan: Option<Value>,
+}
+
+impl Seen {
+    pub fn of(events: &[SessionEvent]) -> Seen {
+        let (any, running, _) = transcript_state(events);
+        Seen { any, running, prompts: prompts_of(events), plan: plan_of(events) }
+    }
+}
+
+/// The events after which the thread's rows say something new for the drawer: a question, a cap, the turn's state.
+fn changes_rows(event: &SessionEvent) -> bool {
+    matches!(
+        kind(event).0.as_str(),
+        "session.start" | "session.end" | "session.permission" | "session.permission.closed" | "session.capped" | "session.uncapped"
+    )
 }
 
 fn kind(event: &SessionEvent) -> (String, Value) {
@@ -256,6 +280,17 @@ pub fn session_id(rows: &[SessionView], event_session: Option<&str>) -> Option<S
 
 impl Link {
     /// Reads what the composer needs for `target`, from the agents to the transcript.
+    /// What `read` gives less the transcript, for a Link the thread view feeds its own events to (`fed`).
+    pub async fn read_facts(host: &Host, target: &Target) -> Result<Opened, Failure> {
+        let listed = call(host, request::<protocol::HarnessesListRequest>(json!({ "workspaceId": target.workspace_id }))?).await?;
+        let agents = listed.harnesses.iter().filter_map(Agent::read).collect();
+        let rows = match &target.thread_id {
+            Some(thread) => rows_of(host, &target.workspace_id, thread).await?,
+            None => Vec::new(),
+        };
+        Ok(Opened { agents, rows, history: Vec::new() })
+    }
+
     pub async fn read(host: &Host, target: &Target) -> Result<Opened, Failure> {
         let listed = call(host, request::<protocol::HarnessesListRequest>(json!({ "workspaceId": target.workspace_id }))?).await?;
         let agents = listed.harnesses.iter().filter_map(Agent::read).collect();
@@ -278,6 +313,18 @@ impl Link {
         target: Target,
         opened: Opened,
         composer: Entity<Composer>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::build(host, target, opened, composer, true, window, cx)
+    }
+
+    fn build(
+        host: Host,
+        target: Target,
+        opened: Opened,
+        composer: Entity<Composer>,
+        follows: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -310,9 +357,44 @@ impl Link {
             _follow: None,
             _events: events,
         };
-        link.follow(window, cx);
+        if follows {
+            link.follow(window, cx);
+        }
         link.read_skills(window, cx);
         link
+    }
+
+    /// `new` for a thread whose events the thread view already follows: it reads nothing of the transcript itself and
+    /// takes the view's through `take_history` and `take_event`, so a thread is read and followed once.
+    pub fn fed(
+        host: Host,
+        target: Target,
+        opened: Opened,
+        composer: Entity<Composer>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::build(host, target, opened, composer, false, window, cx)
+    }
+
+    /// What the thread view's transcript, read whole, says to the composer (`Seen::of`).
+    pub fn take_history(&mut self, seen: Seen, _: &mut Window, cx: &mut Context<Self>) {
+        self.seen(seen, cx);
+        self.refresh(cx);
+    }
+
+    /// One live event the thread view took; one that changes the drawer reads the thread's rows again.
+    pub fn take_event(&mut self, event: SessionEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let ends = changes_rows(&event);
+        self.arrive(Arrival::Event(Box::new(event)), window, cx);
+        let Some(thread) = self.target.thread_id.clone().filter(|_| ends) else { return };
+        let (host, ws) = (self.host.clone(), self.target.workspace_id.clone());
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(rows) = rows_of(&host, &ws, &thread).await {
+                _ = this.update_in(cx, |this, window, cx| this.arrive(Arrival::Rows(rows), window, cx));
+            }
+        })
+        .detach();
     }
 
     fn read_skills(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -364,15 +446,7 @@ impl Link {
                     while let Some(next) = live.next().await {
                         let Ok(Live::Event(event)) = next else { continue };
                         // The rows say what the drawer shows: a question, a cap, the turn's state.
-                        let ends = matches!(
-                            kind(&event).0.as_str(),
-                            "session.start"
-                                | "session.end"
-                                | "session.permission"
-                                | "session.permission.closed"
-                                | "session.capped"
-                                | "session.uncapped"
-                        );
+                        let ends = changes_rows(&event);
                         _ = tx.unbounded_send(Arrival::Event(event));
                         if ends {
                             if let Ok(listed) = host.call(request::<protocol::SessionsListRequest>(json!({ "workspaceId": ws }))?).await {
@@ -403,21 +477,28 @@ impl Link {
         self._follow = Some((host_task, receive));
     }
 
+    fn history(&mut self, events: &[SessionEvent], cx: &mut Context<Self>) {
+        self.seen(Seen::of(events), cx);
+    }
+
+    fn seen(&mut self, seen: Seen, cx: &mut Context<Self>) {
+        let Some(composer) = self.composer.upgrade() else { return };
+        let Seen { any, running, prompts, plan } = seen;
+        self.running_session = running.clone();
+        self.prompts = prompts;
+        self.plan = plan;
+        composer.update(cx, |c, cx| {
+            if c.hold() == Some(&Hold::HostDown) {
+                c.set_hold(None, cx);
+            }
+            c.set_turn(any, running.is_some(), cx)
+        });
+    }
+
     fn arrive(&mut self, arrival: Arrival, _: &mut Window, cx: &mut Context<Self>) {
         let Some(composer) = self.composer.upgrade() else { return };
         match arrival {
-            Arrival::History(events) => {
-                let (any, running, _) = transcript_state(&events);
-                self.running_session = running.clone();
-                self.prompts = prompts_of(&events);
-                self.plan = plan_of(&events);
-                composer.update(cx, |c, cx| {
-                    if c.hold() == Some(&Hold::HostDown) {
-                        c.set_hold(None, cx);
-                    }
-                    c.set_turn(any, running.is_some(), cx)
-                });
-            }
+            Arrival::History(events) => self.history(&events, cx),
             Arrival::Event(event) => {
                 let (kind, value) = kind(&event);
                 match kind.as_str() {

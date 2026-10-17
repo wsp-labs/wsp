@@ -18,6 +18,17 @@ pub struct Args {
     pub gallery: bool,
     /// A screen to open at launch by its name, as captures of one screen start.
     pub screen: Option<String>,
+    /// How a capture stands the thread view: its theme, its clicks, its clock and where it scrolls.
+    pub capture: Capture,
+}
+
+/// A capture's flags, each beside `--open`: `--theme <id>`, `--unfold`, `--now <ms>`, `--reveal <text>@<y>`.
+#[derive(Debug, Default, PartialEq)]
+pub struct Capture {
+    pub theme: Option<String>,
+    pub unfold: bool,
+    pub now: Option<f64>,
+    pub reveal: Option<(String, f32)>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -28,10 +39,12 @@ pub struct Bench {
 }
 
 /// `desktop-gpui [--state <state.json>] [--glass] [--screen <name>] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`,
-/// or `desktop-gpui --gallery`.
+/// `desktop-gpui --open <id> [--theme <id>] [--unfold] [--now <ms>] [--reveal <text>@<y>]` for a capture, or
+/// `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen) =
         (None, None, None, Vec::new(), None, false, false, None);
+    let mut capture = Capture::default();
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or(format!("{flag} takes a value"));
         match flag.as_str() {
@@ -43,6 +56,14 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--glass" => glass = true,
+            "--theme" => capture.theme = Some(value()?),
+            "--unfold" => capture.unfold = true,
+            "--now" => capture.now = Some(value()?.parse::<f64>().map_err(|e| format!("--now: {e}"))?),
+            "--reveal" => {
+                let said = value()?;
+                let (text, y) = said.rsplit_once('@').ok_or("--reveal takes <text>@<y>")?;
+                capture.reveal = Some((text.to_owned(), y.parse::<f32>().map_err(|e| format!("--reveal: {e}"))?));
+            }
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -60,7 +81,10 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     if screen.is_some() && (bench.is_some() || open.is_some() || gallery) {
         return Err("--screen goes without --open, --bench and --gallery".to_owned());
     }
-    Ok(Args { state, bench, open, glass, gallery, screen })
+    if capture != Capture::default() && open.is_none() {
+        return Err("--theme, --unfold, --now and --reveal go with --open".to_owned());
+    }
+    Ok(Args { state, bench, open, glass, gallery, screen, capture })
 }
 
 /// The result JSON: frame times are milliseconds from the start of the scroll.
@@ -101,6 +125,9 @@ mod tests {
         assert!(parse(words("--gallery --glass")).is_err());
         assert_eq!(parse(words("--screen settings --state /s")).unwrap().screen, Some("settings".to_owned()));
         assert!(parse(words("--screen settings --open long")).is_err());
+        let shot = parse(words("--open t --theme graphite --unfold --now 5 --reveal turn@189")).unwrap().capture;
+        assert_eq!(shot, Capture { theme: Some("graphite".into()), unfold: true, now: Some(5.), reveal: Some(("turn".into(), 189.)) });
+        assert!(parse(words("--theme graphite")).is_err());
     }
 
     #[test]

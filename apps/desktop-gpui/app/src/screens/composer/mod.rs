@@ -528,6 +528,11 @@ impl Composer {
         !self.compact
     }
 
+    /// The key the composer keeps its draft and queue under now.
+    pub fn thread_key(&self) -> Option<&str> {
+        self.thread_key.as_deref()
+    }
+
     pub fn hold(&self) -> Option<&Hold> {
         self.hold.as_ref()
     }
