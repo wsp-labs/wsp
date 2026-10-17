@@ -87,11 +87,19 @@ impl HostClient {
         params.insert("workspaceId".to_owned(), Value::from(workspace_id));
         params.insert("threadId".to_owned(), Value::from(thread_id));
         let page: HistoryPage = client.request("sessions.history", params).await?;
-        Ok(Thread { thread_id: thread_id.to_owned(), history: page.events, through: page.pos, frames, _client: client })
+        Ok(Thread {
+            workspace_id: workspace_id.to_owned(),
+            thread_id: thread_id.to_owned(),
+            history: page.events,
+            through: page.pos,
+            frames,
+            client,
+        })
     }
 }
 
 pub struct Thread {
+    pub workspace_id: String,
     pub thread_id: String,
     /// The newest page of the transcript as it stood when the thread was opened, oldest first.
     pub history: Vec<SessionEvent>,
@@ -99,8 +107,11 @@ pub struct Thread {
     through: u64,
     frames: Frames,
     /// The socket the frames ride, which closes when its last holder lets go.
-    _client: Arc<Client>,
+    client: Arc<Client>,
 }
+
+/// The most events one page back asks for, HISTORY_PAGE_MAX in packages/protocol; the host also caps a page by bytes.
+const PAGE_BACK: u64 = 1000;
 
 /// What the host pushed about one thread: a transcript event, typed, or anything else it says of the thread
 /// (thread.head, session.queued) as it was sent.
@@ -111,6 +122,17 @@ pub enum Live {
 }
 
 impl Thread {
+    /// The page of the transcript just before `before`, a pos, oldest first: how the app reads further back than the
+    /// page it opened with. Empty once the transcript's start is reached.
+    pub async fn earlier(&self, before: u64) -> Result<Vec<SessionEvent>, Failure> {
+        let mut params = Map::new();
+        params.insert("workspaceId".to_owned(), Value::from(self.workspace_id.as_str()));
+        params.insert("threadId".to_owned(), Value::from(self.thread_id.as_str()));
+        params.insert("before".to_owned(), Value::from(before));
+        params.insert("limit".to_owned(), Value::from(PAGE_BACK));
+        Ok(self.client.request::<HistoryPage>("sessions.history", params).await?.events)
+    }
+
     /// The thread's next event as it arrives; none once the socket is gone.
     pub async fn next(&mut self) -> Option<Result<Live, Failure>> {
         loop {
@@ -131,6 +153,11 @@ impl Thread {
             );
         }
     }
+}
+
+/// Where an event sits in its thread's transcript, where it says.
+pub fn pos(event: &SessionEvent) -> Option<u64> {
+    serde_json::to_value(event).ok()?.get("pos")?.as_u64()
 }
 
 /// The type of every event a transcript holds, read off the record the types were generated from.

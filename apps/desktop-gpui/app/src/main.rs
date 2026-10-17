@@ -1,10 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use desktop_gpui::{Home, TITLE};
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use desktop_gpui::{bench, shell::Shell, TITLE};
 use gpui::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions};
 use gpui_component::Root;
 
+/// The state file a launch means, as the Electron app picks it: WSP_HOME names the home outright, else ~/.wsp.
+fn default_state() -> PathBuf {
+    let home = std::env::var_os("WSP_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".wsp"));
+    home.join("state.json")
+}
+
 fn main() {
-    gpui_platform::application().run(|cx: &mut App| {
+    let args = bench::parse(std::env::args().skip(1)).unwrap_or_else(|e| {
+        eprintln!("desktop-gpui: {e}");
+        std::process::exit(64);
+    });
+    let state = args.state.unwrap_or_else(default_state);
+    let env = std::env::vars().collect();
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
+    let bench = args.bench;
+    gpui_platform::application().run(move |cx: &mut App| {
         gpui_component::init(cx);
         cx.on_window_closed(|cx, _| {
             if cx.windows().is_empty() {
@@ -12,7 +31,8 @@ fn main() {
             }
         })
         .detach();
-        let bounds = Bounds::centered(None, size(px(900.), px(600.)), cx);
+        // The Electron app's window size, so both benches scroll the same viewport.
+        let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -20,8 +40,8 @@ fn main() {
                 ..Default::default()
             },
             |window, cx| {
-                let home = cx.new(|_| Home);
-                cx.new(|cx| Root::new(home, window, cx))
+                let shell = cx.new(|cx| Shell::new(state, env, runtime, bench, cx));
+                cx.new(|cx| Root::new(shell, window, cx))
             },
         )
         .expect("failed to open the window");
