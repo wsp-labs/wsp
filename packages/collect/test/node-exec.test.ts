@@ -61,6 +61,35 @@ describe("nodeFs.stat", () => {
   });
 });
 
+describe("nodeFs.lines", () => {
+  const all = async (it: AsyncIterable<string>): Promise<string[]> => {
+    const out: string[] = [];
+    for await (const line of it) out.push(line);
+    return out;
+  };
+
+  it("gives each line without its ending, a blank one kept, the last one read without a newline, and nothing for a missing file", async () => {
+    const file = join(scratch(), "a.jsonl");
+    writeFileSync(file, "one\r\ntwo\n\nthree");
+    expect(await all(nodeFs.lines(file))).toEqual(["one", "two", "", "three"]);
+    expect(await all(nodeFs.lines(join(scratch(), "gone.jsonl")))).toEqual([]);
+  });
+
+  it("keeps a line longer than one read whole, its multi-byte characters across the cut included", async () => {
+    const file = join(scratch(), "b.jsonl");
+    const long = `{"text":"${"é漢".repeat(700_000)}"}`;
+    writeFileSync(file, `first\n${long}\nlast\n`);
+    expect(await all(nodeFs.lines(file))).toEqual(["first", long, "last"]);
+  });
+
+  it("gives only the lines holding the text asked for, the long one included", async () => {
+    const file = join(scratch(), "c.jsonl");
+    const long = `{"type":"tool_use","pad":"${"x".repeat(3_000_000)}"}`;
+    writeFileSync(file, `{"type":"user"}\n${long}\n{"type":"tool_use"}\n{"type":"result"}`);
+    expect(await all(nodeFs.lines(file, '"tool_use"'))).toEqual([long, '{"type":"tool_use"}']);
+  });
+});
+
 describe("nodeExec.run", () => {
   it("returns stdout on exit 0 and nothing on a failure or a missing command", async () => {
     expect(await nodeExec.run("/bin/sh", ["-c", "printf hi"])).toBe("hi");

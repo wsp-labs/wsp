@@ -750,18 +750,13 @@ export async function readThisComputer(opts: ReadOptions, io: Pick<InitIO, "outp
   spinner.stop();
   const source = given === undefined ? "found on this computer" : "found on this computer, ticked by the recipe";
   manifest = { ...manifest, entries: withoutAgentTools(manifest.entries) };
-  // Homebrew here sizes the formulae on the Tools screen and says which tap formula has a release to take; a
-  // brew that fails leaves the measured table.
+  // Homebrew and the package managers are other programs, so they are read while this process reads the histories
+  // rather than one after another. Homebrew sizes the formulae on the Tools screen and says which tap formula has a
+  // release to take, and one that fails leaves the measured table; the package managers only fill their own screen,
+  // and the recipe's own rows (the file beside the state's) go in so a tool it already installs is not offered twice.
+  const brewing = opts.brew !== undefined && wantsBrew(manifest) ? opts.brew().then(table => ({ table }), (e: unknown) => ({ e })) : undefined;
+  const scanning = opts.scan !== undefined && interactive && opts.recipeFile === undefined ? opts.scan(carriedOver(smallRecipePath(opts.statePath), () => {}).custom ?? []).then(rows => ({ rows }), (e: unknown) => ({ e })) : undefined;
   let brew: BrewTable = new Map();
-  if (opts.brew !== undefined && wantsBrew(manifest)) {
-    const sizes = spin(io.output, "Reading Homebrew for sizes", io.isTTY);
-    try {
-      brew = await opts.brew();
-    } catch (e) {
-      notes.push(`Homebrew could not be read for sizes (${e instanceof Error ? e.message : String(e)}); formula sizes come from the measured table alone.`);
-    }
-    sizes.stop();
-  }
   // This computer's own recipe is read even under a recipe file: the file's ticks and answers stand, the rows and
   // their sources are what is here, so a row about this computer (an agent's config) never follows another's.
   let catalogRecipe: Recipe;
@@ -781,6 +776,9 @@ export async function readThisComputer(opts: ReadOptions, io: Pick<InitIO, "outp
         histories.detail(historyProgressLine(p));
       },
     );
+    const sized = await brewing;
+    if (sized !== undefined && "table" in sized) brew = sized.table;
+    else if (sized !== undefined) notes.push(`Homebrew could not be read for sizes (${sized.e instanceof Error ? sized.e.message : String(sized.e)}); formula sizes come from the measured table alone.`);
     // This computer's tools rows the catalog does not carry join the recipe under their own ids, off, so a tick on
     // one (from the file or the Also screen) has a row to land on.
     const here = withOutsideRows(read, manifest, brew);
@@ -803,16 +801,12 @@ export async function readThisComputer(opts: ReadOptions, io: Pick<InitIO, "outp
   if (sessionsRead > 0) io.output.write(`${dim(S_BAR)}  ${dim(`Read ${plural(sessionsRead, "session")} in ${fmtDuration(Date.now() - startedHistories)}`)}\n`);
   // A row the pack would refuse whole is locked here with the pack's own sentence, judged on the same disk the pack reads.
   manifest = lockRefused(manifest, refusedIsDir(opts.home));
-  // What else this computer could put on the image; only its own screen uses it, so nothing runs when it is not shown.
   let scanned: readonly ScanRow[] = [];
-  if (opts.scan !== undefined && interactive && opts.recipeFile === undefined) {
+  if (scanning !== undefined) {
     const spinner = spin(io.output, "Reading what your package managers installed here", io.isTTY);
-    try {
-      // The recipe's own rows go in, so a tool it already installs is not drawn off for a tick to install twice.
-      scanned = await opts.scan(customRows(catalogRecipe));
-    } catch (e) {
-      notes.push(`Your package managers could not be read (${e instanceof Error ? e.message : String(e)}); the ${alsoTitle(opts.platform)} screen is left out.`);
-    }
+    const read = await scanning;
+    if ("rows" in read) scanned = read.rows;
+    else notes.push(`Your package managers could not be read (${read.e instanceof Error ? read.e.message : String(read.e)}); the ${alsoTitle(opts.platform)} screen is left out.`);
     spinner.stop();
   }
   return { manifest, platform: opts.platform, catalogRecipe, savedPins, brew, scanned, ...(projectScan !== undefined ? { projectScan } : {}), notes, source };

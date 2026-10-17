@@ -119,7 +119,7 @@ describe("scanTools", () => {
     const host = laptop();
     await scanTools(host);
     expect(host.calls.filter(c => c.startsWith("du "))).toHaveLength(2);
-    expect(host.calls.filter(c => c.startsWith("brew bundle"))).toHaveLength(1);
+    expect(host.calls.filter(c => c.startsWith("brew bundle"))).toEqual(["brew bundle dump --file=- --formula --taps --no-restart"]);
   });
 
   it("keeps two scoped npm names ending in the same word apart, each with its own size", async () => {

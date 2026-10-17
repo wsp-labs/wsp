@@ -25,7 +25,7 @@ describe("tools", () => {
   });
 
   it("Homebrew rows: taps, and formulae marked by the Linux bottle snapshot", async () => {
-    const host = fakeHost({ which: ["brew"], exec: { "brew bundle dump --file=-": BREWFILE } });
+    const host = fakeHost({ which: ["brew"], exec: { "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": BREWFILE } });
     const rows = await detectTools(host);
     expect(rows).toEqual([
       { rung: "tools", id: "tools/brew-tap/homebrew/bundle", label: "homebrew/bundle", group: "Homebrew taps", paths: [], bytes: 0, default: "bring", linux: "yes" },
@@ -36,8 +36,38 @@ describe("tools", () => {
     ]);
   });
 
+  it("asks Homebrew for its taps and formulae alone with its auto-update off, so the dump runs no other kind's lister and no brew update", async () => {
+    const host = fakeHost({ which: ["brew"], exec: { "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": BREWFILE } });
+    await detectTools(host);
+    expect(host.calls.filter(c => c.includes("brew"))).toEqual(["run HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart"]);
+  });
+
+  it("asks every manager at once, and its rows keep their order whichever answers first", async () => {
+    const base = fakeHost({ which: ["brew", "cargo"] });
+    let cargoAsked!: () => void;
+    const asked = new Promise<void>(resolve => (cargoAsked = resolve));
+    let together = false;
+    const host = {
+      ...base,
+      exec: {
+        ...base.exec,
+        run: async (cmd: string) => {
+          if (cmd === "cargo") {
+            cargoAsked();
+            return "bacon v3.1.0:\n    bacon\n";
+          }
+          together = await Promise.race([asked.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 2_000))]);
+          return 'brew "gh"\n';
+        },
+      },
+    };
+    const rows = await detectTools(host);
+    expect(together).toBe(true);
+    expect(rows.map(r => r.id)).toEqual(["tools/brew/gh", "tools/cargo/bacon"]);
+  });
+
   it("default ticks: no Linux bottle locks the row off with its reason, an unknown Linux build starts unticked but stays tickable, a bottled formula starts ticked", async () => {
-    const host = fakeHost({ which: ["brew"], exec: { "brew bundle dump --file=-": 'brew "mas"\nbrew "zingzy/tap/diskbloom"\nbrew "gh"\n' } });
+    const host = fakeHost({ which: ["brew"], exec: { "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": 'brew "mas"\nbrew "zingzy/tap/diskbloom"\nbrew "gh"\n' } });
     const rows = await detectTools(host);
     expect(rows.map(r => [r.id, r.default, r.reason, r.linux])).toEqual([
       ["tools/brew/mas", "skip", "no Linux bottle", "no"],
@@ -47,7 +77,7 @@ describe("tools", () => {
   });
 
   it("a formula already installed on a Linux laptop runs on Linux whatever the snapshot says", async () => {
-    const host = fakeHost({ platform: "linux", which: ["brew"], exec: { "brew bundle dump --file=-": 'brew "mas"\nbrew "oven-sh/bun/bun"\n' } });
+    const host = fakeHost({ platform: "linux", which: ["brew"], exec: { "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": 'brew "mas"\nbrew "oven-sh/bun/bun"\n' } });
     const rows = await detectTools(host);
     expect(rows.map(r => [r.id, r.default, r.linux])).toEqual([["tools/brew/mas", "bring", "yes"], ["tools/brew/oven-sh/bun/bun", "bring", "yes"]]);
   });
@@ -201,7 +231,7 @@ describe("tools", () => {
   });
 
   it("a computer with no apt is asked nothing about it, so a Mac runs no dpkg", async () => {
-    const host = fakeHost({ ...APT, which: ["brew"], exec: { ...APT.exec, "brew bundle dump --file=-": 'brew "gh"\n' } });
+    const host = fakeHost({ ...APT, which: ["brew"], exec: { ...APT.exec, "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": 'brew "gh"\n' } });
     expect((await detectTools(host)).map(r => r.id)).toEqual(["tools/brew/gh"]);
     expect(host.calls.filter(c => c.includes("apt-mark") || c.includes("dpkg"))).toEqual([]);
   });
