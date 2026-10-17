@@ -2696,36 +2696,6 @@
      ]
     }
    ]
-  },
-  "HistoryPage": {
-   "type": "object",
-   "properties": {
-    "events": {
-     "type": "array",
-     "items": {
-      "$ref": "#/definitions/SessionEvent"
-     }
-    },
-    "pos": {
-     "type": "integer",
-     "minimum": 0
-    },
-    "total": {
-     "type": "integer",
-     "minimum": 0
-    },
-    "trimmed": {
-     "type": "boolean",
-     "enum": [
-      true
-     ]
-    }
-   },
-   "required": [
-    "events",
-    "pos",
-    "total"
-   ]
   }
  }
 }
