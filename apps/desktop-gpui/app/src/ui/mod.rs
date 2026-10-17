@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! wsp's shared pieces, ported from the Settings pages' grammar (`apps/web/src/settings/layout.ts` and the files it
+//! names) and the locked design in `.claude/skills/wsp-design`. Every screen composes these; none draws its own card,
+//! row or button.
+
+pub mod card;
+pub mod controls;
+pub mod dialog;
+pub mod icons;
+pub mod status;
+pub mod theme;
+
+use gpui_kit::{px, App, Pixels};
+
+pub use card::{glyph_frame, section_head, Card, CardItem, KeyCaps, Line, Row};
+pub use controls::{Button, ButtonKind, Choice, Field, PickRow, Select, SelectList};
+pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, CopyRow, Dialog};
+pub use icons::{Glyph, UiAssets};
+pub use status::{spinner, step_mark, Crab, Status, StatusMark, Step, StepRow, Still};
+pub use theme::{ActivePalette, Palette, Side};
+
+/// Every size below is `layout.ts`'s, or the Tailwind class a piece in its list writes, in pixels.
+pub mod size {
+    use super::*;
+
+    /// `CARD_INSET`: the sides every card keeps its content at.
+    pub const CARD_INSET: Pixels = px(20.);
+    /// `ROW_FLOOR`, `min-h-15`.
+    pub const ROW_FLOOR: Pixels = px(60.);
+    /// `LINE_FLOOR`, `min-h-12`.
+    pub const LINE_FLOOR: Pixels = px(48.);
+    /// A row's and a line's `py-3`.
+    pub const ROW_PAD_Y: Pixels = px(12.);
+    /// `CARD_SURFACE`'s `rounded-[11px]`.
+    pub const CARD_RADIUS: Pixels = px(11.);
+    /// `GLYPH_FRAME`'s `size-8` and `rounded-md`.
+    pub const GLYPH_FRAME: Pixels = px(32.);
+    pub const GLYPH_FRAME_RADIUS: Pixels = px(8.);
+    /// `GLYPH`'s `size-4`.
+    pub const GLYPH: Pixels = px(16.);
+    /// `SECTION_HEAD`'s `min-h-7`.
+    pub const SECTION_HEAD_FLOOR: Pixels = px(28.);
+    /// `SELECT_WIDTH`: `w-44`, `h-[30px]`, `rounded-[7px]`.
+    pub const SELECT_WIDTH: Pixels = px(176.);
+    pub const CONTROL_HEIGHT: Pixels = px(30.);
+    pub const CONTROL_RADIUS: Pixels = px(7.);
+    /// `PAGE_GAP`.
+    pub const PAGE_GAP: Pixels = px(30.);
+    /// `STEP_WIDTH`, and the dialog popup's `rounded-xl` from `--radius`.
+    pub const DIALOG_WIDTH: Pixels = px(560.);
+    pub const DIALOG_RADIUS: Pixels = px(14.);
+    /// The inset a dialog's cards keep (`STEP_FRAME`'s `--settings-inset:16px`).
+    pub const DIALOG_INSET: Pixels = px(16.);
+    /// `--control-radius` on buttons, and the copy row's `rounded-md`: both 8 px.
+    pub const BUTTON_RADIUS: Pixels = px(8.);
+}
+
+/// The type scale as the pieces use it: size and line height in pixels.
+pub mod text {
+    use super::*;
+
+    pub const SETTING_TITLE: (Pixels, Pixels) = (px(14.), px(20.));
+    pub const LIST_TITLE: (Pixels, Pixels) = (px(15.), px(24.));
+    pub const NOTE: (Pixels, Pixels) = (px(13.), px(20.));
+    /// A row's description, `text-[13px] leading-[1.45]`.
+    pub const DESCRIPTION: (Pixels, Pixels) = (px(13.), px(18.85));
+    pub const SECTION_HEAD: Pixels = px(13.5);
+    pub const FACT: Pixels = px(13.);
+    pub const VALUE: Pixels = px(14.);
+    pub const BUTTON: Pixels = px(13.);
+    pub const XS: (Pixels, Pixels) = (px(12.), px(16.));
+    pub const DIALOG_TITLE: (Pixels, Pixels) = (px(15.), px(20.));
+}
+
+/// Installs wsp's themes and font stacks; call once after `gpui_kit::init`. Open the app with `UiAssets` for the glyphs.
+pub fn init(side: Side, cx: &mut App) {
+    theme::init(side, cx);
+}
