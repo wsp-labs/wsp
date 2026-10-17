@@ -558,3 +558,16 @@ here are included or relied upon under their own licenses, reproduced below.
    https://github.com/longbridge/gpui-kit, unchanged, at the commit each
    folder's UPSTREAM file names. Copyright 2024 - 2026 Longbridge
    <https://longbridge.com>. Apache License 2.0; the text is under item 5.
+
+------------------------------------------------------------------------
+
+14. GPUI (Apache-2.0), Zed Industries
+
+   apps/desktop-gpui/patches holds wsp's changes to gpui-pre,
+   gpui-pre-wgpu and gpui-pre-apple 0.3.9, crates published from Zed's
+   GPUI at zed@93d7456 (https://github.com/zed-industries/zed).
+   apps/desktop-gpui/scripts/gpui-patches.sh applies them to unchanged
+   copies of those crates in apps/desktop-gpui/vendor, which git does
+   not track. Each patch names the files wsp changed and how.
+   Copyright 2022 - 2025 Zed Industries, Inc. Apache License 2.0; the
+   text is under item 5.

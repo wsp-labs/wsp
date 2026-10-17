@@ -3,6 +3,10 @@
 # Rebuilds desktop-gpui whenever a source file changes and swaps the running app only when the build passes.
 set -u
 cd "$(dirname "$0")"
+# vendor/ is generated: a fresh clone makes it, and a pull that changed patches/ since the last apply stops here.
+[ -d vendor ] || scripts/gpui-patches.sh apply || exit 1
+cat patches/*.patch | cmp -s - vendor/.applied 2>/dev/null ||
+  { echo "vendor/ is not what patches/ makes: run scripts/gpui-patches.sh apply, or save if you edited vendor/" >&2; exit 1; }
 bin=${CARGO_TARGET_DIR:-target}/debug/desktop-gpui
 stamp=$(mktemp)
 pid=

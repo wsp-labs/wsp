@@ -1,0 +1,72 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; width: 640px; height: 480px; overflow: hidden; }
+  div { position: absolute; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<script>
+  const PALETTE = ["#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#64748b"];
+  const SCENES = {
+    "plain-light": { page: "#f4f4f5", ink: "#18181b", tint: "rgba(255,255,255,0.55)", filter: "" },
+    "blur-light": { page: "#f4f4f5", ink: "#18181b", tint: "rgba(255,255,255,0.55)", filter: "blur(12px) saturate(1.14)" },
+    "blur-dark": { page: "#0a0a0a", ink: "#f4f4f5", tint: "rgba(245,245,245,0.03)", filter: "blur(16px) saturate(1.08)" },
+    "blur-two": { page: "#f4f4f5", ink: "#18181b", tint: "rgba(255,255,255,0.55)" },
+    "clip": { page: "#f4f4f5", ink: "#18181b" },
+  };
+  const params = new URLSearchParams(location.search);
+  const name = params.get("scene") || "plain-light";
+  const scroll = Number(params.get("scroll") || 0);
+  const scene = SCENES[name];
+  if (!scene) throw new Error("unknown scene " + name);
+  document.body.style.background = scene.page;
+
+  function rect(parent, left, top, width, height, color) {
+    const d = document.createElement("div");
+    d.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${color}`;
+    parent.appendChild(d);
+    return d;
+  }
+
+  function stripes(parent, i, rowTop, x0) {
+    const count = 8 + (i * 7) % 13;
+    for (let k = 0; k < count; k++) rect(parent, x0 + 10 * k, rowTop + 10, 2, 16, scene.ink);
+  }
+
+  if (name === "clip") {
+    const box = rect(document.body, 180, 40, 280, 400, "#ffffff");
+    box.style.borderRadius = "14px";
+    box.style.overflow = "hidden";
+    for (let i = 0; i * 36 - scroll < 400; i++) {
+      const top = i * 36 - scroll;
+      if (top + 36 <= 0) continue;
+      rect(box, 0, top, 280, 36, PALETTE[i % 6]);
+      stripes(box, i, top, 12);
+    }
+  } else {
+    for (let i = 0; i * 36 - scroll < 480; i++) {
+      const top = i * 36 - scroll;
+      if (top + 36 <= 0) continue;
+      rect(document.body, 24, top + 4, 592, 28, PALETTE[i % 6]);
+      stripes(document.body, i, top, 40);
+    }
+    if (name === "blur-two") {
+      const small = rect(document.body, 60, 40, 200, 80, scene.tint);
+      small.style.borderRadius = "16px";
+      small.style.backdropFilter = "blur(6px) saturate(1.14)";
+      const large = rect(document.body, 40, 280, 560, 160, scene.tint);
+      large.style.borderRadius = "22px";
+      large.style.backdropFilter = "blur(16px) saturate(1.08)";
+    } else {
+      const panel = rect(document.body, 40, 300, 560, 120, scene.tint);
+      panel.style.borderRadius = "22px";
+      if (scene.filter) panel.style.backdropFilter = scene.filter;
+    }
+  }
+</script>
+</body>
+</html>

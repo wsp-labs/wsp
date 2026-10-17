@@ -100,12 +100,15 @@ fi
 
 # host-client builds against daemon/crates/wsp-mcp by path, and tests/record.rs checks packages/protocol.
 rust_inputs=(apps/desktop-gpui daemon/crates packages/protocol/src
-  ':(exclude)apps/desktop-gpui/bench' ':(exclude)apps/desktop-gpui/scripts' ':(exclude)*.md')
+  ':(exclude)apps/desktop-gpui/bench' ':(exclude)apps/desktop-gpui/scripts/handin-check.sh' ':(exclude)*.md')
 if [ -z "$(git diff --name-only "${range[@]}" -- "${rust_inputs[@]}")" ]; then
   skip "cargo: nothing the Rust build or its tests read changed"
 elif [ "$rust" -eq 0 ]; then
   skip "cargo fmt, clippy and test: --no-rust was given; a hand-in runs them on Boat"
 else
+  # vendor/ is generated and gitignored, so a fresh clone has none until apply.
+  [ -d apps/desktop-gpui/vendor ] || apps/desktop-gpui/scripts/gpui-patches.sh apply ||
+    fail "gpui-patches.sh apply, which makes apps/desktop-gpui/vendor before cargo" "read the error above"
   for step in "fmt --check" "clippy --locked --all-targets -- -D warnings" "test --locked"; do
     # shellcheck disable=SC2086
     if (cd apps/desktop-gpui && cargo $step); then
