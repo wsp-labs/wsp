@@ -66,7 +66,8 @@ fn shadows(specs: &[ShadowSpec]) -> Vec<BoxShadow> {
         .map(|s| BoxShadow {
             color: color(&s.color),
             offset: point(px(s.x), px(s.y)),
-            blur_radius: px(s.blur),
+            // CSS's blur radius is twice the Gaussian's sigma, which is what GPUI's shadow takes.
+            blur_radius: px(s.blur / 2.),
             spread_radius: px(s.spread),
             inset: s.inset,
         })
@@ -87,6 +88,7 @@ macro_rules! palette {
             popover_shadow: Vec<ShadowSpec>,
             control_shadow: Vec<ShadowSpec>,
             tooltip_shadow: Vec<ShadowSpec>,
+            composer_shadow: Vec<ShadowSpec>,
         }
 
         /// wsp's tokens, named as `apps/web/src/index.css` and the theme sheets name them, resolved to sRGB.
@@ -97,6 +99,7 @@ macro_rules! palette {
             pub popover_shadow: Vec<BoxShadow>,
             pub control_shadow: Vec<BoxShadow>,
             pub tooltip_shadow: Vec<BoxShadow>,
+            pub composer_shadow: Vec<BoxShadow>,
         }
 
         impl From<&PaletteSpec> for Palette {
@@ -107,6 +110,7 @@ macro_rules! palette {
                     popover_shadow: shadows(&spec.popover_shadow),
                     control_shadow: shadows(&spec.control_shadow),
                     tooltip_shadow: shadows(&spec.tooltip_shadow),
+                    composer_shadow: shadows(&spec.composer_shadow),
                 }
             }
         }
@@ -150,6 +154,11 @@ palette!(
     status_working,
     status_failed,
     status_done,
+    composer_outline,
+    composer_highlight,
+    composer_menu_outline,
+    button_light,
+    destructive_ink,
 );
 
 #[derive(Deserialize)]
