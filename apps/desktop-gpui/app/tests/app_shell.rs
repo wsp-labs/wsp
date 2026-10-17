@@ -1,0 +1,753 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The frame: its keys as the web app binds them, its columns' sizes, and what it reads, writes and follows on a
+//! throwaway host. Each window is the app's own, the shell inside gpui-kit's Root after `gpui_kit::init` and wsp's
+//! themes, with the default key table bound as at launch.
+
+#[path = "../../host-client/tests/common/mod.rs"]
+mod common;
+
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use desktop_gpui::screens::app_shell::frame;
+use desktop_gpui::screens::app_shell::keys::{self, DEFAULTS};
+use desktop_gpui::screens::app_shell::panel::DEFAULT_WIDTH;
+use desktop_gpui::screens::{self, entry, Host, Opened, Pane, Parts, Place, Route, Screen, THREAD};
+use desktop_gpui::shell::{Launch, Shell, SETTINGS};
+use desktop_gpui::sidebar::ThreadItem;
+use gpui_kit::component::Root;
+use gpui_kit::{
+    div, point, prelude::*, px, size, Action, AnyView, App, AppContext, Entity, Modifiers, MouseButton, SharedString, TestAppContext,
+    VisualTestContext, Window,
+};
+use serde_json::json;
+use wsp_host_client::protocol::{PreferencesGetRequest, PreferencesSetRequest};
+use wsp_host_client::{Env, HostClient};
+
+const MAC: bool = cfg!(target_os = "macos");
+
+fn runtime() -> Arc<tokio::runtime::Runtime> {
+    Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap())
+}
+
+/// The shell in a 1280 by 800 window, on `state` with `env`; a state no host serves leaves it with no host.
+fn open(cx: &mut TestAppContext, state: std::path::PathBuf, env: Env) -> (Entity<Shell>, &mut VisualTestContext) {
+    // The host's answers, or its refusal, wake the window's tasks from the tokio runtime's thread.
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+        desktop_gpui::screens::app_shell::menu::init(cx);
+    });
+    let runtime = runtime();
+    let mut shell = None;
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let view = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
+        shell = Some(view.clone());
+        Root::new(view, window, cx)
+    });
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    cx.run_until_parked();
+    (shell.unwrap(), cx)
+}
+
+fn hostless(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
+    let dir = std::env::temp_dir().join("desktop-gpui-shell-no-host");
+    // With no HOME of its own the client reads this user's ~/.wsp and dials the one host held there.
+    let home = [("HOME".to_owned(), dir.to_string_lossy().into_owned())].into_iter().collect();
+    open(cx, dir.join("state.json"), home)
+}
+
+/// Threads in two workspaces, as the host would list them, and the first one open.
+fn with_threads(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
+    let item = |w: &str, t: &str| ThreadItem { workspace_id: w.into(), thread_id: t.into(), project: "p".into(), title: t.into() };
+    shell.update_in(cx, |shell, window, cx| {
+        shell.sidebar().update(cx, |s, cx| s.set_items(vec![item("w1", "a"), item("w1", "b"), item("w2", "c")], cx));
+        shell.workspace_runs("w1", true, window, cx);
+        shell.workspace_runs("w2", true, window, cx);
+        shell.go(Route::Thread { workspace_id: "w1".into(), thread_id: "a".into() }, window, cx);
+    });
+    cx.run_until_parked();
+}
+
+/// The keystroke the table gives `command` here, typed into the window.
+fn press(cx: &mut VisualTestContext, command: &str) {
+    let rule = DEFAULTS.iter().find(|r| r.command == command).unwrap_or_else(|| panic!("no rule for {command}"));
+    press_chord(cx, rule.chord);
+}
+
+fn press_chord(cx: &mut VisualTestContext, chord: &str) {
+    let typed = keys::keystroke(chord, MAC).unwrap_or_else(|| panic!("{chord} does not read"));
+    cx.simulate_keystrokes(&typed);
+    cx.run_until_parked();
+}
+
+/// Waits out the sidebar's 200 ms slide and draws the frame it ends on.
+fn slid(cx: &mut VisualTestContext) {
+    std::thread::sleep(Duration::from_millis(250));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+}
+
+fn thread(shell: &Entity<Shell>, cx: &mut VisualTestContext) -> Option<String> {
+    shell.read_with(cx, |s, _| match s.route() {
+        Route::Thread { thread_id, .. } => Some(thread_id.clone()),
+        _ => None,
+    })
+}
+
+#[gpui_kit::test]
+fn both_sidebar_chords_toggle_it(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    for chord in ["mod+shift+b", "mod+b"] {
+        assert!(shell.read_with(cx, |s, _| s.sidebar_open()));
+        press_chord(cx, chord);
+        assert!(!shell.read_with(cx, |s, _| s.sidebar_open()), "{chord} closes the sidebar");
+        assert!(cx.debug_bounds("sidebar-column").is_some(), "it slides out rather than vanish");
+        slid(cx);
+        assert!(cx.debug_bounds("sidebar-column").is_none(), "nothing of the sidebar stays on screen");
+        press_chord(cx, chord);
+        assert!(shell.read_with(cx, |s, _| s.sidebar_open()), "{chord} opens it again");
+        slid(cx);
+        assert_eq!(cx.debug_bounds("sidebar-column").unwrap().origin.x, px(0.), "and slides back in whole");
+    }
+}
+
+#[gpui_kit::test]
+fn the_right_panel_chord_opens_it_on_the_launcher_and_closes_it(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    assert!(!panel.read_with(cx, |p, _| p.is_open()), "a thread's panel starts closed");
+    press(cx, "rightPanel.toggle");
+    assert!(panel.read_with(cx, |p, _| p.is_open()));
+    let launcher = cx.debug_bounds("panel-launcher").expect("an empty panel shows the launcher");
+    let bounds = cx.debug_bounds("right-panel").unwrap();
+    assert_eq!(bounds.size.width, DEFAULT_WIDTH);
+    assert!(launcher.size.width <= px(384.));
+    press(cx, "rightPanel.toggle");
+    assert!(!panel.read_with(cx, |p, _| p.is_open()));
+    assert!(cx.debug_bounds("right-panel").is_none());
+}
+
+#[gpui_kit::test]
+fn a_letter_on_the_launcher_opens_its_pane(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    press(cx, "rightPanel.toggle");
+    cx.simulate_keystrokes("t");
+    cx.run_until_parked();
+    assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Terminal), "the launcher took focus as it opened");
+    cx.simulate_keystrokes("d");
+    cx.run_until_parked();
+    assert_eq!(panel.read_with(cx, |p, _| p.panes()), vec![Pane::Terminal], "with a tab open a letter is the tab's");
+    press(cx, "rightPanel.toggle");
+    press(cx, "sidebar.toggle");
+    assert!(!shell.read_with(cx, |s, _| s.sidebar_open()), "closing the panel hands the keys back to the shell");
+}
+
+#[gpui_kit::test]
+fn the_terminal_chord_toggles_the_drawer(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    press(cx, "terminal.toggle");
+    assert!(shell.read_with(cx, |s, _| s.drawer_open()));
+    press(cx, "terminal.toggle");
+    assert!(!shell.read_with(cx, |s, _| s.drawer_open()));
+}
+
+#[gpui_kit::test]
+fn the_browser_chord_opens_the_browser_tab_and_closes_the_panel_on_it(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    press(cx, "preview.toggle");
+    assert_eq!(panel.read_with(cx, |p, _| (p.is_open(), p.active())), (true, Some(Pane::Browser)));
+    press(cx, "preview.toggle");
+    assert!(!panel.read_with(cx, |p, _| p.is_open()), "pressed on the open browser tab, it closes the panel");
+}
+
+#[gpui_kit::test]
+fn the_settings_chord_opens_settings_hides_the_panel_and_comes_back(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    press(cx, "rightPanel.toggle");
+    press(cx, "settings.toggle");
+    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(SETTINGS.into()));
+    assert!(cx.debug_bounds("right-panel").is_none(), "Settings hides the right panel");
+    press(cx, "rightPanel.toggle");
+    press(cx, "terminal.toggle");
+    assert!(!shell.read_with(cx, |s, _| s.drawer_open()), "neither panel answers while Settings is open");
+    press(cx, "settings.toggle");
+    assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "closing Settings goes back to the thread");
+    assert!(cx.debug_bounds("right-panel").is_some(), "and the panel it had open");
+
+    press(cx, "settings.toggle");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "Escape closes Settings too");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "and does nothing outside it");
+}
+
+#[gpui_kit::test]
+fn each_slot_chord_opens_that_workspace(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    press(cx, "workspace.select.2");
+    assert_eq!(thread(&shell, cx).as_deref(), Some("c"));
+    press(cx, "workspace.select.1");
+    assert_eq!(thread(&shell, cx).as_deref(), Some("a"));
+    for slot in 3..=9 {
+        press(cx, &format!("workspace.select.{slot}"));
+        assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "slot {slot} has no workspace, so nothing moves");
+    }
+}
+
+#[gpui_kit::test]
+fn the_workspace_chords_walk_the_workspaces(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    for (chord, want) in
+        [("mod+alt+arrowright", "c"), ("mod+alt+arrowright", "a"), ("mod+alt+arrowleft", "c"), ("ctrl+tab", "a"), ("ctrl+shift+tab", "c")]
+    {
+        press_chord(cx, chord);
+        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "{chord}");
+    }
+}
+
+#[gpui_kit::test]
+fn the_thread_chords_walk_the_workspaces_threads(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    for (command, want) in [("thread.next", "b"), ("thread.next", "a"), ("thread.previous", "b")] {
+        press(cx, command);
+        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "{command}");
+    }
+}
+
+#[gpui_kit::test]
+fn the_tab_chords_walk_the_panel_tabs_while_it_has_focus(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    panel.update_in(cx, |p, window, cx| {
+        p.add(Pane::Terminal, None, window, cx);
+        p.add(Pane::Changes, None, window, cx);
+        p.add(Pane::Files, None, window, cx);
+    });
+    cx.run_until_parked();
+    let tab = cx.debug_bounds("panel-tab-0").unwrap();
+    cx.simulate_click(tab.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Terminal));
+    press(cx, "rightPanel.nextTab");
+    assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Changes));
+    press(cx, "rightPanel.previousTab");
+    press(cx, "rightPanel.previousTab");
+    assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Files), "it wraps");
+    assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "ctrl+tab in the panel walks its tabs, not the workspaces");
+}
+
+#[gpui_kit::test]
+fn the_about_and_hosts_rows_open_their_routes(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::app_shell::menu;
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    for (row, name) in [(Box::new(menu::About) as Box<dyn Action>, menu::ABOUT_SCREEN), (Box::new(menu::ShowHosts), menu::HOSTS_SCREEN)] {
+        cx.update(|window, cx| window.dispatch_action(row, cx));
+        cx.run_until_parked();
+        assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(name.into()));
+    }
+}
+
+#[gpui_kit::test]
+fn a_page_with_no_screen_yet_hides_the_panel_and_escape_leaves_it(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::app_shell::menu;
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    press(cx, "rightPanel.toggle");
+    assert!(cx.debug_bounds("right-panel").is_some());
+    cx.update(|window, cx| window.dispatch_action(Box::new(menu::About), cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("right-panel").is_none(), "a page hides the panel, as Settings does");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "Escape goes back to the thread");
+    assert!(cx.debug_bounds("right-panel").is_some(), "and its panel");
+}
+
+#[gpui_kit::test]
+fn the_close_tab_action_closes_the_active_tab(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    panel.update_in(cx, |p, window, cx| {
+        p.add(Pane::Browser, None, window, cx);
+        p.add(Pane::Terminal, None, window, cx);
+    });
+    cx.dispatch_action(keys::ClosePanelTab);
+    cx.run_until_parked();
+    assert_eq!(panel.read_with(cx, |p, _| p.panes()), vec![Pane::Browser]);
+    cx.dispatch_action(keys::ClosePanelTab);
+    cx.run_until_parked();
+    assert!(panel.read_with(cx, |p, _| p.is_open() && p.panes().is_empty()), "the last closed leaves the launcher");
+}
+
+#[gpui_kit::test]
+fn the_panel_keeps_a_hundred_threads_it_was_used_on_and_the_computers_own(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    let go = |shell: &Entity<Shell>, route: Route, cx: &mut VisualTestContext| {
+        shell.update_in(cx, |s, window, cx| s.go(route, window, cx));
+        cx.run_until_parked();
+    };
+    let at = |t: usize| Route::Thread { workspace_id: "w".into(), thread_id: format!("t{t}") };
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    let open = |cx: &mut VisualTestContext| panel.read_with(cx, |p, _| p.is_open());
+    press(cx, "rightPanel.toggle");
+    go(&shell, at(0), cx);
+    press(cx, "rightPanel.toggle");
+    for t in 1..=100 {
+        go(&shell, at(t), cx);
+    }
+    go(&shell, at(0), cx);
+    assert!(open(cx), "threads whose panel was never used take no place among the hundred");
+    go(&shell, Route::Empty, cx);
+    assert!(open(cx), "the computer's own panel is kept, as HERE_KEY is");
+    for t in 1..=100 {
+        go(&shell, at(t), cx);
+        press(cx, "rightPanel.toggle");
+    }
+    go(&shell, at(0), cx);
+    assert!(!open(cx), "past a hundred used, the oldest is forgotten");
+}
+
+/// Chords whose command another screen answers: each reaches the window as its action, for that screen to handle.
+#[gpui_kit::test]
+fn the_other_screens_chords_reach_the_window_as_their_actions(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let heard = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+    let commands = [
+        "commandPalette.toggle",
+        "files.quickOpen",
+        "files.search",
+        "chat.new",
+        "thread.settle",
+        "thread.nextNeedsYou",
+        "editor.open",
+        "thread.find",
+    ];
+    fn listen<A: Action>(heard: &std::rc::Rc<std::cell::RefCell<Vec<String>>>, cx: &mut VisualTestContext) {
+        let heard = heard.clone();
+        cx.update(|_, cx| {
+            cx.on_action(move |action: &A, _| heard.borrow_mut().push(action.name().to_owned()));
+        });
+    }
+    listen::<keys::ToggleCommandPalette>(&heard, cx);
+    listen::<keys::QuickOpen>(&heard, cx);
+    listen::<keys::SearchFiles>(&heard, cx);
+    listen::<keys::NewThread>(&heard, cx);
+    listen::<keys::SettleThread>(&heard, cx);
+    listen::<keys::NextNeedsYou>(&heard, cx);
+    listen::<keys::OpenInEditor>(&heard, cx);
+    listen::<keys::FindInThread>(&heard, cx);
+    for command in commands {
+        for rule in DEFAULTS.iter().filter(|r| r.command == command) {
+            heard.borrow_mut().clear();
+            press_chord(cx, rule.chord);
+            let name = keys::action(command).unwrap().name();
+            assert_eq!(*heard.borrow(), vec![name.to_owned()], "{} for {command}", rule.chord);
+        }
+    }
+}
+
+#[gpui_kit::test]
+fn the_rails_drag_the_columns_within_their_bounds(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    assert_eq!(cx.debug_bounds("sidebar-column").unwrap().size.width, frame::SIDEBAR_DEFAULT);
+    let drag = |cx: &mut VisualTestContext, from: f32, to: f32| {
+        cx.simulate_mouse_down(point(px(from), px(400.)), MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_move(point(px(from + 10.), px(400.)), MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_move(point(px(to), px(400.)), MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_up(point(px(to), px(400.)), MouseButton::Left, Modifiers::none());
+        cx.run_until_parked();
+    };
+    drag(cx, 256., 360.);
+    assert_eq!(cx.debug_bounds("sidebar-column").unwrap().size.width, px(360.));
+    drag(cx, 360., 900.);
+    assert_eq!(cx.debug_bounds("sidebar-column").unwrap().size.width, frame::SIDEBAR_MAX);
+    drag(cx, 480., 10.);
+    assert_eq!(cx.debug_bounds("sidebar-column").unwrap().size.width, frame::SIDEBAR_MIN);
+
+    press(cx, "rightPanel.toggle");
+    let left = cx.debug_bounds("right-panel").unwrap().origin.x;
+    drag(cx, f32::from(left), f32::from(left) - 100.);
+    assert_eq!(cx.debug_bounds("right-panel").unwrap().size.width, DEFAULT_WIDTH + px(100.));
+    drag(cx, f32::from(left) - 100., 100.);
+    // 1280 less the 220 px sidebar is the row; the centre keeps 360 of it.
+    assert_eq!(cx.debug_bounds("right-panel").unwrap().size.width, px(1280. - 220. - 360.));
+}
+
+#[gpui_kit::test]
+fn the_frame_rows_are_the_web_apps(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let header = cx.debug_bounds("header-row").unwrap();
+    let frame_row = cx.debug_bounds("sidebar-frame-row").unwrap();
+    assert_eq!((header.size.height, frame_row.size.height), (frame::TOPBAR, frame::TOPBAR));
+    assert_eq!(header.origin.x, frame::SIDEBAR_DEFAULT);
+    let center = cx.debug_bounds("center").unwrap();
+    assert_eq!(center.size.width, px(1280.) - frame::SIDEBAR_DEFAULT);
+    press(cx, "rightPanel.toggle");
+    let bar = cx.debug_bounds("panel-bar").unwrap();
+    assert_eq!(bar.size.height, frame::TOPBAR);
+    assert_eq!(cx.debug_bounds("center").unwrap().size.width, px(1280.) - frame::SIDEBAR_DEFAULT - DEFAULT_WIDTH);
+}
+
+#[test]
+fn the_sizes_are_the_web_apps() {
+    let src = |path: &str| std::fs::read_to_string(format!("{}/../../web/src/{path}", env!("CARGO_MANIFEST_DIR"))).unwrap();
+    let number = |text: &str, name: &str| -> f32 {
+        let at = text.find(&format!("{name} =")).unwrap_or_else(|| panic!("no {name}"));
+        text[at..].split('=').nth(1).unwrap().trim().split(|c: char| !c.is_ascii_digit() && c != '.').next().unwrap().parse().unwrap()
+    };
+    let widths = src("shell/sidebarWidth.ts");
+    assert_eq!(px(number(&widths, "SIDEBAR_DEFAULT_WIDTH")), frame::SIDEBAR_DEFAULT);
+    assert_eq!(px(number(&widths, "SIDEBAR_MIN_WIDTH")), frame::SIDEBAR_MIN);
+    assert_eq!(px(number(&widths, "SIDEBAR_MAX_WIDTH")), frame::SIDEBAR_MAX);
+    let layout = src("rightPanelLayout.ts");
+    assert_eq!(px(number(&layout, "RIGHT_PANEL_SHEET_MAX_VIEWPORT")), frame::SHEET_MAX_VIEWPORT);
+    assert_eq!(px(number(&layout, "RIGHT_PANEL_MIN_WIDTH")), desktop_gpui::screens::app_shell::panel::MIN_WIDTH);
+    assert_eq!(px(number(&layout, "CENTER_COLUMN_MIN_WIDTH")), frame::CENTER_MIN);
+    assert_eq!(px(number(&src("components/preview/PreviewPanelShell.tsx"), "PREVIEW_PANEL_DEFAULT_WIDTH")), DEFAULT_WIDTH);
+    let css = src("index.css");
+    let topbar = css.lines().find(|l| l.trim_start().starts_with("--workspace-topbar-height:")).unwrap();
+    assert!(topbar.contains(&format!("{}px", f32::from(frame::TOPBAR))), "{topbar}");
+}
+
+/// Polls `done` while the host answers on its own threads.
+fn until(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        cx.run_until_parked();
+        if done(cx) {
+            return;
+        }
+        assert!(Instant::now() < deadline, "timed out waiting for {what}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn set(host: &common::Throwaway, patch: serde_json::Value) {
+    let rt = runtime();
+    rt.block_on(async {
+        let client: HostClient = host.client().await;
+        client.call(common::ask::<PreferencesSetRequest>(json!({ "patch": patch }))).await.unwrap();
+    });
+}
+
+fn get(host: &common::Throwaway) -> serde_json::Value {
+    let rt = runtime();
+    rt.block_on(async {
+        let client: HostClient = host.client().await;
+        let reply = client.call(common::ask::<PreferencesGetRequest>(json!({}))).await.unwrap();
+        serde_json::to_value(reply.preferences).unwrap()
+    })
+}
+
+#[gpui_kit::test]
+fn it_reads_the_hosts_width_chords_and_theme(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    set(&host, json!({ "sidebarWidth": 333, "keybindings": { "sidebar.toggle": "mod+shift+s" }, "theme": "dark", "transparency": false }));
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host's width", |cx| shell.read_with(cx, |s, _| s.sidebar_width()) == px(333.));
+    assert_eq!(cx.debug_bounds("sidebar-column").unwrap().size.width, px(333.));
+    assert_eq!(cx.update(|_, cx| desktop_gpui::ui::theme::current(cx).id), "graphite", "dark draws the dark pick, graphite");
+    assert!(!shell.read_with(cx, |s, _| s.look().glass), "transparency off draws no glass");
+
+    for chord in ["mod+b", "mod+shift+b"] {
+        press_chord(cx, chord);
+        assert!(shell.read_with(cx, |s, _| s.sidebar_open()), "the person's chord replaced both defaults, {chord} among them");
+    }
+    press_chord(cx, "mod+shift+s");
+    assert!(!shell.read_with(cx, |s, _| s.sidebar_open()), "and is the one that toggles");
+}
+
+#[gpui_kit::test]
+fn a_drag_writes_the_sidebar_width_to_the_host(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host", |cx| shell.read_with(cx, |s, _| s.connected()));
+    cx.simulate_mouse_down(point(px(256.), px(400.)), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(266.), px(400.)), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(300.), px(400.)), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_up(point(px(300.), px(400.)), MouseButton::Left, Modifiers::none());
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while get(&host).get("sidebarWidth").and_then(|w| w.as_i64()) != Some(300) {
+        assert!(Instant::now() < deadline, "the host never held 300: {:?}", get(&host).get("sidebarWidth"));
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[gpui_kit::test]
+fn it_follows_preferences_another_window_changes(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host", |cx| shell.read_with(cx, |s, _| s.connected()));
+    assert_eq!(cx.update(|_, cx| desktop_gpui::ui::theme::current(cx).id), "paper");
+    assert!(shell.read_with(cx, |s, _| s.look().glass), "a host that says nothing of transparency leaves it on");
+    set(
+        &host,
+        json!({ "transparency": false, "sidebarWidth": 400, "theme": "dark", "darkTheme": "pitch", "keybindings": { "settings.toggle": "mod+shift+," } }),
+    );
+    until(cx, "the pushed width", |cx| shell.read_with(cx, |s, _| s.sidebar_width()) == px(400.));
+    assert!(!shell.read_with(cx, |s, _| s.look().glass), "a pushed solid setting takes the glass away");
+    assert_eq!(cx.update(|_, cx| desktop_gpui::ui::theme::current(cx).id), "pitch");
+    press_chord(cx, "mod+,");
+    assert_ne!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(SETTINGS.into()), "the old chord is gone");
+    press_chord(cx, "mod+shift+,");
+    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(SETTINGS.into()));
+    press_chord(cx, "mod+shift+,");
+
+    set(&host, json!({ "keybindings": { "settings.toggle": null } }));
+    until(cx, "the default chord back", |cx| shell.read_with(cx, |s, _| s.chords("settings.toggle")) == ["mod+,"]);
+    press_chord(cx, "mod+shift+,");
+    assert_ne!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(SETTINGS.into()), "the person's chord is gone");
+    press_chord(cx, "mod+,");
+    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(SETTINGS.into()), "and the default answers again");
+}
+
+#[gpui_kit::test]
+fn a_press_inside_the_sheet_stays_in_the_sheet(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    cx.simulate_resize(size(px(900.), px(800.)));
+    cx.run_until_parked();
+    press(cx, "rightPanel.toggle");
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    let bar = cx.debug_bounds("panel-bar").expect("the panel shows as a sheet");
+    cx.simulate_click(bar.center(), Modifiers::none());
+    assert!(panel.read_with(cx, |p, _| p.is_open()), "a press on the sheet's bar does not reach the backdrop under it");
+    // The header's panel toggle, 28 px wide at 21 px from the right, lies under the sheet's bar.
+    let toggle = point(px(900.) - frame::HEADER_INSET - px(15.), px(26.));
+    assert!(cx.debug_bounds("right-panel").unwrap().contains(&toggle));
+    cx.simulate_click(toggle, Modifiers::none());
+    assert!(panel.read_with(cx, |p, _| p.is_open()), "nor the header's toggle under it");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!panel.read_with(cx, |p, _| p.is_open()), "Escape closes the sheet");
+}
+
+thread_local! {
+    /// Each probe screen built or moved, by its name, with what it was opened on.
+    static PROBED: std::cell::RefCell<Vec<(&'static str, &'static str, Opened)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+fn probed() -> Vec<(&'static str, &'static str, Opened)> {
+    PROBED.with(|p| p.borrow().clone())
+}
+
+/// A view a probe hands the frame, found again by its selector.
+struct Part(&'static str);
+
+impl Render for Part {
+    fn render(&mut self, _: &mut Window, _: &mut gpui_kit::Context<Self>) -> impl IntoElement {
+        let name = self.0;
+        div().debug_selector(move || name.into()).w(px(40.)).h(px(20.))
+    }
+}
+
+macro_rules! probe {
+    ($ty:ident, $name:expr, $place:expr, $selector:literal) => {
+        struct $ty;
+        impl Render for $ty {
+            fn render(&mut self, _: &mut Window, _: &mut gpui_kit::Context<Self>) -> impl IntoElement {
+                div().debug_selector(|| $selector.into()).size_full()
+            }
+        }
+        impl Screen for $ty {
+            const NAME: &'static str = $name;
+            const PLACE: Place = $place;
+            fn new(_: Host, opened: Opened, _: &mut Window, _: &mut gpui_kit::Context<Self>) -> Self {
+                PROBED.with(|p| p.borrow_mut().push(($name, "new", opened)));
+                $ty
+            }
+            fn show(&mut self, opened: Opened, _: &mut Window, _: &mut gpui_kit::Context<Self>) {
+                PROBED.with(|p| p.borrow_mut().push(($name, "show", opened)));
+            }
+            fn parts(_: &Entity<Self>, _: &mut Window, cx: &mut App) -> Parts {
+                let part = |name: &'static str, cx: &mut App| Some(AnyView::from(cx.new(|_| Part(name))));
+                Parts {
+                    sidebar: part(concat!($selector, "-sidebar"), cx),
+                    crumbs: part(concat!($selector, "-crumbs"), cx),
+                    actions: part(concat!($selector, "-actions"), cx),
+                    title: Some(std::rc::Rc::new(|_: &App| SharedString::from(concat!($selector, " tab")))),
+                }
+            }
+        }
+    };
+}
+
+probe!(PageProbe, "probe-page", Place::Main, "probe-page");
+probe!(ShellProbe, "terminal", Place::Panel(Pane::Terminal), "probe-shell");
+probe!(ThreadProbe, THREAD, Place::Main, "probe-thread");
+
+fn opened(workspace: &str, thread: &str, tab: Option<&str>, arg: Option<&str>) -> Opened {
+    Opened {
+        workspace_id: Some(workspace.to_owned()),
+        thread_id: Some(thread.to_owned()),
+        tab: tab.map(|t| SharedString::from(t.to_owned())),
+        arg: arg.map(|a| SharedString::from(a.to_owned())),
+    }
+}
+
+/// Screens mounted through the registry, as a screen's own arm in screens::screen mounts it, once in each place.
+#[gpui_kit::test]
+fn a_registered_screen_mounts_in_its_place_on_what_it_was_opened_on(cx: &mut TestAppContext) {
+    screens::add("probe-page", entry::<PageProbe>());
+    screens::add("terminal", entry::<ShellProbe>());
+    screens::add(THREAD, entry::<ThreadProbe>());
+    let host = common::Throwaway::start();
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host", |cx| shell.read_with(cx, |s, _| s.connected()));
+    with_threads(&shell, cx);
+    let go = |route: Route, cx: &mut VisualTestContext| {
+        shell.update_in(cx, |s, window, cx| s.go(route, window, cx));
+        cx.run_until_parked();
+    };
+
+    // The thread view: built once for the first thread, told of each switch after it, and drawn in the main column.
+    go(Route::Thread { workspace_id: "w1".into(), thread_id: "b".into() }, cx);
+    assert_eq!(
+        probed(),
+        [(THREAD, "new", opened("w1", "a", None, None)), (THREAD, "show", opened("w1", "b", None, None))],
+        "a switch moves the kept thread view rather than build another"
+    );
+    assert!(cx.debug_bounds("probe-thread").is_some());
+    assert!(cx.debug_bounds("probe-thread-actions").is_some(), "its actions ride the header");
+    let center = cx.debug_bounds("center").unwrap();
+    assert!(center.contains(&cx.debug_bounds("probe-thread").unwrap().center()));
+
+    // A pane: its route opens a tab of its own id beside the thread, on the thread's workspace.
+    PROBED.with(|p| p.borrow_mut().clear());
+    go(Route::Screen("terminal:terminal:7".into()), cx);
+    assert_eq!(probed(), [("terminal", "new", opened("w1", "b", Some("terminal:7"), None))]);
+    assert_eq!(thread(&shell, cx).as_deref(), Some("b"), "the thread stays open beside it");
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    assert!(cx.debug_bounds("right-panel").unwrap().contains(&cx.debug_bounds("probe-shell").unwrap().center()));
+    panel.update_in(cx, |p, window, cx| p.add(Pane::Terminal, None, window, cx));
+    cx.run_until_parked();
+    let tabs = panel.read_with(cx, |p, _| p.tabs());
+    assert_eq!(tabs.len(), 2, "a second Terminal is a shell of its own: {tabs:?}");
+    assert!(tabs.iter().all(|(pane, _)| *pane == Pane::Terminal) && tabs[0].1 != tabs[1].1);
+    go(Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, cx);
+    PROBED.with(|p| p.borrow_mut().clear());
+    go(Route::Thread { workspace_id: "w1".into(), thread_id: "b".into() }, cx);
+    panel.update_in(cx, |p, window, cx| p.activate(0, window, cx));
+    cx.run_until_parked();
+    assert!(
+        probed().contains(&("terminal", "new", opened("w1", "b", Some("terminal:7"), None))),
+        "back on the thread the pane is built again on the same tab, to find its session: {:?}",
+        probed()
+    );
+
+    // A page: in the main column with its sidebar, crumbs and actions, on its argument, and the panel hidden.
+    PROBED.with(|p| p.borrow_mut().clear());
+    go(Route::Screen("probe-page:usage".into()), cx);
+    assert_eq!(probed(), [("probe-page", "new", opened("w1", "b", None, Some("usage")))]);
+    for part in ["probe-page", "probe-page-sidebar", "probe-page-crumbs", "probe-page-actions"] {
+        assert!(cx.debug_bounds(part).is_some(), "{part} is drawn");
+    }
+    assert!(cx.debug_bounds("sidebar-column").unwrap().contains(&cx.debug_bounds("probe-page-sidebar").unwrap().center()));
+    assert!(cx.debug_bounds("header-actions").unwrap().contains(&cx.debug_bounds("probe-page-actions").unwrap().center()));
+    assert!(cx.debug_bounds("right-panel").is_none(), "a page hides the panel");
+    assert!(cx.debug_bounds("probe-thread").is_none());
+}
+
+/// `max-w-[70%]` on the title in a line that takes what it holds: Chromium gives a long title 70% of the room the row
+/// leaves the line, a short one its own width.
+#[gpui_kit::test]
+fn the_title_takes_seventy_percent_of_the_room_the_row_leaves(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    let item =
+        |t: &str, title: &str| ThreadItem { workspace_id: "w".into(), thread_id: t.into(), project: "bench".into(), title: title.into() };
+    let long = "Add a test that the paging stops at the first event and then a great many more words than any row holds";
+    shell.update_in(cx, |shell, window, cx| {
+        shell.sidebar().update(cx, |s, cx| s.set_items(vec![item("long", long), item("short", "Short title")], cx));
+        shell.go(Route::Thread { workspace_id: "w".into(), thread_id: "long".into() }, window, cx);
+    });
+    cx.run_until_parked();
+    let (line, title, actions) =
+        (cx.debug_bounds("crumbs").unwrap(), cx.debug_bounds("crumbs-title").unwrap(), cx.debug_bounds("header-actions").unwrap());
+    assert!(f32::from(actions.left() - line.right()).abs() < 1., "the line takes the room the row leaves: {line:?} against {actions:?}");
+    assert!((f32::from(title.size.width) - 0.7 * f32::from(line.size.width)).abs() < 1., "{title:?} is 70% of {line:?}");
+
+    shell.update_in(cx, |shell, window, cx| shell.go(Route::Thread { workspace_id: "w".into(), thread_id: "short".into() }, window, cx));
+    cx.run_until_parked();
+    let (line, title) = (cx.debug_bounds("crumbs").unwrap(), cx.debug_bounds("crumbs-title").unwrap());
+    assert!(f32::from(title.size.width) < 0.7 * f32::from(line.size.width), "a short title keeps its width: {title:?} in {line:?}");
+    assert!(f32::from(line.size.width) < 300., "and the line its own: {line:?}");
+}
+
+#[gpui_kit::test]
+fn a_rail_held_off_its_centre_does_not_jump_and_a_release_past_the_window_still_writes(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host", |cx| shell.read_with(cx, |s, _| s.connected()));
+    // Held 6 px right of the rail's centre line at 256 and moved to 300: the edge moves the 38 px the pointer did.
+    cx.simulate_mouse_down(point(px(262.), px(400.)), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(272.), px(400.)), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(300.), px(400.)), MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(cx.debug_bounds("sidebar-column").unwrap().size.width, px(294.));
+    cx.simulate_mouse_up(point(px(1500.), px(900.)), MouseButton::Left, Modifiers::none());
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while get(&host).get("sidebarWidth").and_then(|w| w.as_i64()) != Some(294) {
+        assert!(Instant::now() < deadline, "a release past the window never wrote 294: {:?}", get(&host).get("sidebarWidth"));
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[gpui_kit::test]
+fn the_active_tab_is_brought_into_the_strip_and_a_pane_with_no_screen_says_so(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    let all = [Pane::Browser, Pane::Terminal, Pane::Changes, Pane::Files, Pane::Computer, Pane::Processes, Pane::Agents, Pane::Slate];
+    for pane in all {
+        panel.update_in(cx, |p, window, cx| p.add(pane, None, window, cx));
+        cx.run_until_parked();
+    }
+    let strip = cx.debug_bounds("panel-tabs").unwrap();
+    let last = cx.debug_bounds("panel-tab-7").unwrap();
+    assert!(last.left() >= strip.left() && last.right() <= strip.right(), "the last tab opened is in view: {last:?} in {strip:?}");
+    panel.update_in(cx, |p, window, cx| p.activate(0, window, cx));
+    cx.run_until_parked();
+    let first = cx.debug_bounds("panel-tab-0").unwrap();
+    assert!(first.left() >= strip.left() && first.right() <= strip.right(), "and so is the first once it is active again: {first:?}");
+    assert!(cx.debug_bounds("pane-empty").is_some(), "a pane no screen draws says nothing is open here");
+}
+
+#[gpui_kit::test]
+fn a_thread_whose_workspace_does_not_run_cannot_open_its_shells(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    shell.update_in(cx, |s, window, cx| {
+        s.workspace_runs("w2", false, window, cx);
+        s.go(Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, window, cx);
+    });
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    press(cx, "rightPanel.toggle");
+    cx.simulate_keystrokes("t");
+    cx.run_until_parked();
+    assert_eq!(panel.read_with(cx, |p, _| p.active()), None, "Terminal waits while the workspace does not run");
+    shell.update_in(cx, |s, window, cx| s.workspace_runs("w2", true, window, cx));
+    cx.simulate_keystrokes("t");
+    cx.run_until_parked();
+    assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Terminal), "and opens once it runs");
+}
