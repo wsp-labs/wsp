@@ -7,6 +7,7 @@ pub mod act;
 pub mod card;
 pub mod catalog;
 pub mod computer_glyph;
+pub mod context_menu;
 pub mod controls;
 pub mod dialog;
 pub mod focus;

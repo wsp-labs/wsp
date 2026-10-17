@@ -30,8 +30,9 @@ use crate::screens::app_shell::material::{self, Look};
 use crate::screens::app_shell::panel::{At, RightPanel};
 use crate::screens::app_shell::vibrancy::{self, Vibrancy};
 use crate::screens::app_shell::AbortOnDrop;
-use crate::screens::{self, app_shell, Entry, Host, Mounted, Opened, Pane, Place, Route, THREAD};
-use crate::sidebar::{Selected, Sidebar, ThreadItem};
+use crate::screens::composer::screen::ComposerScreen;
+use crate::screens::{self, app_shell, Entry, Host, Mounted, Opened, Pane, Place, Route, Screen, THREAD};
+use crate::sidebar::{Asked, Link, Selected, Sidebar, ThreadItem};
 use crate::thread_view::ThreadView;
 use crate::ui::theme::WspTheme;
 use crate::ui::{self, ActivePalette};
@@ -139,6 +140,7 @@ pub struct Shell {
     _connect: Task<()>,
     _events: Option<Task<()>>,
     _selected: Subscription,
+    _asked: Subscription,
     _focus_lost: Subscription,
     _appearance: Subscription,
     _activation: Subscription,
@@ -179,6 +181,28 @@ impl Shell {
             let route = Route::Thread { workspace_id: item.workspace_id.clone(), thread_id: item.thread_id.clone() };
             this.go(route, window, cx);
         });
+        let asked = cx.subscribe_in(&sidebar, window, |this, _, asked: &Asked, window, cx| match asked {
+            Asked::Settings => this.go(Route::Screen(SETTINGS.into()), window, cx),
+            Asked::Usage => this.go(Route::Screen(format!("{SETTINGS}:usage").into()), window, cx),
+            Asked::Activity => this.go(Route::Screen(format!("{SETTINGS}:activity").into()), window, cx),
+            Asked::NewThread => {
+                if let Some(workspace) = this.workspace_on_screen(cx) {
+                    this.go(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), window, cx);
+                }
+            }
+            Asked::NewThreadIn(workspace) => this.go(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), window, cx),
+            Asked::Search => {}
+            Asked::AddProject => {}
+            Asked::AddComputer => {}
+            Asked::AddCloud => {}
+            Asked::Setup(_) => {}
+            Asked::ExportProject(_) => {}
+            Asked::OpenTerminal(_) => {}
+            Asked::OpenBrowser(_) => {}
+            Asked::ProjectSettings(_) => {}
+            Asked::ComputerSettings(_) => {}
+        });
+        let page = crate::sidebar::host_page(&state);
         let connecting = runtime.spawn(async move {
             let host = HostClient::connect(&state, &env).await?;
             let threads = host.threads().await?;
@@ -201,7 +225,8 @@ impl Shell {
                     let host = Arc::new(host);
                     this.host = Some(host.clone());
                     let runtime = this.runtime.clone();
-                    this.panel.update(cx, |p, cx| p.set_host(Host::new(host.clone(), runtime), window, cx));
+                    this.panel.update(cx, |p, cx| p.set_host(Host::new(host.clone(), runtime.clone()), window, cx));
+                    this.sidebar.update(cx, |s, cx| s.attach(Link { host: host.clone(), runtime, page }, cx));
                     if let Some(preferences) = &preferences {
                         this.apply(preferences, window, cx);
                     }
@@ -289,6 +314,7 @@ impl Shell {
             _connect: connect,
             _events: None,
             _selected: selected,
+            _asked: asked,
             _focus_lost: focus_lost,
             _appearance: appearance,
             _activation: activation,
@@ -422,6 +448,14 @@ impl Shell {
         }
         self.route = route;
         cx.notify();
+    }
+
+    /// The workspace of the thread on screen or left behind a page, else of the newest thread the sidebar lists.
+    fn workspace_on_screen(&self, cx: &App) -> Option<String> {
+        match (&self.route, &self.behind) {
+            (Route::Thread { workspace_id, .. }, _) | (_, Route::Thread { workspace_id, .. }) => Some(workspace_id.clone()),
+            _ => self.sidebar.read(cx).items().first().map(|i| i.workspace_id.clone()),
+        }
     }
 
     /// What the page `route` names is opened on: the thread the window was showing, and the route's argument.
