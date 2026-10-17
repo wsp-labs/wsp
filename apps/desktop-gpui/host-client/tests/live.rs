@@ -24,7 +24,11 @@ session=""; prev=""
 for a in "$@"; do [ "$prev" = "--session-id" ] && session=$a; prev=$a; done
 while IFS= read -r _; do
   printf '{"type":"system","subtype":"init","session_id":"%s","model":"claude-haiku-5-5","cwd":"/","tools":[]}\n' "$session"
-  printf '{"type":"assistant","session_id":"%s","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]}}\n' "$session"
+  i=0
+  while [ $i -lt 250 ]; do
+    printf '{"type":"assistant","session_id":"%s","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]}}\n' "$session"
+    i=$((i + 1))
+  done
   printf '{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"%s"}\n' "$session"
 done
 "#;
@@ -155,13 +159,15 @@ async fn lists_threads_and_receives_a_turn_started_after_it_subscribed() {
     let mut thread = client.open(&row.workspace_id, &thread_id).await.unwrap_or_else(|f| panic!("{}", f.message));
     println!("history: {} events, types {:?}", thread.history.len(), thread.history.iter().map(event_type).collect::<Vec<_>>());
     assert!(thread.history.iter().any(|e| prompt_of(e) == Some("first")));
+    let replies = thread.history.iter().filter(|e| matches!(e, SessionEvent::SessionDelta { text, .. } if text == "ok")).count();
+    assert_eq!(replies, 250, "every reply of the first turn, more than the 200 events a first page held");
     assert!(!thread.history.iter().any(|e| prompt_of(e) == Some("second")));
 
     let sent = Instant::now();
     host.wsp(&["send", &thread_id, "--detach", "second"]);
     println!("{:>6} ms  wsp send --detach returned", sent.elapsed().as_millis());
     let mut seen = Vec::new();
-    let (mut started, mut said, mut completed) = (false, false, false);
+    let (mut started, mut said, mut completed) = (false, 0, false);
     loop {
         let next = tokio::time::timeout(Duration::from_secs(60), thread.next()).await.expect("the turn's events within 60 s");
         let live = next.expect("the socket stays open").unwrap_or_else(|f| panic!("{}", f.message));
@@ -175,13 +181,13 @@ async fn lists_threads_and_receives_a_turn_started_after_it_subscribed() {
         seen.push(event_type(&event));
         match &*event {
             SessionEvent::SessionStart { prompt, .. } => started |= prompt.as_deref() == Some("second"),
-            SessionEvent::SessionDelta { text, .. } => said |= text == "ok",
+            SessionEvent::SessionDelta { text, .. } => said += usize::from(text == "ok"),
             SessionEvent::SessionDone { result, .. } => completed |= result.status == SessionEventResultStatus::Completed,
             SessionEvent::SessionEnd { .. } => break,
             _ => {}
         }
     }
-    assert!(started && said && completed, "the second turn's start, reply and result, saw {seen:?}");
+    assert!(started && said == 250 && completed, "the second turn's start, every reply once and result, saw {seen:?}");
 }
 
 fn event_type(event: &SessionEvent) -> String {
