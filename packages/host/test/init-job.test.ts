@@ -1982,6 +1982,39 @@ describe("the init job, terminal road", () => {
     expect(f.jobs.view()).toMatchObject({ phase: "answering", place: { id: "box", name: "box", kind: "provider" } });
   });
 
+  it("a cloud removed ends the setup still answering on it, so adding it again opens at the key; a setup on another place stands", async () => {
+    const box = stubBackend();
+    const f = fake({ placeLinks: true, places: wired => { box.execImpl = wired.execImpl; return { wired: "solari", backend: p => (p === "solari" ? wired : p === "box" ? box : undefined), list: () => ["solari", "box"] }; } });
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    await f.jobs.start({ road: "terminal", on: "box" });
+    await f.settled();
+    expect(f.jobs.view()!.phase).toBe("answering");
+    expect(await f.rt.places!.remove("box")).toMatchObject({ removed: true });
+    await f.settled();
+    expect(f.jobs.view()).toMatchObject({ phase: "cancelled", place: { id: "box" } });
+    expect(f.events.at(-1)!.job.phase).toBe("cancelled");
+    await f.jobs.start({ road: "terminal", on: HERE_PLACE_ID });
+    await f.settled();
+    expect(await f.rt.places!.remove("box")).toMatchObject({ removed: true });
+    await f.settled();
+    expect(f.jobs.view()).toMatchObject({ phase: "answering", place: { id: HERE_PLACE_ID } });
+  });
+
+  it("a cloud removed after its build failed ends that setup too, so adding it again opens at the key", async () => {
+    const box = stubBackend();
+    const f = fake({ placeLinks: true, deployDaemon: async () => Promise.reject(new Error("deploy refused")), places: wired => { box.execImpl = wired.execImpl; return { wired: "solari", backend: p => (p === "solari" ? wired : p === "box" ? box : undefined), list: () => ["solari", "box"] }; } });
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    await f.jobs.start({ road: "terminal", on: "box" });
+    await f.settled();
+    await f.jobs.build({ on: "box" });
+    await f.settled();
+    expect(f.jobs.view()!.phase).toBe("failed");
+    expect(await f.rt.places!.remove("box")).toMatchObject({ removed: true });
+    await f.settled();
+    expect(f.jobs.view()).toMatchObject({ phase: "cancelled", place: { id: "box" } });
+    expect(f.events.at(-1)!.job.phase).toBe("cancelled");
+  });
+
   it("a build at a joined computer keeps the configs as they are, and one at a provider cuts what holds a secret", async () => {
     const urlNotes = async (kind: "computer" | "provider"): Promise<string[]> => {
       const f = fake();
