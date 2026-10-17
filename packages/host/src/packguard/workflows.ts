@@ -7,6 +7,9 @@ import { createInflate } from "node:zlib";
 
 export const WORKFLOWS_REFUSAL = "wsp: this push changes .github/ (workflows run with the repo's secrets); push it from your own computer";
 export const UNREAD_PACK_REFUSAL = "wsp: this push's pack could not be read, so its .github/ could not be checked; push it from your own computer";
+/** fsck could not run on a git before 2.44: the version names why, and what reads the pack. */
+export const OLD_GIT_REFUSAL = (version: string): string =>
+  `wsp: your computer's git ${version} could not read this push's pack, so its .github/ could not be checked; git 2.44 or newer reads it, or push it from your own computer`;
 export const OVERSIZE_REFUSAL = "wsp: this push holds an object over 100 MiB, which GitHub refuses; keep it out of the push";
 
 export type WorkflowVerdict = { allow: true } | { allow: false; said: string };
@@ -36,8 +39,9 @@ export async function guardWorkflows(o: {
   const pack = await whole(o.pack);
   const sizes = await packSizes(pack);
   if (sizes !== "fits") return { allow: false, said: sizes === "over" ? OVERSIZE_REFUSAL : UNREAD_PACK_REFUSAL };
-  const pushed = await pushedEntry(pack, o.head, o.entryAt);
-  if (pushed === undefined) return { allow: false, said: UNREAD_PACK_REFUSAL };
+  const index: IndexNotes = {};
+  const pushed = await pushedEntry(pack, o.head, o.entryAt, index);
+  if (pushed === undefined) return { allow: false, said: index.oldGit === undefined ? UNREAD_PACK_REFUSAL : OLD_GIT_REFUSAL(index.oldGit) };
   for (const rev of o.base === undefined ? ["HEAD"] : ["HEAD", o.base]) {
     if ((await o.entryAt(rev)) === pushed) return { allow: true };
   }
@@ -46,11 +50,11 @@ export async function guardWorkflows(o: {
 
 /** Reads `.github` from the pack where it holds the head's root tree, else from upstream, which already holds what a
  * self-contained pack leaves out. */
-async function pushedEntry(pack: Buffer, head: string, entryAt: GithubEntryReader): Promise<string | null | undefined> {
+async function pushedEntry(pack: Buffer, head: string, entryAt: GithubEntryReader, index: IndexNotes): Promise<string | null | undefined> {
   const dir = await mkdtemp(join(tmpdir(), "wsp-packguard-"));
   try {
     if ((await git(dir, ["init", "--quiet", "--bare", dir])) === undefined) return undefined;
-    if (!(await indexPack(dir, pack))) return undefined;
+    if (!(await indexPack(dir, pack, index))) return undefined;
     if ((await git(dir, ["cat-file", "-e", "--end-of-options", head])) === undefined) return entryAt(head);
     const tree = (await git(dir, ["cat-file", "commit", "--end-of-options", head]))?.match(/^tree ([0-9a-f]{40})\n/)?.[1];
     if (tree === undefined) return undefined;
@@ -78,19 +82,34 @@ function git(dir: string, args: string[]): Promise<string | undefined> {
   );
 }
 
-async function indexPack(dir: string, pack: Buffer): Promise<boolean> {
-  // A push carries only what changed, so a .gitattributes its root tree names but GitHub already holds is absent from
-  // the pack, which fsck counts as an error (a spoo-me/spoo README push, 2026-10-17); a missing .gitmodules already
-  // passes. git before 2.44 takes no fsck levels and answers usage (129), so there the plain check runs.
-  const code = await indexPackWith(dir, pack, "--fsck-objects=gitattributesMissing=ignore");
-  return (code === 129 ? await indexPackWith(dir, pack, "--fsck-objects") : code) === 0;
+/** The git version, set where fsck could not run on a git without fsck levels. */
+interface IndexNotes {
+  oldGit?: string;
 }
 
-function indexPackWith(dir: string, pack: Buffer, fsck: string): Promise<number | null> {
+async function indexPack(dir: string, pack: Buffer, index: IndexNotes): Promise<boolean> {
+  // A push carries only what changed, so a .gitattributes its root tree names but GitHub already holds is absent from
+  // the pack, which fsck counts as an error (a spoo-me/spoo README push, 2026-10-17); a missing .gitmodules already
+  // passes. git before 2.44 takes no fsck levels and answers usage (129); 2.39.1 to 2.43 still run the .gitattributes
+  // check, so there the pack is indexed bare and git fsck reads it as index-pack would: strict, a missing .gitmodules
+  // passing. git before 2.39.1 has no .gitattributes check and dies (128) on its name, so there fsck runs without it.
+  const code = await run(dir, ["index-pack", "--stdin", "--fsck-objects=gitattributesMissing=ignore", "--threads=1"], pack);
+  if (code !== 129) return code === 0;
+  if ((await run(dir, ["index-pack", "--stdin", "--threads=1"], pack)) !== 0) return false;
+  const fsck = (lowered: string[]): Promise<number | null> =>
+    run(dir, [...lowered.flatMap(id => ["-c", `fsck.${id}=ignore`]), "fsck", "--strict", "--no-dangling", "--no-progress"]);
+  let checked = await fsck(["gitattributesMissing", "gitmodulesMissing"]);
+  if (checked === 128) checked = await fsck(["gitmodulesMissing"]);
+  if (checked === 0) return true;
+  if (checked === 128 || checked === null) index.oldGit = (await git(dir, ["--version"]))?.match(/\d+\.\d+(\.\d+)?/)?.[0] ?? "older than 2.44";
+  return false;
+}
+
+function run(dir: string, args: string[], stdin?: Buffer): Promise<number | null> {
   // index-pack resolves one delta chain per thread, so 8 chains under the cap took 463 MB on 2 threads and 233 MB on 1.
-  const child = spawn("git", ["-C", dir, "index-pack", "--stdin", fsck, "--threads=1"], { env: gitEnv(), stdio: ["pipe", "ignore", "ignore"], timeout: INDEX_PACK_MS });
+  const child = spawn("git", ["-C", dir, ...args], { env: gitEnv(), stdio: ["pipe", "ignore", "ignore"], timeout: INDEX_PACK_MS });
   child.stdin.on("error", () => undefined);
-  child.stdin.end(pack);
+  child.stdin.end(stdin);
   return new Promise(resolve => {
     child.on("error", () => resolve(null));
     child.on("close", code => resolve(code));
