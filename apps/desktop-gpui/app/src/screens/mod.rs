@@ -5,6 +5,7 @@
 
 pub mod app_shell;
 pub mod composer;
+pub mod sidebar;
 pub mod usage;
 
 use std::cell::RefCell;

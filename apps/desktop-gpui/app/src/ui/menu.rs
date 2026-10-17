@@ -5,41 +5,64 @@
 use std::rc::Rc;
 
 use gpui_kit::component::menu::{DropdownMenu, PopupMenu, PopupMenuItem};
-use gpui_kit::component::{Icon, Selectable};
+use gpui_kit::component::{h_flex, ActiveTheme as _, Icon, Selectable};
 use gpui_kit::{div, prelude::*, px, Corners, Div, Hsla, Interactivity, SharedString, Stateful, StyleRefinement};
 
 use super::act::Run;
+use super::dialog::tip;
 use super::theme::ActivePalette;
 use super::{Button, Glyph};
 
 /// One act of a row's menu: its group (a rule stands between groups), glyph, title, whether it destroys, and whether
-/// it is held while it cannot run.
+/// it is held while it cannot run, with why on its hover; and its chord, as a right press's menu shows one.
 #[derive(Clone)]
 pub struct MenuAct {
     pub group: u8,
-    pub glyph: Glyph,
+    pub glyph: Option<Glyph>,
     pub title: SharedString,
     pub destructive: bool,
     pub held: bool,
+    pub why: Option<SharedString>,
+    pub keys: Option<SharedString>,
     pub run: Run,
 }
 
 /// The acts as a popup menu, a rule between their groups: the row menu's list, and a row's right press.
-pub fn menu_of(mut menu: PopupMenu, acts: &[MenuAct], danger: Hsla) -> PopupMenu {
+pub fn menu_of(mut menu: PopupMenu, acts: &[MenuAct], danger: Hsla, muted: Hsla) -> PopupMenu {
     let mut last: Option<u8> = None;
-    for act in acts {
+    for (ix, act) in acts.iter().enumerate() {
         if last.is_some_and(|g| g != act.group) {
             menu = menu.separator();
         }
         last = Some(act.group);
         let run = act.run.clone();
-        let item = if act.destructive {
-            let title = act.title.clone();
-            PopupMenuItem::element(move |_, _| div().text_color(danger).child(title.clone())).icon(Icon::new(act.glyph).text_color(danger))
+        let item = if act.destructive || act.why.is_some() || act.keys.is_some() {
+            // A held act takes the menu's held ink, the danger ink only where it can run.
+            let (title, why, keys, destructive) = (act.title.clone(), act.why.clone(), act.keys.clone(), act.destructive && !act.held);
+            PopupMenuItem::element(move |_, cx| {
+                let row = h_flex()
+                    .id(("menu-act", ix))
+                    .w_full()
+                    .gap(px(12.))
+                    .child(div().flex_1().min_w_0().when(destructive, |el| el.text_color(danger)).child(title.clone()))
+                    .children(
+                        keys.clone().map(|k| div().flex_none().font_family(cx.theme().mono_font_family.clone()).text_color(muted).child(k)),
+                    );
+                match why.clone() {
+                    Some(why) => row.tooltip(tip(why)).into_any_element(),
+                    None => row.into_any_element(),
+                }
+            })
         } else {
-            PopupMenuItem::new(act.title.clone()).icon(Icon::new(act.glyph))
+            PopupMenuItem::new(act.title.clone())
         };
-        menu = menu.item(item.disabled(act.held).on_click(move |_, window, cx| run(window, cx)));
+        let item = match act.glyph {
+            Some(glyph) => item.icon(Icon::new(glyph).when(act.destructive && !act.held, |icon| icon.text_color(danger))),
+            None => item,
+        };
+        // gpui-kit's first Down lands on row 0 and Enter runs whatever handler it holds, so a held act carries none.
+        let item = item.disabled(act.held);
+        menu = menu.item(if act.held { item } else { item.on_click(move |_, window, cx| run(window, cx)) });
     }
     menu
 }
@@ -84,7 +107,7 @@ pub fn row_menu(id: impl Into<SharedString>, acts: Rc<Vec<MenuAct>>) -> impl Int
     let id: SharedString = id.into();
     let button = Button::icon_xs(id.clone(), Glyph::Ellipsis).side(px(20.)).corners(Corners::all(px(4.)));
     Trigger(div().id(SharedString::from(format!("{id}-menu"))).flex().child(button))
-        .dropdown_menu(move |menu, _, cx| menu_of(menu, &acts, cx.palette().error_foreground))
+        .dropdown_menu(move |menu, _, cx| menu_of(menu, &acts, cx.palette().error_foreground, cx.palette().muted_foreground))
 }
 
 #[cfg(test)]
@@ -115,7 +138,8 @@ mod tests {
         let (copied, ended) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
         let act = |glyph, title: &'static str, destructive, ran: &Rc<Cell<u32>>| {
             let ran = ran.clone();
-            MenuAct { group: 0, glyph, title: title.into(), destructive, held: false, run: Rc::new(move |_, _| ran.set(ran.get() + 1)) }
+            let run: crate::ui::act::Run = Rc::new(move |_, _| ran.set(ran.get() + 1));
+            MenuAct { group: 0, glyph: Some(glyph), title: title.into(), destructive, held: false, why: None, keys: None, run }
         };
         let acts = Rc::new(vec![act(Glyph::ClipboardCopy, "Copy", false, &copied), act(Glyph::SquareX, "End", true, &ended)]);
         let view = cx.new(|_| Lone(acts));
