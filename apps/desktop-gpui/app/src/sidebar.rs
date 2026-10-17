@@ -5,6 +5,8 @@ use gpui_kit::component::{v_flex, ActiveTheme};
 use gpui_kit::{div, prelude::*, px, Context, EventEmitter, SharedString, Window};
 use wsp_host_client::protocol::SessionView;
 
+use crate::screens::app_shell::title::thread_title;
+
 pub const WIDTH: gpui_kit::Pixels = px(260.);
 
 #[derive(Clone, Debug, PartialEq)]
@@ -25,7 +27,7 @@ impl ThreadItem {
             workspace_id: view.workspace_id.clone(),
             thread_id: view.thread_id.clone().unwrap_or_else(|| view.id.clone()),
             project: view.project.as_ref().map_or_else(String::new, |p| p.name.clone()),
-            title: view.harness_title.clone().or_else(|| view.prompt.clone()).unwrap_or_else(|| "New thread".to_owned()),
+            title: thread_title(view.harness_title.as_deref(), view.prompt.as_deref()).unwrap_or_else(|| "New thread".to_owned()),
         })
     }
 }
