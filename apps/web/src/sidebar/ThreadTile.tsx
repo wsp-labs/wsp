@@ -232,7 +232,7 @@ type ThreadTileProps = {
   time: string;
   /** How many tiles of the tree stand over this one. */
   depth: number;
-  active: boolean;
+  selects: TileSelect;
   /** The tile sits in the Settled fold: one slim row of its title and its age, resting whatever its state, as T3
    * Code's settled rows. */
   settled?: boolean;
@@ -276,6 +276,24 @@ type ThreadTileProps = {
 
 /** What a tile does when it is pressed, opened, renamed or dragged. */
 export type TileHandlers = Pick<ThreadTileProps, "onSelect" | "onContextMenu" | "onRename" | "onRenameCancel" | "onRenameOpen" | "onSettle" | "onStop" | "onFold">;
+
+/** What draws a tile as the one the centre shows, as data so a tile's memo holds from one draw of the list to the next:
+ * with no thread, its workspace open with none picked; with one, that thread picked in its workspace, or any thread the
+ * tile stands for. */
+export interface TileSelect {
+  readonly workspaceId: string;
+  readonly thread?: { readonly id: string; readonly threadId: string | null; readonly folded: boolean; readonly holds: ReadonlyArray<string> };
+}
+
+/** Whether the tile is the one the centre shows, read by the tile itself, so a switch draws the two tiles whose mark
+ * moves and the list builds none. */
+function useTileActive({ workspaceId, thread }: TileSelect): boolean {
+  return useStore(({ selectedId, selectedThreadId, selectedSubagent }) => {
+    if (thread === undefined) return selectedId === workspaceId && selectedThreadId === null;
+    // A subagent's page marks the subagent's row, not its lead's tile, unless the lead is folded over it.
+    return (selectedId === workspaceId && (selectedThreadId === null ? thread.threadId === null : selectedThreadId === thread.id) && (selectedSubagent === null || thread.folded)) || (selectedThreadId !== null && thread.holds.includes(selectedThreadId));
+  });
+}
 
 /** Handlers for the tiles a draw makes: each is the same function from draw to draw and calls what the latest
  * committed draw passed for its row, so a tile's memo compares them by identity and a tile it skips still acts on the
@@ -328,7 +346,8 @@ function sameData(a: unknown, b: unknown): boolean {
 
 /** A tile, drawn again only when what it is given changes; the sidebar passes its handlers through `useTileHandlers`. */
 export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
-  const { thread, place, checkout = NO_CHECKOUT, model = null, time, depth, active, settled = false, snoozedWorking, renaming, saving, onSelect, onContextMenu, onRename, onRenameCancel, onRenameOpen, drags = false, label, inboxOf, openers, finished, fold, onSettle, onStop, stopsTree = false, onFold } = props;
+  const { thread, place, checkout = NO_CHECKOUT, model = null, time, depth, selects, settled = false, snoozedWorking, renaming, saving, onSelect, onContextMenu, onRename, onRenameCancel, onRenameOpen, drags = false, label, inboxOf, openers, finished, fold, onSettle, onStop, stopsTree = false, onFold } = props;
+  const active = useTileActive(selects);
   const snoozed = snoozedWorking !== undefined;
   const cost = useCost(thread.sub === undefined ? null : thread.workspaceId);
   // The computer's name alone, so a places read that changes nothing a tile says draws no tile again.
@@ -445,7 +464,7 @@ export function WorkspaceTile({
   place,
   checkout = NO_CHECKOUT,
   depth,
-  active,
+  selects,
   renaming,
   saving,
   onSelect,
@@ -459,7 +478,7 @@ export function WorkspaceTile({
   place: TilePlace;
   checkout?: TileCheckout | undefined;
   depth: number;
-  active: boolean;
+  selects: TileSelect;
   renaming: boolean;
   saving: boolean;
   onSelect: () => void;
@@ -469,6 +488,7 @@ export function WorkspaceTile({
   /** Why its create failed before any machine stood, for a record that never had one; it reads Failed. */
   failed?: string | undefined;
 }) {
+  const active = useTileActive(selects);
   const card = tileCardLines({ title: name, place, folder: checkout.folder, branch: checkout.branch, harness: null, model: null, pr: checkout.pr, changed: checkout.changed, notes: [...checkout.counts, checkout.why ?? null, failed ?? null] });
   return (
     <TileFrame
@@ -515,7 +535,8 @@ const CREATE_RUNNING: ThreadStatusInput = { status: "running", asking: null, sta
 
 /** A workspace still being made, in the tile's grammar: where it will run with Starting's crab in the slot, its name,
  * and the step the create is waiting on on its card. A refused create says Failed instead. */
-export function CreationTile({ rowId, name, place, line, failed, active, onSelect, onContextMenu }: { rowId: string; name: string; place: TilePlace; line: string; failed: boolean; active: boolean; onSelect: () => void; onContextMenu?: (event: MouseEvent<HTMLElement>) => void }) {
+export function CreationTile({ rowId, name, place, line, failed, selects, onSelect, onContextMenu }: { rowId: string; name: string; place: TilePlace; line: string; failed: boolean; selects: TileSelect; onSelect: () => void; onContextMenu?: (event: MouseEvent<HTMLElement>) => void }) {
+  const active = useTileActive(selects);
   const card = tileCardLines({ title: name, place, branch: "", harness: null, model: null, notes: [line] });
   return (
     <TileFrame
