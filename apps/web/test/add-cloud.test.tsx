@@ -188,12 +188,37 @@ describe("the CLIs step", () => {
     expect(box("jq").hasAttribute("data-disabled")).toBe(false);
     expect(box("rg").hasAttribute("data-disabled")).toBe(true);
     expect(box("rg").getAttribute("aria-checked")).toBe("false");
+    expect(box("rg").getAttribute("tabindex")).toBe("-1");
     expect(document.querySelector("[data-pick-row='curl'] [data-pick-note]")?.textContent).toBe(CLOUD_SETUP_WORDS.screen.alwaysOn);
     fireEvent.click(box("curl"));
     fireEvent.click(box("rg"));
     await settle();
     expect(box("curl").getAttribute("aria-checked")).toBe("true");
     expect(box("rg").getAttribute("aria-checked")).toBe("false");
+    expect(document.querySelector("[data-pick-row='rg'] [data-pick-note]")).toBeNull();
+  });
+
+  it("says why a base tool stays on where its note is when it is clicked, or takes Enter or Space with the focus, and keeps it ticked", async () => {
+    const base = (id: string) => ({ id, label: id, detail: [], lock: "on" as const });
+    const tools: InitScreen = { ...screenOf("tools", [["jq", "jq"]], ["jq"]), items: [base("curl"), base("git"), base("uv"), { id: "jq", label: "jq", why: "12 calls", detail: [] }] };
+    useStore.setState({ places: [here, boat], initJob: jobOf({ step: 1, screens: [SCREENS[0]!, tools, SCREENS[2]!] }) });
+    mountSettings({ api: host().api });
+    act(() => openCloudAdd("box"));
+    await settle();
+    const box = (id: string) => document.querySelector<HTMLElement>(`[data-pick-row='${id}'] [data-slot=checkbox]`)!;
+    const note = (id: string) => document.querySelector(`[data-pick-row='${id}'] [data-pick-note]`)?.textContent;
+    fireEvent.click(box("curl"));
+    expect(box("git").getAttribute("tabindex")).toBe("0");
+    act(() => box("git").focus());
+    fireEvent.keyDown(box("git"), { key: "Enter" });
+    act(() => box("uv").focus());
+    fireEvent.keyDown(box("uv"), { key: " " });
+    await settle();
+    for (const id of ["curl", "git", "uv"]) {
+      expect(note(id)).toBe(CLOUD_SETUP_WORDS.screen.alwaysOnWhy);
+      expect(box(id).getAttribute("aria-checked")).toBe("true");
+    }
+    expect(note("jq")).toBeUndefined();
   });
 });
 
