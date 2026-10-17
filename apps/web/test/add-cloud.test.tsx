@@ -12,6 +12,7 @@ import { forgetHeld } from "../src/protocol/held.js";
 import { useStore } from "../src/protocol/store.js";
 import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { closeCloudAdd, openCloudAdd, useCloudFlow } from "../src/settings/add/cloudFlow.js";
+import { offersCloud } from "../src/sidebar/CloudCard.js";
 import { ADD_COMPUTER_WORDS } from "../src/settings/format.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { useHostNotices } from "../src/notices/hostNotices.js";
@@ -682,6 +683,20 @@ describe("the sidebar's cloud card", () => {
     expect(building.textContent).toContain("Start a builder on Boat");
     fireEvent.click(building.querySelector("button")!);
     expect(useCloudFlow.getState()).toMatchObject({ open: true, provider: "box", step: "building" });
+  });
+
+  it("waits while a setup for Boat runs, and comes back once that setup is over with no cloud added", async () => {
+    expect(offersCloud([here], jobOf({ phase: "answering" }))).toBe(false);
+    expect(offersCloud([here], jobOf({ phase: "cancelled" }))).toBe(true);
+    expect(offersCloud([here], jobOf({ phase: "done" }))).toBe(true);
+    expect(offersCloud([here], jobOf({ phase: "failed" }))).toBe(false);
+    await mountSidebar(host().api);
+    act(() => useStore.setState({ places: [here], initJob: jobOf({ phase: "answering" }) }));
+    await settle();
+    expect(card()).toBeNull();
+    act(() => useStore.setState({ initJob: jobOf({ phase: "cancelled" }) }));
+    await settle();
+    expect(card()?.textContent).toContain("Run threads on a cloud");
   });
 
   it("waits while a computer's setup stands in the foot", async () => {
