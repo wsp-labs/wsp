@@ -266,6 +266,35 @@ describe("Add pressed while a setup stands", () => {
     openCloudAdd("box");
     expect(useCloudFlow.getState().step).toBe("key");
   });
+
+  it("opens at the key with an empty field once the cloud is removed, which ends the setup that was answering on it", async () => {
+    const fake = host();
+    useStore.setState({ places: [here, boat], initJob: jobOf({ step: 2 }) });
+    await openFromComputers(fake.api);
+    expect(stepOf()).toBe("also");
+    act(() => closeCloudAdd());
+    pushJob(jobOf({ step: 2, phase: "cancelled" }));
+    act(() => useStore.setState({ places: [here] }));
+    fireEvent.click(screen.getByRole("button", { name: ADD_COMPUTER_WORDS.addCloud }));
+    await settle();
+    expect(stepOf()).toBe("key");
+    expect(document.querySelector<HTMLInputElement>("[data-k='cloud-key']")!.value).toBe("");
+    expect(fake.asked.filter(a => a.op === "start")).toEqual([]);
+  });
+
+  it("opens at the key once a cloud whose build failed is removed, which ends that setup", async () => {
+    const fake = host();
+    useStore.setState({ places: [here, boat], initJob: jobOf({ phase: "failed", error: "deploy refused" }) });
+    await openFromComputers(fake.api);
+    expect(stepOf()).toBe("building");
+    act(() => closeCloudAdd());
+    pushJob(jobOf({ phase: "cancelled", error: "deploy refused" }));
+    act(() => useStore.setState({ places: [here] }));
+    fireEvent.click(screen.getByRole("button", { name: ADD_COMPUTER_WORDS.addCloud }));
+    await settle();
+    expect(stepOf()).toBe("key");
+    expect(document.querySelector<HTMLInputElement>("[data-k='cloud-key']")!.value).toBe("");
+  });
 });
 
 describe("the summary and the build", () => {
