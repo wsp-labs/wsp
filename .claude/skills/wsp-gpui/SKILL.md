@@ -116,21 +116,21 @@ Sizes carry over as the pixels `wsp-design-language` gives them. gpui-kit's
 default `font_size` is 16 px
 ([theme/mod.rs](https://github.com/longbridge/gpui-kit/blob/14f59330a4aa0cb5becf140e067d64a616328612/crates/component/src/theme/mod.rs)).
 
-| wsp piece ([layout.ts](../../../apps/web/src/settings/layout.ts), [rows.tsx](../../../apps/web/src/settings/rows.tsx)) | Size | gpui-kit part |
+| wsp piece ([layout.ts](../../../apps/web/src/settings/layout.ts), [rows.tsx](../../../apps/web/src/settings/rows.tsx)) | Size | Ported as, in [app/src/ui](../../../apps/desktop-gpui/app/src/ui/mod.rs) |
 |---|---|---|
-| Card: `SECTION_HEAD`, then `CARD_SURFACE` | head 13.5 px medium at 70% ink; card radius 11 px, border at 60%, card fill at 40% | a plain `v_flex`; gpui-kit's `setting::Settings` groups carry their own spacing, so check them against the sizes before use |
-| Row: `CARD_INSET`, `ROW_FLOOR`, `SETTING_TITLE` or `LIST_TITLE`, `NOTE` | 20 px sides, 60 px floor, `py-3`; title 14 px (choice) or 15 px (named thing), note 13 px muted | `h_flex`; note in `muted_foreground` |
-| Line: `LINE_FLOOR` | 48 px | `h_flex`, keycaps in `kbd::Kbd` |
-| Lead: `GLYPH_FRAME`, `GLYPH` | 32 px frame, `rounded-md` (8 px), 16 px glyph at 80% ink | `Icon` with `IconName`; both apps use Lucide |
-| Select in a row: `SELECT_WIDTH` | 176 px wide, 30 px high, radius 7 px, 13 px text | `select::Select` |
-| Field in a row: `ROW_FIELD` | 30 px high, radius 7 px, 13 px text | `input::Input` |
-| Picks | radio or checkbox at the left of a row | `radio::Radio`, `checkbox::Checkbox` |
-| Buttons | outline xs for inline acts, one primary per view, a quiet text button | `Button` with `.outline()` and `.xsmall()`, `.primary()`, `.text()` ([button.rs](https://github.com/longbridge/gpui-kit/blob/14f59330a4aa0cb5becf140e067d64a616328612/crates/component/src/button/button.rs)) |
-| Dialog | 560 px; title, "n of N", cards, a foot | `Dialog` through `window.open_dialog` |
-| Copyable command | `CopyRow` ([sheetParts.tsx](../../../apps/web/src/settings/sheetParts.tsx)): a 40 px field, `rounded-md`, the value in mono, a copy button | an `h_flex` field; `clipboard::Clipboard` is only its copy button |
-| Shortcut | lives in a tooltip, never a hint strip | `.tooltip()` with `Kbd` |
-| Loading | the plain spinner | `spinner::Spinner` |
-| An agent working | the crab ([Crab.tsx](../../../apps/web/src/components/status/Crab.tsx)) | none; port it as our own element and keep its credit ([THIRD_PARTY_NOTICES](../../../THIRD_PARTY_NOTICES), item 10) |
+| Card: `SECTION_HEAD`, then `CARD_SURFACE` | head 13.5 px medium at 70% ink; card radius 11 px, border at 60%, card fill at 40% | `Card`, `section_head`; the first and last child round their own corners, since GPUI does not clip children |
+| Row: `CARD_INSET`, `ROW_FLOOR`, `SETTING_TITLE`, a 13 px note | 20 px sides, 60 px floor, `py-3`; title 14 px; note 13 px muted at line height 1.45 | `Row`; a press on its control does not open it |
+| Line: `LINE_FLOOR` | 48 px | `Line`, keycaps in `KeyCaps` (one 20 px mono cap per key; gpui-kit's `Kbd` puts a chord in one sans cap) |
+| Lead: `GLYPH_FRAME`, `GLYPH` | 32 px frame, `rounded-md` (8 px), 16 px glyph at 80% ink | `glyph_frame`, lucide glyphs served by `UiAssets` over gpui-kit's default bundle |
+| Select in a row: `SELECT_WIDTH` | 176 px wide, 30 px high, radius 7 px, 13 px text | `Select`, gpui-kit's `select::Select` with its trigger restyled |
+| Field in a row: `ROW_FIELD` | 30 px high, radius 7 px, 13 px text | `Field`, gpui-kit's `input::Input` restyled; the theme sets `focus_ring = false` |
+| Picks | radio or checkbox at the left of a row | `Choice`, `PickRow`, drawn here: gpui-kit's `Radio` marks a pick with a check, not wsp's dot |
+| Buttons | outline xs for inline acts, one primary per view, a quiet text button | `Button` (`outline`, `primary`, `text`, `add`, `icon`), drawn here: gpui-kit's button sets its own hover after a caller's and fades a disabled one by color |
+| Dialog | 560 px; title, "n of N", cards, a foot | `Dialog`, the surface only |
+| Copyable command | `CopyRow` ([sheetParts.tsx](../../../apps/web/src/settings/sheetParts.tsx)): a 40 px field, `rounded-md`, the value in mono, a copy button | `CopyRow`; its right-edge fade is a gradient over the value, since this base has no masks |
+| Shortcut | lives in a tooltip, never a hint strip | `shortcut_tooltip`, gpui-kit's `Tooltip` restyled, one keycap per key |
+| Loading, state | the plain spinner; an icon in the slot each row keeps | `spinner`, `StatusMark`, `StepRow`; `desktop-gpui --gallery` shows the pieces |
+| An agent working | the crab ([Crab.tsx](../../../apps/web/src/components/status/Crab.tsx)) | `Crab`, transcribed with its credit ([THIRD_PARTY_NOTICES](../../../THIRD_PARTY_NOTICES), item 10) |
 
 `rounded-md` is 8 px and `rounded-xl` 14 px, from `--radius: 0.625rem` in
 [index.css](../../../apps/web/src/index.css). The Usage page sets
@@ -146,8 +146,8 @@ The rules that do not show in a table:
   Write wsp's themes as gpui-kit theme JSON, loaded with
   `ThemeRegistry::load_themes_from_str` or `watch_dir`
   ([registry.rs](https://github.com/longbridge/gpui-kit/blob/14f59330a4aa0cb5becf140e067d64a616328612/crates/component/src/theme/registry.rs)),
-  one file per wsp theme, values from the token table. No literal color in a
-  view (wsp-review, Design laws; gpui-kit design guides, Non-negotiables).
+  one file per wsp theme ([ui/themes](../../../apps/desktop-gpui/app/src/ui/themes/paper.json); a `wsp` block holds
+  the whole palette by its CSS names, read with `cx.palette()`). No literal color in a view (wsp-review, Design laws; gpui-kit design guides, Non-negotiables).
 - **Color law.** A colored use the wsp-design token table does not name is a
   finding. `success`, `warning` and `danger` carry only the uses that table
   lists ([wsp-review](../wsp-review/SKILL.md), Color law).

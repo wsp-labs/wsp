@@ -2,9 +2,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use desktop_gpui::gallery::Gallery;
+use desktop_gpui::ui::{self, Side, UiAssets};
 use desktop_gpui::{bench, shell::Shell, TITLE};
 use gpui_kit::component::Root;
-use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions};
+use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
 
 /// The state file a launch means, as the Electron app picks it: WSP_HOME names the home outright, else ~/.wsp.
 fn default_state() -> PathBuf {
@@ -22,8 +24,8 @@ fn main() {
     let state = args.state.unwrap_or_else(default_state);
     let env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
-    let (bench, open) = (args.bench, args.open);
-    gpui_kit::application().run(move |cx: &mut App| {
+    let (bench, open, gallery) = (args.bench, args.open, args.gallery);
+    gpui_kit::application().with_assets(UiAssets).run(move |cx: &mut App| {
         gpui_kit::init(cx);
         cx.on_window_closed(|cx, _| {
             if cx.windows().is_empty() {
@@ -31,6 +33,26 @@ fn main() {
             }
         })
         .detach();
+        if gallery {
+            // Only the gallery draws in wsp's themes until the sidebar's and thread view's own tickets move them over.
+            let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
+            ui::init(if dark { Side::Dark } else { Side::Light }, cx);
+            let bounds = Bounds::centered(None, size(px(760.), px(900.)), cx);
+            cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    titlebar: Some(TitlebarOptions { title: Some("wsp gallery".into()), ..Default::default() }),
+                    ..Default::default()
+                },
+                |window, cx| {
+                    let gallery = cx.new(|cx| Gallery::new(None, window, cx));
+                    cx.new(|cx| Root::new(gallery, window, cx))
+                },
+            )
+            .expect("failed to open the gallery");
+            cx.activate(true);
+            return;
+        }
         // The Electron app's window size, so both benches scroll the same viewport.
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(

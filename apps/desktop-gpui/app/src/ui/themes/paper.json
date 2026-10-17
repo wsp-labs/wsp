@@ -1,0 +1,135 @@
+{
+  "name": "Paper",
+  "author": "wsp",
+  "themes": [
+    {
+      "name": "Paper",
+      "mode": "light",
+      "radius": 8,
+      "radius.lg": 14,
+      "colors": {
+        "background": "#fcfcfcff",
+        "foreground": "#27272aff",
+        "border": "#e4e4e7ff",
+        "input.border": "#d4d4d8ff",
+        "muted.background": "#fafafaff",
+        "muted.foreground": "#6c6c76ff",
+        "accent.background": "#f4f4f5ff",
+        "accent.foreground": "#18181bff",
+        "primary.background": "#1b4ed8ff",
+        "primary.foreground": "#ffffffff",
+        "primary.hover.background": "#3160dbff",
+        "primary.active.background": "#3160dbff",
+        "secondary.background": "#fafafaff",
+        "secondary.foreground": "#27272aff",
+        "popover.background": "#ffffffff",
+        "popover.foreground": "#27272aff",
+        "ring": "#1b4ed8ff",
+        "caret": "#27272aff",
+        "selection.background": "#1b4ed833",
+        "danger.background": "#fb2c36ff",
+        "success.background": "#009966ff",
+        "warning.background": "#e17100ff",
+        "info.background": "#2b7fffff",
+        "sidebar.background": "#fafafaff",
+        "sidebar.foreground": "#27272aff",
+        "sidebar.border": "#e4e4e7ff",
+        "sidebar.accent.background": "#f4f4f5ff",
+        "sidebar.accent.foreground": "#27272aff",
+        "list.hover.background": "#f4f4f5ff",
+        "list.active.background": "#f4f4f5ff",
+        "title_bar.background": "#fcfcfcff",
+        "title_bar.border": "#e4e4e7ff",
+        "window.border": "#e4e4e7ff",
+        "danger.foreground": "#ffffffff",
+        "overlay": "#fcfcfc99"
+      },
+      "wsp": {
+        "background": "#fcfcfcff",
+        "foreground": "#27272aff",
+        "card": "#ffffffff",
+        "card-hover": "#f4f4f4ff",
+        "muted": "#fafafaff",
+        "muted-foreground": "#6c6c76ff",
+        "accent": "#f4f4f5ff",
+        "primary": "#1b4ed8ff",
+        "primary-foreground": "#ffffffff",
+        "primary-hover": "#3160dbff",
+        "border": "#e4e4e7ff",
+        "input": "#d4d4d8ff",
+        "input-fill": "#ffffffff",
+        "input-fill-hover": "#f4f4f4ff",
+        "keycap-top": "#ffffff99",
+        "popover": "#ffffffff",
+        "popover-edge": "#27272a1a",
+        "ring": "#1b4ed8ff",
+        "success": "#009966ff",
+        "warning": "#e17100ff",
+        "warning-foreground": "#b05a00ff",
+        "error": "#fb2c36ff",
+        "error-foreground": "#c10007ff",
+        "destructive": "#fb2c36ff",
+        "info-foreground": "#1447e6ff",
+        "placeholder": "#6c6c76ff",
+        "sidebar": "#fafafaff",
+        "sidebar-foreground": "#27272aff",
+        "sidebar-muted-foreground": "#52525cff",
+        "sidebar-row-hover": "#fcfcfcff",
+        "sidebar-row-selected": "#f4f4f5ff",
+        "sidebar-row-edge": "#27272a1a",
+        "status-input": "#4f39f6ff",
+        "status-working": "#be185dff",
+        "status-failed": "#c10007ff",
+        "status-done": "#007a55ff",
+        "dialog-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 24,
+            "blur": 64,
+            "spread": -24,
+            "color": "#00000059"
+          }
+        ],
+        "popover-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 16,
+            "blur": 40,
+            "spread": -18,
+            "color": "#0000008c"
+          }
+        ],
+        "control-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 1,
+            "blur": 2,
+            "spread": 0,
+            "color": "#0000000d"
+          }
+        ],
+        "tooltip-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 4,
+            "blur": 6,
+            "spread": -1,
+            "color": "#0000000d"
+          },
+          {
+            "inset": false,
+            "x": 0,
+            "y": 2,
+            "blur": 4,
+            "spread": -2,
+            "color": "#0000000d"
+          }
+        ]
+      }
+    }
+  ]
+}
