@@ -8,6 +8,7 @@ import { INLINE_EXEC_MS } from "@wsp/engine";
 import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, STDIO_DAEMON_VERSION, PIPE_DAEMON_VERSION, THREAD_ENV, slateServerBehindLine, usageRefusal, type Caller } from "@wsp/protocol";
 import { agentPidOf, groupExists } from "../local-exec.js";
 import { TERMINAL_ENV, brokeredEnv, terminalLine, terminalSignIn } from "../machines/brokered.js";
+import { publicMarketplaces } from "../projects/branch-of-record.js";
 import { boxPanelsOpener } from "./box-panels.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { StdioRoad } from "../slate-mcp-on.js";
@@ -674,7 +675,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     const launch = await ctx.threadLaunch(entry, threadId, ctx.rootOf(threadId));
     if (launch.scoped === undefined) return undefined;
     const token = launch.scoped.deviceToken;
-    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, ...brokeredEnv(token, entry.record.branchOfRecord), ...(await shellSignIns(entry, threadId, token)), [THREAD_ENV]: threadId } };
+    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, ...brokeredEnv(token, entry.record.branchOfRecord, publicMarketplaces(ctx)), ...(await shellSignIns(entry, threadId, token)), [THREAD_ENV]: threadId } };
   };
   /** What the thread's own agent typed in such a shell signs in with: the placeholders its turn is handed, on the
    * shell's token. Only that agent's, since the host's broker sends a call from the machine to the vendor of the agent

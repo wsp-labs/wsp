@@ -107,6 +107,12 @@ describe("catalog", () => {
     for (const same of ['{"model":"opus"}', "{ not json", '{"extraKnownMarketplaces":{"used":{}},"enabledPlugins":{"a@used":true}}']) expect(CLAUDE_PLUGINS.usedOnly!(same)).toBe(same);
   });
 
+  it("names the GitHub repos the marketplace index fetches from, and nothing a git config key would have to escape", () => {
+    const known = { a: { source: { source: "github", repo: "acme/plugins" } }, b: { source: { source: "git", url: "https://lab.example/mem.git" } }, c: { source: { source: "directory", path: "/home/x/plugins" } }, d: { source: { source: "github", repo: "acme/x y\n" } }, e: {} };
+    expect(CLAUDE_PLUGINS.githubRepos!(JSON.stringify(known))).toEqual(["acme/plugins"]);
+    for (const none of ["{ not json", "[]", "null"]) expect(CLAUDE_PLUGINS.githubRepos!(none)).toEqual([]);
+  });
+
   it("Claude Code's plugin indexes never travel: they name this computer's plugin folders", () => {
     const claude = catalogEntry("claude") as AgentEntry;
     expect([...claude.configPaths, ...(claude.volatile ?? [])].filter(p => p.includes("/plugins/"))).toEqual([]);
