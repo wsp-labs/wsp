@@ -7,8 +7,9 @@
 import { brokeredSignInEnv, type BrokeredSignIn } from "@wsp/adapter-claude";
 import { brokeredCodexEnv, codexForShell, type AccountModels, type CodexBroker } from "@wsp/adapter-codex";
 import { CATALOG_AGENTS, keyEnvOf } from "@wsp/catalog";
-import { BROKER_PORT, BROKER_SOCKET_PATH, GUEST_SOCKET_DIR, HOST_TOKEN_ENV, brokeredAgentRefusal, shellQuote, type BrokerStatus, type CodexClaims, type ExecStreamFactory } from "@wsp/protocol";
+import { BROKER_SOCKET_PATH, GUEST_SOCKET_DIR, HOST_TOKEN_ENV, brokeredAgentRefusal, shellQuote, type BranchOfRecord, type BrokerStatus, type CodexClaims, type ExecStreamFactory } from "@wsp/protocol";
 import { BROKERED_AGENTS, secretsOf } from "../adapters.js";
+import { brokeredGitEnv } from "../project-landing.js";
 import type { HarnessAdapterContext } from "../types/harness.js";
 
 /** The folder gh reads its config from on such a machine; the launch text writes the config there. */
@@ -56,30 +57,18 @@ export function terminalLine(own: string, ownProgram: string | undefined): strin
   return [`mkdir -p ${folder}`, ...programs, put(TERMINAL_PROFILE, profile, "644")].join(" && ");
 }
 
-/** Every remote form git may be handed for GitHub, each rewritten to plain http so the HTTP door can read it as git's
- * proxy while `git remote -v` still reads github.com; a rewrite to the door's own address makes gh refuse the
- * checkout (measured on git 2.43.0 and gh 2.97.0). */
-const GITHUB_REMOTES = ["https://github.com/", "git@github.com:", "ssh://git@github.com/", "ssh://git@ssh.github.com:443/"];
-
 /** The environment every process of a turn on such a machine runs under: the turn token as gh's token and as git's
- * proxy password, gh pointed at the config naming the gh door, and git configured by GIT_CONFIG_COUNT pairs alone,
- * with no helper ever asked. cargo's own git follows insteadOf but ignores git's proxy, so it is told to run git. */
-export function brokeredEnv(token: string): Record<string, string> {
-  const pairs: [string, string][] = [
-    ...GITHUB_REMOTES.map((from): [string, string] => ["url.http://github.com/.insteadOf", from]),
-    ["http.http://github.com/.proxy", `http://wsp:${token}@127.0.0.1:${BROKER_PORT}`],
-    ["http.proxyAuthMethod", "basic"],
-    ["credential.helper", ""],
-  ];
+ * proxy password, gh pointed at the config naming the gh door, and git configured as brokeredGitEnv says, a public
+ * repo of record fetched from GitHub itself. cargo's own git follows insteadOf but ignores git's proxy, so it is told
+ * to run git. */
+export function brokeredEnv(token: string, repo?: Pick<BranchOfRecord, "owner" | "name" | "public">): Record<string, string> {
   return {
     [HOST_TOKEN_ENV]: token,
     GH_CONFIG_DIR: BROKERED_GH_DIR,
     GH_TOKEN: token,
     // gh's telemetry otherwise sends a TLS handshake down the socket.
     GH_TELEMETRY: "false",
-    GIT_CONFIG_COUNT: String(pairs.length),
-    ...Object.fromEntries(pairs.flatMap(([key, value], i) => [[`GIT_CONFIG_KEY_${i}`, key], [`GIT_CONFIG_VALUE_${i}`, value]])),
-    GIT_TERMINAL_PROMPT: "0",
+    ...brokeredGitEnv(token, repo),
     CARGO_NET_GIT_FETCH_WITH_CLI: "true",
   };
 }
