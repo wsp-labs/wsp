@@ -1,59 +1,341 @@
+diff --git a/src/debug_overlay.rs b/src/debug_overlay.rs
+index 0cca543..d8aab99 100644
+--- a/src/debug_overlay.rs
++++ b/src/debug_overlay.rs
+@@ -225,6 +225,8 @@ fn solid_quad(
+         border_color: transparent_black(),
+         corner_radii: Corners::default(),
+         border_widths: Edges::default(),
++        rounded_clip: 0,
++        pad: [0; 3],
+     }
+ }
+ 
 diff --git a/src/elements/div.rs b/src/elements/div.rs
-index fc292f2..5edb574 100644
+index fc292f2..8b004e4 100644
 --- a/src/elements/div.rs
 +++ b/src/elements/div.rs
-@@ -2544,7 +2544,10 @@ impl Interactivity {
+@@ -2544,91 +2544,102 @@ impl Interactivity {
                  window.with_element_opacity(style.opacity, |window| {
                      style.paint(bounds, window, cx, |window: &mut Window, cx: &mut App| {
                          window.with_text_style(style.text_style().cloned(), |window| {
 -                            window.with_content_mask(
+-                                style.overflow_mask(bounds, window.rem_size()),
+-                                |window| {
+-                                    window.with_tab_group(tab_group, |window| {
+-                                        // Register the container's own focus handle *inside* its
+-                                        // tab group, so that focusing the container and then
+-                                        // calling `focus_next` descends into this group's first
+-                                        // item. Inserting it before `with_tab_group` would give the
+-                                        // container a shallower tab path than its children; with
+-                                        // sibling groups every container would then sort ahead of
+-                                        // every item, and `focus_next` from a container would jump
+-                                        // to the first item in the whole window instead of its own.
+-                                        if let Some(focus_handle) = &self.tracked_focus_handle {
+-                                            window.next_frame.tab_stops.insert(focus_handle);
+-                                        }
+-                                        if let Some(hitbox) = hitbox {
+-                                            #[cfg(debug_assertions)]
+-                                            self.paint_debug_info(
+-                                                global_id, hitbox, &style, window, cx,
+-                                            );
+-
+-                                            if let Some(drag) = cx.active_drag.as_ref() {
+-                                                if let Some(mouse_cursor) = drag.cursor_style {
+-                                                    window.set_window_cursor_style(mouse_cursor);
 +                            let rounded_clip =
 +                                style.overflow_rounded_clip(bounds, window.rem_size());
 +                            window.with_rounded_clip(rounded_clip, |window| {
 +                                window.with_content_mask(
-                                 style.overflow_mask(bounds, window.rem_size()),
-                                 |window| {
-                                     window.with_tab_group(tab_group, |window| {
-@@ -2628,7 +2631,8 @@ impl Interactivity {
-                                         }
-                                     })
-                                 },
++                                    style.overflow_mask(bounds, window.rem_size()),
++                                    |window| {
++                                        window.with_tab_group(tab_group, |window| {
++                                            // Register the container's own focus handle *inside* its
++                                            // tab group, so that focusing the container and then
++                                            // calling `focus_next` descends into this group's first
++                                            // item. Inserting it before `with_tab_group` would give the
++                                            // container a shallower tab path than its children; with
++                                            // sibling groups every container would then sort ahead of
++                                            // every item, and `focus_next` from a container would jump
++                                            // to the first item in the whole window instead of its own.
++                                            if let Some(focus_handle) = &self.tracked_focus_handle {
++                                                window.next_frame.tab_stops.insert(focus_handle);
++                                            }
++                                            if let Some(hitbox) = hitbox {
++                                                #[cfg(debug_assertions)]
++                                                self.paint_debug_info(
++                                                    global_id, hitbox, &style, window, cx,
++                                                );
++
++                                                if let Some(drag) = cx.active_drag.as_ref() {
++                                                    if let Some(mouse_cursor) = drag.cursor_style {
++                                                        window
++                                                            .set_window_cursor_style(mouse_cursor);
++                                                    }
++                                                } else {
++                                                    if let Some(mouse_cursor) = style.mouse_cursor {
++                                                        window
++                                                            .set_cursor_style(mouse_cursor, hitbox);
++                                                    }
+                                                 }
+-                                            } else {
+-                                                if let Some(mouse_cursor) = style.mouse_cursor {
+-                                                    window.set_cursor_style(mouse_cursor, hitbox);
++
++                                                if let Some(group) = self.group.clone() {
++                                                    GroupHitboxes::push(group, hitbox.id, cx);
+                                                 }
+-                                            }
+ 
+-                                            if let Some(group) = self.group.clone() {
+-                                                GroupHitboxes::push(group, hitbox.id, cx);
+-                                            }
++                                                if let Some(area) = self.window_control {
++                                                    window.insert_window_control_hitbox(
++                                                        area,
++                                                        hitbox.clone(),
++                                                    );
++                                                }
+ 
+-                                            if let Some(area) = self.window_control {
+-                                                window.insert_window_control_hitbox(
+-                                                    area,
+-                                                    hitbox.clone(),
++                                                self.paint_mouse_listeners(
++                                                    hitbox,
++                                                    element_state.as_mut(),
++                                                    window,
++                                                    cx,
++                                                );
++                                                self.paint_scroll_listener(
++                                                    hitbox, &style, window, cx,
+                                                 );
+                                             }
+ 
+-                                            self.paint_mouse_listeners(
+-                                                hitbox,
+-                                                element_state.as_mut(),
+-                                                window,
+-                                                cx,
+-                                            );
+-                                            self.paint_scroll_listener(hitbox, &style, window, cx);
+-                                        }
+-
+-                                        self.paint_keyboard_listeners(window, cx);
+-
+-                                        if window.a11y.is_active() {
+-                                            if let Some(global_id) = global_id {
+-                                                if !self.a11y_action_listeners.is_empty() {
+-                                                    let node_id = global_id.accesskit_node_id();
+-                                                    for (action, listener) in
+-                                                        self.a11y_action_listeners.drain(..)
+-                                                    {
+-                                                        window.on_a11y_action(
+-                                                            node_id, action, listener,
+-                                                        );
++                                            self.paint_keyboard_listeners(window, cx);
++
++                                            if window.a11y.is_active() {
++                                                if let Some(global_id) = global_id {
++                                                    if !self.a11y_action_listeners.is_empty() {
++                                                        let node_id = global_id.accesskit_node_id();
++                                                        for (action, listener) in
++                                                            self.a11y_action_listeners.drain(..)
++                                                        {
++                                                            window.on_a11y_action(
++                                                                node_id, action, listener,
++                                                            );
++                                                        }
+                                                     }
+                                                 }
+                                             }
+-                                        }
+ 
+-                                        f(&style, window, cx);
+-
+-                                        if let Some(_hitbox) = hitbox {
+-                                            #[cfg(any(feature = "inspector", debug_assertions))]
+-                                            window.insert_inspector_hitbox(
+-                                                _hitbox.id,
+-                                                _inspector_id,
+-                                                cx,
+-                                            );
++                                            f(&style, window, cx);
++
++                                            if let Some(_hitbox) = hitbox {
++                                                #[cfg(any(
++                                                    feature = "inspector",
++                                                    debug_assertions
++                                                ))]
++                                                window.insert_inspector_hitbox(
++                                                    _hitbox.id,
++                                                    _inspector_id,
++                                                    cx,
++                                                );
+ 
+-                                            if let Some(group) = self.group.as_ref() {
+-                                                GroupHitboxes::pop(group, cx);
++                                                if let Some(group) = self.group.as_ref() {
++                                                    GroupHitboxes::pop(group, cx);
++                                                }
+                                             }
+-                                        }
+-                                    })
+-                                },
 -                            );
-+                            )
++                                        })
++                                    },
++                                )
 +                            });
                          });
                      });
                  });
 diff --git a/src/scene.rs b/src/scene.rs
-index be37813..7732cfb 100644
+index be37813..b40b4f7 100644
 --- a/src/scene.rs
 +++ b/src/scene.rs
-@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
+@@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
  
  use crate::{
      AtlasTextureId, AtlasTile, Background, Bounds, ContentMask, Corners, Edges, Hsla, Pixels,
 -    Point, Radians, ScaledPixels, Size, bounds_tree::BoundsTree, point,
 +    Point, Radians, RoundedClip, ScaledPixels, Size, bounds_tree::BoundsTree, point,
  };
++use collections::FxHashMap;
  use std::{
      fmt::Debug,
-@@ -50,6 +50,7 @@ pub struct Scene {
+     iter::Peekable,
+@@ -22,6 +23,24 @@ pub type PathVertex_ScaledPixels = PathVertex<ScaledPixels>;
+ #[expect(missing_docs)]
+ pub type DrawOrder = u32;
+ 
++/// An index into [`Scene::rounded_clips`]; 0 means the primitive has no rounded clip.
++pub type RoundedClipId = u32;
++
++/// A rounded clip as the renderers read it: a primitive's alpha is multiplied by its coverage, then by its
++/// parent's, and so on up the chain.
++#[derive(Clone, Copy, Debug, Default, PartialEq)]
++#[repr(C)]
++pub struct SceneRoundedClip {
++    /// The bounds
++    pub bounds: Bounds<ScaledPixels>,
++    /// The radius of each corner
++    pub corner_radii: Corners<ScaledPixels>,
++    /// The next clip out that also cuts what this one clips, or 0.
++    pub parent: RoundedClipId,
++    /// Pads the record to whole 16-byte texels for the WebGL instance texture.
++    pub pad: [u32; 3],
++}
++
+ /// A boolean stored as a `u32` so that GPU-facing structs contain no
+ /// compiler-inserted padding bytes, which would be undefined behavior to
+ /// reinterpret as `&[u8]` when writing instance buffers. Guaranteed to be
+@@ -50,6 +69,10 @@ pub struct Scene {
      pub subpixel_sprites: Vec<SubpixelSprite>,
      pub polychrome_sprites: Vec<PolychromeSprite>,
      pub surfaces: Vec<PaintSurface>,
 +    pub backdrop_blurs: Vec<BackdropBlur>,
++    /// Every rounded clip the primitives point at. Entry 0 stands for no clip once any clip is pushed.
++    pub rounded_clips: Vec<SceneRoundedClip>,
++    rounded_clip_ids: FxHashMap<[u32; 9], RoundedClipId>,
  }
  
  #[expect(missing_docs)]
-@@ -66,6 +67,7 @@ impl Scene {
+@@ -66,6 +89,9 @@ impl Scene {
          self.subpixel_sprites.clear();
          self.polychrome_sprites.clear();
          self.surfaces.clear();
 +        self.backdrop_blurs.clear();
++        self.rounded_clips.clear();
++        self.rounded_clip_ids.clear();
      }
  
      pub fn len(&self) -> usize {
-@@ -94,11 +96,14 @@ impl Scene {
+@@ -84,21 +110,95 @@ impl Scene {
+         self.paint_operations.push(PaintOperation::EndLayer);
+     }
+ 
++    /// Adds a rounded clip whose coverage multiplies that of `parent`, returning its id. The same clip under the
++    /// same parent gets the same id.
++    pub fn push_rounded_clip(
++        &mut self,
++        clip: RoundedClip<ScaledPixels>,
++        parent: RoundedClipId,
++    ) -> RoundedClipId {
++        let bounds = clip.bounds;
++        let radii = clip.corner_radii;
++        let [
++            x,
++            y,
++            width,
++            height,
++            top_left,
++            top_right,
++            bottom_right,
++            bottom_left,
++        ] = [
++            bounds.origin.x,
++            bounds.origin.y,
++            bounds.size.width,
++            bounds.size.height,
++            radii.top_left,
++            radii.top_right,
++            radii.bottom_right,
++            radii.bottom_left,
++        ]
++        .map(|value| value.0.to_bits());
++        let key = [
++            x,
++            y,
++            width,
++            height,
++            top_left,
++            top_right,
++            bottom_right,
++            bottom_left,
++            parent,
++        ];
++        if let Some(id) = self.rounded_clip_ids.get(&key) {
++            return *id;
++        }
++        if self.rounded_clips.is_empty() {
++            self.rounded_clips.push(SceneRoundedClip::default());
++        }
++        let id = self.rounded_clips.len() as RoundedClipId;
++        self.rounded_clips.push(SceneRoundedClip {
++            bounds,
++            corner_radii: radii,
++            parent,
++            pad: [0; 3],
++        });
++        self.rounded_clip_ids.insert(key, id);
++        id
++    }
++
++    /// Copies the chain of rounded clips at `id` in `scene` into this scene and returns its id here.
++    fn import_rounded_clip(&mut self, id: RoundedClipId, scene: &Scene) -> RoundedClipId {
++        if id == 0 {
++            return 0;
++        }
++        let clip = scene.rounded_clips[id as usize];
++        let parent = self.import_rounded_clip(clip.parent, scene);
++        self.push_rounded_clip(
++            RoundedClip {
++                bounds: clip.bounds,
++                corner_radii: clip.corner_radii,
++            },
++            parent,
++        )
++    }
++
+     pub fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
+         let mut primitive = primitive.into();
+         let clipped_bounds = primitive
+-            .bounds()
++            .painted_bounds()
+             .intersect(&primitive.content_mask().bounds);
+ 
+         if clipped_bounds.is_empty() {
              return;
          }
  
@@ -62,18 +344,16 @@ index be37813..7732cfb 100644
 -            .last()
 -            .copied()
 -            .unwrap_or_else(|| self.primitive_bounds.insert(clipped_bounds));
-+        // A blur reads what is under it, so it takes an order above all of that. Inside a layer, what the layer
-+        // paints after it keeps the layer's lower order, so a blur does not belong in `Window::paint_layer`.
++        // A blur reads all of its bounds, so it orders above everything there, which a layer's order cannot.
 +        let order = match (&primitive, self.layer_stack.last()) {
-+            (Primitive::BackdropBlur(_), _) | (_, None) => {
-+                self.primitive_bounds.insert(clipped_bounds)
-+            }
++            (Primitive::BackdropBlur(blur), _) => self.primitive_bounds.insert(blur.bounds),
++            (_, None) => self.primitive_bounds.insert(clipped_bounds),
 +            (_, Some(order)) => *order,
 +        };
          match &mut primitive {
              Primitive::Shadow(shadow) => {
                  shadow.order = order;
-@@ -133,6 +138,10 @@ impl Scene {
+@@ -133,15 +233,28 @@ impl Scene {
                  surface.order = order;
                  self.surfaces.push(surface.clone());
              }
@@ -84,7 +364,26 @@ index be37813..7732cfb 100644
          }
          self.paint_operations
              .push(PaintOperation::Primitive(primitive));
-@@ -160,6 +169,7 @@ impl Scene {
+     }
+ 
+     pub fn replay(&mut self, range: Range<usize>, prev_scene: &Scene) {
++        let mut imported = FxHashMap::default();
+         for operation in &prev_scene.paint_operations[range] {
+             match operation {
+-                PaintOperation::Primitive(primitive) => self.insert_primitive(primitive.clone()),
++                PaintOperation::Primitive(primitive) => {
++                    let mut primitive = primitive.clone();
++                    if let Some(id) = primitive.rounded_clip_mut() {
++                        *id = *imported
++                            .entry(*id)
++                            .or_insert_with(|| self.import_rounded_clip(*id, prev_scene));
++                    }
++                    self.insert_primitive(primitive)
++                }
+                 PaintOperation::StartLayer(bounds) => self.push_layer(*bounds),
+                 PaintOperation::EndLayer => self.pop_layer(),
+             }
+@@ -160,6 +273,7 @@ impl Scene {
          self.polychrome_sprites
              .sort_by_key(|sprite| (sprite.order, sprite.tile.tile_id));
          self.surfaces.sort_by_key(|surface| surface.order);
@@ -92,7 +391,7 @@ index be37813..7732cfb 100644
      }
  
      #[cfg_attr(
-@@ -187,6 +197,8 @@ impl Scene {
+@@ -187,6 +301,8 @@ impl Scene {
              polychrome_sprites_iter: self.polychrome_sprites.iter().peekable(),
              surfaces_start: 0,
              surfaces_iter: self.surfaces.iter().peekable(),
@@ -101,7 +400,7 @@ index be37813..7732cfb 100644
          }
      }
  }
-@@ -209,6 +221,7 @@ pub(crate) enum PrimitiveKind {
+@@ -209,6 +325,7 @@ pub(crate) enum PrimitiveKind {
      SubpixelSprite,
      PolychromeSprite,
      Surface,
@@ -109,7 +408,7 @@ index be37813..7732cfb 100644
  }
  
  pub(crate) enum PaintOperation {
-@@ -228,6 +241,7 @@ pub enum Primitive {
+@@ -228,6 +345,7 @@ pub enum Primitive {
      SubpixelSprite(SubpixelSprite),
      PolychromeSprite(PolychromeSprite),
      Surface(PaintSurface),
@@ -117,15 +416,40 @@ index be37813..7732cfb 100644
  }
  
  #[expect(missing_docs)]
-@@ -242,6 +256,7 @@ impl Primitive {
+@@ -242,6 +360,32 @@ impl Primitive {
              Primitive::SubpixelSprite(sprite) => &sprite.bounds,
              Primitive::PolychromeSprite(sprite) => &sprite.bounds,
              Primitive::Surface(surface) => &surface.bounds,
 +            Primitive::BackdropBlur(blur) => &blur.bounds,
++        }
++    }
++
++    /// The bounds the primitive can paint inside: a drop shadow's blur reaches three standard deviations past
++    /// its rect, and an inset shadow paints over its element.
++    pub fn painted_bounds(&self) -> Bounds<ScaledPixels> {
++        match self {
++            Primitive::Shadow(shadow) if shadow.inset != 0 => shadow.element_bounds,
++            Primitive::Shadow(shadow) => shadow.bounds.dilate(shadow.blur_radius * 3.),
++            primitive => *primitive.bounds(),
++        }
++    }
++
++    /// The primitive's rounded clip, for the kinds that take one.
++    pub fn rounded_clip_mut(&mut self) -> Option<&mut RoundedClipId> {
++        match self {
++            Primitive::Shadow(shadow) => Some(&mut shadow.rounded_clip),
++            Primitive::Quad(quad) => Some(&mut quad.rounded_clip),
++            Primitive::Path(path) => Some(&mut path.rounded_clip),
++            Primitive::Underline(underline) => Some(&mut underline.rounded_clip),
++            Primitive::MonochromeSprite(sprite) => Some(&mut sprite.rounded_clip),
++            Primitive::SubpixelSprite(sprite) => Some(&mut sprite.rounded_clip),
++            Primitive::PolychromeSprite(sprite) => Some(&mut sprite.rounded_clip),
++            Primitive::Surface(_) => None,
++            Primitive::BackdropBlur(blur) => Some(&mut blur.rounded_clip),
          }
      }
  
-@@ -255,6 +270,7 @@ impl Primitive {
+@@ -255,6 +399,7 @@ impl Primitive {
              Primitive::SubpixelSprite(sprite) => &sprite.content_mask,
              Primitive::PolychromeSprite(sprite) => &sprite.content_mask,
              Primitive::Surface(surface) => &surface.content_mask,
@@ -133,7 +457,7 @@ index be37813..7732cfb 100644
          }
      }
  }
-@@ -283,6 +299,8 @@ struct BatchIterator<'a> {
+@@ -283,6 +428,8 @@ struct BatchIterator<'a> {
      polychrome_sprites_iter: Peekable<slice::Iter<'a, PolychromeSprite>>,
      surfaces_start: usize,
      surfaces_iter: Peekable<slice::Iter<'a, PaintSurface>>,
@@ -142,7 +466,7 @@ index be37813..7732cfb 100644
  }
  
  impl<'a> Iterator for BatchIterator<'a> {
-@@ -316,6 +334,10 @@ impl<'a> Iterator for BatchIterator<'a> {
+@@ -316,6 +463,10 @@ impl<'a> Iterator for BatchIterator<'a> {
                  self.surfaces_iter.peek().map(|s| s.order),
                  PrimitiveKind::Surface,
              ),
@@ -153,7 +477,7 @@ index be37813..7732cfb 100644
          ];
          orders_and_kinds.sort_by_key(|(order, kind)| (order.unwrap_or(u32::MAX), *kind));
  
-@@ -461,6 +483,20 @@ impl<'a> Iterator for BatchIterator<'a> {
+@@ -461,6 +612,20 @@ impl<'a> Iterator for BatchIterator<'a> {
                  self.surfaces_start = surfaces_end;
                  Some(PrimitiveBatch::Surfaces(surfaces_start..surfaces_end))
              }
@@ -174,7 +498,7 @@ index be37813..7732cfb 100644
          }
      }
  }
-@@ -493,6 +529,8 @@ pub enum PrimitiveBatch {
+@@ -493,6 +658,8 @@ pub enum PrimitiveBatch {
          range: Range<usize>,
      },
      Surfaces(Range<usize>),
@@ -183,7 +507,7 @@ index be37813..7732cfb 100644
  }
  
  impl PrimitiveBatch {
-@@ -525,6 +563,7 @@ impl PrimitiveBatch {
+@@ -525,6 +692,7 @@ impl PrimitiveBatch {
                  )
              }
              Self::Surfaces(range) => format!("surfaces ({})", range.len()),
@@ -191,55 +515,61 @@ index be37813..7732cfb 100644
          }
      }
  }
-@@ -541,6 +580,7 @@ pub struct Quad {
+@@ -541,6 +709,8 @@ pub struct Quad {
      pub border_color: Hsla,
      pub corner_radii: Corners<ScaledPixels>,
      pub border_widths: Edges<ScaledPixels>,
-+    pub rounded_clip: RoundedClip<ScaledPixels>,
++    pub rounded_clip: RoundedClipId,
++    pub pad: [u32; 3],
  }
  
  impl From<Quad> for Primitive {
-@@ -560,6 +600,7 @@ pub struct Underline {
+@@ -554,7 +724,7 @@ impl From<Quad> for Primitive {
+ #[expect(missing_docs)]
+ pub struct Underline {
+     pub order: DrawOrder,
+-    pub pad: u32, // align to 8 bytes
++    pub rounded_clip: RoundedClipId,
+     pub bounds: Bounds<ScaledPixels>,
+     pub content_mask: ContentMask<ScaledPixels>,
      pub color: Hsla,
-     pub thickness: ScaledPixels,
-     pub wavy: PaddedBool32,
-+    pub rounded_clip: RoundedClip<ScaledPixels>,
- }
- 
- impl From<Underline> for Primitive {
-@@ -583,6 +624,7 @@ pub struct Shadow {
+@@ -582,7 +752,7 @@ pub struct Shadow {
+     pub element_corner_radii: Corners<ScaledPixels>,
      /// 0 = drop shadow (rendered outside the element), 1 = inset shadow (rendered inside).
      pub inset: u32,
-     pub pad: u32, // align to 8 bytes
-+    pub rounded_clip: RoundedClip<ScaledPixels>,
+-    pub pad: u32, // align to 8 bytes
++    pub rounded_clip: RoundedClipId,
  }
  
  impl From<Shadow> for Primitive {
-@@ -716,6 +758,7 @@ pub struct MonochromeSprite {
-     pub color: Hsla,
-     pub tile: AtlasTile,
-     pub transformation: TransformationMatrix,
-+    pub rounded_clip: RoundedClip<ScaledPixels>,
- }
- 
- impl From<MonochromeSprite> for Primitive {
-@@ -735,6 +778,7 @@ pub struct SubpixelSprite {
-     pub color: Hsla,
-     pub tile: AtlasTile,
-     pub transformation: TransformationMatrix,
-+    pub rounded_clip: RoundedClip<ScaledPixels>,
- }
- 
- impl From<SubpixelSprite> for Primitive {
-@@ -755,6 +799,7 @@ pub struct PolychromeSprite {
+@@ -710,7 +880,7 @@ impl Default for TransformationMatrix {
+ #[expect(missing_docs)]
+ pub struct MonochromeSprite {
+     pub order: DrawOrder,
+-    pub pad: u32,
++    pub rounded_clip: RoundedClipId,
+     pub bounds: Bounds<ScaledPixels>,
      pub content_mask: ContentMask<ScaledPixels>,
-     pub corner_radii: Corners<ScaledPixels>,
-     pub tile: AtlasTile,
-+    pub rounded_clip: RoundedClip<ScaledPixels>,
- }
- 
- impl From<PolychromeSprite> for Primitive {
-@@ -779,6 +824,31 @@ impl From<PaintSurface> for Primitive {
+     pub color: Hsla,
+@@ -729,7 +899,7 @@ impl From<MonochromeSprite> for Primitive {
+ #[expect(missing_docs)]
+ pub struct SubpixelSprite {
+     pub order: DrawOrder,
+-    pub pad: u32, // align to 8 bytes
++    pub rounded_clip: RoundedClipId,
+     pub bounds: Bounds<ScaledPixels>,
+     pub content_mask: ContentMask<ScaledPixels>,
+     pub color: Hsla,
+@@ -748,7 +918,7 @@ impl From<SubpixelSprite> for Primitive {
+ #[expect(missing_docs)]
+ pub struct PolychromeSprite {
+     pub order: DrawOrder,
+-    pub pad: u32,
++    pub rounded_clip: RoundedClipId,
+     pub grayscale: PaddedBool32,
+     pub opacity: f32,
+     pub bounds: Bounds<ScaledPixels>,
+@@ -779,6 +949,32 @@ impl From<PaintSurface> for Primitive {
      }
  }
  
@@ -259,7 +589,8 @@ index be37813..7732cfb 100644
 +    /// The Gaussian's standard deviation, as CSS's `blur()` takes it.
 +    pub blur_radius: ScaledPixels,
 +    pub saturation: f32,
-+    pub rounded_clip: RoundedClip<ScaledPixels>,
++    pub rounded_clip: RoundedClipId,
++    pub pad: u32,
 +}
 +
 +impl From<BackdropBlur> for Primitive {
@@ -271,43 +602,45 @@ index be37813..7732cfb 100644
  #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
  #[expect(missing_docs)]
  pub struct PathId(pub usize);
-@@ -793,6 +863,7 @@ pub struct Path<P: Clone + Debug + Default + PartialEq> {
+@@ -793,6 +989,7 @@ pub struct Path<P: Clone + Debug + Default + PartialEq> {
      pub content_mask: ContentMask<P>,
      pub vertices: Vec<PathVertex<P>>,
      pub color: Background,
-+    pub rounded_clip: RoundedClip<P>,
++    pub rounded_clip: RoundedClipId,
      start: Point<P>,
      current: Point<P>,
      contour_count: usize,
-@@ -813,6 +884,7 @@ impl Path<Pixels> {
+@@ -813,6 +1010,7 @@ impl Path<Pixels> {
              },
              content_mask: Default::default(),
              color: Default::default(),
-+            rounded_clip: Default::default(),
++            rounded_clip: 0,
              contour_count: 0,
          }
      }
-@@ -833,6 +905,7 @@ impl Path<Pixels> {
+@@ -833,6 +1031,7 @@ impl Path<Pixels> {
              current: self.current.scale(factor),
              contour_count: self.contour_count,
              color: self.color,
-+            rounded_clip: self.rounded_clip.scale(factor),
++            rounded_clip: self.rounded_clip,
          }
      }
  
 diff --git a/src/style.rs b/src/style.rs
-index 9150fdd..e37dc71 100644
+index 9150fdd..62e9e03 100644
 --- a/src/style.rs
 +++ b/src/style.rs
-@@ -8,7 +8,7 @@ use crate::{
+@@ -8,8 +8,8 @@ use crate::{
      AbsoluteLength, App, Background, BackgroundTag, BorderStyle, Bounds, ContentMask, Corners,
      CornersRefinement, CursorStyle, DefiniteLength, DevicePixels, Edges, EdgesRefinement, Font,
      FontFallbacks, FontFeatures, FontStyle, FontWeight, GridLocation, Hsla, Length, Pixels, Point,
 -    PointRefinement, Rgba, SharedString, Size, SizeRefinement, Styled, TextRun, Window, black, phi,
-+    PointRefinement, Rgba, RoundedClip, SharedString, Size, SizeRefinement, Styled, TextRun, Window, black, phi,
-     point, px, quad, rems, size,
+-    point, px, quad, rems, size,
++    PointRefinement, Rgba, RoundedClip, SharedString, Size, SizeRefinement, Styled, TextRun,
++    Window, black, phi, point, px, quad, rems, size,
  };
  use collections::HashSet;
+ use refineable::Refineable;
 @@ -301,6 +301,13 @@ pub struct Style {
      /// The opacity of this element
      pub opacity: Option<f32>,
@@ -322,18 +655,18 @@ index 9150fdd..e37dc71 100644
      /// The grid columns of this element
      /// Roughly equivalent to the Tailwind `grid-cols-<number>`
      pub grid_cols: Option<GridTemplate>,
-@@ -684,6 +691,45 @@ impl Style {
+@@ -684,6 +691,49 @@ impl Style {
          }
      }
  
-+    /// Get the rounded clip for this element style: like CSS, an element that hides its overflow on both axes
++    /// Get the rounded clip for this element style: like CSS, an element that hides its overflow on either axis
 +    /// clips its children to its rounded padding box. Returns `None` when it does not, or has square corners.
 +    pub fn overflow_rounded_clip(
 +        &self,
 +        bounds: Bounds<Pixels>,
 +        rem_size: Pixels,
 +    ) -> Option<RoundedClip<Pixels>> {
-+        if self.overflow.x == Overflow::Visible || self.overflow.y == Overflow::Visible {
++        if self.overflow.x == Overflow::Visible && self.overflow.y == Overflow::Visible {
 +            return None;
 +        }
 +        let mut corner_radii = self
@@ -345,9 +678,13 @@ index 9150fdd..e37dc71 100644
 +            let border = self.border_widths.to_pixels(rem_size);
 +            bounds = Bounds::from_corners(
 +                point(bounds.left() + border.left, bounds.top() + border.top),
-+                point(bounds.right() - border.right, bounds.bottom() - border.bottom),
++                point(
++                    bounds.right() - border.right,
++                    bounds.bottom() - border.bottom,
++                ),
 +            );
-+            let inner = |radius: Pixels, a: Pixels, b: Pixels| (radius - a.max(b)).max(Pixels::ZERO);
++            let inner =
++                |radius: Pixels, a: Pixels, b: Pixels| (radius - a.max(b)).max(Pixels::ZERO);
 +            corner_radii = Corners {
 +                top_left: inner(corner_radii.top_left, border.top, border.left),
 +                top_right: inner(corner_radii.top_right, border.top, border.right),
@@ -355,7 +692,7 @@ index 9150fdd..e37dc71 100644
 +                bottom_left: inner(corner_radii.bottom_left, border.bottom, border.left),
 +            };
 +        }
-+        // A rounded clip with square corners would replace an outer one that still rounds.
++        // Square corners clip no more than the content mask does.
 +        if corner_radii == Corners::default() {
 +            return None;
 +        }
@@ -368,7 +705,7 @@ index 9150fdd..e37dc71 100644
      /// Paints the background of an element styled with this style.
      pub fn paint(
          &self,
-@@ -710,6 +756,15 @@ impl Style {
+@@ -710,6 +760,15 @@ impl Style {
  
          window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
  
@@ -384,7 +721,7 @@ index 9150fdd..e37dc71 100644
          let background_color = self.background.as_ref().and_then(Fill::color);
          if background_color.is_some_and(|color| !color.is_transparent()) {
              let mut border_color = match background_color {
-@@ -809,6 +864,8 @@ impl Default for Style {
+@@ -809,6 +868,8 @@ impl Default for Style {
              text: TextStyleRefinement::default(),
              mouse_cursor: None,
              opacity: None,
@@ -394,18 +731,18 @@ index 9150fdd..e37dc71 100644
              grid_cols: None,
              grid_location: None,
 diff --git a/src/styled.rs b/src/styled.rs
-index a24982a..817d4ce 100644
+index a24982a..ec3fc06 100644
 --- a/src/styled.rs
 +++ b/src/styled.rs
-@@ -1,7 +1,7 @@
- use crate::{
+@@ -2,7 +2,7 @@ use crate::{
      self as gpui, AbsoluteLength, AlignContent, AlignItems, AlignSelf, BorderStyle, CursorStyle,
      DefiniteLength, Display, Fill, FlexDirection, FlexWrap, Font, FontFeatures, FontStyle,
--    FontWeight, GridPlacement, GridTemplate, GridTemplateMinSize, Hsla, JustifyContent, Length,
-+    FontWeight, GridPlacement, GridTemplate, GridTemplateMinSize, Hsla, JustifyContent, Length, Pixels,
-     SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
+     FontWeight, GridPlacement, GridTemplate, GridTemplateMinSize, Hsla, JustifyContent, Length,
+-    SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
++    Pixels, SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
      TextStyleRefinement, UnderlineStyle, WhiteSpace, px, relative, rems,
  };
+ pub use gpui_macros::{
 @@ -748,6 +748,19 @@ pub trait Styled: Sized {
          self
      }
@@ -427,7 +764,7 @@ index a24982a..817d4ce 100644
      fn grid_cols(mut self, cols: u16) -> Self {
          self.style().grid_cols = Some(GridTemplate {
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..8d43af3 100644
+index 1214b03..f1492a4 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -6,7 +6,8 @@ use crate::Inspector;
@@ -436,7 +773,7 @@ index 1214b03..8d43af3 100644
      Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
 -    AsyncWindowContext, AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow,
 +    AsyncWindowContext, AtlasTile, AvailableSpace, BackdropBlur, Background, BorderStyle, Bounds,
-+    BoxShadow,
++    BoxShadow, Primitive, RoundedClipId,
      Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
      DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
      EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs,
@@ -444,7 +781,7 @@ index 1214b03..8d43af3 100644
      pub(crate) element_offset_stack: Vec<Point<Pixels>>,
      pub(crate) element_opacity: f32,
      pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
-+    pub(crate) rounded_clip_stack: Vec<RoundedClip<Pixels>>,
++    pub(crate) rounded_clip_stack: Vec<RoundedClip<ScaledPixels>>,
      pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
      /// The [`TextInputConfiguration`] most recently forwarded to the platform
      /// window, so that only actual changes are forwarded (reconfiguring a live
@@ -456,13 +793,12 @@ index 1214b03..8d43af3 100644
              element_opacity: 1.0,
              requested_autoscroll: None,
              last_text_input_configuration: None,
-@@ -2248,6 +2251,28 @@ impl ContentMask<Pixels> {
+@@ -2248,6 +2251,53 @@ impl ContentMask<Pixels> {
      }
  }
  
-+/// A rounded rectangle that clips what is painted inside it, antialiased, on top of the content mask. Only the
-+/// innermost one applies; an outer one still clips through its bounds, which the content mask carries. Zero radii
-+/// mean no rounded clip.
++/// A rounded rectangle that clips what is painted inside it, antialiased, on top of the content mask, which
++/// carries its bounds. Nested clips all apply.
 +#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 +#[repr(C)]
 +pub struct RoundedClip<P: Clone + Debug + Default + PartialEq> {
@@ -470,6 +806,32 @@ index 1214b03..8d43af3 100644
 +    pub bounds: Bounds<P>,
 +    /// The radius of each corner
 +    pub corner_radii: Corners<P>,
++}
++
++impl RoundedClip<ScaledPixels> {
++    /// Whether the clip cuts any of `bounds` that its own bounds do not: where `bounds` reaches into a rounded
++    /// corner or past the clip's edges.
++    fn cuts(&self, bounds: &Bounds<ScaledPixels>) -> bool {
++        let clip = self.bounds;
++        let radii = self.corner_radii;
++        let corner = |x, y, radius: ScaledPixels| Bounds {
++            origin: point(x, y),
++            size: size(radius, radius),
++        };
++        bounds.intersect(&clip) != *bounds
++            || [
++                corner(clip.left(), clip.top(), radii.top_left),
++                corner(clip.right() - radii.top_right, clip.top(), radii.top_right),
++                corner(
++                    clip.right() - radii.bottom_right,
++                    clip.bottom() - radii.bottom_right,
++                    radii.bottom_right,
++                ),
++                corner(clip.left(), clip.bottom() - radii.bottom_left, radii.bottom_left),
++            ]
++            .iter()
++            .any(|corner| corner.intersects(bounds))
++    }
 +}
 +
 +impl RoundedClip<Pixels> {
@@ -485,37 +847,93 @@ index 1214b03..8d43af3 100644
  impl Window {
      fn mark_view_dirty(&mut self, view_id: EntityId) {
          // Mark ancestor views as dirty. If already in the `dirty_views` set, then all its ancestors
-@@ -3276,6 +3301,7 @@ impl Window {
-             pad: 0,
+@@ -3224,7 +3274,7 @@ impl Window {
+         self.invalidator.debug_assert_paint();
+         let underline = self.underline(origin, width, style);
+         if exclusions.is_empty() {
+-            self.next_frame.scene.insert_primitive(underline);
++            self.insert_primitive(underline);
+             return;
+         }
+ 
+@@ -3242,13 +3292,13 @@ impl Window {
+             })
+             .collect::<SmallVec<[_; 4]>>();
+         if exclusions.is_empty() {
+-            self.next_frame.scene.insert_primitive(underline);
++            self.insert_primitive(underline);
+             return;
+         }
+         exclusions.sort_unstable_by_key(|span| span.start);
+ 
+         let mut paint_span = |start, end| {
+-            self.next_frame.scene.insert_primitive(Underline {
++            self.insert_primitive(Underline {
+                 content_mask: ContentMask {
+                     bounds: Bounds::from_corners(
+                         point(start, bounds.top()),
+@@ -3273,9 +3323,9 @@ impl Window {
+     fn underline(&self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) -> Underline {
+         Underline {
+             order: 0,
+-            pad: 0,
              bounds: self.underline_bounds(origin, width, style),
              content_mask: self.snapped_content_mask(),
-+            rounded_clip: self.rounded_clip(),
++            rounded_clip: 0,
              color: style
                  .color
                  .unwrap_or_default()
-@@ -3323,6 +3349,16 @@ impl Window {
+@@ -3323,6 +3373,44 @@ impl Window {
          )
      }
  
-+    fn rounded_clip(&self) -> RoundedClip<ScaledPixels> {
-+        self.rounded_clip_stack
-+            .last()
-+            .map(|clip| RoundedClip {
-+                bounds: self.snap_bounds(clip.bounds),
-+                corner_radii: clip.corner_radii.scale(self.scale_factor()),
-+            })
-+            .unwrap_or_default()
++    /// Inserts a primitive into the next frame's scene under the rounded clips that cut it, outermost first, so
++    /// a primitive clear of every rounded corner costs the renderer nothing extra.
++    fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
++        let mut primitive = primitive.into();
++        if primitive.rounded_clip_mut().is_some() {
++            let rounded_clip = self.rounded_clip_for(&primitive);
++            if let Some(id) = primitive.rounded_clip_mut() {
++                *id = rounded_clip;
++            }
++        }
++        self.next_frame.scene.insert_primitive(primitive);
++    }
++
++    fn rounded_clip_for(&mut self, primitive: &Primitive) -> RoundedClipId {
++        let mut rounded_clip = 0;
++        if !self.rounded_clip_stack.is_empty() {
++            let bounds = primitive
++                .painted_bounds()
++                .intersect(&primitive.content_mask().bounds);
++            // A transformed sprite can paint outside its untransformed bounds.
++            let transformed = match primitive {
++                Primitive::MonochromeSprite(sprite) => {
++                    sprite.transformation != TransformationMatrix::unit()
++                }
++                Primitive::SubpixelSprite(sprite) => {
++                    sprite.transformation != TransformationMatrix::unit()
++                }
++                _ => false,
++            };
++            for clip in &self.rounded_clip_stack {
++                if transformed || clip.cuts(&bounds) {
++                    rounded_clip = self.next_frame.scene.push_rounded_clip(*clip, rounded_clip);
++                }
++            }
++        }
++        rounded_clip
 +    }
 +
      #[inline]
      fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
          ContentMask {
-@@ -4177,6 +4213,28 @@ impl Window {
+@@ -4177,6 +4265,31 @@ impl Window {
          }
      }
  
-+    /// Invoke the given function with the given rounded clip, which replaces the current one, and its bounds
-+    /// intersected with the current content mask. This method should only be called during element painting.
++    /// Invoke the given function with the given rounded clip inside the current ones, and its bounds intersected
++    /// with the current content mask. This method should only be called during element painting.
 +    pub fn with_rounded_clip<R>(
 +        &mut self,
 +        clip: Option<RoundedClip<Pixels>>,
@@ -525,7 +943,10 @@ index 1214b03..8d43af3 100644
 +        let Some(clip) = clip else {
 +            return f(self);
 +        };
-+        self.rounded_clip_stack.push(clip);
++        self.rounded_clip_stack.push(RoundedClip {
++            bounds: self.snap_bounds(clip.bounds),
++            corner_radii: clip.corner_radii.scale(self.scale_factor()),
++        });
 +        let result = self.with_content_mask(
 +            Some(ContentMask {
 +                bounds: clip.bounds,
@@ -539,31 +960,119 @@ index 1214b03..8d43af3 100644
      /// Updates the global element offset relative to the current offset. This is used to implement
      /// scrolling. This method should only be called during the prepaint phase of element drawing.
      pub fn with_element_offset<R>(
-@@ -4578,6 +4636,7 @@ impl Window {
+@@ -4566,24 +4679,42 @@ impl Window {
+         let scale_factor = self.scale_factor();
+         let content_mask = self.snapped_content_mask();
+         let opacity = self.element_opacity();
+-        let element_bounds = self.cover_bounds(bounds);
++        // The quad drawn for the element snaps its bounds this way, and the shadow stops at its edge.
++        let element_bounds = self.snap_bounds(bounds);
+         let element_corner_radii = corner_radii.scale(scale_factor);
+         for shadow in shadows {
+             if shadow.inset {
+                 continue;
+             }
+             let shadow_bounds = (bounds + shadow.offset).dilate(shadow.spread_radius);
+-            self.next_frame.scene.insert_primitive(Shadow {
++            // CSS grows or shrinks each corner with the spread, and eases the growth of a corner smaller than it.
++            let spread = shadow.spread_radius;
++            let spread_corner = |radius: Pixels| {
++                if radius <= Pixels::ZERO {
++                    radius
++                } else if spread > Pixels::ZERO && radius < spread {
++                    radius + spread * (1. + (radius / spread - 1.).powi(3))
++                } else {
++                    (radius + spread).max(Pixels::ZERO)
++                }
++            };
++            let shadow_corner_radii = Corners {
++                top_left: spread_corner(corner_radii.top_left),
++                top_right: spread_corner(corner_radii.top_right),
++                bottom_right: spread_corner(corner_radii.bottom_right),
++                bottom_left: spread_corner(corner_radii.bottom_left),
++            };
++            self.insert_primitive(Shadow {
+                 order: 0,
                  blur_radius: shadow.blur_radius.scale(scale_factor),
                  bounds: self.cover_bounds(shadow_bounds),
                  content_mask,
-+                rounded_clip: self.rounded_clip(),
-                 corner_radii: corner_radii.scale(scale_factor),
+-                corner_radii: corner_radii.scale(scale_factor),
++                rounded_clip: 0,
++                corner_radii: shadow_corner_radii.scale(scale_factor),
                  color: shadow.color.opacity(opacity),
                  element_bounds,
-@@ -4623,6 +4682,7 @@ impl Window {
+                 element_corner_radii,
+                 inset: 0,
+-                pad: 0,
+             });
+         }
+     }
+@@ -4602,7 +4733,7 @@ impl Window {
+         let scale_factor = self.scale_factor();
+         let content_mask = self.snapped_content_mask();
+         let opacity = self.element_opacity();
+-        let element_bounds = self.cover_bounds(bounds);
++        let element_bounds = self.snap_bounds(bounds);
+         let element_corner_radii = corner_radii.scale(scale_factor);
+         for shadow in shadows {
+             if !shadow.inset {
+@@ -4618,17 +4749,17 @@ impl Window {
+                 bottom_right: (corner_radii.bottom_right - shadow.spread_radius).max(zero),
+                 bottom_left: (corner_radii.bottom_left - shadow.spread_radius).max(zero),
+             };
+-            self.next_frame.scene.insert_primitive(Shadow {
++            self.insert_primitive(Shadow {
+                 order: 0,
                  blur_radius: shadow.blur_radius.scale(scale_factor),
                  bounds: self.cover_bounds(hole),
                  content_mask,
-+                rounded_clip: self.rounded_clip(),
++                rounded_clip: 0,
                  corner_radii: hole_corner_radii.scale(scale_factor),
                  color: shadow.color.opacity(opacity),
                  element_bounds,
-@@ -4691,6 +4751,7 @@ impl Window {
+                 element_corner_radii,
+                 inset: 1,
+-                pad: 0,
+             });
+         }
+     }
+@@ -4691,6 +4822,8 @@ impl Window {
              order: 0,
              bounds: snapped_bounds,
              content_mask: self.snapped_content_mask(),
-+            rounded_clip: self.rounded_clip(),
++            rounded_clip: 0,
++            pad: [0; 3],
              background: quad.background.opacity(opacity),
              border_color: quad.border_color.opacity(opacity),
              corner_radii: quad.corner_radii.scale(self.scale_factor()),
-@@ -4749,6 +4810,36 @@ impl Window {
+@@ -4699,7 +4832,7 @@ impl Window {
+         };
+ 
+         if !quad.background.is_transparent() {
+-            self.next_frame.scene.insert_primitive(quad);
++            self.insert_primitive(quad);
+             return;
+         }
+ 
+@@ -4709,7 +4842,7 @@ impl Window {
+         let inner_bounds = Self::largest_border_interior(&quad);
+ 
+         if inner_bounds.is_empty() {
+-            self.next_frame.scene.insert_primitive(quad);
++            self.insert_primitive(quad);
+             return;
+         }
+ 
+@@ -4739,7 +4872,7 @@ impl Window {
+         for strip in strips {
+             let content_mask_bounds = quad.content_mask.bounds.intersect(&strip);
+             if !content_mask_bounds.is_empty() {
+-                self.next_frame.scene.insert_primitive(Quad {
++                self.insert_primitive(Quad {
+                     content_mask: ContentMask {
+                         bounds: content_mask_bounds,
+                     },
+@@ -4749,6 +4882,39 @@ impl Window {
          }
      }
  
@@ -581,11 +1090,13 @@ index 1214b03..8d43af3 100644
 +    ) {
 +        self.invalidator.debug_assert_paint();
 +        let opacity = self.element_opacity();
-+        if blur_radius <= px(0.) && saturation == 1. || opacity <= 0. {
++        let blur_radius = if blur_radius.0.is_finite() { blur_radius.max(px(0.)) } else { px(0.) };
++        let saturation = if saturation.is_finite() { saturation.max(0.) } else { 1. };
++        if blur_radius == px(0.) && saturation == 1. || opacity <= 0. {
 +            return;
 +        }
 +        let scale_factor = self.scale_factor();
-+        self.next_frame.scene.insert_primitive(BackdropBlur {
++        self.insert_primitive(BackdropBlur {
 +            order: 0,
 +            opacity,
 +            bounds: self.snap_bounds(bounds),
@@ -593,66 +1104,125 @@ index 1214b03..8d43af3 100644
 +            corner_radii: corner_radii.scale(scale_factor),
 +            blur_radius: blur_radius.scale(scale_factor),
 +            saturation,
-+            rounded_clip: self.rounded_clip(),
++            rounded_clip: 0,
++            pad: 0,
 +        });
 +    }
 +
      /// Paint the given `Path` into the scene for the next frame at the current z-index.
      ///
      /// This method should only be called as part of the paint phase of element drawing.
-@@ -4759,6 +4850,7 @@ impl Window {
-         let content_mask = self.content_mask();
-         let opacity = self.element_opacity();
+@@ -4761,9 +4927,7 @@ impl Window {
          path.content_mask = content_mask;
-+        path.rounded_clip = self.rounded_clip_stack.last().copied().unwrap_or_default();
          let color: Background = color.into();
          path.color = color.opacity(opacity);
-         self.next_frame
-@@ -4804,6 +4896,7 @@ impl Window {
-             pad: 0,
+-        self.next_frame
+-            .scene
+-            .insert_primitive(path.scale(scale_factor));
++        self.insert_primitive(path.scale(scale_factor));
+     }
+ 
+     /// Paint an underline into the scene for the next frame at the current z-index.
+@@ -4777,7 +4941,7 @@ impl Window {
+     ) {
+         self.invalidator.debug_assert_paint();
+         let underline = self.underline(origin, width, style);
+-        self.next_frame.scene.insert_primitive(underline);
++        self.insert_primitive(underline);
+     }
+ 
+     /// Paint a strikethrough into the scene for the next frame at the current z-index.
+@@ -4799,11 +4963,11 @@ impl Window {
+         };
+         let opacity = self.element_opacity();
+ 
+-        self.next_frame.scene.insert_primitive(Underline {
++        self.insert_primitive(Underline {
+             order: 0,
+-            pad: 0,
              bounds,
              content_mask: self.snapped_content_mask(),
-+            rounded_clip: self.rounded_clip(),
++            rounded_clip: 0,
              thickness: self.snap_stroke(style.thickness),
              color: style.color.unwrap_or_default().opacity(opacity),
              wavy: false.into(),
-@@ -4877,6 +4970,7 @@ impl Window {
-                     pad: 0,
+@@ -4872,21 +5036,21 @@ impl Window {
+             let content_mask = self.snapped_content_mask();
+ 
+             if subpixel_rendering {
+-                self.next_frame.scene.insert_primitive(SubpixelSprite {
++                self.insert_primitive(SubpixelSprite {
+                     order: 0,
+-                    pad: 0,
                      bounds,
                      content_mask,
-+                    rounded_clip: self.rounded_clip(),
++                    rounded_clip: 0,
                      color: color.opacity(element_opacity),
                      tile,
                      transformation: TransformationMatrix::unit(),
-@@ -4887,6 +4981,7 @@ impl Window {
-                     pad: 0,
+                 });
+             } else {
+-                self.next_frame.scene.insert_primitive(MonochromeSprite {
++                self.insert_primitive(MonochromeSprite {
+                     order: 0,
+-                    pad: 0,
                      bounds,
                      content_mask,
-+                    rounded_clip: self.rounded_clip(),
++                    rounded_clip: 0,
                      color: color.opacity(element_opacity),
                      tile,
                      transformation: TransformationMatrix::unit(),
-@@ -4970,6 +5065,7 @@ impl Window {
+@@ -4963,13 +5127,13 @@ impl Window {
+             let content_mask = self.snapped_content_mask();
+             let opacity = self.element_opacity();
+ 
+-            self.next_frame.scene.insert_primitive(PolychromeSprite {
++            self.insert_primitive(PolychromeSprite {
+                 order: 0,
+-                pad: 0,
+                 grayscale: false.into(),
                  bounds,
                  corner_radii: Default::default(),
                  content_mask,
-+                rounded_clip: self.rounded_clip(),
++                rounded_clip: 0,
                  tile,
                  opacity,
              });
-@@ -5034,6 +5130,7 @@ impl Window {
-             pad: 0,
+@@ -5029,11 +5193,11 @@ impl Window {
+             .map_origin(|value| ScaledPixels(round_half_toward_zero(value.0)))
+             .map_size(|size| size.ceil());
+ 
+-        self.next_frame.scene.insert_primitive(MonochromeSprite {
++        self.insert_primitive(MonochromeSprite {
+             order: 0,
+-            pad: 0,
              bounds: final_bounds,
              content_mask,
-+            rounded_clip: self.rounded_clip(),
++            rounded_clip: 0,
              color: color.opacity(element_opacity),
              tile,
              transformation,
-@@ -5141,6 +5238,7 @@ impl Window {
+@@ -5135,12 +5299,12 @@ impl Window {
+             .scale(self.scale_factor());
+         let opacity = self.element_opacity();
+ 
+-        self.next_frame.scene.insert_primitive(PolychromeSprite {
++        self.insert_primitive(PolychromeSprite {
+             order: 0,
+-            pad: 0,
              grayscale: grayscale.into(),
              bounds: visible_bounds_snapped,
              content_mask,
-+            rounded_clip: self.rounded_clip(),
++            rounded_clip: 0,
              corner_radii,
              tile: sub_tile,
              opacity,
+@@ -5163,7 +5327,7 @@ impl Window {
+ 
+         let bounds = self.snap_bounds(bounds);
+         let content_mask = self.snapped_content_mask();
+-        self.next_frame.scene.insert_primitive(PaintSurface {
++        self.insert_primitive(PaintSurface {
+             order: 0,
+             bounds,
+             content_mask,

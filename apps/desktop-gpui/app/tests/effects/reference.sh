@@ -7,6 +7,15 @@ here=$(cd "$(dirname "$0")" && pwd)
 out=${EFFECTS_REFERENCE_DIR:-$here/chromium}
 scenes="plain-light blur-light blur-dark blur-two clip"
 scrolls="0 50 117"
+# Scenes drawn at one scroll position, as scene:scroll.
+single="clip-nested:40 blur-radii:0 blur-tint-dark:0 blur-shadow:0"
+shots=
+for scene in $scenes; do
+  for scroll in $scrolls; do
+    shots="$shots $scene:$scroll"
+  done
+done
+shots="$shots $single"
 
 chrome=${CHROME:-}
 if [ -z "$chrome" ]; then
@@ -63,37 +72,37 @@ echo "flags: $flags --user-data-dir=<tmp> --screenshot=<png> <url>"
 
 mkdir -p "$out"
 
-for scene in $scenes; do
-  for scroll in $scrolls; do
-    png="$out/$scene-$scroll.png"
-    rm -f "$png"
-    # An X DISPLAY without access makes the GPU process fail and Chrome silently falls back to the software compositor.
-    # shellcheck disable=SC2086
-    env -u DISPLAY -u WAYLAND_DISPLAY "$chrome" $flags --user-data-dir="$profile" \
-      --screenshot="$png" "file://$here/scene.html?scene=$scene&scroll=$scroll" >/dev/null 2>&1 &
-    chrome_pid=$!
-    waited=0
-    while kill -0 "$chrome_pid" 2>/dev/null; do
-      if [ "$waited" -ge 300 ]; then
-        echo "chrome timed out on $scene $scroll" >&2
-        exit 1
-      fi
-      sleep 0.1
-      waited=$((waited + 1))
-    done
-    wait "$chrome_pid" || true
-    chrome_pid=
-    if [ ! -s "$png" ]; then
-      echo "chrome wrote no screenshot for $scene $scroll" >&2
+for shot in $shots; do
+  scene=${shot%:*}
+  scroll=${shot#*:}
+  png="$out/$scene-$scroll.png"
+  rm -f "$png"
+  # An X DISPLAY without access makes the GPU process fail and Chrome silently falls back to the software compositor.
+  # shellcheck disable=SC2086
+  env -u DISPLAY -u WAYLAND_DISPLAY "$chrome" $flags --user-data-dir="$profile" \
+    --screenshot="$png" "file://$here/scene.html?scene=$scene&scroll=$scroll" >/dev/null 2>&1 &
+  chrome_pid=$!
+  waited=0
+  while kill -0 "$chrome_pid" 2>/dev/null; do
+    if [ "$waited" -ge 300 ]; then
+      echo "chrome timed out on $scene $scroll" >&2
       exit 1
     fi
-    size=$(im_identify -format '%wx%h' "$png")
-    if [ "$size" != 1280x960 ]; then
-      echo "$png is $size, expected 1280x960" >&2
-      exit 1
-    fi
-    echo "wrote $png"
+    sleep 0.1
+    waited=$((waited + 1))
   done
+  wait "$chrome_pid" || true
+  chrome_pid=
+  if [ ! -s "$png" ]; then
+    echo "chrome wrote no screenshot for $scene $scroll" >&2
+    exit 1
+  fi
+  size=$(im_identify -format '%wx%h' "$png")
+  if [ "$size" != 1280x960 ]; then
+    echo "$png is $size, expected 1280x960" >&2
+    exit 1
+  fi
+  echo "wrote $png"
 done
 
 fail=0
@@ -117,6 +126,11 @@ check "plain-light-0 page" "$(pixel "$out/plain-light-0.png" 20 20)" F4F4F5
 check "plain-light-0 tinted bar" "$(pixel "$out/plain-light-0.png" 1100 700)" A7C7FB
 check "clip-0 box corner outside radius" "$(pixel "$out/clip-0.png" 361 81)" F4F4F5
 check "clip-0 row 0" "$(pixel "$out/clip-0.png" 800 120)" E11D48
+# Just inside the panel's corners, outside its arc, where the cut cards' fills reach inside their own clips.
+check "clip-nested-40 panel corner outside its arc" "$(pixel "$out/clip-nested-40.png" 326 86)" F4F4F5
+check "clip-nested-40 panel bottom corner outside its arc" "$(pixel "$out/clip-nested-40.png" 954 874)" F4F4F5
+# The page between two rows at CSS (320, 212), under the shadow of the composer scrolled out of the pane's top.
+check "blur-shadow-0 shadow below the pane's top" "$(pixel "$out/blur-shadow-0.png" 640 424)" E4E4E5
 
 for scroll in $scrolls; do
   plain="$out/plain-light-$scroll.png"
