@@ -186,14 +186,15 @@ const GITHUB_REMOTES = ["https://github.com/", "git@github.com:", "ssh://git@git
 /** git's configuration on a machine whose credentials the host keeps, as GIT_CONFIG_COUNT pairs and no file: every
  * GitHub remote form rewritten to plain http, so `git remote -v` still names github.com and gh still reads the remote
  * as GitHub's, and the daemon's HTTP door as git's proxy for it, the token its password. No credential helper is
- * asked and git never prompts. A public repo's own `.git` remote is fetched from GitHub itself over https, which no
- * proxy is set for, and still pushed through the door. Only the `.git` form, since insteadOf matches a prefix and
+ * asked and git never prompts. A public repo of record's own `.git` remote, and each public repo in `direct` (the
+ * person's plugin marketplaces, which the agent clones at its start), is fetched from GitHub itself over https, which
+ * no proxy is set for, and still pushed through the door. Only the `.git` form, since insteadOf matches a prefix and
  * `acme/web` would also send `acme/web-private` past the door. */
-export function brokeredGitEnv(token: string, repo?: Pick<BranchOfRecord, "owner" | "name" | "public">): Record<string, string> {
-  const own = repo?.public === true ? `${repo.owner}/${repo.name}.git` : undefined;
+export function brokeredGitEnv(token: string, repo?: Pick<BranchOfRecord, "owner" | "name" | "public">, direct: readonly string[] = []): Record<string, string> {
+  const repos = new Set([...(repo?.public === true ? [`${repo.owner}/${repo.name}`] : []), ...direct].map(r => `${r}.git`));
   const pairs: [string, string][] = [
     ...GITHUB_REMOTES.map((from): [string, string] => ["url.http://github.com/.insteadOf", from]),
-    ...(own === undefined ? [] : GITHUB_REMOTES.flatMap((from): [string, string][] => [[`url.https://github.com/${own}.insteadOf`, `${from}${own}`], [`url.http://github.com/${own}.pushInsteadOf`, `${from}${own}`]])),
+    ...[...repos].flatMap(own => GITHUB_REMOTES.flatMap((from): [string, string][] => [[`url.https://github.com/${own}.insteadOf`, `${from}${own}`], [`url.http://github.com/${own}.pushInsteadOf`, `${from}${own}`]])),
     ["http.http://github.com/.proxy", `http://wsp:${token}@127.0.0.1:${BROKER_PORT}`],
     ["http.proxyAuthMethod", "basic"],
     ["credential.helper", ""],
