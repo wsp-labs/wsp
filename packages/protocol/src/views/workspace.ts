@@ -239,8 +239,9 @@ export type ProjectView = z.infer<typeof ProjectView>;
 /** The one branch a thread on a machine whose credentials the host keeps may push, and the repo it is on. The repo is
  * held by GitHub's id, since GitHub serves a renamed repo's old name with no redirect and a name would refuse the
  * project's own pushes or let another repo's through. startSha is the commit the thread started from, which a push's
- * `.github` is compared with, never read off the pushed pack. */
-export const BranchOfRecord = z.object({ repoId: z.number().int().positive(), owner: z.string().min(1), name: z.string().min(1), branch: z.string().min(1), startSha: z.string().min(1).optional() });
+ * `.github` is compared with, never read off the pushed pack. `public` is set where GitHub last answered the repo as not
+ * private, and the machine then fetches it from GitHub itself. */
+export const BranchOfRecord = z.object({ repoId: z.number().int().positive(), owner: z.string().min(1), name: z.string().min(1), branch: z.string().min(1), startSha: z.string().min(1).optional(), public: z.literal(true).optional() });
 export type BranchOfRecord = z.infer<typeof BranchOfRecord>;
 
 /** The branch a new thread of a project starts on, read when asked: where its threads work in the folder itself (this

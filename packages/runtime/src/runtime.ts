@@ -326,6 +326,7 @@ import { subLifeArea } from "./machines/sub-life.js";
 import { foldersArea } from "./projects/folders.js";
 
 import { startFromArea } from "./projects/start-from.js";
+import { rereadPublic } from "./projects/branch-of-record.js";
 
 import { workspacesArea } from "./projects/workspaces.js";
 
@@ -553,7 +554,11 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
     // A machine whose credentials the host keeps gets placeholders of the kinds the broker says it holds now, and runs
     // on the daemon this host ships, whose doors its env names; any other launch reads nothing, and waits on nothing
     // before its mint.
-    if (ctx.brokered(entry.record)) await Promise.all([ctx.readBroker(), ctx.daemonSettled(entry)]);
+    if (ctx.brokered(entry.record)) {
+      // Beside the launch rather than ahead of it: a repo turned private moves the launches after this one.
+      void rereadPublic(ctx, entry).catch((e: unknown) => console.warn(`the visibility of ${entry.record.name}'s repo was not read again: ${e instanceof Error ? e.message : String(e)}`));
+      await Promise.all([ctx.readBroker(), ctx.daemonSettled(entry)]);
+    }
     const scoped = await deviceDoor.mint(`thread ${threadWord(threadId)}`, { kind: "thread", threadId, workspaceId: entry.record.id, rootThreadId }, Date.now(), { road: ctx.moduleOf(entry.record.kind).turnRoad, ...o });
     return {
       scoped,
