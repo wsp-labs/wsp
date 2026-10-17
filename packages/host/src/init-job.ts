@@ -16,7 +16,7 @@ import { PassThrough, Writable } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
 import { catalogEntry, loginSignIn, mintsToken, tokenIn } from "@wsp/catalog";
 import { keyCheckLine, type BackendPricing, type KeyCheck, type MachineBackend } from "@wsp/engine";
-import { RUNGS } from "@wsp/collect";
+import { RUNGS, type Host } from "@wsp/collect";
 import { capWaitLine, subThreadsOnly, CLOUD_SETUP_WORDS, namesPlace, noSuchPlaceRefusal, tableName, FIRST_WORKSPACE, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, INIT_ROW_STATES, InitSaidLine, KEY_REFUSED, KEY_UNCHECKED, NEVER_REACHED, pasteHereLine, STOP_LEFT_MACHINE_LINE, SIGN_IN_NEVER_REACHED, LoginState, SignInFinish, startPicks, THIS_COMPUTER, initAgentNoRecipeLine, initAgentPrompt, initBuildRows, initJobBuilding, initJobOver, MACHINE_ROW_LABEL, initNeedWhat, initRowOver, initSignInOutcome, initFailedLine, initStageCount, initStoppedAt, isLocalWorkspace, isSessionEvent, noMcpServersLine, plural, takesMcpServers, threadWorkingLine, type GoldenStep, type InitJob, type InitJobEvent, type InitKeys, type InitNeedsYouEvent, type InitPhase, type InitRoad, type InitRow, type InitScreen, type InitScreenId, type InitSetup, type McpServerSpec, type PlaceKind, type SetupPlace, type TurnResult } from "@wsp/protocol";
 import { harnessCatalog, type GoldenRecipe, type InitDoor, type Runtime, type SessionHandle } from "@wsp/runtime";
 import type { AgentHere } from "./agents-here.js";
@@ -83,6 +83,8 @@ export interface InitJobDeps {
   };
   retry?: InitOptions["retry"];
   pollMs?: InitOptions["pollMs"];
+  /** The host's own log, where each step of a read says when it started and how long it took. */
+  log?(line: string): void;
   /** How long the vault step waits for this client to send a token or key it asked for; the sign-in cap otherwise. */
   vaultWaitMs?: InitOptions["vaultWaitMs"];
   now?(): number;
@@ -104,8 +106,38 @@ const SWEEP_RETRY = { attempts: 40, waitMs: 30_000 };
 /** The stage rows in the order the build runs them: the prepare's, then the seal's. */
 const STAGE_WORDS: readonly StageWords[] = [...PREPARE_STEPS, ...SEAL_STEPS];
 
+/** How often a read's per-file progress goes out: a busy computer's first read opens thousands of session files, and
+ * a view for each one is a frame every client renders. A row starting or settling goes out at once. */
+const PROGRESS_MS = 250;
+
+/** A step of a setup read in the host's log, at its start and at its end, so a slow read names the step it spent on. */
+const readLine = (what: string, from: number, to?: number): string =>
+  to === undefined ? `setup read: ${what} started at ${new Date(from).toISOString()}` : `setup read: ${what}, took ${((to - from) / 1000).toFixed(1)}s from ${new Date(from).toISOString()}`;
+
+/** How much of a command a log line keeps: one du names every package folder it sizes. */
+const COMMAND_CHARS = 160;
+
+/** The host a read runs its commands on, each logged once it ends with its start and how long it took. */
+export function timedRuns(host: Host, log: (line: string) => void, now: () => number = Date.now): Host {
+  return {
+    ...host,
+    exec: {
+      ...host.exec,
+      run: async (cmd, args, opts) => {
+        const from = now();
+        const out = await host.exec.run(cmd, args, opts);
+        const line = [cmd, ...args].join(" ");
+        log(readLine(`ran ${line.length > COMMAND_CHARS ? `${line.slice(0, COMMAND_CHARS)}...` : line}, ${out === undefined ? "failed" : "answered"}`, from, now()));
+        return out;
+      },
+    },
+  };
+}
+
 /** The build rows' state words are the protocol's; the stage rows read the terminal's own start, end and fail words. */
 const STATE = INIT_ROW_STATES;
+/** The read of every agent's session store, one step in the host's log around the rows each agent lands as. */
+const HISTORIES = "Agents' histories";
 /** The one-job refusal: a start or a build while a job is running or building. */
 const JOB_RUNNING = "an init job is already running; cancel it or let it finish first";
 
@@ -779,10 +811,17 @@ export class InitJobs implements InitDoor {
     s.phase = "reading";
     this.emit();
     const io = this.io(s);
+    const now = (): number => this.deps.now?.() ?? Date.now();
+    const log = (line: string): void => this.deps.log?.(line);
+    const began = now();
+    const started = new Map<string, number>();
+    let shown = Number.NEGATIVE_INFINITY;
     const fact = (id: string, label: string): InitRow => {
       const had = s.facts.find(r => r.id === `fact/${id}`);
       if (had !== undefined) return had;
       const row: InitRow = { id: `fact/${id}`, kind: "fact", label, state: STATE.running };
+      started.set(row.id, now());
+      log(readLine(label, started.get(row.id)!));
       s.facts.push(row);
       this.emit();
       return row;
@@ -790,6 +829,7 @@ export class InitJobs implements InitDoor {
     const settle = (row: InitRow, word: string): void => {
       row.state = word;
       delete row.detail;
+      log(readLine(`${row.label}, ${word}`, started.get(row.id) ?? began, now()));
       this.emit();
     };
     const read = this.deps.read;
@@ -803,8 +843,10 @@ export class InitJobs implements InitDoor {
           onRung(rung, rows);
         });
       },
-      recipe: (onHistory, onProject, onProgress) =>
-        read.recipe(
+      recipe: async (onHistory, onProject, onProgress) => {
+        const from = now();
+        log(readLine(HISTORIES, from));
+        const recipe = await read.recipe(
           h => {
             settle(fact(`history/${h.agent}`, catalogEntry(h.agent)?.name ?? h.agent), historyWord(h));
             onHistory(h);
@@ -813,10 +855,16 @@ export class InitJobs implements InitDoor {
           p => {
             const row = fact(`history/${p.agent}`, catalogEntry(p.agent)?.name ?? p.agent);
             row.detail = `${plural(p.read, "session")} of ${p.files}`;
-            this.emit();
+            if (now() - shown >= PROGRESS_MS) {
+              shown = now();
+              this.emit();
+            }
             onProgress(p);
           },
-        ),
+        );
+        log(readLine(`${HISTORIES}, read`, from, now()));
+        return recipe;
+      },
       scanProject: read.scanProject,
       ...(read.brew !== undefined
         ? {
@@ -852,6 +900,7 @@ export class InitJobs implements InitDoor {
     s.disk = diskOf(reading, s.answers.recipe, this.deps.statePath, this.deps.pricing().builderDiskGb);
     s.step = 0;
     s.phase = "answering";
+    log(readLine("the screens stand", began, now()));
   }
 
   /** The sign-ins the screens answered with a copy, a sign-in on the machine or a key, as waiting rows, in the order

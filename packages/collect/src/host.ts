@@ -20,8 +20,9 @@ export interface HostFs {
   readText(path: string): Promise<string | undefined>;
   /** Every regular file under dir, absolute and sorted, links and the dependency trees under it left out; empty when dir is missing. */
   walk(dir: string): Promise<string[]>;
-  /** The file one line at a time, for a reader that keeps names and counts and drops the line; nothing when it cannot be opened. */
-  lines(path: string): AsyncIterable<string>;
+  /** The file one line at a time, for a reader that keeps names and counts and drops the line; nothing when it cannot be
+   * opened. With `holding`, a line without that text may be skipped unread, so a reader still checks what it is given. */
+  lines(path: string, holding?: string): AsyncIterable<string>;
 }
 
 export interface RunOptions {
