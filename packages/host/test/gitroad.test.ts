@@ -5,11 +5,13 @@
 import { execFile, spawn } from "node:child_process";
 import { createReadStream, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer as createTcpServer, type Server as TcpServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGzip } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { BranchOfRecord } from "@wsp/protocol";
+import { BROKER_PORT, type BranchOfRecord } from "@wsp/protocol";
+import { brokeredGitEnv } from "../../runtime/src/project-landing.js";
 import { gitRoad, spool, type GitContext, type GitLogLine, type GitRequest, type GuardedPush } from "../src/gitroad/proxy.js";
 
 const TOKEN = "gho_wspTestPlaceholder0000000000000000";
@@ -34,6 +36,7 @@ let apiMode: "ok" | "down" | "401" | "403" | "404" | "502" = "ok";
 const guarded: { push: GuardedPush; alone: boolean }[] = [];
 const logged: GitLogLine[] = [];
 const upstreamSeen: { method: string; path: string; headers: IncomingMessage["headers"]; body: Buffer }[] = [];
+const doorSeen: string[] = [];
 
 function run(cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<Ran> {
   return new Promise((resolve) => {
@@ -44,33 +47,23 @@ function run(cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): 
   });
 }
 
-function clientEnv(): NodeJS.ProcessEnv {
-  const pairs: [string, string][] = [
-    ["url.http://github.com/.insteadOf", "https://github.com/"],
-    ["url.http://github.com/.insteadOf", "git@github.com:"],
-    ["url.http://github.com/.insteadOf", "ssh://git@github.com/"],
-    ["url.http://github.com/.insteadOf", "ssh://git@ssh.github.com:443/"],
-    ["http.http://github.com/.proxy", `http://wsp:${TURN}@127.0.0.1:${doorPort}`],
-    ["http.proxyAuthMethod", "basic"],
-    ["credential.helper", ""],
-  ];
-  const env: NodeJS.ProcessEnv = {
+/** The turn's git settings as brokeredGitEnv writes them, the door on this test's port; with `direct`, acme/app is a
+ * public repo of record, whose `.git` remote is fetched from GitHub itself, which a CONNECT on that port stands in for,
+ * and still pushed through the door. */
+function clientEnv(direct?: number): NodeJS.ProcessEnv {
+  const turn = brokeredGitEnv(TURN, direct === undefined ? undefined : { owner: "acme", name: "app", public: true });
+  return {
     PATH: process.env.PATH,
     HOME: home,
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_CONFIG_GLOBAL: "/dev/null",
-    GIT_TERMINAL_PROMPT: "0",
     GIT_AUTHOR_NAME: "t",
     GIT_AUTHOR_EMAIL: "t@example.invalid",
     GIT_COMMITTER_NAME: "t",
     GIT_COMMITTER_EMAIL: "t@example.invalid",
-    GIT_CONFIG_COUNT: String(pairs.length),
+    ...Object.fromEntries(Object.entries(turn).map(([k, v]) => [k, v.replace(`@127.0.0.1:${BROKER_PORT}`, `@127.0.0.1:${doorPort}`)])),
+    ...(direct === undefined ? {} : { HTTPS_PROXY: `http://127.0.0.1:${direct}`, https_proxy: `http://127.0.0.1:${direct}` }),
   };
-  pairs.forEach(([key, value], i) => {
-    env[`GIT_CONFIG_KEY_${i}`] = key;
-    env[`GIT_CONFIG_VALUE_${i}`] = value;
-  });
-  return env;
 }
 
 const git = (args: string[], cwd = root) => run("git", args, cwd, clientEnv());
@@ -184,6 +177,7 @@ const context: GitContext = {
 /** The broker's part, standing in: the turn token as the proxy password, then the first service that claims the request. */
 function door(service: ReturnType<typeof gitRoad>) {
   return (req: IncomingMessage, res: ServerResponse) => {
+    doorSeen.push(`${req.method} ${req.url}`);
     const auth = req.headers["proxy-authorization"] ?? "";
     if (auth !== `Basic ${Buffer.from(`wsp:${TURN}`).toString("base64")}` || !service.claims(req, "http")) {
       res.writeHead(403, { "content-type": "text/plain" });
@@ -476,6 +470,60 @@ describe("the git road's push rule, on real packs", () => {
     ]));
     expect(JSON.stringify(logged)).not.toContain(TOKEN);
     expect(JSON.stringify(logged)).not.toContain(TURN);
+  }, 60_000);
+});
+
+describe("a public repo of record", () => {
+  it("is fetched from GitHub itself with no credential and never through the door, and its pushes keep the road's rules", async () => {
+    const direct: string[] = [];
+    const github: TcpServer = createTcpServer((s) => {
+      s.once("data", (d) => {
+        direct.push(d.toString("latin1").split("\r\n").filter((l) => /^(CONNECT|Proxy-Authorization|Authorization)/.test(l)).join(" | "));
+        s.destroy();
+      });
+    });
+    const port = await new Promise<number>((resolve) => github.listen(0, "127.0.0.1", () => resolve((github.address() as { port: number }).port)));
+    const pub = (args: string[], cwd: string) => run("git", args, cwd, clientEnv(port));
+    try {
+      resetState("wsp/public");
+      const dir = await cloneAs("depth 1", "wsp/public");
+      await git(["remote", "set-url", "origin", "https://github.com/acme/app.git"], dir);
+      const seen = doorSeen.length;
+      const upstream = upstreamSeen.length;
+      expect((await pub(["fetch", "origin"], dir)).code).not.toBe(0);
+      expect((await pub(["ls-remote", "git@github.com:acme/app.git"], dir)).code).not.toBe(0);
+      expect(direct).toEqual(["CONNECT github.com:443 HTTP/1.1", "CONNECT github.com:443 HTTP/1.1"]);
+      expect(doorSeen.slice(seen)).toEqual([]);
+      expect(upstreamSeen.length).toBe(upstream);
+
+      const head = await commit(dir, "notes.txt", "public\n");
+      let r = await pub(["push", "-u", "origin", "wsp/public"], dir);
+      expect(r.code, r.out).toBe(0);
+      expect(await upstreamRef("refs/heads/wsp/public")).toBe(head);
+      r = await pub(["push", "origin", "HEAD:main"], dir);
+      expect(r.out).toContain("! [remote rejected] HEAD -> main (wsp: main is not this thread's branch; push your work to wsp/public)");
+      await commit(dir, ".github/workflows/ci.yml", "on: push\njobs: {}\n");
+      guardSays = "wsp: this push changes .github/ (workflows run with the repo's secrets); push it from your own computer";
+      r = await pub(["push", "origin", "wsp/public"], dir);
+      expect(r.out).toContain(`! [remote rejected] wsp/public -> wsp/public (${guardSays})`);
+      expect(await upstreamRef("refs/heads/wsp/public")).toBe(head);
+      const pushed = doorSeen.slice(seen);
+      expect(pushed).toContain("GET http://github.com/acme/app.git/info/refs?service=git-receive-pack");
+      expect(pushed.filter((l) => !l.includes("git-receive-pack"))).toEqual([]);
+      expect(direct).toHaveLength(2);
+    } finally {
+      await new Promise((resolve) => github.close(resolve));
+    }
+  }, 60_000);
+
+  it("a private one is cloned through the door, as before", async () => {
+    resetState("wsp/private");
+    const seen = doorSeen.length;
+    await cloneAs("depth 1", "wsp/private");
+    const cloned = doorSeen.slice(seen);
+    expect(cloned[0]).toBe("GET http://github.com/acme/app/info/refs?service=git-upload-pack");
+    expect(cloned.slice(1).length).toBeGreaterThan(0);
+    expect(new Set(cloned.slice(1))).toEqual(new Set(["POST http://github.com/acme/app/git-upload-pack"]));
   }, 60_000);
 });
 

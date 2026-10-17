@@ -674,7 +674,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     const launch = await ctx.threadLaunch(entry, threadId, ctx.rootOf(threadId));
     if (launch.scoped === undefined) return undefined;
     const token = launch.scoped.deviceToken;
-    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, ...brokeredEnv(token), ...(await shellSignIns(entry, threadId, token)), [THREAD_ENV]: threadId } };
+    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, ...brokeredEnv(token, entry.record.branchOfRecord), ...(await shellSignIns(entry, threadId, token)), [THREAD_ENV]: threadId } };
   };
   /** What the thread's own agent typed in such a shell signs in with: the placeholders its turn is handed, on the
    * shell's token. Only that agent's, since the host's broker sends a call from the machine to the vendor of the agent

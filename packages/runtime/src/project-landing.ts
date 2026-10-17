@@ -178,13 +178,22 @@ export function onRecordLines(o: { checkout: string; ofRecord: BranchOfRecord; o
   ];
 }
 
+/** Every remote form git may be handed for GitHub, each rewritten to plain http so the HTTP door can read it as git's
+ * proxy while `git remote -v` still reads github.com; a rewrite to the door's own address makes gh refuse the
+ * checkout (measured on git 2.43.0 and gh 2.97.0). */
+const GITHUB_REMOTES = ["https://github.com/", "git@github.com:", "ssh://git@github.com/", "ssh://git@ssh.github.com:443/"];
+
 /** git's configuration on a machine whose credentials the host keeps, as GIT_CONFIG_COUNT pairs and no file: every
  * GitHub remote form rewritten to plain http, so `git remote -v` still names github.com and gh still reads the remote
  * as GitHub's, and the daemon's HTTP door as git's proxy for it, the token its password. No credential helper is
- * asked and git never prompts. */
-export function brokeredGitEnv(token: string): Record<string, string> {
+ * asked and git never prompts. A public repo's own `.git` remote is fetched from GitHub itself over https, which no
+ * proxy is set for, and still pushed through the door. Only the `.git` form, since insteadOf matches a prefix and
+ * `acme/web` would also send `acme/web-private` past the door. */
+export function brokeredGitEnv(token: string, repo?: Pick<BranchOfRecord, "owner" | "name" | "public">): Record<string, string> {
+  const own = repo?.public === true ? `${repo.owner}/${repo.name}.git` : undefined;
   const pairs: [string, string][] = [
-    ...["https://github.com/", "git@github.com:", "ssh://git@github.com/", "ssh://git@ssh.github.com:443/"].map((from): [string, string] => ["url.http://github.com/.insteadOf", from]),
+    ...GITHUB_REMOTES.map((from): [string, string] => ["url.http://github.com/.insteadOf", from]),
+    ...(own === undefined ? [] : GITHUB_REMOTES.flatMap((from): [string, string][] => [[`url.https://github.com/${own}.insteadOf`, `${from}${own}`], [`url.http://github.com/${own}.pushInsteadOf`, `${from}${own}`]])),
     ["http.http://github.com/.proxy", `http://wsp:${token}@127.0.0.1:${BROKER_PORT}`],
     ["http.proxyAuthMethod", "basic"],
     ["credential.helper", ""],
