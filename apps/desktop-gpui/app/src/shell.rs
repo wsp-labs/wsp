@@ -30,6 +30,7 @@ use crate::screens::app_shell::material::{self, Look};
 use crate::screens::app_shell::panel::{At, RightPanel};
 use crate::screens::app_shell::vibrancy::{self, Vibrancy};
 use crate::screens::app_shell::AbortOnDrop;
+use crate::screens::thread_view::{Capture, ThreadScreen};
 use crate::screens::{self, app_shell, Entry, Host, Mounted, Opened, Pane, Place, Route, THREAD};
 use crate::sidebar::{Selected, Sidebar, ThreadItem};
 use crate::thread_view::ThreadView;
@@ -479,6 +480,10 @@ impl Shell {
 
     /// The theme the person's picks name for the computer's appearance now, which a system pick follows as it moves.
     fn pick_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(theme) = cx.try_global::<Capture>().and_then(|c| c.theme.clone()) {
+            self.restyle(Some(theme), self.picks.transparency, window, cx);
+            return;
+        }
         let dark = match self.picks.mode.as_deref() {
             Some("dark") => true,
             Some("light") => false,
@@ -725,13 +730,14 @@ impl Shell {
             Phase::Loading(presented) => {
                 if presented.borrow().is_some() && window.is_window_active() {
                     let (start, frames) = (Instant::now(), Rc::new(RefCell::new(Vec::new())));
-                    run.rows = self.thread_view.read(cx).rows().len();
-                    self.thread_view.update(cx, |v, cx| v.drive(PX_PER_S, start, frames.clone(), cx));
+                    let view = self.bench_view(cx);
+                    run.rows = view.read(cx).rows().len();
+                    view.update(cx, |v, cx| v.drive(PX_PER_S, start, frames.clone(), cx));
                     run.phase = Phase::Scrolling { start, frames };
                 }
             }
             Phase::Scrolling { start, frames } => {
-                if self.thread_view.read(cx).driven_to_end() {
+                if self.bench_view(cx).read(cx).driven_to_end() {
                     run.frame_ms = frames.borrow().iter().map(|t| t.duration_since(*start).as_secs_f64() * 1000.).collect();
                     eprintln!("bench: scrolled");
                     let wake = cx.spawn(async move |this, cx| {
@@ -784,8 +790,18 @@ impl Shell {
         };
         self.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
         let presented = Presented::default();
-        self.thread_view.update(cx, |v, cx| v.watch_presented(thread, presented.clone(), cx));
+        self.bench_view(cx).update(cx, |v, cx| v.watch_presented(thread, presented.clone(), cx));
         presented
+    }
+
+    /// The thread view the bench drives: the registered thread screen's, else the frame's own.
+    fn bench_view(&self, cx: &App) -> Entity<ThreadView> {
+        self.thread_screen().map_or_else(|| self.thread_view.clone(), |s| s.read(cx).view().clone())
+    }
+
+    /// The thread screen the frame keeps across thread switches, once a thread has been opened.
+    pub fn thread_screen(&self) -> Option<Entity<ThreadScreen>> {
+        self.thread.as_ref().and_then(|m| m.view.clone().downcast::<ThreadScreen>().ok())
     }
 }
 

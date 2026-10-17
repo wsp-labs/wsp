@@ -1,0 +1,2254 @@
+diff --git a/src/text/inline.rs b/src/text/inline.rs
+index 1ccc24d..b4d6230 100644
+--- a/src/text/inline.rs
++++ b/src/text/inline.rs
+@@ -25,6 +25,7 @@ use crate::{
+     text::selection::word_range_at,
+     text::state::LineSpan,
+     text::text_view::{LinkClickHandlerFn, handle_link_click},
++    text::{InlineCodeFrame, LinkIcon},
+     text_selection::text_rows_extent,
+ };
+ 
+@@ -38,6 +39,10 @@ pub(super) struct InlineHighlight {
+     pub(super) style: HighlightStyle,
+     pub(super) font_family: Option<SharedString>,
+     pub(super) font_size_scale: Option<f32>,
++    /// The box of an inline code span, when the style sets one.
++    pub(super) code: Option<InlineCodeFrame>,
++    /// The icon before a link to a web page.
++    pub(super) icon: Option<LinkIcon>,
+ }
+ 
+ impl InlineHighlight {
+@@ -50,6 +55,12 @@ impl InlineHighlight {
+         if other.font_size_scale.is_some() {
+             self.font_size_scale = other.font_size_scale;
+         }
++        if other.code.is_some() {
++            self.code = other.code.clone();
++        }
++        if other.icon.is_some() {
++            self.icon = other.icon.clone();
++        }
+         self
+     }
+ }
+@@ -60,6 +71,8 @@ impl From<HighlightStyle> for InlineHighlight {
+             style,
+             font_family: None,
+             font_size_scale: None,
++            code: None,
++            icon: None,
+         }
+     }
+ }
+@@ -216,6 +229,8 @@ pub(super) struct Inline {
+     /// The resolved style from a parent deferred layout, when there is one.
+     text_style: Option<TextStyle>,
+     paint_origin: Option<Point<Pixels>>,
++    /// The room before the text that a link starting it owns, its icon's.
++    link_lead: Pixels,
+     selection_bounds: Option<Bounds<Pixels>>,
+     selection_source: Option<(Arc<Mutex<InlineState>>, Range<usize>)>,
+     /// Range highlight backgrounds, painted behind the text.
+@@ -379,6 +394,7 @@ impl Inline {
+             styled_text: StyledText::new(text),
+             text_style: None,
+             paint_origin: None,
++            link_lead: Pixels::ZERO,
+             selection_bounds: None,
+             selection_source: None,
+             range_backgrounds: Vec::new(),
+@@ -402,6 +418,11 @@ impl Inline {
+         self
+     }
+ 
++    pub(super) fn link_lead(mut self, lead: Pixels) -> Self {
++        self.link_lead = lead;
++        self
++    }
++
+     pub(super) fn selection_bounds(mut self, bounds: Bounds<Pixels>) -> Self {
+         self.selection_bounds = Some(bounds);
+         self
+@@ -831,6 +852,50 @@ impl Inline {
+     }
+ 
+     /// Paint each range highlight behind the text of its range.
++    /// Browsers' `radial-gradient(circle, currentcolor 0.75px, transparent
++    /// 1px)` in 4 x 2 px tiles along the bottom of the font's box, under the
++    /// link at `range`.
++    fn paint_link_dots(&self, text_layout: &TextLayout, range: Range<usize>, window: &mut Window) {
++        let style = self
++            .text_style
++            .clone()
++            .unwrap_or_else(|| window.text_style());
++        let font_size = style.font_size.to_pixels(window.rem_size());
++        let font = window.text_system().resolve_font(&style.font());
++        let ascent = window.text_system().ascent(font, font_size);
++        let descent = window.text_system().descent(font, font_size).abs();
++        let color = self
++            .highlights
++            .iter()
++            .find(|(highlight, _)| highlight.start <= range.start && range.start < highlight.end)
++            .and_then(|(_, highlight)| highlight.style.color)
++            .unwrap_or(style.color);
++        let glyphs = glyph_boxes(
++            text_layout,
++            style.text_align,
++            text_layout.bounds().size.width,
++        );
++        let origin = text_layout.bounds().origin;
++        let line_height = text_layout.line_height();
++        let (dot, radius) = (px(1.75), px(0.875));
++        let lead = if range.start == 0 {
++            self.link_lead
++        } else {
++            Pixels::ZERO
++        };
++        for (row, left, right) in range_boxes(&glyphs, range) {
++            let left = if row == 0 { left - lead } else { left };
++            let y = origin.y + line_height * row as f32 + (line_height + ascent + descent) / 2.
++                - px(1.);
++            let mut x = origin.x + left + px(2.);
++            while x < origin.x + right {
++                let bounds = Bounds::new(point(x - radius, y - radius), size(dot, dot));
++                window.paint_quad(gpui::fill(bounds, color).corner_radii(radius));
++                x += px(4.);
++            }
++        }
++    }
++
+     fn paint_range_highlights(&self, text_layout: &TextLayout, window: &mut Window) {
+         let glyphs = glyph_boxes(
+             text_layout,
+@@ -1023,6 +1088,13 @@ impl Element for Inline {
+         }
+ 
+         _ = text_layout.paint_foreground(window, cx);
++        if let Some(range) = &hovered_link
++            && GlobalState::global(cx)
++                .text_view_state()
++                .is_some_and(|state| state.read(cx).text_view_style.link_hover_dots())
++        {
++            self.paint_link_dots(&text_layout, range.clone(), window);
++        }
+ 
+         if is_selectable {
+             if let Some(text_view_state) = GlobalState::global(cx).text_view_state() {
+@@ -1997,6 +2069,8 @@ mod tests {
+             style,
+             font_family: Some(SharedString::from("Mono")),
+             font_size_scale: None,
++            code: None,
++            icon: None,
+         }
+     }
+ 
+diff --git a/src/text/inline_flow.rs b/src/text/inline_flow.rs
+index 7e06a42..b355343 100644
+--- a/src/text/inline_flow.rs
++++ b/src/text/inline_flow.rs
+@@ -17,6 +17,7 @@ use gpui::{
+ use crate::text::text_view::{LinkClickHandlerFn, handle_link_click};
+ 
+ use super::{
++    LinkIcon,
+     inline::{Inline, InlineHighlight, InlineState, text_runs, text_size_ranges},
+     inline_object::{InlineObject, MeasuredInlineObject},
+     node::LinkMark,
+@@ -192,7 +193,13 @@ enum PositionedFragment {
+         highlights: Vec<(Range<usize>, InlineHighlight)>,
+         selection_bounds: Bounds<Pixels>,
+         /// The rounded box behind a code span, relative to the flow.
+-        code_background: Option<(Bounds<Pixels>, Hsla)>,
++        code_background: Option<CodeBox>,
++        /// The room before the text: a link's icon, then a code span's padding.
++        lead: Pixels,
++        /// A code span's padding after the text.
++        trail: Pixels,
++        /// A web link's icon before the text, relative to the flow, and its color.
++        icon: Option<(Bounds<Pixels>, SharedString, Hsla)>,
+     },
+     Image {
+         item_ix: usize,
+@@ -201,6 +208,85 @@ enum PositionedFragment {
+     },
+ }
+ 
++/// The box behind a code span and how its frame paints it.
++#[derive(Clone)]
++pub(super) struct CodeBox {
++    bounds: Bounds<Pixels>,
++    color: Hsla,
++    radius: Option<Pixels>,
++    border: Option<(Pixels, Hsla)>,
++}
++
++/// The room a code span's frame leaves on each side of its text: the style's,
++/// or the default for a span whose highlight carries no frame.
++pub(super) fn code_padding(highlights: &[(Range<usize>, InlineHighlight)]) -> Pixels {
++    highlights
++        .iter()
++        .find(|(_, highlight)| highlight.font_size_scale.is_some())
++        .map_or(Pixels::ZERO, |(_, highlight)| {
++            highlight
++                .code
++                .as_ref()
++                .map_or(px(INLINE_CODE_PADDING), |frame| frame.padding_x)
++        })
++}
++
++/// The font size of a run `scale` times the flow's: a code span's frame may
++/// fix it instead, as CSS's `rem` sizes do.
++pub(super) fn segment_size(
++    font_size: Pixels,
++    scale: f32,
++    highlights: &[(Range<usize>, InlineHighlight)],
++) -> Pixels {
++    highlights
++        .iter()
++        .find_map(|(_, highlight)| highlight.code.as_ref().and_then(|frame| frame.size))
++        .unwrap_or(font_size * scale)
++}
++
++/// The icon of the web link that starts at byte `start` of an item, if one does.
++fn icon_at(
++    links: &[(Range<usize>, LinkMark)],
++    highlights: &[(Range<usize>, InlineHighlight)],
++    start: usize,
++) -> Option<LinkIcon> {
++    if !links.iter().any(|(range, _)| range.start == start) {
++        return None;
++    }
++    highlights
++        .iter()
++        .find(|(range, highlight)| range.contains(&start) && highlight.icon.is_some())
++        .and_then(|(_, highlight)| highlight.icon.clone())
++}
++
++/// [`text_size_ranges`], cut again where a link with an icon starts, so the
++/// icon opens a fragment of its own.
++fn flow_segments(
++    text_len: usize,
++    highlights: &[(Range<usize>, InlineHighlight)],
++    links: &[(Range<usize>, LinkMark)],
++) -> Vec<(Range<usize>, f32)> {
++    let mut cuts = links
++        .iter()
++        .map(|(range, _)| range.start)
++        .filter(|&start| icon_at(links, highlights, start).is_some())
++        .collect::<Vec<_>>();
++    cuts.sort_unstable();
++    let mut segments = Vec::new();
++    for (range, scale) in text_size_ranges(text_len, highlights) {
++        let mut start = range.start;
++        for &cut in cuts
++            .iter()
++            .filter(|&&cut| range.start < cut && cut < range.end)
++        {
++            segments.push((start..cut, scale));
++            start = cut;
++        }
++        segments.push((start..range.end, scale));
++    }
++    segments
++}
++
+ enum MeasureItem {
+     Object {
+         text: SharedString,
+@@ -236,7 +322,10 @@ enum LineFragmentKind {
+         links: Vec<(Range<usize>, LinkMark)>,
+         highlights: Vec<(Range<usize>, InlineHighlight)>,
+         /// The code span's box, relative to the fragment.
+-        code_background: Option<(Bounds<Pixels>, Hsla)>,
++        code_background: Option<CodeBox>,
++        lead: Pixels,
++        trail: Pixels,
++        icon: Option<LinkIcon>,
+     },
+     Image,
+ }
+@@ -309,7 +398,11 @@ impl IntoElement for InlineFlow {
+ 
+ impl Element for InlineFlow {
+     type RequestLayoutState = InlineFlowLayoutState;
+-    type PrepaintState = Vec<(AnyElement, Option<(Bounds<Pixels>, gpui::Hsla)>)>;
++    type PrepaintState = Vec<(
++        AnyElement,
++        Option<CodeBox>,
++        Option<(Bounds<Pixels>, SharedString, Hsla)>,
++    )>;
+ 
+     fn id(&self) -> Option<ElementId> {
+         Some(self.id.clone())
+@@ -510,7 +603,7 @@ impl Element for InlineFlow {
+                         window,
+                         cx,
+                     );
+-                    elements.push((element, None));
++                    elements.push((element, None, None));
+                 }
+                 PositionedFragment::Text {
+                     item_ix,
+@@ -523,6 +616,9 @@ impl Element for InlineFlow {
+                     highlights,
+                     selection_bounds,
+                     code_background,
++                    lead,
++                    trail,
++                    icon,
+                 } => {
+                     let InlineFlowItem::Text {
+                         state: source_state,
+@@ -540,15 +636,18 @@ impl Element for InlineFlow {
+                         state.set_text(text.clone());
+                     }
+ 
+-                    let is_code = highlights.iter().any(|(_, h)| h.font_size_scale.is_some());
+-                    let padding = if is_code {
+-                        px(INLINE_CODE_PADDING)
+-                    } else {
+-                        Pixels::ZERO
+-                    };
+-                    let background = code_background.map(|(background, color)| {
++                    let (lead, trail) = (*lead, *trail);
++                    let background = code_background.clone().map(|code_box| CodeBox {
++                        bounds: Bounds::new(
++                            bounds.origin + code_box.bounds.origin,
++                            code_box.bounds.size,
++                        ),
++                        ..code_box
++                    });
++                    let icon = icon.clone().map(|(icon_bounds, path, color)| {
+                         (
+-                            Bounds::new(bounds.origin + background.origin, background.size),
++                            Bounds::new(bounds.origin + icon_bounds.origin, icon_bounds.size),
++                            path,
+                             color,
+                         )
+                     });
+@@ -583,7 +682,8 @@ impl Element for InlineFlow {
+                         point(bounds.left(), bounds.top() + selection_bounds.top()),
+                         size(bounds.size.width, selection_bounds.size.height),
+                     ))
+-                    .paint_origin(bounds.origin + origin + point(padding, Pixels::ZERO))
++                    .paint_origin(bounds.origin + origin + point(lead, Pixels::ZERO))
++                    .link_lead(if icon.is_some() { lead } else { Pixels::ZERO })
+                     .into_any_element();
+                     // The `Inline` is its own layout root, with no box around
+                     // it: its text measures with the window's text style, so
+@@ -593,10 +693,10 @@ impl Element for InlineFlow {
+                             Some(fragment_style.subtract(&Default::default())),
+                             |window| {
+                                 element.prepaint_as_root(
+-                                    bounds.origin + origin + point(padding, Pixels::ZERO),
++                                    bounds.origin + origin + point(lead, Pixels::ZERO),
+                                     size(
+                                         AvailableSpace::Definite(
+-                                            fragment_size.width - padding * 2.,
++                                            fragment_size.width - lead - trail,
+                                         ),
+                                         AvailableSpace::Definite(fragment_size.height),
+                                     ),
+@@ -606,7 +706,7 @@ impl Element for InlineFlow {
+                             },
+                         );
+                     });
+-                    elements.push((element, background));
++                    elements.push((element, background, icon));
+                 }
+                 PositionedFragment::Image {
+                     item_ix,
+@@ -640,7 +740,7 @@ impl Element for InlineFlow {
+                         window,
+                         cx,
+                     );
+-                    elements.push((element, None));
++                    elements.push((element, None, None));
+                 }
+             }
+         }
+@@ -675,9 +775,24 @@ impl Element for InlineFlow {
+             }
+         }
+         let radius = crate::Theme::global(cx).tokens.radius.sm;
+-        for (element, background) in prepaint {
+-            if let Some((bounds, color)) = background {
+-                window.paint_quad(gpui::fill(*bounds, *color).corner_radii(radius));
++        for (element, background, icon) in prepaint {
++            if let Some(code_box) = background {
++                let mut quad = gpui::fill(code_box.bounds, code_box.color)
++                    .corner_radii(code_box.radius.unwrap_or(radius));
++                if let Some((width, color)) = code_box.border {
++                    quad = quad.border_widths(width).border_color(color);
++                }
++                window.paint_quad(quad);
++            }
++            if let Some((bounds, path, color)) = icon {
++                _ = window.paint_svg(
++                    *bounds,
++                    path.clone(),
++                    None,
++                    gpui::TransformationMatrix::unit(),
++                    *color,
++                    cx,
++                );
+             }
+             element.paint(window, cx);
+         }
+@@ -928,12 +1043,13 @@ fn layout_measured_flow(
+                 } => {
+                     let local_start = line_range.start.max(item_start) - item_start;
+                     let local_end = line_range.end.min(item_end) - item_start;
+-                    for (segment, scale) in text_size_ranges(text.len(), highlights) {
++                    for (segment, scale) in flow_segments(text.len(), highlights, links) {
+                         let start = local_start.max(segment.start);
+                         let end = local_end.min(segment.end);
+                         if start >= end {
+                             continue;
+                         }
++                        let icon = icon_at(links, highlights, start);
+                         let subtext = SharedString::from(text[start..end].to_string());
+                         let mut highlights =
+                             slice_ranges(highlights, start, end, |range, style| {
+@@ -942,16 +1058,13 @@ fn layout_measured_flow(
+                         let links =
+                             slice_ranges(links, start, end, |range, link| (range, link.clone()));
+                         let runs = text_runs(subtext.len(), text_style, &highlights);
+-                        let segment_font_size = font_size * scale;
++                        let segment_font_size = segment_size(font_size, scale, &highlights);
+                         let shaped_line =
+                             shape_line(subtext.clone(), segment_font_size, &runs, window);
+                         let is_code = highlights.iter().any(|(_, h)| h.font_size_scale.is_some());
+-                        let padding = if is_code {
+-                            px(INLINE_CODE_PADDING * 2.)
+-                        } else {
+-                            Pixels::ZERO
+-                        };
+-                        let width = shaped_line.width() + padding;
++                        let padding = code_padding(&highlights);
++                        let icon_room = icon.as_ref().map_or(Pixels::ZERO, LinkIcon::room);
++                        let width = shaped_line.width() + padding * 2. + icon_room;
+                         // Measure the run by its glyph box. The body strut already
+                         // carries the line's leading, so a run only has to fit its
+                         // glyphs: leading of its own would make a smaller or
+@@ -968,12 +1081,16 @@ fn layout_measured_flow(
+                                     &runs,
+                                     segment_font_size,
+                                     &mut highlights,
+-                                    glyph_size,
++                                    size(width - icon_room, glyph_size.height),
+                                     baseline,
+                                     window,
+                                 )
+                             })
+-                            .flatten();
++                            .flatten()
++                            .map(|mut code_box| {
++                                code_box.bounds.origin.x += icon_room;
++                                code_box
++                            });
+                         line_ascent = line_ascent.max(baseline - body_overflow_above);
+                         line_descent =
+                             line_descent.max(glyph_size.height - baseline - body_overflow_below);
+@@ -986,6 +1103,9 @@ fn layout_measured_flow(
+                                 links,
+                                 highlights,
+                                 code_background,
++                                lead: icon_room + padding,
++                                trail: padding,
++                                icon,
+                             },
+                             size: glyph_size,
+                             source_range: start..end,
+@@ -1064,6 +1184,9 @@ fn layout_measured_flow(
+                     links,
+                     highlights,
+                     code_background,
++                    lead,
++                    trail,
++                    icon,
+                 } => PositionedFragment::Text {
+                     item_ix: fragment.item_ix,
+                     origin,
+@@ -1073,16 +1196,32 @@ fn layout_measured_flow(
+                     font_size,
+                     text,
+                     links,
+-                    highlights,
+-                    code_background: code_background.map(|(background, color)| {
++                    icon: icon.map(|icon| {
++                        let color = highlights
++                            .iter()
++                            .find(|(_, highlight)| highlight.icon.is_some())
++                            .and_then(|(_, highlight)| highlight.style.color)
++                            .unwrap_or(text_style.color);
++                        let bottom = origin.y + fragment.baseline + icon.below_baseline;
+                         (
+                             Bounds::new(
+-                                origin + point(Pixels::ZERO, leading) + background.origin,
+-                                background.size,
++                                point(origin.x + icon.margin_left, bottom - icon.size),
++                                size(icon.size, icon.size),
+                             ),
++                            icon.path,
+                             color,
+                         )
+                     }),
++                    highlights,
++                    code_background: code_background.map(|code_box| CodeBox {
++                        bounds: Bounds::new(
++                            origin + point(Pixels::ZERO, leading) + code_box.bounds.origin,
++                            code_box.bounds.size,
++                        ),
++                        ..code_box
++                    }),
++                    lead,
++                    trail,
+                 },
+                 LineFragmentKind::Image => PositionedFragment::Image {
+                     item_ix: fragment.item_ix,
+@@ -1118,7 +1257,10 @@ fn code_background(
+     fragment_size: Size<Pixels>,
+     baseline: Pixels,
+     window: &Window,
+-) -> Option<(Bounds<Pixels>, Hsla)> {
++) -> Option<CodeBox> {
++    let frame = highlights
++        .iter()
++        .find_map(|(_, highlight)| highlight.code.clone());
+     let cap_height = runs
+         .iter()
+         .map(|run| {
+@@ -1133,14 +1275,23 @@ fn code_background(
+     for (_, highlight) in highlights.iter_mut() {
+         highlight.style.background_color = None;
+     }
+-    color.map(|color| {
+-        (
+-            Bounds::new(
+-                point(Pixels::ZERO, baseline - cap_height - vertical_padding),
+-                size(fragment_size.width, cap_height + vertical_padding * 2.),
+-            ),
+-            color,
+-        )
++    // With its own vertical padding, the frame wraps the code's ascent and
++    // descent as a CSS inline box does.
++    let (top, height) = match frame.as_ref().and_then(|frame| frame.padding_y) {
++        Some(padding) => (
++            baseline - shaped_line.ascent - padding,
++            shaped_line.ascent + shaped_line.descent + padding * 2.,
++        ),
++        None => (
++            baseline - cap_height - vertical_padding,
++            cap_height + vertical_padding * 2.,
++        ),
++    };
++    color.map(|color| CodeBox {
++        bounds: Bounds::new(point(Pixels::ZERO, top), size(fragment_size.width, height)),
++        color,
++        radius: frame.as_ref().and_then(|frame| frame.radius),
++        border: frame.and_then(|frame| frame.border),
+     })
+ }
+ 
+@@ -1187,7 +1338,9 @@ fn line_ranges(
+             if item_end > hard_line.start && item_start < hard_line.end {
+                 match item {
+                     MeasureItem::Text {
+-                        text, highlights, ..
++                        text,
++                        highlights,
++                        links,
+                     } => {
+                         let start = hard_line.start.max(item_start) - item_start;
+                         let end = hard_line.end.min(item_end) - item_start;
+@@ -1196,6 +1349,7 @@ fn line_ranges(
+                                 &mut wrap_fragments,
+                                 text,
+                                 highlights,
++                                links,
+                                 start..end,
+                                 text_style,
+                                 wrap_width,
+@@ -1346,32 +1500,32 @@ fn shaped_spans(
+         if item_end > hard_line.start && item_start < hard_line.end {
+             match item {
+                 MeasureItem::Text {
+-                    text, highlights, ..
++                    text,
++                    highlights,
++                    links,
+                 } => {
+                     let local_start = hard_line.start.max(item_start) - item_start;
+                     let local_end = hard_line.end.min(item_end) - item_start;
+-                    for (segment, scale) in text_size_ranges(text.len(), highlights) {
++                    for (segment, scale) in flow_segments(text.len(), highlights, links) {
+                         let start = local_start.max(segment.start);
+                         let end = local_end.min(segment.end);
+                         if start >= end {
+                             continue;
+                         }
++                        let icon_room = icon_at(links, highlights, start)
++                            .as_ref()
++                            .map_or(Pixels::ZERO, LinkIcon::room);
+                         let highlights = slice_ranges(highlights, start, end, |range, style| {
+                             (range, style.clone())
+                         });
+                         let runs = text_runs(end - start, text_style, &highlights);
+                         let line = Box::new(shape_line(
+                             SharedString::from(text[start..end].to_string()),
+-                            font_size * scale,
++                            segment_size(font_size, scale, &highlights),
+                             &runs,
+                             window,
+                         ));
+-                        let padding = if highlights.iter().any(|(_, h)| h.font_size_scale.is_some())
+-                        {
+-                            px(INLINE_CODE_PADDING * 2.)
+-                        } else {
+-                            Pixels::ZERO
+-                        };
++                        let padding = code_padding(&highlights) * 2. + icon_room;
+                         spans.push(ShapedSpan::Text {
+                             range: item_start + start..item_start + end,
+                             line,
+@@ -1438,6 +1592,91 @@ fn spans_width(spans: &[ShapedSpan], range: Range<usize>) -> Pixels {
+ /// the wrapper as measured elements. Oversized spans retain word boundaries;
+ /// oversized words can break at grapheme boundaries without splitting Unicode.
+ fn push_text_wrap_fragments<'a>(
++    fragments: &mut Vec<WrapLineFragment<'a>>,
++    text: &'a str,
++    highlights: &[(Range<usize>, InlineHighlight)],
++    links: &[(Range<usize>, LinkMark)],
++    range: Range<usize>,
++    text_style: &TextStyle,
++    wrap_width: Pixels,
++    window: &mut Window,
++) {
++    let first = fragments.len();
++    push_span_wrap_fragments(
++        fragments,
++        text,
++        highlights,
++        range.clone(),
++        text_style,
++        wrap_width,
++        window,
++    );
++    let font_size = text_style.font_size.to_pixels(window.rem_size());
++    // A web link's icon keeps to the link's first word, as the web's
++    // `whitespace-nowrap` pair of glyph and word does.
++    for (link, _) in links {
++        let Some(icon) = icon_at(links, highlights, link.start) else {
++            continue;
++        };
++        if !(range.start <= link.start && link.start < range.end) {
++            continue;
++        }
++        let mut offset = range.start;
++        let mut ix = first;
++        while ix < fragments.len() {
++            let len = match &fragments[ix] {
++                WrapLineFragment::Text { text } => text.len(),
++                WrapLineFragment::Element { len_utf8, .. } => *len_utf8,
++            };
++            if link.start < offset + len {
++                break;
++            }
++            offset += len;
++            ix += 1;
++        }
++        let Some(fragment) = fragments.get(ix) else {
++            continue;
++        };
++        match *fragment {
++            WrapLineFragment::Element { width, len_utf8 } => {
++                fragments[ix] = WrapLineFragment::element(width + icon.room(), len_utf8);
++            }
++            WrapLineFragment::Text { text: run } => {
++                let at = link.start - offset;
++                let word_end = run[at..]
++                    .find(char::is_whitespace)
++                    .map_or(run.len(), |end| at + end)
++                    .min(at + (link.end - link.start))
++                    .max(at + run[at..].chars().next().map_or(0, char::len_utf8));
++                let word = &run[at..word_end];
++                let word_highlights = slice_ranges(
++                    highlights,
++                    link.start,
++                    link.start + word.len(),
++                    |range, style| (range, style.clone()),
++                );
++                let runs = text_runs(word.len(), text_style, &word_highlights);
++                let width = window
++                    .text_system()
++                    .layout_line(word, font_size, &runs, None)
++                    .width;
++                let mut replaced = Vec::with_capacity(3);
++                if at > 0 {
++                    replaced.push(WrapLineFragment::text(&run[..at]));
++                }
++                replaced.push(WrapLineFragment::element(width + icon.room(), word.len()));
++                if word_end < run.len() {
++                    replaced.push(WrapLineFragment::text(&run[word_end..]));
++                }
++                fragments.splice(ix..=ix, replaced);
++            }
++        }
++    }
++}
++
++/// The wrap fragments of `range` before any link icon: plain text for the
++/// line wrapper, and spans in another family as measured elements.
++fn push_span_wrap_fragments<'a>(
+     fragments: &mut Vec<WrapLineFragment<'a>>,
+     text: &'a str,
+     highlights: &[(Range<usize>, InlineHighlight)],
+@@ -1471,17 +1710,17 @@ fn push_text_wrap_fragments<'a>(
+                 .text_system()
+                 .layout_line(
+                     text,
+-                    font_size * highlight.font_size_scale.unwrap_or(1.),
++                    segment_size(
++                        font_size,
++                        highlight.font_size_scale.unwrap_or(1.),
++                        &[(0..text.len(), highlight.clone())],
++                    ),
+                     &runs,
+                     None,
+                 )
+                 .width
+         };
+-        let padding = if highlight.font_size_scale.is_some() {
+-            px(INLINE_CODE_PADDING * 2.)
+-        } else {
+-            Pixels::ZERO
+-        };
++        let padding = code_padding(&[(highlight_range.clone(), highlight.clone())]) * 2.;
+         let width = measure(span) + padding;
+         if width <= wrap_width {
+             fragments.push(WrapLineFragment::element(width, span.len()));
+@@ -1858,7 +2097,7 @@ mod tests {
+         let code_highlight = InlineHighlight {
+             style: HighlightStyle::default(),
+             font_family: Some(SharedString::from(MONO)),
+-            font_size_scale: None,
++            ..Default::default()
+         };
+         let items = vec![
+             MeasureItem::Text {
+diff --git a/src/text/mod.rs b/src/text/mod.rs
+index 0332dde..a5d84c9 100644
+--- a/src/text/mod.rs
++++ b/src/text/mod.rs
+@@ -20,7 +20,7 @@ mod utils;
+ use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window};
+ pub use inline_element::*;
+ pub use markdown_ext::*;
+-pub use node::{CodeBlock, TableData};
++pub use node::{CodeBlock, CodeBlockChrome, TableChrome, TableData};
+ pub use range_highlight::{RangeHighlight, RangeHighlightError, RenderedText};
+ pub use state::*;
+ pub use stream_fade::TextViewMotion;
+diff --git a/src/text/node.rs b/src/text/node.rs
+index 1114762..fc28460 100644
+--- a/src/text/node.rs
++++ b/src/text/node.rs
+@@ -16,11 +16,11 @@ use gpui::{
+ use markdown::mdast;
+ 
+ use crate::{
+-    GlobalState, ScrollableMask, Scrollbar, StyledExt, h_flex,
++    GlobalState, ScrollableMask, Scrollbar, ScrollbarMode, ScrollbarStyles, StyledExt, h_flex,
+     scrollable_mask::horizontal_scroll_area,
+     text::{
+-        CodeBlockActionsFn, CodeBlockHighlighterFn, LinkClickHandlerFn, MarkdownExtensions,
+-        MarkdownNode, TableActionsFn,
++        CodeBlockActionsFn, CodeBlockChromeFn, CodeBlockHighlighterFn, LinkClickHandlerFn,
++        MarkdownExtensions, MarkdownNode, TableActionsFn, TableChromeFn,
+         document::{NodeRenderOptions, PrevBlock, flow_position},
+         inline::{
+             Inline, InlineHighlight, InlineState, combine_highlights, fade_highlights,
+@@ -35,12 +35,23 @@ use crate::{
+ };
+ 
+ use super::{
+-    SelectionFormat, TextViewStyle,
++    LinkIcon, ListStyleType, SelectionFormat, TextViewStyle,
+     utils::{data_url_image, list_item_prefix, ordered_list_ordinal},
+ };
+ 
+-const CHECK_SVG_LIGHT: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><path d="m3.25 8.25 3 3 6.5-7" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>"#;
+-const CHECK_SVG_DARK: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><path d="m3.25 8.25 3 3 6.5-7" stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>"#;
++/// A task checkbox's check in `color`.
++fn check_svg(color: Hsla) -> Arc<Image> {
++    let rgb = color.to_rgb();
++    let channel = |c: f32| (c.clamp(0., 1.) * 255.).round() as u8;
++    let svg = format!(
++        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><path d="m3.25 8.25 3 3 6.5-7" stroke="#{:02x}{:02x}{:02x}" stroke-opacity="{}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>"##,
++        channel(rgb.r),
++        channel(rgb.g),
++        channel(rgb.b),
++        rgb.a
++    );
++    Arc::new(Image::from_bytes(ImageFormat::Svg, svg.into_bytes()))
++}
+ 
+ /// The block-level nodes.
+ #[derive(Debug, Clone, PartialEq)]
+@@ -1402,7 +1413,8 @@ impl Paragraph {
+                 let mut highlight = mark_highlight(style, node_cx, cx);
+                 if let Some(link_mark) = style.link.clone() {
+                     highlight.style.color = Some(node_cx.style.link());
+-                    highlight.style.underline = Some(link_underline(&node_cx.style));
++                    highlight.style.underline =
++                        link_underline(&node_cx.style).or(highlight.style.underline);
+                     links.push((inner_range.clone(), link_mark));
+                 }
+                 node_highlights.push((inner_range, highlight));
+@@ -2197,13 +2209,19 @@ impl CodeBlock {
+     ) -> AnyElement {
+         let style = &node_cx.style;
+         let leaf_key = self.span.map(|span| TextLeafKey::block(span.start));
++        let chrome = node_cx
++            .code_block_chrome
++            .clone()
++            .map(|chrome| chrome(self, window, cx));
+         // The language sits quietly in the top-right corner, where custom
+         // actions go instead when the caller provides them; the top padding
+         // keeps the first line clear of it. Like the actions, it stays out of
+         // the scrolled content so it holds its corner.
+         let lang_label = self
+             .lang()
+-            .filter(|lang| !lang.is_empty() && node_cx.code_block_actions.is_none())
++            .filter(|lang| {
++                !lang.is_empty() && node_cx.code_block_actions.is_none() && chrome.is_none()
++            })
+             .map(|lang| {
+                 div()
+                     .absolute()
+@@ -2216,6 +2234,36 @@ impl CodeBlock {
+                     .child(lang)
+             });
+ 
++        let code = Inline::new(
++            self.state.clone(),
++            vec![],
++            fade_highlights(
++                node_cx
++                    .code_block_highlighter
++                    .as_ref()
++                    .map(|highlighter| self.highlighted_styles(highlighter))
++                    .unwrap_or_default()
++                    .into_iter()
++                    .map(|(range, style)| (range, InlineHighlight::from(style)))
++                    .collect(),
++                node_cx.stream_fades(leaf_key),
++            ),
++            node_cx.link_click_handler.clone(),
++        )
++        .range_backgrounds(node_cx.range_backgrounds(leaf_key).to_vec())
++        .reveal(node_cx.reveal_at(leaf_key, 0, self.code().len()));
++        let gap = if options.is_last {
++            rems(0.)
++        } else {
++            style.paragraph_gap()
++        };
++        if let Some(chrome) = chrome {
++            return gapped(
++                self.render_framed(chrome, code, options, style, window, cx),
++                gap,
++            );
++        }
++
+         let block = div()
+             .w_full()
+             .min_w_0()
+@@ -2234,26 +2282,7 @@ impl CodeBlock {
+             .line_height(relative(1.6))
+             .relative()
+             .refine_style(&style.code_block())
+-            .child(
+-                Inline::new(
+-                    self.state.clone(),
+-                    vec![],
+-                    fade_highlights(
+-                        node_cx
+-                            .code_block_highlighter
+-                            .as_ref()
+-                            .map(|highlighter| self.highlighted_styles(highlighter))
+-                            .unwrap_or_default()
+-                            .into_iter()
+-                            .map(|(range, style)| (range, InlineHighlight::from(style)))
+-                            .collect(),
+-                        node_cx.stream_fades(leaf_key),
+-                    ),
+-                    node_cx.link_click_handler.clone(),
+-                )
+-                .range_backgrounds(node_cx.range_backgrounds(leaf_key).to_vec())
+-                .reveal(node_cx.reveal_at(leaf_key, 0, self.code().len())),
+-            );
++            .child(code);
+         let actions = node_cx.code_block_actions.clone().map(|actions| {
+             div()
+                 .id("actions")
+@@ -2306,14 +2335,186 @@ impl CodeBlock {
+             }
+         };
+ 
+-        gapped(
+-            block,
+-            if options.is_last {
+-                rems(0.)
+-            } else {
+-                style.paragraph_gap()
+-            },
+-        )
++        gapped(block, gap)
++    }
++
++    /// The block inside the frame `style.code_block` draws, between the
++    /// chrome's header and footer. The refinement's padding goes to the code
++    /// alone, so the header and footer span the frame.
++    fn render_framed(
++        &self,
++        chrome: CodeBlockChrome,
++        code: Inline,
++        options: &NodeRenderOptions,
++        style: &TextViewStyle,
++        window: &mut Window,
++        cx: &mut App,
++    ) -> AnyElement {
++        let mut frame = style.code_block().clone();
++        let mut padding = StyleRefinement::default().px_4().py(px(14.));
++        padding.padding.refine(&std::mem::take(&mut frame.padding));
++        let body = if chrome.wrap {
++            div()
++                .w_full()
++                .min_w_0()
++                .refine_style(&padding)
++                .child(code)
++                .into_any_element()
++        } else {
++            let scroll_handle = window
++                .use_keyed_state(
++                    block_element_id("codeblock-hscroll", self.span, options.ix),
++                    cx,
++                    |_, _| ScrollHandle::default(),
++                )
++                .read(cx)
++                .clone();
++            // Measured by the last frame, as the scrollbar's lane only shows
++            // while the code is wider than the block.
++            let overflows = scroll_handle.max_offset().x > px(0.);
++            let (lane, scrollbar) = match chrome.scrollbar {
++                Some((lane, styles)) => (
++                    lane,
++                    Scrollbar::horizontal(&scroll_handle)
++                        .mode(ScrollbarMode::Always)
++                        .styles(|_| styles),
++                ),
++                None => (px(0.), Scrollbar::horizontal(&scroll_handle)),
++            };
++            div()
++                .w_full()
++                .min_w_0()
++                .relative()
++                .when(overflows, |this| this.pb(lane))
++                .child(horizontal_scroll_area(
++                    block_element_id("codeblock-hscroll-area", self.span, options.ix),
++                    &scroll_handle,
++                    // A flex row, so the unwrapped code keeps its own width.
++                    &padding.clone().flex(),
++                    div().flex_none().whitespace_nowrap().child(code),
++                ))
++                .when(overflows, |this| {
++                    this.child(div().absolute().inset_0().child(scrollbar))
++                })
++                // Draws again once this frame's layout says otherwise.
++                .child(
++                    gpui::canvas(
++                        |_, _, _| {},
++                        move |_, _, window, cx| {
++                            if (scroll_handle.max_offset().x > px(0.)) != overflows {
++                                window.defer(cx, |window, _| window.refresh());
++                            }
++                        },
++                    )
++                    .absolute()
++                    .size_0(),
++                )
++                .into_any_element()
++        };
++
++        div()
++            .id(block_element_id("codeblock", self.span, options.ix))
++            .w_full()
++            .min_w_0()
++            .flex()
++            .flex_col()
++            .bg(style.code_background())
++            .border_1()
++            .border_color(style.border())
++            .font_family(cx.theme().tokens.typography.mono.clone())
++            .text_size(cx.theme().tokens.typography.mono_md.size)
++            .line_height(relative(1.6))
++            .refine_style(&frame)
++            .children(chrome.header)
++            .child(body)
++            .children(chrome.footer)
++            .into_any_element()
++    }
++}
++
++/// What a code block draws around its code, returned by
++/// [`crate::text::TextView::code_block_chrome`] for each block.
++///
++/// The header and footer span the block inside its frame, above and below
++/// the code; the code keeps the padding `style.code_block` sets.
++pub struct CodeBlockChrome {
++    header: Option<AnyElement>,
++    footer: Option<AnyElement>,
++    wrap: bool,
++    scrollbar: Option<(Pixels, ScrollbarStyles)>,
++}
++
++impl Default for CodeBlockChrome {
++    fn default() -> Self {
++        Self {
++            header: None,
++            footer: None,
++            wrap: true,
++            scrollbar: None,
++        }
++    }
++}
++
++impl CodeBlockChrome {
++    /// Chrome with no header or footer, wrapping long lines.
++    pub fn new() -> Self {
++        Self::default()
++    }
++
++    /// Sets the row above the code.
++    pub fn header(mut self, header: impl IntoElement) -> Self {
++        self.header = Some(header.into_any_element());
++        self
++    }
++
++    /// Sets the row below the code.
++    pub fn footer(mut self, footer: impl IntoElement) -> Self {
++        self.footer = Some(footer.into_any_element());
++        self
++    }
++
++    /// Sets whether long lines wrap, default true. Unwrapped, the code
++    /// scrolls sideways.
++    pub fn wrap(mut self, wrap: bool) -> Self {
++        self.wrap = wrap;
++        self
++    }
++
++    /// Shows the unwrapped code's scrollbar at all times in a lane `lane`
++    /// high under the code, painted with `styles`, while the code is wider
++    /// than the block. Without it the scrollbar overlays the code and shows
++    /// while it scrolls.
++    pub fn scrollbar(mut self, lane: Pixels, styles: ScrollbarStyles) -> Self {
++        self.scrollbar = Some((lane, styles));
++        self
++    }
++}
++
++/// What a table draws besides its rows, returned by
++/// [`crate::text::TextView::table_chrome`] for each table.
++#[derive(Default)]
++pub struct TableChrome {
++    footer: Option<AnyElement>,
++    cell: Option<StyleRefinement>,
++}
++
++impl TableChrome {
++    /// Chrome with no footer, drawing cells as `style.table_cell` says.
++    pub fn new() -> Self {
++        Self::default()
++    }
++
++    /// Sets the row below the table, in place of the `table_actions` one.
++    pub fn footer(mut self, footer: impl IntoElement) -> Self {
++        self.footer = Some(footer.into_any_element());
++        self
++    }
++
++    /// Refines `style.table_cell` for this table's cells, as a table whose
++    /// cells can be collapsed to one line needs.
++    pub fn cell(mut self, cell: StyleRefinement) -> Self {
++        self.cell = Some(cell);
++        self
+     }
+ }
+ 
+@@ -2326,8 +2527,10 @@ pub(crate) struct NodeContext {
+     pub(crate) link_refs: HashMap<SharedString, LinkMark>,
+     pub(crate) style: Arc<TextViewStyle>,
+     pub(crate) code_block_actions: Option<Arc<CodeBlockActionsFn>>,
++    pub(crate) code_block_chrome: Option<Arc<CodeBlockChromeFn>>,
+     pub(crate) code_block_highlighter: Option<Arc<CodeBlockHighlighterFn>>,
+     pub(crate) table_actions: Option<Arc<TableActionsFn>>,
++    pub(crate) table_chrome: Option<Arc<TableChromeFn>>,
+     pub(crate) image_source: Option<Arc<super::text_view::ImageSourceFn>>,
+     pub(crate) link_click_handler: Option<Arc<LinkClickHandlerFn>>,
+     pub(crate) markdown_extensions: Arc<MarkdownExtensions>,
+@@ -2416,13 +2619,22 @@ fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHig
+     if let Some(color) = mark.highlight {
+         highlight.background_color = Some(color);
+     }
++    let frame = node_cx.style.inline_code_frame();
+     InlineHighlight {
+         style: highlight,
+         font_family,
+-        font_size_scale: mark.code.then_some(0.875),
++        font_size_scale: mark.code.then_some(frame.scale),
++        code: mark.code.then(|| frame.clone()),
++        icon: None,
+     }
+ }
+ 
++/// The icon `style` draws before a link to a web page.
++fn web_link_icon(style: &TextViewStyle, link: &LinkMark) -> Option<LinkIcon> {
++    let web = link.url.starts_with("https://") || link.url.starts_with("http://");
++    style.link_icon().filter(|_| web).cloned()
++}
++
+ impl Paragraph {
+     /// The highlights over [`Self::text`], for measuring the paragraph with
+     /// the runs it renders with. Link colors are left out: they do not move
+@@ -2465,7 +2677,7 @@ impl Paragraph {
+         let fades = node_cx.stream_fades(fade_key);
+         let backgrounds = node_cx.range_backgrounds(fade_key);
+ 
+-        if self.should_render_inline_flow() {
++        if self.should_render_inline_flow(&node_cx.style) {
+             return InlineFlow::new(
+                 leaf_element_id(fade_key),
+                 self.inline_flow_items(fade_key, fades, backgrounds, node_cx, cx),
+@@ -2595,7 +2807,8 @@ impl Paragraph {
+ 
+                     if let Some(mut link_mark) = style.link.clone() {
+                         highlight.style.color = Some(node_cx.style.link());
+-                        highlight.style.underline = Some(link_underline(&node_cx.style));
++                        highlight.style.underline =
++                            link_underline(&node_cx.style).or(highlight.style.underline);
+ 
+                         // convert link references, replace link
+                         if let Some(identifier) = link_mark.identifier.as_ref() {
+@@ -2650,15 +2863,20 @@ impl Paragraph {
+             .into_any_element()
+     }
+ 
+-    fn should_render_inline_flow(&self) -> bool {
++    fn should_render_inline_flow(&self, style: &TextViewStyle) -> bool {
+         let has_image = self.children.iter().any(|child| child.image.is_some());
+         let has_text = self.children.iter().any(|child| !child.text.is_empty());
+         self.children.iter().any(|child| child.custom.is_some())
+             || (has_image && has_text)
+-            || self
+-                .children
+-                .iter()
+-                .any(|child| child.marks.iter().any(|(_, mark)| mark.code))
++            || self.children.iter().any(|child| {
++                child.marks.iter().any(|(_, mark)| {
++                    mark.code
++                        || mark
++                            .link
++                            .as_ref()
++                            .is_some_and(|link| web_link_icon(style, link).is_some())
++                })
++            })
+     }
+ 
+     fn inline_flow_items(
+@@ -2711,7 +2929,8 @@ impl Paragraph {
+                                 .clone(),
+                         );
+                         object_style.color = Some(node_cx.style.link());
+-                        object_style.underline = Some(link_underline(&node_cx.style));
++                        object_style.underline =
++                            link_underline(&node_cx.style).or(object_style.underline);
+                     }
+                 }
+                 let rendered_node = node.clone();
+@@ -2777,13 +2996,15 @@ impl Paragraph {
+ 
+                     if let Some(mut link_mark) = style.link.clone() {
+                         highlight.style.color = Some(node_cx.style.link());
+-                        highlight.style.underline = Some(link_underline(&node_cx.style));
++                        highlight.style.underline =
++                            link_underline(&node_cx.style).or(highlight.style.underline);
+ 
+                         if let Some(identifier) = link_mark.identifier.as_ref()
+                             && let Some(mark) = node_cx.link_refs.get(identifier)
+                         {
+                             link_mark = mark.clone();
+                         }
++                        highlight.icon = web_link_icon(&node_cx.style, &link_mark);
+ 
+                         links.push((inner_range.clone(), link_mark));
+                     }
+@@ -2836,14 +3057,15 @@ fn leaf_element_id(fade_key: Option<TextLeafKey>) -> ElementId {
+     fade_key.map_or_else(|| ElementId::from("p"), ElementId::from)
+ }
+ 
+-/// A link's underline: a hairline in a translucent link color, so a run of
+-/// links reads as text first and as links second.
+-fn link_underline(style: &TextViewStyle) -> gpui::UnderlineStyle {
+-    gpui::UnderlineStyle {
++/// A link's underline, unless the style turns it off: a hairline in a
++/// translucent link color, so a run of links reads as text first and as
++/// links second.
++fn link_underline(style: &TextViewStyle) -> Option<gpui::UnderlineStyle> {
++    style.link_underline().then(|| gpui::UnderlineStyle {
+         thickness: px(1.),
+         color: Some(style.link().opacity(0.4)),
+         ..Default::default()
+-    }
++    })
+ }
+ 
+ /// The font size the blocks inherit, which heading sizes and the spacing of
+@@ -3085,13 +3307,16 @@ fn measure_table_text_columns(
+                         range.end,
+                         |range, highlight| (range, highlight.clone()),
+                     );
+-                    if highlights.iter().any(|(_, h)| h.font_size_scale.is_some()) {
+-                        line_w += px(crate::text::inline_flow::INLINE_CODE_PADDING * 2.);
+-                    }
++                    line_w += crate::text::inline_flow::code_padding(&highlights) * 2.;
+                     let runs = text_runs(range.len(), text_style, &highlights);
+                     line_w += window
+                         .text_system()
+-                        .layout_line(&line[range], font_size * scale, &runs, None)
++                        .layout_line(
++                            &line[range],
++                            crate::text::inline_flow::segment_size(font_size, scale, &highlights),
++                            &runs,
++                            None,
++                        )
+                         .width;
+                 }
+                 w = w.max(f32::from(line_w));
+@@ -3285,14 +3510,46 @@ impl BlockNode {
+         style: &TextViewStyle,
+         line_height: Pixels,
+         indent: Pixels,
++        font: (Pixels, Pixels),
+     ) -> Div {
++        let marker = if options.ordered && options.list_start == Some(0) {
++            &ListStyleType::Decimal
++        } else {
++            style.list_style_type(options.ordered, options.depth)
++        };
++        let shape = matches!(
++            marker,
++            ListStyleType::Disc | ListStyleType::Circle | ListStyleType::Square
++        );
+         h_flex()
+             .w_full()
+             .min_w_0()
+             .relative()
+             .items_start()
+             .content_start()
+-            .when(!options.todo && checked.is_none(), |this| {
++            .when(!options.todo && checked.is_none() && shape, |this| {
++                // Drawn where Chromium draws an outside symbol marker: a box
++                // of (2/3 ascent + 1) / 2, `2/3 ascent + 7` before the text,
++                // `3/2 (ascent - 2/3 ascent)` under the top of the text.
++                let (ascent, descent) = (font.0.round(), font.1.round());
++                let offset = (ascent * 2. / 3.).floor();
++                let size = ((offset + px(1.)) / 2.).floor();
++                let top = (line_height - ascent - descent) / 2. + ((ascent - offset) * 1.5).floor();
++                let mut ink = StyleRefinement::default();
++                ink.refine(style.list_marker());
++                let color = ink.text.color.unwrap_or(style.muted_foreground());
++                let dot = div()
++                    .absolute()
++                    .left(indent - offset - px(7.))
++                    .top(top)
++                    .size(size);
++                this.child(div().flex_none().w(indent)).child(match marker {
++                    ListStyleType::Disc => dot.rounded_full().bg(color),
++                    ListStyleType::Circle => dot.rounded_full().border_1().border_color(color),
++                    _ => dot.bg(color),
++                })
++            })
++            .when(!options.todo && checked.is_none() && !shape, |this| {
+                 // The marker hangs in an indent column, right-aligned against
+                 // the text like an outside list marker, and steps back in
+                 // color so the item text leads.
+@@ -3303,12 +3560,14 @@ impl BlockNode {
+                         .pr(indent * 0.3)
+                         .text_right()
+                         .text_color(style.muted_foreground())
++                        .refine_style(style.list_marker())
+                         .child(
+                             list_item_prefix(
+                                 ix,
+                                 options.list_start,
+                                 options.ordered,
+                                 options.depth,
++                                style,
+                             )
+                             .trim_end()
+                             .to_string(),
+@@ -3317,15 +3576,30 @@ impl BlockNode {
+             })
+             .when_some(checked, |this, checked| {
+                 // Todo list checkbox
+-                let check_svg = if style.is_dark() {
+-                    CHECK_SVG_DARK
+-                } else {
+-                    CHECK_SVG_LIGHT
+-                };
++                let mut checkbox = StyleRefinement::default()
++                    .mr_2()
++                    .size(rems(0.9375))
++                    .rounded(px(4.))
++                    .border(px(1.5))
++                    .border_color(style.muted_foreground());
++                checkbox.refine(style.task_checkbox());
++                if checked {
++                    checkbox = checkbox.bg(style.link()).border_color(style.link());
++                    checkbox.refine(style.checked_task_checkbox());
++                }
++                let check = checked.then(|| {
++                    let color = checkbox.text.color.unwrap_or_else(|| {
++                        if style.is_dark() {
++                            gpui::black()
++                        } else {
++                            gpui::white()
++                        }
++                    });
++                    img(check_svg(color)).size_full()
++                });
+                 this.child(
+                     div()
+                         .flex()
+-                        .mr_2()
+                         .h(line_height)
+                         .flex_none()
+                         .items_center()
+@@ -3333,21 +3607,11 @@ impl BlockNode {
+                         .child(
+                             div()
+                                 .flex()
+-                                .size(rems(0.9375))
++                                .flex_none()
+                                 .items_center()
+                                 .justify_center()
+-                                .rounded(px(4.))
+-                                .border(px(1.5))
+-                                .border_color(style.muted_foreground())
+-                                .when(checked, |this| {
+-                                    this.bg(style.link()).border_color(style.link()).child(
+-                                        img(Arc::new(Image::from_bytes(
+-                                            ImageFormat::Svg,
+-                                            check_svg.to_vec(),
+-                                        )))
+-                                        .size(rems(0.75)),
+-                                    )
+-                                }),
++                                .refine_style(&checkbox)
++                                .children(check),
+                         ),
+                 )
+             })
+@@ -3357,7 +3621,7 @@ impl BlockNode {
+                     .min_w_0()
+                     .overflow_hidden()
+                     // A done task steps back so the open ones stand out.
+-                    .when(checked == Some(true), |this| {
++                    .when(checked == Some(true) && style.mute_done_tasks(), |this| {
+                         this.text_color(style.muted_foreground())
+                     })
+                     .child(content),
+@@ -3380,12 +3644,22 @@ impl BlockNode {
+                 ..
+             } => {
+                 let body = body_font_size(node_cx, window);
+-                let indent = body * 1.4;
++                let style = &node_cx.style;
++                let indent = style.list_indent().unwrap_or(body * 1.4);
++                let item_gap = style.list_item_gap().unwrap_or(body * 0.25);
++                let nested_gap = style.nested_list_gap();
++                let text_style = window.text_style();
++                let font_size = text_style.font_size.to_pixels(window.rem_size());
++                let font_id = window.text_system().resolve_font(&text_style.font());
++                let font = (
++                    window.text_system().ascent(font_id, font_size),
++                    window.text_system().descent(font_id, font_size).abs(),
++                );
+                 div()
+                     .w_full()
+                     .min_w_0()
+                     // Items breathe a little apart, less than paragraphs do.
+-                    .when(ix > 0, |this| this.pt(body * 0.25))
++                    .when(ix > 0, |this| this.pt(item_gap))
+                     .when(*spread, |this| this.child(div()))
+                     .children({
+                         let mut items: Vec<Div> = Vec::with_capacity(children.len());
+@@ -3437,20 +3711,32 @@ impl BlockNode {
+                                         &node_cx.style,
+                                         window.line_height(),
+                                         indent,
++                                        font,
+                                     ));
+                                 }
+                                 BlockNode::List { .. } => {
+-                                    items.push(div().ml(indent).child(child.render_block(
+-                                        NodeRenderOptions {
+-                                            depth: options.depth + 1,
+-                                            todo: checked.is_some(),
+-                                            is_last: true,
+-                                            ..options
+-                                        },
+-                                        node_cx,
+-                                        window,
+-                                        cx,
+-                                    )));
++                                    // The gap below collapses with the next item's gap above, as
++                                    // CSS margins do; the last item leaves it to the list's own.
++                                    let bottom = if child_ix + 1 < children.len() {
++                                        nested_gap
++                                    } else if options.is_last {
++                                        px(0.)
++                                    } else {
++                                        (nested_gap - item_gap).max(px(0.))
++                                    };
++                                    items.push(div().ml(indent).pt(nested_gap).pb(bottom).child(
++                                        child.render_block(
++                                            NodeRenderOptions {
++                                                depth: options.depth + 1,
++                                                todo: checked.is_some(),
++                                                is_last: true,
++                                                ..options
++                                            },
++                                            node_cx,
++                                            window,
++                                            cx,
++                                        ),
++                                    ));
+                                 }
+                                 BlockNode::Root { .. }
+                                 | BlockNode::Heading { .. }
+@@ -3480,6 +3766,7 @@ impl BlockNode {
+                                             &node_cx.style,
+                                             window.line_height(),
+                                             indent,
++                                            font,
+                                         ));
+                                     } else {
+                                         // Indent continuation blocks to align with a
+@@ -3553,6 +3840,26 @@ impl BlockNode {
+             _ => return div().into_any_element(),
+         };
+ 
++        let (cell, footer) = match &node_cx.table_chrome {
++            Some(chrome) => {
++                let chrome = chrome(&table.cached_table_data(), window, cx);
++                (chrome.cell, chrome.footer)
++            }
++            None => (None, None),
++        };
++        let chromed_cx;
++        let node_cx = match cell {
++            Some(cell) => {
++                let mut merged = node_cx.style.table_cell().clone();
++                merged.refine(&cell);
++                chromed_cx = NodeContext {
++                    style: Arc::new((*node_cx.style).clone().with_table_cell(merged)),
++                    ..node_cx.clone()
++                };
++                &chromed_cx
++            }
++            None => node_cx,
++        };
+         let style = &node_cx.style;
+         let col_count = table
+             .children
+@@ -3565,6 +3872,12 @@ impl BlockNode {
+         let nowrap = style.table_cell().text.white_space == Some(WhiteSpace::Nowrap);
+         let rem_size = window.rem_size();
+         let wrap_min_px = f32::from(rems(4.).to_pixels(rem_size));
++        let cell_cap = match style.table_cell().max_size.width {
++            Some(gpui::Length::Definite(DefiniteLength::Absolute(cap))) => {
++                f32::from(cap.to_pixels(rem_size))
++            }
++            _ => f32::INFINITY,
++        };
+         // Widths were measured with the default cell padding.
+         let padding_delta = table_cell_padding_x(style, rem_size) - CELL_PAD_PX;
+         // Lengths are rounded to device pixels for layout. Round the content
+@@ -3576,7 +3889,7 @@ impl BlockNode {
+             .iter()
+             .enumerate()
+             .map(|(ix, &w)| {
+-                let w = w + padding_delta;
++                let w = (w + padding_delta).min(cell_cap);
+                 let floor = if scroll && nowrap {
+                     w
+                 } else if scroll {
+@@ -3663,12 +3976,21 @@ impl BlockNode {
+             // backgrounds of the action buttons off the table border, and the
+             // id scopes the caller's element ids per table, so plain ids like
+             // `"copy"` don't collide across tables (same as code blocks).
+-            .children(node_cx.table_actions.clone().map(|f| {
+-                div()
+-                    .id(block_element_id("table-actions", table.span, options.ix))
+-                    .mt_1()
+-                    .child(f(&table.cached_table_data(), window, cx))
+-            }))
++            .children(
++                footer
++                    .or_else(|| {
++                        node_cx
++                            .table_actions
++                            .clone()
++                            .map(|f| f(&table.cached_table_data(), window, cx))
++                    })
++                    .map(|footer| {
++                        div()
++                            .id(block_element_id("table-actions", table.span, options.ix))
++                            .mt_1()
++                            .child(footer)
++                    }),
++            )
+             .into_any_element()
+     }
+ 
+@@ -3781,6 +4103,9 @@ impl BlockNode {
+                         .px_3()
+                         .py(px(7.))
+                         .refine_style(&style.table_cell())
++                        // The column widths already hold any cap the cell style sets.
++                        .min_w(px(column.min))
++                        .max_w(px(column.max))
+                         .children(content)
+                         .into_any_element(),
+                 );
+@@ -3950,7 +4275,8 @@ impl BlockNode {
+                 .min_w_0()
+                 .pb(mb)
+                 .children({
+-                    let mut items = Vec::with_capacity(children.len());
++                    let item_count = children.len();
++                    let mut items = Vec::with_capacity(item_count);
+                     let mut item_index = 0;
+                     for (ix, item) in children.into_iter().enumerate() {
+                         let is_item = item.is_list_item();
+@@ -3962,6 +4288,7 @@ impl BlockNode {
+                                 ix,
+                                 ordered: *ordered,
+                                 list_start: *start,
++                                is_last: ix + 1 == item_count,
+                                 ..options
+                             },
+                             node_cx,
+diff --git a/src/text/state.rs b/src/text/state.rs
+index 81d8a9a..ac67233 100644
+--- a/src/text/state.rs
++++ b/src/text/state.rs
+@@ -22,8 +22,9 @@ use crate::{
+     async_util::{Receiver, Sender, unbounded},
+     input::{self, SelectAll},
+     text::{
+-        CodeBlockActionsFn, CodeBlockHighlighterFn, LinkClickHandlerFn, MarkdownExtensions,
+-        RangeHighlight, RangeHighlightError, RenderedText, TableActionsFn, TextViewStyle,
++        CodeBlockActionsFn, CodeBlockChromeFn, CodeBlockHighlighterFn, LinkClickHandlerFn,
++        MarkdownExtensions, RangeHighlight, RangeHighlightError, RenderedText, TableActionsFn,
++        TableChromeFn, TextViewStyle,
+         document::ParsedDocument,
+         format,
+         node::{self, NodeContext},
+@@ -113,8 +114,10 @@ pub struct TextViewState {
+     pub(super) clamped: bool,
+     pub(super) text_view_style: Arc<TextViewStyle>,
+     pub(super) code_block_actions: Option<std::sync::Arc<CodeBlockActionsFn>>,
++    pub(super) code_block_chrome: Option<std::sync::Arc<CodeBlockChromeFn>>,
+     pub(super) code_block_highlighter: Option<std::sync::Arc<CodeBlockHighlighterFn>>,
+     pub(super) table_actions: Option<std::sync::Arc<TableActionsFn>>,
++    pub(super) table_chrome: Option<std::sync::Arc<TableChromeFn>>,
+     pub(super) image_source: Option<std::sync::Arc<super::text_view::ImageSourceFn>>,
+     pub(super) link_click_handler: Option<std::sync::Arc<LinkClickHandlerFn>>,
+     pub(super) markdown_extensions: Arc<MarkdownExtensions>,
+@@ -219,8 +222,10 @@ impl TextViewState {
+             list_state: ListState::new(0, gpui::ListAlignment::Top, px(1000.)).measure_all(),
+             text_view_style: Arc::default(),
+             code_block_actions: None,
++            code_block_chrome: None,
+             code_block_highlighter: None,
+             table_actions: None,
++            table_chrome: None,
+             link_click_handler: None,
+             image_source: None,
+             markdown_extensions: Arc::default(),
+@@ -1072,8 +1077,10 @@ impl Render for TextViewState {
+             link_refs: self.parsed_content.node_cx.link_refs.clone(),
+             style: self.text_view_style.clone(),
+             code_block_actions: self.code_block_actions.clone(),
++            code_block_chrome: self.code_block_chrome.clone(),
+             code_block_highlighter: self.code_block_highlighter.clone(),
+             table_actions: self.table_actions.clone(),
++            table_chrome: self.table_chrome.clone(),
+             link_click_handler: self.link_click_handler.clone(),
+             image_source: self.image_source.clone(),
+             markdown_extensions: self.markdown_extensions.clone(),
+diff --git a/src/text/style.rs b/src/text/style.rs
+index 2dc7735..4596b3f 100644
+--- a/src/text/style.rs
++++ b/src/text/style.rs
+@@ -1,6 +1,6 @@
+ use std::sync::Arc;
+ 
+-use gpui::{HighlightStyle, Hsla, Rems, StyleRefinement, rems};
++use gpui::{HighlightStyle, Hsla, Pixels, Rems, SharedString, StyleRefinement, px, rems};
+ 
+ use crate::ColorTokens;
+ 
+@@ -30,6 +30,146 @@ pub struct TextViewStyle {
+     /// show that surface.
+     table_background: Option<Hsla>,
+     is_dark: bool,
++    list_indent: Option<Pixels>,
++    list_item_gap: Option<Pixels>,
++    nested_list_gap: Pixels,
++    list_marker: StyleRefinement,
++    unordered_markers: Arc<[ListStyleType]>,
++    ordered_markers: Arc<[ListStyleType]>,
++    task_checkbox: StyleRefinement,
++    checked_task_checkbox: StyleRefinement,
++    mute_done_tasks: bool,
++    link_underline: bool,
++    inline_code_frame: InlineCodeFrame,
++    link_icon: Option<LinkIcon>,
++    link_hover_dots: bool,
++}
++
++/// The box an inline code span draws around its text.
++#[derive(Clone, Debug, PartialEq)]
++pub struct InlineCodeFrame {
++    /// The code's size relative to the text around it.
++    pub scale: f32,
++    /// A fixed size for the code, as CSS's `rem` sizes are, in place of `scale`.
++    pub size: Option<Pixels>,
++    /// The room on each side of the text, the border's included.
++    pub padding_x: Pixels,
++    /// The room above the code's ascent and below its descent, the border's
++    /// included; `None` centres a compact box on the capital height.
++    pub padding_y: Option<Pixels>,
++    /// The corner radius; `None` takes the theme's small radius.
++    pub radius: Option<Pixels>,
++    /// The border's width and color.
++    pub border: Option<(Pixels, Hsla)>,
++}
++
++impl Default for InlineCodeFrame {
++    fn default() -> Self {
++        Self {
++            scale: 0.875,
++            size: None,
++            padding_x: px(4.),
++            padding_y: None,
++            radius: None,
++            border: None,
++        }
++    }
++}
++
++/// An icon a link to a web page (`http` or `https`) draws before its text,
++/// in the link color.
++#[derive(Clone, Debug, PartialEq)]
++pub struct LinkIcon {
++    /// The SVG's path in the application's asset source.
++    pub path: SharedString,
++    pub size: Pixels,
++    pub margin_left: Pixels,
++    pub margin_right: Pixels,
++    /// How far the icon's bottom edge sits below the baseline.
++    pub below_baseline: Pixels,
++}
++
++impl LinkIcon {
++    /// The room the icon takes before the link's text.
++    pub fn room(&self) -> Pixels {
++        self.margin_left + self.size + self.margin_right
++    }
++}
++
++/// How a list marks its items, as CSS's `list-style-type` names them.
++#[derive(Clone, Debug, PartialEq)]
++pub enum ListStyleType {
++    /// `1.`, `2.`, `3.`
++    Decimal,
++    /// `a.`, `b.`, `c.`
++    LowerAlpha,
++    /// `A.`, `B.`, `C.`
++    UpperAlpha,
++    /// `i.`, `ii.`, `iii.`
++    LowerRoman,
++    /// `I.`, `II.`, `III.`
++    UpperRoman,
++    /// A filled circle, drawn as Chromium draws CSS's `disc`.
++    Disc,
++    /// A hollow circle, drawn as Chromium draws CSS's `circle`.
++    Circle,
++    /// A filled square, drawn as Chromium draws CSS's `square`.
++    Square,
++    /// The same symbol before every item, such as `•`.
++    Symbol(SharedString),
++}
++
++impl ListStyleType {
++    /// The marker of the item numbered `ordinal`, with no space after it.
++    pub fn marker(&self, ordinal: u32) -> SharedString {
++        let letter = |base: u8| {
++            let ix = ordinal.saturating_sub(1) % 26;
++            char::from(base + ix as u8)
++        };
++        match self {
++            Self::Decimal => format!("{ordinal}.").into(),
++            Self::LowerAlpha => format!("{}.", letter(b'a')).into(),
++            Self::UpperAlpha => format!("{}.", letter(b'A')).into(),
++            Self::LowerRoman => format!("{}.", roman(ordinal)).into(),
++            Self::UpperRoman => format!("{}.", roman(ordinal).to_uppercase()).into(),
++            Self::Disc => "•".into(),
++            Self::Circle => "◦".into(),
++            Self::Square => "▪".into(),
++            Self::Symbol(symbol) => symbol.clone(),
++        }
++    }
++}
++
++/// `ordinal` in lower-case Roman numerals, or in decimal outside 1 to 3999
++/// as CSS falls back.
++fn roman(ordinal: u32) -> String {
++    if !(1..4000).contains(&ordinal) {
++        return ordinal.to_string();
++    }
++    const NUMERALS: [(u32, &str); 13] = [
++        (1000, "m"),
++        (900, "cm"),
++        (500, "d"),
++        (400, "cd"),
++        (100, "c"),
++        (90, "xc"),
++        (50, "l"),
++        (40, "xl"),
++        (10, "x"),
++        (9, "ix"),
++        (5, "v"),
++        (4, "iv"),
++        (1, "i"),
++    ];
++    let mut rest = ordinal;
++    let mut out = String::new();
++    for (value, numeral) in NUMERALS {
++        while rest >= value {
++            out.push_str(numeral);
++            rest -= value;
++        }
++    }
++    out
+ }
+ 
+ impl PartialEq for TextViewStyle {
+@@ -50,6 +190,19 @@ impl PartialEq for TextViewStyle {
+             && self.inline_code == other.inline_code
+             && self.table_background == other.table_background
+             && self.is_dark == other.is_dark
++            && self.list_indent == other.list_indent
++            && self.list_item_gap == other.list_item_gap
++            && self.nested_list_gap == other.nested_list_gap
++            && self.list_marker == other.list_marker
++            && self.unordered_markers == other.unordered_markers
++            && self.ordered_markers == other.ordered_markers
++            && self.task_checkbox == other.task_checkbox
++            && self.checked_task_checkbox == other.checked_task_checkbox
++            && self.mute_done_tasks == other.mute_done_tasks
++            && self.link_underline == other.link_underline
++            && self.inline_code_frame == other.inline_code_frame
++            && self.link_icon == other.link_icon
++            && self.link_hover_dots == other.link_hover_dots
+     }
+ }
+ 
+@@ -93,6 +246,26 @@ impl TextViewStyle {
+             },
+             table_background: None,
+             is_dark,
++            list_indent: None,
++            list_item_gap: None,
++            nested_list_gap: Pixels::ZERO,
++            list_marker: StyleRefinement::default(),
++            unordered_markers: ["•", "◦", "▪", "‣", "⁃"]
++                .map(|symbol| ListStyleType::Symbol(symbol.into()))
++                .into(),
++            ordered_markers: [
++                ListStyleType::Decimal,
++                ListStyleType::UpperAlpha,
++                ListStyleType::LowerAlpha,
++            ]
++            .into(),
++            task_checkbox: StyleRefinement::default(),
++            checked_task_checkbox: StyleRefinement::default(),
++            mute_done_tasks: true,
++            link_underline: true,
++            inline_code_frame: InlineCodeFrame::default(),
++            link_icon: None,
++            link_hover_dots: false,
+         }
+     }
+ 
+@@ -199,6 +372,99 @@ impl TextViewStyle {
+         self
+     }
+ 
++    /// Sets the indent of a list item's text, where its marker hangs.
++    /// Defaults to 1.4 times the body font size.
++    pub fn with_list_indent(mut self, indent: Pixels) -> Self {
++        self.list_indent = Some(indent);
++        self
++    }
++
++    /// Sets the gap above every list item but the first. Defaults to a
++    /// quarter of the body font size.
++    pub fn with_list_item_gap(mut self, gap: Pixels) -> Self {
++        self.list_item_gap = Some(gap);
++        self
++    }
++
++    /// Sets the gap above and below a list nested in an item, which collapses
++    /// with the gap above the next item like a CSS margin. Defaults to none.
++    pub fn with_nested_list_gap(mut self, gap: Pixels) -> Self {
++        self.nested_list_gap = gap;
++        self
++    }
++
++    /// Sets the style refinement for a list item's marker, applied on top of
++    /// its right-aligned, muted default.
++    pub fn with_list_marker(mut self, style: StyleRefinement) -> Self {
++        self.list_marker = style;
++        self
++    }
++
++    /// Sets the markers of unordered and ordered lists by nesting depth; a
++    /// list nested deeper than either list names takes its last one.
++    ///
++    /// Defaults to `•`, `◦`, `▪`, `‣`, `⁃` and to decimal, upper alpha, lower
++    /// alpha. An ordered list starting at 0 always counts in decimal.
++    pub fn with_list_markers(
++        mut self,
++        unordered: impl Into<Vec<ListStyleType>>,
++        ordered: impl Into<Vec<ListStyleType>>,
++    ) -> Self {
++        let (unordered, ordered) = (unordered.into(), ordered.into());
++        if !unordered.is_empty() {
++            self.unordered_markers = unordered.into();
++        }
++        if !ordered.is_empty() {
++            self.ordered_markers = ordered.into();
++        }
++        self
++    }
++
++    /// Sets the style refinement for a task list item's checkbox, applied on
++    /// top of its default box. Its margins set the room around it.
++    pub fn with_task_checkbox(mut self, style: StyleRefinement) -> Self {
++        self.task_checkbox = style;
++        self
++    }
++
++    /// Sets the style refinement for a checked task checkbox, applied on top
++    /// of [`Self::with_task_checkbox`]. Its text color colors the check.
++    pub fn with_checked_task_checkbox(mut self, style: StyleRefinement) -> Self {
++        self.checked_task_checkbox = style;
++        self
++    }
++
++    /// Sets whether a done task's text takes the muted color. Defaults to true.
++    pub fn with_muted_done_tasks(mut self, mute: bool) -> Self {
++        self.mute_done_tasks = mute;
++        self
++    }
++
++    /// Sets whether links are underlined. Defaults to true.
++    pub fn with_link_underline(mut self, underline: bool) -> Self {
++        self.link_underline = underline;
++        self
++    }
++
++    /// Sets the box inline code draws around its text, and its size.
++    pub fn with_inline_code_frame(mut self, frame: InlineCodeFrame) -> Self {
++        self.inline_code_frame = frame;
++        self
++    }
++
++    /// Sets an icon every link to a web page draws before its text.
++    pub fn with_link_icon(mut self, icon: LinkIcon) -> Self {
++        self.link_icon = Some(icon);
++        self
++    }
++
++    /// Sets whether the link under the pointer takes a dotted underline,
++    /// browsers' `radial-gradient` dots every 4 px. Defaults to false.
++    pub fn with_link_hover_dots(mut self, dots: bool) -> Self {
++        self.link_hover_dots = dots;
++        self
++    }
++
+     /// Sets whether content-specific assets should use their dark variant.
+     pub fn with_dark(mut self, is_dark: bool) -> Self {
+         self.is_dark = is_dark;
+@@ -276,6 +542,71 @@ impl TextViewStyle {
+         self.is_dark
+     }
+ 
++    /// The indent of a list item's text, when one was set.
++    pub fn list_indent(&self) -> Option<Pixels> {
++        self.list_indent
++    }
++
++    /// The gap above every list item but the first, when one was set.
++    pub fn list_item_gap(&self) -> Option<Pixels> {
++        self.list_item_gap
++    }
++
++    /// The gap above and below a nested list.
++    pub fn nested_list_gap(&self) -> Pixels {
++        self.nested_list_gap
++    }
++
++    /// The style refinement for a list item's marker.
++    pub fn list_marker(&self) -> &StyleRefinement {
++        &self.list_marker
++    }
++
++    /// The marker style of a list at `depth`.
++    pub fn list_style_type(&self, ordered: bool, depth: usize) -> &ListStyleType {
++        let markers = if ordered {
++            &self.ordered_markers
++        } else {
++            &self.unordered_markers
++        };
++        &markers[depth.min(markers.len() - 1)]
++    }
++
++    /// The style refinement for a task checkbox.
++    pub fn task_checkbox(&self) -> &StyleRefinement {
++        &self.task_checkbox
++    }
++
++    /// The style refinement for a checked task checkbox.
++    pub fn checked_task_checkbox(&self) -> &StyleRefinement {
++        &self.checked_task_checkbox
++    }
++
++    /// Whether a done task's text takes the muted color.
++    pub fn mute_done_tasks(&self) -> bool {
++        self.mute_done_tasks
++    }
++
++    /// Whether links are underlined.
++    pub fn link_underline(&self) -> bool {
++        self.link_underline
++    }
++
++    /// The box inline code draws around its text.
++    pub fn inline_code_frame(&self) -> &InlineCodeFrame {
++        &self.inline_code_frame
++    }
++
++    /// The icon a link to a web page draws before its text.
++    pub fn link_icon(&self) -> Option<&LinkIcon> {
++        self.link_icon.as_ref()
++    }
++
++    /// Whether the link under the pointer takes a dotted underline.
++    pub fn link_hover_dots(&self) -> bool {
++        self.link_hover_dots
++    }
++
+     /// The table body background, when it is not the theme surface.
+     pub(crate) fn table_background(&self) -> Option<Hsla> {
+         self.table_background
+diff --git a/src/text/text_view.rs b/src/text/text_view.rs
+index 4890d0a..0a1f114 100644
+--- a/src/text/text_view.rs
++++ b/src/text/text_view.rs
+@@ -11,7 +11,7 @@ use gpui::{
+ use crate::StyledExt;
+ use crate::text::TextViewFormat;
+ use crate::text::markdown_ext::{MarkdownExtensions, MarkdownNode, MarkdownPlugin};
+-use crate::text::node::{CodeBlock, TableData};
++use crate::text::node::{CodeBlock, CodeBlockChrome, TableChrome, TableData};
+ use crate::text::range_highlight::{PendingReveal, RevealProgress};
+ use crate::text::state::{LineSpan, SelectionFormat, TextViewState};
+ use crate::text::stream_fade::TextViewMotion;
+@@ -21,6 +21,9 @@ use crate::{GlobalState, TextSelection, text::TextViewStyle};
+ pub(crate) type CodeBlockActionsFn =
+     dyn Fn(&CodeBlock, &mut Window, &mut App) -> AnyElement + Send + Sync;
+ 
++pub(crate) type CodeBlockChromeFn =
++    dyn Fn(&CodeBlock, &mut Window, &mut App) -> CodeBlockChrome + Send + Sync;
++
+ pub(crate) type CodeBlockHighlighterFn =
+     dyn Fn(&CodeBlock) -> Vec<(Range<usize>, gpui::HighlightStyle)> + Send + Sync;
+ 
+@@ -94,6 +97,9 @@ impl TextViewDefaults {
+ pub(crate) type TableActionsFn =
+     dyn Fn(&TableData, &mut Window, &mut App) -> AnyElement + Send + Sync;
+ 
++pub(crate) type TableChromeFn =
++    dyn Fn(&TableData, &mut Window, &mut App) -> TableChrome + Send + Sync;
++
+ pub(crate) type ImageSourceFn = dyn Fn(&gpui::SharedUri) -> gpui::ImageSource + Send + Sync;
+ 
+ pub(crate) type LinkClickHandlerFn =
+@@ -152,8 +158,10 @@ pub struct TextView {
+     scrollable: bool,
+     max_lines: Option<usize>,
+     code_block_actions: Option<Arc<CodeBlockActionsFn>>,
++    code_block_chrome: Option<Arc<CodeBlockChromeFn>>,
+     code_block_highlighter: Option<Arc<CodeBlockHighlighterFn>>,
+     table_actions: Option<Arc<TableActionsFn>>,
++    table_chrome: Option<Arc<TableChromeFn>>,
+     link_click_handler: Option<Arc<LinkClickHandlerFn>>,
+     image_source: Option<Arc<ImageSourceFn>>,
+     reveal_handler: Option<Rc<RevealHandlerFn>>,
+@@ -199,8 +207,10 @@ impl TextView {
+             scrollable: false,
+             max_lines: None,
+             code_block_actions: None,
++            code_block_chrome: None,
+             code_block_highlighter: None,
+             table_actions: None,
++            table_chrome: None,
+             link_click_handler: None,
+             image_source: None,
+             reveal_handler: None,
+@@ -223,8 +233,10 @@ impl TextView {
+             scrollable: false,
+             max_lines: None,
+             code_block_actions: None,
++            code_block_chrome: None,
+             code_block_highlighter: None,
+             table_actions: None,
++            table_chrome: None,
+             link_click_handler: None,
+             image_source: None,
+             reveal_handler: None,
+@@ -247,8 +259,10 @@ impl TextView {
+             scrollable: false,
+             max_lines: None,
+             code_block_actions: None,
++            code_block_chrome: None,
+             code_block_highlighter: None,
+             table_actions: None,
++            table_chrome: None,
+             link_click_handler: None,
+             image_source: None,
+             reveal_handler: None,
+@@ -346,6 +360,20 @@ impl TextView {
+         self
+     }
+ 
++    /// Set what each code block draws around its code: a header and a
++    /// footer spanning the block, and whether long lines wrap.
++    ///
++    /// The closure receives the [`CodeBlock`] and returns its
++    /// [`CodeBlockChrome`]. A block with chrome draws no language label and
++    /// no [`Self::code_block_actions`].
++    pub fn code_block_chrome<F>(mut self, f: F) -> Self
++    where
++        F: Fn(&CodeBlock, &mut Window, &mut App) -> CodeBlockChrome + Send + Sync + 'static,
++    {
++        self.code_block_chrome = Some(Arc::new(f));
++        self
++    }
++
+     /// Adds opt-in syntax highlighting for fenced code blocks.
+     ///
+     /// Returned byte ranges are relative to [`CodeBlock::code`]. Invalid
+@@ -390,6 +418,20 @@ impl TextView {
+         self
+     }
+ 
++    /// Set what each Markdown table draws besides its rows: a footer, in
++    /// place of the [`Self::table_actions`] row, and a refinement of its
++    /// cells.
++    ///
++    /// The closure receives the [`TableData`] and returns its
++    /// [`TableChrome`].
++    pub fn table_chrome<F>(mut self, f: F) -> Self
++    where
++        F: Fn(&TableData, &mut Window, &mut App) -> TableChrome + Send + Sync + 'static,
++    {
++        self.table_chrome = Some(Arc::new(f));
++        self
++    }
++
+     /// Handle pointer events on rendered links.
+     ///
+     /// The handler receives the resolved URL and the original GPUI click event.
+@@ -682,8 +724,10 @@ impl Element for TextView {
+                 state.preserve_selection_for_reflow();
+             }
+             state.code_block_actions = self.code_block_actions.clone();
++            state.code_block_chrome = self.code_block_chrome.clone();
+             state.code_block_highlighter = code_block_highlighter;
+             state.table_actions = self.table_actions.clone();
++            state.table_chrome = self.table_chrome.clone();
+             state.link_click_handler = self.link_click_handler.clone();
+             state.image_source = self.image_source.clone();
+             state.set_markdown_extensions(self.markdown_extensions.clone(), cx);
+diff --git a/src/text/utils.rs b/src/text/utils.rs
+index ef38df4..d6ddde5 100644
+--- a/src/text/utils.rs
++++ b/src/text/utils.rs
+@@ -3,10 +3,7 @@ use std::sync::Arc;
+ use data_url::DataUrl;
+ use gpui::{Image, ImageFormat};
+ 
+-const NUMBERED_PREFIXES_1: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+-const NUMBERED_PREFIXES_2: &str = "abcdefghijklmnopqrstuvwxyz";
+-
+-const BULLETS: [&str; 5] = ["•", "◦", "▪", "‣", "⁃"];
++use super::{ListStyleType, TextViewStyle};
+ 
+ /// Returns an ordered-list item's ordinal, defaulting omitted starts to one.
+ pub(super) fn ordered_list_ordinal(start: Option<u32>, ix: usize) -> u32 {
+@@ -15,42 +12,21 @@ pub(super) fn ordered_list_ordinal(start: Option<u32>, ix: usize) -> u32 {
+         .saturating_add(u32::try_from(ix).unwrap_or(u32::MAX))
+ }
+ 
+-/// Returns the prefix for a list item.
++/// Returns the prefix for a list item, in the markers `style` sets.
+ pub(super) fn list_item_prefix(
+     ix: usize,
+     start: Option<u32>,
+     ordered: bool,
+     depth: usize,
++    style: &TextViewStyle,
+ ) -> String {
+-    if ordered {
+-        let ordinal = ordered_list_ordinal(start, ix);
+-        if depth == 0 || start == Some(0) {
+-            return format!("{ordinal}. ");
+-        }
+-
+-        let alpha_ix = ordinal.saturating_sub(1) as usize;
+-        if depth == 1 {
+-            return format!(
+-                "{}. ",
+-                NUMBERED_PREFIXES_1
+-                    .chars()
+-                    .nth(alpha_ix % NUMBERED_PREFIXES_1.len())
+-                    .unwrap()
+-            );
+-        } else {
+-            return format!(
+-                "{}. ",
+-                NUMBERED_PREFIXES_2
+-                    .chars()
+-                    .nth(alpha_ix % NUMBERED_PREFIXES_2.len())
+-                    .unwrap()
+-            );
+-        }
++    let ordinal = ordered_list_ordinal(start, ix);
++    let marker = if ordered && start == Some(0) {
++        ListStyleType::Decimal.marker(ordinal)
+     } else {
+-        let depth = depth.min(BULLETS.len() - 1);
+-        let bullet = BULLETS[depth];
+-        return format!("{} ", bullet);
+-    }
++        style.list_style_type(ordered, depth).marker(ordinal)
++    };
++    format!("{marker} ")
+ }
+ 
+ /// Decodes a `data:` URL whose mime type names an image format GPUI can
+@@ -69,6 +45,7 @@ pub(super) fn data_url_image(url: &str) -> Option<Arc<Image>> {
+ mod tests {
+     use gpui::ImageFormat;
+ 
++    use crate::text::TextViewStyle;
+     use crate::text::utils::{data_url_image, list_item_prefix};
+ 
+     #[test]
+@@ -101,25 +78,43 @@ mod tests {
+ 
+     #[test]
+     fn test_list_item_prefix() {
+-        assert_eq!(list_item_prefix(0, Some(1), true, 0), "1. ");
+-        assert_eq!(list_item_prefix(1, Some(1), true, 0), "2. ");
+-        assert_eq!(list_item_prefix(2, Some(1), true, 0), "3. ");
+-        assert_eq!(list_item_prefix(10, Some(1), true, 0), "11. ");
+-        assert_eq!(list_item_prefix(0, Some(3), true, 0), "3. ");
+-        assert_eq!(list_item_prefix(1, Some(3), true, 0), "4. ");
+-        assert_eq!(list_item_prefix(0, Some(1), true, 1), "A. ");
+-        assert_eq!(list_item_prefix(1, Some(1), true, 1), "B. ");
+-        assert_eq!(list_item_prefix(0, Some(4), true, 1), "D. ");
+-        assert_eq!(list_item_prefix(1, Some(4), true, 1), "E. ");
+-        assert_eq!(list_item_prefix(0, Some(1), true, 2), "a. ");
+-        assert_eq!(list_item_prefix(1, Some(1), true, 2), "b. ");
+-        assert_eq!(list_item_prefix(6, Some(1), true, 2), "g. ");
+-        assert_eq!(list_item_prefix(0, Some(0), true, 1), "0. ");
+-        assert_eq!(list_item_prefix(1, Some(0), true, 1), "1. ");
+-        assert_eq!(list_item_prefix(0, None, false, 0), "• ");
+-        assert_eq!(list_item_prefix(0, None, false, 1), "◦ ");
+-        assert_eq!(list_item_prefix(0, None, false, 2), "▪ ");
+-        assert_eq!(list_item_prefix(0, None, false, 3), "‣ ");
+-        assert_eq!(list_item_prefix(0, None, false, 4), "⁃ ");
++        let style = TextViewStyle::default();
++        assert_eq!(list_item_prefix(0, Some(1), true, 0, &style), "1. ");
++        assert_eq!(list_item_prefix(1, Some(1), true, 0, &style), "2. ");
++        assert_eq!(list_item_prefix(2, Some(1), true, 0, &style), "3. ");
++        assert_eq!(list_item_prefix(10, Some(1), true, 0, &style), "11. ");
++        assert_eq!(list_item_prefix(0, Some(3), true, 0, &style), "3. ");
++        assert_eq!(list_item_prefix(1, Some(3), true, 0, &style), "4. ");
++        assert_eq!(list_item_prefix(0, Some(1), true, 1, &style), "A. ");
++        assert_eq!(list_item_prefix(1, Some(1), true, 1, &style), "B. ");
++        assert_eq!(list_item_prefix(0, Some(4), true, 1, &style), "D. ");
++        assert_eq!(list_item_prefix(1, Some(4), true, 1, &style), "E. ");
++        assert_eq!(list_item_prefix(0, Some(1), true, 2, &style), "a. ");
++        assert_eq!(list_item_prefix(1, Some(1), true, 2, &style), "b. ");
++        assert_eq!(list_item_prefix(6, Some(1), true, 2, &style), "g. ");
++        assert_eq!(list_item_prefix(0, Some(0), true, 1, &style), "0. ");
++        assert_eq!(list_item_prefix(1, Some(0), true, 1, &style), "1. ");
++        assert_eq!(list_item_prefix(0, None, false, 0, &style), "• ");
++        assert_eq!(list_item_prefix(0, None, false, 1, &style), "◦ ");
++        assert_eq!(list_item_prefix(0, None, false, 2, &style), "▪ ");
++        assert_eq!(list_item_prefix(0, None, false, 3, &style), "‣ ");
++        assert_eq!(list_item_prefix(0, None, false, 4, &style), "⁃ ");
++        assert_eq!(list_item_prefix(0, None, false, 9, &style), "⁃ ");
++    }
++
++    #[test]
++    fn list_markers_follow_the_style() {
++        use crate::text::ListStyleType::*;
++        let style = TextViewStyle::default().with_list_markers(
++            [Symbol("•".into()), Symbol("◦".into()), Symbol("▪".into())],
++            [Decimal, LowerAlpha, LowerRoman],
++        );
++        assert_eq!(list_item_prefix(0, None, false, 3, &style), "▪ ");
++        assert_eq!(list_item_prefix(1, Some(1), true, 1, &style), "b. ");
++        assert_eq!(list_item_prefix(3, Some(1), true, 2, &style), "iv. ");
++        assert_eq!(list_item_prefix(13, Some(1), true, 5, &style), "xiv. ");
++        assert_eq!(list_item_prefix(0, Some(0), true, 2, &style), "0. ");
++        assert_eq!(UpperRoman.marker(1994), "MCMXCIV.");
++        assert_eq!(LowerRoman.marker(4000), "4000.");
+     }
+ }

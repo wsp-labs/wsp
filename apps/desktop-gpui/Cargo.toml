@@ -3,6 +3,8 @@
 [workspace]
 resolver = "2"
 members = ["host-client", "app"]
+# gpui-kit's crates in vendor/ inherit from gpui-kit's own root manifest beside them, not this one.
+exclude = ["vendor/gpui-kit-14f5933"]
 
 [workspace.package]
 version = "0.1.0"
@@ -16,3 +18,8 @@ publish = false
 gpui-pre = { path = "vendor/gpui-pre-0.3.9" }
 gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu-0.3.9" }
 gpui-pre-apple = { path = "vendor/gpui-pre-apple-0.3.9" }
+
+# The markdown view's list markers and spacing, task boxes, code block and table chrome: our patch over gpui-kit's
+# pinned gpui-base, applied in vendor/ by scripts/gpui-patches.sh like the gpui-pre ones.
+[patch."https://github.com/longbridge/gpui-kit"]
+gpui-base = { path = "vendor/gpui-kit-14f5933/crates/base" }
