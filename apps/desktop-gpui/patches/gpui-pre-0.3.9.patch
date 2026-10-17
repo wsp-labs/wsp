@@ -191,10 +191,53 @@ index fc292f2..8b004e4 100644
                      });
                  });
 diff --git a/src/elements/list.rs b/src/elements/list.rs
-index fa21d10..2cdc0f9 100644
+index fa21d10..4fc197d 100644
 --- a/src/elements/list.rs
 +++ b/src/elements/list.rs
-@@ -1545,9 +1545,10 @@ impl Element for List {
+@@ -73,6 +73,9 @@ struct StateInner {
+     measuring_behavior: ListMeasuringBehavior,
+     pending_scroll: Option<PendingScroll>,
+     follow_state: FollowState,
++    /// The height `with_uniform_item_height` or `reset_with_uniform_height` gave unmeasured items, which items spliced
++    /// in later take too: as 0 px rows, rows put in above the view never move the offset and the list loses its length.
++    uniform_hint: Option<Size<Pixels>>,
+ }
+ 
+ /// Deferred scroll adjustment applied after the scroll-top item has been remeasured.
+@@ -325,6 +328,7 @@ impl ListState {
+             measuring_behavior: ListMeasuringBehavior::default(),
+             pending_scroll: None,
+             follow_state: FollowState::default(),
++            uniform_hint: None,
+         })));
+         this.splice(0..0, item_count);
+         this
+@@ -380,6 +384,7 @@ impl ListState {
+             height,
+         };
+         let mut state = self.0.borrow_mut();
++        state.uniform_hint = Some(size_hint);
+         let new_items = state
+             .items
+             .iter()
+@@ -514,6 +519,7 @@ impl ListState {
+         focus_handles: impl IntoIterator<Item = Option<FocusHandle>>,
+     ) {
+         let state = &mut *self.0.borrow_mut();
++        let size_hint = state.uniform_hint;
+ 
+         let mut old_items = state.items.cursor::<Count>(());
+         let mut new_items = old_items.slice(&Count(old_range.start), Bias::Right);
+@@ -524,7 +530,7 @@ impl ListState {
+             focus_handles.into_iter().map(|focus_handle| {
+                 spliced_count += 1;
+                 ListItem::Unmeasured {
+-                    size_hint: None,
++                    size_hint,
+                     focus_handle,
+                 }
+             }),
+@@ -1545,9 +1551,10 @@ impl Element for List {
              .last_layout_bounds
              .is_none_or(|last_bounds| last_bounds.size.width != bounds.size.width)
          {

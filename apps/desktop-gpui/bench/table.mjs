@@ -30,11 +30,26 @@ export function fps(frameMs, refresh = median(gapsOf(frameMs))) {
 export function row(app, result, restMb, longMb, scrolledMb, refresh) {
   const scroll = result === undefined ? undefined : fps(result.scroll.frame_ms, refresh);
   const fmt = (n, digits = 0) => (n === undefined || Number.isNaN(n) ? "-" : n.toFixed(digits));
-  return [app, fmt(restMb), fmt(longMb), fmt(scrolledMb), fmt(scroll?.median, 1), fmt(scroll?.low1, 1), fmt(result === undefined ? undefined : median(result.switch.map(s => s.ms)), 1), result === undefined ? "-" : String(result.thread_rows)];
+  // The timed switches after the bench's own, which only the GPUI bench writes.
+  const timed = result?.switches;
+  const ms = value => (value === undefined || value === null ? undefined : value);
+  return [
+    app,
+    fmt(restMb),
+    fmt(longMb),
+    fmt(scrolledMb),
+    fmt(scroll?.median, 1),
+    fmt(scroll?.low1, 1),
+    fmt(result === undefined ? undefined : median(result.switch.map(s => s.ms)), 1),
+    fmt(ms(timed?.median_ms), 1),
+    fmt(ms(timed?.p90_ms), 1),
+    fmt(ms(timed?.max_ms), 1),
+    result === undefined ? "-" : String(result.thread_rows),
+  ];
 }
 
 export function table(rows) {
-  const head = ["app", "MB at rest", "MB long open", "MB after scrolling long", "scroll fps median", "scroll fps slowest 1%", "switch ms median", "rows shown"];
+  const head = ["app", "MB at rest", "MB long open", "MB after scrolling long", "scroll fps median", "scroll fps slowest 1%", "switch ms median", "30 switches ms median", "30 switches ms p90", "30 switches ms max", "rows shown"];
   const all = [head, ...rows];
   const widths = head.map((_, i) => Math.max(...all.map(r => r[i].length)));
   const line = r => r.map((cell, i) => (i === 0 ? cell.padEnd(widths[i]) : cell.padStart(widths[i]))).join("  ");

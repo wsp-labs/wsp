@@ -78,3 +78,30 @@ async fn lists_threads_and_receives_a_turn_started_after_it_subscribed() {
 fn event_type(event: &SessionEvent) -> String {
     serde_json::to_value(event).unwrap()["type"].as_str().unwrap_or_default().to_owned()
 }
+
+/// A thread longer than a page opens on its newest 200 events, and a page before the oldest of them brings the rest.
+#[tokio::test]
+async fn a_long_thread_opens_on_its_newest_page_and_pages_back() {
+    let host = Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    let client = HostClient::connect(&host.state(), &host.env()).await.unwrap_or_else(|f| panic!("{}", f.message));
+    let threads = client.threads().await.unwrap_or_else(|f| panic!("{}", f.message));
+    let row = threads.iter().find(|t| t.prompt.as_deref() == Some("first")).expect("the thread wsp run opened");
+    let thread_id = row.thread_id.clone().expect("a thread id");
+    let whole = client.open(&row.workspace_id, &thread_id).await.unwrap_or_else(|f| panic!("{}", f.message)).history;
+    assert!(whole.len() > 200, "a thread longer than a page: {} events", whole.len());
+
+    let opened = client.open_page(&row.workspace_id, &thread_id).await.unwrap_or_else(|u| panic!("{u:?}"));
+    assert_eq!(opened.history.len(), 200, "the newest page");
+    assert_eq!(opened.total, whole.len() as u64);
+    assert!(!opened.trimmed);
+    let oldest = wsp_host_client::pos(&opened.history[0]).expect("a recorded event");
+    assert_eq!(Some(oldest), wsp_host_client::pos(&whole[whole.len() - 200]), "the newest 200, oldest first");
+
+    let older = client.page(&row.workspace_id, &thread_id, oldest).await.unwrap_or_else(|f| panic!("{}", f.message));
+    let positions: Vec<Option<u64>> = older.events.iter().map(wsp_host_client::pos).collect();
+    let expected: Vec<Option<u64>> = whole[..whole.len() - 200].iter().map(wsp_host_client::pos).collect();
+    assert_eq!(positions, expected, "the page before the oldest held is every older event");
+}

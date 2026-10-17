@@ -2,9 +2,9 @@
 //! A thread as Markdown, the words the app's Copy as Markdown gives: a port of `threadMessages` and `threadMarkdown`
 //! in wsp's `packages/protocol/src/thread-read.ts`, with every line they draw a row's words from.
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
-use crate::screens::app_shell::title::{js_space, title_line};
+use crate::words::{compacted_line, fmt_duration, fmt_tokens, js_number, tool_activity_line, tool_done_line, waited_line};
 
 /// The thread as Markdown off the host's `sessions.history {whole:true}` events, each clock written at the zone
 /// `utc_offset_ms` east of UTC.
@@ -335,26 +335,6 @@ fn plural(n: usize, noun: &str) -> String {
     format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
 }
 
-/// A number as JavaScript's String() writes the ones these lines carry.
-fn js_number(n: f64) -> String {
-    if n.fract() == 0.0 && n.abs() < 1e21 {
-        format!("{}", n as i64)
-    } else {
-        format!("{n}")
-    }
-}
-
-/// `x.toFixed(digits)` for a positive x: correctly rounded off the exact binary value, a value exactly halfway
-/// rounded up.
-fn to_fixed(x: f64, digits: i32) -> String {
-    let scale = 2f64.powi(digits + 1);
-    let scaled = x * scale;
-    // A tie at `digits` places is odd / 2^(digits + 1) exactly, and the value above it prints with no rounding.
-    let tie = scaled.fract() == 0.0 && scaled % 2.0 == 1.0;
-    let rounded = if tie { (scaled + 1.0) / scale } else { x };
-    format!("{rounded:.0$}", digits as usize)
-}
-
 /// `toLocaleString("en-US")` at two places: Intl rounds the shortest decimal that reads back as the number, halves
 /// away from zero, where `toFixed` rounds the exact binary value.
 fn fmt_cost(usd: f64) -> String {
@@ -388,53 +368,6 @@ fn fmt_cost(usd: f64) -> String {
     format!("${sign}{grouped}.{}", String::from_utf8_lossy(cents))
 }
 
-fn fmt_tokens(n: f64) -> String {
-    let count = if n.is_finite() && n > 0.0 { n.round() } else { 0.0 };
-    if count < 1_000.0 {
-        return js_number(count);
-    }
-    let (value, unit) = if count < 999_500.0 {
-        (count / 1_000.0, "k")
-    } else if count < 999_500_000.0 {
-        (count / 1_000_000.0, "M")
-    } else {
-        (count / 1_000_000_000.0, "B")
-    };
-    let places = match value {
-        v if v < 10.0 => 2,
-        v if v < 100.0 => 1,
-        _ => 0,
-    };
-    let fixed = to_fixed(value, places);
-    let trimmed = if fixed.contains('.') { fixed.trim_end_matches('0').trim_end_matches('.') } else { &fixed };
-    format!("{trimmed}{unit}")
-}
-
-/// `fmtDuration` in its short style, from milliseconds.
-pub(crate) fn fmt_duration(ms: f64) -> String {
-    if ms < 60_000.0 || !ms.is_finite() {
-        if !ms.is_finite() || ms < 0.0 {
-            return "0ms".to_string();
-        }
-        if ms < 1_000.0 {
-            return format!("{}ms", js_number(ms.round().max(1.0)));
-        }
-        if ms < 10_000.0 {
-            let tenths = (ms / 100.0).round() as i64;
-            return if tenths >= 100 { "10s".to_string() } else { format!("{}.{}s", tenths / 10, tenths % 10) };
-        }
-        return format!("{}s", js_number((ms / 1_000.0).round()));
-    }
-    let total = if ms > 0.0 { (ms / 1_000.0).round() as i64 } else { 0 };
-    let minutes = total / 60;
-    let seconds = total % 60;
-    if seconds == 0 {
-        format!("{minutes}m")
-    } else {
-        format!("{minutes}m {seconds}s")
-    }
-}
-
 fn turn_end_line(result: &TurnResult) -> String {
     let mut parts = vec![result.status.to_string()];
     if let Some(duration) = result.duration_ms {
@@ -460,14 +393,6 @@ fn turn_end_line(result: &TurnResult) -> String {
     match result.error.filter(|_| result.status != "completed") {
         Some(failure) => format!("{line}: {failure}"),
         None => line,
-    }
-}
-
-fn compacted_line(before: Option<f64>, after: Option<f64>) -> String {
-    match (before, after) {
-        (_, None) => "Compacted the context".to_string(),
-        (None, Some(after)) => format!("Compacted the context to {} tokens", fmt_tokens(after)),
-        (Some(before), Some(after)) => format!("Compacted the context, {} to {} tokens", fmt_tokens(before), fmt_tokens(after)),
     }
 }
 
@@ -501,108 +426,6 @@ fn turn_changes_line(event: &Value) -> String {
 
 fn thread_moved_line(from: &str, to: &str, fresh: bool) -> String {
     format!("its worktree at {from} is gone, so it goes on in {to}{}", if fresh { " in a fresh session of its agent" } else { "" })
-}
-
-fn waited_line(ms: f64) -> String {
-    let seconds = (ms / 1_000.0).round();
-    if seconds < 60.0 {
-        format!("Waited {} s for your computer", js_number(seconds))
-    } else {
-        format!("Waited {} min for your computer", js_number((ms / 60_000.0).round()))
-    }
-}
-
-enum ToolRow {
-    Shell,
-    Path { doing: &'static str, did: &'static str, field: &'static str },
-    About { doing: &'static str, did: Option<&'static str>, field: &'static str },
-    Change,
-    Question,
-}
-
-fn tool_row(name: &str) -> Option<ToolRow> {
-    let searched = ToolRow::About { doing: "searching code for", did: Some("searched code for"), field: "pattern" };
-    let web = ToolRow::About { doing: "searching the web for", did: Some("searched the web for"), field: "query" };
-    Some(match name {
-        "Bash" | "command_execution" => ToolRow::Shell,
-        "Read" => ToolRow::Path { doing: "reading", did: "read", field: "file_path" },
-        "Write" => ToolRow::Path { doing: "writing", did: "wrote", field: "file_path" },
-        "Edit" | "MultiEdit" => ToolRow::Path { doing: "editing", did: "edited", field: "file_path" },
-        "NotebookEdit" => ToolRow::Path { doing: "editing", did: "edited", field: "notebook_path" },
-        "file_change" => ToolRow::Change,
-        "Grep" | "Glob" => searched,
-        "WebSearch" | "web_search" => web,
-        "WebFetch" => ToolRow::About { doing: "fetching", did: Some("fetched"), field: "url" },
-        "Task" | "Agent" => ToolRow::About { doing: "agent:", did: None, field: "description" },
-        "spawn_agent" => ToolRow::About { doing: "agent:", did: None, field: "prompt" },
-        "AskUserQuestion" => ToolRow::Question,
-        _ => return None,
-    })
-}
-
-/// A string field with something other than whitespace in it, as written.
-fn tool_field<'a>(input: &'a Map<String, Value>, name: &str) -> Option<&'a str> {
-    input.get(name).and_then(Value::as_str).filter(|value| !value.trim_matches(js_space).is_empty())
-}
-
-fn tool_line(row: &ToolRow, input: &Map<String, Value>, done: bool) -> Option<String> {
-    match row {
-        ToolRow::Shell => tool_field(input, "command").map(|command| format!("$ {}", title_line(command))),
-        ToolRow::Path { doing, did, field } => tool_field(input, field).map(|path| format!("{} {path}", if done { did } else { doing })),
-        ToolRow::About { doing, did, field } => {
-            let verb = if done { did.unwrap_or(doing) } else { doing };
-            tool_field(input, field).map(|what| format!("{verb} {}", title_line(what)))
-        }
-        ToolRow::Change => {
-            let paths: Vec<&str> = input
-                .get("changes")
-                .and_then(Value::as_array)
-                .map(|changes| changes.iter().filter_map(|change| str_at(change, "path")).filter(|path| !path.is_empty()).collect())
-                .unwrap_or_default();
-            let verb = if done { "edited" } else { "editing" };
-            match paths.as_slice() {
-                [] => None,
-                [path] => Some(format!("{verb} {path}")),
-                _ => Some(format!("{verb} {}", plural(paths.len(), "file"))),
-            }
-        }
-        ToolRow::Question => input
-            .get("questions")
-            .and_then(Value::as_array)?
-            .iter()
-            .filter_map(Value::as_object)
-            .find_map(|question| tool_field(question, "question"))
-            .map(str::to_string),
-    }
-}
-
-fn tool_input(input: &str) -> Option<Map<String, Value>> {
-    match serde_json::from_str(input) {
-        Ok(Value::Object(fields)) => Some(fields),
-        _ => None,
-    }
-}
-
-/// `Use wsp's run` for a tool a server lends, named `mcp__<server>__<tool>`.
-fn server_tool_words(name: &str) -> Option<String> {
-    let parts: Vec<&str> = name.split("__").collect();
-    if parts.len() < 3 || parts[0] != "mcp" || parts[1].is_empty() {
-        return None;
-    }
-    Some(format!("Use {}'s {}", parts[1], parts[2..].join("__").replace('_', " ")))
-}
-
-fn tool_activity_line(tool_name: Option<&str>, input: &str) -> String {
-    let name = tool_name.unwrap_or("tool");
-    let Some(row) = tool_row(name) else { return server_tool_words(name).unwrap_or_else(|| name.to_string()) };
-    tool_input(input).and_then(|fields| tool_line(&row, &fields, false)).unwrap_or_else(|| name.to_string())
-}
-
-fn tool_done_line(tool_name: Option<&str>, input: &str) -> Option<String> {
-    let row = tool_row(tool_name.unwrap_or("tool"))?;
-    let fields = tool_input(input)?;
-    let done = tool_line(&row, &fields, true)?;
-    (Some(&done) != tool_line(&row, &fields, false).as_ref()).then_some(done)
 }
 
 #[cfg(test)]

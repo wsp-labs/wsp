@@ -49,7 +49,7 @@ impl Render for DragPreview {
     }
 }
 
-fn status_of(kind: Kind, text: Option<String>) -> Status {
+pub(crate) fn status_of(kind: Kind, text: Option<String>) -> Status {
     let text = || SharedString::from(text.clone().unwrap_or_default());
     match kind {
         Kind::NeedsYou => Status::NeedsYou,
@@ -467,7 +467,12 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
             .hover(move |st| st.bg(p.accent))
             .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.press_stop(&key, cx)));
         Some(if armed {
-            el.px(px(6.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(p.error_foreground).child("Stop").into_any_element()
+            el.px(px(6.))
+                .text_size(px(12.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(p.error_foreground)
+                .child(super::menu::act_words::STOP_ARMED)
+                .into_any_element()
         } else {
             el.w(px(20.)).child(Icon::new(Glyph::Square).with_size(px(14.)).text_color(p.sidebar_muted_foreground)).into_any_element()
         })

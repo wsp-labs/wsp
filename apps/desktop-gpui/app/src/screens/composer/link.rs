@@ -1,23 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The composer's road to the host, through `wsp-host-client` alone: it reads the agents and their choices
-//! (`harnesses.list`), the thread's rows (`sessions.list`) and its transcript live, and answers the composer's events
-//! with `sessions.start`, `sessions.steer`, `sessions.interrupt`, `preferences.set` with `sessions.access`, and the
-//! daemon's `fs.files` for the mention menu.
+//! (`harnesses.list`), the workspace's rows (`sessions.list`), the agent's skills (`agents.read`) and the person's
+//! `midTurn` (`preferences.get`), and answers the composer's events with `sessions.start`, `sessions.steer`,
+//! `sessions.interrupt`, `sessions.answer`, `preferences.set` with `sessions.access`, and the daemon's `fs.files` and
+//! `git.prList` for the menus. What every thread of a workspace shares is kept in the composer for the process, so a
+//! thread switch asks the host nothing of it.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use base64::Engine as _;
 use futures::channel::mpsc;
 use futures::StreamExt;
-use gpui_kit::{AsyncWindowContext, Context, Entity, Subscription, Task, WeakEntity, Window};
+use gpui_kit::{App, AsyncWindowContext, Context, Entity, Subscription, Task, WeakEntity, Window};
 use serde_json::{json, Value};
-use wsp_host_client::protocol::{self, SessionEvent, SessionView};
-use wsp_host_client::{Failure, Live, Op};
+use wsp_host_client::protocol::{self, SessionEvent, SessionView, SessionsAnswerRequest};
+use wsp_host_client::{Event, Failure, Live, Op};
 
+use super::dock::{self, Answer};
 use super::model::{Agent, Command, Drawer, Hold, HostItem, Picks, Skill};
-use super::{Composer, ComposerEvent, Outgoing};
-use crate::screens::Host;
+use super::{Composer, ComposerEvent, Fork, Outgoing};
+use crate::screens::{navigate, Host, Route};
 
 /// The thread the composer writes into: its workspace, and its id once it has one.
 #[derive(Clone, Debug)]
@@ -26,11 +30,43 @@ pub struct Target {
     pub thread_id: Option<String>,
 }
 
-/// What the host said about the thread when it was opened.
+impl Target {
+    /// The key the composer keeps the thread's draft and queue under: its id, or its workspace's before it has one.
+    pub fn key(&self) -> String {
+        self.thread_id.clone().unwrap_or_else(|| self.workspace_id.clone())
+    }
+}
+
+/// What the host said about the thread when it was opened, and the workspace's rows where they were read for it.
 pub struct Opened {
     pub agents: Vec<Agent>,
     pub rows: Vec<SessionView>,
     pub history: Vec<SessionEvent>,
+    pub sessions: Option<Vec<SessionView>>,
+}
+
+/// What the host said that every thread of a workspace shares, kept in the composer for the process: the agents, each
+/// agent's skills, and the workspace's rows as last listed.
+#[derive(Default)]
+pub struct Facts {
+    pub(super) agents: HashMap<String, Vec<Agent>>,
+    pub(super) skills: HashMap<(String, String), Vec<Skill>>,
+    /// The skills asked for and not yet answered, with the keys of the threads waiting on them.
+    pub(super) asking: HashMap<(String, String), Vec<String>>,
+    pub(super) sessions: HashMap<String, Vec<SessionView>>,
+}
+
+/// What `Facts` already holds for one workspace; `read_facts` asks the host only for the rest.
+#[derive(Clone, Default)]
+pub struct Known {
+    pub agents: Option<Vec<Agent>>,
+    pub sessions: Option<Vec<SessionView>>,
+}
+
+impl Facts {
+    pub fn known(&self, workspace: &str) -> Known {
+        Known { agents: self.agents.get(workspace).cloned(), sessions: self.sessions.get(workspace).cloned() }
+    }
 }
 
 enum Arrival {
@@ -54,11 +90,19 @@ pub struct Link {
     plan: Option<Value>,
     /// The thread followed: the host task, stopped when this is dropped, and its arrivals read on the window's thread.
     _follow: Option<(Task<()>, Task<()>)>,
+    /// The rows read again after an event; a newer read replaces it.
+    _rereading: Option<Task<()>>,
+    /// A send waiting on its agent: the watch for the host's `session.starting` about it.
+    starting: Option<Task<()>>,
+    /// The request id of the newest `session.start` the transcript showed.
+    begun: Option<String>,
+    /// A send the host started whose `session.start` the transcript has not shown yet: its turn runs meanwhile.
+    awaiting: Option<String>,
     _events: Subscription,
 }
 
 /// One op on the host's runtime, its reply back on the window's thread.
-async fn call<O: Op + Send + 'static>(host: &Host, op: O) -> Result<O::Reply, Failure>
+pub(super) async fn call<O: Op + Send + 'static>(host: &Host, op: O) -> Result<O::Reply, Failure>
 where
     O::Reply: Send + 'static,
 {
@@ -71,10 +115,80 @@ fn request<O: Op + serde::de::DeserializeOwned>(params: Value) -> Result<O, Fail
 }
 
 /// A request id per send, as the web app mints one for each `sessions.start` and `sessions.steer`.
-fn request_id() -> String {
+pub(crate) fn request_id() -> String {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
     format!("gpui-{now}-{}", NEXT.fetch_add(1, Ordering::Relaxed))
+}
+
+/// What a transcript says to the composer: whether it holds a message, the session of a turn still running and of the
+/// newest turn, the commands its agent announced last, the sent prompts for Up and Down, and the running turn's steps.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Seen {
+    any: bool,
+    running: Option<String>,
+    latest: Option<String>,
+    /// The request id of the newest turn's start.
+    begun: Option<String>,
+    commands: Vec<Command>,
+    prompts: Vec<(String, String)>,
+    plan: Option<Value>,
+}
+
+impl Seen {
+    /// One pass over the events, each read as JSON once.
+    pub fn of(events: &[SessionEvent]) -> Seen {
+        let mut seen = Seen::default();
+        for event in events {
+            seen.take(&kind(event));
+        }
+        seen
+    }
+
+    fn take(&mut self, (kind, value): &(String, Value)) {
+        match kind.as_str() {
+            "session.start" => {
+                self.any = true;
+                let session = value.get("sessionId").and_then(Value::as_str).unwrap_or_default().to_owned();
+                self.running = Some(session.clone());
+                self.latest = Some(session);
+                self.begun = value.get("requestId").and_then(Value::as_str).map(str::to_owned);
+                self.plan = None;
+                if let Some(slash) = value.pointer("/harness/slashCommands").and_then(Value::as_array) {
+                    self.commands = commands_of(slash);
+                }
+            }
+            "session.end" => {
+                self.running = None;
+                self.plan = None;
+            }
+            "session.plan" => self.plan = value.get("steps").cloned(),
+            _ => {}
+        }
+        if let Some(prompt) = prompt_of(kind, value) {
+            self.prompts.push(prompt);
+        }
+    }
+}
+
+fn commands_of(slash: &[Value]) -> Vec<Command> {
+    slash
+        .iter()
+        .filter_map(Value::as_str)
+        .map(|name| {
+            let name = name.trim_start_matches('/');
+            let source = name.split_once(':').map(|(source, _)| source.to_owned());
+            Command { name: name.to_owned(), description: None, source }
+        })
+        .collect()
+}
+
+/// The events after which the thread's rows say something new for the drawer: a cap, a limit, the turn's state.
+fn changes_rows(kind: &str) -> bool {
+    matches!(
+        kind,
+        "session.start" | "session.end" | "session.permission" | "session.permission.closed" | "session.capped" | "session.uncapped"
+    )
 }
 
 fn kind(event: &SessionEvent) -> (String, Value) {
@@ -82,64 +196,28 @@ fn kind(event: &SessionEvent) -> (String, Value) {
     (value.get("type").and_then(Value::as_str).unwrap_or_default().to_owned(), value)
 }
 
-/// Whether the transcript holds a message, whether its last turn still runs (a `session.start` with no
-/// `session.end` after it), that turn's session id, and the commands its agent announced last.
-pub fn transcript_state(events: &[SessionEvent]) -> (bool, Option<String>, Vec<Command>) {
-    let mut any = false;
-    let mut running = None;
-    let mut commands = Vec::new();
-    for event in events {
-        let (kind, value) = kind(event);
-        match kind.as_str() {
-            "session.start" => {
-                any = true;
-                running = Some(value.get("sessionId").and_then(Value::as_str).unwrap_or_default().to_owned());
-                if let Some(slash) = value.pointer("/harness/slashCommands").and_then(Value::as_array) {
-                    commands = slash
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .map(|name| {
-                            let name = name.trim_start_matches('/');
-                            let source = name.split_once(':').map(|(source, _)| source.to_owned());
-                            Command { name: name.to_owned(), description: None, source }
-                        })
-                        .collect();
-                }
-            }
-            "session.end" => running = None,
-            _ => {}
-        }
+/// A turn's or a steer's sent prompt by id.
+fn prompt_of(kind: &str, value: &Value) -> Option<(String, String)> {
+    if !matches!(kind, "session.start" | "session.steer") {
+        return None;
     }
-    (any, running, commands)
+    let prompt = value.get("prompt")?.as_str()?.to_owned();
+    let id = value.get("pos").map(Value::to_string).or_else(|| value.get("turnId").map(Value::to_string)).unwrap_or_default();
+    Some((id, prompt))
 }
 
-/// The thread's sent prompts by id, oldest first: each turn's and each steer's.
-pub fn prompts_of(events: &[SessionEvent]) -> Vec<(String, String)> {
-    events
-        .iter()
-        .filter_map(|e| {
-            let (kind, value) = kind(e);
-            if !matches!(kind.as_str(), "session.start" | "session.steer") {
-                return None;
-            }
-            let prompt = value.get("prompt")?.as_str()?.to_owned();
-            let id = value.get("pos").map(Value::to_string).or_else(|| value.get("turnId").map(Value::to_string)).unwrap_or_default();
-            Some((id, prompt))
-        })
-        .collect()
-}
-
-/// The running turn's last step list, read off its `session.plan` events.
-pub fn plan_of(events: &[SessionEvent]) -> Option<Value> {
-    let mut plan = None;
-    for e in events {
-        match kind(e) {
-            (k, _) if k == "session.start" => plan = None,
-            (k, v) if k == "session.plan" => plan = v.get("steps").cloned(),
-            _ => {}
+/// Whether the rows read before are behind the transcript: it names a newer turn than they hold, or that turn's row
+/// says it runs where the transcript says it ended, or the other way round.
+fn behind(rows: &[SessionView], seen: &Seen) -> bool {
+    let Some(latest) = seen.latest.as_deref() else { return false };
+    let row = rows.iter().rev().find(|r| r.id == latest || r.claude_session_id.as_deref() == Some(latest));
+    match row {
+        None => true,
+        Some(row) => {
+            let runs = serde_json::to_value(row.status).ok().and_then(|v| v.as_str().map(|s| s == "running")).unwrap_or(false);
+            runs != seen.running.is_some()
         }
     }
-    plan
 }
 
 /// `n word`, the word plural past one.
@@ -201,7 +279,7 @@ pub fn drawer_of(rows: &[SessionView], plan: Option<&Value>, running: bool, agen
         let done = steps.iter().filter(|s| state(s) == "done").count();
         Some((current.get("text").and_then(Value::as_str).unwrap_or_default().to_owned(), format!("{done}/{}", steps.len())))
     });
-    Drawer { question: row.asking.clone().filter(|_| running), limit, slot, tasks }
+    Drawer { limit, slot, tasks }
 }
 
 /// The skills `agents.read` reports that the thread's agent reads (composerMenuSearch.ts `skillsForHarness`).
@@ -255,10 +333,27 @@ pub fn session_id(rows: &[SessionView], event_session: Option<&str>) -> Option<S
 }
 
 impl Link {
+    /// What the composer needs for `target` less the transcript, for a Link the thread view feeds its own events to
+    /// (`fed`): the agents and the workspace's rows, each read only where `known` does not hold it yet.
+    pub async fn read_facts(host: &Host, target: &Target, known: Known) -> Result<Opened, Failure> {
+        let agents = match known.agents {
+            Some(agents) => agents,
+            None => agents_of(host, &target.workspace_id).await?,
+        };
+        // Rows kept from before the thread was made hold none of it: read them again.
+        let holds =
+            |rows: &Vec<SessionView>| target.thread_id.as_deref().is_none_or(|t| rows.iter().any(|r| r.thread_id.as_deref() == Some(t)));
+        let sessions = match known.sessions.filter(holds) {
+            Some(sessions) => sessions,
+            None => sessions_of(host, &target.workspace_id).await?,
+        };
+        let rows = target.thread_id.as_deref().map_or_else(Vec::new, |thread| thread_rows(sessions.clone(), thread));
+        Ok(Opened { agents, rows, history: Vec::new(), sessions: Some(sessions) })
+    }
+
     /// Reads what the composer needs for `target`, from the agents to the transcript.
     pub async fn read(host: &Host, target: &Target) -> Result<Opened, Failure> {
-        let listed = call(host, request::<protocol::HarnessesListRequest>(json!({ "workspaceId": target.workspace_id }))?).await?;
-        let agents = listed.harnesses.iter().filter_map(Agent::read).collect();
+        let agents = agents_of(host, &target.workspace_id).await?;
         let (rows, history) = match &target.thread_id {
             Some(thread) => {
                 let rows = rows_of(host, &target.workspace_id, thread).await?;
@@ -268,7 +363,7 @@ impl Link {
             }
             None => (Vec::new(), Vec::new()),
         };
-        Ok(Opened { agents, rows, history })
+        Ok(Opened { agents, rows, history, sessions: None })
     }
 
     /// Ties `composer` to the host for `target`: shows what `opened` holds, follows the thread live, and answers every
@@ -281,59 +376,294 @@ impl Link {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let (any, running, commands) = transcript_state(&opened.history);
-        let prompts = prompts_of(&opened.history);
-        let plan = plan_of(&opened.history);
-        let drawer = drawer_of(&opened.rows, plan.as_ref(), running.is_some(), &opened.agents);
+        Self::build(host, target, opened, composer, true, window, cx)
+    }
+
+    fn build(
+        host: Host,
+        target: Target,
+        opened: Opened,
+        composer: Entity<Composer>,
+        follows: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let seen = Seen::of(&opened.history);
+        let drawer = drawer_of(&opened.rows, seen.plan.as_ref(), seen.running.is_some(), &opened.agents);
         let picks = ran(&opened.rows);
         let computer = opened.rows.last().and_then(|r| r.computer_name.clone());
         let no_agents = opened.agents.is_empty();
+        let ws = target.workspace_id.clone();
         composer.update(cx, |c, cx| {
-            c.set_catalog(opened.agents, picks, commands, cx);
-            c.set_turn(any, running.is_some(), cx);
+            c.set_thread_key(target.key(), window, cx);
+            // A workspace that listed no agents may list them once one is set up, so none is not kept.
+            if !opened.agents.is_empty() {
+                c.facts.agents.insert(ws.clone(), opened.agents.clone());
+            }
+            if let Some(sessions) = opened.sessions {
+                c.facts.sessions.insert(ws.clone(), sessions);
+            }
+            c.set_catalog(opened.agents, picks, seen.commands.clone(), cx);
+            c.set_turn(seen.any, seen.running.is_some(), cx);
             c.set_place(computer, None, cx);
+            c.set_workspace(ws.clone(), cx);
             c.set_hold(no_agents.then_some(Hold::NoAgents), cx);
-            c.set_recalls(prompts.clone(), cx);
+            c.set_recalls(seen.prompts.clone(), cx);
             c.set_drawer(drawer, cx);
         });
-        let key = target.thread_id.clone().unwrap_or_else(|| target.workspace_id.clone());
-        composer.update(cx, |c, cx| c.set_thread_key(key, window, cx));
         let events = cx.subscribe_in(&composer, window, Self::on_event);
         let mut link = Link {
             host,
             target,
             composer: composer.downgrade(),
             rows: opened.rows,
-            running_session: running,
-            prompts,
-            plan,
+            running_session: seen.running,
+            prompts: seen.prompts,
+            plan: seen.plan,
             _follow: None,
+            _rereading: None,
+            starting: None,
+            begun: None,
+            awaiting: None,
             _events: events,
         };
-        link.follow(window, cx);
+        if follows {
+            link.follow(window, cx);
+        }
         link.read_skills(window, cx);
+        link.watch_preferences(&composer, cx);
         link
     }
 
+    /// `new` for a thread whose events the thread view already follows: it reads nothing of the transcript itself and
+    /// takes the view's through `take_history` and `take_event`, so a thread is read and followed once.
+    pub fn fed(
+        host: Host,
+        target: Target,
+        opened: Opened,
+        composer: Entity<Composer>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::build(host, target, opened, composer, false, window, cx)
+    }
+
+    /// The key the composer keeps this link's thread under.
+    pub fn key(&self) -> String {
+        self.target.key()
+    }
+
+    /// The thread's title as its newest row has it.
+    pub fn title(&self) -> Option<String> {
+        let named = self.rows.iter().rev().find_map(|r| r.harness_title.as_deref());
+        crate::screens::app_shell::title::thread_title(named, self.rows.first().and_then(|r| r.prompt.as_deref()))
+    }
+
+    /// What the thread view's transcript, read whole, says to the composer (`Seen::of`); rows the transcript has moved
+    /// past since they were read are read again.
+    pub fn take_history(&mut self, seen: Seen, _: &mut Window, cx: &mut Context<Self>) {
+        let stale = behind(&self.rows, &seen);
+        self.seen(seen, cx);
+        self.refresh(cx);
+        if stale && self.target.thread_id.is_some() {
+            self.reread(cx);
+        }
+    }
+
+    /// One live event the thread view took; one that changes the drawer reads the thread's rows again.
+    pub fn take_event(&mut self, event: SessionEvent, window: &mut Window, cx: &mut Context<Self>) {
+        // A streamed reply or call says nothing the composer shows; only these are read.
+        use SessionEvent as E;
+        let tells = matches!(
+            event,
+            E::SessionStart { .. }
+                | E::SessionEnd { .. }
+                | E::SessionPlan { .. }
+                | E::SessionSteer { .. }
+                | E::SessionPermission { .. }
+                | E::SessionPermissionClosed { .. }
+                | E::SessionCapped { .. }
+                | E::SessionUncapped { .. }
+        );
+        if !tells {
+            return;
+        }
+        let read = kind(&event);
+        let ends = changes_rows(&read.0);
+        self.arrive(Arrival::Event(Box::new(event)), Some(read), window, cx);
+        if ends && self.target.thread_id.is_some() {
+            self.reread(cx);
+        }
+    }
+
+    /// Reads the workspace's rows again; a newer read drops one still out, so an older answer never lands last.
+    fn reread(&mut self, cx: &mut Context<Self>) {
+        let (host, ws) = (self.host.clone(), self.target.workspace_id.clone());
+        self._rereading = Some(cx.spawn(async move |this, cx| {
+            if let Ok(sessions) = sessions_of(&host, &ws).await {
+                _ = this.update(cx, |this, cx| this.listed(sessions, cx));
+            }
+        }));
+    }
+
+    /// The workspace's rows as the host listed them now: this thread's for the drawer, all of them kept for the next.
+    fn listed(&mut self, sessions: Vec<SessionView>, cx: &mut Context<Self>) {
+        let Some(composer) = self.composer.upgrade() else { return };
+        let ws = self.target.workspace_id.clone();
+        let rows = self.target.thread_id.as_deref().map_or_else(Vec::new, |thread| thread_rows(sessions.clone(), thread));
+        composer.update(cx, |c, _| _ = c.facts.sessions.insert(ws, sessions));
+        if composer.read(cx).holds(&self.key()) {
+            self.take_rows(rows, cx);
+            self.refresh(cx);
+        }
+    }
+
+    /// The thread's agent's skills: kept per workspace and agent, so `agents.read`, which runs the agents' own command
+    /// lines on the host, is asked once a process for each.
     fn read_skills(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(composer) = self.composer.upgrade() else { return };
         let Some(harness) = self.rows.last().map(|r| r.harness.clone()).or_else(|| composer.read(cx).resolved().agent.map(|a| a.harness))
         else {
             return;
         };
-        let (host, ws) = (self.host.clone(), self.target.workspace_id.clone());
-        let weak = composer.downgrade();
+        let ws = self.target.workspace_id.clone();
+        let place = (ws.clone(), harness.clone());
+        let known = composer.read(cx).facts.skills.get(&place).cloned();
+        if let Some(skills) = known {
+            composer.update(cx, |c, cx| c.set_skills(skills, cx));
+            return;
+        }
+        let key = self.key();
+        let asked = composer.update(cx, |c, _| {
+            let waiting = c.facts.asking.entry(place.clone()).or_default();
+            waiting.push(key);
+            waiting.len() > 1
+        });
+        if asked {
+            return;
+        }
+        let (host, weak) = (self.host.clone(), composer.downgrade());
         cx.spawn_in(window, async move |_, cx| {
             let read = match request::<protocol::AgentsReadRequest>(json!({ "target": { "workspaceId": ws } })) {
                 Ok(op) => call(&host, op).await.map(|r| serde_json::to_value(r.report).unwrap_or_default()),
                 Err(e) => Err(e),
             };
             match read {
-                Ok(report) => _ = weak.update(cx, |c, cx| c.set_skills(skills_of(&report, &harness), cx)),
-                Err(failure) => eprintln!("desktop-gpui: agents.read: {}", failure.message),
+                Ok(report) => {
+                    _ = weak.update(cx, |c, cx| {
+                        let skills = skills_of(&report, &harness);
+                        let waiting = c.facts.asking.remove(&place).unwrap_or_default();
+                        c.facts.skills.insert(place, skills.clone());
+                        if waiting.iter().any(|k| c.holds(k)) {
+                            c.set_skills(skills, cx);
+                        }
+                    })
+                }
+                Err(failure) => {
+                    eprintln!("desktop-gpui: agents.read: {}", failure.message);
+                    _ = weak.update(cx, |c, _| c.facts.asking.remove(&place));
+                }
             }
         })
         .detach();
+    }
+
+    /// The person's choice of what a message sent mid-turn does (`preferences.get`'s `midTurn`), read once per composer
+    /// and followed as the host pushes a change.
+    fn watch_preferences(&mut self, composer: &Entity<Composer>, cx: &mut Context<Self>) {
+        if composer.read(cx).watching.is_some() {
+            return;
+        }
+        let (tx, mut rx) = mpsc::unbounded::<Option<String>>();
+        // Read again and followed again a second after the socket closes, as the header's watch does.
+        let watched = self.host.run(move |host| async move {
+            loop {
+                let followed: Result<(), Failure> = async {
+                    let mut events = host.events().await?;
+                    let read = host.call(request::<protocol::PreferencesGetRequest>(json!({}))?).await?;
+                    tx.unbounded_send(mid_turn(&read.preferences)).map_err(|_| Failure::new("gone"))?;
+                    while let Some(event) = events.next().await {
+                        if let Ok(Event::Host(event)) = event {
+                            if let protocol::EventUnion::PreferencesChanged { preferences, .. } = *event {
+                                tx.unbounded_send(mid_turn(&preferences)).map_err(|_| Failure::new("gone"))?;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+                .await;
+                if tx.is_closed() {
+                    return Ok::<(), Failure>(());
+                }
+                if let Err(failure) = followed {
+                    eprintln!("desktop-gpui: preferences: {}", failure.message);
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        });
+        let weak = composer.downgrade();
+        let task = cx.spawn(async move |_, cx| {
+            let receive = async {
+                while let Some(mid) = rx.next().await {
+                    if weak.update(cx, |c, cx| c.set_steer_preferred(mid.as_deref() == Some("steer"), cx)).is_err() {
+                        break;
+                    }
+                }
+            };
+            futures::join!(receive, async { _ = watched.await });
+        });
+        composer.update(cx, |c, _| c.watching = Some(task));
+    }
+
+    /// Listens for the host saying the send `request` waits on its agent (`startingSaid` in useChatThread.ts), until
+    /// the turn starts or the send is refused.
+    fn watch_start(&mut self, request: String, key: String, composer: &Entity<Composer>, cx: &mut Context<Self>) {
+        let (tx, mut rx) = mpsc::unbounded::<(String, bool)>();
+        let wanted = request;
+        let watched = self.host.run(move |host| async move {
+            let mut events = host.events().await?;
+            while let Some(event) = events.next().await {
+                let Ok(Event::Host(event)) = event else { continue };
+                let said = serde_json::to_value(&*event).unwrap_or_default();
+                if said.get("type").and_then(Value::as_str) == Some("session.starting")
+                    && said.get("requestId").and_then(Value::as_str) == Some(wanted.as_str())
+                {
+                    let harness = said.get("harness").and_then(Value::as_str).unwrap_or_default().to_owned();
+                    _ = tx.unbounded_send((harness, said.get("installs").and_then(Value::as_bool) == Some(true)));
+                    break;
+                }
+            }
+            Ok::<(), Failure>(())
+        });
+        let weak = composer.downgrade();
+        let task = cx.spawn(async move |_, cx| {
+            let said = async {
+                if let Some((harness, installs)) = rx.next().await {
+                    _ = weak.update(cx, |c, cx| {
+                        let agent = c.agents.iter().find(|a| a.harness == harness).map_or(harness.clone(), |a| a.label.clone());
+                        if c.holds(&key) {
+                            cx.emit(ComposerEvent::Starting(Some(crate::transcript::agent_starting_line(&agent, installs))));
+                        }
+                    });
+                }
+            };
+            futures::join!(said, async { _ = watched.await });
+        });
+        self.starting = Some(task);
+    }
+
+    /// The send's turn started, or the send was refused: its starting line goes.
+    fn started_agent(&mut self, cx: &mut Context<Self>) {
+        if self.starting.take().is_none() {
+            return;
+        }
+        let Some(composer) = self.composer.upgrade() else { return };
+        let key = self.key();
+        composer.update(cx, |c, cx| {
+            if c.holds(&key) {
+                cx.emit(ComposerEvent::Starting(None));
+            }
+        });
     }
 
     /// Shows the drawer and the prompts as the rows and the transcript now say.
@@ -363,16 +693,8 @@ impl Link {
                     _ = tx.unbounded_send(Arrival::History(std::mem::take(&mut live.history)));
                     while let Some(next) = live.next().await {
                         let Ok(Live::Event(event)) = next else { continue };
-                        // The rows say what the drawer shows: a question, a cap, the turn's state.
-                        let ends = matches!(
-                            kind(&event).0.as_str(),
-                            "session.start"
-                                | "session.end"
-                                | "session.permission"
-                                | "session.permission.closed"
-                                | "session.capped"
-                                | "session.uncapped"
-                        );
+                        // The rows say what the drawer shows: a cap, a limit, the turn's state.
+                        let ends = changes_rows(&kind(&event).0);
                         _ = tx.unbounded_send(Arrival::Event(event));
                         if ends {
                             if let Ok(listed) = host.call(request::<protocol::SessionsListRequest>(json!({ "workspaceId": ws }))?).await {
@@ -394,7 +716,7 @@ impl Link {
         });
         let receive = cx.spawn_in(window, async move |this, cx: &mut AsyncWindowContext| {
             while let Some(arrival) = rx.next().await {
-                if this.update_in(cx, |this, window, cx| this.arrive(arrival, window, cx)).is_err() {
+                if this.update_in(cx, |this, window, cx| this.arrive(arrival, None, window, cx)).is_err() {
                     break;
                 }
             }
@@ -403,29 +725,57 @@ impl Link {
         self._follow = Some((host_task, receive));
     }
 
-    fn arrive(&mut self, arrival: Arrival, _: &mut Window, cx: &mut Context<Self>) {
+    fn seen(&mut self, seen: Seen, cx: &mut Context<Self>) {
+        let Some(composer) = self.composer.upgrade() else { return };
+        let Seen { any, running, commands, prompts, plan, begun, .. } = seen;
+        if begun.is_some() && begun == self.awaiting {
+            self.awaiting = None;
+        }
+        self.begun = begun;
+        // A transcript read before the host wrote the start of a turn it already answered still runs that turn.
+        let runs = running.is_some() || self.awaiting.is_some();
+        self.running_session = running.clone();
+        self.prompts = prompts;
+        self.plan = plan;
+        composer.update(cx, |c, cx| {
+            if c.hold() == Some(&Hold::HostDown) {
+                c.set_hold(None, cx);
+            }
+            let (agents, ran) = (c.agents.clone(), c.ran.clone());
+            c.set_catalog(agents, ran, commands, cx);
+            c.set_turn(any || runs, runs, cx)
+        });
+    }
+
+    fn take_rows(&mut self, rows: Vec<SessionView>, cx: &mut Context<Self>) {
+        let Some(composer) = self.composer.upgrade() else { return };
+        self.rows = rows;
+        let picks = ran(&self.rows);
+        composer.update(cx, |c, cx| {
+            let (agents, commands) = (c.agents.clone(), c.commands.clone());
+            c.set_catalog(agents, picks, commands, cx);
+        });
+    }
+
+    /// An arrival; an event the caller already read as JSON comes with it.
+    fn arrive(&mut self, arrival: Arrival, read: Option<(String, Value)>, _: &mut Window, cx: &mut Context<Self>) {
         let Some(composer) = self.composer.upgrade() else { return };
         match arrival {
-            Arrival::History(events) => {
-                let (any, running, _) = transcript_state(&events);
-                self.running_session = running.clone();
-                self.prompts = prompts_of(&events);
-                self.plan = plan_of(&events);
-                composer.update(cx, |c, cx| {
-                    if c.hold() == Some(&Hold::HostDown) {
-                        c.set_hold(None, cx);
-                    }
-                    c.set_turn(any, running.is_some(), cx)
-                });
-            }
+            Arrival::History(events) => self.seen(Seen::of(&events), cx),
             Arrival::Event(event) => {
-                let (kind, value) = kind(&event);
+                let (kind, value) = read.unwrap_or_else(|| kind(&event));
                 match kind.as_str() {
                     "session.start" => {
                         self.running_session = value.get("sessionId").and_then(Value::as_str).map(str::to_owned);
-                        let commands = transcript_state(std::slice::from_ref(&event)).2;
+                        self.begun = value.get("requestId").and_then(Value::as_str).map(str::to_owned);
+                        if self.begun.is_some() && self.begun == self.awaiting {
+                            self.awaiting = None;
+                        }
+                        self.plan = None;
+                        self.started_agent(cx);
+                        let commands = value.pointer("/harness/slashCommands").and_then(Value::as_array).map(|s| commands_of(s));
                         composer.update(cx, |c, cx| {
-                            if !commands.is_empty() {
+                            if let Some(commands) = commands.filter(|c| !c.is_empty()) {
                                 let (agents, ran) = (c.agents.clone(), c.ran.clone());
                                 c.set_catalog(agents, ran, commands, cx);
                             }
@@ -440,19 +790,9 @@ impl Link {
                     "session.plan" => self.plan = value.get("steps").cloned(),
                     _ => {}
                 }
-                if kind == "session.start" {
-                    self.plan = None;
-                }
-                self.prompts.extend(prompts_of(std::slice::from_ref(&event)));
+                self.prompts.extend(prompt_of(&kind, &value));
             }
-            Arrival::Rows(rows) => {
-                self.rows = rows;
-                let picks = ran(&self.rows);
-                composer.update(cx, |c, cx| {
-                    let (agents, commands) = (c.agents.clone(), c.commands.clone());
-                    c.set_catalog(agents, picks, commands, cx);
-                });
-            }
+            Arrival::Rows(rows) => self.take_rows(rows, cx),
             Arrival::Failed(failure) => {
                 eprintln!("desktop-gpui: composer: {failure}");
                 composer.update(cx, |c, cx| c.set_hold(Some(Hold::HostDown), cx));
@@ -474,27 +814,76 @@ impl Link {
         self.follow(window, cx);
     }
 
+    /// Answers what the composer asks of the host. Every answer that lands checks that the composer still writes into
+    /// the thread it was asked for, so a link's late answer never acts on the next thread's box.
     fn on_event(&mut self, composer: &Entity<Composer>, event: &ComposerEvent, window: &mut Window, cx: &mut Context<Self>) {
         let (host, target) = (self.host.clone(), self.target.clone());
         let weak = composer.downgrade();
+        let key = composer.read(cx).thread_key().map_or_else(|| self.key(), str::to_owned);
         let session = session_id(&self.rows, self.running_session.as_deref());
         match event.clone() {
             ComposerEvent::Start(out) => {
-                let params = start_params(&target, &out, !self.rows.is_empty());
+                let params = match &out.fork {
+                    Some(fork) => fork_params(fork, &out),
+                    None => start_params(&target, &out, !self.rows.is_empty()),
+                };
+                let asked = params.get("requestId").and_then(Value::as_str).unwrap_or_default().to_owned();
+                if out.fork.is_none() {
+                    self.watch_start(asked.clone(), key.clone(), composer, cx);
+                }
                 cx.spawn_in(window, async move |this, cx| {
                     let started = match request::<protocol::SessionsStartRequest>(params) {
                         Ok(op) => call(&host, op).await,
                         Err(e) => Err(e),
                     };
                     match started {
+                        // A fork opens a thread of its own, where the window goes once the host took it.
+                        // A reply that lands after the person left the draft's thread moves nothing.
+                        Ok(started) if out.fork.is_some() => {
+                            let session = started.session;
+                            let thread = session.thread_id.clone().unwrap_or_else(|| session.id.clone());
+                            let here = session.workspace_id == target.workspace_id;
+                            let route = Route::Thread { workspace_id: session.workspace_id.clone(), thread_id: thread.clone() };
+                            _ = weak.update(cx, |c, cx| {
+                                if c.holds(&key) {
+                                    c.sent(cx);
+                                    c.forked(cx);
+                                    // A fork in the page's own workspace is the page's thread from here, so its drawer and
+                                    // shells go with it, as ChatView's carry does; one onto a new branch opens elsewhere.
+                                    if here {
+                                        crate::screens::terminal::carry_new_thread(&target.workspace_id, &thread, cx);
+                                    }
+                                    navigate(route, cx);
+                                } else {
+                                    c.sent_on(&key, cx);
+                                }
+                            });
+                        }
                         // A send that opened the thread names it; from here the link follows it as any other.
                         Ok(started) => {
-                            _ = weak.update(cx, |c, cx| c.sent(cx));
-                            _ = this.update_in(cx, |link, window, cx| link.started(started.session, window, cx));
+                            let held = weak
+                                .update(cx, |c, cx| {
+                                    let held = c.holds(&key);
+                                    c.sent_on(&key, cx);
+                                    held
+                                })
+                                .unwrap_or(false);
+                            if held {
+                                _ = this.update_in(cx, |link, window, cx| {
+                                    // The turn the host started runs until the transcript says it ended; one whose start
+                                    // the transcript already showed is the transcript's to say.
+                                    if link.begun.as_deref() != Some(asked.as_str()) {
+                                        link.awaiting = Some(asked);
+                                        _ = weak.update(cx, |c, cx| c.set_turn(true, true, cx));
+                                    }
+                                    link.started(started.session, window, cx)
+                                });
+                            }
                         }
                         Err(failure) => {
                             eprintln!("desktop-gpui: sessions.start: {}", failure.message);
-                            _ = weak.update_in(cx, |c, window, cx| c.refused_send(out, window, cx));
+                            _ = this.update(cx, |link, cx| link.started_agent(cx));
+                            _ = weak.update_in(cx, |c, window, cx| c.refused_on(&key, out, window, cx));
                         }
                     }
                 })
@@ -517,8 +906,9 @@ impl Link {
                     let notice = steer_notice(&answered);
                     let taken = matches!(&answered, Ok(outcome) if outcome == "accepted");
                     _ = weak.update(cx, |c, cx| {
-                        c.steered(taken, cx);
-                        if let Some(notice) = notice {
+                        let here = c.holds(&key);
+                        c.steered_on(&key, taken, cx);
+                        if let Some(notice) = notice.filter(|_| here) {
                             c.raise(notice, cx);
                         }
                     });
@@ -538,7 +928,11 @@ impl Link {
                     };
                     if let Err(failure) = asked {
                         eprintln!("desktop-gpui: sessions.interrupt: {}", failure.message);
-                        _ = weak.update(cx, |c, cx| c.stopped(cx));
+                        _ = weak.update(cx, |c, cx| {
+                            if c.holds(&key) {
+                                c.stopped(cx)
+                            }
+                        });
                     }
                 })
                 .detach();
@@ -558,7 +952,7 @@ impl Link {
                 })
                 .detach();
             }
-            ComposerEvent::Notice(_) => {}
+            ComposerEvent::Notice(_) | ComposerEvent::Answer(_) | ComposerEvent::Starting(_) => {}
             ComposerEvent::Items => {
                 let cwd = self.rows.last().and_then(|r| r.cwd.clone());
                 let computer = self.rows.last().and_then(|r| r.computer_name.clone()).unwrap_or_else(|| "this computer".to_owned());
@@ -572,7 +966,11 @@ impl Link {
                         }
                         Err(failure) => (Vec::new(), Some(failure.message)),
                     };
-                    _ = weak.update(cx, |c, cx| c.set_host_items(items, note, cx));
+                    _ = weak.update(cx, |c, cx| {
+                        if c.holds(&key) {
+                            c.set_host_items(items, note, cx)
+                        }
+                    });
                 })
                 .detach();
             }
@@ -583,12 +981,39 @@ impl Link {
                         eprintln!("desktop-gpui: fs.files: {}", failure.message);
                         Vec::new()
                     });
-                    _ = weak.update(cx, |c, cx| c.set_folder_files(files, cx));
+                    _ = weak.update(cx, |c, cx| {
+                        if c.holds(&key) {
+                            c.set_folder_files(files, cx)
+                        }
+                    });
                 })
                 .detach();
             }
         }
     }
+}
+
+/// A pick on the docked prompt to `sessions.answer`, its reason with it; whatever the host would not take is said under
+/// the dock while the composer still writes into the thread `key` names (answerPrompt.ts).
+pub fn answer(host: &Host, answer: Answer, composer: WeakEntity<Composer>, key: String, cx: &mut App) {
+    let request =
+        SessionsAnswerRequest { session_id: answer.session, ask_id: answer.ask.clone(), option_id: answer.option, reason: answer.reason };
+    let host = host.clone();
+    cx.spawn(async move |cx| {
+        let refused = match call(&host, request).await {
+            Ok(result) => {
+                let outcome = serde_json::to_value(result.outcome).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
+                dock::answer_words(&outcome).map(dock::sentence)
+            }
+            Err(failure) => Some(dock::sentence(&failure.message)),
+        };
+        _ = composer.update(cx, |c, cx| {
+            if c.holds(&key) {
+                c.prompt_refused(&answer.ask, refused, cx);
+            }
+        });
+    })
+    .detach();
 }
 
 /// What a steer the turn did not take says (ChatComposer.tsx, `COMPOSER_WORDS.sendNowFailed`); a turn that ended
@@ -605,8 +1030,23 @@ pub fn steer_notice(answered: &Result<String, Failure>) -> Option<String> {
 
 /// Every row of one thread, oldest first.
 pub async fn rows_of(host: &Host, workspace_id: &str, thread: &str) -> Result<Vec<SessionView>, Failure> {
-    let listed = call(host, request::<protocol::SessionsListRequest>(json!({ "workspaceId": workspace_id }))?).await?;
-    Ok(thread_rows(listed.sessions, thread))
+    Ok(thread_rows(sessions_of(host, workspace_id).await?, thread))
+}
+
+/// Every row of a workspace.
+async fn sessions_of(host: &Host, workspace_id: &str) -> Result<Vec<SessionView>, Failure> {
+    Ok(call(host, request::<protocol::SessionsListRequest>(json!({ "workspaceId": workspace_id }))?).await?.sessions)
+}
+
+/// The agents a workspace offers and their choices.
+async fn agents_of(host: &Host, workspace_id: &str) -> Result<Vec<Agent>, Failure> {
+    let listed = call(host, request::<protocol::HarnessesListRequest>(json!({ "workspaceId": workspace_id }))?).await?;
+    Ok(listed.harnesses.iter().filter_map(Agent::read).collect())
+}
+
+/// The preference's `midTurn`: queue or steer.
+fn mid_turn(preferences: &protocol::Preferences) -> Option<String> {
+    serde_json::to_value(preferences).ok()?.get("midTurn")?.as_str().map(str::to_owned)
 }
 
 /// One thread's rows out of a workspace's, oldest first.
@@ -617,7 +1057,7 @@ fn thread_rows(sessions: Vec<SessionView>, thread: &str) -> Vec<SessionView> {
 }
 
 /// One daemon op on the workspace's computer over a channel opened for it, and its reply.
-async fn daemon(host: &Host, workspace_id: &str, frame: Value) -> Result<Value, Failure> {
+pub(super) async fn daemon(host: &Host, workspace_id: &str, frame: Value) -> Result<Value, Failure> {
     let op = frame.get("op").and_then(Value::as_str).unwrap_or_default().to_owned();
     let opened = call(host, request::<protocol::DaemonOpenRequest>(json!({ "workspaceId": workspace_id }))?).await?;
     let channel = serde_json::to_value(&opened).ok().and_then(|v| v.get("channel").and_then(Value::as_str).map(str::to_owned));
@@ -664,6 +1104,24 @@ fn attachments(out: &Outgoing) -> Value {
         .iter()
         .map(|f| json!({ "mediaType": f.media_type, "bytes": base64::engine::general_purpose::STANDARD.encode(f.bytes.as_slice()), "name": f.name }))
         .collect()
+}
+
+/// A fork's first send as the web app's `start()` writes it: no workspace and no thread, the source and its turn, the
+/// new branch where the person picked one, the picks a thread that ran takes, the files and Fast.
+pub fn fork_params(fork: &Fork, out: &Outgoing) -> Value {
+    let target = Target { workspace_id: String::new(), thread_id: None };
+    let mut params = start_params(&target, out, true);
+    if let Some(params) = params.as_object_mut() {
+        params.remove("workspaceId");
+    }
+    params["fork"] = match &fork.turn {
+        Some(turn) => json!({ "threadId": fork.thread, "turnId": turn }),
+        None => json!({ "threadId": fork.thread, "at": 0 }),
+    };
+    if let Some(branch) = &fork.branch {
+        params["branch"] = Value::from(branch.as_str());
+    }
+    params
 }
 
 /// `sessions.start` as the web app's `start()` writes it: a thread that has run keeps its agent and access, so only
@@ -727,6 +1185,7 @@ mod tests {
             fast: true,
             resume: Some(("conv-1".into(), false)),
             from_queue: false,
+            fork: None,
         };
         let ran = start_params(&target, &out, true);
         assert_eq!(ran["thread"], "t");

@@ -71,6 +71,8 @@ fn main() {
     let env: Env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let gallery = args.gallery;
+    let bench::Capture { theme, unfold, now, reveal } = args.capture;
+    let capture = desktop_gpui::screens::thread_view::Capture { theme, unfold, now, reveal, strict: args.bench.is_some() };
     let launch = Launch { bench: args.bench, open: args.open, glass: args.glass, screen: args.screen };
     let app = gpui_kit::application().with_assets(AppAssets);
     let reopen = (state.clone(), env.clone(), runtime.clone());
@@ -112,6 +114,7 @@ fn main() {
             return;
         }
         menu::init(cx);
+        cx.set_global(capture);
         open_main(state, env, runtime, launch, pane.clone(), cx);
     });
 }

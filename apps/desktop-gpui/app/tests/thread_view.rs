@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+#[path = "../../host-client/tests/common/mod.rs"]
+mod common;
+
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use desktop_gpui::screens::Route;
+use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::thread_view::ThreadView;
+use desktop_gpui::transcript::RowKind;
 use gpui_kit::component::Root;
 use gpui_kit::{px, size, AppContext, Entity, ListOffset, Pixels, TestAppContext, VisualTestContext};
 use wsp_host_client::protocol::SessionEvent;
 
 const TURNS: usize = 300;
 
-/// Two rows, the person's message and a reply with a fenced code block; the turn never settles, so no fold hides a row.
-fn turn(turn: usize) -> [SessionEvent; 2] {
-    let pos = 2 * turn as u64 + 1;
+/// Two rows, the person's message and a reply with a fenced code block; the turn ends with no call to hide, so no
+/// fold stands in for any of it.
+fn turn(turn: usize) -> [SessionEvent; 4] {
+    let pos = 4 * turn as u64 + 1;
     let scope = serde_json::json!({"workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": format!("u{turn}")});
     let mut start = scope.clone();
     start.as_object_mut().unwrap().extend([
@@ -27,7 +35,18 @@ fn turn(turn: usize) -> [SessionEvent; 2] {
         ("kind".to_owned(), "text".into()),
         ("text".to_owned(), format!("Answer {turn}\n\n- one\n- `two`\n\n```rust\nlet turn = {turn};\n```").into()),
     ]);
-    [serde_json::from_value(start).unwrap(), serde_json::from_value(reply).unwrap()]
+    let ending = |kind: &str, at: u64, extra: serde_json::Value| {
+        let mut event = serde_json::json!({"workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": format!("u{turn}")});
+        event.as_object_mut().unwrap().extend([("type".to_owned(), kind.into()), ("pos".to_owned(), at.into())]);
+        event.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        serde_json::from_value::<SessionEvent>(event).unwrap()
+    };
+    [
+        serde_json::from_value(start).unwrap(),
+        serde_json::from_value(reply).unwrap(),
+        ending("session.done", pos + 2, serde_json::json!({"result": {"status": "completed"}})),
+        ending("session.end", pos + 3, serde_json::json!({"exitCode": 0, "sawResult": true})),
+    ]
 }
 
 fn transcript(turns: usize) -> Vec<SessionEvent> {
@@ -35,7 +54,10 @@ fn transcript(turns: usize) -> Vec<SessionEvent> {
 }
 
 fn window(cx: &mut TestAppContext) -> (Entity<ThreadView>, &mut VisualTestContext) {
-    cx.update(gpui_kit::init);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+    });
     let view = cx.new(ThreadView::new);
     let (_, cx) = cx.add_window_view(|window, cx| Root::new(view.clone(), window, cx));
     cx.simulate_resize(size(px(900.), px(600.)));
@@ -127,6 +149,58 @@ fn a_new_event_follows_the_end_and_leaves_a_view_scrolled_away_where_it_is(cx: &
 }
 
 #[gpui_kit::test]
+fn a_reader_a_few_pixels_above_the_end_still_follows_a_new_turn(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(transcript(TURNS), cx);
+        v.scroll_to_end(cx);
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        v.list().scroll_by(px(-20.));
+        cx.notify();
+    });
+    cx.run_until_parked();
+    push_turn(&view, TURNS, cx);
+    let end = view.read_with(cx, |v, _| v.list().is_scrolled_to_end());
+    assert_eq!(end, Some(true), "a reader 20 px above the end was left above the new turn");
+}
+
+/// `turns` turns, then one whose call folds behind "Worked for".
+fn ending_on_a_fold(turns: usize) -> Vec<SessionEvent> {
+    let pos = 4 * turns as u64 + 1;
+    let mut events = transcript(turns);
+    events.extend([
+        serde_json::json!({"type": "session.start", "pos": pos, "prompt": "Run it"}),
+        serde_json::json!({"type": "session.delta", "pos": pos + 1, "kind": "tool_use", "toolName": "Bash", "toolUseId": "a", "text": "{\"command\":\"ls\"}"}),
+        serde_json::json!({"type": "session.delta", "pos": pos + 2, "kind": "tool_result", "toolUseId": "a", "text": "out"}),
+        serde_json::json!({"type": "session.delta", "pos": pos + 3, "kind": "text", "text": "Done."}),
+        serde_json::json!({"type": "session.done", "pos": pos + 4, "result": {"status": "completed", "durationMs": 1200}}),
+        serde_json::json!({"type": "session.end", "pos": pos + 5, "exitCode": 0, "sawResult": true}),
+    ]
+    .map(event));
+    events
+}
+
+#[gpui_kit::test]
+fn a_fold_pressed_at_the_end_opens_downward_from_where_it_was_pressed(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(ending_on_a_fold(10), cx);
+        v.scroll_to_end(cx);
+    });
+    cx.run_until_parked();
+    let fold = view.read_with(cx, |v, _| v.rows().iter().rposition(|r| matches!(r.kind, RowKind::Fold { .. }))).expect("no fold");
+    let top = |cx: &mut VisualTestContext| view.read_with(cx, |v, _| v.list().bounds_for_item(fold).map(|b| b.top()));
+    let before = top(cx).expect("the fold was not laid out");
+    view.update(cx, |v, cx| v.toggle("long", cx));
+    cx.run_until_parked();
+    assert_eq!(top(cx), Some(before), "the fold moved from under the pointer as it opened");
+}
+
+#[gpui_kit::test]
 fn a_thread_that_grows_past_the_window_keeps_following(cx: &mut TestAppContext) {
     let (view, cx) = window(cx);
     view.update(cx, |v, cx| {
@@ -167,12 +241,20 @@ fn a_scroll_driven_from_the_top_reaches_the_end_and_stamps_its_frames(cx: &mut T
     let frames = Rc::new(RefCell::new(Vec::new()));
     let long_ago = Instant::now() - Duration::from_secs(1000);
     view.update(cx, |v, cx| v.drive(2400., long_ago, frames.clone(), cx));
-    for _ in 0..10 {
+    drive_to_end(&view, cx);
+    assert!(view.read_with(cx, |v, _| v.driven_to_end()), "the scroll stopped short of the end at {:?}", offset(&view, cx));
+    assert!(!frames.borrow().is_empty(), "no frame was stamped");
+}
+
+/// Frames until the driven scroll says it reached the end; it goes a screen at most each.
+fn drive_to_end(view: &Entity<ThreadView>, cx: &mut VisualTestContext) {
+    for _ in 0..1000 {
+        if view.read_with(cx, |v, _| v.driven_to_end()) {
+            return;
+        }
         view.update(cx, |_, cx| cx.notify());
         cx.run_until_parked();
     }
-    assert!(view.read_with(cx, |v, _| v.driven_to_end()), "the scroll stopped short of the end at {:?}", offset(&view, cx));
-    assert!(!frames.borrow().is_empty(), "no frame was stamped");
 }
 
 #[gpui_kit::test]
@@ -200,10 +282,7 @@ fn a_list_narrowed_partway_down_keeps_its_length_and_a_driven_scroll_reaches_its
     let frames = Rc::new(RefCell::new(Vec::new()));
     let long_ago = Instant::now() - Duration::from_secs(1000);
     view.update(cx, |v, cx| v.drive(2400., long_ago, frames.clone(), cx));
-    for _ in 0..10 {
-        view.update(cx, |_, cx| cx.notify());
-        cx.run_until_parked();
-    }
+    drive_to_end(&view, cx);
     let end = view.read_with(cx, |v, _| v.list().is_scrolled_to_end());
     assert!(view.read_with(cx, |v, _| v.driven_to_end()), "the scroll stopped at {:?} with the end check {end:?}", offset(&view, cx));
 }
@@ -220,8 +299,8 @@ fn opened_on_a_long_reply(cx: &mut TestAppContext) -> (Entity<ThreadView>, &mut 
     let (view, cx) = window(cx);
     let long: String = (0..200).map(|i| format!("Line {i} of a reply that runs for several screens.\n\n")).collect();
     let mut events = transcript(3);
-    events.push(event(serde_json::json!({"type": "session.start", "pos": 7, "prompt": "Explain it all"})));
-    events.push(event(serde_json::json!({"type": "session.delta", "pos": 8, "kind": "text", "text": long})));
+    events.push(event(serde_json::json!({"type": "session.start", "pos": 13, "prompt": "Explain it all"})));
+    events.push(event(serde_json::json!({"type": "session.delta", "pos": 14, "kind": "text", "text": long})));
     view.update(cx, |v, cx| {
         v.show("t", cx);
         v.load(events, cx);
@@ -253,9 +332,26 @@ fn a_reply_growing_while_the_person_reads_it_does_not_move_the_view(cx: &mut Tes
     });
     cx.run_until_parked();
     let read = offset(&view, cx);
-    view.update(cx, |v, cx| v.push(event(serde_json::json!({"type": "session.delta", "pos": 9, "kind": "text", "text": "More."})), cx));
+    view.update(cx, |v, cx| v.push(event(serde_json::json!({"type": "session.delta", "pos": 15, "kind": "text", "text": "More."})), cx));
     cx.run_until_parked();
     assert_eq!(offset(&view, cx), read, "a delta to the reply being read moved the view");
+}
+
+#[gpui_kit::test]
+fn a_streaming_reply_takes_each_delta_into_the_document_it_already_parsed(cx: &mut TestAppContext) {
+    let (view, cx) = opened_on_a_long_reply(cx);
+    let (parsed, rows, kept) = view.read_with(cx, |v, _| (v.parsed(), v.rows().len(), v.kept()));
+    for i in 0..100 {
+        let delta = serde_json::json!({"type": "session.delta", "pos": 15 + i, "kind": "text", "text": format!(" word{i}")});
+        view.update(cx, |v, cx| v.push(event(delta), cx));
+        cx.run_until_parked();
+    }
+    let reply = view.read_with(cx, |v, _| v.rows().iter().rev().find(|r| r.text.starts_with("Line 0")).map(|r| r.key.clone())).unwrap();
+    let parsed_text = view.read_with(cx, |v, cx| v.body_source(&reply, cx));
+    assert!(parsed_text.is_some_and(|t| t.ends_with(" word99")), "the reply's parsed document took every delta");
+    assert_eq!(view.read_with(cx, |v, _| v.rows().len()), rows, "deltas to the open reply add no row");
+    assert_eq!(view.read_with(cx, |v, _| v.parsed()), parsed, "a delta was parsed as a new document rather than appended");
+    assert_eq!(view.read_with(cx, |v, _| v.kept()), kept);
 }
 
 #[gpui_kit::test]
@@ -285,4 +381,94 @@ fn a_scroll_through_a_long_thread_keeps_only_the_parsed_rows_near_the_view(cx: &
     cx.run_until_parked();
     assert!(view.read_with(cx, |v, _| v.parsed()) > parsed, "the top's rows were never dropped, so nothing parsed again");
     println!("{} rows: held at most {most} parsed, {parsed} parses down the thread", 2 * TURNS);
+    let (built, kept) = view.read_with(cx, |v, _| (v.built(), v.kept()));
+    assert!(kept > 0 && built > 0);
+}
+
+#[gpui_kit::test]
+fn an_empty_thread_says_to_send_a_message_and_a_loading_one_says_so_centred(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| v.show("t", cx));
+    cx.run_until_parked();
+    assert_eq!(view.read_with(cx, |v, _| v.placeholder()), Some("Loading transcript"));
+    assert!(cx.debug_bounds("transcript-loading").is_some(), "Loading transcript is not drawn");
+    view.update(cx, |v, cx| v.load(Vec::new(), cx));
+    cx.run_until_parked();
+    assert_eq!(view.read_with(cx, |v, _| v.placeholder()), Some("Send a message to start the conversation."));
+    let words = cx.debug_bounds("transcript-words").expect("the empty thread's line is not drawn");
+    assert_eq!((words.origin.y, words.size.height), (px(0.), px(600.)), "the line is centred in the whole view: {words:?}");
+    assert!(cx.debug_bounds("transcript-loading").is_none());
+}
+
+#[gpui_kit::test]
+fn a_new_reply_parses_once(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(transcript(3), cx);
+        v.scroll_to_end(cx);
+    });
+    cx.run_until_parked();
+    push_turn(&view, 3, cx);
+    for _ in 0..3 {
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+    let key = view.read_with(cx, |v, _| v.rows().iter().rev().find(|r| matches!(r.kind, RowKind::Agent { .. })).unwrap().key.clone());
+    let body = view.read_with(cx, |v, _| v.body_of(&key)).expect("the new reply was drawn");
+    let text = cx.update(|_, cx| format!("{:?}", body.read(cx).rendered_text()));
+    assert!(text.contains("revision: 1,"), "the new reply was parsed again once drawn: {text}");
+}
+
+/// `--glass` draws its composer-sized stand-in only where no thread screen docks the real composer, whose own glass
+/// it would blur over a second time.
+#[gpui_kit::test]
+fn the_glass_stand_in_stays_off_a_mounted_thread_screen(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
+    let client =
+        runtime.block_on(wsp_host_client::HostClient::connect(&host.state(), &host.env())).unwrap_or_else(|f| panic!("{}", f.message));
+    let threads = runtime.block_on(client.threads()).unwrap_or_else(|f| panic!("{}", f.message));
+    let first = threads.iter().find(|t| t.prompt.as_deref() == Some("first")).expect("the thread");
+    let (workspace_id, thread_id) = (first.workspace_id.clone(), first.thread_id.clone().expect("a thread id"));
+
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+        desktop_gpui::screens::app_shell::menu::init(cx);
+    });
+    let (state, vars) = (host.state(), host.env());
+    let mut shell = None;
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let launch = Launch { glass: true, ..Launch::default() };
+        let view = cx.new(|cx| Shell::new(state, vars, runtime.clone(), launch, window, cx));
+        shell = Some(view.clone());
+        Root::new(view, window, cx)
+    });
+    let shell = shell.unwrap();
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    let until = |cx: &mut VisualTestContext, what: &str, done: &dyn Fn(&mut VisualTestContext) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        loop {
+            cx.run_until_parked();
+            if done(cx) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "timed out waiting for {what}");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    until(cx, "the host", &|cx| shell.read_with(cx, |s, _| s.connected()));
+    assert!(cx.debug_bounds("glass-stand-in").is_some(), "with no thread screen the stand-in shows");
+
+    shell.update_in(cx, |s, window, cx| {
+        s.go(Route::Thread { workspace_id: workspace_id.clone(), thread_id: thread_id.clone() }, window, cx)
+    });
+    until(cx, "the thread screen", &|cx| shell.read_with(cx, |s, _| s.thread_screen().is_some()));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("glass-stand-in").is_none(), "the stand-in blurs over the docked composer's own glass");
 }

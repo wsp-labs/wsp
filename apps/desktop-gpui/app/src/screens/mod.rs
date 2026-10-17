@@ -8,6 +8,7 @@ pub mod composer;
 pub mod sidebar;
 pub mod slate;
 pub mod terminal;
+pub mod thread_view;
 pub mod usage;
 
 use std::cell::RefCell;
@@ -23,6 +24,8 @@ pub fn screen(name: &str) -> Option<Entry> {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         slate::SlateScreen::NAME => Some(entry::<slate::SlateScreen>()),
         terminal::TerminalScreen::NAME => Some(entry::<terminal::TerminalScreen>()),
+        thread_view::ThreadScreen::NAME => Some(entry::<thread_view::ThreadScreen>()),
+        thread_view::subagent::SubagentScreen::NAME => Some(entry::<thread_view::subagent::SubagentScreen>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
         _ => None,
     }

@@ -101,6 +101,13 @@ wait "$host" 2>/dev/null
 kill "$watch" 2>/dev/null
 "#;
 
+/// `node <bin> up` on `state` under the shell that stops it with the test, writing to `log`.
+fn up(dir: &Path, bin: &Path, state: &str, log: std::fs::File) -> Child {
+    let mut host = Command::new("/bin/sh");
+    host.args(["-c", STOPS_WITH_THE_TEST, "sh", "node"]).arg(bin).args(["up", "--port", "0", "--no-relay", "--state", state]);
+    host.env_clear().envs(env_in(dir)).current_dir(dir).stdin(Stdio::piped()).stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap()
+}
+
 fn node_in(dir: &Path, bin: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("node");
     command.arg(bin).args(args).env_clear().envs(env_in(dir)).current_dir(dir);
@@ -200,17 +207,7 @@ impl Throwaway {
         let bin = bundle_with(dir.path(), daemon.as_deref());
         let state = dir.path().join("state").join("state.json").to_string_lossy().into_owned();
         let log = std::fs::File::create(dir.path().join("up.log")).unwrap();
-        let mut host = Command::new("/bin/sh");
-        host.args(["-c", STOPS_WITH_THE_TEST, "sh", "node"]).arg(&bin).args(["up", "--port", "0", "--no-relay", "--state", &state]);
-        let host = host
-            .env_clear()
-            .envs(env_in(dir.path()))
-            .current_dir(dir.path())
-            .stdin(Stdio::piped())
-            .stdout(log.try_clone().unwrap())
-            .stderr(log)
-            .spawn()
-            .unwrap();
+        let host = up(dir.path(), &bin, &state, log);
         let throwaway = Throwaway { dir, daemon, bin, host };
         let until = Instant::now() + Duration::from_secs(30);
         // The lock is written before the host listens, with port 0 until it does.
@@ -229,6 +226,37 @@ impl Throwaway {
         std::fs::read_to_string(self.dir.path().join("up.log")).unwrap_or_default()
     }
 
+    /// Stops the host and keeps its folder, so `restart` brings it back on the same state.
+    pub fn stop(&mut self) {
+        if matches!(self.host.try_wait(), Ok(None)) {
+            drop(self.host.stdin.take());
+            let until = Instant::now() + Duration::from_secs(25);
+            while matches!(self.host.try_wait(), Ok(None)) && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            let _ = self.host.kill();
+            let _ = self.host.wait();
+        }
+        let _ = std::fs::remove_file(self.state().with_file_name("host.lock"));
+    }
+
+    /// The host again on the same state file, once the stopped one is gone.
+    pub fn restart(&mut self) {
+        self.stop();
+        let state = self.state().to_string_lossy().into_owned();
+        let log = std::fs::OpenOptions::new().create(true).append(true).open(self.dir.path().join("up.log")).unwrap();
+        self.host = up(self.dir.path(), &self.bin, &state, log);
+        let until = Instant::now() + Duration::from_secs(30);
+        let listening = || {
+            let lock = std::fs::read_to_string(self.state().with_file_name("host.lock")).unwrap_or_default();
+            serde_json::from_str::<serde_json::Value>(&lock).ok().and_then(|lock| lock["port"].as_u64()).is_some_and(|port| port != 0)
+        };
+        while !listening() {
+            assert!(Instant::now() < until, "the host did not come back: {}", self.log());
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
     /// One wsp line against this host, which has to succeed; what it printed.
     pub fn wsp(&self, args: &[&str]) -> String {
         let state = self.state().to_string_lossy().into_owned();
@@ -243,9 +271,11 @@ impl Drop for Throwaway {
     /// A terminated host stops its daemon on its way out and a killed one leaves it running. Neither stops a running
     /// turn, whose process runs apart from the host so it outlives a restart, so those are interrupted first.
     fn drop(&mut self) {
-        if matches!(self.host.try_wait(), Ok(None)) {
-            interrupt_turns(self.dir.path());
+        // A host `stop` already reaped is not signalled again: its pid may belong to another process by now.
+        if !matches!(self.host.try_wait(), Ok(None)) {
+            return;
         }
+        interrupt_turns(self.dir.path());
         drop(self.host.stdin.take());
         let until = Instant::now() + Duration::from_secs(25);
         while matches!(self.host.try_wait(), Ok(None)) && Instant::now() < until {

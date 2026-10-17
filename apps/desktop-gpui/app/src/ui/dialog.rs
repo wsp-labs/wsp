@@ -179,6 +179,7 @@ fn popup_max(window: &Window) -> Pixels {
 pub struct AlertDialog {
     title: AnyElement,
     sentence: Option<AnyElement>,
+    lead: Option<AnyElement>,
     body: Vec<AnyElement>,
     acts: Vec<AnyElement>,
 }
@@ -190,12 +191,19 @@ impl AlertDialog {
 
     /// A title drawn as `title` is, for one with a mono run in it.
     pub fn titled(title: impl IntoElement) -> Self {
-        AlertDialog { title: title.into_any_element(), sentence: None, body: Vec::new(), acts: Vec::new() }
+        AlertDialog { title: title.into_any_element(), sentence: None, lead: None, body: Vec::new(), acts: Vec::new() }
     }
 
     /// The description under the title: what leaves, read off what the thing holds now.
     pub fn sentence(mut self, sentence: impl IntoElement) -> Self {
         self.sentence = Some(sentence.into_any_element());
+        self
+    }
+
+    /// The block straight under the head at the body's sides alone, as a radio group sits under the title
+    /// (`RewindDialog.tsx`'s `RadioGroup className="px-5"`); the body's `pt-2` then stands between it and the body.
+    pub fn lead(mut self, lead: impl IntoElement) -> Self {
+        self.lead = Some(lead.into_any_element());
         self
     }
 
@@ -256,6 +264,7 @@ impl RenderOnce for AlertDialog {
             .shadow(p.dialog_shadow.clone())
             .text_color(p.foreground)
             .child(head)
+            .children(self.lead.map(|lead| div().px_5().child(lead)))
             .children(body)
             .child(h_flex().justify_end().gap_2().px_5().pt_3().pb_4().children(acts(self.acts)));
         open_fade("alert-dialog-open", surface, cx)
@@ -458,22 +467,31 @@ pub fn shortcut_tooltip(label: impl Into<SharedString>, keys: &[&str]) -> impl F
 
 /// The same tooltip as a view, for a caller that draws it in place; with no keys it is the plain hover word.
 pub fn shortcut_tooltip_view(label: SharedString, keys: Vec<SharedString>, window: &mut Window, cx: &mut App) -> AnyView {
+    tooltip_view(
+        move |cx| {
+            h_flex()
+                .gap_2()
+                .child(label.clone())
+                .when(!keys.is_empty(), |el| el.child(h_flex().gap_1().children(keys.iter().cloned().map(|k| keycap(k, cx)))))
+        },
+        window,
+        cx,
+    )
+}
+
+/// wsp's tooltip round `content`, for what a plain word cannot carry, such as a path in mono.
+pub fn tooltip_view<E: IntoElement>(content: impl Fn(&mut App) -> E + 'static, window: &mut Window, cx: &mut App) -> AnyView {
     let p = cx.palette().clone();
-    Tooltip::element(move |_, cx| {
-        h_flex()
-            .gap_2()
-            .child(label.clone())
-            .when(!keys.is_empty(), |el| el.child(h_flex().gap_1().children(keys.iter().cloned().map(|k| keycap(k, cx)))))
-    })
-    .m_0()
-    .rounded(size::BUTTON_RADIUS)
-    .py_1()
-    .px_2()
-    .border_color(p.border)
-    .bg(p.popover)
-    .text_size(text::FACT.0)
-    .line_height(text::FACT.1)
-    .text_color(p.foreground)
-    .shadow(p.tooltip_shadow.clone())
-    .build(window, cx)
+    Tooltip::element(move |_, cx| content(cx))
+        .m_0()
+        .rounded(size::BUTTON_RADIUS)
+        .py_1()
+        .px_2()
+        .border_color(p.border)
+        .bg(p.popover)
+        .text_size(text::FACT.0)
+        .line_height(text::FACT.1)
+        .text_color(p.foreground)
+        .shadow(p.tooltip_shadow.clone())
+        .build(window, cx)
 }

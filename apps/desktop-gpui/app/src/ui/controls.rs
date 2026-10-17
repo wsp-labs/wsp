@@ -349,23 +349,56 @@ impl RenderOnce for Button {
     }
 }
 
-/// The radio of a `Choice`: 16 px round on the field's edge, and once picked the primary fill with its 6 px dot.
-fn radio(picked: bool, cx: &App) -> impl IntoElement {
+/// The radio of a `Choice`: 16 px round on the field's edge, and once picked the primary fill with its 6 px dot; held,
+/// at 64% with no shadow.
+pub fn radio(picked: bool, held: bool, cx: &App) -> impl IntoElement {
     let p = cx.palette();
     let dark = cx.theme().is_dark();
     let ground = if dark { p.input.opacity(0.32) } else { p.background };
-    div().debug_selector(|| "radio".into()).flex().flex_none().items_center().justify_center().size(px(16.)).rounded_full().map(|el| {
-        if picked {
-            el.bg(p.primary).child(div().size(px(6.)).rounded_full().bg(p.primary_foreground))
-        } else {
-            el.border_1().border_color(p.input).bg(ground).shadow(p.control_shadow.clone())
-        }
-    })
+    div()
+        .debug_selector(|| "radio".into())
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .size(px(16.))
+        .rounded_full()
+        .when(held, |el| el.opacity(0.64))
+        .map(|el| {
+            if picked {
+                el.bg(p.primary).child(div().size(px(6.)).rounded_full().bg(p.primary_foreground))
+            } else {
+                el.border_1().border_color(p.input).bg(ground).when(!held, |el| el.shadow(p.control_shadow.clone()))
+            }
+        })
 }
 
 /// `Checkbox`: 16 px with a 4 px radius; ticked, the primary fill and its tick; held, its edge dashed and a ticked
 /// one's tick muted on no fill. Its lift, there only while open and unticked, eases as `transition-shadow` does.
 pub fn checkbox(id: impl Into<ElementId>, checked: bool, held: bool, window: &mut Window, cx: &mut App) -> Div {
+    let p = cx.palette();
+    let ticked = (p.primary, p.primary_foreground);
+    tick_box(id, checked, held, ticked, window, cx)
+}
+
+/// `Checkbox tone="neutral"`, for a card whose one accent is its act: ticked, the foreground fill and the page's ink.
+pub fn neutral_checkbox(id: impl Into<ElementId>, checked: bool, window: &mut Window, cx: &mut App) -> Div {
+    let p = cx.palette();
+    let ticked = (p.foreground, p.background);
+    tick_box(id, checked, false, ticked, window, cx)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The fill the last ticked box drew with, in this test thread.
+    pub static TICKED_FILL: std::cell::Cell<Option<Hsla>> = const { std::cell::Cell::new(None) };
+}
+
+fn tick_box(id: impl Into<ElementId>, checked: bool, held: bool, ticked: (Hsla, Hsla), window: &mut Window, cx: &mut App) -> Div {
+    #[cfg(test)]
+    if checked && !held {
+        TICKED_FILL.with(|f| f.set(Some(ticked.0)));
+    }
     let p = cx.palette().clone();
     let ground = if cx.theme().is_dark() { p.input.opacity(0.32) } else { p.background };
     let lift = motion::ease_px(id, "lift", px(if checked || held { 0. } else { 1. }), motion::COLORS, window, cx);
@@ -382,7 +415,7 @@ pub fn checkbox(id: impl Into<ElementId>, checked: bool, held: bool, window: &mu
         .rounded(px(4.))
         .shadow(shadow)
         .map(|el| match (checked, held) {
-            (true, false) => el.bg(p.primary).child(tick(p.primary_foreground)),
+            (true, false) => el.bg(ticked.0).child(tick(ticked.1)),
             (true, true) => el.border_1().border_dashed().border_color(p.input).bg(p.background).child(tick(p.muted_foreground)),
             (false, false) => el.border_1().border_color(p.input).bg(ground),
             (false, true) => el.border_1().border_dashed().border_color(p.input).bg(ground),
@@ -393,6 +426,7 @@ pub fn checkbox(id: impl Into<ElementId>, checked: bool, held: bool, window: &mu
 /// it.
 fn pick_words(
     name: SharedString,
+    title: (Pixels, Pixels),
     tag: Option<SharedString>,
     marks: Option<AnyElement>,
     note: Option<SharedString>,
@@ -412,8 +446,8 @@ fn pick_words(
                 .child(
                     div()
                         .debug_selector(|| "title".into())
-                        .text_size(text::LIST_TITLE.0)
-                        .line_height(text::LIST_TITLE.1)
+                        .text_size(title.0)
+                        .line_height(title.1)
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(ink)
                         .child(name),
@@ -446,6 +480,10 @@ struct Pick {
     marks: Option<AnyElement>,
     note: Option<SharedString>,
     slot: Option<AnyElement>,
+    /// The name's size and line: `LIST_TITLE`, or a dock's `SETTING_TITLE`.
+    title: (Pixels, Pixels),
+    /// The one sentence the row's hover says: the keys that pick it.
+    hover: Option<SharedString>,
     on_click: Option<SharedClick>,
     corners: Corners,
 }
@@ -462,6 +500,8 @@ impl Pick {
             marks: None,
             note: None,
             slot: None,
+            title: text::LIST_TITLE,
+            hover: None,
             on_click: None,
             corners: Corners::default(),
         }
@@ -470,7 +510,7 @@ impl Pick {
     /// The mark is the tab stop and wears the ring, as the web's radio and checkbox do; the whole row takes a press.
     fn render(self, mark: impl IntoElement, radius: Pixels, floor: Pixels, cx: &App) -> AnyElement {
         let ring_ink = cx.palette().ring;
-        let words = pick_words(self.name, self.tag, self.marks, self.note, self.on, cx);
+        let words = pick_words(self.name, self.title, self.tag, self.marks, self.note, self.on, cx);
         let keyed = self.on_click.clone();
         let mark = div()
             .id(SharedString::from(format!("{}-mark", self.id)))
@@ -504,6 +544,7 @@ impl Pick {
         });
         row_frame(&self.id, floor, self.corners)
             .cursor_pointer()
+            .when_some(self.hover, |el, hover| el.tooltip(tip(hover)))
             .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
             .child(h_flex().gap_5().child(lead).children(slot))
             .into_any_element()
@@ -527,6 +568,24 @@ macro_rules! pick_builders {
                 self.0.on_click = Some(std::rc::Rc::new(f));
                 self
             }
+
+            /// One control or the facts at the right.
+            pub fn slot(mut self, slot: impl IntoElement) -> Self {
+                self.0.slot = Some(slot.into_any_element());
+                self
+            }
+
+            /// The name's size and line where the list is not a settings list's: a dock's `SETTING_TITLE`.
+            pub fn title(mut self, title: (Pixels, Pixels)) -> Self {
+                self.0.title = title;
+                self
+            }
+
+            /// One sentence on hover: the keys that pick the row.
+            pub fn hover(mut self, hover: impl Into<SharedString>) -> Self {
+                self.0.hover = Some(hover.into());
+                self
+            }
         }
     };
 }
@@ -546,7 +605,7 @@ pick_builders!(Choice);
 
 impl RenderOnce for Choice {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mark = radio(self.0.on, cx);
+        let mark = radio(self.0.on, false, cx);
         self.0.render(mark, px(8.), size::ROW_FLOOR, cx)
     }
 }
@@ -585,12 +644,6 @@ impl PickRow {
     /// The marks of the agents a thing is set up for, after the name.
     pub fn marks(mut self, marks: impl IntoElement) -> Self {
         self.0.marks = Some(marks.into_any_element());
-        self
-    }
-
-    /// One control or the facts at the right.
-    pub fn slot(mut self, slot: impl IntoElement) -> Self {
-        self.0.slot = Some(slot.into_any_element());
         self
     }
 }

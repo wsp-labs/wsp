@@ -89,6 +89,13 @@ pub struct Subagent {
     pub state: SubagentState,
     pub started_at: f64,
     pub ended_at: Option<f64>,
+    /// The call that launched it, which its page opens by.
+    pub call: Option<String>,
+    pub model: Option<String>,
+    /// What its agent was asked.
+    pub asked: Option<String>,
+    pub failure: Option<String>,
+    pub last_line: Option<String>,
 }
 
 /// The sections a thread's own state files it under; a placement names one of these.
@@ -176,9 +183,36 @@ pub struct Row {
     /// What the agent asks, where it asks.
     pub asking_text: Option<String>,
     pub model: Option<String>,
+    /// The thread it was forked from, by its id.
+    pub forked_from_thread: Option<String>,
+    /// The records the thread view reads whole, kept only where the host sent one: the open question this thread waits
+    /// behind (`waitingOn`), the threads at once that hold it (`capped`), and a sub-thread's machine (`sub`).
+    pub waiting_on_record: Option<Value>,
+    pub capped_record: Option<Value>,
+    pub sub_record: Option<Value>,
 }
 
 impl Row {
+    /// A row read off the host's record, the few records the thread view reads whole moved out of it.
+    pub fn owned(mut v: Value) -> Option<Row> {
+        let row = Row::of(&v)?;
+        let mut take = |k: &str| v.get_mut(k).map(Value::take).filter(|x| !x.is_null());
+        Some(Row { waiting_on_record: take("waitingOn"), capped_record: take("capped"), sub_record: take("sub"), ..row })
+    }
+
+    /// The row as the host would send it, for the fields the thread header reads.
+    pub fn as_sent(&self) -> Value {
+        let mut v = json!({
+            "id": self.id, "workspaceId": self.workspace_id, "harness": self.harness, "threadId": self.thread_id,
+            "harnessTitle": self.harness_title, "prompt": self.prompt, "asking": self.asking_text, "waitingOn": self.waiting_on_record,
+            "startedAt": self.started_at, "endedAt": self.ended_at, "computerName": self.computer_name,
+        });
+        if self.project_id.is_some() || self.project_name.is_some() {
+            v["project"] = json!({ "id": self.project_id, "name": self.project_name });
+        }
+        v
+    }
+
     /// A `SessionView` as the host sent it, read by the protocol's own names.
     pub fn of(v: &Value) -> Option<Row> {
         let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
@@ -230,6 +264,11 @@ impl Row {
                             },
                             started_at: n(x, "startedAt").unwrap_or(0.0),
                             ended_at: n(x, "endedAt"),
+                            call: s(x, "parentToolUseId"),
+                            model: s(x, "model"),
+                            asked: s(x, "asked"),
+                            failure: s(x, "failure"),
+                            last_line: s(x, "lastLine"),
                         })
                     })
                     .collect()
@@ -254,6 +293,10 @@ impl Row {
             forked_from: v.get("forkedFrom").and_then(|f| s(f, "title")),
             asking_text: s(v, "asking"),
             model: s(v, "model"),
+            forked_from_thread: v.get("forkedFrom").and_then(|f| s(f, "threadId")),
+            waiting_on_record: None,
+            capped_record: None,
+            sub_record: None,
         })
     }
 }
@@ -752,17 +795,17 @@ pub enum Part {
 }
 
 #[derive(Clone, Copy)]
-enum Lead<'t> {
+pub(crate) enum Lead<'t> {
     Thread(&'t Tree),
     Sub(usize, usize),
 }
 
 /// The reading every tree rule shares: the threads, the clock sample and the settle quiet.
 #[derive(Clone, Copy)]
-struct Ctx<'a> {
-    all: &'a [Thread],
-    now: f64,
-    settle: Option<f64>,
+pub(crate) struct Ctx<'a> {
+    pub(crate) all: &'a [Thread],
+    pub(crate) now: f64,
+    pub(crate) settle: Option<f64>,
 }
 
 impl<'a> Ctx<'a> {
@@ -770,7 +813,7 @@ impl<'a> Ctx<'a> {
         thread_settled(t, self.now, self.settle, held)
     }
 
-    fn lead_nodes<'t>(&self, node: &'t Tree) -> Vec<Lead<'t>> {
+    pub(crate) fn lead_nodes<'t>(&self, node: &'t Tree) -> Vec<Lead<'t>> {
         let subs = node.thread.map_or(0, |i| self.all[i].subagents.len());
         let mut out = Vec::with_capacity(node.children.len() + subs);
         out.extend(node.children.iter().map(Lead::Thread));
@@ -779,7 +822,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// leadTree.ts ownPart.
-    fn own_part(&self, l: Lead) -> Part {
+    pub(crate) fn own_part(&self, l: Lead) -> Part {
         match l {
             Lead::Sub(i, s) => {
                 let (of, sub) = (&self.all[i], &self.all[i].subagents[s]);
@@ -808,7 +851,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// How pressing a child is on its own: asks or a limit, failed, works, waits, then quiet.
-    fn own_rank(&self, l: Lead, part: Part) -> u8 {
+    pub(crate) fn own_rank(&self, l: Lead, part: Part) -> u8 {
         if part != Part::Live {
             return 4;
         }
@@ -855,7 +898,7 @@ impl<'a> Ctx<'a> {
 
     /// leadTree.ts childParts: live by the most pressing rank under it then newest start, finished by newest end,
     /// settled by newest settle.
-    fn child_parts<'t>(&self, nodes: Vec<Lead<'t>>) -> [Vec<Lead<'t>>; 3] {
+    pub(crate) fn child_parts<'t>(&self, nodes: Vec<Lead<'t>>) -> [Vec<Lead<'t>>; 3] {
         let mut live: Vec<(Lead, u8)> = Vec::new();
         let (mut finished, mut settled) = (Vec::new(), Vec::new());
         for l in nodes {
@@ -1055,7 +1098,7 @@ pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&
 
 /// Sidebar.logic.ts threadForest over the sorted threads: each thread under its opener where the opener is listed,
 /// rows whose parents lead round in a circle kept at the end in their own order.
-fn forest(all: &[Thread], sorted: &[usize]) -> Vec<Tree> {
+pub(crate) fn forest(all: &[Thread], sorted: &[usize]) -> Vec<Tree> {
     let index: HashMap<&str, usize> = all.iter().enumerate().map(|(i, t)| (t.key.as_str(), i)).collect();
     let mut spawned: HashMap<usize, Vec<usize>> = HashMap::new();
     let mut under = vec![false; all.len()];
@@ -1983,7 +2026,18 @@ mod tests {
 
     #[test]
     fn subagents_stand_under_their_lead_and_count() {
-        let sub = |id: &str, state| Subagent { id: id.into(), title: id.into(), state, started_at: NOW - MIN, ended_at: None };
+        let sub = |id: &str, state| Subagent {
+            id: id.into(),
+            title: id.into(),
+            state,
+            started_at: NOW - MIN,
+            ended_at: None,
+            call: None,
+            model: None,
+            asked: None,
+            failure: None,
+            last_line: None,
+        };
         let lead = Row {
             subagents: vec![sub("s1", SubagentState::Running), sub("s2", SubagentState::Done)],
             ..row("lead", Status::Running, NOW - HOUR)

@@ -13,11 +13,11 @@ pub mod host;
 mod keys;
 pub mod looks;
 pub(crate) mod markdown;
-mod menu;
+pub(crate) mod menu;
 pub mod model;
 pub mod rows;
 mod switcher;
-mod tile;
+pub(crate) mod tile;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -208,6 +208,8 @@ pub(crate) struct Around {
     pub checkouts_asked: HashMap<String, String>,
     /// Each project's computer, by project id.
     pub project_computers: HashMap<String, String>,
+    /// The projects that are git checkouts, by id.
+    pub project_git: HashSet<String>,
     /// Each workspace's live status, by id: its checkout and pull request.
     pub statuses: HashMap<String, Value>,
     pub release: Option<Value>,
@@ -217,7 +219,14 @@ pub(crate) struct Around {
     pub images: looks::Images,
     /// Each workspace's agents: the harness, the terminal command it resumes a session with, its models' labels.
     pub catalogs: HashMap<String, Vec<Catalog>>,
+    /// Each workspace's agents whole, as `harnesses.list` answered, which the thread view's flags and the header's
+    /// labels read: the app's one read of them, read again on every whole read.
+    pub listed: HashMap<String, Rc<Vec<Value>>>,
+    catalog_waiters: HashMap<String, Vec<CatalogWaiter>>,
 }
+
+/// What waits on a workspace's agents being read, told whether they came.
+type CatalogWaiter = Box<dyn FnOnce(bool, &mut App)>;
 
 /// One agent of a workspace's catalog, as far as the sidebar reads it.
 #[derive(Clone, Debug, Default)]
@@ -300,6 +309,7 @@ pub struct Sidebar {
     drive: Option<Drive>,
     /// The clock the list was last read at, in ms since the epoch.
     now: f64,
+    revision: u64,
     _clock: Task<()>,
 }
 
@@ -363,6 +373,7 @@ impl Sidebar {
             computer: None,
             drive: None,
             now: now_ms(),
+            revision: 0,
             _clock: clock,
         }
     }
@@ -505,7 +516,7 @@ impl Sidebar {
             Change::Whole(snapshot) => self.take(*snapshot),
             Change::Row { id, row } => {
                 let at = self.rows.iter().position(|r| r.id == id);
-                match (at, row.as_ref().and_then(Row::of)) {
+                match (at, row.and_then(Row::owned)) {
                     (Some(at), Some(row)) => {
                         // A pushed row may leave out the prompt the row it replaces carried.
                         let prompt = self.rows[at].prompt.take();
@@ -528,6 +539,7 @@ impl Sidebar {
                 self.around.kinds.remove(&id);
                 self.around.statuses.remove(&id);
                 self.around.catalogs.remove(&id);
+                self.around.listed.remove(&id);
                 self.around.checkouts_asked.remove(&id);
                 self.around.forwards.retain(|f| f.get("workspaceId").and_then(Value::as_str) != Some(id.as_str()));
                 self.around.creations.retain(|c| c.workspace_id.as_deref() != Some(id.as_str()));
@@ -573,7 +585,40 @@ impl Sidebar {
             }
         }
         self.note = None;
+        self.revision += 1;
         self.refold(cx);
+    }
+
+    /// Moves with every change the host pushed: a reader of the rows or the preferences reads again only when it moved.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// Every session row the host listed, on every computer whatever the list is narrowed to.
+    pub fn rows(&self) -> &[Row] {
+        &self.rows
+    }
+
+    /// How long a read thread sits quiet before it settles (`settleAfter`); None is never.
+    pub fn settle_ms(&self) -> Option<f64> {
+        self.prefs.settle_ms
+    }
+
+    /// The name of the computer the host runs on (`hereName`), empty until the places are read.
+    pub fn here(&self) -> String {
+        self.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some("here")).map(looks::place_name).unwrap_or_default()
+    }
+
+    /// The host's preferences, once read.
+    pub fn preferences(&self) -> &Value {
+        self.around.preferences.as_deref().unwrap_or(&NO_PREFERENCES)
+    }
+
+    /// Shuts or opens a lead's Threads section under its transcript, kept in the preferences for every window
+    /// (`threadsShut`), apart from the list's own fold of the same tree.
+    pub fn shut_threads(&mut self, lead: &str, shut: bool, cx: &mut Context<Self>) {
+        let entry = if shut { json!(true) } else { Value::Null };
+        self.write::<PreferencesSetRequest>(json!({ "patch": { "threadsShut": { lead: entry } } }), cx);
     }
 
     /// Folds the rows into threads again, on the picked computer alone where one is picked.
@@ -599,46 +644,84 @@ impl Sidebar {
     /// Reads the agents' catalog of each workspace a thread runs on that has none read yet: what its menu offers for
     /// going on in a terminal.
     fn fetch_catalogs(&mut self, cx: &mut Context<Self>) {
-        let Some(link) = self.link.clone() else { return };
         let mut wanted: Vec<String> = self.threads.iter().map(|t| t.workspace_id.clone()).collect();
         wanted.sort();
         wanted.dedup();
-        wanted.retain(|w| !self.around.catalogs.contains_key(w));
         for workspace in wanted {
-            self.around.catalogs.insert(workspace.clone(), Vec::new());
-            let task = link.runtime.spawn(host::ask::<HarnessesListRequest>(link.host.clone(), json!({ "workspaceId": workspace })));
-            cx.spawn(async move |this, cx| {
-                // A failed ask leaves the workspace with no catalog until the next full read asks again.
-                let Ok(Ok(listed)) = task.await else { return };
-                let catalog: Vec<Catalog> = listed
-                    .harnesses
-                    .iter()
-                    .filter_map(|h| serde_json::to_value(h).ok())
-                    .filter_map(|h| {
-                        Some(Catalog {
-                            harness: h.get("harness")?.as_str()?.to_owned(),
-                            terminal_resume: h.get("terminalResume").and_then(Value::as_str).map(str::to_owned),
-                            models: h
-                                .get("models")
-                                .and_then(Value::as_array)
-                                .into_iter()
-                                .flatten()
-                                .filter_map(|m| Some((m.get("value")?.as_str()?.to_owned(), m.get("label")?.as_str()?.to_owned())))
-                                .collect(),
-                            keeps_rename: h.get("source").and_then(Value::as_str) == Some("table")
-                                || h.get("renames").and_then(Value::as_bool) != Some(false),
-                        })
-                    })
-                    .collect();
-                // A workspace deleted or a connection read again while it was asked has no place for it.
-                _ = this.update(cx, |this, _| {
-                    if let Some(slot) = this.around.catalogs.get_mut(&workspace) {
-                        *slot = catalog;
-                    }
-                });
-            })
-            .detach();
+            self.fetch_catalog(&workspace, cx);
         }
+    }
+
+    /// Each workspace's agents whole, as the host listed them, once read.
+    pub fn listed_catalogs(&self, workspace: &str) -> Option<Rc<Vec<Value>>> {
+        self.around.listed.get(workspace).cloned()
+    }
+
+    /// Reads `workspace`'s agents unless they are read or asked; `landed` hears whether they came, after the update
+    /// that asks.
+    pub fn want_catalogs(&mut self, workspace: &str, landed: impl FnOnce(bool, &mut App) + 'static, cx: &mut Context<Self>) {
+        if self.around.listed.contains_key(workspace) {
+            cx.defer(move |cx| landed(true, cx));
+            return;
+        }
+        if self.link.is_none() {
+            cx.defer(move |cx| landed(false, cx));
+            return;
+        }
+        self.around.catalog_waiters.entry(workspace.to_owned()).or_default().push(Box::new(landed));
+        self.fetch_catalog(workspace, cx);
+    }
+
+    fn fetch_catalog(&mut self, workspace: &str, cx: &mut Context<Self>) {
+        let Some(link) = self.link.clone() else { return };
+        if self.around.catalogs.contains_key(workspace) {
+            return;
+        }
+        let workspace = workspace.to_owned();
+        self.around.catalogs.insert(workspace.clone(), Vec::new());
+        let task = link.runtime.spawn(host::ask::<HarnessesListRequest>(link.host.clone(), json!({ "workspaceId": workspace })));
+        cx.spawn(async move |this, cx| {
+            let listed: Option<Vec<Value>> = match task.await {
+                Ok(Ok(listed)) => Some(listed.harnesses.iter().filter_map(|h| serde_json::to_value(h).ok()).collect()),
+                _ => None,
+            };
+            let catalog: Vec<Catalog> = listed
+                .iter()
+                .flatten()
+                .filter_map(|h| {
+                    Some(Catalog {
+                        harness: h.get("harness")?.as_str()?.to_owned(),
+                        terminal_resume: h.get("terminalResume").and_then(Value::as_str).map(str::to_owned),
+                        models: h
+                            .get("models")
+                            .and_then(Value::as_array)
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|m| Some((m.get("value")?.as_str()?.to_owned(), m.get("label")?.as_str()?.to_owned())))
+                            .collect(),
+                        keeps_rename: h.get("source").and_then(Value::as_str) == Some("table")
+                            || h.get("renames").and_then(Value::as_bool) != Some(false),
+                    })
+                })
+                .collect();
+            // A failed ask leaves the workspace with no catalog until the next full read asks again; a workspace deleted
+            // or a connection read again while it was asked has no place for it, and its waiters wait on that read.
+            let told = this.update(cx, |this, cx| {
+                let Some(slot) = this.around.catalogs.get_mut(&workspace) else { return Vec::new() };
+                let landed = listed.is_some();
+                if let Some(listed) = listed {
+                    *slot = catalog;
+                    this.around.listed.insert(workspace.clone(), Rc::new(listed));
+                }
+                cx.notify();
+                let waiters = this.around.catalog_waiters.remove(&workspace).unwrap_or_default();
+                waiters.into_iter().map(|w| (w, landed)).collect::<Vec<_>>()
+            });
+            if let Ok(told) = told {
+                cx.update(|cx| told.into_iter().for_each(|(waiter, landed)| waiter(landed, cx)));
+            }
+        })
+        .detach();
     }
 
     /// Asks the host for the project images the preferences name that are not loaded yet.
@@ -664,7 +747,7 @@ impl Sidebar {
     }
 
     fn take(&mut self, s: Snapshot) {
-        self.rows = s.sessions.iter().filter_map(Row::of).collect();
+        self.rows = s.sessions.into_iter().filter_map(Row::owned).collect();
         self.around.places = s.places;
         self.around.job = s.job;
         if !s.statuses.is_empty() {
@@ -676,6 +759,7 @@ impl Sidebar {
         self.around.launches.clear();
         self.around.images.reconnected();
         self.around.catalogs.clear();
+        self.around.listed.clear();
         self.around.checkouts_asked.clear();
         self.take_workspaces(&s.workspaces);
         self.take_projects(&s.projects);
@@ -758,6 +842,16 @@ impl Sidebar {
         }
     }
 
+    /// Whether a project is a git checkout (`ProjectView.git`), which a fork's new branch needs.
+    pub(crate) fn project_git(&self, project_id: &str) -> bool {
+        self.around.project_git.contains(project_id)
+    }
+
+    /// The places list's row for `id`.
+    pub(crate) fn place(&self, id: &str) -> Option<&Value> {
+        self.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(id))
+    }
+
     fn take_projects(&mut self, projects: &[Value]) {
         self.around.project_paths =
             projects.iter().filter_map(|p| Some((p.get("id")?.as_str()?.to_owned(), p.get("path")?.as_str()?.to_owned()))).collect();
@@ -765,6 +859,11 @@ impl Sidebar {
             projects.iter().filter_map(|p| Some((p.get("id")?.as_str()?.to_owned(), p.get("computer")?.as_str()?.to_owned()))).collect();
         self.around.projects =
             projects.iter().filter_map(|p| Some((p.get("id")?.as_str()?.to_owned(), p.get("name")?.as_str()?.to_owned()))).collect();
+        self.around.project_git = projects
+            .iter()
+            .filter(|p| p.get("git").is_some_and(|g| !g.is_null()))
+            .filter_map(|p| Some(p.get("id")?.as_str()?.to_owned()))
+            .collect();
     }
 
     /// Reads the clock again: a working time, an age, or a thread settling by time.
@@ -1108,7 +1207,7 @@ impl Sidebar {
     fn drop_on(&mut self, dragged: &str, target: &DropTarget, cx: &mut Context<Self>) {
         if *target == DropTarget::Head(Section::Settled) {
             if self.tree_works(dragged) {
-                return self.refuse("A thread in it is still working".to_owned(), cx);
+                return self.refuse(menu::settle_refusal(true).unwrap_or_default(), cx);
             }
             return self.settle(dragged, cx);
         }
@@ -1338,7 +1437,7 @@ impl Sidebar {
 }
 
 /// `renameNotTakenLine`: why the agent kept no name, in the person's words.
-fn rename_not_taken_line(harness: &str, outcome: &str, error: Option<&str>) -> String {
+pub(crate) fn rename_not_taken_line(harness: &str, outcome: &str, error: Option<&str>) -> String {
     match outcome {
         "unsupported" => format!("Rename in {} is not kept", catalog::name(harness)),
         "no-session" => format!("{} on the task has no session for this thread yet", catalog::name(harness)),
