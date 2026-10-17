@@ -38,6 +38,8 @@ export const CLOUD_SETUP_WORDS = {
   screen: {
     /** A row wsp puts on every image, so its tick cannot be taken off. */
     alwaysOn: "always on",
+    /** What that row says in place of always on once it is pressed. */
+    alwaysOnWhy: "wsp needs it on every image, so it stays on.",
     keycap: "Continue",
     back: "Back",
     again: "Start over",
