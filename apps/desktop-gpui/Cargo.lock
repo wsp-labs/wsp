@@ -1343,6 +1343,7 @@ dependencies = [
  "futures",
  "gpui-kit",
  "image",
+ "serde",
  "serde_json",
  "tokio",
  "wsp-host-client",

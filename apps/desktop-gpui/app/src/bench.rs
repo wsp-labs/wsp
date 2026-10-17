@@ -14,6 +14,8 @@ pub struct Args {
     pub open: Option<String>,
     /// A frosted, composer-sized panel over the bottom of the thread view, to measure what backdrop blur costs.
     pub glass: bool,
+    /// The gallery of shared pieces in place of the app.
+    pub gallery: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,9 +25,10 @@ pub struct Bench {
     pub switch: Vec<String>,
 }
 
-/// `desktop-gpui [--state <state.json>] [--glass] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`
+/// `desktop-gpui [--state <state.json>] [--glass] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`,
+/// or `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
-    let (mut state, mut out, mut thread, mut switch, mut open, mut glass) = (None, None, None, Vec::new(), None, false);
+    let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery) = (None, None, None, Vec::new(), None, false, false);
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or(format!("{flag} takes a value"));
         match flag.as_str() {
@@ -33,6 +36,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--open" => open = Some(value()?),
             "--bench" => out = Some(PathBuf::from(value()?)),
             "--bench-thread" => thread = Some(value()?),
+            "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--glass" => glass = true,
             _ => return Err(format!("unknown flag {flag}")),
@@ -46,7 +50,10 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     if bench.is_some() && open.is_some() {
         return Err("--open and --bench do not go together".to_owned());
     }
-    Ok(Args { state, bench, open, glass })
+    if gallery && (bench.is_some() || open.is_some() || glass) {
+        return Err("--gallery goes alone".to_owned());
+    }
+    Ok(Args { state, bench, open, glass, gallery })
 }
 
 /// The result JSON: frame times are milliseconds from the start of the scroll.
@@ -82,6 +89,9 @@ mod tests {
         assert!(parse(words("--open long --bench /o.json --bench-thread long")).is_err());
         assert!(parse(words("--glass --bench /o.json --bench-thread long")).unwrap().glass);
         assert!(!parse(words("--bench /o.json --bench-thread long")).unwrap().glass);
+        assert!(parse(words("--gallery")).unwrap().gallery);
+        assert!(parse(words("--gallery --open long")).is_err());
+        assert!(parse(words("--gallery --glass")).is_err());
     }
 
     #[test]

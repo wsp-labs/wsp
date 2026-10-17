@@ -1,0 +1,143 @@
+{
+  "name": "Moss",
+  "author": "wsp",
+  "themes": [
+    {
+      "name": "Moss",
+      "mode": "dark",
+      "radius": 8,
+      "radius.lg": 14,
+      "colors": {
+        "background": "#171b19ff",
+        "foreground": "#d8dcd3ff",
+        "border": "#2c332eff",
+        "input.border": "#3a423bff",
+        "muted.background": "#d8dcd30f",
+        "muted.foreground": "#929b92ff",
+        "accent.background": "#d8dcd31a",
+        "accent.foreground": "#d8dcd3ff",
+        "primary.background": "#d8dcd3ff",
+        "primary.foreground": "#141816ff",
+        "primary.hover.background": "#c5c9c0ff",
+        "primary.active.background": "#c5c9c0ff",
+        "secondary.background": "#d8dcd30f",
+        "secondary.foreground": "#d8dcd3ff",
+        "popover.background": "#1d221fff",
+        "popover.foreground": "#d8dcd3ff",
+        "ring": "#d8dcd3ff",
+        "caret": "#d8dcd3ff",
+        "selection.background": "#d8dcd340",
+        "danger.background": "#fb414aff",
+        "success.background": "#00bc7dff",
+        "warning.background": "#fe9a00ff",
+        "info.background": "#2b7fffff",
+        "sidebar.background": "#131715ff",
+        "sidebar.foreground": "#e6eae1ff",
+        "sidebar.border": "#2c332eff",
+        "sidebar.accent.background": "#e6eae112",
+        "sidebar.accent.foreground": "#e6eae1ff",
+        "list.hover.background": "#d8dcd31a",
+        "list.active.background": "#d8dcd31a",
+        "title_bar.background": "#171b19ff",
+        "title_bar.border": "#2c332eff",
+        "window.border": "#2c332eff",
+        "danger.foreground": "#ffffffff",
+        "overlay": "#171b19a3"
+      },
+      "wsp": {
+        "background": "#171b19ff",
+        "foreground": "#d8dcd3ff",
+        "card": "#1d221fff",
+        "card-hover": "#262b28ff",
+        "muted": "#d8dcd30f",
+        "muted-foreground": "#929b92ff",
+        "accent": "#d8dcd31a",
+        "primary": "#d8dcd3ff",
+        "primary-foreground": "#141816ff",
+        "primary-hover": "#c5c9c0ff",
+        "border": "#2c332eff",
+        "input": "#3a423bff",
+        "input-fill": "#ffffff06",
+        "input-fill-hover": "#e5e7e113",
+        "keycap-top": "#ffffff0f",
+        "popover": "#1d221fff",
+        "popover-edge": "#d8dcd31a",
+        "ring": "#d8dcd3ff",
+        "success": "#00bc7dff",
+        "warning": "#fe9a00ff",
+        "warning-foreground": "#dba35aff",
+        "error": "#fb414aff",
+        "error-foreground": "#e07a72ff",
+        "destructive": "#fb414aff",
+        "info-foreground": "#96bbe3ff",
+        "placeholder": "#929b92ff",
+        "sidebar": "#131715ff",
+        "sidebar-foreground": "#e6eae1ff",
+        "sidebar-muted-foreground": "#9ca59cff",
+        "sidebar-row-hover": "#e6eae10a",
+        "sidebar-row-selected": "#e6eae112",
+        "sidebar-row-edge": "#00000000",
+        "status-input": "#a3b3ffff",
+        "status-working": "#f472b6ff",
+        "status-failed": "#ffa2a2ff",
+        "status-done": "#5ee9b5ff",
+        "dialog-shadow": [
+          {
+            "inset": true,
+            "x": 0,
+            "y": 1,
+            "blur": 0,
+            "spread": 0,
+            "color": "#ffffff0a"
+          },
+          {
+            "inset": false,
+            "x": 0,
+            "y": 24,
+            "blur": 72,
+            "spread": -20,
+            "color": "#000000e6"
+          }
+        ],
+        "popover-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 18,
+            "blur": 44,
+            "spread": -18,
+            "color": "#000000cc"
+          }
+        ],
+        "control-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 1,
+            "blur": 2,
+            "spread": 0,
+            "color": "#0000000d"
+          }
+        ],
+        "tooltip-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 4,
+            "blur": 6,
+            "spread": -1,
+            "color": "#0000000d"
+          },
+          {
+            "inset": false,
+            "x": 0,
+            "y": 2,
+            "blur": 4,
+            "spread": -2,
+            "color": "#0000000d"
+          }
+        ]
+      }
+    }
+  ]
+}
