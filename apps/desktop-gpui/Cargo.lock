@@ -1340,11 +1340,16 @@ dependencies = [
 name = "desktop-gpui"
 version = "0.1.0"
 dependencies = [
+ "cocoa 0.26.0",
  "futures",
  "gpui-kit",
  "image",
+ "libc",
+ "objc",
+ "raw-window-handle",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "wsp-host-client",
 ]
