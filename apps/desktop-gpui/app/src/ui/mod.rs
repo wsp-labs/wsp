@@ -6,18 +6,30 @@
 pub mod card;
 pub mod controls;
 pub mod dialog;
+pub mod focus;
+pub mod grain;
+pub mod grid;
 pub mod icons;
+pub mod motion;
+pub mod select;
 pub mod status;
 pub mod theme;
+pub mod toggle;
 
 use gpui_kit::{px, App, Pixels};
 
-pub use card::{glyph_frame, section_head, Card, CardItem, KeyCaps, Line, Row};
-pub use controls::{Button, ButtonKind, Choice, Field, PickRow, Select, SelectList};
-pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, CopyRow, Dialog};
-pub use icons::{Glyph, UiAssets};
-pub use status::{spinner, step_mark, Crab, Status, StatusMark, Step, StepRow, Still};
+pub use card::{
+    chips, framed, glyph, glyph_frame, section_head, word, Card, CardItem, Chip, HeadRow, KeyCaps, Line, Row, WordClass, Words, RESET_WORD,
+};
+pub use controls::{Button, ButtonKind, Choice, Field, PickRow};
+pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, tip, AlertDialog, CopyRow, Dialog, Refusal};
+pub use grain::grain;
+pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
+pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
+pub use select::{Select, SelectEvent, SelectItem, SelectState};
+pub use status::{spinner, step_mark, Crab, RowSkeleton, Skeleton, Status, StatusMark, Step, StepRow, Still};
 pub use theme::{ActivePalette, Palette, Side};
+pub use toggle::{Segment, SegmentedControl, Switch};
 
 /// Every size below is `layout.ts`'s, or the Tailwind class a piece in its list writes, in pixels.
 pub mod size {
