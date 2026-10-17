@@ -60,6 +60,8 @@
         "input-fill": "#ffffff06",
         "input-fill-hover": "#e3e6ee13",
         "keycap-top": "#ffffff0f",
+        "chip-top": "#ffffff0f",
+        "skeleton-highlight": "#ffffff0a",
         "popover": "#1a1d27ff",
         "popover-edge": "#d6dae61a",
         "ring": "#7d95eaff",
@@ -69,6 +71,7 @@
         "error": "#fb414aff",
         "error-foreground": "#ef7a85ff",
         "destructive": "#fb414aff",
+        "on-destructive": "#ffffffff",
         "info-foreground": "#9fb3f2ff",
         "placeholder": "#8e96aaff",
         "sidebar": "#10121aff",
@@ -77,10 +80,23 @@
         "sidebar-row-hover": "#e0e4ee0a",
         "sidebar-row-selected": "#e0e4ee12",
         "sidebar-row-edge": "#00000000",
+        "sidebar-border": "#282d3cff",
+        "sidebar-whisper": "#9aa2b6ff",
+        "top-row-meta": "#9aa2b68c",
+        "sidebar-prose": "#9aa2b6bf",
+        "sidebar-icon-color": "#636878ff",
         "status-input": "#a3b3ffff",
         "status-working": "#f472b6ff",
         "status-failed": "#ffa2a2ff",
         "status-done": "#5ee9b5ff",
+        "hue-red": "#fb2c36ff",
+        "hue-orange": "#ff6900ff",
+        "hue-amber": "#fe9a00ff",
+        "hue-green": "#00bc7dff",
+        "hue-teal": "#00bba7ff",
+        "hue-blue": "#00a6f4ff",
+        "hue-violet": "#8e51ffff",
+        "hue-pink": "#f6339aff",
         "dialog-shadow": [
           {
             "inset": true,
@@ -119,6 +135,8 @@
             "color": "#0000000d"
           }
         ],
+        "thumb-shadow": [{ "inset": false, "x": 0, "y": 1, "blur": 3, "spread": 0, "color": "#0000000d" }, { "inset": false, "x": 0, "y": 1, "blur": 2, "spread": -1, "color": "#0000000d" }],
+        "dropdown-shadow": [{"inset": false, "x": 0, "y": 18, "blur": 44, "spread": -18, "color": "#000000cc"}],
         "tooltip-shadow": [
           {
             "inset": false,

@@ -2,6 +2,7 @@
 pub mod bench;
 pub mod gallery;
 pub mod glass;
+pub mod screens;
 pub mod shell;
 pub mod sidebar;
 pub mod thread_view;
