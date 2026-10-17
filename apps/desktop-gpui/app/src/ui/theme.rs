@@ -6,7 +6,10 @@
 use std::rc::Rc;
 
 use gpui_kit::component::{Theme, ThemeConfig, ThemeMode, ThemeRegistry};
-use gpui_kit::{point, px, App, BoxShadow, Global, Hsla, Rgba, SharedString};
+use gpui_kit::{
+    point, px, AnyElement, App, Bounds, BoxShadow, Element, ElementId, Global, GlobalElementId, Hsla, InspectorElementId, IntoElement,
+    LayoutId, Pixels, Rgba, SharedString, Window,
+};
 use serde::Deserialize;
 
 /// Which side of the app a theme draws: the side a window's own appearance follows.
@@ -150,6 +153,23 @@ palette!(
     status_working,
     status_failed,
     status_done,
+    sidebar_whisper,
+    sidebar_canvas,
+    sidebar_card,
+    sidebar_hover,
+    sidebar_hover_ink,
+    sidebar_fill,
+    sidebar_quiet,
+    sidebar_input,
+    sidebar_control_surface,
+    sidebar_row_active,
+    sidebar_rail,
+    sidebar_border,
+    top_row_meta,
+    sidebar_prose,
+    sidebar_row_rest,
+    sidebar_icon_color,
+    pr_merged,
 );
 
 #[derive(Deserialize)]
@@ -193,6 +213,106 @@ pub trait ActivePalette {
 impl ActivePalette for App {
     fn palette(&self) -> &Palette {
         &self.global::<WspTheme>().palette
+    }
+}
+
+impl Palette {
+    /// `[data-app-sidebar]` in `index.css`: the page's roles drawn in the sidebar's own tokens.
+    pub fn sidebar_scope(&self) -> Palette {
+        Palette {
+            background: self.sidebar_canvas,
+            foreground: self.sidebar_foreground,
+            card: self.sidebar_card,
+            accent: self.sidebar_hover,
+            muted: self.sidebar_fill,
+            muted_foreground: self.sidebar_quiet,
+            input: self.sidebar_input,
+            ..self.clone()
+        }
+    }
+}
+
+/// Runs `f` with `palette` as the active one: a view's render that builds a scope's elements reads the scope's tokens.
+pub fn within<C: std::ops::DerefMut<Target = App>, R>(palette: Palette, cx: &mut C, f: impl FnOnce(&mut C) -> R) -> R {
+    let page = std::mem::replace(&mut (**cx).global_mut::<WspTheme>().palette, palette);
+    let out = f(cx);
+    (**cx).global_mut::<WspTheme>().palette = page;
+    out
+}
+
+/// Lays out, prepaints and paints `child` with `palette` as the active one, so a shared piece drawn inside reads the
+/// scope's tokens, as a CSS scope's custom properties reach every element under it.
+pub fn scoped(palette: Palette, child: impl IntoElement) -> Scoped {
+    Scoped { palette, child: child.into_any_element() }
+}
+
+pub struct Scoped {
+    palette: Palette,
+    child: AnyElement,
+}
+
+impl Scoped {
+    fn within<R>(&mut self, cx: &mut App, f: impl FnOnce(&mut AnyElement, &mut App) -> R) -> R {
+        std::mem::swap(&mut cx.global_mut::<WspTheme>().palette, &mut self.palette);
+        let out = f(&mut self.child, cx);
+        std::mem::swap(&mut cx.global_mut::<WspTheme>().palette, &mut self.palette);
+        out
+    }
+}
+
+impl IntoElement for Scoped {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+impl Element for Scoped {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        (self.within(cx, |child, cx| child.request_layout(window, cx)), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.within(cx, |child, cx| child.prepaint(window, cx));
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.within(cx, |child, cx| child.paint(window, cx));
     }
 }
 
@@ -248,6 +368,13 @@ pub fn set_theme(id: &str, cx: &mut App) {
         // wsp's focused field tints its edge in the ring color and draws no ring outside it.
         theme.focus_ring = false;
     });
+}
+
+/// Sets the palette wsp's pieces read to the side's default and leaves gpui-kit's theme as it is, for a window whose
+/// other screens still draw in gpui-kit's own.
+pub fn install_palette(side: Side, cx: &mut App) {
+    let entry = theme_by_id(if side == Side::Dark { DARK } else { LIGHT }).expect("each side's default is registered");
+    cx.set_global(WspTheme { entry, palette: entry.palette() });
 }
 
 pub fn current(cx: &App) -> &'static ThemeEntry {

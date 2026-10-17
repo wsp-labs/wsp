@@ -53,6 +53,9 @@ fn main() {
             cx.activate(true);
             return;
         }
+        // The sidebar draws in wsp's palette; the rest of the main window keeps gpui-kit's default theme.
+        let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
+        ui::theme::install_palette(if dark { Side::Dark } else { Side::Light }, cx);
         // The Electron app's window size, so both benches scroll the same viewport.
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(

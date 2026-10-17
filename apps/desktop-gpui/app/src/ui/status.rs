@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{
-    canvas, div, fill, point, prelude::*, px, size as gsize, Animation, AnimationExt as _, App, Bounds, FontWeight, Global, Hsla, Pixels,
-    SharedString, Transformation, Window,
+    canvas, div, fill, point, prelude::*, px, size as gsize, Animation, AnimationExt as _, App, Bounds, Context, ElementId, FontWeight,
+    Global, Hsla, Pixels, SharedString, Task, Transformation, Window,
 };
 
 use super::card::{row_frame, CardItem, Corners};
@@ -41,56 +41,119 @@ pub fn spinner(cx: &App) -> impl IntoElement {
     .into_any_element()
 }
 
-/// A thread's state in its row's status slot. The glyph stands alone; its word belongs on the hover.
+/// A thread's state in its row's status slot: every kind of `apps/web/src/components/status/kinds/`, in its registry's
+/// order, and the Finished fold's own. The glyph stands alone; its word belongs on the hover.
 #[derive(Clone, PartialEq)]
 pub enum Status {
     NeedsYou,
+    /// Held for a slot.
+    Waiting,
+    /// The crab is its glyph.
+    Starting,
     /// Working, with the time it has run: `0s`, `59m`, `1h 5m`.
     Working(SharedString),
+    /// At its plan's limit.
+    Limited,
+    /// Waiting for a limit's reset to go on.
+    Resuming,
     Failed,
+    Released,
+    Expired,
+    Stopped,
+    NotPushed,
+    /// Ended and not yet seen.
     Done,
-    Waiting,
     /// Read, with its age: `14m`, `3h`, `2d`.
     Read(SharedString),
+    /// A sub-thread in a Finished fold.
+    Finished,
 }
 
 /// The status mark in a one-line row: 12 px, the time before the glyph or the crab, weight 500 where it is toned.
 #[derive(IntoElement)]
 pub struct StatusMark {
     status: Status,
+    crab: bool,
+    rest: Option<Hsla>,
+    key: Option<ElementId>,
+    text: (Pixels, Pixels),
 }
 
 impl StatusMark {
     pub fn new(status: Status) -> Self {
-        StatusMark { status }
+        StatusMark { status, crab: true, rest: None, key: None, text: text::XS }
+    }
+
+    /// Whether a working thread's crab stands in the slot; a tile draws it at its title's end instead.
+    pub fn crab(mut self, crab: bool) -> Self {
+        self.crab = crab;
+        self
+    }
+
+    /// The ink of a kind with no tone, which takes its row's own; the muted ink where none is given.
+    pub fn rest_ink(mut self, ink: Hsla) -> Self {
+        self.rest = Some(ink);
+        self
+    }
+
+    /// The size and line height of its time, where the slot takes its row's, as a tile's first row does.
+    pub fn text(mut self, size: Pixels, line_height: Pixels) -> Self {
+        self.text = (size, line_height);
+        self
+    }
+
+    /// The key of the crab the mark draws, where a list draws several.
+    pub fn key(mut self, key: impl Into<ElementId>) -> Self {
+        self.key = Some(key.into());
+        self
     }
 }
 
 impl RenderOnce for StatusMark {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette();
+        let rest = self.rest.unwrap_or(p.muted_foreground);
         let (glyph, time, ink, toned) = match &self.status {
             Status::NeedsYou => (Some(Glyph::MessageCircleQuestionMark), None, p.status_input, true),
+            Status::Waiting => (Some(Glyph::Hourglass), None, rest, false),
+            Status::Starting => (None, None, p.status_working, true),
             Status::Working(elapsed) => (None, Some(elapsed.clone()), p.status_working, true),
+            Status::Limited => (Some(Glyph::Gauge), None, p.warning_foreground, true),
+            Status::Resuming => (Some(Glyph::Hourglass), None, rest, false),
             Status::Failed => (Some(Glyph::CircleAlert), None, p.status_failed, true),
+            Status::Released => (Some(Glyph::CloudOff), None, rest, false),
+            Status::Expired => (Some(Glyph::CalendarX2), None, rest, false),
+            Status::Stopped => (Some(Glyph::CircleStop), None, rest, false),
+            Status::NotPushed => (Some(Glyph::Upload), None, p.status_input, true),
             Status::Done => (Some(Glyph::CircleCheck), None, p.status_done, true),
-            Status::Waiting => (Some(Glyph::Hourglass), None, p.muted_foreground, false),
-            Status::Read(age) => (None, Some(age.clone()), p.muted_foreground, false),
+            Status::Read(age) => (None, Some(age.clone()), rest, false),
+            Status::Finished => (Some(Glyph::CircleCheck), None, rest, false),
         };
-        let working = matches!(self.status, Status::Working(_));
+        let crab = match self.status {
+            Status::Starting => true,
+            Status::Working(_) => self.crab,
+            _ => false,
+        };
+        let key = self.key;
         h_flex()
             .debug_selector(|| "status-mark".into())
             .flex_none()
             .min_w(px(16.))
             .justify_end()
             .gap_1()
-            .text_size(text::XS.0)
-            .line_height(text::XS.1)
+            .text_size(self.text.0)
+            .line_height(self.text.1)
             .font_weight(if toned { FontWeight::MEDIUM } else { FontWeight::NORMAL })
             .text_color(ink)
             .children(time)
             .children(glyph.map(|g| Icon::new(g).with_size(px(12.)).text_color(ink)))
-            .when(working, |el| el.child(Crab::new(ink)))
+            .when(crab, |el| {
+                let crab = Crab::new(ink);
+                el.child(match key {
+                    Some(key) => crab.key(key),
+                    None => crab,
+                })
+            })
     }
 }
 
@@ -262,38 +325,102 @@ pub fn crab_frame(t: f64) -> Vec<(f32, f32, f32, f32, f32)> {
     out
 }
 
+/// The ms from `t` to the crab's next pose: a claw, a leg, a toe or the eyes a pixel from where they are. Between two
+/// poses only the feet's alpha glides, by at most 0.2.
+pub fn next_pose(t: f64) -> f64 {
+    let pose = |t: f64| crab_frame(t).into_iter().map(|(x, y, w, h, _)| (x, y, w, h)).collect::<Vec<_>>();
+    let now = pose(t);
+    let mut ahead = POSE_STEP_MS;
+    while ahead < 1000. && pose(t + ahead) == now {
+        ahead += POSE_STEP_MS;
+    }
+    ahead
+}
+
 /// When the first crab was drawn, so every crab walks in step.
 fn started() -> Instant {
     static STARTED: OnceLock<Instant> = OnceLock::new();
     *STARTED.get_or_init(Instant::now)
 }
 
-/// The crab, in the ink it is given: an agent working. Never a loading spinner.
-#[derive(IntoElement)]
-pub struct Crab {
-    ink: Hsla,
+/// The most frames a second a walking crab draws. The web's draws on every animation frame, but there a frame is one
+/// canvas copy; here each one draws the crab's view and the views above it again, so it draws only when a pixel of
+/// the crab moves (`next_pose`), never more often than this.
+pub const CRAB_FPS: u32 = 30;
+/// How finely `next_pose` looks ahead for the crab's next move.
+const POSE_STEP_MS: f64 = 4.;
+/// `SCROLL_HOLD_MS` in `apps/web/src/lib/frames.ts`: crabs hold their frame this long after the last scroll.
+pub const SCROLL_HOLD: Duration = Duration::from_millis(150);
+
+/// When anything holding crabs last scrolled.
+#[derive(Clone, Copy, Default)]
+pub struct Scrolled(pub Option<Instant>);
+
+impl Global for Scrolled {}
+
+/// Holds every crab still for `SCROLL_HOLD` from now; a scrolling list calls it on each scroll.
+pub fn hold_crabs(cx: &mut App) {
+    cx.set_global(Scrolled(Some(Instant::now())));
 }
 
-impl Crab {
+fn held_for(cx: &App) -> Option<Duration> {
+    let since = cx.try_global::<Scrolled>()?.0?.elapsed();
+    SCROLL_HOLD.checked_sub(since).filter(|left| !left.is_zero())
+}
+
+/// One walking crab, its own entity. It asks for its next frame from its paint alone, and only when that paint lands
+/// inside the window's visible area, so a crab scrolled out of view, clipped away or no longer drawn asks for none.
+pub struct CrabView {
+    ink: Hsla,
+    /// The walk's time the crab shows, in ms.
+    t: f64,
+    next: Option<Task<()>>,
+}
+
+impl CrabView {
     pub fn new(ink: Hsla) -> Self {
-        Crab { ink }
+        CrabView { ink, t: started().elapsed().as_secs_f64() * 1000., next: None }
+    }
+
+    /// Whether a next frame is asked for, which a test reads.
+    pub fn walking(&self) -> bool {
+        self.next.is_some()
+    }
+
+    fn ask_next(&mut self, cx: &mut Context<Self>) {
+        if self.next.is_some() || still(cx) {
+            return;
+        }
+        let t = started().elapsed().as_secs_f64() * 1000.;
+        let wait = held_for(cx).unwrap_or_else(|| Duration::from_secs_f64(next_pose(t) / 1000.).max(Duration::from_secs(1) / CRAB_FPS));
+        self.next = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(wait).await;
+            _ = this.update(cx, |this, cx| {
+                this.next = None;
+                cx.notify();
+            });
+        }));
     }
 }
 
-impl RenderOnce for Crab {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        // Held still, the crab draws its frame at t = 0, as the web's does under reduced motion.
-        let (ink, still) = (self.ink, still(cx));
+impl Render for CrabView {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if still(cx) {
+            // Held still, the crab draws its frame at t = 0, as the web's does under reduced motion.
+            self.t = 0.;
+        } else if held_for(cx).is_none() {
+            self.t = started().elapsed().as_secs_f64() * 1000.;
+        }
+        let (ink, t, me) = (self.ink, self.t, cx.weak_entity());
         let pixels = canvas(
             |_, _, _| (),
-            move |bounds: Bounds<Pixels>, _, window, _| {
-                let t = if still { 0. } else { started().elapsed().as_secs_f64() * 1000. };
+            move |bounds: Bounds<Pixels>, _, window, cx| {
                 for (x, y, w, h, a) in crab_frame(t) {
                     let origin = bounds.origin + point(px(x), px(y));
                     window.paint_quad(fill(Bounds::new(origin, gsize(px(w), px(h))), ink.opacity(a)));
                 }
-                if !still {
-                    window.request_animation_frame();
+                if window.content_mask().bounds.intersects(&bounds) {
+                    _ = me.update(cx, |this, cx| this.ask_next(cx));
                 }
             },
         )
@@ -302,9 +429,53 @@ impl RenderOnce for Crab {
     }
 }
 
+/// The crab, in the ink it is given: an agent working. Never a loading spinner. Each one is a `CrabView` kept for as
+/// long as the element is drawn, under the key it is given, or the place it was made at.
+#[derive(IntoElement)]
+pub struct Crab {
+    ink: Hsla,
+    key: ElementId,
+}
+
+impl Crab {
+    #[track_caller]
+    pub fn new(ink: Hsla) -> Self {
+        Crab { ink, key: ElementId::CodeLocation(*std::panic::Location::caller()) }
+    }
+
+    /// The crab's own key, where one place draws several crabs, as rows of a list do.
+    pub fn key(mut self, key: impl Into<ElementId>) -> Self {
+        self.key = key.into();
+        self
+    }
+}
+
+impl RenderOnce for Crab {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let ink = self.ink;
+        let view = window.use_keyed_state(self.key, cx, |_, _| CrabView::new(ink));
+        view.update(cx, |v, _| v.ink = ink);
+        view
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::crab_frame;
+    use super::{crab_frame, next_pose};
+
+    #[test]
+    fn the_crab_moves_a_pixel_about_nine_times_a_second() {
+        let mut t = 0.;
+        let mut poses = 0;
+        while t < 10_000. {
+            t += next_pose(t);
+            poses += 1;
+        }
+        assert!((80..=100).contains(&poses), "{poses} poses in 10 s");
+        let pose = |t: f64| crab_frame(t).into_iter().map(|(x, y, w, h, _)| (x, y, w, h)).collect::<Vec<_>>();
+        assert_eq!(pose(1234.), pose(1234. + next_pose(1234.) - 4.), "nothing moves before the next pose");
+        assert_ne!(pose(1234.), pose(1234. + next_pose(1234.)));
+    }
 
     /// Composited alpha per pixel, two decimals, as the web's canvas stacks them: `.claude/skills/wsp-design`'s
     /// `crab.js` run at the same `t`.

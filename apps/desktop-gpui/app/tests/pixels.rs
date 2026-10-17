@@ -106,7 +106,10 @@ fn render() -> (Capture, Colors) {
         Arc::new(UiAssets),
         gpui_kit::platform::current_headless_renderer,
     );
-    cx.update(gpui_kit::init);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::theme::install_palette(desktop_gpui::ui::Side::Light, cx);
+    });
     let (sidebar, thread_view) = cx.update(|cx| (cx.new(Sidebar::new), cx.new(ThreadView::new)));
     cx.update(|cx| {
         sidebar.update(cx, |s, cx| {
@@ -146,7 +149,11 @@ fn render() -> (Capture, Colors) {
     }
     let colors = cx.update(|cx| {
         let theme = cx.theme();
-        Colors { sidebar: rgb(theme.sidebar), background: rgb(theme.background), bubble: rgb(theme.secondary) }
+        Colors {
+            sidebar: rgb(desktop_gpui::ui::ActivePalette::palette(cx).sidebar),
+            background: rgb(theme.background),
+            bubble: rgb(theme.secondary),
+        }
     });
     let (width, height) = image.dimensions();
     (Capture { width, height, scale, raw: image.into_raw() }, colors)

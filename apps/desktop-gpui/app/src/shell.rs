@@ -17,7 +17,7 @@ use wsp_host_client::{Env, Failure, HostClient, Live};
 
 use crate::bench::{self, PX_PER_S};
 use crate::glass::composer_glass;
-use crate::sidebar::{Selected, Sidebar, ThreadItem, WIDTH};
+use crate::sidebar::{Link, Selected, Sidebar, ThreadItem, WIDTH};
 use crate::thread_view::ThreadView;
 
 /// A bench that has not finished by then is stuck, and says so rather than hang the run.
@@ -99,7 +99,9 @@ impl Shell {
             let connected = connecting.await.unwrap_or_else(|e| Err(Failure::new(e.to_string())));
             _ = this.update(cx, |this, cx| match connected {
                 Ok((host, threads)) => {
-                    this.host = Some(Arc::new(host));
+                    let host = Arc::new(host);
+                    this.host = Some(host.clone());
+                    this.sidebar.update(cx, |s, cx| s.attach(Link { host, runtime: this.runtime.clone() }, cx));
                     this.sidebar.update(cx, |s, cx| s.set_items(threads.iter().filter_map(ThreadItem::of).collect(), cx));
                     if let Some(thread) = &open {
                         let Some(item) = this.sidebar.update(cx, |s, cx| s.mark(thread, cx)) else {
@@ -286,6 +288,16 @@ pub fn layout(sidebar: &Entity<Sidebar>, thread_view: &Entity<ThreadView>, glass
         .size_full()
         .bg(cx.theme().background)
         .text_color(cx.theme().foreground)
-        .child(sidebar.clone().cached(StyleRefinement::default().w(WIDTH).h_full()))
+        .child(
+            div()
+                .w(WIDTH)
+                .h_full()
+                .flex_none()
+                .bg(crate::ui::ActivePalette::palette(cx).sidebar)
+                .border_r_1()
+                .border_color(crate::ui::ActivePalette::palette(cx).sidebar_border)
+                .pt(crate::sidebar::chrome::HEADER)
+                .child(sidebar.clone().cached(StyleRefinement::default().size_full())),
+        )
         .child(div().relative().flex_1().h_full().child(thread_view.clone().cached(StyleRefinement::default().size_full())).children(glass))
 }
