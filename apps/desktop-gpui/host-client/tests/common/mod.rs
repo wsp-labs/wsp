@@ -258,7 +258,7 @@ impl Throwaway {
 
     /// A terminated host stops its daemon on its way out and a killed one leaves it running. Neither stops a running
     /// turn, whose process runs apart from the host so it outlives a restart, so those are interrupted first.
-    fn stop(&mut self) {
+    pub fn stop(&mut self) {
         if matches!(self.host.try_wait(), Ok(None)) {
             interrupt_turns(self.dir.path());
         }

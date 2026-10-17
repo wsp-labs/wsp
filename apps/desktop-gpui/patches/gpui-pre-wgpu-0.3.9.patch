@@ -647,7 +647,7 @@ index b541607..ed04fd3 100644
              AtlasTextureKind::Monochrome => wgpu::TextureFormat::R8Unorm,
              AtlasTextureKind::Subpixel | AtlasTextureKind::Polychrome => self.color_texture_format,
 diff --git a/src/wgpu_renderer.rs b/src/wgpu_renderer.rs
-index 8387528..71fb0f4 100644
+index 8387528..bfe7f43 100644
 --- a/src/wgpu_renderer.rs
 +++ b/src/wgpu_renderer.rs
 @@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
@@ -1425,7 +1425,7 @@ index 8387528..71fb0f4 100644
              pass.set_bind_group(0, &resources.path_globals_bind_group, &[]);
              pass.set_bind_group(1, &vertex_binding.bind_group, &[]);
              // The path rasterization shader loads records by vertex index
-@@ -1903,12 +2280,252 @@ impl WgpuRendererCore {
+@@ -1903,12 +2280,267 @@ impl WgpuRendererCore {
          Ok(true)
      }
  
@@ -1495,7 +1495,7 @@ index 8387528..71fb0f4 100644
 +            textures,
 +            views,
 +            bind_groups: [source, scaled, horizontal],
-+        } = self.ensure_backdrop_blur_textures(width, height);
++        } = self.ensure_backdrop_blur_textures([width, height], [scaled_width, scaled_height]);
 +        encoder.copy_texture_to_texture(
 +            wgpu::TexelCopyTextureInfo {
 +                texture: target,
@@ -1579,23 +1579,32 @@ index 8387528..71fb0f4 100644
 +        }
 +    }
 +
-+    /// One frame's blurs share these textures, grown to the largest region.
-+    fn ensure_backdrop_blur_textures(&mut self, width: u32, height: u32) -> BackdropBlurTextures {
++    /// One frame's blurs share these textures: the copy grown to the largest region, and the two
++    /// it is blurred through to the largest region as downscaled.
++    fn ensure_backdrop_blur_textures(
++        &mut self,
++        region: [u32; 2],
++        scaled: [u32; 2],
++    ) -> BackdropBlurTextures {
 +        let resources = &mut self.resources;
++        let fits = |texture: &wgpu::Texture, [width, height]: [u32; 2]| {
++            texture.width() >= width && texture.height() >= height
++        };
 +        if let Some(blur) = &resources.backdrop_blur_textures
-+            && blur.textures[0].width() >= width
-+            && blur.textures[0].height() >= height
++            && fits(&blur.textures[0], region)
++            && fits(&blur.textures[1], scaled)
 +        {
 +            return blur.clone();
 +        }
-+        let (width, height) = match &resources.backdrop_blur_textures {
-+            Some(blur) => (
-+                blur.textures[0].width().max(width),
-+                blur.textures[0].height().max(height),
-+            ),
-+            None => (width, height),
++        let grown = |ix: usize, [width, height]: [u32; 2]| match &resources.backdrop_blur_textures {
++            Some(blur) => [
++                blur.textures[ix].width().max(width),
++                blur.textures[ix].height().max(height),
++            ],
++            None => [width, height],
 +        };
-+        let create = |label, usage| {
++        let sizes = [grown(0, region), grown(1, scaled), grown(2, scaled)];
++        let create = |label, usage, [width, height]: [u32; 2]| {
 +            resources.device.create_texture(&wgpu::TextureDescriptor {
 +                label: Some(label),
 +                size: wgpu::Extent3d {
@@ -1612,14 +1621,20 @@ index 8387528..71fb0f4 100644
 +            })
 +        };
 +        let textures = [
-+            create("backdrop_blur_source", wgpu::TextureUsages::COPY_DST),
++            create(
++                "backdrop_blur_source",
++                wgpu::TextureUsages::COPY_DST,
++                sizes[0],
++            ),
 +            create(
 +                "backdrop_blur_scaled",
 +                wgpu::TextureUsages::RENDER_ATTACHMENT,
++                sizes[1],
 +            ),
 +            create(
 +                "backdrop_blur_horizontal",
 +                wgpu::TextureUsages::RENDER_ATTACHMENT,
++                sizes[2],
 +            ),
 +        ];
 +        let views = textures
@@ -1678,7 +1693,7 @@ index 8387528..71fb0f4 100644
          let data = unsafe { Self::instance_bytes(instances) };
          // wgpu rejects zero-sized bindings, so empty primitive arrays still
          // reserve the 16-byte minimum.
-@@ -1949,31 +2566,15 @@ impl WgpuRendererCore {
+@@ -1949,31 +2581,15 @@ impl WgpuRendererCore {
                  }
              }
          }
@@ -1719,7 +1734,7 @@ index 8387528..71fb0f4 100644
      }
  
      fn write_instance_texture(resources: &WgpuResources, offset: u64, data: &[u8]) {
-@@ -2399,14 +3000,13 @@ impl WgpuHeadlessRenderer {
+@@ -2399,14 +3015,13 @@ impl WgpuHeadlessRenderer {
      fn render(&mut self, scene: &Scene, size: Size<DevicePixels>) -> anyhow::Result<()> {
          self.check_gpu_errors()?;
          self.ensure_render_target(size)?;
@@ -1738,7 +1753,7 @@ index 8387528..71fb0f4 100644
          Ok(())
      }
  
-@@ -2549,6 +3149,29 @@ fn instance_range(range: Range<usize>) -> Range<u32> {
+@@ -2549,6 +3164,29 @@ fn instance_range(range: Range<usize>) -> Range<u32> {
      range.start as u32..range.end as u32
  }
  
@@ -1768,7 +1783,7 @@ index 8387528..71fb0f4 100644
  #[cfg(not(target_family = "wasm"))]
  fn create_surface(
      instance: &wgpu::Instance,
-@@ -2614,9 +3237,9 @@ impl RenderingParameters {
+@@ -2614,9 +3252,9 @@ impl RenderingParameters {
  mod tests {
      use super::*;
      use gpui::{
@@ -1781,7 +1796,7 @@ index 8387528..71fb0f4 100644
      };
      #[cfg(target_os = "linux")]
      use gpui::{DevicePixels, PlatformHeadlessRenderer, Scene};
-@@ -2630,8 +3253,8 @@ mod tests {
+@@ -2630,8 +3268,8 @@ mod tests {
      }
  
      #[cfg(target_os = "linux")]
@@ -1792,7 +1807,7 @@ index 8387528..71fb0f4 100644
              origin: Point {
                  x: x.into(),
                  y: y.into(),
-@@ -2640,7 +3263,12 @@ mod tests {
+@@ -2640,7 +3278,12 @@ mod tests {
                  width: width.into(),
                  height: height.into(),
              },
@@ -1806,7 +1821,7 @@ index 8387528..71fb0f4 100644
          Quad {
              order: 0,
              border_style: BorderStyle::Solid,
-@@ -2650,6 +3278,8 @@ mod tests {
+@@ -2650,6 +3293,8 @@ mod tests {
              border_color: color,
              corner_radii: Corners::default(),
              border_widths: Edges::default(),
@@ -1815,7 +1830,7 @@ index 8387528..71fb0f4 100644
          }
      }
  
-@@ -2673,6 +3303,8 @@ mod tests {
+@@ -2673,6 +3318,8 @@ mod tests {
      const BLUE: [u8; 4] = [0, 0, 255, 255];
      #[cfg(target_os = "linux")]
      const BLACK: [u8; 4] = [0, 0, 0, 255];
@@ -1824,7 +1839,7 @@ index 8387528..71fb0f4 100644
  
      #[cfg(target_os = "linux")]
      #[test]
-@@ -2771,6 +3403,207 @@ mod tests {
+@@ -2771,6 +3418,207 @@ mod tests {
          Ok(())
      }
  
@@ -2032,7 +2047,7 @@ index 8387528..71fb0f4 100644
      #[test]
      fn webgl_shader_is_valid_wgsl_without_storage_buffers() {
          assert!(!WEBGL_SHADERS.contains("var<storage"));
-@@ -2797,16 +3630,66 @@ mod tests {
+@@ -2797,16 +3645,66 @@ mod tests {
              .expect("shader should validate");
      }
  
@@ -2101,7 +2116,7 @@ index 8387528..71fb0f4 100644
      }
  
      #[test]
-@@ -2876,6 +3759,8 @@ mod tests {
+@@ -2876,6 +3774,8 @@ mod tests {
                  bottom: 32.0.into(),
                  left: 33.0.into(),
              },
@@ -2110,7 +2125,7 @@ index 8387528..71fb0f4 100644
          };
  
          let bytes = unsafe { WgpuRendererCore::instance_bytes(std::slice::from_ref(&quad)) };
-@@ -2923,6 +3808,10 @@ mod tests {
+@@ -2923,6 +3823,10 @@ mod tests {
                  31.0_f32.to_bits(),
                  32.0_f32.to_bits(),
                  33.0_f32.to_bits(),

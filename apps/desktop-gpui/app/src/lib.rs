@@ -9,5 +9,6 @@ pub mod sidebar;
 pub mod thread_view;
 pub mod transcript;
 pub mod ui;
+pub mod words;
 
 pub const TITLE: &str = "wsp";
