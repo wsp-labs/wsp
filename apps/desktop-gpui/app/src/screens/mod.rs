@@ -4,6 +4,7 @@
 //! both the shell's routing and `desktop-gpui --screen <name>` call. Its [`Screen::PLACE`] says where it opens.
 
 pub mod app_shell;
+pub mod composer;
 
 use std::cell::RefCell;
 
@@ -11,8 +12,8 @@ pub use app_shell::{entry, navigate, Entry, Host, Mounted, Opened, Pane, Parts, 
 
 /// The screen named `name`, where it goes and how it is built, or None for a name no screen has.
 pub fn screen(name: &str) -> Option<Entry> {
-    #[allow(clippy::match_single_binding)]
     match name {
+        composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         _ => ADDED.with(|added| added.borrow().iter().find(|(n, _)| *n == name).map(|(_, e)| *e)),
     }
 }
