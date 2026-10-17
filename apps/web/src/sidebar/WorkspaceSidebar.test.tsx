@@ -36,6 +36,13 @@ vi.mock("../components/ui/tooltip.js", () => {
   return { Tooltip, TooltipTrigger, TooltipPopup };
 });
 
+// Every tile the sidebar builds reads its thread's acts off one target, so a count of targets is a count of tiles built.
+const built = vi.hoisted(() => ({ log: [] as string[] }));
+vi.mock("../actions/threadActions.js", async importOriginal => {
+  const real = await importOriginal<typeof import("../actions/threadActions.js")>();
+  return { ...real, threadTarget: (...args: Parameters<typeof real.threadTarget>) => (built.log.push("tile"), real.threadTarget(...args)) };
+});
+
 // The switcher's menu on a plain open/closed context: Base UI's popover never settles under jsdom.
 vi.mock("../components/ui/popover.js", () => {
   const Ctx = createContext<{ open: boolean; set: (open: boolean) => void }>({ open: false, set: () => {} });
@@ -77,7 +84,7 @@ const SHARES = { copies: true, ownNetwork: false } as unknown as Capabilities;
 const landing: WorkspaceLanding = { name: "here", capabilities: SHARES };
 const MAC_ROW: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true };
 
-function mount({ projects, workspaces }: { projects: ProjectView[]; workspaces: WorkspaceView[] }, extra: Record<string, unknown> = {}) {
+function mount({ projects, workspaces }: { projects: ProjectView[]; workspaces: WorkspaceView[] }, extra: Record<string, unknown> = {}, beside: ReactNode = null) {
   const create = vi.fn(async (_project: string, name: string) => ({ ...workspace("ws_new", name, "pr_1") }));
   const settleThreads = vi.fn(async (_threadIds: readonly string[]) => {});
   const markThreads = vi.fn(async (_threadIds: readonly string[], _marks: unknown) => {});
@@ -125,6 +132,7 @@ function mount({ projects, workspaces }: { projects: ProjectView[]; workspaces: 
   render(
     <SidebarProvider defaultOpen>
       <WorkspaceSidebar />
+      {beside}
     </SidebarProvider>,
   );
   return { create, settleThreads, markThreads, restoreThreads, setPreferences };
@@ -826,6 +834,37 @@ describe("the sidebar's list of thread tiles", () => {
     act(() => useStore.getState().select("ws_a", "th_long"));
     await act(() => new Promise(r => setTimeout(r, 0)));
     expect(rowIds()).toEqual(["settled"]);
+  });
+
+  it("opens a thread from a click without building a tile again: the mark moves off one tile onto the other", async () => {
+    const Shown = () => {
+      built.log.push(`view:${useStore(s => s.selectedThreadId)}`);
+      return null;
+    };
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] }, {}, <Shown />);
+    await act(async () => useStore.setState({ sessions: sessions([{ ws: "ws_a", id: "th_one", prompt: "one" }, { ws: "ws_a", id: "th_two", prompt: "two" }, { ws: "ws_a", id: "th_three", prompt: "three" }]) } as never));
+    await waitFor(() => expect(rowIds()).toHaveLength(3));
+    await act(async () => useStore.getState().select("ws_a", "th_one"));
+    expect(rowOf("one").dataset["active"]).toBe("true");
+    built.log.length = 0;
+    await act(async () => useStore.getState().select("ws_a", "th_two"));
+    expect(built.log.filter(entry => entry === "tile")).toEqual([]);
+    expect(built.log).toContain("view:th_two");
+    expect(rowOf("two").dataset["active"]).toBe("true");
+    expect(rowOf("one").dataset["active"]).toBe("false");
+  });
+
+  it("opens a read thread past its settle time, and one in Settled, without building a tile: the hold and the fold move no tile", async () => {
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
+    await act(async () => useStore.setState({ sessions: sessions([{ ws: "ws_a", id: "th_lead", prompt: "lead" }, { ws: "ws_a", id: "th_sub", prompt: "sub", parent: "th_lead", status: "completed", startedAgo: 5 * HOUR, endedAgo: 4 * HOUR }, { ws: "ws_a", id: "th_old", prompt: "old", status: "completed", startedAgo: 5 * HOUR, endedAgo: 4 * HOUR }]) } as never));
+    await waitFor(() => expect(rowIds()).toContain("settled"));
+    fireEvent.click(document.querySelector<HTMLElement>("[data-row-id=settled]")!);
+    await act(async () => useStore.getState().select("ws_a", "th_lead"));
+    for (const to of ["th_sub", "th_old", "th_lead"]) {
+      built.log.length = 0;
+      await act(async () => useStore.getState().select("ws_a", to));
+      expect(built.log, to).toEqual([]);
+    }
   });
 
   it("settles by hand at once, and a turn after the settle brings the thread back to the list", async () => {

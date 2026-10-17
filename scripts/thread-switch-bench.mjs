@@ -19,10 +19,13 @@
 //   node scripts/thread-switch-bench.mjs --mode dev|release --seed <session.jsonl> [--out <file.json>]
 //     [--switches 12] [--stream 8] [--rate 6] [--vite-port 5180] [--port 4700] [--keep]
 //     [--clip <chars>] [--web <apps/web of another checkout>] [--console] [--assert]
+//     [--small <threads>] [--never-settle]
 //
 // --clip cuts every block of the seed to that many characters, so the long threads keep
 // their thousands of events under the host's transcript cap. --assert exits 1 when a
-// bound is missed.
+// bound is missed. --small seeds that many short threads beside the two long ones (10 by
+// default), and --never-settle keeps every one of them a tile in the live list, so a
+// cold open is timed under a sidebar of hundreds of tiles.
 // It stops everything it started and checks the pids are gone before it exits.
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -65,6 +68,8 @@ function args(argv) {
       case "--console": out.console = true; break;
       case "--assert": out.assert = true; break;
       case "--clip": out.clip = Number(value); i += 1; break;
+      case "--small": out.small = Number(value); i += 1; break;
+      case "--never-settle": out.neverSettle = true; break;
       case "--web": i += 1; break;
       default: throw new Error(`unknown flag ${flag}`);
     }
@@ -163,13 +168,13 @@ function makeThread({ name, harness, model, turns, target, workspaceId, cwd, end
   return { threadId, name, harness, events, rows };
 }
 
-function seedDocuments({ workspaceId, cwd, seeds, clip }) {
+function seedDocuments({ workspaceId, cwd, seeds, clip, small = 10 }) {
   const turns = seeds.flatMap(seed => turnsOf(seed, clip));
   if (turns.length === 0) throw new Error("the seed files hold no turns");
   const plan = [
     { name: "long-claude", harness: "claude", model: "opus", target: 2000, endMinutesAgo: 5 },
     { name: "long-codex", harness: "codex", model: "gpt-5.6-sol", target: 2000, endMinutesAgo: 12 },
-    ...Array.from({ length: 10 }, (_, k) => ({ name: `small-${k + 1}`, harness: k % 2 ? "codex" : "claude", model: k % 2 ? "gpt-5.6-sol" : "opus", target: 100, endMinutesAgo: 20 + k * 7 })),
+    ...Array.from({ length: small }, (_, k) => ({ name: `small-${k + 1}`, harness: k % 2 ? "codex" : "claude", model: k % 2 ? "gpt-5.6-sol" : "opus", target: 100, endMinutesAgo: 20 + k * 7 })),
   ];
   const threads = plan.map(p => makeThread({ ...p, turns, workspaceId, cwd }));
   const events = threads.flatMap(t => t.events).sort((a, b) => a.at - b.at);
@@ -695,7 +700,7 @@ async function main() {
     return { workspaceId: workspace.id, cwd: workspace.folder ?? proj };
   });
   await stopOne(first);
-  const seeded = seedDocuments({ workspaceId: made.workspaceId, cwd: made.cwd, seeds: a.seed, clip: a.clip ?? Infinity });
+  const seeded = seedDocuments({ workspaceId: made.workspaceId, cwd: made.cwd, seeds: a.seed, clip: a.clip ?? Infinity, ...(a.small !== undefined ? { small: a.small } : {}) });
   seeded.workspaceId = made.workspaceId;
   // The host keeps its records and each transcript's events as rows of state.db, and reads an index off the rows
   // where none is kept.
@@ -718,6 +723,7 @@ async function main() {
   const host = await startHost({ statePath, home, port: a.port, wsPort: a.port, webDir });
   const base = `http://127.0.0.1:${a.port}`;
   const token = host.token;
+  if (a.neverSettle) await asOwner(a.port, token, request => request({ op: "preferences.set", patch: { settleAfter: "never" } }));
   // The Mac is shared with other sessions' builders, so every run says what load it ran under.
   const result = { mode: a.mode, at: new Date().toISOString(), loadAtStart: loadavg().map(x => +x.toFixed(1)), cpus: cpus().length, stateBytes, threads: seeded.threads, host: {}, switches: [], settings: null, streaming: [] };
 

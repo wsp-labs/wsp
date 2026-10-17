@@ -27,17 +27,22 @@ const thread = (over: Partial<SidebarThreadSnapshot> = {}): SidebarThreadSnapsho
 const HERE: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", mac: "macbook", default: true, present: true, takesForks: false, engine: "none", shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 210 * 1024 ** 3 };
 const PLACE: TilePlace = { projectId: "pr_1", project: "spoo-landing", computer: "zingzy's MacBook Pro", at: HERE };
 
+/** A tile no selection names. */
+const UNSHOWN = { workspaceId: "ws_elsewhere" };
+
 function mount({ over = {}, checkout = { branch: "fix/cart-rounding", counts: [] }, active = false, settled = false, snoozedWorking, onSelect = () => {} }: { over?: Partial<SidebarThreadSnapshot>; checkout?: TileCheckout; active?: boolean; settled?: boolean; snoozedWorking?: number; onSelect?: () => void } = {}) {
+  const shown = thread(over);
+  useStore.setState({ selectedId: active ? shown.workspaceId : null, selectedThreadId: active ? shown.threadId : null, selectedSubagent: null } as never);
   return render(
     <SidebarProvider defaultOpen>
       <ThreadTile
-        thread={thread(over)}
+        thread={shown}
         place={PLACE}
         checkout={checkout}
         model="Opus 5.5"
         time="3m"
         depth={1}
-        active={active}
+        selects={{ workspaceId: shown.workspaceId, thread: { id: shown.id, threadId: shown.threadId, folded: false, holds: [] } }}
         settled={settled}
         {...(snoozedWorking === undefined ? {} : { snoozedWorking })}
         renaming={false}
@@ -223,7 +228,7 @@ describe("a thread tile", () => {
       render(
         <Profiler id="tile" onRender={commits}>
           <SidebarProvider defaultOpen>
-            <ThreadTile thread={thread()} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+            <ThreadTile thread={thread()} place={PLACE} model={null} time="3m" depth={0} selects={UNSHOWN} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
           </SidebarProvider>
         </Profiler>,
       );
@@ -249,7 +254,7 @@ describe("a thread tile", () => {
       render(
         <SidebarProvider defaultOpen>
           {Array.from({ length: 20 }, (_, i) => (
-            <ThreadTile key={i} thread={thread({ id: `th_${i}`, threadId: `th_${i}` })} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+            <ThreadTile key={i} thread={thread({ id: `th_${i}`, threadId: `th_${i}` })} place={PLACE} model={null} time="3m" depth={0} selects={UNSHOWN} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
           ))}
         </SidebarProvider>,
       );
@@ -376,7 +381,7 @@ describe("a thread tile", () => {
       render(
         <Profiler id="tile" onRender={commits}>
           <SidebarProvider defaultOpen>
-            <ThreadTile thread={thread()} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+            <ThreadTile thread={thread()} place={PLACE} model={null} time="3m" depth={0} selects={UNSHOWN} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
           </SidebarProvider>
         </Profiler>,
       );
@@ -406,7 +411,7 @@ describe("a thread tile", () => {
       seen.push(handlers.onSelect);
       return (
         <SidebarProvider defaultOpen>
-          <ThreadTile thread={thread({ status: "completed", ...over })} place={{ ...PLACE }} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} {...handlers} />
+          <ThreadTile thread={thread({ status: "completed", ...over })} place={{ ...PLACE }} model={null} time="3m" depth={0} selects={UNSHOWN} renaming={false} saving={false} {...handlers} />
         </SidebarProvider>
       );
     }
@@ -450,7 +455,7 @@ describe("a workspace with no thread yet", () => {
   it("is a tile of the same shape: where it runs, its name muted, no status and no agent", () => {
     render(
       <SidebarProvider defaultOpen>
-        <WorkspaceTile rowId="ws:ws_a" name="pricing page" place={PLACE} checkout={{ branch: "agent/pricing-page", counts: [] }} depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+        <WorkspaceTile rowId="ws:ws_a" name="pricing page" place={PLACE} checkout={{ branch: "agent/pricing-page", counts: [] }} depth={0} selects={UNSHOWN} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
       </SidebarProvider>,
     );
     expect(rows()).toHaveLength(2);
@@ -467,7 +472,7 @@ describe("a tile's acts on hover", () => {
   const settleOn = (over: Partial<SidebarThreadSnapshot>, onSettle = vi.fn(), onSelect = vi.fn()) => {
     render(
       <SidebarProvider defaultOpen>
-        <ThreadTile thread={thread(over)} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={onSelect} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} onSettle={onSettle} />
+        <ThreadTile thread={thread(over)} place={PLACE} model={null} time="3m" depth={0} selects={UNSHOWN} renaming={false} saving={false} onSelect={onSelect} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} onSettle={onSettle} />
       </SidebarProvider>,
     );
     return { onSettle, onSelect };
@@ -500,7 +505,7 @@ describe("a tile's acts on hover", () => {
       render(
         <TooltipProvider>
           <SidebarProvider defaultOpen>
-            <ThreadTile thread={thread({ status: "completed", endedAt: "2026-09-17T00:05:00.000Z" })} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} onSettle={() => {}} />
+            <ThreadTile thread={thread({ status: "completed", endedAt: "2026-09-17T00:05:00.000Z" })} place={PLACE} model={null} time="3m" depth={0} selects={UNSHOWN} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} onSettle={() => {}} />
           </SidebarProvider>
         </TooltipProvider>,
       );
@@ -522,7 +527,7 @@ describe("a tile's acts on hover", () => {
         render(
           <TooltipProvider>
             <SidebarProvider defaultOpen>
-              <ThreadTile thread={thread()} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} fold={fold} onFold={() => {}} />
+              <ThreadTile thread={thread()} place={PLACE} model={null} time="3m" depth={0} selects={UNSHOWN} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} fold={fold} onFold={() => {}} />
             </SidebarProvider>
           </TooltipProvider>,
         );
@@ -655,7 +660,7 @@ describe("a tile's Stop", () => {
     render(
       <TooltipProvider>
         <SidebarProvider defaultOpen>
-          <ThreadTile thread={thread(over)} place={PLACE} model={null} time="3m" depth={0} active={false} settled={slim} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} {...(stops ? { onStop } : {})} {...(onSettle === undefined ? {} : { onSettle })} stopsTree={stopsTree} />
+          <ThreadTile thread={thread(over)} place={PLACE} model={null} time="3m" depth={0} selects={UNSHOWN} settled={slim} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} {...(stops ? { onStop } : {})} {...(onSettle === undefined ? {} : { onSettle })} stopsTree={stopsTree} />
         </SidebarProvider>
       </TooltipProvider>,
     );
