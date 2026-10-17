@@ -4,7 +4,10 @@
 // workspace's first record. A sub-thread's is its result branch, a pull request
 // thread's the pull request's head, any other thread's `wsp/<slug>`. Read with gh
 // on this computer, whose login is the one the host adds to every push.
-import { gitHostOf, remoteHost } from "@wsp/catalog";
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { CATALOG_AGENTS, gitHostOf, remoteHost } from "@wsp/catalog";
 import { envExec, INLINE_EXEC_MS, LOCAL_MACHINE_ID, withEnvFromInput } from "@wsp/engine";
 import { branchOfRecordUnreadRefusal, brokeredGitHubOnlyRefusal, cloneNoThreadRefusal, cloneOnMachineFailedLine, forkHeadGoneRefusal, forkNotPushableRefusal, lastLine, ownerRepoOf, shellLine, subBranchOf, type BranchOfRecord, type ProjectView } from "@wsp/protocol";
 import { brokeredGitEnv, onRecordLines } from "../project-landing.js";
@@ -66,6 +69,41 @@ export async function rereadPublic(ctx: RuntimeContext, entry: LiveWorkspace): P
   const { public: _, ...rest } = ofRecord;
   entry.record.branchOfRecord = rest;
   await ctx.persist(entry.record);
+}
+
+const MARKETPLACES_REREAD_MS = 10 * 60_000;
+/** How long a launch waits on a read of the marketplaces; one that takes longer still lands for the launches after. */
+const MARKETPLACES_WAIT_MS = 3_000;
+const marketplacesRead = new WeakMap<RuntimeContext, { at: number; repos: readonly string[]; read: Promise<void>; first: boolean }>();
+
+/** The public GitHub repos the person's agents clone their plugin marketplaces from, as last read. */
+export const publicMarketplaces = (ctx: RuntimeContext): readonly string[] => marketplacesRead.get(ctx)?.repos ?? [];
+
+/** Reads which repos the plugin marketplace files on this computer name, the ones an image copies or seeds from, and
+ * which of them GitHub answers as public, at most every ten minutes. An agent on a machine clones each marketplace
+ * its image lacks at every start (Claude Code 2.1.296: claude-mem's is 140 MB), so the turn fetches these from GitHub
+ * itself. A repo unread or private stays on the host's road. */
+export function readPublicMarketplaces(ctx: RuntimeContext): Promise<void> {
+  const now = ctx.clock.now();
+  let held = marketplacesRead.get(ctx);
+  if (held === undefined || now - held.at >= MARKETPLACES_REREAD_MS) {
+    const next = { at: now, repos: held?.repos ?? [], read: Promise.resolve(), first: held === undefined };
+    next.read = marketplaceRepos(ctx)
+      .then(repos => Promise.all(repos.map(repo => ghHere(ctx, repo, ["api", `repos/${repo}`, "--jq", ".private"]).then(([hidden]) => (hidden === "false" ? [repo] : []), () => []))))
+      .then(read => void (next.repos = read.flat()));
+    marketplacesRead.set(ctx, next);
+    held = next;
+  }
+  // A read again runs beside the launch, which keeps the answer it holds, as rereadPublic does.
+  if (!held.first) return Promise.resolve();
+  let cancel: (() => void) | undefined;
+  return Promise.race([held.read, new Promise<void>(resolve => (cancel = ctx.clock.schedule(resolve, MARKETPLACES_WAIT_MS)))]).finally(() => cancel?.());
+}
+
+async function marketplaceRepos(ctx: RuntimeContext): Promise<string[]> {
+  const home = ctx.opts.local?.homeDir ?? homedir();
+  const files = await Promise.all(CATALOG_AGENTS.flatMap(a => (a.plugins?.githubRepos === undefined ? [] : [readFile(join(home, a.plugins.marketplaces.slice(2)), "utf8").then(text => a.plugins!.githubRepos!(text), () => [])])));
+  return [...new Set(files.flat())];
 }
 
 /** A pull request thread's branch of record: the pull request's head branch on the repo that holds it, read now, and
