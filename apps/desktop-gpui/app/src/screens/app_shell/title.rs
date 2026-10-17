@@ -65,7 +65,7 @@ fn without_separator_tail(text: &str) -> &str {
 }
 
 /// `cutLine` in `packages/protocol/src/words/base.ts`: the whole words that fit, the ellipsis counted.
-fn cut_line(text: &str, room: usize) -> String {
+pub fn cut_line(text: &str, room: usize) -> String {
     if length(text) <= room {
         return text.to_owned();
     }

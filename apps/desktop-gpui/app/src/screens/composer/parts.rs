@@ -31,6 +31,17 @@ pub struct Glass {
     pub saturation: f32,
 }
 
+impl Glass {
+    /// The blur and its saturation over what lies under `el`, unless the composer's glass is turned off.
+    pub fn frost<E: Styled>(&self, el: E) -> E {
+        if crate::glass::composer_blurs() {
+            el.backdrop_blur(self.blur).backdrop_saturation(self.saturation)
+        } else {
+            el
+        }
+    }
+}
+
 pub fn glass(cx: &App) -> Glass {
     let p = cx.palette();
     if cx.theme().is_dark() {
@@ -52,17 +63,10 @@ pub fn glass_box(cx: &App) -> Div {
     let g = glass(cx);
     let shadows =
         vec![BoxShadow { color: g.highlight, offset: point(px(0.), px(1.)), blur_radius: px(0.), spread_radius: px(0.), inset: true }];
-    div()
-        .debug_selector(|| "composer-box".into())
-        .relative()
-        .w_full()
-        .rounded(RADIUS)
-        .border_1()
-        .border_color(g.outline)
-        .bg(g.tint)
-        .backdrop_blur(g.blur)
-        .backdrop_saturation(g.saturation)
-        .shadow(shadows)
+    g.frost(
+        div().debug_selector(|| "composer-box".into()).relative().w_full().rounded(RADIUS).border_1().border_color(g.outline).bg(g.tint),
+    )
+    .shadow(shadows)
 }
 
 /// A mention chip in the text: 17 px high in the chip's 12 px type, a 6 px radius, the border at 70% and the accent at
@@ -278,7 +282,7 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
                             el.child(arrow(p.muted_foreground))
                         }
                     })
-                    .tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(words.clone()).build(window, cx))
+                    .tooltip(crate::ui::tip(words))
                     .into_any_element()
             }
             None if c.banner.as_ref().is_some_and(|b| b.resume.is_some()) => h_flex()
@@ -398,7 +402,7 @@ pub fn files_row(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement>
                         .child(div().truncate().text_size(px(13.)).line_height(px(20.)).text_color(p.muted_foreground).child(name.clone()))
                         .child(div().text_size(px(11.)).line_height(px(16.)).text_color(p.error_foreground).child("Refused")),
                 )
-                .tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(why.clone()).build(window, cx)),
+                .tooltip(crate::ui::tip(why)),
         );
     }
     Some(row.into_any_element())
@@ -475,17 +479,9 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
         .mx(INSET)
         .h(TRAY)
         .child(
-            div()
-                .absolute()
-                .inset_0()
-                .rounded_b(px(16.))
-                .border_l_1()
-                .border_r_1()
-                .border_b_1()
-                .border_color(g.outline)
-                .bg(g.tint)
-                .backdrop_blur(g.blur)
-                .backdrop_saturation(g.saturation),
+            g.frost(
+                div().absolute().inset_0().rounded_b(px(16.)).border_l_1().border_r_1().border_b_1().border_color(g.outline).bg(g.tint),
+            ),
         )
         .child(items)
         .into_any_element()
@@ -518,16 +514,7 @@ pub fn attached_surface(menu: bool, cx: &App) -> Div {
         (g.tint, g.outline)
     };
     // The tab's shadow falls under its foot, which the web masks away with it, so none is drawn.
-    div()
-        .relative()
-        .rounded_t(px(16.))
-        .border_t_1()
-        .border_l_1()
-        .border_r_1()
-        .border_color(outline)
-        .bg(fill)
-        .backdrop_blur(g.blur)
-        .backdrop_saturation(g.saturation)
+    g.frost(div().relative().rounded_t(px(16.)).border_t_1().border_l_1().border_r_1().border_color(outline).bg(fill))
 }
 
 /// The fork's or the resume's line over the box.
@@ -560,6 +547,8 @@ pub fn banner(b: &Banner, cx: &mut Context<Composer>) -> AnyElement {
                     .child(
                         h_flex()
                             .id("banner-dismiss")
+                            .debug_selector(|| "banner-dismiss".into())
+                            .aria_label(b.dismiss())
                             .size(px(24.))
                             .justify_center()
                             .rounded(px(8.))
@@ -567,7 +556,7 @@ pub fn banner(b: &Banner, cx: &mut Context<Composer>) -> AnyElement {
                             .cursor_pointer()
                             .hover(|s| s.bg(p.accent).text_color(p.foreground))
                             .child(Icon::new(Glyph::X).with_size(px(14.)))
-                            .on_click(cx.listener(|this, _, _, cx| this.set_banner(None, cx))),
+                            .on_click(cx.listener(|this, _, window, cx| this.cancel_fork(window, cx))),
                     ),
             ),
         )
@@ -607,24 +596,30 @@ fn drawer_row(
 /// the slot, the tasks and the queue. None while nothing waits.
 pub fn drawer(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement> {
     let d = &c.drawer;
-    if d.question.is_none() && d.limit.is_none() && d.slot.is_none() && d.tasks.is_none() && c.queue.is_empty() {
+    // The folded prompt's row; the dock stands in the box's place while it is not folded.
+    let question = c.dock.as_ref().filter(|dock| dock.folded).map(|dock| dock.prompt.asked.clone());
+    if question.is_none() && d.limit.is_none() && d.slot.is_none() && d.tasks.is_none() && c.queue.is_empty() {
         return None;
     }
     let p = cx.palette().clone();
     let g = glass(cx);
     let mono = cx.theme().mono_font_family.clone();
     let mut rows = v_flex();
-    if let Some(question) = &d.question {
-        rows = rows.child(drawer_row(
-            "drawer-question",
-            Glyph::MessageCircleQuestionMark,
-            p.status_input,
-            "Waiting for you".into(),
-            question.clone(),
-            None,
-            &mono,
-            &p,
-        ));
+    if let Some(question) = question {
+        rows = rows.child(
+            drawer_row(
+                "drawer-question",
+                Glyph::MessageCircleQuestionMark,
+                p.status_input,
+                "Waiting for you".into(),
+                question,
+                None,
+                &mono,
+                &p,
+            )
+            .cursor_pointer()
+            .on_click(cx.listener(|this, _, window, cx| this.unfold_prompt(window, cx))),
+        );
     }
     if let Some((name, line)) = &d.limit {
         rows = rows.child(drawer_row("drawer-usage", Glyph::Gauge, p.warning, name.clone(), line.clone(), None, &mono, &p));
@@ -682,8 +677,7 @@ pub fn drawer(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement> {
             .border_r_1()
             .border_color(g.outline)
             .bg(g.tint)
-            .backdrop_blur(g.blur)
-            .backdrop_saturation(g.saturation)
+            .map(|el| g.frost(el))
             .p_1()
             .text_size(px(12.))
             .line_height(px(16.))
@@ -775,7 +769,7 @@ pub fn drop_overlay(cx: &App) -> AnyElement {
         .flex()
         .p_5()
         .bg(p.background.opacity(0.8))
-        .backdrop_blur(g.blur)
+        .when(crate::glass::composer_blurs(), |el| el.backdrop_blur(g.blur))
         .child(
             v_flex()
                 .flex_1()

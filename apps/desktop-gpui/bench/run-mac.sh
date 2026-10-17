@@ -7,9 +7,12 @@
 # their pids, and never touches the live host: every process it starts reads the fixture's temp state.
 #   apps/desktop-gpui/bench/run-mac.sh
 # BENCH_OUT=<dir> keeps the results there (default: a new temp folder). BENCH_SKIP_GPUI=1 leaves GPUI's row empty, for
-# a machine where it cannot draw; BENCH_GPUI_APP=<path> runs that build instead of building one. The script runs on
-# Linux too, as a dry run under Xvfb with DISPLAY set and a window manager on that display (openbox will do): GPUI asks
-# the window manager to focus its window, so with none the GPUI bench exits 3.
+# a machine where it cannot draw; BENCH_GPUI_APP=<path> runs that build instead of building one;
+# DESKTOP_GPUI_COMPOSER_GLASS=off reaches GPUI's runs and draws its composer without its backdrop blur. GPUI's bench
+# switches 30 times among the short threads in turn, the same 30 in any build; a build that times its switches also
+# carries 30 timed switches after those. The script runs on Linux too, as a dry run under Xvfb with DISPLAY set and a
+# window manager on that display (openbox will do): GPUI asks the window manager to focus its window, so with none the
+# GPUI bench exits 3.
 set -eu
 bench=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$bench/../../.." && pwd)
@@ -105,7 +108,7 @@ if [ "${BENCH_SKIP_GPUI:-}" != 1 ]; then
   home=$(dirname "$(dirname "$state")")
   # GPUI's own runs get the same clean environment as the host, the temp home and nothing of the person's, and start
   # as a plain command so the pid recorded is the app's own (env execs it).
-  gpui_env="HOME=$home/gpui-home PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8 ${DISPLAY:+DISPLAY=$DISPLAY}"
+  gpui_env="HOME=$home/gpui-home PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8 ${DISPLAY:+DISPLAY=$DISPLAY} ${DESKTOP_GPUI_COMPOSER_GLASS:+DESKTOP_GPUI_COMPOSER_GLASS=$DESKTOP_GPUI_COMPOSER_GLASS}"
   mkdir -p "$home/gpui-home"
 
   step "GPUI: memory at rest"
@@ -122,7 +125,10 @@ if [ "${BENCH_SKIP_GPUI:-}" != 1 ]; then
 
   long=$(thread long)
   step "GPUI: scroll, switch"
-  switch="$(thread short-1),$(thread short-2),$(thread short-3)"
+  # Every build switches the same 30 times, so switch medians from two builds count the same switches.
+  short="$(thread short-1),$(thread short-2),$(thread short-3)"
+  switch=$short
+  for _ in 2 3 4 5 6 7 8 9 10; do switch="$switch,$short"; done
   # shellcheck disable=SC2086
   env -i $gpui_env "$gpui_app" --state "$state" --bench "$out/gpui.json" --bench-thread "$long" --bench-switch "$switch" > "$out/gpui-bench.log" 2>&1 &
   gpui_pid=$!

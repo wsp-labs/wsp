@@ -173,6 +173,12 @@ fn main() {
             let ground = *image.get_pixel(40, 40);
             let edge_drawn = (80..2 * H as u32 - 80).any(|y| *image.get_pixel(256, y) != ground);
             assert!(edge_drawn, "{state} in {theme} draws the box's edge at x 128");
+            // PromptDock.tsx heads the dock with the agent's mark in the glyph ink, `text-foreground/80`, not its own.
+            if state == "prompt-dock" {
+                let claude = if theme == "graphite" { [0xd9, 0x77, 0x57] } else { [0xc4, 0x64, 0x3f] };
+                let inked = image.pixels().filter(|p| (0..3).all(|c| p[c].abs_diff(claude[c]) <= 24)).count();
+                assert_eq!(inked, 0, "the prompt dock drew Claude's mark in its own ink in {theme}");
+            }
             if let Some(out) = &out {
                 image.save(out.join(format!("{state}-{theme}.png"))).unwrap();
             }

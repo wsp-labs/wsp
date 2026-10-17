@@ -6,9 +6,10 @@
 use gpui_kit::{App, Hsla};
 use serde_json::Value;
 
-pub(crate) use crate::screens::sidebar::markdown::fmt_duration;
-use crate::screens::usage::words::{fmt_cost, fmt_tokens, group_thousands, js_round, round_half_up};
+use crate::screens::usage::words::{fmt_cost, group_thousands, js_round};
 use crate::ui::ActivePalette;
+pub(crate) use crate::words::fmt_duration;
+use crate::words::{fmt_tokens, round_half_up};
 
 /// A value as text: nothing for null, its words for a string, JSON for a list or record.
 pub fn str(v: Option<&Value>) -> Option<String> {

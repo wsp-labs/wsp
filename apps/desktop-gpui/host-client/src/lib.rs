@@ -204,11 +204,67 @@ impl HostClient {
         Ok(Thread {
             thread_id: thread_id.to_owned(),
             through: history.iter().rev().find_map(pos).unwrap_or(0),
+            total: history.len() as u64,
+            trimmed: false,
             history,
             frames,
             _client: client,
         })
     }
+
+    /// One thread from its newest page: the newest `HISTORY_PAGE_EVENTS` events the host keeps of it, then each event of
+    /// it the host pushes from the moment this was asked. Older pages come through `page`.
+    pub async fn open_page(&self, workspace_id: &str, thread_id: &str) -> Result<Thread, Unopened> {
+        let client = self.host.client().await.map_err(Unopened::Lost)?;
+        // Listening before the page is read, so no event falls between the two; the overlap is dropped by pos.
+        let frames = client.frames();
+        client.events().await.map_err(Unopened::Lost)?;
+        let page = match read_page(&client, workspace_id, thread_id, None).await {
+            Ok(page) => page,
+            Err(failure) if client.is_closed() => return Err(Unopened::Lost(failure)),
+            Err(failure) => return Err(Unopened::Refused(failure)),
+        };
+        Ok(Thread {
+            thread_id: thread_id.to_owned(),
+            through: page.pos,
+            history: page.events,
+            total: page.total,
+            trimmed: page.trimmed == Some(true),
+            frames,
+            _client: client,
+        })
+    }
+
+    /// The page of one thread's events just older than the event at `before`, oldest first.
+    pub async fn page(&self, workspace_id: &str, thread_id: &str, before: u64) -> Result<Page, Failure> {
+        read_page(&*self.host.client().await?, workspace_id, thread_id, Some(before)).await
+    }
+}
+
+/// How many events a page of a thread's history holds: HISTORY_PAGE_EVENTS in packages/protocol.
+pub const HISTORY_PAGE_EVENTS: u64 = 200;
+
+/// One page of a thread's events out of `sessions.history`: the newest under its `before`, oldest first. `pos` is the
+/// newest position the workspace's transcript had issued when it was read, `total` how many events of the thread the
+/// host keeps, and `trimmed` that the host's caps dropped older ones nothing can read again.
+pub type Page = protocol::HistoryPage;
+
+async fn read_page(client: &Client, workspace_id: &str, thread_id: &str, before: Option<u64>) -> Result<Page, Failure> {
+    let mut params = Map::new();
+    params.insert("workspaceId".to_owned(), Value::from(workspace_id));
+    params.insert("threadId".to_owned(), Value::from(thread_id));
+    params.insert("limit".to_owned(), Value::from(HISTORY_PAGE_EVENTS));
+    if let Some(before) = before {
+        params.insert("before".to_owned(), Value::from(before));
+    }
+    client.request::<Page>("sessions.history", params).await
+}
+
+/// Why a thread did not open: its socket closed, or the host answered the read with a refusal.
+#[derive(Debug)]
+pub enum Unopened {
+    Lost(Failure),
+    Refused(Failure),
 }
 
 /// The tool server's host for `state`, with the names that aim a command line taken out of the environment.
@@ -220,8 +276,12 @@ fn attached(state: &Path, env: &Env) -> Host {
 
 pub struct Thread {
     pub thread_id: String,
-    /// The transcript as it stood when the thread was opened, oldest first.
+    /// The transcript as it stood when the thread was opened, oldest first: all of it from `open`, its newest page from
+    /// `open_page`.
     pub history: Vec<SessionEvent>,
+    /// How many events of the thread the host keeps, and whether its caps dropped older ones.
+    pub total: u64,
+    pub trimmed: bool,
     /// The pos of the history's newest event; a pushed event at or under it is already in the history.
     through: u64,
     frames: Frames,
@@ -230,7 +290,7 @@ pub struct Thread {
 }
 
 /// What the host pushed about one thread: a transcript event, typed, or anything else it says of the thread
-/// (thread.head, session.queued) as it was sent.
+/// (thread.head, session.queued, its rows and its children's) as it was sent.
 #[derive(Debug)]
 pub enum Live {
     Event(Box<SessionEvent>),
@@ -243,7 +303,11 @@ impl Thread {
         loop {
             let text = self.frames.next().await?;
             let Ok(frame) = serde_json::from_str::<Value>(&text) else { continue };
-            if frame.get("threadId").and_then(Value::as_str) != Some(self.thread_id.as_str()) {
+            let ours = frame.get("threadId").and_then(Value::as_str) == Some(self.thread_id.as_str());
+            // A child thread's row moves what the thread shows of it: its state, its waiting question.
+            let child = frame.get("type").and_then(Value::as_str) == Some("session.row")
+                && frame.pointer("/row/parentThreadId").and_then(Value::as_str) == Some(self.thread_id.as_str());
+            if !ours && !child {
                 continue;
             }
             if frame.get("pos").and_then(Value::as_u64).is_some_and(|pos| pos <= self.through) {
@@ -262,7 +326,34 @@ impl Thread {
 
 /// Where an event sits in its thread's transcript, where it says.
 pub fn pos(event: &SessionEvent) -> Option<u64> {
-    serde_json::to_value(event).ok()?.get("pos")?.as_u64()
+    use SessionEvent as E;
+    let pos = match event {
+        E::SessionStart { pos, .. }
+        | E::SessionDelta { pos, .. }
+        | E::SessionDone { pos, .. }
+        | E::SessionEnd { pos, .. }
+        | E::SessionSteer { pos, .. }
+        | E::SessionNotify { pos, .. }
+        | E::SessionPermission { pos, .. }
+        | E::SessionPermissionClosed { pos, .. }
+        | E::SessionCheckpoint { pos, .. }
+        | E::SessionChanges { pos, .. }
+        | E::SessionPlan { pos, .. }
+        | E::SessionCompacted { pos, .. }
+        | E::SessionRetry { pos, .. }
+        | E::SessionContext { pos, .. }
+        | E::SessionRun { pos, .. }
+        | E::SessionMoved { pos, .. }
+        | E::SessionBehind { pos, .. }
+        | E::SessionNotice { pos, .. }
+        | E::SessionEarlier { pos, .. }
+        | E::SessionCapped { pos, .. }
+        | E::SessionUncapped { pos, .. }
+        | E::SessionSubagent { pos, .. }
+        | E::SessionSlate { pos, .. }
+        | E::ThreadWaited { pos, .. } => pos,
+    };
+    pos.map(std::num::NonZeroU64::get)
 }
 
 pub struct Events {
