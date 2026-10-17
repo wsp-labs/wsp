@@ -10,12 +10,13 @@ use std::time::{Duration, Instant};
 use futures::channel::mpsc;
 use futures::StreamExt;
 use gpui_kit::component::{h_flex, ActiveTheme};
-use gpui_kit::{prelude::*, App, Context, Entity, StyleRefinement, Subscription, Task, Window};
+use gpui_kit::{div, prelude::*, App, Context, Entity, StyleRefinement, Subscription, Task, Window};
 use tokio::runtime::Runtime;
 use wsp_host_client::protocol::SessionEvent;
 use wsp_host_client::{Env, Failure, HostClient, Live};
 
 use crate::bench::{self, PX_PER_S};
+use crate::glass::composer_glass;
 use crate::sidebar::{Selected, Sidebar, ThreadItem, WIDTH};
 use crate::thread_view::ThreadView;
 
@@ -71,6 +72,7 @@ pub struct Shell {
     runtime: Arc<Runtime>,
     following: Option<Following>,
     bench: Option<BenchRun>,
+    glass: bool,
     _connect: Task<()>,
     _selected: Subscription,
 }
@@ -82,6 +84,7 @@ impl Shell {
         runtime: Arc<Runtime>,
         bench: Option<bench::Bench>,
         open: Option<String>,
+        glass: bool,
         cx: &mut Context<Self>,
     ) -> Self {
         let sidebar = cx.new(Sidebar::new);
@@ -132,7 +135,7 @@ impl Shell {
             frame_ms: Vec::new(),
             switch: Vec::new(),
         });
-        Shell { sidebar, thread_view, host: None, runtime, following: None, bench, _connect: connect, _selected: selected }
+        Shell { sidebar, thread_view, host: None, runtime, following: None, bench, glass, _connect: connect, _selected: selected }
     }
 
     /// Shows `item`'s transcript, read whole, then follows it live.
@@ -271,16 +274,18 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.tick(window, cx);
-        layout(&self.sidebar, &self.thread_view, cx)
+        layout(&self.sidebar, &self.thread_view, self.glass, cx)
     }
 }
 
-/// The sidebar beside the thread view, which a test can render without a host behind them.
-pub fn layout(sidebar: &Entity<Sidebar>, thread_view: &Entity<ThreadView>, cx: &App) -> impl IntoElement {
+/// The sidebar beside the thread view, which a test can render without a host behind them, and with `glass` a frosted
+/// composer-sized panel over the bottom of the thread view.
+pub fn layout(sidebar: &Entity<Sidebar>, thread_view: &Entity<ThreadView>, glass: bool, cx: &App) -> impl IntoElement {
+    let glass = glass.then(|| h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx)));
     h_flex()
         .size_full()
         .bg(cx.theme().background)
         .text_color(cx.theme().foreground)
         .child(sidebar.clone().cached(StyleRefinement::default().w(WIDTH).h_full()))
-        .child(thread_view.clone().cached(StyleRefinement::default().flex_1().h_full()))
+        .child(div().relative().flex_1().h_full().child(thread_view.clone().cached(StyleRefinement::default().size_full())).children(glass))
 }

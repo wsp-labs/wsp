@@ -22,7 +22,7 @@ fn main() {
     let state = args.state.unwrap_or_else(default_state);
     let env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
-    let (bench, open) = (args.bench, args.open);
+    let (bench, open, glass) = (args.bench, args.open, args.glass);
     gpui_kit::application().run(move |cx: &mut App| {
         gpui_kit::init(cx);
         cx.on_window_closed(|cx, _| {
@@ -40,7 +40,7 @@ fn main() {
                 ..Default::default()
             },
             |window, cx| {
-                let shell = cx.new(|cx| Shell::new(state, env, runtime, bench, open, cx));
+                let shell = cx.new(|cx| Shell::new(state, env, runtime, bench, open, glass, cx));
                 cx.new(|cx| Root::new(shell, window, cx))
             },
         )
