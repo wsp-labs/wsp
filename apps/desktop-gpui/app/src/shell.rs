@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The window's content: the sidebar beside the open thread, the host connection behind both, and bench mode's run.
+//! The window's content: the frame of `screens::app_shell` around the sidebar, the open thread or screen and the right
+//! panel, the host connection behind them, and bench mode's run.
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -9,16 +11,34 @@ use std::time::{Duration, Instant};
 
 use futures::channel::mpsc;
 use futures::StreamExt;
-use gpui_kit::component::{h_flex, ActiveTheme};
-use gpui_kit::{div, prelude::*, App, Context, Entity, StyleRefinement, Subscription, Task, Window};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Theme};
+use gpui_kit::{
+    div, prelude::*, px, AnyView, App, Context, DragMoveEvent, Empty, Entity, FocusHandle, KeyBinding, KeyContext, Pixels, StyleRefinement,
+    Subscription, Task, Window,
+};
 use tokio::runtime::Runtime;
-use wsp_host_client::protocol::SessionEvent;
-use wsp_host_client::{Env, Failure, HostClient, Live};
+use wsp_host_client::ops::settings::PreferencesReply;
+use wsp_host_client::protocol::{EventUnion, Preferences, PreferencesGetRequest, PreferencesSetRequest, SessionEvent};
+use wsp_host_client::{Env, Event, Failure, HostClient, Live};
 
 use crate::bench::{self, PX_PER_S};
 use crate::glass::composer_glass;
-use crate::sidebar::{Selected, Sidebar, ThreadItem, WIDTH};
+use crate::screens::app_shell::frame;
+use crate::screens::app_shell::keys::{self, Bound};
+use crate::screens::app_shell::material::{self, Look};
+use crate::screens::app_shell::panel::{At, RightPanel};
+use crate::screens::app_shell::vibrancy::{self, Vibrancy};
+use crate::screens::{self, app_shell, Host, Mounted, Pane, Place, Route};
+use crate::sidebar::{Selected, Sidebar, ThreadItem};
 use crate::thread_view::ThreadView;
+use crate::ui::theme::WspTheme;
+use crate::ui::{self, ActivePalette};
+
+/// `transition-[left,right,width] duration-200 ease-linear` on the sidebar.
+const SIDEBAR_SLIDE: Duration = Duration::from_millis(200);
+
+/// The screen `mod+,` opens; the shell knows it by name because it hides the right panel and closes on Escape.
+pub const SETTINGS: &str = "settings";
 
 /// A bench that has not finished by then is stuck, and says so rather than hang the run.
 const BENCH_LIMIT: Duration = Duration::from_secs(300);
@@ -36,6 +56,7 @@ enum Arrival {
 
 /// One thread followed live; dropping it stops the host task and the receiver.
 struct Following {
+    thread_id: String,
     task: tokio::task::AbortHandle,
     _receive: Task<()>,
 }
@@ -65,48 +86,126 @@ struct BenchRun {
     switch: Vec<(String, f64)>,
 }
 
+/// What the launch asked the window to show first.
+#[derive(Default)]
+pub struct Launch {
+    pub bench: Option<bench::Bench>,
+    /// A thread to open once the host lists it.
+    pub open: Option<String>,
+    /// A frosted, composer-sized panel over the bottom of the thread view.
+    pub glass: bool,
+    /// A screen to open by its name once the host answers.
+    pub screen: Option<String>,
+}
+
 pub struct Shell {
     sidebar: Entity<Sidebar>,
     thread_view: Entity<ThreadView>,
+    panel: Entity<RightPanel>,
     host: Option<Arc<HostClient>>,
     runtime: Arc<Runtime>,
+    route: Route,
+    /// Where closing Settings goes back to.
+    behind: Route,
+    /// The open screen, while the route names a registered one.
+    screen: Option<Mounted>,
+    sidebar_open: bool,
+    /// When the sidebar last opened or closed, while its slide runs.
+    sidebar_moved: Option<Instant>,
+    sidebar_width: Pixels,
+    /// The terminal drawer under the thread, whose own screen draws it.
+    drawer_open: bool,
+    /// The chord rules bound now, so a change of the person's overrides can unbind exactly them.
+    rules: Vec<Bound>,
+    theme: Option<String>,
+    picks: Picks,
+    look: Look,
+    vibrancy: Vibrancy,
+    focus: FocusHandle,
+    blank: AnyView,
     following: Option<Following>,
     bench: Option<BenchRun>,
     glass: bool,
     _connect: Task<()>,
+    _events: Option<Task<()>>,
     _selected: Subscription,
+    _focus_lost: Subscription,
+    _appearance: Subscription,
+}
+
+/// The person's theme picks: light, dark or the system's (none), each side's theme, and whether the page draws glass.
+struct Picks {
+    mode: Option<String>,
+    light: String,
+    dark: String,
+    transparency: bool,
+}
+
+/// The rail being dragged, which the root reads the pointer for.
+#[derive(Clone, Copy)]
+enum Rail {
+    Sidebar,
+    Panel,
+}
+
+impl Render for Rail {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        Empty
+    }
+}
+
+/// Stops a host task when the GPUI task that reads it is dropped.
+struct AbortOnDrop(tokio::task::AbortHandle);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 impl Shell {
-    pub fn new(
-        state: PathBuf,
-        env: Env,
-        runtime: Arc<Runtime>,
-        bench: Option<bench::Bench>,
-        open: Option<String>,
-        glass: bool,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(state: PathBuf, env: Env, runtime: Arc<Runtime>, launch: Launch, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let Launch { bench, open, glass, screen } = launch;
+        app_shell::install(window.window_handle(), cx.entity().downgrade(), cx);
         let sidebar = cx.new(Sidebar::new);
         let thread_view = cx.new(ThreadView::new);
-        let selected = cx.subscribe(&sidebar, |this, _, Selected(item), cx| this.open(item.clone(), cx));
+        let panel = cx.new(RightPanel::new);
+        let selected = cx.subscribe_in(&sidebar, window, |this, _, Selected(item), window, cx| {
+            let route = Route::Thread { workspace_id: item.workspace_id.clone(), thread_id: item.thread_id.clone() };
+            this.go(route, window, cx);
+        });
         let connecting = runtime.spawn(async move {
             let host = HostClient::connect(&state, &env).await?;
             let threads = host.threads().await?;
-            Ok::<_, Failure>((host, threads))
+            let get: PreferencesGetRequest = serde_json::from_value(serde_json::json!({})).map_err(|e| Failure::new(e.to_string()))?;
+            let preferences = host.call(get).await.map(|PreferencesReply { preferences }| preferences).ok();
+            Ok::<_, Failure>((host, threads, preferences))
         });
-        let connect = cx.spawn(async move |this, cx| {
+        let connect = cx.spawn_in(window, async move |this, cx| {
             let connected = connecting.await.unwrap_or_else(|e| Err(Failure::new(e.to_string())));
-            _ = this.update(cx, |this, cx| match connected {
-                Ok((host, threads)) => {
-                    this.host = Some(Arc::new(host));
+            _ = this.update_in(cx, |this, window, cx| match connected {
+                Ok((host, threads, preferences)) => {
+                    let host = Arc::new(host);
+                    this.host = Some(host.clone());
+                    let runtime = this.runtime.clone();
+                    this.panel.update(cx, |p, _| p.set_host(Host::new(host.clone(), runtime)));
+                    if let Some(preferences) = &preferences {
+                        this.apply(preferences, window, cx);
+                    }
+                    this._events = Some(this.follow_preferences(host, window, cx));
+                    if let (Route::Screen(name), None) = (this.route.clone(), &this.screen) {
+                        this.screen = this.mount(&name, window, cx);
+                    }
                     this.sidebar.update(cx, |s, cx| s.set_items(threads.iter().filter_map(ThreadItem::of).collect(), cx));
+                    if let Some(name) = &screen {
+                        this.go(Route::Screen(name.clone().into()), window, cx);
+                    }
                     if let Some(thread) = &open {
-                        let Some(item) = this.sidebar.update(cx, |s, cx| s.mark(thread, cx)) else {
+                        let Some(item) = this.sidebar.read(cx).items().iter().find(|i| i.thread_id == *thread).cloned() else {
                             eprintln!("desktop-gpui: the host lists no thread {thread}");
                             std::process::exit(1);
                         };
-                        this.open(item, cx);
+                        this.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
                     }
                 }
                 Err(failure) => {
@@ -135,7 +234,351 @@ impl Shell {
             frame_ms: Vec::new(),
             switch: Vec::new(),
         });
-        Shell { sidebar, thread_view, host: None, runtime, following: None, bench, glass, _connect: connect, _selected: selected }
+        let mac = cfg!(target_os = "macos");
+        let rules = keys::bound(mac, &BTreeMap::new());
+        cx.bind_keys(keys::bindings_of(mac, &rules));
+        cx.bind_keys([KeyBinding::new("escape", keys::CloseSettings, Some(&format!("{} && {}", keys::SHELL, keys::SETTINGS_OPEN)))]);
+        let focus = cx.focus_handle();
+        focus.focus(window, cx);
+        // Focus on a view that is no longer drawn reaches nothing, and keys then start at the window's root, above the
+        // shell's bindings.
+        let focus_lost = cx.on_focus_lost(window, |this, window, cx| this.focus.focus(window, cx));
+        let appearance = cx.observe_window_appearance(window, |this, window, cx| this.pick_theme(window, cx));
+        let mut shell = Shell {
+            sidebar,
+            thread_view,
+            panel,
+            host: None,
+            runtime,
+            route: Route::Empty,
+            behind: Route::Empty,
+            screen: None,
+            sidebar_open: true,
+            sidebar_moved: None,
+            sidebar_width: frame::SIDEBAR_DEFAULT,
+            drawer_open: false,
+            rules,
+            theme: None,
+            picks: Picks { mode: None, light: ui::theme::LIGHT.to_owned(), dark: ui::theme::DARK.to_owned(), transparency: true },
+            look: Look { mac: false, glass: false },
+            vibrancy: Vibrancy::default(),
+            focus,
+            blank: cx.new(|_| Blank).into(),
+            following: None,
+            bench,
+            glass,
+            _connect: connect,
+            _events: None,
+            _selected: selected,
+            _focus_lost: focus_lost,
+            _appearance: appearance,
+        };
+        shell.pick_theme(window, cx);
+        shell
+    }
+
+    /// Where the window is drawn and whether the page draws glass, as the host's transparency and the computer say.
+    pub fn look(&self) -> Look {
+        self.look
+    }
+
+    pub fn connected(&self) -> bool {
+        self.host.is_some()
+    }
+
+    /// The chords bound for `command` now, in the web app's spelling.
+    pub fn chords(&self, command: &str) -> Vec<String> {
+        self.rules.iter().filter(|r| r.command == command).map(|r| r.chord.clone()).collect()
+    }
+
+    pub fn route(&self) -> &Route {
+        &self.route
+    }
+
+    pub fn sidebar_open(&self) -> bool {
+        self.sidebar_open
+    }
+
+    pub fn sidebar_width(&self) -> Pixels {
+        self.sidebar_width
+    }
+
+    pub fn drawer_open(&self) -> bool {
+        self.drawer_open
+    }
+
+    pub fn panel(&self) -> &Entity<RightPanel> {
+        &self.panel
+    }
+
+    pub fn sidebar(&self) -> &Entity<Sidebar> {
+        &self.sidebar
+    }
+
+    pub fn thread_view(&self) -> &Entity<ThreadView> {
+        &self.thread_view
+    }
+
+    /// How much of the sidebar's width is on screen, 0 to 1, asking for the next frame while it slides.
+    fn sidebar_shown(&mut self, window: &mut Window) -> f32 {
+        let at = self.sidebar_moved.map_or(1., |moved| (moved.elapsed().as_secs_f32() / SIDEBAR_SLIDE.as_secs_f32()).min(1.));
+        if at < 1. {
+            window.request_animation_frame();
+        } else {
+            self.sidebar_moved = None;
+        }
+        if self.sidebar_open {
+            at
+        } else {
+            1. - at
+        }
+    }
+
+    fn settings_open(&self) -> bool {
+        matches!(&self.route, Route::Screen(name) if name == SETTINGS)
+    }
+
+    /// Moves the window to `route`; [`app_shell::navigate`] is the way in for everything outside the shell. A screen
+    /// that lives in the right panel opens there, on its tab, and leaves the route where it was.
+    pub fn go(&mut self, route: Route, window: &mut Window, cx: &mut Context<Self>) {
+        if route == self.route {
+            return;
+        }
+        if let Route::Screen(name) = &route {
+            if let Some(pane) = Pane::ALL.into_iter().find(|pane| pane.name() == name.as_ref()) {
+                self.panel.update(cx, |p, cx| p.add(pane, window, cx));
+                return;
+            }
+        }
+        match &route {
+            Route::Empty => {
+                self.screen = None;
+                self.following = None;
+                self.panel.update(cx, |p, cx| p.show_for(At::Here, window, cx));
+            }
+            Route::Thread { workspace_id, thread_id } => {
+                self.screen = None;
+                let item = self.sidebar.update(cx, |s, cx| s.mark(thread_id, cx)).unwrap_or_else(|| ThreadItem {
+                    workspace_id: workspace_id.clone(),
+                    thread_id: thread_id.clone(),
+                    project: String::new(),
+                    title: String::new(),
+                });
+                let at = At::Thread { key: thread_id.clone(), running: true };
+                self.panel.update(cx, |p, cx| p.show_for(at, window, cx));
+                // Settings leaves the thread followed behind it, so coming back reads nothing again.
+                if self.following.as_ref().is_none_or(|f| f.thread_id != *thread_id) {
+                    self.open(item, cx);
+                }
+            }
+            Route::Screen(name) => {
+                if !matches!(self.route, Route::Screen(_)) {
+                    self.behind = self.route.clone();
+                }
+                self.screen = self.mount(name, window, cx);
+            }
+        }
+        self.route = route;
+        cx.notify();
+    }
+
+    /// Builds the screen `name` names, once the host has answered.
+    fn mount(&self, name: &str, window: &mut Window, cx: &mut Context<Self>) -> Option<Mounted> {
+        let (host, mount) = (self.host.clone()?, screens::screen(name)?);
+        Some(mount(&Host::new(host, self.runtime.clone()), window, cx))
+    }
+
+    /// Reads what the host keeps for the frame: the sidebar's width, the person's chords and the theme.
+    fn apply(&mut self, preferences: &Preferences, window: &mut Window, cx: &mut Context<Self>) {
+        let value = serde_json::to_value(preferences).unwrap_or_default();
+        self.sidebar_width = value.get("sidebarWidth").and_then(|w| w.as_f64()).map_or(frame::SIDEBAR_DEFAULT, |w| px(w as f32));
+        let overrides: BTreeMap<String, Option<String>> = value
+            .get("keybindings")
+            .and_then(|k| k.as_object())
+            .map(|k| k.iter().map(|(command, chord)| (command.clone(), chord.as_str().map(str::to_owned))).collect())
+            .unwrap_or_default();
+        self.rebind(&overrides, cx);
+        let side = |key: &str, default: &str| value.get(key).and_then(|t| t.as_str()).unwrap_or(default).to_owned();
+        self.picks = Picks {
+            mode: value.get("theme").and_then(|t| t.as_str()).map(str::to_owned),
+            light: side("lightTheme", ui::theme::LIGHT),
+            dark: side("darkTheme", ui::theme::DARK),
+            transparency: value.get("transparency").and_then(|t| t.as_bool()).unwrap_or(true),
+        };
+        self.pick_theme(window, cx);
+        cx.notify();
+    }
+
+    /// The theme the person's picks name for the computer's appearance now, which a system pick follows as it moves.
+    fn pick_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let dark = match self.picks.mode.as_deref() {
+            Some("dark") => true,
+            Some("light") => false,
+            _ => matches!(window.appearance(), gpui_kit::WindowAppearance::Dark | gpui_kit::WindowAppearance::VibrantDark),
+        };
+        let theme = if dark { self.picks.dark.clone() } else { self.picks.light.clone() };
+        if ui::theme::theme_by_id(&theme).is_some() {
+            self.restyle(Some(theme), self.picks.transparency, window, cx);
+        }
+    }
+
+    /// Draws the window in `theme` and, on the Mac, on its glass or solid as `transparency` and the computer ask.
+    fn restyle(&mut self, theme: Option<String>, transparency: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let look = Look { mac: cfg!(target_os = "macos"), glass: transparency && !vibrancy::reduce_transparency() };
+        if theme == self.theme && look == self.look {
+            return;
+        }
+        if let Some(theme) = &theme {
+            ui::theme::set_theme(theme, cx);
+        }
+        let fills = material::fills(look, ui::theme::current(cx).id, cx.palette());
+        // The glass moves the page's muted ink, which every screen reads off the palette.
+        if let Some(muted) = fills.muted_foreground {
+            cx.global_mut::<WspTheme>().palette.muted_foreground = muted;
+            Theme::update(cx, |theme| theme.muted_foreground = muted);
+        }
+        self.vibrancy.set(fills.vibrancy, window);
+        self.theme = theme;
+        self.look = look;
+        window.refresh();
+    }
+
+    /// Puts the person's chords in place of the bound ones: each bound rule is unbound by its action, then the new
+    /// table is bound after it, so it wins.
+    fn rebind(&mut self, overrides: &BTreeMap<String, Option<String>>, cx: &mut Context<Self>) {
+        let mac = cfg!(target_os = "macos");
+        let next = keys::bound(mac, overrides);
+        if next == self.rules {
+            return;
+        }
+        cx.bind_keys(keys::unbindings(mac, &self.rules));
+        cx.bind_keys(keys::bindings_of(mac, &next));
+        self.rules = next;
+    }
+
+    /// Follows the host's pushed preferences, as another window or the Settings page changes them.
+    fn follow_preferences(&mut self, host: Arc<HostClient>, window: &mut Window, cx: &mut Context<Self>) -> Task<()> {
+        let (tx, mut rx) = mpsc::unbounded();
+        let task = self.runtime.spawn(async move {
+            let Ok(mut events) = host.events().await else { return };
+            while let Some(event) = events.next().await {
+                if let Ok(Event::Host(event)) = event {
+                    if let EventUnion::PreferencesChanged { preferences, .. } = *event {
+                        if tx.unbounded_send(preferences).is_err() {
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let _abort = AbortOnDrop(task.abort_handle());
+            while let Some(preferences) = rx.next().await {
+                if this.update_in(cx, |this, window, cx| this.apply(&preferences, window, cx)).is_err() {
+                    break;
+                }
+            }
+        })
+    }
+
+    /// Writes the sidebar's width, as the web app writes it once a drag ends.
+    fn save_sidebar_width(&self) {
+        let Some(host) = self.host.clone() else { return };
+        let width = f32::from(self.sidebar_width).round() as i64;
+        let request: Result<PreferencesSetRequest, _> = serde_json::from_value(serde_json::json!({ "patch": { "sidebarWidth": width } }));
+        let Ok(request) = request else { return };
+        self.runtime.spawn(async move {
+            if let Err(failure) = host.call(request).await {
+                eprintln!("desktop-gpui: {}", failure.message);
+            }
+        });
+    }
+
+    fn toggle_sidebar(&mut self, _: &keys::ToggleSidebar, _: &mut Window, cx: &mut Context<Self>) {
+        self.sidebar_open = !self.sidebar_open;
+        // Turned back mid-slide, it goes back from where it stands rather than from the far end.
+        let done = self.sidebar_moved.map_or(SIDEBAR_SLIDE, |moved| moved.elapsed().min(SIDEBAR_SLIDE));
+        self.sidebar_moved = Some(Instant::now() - (SIDEBAR_SLIDE - done));
+        cx.notify();
+    }
+
+    fn toggle_panel(&mut self, _: &keys::ToggleRightPanel, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.settings_open() {
+            self.panel.update(cx, |p, cx| p.toggle(window, cx));
+        }
+    }
+
+    fn toggle_preview(&mut self, _: &keys::TogglePreview, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.settings_open() && matches!(self.route, Route::Thread { .. }) {
+            self.panel.update(cx, |p, cx| p.toggle_pane(Pane::Browser, window, cx));
+        }
+    }
+
+    fn toggle_drawer(&mut self, _: &keys::ToggleTerminal, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.settings_open() {
+            self.drawer_open = !self.drawer_open;
+            cx.notify();
+        }
+    }
+
+    fn toggle_settings(&mut self, _: &keys::ToggleSettings, window: &mut Window, cx: &mut Context<Self>) {
+        if self.settings_open() {
+            self.close_settings(&keys::CloseSettings, window, cx);
+        } else {
+            self.go(Route::Screen(SETTINGS.into()), window, cx);
+        }
+    }
+
+    fn close_settings(&mut self, _: &keys::CloseSettings, window: &mut Window, cx: &mut Context<Self>) {
+        if self.settings_open() {
+            let behind = std::mem::replace(&mut self.behind, Route::Empty);
+            self.screen = None;
+            self.go(behind, window, cx);
+        }
+    }
+
+    fn close_panel_tab(&mut self, _: &keys::ClosePanelTab, window: &mut Window, cx: &mut Context<Self>) {
+        self.panel.update(cx, |p, cx| {
+            if let Some(ix) = p.active_index() {
+                p.close(ix, window, cx);
+            }
+        });
+    }
+
+    /// The workspaces in the order the sidebar draws them, each with its first thread there.
+    fn workspaces(&self, cx: &App) -> Vec<ThreadItem> {
+        let mut seen: Vec<ThreadItem> = Vec::new();
+        for item in self.sidebar.read(cx).items() {
+            if !seen.iter().any(|s| s.workspace_id == item.workspace_id) {
+                seen.push(item.clone());
+            }
+        }
+        seen
+    }
+
+    fn select_workspace(&mut self, slot: &keys::SelectWorkspace, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(item) = self.workspaces(cx).into_iter().nth(usize::from(slot.0).saturating_sub(1)) else { return };
+        self.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
+    }
+
+    /// Moves `step` threads along `list` from the open one, wrapping.
+    fn step_thread(&mut self, list: Vec<ThreadItem>, step: isize, window: &mut Window, cx: &mut Context<Self>) {
+        if list.is_empty() {
+            return;
+        }
+        let open = match &self.route {
+            Route::Thread { thread_id, .. } => list.iter().position(|i| i.thread_id == *thread_id),
+            _ => None,
+        };
+        let n = list.len() as isize;
+        let ix = open.map_or(if step > 0 { 0 } else { n - 1 }, |ix| (ix as isize + step).rem_euclid(n));
+        let item = list[ix as usize].clone();
+        self.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
+    }
+
+    fn workspace_threads(&self, cx: &App) -> Vec<ThreadItem> {
+        let Route::Thread { workspace_id, .. } = &self.route else { return Vec::new() };
+        self.sidebar.read(cx).items().iter().filter(|i| i.workspace_id == *workspace_id).cloned().collect()
     }
 
     /// Shows `item`'s transcript, read whole, then follows it live.
@@ -143,6 +586,7 @@ impl Shell {
         self.following = None;
         self.thread_view.update(cx, |v, cx| v.show(&item.thread_id, cx));
         let Some(host) = self.host.clone() else { return };
+        let thread_id = item.thread_id.clone();
         let (tx, mut rx) = mpsc::unbounded();
         let task = self.runtime.spawn(async move {
             let followed: Result<(), Failure> = async {
@@ -167,7 +611,7 @@ impl Shell {
                 }
             }
         });
-        self.following = Some(Following { task: task.abort_handle(), _receive: receive });
+        self.following = Some(Following { thread_id, task: task.abort_handle(), _receive: receive });
     }
 
     fn arrive(&mut self, arrival: Arrival, cx: &mut Context<Self>) {
@@ -201,7 +645,7 @@ impl Shell {
                 if self.host.is_some() {
                     cx.activate(true);
                     window.activate_window();
-                    run.phase = Phase::Loading(self.bench_open(&run.args.thread, cx));
+                    run.phase = Phase::Loading(self.bench_open(&run.args.thread, window, cx));
                 }
             }
             Phase::Loading(presented) => {
@@ -225,14 +669,14 @@ impl Shell {
             }
             Phase::Holding { until, .. } => {
                 if Instant::now() >= *until {
-                    run.phase = self.switch_to(0, &run.args, cx);
+                    run.phase = self.switch_to(0, &run.args, window, cx);
                 }
             }
             Phase::Switching { ix, start, presented } => {
                 let shown = *presented.borrow();
                 if let Some(shown) = shown {
                     run.switch.push((run.args.switch[*ix].clone(), shown.duration_since(*start).as_secs_f64() * 1000.));
-                    run.phase = self.switch_to(ix + 1, &run.args, cx);
+                    run.phase = self.switch_to(ix + 1, &run.args, window, cx);
                 }
             }
         }
@@ -252,19 +696,19 @@ impl Shell {
         }
     }
 
-    fn switch_to(&mut self, ix: usize, args: &bench::Bench, cx: &mut Context<Self>) -> Phase {
+    fn switch_to(&mut self, ix: usize, args: &bench::Bench, window: &mut Window, cx: &mut Context<Self>) -> Phase {
         let start = Instant::now();
-        let presented = args.switch.get(ix).map(|thread| self.bench_open(thread, cx)).unwrap_or_default();
+        let presented = args.switch.get(ix).map(|thread| self.bench_open(thread, window, cx)).unwrap_or_default();
         Phase::Switching { ix, start, presented }
     }
 
     /// Opens a thread as a click does and watches for the first presented frame that shows it.
-    fn bench_open(&mut self, thread: &str, cx: &mut Context<Self>) -> Presented {
-        let Some(item) = self.sidebar.update(cx, |s, cx| s.mark(thread, cx)) else {
+    fn bench_open(&mut self, thread: &str, window: &mut Window, cx: &mut Context<Self>) -> Presented {
+        let Some(item) = self.sidebar.read(cx).items().iter().find(|i| i.thread_id == thread).cloned() else {
             eprintln!("desktop-gpui: the host lists no thread {thread}");
             std::process::exit(1);
         };
-        self.open(item, cx);
+        self.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
         let presented = Presented::default();
         self.thread_view.update(cx, |v, cx| v.watch_presented(thread, presented.clone(), cx));
         presented
@@ -274,18 +718,263 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.tick(window, cx);
-        layout(&self.sidebar, &self.thread_view, self.glass, cx)
+        let shown = self.sidebar_shown(window);
+        let p = cx.palette().clone();
+        let fills = material::fills(self.look, ui::theme::current(cx).id, &p);
+        let viewport = window.viewport_size().width;
+        let settings = self.settings_open();
+        let panel_open = !settings && self.panel.read(cx).is_open();
+        let sheet = viewport <= frame::SHEET_MAX_VIEWPORT;
+        let inline = panel_open && !sheet;
+        let sidebar_width = frame::clamp_sidebar(self.sidebar_width, viewport, inline);
+        let row = viewport - if self.sidebar_open { sidebar_width } else { px(0.) };
+        let panel_width = frame::clamp_panel(self.panel.read(cx).width(), viewport, row);
+
+        let mut context = KeyContext::new_with_defaults();
+        context.add(keys::SHELL);
+        if settings {
+            context.add(keys::SETTINGS_OPEN);
+        } else if matches!(self.route, Route::Thread { .. }) {
+            context.add(keys::THREAD_OPEN);
+        }
+
+        let parts = self.screen.as_ref().map(|s| &s.parts);
+        let main: AnyView = match &self.screen {
+            Some(Mounted { place: Place::Main, view, .. }) => view.clone(),
+            _ if settings => self.blank.clone(),
+            _ => self.thread_view.clone().into(),
+        };
+        let sidebar_content: AnyView = match parts.and_then(|p| p.sidebar.clone()) {
+            Some(view) => view,
+            None if settings => self.blank.clone(),
+            None => self.sidebar.clone().into(),
+        };
+
+        let trigger = |id: &'static str, open: bool, cx: &mut Context<Self>| {
+            let this = cx.entity().downgrade();
+            frame::sidebar_trigger(id, open, move |_, window, cx| {
+                _ = this.update(cx, |this, cx| this.toggle_sidebar(&keys::ToggleSidebar, window, cx));
+            })
+        };
+        let sidebar = (shown > 0.).then(|| {
+            let column = v_flex()
+                .id("sidebar-column")
+                .debug_selector(|| "sidebar-column".into())
+                .relative()
+                .flex_none()
+                .w(sidebar_width)
+                .h_full()
+                .border_r_1()
+                .border_color(p.border)
+                .bg(fills.sidebar)
+                .when(fills.grain, |el| el.child(frame::grain()))
+                .child(
+                    frame::row("sidebar-frame-row")
+                        .pl(frame::frame_inset())
+                        .child(trigger("sidebar-trigger", true, cx))
+                        .child(frame::lockup(fills.sidebar_ink.unwrap_or_else(|| frame::sidebar_quiet(cx)))),
+                )
+                .child(div().flex_1().min_h_0().overflow_hidden().child(sidebar_content.cached(StyleRefinement::default().size_full())))
+                .into_any_element();
+            div()
+                .relative()
+                .flex_none()
+                .w(sidebar_width * shown)
+                .h_full()
+                .child(div().absolute().top_0().bottom_0().left(-(sidebar_width * (1. - shown))).w(sidebar_width).child(column))
+        });
+        let rail = (shown >= 1.).then(|| {
+            div()
+                .id("sidebar-rail")
+                .debug_selector(|| "sidebar-rail".into())
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(sidebar_width - frame::SIDEBAR_RAIL / 2.)
+                .w(frame::SIDEBAR_RAIL)
+                .cursor_col_resize()
+                .group("sidebar-rail")
+                .on_drag(Rail::Sidebar, |rail, _, _, cx| cx.new(|_| *rail))
+                .child(div().mx_auto().w(px(2.)).h_full().group_hover("sidebar-rail", |s| s.bg(p.border)))
+        });
+
+        let header_view = parts.and_then(|p| p.header.clone());
+        let crumbs = match &self.route {
+            Route::Thread { thread_id, .. } => {
+                let item = self.sidebar.read(cx).items().iter().find(|i| i.thread_id == *thread_id).cloned();
+                let title = item.as_ref().map(|i| i.title.as_str()).filter(|t| !t.is_empty()).unwrap_or("New thread");
+                frame::crumbs(item.as_ref().map(|i| i.project.as_str()), Some(title), window, cx)
+            }
+            Route::Screen(_) => div().into_any_element(),
+            Route::Empty => frame::crumbs(None, None, window, cx),
+        };
+        let controls = |cx: &mut Context<Self>| {
+            let (on_drawer, on_panel) = (cx.entity().downgrade(), cx.entity().downgrade());
+            frame::layout_controls(
+                self.drawer_open,
+                panel_open,
+                move |_, window, cx| {
+                    _ = on_drawer.update(cx, |this, cx| this.toggle_drawer(&keys::ToggleTerminal, window, cx));
+                },
+                move |_, window, cx| {
+                    _ = on_panel.update(cx, |this, cx| this.toggle_panel(&keys::ToggleRightPanel, window, cx));
+                },
+                cx,
+            )
+        };
+        let header = frame::row("header-row")
+            .pl(frame::frame_inset() + (frame::HEADER_INSET - frame::frame_inset()) * shown)
+            .pr(frame::HEADER_INSET)
+            .when(!self.sidebar_open, |row| {
+                let row = row.child(trigger("header-trigger", false, cx));
+                if settings {
+                    row
+                } else {
+                    row.child(
+                        ui::Button::icon("new-thread", ui::Glyph::SquarePen)
+                            .on_click(move |_, window, cx| window.dispatch_action(Box::new(keys::NewThread), cx)),
+                    )
+                }
+            })
+            .child(match header_view {
+                Some(view) => div().flex_1().min_w_0().h_full().child(view).into_any_element(),
+                None => h_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .items_center()
+                    .child(div().flex_1().min_w_0().child(crumbs))
+                    .when(!settings && !inline, |el| el.child(div().ml_auto().mr(px(1.)).child(controls(cx))))
+                    .into_any_element(),
+            });
+
+        let center = v_flex()
+            .id("center")
+            .debug_selector(|| "center".into())
+            .relative()
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .bg(fills.centre)
+            .when(fills.grain, |el| el.child(frame::grain()))
+            .child(header)
+            .child(div().flex_1().min_h_0().child(main.cached(StyleRefinement::default().size_full())))
+            .when(self.glass, |el| el.child(h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx))));
+
+        let panel = panel_open.then(|| {
+            let controls = if inline { controls(cx).into_any_element() } else { div().into_any_element() };
+            let content =
+                self.panel.update(cx, |panel, cx| panel.draw(controls, (fills.panel_card, fills.panel_line), cx).into_any_element());
+            let column = div()
+                .id("right-panel")
+                .debug_selector(|| "right-panel".into())
+                .relative()
+                .flex_none()
+                .w(if sheet { sheet_width(viewport) } else { panel_width })
+                .h_full()
+                .border_l_1()
+                .border_color(fills.panel_line)
+                .bg(fills.panel)
+                .child(content);
+            if sheet {
+                let this = cx.entity().downgrade();
+                div()
+                    .absolute()
+                    .size_full()
+                    .child(div().id("sheet-backdrop").absolute().size_full().bg(p.background.opacity(0.6)).backdrop_blur(px(4.)).on_click(
+                        move |_, window, cx| {
+                            _ = this.update(cx, |this, cx| this.toggle_panel(&keys::ToggleRightPanel, window, cx));
+                        },
+                    ))
+                    .child(div().absolute().top_0().bottom_0().right_0().child(column.bg(p.popover).shadow_lg()))
+                    .into_any_element()
+            } else {
+                column
+                    .child(
+                        div()
+                            .id("panel-rail")
+                            .debug_selector(|| "panel-rail".into())
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .left(-frame::PANEL_RAIL / 2.)
+                            .w(frame::PANEL_RAIL)
+                            .cursor_col_resize()
+                            .group("panel-rail")
+                            .on_drag(Rail::Panel, |rail, _, _, cx| cx.new(|_| *rail))
+                            .child(div().mx_auto().w(px(1.)).h_full().group_hover("panel-rail", |s| s.bg(p.border))),
+                    )
+                    .into_any_element()
+            }
+        });
+
+        h_flex()
+            .id("shell")
+            .key_context(context)
+            .track_focus(&self.focus)
+            .size_full()
+            .when_some(fills.window, |el, ground| el.bg(ground))
+            .text_color(p.foreground)
+            .font_family(cx.theme().font_family.clone())
+            .on_action(cx.listener(Self::toggle_sidebar))
+            .on_action(cx.listener(Self::toggle_panel))
+            .on_action(cx.listener(Self::toggle_preview))
+            .on_action(cx.listener(Self::toggle_drawer))
+            .on_action(cx.listener(Self::toggle_settings))
+            .on_action(cx.listener(Self::close_settings))
+            .on_action(cx.listener(Self::close_panel_tab))
+            .on_action(cx.listener(Self::select_workspace))
+            .on_action(cx.listener(|this, _: &keys::NextPanelTab, window, cx| this.panel.update(cx, |p, cx| p.step(1, window, cx))))
+            .on_action(cx.listener(|this, _: &keys::PreviousPanelTab, window, cx| this.panel.update(cx, |p, cx| p.step(-1, window, cx))))
+            .on_action(cx.listener(|this, _: &keys::NextWorkspace, window, cx| this.step_thread(this.workspaces(cx), 1, window, cx)))
+            .on_action(cx.listener(|this, _: &keys::PreviousWorkspace, window, cx| this.step_thread(this.workspaces(cx), -1, window, cx)))
+            .on_action(cx.listener(|this, _: &keys::NextThread, window, cx| this.step_thread(this.workspace_threads(cx), 1, window, cx)))
+            .on_action(
+                cx.listener(|this, _: &keys::PreviousThread, window, cx| this.step_thread(this.workspace_threads(cx), -1, window, cx)),
+            )
+            .on_drag_move(cx.listener(|this, e: &DragMoveEvent<Rail>, window, cx| {
+                let x = e.event.position.x;
+                let viewport = window.viewport_size().width;
+                match *e.drag(cx) {
+                    Rail::Sidebar => {
+                        let inline = !this.settings_open() && this.panel.read(cx).is_open() && viewport > frame::SHEET_MAX_VIEWPORT;
+                        this.sidebar_width = frame::clamp_sidebar(x, viewport, inline);
+                    }
+                    Rail::Panel => {
+                        let inline = viewport > frame::SHEET_MAX_VIEWPORT;
+                        let sidebar = frame::clamp_sidebar(this.sidebar_width, viewport, inline);
+                        let row = viewport - if this.sidebar_open { sidebar } else { px(0.) };
+                        let width = frame::clamp_panel(viewport - x, viewport, row);
+                        this.panel.update(cx, |p, cx| p.set_width(width, cx));
+                    }
+                }
+                cx.notify();
+            }))
+            .on_drop(cx.listener(|this, rail: &Rail, _, _| {
+                if matches!(rail, Rail::Sidebar) {
+                    this.save_sidebar_width();
+                }
+            }))
+            .children(sidebar)
+            .child(div().relative().flex().flex_1().min_w_0().h_full().child(center).children(panel))
+            .children(rail)
     }
 }
 
-/// The sidebar beside the thread view, which a test can render without a host behind them, and with `glass` a frosted
-/// composer-sized panel over the bottom of the thread view.
-pub fn layout(sidebar: &Entity<Sidebar>, thread_view: &Entity<ThreadView>, glass: bool, cx: &App) -> impl IntoElement {
-    let glass = glass.then(|| h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx)));
-    h_flex()
-        .size_full()
-        .bg(cx.theme().background)
-        .text_color(cx.theme().foreground)
-        .child(sidebar.clone().cached(StyleRefinement::default().w(WIDTH).h_full()))
-        .child(div().relative().flex_1().h_full().child(thread_view.clone().cached(StyleRefinement::default().size_full())).children(glass))
+/// `RIGHT_PANEL_SHEET_CLASS_NAME`: 42% of the window up to 448 px and down to 320, or 88% up to 384 under 760 px.
+fn sheet_width(viewport: Pixels) -> Pixels {
+    if viewport <= px(760.) {
+        (viewport * 0.88).min(px(384.))
+    } else {
+        (viewport * 0.42).min(px(448.)).max(px(320.))
+    }
+}
+
+/// An empty column, where a screen that has not landed yet will mount.
+struct Blank;
+
+impl Render for Blank {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full()
+    }
 }

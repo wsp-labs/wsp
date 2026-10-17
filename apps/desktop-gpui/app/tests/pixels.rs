@@ -5,31 +5,18 @@
 
 use std::sync::Arc;
 
-use desktop_gpui::shell::layout;
-use desktop_gpui::sidebar::{Sidebar, ThreadItem, WIDTH};
-use desktop_gpui::thread_view::ThreadView;
-use desktop_gpui::ui::UiAssets;
+use desktop_gpui::screens::app_shell::assets::AppAssets;
+use desktop_gpui::screens::app_shell::frame::{SIDEBAR_DEFAULT, TOPBAR};
+use desktop_gpui::screens::Route;
+use desktop_gpui::shell::{Launch, Shell};
+use desktop_gpui::sidebar::ThreadItem;
 use gpui_kit::component::{ActiveTheme, Root};
 use gpui_kit::test::TestWindowExt;
-use gpui_kit::{
-    px, size, AnyWindowHandle, AppContext, Bounds, Context, Entity, HeadlessAppContext, IntoElement, Render, Rgba, Window, WindowBounds,
-    WindowOptions,
-};
+use gpui_kit::{px, size, AnyWindowHandle, AppContext, Bounds, HeadlessAppContext, Rgba, WindowBounds, WindowOptions};
 use wsp_host_client::protocol::SessionEvent;
 
 const W: f32 = 1280.;
 const H: f32 = 800.;
-
-struct Content {
-    sidebar: Entity<Sidebar>,
-    thread_view: Entity<ThreadView>,
-}
-
-impl Render for Content {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        layout(&self.sidebar, &self.thread_view, false, cx)
-    }
-}
 
 /// One running turn: the person's message, then a reply with prose and a fenced code block. No turn settles, so
 /// no fold hides the reply.
@@ -103,36 +90,41 @@ struct Colors {
 fn render() -> (Capture, Colors) {
     let mut cx = HeadlessAppContext::with_platform(
         gpui_kit::platform::current_platform(true).text_system(),
-        Arc::new(UiAssets),
+        Arc::new(AppAssets),
         gpui_kit::platform::current_headless_renderer,
     );
-    cx.update(gpui_kit::init);
-    let (sidebar, thread_view) = cx.update(|cx| (cx.new(Sidebar::new), cx.new(ThreadView::new)));
     cx.update(|cx| {
-        sidebar.update(cx, |s, cx| {
-            s.set_items(items(), cx);
-            s.mark("t1", cx);
-        });
-        thread_view.update(cx, |v, cx| {
-            v.show("t1", cx);
-            v.load(transcript(), cx);
-        });
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
     });
-    let (handle, _): (AnyWindowHandle, _) = cx
-        .update(|cx| {
-            let options = WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(Bounds { origin: Default::default(), size: size(px(W), px(H)) })),
-                focus: false,
-                show: false,
-                ..Default::default()
-            };
-            let content = Content { sidebar: sidebar.clone(), thread_view: thread_view.clone() };
-            gpui_kit::open_window(options, cx, |window, cx| {
-                let content = cx.new(|_| content);
-                cx.new(|cx| Root::new(content, window, cx))
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap());
+    let state = std::env::temp_dir().join("desktop-gpui-pixels-no-host").join("state.json");
+    let (handle, shell) = cx.update(|cx| {
+        let options = WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(Bounds { origin: Default::default(), size: size(px(W), px(H)) })),
+            focus: false,
+            show: false,
+            ..Default::default()
+        };
+        let mut shell = None;
+        let handle = cx
+            .open_window(options, |window, cx| {
+                let view = cx.new(|cx| Shell::new(state, Default::default(), runtime, Launch::default(), window, cx));
+                shell = Some(view.clone());
+                cx.new(|cx| Root::new(view, window, cx))
             })
+            .unwrap();
+        let handle: AnyWindowHandle = handle.into();
+        (handle, shell.unwrap())
+    });
+    cx.update_window(handle, |_, window, cx| {
+        shell.update(cx, |shell, cx| {
+            shell.sidebar().update(cx, |s, cx| s.set_items(items(), cx));
+            shell.go(Route::Thread { workspace_id: "w".to_owned(), thread_id: "t1".to_owned() }, window, cx);
+            shell.thread_view().update(cx, |v, cx| v.load(transcript(), cx));
         })
-        .unwrap();
+    })
+    .unwrap();
     // The list measures its rows in one frame and the markdown highlights in background tasks, so draw until settled.
     for _ in 0..3 {
         cx.update_window(handle, |_, window, cx| window.render_frame(cx)).unwrap();
@@ -146,7 +138,8 @@ fn render() -> (Capture, Colors) {
     }
     let colors = cx.update(|cx| {
         let theme = cx.theme();
-        Colors { sidebar: rgb(theme.sidebar), background: rgb(theme.background), bubble: rgb(theme.secondary) }
+        let p = desktop_gpui::ui::ActivePalette::palette(cx);
+        Colors { sidebar: rgb(p.sidebar), background: rgb(p.background), bubble: rgb(theme.secondary) }
     });
     let (width, height) = image.dimensions();
     (Capture { width, height, scale, raw: image.into_raw() }, colors)
@@ -160,7 +153,8 @@ fn main() {
 fn the_window_draws_the_sidebar_beside_the_transcript() {
     let (shot, colors) = render();
     assert_eq!((shot.width, shot.height), (shot.device(W), shot.device(H)));
-    let width = f32::from(WIDTH);
+    let width = f32::from(SIDEBAR_DEFAULT);
+    let top = f32::from(TOPBAR);
     assert_ne!(colors.sidebar, colors.background, "the theme draws the sidebar apart from the thread view");
 
     // Below the last row, each side shows only its own background.
@@ -168,17 +162,17 @@ fn the_window_draws_the_sidebar_beside_the_transcript() {
     assert!(near(shot.at(W - 10., H - 10.), colors.background), "thread view at the bottom: {:?}", shot.at(W - 10., H - 10.));
 
     // The person's bubble is the first row, flush with the 16 px right padding of the thread view's centred 768 px
-    // column. The row's 8 px top padding and the bubble's own put y = 14 inside the bubble's fill, above its text.
+    // column. Across the middle of its one line the fill stands either side of the text.
     let column_right = width + (W - width + 768.) / 2.;
-    let y = shot.device(14.);
-    let bubble: Vec<u32> = (shot.device(width)..shot.device(W)).filter(|&x| near(shot.device_at(x, y), colors.bubble)).collect();
+    let y = shot.device(top + 29.);
+    let bubble: Vec<u32> = (shot.device(width)..shot.device(W)).filter(|&x| shot.device_at(x, y) == colors.bubble).collect();
     let (first, last) = (bubble.first().copied().unwrap_or(0), bubble.last().copied().unwrap_or(0));
-    assert!(!bubble.is_empty() && bubble.len() as u32 == last - first + 1, "no unbroken bubble fill at y = {y}: {} columns", bubble.len());
+    assert!(!bubble.is_empty(), "no bubble fill at y = {y}");
     assert!(last.abs_diff(shot.device(column_right - 16.)) <= 2, "the bubble must end at the right padding, ends at {last}");
     assert!(first > shot.device(width + 200.), "the bubble must fit its text, starts at {first}");
 
     // The reply's prose and code put dark glyph pixels on the thread view's background.
-    let ink = (shot.device(80.)..shot.device(400.))
+    let ink = (shot.device(top + 80.)..shot.device(top + 400.))
         .flat_map(|y| (shot.device(width + 16.)..shot.device(W - 16.)).map(move |x| (x, y)))
         .filter(|&(x, y)| {
             let p = shot.device_at(x, y);
