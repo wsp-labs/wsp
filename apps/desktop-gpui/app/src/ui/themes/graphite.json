@@ -1,0 +1,143 @@
+{
+  "name": "Graphite",
+  "author": "wsp",
+  "themes": [
+    {
+      "name": "Graphite",
+      "mode": "dark",
+      "radius": 8,
+      "radius.lg": 14,
+      "colors": {
+        "background": "#0a0a0aff",
+        "foreground": "#f5f5f5ff",
+        "border": "#232323ff",
+        "input.border": "#ffffff14",
+        "muted.background": "#ffffff08",
+        "muted.foreground": "#818181ff",
+        "accent.background": "#ffffff0a",
+        "accent.foreground": "#f5f5f5ff",
+        "primary.background": "#346bf1ff",
+        "primary.foreground": "#ffffffff",
+        "primary.hover.background": "#3061daff",
+        "primary.active.background": "#3061daff",
+        "secondary.background": "#ffffff08",
+        "secondary.foreground": "#f5f5f5ff",
+        "popover.background": "#111111ff",
+        "popover.foreground": "#f5f5f5ff",
+        "ring": "#346bf1ff",
+        "caret": "#f5f5f5ff",
+        "selection.background": "#346bf140",
+        "danger.background": "#fb414aff",
+        "success.background": "#00bc7dff",
+        "warning.background": "#fe9a00ff",
+        "info.background": "#2b7fffff",
+        "sidebar.background": "#000000ff",
+        "sidebar.foreground": "#f1f3f7ff",
+        "sidebar.border": "#232323ff",
+        "sidebar.accent.background": "#f1f3f712",
+        "sidebar.accent.foreground": "#f1f3f7ff",
+        "list.hover.background": "#ffffff0a",
+        "list.active.background": "#ffffff0a",
+        "title_bar.background": "#0a0a0aff",
+        "title_bar.border": "#232323ff",
+        "window.border": "#232323ff",
+        "danger.foreground": "#ffffffff",
+        "overlay": "#0a0a0aa3"
+      },
+      "wsp": {
+        "background": "#0a0a0aff",
+        "foreground": "#f5f5f5ff",
+        "card": "#111111ff",
+        "card-hover": "#1d1d1dff",
+        "muted": "#ffffff08",
+        "muted-foreground": "#818181ff",
+        "accent": "#ffffff0a",
+        "primary": "#346bf1ff",
+        "primary-foreground": "#ffffffff",
+        "primary-hover": "#3061daff",
+        "border": "#232323ff",
+        "input": "#ffffff14",
+        "input-fill": "#ffffff06",
+        "input-fill-hover": "#f8f8f813",
+        "keycap-top": "#ffffff0f",
+        "popover": "#111111ff",
+        "popover-edge": "#f5f5f51a",
+        "ring": "#346bf1ff",
+        "success": "#00bc7dff",
+        "warning": "#fe9a00ff",
+        "warning-foreground": "#ff8904ff",
+        "error": "#fb414aff",
+        "error-foreground": "#ff6467ff",
+        "destructive": "#fb414aff",
+        "info-foreground": "#51a2ffff",
+        "placeholder": "#818181ff",
+        "sidebar": "#000000ff",
+        "sidebar-foreground": "#f1f3f7ff",
+        "sidebar-muted-foreground": "#a3a3a3ff",
+        "sidebar-row-hover": "#f1f3f70a",
+        "sidebar-row-selected": "#f1f3f712",
+        "sidebar-row-edge": "#00000000",
+        "status-input": "#a3b3ffff",
+        "status-working": "#f472b6ff",
+        "status-failed": "#ffa2a2ff",
+        "status-done": "#5ee9b5ff",
+        "dialog-shadow": [
+          {
+            "inset": true,
+            "x": 0,
+            "y": 1,
+            "blur": 0,
+            "spread": 0,
+            "color": "#ffffff0a"
+          },
+          {
+            "inset": false,
+            "x": 0,
+            "y": 24,
+            "blur": 72,
+            "spread": -20,
+            "color": "#000000e6"
+          }
+        ],
+        "popover-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 18,
+            "blur": 44,
+            "spread": -18,
+            "color": "#000000cc"
+          }
+        ],
+        "control-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 1,
+            "blur": 2,
+            "spread": 0,
+            "color": "#0000000d"
+          }
+        ],
+        "tooltip-shadow": [
+          {
+            "inset": false,
+            "x": 0,
+            "y": 4,
+            "blur": 6,
+            "spread": -1,
+            "color": "#0000000d"
+          },
+          {
+            "inset": false,
+            "x": 0,
+            "y": 2,
+            "blur": 4,
+            "spread": -2,
+            "color": "#0000000d"
+          }
+        ]
+      }
+    }
+  ]
+}

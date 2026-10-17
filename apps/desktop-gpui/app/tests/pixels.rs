@@ -8,7 +8,7 @@ use std::sync::Arc;
 use desktop_gpui::shell::layout;
 use desktop_gpui::sidebar::{Sidebar, ThreadItem, WIDTH};
 use desktop_gpui::thread_view::ThreadView;
-use gpui_kit::assets::Assets;
+use desktop_gpui::ui::UiAssets;
 use gpui_kit::component::{ActiveTheme, Root};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{
@@ -103,7 +103,7 @@ struct Colors {
 fn render() -> (Capture, Colors) {
     let mut cx = HeadlessAppContext::with_platform(
         gpui_kit::platform::current_platform(true).text_system(),
-        Arc::new(Assets),
+        Arc::new(UiAssets),
         gpui_kit::platform::current_headless_renderer,
     );
     cx.update(gpui_kit::init);
