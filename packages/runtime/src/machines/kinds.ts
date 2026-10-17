@@ -286,7 +286,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
     const refused = unbrokeredRefusal(harness) ?? (harness === "codex" && codexBroker === undefined ? codexLoginUnreadRefusal() : undefined);
     if (refused !== undefined) throw refused;
     const { claude, vault } = placeholdersOf(brokerSaid, token);
-    return { env: brokeredEnv(token), vault, claude, ...codex };
+    return { env: brokeredEnv(token, entry.record.branchOfRecord), vault, claude, ...codex };
   };
   /** Before a road starts codex on a brokered workspace with no turn token: the broker read where no Codex login was
    * read since the host started or the last read named none, and the turn's refusal where it still names none, so

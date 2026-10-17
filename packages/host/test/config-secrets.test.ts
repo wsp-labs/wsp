@@ -209,6 +209,16 @@ describe("a copied shell file or git config", () => {
     }
   });
 
+  it("an http extra header is cut on a box and on a provider's image, since a basic login in it has no token's shape", () => {
+    const basic = Buffer.from("x-access-token:ghp_plain0header0plain0header0plain0head").toString("base64");
+    const git = [...PLAIN_GIT, '[http "https://github.com/"]', `\textraHeader = AUTHORIZATION: basic ${basic}`, ""].join("\n");
+    for (const cuts of [undefined, CLOUD_GIT_CUTS]) {
+      const names: string[] = [];
+      expect(gitCut(git, false, cuts, names)).toBe([...PLAIN_GIT, '[http "https://github.com/"]', ""].join("\n"));
+      expect(names).toEqual(["http.https://github.com/.extraheader"]);
+    }
+  });
+
   it("keeps a plain remote and a long repository name on a box and on a provider's image", () => {
     const git = [...PLAIN_GIT, '[remote "lab"]', "\turl = https://github.com/acme/terraform-provider-aws-v5-modules.git", ""].join("\n");
     expect(gitCut(git, false)).toBe(git);
