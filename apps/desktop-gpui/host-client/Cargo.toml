@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-host-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "The desktop app's road to the host: dial it as wsp does, list projects and threads, follow one thread live"
+
+[dependencies]
+wsp-mcp = { path = "../../../daemon/crates/wsp-mcp" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Generates the protocol's types from record/protocol.json at compile time.
+typify = "0.8"
+
+[dev-dependencies]
+libc = "0.2"
+tokio = { version = "1", features = ["macros", "rt", "process", "time"] }
+tempfile = "3"
