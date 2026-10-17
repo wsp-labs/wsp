@@ -132,6 +132,17 @@ pub fn settled(reply: &Value, restore: impl Fn(Vec<String>, &mut App) + 'static)
 /// one's over ssh in the host's default editor. A wait on the computer's update is a waiting toast, any other refusal
 /// the host's sentence.
 pub fn open_in_editor(workspace_id: String, window: &mut Window, cx: &mut App) {
+    open_copy_in_editor(workspace_id, None, window, cx);
+}
+
+/// Whether an open of the workspace's copy waits on the host's answer, which a second press waits on too.
+pub fn opening(workspace_id: &str, window: &Window, cx: &App) -> bool {
+    overlays::of(window, cx).is_some_and(|o| o.read(cx).notices.read(cx).opening.contains(workspace_id))
+}
+
+/// [`open_in_editor`], a running workspace on another computer in `editor` where one is named (`openCopyInEditor`'s
+/// `editor`); a local one always opens in the host's default.
+pub fn open_copy_in_editor(workspace_id: String, editor: Option<String>, window: &mut Window, cx: &mut App) {
     let Some(overlays) = overlays::of(window, cx) else { return };
     let (host, notices, sidebar) = {
         let o = overlays.read(cx);
@@ -145,13 +156,12 @@ pub fn open_in_editor(workspace_id: String, window: &mut Window, cx: &mut App) {
     }
     let id = workspace_id.clone();
     let folder = workspace["folder"].as_str().or(workspace["project"]["path"].as_str()).unwrap_or_default().to_owned();
+    let mut asked = json!({ "workspaceId": id, "path": folder });
+    if let Some(editor) = editor.filter(|_| workspace["kind"] != "local") {
+        asked["editor"] = editor.into();
+    }
     let open = host.run(move |client| async move {
-        crate::screens::sidebar::host::ask::<wsp_host_client::protocol::EditorOpenRequest>(
-            client,
-            json!({ "workspaceId": id, "path": folder }),
-        )
-        .await
-        .map(drop)
+        crate::screens::sidebar::host::ask::<wsp_host_client::protocol::EditorOpenRequest>(client, asked).await.map(drop)
     });
     notices.update(cx, |_, cx| {
         cx.spawn(async move |this, cx| {

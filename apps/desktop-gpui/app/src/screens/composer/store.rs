@@ -65,17 +65,52 @@ pub fn draft(store: &LocalStore, thread_key: &str) -> Option<(String, usize)> {
 
 /// Keeps a thread's draft until it is cleared; an empty prompt clears it.
 pub fn set_draft(store: &mut LocalStore, thread_key: &str, prompt: &str, cursor: usize) -> io::Result<()> {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    set_draft_at(store, thread_key, prompt, cursor, now)
+}
+
+/// `set_draft` with the time of the edit, in ms since the epoch, which the quota's pruning goes by.
+pub fn set_draft_at(store: &mut LocalStore, thread_key: &str, prompt: &str, cursor: usize, edited: u64) -> io::Result<()> {
     if draft(store, thread_key) == (!prompt.is_empty()).then(|| (prompt.to_owned(), cursor)) {
         return Ok(());
     }
+    making_room(store, Some(thread_key), |store| {
+        let mut state = state(store, DRAFTS_KEY);
+        let drafts = record(&mut state, "drafts");
+        if prompt.is_empty() {
+            drafts.remove(thread_key);
+        } else {
+            drafts.insert(thread_key.to_owned(), json!({ "prompt": prompt, "cursor": cursor, "editedAt": edited }));
+        }
+        set_state(store, DRAFTS_KEY, state, DRAFTS_VERSION)
+    })
+}
+
+/// Writes `write`'s change within the store's 5 MB by dropping the least recently edited drafts first, never `keep`'s,
+/// a queued message or a stash entry; refused only once no other draft is left to drop.
+fn making_room(store: &mut LocalStore, keep: Option<&str>, mut write: impl FnMut(&mut LocalStore) -> io::Result<()>) -> io::Result<()> {
+    loop {
+        match write(store) {
+            Err(e) if e.kind() == io::ErrorKind::StorageFull => {
+                if !drop_oldest_draft(store, keep)? {
+                    return Err(e);
+                }
+            }
+            done => return done,
+        }
+    }
+}
+
+/// Drops the draft edited longest ago but `keep`'s; false where there is none.
+fn drop_oldest_draft(store: &mut LocalStore, keep: Option<&str>) -> io::Result<bool> {
     let mut state = state(store, DRAFTS_KEY);
     let drafts = record(&mut state, "drafts");
-    if prompt.is_empty() {
-        drafts.remove(thread_key);
-    } else {
-        drafts.insert(thread_key.to_owned(), json!({ "prompt": prompt, "cursor": cursor }));
-    }
-    set_state(store, DRAFTS_KEY, state, DRAFTS_VERSION)
+    let edited = |v: &Value| v.get("editedAt").and_then(Value::as_u64).unwrap_or(0);
+    let oldest = drafts.iter().filter(|(k, _)| Some(k.as_str()) != keep).min_by_key(|(_, v)| edited(v)).map(|(k, _)| k.clone());
+    let Some(oldest) = oldest else { return Ok(false) };
+    drafts.remove(&oldest);
+    set_state(store, DRAFTS_KEY, state, DRAFTS_VERSION)?;
+    Ok(true)
 }
 
 fn rows_of(value: Option<&Value>) -> Vec<Queued> {
@@ -95,8 +130,13 @@ pub fn queue(store: &LocalStore, thread_key: &str) -> Restored {
     Restored { held: !rows.is_empty(), rows }
 }
 
-/// Keeps a thread's waiting messages, their ids and words only; an empty queue drops the key.
-pub fn set_queue(store: &mut LocalStore, thread_key: &str, rows: &[Queued]) -> io::Result<()> {
+/// Keeps a thread's waiting messages, their ids and words only; an empty queue drops the key. Room past the quota is
+/// made from drafts other than `keep`'s, the one on screen.
+pub fn set_queue(store: &mut LocalStore, thread_key: &str, rows: &[Queued], keep: Option<&str>) -> io::Result<()> {
+    making_room(store, keep, |store| write_queue(store, thread_key, rows))
+}
+
+fn write_queue(store: &mut LocalStore, thread_key: &str, rows: &[Queued]) -> io::Result<()> {
     let mut state = state(store, DRAFTS_KEY);
     let queues = record(&mut state, "queues");
     if rows.is_empty() {
@@ -188,7 +228,11 @@ pub fn stash(store: &LocalStore) -> Stash {
 
 /// Writes the stash's newest `STASH_MAX` entries at once, each one's files within the budget; on an error nothing was
 /// kept and the composer should not clear.
-pub fn set_stash(store: &mut LocalStore, stash: &Stash) -> io::Result<()> {
+pub fn set_stash(store: &mut LocalStore, stash: &Stash, keep: Option<&str>) -> io::Result<()> {
+    making_room(store, keep, |store| write_stash(store, stash))
+}
+
+fn write_stash(store: &mut LocalStore, stash: &Stash) -> io::Result<()> {
     let entries: Vec<Value> = stash
         .entries
         .iter()
@@ -332,7 +376,7 @@ mod tests {
         let path = scratch("queue");
         let mut store = LocalStore::open(&path);
         assert_eq!(queue(&store, "thr_1"), Restored { rows: vec![], held: false });
-        set_queue(&mut store, "thr_1", &[row(3, "first"), row(9, "second")]).unwrap();
+        set_queue(&mut store, "thr_1", &[row(3, "first"), row(9, "second")], None).unwrap();
         set_draft(&mut store, "thr_1", "still here", 0).unwrap();
         let mut store = LocalStore::open(&path);
         let back = queue(&store, "thr_1");
@@ -342,7 +386,7 @@ mod tests {
             vec![Queued { id: 3, prompt: "first".to_owned(), files: vec![] }, Queued { id: 9, prompt: "second".to_owned(), files: vec![] }]
         );
         assert!(store.get(DRAFTS_KEY).unwrap()["state"].get("held").is_none(), "the hold is not written, so every reopen holds again");
-        set_queue(&mut store, "thr_1", &[]).unwrap();
+        set_queue(&mut store, "thr_1", &[], None).unwrap();
         let store = LocalStore::open(&path);
         assert_eq!(queue(&store, "thr_1"), Restored::default());
         assert!(store.get(DRAFTS_KEY).unwrap()["state"]["queues"].get("thr_1").is_none());
@@ -353,8 +397,8 @@ mod tests {
     fn a_first_start_moves_the_workspaces_queue_draft_and_fast_mode_onto_the_thread() {
         let path = scratch("rekey");
         let mut store = LocalStore::open(&path);
-        set_queue(&mut store, "ws", &[row(1, "from the new thread page")]).unwrap();
-        set_queue(&mut store, "thr", &[row(2, "already here")]).unwrap();
+        set_queue(&mut store, "ws", &[row(1, "from the new thread page")], None).unwrap();
+        set_queue(&mut store, "thr", &[row(2, "already here")], None).unwrap();
         set_draft(&mut store, "ws", "typed before the start", 3).unwrap();
         set_fast(&mut store, "ws", true).unwrap();
         set_fast(&mut store, "thr", false).unwrap();
@@ -383,7 +427,7 @@ mod tests {
         let mut s = Stash::default();
         s.push(Stashed { prompt: "older".to_owned(), files: vec![], at: at(1_700_000_000_123) });
         s.push(Stashed { prompt: "newer".to_owned(), files: vec![file("a.png", 5), file("b.png", 1)], at: at(1_760_000_000_042) });
-        set_stash(&mut store, &s).unwrap();
+        set_stash(&mut store, &s, None).unwrap();
         assert_eq!(stash(&LocalStore::open(&path)), s);
         let reopened = LocalStore::open(&path);
         let raw = &reopened.get(STASH_KEY).unwrap()[0];
@@ -397,7 +441,7 @@ mod tests {
         let path = scratch("stash-cap");
         let mut store = LocalStore::open(&path);
         let entries = (0..25).rev().map(|i| Stashed { prompt: format!("draft {i}"), files: vec![], at: at(i * 1000) }).collect();
-        set_stash(&mut store, &Stash { entries }).unwrap();
+        set_stash(&mut store, &Stash { entries }, None).unwrap();
         let back = stash(&LocalStore::open(&path));
         assert_eq!(back.entries.len(), STASH_MAX);
         assert_eq!(back.entries[0].prompt, "draft 24");
@@ -414,7 +458,7 @@ mod tests {
         let path = scratch("stash-budget");
         let mut store = LocalStore::open(&path);
         let entry = Stashed { prompt: "p".to_owned(), files: vec![file("small", 10), file("huge", STASH_ENTRY_FILE_CHARS)], at: at(0) };
-        set_stash(&mut store, &Stash { entries: vec![entry] }).unwrap();
+        set_stash(&mut store, &Stash { entries: vec![entry] }, None).unwrap();
         let raw = &store.get(STASH_KEY).unwrap()[0];
         assert_eq!(raw["dropped"], json!(["huge"]));
         assert_eq!(stash(&LocalStore::open(&path)).entries[0].files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["small"]);
@@ -426,10 +470,48 @@ mod tests {
         let full = STASH_ENTRY_FILE_CHARS / 4 * 3;
         let mut s = Stash::default();
         s.push(Stashed { prompt: "one".to_owned(), files: vec![file("a.png", full)], at: at(0) });
-        set_stash(&mut store, &s).unwrap();
+        set_stash(&mut store, &s, None).unwrap();
         s.push(Stashed { prompt: "two".to_owned(), files: vec![file("b.png", full)], at: at(1) });
-        assert!(set_stash(&mut store, &s).is_err(), "two full entries pass the 5 MB the web's localStorage holds");
+        assert!(set_stash(&mut store, &s, None).is_err(), "two full entries pass the 5 MB the web's localStorage holds");
         assert_eq!(stash(&store).entries.iter().map(|e| e.prompt.as_str()).collect::<Vec<_>>(), ["one"]);
+    }
+
+    #[test]
+    fn past_the_quota_the_least_recently_edited_drafts_go_and_queues_and_the_stash_stay() {
+        let path = scratch("prune");
+        let mut store = LocalStore::open(&path);
+        let mut kept = Stash::default();
+        kept.push(Stashed { prompt: "stashed".to_owned(), files: vec![file("a.png", 1_500_000)], at: at(0) });
+        set_stash(&mut store, &kept, None).unwrap();
+        set_queue(&mut store, "queued", &[row(1, "waiting")], None).unwrap();
+        let words = "w".repeat(1_000_000);
+        for (key, edited) in [("oldest", 1), ("older", 2), ("newer", 3)] {
+            set_draft_at(&mut store, key, &words, 0, edited).unwrap();
+        }
+        set_draft_at(&mut store, "newest", &words, 0, 4).unwrap();
+        let store = LocalStore::open(&path);
+        let held: Vec<bool> = ["oldest", "older", "newer", "newest"].iter().map(|k| draft(&store, k).is_some()).collect();
+        assert_eq!(held, [false, true, true, true], "only the least recently edited draft made room");
+        assert_eq!(queue(&store, "queued").rows.len(), 1, "a queued message stays");
+        assert_eq!(stash(&store).entries.len(), 1, "a stash entry stays");
+    }
+
+    #[test]
+    fn a_queue_or_a_stash_past_the_quota_makes_room_from_drafts_alone() {
+        let mut store = LocalStore::open(scratch("prune-queue"));
+        let words = "w".repeat(2_000_000);
+        set_draft_at(&mut store, "old", &words, 0, 1).unwrap();
+        set_draft_at(&mut store, "new", &words, 0, 2).unwrap();
+        set_queue(&mut store, "queued", &[Queued { id: 1, prompt: "q".repeat(1_500_000), files: Vec::new() }], None).unwrap();
+        assert_eq!((draft(&store, "old").is_some(), draft(&store, "new").is_some()), (false, true));
+        let mut kept = Stash::default();
+        kept.push(Stashed { prompt: "s".repeat(1_800_000), files: Vec::new(), at: at(0) });
+        set_stash(&mut store, &kept, None).unwrap();
+        assert!(draft(&store, "new").is_none(), "the last draft goes before a stash entry is refused");
+        assert_eq!((queue(&store, "queued").rows.len(), stash(&store).entries.len()), (1, 1));
+        kept.push(Stashed { prompt: "s".repeat(3_000_000), files: Vec::new(), at: at(1) });
+        assert!(set_stash(&mut store, &kept, None).is_err(), "with no draft left to drop the store refuses");
+        assert_eq!(queue(&store, "queued").rows.len(), 1, "and the queue stays");
     }
 
     #[test]

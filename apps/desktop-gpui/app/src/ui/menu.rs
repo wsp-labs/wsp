@@ -85,7 +85,7 @@ pub fn glass<E: Styled>(el: E, p: &Palette) -> E {
 }
 
 /// The button a popup opens from: gpui-kit's popover takes the press on the element round it.
-struct Trigger(Stateful<Div>);
+pub struct Trigger(pub Stateful<Div>);
 
 impl Styled for Trigger {
     fn style(&mut self) -> &mut StyleRefinement {

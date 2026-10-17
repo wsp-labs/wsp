@@ -170,6 +170,7 @@ fn a_refused_send_comes_back_ahead_of_the_draft(cx: &mut TestAppContext) {
         fast: false,
         resume: None,
         from_queue: false,
+        fork: None,
     };
     composer.update_in(cx, |c, window, cx| c.refused_send(sent, window, cx));
     assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "first\nsecond draft");
