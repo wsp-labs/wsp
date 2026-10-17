@@ -21,14 +21,12 @@ use gpui_kit::{
 };
 use scene::{Scene, H, W};
 
-const SCROLLS: [f32; 3] = [0., 50., 117.];
-
 /// Per-pixel tolerance, the largest channel difference a pixel may have from Chromium's, and how many pixels of a
 /// capture may go over it. Measured on WGPU over Mesa lavapipe; see the report for each scene's numbers.
 fn tolerance(scene: Scene) -> (u8, usize) {
     match scene {
-        Scene::PlainLight | Scene::Clip => (2, 0),
-        Scene::BlurLight | Scene::BlurDark | Scene::BlurTwo => (4, 0),
+        Scene::PlainLight | Scene::Clip | Scene::ClipNested => (2, 0),
+        Scene::BlurLight | Scene::BlurDark | Scene::BlurTwo | Scene::BlurRadii | Scene::BlurTintDark | Scene::BlurShadow => (4, 0),
     }
 }
 
@@ -162,12 +160,8 @@ fn svg_square() -> impl IntoElement {
 fn the_rounded_clip_cuts_every_kind_of_primitive(cx: &mut HeadlessAppContext, out: &Path) -> Vec<String> {
     let shot = render(cx, || Kinds);
     shot.save(out.join("gpui-clip-kinds.png")).unwrap();
-    let scale = shot.width() as f32 / W;
-    let at = |x: f32, y: f32| {
-        let p = shot.get_pixel((x * scale) as u32, (y * scale) as u32);
-        [p[0], p[1], p[2]]
-    };
-    let near = |a: [u8; 3], b: u32| a.iter().zip([(b >> 16) as u8, (b >> 8) as u8, b as u8]).all(|(a, b)| a.abs_diff(b) <= 3);
+    let at = |x: f32, y: f32| rgb_at(&shot, x, y);
+    let near = |a: [u8; 3], b: u32| near(a, b, 3);
     let (page, inset, cut) = (0xf4f4f5, 22., 3.);
     let mut failed = Vec::new();
     // Each corner as (its x, its y, which way is inward, the color that fills it).
@@ -203,6 +197,48 @@ fn the_rounded_clip_cuts_every_kind_of_primitive(cx: &mut HeadlessAppContext, ou
     failed
 }
 
+fn rgb_at(shot: &image::RgbaImage, x: f32, y: f32) -> [u8; 3] {
+    let scale = shot.width() as f32 / W;
+    let p = shot.get_pixel((x * scale) as u32, (y * scale) as u32);
+    [p[0], p[1], p[2]]
+}
+
+fn near(a: [u8; 3], b: u32, tolerance: u8) -> bool {
+    a.iter().zip([(b >> 16) as u8, (b >> 8) as u8, b as u8]).all(|(a, b)| a.abs_diff(b) <= tolerance)
+}
+
+/// The pixels where a scene's break shows, checked on their own so the report names the break.
+fn samples(scene: Scene, name: &str, actual: &image::RgbaImage, expected: &image::RgbaImage, tolerance: u8) -> Vec<String> {
+    let mut failed = Vec::new();
+    let mut check = |what: String, ok: bool, seen: String| {
+        println!("{:4} {name:16} {what}: {seen}", if ok { "ok" } else { "FAIL" });
+        if !ok {
+            failed.push(format!("{name} {what}"));
+        }
+    };
+    match scene {
+        // Just outside the panel's arc the page shows, though a card's fill reaches there inside the card's own clip.
+        Scene::ClipNested => {
+            let (page, card) = (0xf4f4f5, scene::CUT_CARD);
+            for (x, y, (dx, dy)) in [(160., 40., (1., 1.)), (480., 40., (-1., 1.)), (160., 440., (1., -1.)), (480., 440., (-1., -1.))] {
+                let (inside, outside) = (rgb_at(actual, x + dx * 15., y + dy * 15.), rgb_at(actual, x + dx * 3., y + dy * 3.));
+                let ok = near(inside, card, tolerance) && near(outside, page, tolerance);
+                check(format!("panel corner ({x}, {y})"), ok, format!("inside the arc {inside:?}, outside the arc {outside:?}"));
+            }
+        }
+        // The shadow of the composer scrolled out of the pane's top, below its 4 px left in the pane.
+        Scene::BlurShadow => {
+            for (x, y) in [(70., 206.), (320., 205.), (320., 212.), (560., 208.)] {
+                let (seen, chromium) = (rgb_at(actual, x, y), rgb_at(expected, x, y));
+                let ok = seen.iter().zip(chromium).all(|(a, b)| a.abs_diff(b) <= tolerance);
+                check(format!("shadow below the pane's top at ({x}, {y})"), ok, format!("{seen:?}, Chromium {chromium:?}"));
+            }
+        }
+        _ => {}
+    }
+    failed
+}
+
 fn main() {
     let mut cx = HeadlessAppContext::with_platform(
         gpui_kit::platform::current_platform(true).text_system(),
@@ -213,7 +249,7 @@ fn main() {
     let mut failed = Vec::new();
     for scene in Scene::ALL {
         let (tolerance, allowed) = tolerance(scene);
-        for scroll in SCROLLS {
+        for &scroll in scene.scrolls() {
             let name = format!("{}-{scroll}", scene.name());
             let actual = render(&mut cx, move || Effects { scene, scroll });
             std::fs::create_dir_all(&out).unwrap();
@@ -223,6 +259,7 @@ fn main() {
             let stats = compare::compare(&actual, &expected, tolerance, &out.join(format!("diff-{name}.png")));
             let verdict = if stats.over > allowed { "FAIL" } else { "ok" };
             println!("{verdict:4} {name:16} tolerance {tolerance}: {stats}");
+            failed.extend(samples(scene, &name, &actual, &expected, tolerance));
             if stats.over > allowed {
                 failed.push(name);
             }

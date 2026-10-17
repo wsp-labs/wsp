@@ -17,6 +17,10 @@
     "blur-dark": { page: "#0a0a0a", ink: "#f4f4f5", tint: "rgba(245,245,245,0.03)", filter: "blur(16px) saturate(1.08)" },
     "blur-two": { page: "#f4f4f5", ink: "#18181b", tint: "rgba(255,255,255,0.55)" },
     "clip": { page: "#f4f4f5", ink: "#18181b" },
+    "clip-nested": { page: "#f4f4f5", ink: "#18181b" },
+    "blur-radii": { page: "#f4f4f5", ink: "#18181b" },
+    "blur-tint-dark": { page: "#0a0a0a", ink: "#f4f4f5" },
+    "blur-shadow": { page: "#f4f4f5", ink: "#18181b" },
   };
   const params = new URLSearchParams(location.search);
   const name = params.get("scene") || "plain-light";
@@ -47,6 +51,34 @@
       rect(box, 0, top, 280, 36, PALETTE[i % 6]);
       stripes(box, i, top, 12);
     }
+  } else if (name === "clip-nested") {
+    const panel = rect(document.body, 160, 40, 320, 400, "#e4e4e7");
+    panel.style.borderRadius = "22px";
+    panel.style.overflowY = "hidden";
+    for (let i = 0; i * 80 - scroll < 400; i++) {
+      const top = i * 80 - scroll;
+      const card = rect(panel, 0, top, 320, 72, "transparent");
+      card.style.borderRadius = "8px";
+      card.style.overflow = "hidden";
+      rect(card, 0, 0, 320, 72, top < 0 || top + 72 > 400 ? "#ececee" : PALETTE[i % 6]);
+      stripes(card, i, 18, 40);
+    }
+  } else if (name === "blur-radii") {
+    const widths = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+    for (let k = 0, x = 48; x + widths[k % 10] <= 584; x += widths[k % 10] + Math.max(widths[k % 10], 6), k++) {
+      rect(document.body, x, 0, widths[k % 10], 480, scene.ink);
+    }
+    rect(document.body, 599, 0, 1, 480, scene.ink);
+    const panels = [[30, 1], [180, 4], [330, 8]];
+    for (const [top] of panels) {
+      for (const [y, h] of [[12, 2], [30, 8], [56, 24]]) rect(document.body, 40, top + y, 544, h, scene.ink);
+      rect(document.body, 40, top + 119, 560, 1, scene.ink);
+    }
+    for (const [top, blur] of panels) {
+      const panel = rect(document.body, 40, top, 560, 120, "transparent");
+      panel.style.borderRadius = "12px";
+      panel.style.backdropFilter = `blur(${blur}px)`;
+    }
   } else {
     for (let i = 0; i * 36 - scroll < 480; i++) {
       const top = i * 36 - scroll;
@@ -61,6 +93,19 @@
       const large = rect(document.body, 40, 280, 560, 160, scene.tint);
       large.style.borderRadius = "22px";
       large.style.backdropFilter = "blur(16px) saturate(1.08)";
+    } else if (name === "blur-tint-dark") {
+      const dropdown = rect(document.body, 380, 60, 220, 288, "rgba(17,17,17,0.96)");
+      dropdown.style.borderRadius = "12px";
+      dropdown.style.backdropFilter = "blur(8px)";
+    } else if (name === "blur-shadow") {
+      const pane = rect(document.body, 0, 200, 640, 280, "transparent");
+      pane.style.overflow = "hidden";
+      for (const top of [-116, 120]) {
+        const composer = rect(pane, 40, top, 560, 120, "rgba(255,255,255,0.55)");
+        composer.style.borderRadius = "22px";
+        composer.style.boxShadow = "0 12px 28px -18px rgb(0 0 0/40%)";
+        composer.style.backdropFilter = "blur(12px) saturate(1.14)";
+      }
     } else {
       const panel = rect(document.body, 40, 300, 560, 120, scene.tint);
       panel.style.borderRadius = "22px";
