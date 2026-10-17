@@ -9,11 +9,3 @@ version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 publish = false
-
-# gpui-kit names Zed's git repo; these swap every Zed crate it uses for zui at one commit.
-# Keep Cargo.lock committed: resolving this patch without it clones all of Zed.
-[patch."https://github.com/zed-industries/zed"]
-gpui = { git = "https://github.com/zeronsh/zui", rev = "361ff20b919fdfb80199ee6d9aed725300cb7d54" }
-gpui_platform = { git = "https://github.com/zeronsh/zui", rev = "361ff20b919fdfb80199ee6d9aed725300cb7d54" }
-gpui_macros = { git = "https://github.com/zeronsh/zui", rev = "361ff20b919fdfb80199ee6d9aed725300cb7d54" }
-gpui_web = { git = "https://github.com/zeronsh/zui", rev = "361ff20b919fdfb80199ee6d9aed725300cb7d54" }
