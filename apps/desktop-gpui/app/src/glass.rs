@@ -11,6 +11,13 @@ pub const WIDTH: Pixels = px(768.);
 pub const HEIGHT: Pixels = px(120.);
 const RADIUS: Pixels = px(22.);
 
+/// Whether the docked composer blurs the page under it: on unless `DESKTOP_GPUI_COMPOSER_GLASS=off`, which a bench run sets
+/// to time the frame without it.
+pub fn composer_blurs() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("DESKTOP_GPUI_COMPOSER_GLASS").is_none_or(|v| v != "off"))
+}
+
 pub fn composer_glass(cx: &App) -> Div {
     let theme = cx.theme();
     let glass = div().w(WIDTH).h(HEIGHT).rounded(RADIUS).border_1();

@@ -31,6 +31,7 @@ pub mod words {
     pub const NOTHING: &str = "Nothing here yet";
     pub const ASK: &str = "The agent builds this panel when there is something to watch, track, fill in or press. Ask for one.";
     pub const ASK_BUTTON: &str = "Ask for one";
+    pub const ASK_HELD: &str = "Answer the prompt in the thread first.";
     pub const ASK_PROMPT: &str = "Build a slate for this thread that shows ";
     pub const CLEARED: &str = "Cleared";
     pub const REWOUND: &str = "Rewound to before this slate existed";
@@ -369,6 +370,8 @@ impl Screen for SlateScreen {
 
     fn new(host: Host, opened: Opened, _window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (holding_asks, mut asks) = mpsc::unbounded::<&'static str>();
+        // A prompt that docks in the thread's composer, or leaves it, turns Ask for one off or on again.
+        cx.observe_global::<crate::screens::composer::Docked>(|_, cx| cx.notify()).detach();
         let mut screen = SlateScreen {
             host,
             load: if opened.thread_id.is_some() { Load::Waiting } else { Load::NoThread },
@@ -1621,6 +1624,8 @@ impl SlateScreen {
         let mark = record.empty.clone().unwrap_or_else(|| if record.newer.is_some() { "newer".into() } else { "none".into() });
         let this = cx.entity().downgrade();
         let thread = record.thread_id.clone();
+        // A prompt in the composer's place leaves no composer to take the words or the caret.
+        let held = crate::screens::composer::docked(&thread, cx);
         let ask_for_one =
             move |_: &gpui_kit::ClickEvent, window: &mut Window, cx: &mut App| fill_composer(&thread, words::ASK_PROMPT, window, cx);
         let undo = record.can_undo.then(|| {
@@ -1648,7 +1653,24 @@ impl SlateScreen {
             )
             .when(record.newer.is_none(), |el| {
                 el.child(
-                    h_flex().gap(px(8.)).child(Button::outline("slate-ask", words::ASK_BUTTON).xs().on_click(ask_for_one)).children(undo),
+                    h_flex()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .debug_selector(|| "slate-ask".into())
+                                .child(Button::outline("slate-ask", words::ASK_BUTTON).xs().held(held).on_click(ask_for_one)),
+                        )
+                        .children(undo),
+                )
+            })
+            .when(held && record.newer.is_none(), |el| {
+                el.child(
+                    div()
+                        .debug_selector(|| "slate-held".into())
+                        .text_size(px(13.))
+                        .line_height(px(20.))
+                        .text_color(p.muted_foreground)
+                        .child(words::ASK_HELD),
                 )
             })
             .children(

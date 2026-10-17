@@ -277,7 +277,13 @@ fn a_failed_start_routed_to_draws_the_card_and_opens_the_asking_thread(cx: &mut 
     });
     let shell = made.unwrap();
     cx.simulate_resize(size(px(1280.), px(800.)));
-    wait(cx, "the sidebar's first read", |cx| shell.read_with(cx, |s, cx| !s.sidebar().read(cx).items().is_empty()));
+    // The shell lists the threads before the sidebar's own read lands, and that read replaces the records.
+    wait(cx, "the sidebar's first read", |cx| {
+        shell.read_with(cx, |s, cx| {
+            let sidebar = s.sidebar().read(cx);
+            sidebar.items().first().is_some_and(|i| sidebar.workspace(&i.workspace_id).0.is_some())
+        })
+    });
     let lead = shell.read_with(cx, |s, cx| s.sidebar().read(cx).items()[0].clone());
     let fork = json!({ "id": "w9", "name": "fix-login", "phase": "gone", "machineId": "", "kind": "cloud", "gone": "no room",
         "parentWorkspaceId": lead.workspace_id, "parentThreadId": lead.thread_id });

@@ -87,15 +87,16 @@ fn rail_agent(c: &Composer) -> Option<super::model::Agent> {
     c.agents.iter().find(|a| a.harness == rail).cloned()
 }
 
-/// `dropdown-glass` and `popover-shadow`: the card, a 10% hairline, radius 12.
+/// `dropdown-glass` and `popover-shadow` on the menus' shared surface, frosted.
 fn popover_surface(p: &Palette) -> Div {
+    let surface = crate::ui::menu::surface(p);
     div()
-        .rounded(px(12.))
+        .rounded(surface.radius)
         .border_1()
-        .border_color(p.popover_edge)
+        .border_color(surface.edge)
         .bg(p.popover.opacity(0.96))
         .backdrop_blur(px(8.))
-        .shadow(p.popover_shadow.clone())
+        .shadow(surface.shadow)
         .overflow_hidden()
 }
 

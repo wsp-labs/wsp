@@ -13,6 +13,7 @@ pub mod pr_pane;
 pub mod sidebar;
 pub mod slate;
 pub mod terminal;
+pub mod thread_view;
 pub mod usage;
 
 use std::cell::RefCell;
@@ -29,6 +30,8 @@ pub fn screen(name: &str) -> Option<Entry> {
         computer::Computer::NAME => Some(entry::<computer::Computer>()),
         slate::SlateScreen::NAME => Some(entry::<slate::SlateScreen>()),
         terminal::TerminalScreen::NAME => Some(entry::<terminal::TerminalScreen>()),
+        thread_view::ThreadScreen::NAME => Some(entry::<thread_view::ThreadScreen>()),
+        thread_view::subagent::SubagentScreen::NAME => Some(entry::<thread_view::subagent::SubagentScreen>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
         dialogs::AddComputerScreen::NAME => Some(entry::<dialogs::AddComputerScreen>()),
         dialogs::AddCloudScreen::NAME => Some(entry::<dialogs::AddCloudScreen>()),

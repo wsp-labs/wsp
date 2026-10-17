@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The composer alone in the main column, as `desktop-gpui --screen composer` opens it for captures: at the foot of a
 //! thread column on the page's ground, on the thread the route opens, else the host's newest. `composer:<workspace>`
-//! opens it on a new thread there, as New thread does.
+//! opens it on a new thread there, as New thread does, and holds a fork's draft there when Fork from here opened it.
 
 use gpui_kit::component::v_flex;
 use gpui_kit::{prelude::*, Context, Entity, FocusHandle, KeyDownEvent, Task, Window};
@@ -53,7 +53,8 @@ impl ComposerScreen {
         if let Some(workspace_id) = &new_on {
             crate::screens::terminal::page_starts_over(workspace_id, cx);
         }
-        let threads = host.run(|client| async move { client.threads().await });
+        // A fork's draft waits for this page's box, which takes it once the page's link stands.
+        let forked = new_on.as_deref().and_then(|w| super::fork::take(w, cx));
         let reading = host.clone();
         self._connect = cx.spawn_in(window, async move |this, cx| {
             let read = async {
@@ -62,7 +63,8 @@ impl ComposerScreen {
                     let opened = Link::read(&reading, &target).await?;
                     return Ok::<_, Failure>((target, opened));
                 }
-                let threads = threads.await?;
+                // Only a page with no workspace of its own reads the host's whole thread list.
+                let threads = reading.run(|client| async move { client.threads().await }).await?;
                 let row = match &wanted {
                     Some(id) => threads.into_iter().find(|t| t.thread_id.as_deref() == Some(id.as_str())),
                     None => threads.into_iter().max_by(|a, b| a.started_at.unwrap_or(0.).total_cmp(&b.started_at.unwrap_or(0.))),
@@ -76,7 +78,11 @@ impl ComposerScreen {
             _ = this.update_in(cx, |this, window, cx| match read {
                 Ok((target, opened)) => {
                     let composer = this.composer.clone();
-                    this.link = Some(cx.new(|cx| Link::new(host, target, opened, composer, window, cx)));
+                    this.link = Some(cx.new(|cx| Link::new(host.clone(), target, opened, composer.clone(), window, cx)));
+                    if let Some(draft) = &forked {
+                        composer.update(cx, |c, cx| c.fork(draft, window, cx));
+                        super::fork::read_images(&host, draft, &composer, cx);
+                    }
                     cx.notify();
                 }
                 Err(failure) => {
