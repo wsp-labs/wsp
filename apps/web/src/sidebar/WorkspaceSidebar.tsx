@@ -23,7 +23,7 @@
 import { openResumePicker } from "../shell/conversations.js";
 import { openProjectSettings } from "../settings/openAt.js";
 import { ChevronDownIcon, CopyIcon, PlusIcon, SquarePenIcon, Trash2Icon } from "lucide-react";
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { HOST_ASLEEP_LINE, SETTLE_MS, copiesFolder, isHere, kindForComputer, modelOf, runsInFolder, modelPicks, startFailed, workspaceKind, workspaceState, type WorkspaceState, type WorkspaceView } from "@wsp/protocol";
 import { openContextMenu, runAction } from "../actions/contextMenu.js";
 import { CHILD_WORDS, THREAD_TREE_WORKING, rebuildRefusedLine, rowNewThread } from "../actions/format.js";
@@ -44,7 +44,7 @@ import { useLocalStorage, type Codec } from "../hooks/useLocalStorage.js";
 import { useNowMinute } from "../hooks/useNowMinute.js";
 import { cn } from "../lib/utils.js";
 import { addNotice } from "../notices/store.js";
-import { catalogIn, useLaunches, useProjectsRead, useProjectsRefused, useReady, useSelectedId, useSelectedSubagent, useSelectedThreadId, useSelectedWorkspaceId, useSidebarProjects, useStore, useWorkspace, type Creation } from "../protocol/store.js";
+import { catalogIn, useLaunches, useProjectsRead, useProjectsRefused, useReady, useSelectedId, useSelectedThreadId, useSidebarProjects, useStore, type Creation } from "../protocol/store.js";
 import { hostAsleep } from "../boot.js";
 import { onAddProjectRequest, onForgetWorkspaceRequest, onProjectTripRequest, onRenameWorkspaceRequest, requestAddProject, type ProjectTripRequest } from "../shell/shellRequests.js";
 import { ExportProjectDialog } from "./ExportProjectDialog.js";
@@ -56,7 +56,7 @@ import { COMPUTER_PICK_KEY, PROJECT_PICK_KEY, pickCodec, underPicks } from "./pi
 import { CHILD_LIST_CLASS, ONE_LINE_ROW_CLASS, RAIL_ITEM_CLASS, ROW_META_CLASS, ROW_PROSE_CLASS, SETTLED_ROW_ID, sectionRowId, threadRowId, workspaceRowId } from "./rowGrammar.js";
 import { NewThreadRow } from "./NewThreadRow.js";
 import { SearchRow } from "./SearchRow.js";
-import { resolveAdjacentThreadId, threadSection, topSidebarThread } from "./Sidebar.logic.js";
+import { isThreadSettled, resolveAdjacentThreadId, threadSection, topSidebarThread } from "./Sidebar.logic.js";
 import { SIDEBAR_SECTIONS, drawnCount, drawsUnder, dropMarks, nodeOf, settleableRoots, sidebarTiles, tileTree, treeSettle, treeSettledMs, treeThreadIds, treeWorkspaceIds, type ProjectGroup, type SidebarSection, type TileNode } from "./threadTree.js";
 import { LeadTree, rowsUnder, settlesOnHover } from "./LeadTree.js";
 import { useTreeDrag, type DropTree } from "./treeDrag.js";
@@ -105,6 +105,8 @@ interface RowMachine {
 
 /** Whether a tree holds the thread, at any depth. */
 const holds = (node: TileNode, threadId: string): boolean => node.thread.id === threadId || node.children.some(child => holds(child, threadId));
+/** Every id a tree holds, at any depth. */
+const heldIds = (node: TileNode): string[] => [node.thread.id, ...node.children.flatMap(heldIds)];
 
 /** Every tile a settled tree holds, itself included, each drawn in the Settled fold; a group's head is no tile. */
 const tileCount = (node: TileNode): number => (node.thread.groupTitle === undefined ? 1 : 0) + node.children.reduce((sum, child) => sum + tileCount(child), 0);
@@ -171,6 +173,47 @@ const FOLDER_LEFT_OFF = new Set(["edit", "remove"]);
 const unmadeFolder = (id: string, name: string, computer: string): WorkspaceView => ({ id: "", name, machineId: "", kind: "local", phase: "running", golden: "", createdAt: "", project: { id, name, path: "", computer } });
 
 export function WorkspaceSidebar() {
+  const selectedId = useSelectedId();
+  const selectedThreadId = useSelectedThreadId();
+  const fleet = useSidebarProjects();
+  const places = useStore(s => s.places);
+  const recorded = useStore(s => s.projects);
+  const projectOrder = useStore(s => s.preferences.projectOrder);
+  const [pickStored] = useLocalStorage<string | null>(PROJECT_PICK_KEY, null, pickCodec);
+  const [computerStored] = useLocalStorage<string | null>(COMPUTER_PICK_KEY, null, pickCodec);
+  const settleMs = SETTLE_MS[useStore(s => s.preferences.settleAfter)];
+  const nowMinute = useNowMinute();
+  // One clock sample per minute tick so every tile reads the same now and the fold moves on the minute.
+  const nowMs = useMemo(() => Date.now(), [nowMinute]);
+  // The thread the centre shows, which the time fold leaves alone while it is on screen.
+  const open = useMemo(() => {
+    const runs = fleet.find(p => p.id === selectedId);
+    if (runs === undefined) return null;
+    return ((selectedThreadId === null ? undefined : runs.threads.find(t => t.threadId === selectedThreadId)) ?? topSidebarThread(runs.threads))?.id ?? null;
+  }, [fleet, selectedId, selectedThreadId]);
+  // Nothing moves under the reader: a thread opened from the live list stays there while it is read, and one opened
+  // from Settled stays in Settled, so which group it was in is read once, when it is opened.
+  const [hold, setHold] = useState<{ open: string | null; held: string | null }>({ open: null, held: null });
+  if (hold.open !== open) {
+    const { projects } = underPicks(fleet, { places, recorded, order: projectOrder, stored: { project: pickStored, computer: computerStored } });
+    setHold({ open, held: open !== null && sidebarTiles(projects, { picked: null, nowMs, settleMs }).settled.some(node => treeThreadIds(node).includes(open)) ? null : open });
+  }
+  const held = hold.held;
+  // The list reads the open thread only where it changes a tile: a hold that keeps its tree out of Settled, or a tree in
+  // Settled past the fold's first page that stays drawn. Any other switch leaves every tile as it was.
+  const { keep, openSettled } = useMemo(() => {
+    const heldThread = held === null ? undefined : fleet.flatMap(p => p.threads).find(t => t.id === held);
+    if (open === null || (held !== null && (heldThread === undefined || !isThreadSettled(heldThread, nowMs, false, settleMs)))) return { keep: null, openSettled: null };
+    const { projects, picked } = underPicks(fleet, { places, recorded, order: projectOrder, stored: { project: pickStored, computer: computerStored } });
+    const settled = sidebarTiles(projects, { picked: picked?.project.id ?? null, nowMs, settleMs }).settled;
+    const at = settled.findIndex(node => holds(node, open));
+    if (held !== null) return { keep: at >= 0 ? held : null, openSettled: null };
+    return { keep: null, openSettled: at >= 0 && tilesIn(settled.slice(0, at + 1)) > SETTLED_PAGE ? open : null };
+  }, [open, held, fleet, nowMs, settleMs, places, recorded, projectOrder, pickStored, computerStored]);
+  return <SidebarTree nowMs={nowMs} keep={keep} openSettled={openSettled} />;
+}
+
+const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { nowMs: number; keep: string | null; openSettled: string | null }) {
   const api = useStore(s => s.api);
   const conn = useStore(s => s.conn);
   const workspaces = useStore(s => s.workspaces);
@@ -191,14 +234,6 @@ export function WorkspaceSidebar() {
   const places = useStore(s => s.places);
   // What a workspace is made of. Named apart from the sidebar's own `projects`, which are its workspace snapshots.
   const recorded = useStore(s => s.projects);
-  const selectedId = useSelectedId();
-  const selectedThreadId = useSelectedThreadId();
-  // A subagent's page marks the subagent's row, not its lead's tile, unless the lead is folded over it.
-  const selectedSubagent = useSelectedSubagent();
-  const selectedWorkspace = useWorkspace(useSelectedWorkspaceId());
-  const nowMinute = useNowMinute();
-  // One clock sample per minute tick so every tile reads the same now and the fold moves on the minute.
-  const nowMs = useMemo(() => Date.now(), [nowMinute]);
 
   const [folded, setFolded] = useLocalStorage<readonly Fold[]>(FOLDED_KEY, ["settled"], foldedCodec);
   const toggleFold = (id: Fold): void => setFolded(ids => (ids.includes(id) ? ids.filter(at => at !== id) : [...ids, id]));
@@ -271,21 +306,8 @@ export function WorkspaceSidebar() {
   );
   const launches = useLaunches();
   const named = useMemo(() => placeNames(places), [places]);
-  // The thread the centre shows, which the time fold leaves alone while it is on screen.
-  const open = useMemo(() => {
-    const runs = fleet.find(p => p.id === selectedId);
-    if (runs === undefined) return null;
-    return ((selectedThreadId === null ? undefined : runs.threads.find(t => t.threadId === selectedThreadId)) ?? topSidebarThread(runs.threads))?.id ?? null;
-  }, [fleet, selectedId, selectedThreadId]);
   const settleAfter = useStore(s => s.preferences.settleAfter);
-  // Nothing moves under the reader: a thread opened from the live list stays there while it is read, and one opened
-  // from Settled stays in Settled, so which group it was in is read once, when it is opened.
-  const [held, setHeld] = useState<{ open: string | null; held: string | null }>({ open: null, held: null });
-  if (held.open !== open) {
-    const folded = open !== null && sidebarTiles(projects, { picked: null, nowMs, settleMs: SETTLE_MS[settleAfter] }).settled.some(node => treeThreadIds(node).includes(open));
-    setHeld({ open, held: folded ? null : open });
-  }
-  const tiles = useMemo(() => sidebarTiles(projects, { picked: picked?.project.id ?? null, nowMs, open: held.held, settleMs: SETTLE_MS[settleAfter] }), [projects, picked, nowMs, held.held, settleAfter]);
+  const tiles = useMemo(() => sidebarTiles(projects, { picked: picked?.project.id ?? null, nowMs, open: keep, settleMs: SETTLE_MS[settleAfter] }), [projects, picked, nowMs, keep, settleAfter]);
   const standings = useMemo(() => rootPlaces(tiles.sections), [tiles]);
   useLayoutEffect(() => {
     drawnTiles.current = tiles;
@@ -305,6 +327,7 @@ export function WorkspaceSidebar() {
   const renameOnTile = (workspaceId: string): void => {
     const runs = fleet.find(p => p.id === workspaceId);
     if (runs === undefined) return;
+    const { selectedId, selectedThreadId } = useStore.getState();
     const open = (selectedId === workspaceId ? runs.threads.find(t => t.id === selectedThreadId) : undefined) ?? topSidebarThread(runs.threads);
     if (open === null) {
       setRenaming({ rowId: workspaceRowId(workspaceId), saving: false });
@@ -433,7 +456,7 @@ export function WorkspaceSidebar() {
           place={place}
           checkout={checkout}
           depth={depth}
-          active={selectedId === runs.id && selectedThreadId === null}
+          selects={{ workspaceId: runs.id }}
           renaming={renaming?.rowId === item.id}
           saving={renaming?.rowId === item.id && renaming.saving}
           onSelect={() => select(runs.id)}
@@ -479,7 +502,7 @@ export function WorkspaceSidebar() {
           model={thread.model === null ? null : catalog === null ? thread.model : (modelOf(catalog, modelPicks(thread.model).model)?.label ?? thread.model)}
           time={settled && part === "live" ? compactTimeLabel(new Date(treeSettledMs(real, SETTLE_MS[settleAfter])).toISOString()) : restingAge(thread)}
           depth={depth}
-          active={(selectedId === thread.workspaceId && (selectedThreadId === null ? thread.threadId === null : selectedThreadId === thread.id) && (selectedSubagent === null || folded)) || (selectedThreadId !== null && (item.holds?.includes(selectedThreadId) === true || (folded && holds(real, selectedThreadId))))}
+          selects={{ workspaceId: thread.workspaceId, thread: { id: thread.id, threadId: thread.threadId, folded, holds: [...(item.holds ?? []), ...(folded ? heldIds(real) : [])] } }}
           settled={settled}
           snoozedWorking={item.snoozedWorking}
           renaming={renaming?.rowId === rowId}
@@ -547,7 +570,7 @@ export function WorkspaceSidebar() {
           place={{ projectId: creation.project ?? "", project: project?.name ?? "", computer: where === undefined ? "" : named.get(where) ?? where }}
           line={line}
           failed={failed}
-          active={selectedId === creation.key}
+          selects={{ workspaceId: creation.key }}
           onSelect={() => select(creation.key)}
           {...(failed ? { onContextMenu: event => void openContextMenu(event, [deleteCreation(creation.key)]) } : {})}
         />
@@ -603,7 +626,7 @@ export function WorkspaceSidebar() {
   const gapsAtRest = (index: number): boolean => standsBare(sections[index]!) || sections.slice(0, index).some(above => !standsBare(above));
   const settledCount = tilesIn(tiles.settled);
   // The thread open in the centre keeps its tile drawn, however far down the fold it stands.
-  const openAt = open === null ? -1 : tiles.settled.findIndex(node => holds(node, open));
+  const openAt = openSettled === null ? -1 : tiles.settled.findIndex(node => holds(node, openSettled));
   const settledDrawn = settledOpen ? settledPage(tiles.settled, Math.max(settledShown, tilesIn(tiles.settled.slice(0, openAt + 1)))) : [];
   const settledRest = settledOpen ? settledCount - tilesIn(settledDrawn) : 0;
   const settleable = settleableRoots(tiles.live);
@@ -815,5 +838,4 @@ export function WorkspaceSidebar() {
       ) : null}
     </>
   );
-}
-
+});
