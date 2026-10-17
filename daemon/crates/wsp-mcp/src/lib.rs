@@ -7,9 +7,9 @@
 
 mod aim;
 mod checked;
-mod client;
-mod failure;
-mod host;
+pub mod client;
+pub mod failure;
+pub mod host;
 mod js;
 mod json;
 mod record;
