@@ -59,16 +59,16 @@ export function terminalLine(own: string, ownProgram: string | undefined): strin
 
 /** The environment every process of a turn on such a machine runs under: the turn token as gh's token and as git's
  * proxy password, gh pointed at the config naming the gh door, and git configured as brokeredGitEnv says, a public
- * repo of record fetched from GitHub itself. cargo's own git follows insteadOf but ignores git's proxy, so it is told
- * to run git. */
-export function brokeredEnv(token: string, repo?: Pick<BranchOfRecord, "owner" | "name" | "public">): Record<string, string> {
+ * repo of record and the public repos in `direct` fetched from GitHub itself. cargo's own git follows insteadOf but
+ * ignores git's proxy, so it is told to run git. */
+export function brokeredEnv(token: string, repo?: Pick<BranchOfRecord, "owner" | "name" | "public">, direct: readonly string[] = []): Record<string, string> {
   return {
     [HOST_TOKEN_ENV]: token,
     GH_CONFIG_DIR: BROKERED_GH_DIR,
     GH_TOKEN: token,
     // gh's telemetry otherwise sends a TLS handshake down the socket.
     GH_TELEMETRY: "false",
-    ...brokeredGitEnv(token, repo),
+    ...brokeredGitEnv(token, repo, direct),
     CARGO_NET_GIT_FETCH_WITH_CLI: "true",
   };
 }
