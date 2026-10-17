@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Writes record/protocol.json, the JSON Schema of the protocol's own zod schemas for what this client reads: a
-// project, a session row, a transcript event and a page of a thread's transcript. The crate generates its Rust types
-// from that file at compile time, so a field the host adds or renames reaches Rust only through here. It reads the
-// protocol package's build.
+// project, a session row and a transcript event. The crate generates its Rust types from that file at compile time, so
+// a field the host adds or renames reaches Rust only through here. It reads the protocol package's build.
 //
 //   node record.mjs           write the record again
 //   node record.mjs --check   exit 1 when the record is not what the protocol says now
@@ -13,7 +12,7 @@ import { fileURLToPath } from "node:url";
 const RECORD = fileURLToPath(new URL("./record/protocol.json", import.meta.url));
 const PROTOCOL = new URL("../../../packages/protocol/dist/index.js", import.meta.url);
 const HOST_PACKAGE = fileURLToPath(new URL("../../../packages/host/package.json", import.meta.url));
-const RECORDED = ["ProjectView", "SessionView", "SessionEvent", "HistoryPage"];
+const RECORDED = ["ProjectView", "SessionView", "SessionEvent"];
 
 const protocol = await import(PROTOCOL.href);
 // zod-to-json-schema is the MCP SDK's own dependency, which is how the host already turns zod into JSON Schema.
