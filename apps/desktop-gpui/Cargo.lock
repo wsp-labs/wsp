@@ -1340,6 +1340,7 @@ dependencies = [
 name = "desktop-gpui"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "cocoa 0.26.0",
  "futures",
  "gpui-kit",

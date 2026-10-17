@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A host started for the tests alone, on a state file of its own in a fresh folder, with nothing of this machine's
-//! environment but PATH: the road every test of this crate takes to a host. The agent is a stand-in claude first on the
-//! host's PATH that answers stream-json the way the claude adapter reads it, so no real agent runs. Needs node and the
-//! packages built, the web app among them (pnpm build); the host runs its turns with no wsp-daemon staged.
+//! environment but PATH: the road every test of this crate, and the app's composer_live, takes to a host. The agent
+//! is a stand-in claude first on the host's PATH that answers stream-json the way the claude adapter reads it, so no
+//! real agent runs. Needs node and the packages built, the web app among them (pnpm build). The host runs with no
+//! wsp-daemon unless the caller asks for one and `wsp_daemon` finds it.
 #![allow(dead_code)]
 
 use std::fmt::Debug;
@@ -12,8 +13,8 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use serde_json::Value;
-use wsp_host_client::{Env, Failure, HostClient};
+use serde_json::{json, Value};
+use wsp_host_client::{protocol, Env, Failure, HostClient};
 
 const STAND_IN: &str = r#"#!/bin/sh
 case " $* " in
@@ -40,9 +41,33 @@ pub fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap()
 }
 
+/// This computer's folder under a daemon asset, as the host names it.
+pub fn triple() -> String {
+    let os = if cfg!(target_os = "macos") { "apple-darwin" } else { "unknown-linux-musl" };
+    format!("{}-{os}", std::env::consts::ARCH)
+}
+
+/// The wsp-daemon a host may carry, which a checkout does not build: the binary WSP_TEST_DAEMON names, else the one
+/// packages/wspx/scripts/daemon-binary.mjs placed, else the one wsp keeps on a cloud machine; otherwise why none.
+pub fn wsp_daemon() -> Result<PathBuf, String> {
+    let tried = match std::env::var_os("WSP_TEST_DAEMON").filter(|named| !named.is_empty()) {
+        Some(named) => vec![PathBuf::from(named)],
+        None => ["packages/wspx/daemon", "/root/wsp-daemon/wsp/assets/daemon"]
+            .map(|folder| root().join(folder).join(triple()).join("wsp-daemon"))
+            .to_vec(),
+    };
+    tried.iter().find(|binary| binary.is_file()).cloned().ok_or_else(|| {
+        let tried: Vec<String> = tried.iter().map(|binary| binary.display().to_string()).collect();
+        format!("no wsp-daemon at {} (WSP_TEST_DAEMON names one)", tried.join(" or "))
+    })
+}
+
 /// A host on a fresh state file in a folder of its own, stopped with this.
 pub struct Throwaway {
     pub dir: tempfile::TempDir,
+    /// The wsp-daemon the host serves files and git through, where the caller asked for one and one was found.
+    pub daemon: Option<PathBuf>,
+    bin: PathBuf,
     host: Child,
 }
 
@@ -50,16 +75,76 @@ pub struct Throwaway {
 pub fn env_in(dir: &Path) -> Env {
     let home = dir.to_string_lossy().into_owned();
     let path = format!("{}/bin:{}", home, std::env::var("PATH").unwrap_or_default());
-    [("HOME", home.as_str()), ("PATH", path.as_str()), ("ANTHROPIC_API_KEY", ""), ("SOLARI_API_KEY", "")]
+    [("HOME", home.as_str()), ("PATH", path.as_str()), ("ANTHROPIC_API_KEY", ""), ("SOLARI_API_KEY", ""), ("WSP_UPDATE_CHECK", "0")]
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
         .into_iter()
         .collect()
 }
 
-fn node_in(dir: &Path, args: &[&str]) -> Command {
+fn node_in(dir: &Path, bin: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("node");
-    command.arg(root().join("packages/host/dist/bin.js")).args(args).env_clear().envs(env_in(dir)).current_dir(dir);
+    command.arg(bin).args(args).env_clear().envs(env_in(dir)).current_dir(dir);
     command
+}
+
+fn copy_dir(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_dir(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// A copy of the host's bundle under `dir` carrying `daemon`, and its bin.js. A bundle reads each asset out of the
+/// assets folder beside it before the checkout's, and finds the checkout's relative to itself, so the copy links all
+/// of them there.
+fn bundle_with(dir: &Path, daemon: &Path) -> PathBuf {
+    let root = root();
+    let pkg = dir.join("hostpkg");
+    copy_dir(&root.join("packages/host/dist"), &pkg.join("dist"));
+    std::fs::copy(root.join("packages/host/package.json"), pkg.join("package.json")).unwrap();
+    std::fs::create_dir_all(pkg.join("assets/daemon").join(triple())).unwrap();
+    let link = |from: &Path, to: &str| std::os::unix::fs::symlink(from, pkg.join(to)).unwrap();
+    link(&root.join("packages/host/node_modules"), "node_modules");
+    link(&root.join("apps/web/dist"), "assets/web");
+    if root.join("packages/wspx/assets/cli").exists() {
+        link(&root.join("packages/wspx/assets/cli"), "assets/cli");
+    }
+    link(daemon, &format!("assets/daemon/{}/wsp-daemon", triple()));
+    pkg.join("dist/bin.js")
+}
+
+/// Interrupts every turn the host serving `dir` runs, until none runs or 20 s pass. On a thread and a runtime of its
+/// own, since the test's runtime may be the one dropping the host.
+fn interrupt_turns(dir: &Path) {
+    let (state, vars) = (dir.join("state/state.json"), env_in(dir));
+    let _ = std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        runtime.block_on(async {
+            let Ok(client) = HostClient::connect(&state, &vars).await else { return };
+            let until = Instant::now() + Duration::from_secs(20);
+            while Instant::now() < until {
+                let list: protocol::SessionsListRequest = serde_json::from_value(json!({})).unwrap();
+                let sessions = client.call(list).await.map(|listed| listed.sessions).unwrap_or_default();
+                let running: Vec<String> =
+                    sessions.into_iter().filter(|s| serde_json::to_value(s.status).ok() == Some(json!("running"))).map(|s| s.id).collect();
+                if running.is_empty() {
+                    return;
+                }
+                for id in running {
+                    let interrupt: protocol::SessionsInterruptRequest = serde_json::from_value(json!({ "sessionId": id })).unwrap();
+                    let _ = client.call(interrupt).await;
+                }
+                tokio::time::sleep(Duration::from_millis(300)).await;
+            }
+        });
+    })
+    .join();
 }
 
 impl Throwaway {
@@ -71,21 +156,37 @@ impl Throwaway {
         env_in(self.dir.path())
     }
 
+    /// A host whose claude is the shell stand-in above, with no wsp-daemon.
     pub fn start() -> Throwaway {
+        Throwaway::start_with(STAND_IN, false)
+    }
+
+    /// A host whose claude is the script `claude`, run from a copy of its bundle carrying `wsp_daemon()` where
+    /// `daemon` asks for one and one is found.
+    pub fn start_with(claude: &str, daemon: bool) -> Throwaway {
         for built in ["packages/host/dist/bin.js", "apps/web/dist/index.html"].map(|path| root().join(path)) {
             assert!(built.exists(), "{} is not built: run pnpm install && pnpm build", built.display());
         }
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("bin")).unwrap();
         std::fs::create_dir_all(dir.path().join("state")).unwrap();
-        let claude = dir.path().join("bin/claude");
-        std::fs::write(&claude, STAND_IN).unwrap();
-        std::fs::set_permissions(&claude, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let script = dir.path().join("bin/claude");
+        std::fs::write(&script, claude).unwrap();
+        std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let daemon = if daemon { wsp_daemon().ok() } else { None };
+        let bin = match &daemon {
+            Some(binary) => bundle_with(dir.path(), binary),
+            None => root().join("packages/host/dist/bin.js"),
+        };
         let state = dir.path().join("state").join("state.json").to_string_lossy().into_owned();
         let log = std::fs::File::create(dir.path().join("up.log")).unwrap();
-        let host =
-            node_in(dir.path(), &["up", "--port", "0", "--state", &state]).stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap();
-        let throwaway = Throwaway { dir, host };
+        let host = node_in(dir.path(), &bin, &["up", "--port", "0", "--no-relay", "--state", &state])
+            .stdin(Stdio::null())
+            .stdout(log.try_clone().unwrap())
+            .stderr(log)
+            .spawn()
+            .unwrap();
+        let throwaway = Throwaway { dir, daemon, bin, host };
         let until = Instant::now() + Duration::from_secs(30);
         // The lock is written before the host listens, with port 0 until it does.
         let listening = || {
@@ -106,7 +207,7 @@ impl Throwaway {
     /// One wsp line against this host, which has to succeed; what it printed.
     pub fn wsp(&self, args: &[&str]) -> String {
         let state = self.state().to_string_lossy().into_owned();
-        let out = node_in(self.dir.path(), args).args(["--state", &state]).stdin(Stdio::null()).output().unwrap();
+        let out = node_in(self.dir.path(), &self.bin, args).args(["--state", &state]).stdin(Stdio::null()).output().unwrap();
         let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
         assert!(out.status.success(), "wsp {args:?}: {said}\nhost log: {}", self.log());
         said
@@ -114,8 +215,12 @@ impl Throwaway {
 }
 
 impl Drop for Throwaway {
-    /// A terminated host stops its daemon and every turn's process on its way out; a killed one leaves them running.
+    /// A terminated host stops its daemon on its way out and a killed one leaves it running. Neither stops a running
+    /// turn, whose process runs apart from the host so it outlives a restart, so those are interrupted first.
     fn drop(&mut self) {
+        if matches!(self.host.try_wait(), Ok(None)) {
+            interrupt_turns(self.dir.path());
+        }
         // SAFETY: a signal to the pid of the child this test spawned and has not yet reaped.
         unsafe { libc::kill(self.host.id() as i32, libc::SIGTERM) };
         let until = Instant::now() + Duration::from_secs(20);
@@ -147,6 +252,9 @@ pub fn shared() -> &'static Shared {
                 let _ = std::fs::remove_dir_all(dir);
             }
             return;
+        }
+        if let Some(dir) = DIR.get() {
+            interrupt_turns(dir);
         }
         // SAFETY: a signal to the host this binary spawned, then reaping it; the binary is exiting and holds no other handle on it.
         unsafe {
@@ -183,12 +291,23 @@ pub fn shared() -> &'static Shared {
 impl Throwaway {
     /// A git repository with one empty commit, in a folder of that name under the test's own.
     pub fn repo(&self, name: &str) -> PathBuf {
+        self.repo_with(name, &[])
+    }
+
+    /// A git repository whose one commit holds `files`, each a path under it and its text.
+    pub fn repo_with(&self, name: &str, files: &[(&str, &str)]) -> PathBuf {
         let folder = self.dir.path().join(name);
         std::fs::create_dir_all(&folder).unwrap();
+        for (path, text) in files {
+            let file = folder.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, text).unwrap();
+        }
         let git = |args: &[&str]| {
             assert!(Command::new("git").args(args).current_dir(&folder).env_clear().envs(self.env()).status().unwrap().success())
         };
         git(&["init", "-q"]);
+        git(&["add", "-A"]);
         git(&["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"]);
         folder
     }
