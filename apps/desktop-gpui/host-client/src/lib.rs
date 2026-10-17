@@ -20,7 +20,7 @@ pub mod protocol {
     typify::import_types!(schema = "record/protocol.json");
 }
 
-use protocol::{HistoryPage, ProjectView, SessionEvent, SessionView};
+use protocol::{ProjectView, SessionEvent, SessionView};
 
 const RECORD: &str = include_str!("../record/protocol.json");
 
@@ -76,9 +76,13 @@ impl HostClient {
         Ok(rows)
     }
 
-    /// One thread: the newest page of its transcript, as the app opens a thread, then each event of it the host pushes
+    /// One thread: every event of its transcript the host keeps, in one read, then each event of it the host pushes
     /// from the moment this was asked.
     pub async fn open(&self, workspace_id: &str, thread_id: &str) -> Result<Thread, Failure> {
+        #[derive(Deserialize)]
+        struct Whole {
+            events: Vec<SessionEvent>,
+        }
         let client = self.host.client().await?;
         // Listening before the transcript is read, so no event falls between the two; the overlap is dropped by pos.
         let frames = client.frames();
@@ -86,16 +90,23 @@ impl HostClient {
         let mut params = Map::new();
         params.insert("workspaceId".to_owned(), Value::from(workspace_id));
         params.insert("threadId".to_owned(), Value::from(thread_id));
-        let page: HistoryPage = client.request("sessions.history", params).await?;
-        Ok(Thread { thread_id: thread_id.to_owned(), history: page.events, through: page.pos, frames, _client: client })
+        params.insert("whole".to_owned(), Value::from(true));
+        let history = client.request::<Whole>("sessions.history", params).await?.events;
+        Ok(Thread {
+            thread_id: thread_id.to_owned(),
+            through: history.iter().rev().find_map(pos).unwrap_or(0),
+            history,
+            frames,
+            _client: client,
+        })
     }
 }
 
 pub struct Thread {
     pub thread_id: String,
-    /// The newest page of the transcript as it stood when the thread was opened, oldest first.
+    /// The transcript as it stood when the thread was opened, oldest first.
     pub history: Vec<SessionEvent>,
-    /// The transcript's pos the history reaches; a pushed event at or under it is already in the history.
+    /// The pos of the history's newest event; a pushed event at or under it is already in the history.
     through: u64,
     frames: Frames,
     /// The socket the frames ride, which closes when its last holder lets go.
@@ -131,6 +142,11 @@ impl Thread {
             );
         }
     }
+}
+
+/// Where an event sits in its thread's transcript, where it says.
+pub fn pos(event: &SessionEvent) -> Option<u64> {
+    serde_json::to_value(event).ok()?.get("pos")?.as_u64()
 }
 
 /// The type of every event a transcript holds, read off the record the types were generated from.
