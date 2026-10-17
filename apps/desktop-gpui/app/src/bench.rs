@@ -12,6 +12,8 @@ pub struct Args {
     pub bench: Option<Bench>,
     /// A thread to open at launch and keep open, as memory with that thread open is read.
     pub open: Option<String>,
+    /// A frosted, composer-sized panel over the bottom of the thread view, to measure what backdrop blur costs.
+    pub glass: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -21,9 +23,9 @@ pub struct Bench {
     pub switch: Vec<String>,
 }
 
-/// `desktop-gpui [--state <state.json>] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`
+/// `desktop-gpui [--state <state.json>] [--glass] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
-    let (mut state, mut out, mut thread, mut switch, mut open) = (None, None, None, Vec::new(), None);
+    let (mut state, mut out, mut thread, mut switch, mut open, mut glass) = (None, None, None, Vec::new(), None, false);
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or(format!("{flag} takes a value"));
         match flag.as_str() {
@@ -32,6 +34,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--bench" => out = Some(PathBuf::from(value()?)),
             "--bench-thread" => thread = Some(value()?),
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
+            "--glass" => glass = true,
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -43,7 +46,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     if bench.is_some() && open.is_some() {
         return Err("--open and --bench do not go together".to_owned());
     }
-    Ok(Args { state, bench, open })
+    Ok(Args { state, bench, open, glass })
 }
 
 /// The result JSON: frame times are milliseconds from the start of the scroll.
@@ -77,6 +80,8 @@ mod tests {
         assert!(parse(words("--bench-thread")).is_err());
         assert_eq!(parse(words("--state /s --open long")).unwrap().open, Some("long".to_owned()));
         assert!(parse(words("--open long --bench /o.json --bench-thread long")).is_err());
+        assert!(parse(words("--glass --bench /o.json --bench-thread long")).unwrap().glass);
+        assert!(!parse(words("--bench /o.json --bench-thread long")).unwrap().glass);
     }
 
     #[test]
