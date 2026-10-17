@@ -255,7 +255,21 @@ export class InitJobs implements InitDoor {
   /** The sign-ins waiting for a code from the client, opened and closed by the hand-off as each login runs. */
   private readonly codes = new SignInCodes();
 
-  constructor(private readonly deps: InitJobDeps) {}
+  constructor(private readonly deps: InitJobDeps) {
+    // A place removed took its key or its link with it, so a setup left on it would reopen mid-flow on nothing.
+    deps.rt.events.on("place.removed", e => {
+      const s = this.state;
+      if (e.type !== "place.removed" || s?.place?.id !== e.placeId) return;
+      // A failed build waits on Start over, which a removed place cannot take.
+      if (s.phase === "failed") {
+        s.phase = "cancelled";
+        this.emit();
+        return;
+      }
+      if (initJobOver(s.phase)) return;
+      this.cancel().catch((err: unknown) => this.deps.log?.(`the setup on ${e.placeId} did not stop: ${err instanceof Error ? err.message : String(err)}`));
+    });
+  }
 
   on(fn: (e: InitJobEvent | InitNeedsYouEvent) => void): () => void {
     this.listeners.add(fn);

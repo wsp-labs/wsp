@@ -156,7 +156,7 @@ function KeyStep({ provider, name, held, keyText, onKey, check, refused }: { pro
 }
 
 /** One of the host's setup screens as a pick list: filter, order, All, None, Invert and shift-click ranges; a row the
- * host fixed on stays ticked and takes no click. */
+ * host fixed on stays ticked, and a press on it says why. */
 function PickStep({ screen, ticks, onTicks, here }: { screen: InitScreen; ticks: ReadonlySet<string>; onTicks: (next: ReadonlySet<string>) => void; here: { report: ReturnType<typeof useAgentsReport>["report"]; name: string } }) {
   const locked = new Set(screen.items.filter(i => i.lock !== undefined).map(i => i.id));
   const items = screen.items.map(item => ({ key: item.id, name: item.label, on: item.lock === "on" || ticks.has(item.id), item }));
@@ -190,7 +190,7 @@ function PickStep({ screen, ticks, onTicks, here }: { screen: InitScreen; ticks:
             key={item.id}
             id={item.id}
             checked={on}
-            {...(item.lock === undefined ? { onCheckedChange: tick } : { locked: true })}
+            {...(item.lock === undefined ? { onCheckedChange: tick } : { locked: true, ...(item.lock === "on" ? { why: CLOUD_SETUP_WORDS.screen.alwaysOnWhy } : {}) })}
             hover={item.detail.length > 0 ? item.detail.join("\n") : RANGE_HOVER}
             glyph={hasRowMark(item.mark ?? item.id) ? <RowMark id={item.mark ?? item.id} /> : <TerminalIcon aria-hidden className={GLYPH} />}
             name={item.label}
