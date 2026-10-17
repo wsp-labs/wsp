@@ -4,10 +4,11 @@
 //! stops while a turn runs. Drawn after the web app's ChatComposer.tsx and the files beside it; the host is reached
 //! only by `link::Link`, which turns this view's events into `wsp-host-client` calls.
 
+pub mod dock;
 pub mod link;
 mod menus;
 pub mod model;
-mod parts;
+pub(crate) mod parts;
 pub mod screen;
 pub mod store;
 
@@ -24,6 +25,7 @@ use gpui_kit::{
     actions, canvas, div, prelude::*, px, App, Bounds, ClipboardEntry, Context, Entity, EventEmitter, ExternalPaths, FocusHandle,
     Focusable, KeyBinding, Pixels, SharedString, Subscription, Unbind, Window,
 };
+use std::collections::HashMap;
 
 use crate::local_store::LocalStore;
 use crate::ui::ActivePalette;
@@ -49,7 +51,7 @@ const TEXT: Pixels = px(14.);
 /// The rows a menu lists at most; the web caps its file list on the host's side, this caps what one frame lays out.
 const MENU_CAP: usize = 50;
 /// How long the draft waits after a keystroke before the store writes it.
-const DRAFT_SAVE: std::time::Duration = std::time::Duration::from_millis(400);
+const DRAFT_SAVE: std::time::Duration = std::time::Duration::from_millis(300);
 
 /// Binds the composer's own chords. Call once after `gpui_kit::init`.
 pub fn init(cx: &mut App) {
@@ -61,6 +63,42 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("secondary-alt-up", Unbind("input::AddCursorAbove".into()), Some("Composer > Input")),
         KeyBinding::new("secondary-alt-down", Unbind("input::AddCursorBelow".into()), Some("Composer > Input")),
     ]);
+}
+
+/// Add to chat from a pane (a terminal's selection): `text` goes into `thread`'s composer at the caret on lines of its
+/// own and the box takes the keys, Quote's road, where that thread's composer is the one on screen; for any other
+/// thread it goes after that thread's kept draft on lines of its own, so it shows when the thread opens. The composer
+/// is found through the window's shell after the caller's update ends, so a pane needs no handle to it.
+pub fn add_to_chat(thread: &str, text: &str, cx: &mut App) {
+    let (thread, text) = (thread.to_owned(), text.to_owned());
+    cx.defer(move |cx| {
+        for handle in cx.windows() {
+            let taken = handle.update(cx, |_, window, cx| {
+                let Some(root) = window.root::<gpui_kit::component::Root>().flatten() else { return false };
+                let Ok(shell) = root.read(cx).view().clone().downcast::<crate::shell::Shell>() else { return false };
+                let Some(screen) = shell.read(cx).thread_screen() else { return false };
+                let composer = screen.read(cx).composer().clone();
+                if !composer.read(cx).holds(&thread) {
+                    return false;
+                }
+                composer.update(cx, |c, cx| c.insert_block(&text, window, cx));
+                true
+            });
+            if taken.unwrap_or(false) {
+                return;
+            }
+        }
+        let Some(s) = cx.try_global::<LocalStore>() else { return };
+        let draft = store::draft(s, &thread).map(|(draft, _)| draft).unwrap_or_default();
+        let joined = match draft.as_str() {
+            "" => format!("{text}\n"),
+            kept if kept.ends_with('\n') => format!("{kept}{text}\n"),
+            kept => format!("{kept}\n{text}\n"),
+        };
+        if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_draft(s, &thread, &joined, joined.len())) {
+            eprintln!("desktop-gpui: store: {e}");
+        }
+    });
 }
 
 /// A popup the composer has open over its box.
@@ -106,6 +144,13 @@ pub enum Bar {
     Queue,
 }
 
+/// Fork from here: the thread a fork's draft forks and the turn it carries through, none on the thread's first message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Fork {
+    pub thread: String,
+    pub turn: Option<String>,
+}
+
 /// What the person sent, as a send carries it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Outgoing {
@@ -118,6 +163,8 @@ pub struct Outgoing {
     pub resume: Option<(String, bool)>,
     /// A send the queue made, which a refusal puts back at the queue's head, held, as the web's `requeue` does.
     pub from_queue: bool,
+    /// The thread and turn a fork's first send forks.
+    pub fork: Option<Fork>,
 }
 
 /// What the composer asks of the host; `link::Link` answers each.
@@ -136,6 +183,19 @@ pub enum ComposerEvent {
     Items,
     /// Something the person should hear about that the box cannot show in place, for the app's notices.
     Notice(String),
+    /// A pick on the docked prompt, with the words typed into a deny's field.
+    Answer(dock::Answer),
+    /// The line under a send whose agent is still starting (`agentStartingLine`), none once its turn starts.
+    Starting(Option<String>),
+}
+
+/// A thread's queue as the box left it on a switch, with the files the store does not keep, whether it was held, and
+/// the row a steer is out for.
+#[derive(Default)]
+struct Parked {
+    queue: Vec<Queued>,
+    held: bool,
+    steering: Option<u64>,
 }
 
 pub struct Composer {
@@ -184,6 +244,23 @@ pub struct Composer {
     next_id: u64,
     /// A queue read back from the store waits for the person's next send before it drains (composerDraftStore.ts).
     queue_held: bool,
+    /// Each thread's queue as the box left it, so a switch back is not read as a launch.
+    parked: HashMap<String, Parked>,
+    /// The thread's own prompt in the composer's place, and the field and the focus it answers with.
+    dock: Option<dock::Dock>,
+    dock_field: Entity<InputState>,
+    /// The docked edit's lines, built once per ask.
+    dock_edit: Option<dock::EditLines>,
+    dock_focus: FocusHandle,
+    /// The fork a fork's draft makes on its first send.
+    forking: Option<Fork>,
+    /// The threads, by key, with a send out that the host has not answered, so a queue left by a switch and found
+    /// again does not send its next message alongside it.
+    sending: std::collections::HashSet<String>,
+    /// What the host said that every thread of a workspace shares, kept for the process.
+    facts: link::Facts,
+    /// The person's `midTurn` followed from the host, once a link stands.
+    watching: Option<gpui_kit::Task<()>>,
     stash: Stash,
     banner: Option<Banner>,
     computer: Option<String>,
@@ -223,7 +300,17 @@ impl Composer {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let editor = cx.new(|cx| TextareaState::new(window, cx).auto_grow(1, 8).submit_on_enter(true).placeholder("Ask anything"));
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search models..."));
+        let dock_field = cx.new(|cx| InputState::new(window, cx));
         let subscriptions = vec![
+            cx.subscribe(&dock_field, |this, field, event: &InputEvent, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.on_dock_field(&field, cx);
+                }
+            }),
+            cx.on_app_quit(|this, cx| {
+                this.save_draft(cx);
+                async {}
+            }),
             cx.subscribe_in(&editor, window, Self::on_input),
             cx.subscribe(&search, |this, _, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::Change) {
@@ -267,6 +354,15 @@ impl Composer {
             steering: None,
             next_id: 0,
             queue_held: false,
+            parked: Default::default(),
+            dock: None,
+            dock_field,
+            dock_edit: None,
+            dock_focus: cx.focus_handle(),
+            forking: None,
+            sending: Default::default(),
+            facts: Default::default(),
+            watching: None,
             stash: Stash::default(),
             banner: None,
             computer: None,
@@ -338,24 +434,88 @@ impl Composer {
 
     /// The key the store keeps this thread's draft, queue and fast mode under: the thread's id, or its workspace's
     /// before it has one. The key's draft, queue and fast mode are read back; a queue read back waits for the next send.
+    /// Moving to another key keeps the box's draft under the key it leaves, parks its queue, lets go of everything else
+    /// the thread held, as a composer per thread would, and shows the new key's draft, else an empty box.
     pub fn set_thread_key(&mut self, key: String, window: &mut Window, cx: &mut Context<Self>) {
-        self.thread_key = Some(key.clone());
-        if !cx.has_global::<LocalStore>() {
-            return;
+        let moved = self.thread_key.as_ref().is_some_and(|k| *k != key);
+        let fresh = self.thread_key.as_deref() != Some(key.as_str());
+        if moved {
+            self.saving = None;
+            self.save_draft(cx);
+            if let Some(left) = self.thread_key.clone() {
+                let parked = Parked { queue: std::mem::take(&mut self.queue), held: self.queue_held, steering: self.steering.take() };
+                if !parked.queue.is_empty() || parked.steering.is_some() {
+                    self.parked.insert(left, parked);
+                }
+            }
+            self.leave_thread(window, cx);
         }
-        let s = cx.global::<LocalStore>();
-        let (draft, queue, stash, favourites, fast) =
-            (store::draft(s, &key), store::queue(s, &key), store::stash(s), store::favourites(s), store::fast(s, &key));
-        if let Some((draft, _)) = draft.filter(|_| self.text(cx).is_empty()) {
+        self.thread_key = Some(key.clone());
+        let store = cx.try_global::<LocalStore>();
+        let draft = store.and_then(|s| store::draft(s, &key)).map(|(draft, _)| draft);
+        let restored = store.map(|s| store::queue(s, &key)).unwrap_or_default();
+        if let Some(s) = store {
+            (self.stash, self.favourites) = (store::stash(s), store::favourites(s));
+        }
+        self.fast = store.and_then(|s| store::fast(s, &key));
+        if moved {
+            self.set_text(&draft.unwrap_or_default(), window, cx);
+        } else if let Some(draft) = draft.filter(|_| self.text(cx).is_empty()) {
             self.set_text(&draft, window, cx);
         }
-        self.next_id = queue.rows.iter().map(|q| q.id).max().unwrap_or(0).max(self.next_id);
-        self.queue = queue.rows;
-        self.queue_held = queue.held && !self.queue.is_empty();
-        self.stash = stash;
-        self.favourites = favourites;
-        self.fast = fast;
+        if fresh {
+            let parked = self.parked.remove(&key).unwrap_or(Parked { queue: restored.rows, held: restored.held, steering: None });
+            self.next_id = parked.queue.iter().map(|q| q.id).max().unwrap_or(0).max(self.next_id);
+            self.queue_held = parked.held && !parked.queue.is_empty();
+            self.queue = parked.queue;
+            self.steering = parked.steering;
+        }
         cx.notify();
+    }
+
+    /// What one thread's composer held and the next thread's starts without: its picks, files, banner, bar, menus,
+    /// the folder's files, the prompt it was asked, and where Up stood.
+    fn leave_thread(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.picks = Picks::default();
+        self.ran = Picks::default();
+        self.commands.clear();
+        self.skills.clear();
+        self.files.clear();
+        self.refused.clear();
+        self.banner = None;
+        self.forking = None;
+        self.bar = None;
+        self.folder_files = None;
+        self.host_items = None;
+        self.items_note = None;
+        self.menu = None;
+        self.dismissed = None;
+        self.popup = None;
+        self.popup_active = None;
+        self.rail = None;
+        self.legacy_open = None;
+        self.favourites_view = false;
+        self.pinned_note = None;
+        self.recalls.clear();
+        self.recalled = None;
+        self.expansions.clear();
+        self.notice = None;
+        self.drawer = Drawer::default();
+        self.stopping = false;
+        self.dock_edit = None;
+        if self.dock.take().is_some() && self.dock_focus.contains_focused(window, cx) {
+            self.editor.focus_handle(cx).focus(window, cx);
+        }
+    }
+
+    /// What the composer already knows of `workspace`, which a link need not read again.
+    pub fn known(&self, workspace: &str) -> link::Known {
+        self.facts.known(workspace)
+    }
+
+    /// Whether the composer still writes into the thread `key` names; a link's late answer for another is not this one's.
+    pub fn holds(&self, key: &str) -> bool {
+        self.thread_key.as_deref() == Some(key)
     }
 
     /// The thread a send on the workspace's key opened: what waited under the workspace's key goes along to it.
@@ -371,7 +531,7 @@ impl Composer {
     fn keep(&mut self, cx: &mut Context<Self>) {
         let Some(key) = self.thread_key.clone().filter(|_| cx.has_global::<LocalStore>()) else { return };
         let queue = self.queue.clone();
-        if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_queue(s, &key, &queue)) {
+        if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_queue(s, &key, &queue, Some(&key))) {
             eprintln!("desktop-gpui: store: {e}");
         }
     }
@@ -389,8 +549,8 @@ impl Composer {
         if !cx.has_global::<LocalStore>() {
             return Ok(());
         }
-        let stash = self.stash.clone();
-        cx.update_global(|s: &mut LocalStore, _| store::set_stash(s, &stash))
+        let (stash, keep) = (self.stash.clone(), self.thread_key.clone());
+        cx.update_global(|s: &mut LocalStore, _| store::set_stash(s, &stash, keep.as_deref()))
     }
 
     /// Empties the box, and the draft the store keeps with it.
@@ -432,6 +592,9 @@ impl Composer {
         if running && self.hold == Some(Hold::InFlight) {
             self.hold = None;
         }
+        if running {
+            self.answered();
+        }
         if !running {
             self.stopping = false;
         }
@@ -443,19 +606,37 @@ impl Composer {
 
     /// Sends the queue's head as the next turn, once no turn runs, nothing holds the send and no steer is out.
     fn drain(&mut self, cx: &mut Context<Self>) {
-        if self.running || self.hold.is_some() || self.steering.is_some() || self.queue_held || self.queue.is_empty() {
+        let out = self.thread_key.as_ref().is_some_and(|k| self.sending.contains(k));
+        if self.running || self.hold.is_some() || self.steering.is_some() || self.queue_held || self.queue.is_empty() || out {
             return;
         }
         let next = self.queue.remove(0);
         self.hold = Some(Hold::InFlight);
+        self.sending.extend(self.thread_key.clone());
         let mut out = self.outgoing(next.prompt, next.files);
         out.from_queue = true;
         cx.emit(ComposerEvent::Start(out));
         self.keep(cx);
     }
 
+    /// The thread on screen has no send out any more.
+    fn answered(&mut self) {
+        if let Some(key) = &self.thread_key {
+            self.sending.remove(key);
+        }
+    }
+
+    /// The host answered a send on the thread `key`; answered after a switch, it lets that thread send again.
+    pub fn sent_on(&mut self, key: &str, cx: &mut Context<Self>) {
+        if self.holds(key) {
+            return self.sent(cx);
+        }
+        self.sending.remove(key);
+    }
+
     /// The host took a send: a turn starts on it, so nothing waits on the reply any more.
     pub fn sent(&mut self, cx: &mut Context<Self>) {
+        self.answered();
         if self.hold == Some(Hold::InFlight) {
             self.hold = None;
         }
@@ -470,6 +651,11 @@ impl Composer {
     pub fn set_hold(&mut self, hold: Option<Hold>, cx: &mut Context<Self>) {
         self.hold = hold;
         cx.notify();
+    }
+
+    /// Whether a message sent mid-turn goes into the turn (the person's `midTurn`).
+    pub fn steer_preferred(&self) -> bool {
+        self.steer_preferred
     }
 
     pub fn set_steer_preferred(&mut self, steer: bool, cx: &mut Context<Self>) {
@@ -489,8 +675,56 @@ impl Composer {
         cx.notify();
     }
 
+    /// A steer on the thread `key` the host has answered. Answered after a switch, it settles that thread's parked queue,
+    /// and nothing of the thread on screen.
+    pub fn steered_on(&mut self, key: &str, taken: bool, cx: &mut Context<Self>) {
+        if self.holds(key) {
+            return self.steered(taken, cx);
+        }
+        if let Some(parked) = self.parked.get_mut(key) {
+            if let Some(id) = parked.steering.take().filter(|_| taken) {
+                parked.queue.retain(|q| q.id != id);
+                let (queue, here) = (parked.queue.clone(), self.thread_key.clone());
+                if cx.has_global::<LocalStore>() {
+                    if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_queue(s, key, &queue, here.as_deref())) {
+                        eprintln!("desktop-gpui: store: {e}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// A send on the thread `key` the host refused. Refused after a switch, a queued send goes back to the head of that
+    /// thread's parked queue, held, and a typed one ahead of the draft kept for it.
+    pub fn refused_on(&mut self, key: &str, sent: Outgoing, window: &mut Window, cx: &mut Context<Self>) {
+        if self.holds(key) {
+            return self.refused_send(sent, window, cx);
+        }
+        self.sending.remove(key);
+        if sent.from_queue {
+            self.next_id += 1;
+            let parked = self.parked.entry(key.to_owned()).or_default();
+            parked.queue.insert(0, Queued { id: self.next_id, prompt: sent.prompt, files: sent.files });
+            parked.held = true;
+            let (queue, here) = (parked.queue.clone(), self.thread_key.clone());
+            if cx.has_global::<LocalStore>() {
+                if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_queue(s, key, &queue, here.as_deref())) {
+                    eprintln!("desktop-gpui: store: {e}");
+                }
+            }
+            return;
+        }
+        let Some(s) = cx.try_global::<LocalStore>() else { return };
+        let draft = store::draft(s, key).map(|(d, _)| d).unwrap_or_default();
+        let text = if draft.trim().is_empty() { sent.prompt } else { format!("{}\n{draft}", sent.prompt) };
+        if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_draft(s, key, &text, text.len())) {
+            eprintln!("desktop-gpui: store: {e}");
+        }
+    }
+
     /// A send the host refused: its words go back in the box ahead of any draft written since, and its files with them.
     pub fn refused_send(&mut self, sent: Outgoing, window: &mut Window, cx: &mut Context<Self>) {
+        self.answered();
         self.hold = None;
         if sent.from_queue {
             self.next_id += 1;
@@ -513,7 +747,33 @@ impl Composer {
     }
 
     pub fn set_banner(&mut self, banner: Option<Banner>, cx: &mut Context<Self>) {
+        if !banner.as_ref().is_some_and(|b| b.fork) {
+            self.forking = None;
+        }
         self.banner = banner;
+        cx.notify();
+    }
+
+    /// Fork from here: the box becomes the fork's draft, said over the box as today's fork banner says it, and its next
+    /// send starts the fork rather than a turn of this thread (forks.ts, `forkOfLine` and `forkWhereLine`).
+    pub fn fork(&mut self, fork: Fork, title: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.bar = None;
+        self.popup = None;
+        self.banner = Some(Banner { fork: true, line: format!("Fork of {title}"), note: "in this folder".to_owned(), resume: None });
+        self.forking = Some(fork);
+        self.editor.focus_handle(cx).focus(window, cx);
+        cx.notify();
+    }
+
+    /// The fork the next send makes, while the box is a fork's draft.
+    pub fn forking(&self) -> Option<&Fork> {
+        self.forking.as_ref()
+    }
+
+    /// The host took a fork's first send: the draft is spent.
+    pub fn forked(&mut self, cx: &mut Context<Self>) {
+        self.forking = None;
+        self.banner = None;
         cx.notify();
     }
 
@@ -526,6 +786,11 @@ impl Composer {
     /// A thread with no message yet, whose composer the thread view centres.
     pub fn fresh(&self) -> bool {
         !self.compact
+    }
+
+    /// The key the composer keeps its draft and queue under now.
+    pub fn thread_key(&self) -> Option<&str> {
+        self.thread_key.as_deref()
     }
 
     pub fn hold(&self) -> Option<&Hold> {
@@ -753,7 +1018,7 @@ impl Composer {
         let picks = self.resolved();
         let fast = self.fast() && picks.model.as_ref().is_some_and(|m| m.fast == Some(true));
         let resume = self.banner.as_ref().and_then(|b| b.resume.clone());
-        Outgoing { prompt, files, picks, fast, resume, from_queue: false }
+        Outgoing { prompt, files, picks, fast, resume, from_queue: false, fork: self.forking.clone() }
     }
 
     /// The draft as it goes: each pull request's or issue's chip opened back into its quoted text.
@@ -781,7 +1046,9 @@ impl Composer {
         let resolved = self.resolved();
         // One steer is out at a time: the steer's answer names the row it carried (ChatComposer.tsx `canSteer`).
         let steers = self.steer_preferred && self.steering.is_none();
-        let how = model::submit(empty, self.hold.as_ref(), self.running, steers, resolved.agent.as_ref(), &self.files);
+        // A fork's draft starts a thread of its own, whatever this one is doing.
+        let running = self.running && self.forking.is_none();
+        let how = model::submit(empty, self.hold.as_ref(), running, steers, resolved.agent.as_ref(), &self.files);
         if how == Submit::Nothing {
             return;
         }
@@ -789,6 +1056,8 @@ impl Composer {
         self.refused.clear();
         self.menu = None;
         self.clear_box(window, cx);
+        self.saving = None;
+        self.save_draft(cx);
         let out = self.outgoing(prompt.trim_end().to_owned(), files);
         self.expansions.clear();
         self.recalled = None;
@@ -796,6 +1065,7 @@ impl Composer {
         match how {
             Submit::Start => {
                 self.hold = Some(Hold::InFlight);
+                self.sending.extend(self.thread_key.clone());
                 self.compact = true;
                 cx.emit(ComposerEvent::Start(out));
             }
@@ -844,6 +1114,8 @@ impl Composer {
             }
             self.files.clear();
             self.clear_box(window, cx);
+            self.saving = None;
+            self.save_draft(cx);
             self.menu = None;
         } else if self.stash.entries.len() == 1 {
             self.restore(0, window, cx);
@@ -949,8 +1221,26 @@ impl Composer {
             return;
         }
         self.bar = None;
+        // A letter typed while the prompt stands in the box's place folds it and starts a message (useTypeToWrite).
+        if let Some(dock) = self.dock.as_mut() {
+            dock.folded = true;
+        }
         let text = format!("{}{key}", self.text(cx));
         self.set_text(&text, window, cx);
+        self.editor.focus_handle(cx).focus(window, cx);
+    }
+
+    /// A block from the thread, a reply's Quote (`insertIntoComposer`): at the caret on lines of its own, the caret after
+    /// it, the box focused so the next key writes the message.
+    pub fn insert_block(&mut self, block: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.bar = None;
+        self.editor.update(cx, |e, cx| {
+            let (text, at) = (e.value(), e.cursor());
+            let before = if text[..at].is_empty() || text[..at].ends_with('\n') { "" } else { "\n" };
+            let after = if text[at..].starts_with('\n') { "" } else { "\n" };
+            e.insert(format!("{before}{block}{after}"), window, cx);
+        });
+        self.edited_in(window, cx);
         self.editor.focus_handle(cx).focus(window, cx);
     }
 
@@ -1314,6 +1604,9 @@ impl Render for Composer {
 
         if self.bar == Some(Bar::Queue) && self.queue.is_empty() {
             self.bar = None;
+        }
+        if let Some(dock) = self.dock.as_ref().filter(|d| !d.folded) {
+            return dock::view(self, dock, cx);
         }
         if self.bar == Some(Bar::Queue) {
             return div()

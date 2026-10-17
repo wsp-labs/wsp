@@ -17,7 +17,7 @@ mod menu;
 pub mod model;
 pub mod rows;
 mod switcher;
-mod tile;
+pub(crate) mod tile;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -1333,7 +1333,7 @@ impl Sidebar {
 }
 
 /// `renameNotTakenLine`: why the agent kept no name, in the person's words.
-fn rename_not_taken_line(harness: &str, outcome: &str, error: Option<&str>) -> String {
+pub(crate) fn rename_not_taken_line(harness: &str, outcome: &str, error: Option<&str>) -> String {
     match outcome {
         "unsupported" => format!("Rename in {} is not kept", catalog::name(harness)),
         "no-session" => format!("{} on the task has no session for this thread yet", catalog::name(harness)),

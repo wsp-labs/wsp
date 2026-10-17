@@ -49,7 +49,7 @@ impl Render for DragPreview {
     }
 }
 
-fn status_of(kind: Kind, text: Option<String>) -> Status {
+pub(crate) fn status_of(kind: Kind, text: Option<String>) -> Status {
     let text = || SharedString::from(text.clone().unwrap_or_default());
     match kind {
         Kind::NeedsYou => Status::NeedsYou,

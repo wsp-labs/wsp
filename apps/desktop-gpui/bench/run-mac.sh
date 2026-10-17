@@ -7,7 +7,9 @@
 # their pids, and never touches the live host: every process it starts reads the fixture's temp state.
 #   apps/desktop-gpui/bench/run-mac.sh
 # BENCH_OUT=<dir> keeps the results there (default: a new temp folder). BENCH_SKIP_GPUI=1 leaves GPUI's row empty, for
-# a machine where it cannot draw; BENCH_GPUI_APP=<path> runs that build instead of building one. The script runs on
+# a machine where it cannot draw; BENCH_GPUI_APP=<path> runs that build instead of building one;
+# DESKTOP_GPUI_COMPOSER_GLASS=off reaches GPUI's runs and draws its composer without its backdrop blur. GPUI's result
+# also carries 30 timed switches among the short threads, after its scroll and its own switches. The script runs on
 # Linux too, as a dry run under Xvfb with DISPLAY set and a window manager on that display (openbox will do): GPUI asks
 # the window manager to focus its window, so with none the GPUI bench exits 3.
 set -eu
@@ -105,7 +107,7 @@ if [ "${BENCH_SKIP_GPUI:-}" != 1 ]; then
   home=$(dirname "$(dirname "$state")")
   # GPUI's own runs get the same clean environment as the host, the temp home and nothing of the person's, and start
   # as a plain command so the pid recorded is the app's own (env execs it).
-  gpui_env="HOME=$home/gpui-home PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8 ${DISPLAY:+DISPLAY=$DISPLAY}"
+  gpui_env="HOME=$home/gpui-home PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8 ${DISPLAY:+DISPLAY=$DISPLAY} ${DESKTOP_GPUI_COMPOSER_GLASS:+DESKTOP_GPUI_COMPOSER_GLASS=$DESKTOP_GPUI_COMPOSER_GLASS}"
   mkdir -p "$home/gpui-home"
 
   step "GPUI: memory at rest"
