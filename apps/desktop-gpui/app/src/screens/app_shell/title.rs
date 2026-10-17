@@ -17,7 +17,7 @@ pub fn thread_title(harness_title: Option<&str>, opening: Option<&str>) -> Optio
 }
 
 /// What JavaScript's `\s` and `trim` take, which is not Rust's white space: U+FEFF is in it and U+0085 is not.
-fn js_space(c: char) -> bool {
+pub fn js_space(c: char) -> bool {
     matches!(
         c,
         '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'

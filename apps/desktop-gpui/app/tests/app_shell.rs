@@ -14,7 +14,7 @@ use desktop_gpui::screens::app_shell::keys::{self, DEFAULTS};
 use desktop_gpui::screens::app_shell::panel::DEFAULT_WIDTH;
 use desktop_gpui::screens::{self, entry, Host, Opened, Pane, Parts, Place, Route, Screen, THREAD};
 use desktop_gpui::shell::{Launch, Shell, SETTINGS};
-use desktop_gpui::sidebar::ThreadItem;
+use desktop_gpui::sidebar::{Asked, ThreadItem};
 use gpui_kit::component::Root;
 use gpui_kit::{
     div, point, prelude::*, px, size, Action, AnyView, App, AppContext, Entity, Modifiers, MouseButton, SharedString, TestAppContext,
@@ -824,4 +824,21 @@ fn a_thread_on_a_workspace_the_host_lists_as_running_opens_a_shell(cx: &mut Test
     cx.run_until_parked();
     let panel = shell.read_with(cx, |s, _| s.panel().clone());
     assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Terminal), "the host lists the thread's workspace as running");
+}
+
+#[gpui_kit::test]
+fn the_sidebars_asks_with_a_page_today_open_it(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let ask = |asked: Asked, cx: &mut VisualTestContext| {
+        shell.update(cx, |s, cx| s.sidebar().update(cx, |_, cx| cx.emit(asked)));
+        cx.run_until_parked();
+        shell.read_with(cx, |s, _| s.route().clone())
+    };
+    assert_eq!(ask(Asked::NewThread, cx), Route::Screen("composer:w1".into()), "a new thread on the open thread's workspace");
+    assert_eq!(ask(Asked::Settings, cx), Route::Screen(SETTINGS.into()));
+    assert_eq!(ask(Asked::Usage, cx), Route::Screen(format!("{SETTINGS}:usage").into()));
+    assert_eq!(ask(Asked::Activity, cx), Route::Screen(format!("{SETTINGS}:activity").into()));
+    assert_eq!(ask(Asked::NewThreadIn("w2".into()), cx), Route::Screen("composer:w2".into()));
+    assert_eq!(ask(Asked::Search, cx), Route::Screen("composer:w2".into()), "Search has no page yet and leaves the route");
 }
