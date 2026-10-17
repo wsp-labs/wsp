@@ -34,8 +34,8 @@ pub use card::{
 };
 pub use chart::{Axis, Chart, ChartLine, Tick, CHART_HEIGHT};
 pub use computer_glyph::ComputerIcon;
-pub use controls::{Button, ButtonKind, Choice, Field, PickRow};
-pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, tip, AlertDialog, CopyRow, Dialog, Refusal};
+pub use controls::{radio, Button, ButtonKind, Choice, Field, PickRow};
+pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, tip, tooltip_view, AlertDialog, CopyRow, Dialog, Refusal};
 pub use grain::grain;
 pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
 pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
@@ -71,6 +71,8 @@ pub mod size {
     pub const SECTION_HEAD_FLOOR: Pixels = px(28.);
     /// `SELECT_WIDTH`: `w-44`, `h-[30px]`, `rounded-[7px]`.
     pub const SELECT_WIDTH: Pixels = px(176.);
+    /// A row field that takes a sentence, `w-96`.
+    pub const SENTENCE_FIELD_WIDTH: Pixels = px(384.);
     pub const CONTROL_HEIGHT: Pixels = px(30.);
     pub const CONTROL_RADIUS: Pixels = px(7.);
     /// `PAGE_GAP`.

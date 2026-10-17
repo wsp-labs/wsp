@@ -573,3 +573,130 @@ fn a_send_under_the_resume_banner_continues_the_conversation(cx: &mut TestAppCon
     });
     until(cx, "the banner gone once the host took the send", |cx| composer.read_with(cx, |c, _| c.banner().is_none()));
 }
+
+#[gpui_kit::test]
+fn the_commands_a_history_announces_are_listed_under_a_slash(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::composer::link::{Known, Seen};
+    let host = Host::start();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        ui::init(Side::Light, cx);
+        composer::init(cx);
+    });
+    let target = host.target.clone();
+    let opened =
+        host.runtime.block_on(Link::read_facts(&host.shell(), &target, Known::default())).unwrap_or_else(|f| panic!("{}", f.message));
+    let mut made = None;
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let composer = cx.new(|cx| Composer::new(window, cx));
+        made = Some(composer.clone());
+        Root::new(composer, window, cx)
+    });
+    let composer = made.unwrap();
+    let link = cx.update(|window, cx| {
+        let composer = composer.clone();
+        cx.new(|cx| Link::fed(host.shell(), target.clone(), opened, composer, window, cx))
+    });
+    let start = json!({
+        "type": "session.start", "workspaceId": target.workspace_id, "threadId": host.thread(), "sessionId": "s1", "turnId": "t1",
+        "pos": 1, "prompt": "go", "harness": { "slashCommands": ["review", "fix:all"] },
+    });
+    let history = vec![serde_json::from_value(start).unwrap()];
+    link.update_in(cx, |l, window, cx| l.take_history(Seen::of(&history), window, cx));
+    composer.update_in(cx, |c, window, cx| c.set_text("/", window, cx));
+    let listed = composer.read_with(cx, |c, _| c.menu_items().map(|items| items.iter().map(|i| i.label.clone()).collect::<Vec<_>>()));
+    let listed = listed.expect("the slash menu is open");
+    assert!(listed.iter().any(|l| l == "/review") && listed.iter().any(|l| l == "/fix:all"), "{listed:?}");
+}
+
+#[gpui_kit::test]
+fn the_steer_preference_is_read_from_the_host_and_followed(cx: &mut TestAppContext) {
+    let host = Host::start();
+    let set = |mid: &str| {
+        let op: protocol::PreferencesSetRequest = serde_json::from_value(json!({ "patch": { "midTurn": mid } })).unwrap();
+        let client = host.client.clone();
+        host.runtime.block_on(async move { client.call(op).await }).unwrap_or_else(|f| panic!("preferences.set: {}", f.message));
+    };
+    set("steer");
+    let (composer, _link, cx) = tie(&host, cx);
+    until(cx, "the composer steering, as preferences.get says", |cx| composer.read_with(cx, |c, _| c.steer_preferred()));
+    set("queue");
+    until(cx, "the composer queueing once the host says the preference changed", |cx| composer.read_with(cx, |c, _| !c.steer_preferred()));
+}
+
+#[gpui_kit::test]
+fn a_workspace_that_lists_no_agents_is_asked_again(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::composer::link::Opened;
+    let host = Host::start();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        ui::init(Side::Light, cx);
+        composer::init(cx);
+    });
+    let mut made = None;
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let composer = cx.new(|cx| Composer::new(window, cx));
+        made = Some(composer.clone());
+        Root::new(composer, window, cx)
+    });
+    let composer = made.unwrap();
+    let opened = Opened { agents: Vec::new(), rows: Vec::new(), history: Vec::new(), sessions: Some(Vec::new()) };
+    let _link = cx.update(|window, cx| {
+        let composer = composer.clone();
+        cx.new(|cx| Link::fed(host.shell(), host.target.clone(), opened, composer, window, cx))
+    });
+    let known = composer.read_with(cx, |c, _| c.known(&host.target.workspace_id));
+    assert!(known.agents.is_none(), "no agents is not kept for the process");
+}
+
+#[test]
+fn rows_kept_from_before_a_thread_was_made_are_read_again() {
+    use desktop_gpui::screens::composer::link::Known;
+    let host = Host::start();
+    let stale = Known { agents: None, sessions: Some(Vec::new()) };
+    let opened = host.runtime.block_on(Link::read_facts(&host.shell(), &host.target, stale)).unwrap_or_else(|f| panic!("{}", f.message));
+    assert!(!opened.rows.is_empty(), "the thread's rows are read from the host, not taken as none");
+    assert!(opened.rows.iter().all(|r| r.thread_id.as_deref() == Some(host.thread())));
+}
+
+#[gpui_kit::test]
+fn the_steer_preference_is_followed_again_after_the_host_restarts(cx: &mut TestAppContext) {
+    let mut host = Host::start();
+    let (composer, _link, cx) = tie(&host, cx);
+    settle(cx);
+    assert!(!composer.read_with(cx, |c, _| c.steer_preferred()), "queue is the default");
+    host.server.restart();
+    let op: protocol::PreferencesSetRequest = serde_json::from_value(json!({ "patch": { "midTurn": "steer" } })).unwrap();
+    let client = host.client.clone();
+    host.runtime.block_on(async move { client.call(op).await }).unwrap_or_else(|f| panic!("preferences.set: {}", f.message));
+    until(cx, "the composer steering once the restarted host says so", |cx| composer.read_with(cx, |c, _| c.steer_preferred()));
+}
+
+#[gpui_kit::test]
+fn a_message_sent_while_a_new_threads_first_turn_runs_waits_for_it(cx: &mut TestAppContext) {
+    let host = Host::start();
+    let workspace = host.target.workspace_id.clone();
+    let target = Target { workspace_id: workspace.clone(), thread_id: None };
+    let (composer, _link, cx) = tie_to(&host, target, cx);
+    send(&composer, "SLOW a fresh start", cx);
+    // The host's answer lands before the composer has read the new thread's transcript.
+    until(cx, "the host's answer to the first send", |cx| {
+        composer.read_with(cx, |c, _| c.hold().is_none() && c.thread_key() != Some(workspace.as_str()))
+    });
+    assert!(running(&composer, cx), "the turn the answer started runs from the answer on");
+    send(&composer, "and a second", cx);
+    assert_eq!(queued(&composer, cx), 1, "with steering off the second waits for the first turn");
+    let thread = composer.read_with(cx, |c, _| c.thread_key().unwrap().to_owned());
+    let history = |thread: &str| -> Vec<Value> {
+        let opened = host.runtime.block_on(host.client.open(&workspace, thread)).unwrap();
+        opened.history.iter().map(|e| serde_json::to_value(e).unwrap()).collect()
+    };
+    until(cx, "the first turn running on the host", |_| started(&history(&thread), "SLOW a fresh start"));
+    settle(cx);
+    let rows = host.runtime.block_on(link::rows_of(&host.shell(), &workspace, &thread)).unwrap();
+    host.interrupt_session(&link::session_id(&rows, None).unwrap()).unwrap_or_else(|f| panic!("{}", f.message));
+    until(cx, "the second message as a turn of its own", |_| started(&history(&thread), "and a second"));
+    assert!(!history(&thread).iter().any(|e| kind(e) == "session.steer"), "nothing was steered into the first turn");
+}

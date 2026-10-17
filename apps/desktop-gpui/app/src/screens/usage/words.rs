@@ -10,6 +10,8 @@ use wsp_host_client::protocol::{
 };
 
 use super::model::{Range, Split};
+pub use crate::words::fmt_tokens;
+use crate::words::{round_half_up, to_fixed};
 
 pub const NOT_PRICED: &str = "not priced";
 pub const UNREAD_NOTE: &str = "not read yet: shows after its next turn";
@@ -220,52 +222,6 @@ pub(crate) fn js_round(x: f64) -> f64 {
     }
 }
 
-/// A magnitude's decimal digits rounded half up at `places`, off its integer and fraction digits.
-pub(crate) fn round_half_up(int: &str, frac: &str, places: usize) -> String {
-    let mut digits: Vec<u8> = int.bytes().chain(frac.bytes().chain(std::iter::repeat(b'0')).take(places)).collect();
-    if frac.as_bytes().get(places).is_some_and(|d| *d >= b'5') {
-        let mut i = digits.len();
-        loop {
-            if i == 0 {
-                digits.insert(0, b'1');
-                break;
-            }
-            i -= 1;
-            if digits[i] == b'9' {
-                digits[i] = b'0';
-            } else {
-                digits[i] += 1;
-                break;
-            }
-        }
-    }
-    let split = digits.len() - places;
-    let (whole, fraction) = digits.split_at(split);
-    let whole = String::from_utf8_lossy(whole);
-    if places == 0 {
-        whole.into_owned()
-    } else {
-        format!("{whole}.{}", String::from_utf8_lossy(fraction))
-    }
-}
-
-/// `Number.prototype.toFixed` for finite values under 1e21: the double's exact value rounded, a tie up.
-pub(crate) fn to_fixed(x: f64, places: usize) -> String {
-    let magnitude = x.abs();
-    let bits = magnitude.to_bits();
-    let exponent = ((bits >> 52) & 0x7ff) as i64;
-    // A double is m * 2^q, and its exact decimal expansion has -q digits after the point.
-    let q = if exponent == 0 { -1074 } else { exponent - 1075 };
-    let exact = format!("{magnitude:.*}", (-q).max(0) as usize);
-    let (int, frac) = exact.split_once('.').unwrap_or((&exact, ""));
-    let fixed = round_half_up(int, frac, places);
-    if x < 0.0 {
-        format!("-{fixed}")
-    } else {
-        fixed
-    }
-}
-
 pub(crate) fn group_thousands(int: &str) -> String {
     let mut out = String::with_capacity(int.len() + int.len() / 3);
     for (i, c) in int.chars().enumerate() {
@@ -275,29 +231,6 @@ pub(crate) fn group_thousands(int: &str) -> String {
         out.push(c);
     }
     out
-}
-
-/// A token count in three figures and its unit, no trailing zero: 4.27k, 22.6M, 7.37B, 687M; under a thousand as is.
-pub fn fmt_tokens(n: f64) -> String {
-    let count = if n.is_finite() && n > 0.0 { js_round(n) } else { 0.0 };
-    if count < 1_000.0 {
-        return format!("{count}");
-    }
-    let (value, unit) = if count < 999_500.0 {
-        (count / 1_000.0, "k")
-    } else if count < 999_500_000.0 {
-        (count / 1_000_000.0, "M")
-    } else {
-        (count / 1_000_000_000.0, "B")
-    };
-    let places = match value {
-        v if v < 10.0 => 2,
-        v if v < 100.0 => 1,
-        _ => 0,
-    };
-    let fixed = to_fixed(value, places);
-    let trimmed = if fixed.contains('.') { fixed.trim_end_matches('0').trim_end_matches('.') } else { &fixed };
-    format!("{trimmed}{unit}")
 }
 
 /// Dollars as en-US `toLocaleString` writes them with two decimals: grouped, halves away from zero, "$-1.00".

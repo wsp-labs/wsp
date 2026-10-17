@@ -17,6 +17,21 @@ use crate::screens::terminal::state::Absent;
 use crate::screens::terminal::words;
 use crate::ui::context_menu::MenuItem;
 
+/// `THREAD_WORDS` in actions/format.ts: a thread's state acts as the sidebar and the transcript's Threads section say them.
+pub(crate) mod act_words {
+    pub const STOP: &str = "Stop thread";
+    pub const STOP_TREE: &str = "Stop this thread and every thread under it";
+    pub const STOP_ARMED: &str = "Stop";
+    pub const STOP_AGAIN: &str = "Press again to stop";
+    pub const SETTLE: &str = "Settle thread";
+    pub const RESTORE: &str = "Restore thread";
+}
+
+/// `THREAD_TREE_WORKING`: a settle is held while anything in the thread's tree works.
+pub(crate) fn settle_refusal(working: bool) -> Option<String> {
+    working.then(|| "A thread in it is still working".to_owned())
+}
+
 /// What a menu item does.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Act {
@@ -296,15 +311,12 @@ pub fn items_for(s: &Sidebar, tile: &Tile, key: &str) -> Vec<Item> {
     let mut out = Vec::new();
 
     let stop_refusal = (!running && !(is_root && working)).then(|| "Thread is not running".to_owned());
-    out.push(item(Act::Stop, "Stop thread", "state", stop_refusal));
+    out.push(item(Act::Stop, act_words::STOP, "state", stop_refusal));
     if is_root && !settled {
-        out.push(Item {
-            keys: chord("secondary-shift-e"),
-            ..item(Act::Settle, "Settle thread", "state", working.then(|| "A thread in it is still working".to_owned()))
-        });
+        out.push(Item { keys: chord("secondary-shift-e"), ..item(Act::Settle, act_words::SETTLE, "state", settle_refusal(working)) });
     }
     if is_root && settled {
-        out.push(item(Act::Restore, "Restore thread", "state", None));
+        out.push(item(Act::Restore, act_words::RESTORE, "state", None));
     }
     out.push(item(Act::Rename, "Rename thread", "edit", rename_refusal(s, t)));
     if t.rewound_at.is_some() && t.thread_id.is_some() {
@@ -355,10 +367,10 @@ pub fn items_for(s: &Sidebar, tile: &Tile, key: &str) -> Vec<Item> {
     }
     if !is_root {
         if tile.shape == Shape::Finished || !settled && !running {
-            out.push(item(Act::SettleChild, "Settle thread", "state", None));
+            out.push(item(Act::SettleChild, act_words::SETTLE, "state", None));
         }
         if t.settled_at.is_some() {
-            out.push(item(Act::RestoreChild, "Restore thread", "state", None));
+            out.push(item(Act::RestoreChild, act_words::RESTORE, "state", None));
         }
     }
     let finished = s.view().finished_under(key);

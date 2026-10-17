@@ -474,8 +474,6 @@ pub fn pasted_file(text: &str, taken: &[&str]) -> Option<File> {
 /// nothing to say.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Drawer {
-    /// The question the turn waits on.
-    pub question: Option<String>,
     /// The usage limit's title and line.
     pub limit: Option<(String, String)>,
     /// What holds the turn back on its computer.

@@ -196,14 +196,12 @@ pub fn place_name(place: &Value) -> String {
     }
 }
 
+/// `PROVIDER_KEY_WORDS`' names: each cloud's id and the name its key rows give it.
+pub const PROVIDER_NAMES: [(&str, &str); 2] = [("box", "Boat"), ("solari", "Solari")];
+
 /// `providerKeyName`: a provider by the name its key rows give it, an id with no row as itself.
 pub fn provider_key_name(provider: &str) -> String {
-    match provider {
-        "box" => "Boat",
-        "solari" => "Solari",
-        other => other,
-    }
-    .to_owned()
+    PROVIDER_NAMES.iter().find(|(id, _)| *id == provider).map_or(provider, |&(_, name)| name).to_owned()
 }
 
 #[cfg(test)]

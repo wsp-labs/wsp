@@ -34,7 +34,10 @@ test("median and the slowest 1% of frames", () => {
   for (let i = 1; i <= 200; i++) at60.push(at60.at(-1) + (i === 50 || i === 150 ? 24 : 1000 / 60));
   assert.equal(Math.round(fps(at60).low1), 60);
   assert.equal(Math.round(fps(at60, 1000 / 120).low1), 40);
-  assert.deepEqual(row("x", { thread_rows: 9, scroll: { px_per_s: 2400, frame_ms: frames }, switch: [{ ms: 30 }, { ms: 10 }, { ms: 20 }] }, 100, 200, 300), ["x", "100", "200", "300", "62.5", "17.9", "20.0", "9"]);
+  assert.deepEqual(row("x", { thread_rows: 9, scroll: { px_per_s: 2400, frame_ms: frames }, switch: [{ ms: 30 }, { ms: 10 }, { ms: 20 }] }, 100, 200, 300), ["x", "100", "200", "300", "62.5", "17.9", "20.0", "-", "-", "-", "9"]);
+  // The GPUI bench's 30 timed switches show as their median, 90th percentile and slowest.
+  const switches = { each: [], median_ms: 41.5, p90_ms: 60.25, max_ms: 72 };
+  assert.deepEqual(row("x", { thread_rows: 9, scroll: { px_per_s: 2400, frame_ms: frames }, switch: [{ ms: 30 }], switches }, 100, 200, 300).slice(6), ["30.0", "41.5", "60.3", "72.0", "9"]);
 });
 
 test("the generator's mix, the same on every call", () => {
