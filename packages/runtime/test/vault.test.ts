@@ -22,7 +22,7 @@ import { stubBackend, copyingFake, createOn, tempRepo, testPlatform } from "./st
 import { report, wiring } from "./place-join.js";
 import { ctx as places, sockets, code, join as joinPlace, forks, asRoot, KEEPS_NO_IMAGE, ROOT_LOGIN } from "./places-fixture.js";
 import { until } from "./until.js";
-import { writeStub } from "../../protocol/test/stub-script.js";
+import { gateLoop, writeStub } from "../../protocol/test/stub-script.js";
 import { HOST_TOKEN_ENV, THREAD_ENV, TURN_TOKEN_ENV, brokeredAgentRefusal, codexLoginUnreadRefusal, type BrokerStatus, type TurnResult } from "@wsp/protocol";
 import { buildEnv } from "@wsp/adapter-claude";
 
@@ -251,6 +251,60 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     await turn();
     await until(async () => (await rt.workspaces.get(ws.id)).branchOfRecord?.public === undefined);
     expect(await turn()).toEqual([]);
+  });
+
+  it("fetches the person's public plugin marketplaces from GitHub itself, a private one and the project's own repo through the door", async () => {
+    const { factory, contexts } = recording();
+    const { local, root } = here(() => `#!/bin/sh\ncase "$2" in\n  repos/*/commits/*) echo 1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a ;;\n  repos/acme/plugins) echo false ;;\n  repos/lab/mem) echo true ;;\n  repos/gone/plugins) echo 'To get started with GitHub CLI, please run:  gh auth login' >&2; exit 4 ;;\n  repos/*) printf '4242\\tacme\\tweb\\ttrue\\n' ;;\n  *) exit 1 ;;\nesac\n`);
+    mkdirSync(join(root, ".claude", "plugins"), { recursive: true });
+    const github = (repo: string) => ({ source: { source: "github", repo }, installLocation: join(root, ".claude", "plugins", "marketplaces", repo) });
+    writeFileSync(join(root, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ acme: github("acme/plugins"), lab: github("lab/mem"), gone: github("gone/plugins"), here: { source: { source: "directory", path: join(root, "plugins") } } }));
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: factory }, broker: READY, local });
+    const env = (await turnOf(rt, contexts)).env;
+    const forms = ["https://github.com/", "git@github.com:", "ssh://git@github.com/", "ssh://git@ssh.github.com:443/"];
+    expect(gitPairs(env).filter(([key]) => key.startsWith("url.") && !key.startsWith("url.http://github.com/.insteadOf"))).toEqual(
+      forms.flatMap(from => [["url.https://github.com/acme/plugins.git.insteadOf", `${from}acme/plugins.git`], ["url.http://github.com/acme/plugins.git.pushInsteadOf", `${from}acme/plugins.git`]]),
+    );
+  });
+
+  it("reads the marketplaces again beside a launch, which keeps the answer it holds", async () => {
+    const { factory, contexts } = recording();
+    const { local, root } = here(at => `#!/bin/sh\ncase "$2" in\n  repos/*/commits/*) echo 1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a ;;\n  repos/acme/plugins) [ -f ${join(at, "hold")} ] && { ${gateLoop(join(at, "gate"))}; }; cat ${join(at, "answer")} ;;\n  repos/*) printf '4242\\tacme\\tweb\\ttrue\\n' ;;\n  *) exit 1 ;;\nesac\n`);
+    writeFileSync(join(root, "answer"), "false\n");
+    mkdirSync(join(root, ".claude", "plugins"), { recursive: true });
+    writeFileSync(join(root, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ acme: { source: { source: "github", repo: "acme/plugins" } } }));
+    let shift = 0;
+    // While the gate is shut the clock keeps what it is handed, so a launch that waits on the held read never resolves.
+    let shut = false;
+    const kept: (() => void)[] = [];
+    const clock = {
+      now: () => Date.now() + shift,
+      schedule: (fn: () => void, ms: number) => {
+        if (shut) {
+          kept.push(fn);
+          return () => {};
+        }
+        const t = setTimeout(fn, ms);
+        t.unref();
+        return () => clearTimeout(t);
+      },
+    };
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: factory }, broker: READY, clock, local });
+    const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+    const direct = async (): Promise<boolean> => {
+      const before = contexts.length;
+      await (await rt.sessions.start(ws.id, { prompt: "one", harness: "claude" })).finished;
+      return gitPairs(contexts.slice(before).find(c => TURN_TOKEN_ENV in c.env)!.env).some(([key]) => key === "url.https://github.com/acme/plugins.git.insteadOf");
+    };
+    expect(await direct()).toBe(true);
+    writeFileSync(join(root, "answer"), "true\n");
+    writeFileSync(join(root, "hold"), "");
+    shut = true;
+    shift = 11 * 60_000;
+    expect(await direct()).toBe(true);
+    shut = false;
+    writeFileSync(join(root, "gate"), "");
+    await until(async () => !(await direct()));
   });
 
   it("holds none of the vault's names or values and no server value, and the turn token in each place 01 lists", async () => {

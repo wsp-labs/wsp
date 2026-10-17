@@ -128,7 +128,8 @@ const CLONE_HOST = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
 /** A login ssh is handed: nothing it could read as an option, and nothing a shell or a url would have to escape. */
 const CLONE_USER = /^[A-Za-z0-9_.][A-Za-z0-9_.-]*$/;
 const SCP_FORM = /^[A-Za-z0-9_.][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[^\s-][^\s]*$/;
-const OWNER_REPO = /^[\w.][\w.-]*\/[\w.][\w.-]*$/;
+/** `owner/name` as GitHub and GitLab spell a repo: nothing a shell, a url or a git config key would have to escape. */
+export const OWNER_REPO = /^[\w.][\w.-]*\/[\w.][\w.-]*$/;
 
 /** Why a repo word is not one this computer clones, or nothing where it is: an https url, an ssh url, git's scp form
  * or owner/repo, with no credentials in it, no login, host or path that git or ssh could read as an option, and no
