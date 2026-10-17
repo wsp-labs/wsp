@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use desktop_gpui::gallery::Gallery;
+use desktop_gpui::screens::composer::{self, screen::ComposerScreen};
 use desktop_gpui::ui::{self, Side, UiAssets};
 use desktop_gpui::{bench, shell::Shell, TITLE};
 use gpui_kit::component::Root;
@@ -24,7 +25,7 @@ fn main() {
     let state = args.state.unwrap_or_else(default_state);
     let env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
-    let (bench, open, glass, gallery) = (args.bench, args.open, args.glass, args.gallery);
+    let (bench, open, glass, gallery, screen) = (args.bench, args.open, args.glass, args.gallery, args.screen);
     gpui_kit::application().with_assets(UiAssets).run(move |cx: &mut App| {
         gpui_kit::init(cx);
         cx.on_window_closed(|cx, _| {
@@ -50,6 +51,32 @@ fn main() {
                 },
             )
             .expect("failed to open the gallery");
+            cx.activate(true);
+            return;
+        }
+        if let Some(screen) = screen {
+            let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
+            ui::init(if dark { Side::Dark } else { Side::Light }, cx);
+            let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
+            let options = WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                titlebar: Some(TitlebarOptions { title: Some(format!("wsp {screen}").into()), ..Default::default() }),
+                ..Default::default()
+            };
+            match screen.as_str() {
+                "composer" => {
+                    composer::init(cx);
+                    cx.open_window(options, |window, cx| {
+                        let view = cx.new(|cx| ComposerScreen::new(state, env, runtime, open, window, cx));
+                        cx.new(|cx| Root::new(view, window, cx))
+                    })
+                }
+                other => {
+                    eprintln!("desktop-gpui: no screen {other}");
+                    std::process::exit(64);
+                }
+            }
+            .expect("failed to open the screen");
             cx.activate(true);
             return;
         }

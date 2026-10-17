@@ -11,10 +11,11 @@ description = "wsp's desktop app on GPUI"
 # tree-sitter-languages turns on syntax highlighting in markdown's fenced code.
 gpui-kit = { git = "https://github.com/longbridge/gpui-kit", rev = "14f59330a4aa0cb5becf140e067d64a616328612", features = ["tree-sitter-languages"] }
 wsp-host-client = { path = "../host-client" }
+base64 = "0.22"
 futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 
 [dev-dependencies]
 gpui-kit = { git = "https://github.com/longbridge/gpui-kit", rev = "14f59330a4aa0cb5becf140e067d64a616328612", features = ["test-support"] }
@@ -30,4 +31,8 @@ harness = false
 
 [[test]]
 name = "gallery"
+harness = false
+
+[[test]]
+name = "composer_shots"
 harness = false

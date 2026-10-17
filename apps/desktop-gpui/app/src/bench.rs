@@ -16,6 +16,8 @@ pub struct Args {
     pub glass: bool,
     /// The gallery of shared pieces in place of the app.
     pub gallery: bool,
+    /// One screen alone in its window, for captures: `composer`.
+    pub screen: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -26,9 +28,10 @@ pub struct Bench {
 }
 
 /// `desktop-gpui [--state <state.json>] [--glass] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`,
-/// or `desktop-gpui --gallery`.
+/// or `desktop-gpui --gallery`, or `desktop-gpui --screen <name> [--state <state.json>] [--open <id>]`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery) = (None, None, None, Vec::new(), None, false, false);
+    let mut screen = None;
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or(format!("{flag} takes a value"));
         match flag.as_str() {
@@ -39,6 +42,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--glass" => glass = true,
+            "--screen" => screen = Some(value()?),
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -53,7 +57,10 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     if gallery && (bench.is_some() || open.is_some() || glass) {
         return Err("--gallery goes alone".to_owned());
     }
-    Ok(Args { state, bench, open, glass, gallery })
+    if screen.is_some() && (bench.is_some() || glass || gallery) {
+        return Err("--screen goes with --state and --open alone".to_owned());
+    }
+    Ok(Args { state, bench, open, glass, gallery, screen })
 }
 
 /// The result JSON: frame times are milliseconds from the start of the scroll.
@@ -92,6 +99,9 @@ mod tests {
         assert!(parse(words("--gallery")).unwrap().gallery);
         assert!(parse(words("--gallery --open long")).is_err());
         assert!(parse(words("--gallery --glass")).is_err());
+        assert_eq!(parse(words("--screen composer --state /s --open t")).unwrap().screen, Some("composer".to_owned()));
+        assert!(parse(words("--screen composer --gallery")).is_err());
+        assert!(parse(words("--screen")).is_err());
     }
 
     #[test]
