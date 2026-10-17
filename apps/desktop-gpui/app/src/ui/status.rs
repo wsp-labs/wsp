@@ -10,11 +10,12 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{
-    canvas, div, fill, point, prelude::*, px, size as gsize, Animation, AnimationExt as _, App, Bounds, FontWeight, Global, Hsla, Pixels,
-    SharedString, Transformation, Window,
+    canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, relative, size as gsize, Animation, AnimationExt as _,
+    App, Bounds, FontWeight, Global, Hsla, Pixels, SharedString, Transformation, Window,
 };
 
 use super::card::{row_frame, CardItem, Corners};
+use super::dialog::tip;
 use super::icons::Glyph;
 use super::theme::ActivePalette;
 use super::{size, text};
@@ -25,7 +26,7 @@ pub struct Still(pub bool);
 
 impl Global for Still {}
 
-fn still(cx: &App) -> bool {
+pub(super) fn still(cx: &App) -> bool {
     cx.reduce_motion() || cx.try_global::<Still>().is_some_and(|s| s.0)
 }
 
@@ -39,6 +40,91 @@ pub fn spinner(cx: &App) -> impl IntoElement {
         icon.transform(Transformation::rotate(gpui_kit::percentage(delta)))
     })
     .into_any_element()
+}
+
+/// `Skeleton`: a bar in the hairline tier while what fills it is on its way, a highlight sweeping it every 2 s.
+#[derive(IntoElement)]
+pub struct Skeleton {
+    width: Pixels,
+    height: Pixels,
+}
+
+impl Skeleton {
+    pub fn new(width: Pixels, height: Pixels) -> Self {
+        Skeleton { width, height }
+    }
+}
+
+impl RenderOnce for Skeleton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette();
+        let glow = p.skeleton_highlight;
+        // GPUI's gradient takes two stops, so the 40-50-60% band is two halves; the web's 120 degree tilt is dropped.
+        let half = |from: Hsla, to: Hsla| {
+            div().absolute().top_0().bottom_0().w(relative(0.1)).bg(linear_gradient(
+                90.,
+                linear_color_stop(from, 0.),
+                linear_color_stop(to, 1.),
+            ))
+        };
+        let sweep = div()
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .w_full()
+            .child(half(glow.opacity(0.), glow).left(relative(0.4)))
+            .child(half(glow, glow.opacity(0.)).left(relative(0.5)));
+        div()
+            .debug_selector(|| "skeleton".into())
+            .relative()
+            .flex_none()
+            .overflow_hidden()
+            .w(self.width)
+            .h(self.height)
+            .rounded(px(6.))
+            .bg(p.border)
+            .when(!still(cx), |el| {
+                // The band crosses in the first 60% of the 2 s and is parked off the bar for the rest, as `skeleton` does.
+                el.child(sweep.with_animation("skeleton", Animation::new(Duration::from_secs(2)).repeat(), |el, t| {
+                    el.left(relative(-1. + 2. * (t / 0.6).min(1.)))
+                }))
+            })
+    }
+}
+
+/// `RowSkeleton`: one row's room while the card's rows are on their way, a title bar over a line bar on its own card
+/// surface; a card's `body`.
+#[derive(IntoElement)]
+pub struct RowSkeleton {
+    id: SharedString,
+}
+
+impl RowSkeleton {
+    pub fn new(id: impl Into<SharedString>) -> Self {
+        RowSkeleton { id: id.into() }
+    }
+}
+
+impl RenderOnce for RowSkeleton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette();
+        div()
+            .id(self.id)
+            .debug_selector(|| "row-skeleton".into())
+            .flex()
+            .flex_col()
+            .justify_center()
+            .gap_2()
+            .py(size::ROW_PAD_Y)
+            .px(size::CARD_INSET)
+            .min_h(size::ROW_FLOOR)
+            .rounded(size::CARD_RADIUS)
+            .border_1()
+            .border_color(p.border.opacity(0.6))
+            .bg(p.card.opacity(0.4))
+            .child(Skeleton::new(px(160.), px(14.)))
+            .child(Skeleton::new(px(256.), px(12.)))
+    }
 }
 
 /// A thread's state in its row's status slot. The glyph stands alone; its word belongs on the hover.
@@ -58,11 +144,18 @@ pub enum Status {
 #[derive(IntoElement)]
 pub struct StatusMark {
     status: Status,
+    tooltip: Option<SharedString>,
 }
 
 impl StatusMark {
     pub fn new(status: Status) -> Self {
-        StatusMark { status }
+        StatusMark { status, tooltip: None }
+    }
+
+    /// The state's word on the hover: "Needs you", "Working for 1h 5m".
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
     }
 }
 
@@ -78,7 +171,7 @@ impl RenderOnce for StatusMark {
             Status::Read(age) => (None, Some(age.clone()), p.muted_foreground, false),
         };
         let working = matches!(self.status, Status::Working(_));
-        h_flex()
+        let mark = h_flex()
             .debug_selector(|| "status-mark".into())
             .flex_none()
             .min_w(px(16.))
@@ -90,7 +183,11 @@ impl RenderOnce for StatusMark {
             .text_color(ink)
             .children(time)
             .children(glyph.map(|g| Icon::new(g).with_size(px(12.)).text_color(ink)))
-            .when(working, |el| el.child(Crab::new(ink)))
+            .when(working, |el| el.child(Crab::new(ink)));
+        match self.tooltip {
+            Some(text) => mark.id(SharedString::from(format!("status-mark-{text}"))).tooltip(tip(text)).into_any_element(),
+            None => mark.into_any_element(),
+        }
     }
 }
 
@@ -125,12 +222,19 @@ pub struct StepRow {
     id: SharedString,
     step: Step,
     title: SharedString,
+    tooltip: Option<SharedString>,
     corners: Corners,
 }
 
 impl StepRow {
     pub fn new(id: impl Into<SharedString>, step: Step, title: impl Into<SharedString>) -> Self {
-        StepRow { id: id.into(), step, title: title.into(), corners: Corners::default() }
+        StepRow { id: id.into(), step, title: title.into(), tooltip: None, corners: Corners::default() }
+    }
+
+    /// The step's state in words on its mark's hover: "Skipped: Claude Code is not installed there".
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
     }
 }
 
@@ -152,16 +256,24 @@ impl RenderOnce for StepRow {
         let p = cx.palette();
         let waiting = self.step == Step::NotStarted;
         row_frame(&self.id, size::LINE_FLOOR, self.corners).child(
-            h_flex().gap_3().child(step_mark(self.step, cx)).child(
-                div()
-                    .debug_selector(|| "title".into())
-                    .min_w_0()
-                    .text_size(text::SETTING_TITLE.0)
-                    .line_height(text::SETTING_TITLE.1)
-                    .font_weight(if waiting { FontWeight::NORMAL } else { FontWeight::MEDIUM })
-                    .text_color(if waiting { p.muted_foreground } else { p.foreground })
-                    .child(self.title),
-            ),
+            h_flex()
+                .gap_3()
+                .child(
+                    div()
+                        .id(SharedString::from(format!("{}-mark", self.id)))
+                        .when_some(self.tooltip, |el, t| el.tooltip(tip(t)))
+                        .child(step_mark(self.step, cx)),
+                )
+                .child(
+                    div()
+                        .debug_selector(|| "title".into())
+                        .min_w_0()
+                        .text_size(text::SETTING_TITLE.0)
+                        .line_height(text::SETTING_TITLE.1)
+                        .font_weight(if waiting { FontWeight::NORMAL } else { FontWeight::MEDIUM })
+                        .text_color(if waiting { p.muted_foreground } else { p.foreground })
+                        .child(self.title),
+                ),
         )
     }
 }

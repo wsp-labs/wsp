@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use desktop_gpui::gallery::Gallery;
+use desktop_gpui::screens::{self, settings};
 use desktop_gpui::ui::{self, Side, UiAssets};
 use desktop_gpui::{bench, shell::Shell, TITLE};
 use gpui_kit::component::Root;
@@ -24,7 +25,7 @@ fn main() {
     let state = args.state.unwrap_or_else(default_state);
     let env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
-    let (bench, open, glass, gallery) = (args.bench, args.open, args.glass, args.gallery);
+    let (bench, open, glass, gallery, screen) = (args.bench, args.open, args.glass, args.gallery, args.screen);
     gpui_kit::application().with_assets(UiAssets).run(move |cx: &mut App| {
         gpui_kit::init(cx);
         cx.on_window_closed(|cx, _| {
@@ -50,6 +51,33 @@ fn main() {
                 },
             )
             .expect("failed to open the gallery");
+            cx.activate(true);
+            return;
+        }
+        if let Some(screen) = screen {
+            let Some(page) = screens::alone(&screen) else {
+                eprintln!("desktop-gpui: no screen {screen}");
+                std::process::exit(64);
+            };
+            ui::init(Side::Light, cx);
+            let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
+            cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    titlebar: Some(TitlebarOptions { title: Some(TITLE.into()), ..Default::default() }),
+                    ..Default::default()
+                },
+                |window, cx| {
+                    let view: gpui_kit::AnyView = match page {
+                        screens::Alone::Settings(at, scroll) => {
+                            let opening = settings::Opening { state, env, runtime, at, scroll };
+                            settings::open_alone(opening, window, cx).into()
+                        }
+                    };
+                    cx.new(|cx| Root::new(view, window, cx))
+                },
+            )
+            .expect("failed to open the window");
             cx.activate(true);
             return;
         }

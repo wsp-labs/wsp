@@ -3,39 +3,44 @@
 //! or a checkbox at the left of a row), and the tactile keycap buttons.
 
 use gpui_kit::component::input::{Input, InputState};
-use gpui_kit::component::searchable_list::SearchableVec;
-use gpui_kit::component::select::{Select as KitSelect, SelectState};
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme, FocusableExt as _, Icon, Sizable as _};
-use gpui_kit::{div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, Entity, FontWeight, Hsla, SharedString, Window};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
+use gpui_kit::{
+    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, Entity, Focusable as _, FontWeight, Hsla, Pixels, SharedString,
+    Window,
+};
 
 use super::card::{glyph_frame, row_frame, CardItem, Corners};
+use super::dialog::tip;
+use super::focus::ring;
 use super::icons::{Glyph, TICK};
+use super::motion;
 use super::theme::{ActivePalette, Palette};
 use super::{size, text};
 
 type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+type SharedClick = std::rc::Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// A held control waits on something beside it: dimmed in its own look, and nothing else.
 const HELD: f32 = 0.64;
 
 /// How a held control's parts read: the web dims the control as one layer, but GPUI fades each fill, edge and glyph
 /// on its own, which stacks them; so each part is drawn solid in the color the dimmed layer shows over the page.
-struct Dim {
+pub(super) struct Dim {
     page: Hsla,
     ground: Hsla,
 }
 
 impl Dim {
-    fn new(page: Hsla, fill: Hsla) -> Self {
+    pub(super) fn new(page: Hsla, fill: Hsla) -> Self {
         Dim { page, ground: page.blend(fill) }
     }
 
-    fn fill(&self) -> Hsla {
+    pub(super) fn fill(&self) -> Hsla {
         self.page.blend(self.ground.opacity(HELD))
     }
 
     /// A part drawn over the control's fill.
-    fn over(&self, part: Hsla) -> Hsla {
+    pub(super) fn over(&self, part: Hsla) -> Hsla {
         self.page.blend(self.ground.blend(part).opacity(HELD))
     }
 }
@@ -55,6 +60,11 @@ pub enum ButtonKind {
     Ghost,
     /// A quiet word with no padding, so its text edge is its box edge.
     Text,
+    /// The act that does not come back, red at rest: a destructive dialog's confirm.
+    Destructive,
+    /// `DANGER_BUTTON`: the outline door to a destructive dialog, neutral at rest, the danger edge and ink under the
+    /// pointer.
+    Danger,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -76,12 +86,27 @@ pub struct Button {
     label: Option<SharedString>,
     glyph: Option<Glyph>,
     held: bool,
+    neutral_ring: bool,
+    tooltip: Option<SharedString>,
+    /// A height other than the size's own: a toolbar's Add stands at 30 px (`h-[30px]`).
+    height: Option<Pixels>,
     on_click: Option<Click>,
 }
 
 impl Button {
     fn new(id: impl Into<SharedString>, kind: ButtonKind, label: impl Into<SharedString>) -> Self {
-        Button { id: id.into(), kind, size: ButtonSize::Default, label: Some(label.into()), glyph: None, held: false, on_click: None }
+        Button {
+            id: id.into(),
+            kind,
+            size: ButtonSize::Default,
+            label: Some(label.into()),
+            glyph: None,
+            held: false,
+            neutral_ring: false,
+            tooltip: None,
+            height: None,
+            on_click: None,
+        }
     }
 
     pub fn primary(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
@@ -90,6 +115,21 @@ impl Button {
 
     pub fn outline(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         Button::new(id, ButtonKind::Outline, label)
+    }
+
+    /// No edge and the muted ink, the accent fill under the pointer: Restore defaults, `.xs().glyph(Glyph::RotateCcw)`.
+    pub fn ghost(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Button::new(id, ButtonKind::Ghost, label)
+    }
+
+    /// The red confirm of a destructive dialog: Remove, Revoke, Delete.
+    pub fn destructive(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Button::new(id, ButtonKind::Destructive, label)
+    }
+
+    /// The outline door to a destructive dialog (`DANGER_BUTTON`); the red stands in the dialog, not the row.
+    pub fn danger(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Button::new(id, ButtonKind::Danger, label)
     }
 
     /// The quiet word, as Skip for now.
@@ -111,6 +151,9 @@ impl Button {
             label: None,
             glyph: Some(glyph),
             held: false,
+            neutral_ring: false,
+            tooltip: None,
+            height: None,
             on_click: None,
         }
     }
@@ -131,8 +174,25 @@ impl Button {
         self
     }
 
+    pub fn height(mut self, height: Pixels) -> Self {
+        self.height = Some(height);
+        self
+    }
+
     pub fn held(mut self, held: bool) -> Self {
         self.held = held;
+        self
+    }
+
+    /// `NEUTRAL_RING`: the muted focus ring, for the Cancel standing beside a destructive confirm.
+    pub fn neutral_ring(mut self) -> Self {
+        self.neutral_ring = true;
+        self
+    }
+
+    /// The word or sentence on its hover: an icon button's name.
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
 
@@ -143,14 +203,31 @@ impl Button {
 }
 
 impl RenderOnce for Button {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
         let transparent = gpui_kit::transparent_black();
-        let (fill, edge, ink, glyph_ink, hover) = match self.kind {
-            ButtonKind::Primary => (p.primary, p.primary, p.primary_foreground, p.primary_foreground, Some(p.primary_hover)),
-            ButtonKind::Outline => (p.input_fill, p.input, p.foreground, p.muted_foreground, Some(p.input_fill_hover)),
-            ButtonKind::Ghost => (transparent, transparent, p.muted_foreground, p.muted_foreground, Some(p.accent)),
-            ButtonKind::Text => (transparent, transparent, p.muted_foreground, p.muted_foreground, None),
+        // At rest, then under the pointer: fill, edge, ink.
+        let (rest, over, glyph_ink) = match self.kind {
+            ButtonKind::Primary => {
+                ((p.primary, p.primary, p.primary_foreground), (p.primary_hover, p.primary, p.primary_foreground), p.primary_foreground)
+            }
+            ButtonKind::Outline => ((p.input_fill, p.input, p.foreground), (p.input_fill_hover, p.input, p.foreground), p.muted_foreground),
+            ButtonKind::Danger => (
+                (p.input_fill, p.input, p.foreground),
+                (p.input_fill_hover, p.destructive.opacity(0.5), p.error_foreground),
+                p.muted_foreground,
+            ),
+            ButtonKind::Destructive => (
+                (p.destructive, p.destructive, p.on_destructive),
+                (p.destructive.opacity(0.9), p.destructive, p.on_destructive),
+                p.on_destructive,
+            ),
+            ButtonKind::Ghost => {
+                ((transparent, transparent, p.muted_foreground), (p.accent, transparent, p.foreground), p.muted_foreground)
+            }
+            ButtonKind::Text => {
+                ((transparent, transparent, p.muted_foreground), (transparent, transparent, p.foreground), p.muted_foreground)
+            }
         };
         let (height, pad, (font, line), gap, glyph_size) = match self.size {
             ButtonSize::Default => (px(32.), px(12.), (text::BUTTON, px(19.5)), px(6.), px(14.)),
@@ -158,6 +235,9 @@ impl RenderOnce for Button {
             ButtonSize::Icon => (px(28.), px(0.), (text::BUTTON, px(19.5)), px(0.), px(16.)),
             ButtonSize::IconXs => (px(24.), px(0.), (text::BUTTON, px(19.5)), px(0.), px(14.)),
         };
+        let height = self.height.unwrap_or(height);
+        let hovered = motion::hovered(self.id.clone(), window, cx);
+        let (fill, edge, ink) = if *hovered.read(cx) && !self.held { over } else { rest };
         let mut keycap = bevel(&p);
         let (fill, edge, ink, glyph_ink) = if self.held {
             let dim = Dim::new(p.background, fill);
@@ -166,11 +246,16 @@ impl RenderOnce for Button {
             let fill = if fill.a > 0. { dim.fill() } else { fill };
             (fill, edge, dim.over(ink), dim.over(glyph_ink))
         } else {
-            (fill, edge, ink, glyph_ink)
+            let id = self.id.clone();
+            let fill = motion::ease_ink(id.clone(), "fill", fill, motion::COLORS, window, cx);
+            let edge = motion::ease_ink(id.clone(), "edge", edge, motion::COLORS, window, cx);
+            (fill, edge, motion::ease_ink(id, "ink", ink, motion::COLORS, window, cx), glyph_ink)
         };
         let square = matches!(self.size, ButtonSize::Icon | ButtonSize::IconXs);
         let pad = if self.kind == ButtonKind::Text { px(0.) } else { pad };
         let weight = if matches!(self.kind, ButtonKind::Ghost | ButtonKind::Text) { FontWeight::NORMAL } else { FontWeight::MEDIUM };
+        // `NEUTRAL_RING`: a blue ring between a neutral button and a red one says nothing about either.
+        let ring_ink = if self.kind == ButtonKind::Destructive || self.neutral_ring { p.muted_foreground } else { p.ring };
         h_flex()
             .id(self.id)
             .debug_selector(|| "button".into())
@@ -185,7 +270,7 @@ impl RenderOnce for Button {
             .border_color(edge)
             .bg(fill)
             // GPUI paints an inset shadow under the border, where CSS keeps it inside; a child filling the padding box holds it there.
-            .when(matches!(self.kind, ButtonKind::Primary | ButtonKind::Outline), |el| {
+            .when(!matches!(self.kind, ButtonKind::Ghost | ButtonKind::Text), |el| {
                 el.child(div().absolute().inset_0().rounded(size::BUTTON_RADIUS - px(1.)).shadow(keycap))
             })
             .text_size(font)
@@ -199,17 +284,10 @@ impl RenderOnce for Button {
                     return el;
                 }
                 el.cursor_pointer()
-                    .hover(|s| {
-                        let s = match hover {
-                            Some(hover) => s.bg(hover),
-                            None => s,
-                        };
-                        if matches!(self.kind, ButtonKind::Ghost | ButtonKind::Text) {
-                            s.text_color(p.foreground)
-                        } else {
-                            s
-                        }
-                    })
+                    .tab_index(0)
+                    .focus_visible(|s| s.shadow(vec![ring(ring_ink)]))
+                    .on_hover(motion::track_hover(hovered))
+                    .when_some(self.tooltip, |el, t| el.tooltip(tip(t)))
                     .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
             })
     }
@@ -278,7 +356,7 @@ struct Pick {
     glyph: Option<Glyph>,
     name: SharedString,
     note: Option<SharedString>,
-    on_click: Option<Click>,
+    on_click: Option<SharedClick>,
     corners: Corners,
 }
 
@@ -287,8 +365,24 @@ impl Pick {
         Pick { id: id.into(), on, glyph: None, name: name.into(), note: None, on_click: None, corners: Corners::default() }
     }
 
-    fn render(self, mark: impl IntoElement, cx: &App) -> AnyElement {
+    /// The mark is the tab stop and wears the ring, as the web's radio and checkbox do; the whole row takes a press.
+    fn render(self, mark: impl IntoElement, radius: Pixels, cx: &App) -> AnyElement {
+        let ring_ink = cx.palette().ring;
         let words = pick_words(self.name, self.note, self.on, cx);
+        let keyed = self.on_click.clone();
+        let mark = div()
+            .id(SharedString::from(format!("{}-mark", self.id)))
+            .flex_none()
+            .rounded(radius)
+            .tab_index(0)
+            .focus_visible(move |s| s.shadow(vec![ring(ring_ink)]))
+            .when_some(keyed, |el, f| {
+                el.on_click(move |e, window, cx| {
+                    cx.stop_propagation();
+                    f(e, window, cx)
+                })
+            })
+            .child(mark);
         let lead = h_flex().flex_1().min_w_0().gap_3().child(mark).children(self.glyph.map(|g| glyph_frame(g, cx))).child(words);
         row_frame(&self.id, size::ROW_FLOOR, self.corners)
             .cursor_pointer()
@@ -312,7 +406,7 @@ macro_rules! pick_builders {
             }
 
             pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
-                self.0.on_click = Some(Box::new(f));
+                self.0.on_click = Some(std::rc::Rc::new(f));
                 self
             }
         }
@@ -335,7 +429,7 @@ pick_builders!(Choice);
 impl RenderOnce for Choice {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let mark = radio(self.0.on, cx);
-        self.0.render(mark, cx)
+        self.0.render(mark, px(8.), cx)
     }
 }
 
@@ -360,7 +454,7 @@ pick_builders!(PickRow);
 impl RenderOnce for PickRow {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let mark = checkbox(self.0.on, cx);
-        self.0.render(mark, cx)
+        self.0.render(mark, px(4.), cx)
     }
 }
 
@@ -370,52 +464,8 @@ impl From<PickRow> for CardItem {
     }
 }
 
-/// The state a select in a row reads and writes.
-pub type SelectList = SelectState<SearchableVec<SharedString>>;
-
-/// A select in a row at `SELECT_WIDTH`: gpui-kit's select, its trigger drawn to wsp's size.
-#[derive(IntoElement)]
-pub struct Select {
-    state: Entity<SelectList>,
-    held: bool,
-}
-
-impl Select {
-    pub fn new(state: &Entity<SelectList>) -> Self {
-        Select { state: state.clone(), held: false }
-    }
-
-    pub fn held(mut self, held: bool) -> Self {
-        self.held = held;
-        self
-    }
-}
-
-impl RenderOnce for Select {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let p = cx.palette();
-        let chevron = Icon::new(Glyph::ChevronDown).opacity(0.5).mr(px(-4.));
-        let dim = Dim::new(p.background, p.input_fill);
-        let (edge, fill, ink) =
-            if self.held { (dim.over(p.input), dim.fill(), dim.over(p.foreground)) } else { (p.input, p.input_fill, p.foreground) };
-        let select = KitSelect::new(&self.state)
-            .icon(chevron)
-            .focus_ring(false)
-            .w(size::SELECT_WIDTH)
-            .h(size::CONTROL_HEIGHT)
-            .rounded(size::CONTROL_RADIUS)
-            .px(px(9.))
-            .py_0()
-            .border_color(edge)
-            .bg(fill)
-            .text_color(ink)
-            .text_size(text::FACT);
-        field_frame(select, self.held)
-    }
-}
-
 /// A control at the row's width that, while held, lets nothing through.
-fn field_frame(control: impl IntoElement, held: bool) -> impl IntoElement {
+fn field_frame(control: impl IntoElement, held: bool) -> gpui_kit::Div {
     div()
         .debug_selector(|| "control".into())
         .relative()
@@ -426,29 +476,84 @@ fn field_frame(control: impl IntoElement, held: bool) -> impl IntoElement {
         .when(held, |el| el.child(div().absolute().inset_0().occlude()))
 }
 
-/// A field a person types into in a row (`ROW_FIELD`): gpui-kit's input at the select's height and size.
+/// A field a person types into: in a row (`ROW_FIELD`), gpui-kit's input at the select's height and size; in a sheet
+/// (`FIELD`), 40 px across the sheet. Held, it keeps its look at 64% and takes nothing; invalid, its edge takes the
+/// destructive ink, stronger while it has focus.
 #[derive(IntoElement)]
 pub struct Field {
     state: Entity<InputState>,
+    held: bool,
+    invalid: bool,
+    sheet: Option<bool>,
 }
 
 impl Field {
     pub fn new(state: &Entity<InputState>) -> Self {
-        Field { state: state.clone() }
+        Field { state: state.clone(), held: false, invalid: false, sheet: None }
+    }
+
+    pub fn held(mut self, held: bool) -> Self {
+        self.held = held;
+        self
+    }
+
+    /// What it holds was refused: `aria-invalid` while the refusal stands under it.
+    pub fn invalid(mut self, invalid: bool) -> Self {
+        self.invalid = invalid;
+        self
+    }
+
+    /// The sheet's field, 40 px high across the sheet: a path or a command in the mono at 13 px.
+    pub fn sheet(mut self) -> Self {
+        self.sheet = Some(true);
+        self
+    }
+
+    /// The sheet's field for words, a name: the sans at 14 px.
+    pub fn sheet_words(mut self) -> Self {
+        self.sheet = Some(false);
+        self
     }
 }
 
 impl RenderOnce for Field {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let p = cx.palette();
-        let input = Styled::h(Input::new(&self.state), size::CONTROL_HEIGHT)
-            .w(size::SELECT_WIDTH)
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette().clone();
+        let focused = self.state.read(cx).focus_handle(cx).is_focused(window);
+        let edge = match (self.invalid, focused) {
+            (true, true) => p.destructive.opacity(0.64),
+            (true, false) => p.destructive.opacity(0.36),
+            (false, _) => p.input,
+        };
+        let dim = Dim::new(p.background, p.input_fill);
+        let (edge, fill, ink) =
+            if self.held { (dim.over(edge), dim.fill(), dim.over(p.foreground)) } else { (edge, p.input_fill, p.foreground) };
+        let input = Input::new(&self.state)
+            .disabled(self.held)
+            .focus_bordered(!self.invalid)
             .rounded(size::CONTROL_RADIUS)
             .px(px(11.))
             .py_0()
-            .border_color(p.input)
-            .bg(p.input_fill)
-            .text_size(text::FACT);
-        field_frame(input, false)
+            .border_color(edge)
+            .bg(fill)
+            .text_color(ink);
+        match self.sheet {
+            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT), self.held),
+            Some(mono) => {
+                let input = Styled::h(input, px(40.)).w_full().rounded(size::BUTTON_RADIUS);
+                let input = if mono {
+                    input.font_family(cx.theme().mono_font_family.clone()).text_size(text::FACT)
+                } else {
+                    input.text_size(text::VALUE)
+                };
+                div()
+                    .debug_selector(|| "control".into())
+                    .relative()
+                    .w_full()
+                    .h(px(40.))
+                    .child(input)
+                    .when(self.held, |el| el.child(div().absolute().inset_0().occlude()))
+            }
+        }
     }
 }

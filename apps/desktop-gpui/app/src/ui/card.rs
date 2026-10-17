@@ -3,9 +3,16 @@
 //! row's title over its sentence with the slot beside them; a line's label and its value or keycaps; the glyph frame.
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
-use gpui_kit::{div, prelude::*, px, relative, AnyElement, App, ClickEvent, FontWeight, Hsla, MouseButton, Pixels, SharedString, Window};
+use gpui_kit::{
+    div, point, prelude::*, px, relative, AnyElement, App, BoxShadow, ClickEvent, FontWeight, Hsla, MouseButton, Pixels, SharedString,
+    Window,
+};
 
+use super::controls::Button;
+use super::dialog::tip;
+use super::focus::{ring, ring_inset};
 use super::icons::Glyph;
+use super::motion;
 use super::theme::ActivePalette;
 use super::{size, text};
 
@@ -13,6 +20,10 @@ use super::{size, text};
 const SLOT_FLOOR: Pixels = px(160.);
 /// `max-w-xl` on a lede and a row's sentence.
 const DESCRIPTION_MAX: Pixels = px(576.);
+/// `SETTINGS_WORDS.resetRow`, the reset arrow's hover.
+pub const RESET_WORD: &str = "Back to the default";
+/// A fact that takes no leading of its own sits at the page's `line-height: 1.5`.
+const FACT_LINE: Pixels = px(19.5);
 
 type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
@@ -25,11 +36,13 @@ pub struct Corners {
     pub inset: Pixels,
     /// The faint rule above every child but the first, inside the child's own floor as the web's border-box draws it.
     pub rule: Option<Hsla>,
+    /// The card's own radius: 11 px, or a locked page's 14.
+    pub radius: Pixels,
 }
 
 impl Default for Corners {
     fn default() -> Self {
-        Corners { top: false, bottom: false, inset: size::CARD_INSET, rule: None }
+        Corners { top: false, bottom: false, inset: size::CARD_INSET, rule: None, radius: size::CARD_RADIUS }
     }
 }
 
@@ -40,7 +53,7 @@ impl Corners {
             Some(rule) => el.border_t_1().border_color(rule),
             None => el,
         };
-        let r = size::CARD_RADIUS - px(1.);
+        let r = self.radius - px(1.);
         let el = if self.top { el.rounded_tl(r).rounded_tr(r) } else { el };
         if self.bottom {
             el.rounded_bl(r).rounded_br(r)
@@ -63,19 +76,97 @@ impl CardItem {
     }
 }
 
-/// `SECTION_HEAD`: the quiet head over a card.
-pub fn section_head(head: impl Into<SharedString>, cx: &App) -> impl IntoElement {
-    h_flex()
-        .debug_selector(|| "section-head".into())
-        .min_h(size::SECTION_HEAD_FLOOR)
-        .text_size(text::SECTION_HEAD)
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(cx.palette().foreground.opacity(0.7))
-        .child(head.into())
+/// Words for one slot, as `rows.tsx`'s `Words`: a phrase, or facts held apart by space and read as one line.
+#[derive(Clone)]
+pub enum Words {
+    One(SharedString),
+    Spaced(Vec<SharedString>),
 }
 
-/// `GLYPH_FRAME` holding a `GLYPH`.
-pub fn glyph_frame(glyph: Glyph, cx: &App) -> impl IntoElement {
+impl Words {
+    /// The words as a search or a hover reads them.
+    pub fn line(&self) -> SharedString {
+        match self {
+            Words::One(text) => text.clone(),
+            Words::Spaced(parts) => parts.iter().map(|p| p.as_ref()).collect::<Vec<_>>().join(", ").into(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            Words::One(text) => text.is_empty(),
+            Words::Spaced(parts) => parts.iter().all(|p| p.is_empty()),
+        }
+    }
+}
+
+impl From<&str> for Words {
+    fn from(text: &str) -> Self {
+        Words::One(SharedString::from(text.to_owned()))
+    }
+}
+
+impl From<String> for Words {
+    fn from(text: String) -> Self {
+        Words::One(text.into())
+    }
+}
+
+impl From<SharedString> for Words {
+    fn from(text: SharedString) -> Self {
+        Words::One(text)
+    }
+}
+
+impl<T: Into<SharedString>> From<Vec<T>> for Words {
+    fn from(parts: Vec<T>) -> Self {
+        Words::Spaced(parts.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<T: Into<SharedString>, const N: usize> From<[T; N]> for Words {
+    fn from(parts: [T; N]) -> Self {
+        Words::Spaced(parts.into_iter().map(Into::into).collect())
+    }
+}
+
+/// `Spaced`: each fact after the first stands a space and `ms-2` from the one before, never a dot between them.
+fn spaced(words: Words, nowrap: bool) -> AnyElement {
+    match words {
+        Words::One(text) => text.into_any_element(),
+        Words::Spaced(parts) => {
+            let last = parts.len().saturating_sub(1);
+            h_flex()
+                .when(!nowrap, |el| el.flex_wrap())
+                .when(nowrap, |el| el.overflow_hidden())
+                .gap_x_2()
+                .children(parts.into_iter().enumerate().map(|(ix, part)| {
+                    let part: SharedString = if ix < last { format!("{part} ").into() } else { part };
+                    div().flex_none().whitespace_nowrap().child(part)
+                }))
+                .into_any_element()
+        }
+    }
+}
+
+/// `SECTION_HEAD`: the quiet head over a card.
+pub fn section_head(head: impl Into<SharedString>, cx: &App) -> impl IntoElement {
+    head_box(false, cx).text_color(cx.palette().foreground.opacity(0.7)).child(head.into())
+}
+
+/// The head's box: 13.5 px medium, or a locked page's 14 px regular.
+fn head_box(locked: bool, _: &App) -> gpui_kit::Div {
+    let (size, weight) = if locked { (text::VALUE, FontWeight::NORMAL) } else { (text::SECTION_HEAD, FontWeight::MEDIUM) };
+    h_flex().debug_selector(|| "section-head".into()).min_h(size::SECTION_HEAD_FLOOR).text_size(size).font_weight(weight)
+}
+
+/// `GLYPH`: a lucide glyph at 16 px in the foreground at 80%.
+pub fn glyph(glyph: Glyph, cx: &App) -> Icon {
+    Icon::new(glyph).with_size(size::GLYPH).text_color(cx.palette().foreground.opacity(0.8))
+}
+
+/// `GLYPH_FRAME` round any mark: a glyph, an agent's logo.
+pub fn framed(mark: impl IntoElement, cx: &App) -> impl IntoElement {
     let p = cx.palette();
     div()
         .debug_selector(|| "glyph-frame".into())
@@ -88,22 +179,56 @@ pub fn glyph_frame(glyph: Glyph, cx: &App) -> impl IntoElement {
         .border_1()
         .border_color(p.border)
         .bg(p.foreground.opacity(0.04))
-        .child(Icon::new(glyph).with_size(size::GLYPH).text_color(p.foreground.opacity(0.8)))
+        .child(mark)
 }
 
-/// One card: an optional head and lede, the soft surface with a rule between its children, and an act under it.
+/// `GLYPH_FRAME` holding a `GLYPH`.
+pub fn glyph_frame(g: Glyph, cx: &App) -> impl IntoElement {
+    framed(glyph(g, cx), cx)
+}
+
+/// `CARD_SURFACE` holding its children with a rule between them, as a card and a grid draw it.
+pub(super) fn surface(items: Vec<CardItem>, inset: Pixels, radius: Pixels, cx: &App) -> impl IntoElement {
+    let p = cx.palette();
+    let (rule, edge, fill) = (p.border.opacity(0.5), p.border.opacity(0.6), p.card.opacity(0.4));
+    let count = items.len();
+    v_flex().debug_selector(|| "card".into()).rounded(radius).border_1().border_color(edge).bg(fill).children(
+        items
+            .into_iter()
+            .enumerate()
+            .map(|(ix, item)| (item.0)(Corners { top: ix == 0, bottom: ix + 1 == count, inset, rule: (ix > 0).then_some(rule), radius })),
+    )
+}
+
+/// One card: an optional head and lede, a body too large for a row, the soft surface with a rule between its
+/// children, and an act under it.
 #[derive(IntoElement)]
 pub struct Card {
+    id: SharedString,
     head: Option<SharedString>,
     lede: Option<SharedString>,
+    body: Option<AnyElement>,
     items: Vec<CardItem>,
     under: Vec<AnyElement>,
     inset: Pixels,
+    locked: bool,
+    on_head: Option<Click>,
 }
 
 impl Card {
-    pub fn new() -> Self {
-        Card { head: None, lede: None, items: Vec::new(), under: Vec::new(), inset: size::CARD_INSET }
+    /// The id keeps a row's element state apart from a same-named row in another card.
+    pub fn new(id: impl Into<SharedString>) -> Self {
+        Card {
+            id: id.into(),
+            head: None,
+            lede: None,
+            body: None,
+            items: Vec::new(),
+            under: Vec::new(),
+            inset: size::CARD_INSET,
+            locked: false,
+            on_head: None,
+        }
     }
 
     /// The sides its rows keep, where the card stands in a dialog.
@@ -117,9 +242,28 @@ impl Card {
         self
     }
 
+    /// A head that is a link, as the search page's group names: it brightens to the foreground under the pointer.
+    pub fn on_head_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+        self.on_head = Some(Box::new(f));
+        self
+    }
+
+    /// A locked page's card (`data-locked`, Usage and Activity): the head at 14 px regular, the surface at 14 px
+    /// radius, 16 px under the head.
+    pub fn locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
+        self
+    }
+
     /// One sentence under the head, for a card whose rows need the why.
     pub fn lede(mut self, lede: impl Into<SharedString>) -> Self {
         self.lede = Some(lede.into());
+        self
+    }
+
+    /// A control too large for a row, drawn under the head and over the surface: a `RowSkeleton` while rows load.
+    pub fn body(mut self, body: impl IntoElement) -> Self {
+        self.body = Some(body.into_any_element());
         self
     }
 
@@ -140,28 +284,40 @@ impl Card {
     }
 }
 
-impl Default for Card {
-    fn default() -> Self {
-        Card::new()
-    }
-}
-
 impl RenderOnce for Card {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let p = cx.palette();
-        let (rule, edge, fill) = (p.border.opacity(0.5), p.border.opacity(0.6), p.card.opacity(0.4));
-        let (count, inset) = (self.items.len(), self.inset);
-        let surface = (count > 0).then(|| {
-            v_flex().debug_selector(|| "card".into()).rounded(size::CARD_RADIUS).border_1().border_color(edge).bg(fill).children(
-                self.items
-                    .into_iter()
-                    .enumerate()
-                    .map(|(ix, item)| (item.0)(Corners { top: ix == 0, bottom: ix + 1 == count, inset, rule: (ix > 0).then_some(rule) })),
-            )
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette().clone();
+        let locked = self.locked;
+        let radius = if locked { size::DIALOG_RADIUS } else { size::CARD_RADIUS };
+        // A card with nothing in it draws no surface: an empty bordered box reads as a fault.
+        let surface = (!self.items.is_empty()).then(|| surface(self.items, self.inset, radius, cx));
+        let lede = self.lede.filter(|l| !l.is_empty());
+        let rest = p.foreground.opacity(0.7);
+        let head = self.head.map(|head| match self.on_head {
+            None => head_box(locked, cx).text_color(rest).child(head).into_any_element(),
+            Some(click) => {
+                let id = SharedString::from(format!("{}-head", self.id));
+                let over = motion::hovered(id.clone(), window, cx);
+                let ink = motion::ease_ink(id.clone(), "ink", if *over.read(cx) { p.foreground } else { rest }, motion::COLORS, window, cx);
+                head_box(locked, cx)
+                    .child(
+                        div()
+                            .id(id)
+                            .cursor_pointer()
+                            .text_color(ink)
+                            .tab_index(0)
+                            .focus_visible(|s| s.shadow(vec![ring(p.ring)]))
+                            .on_hover(motion::track_hover(over))
+                            .on_click(move |e, window, cx| click(e, window, cx))
+                            .child(head),
+                    )
+                    .into_any_element()
+            }
         });
-        let heading = (self.head.is_some() || self.lede.is_some()).then(|| {
-            v_flex().gap_1().children(self.head.map(|head| section_head(head, cx))).children(self.lede.map(|lede| {
+        let heading = (head.is_some() || lede.is_some()).then(|| {
+            v_flex().gap_1().children(head).children(lede.map(|lede| {
                 div()
+                    .debug_selector(|| "lede".into())
                     .max_w(DESCRIPTION_MAX)
                     .text_size(text::DESCRIPTION.0)
                     .line_height(text::DESCRIPTION.1)
@@ -170,8 +326,10 @@ impl RenderOnce for Card {
             }))
         });
         v_flex()
-            .gap_3()
+            .id(self.id)
+            .gap(if locked { px(16.) } else { px(12.) })
             .children(heading)
+            .children(self.body)
             .children(surface)
             .when(!self.under.is_empty(), |el| el.child(h_flex().gap_2().children(self.under)))
     }
@@ -184,14 +342,64 @@ pub enum WordClass {
     Fact,
 }
 
-/// A word in the `FACT` or `VALUE` class.
-pub fn word(text: impl Into<SharedString>, class: WordClass, cx: &App) -> impl IntoElement {
+/// Words in the `FACT` or `VALUE` class.
+pub fn word(words: impl Into<Words>, class: WordClass, cx: &App) -> gpui_kit::Div {
     let p = cx.palette();
     let (size, color) = match class {
         WordClass::Value => (text::VALUE, p.foreground),
         WordClass::Fact => (text::FACT, p.muted_foreground),
     };
-    div().debug_selector(|| "word".into()).text_size(size).text_color(color).child(text.into())
+    div().debug_selector(|| "word".into()).min_w_0().text_size(size).text_color(color).child(spaced(words.into(), false))
+}
+
+/// One chip of `Chips`: a fact in the mono with its own glyph.
+#[derive(Clone)]
+pub struct Chip {
+    text: SharedString,
+    glyph: Option<Glyph>,
+}
+
+impl Chip {
+    pub fn new(text: impl Into<SharedString>) -> Self {
+        Chip { text: text.into(), glyph: None }
+    }
+
+    pub fn glyph(mut self, glyph: Glyph) -> Self {
+        self.glyph = Some(glyph);
+        self
+    }
+}
+
+/// `Chips`: facts as a row of small tinted chips that wraps, each cut at its edge with the whole on its hover.
+pub fn chips(id: impl Into<SharedString>, items: Vec<Chip>, cx: &App) -> impl IntoElement {
+    let p = cx.palette().clone();
+    let id: SharedString = id.into();
+    let mono = cx.theme().mono_font_family.clone();
+    let top = vec![BoxShadow { color: p.chip_top, offset: point(px(0.), px(1.)), blur_radius: px(0.), spread_radius: px(0.), inset: true }];
+    h_flex().debug_selector(|| "chips".into()).flex_wrap().gap_2().children(
+        items.into_iter().filter(|c| !c.text.is_empty()).enumerate().map(move |(ix, chip)| {
+            let whole = chip.text.clone();
+            h_flex()
+                .id(SharedString::from(format!("{id}-chip-{ix}")))
+                .debug_selector(|| "chip".into())
+                .relative()
+                .h(px(24.))
+                .max_w_full()
+                .gap(px(6.))
+                .px_2()
+                .rounded(size::BUTTON_RADIUS)
+                .border_1()
+                .border_color(p.border)
+                .bg(p.foreground.opacity(0.04))
+                .font_family(mono.clone())
+                .text_size(px(11.))
+                .text_color(p.foreground.opacity(0.75))
+                .tooltip(tip(whole))
+                .children(chip.glyph.map(|g| Icon::new(g).with_size(px(12.)).flex_none().text_color(p.muted_foreground)))
+                .child(div().min_w_0().truncate().child(chip.text))
+                .child(div().absolute().inset_0().rounded(size::BUTTON_RADIUS - px(1.)).shadow(top.clone()))
+        }),
+    )
 }
 
 /// One row: the title over its sentence, and beside them the slot with at most one word and one control.
@@ -200,10 +408,15 @@ pub struct Row {
     id: SharedString,
     title: SharedString,
     lead: Option<AnyElement>,
-    note: Option<SharedString>,
-    word: Option<(SharedString, WordClass)>,
+    mark: Option<(AnyElement, bool)>,
+    note: Option<Words>,
+    chips: Option<Vec<Chip>>,
+    mono: bool,
+    clip: bool,
+    word: Option<(Words, WordClass)>,
     control: Option<AnyElement>,
     open: Option<Click>,
+    reset: Option<Click>,
     warning: bool,
     corners: Corners,
 }
@@ -214,32 +427,69 @@ impl Row {
             id: id.into(),
             title: title.into(),
             lead: None,
+            mark: None,
             note: None,
+            chips: None,
+            mono: false,
+            clip: false,
             word: None,
             control: None,
             open: None,
+            reset: None,
             warning: false,
             corners: Corners::default(),
         }
     }
 
-    /// A glyph before the title, in its frame.
+    /// What stands before the title: a glyph in its frame (`glyph_frame`), a project's own mark.
     pub fn lead(mut self, lead: impl IntoElement) -> Self {
         self.lead = Some(lead.into_any_element());
         self
     }
 
-    pub fn note(mut self, note: impl Into<SharedString>) -> Self {
+    /// After the title, in the `FACT` class: the default mark on a computer, the marks of the agents a thing is set
+    /// up for.
+    pub fn mark(mut self, mark: impl IntoElement) -> Self {
+        self.mark = Some((mark.into_any_element(), false));
+        self
+    }
+
+    /// The mark in the row's own sans note ink, where it is a word and not a figure.
+    pub fn mark_word(mut self, mark: impl IntoElement) -> Self {
+        self.mark = Some((mark.into_any_element(), true));
+        self
+    }
+
+    /// One sentence, or facts held apart by space: `.note(["8 cores", "16 GB"])`.
+    pub fn note(mut self, note: impl Into<Words>) -> Self {
         self.note = Some(note.into());
         self
     }
 
-    pub fn value(mut self, value: impl Into<SharedString>) -> Self {
+    /// The facts as chips in place of the sentence.
+    pub fn chips(mut self, chips: Vec<Chip>) -> Self {
+        self.chips = Some(chips);
+        self
+    }
+
+    /// The sentence is machine words: the `FACT` class at the note's leading, broken anywhere.
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
+    }
+
+    /// The sentence on one line, cut at the row's edge with the whole of it on the hover: a command or a path.
+    pub fn clip(mut self) -> Self {
+        self.clip = true;
+        self
+    }
+
+    pub fn value(mut self, value: impl Into<Words>) -> Self {
         self.word = Some((value.into(), WordClass::Value));
         self
     }
 
-    pub fn fact(mut self, fact: impl Into<SharedString>) -> Self {
+    pub fn fact(mut self, fact: impl Into<Words>) -> Self {
         self.word = Some((fact.into(), WordClass::Fact));
         self
     }
@@ -249,9 +499,16 @@ impl Row {
         self
     }
 
-    /// A row that opens a page: the whole row is the button and the slot ends in the chevron.
+    /// A row that opens a page: the whole row is the button and the slot ends in the chevron. A press on its control
+    /// stays the control's.
     pub fn on_open(mut self, open: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.open = Some(Box::new(open));
+        self
+    }
+
+    /// Set only while the row is off its default: the arrow beside the title puts that one row back.
+    pub fn on_reset(mut self, reset: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+        self.reset = Some(Box::new(reset));
         self
     }
 
@@ -287,49 +544,196 @@ pub(super) fn row_frame(id: &SharedString, floor: Pixels, corners: Corners) -> g
         .apply(v_flex().id(id.clone()).debug_selector(|| "row".into()).justify_center().py(size::ROW_PAD_Y).px(corners.inset).min_h(floor))
 }
 
+/// `OPENS_CLASS`: a row that opens a page takes the accent at 60% under the pointer over 150 ms, Tab reaches it, and
+/// its focus ring stands inside its edge.
+pub(super) fn opens(
+    frame: gpui_kit::Stateful<gpui_kit::Div>,
+    id: &SharedString,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui_kit::Stateful<gpui_kit::Div> {
+    let (ring_ink, accent) = (cx.palette().ring, cx.palette().accent);
+    let over = motion::hovered(id.clone(), window, cx);
+    let ground = if *over.read(cx) { accent.opacity(0.6) } else { accent.opacity(0.) };
+    let ground = motion::ease_ink(id.clone(), "ground", ground, motion::COLORS, window, cx);
+    frame
+        .cursor_pointer()
+        .bg(ground)
+        .tab_index(0)
+        .focus_visible(move |s| s.shadow(vec![ring_inset(ring_ink)]))
+        .on_hover(motion::track_hover(over))
+}
+
 impl RenderOnce for Row {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
         let title_color = if self.warning { p.warning_foreground } else { p.foreground };
+        let mark = self.mark.map(|(mark, as_word)| {
+            let line = if as_word { text::NOTE.1 } else { FACT_LINE };
+            div()
+                .debug_selector(|| "mark".into())
+                .flex()
+                .flex_none()
+                .items_center()
+                .text_size(text::FACT)
+                .line_height(line)
+                .text_color(p.muted_foreground)
+                .child(mark)
+        });
+        let reset = self.reset.map(|reset| {
+            Button::icon_xs(SharedString::from(format!("{}-reset", self.id)), Glyph::RotateCcw)
+                .tooltip(RESET_WORD)
+                .on_click(move |e, window, cx| reset(e, window, cx))
+        });
+        let (mono, clip) = (self.mono, self.clip);
+        let description = match self.chips {
+            Some(items) => Some(div().mt(px(6.)).child(chips(format!("{}-chips", self.id), items, cx)).into_any_element()),
+            None => self.note.filter(|n| !n.is_empty()).map(|note| {
+                let whole = note.line();
+                div()
+                    .id(SharedString::from(format!("{}-note", self.id)))
+                    .debug_selector(|| "note".into())
+                    .text_size(text::DESCRIPTION.0)
+                    .line_height(text::DESCRIPTION.1)
+                    .text_color(p.muted_foreground)
+                    .when(!mono, |el| el.max_w(DESCRIPTION_MAX))
+                    .when(clip, |el| el.truncate().tooltip(tip(whole)))
+                    .child(spaced(note, clip))
+                    .into_any_element()
+            }),
+        };
         let words = v_flex()
             .flex_1()
             .min_w_0()
             .gap(px(2.))
-            .child(h_flex().min_h(px(20.)).flex_wrap().gap_x_2().child(title(self.title, title_color)))
-            .children(self.note.map(|note| {
-                div()
-                    .debug_selector(|| "note".into())
-                    .max_w(DESCRIPTION_MAX)
-                    .text_size(text::DESCRIPTION.0)
-                    .line_height(text::DESCRIPTION.1)
-                    .text_color(p.muted_foreground)
-                    .child(note)
-            }));
-        let text = h_flex().flex_1().min_w_0().gap_3().children(self.lead).child(words);
-        let opens = self.open.is_some();
-        let chevron_only = opens && self.word.is_none() && self.control.is_none();
-        let slot = (self.word.is_some() || self.control.is_some() || opens).then(|| {
+            .child(h_flex().min_h(px(20.)).flex_wrap().gap_x_2().child(title(self.title, title_color)).children(mark).children(reset))
+            .children(description);
+        let text = h_flex().flex_1().min_w_0().gap_3().children(self.lead.map(|lead| div().flex().flex_none().child(lead))).child(words);
+        let opening = self.open.is_some();
+        let chevron_only = opening && self.word.is_none() && self.control.is_none();
+        let slot = (self.word.is_some() || self.control.is_some() || opening).then(|| {
             h_flex()
                 .debug_selector(|| "slot".into())
                 .flex_none()
                 .when(!chevron_only, |el| el.min_w(SLOT_FLOOR))
                 .justify_end()
                 .gap_3()
-                .children(self.word.map(|(text, class)| word(text, class, cx)))
+                .children(self.word.map(|(text, class)| word(text, class, cx).text_right()))
                 // A row that opens a page leaves a press on its control to the control, as rows.tsx's does.
                 .children(
                     self.control.map(|control| div().on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()).child(control)),
                 )
-                .when(opens, |el| el.child(Icon::new(Glyph::ChevronRight).with_size(px(14.)).text_color(p.muted_foreground)))
+                .when(opening, |el| el.child(Icon::new(Glyph::ChevronRight).with_size(px(14.)).text_color(p.muted_foreground)))
         });
         let body = h_flex().gap_5().child(text).children(slot);
         let frame = row_frame(&self.id, size::ROW_FLOOR, self.corners);
         match self.open {
-            Some(open) => {
-                frame.cursor_pointer().hover(|s| s.bg(p.accent.opacity(0.6))).on_click(move |e, window, cx| open(e, window, cx)).child(body)
-            }
+            Some(open) => opens(frame, &self.id, window, cx).on_click(move |e, window, cx| open(e, window, cx)).child(body),
             None => frame.child(body),
         }
+    }
+}
+
+/// `HeadRow`: the row a computer's or a project's page opens on, in place of a page title. Its mark in the glyph
+/// frame, its name, one line of facts under it, and a figure or an act at the right.
+#[derive(IntoElement)]
+pub struct HeadRow {
+    id: SharedString,
+    glyph: AnyElement,
+    title: SharedString,
+    mark: Option<AnyElement>,
+    line: Option<AnyElement>,
+    slot: Option<AnyElement>,
+    corners: Corners,
+}
+
+impl HeadRow {
+    /// `glyph` stands in the frame: `ui::glyph(Glyph::Monitor, cx)`, or an agent's own mark.
+    pub fn new(id: impl Into<SharedString>, glyph: impl IntoElement, title: impl Into<SharedString>) -> Self {
+        HeadRow {
+            id: id.into(),
+            glyph: glyph.into_any_element(),
+            title: title.into(),
+            mark: None,
+            line: None,
+            slot: None,
+            corners: Corners::default(),
+        }
+    }
+
+    /// One fact after the name in the `FACT` class: an agent's version, a computer's `VersionFact`.
+    pub fn mark(mut self, mark: impl IntoElement) -> Self {
+        self.mark = Some(mark.into_any_element());
+        self
+    }
+
+    /// The one line of facts under the name, in the note.
+    pub fn line(mut self, line: impl IntoElement) -> Self {
+        self.line = Some(line.into_any_element());
+        self
+    }
+
+    pub fn slot(mut self, slot: impl IntoElement) -> Self {
+        self.slot = Some(slot.into_any_element());
+        self
+    }
+}
+
+impl From<HeadRow> for CardItem {
+    fn from(row: HeadRow) -> Self {
+        CardItem::placed(move |corners| HeadRow { corners, ..row }.into_any_element())
+    }
+}
+
+impl RenderOnce for HeadRow {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette();
+        let name = h_flex()
+            .min_w_0()
+            .items_start()
+            .gap_2()
+            .child(
+                div()
+                    .debug_selector(|| "title".into())
+                    .min_w_0()
+                    .truncate()
+                    .text_size(text::LIST_TITLE.0)
+                    .line_height(text::LIST_TITLE.1)
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(p.foreground)
+                    .child(self.title),
+            )
+            .children(self.mark.map(|mark| {
+                div()
+                    .debug_selector(|| "mark".into())
+                    .flex_none()
+                    .line_height(text::LIST_TITLE.1)
+                    .text_size(text::FACT)
+                    .text_color(p.muted_foreground)
+                    .child(mark)
+            }));
+        let words = v_flex().min_w_0().gap(px(2.)).child(name).children(self.line.map(|line| {
+            div()
+                .debug_selector(|| "note".into())
+                .text_size(text::NOTE.0)
+                .line_height(text::NOTE.1)
+                .text_color(p.muted_foreground)
+                .child(line)
+        }));
+        self.corners.apply(
+            h_flex()
+                .id(self.id)
+                .debug_selector(|| "head-row".into())
+                .flex_wrap()
+                .justify_between()
+                .gap_x_6()
+                .gap_y_2()
+                .py_4()
+                .px(self.corners.inset)
+                .min_h(size::ROW_FLOOR)
+                .child(h_flex().min_w(px(160.)).flex_1().gap_3().child(framed(self.glyph, cx)).child(words))
+                .children(self.slot),
+        )
     }
 }
 
@@ -382,25 +786,42 @@ impl RenderOnce for KeyCaps {
     }
 }
 
-/// One line: the label, and at its right one word or a chord's keycaps. Its sentence is its hover, never a note.
+/// One line: the label, and at its right one word, a chord's keycaps or a control. Its sentence is its hover, never
+/// a note.
 #[derive(IntoElement)]
 pub struct Line {
     id: SharedString,
     label: SharedString,
     right: Option<AnyElement>,
-    value: Option<(SharedString, WordClass)>,
+    value: Option<(Words, WordClass)>,
     keys: Option<KeyCaps>,
+    hover: Option<SharedString>,
     empty: bool,
     corners: Corners,
 }
 
 impl Line {
     pub fn new(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
-        Line { id: id.into(), label: label.into(), right: None, value: None, keys: None, empty: false, corners: Corners::default() }
+        Line {
+            id: id.into(),
+            label: label.into(),
+            right: None,
+            value: None,
+            keys: None,
+            hover: None,
+            empty: false,
+            corners: Corners::default(),
+        }
     }
 
-    pub fn value(mut self, value: impl Into<SharedString>) -> Self {
+    pub fn value(mut self, value: impl Into<Words>) -> Self {
         self.value = Some((value.into(), WordClass::Value));
+        self
+    }
+
+    /// The value in the `FACT` class, a state rather than a figure.
+    pub fn fact(mut self, fact: impl Into<Words>) -> Self {
+        self.value = Some((fact.into(), WordClass::Fact));
         self
     }
 
@@ -409,9 +830,15 @@ impl Line {
         self
     }
 
-    /// What stands at the right in the value's place: a mark, a spinner, a control.
+    /// What stands at the right in the value's or the keycaps' place: a mark, a spinner, a control.
     pub fn right(mut self, el: impl IntoElement) -> Self {
         self.right = Some(el.into_any_element());
+        self
+    }
+
+    /// The one sentence the line has to say, on its hover.
+    pub fn hover(mut self, hover: impl Into<SharedString>) -> Self {
+        self.hover = Some(hover.into());
         self
     }
 
@@ -433,7 +860,7 @@ impl RenderOnce for Line {
         let p = cx.palette().clone();
         let right = self
             .right
-            .or_else(|| self.value.map(|(text, class)| word(text, class, cx).into_any_element()))
+            .or_else(|| self.value.map(|(text, class)| word(text, class, cx).text_right().into_any_element()))
             .or_else(|| self.keys.map(IntoElement::into_any_element));
         let (size, height) = if self.empty { text::NOTE } else { text::SETTING_TITLE };
         let label = div()
@@ -451,6 +878,6 @@ impl RenderOnce for Line {
                 .child(h_flex().min_w_0().justify_end().child(right)),
             None => h_flex().child(label),
         };
-        row_frame(&self.id, size::LINE_FLOOR, self.corners).child(body)
+        row_frame(&self.id, size::LINE_FLOOR, self.corners).when_some(self.hover, |el, hover| el.tooltip(tip(hover))).child(body)
     }
 }
