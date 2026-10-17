@@ -4,7 +4,7 @@
 // and at the right the one control or fact. Below 640 px the control stands
 // under the words. What a tick opens (a project's name, icon and colour)
 // stands under the row inside the same card, its labels on the name's edge.
-import type { ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { Checkbox } from "../../components/ui/checkbox.js";
 import { cn } from "../../lib/utils.js";
 import { FACT } from "../format.js";
@@ -20,6 +20,7 @@ export function PickRow({
   dim = true,
   onCheckedChange,
   locked = false,
+  why,
   glyph,
   name,
   tag,
@@ -36,8 +37,10 @@ export function PickRow({
   /** Whether an unticked row's words go muted; off for a list where every row is an answer to read. */
   dim?: boolean;
   onCheckedChange?: (next: boolean) => void;
-  /** A tick the host fixed: drawn as fixed, taking no click. */
+  /** A tick the host fixed: drawn as fixed, and a click never changes it. */
   locked?: boolean;
+  /** What a locked row says in its note's place once pressed. */
+  why?: string;
   /** The mark in its frame, where the thing has one of its own. */
   glyph?: ReactNode;
   name: string;
@@ -55,11 +58,20 @@ export function PickRow({
   title?: string;
   children?: ReactNode;
 }) {
+  const [told, setTold] = useState(false);
+  const tells = locked && why !== undefined;
+  const tell = (event: KeyboardEvent): void => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setTold(true);
+  };
+  const shown = told && tells ? why : note;
   return (
     <div data-pick-row={id} data-checked={checked} className="flex flex-col" {...attrs}>
-      <label {...(hover === undefined ? {} : { title: hover })} className={cn("flex flex-col", locked ? "cursor-default" : "cursor-pointer", "justify-center gap-3 py-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5", CARD_INSET, ROW_FLOOR)}>
+      <label {...(hover === undefined ? {} : { title: hover })} {...(tells ? { onClick: () => setTold(true), onKeyDown: tell } : {})} className={cn("flex flex-col", locked ? "cursor-default" : "cursor-pointer", "justify-center gap-3 py-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5", CARD_INSET, ROW_FLOOR)}>
         <span className="flex min-w-0 items-center gap-3">
-          <Checkbox checked={checked} disabled={locked} {...(onCheckedChange === undefined || locked ? {} : { onCheckedChange })} className="shrink-0" />
+          {/* Base UI takes a disabled box out of the Tab order; one with a why stays in it for Enter and Space. */}
+          <Checkbox checked={checked} disabled={locked} {...(tells ? { tabIndex: 0 } : {})} {...(onCheckedChange === undefined || locked ? {} : { onCheckedChange })} className="shrink-0" />
           {glyph === undefined ? null : <GlyphFrame>{glyph}</GlyphFrame>}
           <span className={cn("flex min-w-0 flex-col", dim && !checked && "text-muted-foreground")}>
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
@@ -69,9 +81,9 @@ export function PickRow({
               {tag === undefined ? null : <span className={cn(FACT, "shrink-0")}>{tag}</span>}
               {marks}
             </span>
-            {note === undefined ? null : (
+            {shown === undefined ? null : (
               <span data-pick-note className={NOTE}>
-                {note}
+                {shown}
               </span>
             )}
           </span>
