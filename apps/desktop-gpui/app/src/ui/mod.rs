@@ -7,6 +7,8 @@ pub mod card;
 pub mod controls;
 pub mod dialog;
 pub mod icons;
+pub mod marks;
+pub mod segmented;
 pub mod status;
 pub mod theme;
 
@@ -16,6 +18,7 @@ pub use card::{glyph_frame, section_head, Card, CardItem, KeyCaps, Line, Row};
 pub use controls::{Button, ButtonKind, Choice, Field, PickRow, Select, SelectList};
 pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, CopyRow, Dialog};
 pub use icons::{Glyph, UiAssets};
+pub use segmented::Segmented;
 pub use status::{spinner, step_mark, Crab, Status, StatusMark, Step, StepRow, Still};
 pub use theme::{ActivePalette, Palette, Side};
 

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use desktop_gpui::gallery::Gallery;
+use desktop_gpui::screens::usage::UsageWindow;
 use desktop_gpui::ui::{self, Side, UiAssets};
 use desktop_gpui::{bench, shell::Shell, TITLE};
 use gpui_kit::component::Root;
@@ -24,7 +25,7 @@ fn main() {
     let state = args.state.unwrap_or_else(default_state);
     let env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
-    let (bench, open, glass, gallery) = (args.bench, args.open, args.glass, args.gallery);
+    let (bench, open, glass, gallery, screen) = (args.bench, args.open, args.glass, args.gallery, args.screen);
     gpui_kit::application().with_assets(UiAssets).run(move |cx: &mut App| {
         gpui_kit::init(cx);
         cx.on_window_closed(|cx, _| {
@@ -50,6 +51,30 @@ fn main() {
                 },
             )
             .expect("failed to open the gallery");
+            cx.activate(true);
+            return;
+        }
+        if let Some(screen) = screen {
+            let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
+            ui::init(if dark { Side::Dark } else { Side::Light }, cx);
+            // The Electron window's size less its 256 px sidebar, which the shell draws.
+            let bounds = Bounds::centered(None, size(px(1024.), px(800.)), cx);
+            let options = WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                titlebar: Some(TitlebarOptions { title: Some(TITLE.into()), ..Default::default() }),
+                ..Default::default()
+            };
+            match screen.as_str() {
+                "usage" => cx.open_window(options, |window, cx| {
+                    let usage = cx.new(|cx| UsageWindow::new(state, env, runtime, window, cx));
+                    cx.new(|cx| Root::new(usage, window, cx))
+                }),
+                other => {
+                    eprintln!("desktop-gpui: no screen {other}");
+                    std::process::exit(64);
+                }
+            }
+            .expect("failed to open the window");
             cx.activate(true);
             return;
         }

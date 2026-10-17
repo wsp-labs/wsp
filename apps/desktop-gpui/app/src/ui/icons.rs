@@ -10,25 +10,33 @@ use gpui_kit::{AssetSource, Result, SharedString};
 icon_assets!(
     Glyphs,
     [
+        Box,
+        ChartLine,
         Check,
         ChevronDown,
         ChevronRight,
         Circle,
         CircleAlert,
         CircleCheck,
+        CircleDashed,
         CircleMinus,
         Cloud,
         Copy,
         Folder,
+        Gauge,
         Hourglass,
         KeyRound,
         LoaderCircle,
         MessageCircleQuestionMark,
+        MessagesSquare,
         Monitor,
         Plus,
         RotateCcw,
+        RotateCw,
         Settings,
+        SquareTerminal,
         Terminal,
+        UserRound,
     ]
 );
 
@@ -48,6 +56,9 @@ impl AssetSource for UiAssets {
         if path == TICK {
             return Ok(Some(Cow::Borrowed(TICK_SVG)));
         }
+        if let Some(mark) = super::marks::load(path) {
+            return Ok(Some(Cow::Borrowed(mark)));
+        }
         match Glyphs.load(path)? {
             Some(bytes) => Ok(Some(bytes)),
             None => Assets.load(path),
@@ -56,6 +67,7 @@ impl AssetSource for UiAssets {
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         let mut paths: Vec<SharedString> = [TICK].into_iter().filter(|p| p.starts_with(path)).map(Into::into).collect();
+        paths.extend(super::marks::paths().filter(|p| p.starts_with(path)).map(Into::into));
         paths.extend(Glyphs.list(path)?);
         paths.extend(Assets.list(path)?);
         Ok(paths)

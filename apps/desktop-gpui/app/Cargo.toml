@@ -11,7 +11,11 @@ description = "wsp's desktop app on GPUI"
 # tree-sitter-languages turns on syntax highlighting in markdown's fenced code.
 gpui-kit = { git = "https://github.com/longbridge/gpui-kit", rev = "14f59330a4aa0cb5becf140e067d64a616328612", features = ["tree-sitter-languages"] }
 wsp-host-client = { path = "../host-client" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 futures = "0.3"
+# The dither is rasterised once into an image GPUI draws, and its polylines need round joins and caps.
+image = { version = "0.25", default-features = false }
+lyon = "1.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread"] }
@@ -19,6 +23,8 @@ tokio = { version = "1", features = ["rt-multi-thread"] }
 [dev-dependencies]
 gpui-kit = { git = "https://github.com/longbridge/gpui-kit", rev = "14f59330a4aa0cb5becf140e067d64a616328612", features = ["test-support"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
+libc = "0.2"
+tempfile = "3"
 
 [[test]]
 name = "pixels"
