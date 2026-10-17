@@ -548,3 +548,13 @@ here are included or relied upon under their own licenses, reproduced below.
    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
+
+------------------------------------------------------------------------
+
+13. GPUI Kit agent skills (Apache-2.0), Longbridge
+
+   .claude/skills/gpui-kit and .claude/skills/gpui-kit-design-guides are
+   skills/gpui-kit and skills/gpui-kit-design-guides from
+   https://github.com/longbridge/gpui-kit, unchanged, at the commit each
+   folder's UPSTREAM file names. Copyright 2024 - 2026 Longbridge
+   <https://longbridge.com>. Apache License 2.0; the text is under item 5.
