@@ -7,7 +7,7 @@
 // them), nor does a formula with no Linux bottle, nor anything the catalog
 // already carries: a brew node or python is the base row, not a second row.
 import { ROADS, asLinuxbrew, catalogToolFor, roadModule, type InstallRoad, type RoadName } from "@wsp/catalog";
-import { aptPackages, aptSizes, firstLine, linuxSupport, nodeHost, parseBrewfile, parseCargoInstalls, parseNpmGlobals, parsePipxList, parseUvToolList, type Host, type Pkg } from "@wsp/collect";
+import { aptPackages, aptSizes, brewfileHere, firstLine, linuxSupport, nodeHost, parseCargoInstalls, parseNpmGlobals, parsePipxList, parseUvToolList, type Host, type Pkg } from "@wsp/collect";
 import { agentOwning, parseDu } from "@wsp/engine";
 import { shellQuote, toolRowId, type RecipeCustomRow } from "@wsp/protocol";
 import type { VerbDeps } from "./verbs.js";
@@ -81,7 +81,7 @@ export const MANAGER_SCANS: readonly ManagerScan[] = [
     group: "Homebrew formulae",
     bin: "brew",
     // A formula with no Linux bottle has nothing to install there; the Brewfile reader already drops casks and Mac App Store apps.
-    list: async host => parseBrewfile(await listed(host, "brew", ["bundle", "dump", "--file=-"])).filter(l => l.kind === "brew" && linuxSupport(l.name) !== "no").map(l => ({ name: l.name })),
+    list: async host => (await brewfileHere(host)).filter(l => l.kind === "brew" && linuxSupport(l.name) !== "no").map(l => ({ name: l.name })),
     // Not the road module's line: the builder runs a custom row as root, where Homebrew's own refusal is answered by the brew of CUSTOM_PRELUDE.
     install: p => `brew install ${p.name}`,
     // Homebrew's own answer, through the catalog's linuxbrew line: the check runs as root, where brew itself refuses.

@@ -345,7 +345,7 @@ describe("the configs a recipe carries", () => {
 /** A Mac with one formula that has a Linux build, one that has none, a cask and a crate. */
 function laptop(): Host {
   const out: Record<string, string> = {
-    "brew bundle dump --file=-": 'brew "a2ps"\nbrew "afsctool"\ncask "iterm2"\n',
+    "brew bundle dump --file=- --formula --taps --no-restart": 'brew "a2ps"\nbrew "afsctool"\ncask "iterm2"\n',
     "cargo install --list": "cargo-nextest v0.9.100:\n    cargo-nextest\n",
   };
   return {
