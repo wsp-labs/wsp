@@ -9,15 +9,15 @@ import { PROVIDER_KEY_WORDS, type InitJob, type PlaceView } from "@wsp/protocol"
 import { Button } from "../components/ui/button.js";
 import { usePlaces, useStore } from "../protocol/store.js";
 import { CLOUD_KEY_STEPS, FIRST_CLOUD } from "../settings/add/cloudKey.js";
-import { openCloudAdd } from "../settings/add/cloudFlow.js";
+import { openCloudAdd, settingUpCloud } from "../settings/add/cloudFlow.js";
 import { ADD_COMPUTER_WORDS } from "../settings/format.js";
 import { isProviderPlace } from "../settings/places.js";
 import { cloudBuilding, settingUp } from "./SettingUpSection.js";
 import { useUpdateCardShown } from "./UpdateCard.js";
 
 /** Whether the card stands for these places and this setup: the places read, no cloud among them, and no setup
- * started for one. */
-export const offersCloud = (places: readonly PlaceView[], job: InitJob | null): boolean => places.length > 0 && !places.some(isProviderPlace) && job?.place?.id !== FIRST_CLOUD;
+ * under way for one. A removed cloud's setup still names it once it ends, so the card shows once settingUpCloud is false for Boat. */
+export const offersCloud = (places: readonly PlaceView[], job: InitJob | null): boolean => places.length > 0 && !places.some(isProviderPlace) && !settingUpCloud(job, FIRST_CLOUD);
 
 export function CloudCard() {
   const places = usePlaces();
