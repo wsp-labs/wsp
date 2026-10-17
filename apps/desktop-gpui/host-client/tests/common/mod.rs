@@ -1,0 +1,259 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! A host started for the tests alone, on a state file of its own in a fresh folder, with nothing of this machine's
+//! environment but PATH: the road every test of this crate takes to a host. The agent is a stand-in claude first on the
+//! host's PATH that answers stream-json the way the claude adapter reads it, so no real agent runs. Needs node and the
+//! packages built, the web app among them (pnpm build); the host runs its turns with no wsp-daemon staged.
+#![allow(dead_code)]
+
+use std::fmt::Debug;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+
+use serde_json::Value;
+use wsp_host_client::{Env, Failure, HostClient};
+
+const STAND_IN: &str = r#"#!/bin/sh
+case " $* " in
+  *" --version "*) echo "2.1.295 (Claude Code)"; exit 0 ;;
+  *" --help "*) echo '--permission-mode <mode>  (choices: "default", "bypassPermissions")'; exit 0 ;;
+  *" --bare "*) read -r _; echo '{"type":"control_response","response":{"subtype":"success","request_id":"init","response":{"models":[{"value":"default","resolvedModel":"claude-haiku-5-5"}]}}}'; exit 0 ;;
+  *" --input-format stream-json "*) ;;
+  *) exit 1 ;;
+esac
+session=""; prev=""
+for a in "$@"; do [ "$prev" = "--session-id" ] && session=$a; prev=$a; done
+while IFS= read -r _; do
+  printf '{"type":"system","subtype":"init","session_id":"%s","model":"claude-haiku-5-5","cwd":"/","tools":[]}\n' "$session"
+  printf '{"type":"assistant","session_id":"%s","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]}}\n' "$session"
+  printf '{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"%s"}\n' "$session"
+done
+"#;
+
+pub fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap()
+}
+
+/// A host on a fresh state file in a folder of its own, stopped with this.
+pub struct Throwaway {
+    pub dir: tempfile::TempDir,
+    host: Child,
+}
+
+/// What every process of the test runs in: the folder as its home, and the stand-in ahead of anything on PATH.
+pub fn env_in(dir: &Path) -> Env {
+    let home = dir.to_string_lossy().into_owned();
+    let path = format!("{}/bin:{}", home, std::env::var("PATH").unwrap_or_default());
+    [("HOME", home.as_str()), ("PATH", path.as_str()), ("ANTHROPIC_API_KEY", ""), ("SOLARI_API_KEY", "")]
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .into_iter()
+        .collect()
+}
+
+fn node_in(dir: &Path, args: &[&str]) -> Command {
+    let mut command = Command::new("node");
+    command.arg(root().join("packages/host/dist/bin.js")).args(args).env_clear().envs(env_in(dir)).current_dir(dir);
+    command
+}
+
+impl Throwaway {
+    pub fn state(&self) -> PathBuf {
+        self.dir.path().join("state").join("state.json")
+    }
+
+    pub fn env(&self) -> Env {
+        env_in(self.dir.path())
+    }
+
+    pub fn start() -> Throwaway {
+        for built in ["packages/host/dist/bin.js", "apps/web/dist/index.html"].map(|path| root().join(path)) {
+            assert!(built.exists(), "{} is not built: run pnpm install && pnpm build", built.display());
+        }
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("bin")).unwrap();
+        std::fs::create_dir_all(dir.path().join("state")).unwrap();
+        let claude = dir.path().join("bin/claude");
+        std::fs::write(&claude, STAND_IN).unwrap();
+        std::fs::set_permissions(&claude, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let state = dir.path().join("state").join("state.json").to_string_lossy().into_owned();
+        let log = std::fs::File::create(dir.path().join("up.log")).unwrap();
+        let host =
+            node_in(dir.path(), &["up", "--port", "0", "--state", &state]).stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap();
+        let throwaway = Throwaway { dir, host };
+        let until = Instant::now() + Duration::from_secs(30);
+        // The lock is written before the host listens, with port 0 until it does.
+        let listening = || {
+            let lock = std::fs::read_to_string(throwaway.state().with_file_name("host.lock")).unwrap_or_default();
+            serde_json::from_str::<serde_json::Value>(&lock).ok().and_then(|lock| lock["port"].as_u64()).is_some_and(|port| port != 0)
+        };
+        while !throwaway.state().with_file_name("host-token").exists() || !listening() {
+            assert!(Instant::now() < until, "no host came up: {}", throwaway.log());
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        throwaway
+    }
+
+    pub fn log(&self) -> String {
+        std::fs::read_to_string(self.dir.path().join("up.log")).unwrap_or_default()
+    }
+
+    /// One wsp line against this host, which has to succeed; what it printed.
+    pub fn wsp(&self, args: &[&str]) -> String {
+        let state = self.state().to_string_lossy().into_owned();
+        let out = node_in(self.dir.path(), args).args(["--state", &state]).stdin(Stdio::null()).output().unwrap();
+        let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+        assert!(out.status.success(), "wsp {args:?}: {said}\nhost log: {}", self.log());
+        said
+    }
+}
+
+impl Drop for Throwaway {
+    /// A terminated host stops its daemon and every turn's process on its way out; a killed one leaves them running.
+    fn drop(&mut self) {
+        // SAFETY: a signal to the pid of the child this test spawned and has not yet reaped.
+        unsafe { libc::kill(self.host.id() as i32, libc::SIGTERM) };
+        let until = Instant::now() + Duration::from_secs(20);
+        while matches!(self.host.try_wait(), Ok(None)) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let _ = self.host.kill();
+        let _ = self.host.wait();
+    }
+}
+
+/// The host one test binary shares, with a project `repo` whose first thread ran: started by the first test that asks,
+/// and stopped as the binary exits.
+pub struct Shared {
+    pub host: Throwaway,
+    /// The project's folder, a git repository with one commit.
+    pub folder: PathBuf,
+}
+
+pub fn shared() -> &'static Shared {
+    static SHARED: OnceLock<Shared> = OnceLock::new();
+    static PID: AtomicI32 = AtomicI32::new(0);
+    static DIR: OnceLock<PathBuf> = OnceLock::new();
+    extern "C" fn stop() {
+        let pid = PID.load(Ordering::SeqCst);
+        // SAFETY: a signal to the host this binary spawned, then reaping it; the binary is exiting and holds no other handle on it.
+        unsafe {
+            libc::kill(pid, libc::SIGTERM);
+            let until = Instant::now() + Duration::from_secs(20);
+            let mut reaped = false;
+            while !reaped && Instant::now() < until {
+                reaped = libc::waitpid(pid, std::ptr::null_mut(), libc::WNOHANG) != 0;
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            if !reaped {
+                libc::kill(pid, libc::SIGKILL);
+                libc::waitpid(pid, std::ptr::null_mut(), 0);
+            }
+        }
+        if let Some(dir) = DIR.get() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+    SHARED.get_or_init(|| {
+        let host = Throwaway::start();
+        PID.store(host.host.id() as i32, Ordering::SeqCst);
+        let _ = DIR.set(host.dir.path().to_owned());
+        // SAFETY: registers a function with no arguments that touches only the statics above.
+        unsafe { libc::atexit(stop) };
+        let folder = host.repo("repo");
+        host.wsp(&["add", &folder.to_string_lossy()]);
+        host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+        Shared { host, folder }
+    })
+}
+
+impl Throwaway {
+    /// A git repository with one empty commit, in a folder of that name under the test's own.
+    pub fn repo(&self, name: &str) -> PathBuf {
+        let folder = self.dir.path().join(name);
+        std::fs::create_dir_all(&folder).unwrap();
+        let git = |args: &[&str]| {
+            assert!(Command::new("git").args(args).current_dir(&folder).env_clear().envs(self.env()).status().unwrap().success())
+        };
+        git(&["init", "-q"]);
+        git(&["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"]);
+        folder
+    }
+
+    pub async fn client(&self) -> HostClient {
+        HostClient::connect(&self.state(), &self.env()).await.unwrap_or_else(|f| panic!("{}", f.message))
+    }
+}
+
+/// The ids the shared host's first thread goes by.
+pub struct First {
+    pub project_id: String,
+    pub workspace_id: String,
+    pub thread_id: String,
+    pub session_id: String,
+}
+
+pub async fn first(client: &HostClient) -> First {
+    let project_id = client.projects().await.unwrap().into_iter().find(|p| p.name == "repo").expect("the project repo").id;
+    let row =
+        client.threads().await.unwrap().into_iter().find(|t| t.prompt.as_deref() == Some("first")).expect("the thread wsp run opened");
+    First { project_id, workspace_id: row.workspace_id, thread_id: row.thread_id.expect("a thread id"), session_id: row.id }
+}
+
+/// A failure that says the call itself was wrong, not that the host refused it: the host's schema refused the frame
+/// (a zod error's message is its issues as JSON), or the reply did not read as the op's reply type.
+fn malformed(failure: &Failure) -> bool {
+    failure.message.starts_with('[') || failure.message.contains("answered what its reply type does not read")
+}
+
+/// A call the host has to answer, with a reply that reads as its type.
+pub fn answered<T: Debug>(op: &str, got: Result<T, Failure>) -> T {
+    match got {
+        Ok(reply) => {
+            println!("{op:<36} answered");
+            reply
+        }
+        Err(f) => panic!("{op}: {}", f.message),
+    }
+}
+
+/// A call the host has to refuse, in words holding `holds`: the frame read and the host said no for a reason of its own.
+pub fn refused<T: Debug>(op: &str, got: Result<T, Failure>, holds: &str) {
+    match got {
+        Ok(reply) => panic!("{op} was answered, not refused: {reply:?}"),
+        Err(f) if malformed(&f) => panic!("{op}: {}", f.message),
+        Err(f) => {
+            assert!(f.message.contains(holds), "{op} was refused for another reason than {holds:?}: {}", f.message);
+            println!("{op:<36} refused: {}", f.message.lines().next().unwrap_or_default());
+        }
+    }
+}
+
+/// A request read from the JSON the web app would send, so a test names only the fields it sets. A null the request
+/// type would not send again fails here: a field that may be null is sent as one only from Some(<Field>OrNull(None)).
+pub fn ask<T: serde::de::DeserializeOwned + serde::Serialize>(params: Value) -> T {
+    let request: T = serde_json::from_value(params.clone()).unwrap_or_else(|e| panic!("{params}: {e}"));
+    let sent = serde_json::to_value(&request).unwrap();
+    fn nulls_kept(asked: &Value, sent: &Value) -> bool {
+        match (asked, sent) {
+            (Value::Object(asked), Value::Object(sent)) => asked.iter().all(|(key, value)| match sent.get(key) {
+                Some(sent) => nulls_kept(value, sent),
+                None => !holds_null(value),
+            }),
+            (Value::Array(asked), Value::Array(sent)) => asked.iter().zip(sent).all(|(a, s)| nulls_kept(a, s)),
+            (Value::Null, sent) => sent.is_null(),
+            _ => true,
+        }
+    }
+    fn holds_null(value: &Value) -> bool {
+        match value {
+            Value::Null => true,
+            Value::Object(map) => map.values().any(holds_null),
+            Value::Array(list) => list.iter().any(holds_null),
+            _ => false,
+        }
+    }
+    assert!(nulls_kept(&params, &sent), "the request would send {sent}, not the nulls of {params}");
+    request
+}
