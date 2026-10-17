@@ -3,6 +3,8 @@
 # Rebuilds desktop-gpui whenever a source file changes and swaps the running app only when the build passes.
 set -u
 cd "$(dirname "$0")"
+# vendor/ is generated, so a fresh clone makes it before the first build.
+[ -d vendor ] || scripts/gpui-patches.sh apply || exit 1
 bin=${CARGO_TARGET_DIR:-target}/debug/desktop-gpui
 stamp=$(mktemp)
 pid=

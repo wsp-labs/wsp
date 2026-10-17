@@ -9,3 +9,10 @@ version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 publish = false
+
+# Backdrop blur and rounded clipping of children, our patches over gpui-kit's pinned gpui-pre. vendor/ is generated:
+# run scripts/gpui-patches.sh apply after a fresh clone, and save after editing it.
+[patch.crates-io]
+gpui-pre = { path = "vendor/gpui-pre-0.3.9" }
+gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu-0.3.9" }
+gpui-pre-apple = { path = "vendor/gpui-pre-apple-0.3.9" }
