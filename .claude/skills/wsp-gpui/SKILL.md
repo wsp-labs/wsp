@@ -53,23 +53,53 @@ code to paste (map #2364, notes).
 
 ## The fork
 
-**Chosen on [wsp-map#2366](https://github.com/wsp-labs/wsp-map/issues/2366),
-open as of 2026-10-17: gpui-kit on zui's effects, or gpui-ce.** This is the only
-section that changes when it rules. Until then, do not add a `gpui` dependency
-to `apps/desktop-gpui` and do not write code that needs blur, rounded child
-clipping or a webview.
+**Ruled on [wsp-map#2366](https://github.com/wsp-labs/wsp-map/issues/2366),
+2026-10-17: gpui-kit's components on zui.** The one section written to change,
+when a pin moves. Pinned in [Cargo.toml](../../../apps/desktop-gpui/Cargo.toml)
+and [app/Cargo.toml](../../../apps/desktop-gpui/app/Cargo.toml):
 
-What the ruling settles, and the rest of this page leaves to it:
+- gpui-kit `ae30c2aa68230351b8bc0d5e08671c9359ee90b2` (gpui-component 0.5.2).
+- zui `361ff20b919fdfb80199ee6d9aed725300cb7d54` in place of the Zed repo
+  gpui-kit names, by a `[patch."https://github.com/zed-industries/zed"]` on
+  `gpui`, `gpui_platform`, `gpui_macros` and `gpui_web`.
+- zui's `runtime_shaders`, so a macOS build needs no Xcode Metal toolchain.
+- [Cargo.lock](../../../apps/desktop-gpui/Cargo.lock) committed, builds
+  `--locked`: without it cargo clones all of Zed to resolve the patch.
+- Rust 1.99.1 ([rust-toolchain.toml](../../../apps/desktop-gpui/rust-toolchain.toml)).
 
-- the git dependency and the rev pinned in `apps/desktop-gpui/Cargo.toml`;
-- what wsp carries as patches on that rev (#2366, Acceptance 3);
-- whether gpui-kit's components are used as they ship or rebuilt on the fork.
-  If they are rebuilt, the gpui-kit column in the table below is the list of
-  parts to build, and the wsp column stays the target;
-- which effects exist: zui has a backdrop blur example
-  ([backdrop_blur.rs](https://github.com/zeronsh/zui/blob/main/crates/gpui/examples/backdrop_blur.rs));
-  gpui-ce documents `.backdrop_blur()` and `.rounded_smoothing()`
-  ([README](https://github.com/gpui-ce/gpui-ce/blob/main/README.md)).
+Why (the ruling): only this road has gpui-kit's components, backdrop blur and
+rounded clipping of children. gpui-ce's `ContentMask` is rectangles only
+(`window.rs:2161`), and gpui-kit on gpui-ce is a 2 to 3 week port, repeated at
+every gpui-kit update.
+
+What we carry (the ruling):
+
+- Our `Glass` element: a layer, zui's `paint_backdrop_blur`, then
+  `with_rounded_clip` around the child
+  ([backdrop_blur.rs](https://github.com/zeronsh/zui/blob/main/crates/gpui/examples/backdrop_blur.rs)).
+  Its reviewed draft is `spikes/gpui-fork/road-a/src/view.rs` at abbbe67 on
+  `wsp/gpui-2366-fork`, unmerged. Bring it over with the child's prepaint inside
+  the clip too: `window.with_rounded_clip(bounds, self.radius, |window| self.child.prepaint(window, cx))`.
+- Two zui patches, not applied yet: Zed's `f4178619a` (drain buffered X11
+  events), without which a Linux window never gets its first frame, and a
+  4-line wgpu fix for plain fills skipping the rounded clip. Where they live is
+  the owner's call; until then the window opens blank under Xvfb (checked
+  2026-10-17) and visual checks run on the owner's Mac.
+
+What the pins mean:
+
+- No headless pixels off macOS: zui's `current_headless_renderer` is `None`
+  there ([gpui_platform.rs](https://github.com/zeronsh/zui/blob/361ff20b919fdfb80199ee6d9aed725300cb7d54/crates/gpui_platform/src/gpui_platform.rs)),
+  so "Shoot headless" below needs a Mac. On Boat a test checks layout boxes,
+  as [layout.rs](../../../apps/desktop-gpui/app/tests/layout.rs) does.
+- gpui-ce's hot patching does not apply to zui; the loop is `dev.sh` (below).
+- gpui-kit stays at July: zui is on Zed of July and ports upstream commits one
+  by one ([zui README](https://github.com/zeronsh/zui/blob/main/README.md)).
+  Moving it is about 75 conflict regions, its own ticket when a screen needs it.
+- The vendored gpui-kit skills describe d4c5681 (their `UPSTREAM`), not our pin:
+  there is no `gpui_kit` crate or `#[gpui_kit::test]`; use `gpui_component`, `#[gpui::test]`.
+- zui has one main author and only a Windows CI job; its NOTICE ships with the
+  app (the packaging ticket).
 
 ## wsp's design on gpui-kit
 
@@ -77,10 +107,9 @@ wsp's sizes and words come from the Settings pieces in
 [layout.ts](../../../apps/web/src/settings/layout.ts); its colors from the
 token table in [wsp-design](../wsp-design/SKILL.md) and the theme files in
 [apps/web/src/themes](../../../apps/web/src/themes/graphite.css). gpui-kit
-supplies behavior: focus, keyboard, overlays, inputs. It keeps behavior in the
-unstyled `gpui_kit::base` layer and the look in `gpui_kit::component`
-([gpui-kit](../gpui-kit/SKILL.md), top and Non-negotiables); where wsp's look
-differs from a component's, the look is wsp's (locked decision 5).
+supplies behavior: focus, keyboard, overlays, inputs. At our pin that is one
+crate, `gpui_component`, with no unstyled `base` layer (The fork); where wsp's
+look differs from a component's, the look is wsp's (locked decision 5).
 
 Sizes carry over as the pixels `wsp-design-language` gives them. gpui-kit's
 default `font_size` is 16 px
@@ -283,10 +312,10 @@ variants as real GPUI code, shows them side by side and captures the window to
 check its own work. Its capture works on macOS only (its SKILL.md, Limits), so
 on Boat use Xvfb or the headless road below.
 
-**Shoot on Boat.** A gpui-kit app draws under Xvfb with software rendering on
-this image, and ImageMagick takes the shot. Run here on 2026-10-17 with
-gpui-kit's `hello_world`; the PNG showed its text and button. Run the lines as
-one script in the foreground, so both processes end inside it:
+**Shoot on Boat.** Not on our pin yet: wsp's window maps under Xvfb but stays
+black until the two zui patches land (The fork). gpui-kit's `hello_world` at
+d4c5681, on gpui-pre, drew its text and button here on 2026-10-17 with these
+lines, run as one script in the foreground so both processes end inside it:
 
 ```sh
 apt-get install -y xvfb libxkbcommon-x11-dev
@@ -316,18 +345,12 @@ boxes with `debug_bounds`
 ([test_context.rs](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/app/test_context.rs));
 compare row floors, insets and radii to [layout.ts](../../../apps/web/src/settings/layout.ts).
 
-**Shoot headless.** GPUI renders a window to an image with no display through
-`HeadlessAppContext::capture_screenshot`, on WGPU on Linux
+**Shoot headless.** `HeadlessAppContext::capture_screenshot` renders a window
+to an image with no display
 ([headless_app_context.rs](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/app/headless_app_context.rs)).
-gpui-kit's pixel tests use it on Mesa lavapipe
-([test.md](../gpui-kit/references/gpui/test.md), Assertion boundaries;
-[rendering.rs](https://github.com/longbridge/gpui-kit/blob/main/crates/kit/tests/rendering.rs)).
-On Boat on 2026-10-17, with no X server,
-`RENDERING_DUMP_DIR=<dir> cargo test -p gpui-kit --features test-support --test rendering --locked`
-passed its 13 tests in 71 s after the `hello_world` build and saved 46 PNGs of
-real components. A check that runs in `cargo test` starts from this, not Xvfb.
-gpui-ce has headless renderer tests too
-([headless_primitives.rs](https://github.com/gpui-ce/gpui-ce/blob/main/crates/gpui_wgpu/tests/headless_primitives.rs)).
+Upstream runs it on WGPU on Linux, and gpui-kit's newer pixel tests passed on
+Boat that way ([test.md](../gpui-kit/references/gpui/test.md), Assertion
+boundaries); on our zui pin it renders on a Mac only (The fork).
 
 **Variants only where the design is silent.** Settings and Usage have locked
 designs; port them, do not redesign them. Where a design is silent, write two
@@ -361,8 +384,16 @@ Measured: `cargo build -p hello_world` in a fresh gpui-kit checkout (d4c5681) to
 That is gpui-kit's smallest example, not wsp's app; for a full app use Cap's
 11 minutes (above) until we measure our own.
 
+Measured for wsp's app, 2026-10-17: `cargo build -p desktop-gpui` from an empty
+`target/` (crates fetched) took 49 s on one 8x16 machine, 3 min 51 s on another; 4.1 GB.
+
+**The rebuild loop.** [dev.sh](../../../apps/desktop-gpui/dev.sh) rebuilds when
+`app/`, `host-client/src` or `Cargo.toml` changes and swaps the running app
+only when the build passes, like Cap's `dev.sh` (Cap README, The dev loop).
+Measured under Xvfb on the same two machines, one line of `Home::render` changed:
+rebuild 1.4 to 1.7 s and 4.8 to 7.6 s; saved file to new window 1.7 to 2.4 s and 6.1 to 9.0 s.
+
 Keep cargo's output on screen (`| tee`, never a bare redirect) so a long build
-keeps printing. Run tests with `cargo test`; gpui-kit's UI tests
-use `#[gpui_kit::test]` ([test.md](../gpui-kit/references/gpui/test.md)).
+keeps printing. Run tests with `cargo test`, `#[gpui::test]` at our pin (The fork).
 Benchmarks follow Zed's gpui-bench rules: no `test-support` feature, a hard
 timeout, never two measured runs at once (linked above).
