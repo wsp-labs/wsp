@@ -10,7 +10,7 @@ use wsp_host_client::protocol::UsedAnswer;
 
 use super::chart::{self, UsageChart, CHART_HEIGHT};
 use super::model::{self, Chart, InkTheme, MixPart, Range, Split};
-use super::parts::{self, bone, card, identity, one_line, quiet, rule, share_bar, sized, split_glyph, surface, text_width, BLOCK_GAP};
+use super::parts::{self, bone, card, identity, quiet, rule, share_bar, sized, split_glyph, surface, BLOCK_GAP};
 use super::{words, UsagePage};
 use crate::ui::{ActivePalette, Segmented};
 
@@ -92,10 +92,7 @@ fn totals(used: &UsedAnswer, cx: &App) -> impl IntoElement {
             .gap(px(6.))
             .p(px(20.))
             .when(ix + 1 < count, |el| el.border_r_1().border_color(rule(cx)))
-            .child(
-                // Chrome snaps the strip's 121.5 px to whole device pixels, which lands as the label's line taken whole.
-                sized(div(), 13.).h(px(20.)).text_color(p.muted_foreground).child(stat.label),
-            )
+            .child(sized(div(), 13.).text_color(p.muted_foreground).child(stat.label))
             .child(
                 div()
                     .font_family(mono(cx))
@@ -115,11 +112,11 @@ fn legend(items: Vec<(Hsla, Option<String>, String)>, window: &Window, cx: &App)
     let family = cx.theme().font_family.clone();
     h_flex().debug_selector(|| "usage-legend".into()).flex_wrap().gap_x_6().gap_y_2().children(items.into_iter().map(
         |(ink, agent, label)| {
-            one_line(h_flex().gap_2(), 13.5)
+            sized(h_flex().gap_2(), 13.5)
                 .text_color(p.muted_foreground)
                 .child(div().w(px(14.)).h(px(2.)).rounded_full().bg(ink))
                 .children(agent.and_then(|agent| parts::agent_glyph(&agent, px(12.), p.muted_foreground, cx)))
-                .child(div().flex_none().whitespace_nowrap().w(text_width(&label, 13.5, family.clone(), window)).child(label))
+                .child(div().flex_none().whitespace_nowrap().w(crate::ui::text::width(&label, 13.5, family.clone(), window)).child(label))
         },
     ))
 }
@@ -239,7 +236,7 @@ fn mix(used: &UsedAnswer, cx: &App) -> Option<impl IntoElement> {
         );
     let legend = h_flex().flex_wrap().gap_x_6().gap_y_2().children(slices.iter().map(|s| {
         let key = s.part.key();
-        one_line(h_flex().gap_2(), 13.5)
+        sized(h_flex().gap_2(), 13.5)
             .debug_selector(move || format!("mix-{key}"))
             .text_color(p.muted_foreground)
             .child(div().size(px(8.)).rounded(px(2.)).bg(fill(s.part)))

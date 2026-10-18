@@ -56,7 +56,7 @@ thing is done, never code to paste (map #2364, notes), and neither is our base.
 **gpui-kit on its own GPUI, no zui.** The owner reversed the
 [wsp-map#2366](https://github.com/wsp-labs/wsp-map/issues/2366) ruling (gpui-kit
 on zui) on 2026-10-17 at 21:18 IST. This is the one section written to change
-when a pin moves. Pinned in [app/Cargo.toml](../../../apps/desktop-gpui/app/Cargo.toml):
+when a pin moves. Pinned in [app/Cargo.toml](../../../apps/desktop-gpui/app/Cargo.toml), gpui-kit's also in `kit_rev` of gpui-patches.sh and the `[patch]` paths of Cargo.toml:
 
 - gpui-kit `14f59330a4aa0cb5becf140e067d64a616328612` (0.7.3, 2026-10-17), a git
   dependency with `tree-sitter-languages`, and `test-support` under
@@ -88,13 +88,13 @@ Why (the reversal):
   passed on a Boat machine with no display (the wsp-map#2365 review). The
   app's own pixel test is `apps/desktop-gpui/app/tests/pixels.rs`.
 
-Backdrop blur and rounded clipping of children are our patch (wsp-map#2373):
+Backdrop blur, rounded clipping of children (wsp-map#2373) and Chromium's text placement are our patch:
 [patches/](../../../apps/desktop-gpui/patches/gpui-pre-0.3.9.patch) over three
-pinned crates, applied in `vendor/` by
+pinned crates and gpui-kit's pinned commit, applied in `vendor/` by
 [gpui-patches.sh](../../../apps/desktop-gpui/scripts/gpui-patches.sh) (`apply`
 after a clone, `save` after an edit). `.backdrop_blur(..)` is CSS's
 `backdrop-filter`, `.rounded(..).overflow_hidden()` clips children to the
-corners; [effects.rs](../../../apps/desktop-gpui/app/tests/effects.rs) checks both against Chromium.
+corners; [effects.rs](../../../apps/desktop-gpui/app/tests/effects.rs) checks both against Chromium. [text.rs](../../../apps/desktop-gpui/app/tests/text.rs) holds text to Chrome's ink and widths but cannot see which face drew it: on macOS the Medium variant shares Regular's PostScript name (`.SFNS-Regular`), and only gpui-pre-apple's `test_system_font_medium_keeps_its_face_and_fallbacks_keep_theirs` goes red if Regular draws Medium.
 
 The vendored gpui-kit skills match this pin. Their `UPSTREAM` commit d4c5681
 is 14f5933's parent, and `git log --oneline -- skills/` at 14f5933 shows no

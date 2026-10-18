@@ -233,17 +233,17 @@ impl ActivePalette for App {
 /// The system font, which GPUI names `.SystemUIFont`: SF Pro on macOS.
 const SYSTEM: &str = ".SystemUIFont";
 
-/// `--font-sans-system` in `apps/web/src/index.css`, as GPUI names its faces: `-apple-system` and
-/// `BlinkMacSystemFont` are the Mac's system font, and `system-ui` the platform's, which gpui-kit resolves itself.
+/// `--font-sans-system` in `apps/web/src/index.css`. Chromium skips `-apple-system`, which it does not know, and draws
+/// `BlinkMacSystemFont` on macOS and `system-ui` everywhere in the system font.
 pub const SANS: [&str; 6] = ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Inter", "Liberation Sans", "system-ui"];
-/// `--font-mono-system`: `ui-monospace` is SF Mono on macOS.
+/// `--font-mono-system`. Chromium has no `ui-monospace` either, so on macOS it draws SF Mono only where a family of that
+/// name is installed.
 pub const MONO: [&str; 7] = ["ui-monospace", "SF Mono", "SFMono-Regular", "Menlo", "Consolas", "DejaVu Sans Mono", "Liberation Mono"];
 
 /// The first face of a CSS stack the machine has, as Chromium picks it; `None` leaves gpui-kit's own default.
 pub fn first_installed(stack: &[&str], installed: &[String], mac: bool) -> Option<SharedString> {
     stack.iter().find_map(|&face| match face {
-        "-apple-system" | "BlinkMacSystemFont" if mac => Some(SharedString::new_static(SYSTEM)),
-        "ui-monospace" if mac => installed.iter().any(|f| f == "SF Mono").then(|| SharedString::new_static("SF Mono")),
+        "BlinkMacSystemFont" if mac => Some(SharedString::new_static(SYSTEM)),
         "system-ui" => Some(SharedString::new_static(SYSTEM)),
         _ => installed.iter().any(|f| f == face).then(|| SharedString::from(face.to_owned())),
     })

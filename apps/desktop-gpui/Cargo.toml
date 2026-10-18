@@ -3,6 +3,8 @@
 [workspace]
 resolver = "2"
 members = ["host-client", "app"]
+# vendor/gpui-kit-*/ is gpui-kit's own workspace, whose crates inherit from its root, not this one.
+exclude = ["vendor"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,9 +12,17 @@ edition = "2021"
 license = "AGPL-3.0-only"
 publish = false
 
-# Backdrop blur and rounded clipping of children, our patches over gpui-kit's pinned gpui-pre. vendor/ is generated:
+# Backdrop blur, rounded clipping of children and Chromium's text placement, our patches over gpui-kit's pinned gpui-pre. vendor/ is generated:
 # run scripts/gpui-patches.sh apply after a fresh clone, and save after editing it.
 [patch.crates-io]
 gpui-pre = { path = "vendor/gpui-pre-0.3.9" }
 gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu-0.3.9" }
 gpui-pre-apple = { path = "vendor/gpui-pre-apple-0.3.9" }
+
+# gpui-kit at the commit app/Cargo.toml pins, every crate of it the app builds, so no two copies meet.
+[patch."https://github.com/longbridge/gpui-kit"]
+gpui-kit = { path = "vendor/gpui-kit-14f5933/crates/kit" }
+gpui-base = { path = "vendor/gpui-kit-14f5933/crates/base" }
+gpui-component = { path = "vendor/gpui-kit-14f5933/crates/component" }
+gpui-component-macros = { path = "vendor/gpui-kit-14f5933/crates/component-macros" }
+gpui-kit-assets = { path = "vendor/gpui-kit-14f5933/crates/assets" }

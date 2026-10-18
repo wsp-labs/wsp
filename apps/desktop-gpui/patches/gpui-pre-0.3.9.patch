@@ -190,6 +190,25 @@ index fc292f2..8b004e4 100644
                          });
                      });
                  });
+diff --git a/src/elements/text.rs b/src/elements/text.rs
+index d1896ad..5ccb339 100644
+--- a/src/elements/text.rs
++++ b/src/elements/text.rs
+@@ -640,11 +640,9 @@ impl TextLayout {
+     ) -> LayoutId {
+         let text_style = window.text_style();
+         let font_size = text_style.font_size.to_pixels(window.rem_size());
+-        let line_height = window.pixel_snap(
+-            text_style
+-                .line_height
+-                .to_pixels(font_size.into(), window.rem_size()),
+-        );
++        let line_height = text_style
++            .line_height
++            .to_pixels(font_size.into(), window.rem_size());
+ 
+         let runs = if let Some(runs) = runs {
+             runs
 diff --git a/src/scene.rs b/src/scene.rs
 index be37813..b40b4f7 100644
 --- a/src/scene.rs
@@ -763,8 +782,259 @@ index a24982a..ec3fc06 100644
      /// Sets the grid columns of this element.
      fn grid_cols(mut self, cols: u16) -> Self {
          self.style().grid_cols = Some(GridTemplate {
+diff --git a/src/taffy.rs b/src/taffy.rs
+index b9e583a..3428e5e 100644
+--- a/src/taffy.rs
++++ b/src/taffy.rs
+@@ -2,7 +2,7 @@ use crate::{
+     AbsoluteLength, App, Bounds, DefiniteLength, Edges, GridTemplate, Length, Pixels, Point, Size,
+     Style, Window, size,
+     util::{
+-        ceil_to_device_pixel, round_half_toward_zero, round_stroke_to_device_pixel,
++        ceil_to_device_pixel, round_half_up, round_stroke_to_device_pixel,
+         round_to_device_pixel,
+     },
+ };
+@@ -284,17 +284,18 @@ impl TaffyLayoutEngine {
+     // by `scale_factor`, so that snapping targets physical pixels. Bounds
+     // are divided by `scale_factor` before being returned to GPUI.
+     //
+-    // Midpoints are rounded toward zero. This is a stylistic choice: a
+-    // 1-logical-pixel line at 150% scale should render as 1 dp rather than
+-    // 2 dp.
++    // Midpoints are rounded up, as Chromium rounds them, so a box on half a
++    // device pixel lands where Chromium paints it. Stroke widths still round
++    // midpoints toward zero: a 1-logical-pixel border at 150% scale renders
++    // as 1 dp rather than 2 dp.
+     //
+     // Pixel snapping is done in two phases:
+     //
+     //  1. Pre-layout metric snapping. Before Taffy computes layout, all
+     //     authored absolute lengths are rounded in `to_taffy`. This
+     //     includes borders, padding, gaps, and explicit sizes.
+-    //     Custom-measured leaf nodes have their measured sizes rounded up
+-    //     to integer device-pixel lengths.
++    //     Custom-measured leaf nodes have their measured widths rounded up
++    //     to integer device-pixel lengths; their heights stay fractional.
+     //
+     //  2. Post-layout edge snapping. After Taffy resolves the tree, layout
+     //     relationships such as flex shares, grid tracks, percentages, and
+@@ -369,8 +370,8 @@ impl TaffyLayoutEngine {
+ 
+         let absolute_far = absolute_outer_origin + Point::from(Size::from(layout_size));
+         let snapped_bounds = Bounds::from_corners(
+-            absolute_outer_origin.map(round_half_toward_zero),
+-            absolute_far.map(round_half_toward_zero),
++            absolute_outer_origin.map(round_half_up),
++            absolute_far.map(round_half_up),
+         );
+ 
+         let bounds = (snapped_bounds / scale_factor).map(Pixels);
+@@ -410,7 +411,11 @@ impl From<LayoutId> for NodeId {
+ }
+ 
+ fn snap_measured_size_to_device_pixels(size: Size<Pixels>, scale_factor: f32) -> Size<f32> {
+-    size.map(|d| ceil_to_device_pixel(d.0.max(0.0), scale_factor))
++    // A stack of text lines keeps its fractional height, as in Chromium; rounding each up would drift the stack.
++    Size {
++        width: ceil_to_device_pixel(size.width.0.max(0.0), scale_factor),
++        height: size.height.0.max(0.0) * scale_factor,
++    }
+ }
+ 
+ fn border_widths_to_taffy(
+diff --git a/src/text_system/line.rs b/src/text_system/line.rs
+index f521005..6150ea4 100644
+--- a/src/text_system/line.rs
++++ b/src/text_system/line.rs
+@@ -1,7 +1,7 @@
+ use crate::{
+     App, Bounds, DevicePixels, Half, Hsla, LineLayout, Pixels, Point, RenderGlyphParams, Result,
+     SharedString, StrikethroughStyle, TextAlign, UnderlineStyle, Window, WrapBoundary,
+-    WrappedLineLayout, black, fill, point, px, size, underline_y_offset,
++    WrappedLineLayout, black, fill, line_baseline, point, px, size, underline_y_offset,
+ };
+ use derive_more::{Deref, DerefMut};
+ use smallvec::SmallVec;
+@@ -545,9 +545,13 @@ fn paint_line(
+         wrap_boundaries,
+     );
+     window.paint_layer(line_bounds, |window| {
+-        let padding_top = (line_height - layout.ascent - layout.descent) / 2.;
+-        let baseline_offset = point(px(0.), padding_top + layout.ascent);
+-        let underline_y_offset = underline_y_offset(line_height, layout.ascent, layout.descent);
++        let scale_factor = window.scale_factor();
++        let baseline_offset = point(
++            px(0.),
++            line_baseline(line_height, layout.ascent, layout.descent, scale_factor),
++        );
++        let underline_y_offset =
++            underline_y_offset(line_height, layout.ascent, layout.descent, scale_factor);
+         let mut decoration_runs = decoration_runs.iter();
+         let mut wraps = wrap_boundaries.iter().peekable();
+         let mut run_end = 0;
+@@ -1213,7 +1217,7 @@ mod tests {
+                     )
+                     .unwrap();
+                     let start = px(origin_x + offset);
+-                    let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++                    let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+                     assert_eq!(
+                         strokes,
+                         [
+@@ -1299,7 +1303,7 @@ mod tests {
+                 / 2.;
+             let origin = point(px(40.25), px(10.25));
+             let line_height = px(20.);
+-            let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++            let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+             for (align, offset) in [
+                 (TextAlign::Left, 0.),
+                 (TextAlign::Center, 16.),
+@@ -1368,7 +1372,7 @@ mod tests {
+                     / 2.;
+                 let origin = point(px(40.25), px(10.25));
+                 let line_height = px(20.);
+-                let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++                let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+                 let wrapped = WrappedLine {
+                     layout: Arc::new(WrappedLineLayout {
+                         unwrapped_layout: line.layout,
+diff --git a/src/text_system.rs b/src/text_system.rs
+index cf6bb10..596d839 100644
+--- a/src/text_system.rs
++++ b/src/text_system.rs
+@@ -55,9 +55,38 @@ pub const SUBPIXEL_VARIANTS_Y: u8 = 1;
+ const UNDERLINE_DESCENT_OFFSET_FACTOR: f32 = 0.618;
+ 
+ /// Returns the vertical offset used to paint an underline within a line.
+-pub fn underline_y_offset(line_height: Pixels, ascent: Pixels, descent: Pixels) -> Pixels {
+-    let padding_top = (line_height - ascent - descent) / 2.;
+-    padding_top + ascent + descent * UNDERLINE_DESCENT_OFFSET_FACTOR
++pub fn underline_y_offset(
++    line_height: Pixels,
++    ascent: Pixels,
++    descent: Pixels,
++    scale_factor: f32,
++) -> Pixels {
++    line_baseline(line_height, ascent, descent, scale_factor)
++        + descent * UNDERLINE_DESCENT_OFFSET_FACTOR
++}
++
++/// A font's ascent and descent as Chromium lays text out: each rounded to whole device pixels.
++pub fn device_font_height(ascent: Pixels, descent: Pixels, scale_factor: f32) -> (Pixels, Pixels) {
++    let exact_descent = descent.0 * scale_factor;
++    let (mut ascent, mut descent) = ((ascent.0 * scale_factor).round(), exact_descent.round());
++    // Chromium on Linux, placing glyphs at subpixel offsets above scale 1, moves a pixel to a rounded-down descent.
++    if cfg!(any(target_os = "linux", target_os = "freebsd"))
++        && scale_factor > 1.
++        && descent < exact_descent
++        && ascent >= 1.
++    {
++        ascent -= 1.;
++        descent += 1.;
++    }
++    (px(ascent / scale_factor), px(descent / scale_factor))
++}
++
++/// How far below a line's top Chromium puts its baseline: metrics rounded to device pixels, half-leading floored.
++pub fn line_baseline(line_height: Pixels, ascent: Pixels, descent: Pixels, scale_factor: f32) -> Pixels {
++    let (ascent, descent) = device_font_height(ascent, descent, scale_factor);
++    let (ascent, descent) = (ascent.0 * scale_factor, descent.0 * scale_factor);
++    let leading = line_height.0 * scale_factor - ascent - descent;
++    px(((leading / 2.).floor() + ascent) / scale_factor)
+ }
+ 
+ const MAX_REPORTED_MISSING_GLYPHS: usize = 1024;
+@@ -514,19 +543,6 @@ impl TextSystem {
+         self.read_metrics(font_id, |metrics| metrics.descent(font_size))
+     }
+ 
+-    /// Get the recommended baseline offset for the given font and line height.
+-    pub fn baseline_offset(
+-        &self,
+-        font_id: FontId,
+-        font_size: Pixels,
+-        line_height: Pixels,
+-    ) -> Pixels {
+-        let ascent = self.ascent(font_id, font_size);
+-        let descent = self.descent(font_id, font_size);
+-        let padding_top = (line_height - ascent - descent) / 2.;
+-        padding_top + ascent
+-    }
+-
+     fn read_metrics<T>(&self, font_id: FontId, read: impl FnOnce(&FontMetrics) -> T) -> T {
+         let lock = self.font_metrics.upgradable_read();
+ 
+diff --git a/src/util.rs b/src/util.rs
+index 13ee752..14432ba 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -131,14 +131,15 @@ pub(crate) fn round_half_toward_zero(value: f32) -> f32 {
+     (value.abs() - 0.5).ceil().copysign(value)
+ }
+ 
++/// Rounds to the nearest integer with 0.5 ties up, as Chromium snaps lengths and edges.
+ #[inline]
+-pub(crate) fn round_half_toward_zero_f64(value: f64) -> f64 {
+-    (value.abs() - 0.5).ceil().copysign(value)
++pub(crate) fn round_half_up(value: f32) -> f32 {
++    (value + 0.5).floor()
+ }
+ 
+ #[inline]
+ pub(crate) fn round_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
+-    round_half_toward_zero(logical * scale_factor)
++    round_half_up(logical * scale_factor)
+ }
+ 
+ #[inline]
+@@ -146,7 +147,8 @@ pub(crate) fn round_stroke_to_device_pixel(logical: f32, scale_factor: f32) -> f
+     if logical == 0.0 {
+         0.0
+     } else {
+-        round_to_device_pixel(logical.max(0.0), scale_factor).max(1.0)
++        // Blink floors widths (min 1 dp); for whole-pixel widths ties toward zero match it at 1x, 1.5x and 2x only.
++        round_half_toward_zero(logical.max(0.0) * scale_factor).max(1.0)
+     }
+ }
+ 
+@@ -190,14 +192,14 @@ mod tests {
+ 
+     #[test]
+     fn test_device_pixel_helpers() {
+-        // Snap uses half-toward-zero: 1.0 * 1.5 = 1.5 ties toward 1.0.
+-        assert_eq!(round_to_device_pixel(1.0, 1.5), 1.0);
++        // Snap uses half-up: 1.0 * 1.5 = 1.5 ties up to 2.0.
++        assert_eq!(round_to_device_pixel(1.0, 1.5), 2.0);
+         // Below the tie rounds down, above rounds up.
+         assert_eq!(round_to_device_pixel(0.3, 2.0), 1.0);
+         assert_eq!(round_to_device_pixel(1.4, 1.0), 1.0);
+         assert_eq!(round_to_device_pixel(1.6, 1.0), 2.0);
+ 
+-        // Stroke uses snap, but clamps non-zero input up to at least 1dp.
++        // Stroke ties toward zero, and clamps non-zero input up to at least 1dp.
+         assert_eq!(round_stroke_to_device_pixel(0.0, 1.0), 0.0);
+         assert_eq!(round_stroke_to_device_pixel(0.4, 1.0), 1.0);
+         assert_eq!(round_stroke_to_device_pixel(0.5, 1.0), 1.0);
+@@ -216,15 +218,6 @@ mod tests {
+         assert_eq!(ceil_to_device_pixel(2.0, 2.0), 4.0);
+     }
+ 
+-    #[test]
+-    fn test_round_half_toward_zero_f64() {
+-        assert_eq!(round_half_toward_zero_f64(0.5), 0.0);
+-        assert_eq!(round_half_toward_zero_f64(-0.5), 0.0);
+-        assert_eq!(round_half_toward_zero_f64(1.5), 1.0);
+-        assert_eq!(round_half_toward_zero_f64(-1.5), -1.0);
+-        assert_eq!(round_half_toward_zero_f64(2.5001), 3.0);
+-    }
+-
+     #[gpui::test]
+     async fn test_with_timeout(cx: &mut TestAppContext) {
+         Task::ready(())
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..f1492a4 100644
+index 1214b03..1d9c281 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -6,7 +6,8 @@ use crate::Inspector;
@@ -777,6 +1047,17 @@ index 1214b03..f1492a4 100644
      Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
      DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
      EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs,
+@@ -74,8 +75,8 @@ use self::a11y::A11y;
+ #[cfg(not(target_family = "wasm"))]
+ use self::a11y::ROOT_NODE_ID;
+ use crate::util::{
+-    atomic_incr_if_not_zero, ceil_to_device_pixel, floor_to_device_pixel, round_half_toward_zero,
+-    round_half_toward_zero_f64, round_stroke_to_device_pixel, round_to_device_pixel,
++    atomic_incr_if_not_zero, ceil_to_device_pixel, floor_to_device_pixel, round_half_toward_zero, round_half_up,
++    round_stroke_to_device_pixel, round_to_device_pixel,
+ };
+ pub use prompts::*;
+ 
 @@ -1240,6 +1241,7 @@ pub struct Window {
      pub(crate) element_offset_stack: Vec<Point<Pixels>>,
      pub(crate) element_opacity: f32,
@@ -847,7 +1128,21 @@ index 1214b03..f1492a4 100644
  impl Window {
      fn mark_view_dirty(&mut self, view_id: EntityId) {
          // Mark ancestor views as dirty. If already in the `dirty_views` set, then all its ancestors
-@@ -3224,7 +3274,7 @@ impl Window {
+@@ -3174,13 +3224,6 @@ impl Window {
+         px(round_to_device_pixel(value.0, self.scale_factor()) / self.scale_factor())
+     }
+ 
+-    /// f64 variant of [`Self::pixel_snap`].
+-    #[inline]
+-    pub fn pixel_snap_f64(&self, value: f64) -> f64 {
+-        let scale_factor = f64::from(self.scale_factor());
+-        round_half_toward_zero_f64(value * scale_factor) / scale_factor
+-    }
+-
+     /// Snaps a bounds' origin and size to the nearest device pixel.
+     #[inline]
+     pub fn pixel_snap_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+@@ -3224,7 +3267,7 @@ impl Window {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
          if exclusions.is_empty() {
@@ -856,7 +1151,7 @@ index 1214b03..f1492a4 100644
              return;
          }
  
-@@ -3242,13 +3292,13 @@ impl Window {
+@@ -3242,13 +3285,13 @@ impl Window {
              })
              .collect::<SmallVec<[_; 4]>>();
          if exclusions.is_empty() {
@@ -872,7 +1167,7 @@ index 1214b03..f1492a4 100644
                  content_mask: ContentMask {
                      bounds: Bounds::from_corners(
                          point(start, bounds.top()),
-@@ -3273,9 +3323,9 @@ impl Window {
+@@ -3273,9 +3316,9 @@ impl Window {
      fn underline(&self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) -> Underline {
          Underline {
              order: 0,
@@ -883,7 +1178,7 @@ index 1214b03..f1492a4 100644
              color: style
                  .color
                  .unwrap_or_default()
-@@ -3323,6 +3373,44 @@ impl Window {
+@@ -3323,6 +3366,44 @@ impl Window {
          )
      }
  
@@ -928,7 +1223,7 @@ index 1214b03..f1492a4 100644
      #[inline]
      fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
          ContentMask {
-@@ -4177,6 +4265,31 @@ impl Window {
+@@ -4177,6 +4258,31 @@ impl Window {
          }
      }
  
@@ -960,7 +1255,7 @@ index 1214b03..f1492a4 100644
      /// Updates the global element offset relative to the current offset. This is used to implement
      /// scrolling. This method should only be called during the prepaint phase of element drawing.
      pub fn with_element_offset<R>(
-@@ -4566,24 +4679,42 @@ impl Window {
+@@ -4566,24 +4672,42 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -1007,7 +1302,7 @@ index 1214b03..f1492a4 100644
              });
          }
      }
-@@ -4602,7 +4733,7 @@ impl Window {
+@@ -4602,7 +4726,7 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -1016,7 +1311,7 @@ index 1214b03..f1492a4 100644
          let element_corner_radii = corner_radii.scale(scale_factor);
          for shadow in shadows {
              if !shadow.inset {
-@@ -4618,17 +4749,17 @@ impl Window {
+@@ -4618,17 +4742,17 @@ impl Window {
                  bottom_right: (corner_radii.bottom_right - shadow.spread_radius).max(zero),
                  bottom_left: (corner_radii.bottom_left - shadow.spread_radius).max(zero),
              };
@@ -1036,7 +1331,7 @@ index 1214b03..f1492a4 100644
              });
          }
      }
-@@ -4691,6 +4822,8 @@ impl Window {
+@@ -4691,6 +4815,8 @@ impl Window {
              order: 0,
              bounds: snapped_bounds,
              content_mask: self.snapped_content_mask(),
@@ -1045,7 +1340,7 @@ index 1214b03..f1492a4 100644
              background: quad.background.opacity(opacity),
              border_color: quad.border_color.opacity(opacity),
              corner_radii: quad.corner_radii.scale(self.scale_factor()),
-@@ -4699,7 +4832,7 @@ impl Window {
+@@ -4699,7 +4825,7 @@ impl Window {
          };
  
          if !quad.background.is_transparent() {
@@ -1054,7 +1349,7 @@ index 1214b03..f1492a4 100644
              return;
          }
  
-@@ -4709,7 +4842,7 @@ impl Window {
+@@ -4709,7 +4835,7 @@ impl Window {
          let inner_bounds = Self::largest_border_interior(&quad);
  
          if inner_bounds.is_empty() {
@@ -1063,7 +1358,7 @@ index 1214b03..f1492a4 100644
              return;
          }
  
-@@ -4739,7 +4872,7 @@ impl Window {
+@@ -4739,7 +4865,7 @@ impl Window {
          for strip in strips {
              let content_mask_bounds = quad.content_mask.bounds.intersect(&strip);
              if !content_mask_bounds.is_empty() {
@@ -1072,7 +1367,7 @@ index 1214b03..f1492a4 100644
                      content_mask: ContentMask {
                          bounds: content_mask_bounds,
                      },
-@@ -4749,6 +4882,39 @@ impl Window {
+@@ -4749,6 +4875,39 @@ impl Window {
          }
      }
  
@@ -1112,7 +1407,7 @@ index 1214b03..f1492a4 100644
      /// Paint the given `Path` into the scene for the next frame at the current z-index.
      ///
      /// This method should only be called as part of the paint phase of element drawing.
-@@ -4761,9 +4927,7 @@ impl Window {
+@@ -4761,9 +4920,7 @@ impl Window {
          path.content_mask = content_mask;
          let color: Background = color.into();
          path.color = color.opacity(opacity);
@@ -1123,7 +1418,7 @@ index 1214b03..f1492a4 100644
      }
  
      /// Paint an underline into the scene for the next frame at the current z-index.
-@@ -4777,7 +4941,7 @@ impl Window {
+@@ -4777,7 +4934,7 @@ impl Window {
      ) {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
@@ -1132,7 +1427,7 @@ index 1214b03..f1492a4 100644
      }
  
      /// Paint a strikethrough into the scene for the next frame at the current z-index.
-@@ -4799,11 +4963,11 @@ impl Window {
+@@ -4799,11 +4956,11 @@ impl Window {
          };
          let opacity = self.element_opacity();
  
@@ -1146,7 +1441,18 @@ index 1214b03..f1492a4 100644
              thickness: self.snap_stroke(style.thickness),
              color: style.color.unwrap_or_default().opacity(opacity),
              wavy: false.into(),
-@@ -4872,21 +5036,21 @@ impl Window {
+@@ -4835,8 +4992,8 @@ impl Window {
+         let quantized_origin = Point::new(
+             round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
+                 / SUBPIXEL_VARIANTS_X as f32,
+-            round_half_toward_zero(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32)
+-                / SUBPIXEL_VARIANTS_Y as f32,
++            // Half up, as Skia places a glyph on half a device pixel.
++            round_half_up(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32) / SUBPIXEL_VARIANTS_Y as f32,
+         );
+         let subpixel_variant = Point::new(
+             (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
+@@ -4872,21 +5029,21 @@ impl Window {
              let content_mask = self.snapped_content_mask();
  
              if subpixel_rendering {
@@ -1172,7 +1478,20 @@ index 1214b03..f1492a4 100644
                      color: color.opacity(element_opacity),
                      tile,
                      transformation: TransformationMatrix::unit(),
-@@ -4963,13 +5127,13 @@ impl Window {
+@@ -4934,7 +5091,11 @@ impl Window {
+ 
+         let scale_factor = self.scale_factor();
+         let glyph_origin = origin.scale(scale_factor);
+-        let integer_origin = glyph_origin.map(|c| ScaledPixels(round_half_toward_zero(c.0)));
++        // y ties up, as paint_glyph rounds the text beside it.
++        let integer_origin = point(
++            ScaledPixels(round_half_toward_zero(glyph_origin.x.0)),
++            ScaledPixels(round_half_up(glyph_origin.y.0)),
++        );
+         let params = RenderGlyphParams {
+             font_id,
+             glyph_id,
+@@ -4963,13 +5124,13 @@ impl Window {
              let content_mask = self.snapped_content_mask();
              let opacity = self.element_opacity();
  
@@ -1188,7 +1507,7 @@ index 1214b03..f1492a4 100644
                  tile,
                  opacity,
              });
-@@ -5029,11 +5193,11 @@ impl Window {
+@@ -5029,11 +5190,11 @@ impl Window {
              .map_origin(|value| ScaledPixels(round_half_toward_zero(value.0)))
              .map_size(|size| size.ceil());
  
@@ -1202,7 +1521,7 @@ index 1214b03..f1492a4 100644
              color: color.opacity(element_opacity),
              tile,
              transformation,
-@@ -5135,12 +5299,12 @@ impl Window {
+@@ -5135,12 +5296,12 @@ impl Window {
              .scale(self.scale_factor());
          let opacity = self.element_opacity();
  
@@ -1217,7 +1536,7 @@ index 1214b03..f1492a4 100644
              corner_radii,
              tile: sub_tile,
              opacity,
-@@ -5163,7 +5327,7 @@ impl Window {
+@@ -5163,7 +5324,7 @@ impl Window {
  
          let bounds = self.snap_bounds(bounds);
          let content_mask = self.snapped_content_mask();
