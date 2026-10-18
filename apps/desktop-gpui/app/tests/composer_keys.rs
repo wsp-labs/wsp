@@ -9,7 +9,7 @@ mod harness;
 mod states;
 
 use desktop_gpui::local_store;
-use desktop_gpui::screens::composer::model::{Drawer, HostItem, Skill};
+use desktop_gpui::screens::composer::model::{Command, Drawer, HostItem, Skill};
 use desktop_gpui::screens::composer::screen::types_into_composer;
 use desktop_gpui::screens::composer::{store, Bar, Popup};
 use gpui_kit::{ClipboardItem, Focusable, KeyDownEvent, Keystroke, TestAppContext, VisualContext as _};
@@ -398,7 +398,9 @@ fn enter_on_a_slash_draft_that_names_no_command_sends_nothing(cx: &mut TestAppCo
     let cx = open("empty", cx);
     let composer = composer_of(cx);
     let started = starts(&composer, cx);
+    let review = Command { name: "review".into(), description: None, source: None };
     composer.update_in(cx, |c, window, cx| {
+        c.set_catalog(states::agents(), states::ran(), vec![review], cx);
         c.editor().focus_handle(cx).focus(window, cx);
         c.set_text("/nope", window, cx);
     });
@@ -641,4 +643,36 @@ fn tab_takes_the_menus_row_and_walks_the_focus_only_with_no_menu_open(cx: &mut T
     cx.simulate_keystrokes("tab");
     assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "$tidy-imports ", "the field writes no tab of its own");
     assert!(!in_field(cx), "Tab with no menu walks the focus on, as the browser does");
+}
+
+#[gpui_kit::test]
+fn a_draft_typed_just_before_the_app_quits_is_kept(cx: &mut TestAppContext) {
+    let dir = std::env::temp_dir().join(format!("composer-quit-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    cx.update(|cx| local_store::init(dir.join("local-store.json"), cx));
+    let cx = open("empty", cx);
+    let composer = composer_of(cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("thread-1".into(), window, cx);
+        c.editor().focus_handle(cx).focus(window, cx);
+    });
+    cx.simulate_input("fix the scroll");
+    drop(composer);
+    cx.quit();
+    let kept = store::draft(&local_store::LocalStore::open(dir.join("local-store.json")), "thread-1");
+    assert_eq!(kept.map(|(t, _)| t).as_deref(), Some("fix the scroll"), "Cmd+Q inside the draft's 400 ms keeps it");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[gpui_kit::test]
+fn enter_sends_a_slash_word_on_a_thread_that_lists_no_commands(cx: &mut TestAppContext) {
+    let cx = open("new-thread", cx);
+    let composer = composer_of(cx);
+    let started = starts(&composer, cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.editor().focus_handle(cx).focus(window, cx);
+        c.set_text("/init", window, cx);
+    });
+    cx.simulate_keystrokes("enter");
+    assert_eq!(*started.borrow(), ["/init"], "the web holds only a lone slash where the menu has nothing to check against");
 }

@@ -232,18 +232,53 @@ impl Events {
 /// The type of every event a transcript holds, read off the record the types were generated from.
 fn transcript_types() -> &'static HashSet<String> {
     static TYPES: OnceLock<HashSet<String>> = OnceLock::new();
-    TYPES.get_or_init(|| types_of("SessionEvent"))
+    TYPES.get_or_init(|| types_of(|unions| unions.transcript))
 }
 
 fn host_event_types() -> &'static HashSet<String> {
     static TYPES: OnceLock<HashSet<String>> = OnceLock::new();
-    TYPES.get_or_init(|| types_of("EventUnion"))
+    TYPES.get_or_init(|| types_of(|unions| unions.events))
 }
 
-fn types_of(union: &str) -> HashSet<String> {
-    let record: Value = serde_json::from_str(RECORD).expect("record/protocol.json is JSON");
-    let variants = record["definitions"][union]["anyOf"].as_array().cloned().unwrap_or_default();
-    variants.iter().filter_map(|v| v["properties"]["type"]["enum"][0].as_str().map(str::to_owned)).collect()
+/// The record's two unions, read field by field: read as a `Value`, the record is a 4 MB tree whose freed pages stay resident.
+#[derive(Deserialize)]
+struct Unions {
+    #[serde(rename = "EventUnion")]
+    events: Union,
+    #[serde(rename = "SessionEvent")]
+    transcript: Union,
+}
+
+#[derive(Deserialize)]
+struct Union {
+    #[serde(rename = "anyOf")]
+    variants: Vec<Variant>,
+}
+
+#[derive(Deserialize)]
+struct Variant {
+    properties: Option<VariantProperties>,
+}
+
+#[derive(Deserialize)]
+struct VariantProperties {
+    #[serde(rename = "type")]
+    kind: Option<VariantType>,
+}
+
+#[derive(Deserialize)]
+struct VariantType {
+    #[serde(rename = "enum", default)]
+    names: Vec<String>,
+}
+
+fn types_of(union: impl FnOnce(Unions) -> Union) -> HashSet<String> {
+    #[derive(Deserialize)]
+    struct Record {
+        definitions: Unions,
+    }
+    let record: Record = serde_json::from_str(RECORD).expect("record/protocol.json names both unions");
+    union(record.definitions).variants.into_iter().filter_map(|v| v.properties?.kind?.names.into_iter().next()).collect()
 }
 
 #[cfg(test)]
@@ -258,6 +293,17 @@ mod tests {
         }
         assert!(!types.contains("thread.head"));
         assert!(host_event_types().contains("thread.head"));
+    }
+
+    #[test]
+    fn each_union_lists_what_the_whole_record_lists() {
+        let record: Value = serde_json::from_str(RECORD).unwrap();
+        for (union, types) in [("EventUnion", host_event_types()), ("SessionEvent", transcript_types())] {
+            let variants = record["definitions"][union]["anyOf"].as_array().unwrap();
+            let listed: HashSet<String> =
+                variants.iter().map(|v| v["properties"]["type"]["enum"][0].as_str().unwrap().to_owned()).collect();
+            assert_eq!(&listed, types, "{union}");
+        }
     }
 
     /// A frame for the daemon goes with every key the page put in it: the host passes it through untouched.

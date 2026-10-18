@@ -236,3 +236,17 @@ fn a_draft_that_fits_beside_the_pickers_keeps_one_line(cx: &mut TestAppContext) 
     cx.run_until_parked();
     assert_eq!(xywh(rect(cx, "composer-box")), (128., 698., 768., 50.), "{draft:?} in a column {column} wide");
 }
+
+#[gpui_kit::test]
+fn the_one_line_triggers_stand_edge_to_edge(cx: &mut TestAppContext) {
+    let cx = open("empty", cx);
+    assert_eq!(rect(cx, "picker-reasoning").left(), rect(cx, "picker-model").right(), "no gap between the triggers on one line");
+}
+
+#[gpui_kit::test]
+fn the_model_pickers_search_row_and_rows_keep_the_webs_pitch(cx: &mut TestAppContext) {
+    let cx = open("model-picker-open", cx);
+    assert_eq!(f32::from(rect(cx, "composer-model-search").size.height), 46., "py-3 around the 15 px field and its rule");
+    let (first, second) = (rect(cx, "composer-model-row-0"), rect(cx, "composer-model-row-1"));
+    assert_eq!(f32::from(second.top() - first.top()), 64., "each row 64 px, as the web's");
+}
