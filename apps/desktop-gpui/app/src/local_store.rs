@@ -46,6 +46,17 @@ impl Global for LocalStore {}
 pub fn init(path: impl Into<PathBuf>, cx: &mut App) {
     let mut store = LocalStore::open(path);
     store.executor = Some(cx.background_executor().clone());
+    let (writer, path) = (store.writer.clone(), store.path.clone());
+    // The app exits when its quit handlers return; a future runs after every handler, so their saves are written too.
+    cx.on_app_quit(move |_| {
+        let (writer, path) = (writer.clone(), path.clone());
+        async move {
+            if let Err(e) = writer.write_newest(&path) {
+                eprintln!("desktop-gpui: store: {}: {e}", path.display());
+            }
+        }
+    })
+    .detach();
     cx.set_global(store);
 }
 
@@ -274,6 +285,15 @@ mod tests {
         assert!(!path.exists(), "nothing is written on the window's thread");
         cx.run_until_parked();
         assert_eq!(LocalStore::open(&path).get("draft"), Some(&json!("two")));
+    }
+
+    #[gpui_kit::test]
+    fn a_write_still_waiting_is_on_disk_when_the_app_quits(cx: &mut gpui_kit::TestAppContext) {
+        let path = scratch("quit");
+        cx.update(|cx| init(path.clone(), cx));
+        cx.update(|cx| cx.update_global(|s: &mut LocalStore, _| s.set("draft", json!("typed just before Cmd+Q")).unwrap()));
+        cx.quit();
+        assert_eq!(LocalStore::open(&path).get("draft"), Some(&json!("typed just before Cmd+Q")));
     }
 
     #[test]

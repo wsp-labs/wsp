@@ -379,6 +379,9 @@ impl Shell {
                 self.screen = None;
                 self.following = None;
                 self.panel.update(cx, |p, cx| p.show_for(At::Here, window, cx));
+                if let Some(thread) = &self.thread {
+                    (thread.show.clone())(Opened::default(), window, cx);
+                }
             }
             Route::Thread { workspace_id, thread_id } => {
                 self.screen = None;
@@ -407,23 +410,33 @@ impl Shell {
                 if !matches!(self.route, Route::Screen(_)) {
                     self.behind = self.route.clone();
                 }
-                self.screen = self.mount(name, window, cx);
+                let open = match (&self.route, &self.screen) {
+                    (Route::Screen(open), Some(page)) if app_shell::split(open).0 == app_shell::split(name).0 => Some(page.show.clone()),
+                    _ => None,
+                };
+                match open {
+                    Some(show) => show(self.page(name), window, cx),
+                    None => self.screen = self.mount(name, window, cx),
+                }
             }
         }
         self.route = route;
         cx.notify();
     }
 
-    /// Builds the page `route` names, on the thread the window was showing, once the host has answered.
-    fn mount(&self, route: &str, window: &mut Window, cx: &mut Context<Self>) -> Option<Mounted> {
-        let (name, arg) = app_shell::split(route);
-        let (host, entry) = (self.host.clone()?, screens::screen(name)?);
+    /// What the page `route` names is opened on: the thread the window was showing, and the route's argument.
+    fn page(&self, route: &str) -> Opened {
         let (workspace_id, thread_id) = match &self.behind {
             Route::Thread { workspace_id, thread_id } => (Some(workspace_id.clone()), Some(thread_id.clone())),
             _ => (None, None),
         };
-        let opened = Opened { workspace_id, thread_id, tab: None, arg: arg.map(|a| SharedString::from(a.to_owned())) };
-        Some((entry.mount)(&Host::new(host, self.runtime.clone()), opened, window, cx))
+        Opened { workspace_id, thread_id, tab: None, arg: app_shell::split(route).1.map(|a| SharedString::from(a.to_owned())) }
+    }
+
+    /// Builds the page `route` names once the host has answered.
+    fn mount(&self, route: &str, window: &mut Window, cx: &mut Context<Self>) -> Option<Mounted> {
+        let (host, entry) = (self.host.clone()?, screens::screen(app_shell::split(route).0)?);
+        Some((entry.mount)(&Host::new(host, self.runtime.clone()), self.page(route), window, cx))
     }
 
     /// Takes what the host says of whether `workspace_id` runs, which decides the panes its threads can open.

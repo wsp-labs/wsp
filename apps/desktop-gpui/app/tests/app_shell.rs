@@ -579,6 +579,9 @@ macro_rules! probe {
             fn show(&mut self, opened: Opened, _: &mut Window, _: &mut gpui_kit::Context<Self>) {
                 PROBED.with(|p| p.borrow_mut().push(($name, "show", opened)));
             }
+            fn closed(_: &Host, opened: Opened, _: &mut App) {
+                PROBED.with(|p| p.borrow_mut().push(($name, "closed", opened)));
+            }
             fn parts(_: &Entity<Self>, _: &mut Window, cx: &mut App) -> Parts {
                 let part = |name: &'static str, cx: &mut App| Some(AnyView::from(cx.new(|_| Part(name))));
                 Parts {
@@ -629,6 +632,7 @@ fn a_registered_screen_mounts_in_its_place_on_what_it_was_opened_on(cx: &mut Tes
     );
     assert!(cx.debug_bounds("probe-thread").is_some());
     assert!(cx.debug_bounds("probe-thread-actions").is_some(), "its actions ride the header");
+    assert!(cx.debug_bounds("probe-thread-crumbs").is_some(), "its crumbs stand in the shell's");
     let center = cx.debug_bounds("center").unwrap();
     assert!(center.contains(&cx.debug_bounds("probe-thread").unwrap().center()));
 
@@ -644,8 +648,8 @@ fn a_registered_screen_mounts_in_its_place_on_what_it_was_opened_on(cx: &mut Tes
     let tabs = panel.read_with(cx, |p, _| p.tabs());
     assert_eq!(tabs.len(), 2, "a second Terminal is a shell of its own: {tabs:?}");
     assert!(tabs.iter().all(|(pane, _)| *pane == Pane::Terminal) && tabs[0].1 != tabs[1].1);
-    go(Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, cx);
     PROBED.with(|p| p.borrow_mut().clear());
+    go(Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, cx);
     go(Route::Thread { workspace_id: "w1".into(), thread_id: "b".into() }, cx);
     panel.update_in(cx, |p, window, cx| p.activate(0, window, cx));
     cx.run_until_parked();
@@ -654,6 +658,25 @@ fn a_registered_screen_mounts_in_its_place_on_what_it_was_opened_on(cx: &mut Tes
         "back on the thread the pane is built again on the same tab, to find its session: {:?}",
         probed()
     );
+    assert!(!probed().iter().any(|(_, what, _)| *what == "closed"), "a thread switch closes no tab: {:?}", probed());
+    panel.update_in(cx, |p, window, cx| p.close(0, window, cx));
+    cx.run_until_parked();
+    assert!(
+        probed().contains(&("terminal", "closed", opened("w1", "b", Some("terminal:7"), None))),
+        "a closed tab tells its screen, so its shell can go: {:?}",
+        probed()
+    );
+
+    // A shut panel builds none of its tabs, as the web app mounts none, and builds the open one as it opens.
+    let built = || probed().iter().any(|(name, what, _)| *name == "terminal" && *what == "new");
+    panel.update_in(cx, |p, window, cx| p.toggle(window, cx));
+    go(Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, cx);
+    PROBED.with(|p| p.borrow_mut().clear());
+    go(Route::Thread { workspace_id: "w1".into(), thread_id: "b".into() }, cx);
+    assert!(!built(), "a shut panel builds no pane on the way back: {:?}", probed());
+    panel.update_in(cx, |p, window, cx| p.toggle(window, cx));
+    cx.run_until_parked();
+    assert!(built(), "and builds the open tab as it opens");
 
     // A page: in the main column with its sidebar, crumbs and actions, on its argument, and the panel hidden.
     PROBED.with(|p| p.borrow_mut().clear());
@@ -666,6 +689,41 @@ fn a_registered_screen_mounts_in_its_place_on_what_it_was_opened_on(cx: &mut Tes
     assert!(cx.debug_bounds("header-actions").unwrap().contains(&cx.debug_bounds("probe-page-actions").unwrap().center()));
     assert!(cx.debug_bounds("right-panel").is_none(), "a page hides the panel");
     assert!(cx.debug_bounds("probe-thread").is_none());
+
+    // The open page is told its new argument rather than built again, as Settings moves between its pages.
+    go(Route::Screen("probe-page:general".into()), cx);
+    assert_eq!(
+        probed(),
+        [("probe-page", "new", opened("w1", "b", None, Some("usage"))), ("probe-page", "show", opened("w1", "b", None, Some("general")))]
+    );
+    assert!(cx.debug_bounds("probe-page-sidebar").is_some());
+
+    // With no thread on screen the kept thread view is told so, and can let the last one go.
+    go(Route::Empty, cx);
+    assert!(probed().contains(&(THREAD, "show", Opened::default())), "{:?}", probed());
+}
+
+#[gpui_kit::test]
+fn each_browser_the_add_menu_opens_is_a_page_of_its_own_and_the_toggle_goes_to_the_first(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    panel.update_in(cx, |p, window, cx| {
+        p.add(Pane::Browser, None, window, cx);
+        p.add(Pane::Changes, None, window, cx);
+        p.add(Pane::Browser, None, window, cx);
+    });
+    let tabs = panel.read_with(cx, |p, _| p.tabs());
+    assert_eq!(tabs.iter().filter(|(pane, _)| *pane == Pane::Browser).count(), 2, "openNewBrowser makes a page each time: {tabs:?}");
+    panel.update_in(cx, |p, window, cx| {
+        p.activate(1, window, cx);
+        p.toggle_pane(Pane::Browser, window, cx);
+    });
+    assert_eq!(
+        panel.read_with(cx, |p, _| (p.tabs().len(), p.active_index())),
+        (3, Some(0)),
+        "the toggle opens the first page, as openedSurface does"
+    );
 }
 
 /// `max-w-[70%]` on the title in a line that takes what it holds: Chromium gives a long title 70% of the room the row
@@ -750,4 +808,20 @@ fn a_thread_whose_workspace_does_not_run_cannot_open_its_shells(cx: &mut TestApp
     cx.simulate_keystrokes("t");
     cx.run_until_parked();
     assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Terminal), "and opens once it runs");
+}
+
+/// Whether a workspace runs is read from the host's own list as the shell connects, and the panes go by it.
+#[gpui_kit::test]
+fn a_thread_on_a_workspace_the_host_lists_as_running_opens_a_shell(cx: &mut TestAppContext) {
+    let shared = common::shared();
+    let (shell, cx) = open(cx, shared.host.state(), shared.host.env());
+    until(cx, "the host", |cx| shell.read_with(cx, |s, _| s.connected()));
+    let item = shell.read_with(cx, |s, cx| s.sidebar().read(cx).items().first().cloned()).expect("the host lists a thread");
+    shell.update_in(cx, |s, window, cx| s.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx));
+    cx.run_until_parked();
+    press(cx, "rightPanel.toggle");
+    cx.simulate_keystrokes("t");
+    cx.run_until_parked();
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Terminal), "the host lists the thread's workspace as running");
 }

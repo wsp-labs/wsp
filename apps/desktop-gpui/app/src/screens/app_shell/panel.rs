@@ -12,7 +12,7 @@ use gpui_kit::{
     KeyDownEvent, MouseButton, Pixels, ScrollHandle, SharedString, StyleRefinement, Window,
 };
 
-use super::{Host, Opened, Pane, Place, Title};
+use super::{Entry, Host, Opened, Pane, Place, Title};
 use crate::screens;
 use crate::ui::card::keycap;
 use crate::ui::ActivePalette;
@@ -140,8 +140,9 @@ pub struct RightPanel {
     active: Option<usize>,
     width: Pixels,
     kept: Vec<(String, Saved)>,
-    /// The last shell this panel numbered, so each Terminal opened from the launcher is a shell of its own.
-    shells: u64,
+    /// The last tab this panel numbered, so each Browser and Terminal opened from the launcher is a page or a shell of
+    /// its own.
+    minted: u64,
     strip: ScrollHandle,
     host: Option<Host>,
     /// The add menu under the bar's plus, open.
@@ -165,7 +166,7 @@ impl RightPanel {
             active: None,
             width: DEFAULT_WIDTH,
             kept: Vec::new(),
-            shells: 0,
+            minted: 0,
             strip: ScrollHandle::new(),
             host: None,
             adding: false,
@@ -252,13 +253,16 @@ impl RightPanel {
         self.active
     }
 
-    /// `toggle` of `rightPanelStore.ts`: closes the panel when it is open on `pane`, else opens `pane`.
+    /// `toggle` of `rightPanelStore.ts`: closes the panel when it is open on `pane`, else opens `pane`, the browser on
+    /// its first page or a new one, as `openedSurface` picks it.
     pub fn toggle_pane(&mut self, pane: Pane, window: &mut Window, cx: &mut Context<Self>) {
         if self.open && self.active() == Some(pane) {
             self.open = false;
             cx.notify();
         } else {
-            self.add(pane, None, window, cx);
+            let page = (pane == Pane::Browser)
+                .then(|| self.tabs.iter().find(|t| t.pane == pane).map_or_else(|| "browser:new".into(), |t| t.id.clone()));
+            self.add(pane, page, window, cx);
         }
     }
 
@@ -297,14 +301,14 @@ impl RightPanel {
         self.add(pane, None, window, cx);
     }
 
-    /// The id a tab opened with none named takes, as `openedSurface` and the terminal's opener make it: the browser's
-    /// open page or a new one, a new shell for each Terminal, the files tree, and the pane's own name for the rest.
+    /// The id a tab opened from the launcher or the add menu takes, as the panes' openers make it: a new page for each
+    /// Browser and a new shell for each Terminal, as `openNewBrowser` and `openPanelTerminal` do, the files tree, and
+    /// the pane's own name for the rest.
     fn mint(&mut self, pane: Pane) -> SharedString {
         match pane {
-            Pane::Browser => self.tabs.iter().find(|t| t.pane == pane).map_or_else(|| "browser:new".into(), |t| t.id.clone()),
-            Pane::Terminal => loop {
-                self.shells += 1;
-                let id = SharedString::from(format!("terminal:{}", self.shells));
+            Pane::Browser | Pane::Terminal => loop {
+                self.minted += 1;
+                let id = SharedString::from(format!("{}:{}", pane.name(), self.minted));
                 if !self.tabs.iter().any(|t| t.id == id) {
                     break id;
                 }
@@ -356,7 +360,10 @@ impl RightPanel {
             return;
         }
         self.keep_focus(window, cx);
-        self.tabs.remove(ix);
+        let tab = self.tabs.remove(ix);
+        if let (Some(host), Some(entry)) = (&self.host, Self::entry(tab.pane)) {
+            (entry.closed)(host, self.opened(&tab), cx);
+        }
         self.active = match self.active {
             _ if self.tabs.is_empty() => None,
             Some(a) if a > ix || a == self.tabs.len() => Some(a.saturating_sub(1)),
@@ -366,19 +373,30 @@ impl RightPanel {
         cx.notify();
     }
 
-    fn mount_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(ix) = self.active else { return };
+    /// The screen registered for `pane`'s tabs.
+    fn entry(pane: Pane) -> Option<Entry> {
+        screens::screen(pane.name()).filter(|e| e.place == Place::Panel(pane))
+    }
+
+    /// What `tab` is opened on: the panel's thread and workspace, and the tab's id.
+    fn opened(&self, tab: &Tab) -> Opened {
         let (workspace_id, thread_id) = match &self.at {
             At::Here => (None, None),
             At::Thread { workspace_id, thread_id, .. } => (Some(workspace_id.clone()), Some(thread_id.clone())),
         };
-        let (Some(host), Some(tab)) = (self.host.clone(), self.tabs.get_mut(ix)) else { return };
+        Opened { workspace_id, thread_id, tab: Some(tab.id.clone()), arg: None }
+    }
+
+    /// Builds the active tab's screen while the panel is open; the web app mounts no pane while its panel is shut.
+    fn mount_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(ix) = self.active.filter(|_| self.open) else { return };
+        let (Some(host), Some(tab)) = (self.host.clone(), self.tabs.get(ix)) else { return };
         if tab.view.is_some() {
             return;
         }
-        let Some(entry) = screens::screen(tab.pane.name()).filter(|e| e.place == Place::Panel(tab.pane)) else { return };
-        let opened = Opened { workspace_id, thread_id, tab: Some(tab.id.clone()), arg: None };
-        let mounted = (entry.mount)(&host, opened, window, cx);
+        let Some(entry) = Self::entry(tab.pane) else { return };
+        let mounted = (entry.mount)(&host, self.opened(tab), window, cx);
+        let tab = &mut self.tabs[ix];
         tab.view = Some(mounted.view);
         tab.title = mounted.parts.title;
     }
