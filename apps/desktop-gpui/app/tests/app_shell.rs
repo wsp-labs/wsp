@@ -38,6 +38,7 @@ fn open(cx: &mut TestAppContext, state: std::path::PathBuf, env: Env) -> (Entity
         gpui_kit::init(cx);
         desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
         desktop_gpui::screens::app_shell::menu::init(cx);
+        desktop_gpui::screens::palette::init(cx);
     });
     let runtime = runtime();
     let mut shell = None;
@@ -67,6 +68,23 @@ fn with_threads(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
         shell.workspace_runs("w2", true, window, cx);
         shell.go(Route::Thread { workspace_id: "w1".into(), thread_id: "a".into() }, window, cx);
     });
+    cx.run_until_parked();
+}
+
+/// `with_threads`' threads as the host's rows too, so the sidebar's own list and the walks it draws hold them.
+fn seeded(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64() * 1000.;
+    let row = |i: f64, w: &str, t: &str| {
+        json!({ "id": format!("r-{t}"), "threadId": t, "workspaceId": w, "harness": "claude", "status": "completed",
+            "prompt": t, "startedAt": now - 120_000. - i * 1_000., "endedAt": now - 60_000., "readAt": now - 60_000. })
+    };
+    let snapshot = desktop_gpui::sidebar::host::Snapshot {
+        sessions: vec![row(0., "w1", "a"), row(1., "w1", "b"), row(2., "w2", "c")],
+        workspaces: ["w1", "w2"].map(|w| json!({ "id": w, "name": w, "kind": "local" })).to_vec(),
+        ..Default::default()
+    };
+    let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
+    sidebar.update(cx, |s, cx| s.apply(desktop_gpui::sidebar::host::Change::Whole(Box::new(snapshot)), cx));
     cx.run_until_parked();
 }
 
@@ -205,25 +223,54 @@ fn each_slot_chord_opens_that_workspace(cx: &mut TestAppContext) {
     }
 }
 
+/// The palette's Next and Previous task: a step at once along the sidebar's tasks, wrapping.
 #[gpui_kit::test]
-fn the_workspace_chords_walk_the_workspaces(cx: &mut TestAppContext) {
+fn a_task_step_walks_the_workspaces(cx: &mut TestAppContext) {
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
-    for (chord, want) in
-        [("mod+alt+arrowright", "c"), ("mod+alt+arrowright", "a"), ("mod+alt+arrowleft", "c"), ("ctrl+tab", "a"), ("ctrl+shift+tab", "c")]
-    {
-        press_chord(cx, chord);
-        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "{chord}");
+    for (step, want) in [(1, "c"), (1, "a"), (-1, "c"), (1, "a"), (-1, "c")] {
+        cx.dispatch_action(keys::StepWorkspace(step));
+        cx.run_until_parked();
+        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "a step of {step}");
     }
 }
 
+/// The palette's Next and Previous thread: a step at once along the open task's threads, as the thread chords walk them.
 #[gpui_kit::test]
-fn the_thread_chords_walk_the_workspaces_threads(cx: &mut TestAppContext) {
+fn a_thread_step_walks_the_open_tasks_threads(cx: &mut TestAppContext) {
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
-    for (command, want) in [("thread.next", "b"), ("thread.next", "a"), ("thread.previous", "b")] {
-        press(cx, command);
-        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "{command}");
+    seeded(&shell, cx);
+    for (step, want) in [(1, "b"), (1, "a"), (-1, "b")] {
+        cx.dispatch_action(keys::StepThread(step));
+        cx.run_until_parked();
+        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "a step of {step}");
+    }
+}
+
+/// Each switch chord, held, puts the switcher up over the window, and letting its modifiers go opens the thread it
+/// stands on.
+#[gpui_kit::test]
+fn the_switch_chords_open_the_switcher_and_letting_go_lands_on_its_card(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    seeded(&shell, cx);
+    let switcher = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| desktop_gpui::screens::palette::overlays::of(window, cx).and_then(|o| o.read(cx).switcher.clone()))
+    };
+    let commands = ["workspace.next", "workspace.previous", "thread.next", "thread.previous"];
+    for rule in DEFAULTS.iter().filter(|r| commands.contains(&r.command)) {
+        let typed = keys::keystroke(rule.chord, MAC).unwrap();
+        cx.simulate_modifiers_change(gpui_kit::Keystroke::parse(&typed).unwrap().modifiers);
+        cx.simulate_keystrokes(&typed);
+        cx.run_until_parked();
+        let open = switcher(cx).unwrap_or_else(|| panic!("{} puts the switcher up", rule.chord));
+        let lands = open.read_with(cx, |s, _| s.highlighted().cloned()).expect("a card is highlighted");
+        assert_ne!(Some(lands.thread_id.clone()), thread(&shell, cx), "{} steps off the open thread", rule.chord);
+        cx.simulate_modifiers_change(Modifiers::none());
+        cx.run_until_parked();
+        assert!(switcher(cx).is_none(), "letting {} go takes it down", rule.chord);
+        assert_eq!(thread(&shell, cx), Some(lands.thread_id), "letting {} go opens its card", rule.chord);
     }
 }
 
@@ -329,29 +376,16 @@ fn the_other_screens_chords_reach_the_window_as_their_actions(cx: &mut TestAppCo
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
     let heard = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
-    let commands = [
-        "commandPalette.toggle",
-        "files.quickOpen",
-        "files.search",
-        "chat.new",
-        "thread.settle",
-        "thread.nextNeedsYou",
-        "editor.open",
-        "thread.find",
-    ];
+    let commands = ["files.quickOpen", "files.search", "thread.nextNeedsYou", "thread.find"];
     fn listen<A: Action>(heard: &std::rc::Rc<std::cell::RefCell<Vec<String>>>, cx: &mut VisualTestContext) {
         let heard = heard.clone();
         cx.update(|_, cx| {
             cx.on_action(move |action: &A, _| heard.borrow_mut().push(action.name().to_owned()));
         });
     }
-    listen::<keys::ToggleCommandPalette>(&heard, cx);
     listen::<keys::QuickOpen>(&heard, cx);
     listen::<keys::SearchFiles>(&heard, cx);
-    listen::<keys::NewThread>(&heard, cx);
-    listen::<keys::SettleThread>(&heard, cx);
     listen::<keys::NextNeedsYou>(&heard, cx);
-    listen::<keys::OpenInEditor>(&heard, cx);
     listen::<keys::FindInThread>(&heard, cx);
     for command in commands {
         for rule in DEFAULTS.iter().filter(|r| r.command == command) {
@@ -361,6 +395,42 @@ fn the_other_screens_chords_reach_the_window_as_their_actions(cx: &mut TestAppCo
             assert_eq!(*heard.borrow(), vec![name.to_owned()], "{} for {command}", rule.chord);
         }
     }
+}
+
+/// Chords the shell answers itself. With no host, Settle and Open in editor have nothing to write to, so what shows is
+/// that the shell takes them (no listener past it hears them) and that the window stays where it was.
+#[gpui_kit::test]
+fn the_shells_own_chords_reach_its_handlers(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let palette = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| desktop_gpui::screens::palette::overlays::of(window, cx).is_some_and(|o| o.read(cx).palette.is_some()))
+    };
+    for rule in DEFAULTS.iter().filter(|r| r.command == "commandPalette.toggle") {
+        press_chord(cx, rule.chord);
+        assert!(palette(cx), "{} opens the palette", rule.chord);
+        cx.simulate_keystrokes("escape");
+        cx.run_until_parked();
+        assert!(!palette(cx), "Escape closes it");
+    }
+
+    let heard = std::rc::Rc::new(std::cell::Cell::new(0));
+    let (settles, opens) = (heard.clone(), heard.clone());
+    cx.update(|_, cx| {
+        cx.on_action(move |_: &keys::SettleThread, _| settles.set(settles.get() + 1));
+        cx.on_action(move |_: &keys::OpenInEditor, _| opens.set(opens.get() + 1));
+    });
+    press(cx, "thread.settle");
+    press(cx, "editor.open");
+    assert_eq!(heard.get(), 0, "the shell takes Settle and Open in editor before anything past it");
+    assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "and neither moves the window");
+
+    press(cx, "chat.new");
+    assert_eq!(
+        shell.read_with(cx, |s, _| s.route().clone()),
+        Route::Screen("composer:w1".into()),
+        "New thread opens the composer on the task"
+    );
 }
 
 #[gpui_kit::test]
@@ -474,6 +544,23 @@ fn it_reads_the_hosts_width_chords_and_theme(cx: &mut TestAppContext) {
     }
     press_chord(cx, "mod+shift+s");
     assert!(!shell.read_with(cx, |s, _| s.sidebar_open()), "and is the one that toggles");
+}
+
+#[gpui_kit::test]
+fn the_persons_palette_chord_shuts_the_palette_it_opened(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    set(&host, json!({ "keybindings": { "commandPalette.toggle": "mod+shift+y" } }));
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the person's chord", |cx| shell.read_with(cx, |s, _| s.chords("commandPalette.toggle")) == ["mod+shift+y"]);
+    let open = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| desktop_gpui::screens::palette::overlays::of(window, cx).is_some_and(|o| o.read(cx).palette.is_some()))
+    };
+    press_chord(cx, "mod+shift+y");
+    assert!(open(cx), "the person's chord opens the palette");
+    press_chord(cx, "mod+k");
+    assert!(open(cx), "a default the person moved shuts nothing");
+    press_chord(cx, "mod+shift+y");
+    assert!(!open(cx), "and their chord shuts it");
 }
 
 #[gpui_kit::test]
@@ -840,5 +927,82 @@ fn the_sidebars_asks_with_a_page_today_open_it(cx: &mut TestAppContext) {
     assert_eq!(ask(Asked::Usage, cx), Route::Screen(format!("{SETTINGS}:usage").into()));
     assert_eq!(ask(Asked::Activity, cx), Route::Screen(format!("{SETTINGS}:activity").into()));
     assert_eq!(ask(Asked::NewThreadIn("w2".into()), cx), Route::Screen("composer:w2".into()));
-    assert_eq!(ask(Asked::Search, cx), Route::Screen("composer:w2".into()), "Search has no page yet and leaves the route");
+    assert_eq!(ask(Asked::Search, cx), Route::Screen("composer:w2".into()), "Search opens the palette over the route");
+}
+
+/// Two trees on w1, r over k at rest and x over y working, and two roots on w2, d ended after c.
+fn trees(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64() * 1000.;
+    let row = |i: f64, w: &str, t: &str, parent: Option<&str>, running: bool| {
+        let ended = (!running).then_some(now - 60_000. + i * 1_000.);
+        json!({ "id": format!("r-{t}"), "threadId": t, "workspaceId": w, "harness": "claude",
+            "status": if running { "running" } else { "completed" }, "prompt": t, "parentThreadId": parent,
+            "startedAt": now - 120_000. + i * 1_000., "endedAt": ended, "readAt": now - 30_000. })
+    };
+    let snapshot = desktop_gpui::sidebar::host::Snapshot {
+        sessions: vec![
+            row(0., "w1", "r", None, false),
+            row(1., "w1", "k", Some("r"), false),
+            row(2., "w1", "x", None, false),
+            row(3., "w1", "y", Some("x"), true),
+            row(4., "w2", "c", None, false),
+            row(5., "w2", "d", None, false),
+        ],
+        workspaces: ["w1", "w2"].map(|w| json!({ "id": w, "name": w, "kind": "local" })).to_vec(),
+        ..Default::default()
+    };
+    let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
+    sidebar.update(cx, |s, cx| s.apply(desktop_gpui::sidebar::host::Change::Whole(Box::new(snapshot)), cx));
+    cx.run_until_parked();
+}
+
+/// What mod+shift+e settles where the window stands: the root of the selected thread's tree.
+fn settles(shell: &Entity<Shell>, cx: &mut VisualTestContext, route: Route) -> Option<String> {
+    shell.update_in(cx, |s, window, cx| s.go(route, window, cx));
+    cx.run_until_parked();
+    shell.read_with(cx, |s, cx| {
+        let (workspace, thread, _) = s.selected()?;
+        s.sidebar().read(cx).open_root(&workspace, thread.as_deref())
+    })
+}
+
+#[gpui_kit::test]
+fn the_settle_key_settles_the_open_threads_root_tree(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    trees(&shell, cx);
+    let on = |w: &str, t: &str| Route::Thread { workspace_id: w.into(), thread_id: t.into() };
+    assert_eq!(settles(&shell, cx, on("w1", "k")), Some("r".into()), "the tree's root, not the thread open under it");
+    assert_eq!(settles(&shell, cx, Route::Screen(SETTINGS.into())), Some("r".into()), "and from under a page, as the web's");
+}
+
+#[gpui_kit::test]
+fn the_settle_key_leaves_a_tree_with_a_thread_at_work(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    trees(&shell, cx);
+    let on = |w: &str, t: &str| Route::Thread { workspace_id: w.into(), thread_id: t.into() };
+    assert_eq!(settles(&shell, cx, on("w1", "x")), None, "y works under x");
+    assert_eq!(settles(&shell, cx, on("w1", "y")), None);
+}
+
+#[gpui_kit::test]
+fn with_no_thread_open_the_settle_key_takes_the_tasks_top_thread(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    trees(&shell, cx);
+    assert_eq!(settles(&shell, cx, Route::Screen("composer:w2".into())), Some("d".into()), "w2's top thread, the last to end");
+    assert_eq!(settles(&shell, cx, Route::Empty), None, "and nothing with no task selected");
+}
+
+#[gpui_kit::test]
+fn mod_o_opens_the_selected_task_and_nothing_from_under_a_page(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    trees(&shell, cx);
+    let opens = |cx: &mut VisualTestContext, route: Route| {
+        shell.update_in(cx, |s, window, cx| s.go(route, window, cx));
+        cx.run_until_parked();
+        shell.read_with(cx, |s, _| s.editor_workspace())
+    };
+    assert_eq!(opens(cx, Route::Thread { workspace_id: "w1".into(), thread_id: "k".into() }), Some("w1".into()));
+    assert_eq!(opens(cx, Route::Screen(SETTINGS.into())), None, "Settings over the thread opens nothing");
+    assert_eq!(opens(cx, Route::Screen("composer:w2".into())), Some("w2".into()), "a new thread's composer names its task");
+    assert_eq!(opens(cx, Route::Empty), None, "nor with no task selected");
 }

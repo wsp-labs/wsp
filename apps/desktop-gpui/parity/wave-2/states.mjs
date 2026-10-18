@@ -721,11 +721,16 @@ export default [
   skip("W2-DLG-042", "the pair refusal, as W2-DLG-041"),
 
   { id: "W2-PAL-016", clip: PALETTE, data: unsettled, go: app => palette(app) },
-  { id: "W2-PAL-017", clip: PALETTE, data: unsettled, go: app => palette(app, "Parity") },
+  {
+    id: "W2-PAL-017",
+    clip: PALETTE,
+    data: async host => (await host.thread("Parity results."), await unsettled(host)),
+    go: async app => (await palette(app, "Parity"), await has(app, '[data-palette-group="threads-search"]', 10_000)),
+  },
   { id: "W2-PAL-018", clip: PALETTE, data: unsettled, go: async app => (await palette(app, "LegendList"), await has(app, '[data-palette-group="messages-search"]', 10_000)) },
   { id: "W2-PAL-019", clip: PALETTE, data: unsettled, go: async app => (await palette(app, "zzqx"), await reads(app, "No matching commands")) },
   { id: "W2-PAL-020", clip: PALETTE, data: unsettled, go: async app => (await palette(app, "new thread in"), await app.key("enter"), await has(app, '[data-k="palette-back"]')) },
-  { id: "W2-PAL-022", clip: "[data-workspace-switcher]", data: unsettled, go: async app => (await app.route.thread("short-1"), await app.key("ctrl+tab"), await has(app, "[data-workspace-switcher] [data-thread-card]", 10_000), await app.sleep(800)) },
+  { id: "W2-PAL-022", clip: "[data-workspace-switcher]", data: unsettled, go: async app => (await app.route.thread("short-1"), await app.keyDown("ctrl"), await app.key("tab"), await has(app, "[data-workspace-switcher] [data-thread-card]", 10_000), await app.sleep(800)) },
   { id: "W2-PAL-023", clip: PANEL, go: async app => (await app.route.home(), await pane(app, "processes", "Processes"), await has(app, "[data-procs] [data-proc-row]", 20_000)) },
   {
     id: "W2-PAL-025",

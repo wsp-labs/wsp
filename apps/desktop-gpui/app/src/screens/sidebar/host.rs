@@ -43,6 +43,8 @@ pub enum Change {
     Preferences(Value),
     Places(Vec<Value>),
     Job(Option<Value>),
+    /// `job.needs-you`: the need the build job now carries.
+    JobNeed(Value),
     Workspaces(Vec<Value>),
     Projects(Vec<Value>),
     /// `workspace.deleted`: the workspace went, and every row, status and port of it with it.
@@ -66,15 +68,23 @@ pub enum Change {
 }
 
 /// A push that makes the sidebar read a part again rather than patch it.
+#[derive(Debug)]
 enum Again {
     Sessions,
     Places,
-    Job,
     Workspaces,
     Projects,
 }
 
-fn kind_of(event: &Event) -> Option<(String, Value)> {
+/// `frameEndsStep`: a setup frame that ends the run, lands a row, or carries a line no longer running.
+fn ends_step(frame: &Value) -> bool {
+    let has = |key: &str| frame.get(key).is_some_and(|v| !v.is_null());
+    has("end")
+        || has("landed")
+        || frame.get("line").filter(|l| !l.is_null()).is_some_and(|l| l.get("state").and_then(Value::as_str) != Some("running"))
+}
+
+pub(crate) fn kind_of(event: &Event) -> Option<(String, Value)> {
     let value = match event {
         Event::Host(e) => serde_json::to_value(e).ok()?,
         Event::PlaceSys(e) => serde_json::to_value(e).ok()?,
@@ -89,7 +99,7 @@ async fn call<O: Op + DeserializeOwned>(host: &HostClient, params: Value) -> Res
     host.call(op).await
 }
 
-fn values<T: serde::Serialize>(items: &[T]) -> Vec<Value> {
+pub(crate) fn values<T: serde::Serialize>(items: &[T]) -> Vec<Value> {
     items.iter().filter_map(|i| serde_json::to_value(i).ok()).collect()
 }
 
@@ -127,12 +137,50 @@ async fn again(host: &HostClient, what: Again) -> Result<Change, Failure> {
     Ok(match what {
         Again::Sessions => Change::Whole(Box::new(read(host, false).await?)),
         Again::Places => Change::Places(values(&call::<PlacesListRequest>(host, json!({})).await?.places)),
-        Again::Job => {
-            Change::Job(call::<InitGetRequest>(host, json!({})).await?.setup.job.as_ref().and_then(|j| serde_json::to_value(j).ok()))
-        }
         Again::Workspaces => Change::Workspaces(values(&call::<WorkspacesListRequest>(host, json!({})).await?.workspaces)),
         Again::Projects => Change::Projects(values(&call::<ProjectsListRequest>(host, json!({})).await?.projects)),
     })
+}
+
+/// What one push asks of the sidebar: a change it carries, a part read again, or both in that order.
+#[derive(Debug)]
+enum Step {
+    Take(Change),
+    Read(Again),
+    TakeThenRead(Change, Again),
+}
+
+/// The sidebar's rule for a push of `kind`, none for a push it does not follow.
+fn step(kind: &str, frame: Value) -> Option<Step> {
+    let take = |change: Option<Change>| change.map(Step::Take);
+    match kind {
+        "session.row" => {
+            let id = frame.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
+            take(Some(Change::Row { id, row: frame.get("row").filter(|r| !r.is_null()).cloned() }))
+        }
+        "preferences.changed" => take(frame.get("preferences").cloned().map(Change::Preferences)),
+        "thread.rewound" => Some(Step::Read(Again::Sessions)),
+        "project.added" | "project.removed" => Some(Step::Read(Again::Projects)),
+        // `useStore`'s init.job: the frame carries the job whole, so it is taken as it stands.
+        "init.job" => take(Some(Change::Job(frame.get("job").filter(|j| !j.is_null()).cloned()))),
+        "job.needs-you" => take(frame.get("needsYou").filter(|n| !n.is_null()).cloned().map(Change::JobNeed)),
+        "workspace.status" => take(frame.get("status").cloned().map(Change::Status)),
+        "workspace.creating" => take(Some(Change::Creating(frame))),
+        "workspace.created" => Some(Step::TakeThenRead(Change::Created(frame), Again::Workspaces)),
+        "release.changed" => take(frame.get("release").cloned().map(Change::Release)),
+        "forward.open" => take(frame.get("forward").cloned().map(Change::Forward)),
+        "forward.close" => take(Some(Change::ForwardClosed {
+            workspace_id: frame.get("workspaceId").and_then(Value::as_str).unwrap_or_default().to_owned(),
+            port: frame.get("port").and_then(Value::as_u64).unwrap_or_default(),
+        })),
+        "session.start" | "session.held" | "session.end" => take(Some(Change::Launched(frame))),
+        "workspace.deleted" => take(frame.get("workspaceId").and_then(Value::as_str).map(|w| Change::WorkspaceDeleted(w.to_owned()))),
+        k if k.starts_with("workspace.") && k != "workspace.sys" => Some(Step::Read(Again::Workspaces)),
+        "place.changed" | "place.removed" | "place.joined" | "place.present" | "place.absent" => Some(Step::Read(Again::Places)),
+        // A step's rows and the end's outcome ride the record, not the frame: read once per step.
+        "place.setup" if ends_step(&frame) => Some(Step::Read(Again::Places)),
+        _ => None,
+    }
 }
 
 /// Reads everything once, then sends each change the host pushes, until the receiver is gone. A socket that closes is
@@ -149,40 +197,14 @@ pub fn follow(host: Arc<HostClient>, runtime: &Runtime, tx: mpsc::UnboundedSende
                         // A frame of a newer protocol than the record is skipped: the next read brings what it said.
                         let Ok(event) = event else { continue };
                         let Some((kind, frame)) = kind_of(&event) else { continue };
-                        let change = match kind.as_str() {
-                            "session.row" => {
-                                let id = frame.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
-                                Some(Ok(Change::Row { id, row: frame.get("row").filter(|r| !r.is_null()).cloned() }))
+                        match step(&kind, frame) {
+                            Some(Step::Take(change)) => tx.unbounded_send(change).map_err(|_| Failure::new("gone"))?,
+                            Some(Step::Read(what)) => tx.unbounded_send(again(&host, what).await?).map_err(|_| Failure::new("gone"))?,
+                            Some(Step::TakeThenRead(change, what)) => {
+                                tx.unbounded_send(change).map_err(|_| Failure::new("gone"))?;
+                                tx.unbounded_send(again(&host, what).await?).map_err(|_| Failure::new("gone"))?;
                             }
-                            "preferences.changed" => frame.get("preferences").cloned().map(|p| Ok(Change::Preferences(p))),
-                            "thread.rewound" => Some(again(&host, Again::Sessions).await),
-                            "project.added" | "project.removed" => Some(again(&host, Again::Projects).await),
-                            "init.job" => Some(again(&host, Again::Job).await),
-                            "workspace.status" => frame.get("status").cloned().map(|s| Ok(Change::Status(s))),
-                            "workspace.creating" => Some(Ok(Change::Creating(frame))),
-                            "workspace.created" => {
-                                tx.unbounded_send(Change::Created(frame)).map_err(|_| Failure::new("gone"))?;
-                                Some(again(&host, Again::Workspaces).await)
-                            }
-                            "release.changed" => frame.get("release").cloned().map(|r| Ok(Change::Release(r))),
-                            "forward.open" => frame.get("forward").cloned().map(|f| Ok(Change::Forward(f))),
-                            "forward.close" => Some(Ok(Change::ForwardClosed {
-                                workspace_id: frame.get("workspaceId").and_then(Value::as_str).unwrap_or_default().to_owned(),
-                                port: frame.get("port").and_then(Value::as_u64).unwrap_or_default(),
-                            })),
-                            "session.start" | "session.held" | "session.end" => Some(Ok(Change::Launched(frame))),
-                            "workspace.deleted" => {
-                                frame.get("workspaceId").and_then(Value::as_str).map(|w| Ok(Change::WorkspaceDeleted(w.to_owned())))
-                            }
-                            k if k.starts_with("workspace.") && k != "workspace.sys" => Some(again(&host, Again::Workspaces).await),
-                            // A place's own frames (its setup's steps, its readings) say nothing the foot reads.
-                            "place.changed" | "place.removed" | "place.joined" | "place.present" | "place.absent" => {
-                                Some(again(&host, Again::Places).await)
-                            }
-                            _ => None,
-                        };
-                        if let Some(change) = change {
-                            tx.unbounded_send(change?).map_err(|_| Failure::new("gone"))?;
+                            None => {}
                         }
                     }
                     Err(Failure::new("the host closed the socket"))
@@ -215,4 +237,39 @@ where
 /// One call and its reply, typed, for a reply the sidebar reads by its fields.
 pub async fn ask<O: Op + DeserializeOwned + Send>(host: Arc<HostClient>, params: Value) -> Result<O::Reply, Failure> {
     call::<O>(&host, params).await
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{ends_step, step, Again, Change, Step};
+
+    #[test]
+    fn a_setup_frame_that_ends_a_step_reads_the_computers_again() {
+        let ended = step("place.setup", json!({ "placeId": "p", "addId": "s", "end": "ready" }));
+        assert!(matches!(ended, Some(Step::Read(Again::Places))), "the sidebar reads the list again: {ended:?}");
+        let landed = step("place.setup", json!({ "placeId": "p", "landed": { "row": "gh" } }));
+        assert!(matches!(landed, Some(Step::Read(Again::Places))), "a landed row is read again: {landed:?}");
+        assert!(step("place.setup", json!({ "placeId": "p", "line": { "state": "running" } })).is_none(), "a running line reads nothing");
+    }
+
+    #[test]
+    fn a_pushed_job_is_taken_from_its_frame() {
+        let pushed = step("init.job", json!({ "type": "init.job", "job": { "id": "j", "phase": "building" } }));
+        let Some(Step::Take(Change::Job(Some(job)))) = pushed else { panic!("the frame's job is taken: {pushed:?}") };
+        assert_eq!(job["id"], "j");
+        let need = step("job.needs-you", json!({ "type": "job.needs-you", "jobId": "j", "needsYou": { "what": "Sign in" } }));
+        let Some(Step::Take(Change::JobNeed(need))) = need else { panic!("the need is taken on the job's own road: {need:?}") };
+        assert_eq!(need["what"], "Sign in");
+    }
+
+    #[test]
+    fn a_setup_frame_ends_a_step_as_the_web_reads_it() {
+        assert!(ends_step(&json!({ "placeId": "p", "end": "done" })));
+        assert!(ends_step(&json!({ "placeId": "p", "landed": { "row": "gh" } })));
+        assert!(ends_step(&json!({ "placeId": "p", "line": { "state": "done" } })));
+        assert!(!ends_step(&json!({ "placeId": "p", "line": { "state": "running" } })));
+        assert!(!ends_step(&json!({ "placeId": "p", "stage": "copy", "end": null })));
+    }
 }

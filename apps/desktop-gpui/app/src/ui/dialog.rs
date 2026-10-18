@@ -158,7 +158,7 @@ impl RenderOnce for Dialog {
             .child(head)
             .child(body)
             .children(foot);
-        open_fade("dialog-open", surface, cx)
+        open_fade("dialog-open", surface, window, cx)
     }
 }
 
@@ -258,18 +258,21 @@ impl RenderOnce for AlertDialog {
             .child(head)
             .children(body)
             .child(h_flex().justify_end().gap_2().px_5().pt_3().pb_4().children(acts(self.acts)));
-        open_fade("alert-dialog-open", surface, cx)
+        open_fade("alert-dialog-open", surface, window, cx)
     }
 }
 
 /// `dialog-backdrop`: the page at 60%, 64% in a dark theme, blurred 4 px, the size of the window, fading in with the
 /// popup it holds.
-pub fn scrim(id: impl Into<gpui_kit::ElementId>, window: &Window, cx: &App) -> AnyElement {
-    let p = cx.palette();
-    let dark = cx.theme().is_dark();
+pub fn scrim(id: impl Into<gpui_kit::ElementId>, window: &mut Window, cx: &mut App) -> AnyElement {
     let size = window.viewport_size();
-    let el = div().w(size.width).h(size.height).bg(p.background.opacity(if dark { 0.64 } else { 0.6 })).backdrop_blur(px(4.));
-    open_fade(id, el, cx)
+    open_fade(id, backdrop(cx).w(size.width).h(size.height), window, cx)
+}
+
+/// `dialog-backdrop`'s look alone, for a layer that sizes and fades it itself.
+pub fn backdrop(cx: &App) -> gpui_kit::Div {
+    let dark = cx.theme().is_dark();
+    div().bg(cx.palette().background.opacity(if dark { 0.64 } else { 0.6 })).backdrop_blur(px(4.))
 }
 
 /// `RefusalSlot`: the host's refusal under what it refused, in the destructive ink, its fix in the foreground; or what
