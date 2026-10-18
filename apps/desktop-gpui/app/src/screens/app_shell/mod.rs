@@ -154,7 +154,8 @@ pub struct Opened {
     pub workspace_id: Option<String>,
     pub thread_id: Option<String>,
     /// A pane's tab, as `rightPanelStore.ts` names it: `browser:<page>`, `terminal:<shell>`, `file:<path>`, `files`, or
-    /// the pane's name for a pane that holds one tab. A screen finds its session again by it after a thread switch.
+    /// the pane's name for a pane that holds one tab. A screen finds its session again by it after a thread switch. A
+    /// route opens a pane on the tab its argument names: `terminal:terminal:7` is the Terminal on `terminal:7`.
     pub tab: Option<SharedString>,
     /// What follows the colon in a page's route: `settings:usage` opens Settings on its `usage` page.
     pub arg: Option<SharedString>,
@@ -172,9 +173,15 @@ pub trait Screen: Render + Sized {
 
     fn new(host: Host, opened: Opened, window: &mut Window, cx: &mut Context<Self>) -> Self;
 
-    /// Moves a kept screen to another thread. The shell keeps the [`THREAD`] screen across thread switches, so a switch
-    /// costs no new view, and tells it here; it builds every other screen again for each place it opens.
+    /// Moves a kept screen. The shell keeps the [`THREAD`] screen across thread switches and tells it each one here,
+    /// with no thread when the window shows none; it tells an open page its new argument, as `settings` going to
+    /// `settings:usage`. Either may be told what it already shows, as on the way back from a page. Every other screen
+    /// is built again for each place it opens.
     fn show(&mut self, _opened: Opened, _window: &mut Window, _cx: &mut Context<Self>) {}
+
+    /// A pane's tab closed for good, whether or not its screen is built now: what the screen keeps for `opened.tab`,
+    /// such as a terminal's shell, can go. A thread switch drops the screen as well, and is not a close.
+    fn closed(_host: &Host, _opened: Opened, _cx: &mut App) {}
 
     /// The views the screen adds to the frame; none by default.
     fn parts(_this: &Entity<Self>, _window: &mut Window, _cx: &mut App) -> Parts {
@@ -197,16 +204,17 @@ pub struct Mounted {
 /// [`Screen::show`] on a screen the shell holds only as a view.
 pub type Show = Rc<dyn Fn(Opened, &mut Window, &mut App)>;
 
-/// A registered screen: where it goes, and how it is built.
+/// A registered screen: where it goes, how it is built, and [`Screen::closed`].
 #[derive(Clone, Copy)]
 pub struct Entry {
     pub place: Place,
     pub mount: fn(&Host, Opened, &mut Window, &mut App) -> Mounted,
+    pub closed: fn(&Host, Opened, &mut App),
 }
 
 /// The entry for `S`; each arm of [`crate::screens::screen`] is one call of this.
 pub fn entry<S: Screen>() -> Entry {
-    Entry { place: S::PLACE, mount: mount::<S> }
+    Entry { place: S::PLACE, mount: mount::<S>, closed: S::closed }
 }
 
 fn mount<S: Screen>(host: &Host, opened: Opened, window: &mut Window, cx: &mut App) -> Mounted {

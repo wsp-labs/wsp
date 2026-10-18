@@ -231,6 +231,8 @@ impl Composer {
                     cx.notify();
                 }
             }),
+            // A closed window or a quit drops the draft's pending save with this view.
+            cx.on_release(|this, cx| this.save_draft(cx)),
         ];
         Composer {
             editor,
@@ -405,15 +407,16 @@ impl Composer {
         }
         self.saving = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(DRAFT_SAVE).await;
-            _ = this.update(cx, |this, cx| {
-                let (Some(key), text) = (this.thread_key.clone(), this.prompt(cx)) else { return };
-                let cursor = this.editor.read(cx).cursor();
-                let kept = cx.update_global(|s: &mut LocalStore, _| store::set_draft(s, &key, &text, cursor));
-                if let Err(e) = kept {
-                    eprintln!("desktop-gpui: store: {e}");
-                }
-            });
+            _ = this.update(cx, |this, cx| this.save_draft(cx));
         }));
+    }
+
+    fn save_draft(&mut self, cx: &mut App) {
+        let Some(key) = self.thread_key.clone().filter(|_| cx.has_global::<LocalStore>()) else { return };
+        let (text, cursor) = (self.prompt(cx), self.editor.read(cx).cursor());
+        if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_draft(s, &key, &text, cursor)) {
+            eprintln!("desktop-gpui: store: {e}");
+        }
     }
 
     pub fn set_folder_files(&mut self, files: Vec<String>, cx: &mut Context<Self>) {

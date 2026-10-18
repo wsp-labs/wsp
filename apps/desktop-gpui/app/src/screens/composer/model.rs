@@ -289,13 +289,16 @@ pub fn commands(announced: &[Command]) -> Vec<Command> {
     announced.iter().filter(|c| c.name != "btw").cloned().collect()
 }
 
-/// What holds a send of a slash draft (ChatComposer.tsx `slashHold`): a lone slash, or a command nothing announced
-/// with nothing after it.
+/// What holds a send of a slash draft (catalog.ts `slashHoldLine`): a lone slash, or, where the thread lists commands,
+/// a command nothing announced with nothing after it.
 pub fn slash_hold(text: &str, commands: &[Command]) -> Option<String> {
     let text = text.trim();
     let rest = text.strip_prefix('/')?;
     if rest.is_empty() {
         return Some("a slash on its own is not a command".to_owned());
+    }
+    if commands.is_empty() {
+        return None;
     }
     let (name, after) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
     (after.trim().is_empty() && !commands.iter().any(|c| c.name == name)).then(|| format!("no command here is called /{name}"))
@@ -925,6 +928,8 @@ mod tests {
         assert_eq!(slash_hold("/nope", &all).as_deref(), Some("no command here is called /nope"));
         assert_eq!(slash_hold("/nope and words", &all), None);
         assert_eq!(slash_hold("plain", &all), None);
+        assert_eq!(slash_hold("/init", &[]), None, "a thread that lists no commands sends a slash word as typed");
+        assert_eq!(slash_hold("/", &[]).as_deref(), Some("a slash on its own is not a command"));
     }
 
     #[test]
