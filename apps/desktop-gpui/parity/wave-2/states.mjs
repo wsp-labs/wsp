@@ -623,8 +623,14 @@ export default [
   run(
     "W2-SLT-074",
     async app => {
-      await runOnce(app, "go-quick", "quick", "done");
+      await app.click(press("go-quick"));
+      await has(app, '[data-slate-consent="quick"]');
+      // Always is drawn only where the host can pin the command; elsewhere Run once leaves the dialog with no row.
+      const always = await app.page(() => [...document.querySelectorAll("[data-slot=dialog-popup] button")].some(b => b.textContent.includes("Always in this thread")));
+      await pick(app, "[data-slot=dialog-popup] button", always ? "Always in this thread" : "Run once");
+      await has(app, '[data-slate-output="quick"] [data-slate-run-state="done"]', 30_000);
       await slateMenu(app, "Approvals");
+      if (always) await has(app, '[data-settings-card="slate-approvals"] [data-settings-row]');
       await app.sleep(800);
     },
     DIALOG,

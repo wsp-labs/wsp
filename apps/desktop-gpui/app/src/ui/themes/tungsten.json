@@ -55,6 +55,7 @@
         "primary": "#ece6dcff",
         "primary-foreground": "#141210ff",
         "primary-hover": "#d6d1c8ff",
+        "slate-accent": "#fe9a00ff",
         "border": "#2a2623ff",
         "input": "#373129ff",
         "input-fill": "#ffffff06",

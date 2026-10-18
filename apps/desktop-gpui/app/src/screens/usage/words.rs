@@ -221,7 +221,7 @@ pub(crate) fn js_round(x: f64) -> f64 {
 }
 
 /// A magnitude's decimal digits rounded half up at `places`, off its integer and fraction digits.
-fn round_half_up(int: &str, frac: &str, places: usize) -> String {
+pub(crate) fn round_half_up(int: &str, frac: &str, places: usize) -> String {
     let mut digits: Vec<u8> = int.bytes().chain(frac.bytes().chain(std::iter::repeat(b'0')).take(places)).collect();
     if frac.as_bytes().get(places).is_some_and(|d| *d >= b'5') {
         let mut i = digits.len();
@@ -250,7 +250,7 @@ fn round_half_up(int: &str, frac: &str, places: usize) -> String {
 }
 
 /// `Number.prototype.toFixed` for finite values under 1e21: the double's exact value rounded, a tie up.
-fn to_fixed(x: f64, places: usize) -> String {
+pub(crate) fn to_fixed(x: f64, places: usize) -> String {
     let magnitude = x.abs();
     let bits = magnitude.to_bits();
     let exponent = ((bits >> 52) & 0x7ff) as i64;
@@ -266,7 +266,7 @@ fn to_fixed(x: f64, places: usize) -> String {
     }
 }
 
-fn group_thousands(int: &str) -> String {
+pub(crate) fn group_thousands(int: &str) -> String {
     let mut out = String::with_capacity(int.len() + int.len() / 3);
     for (i, c) in int.chars().enumerate() {
         if i > 0 && (int.len() - i).is_multiple_of(3) {

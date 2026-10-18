@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use wsp_host_client::{protocol, Env, Failure, HostClient};
 
-const STAND_IN: &str = r#"#!/bin/sh
+pub const STAND_IN: &str = r#"#!/bin/sh
 case " $* " in
   *" --version "*) echo "2.1.295 (Claude Code)"; exit 0 ;;
   *" --help "*) echo '--permission-mode <mode>  (choices: "default", "bypassPermissions")'; exit 0 ;;
