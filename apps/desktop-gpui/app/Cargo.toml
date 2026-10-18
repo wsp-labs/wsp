@@ -16,8 +16,11 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 futures = "0.3"
 # The dither is rasterised once into an image GPUI draws, and its polylines need round joins and caps.
 image = { version = "0.25", default-features = false }
+# The engine today's pane runs as wasm; it builds Ghostty with Zig (scripts/ghostty.sh).
+libghostty-vt = { git = "https://github.com/Uzaaft/libghostty-rs", rev = "d2036baeb605d31d09a9e2ba6d0c923e04c34d54", default-features = false }
 libc = "0.2"
 lyon = "1.0"
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
@@ -51,6 +54,10 @@ harness = false
 
 [[test]]
 name = "text"
+harness = false
+
+[[test]]
+name = "terminal_shots"
 harness = false
 
 [lints.rust]

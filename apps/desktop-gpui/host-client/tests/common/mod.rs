@@ -100,22 +100,25 @@ fn copy_dir(from: &Path, to: &Path) {
     }
 }
 
-/// A copy of the host's bundle under `dir` carrying `daemon`, and its bin.js. A bundle reads each asset out of the
-/// assets folder beside it before the checkout's, and finds the checkout's relative to itself, so the copy links all
-/// of them there.
-fn bundle_with(dir: &Path, daemon: &Path) -> PathBuf {
+/// A copy of the host's bundle under `dir` carrying `daemon`, or none, and its bin.js. A bundle reads each asset out of
+/// the assets folder beside it before the checkout's, and finds the checkout's relative to itself, so the copy links
+/// all of them there, and a copy with no daemon finds none where the checkout stages one.
+fn bundle_with(dir: &Path, daemon: Option<&Path>) -> PathBuf {
     let root = root();
     let pkg = dir.join("hostpkg");
     copy_dir(&root.join("packages/host/dist"), &pkg.join("dist"));
     std::fs::copy(root.join("packages/host/package.json"), pkg.join("package.json")).unwrap();
-    std::fs::create_dir_all(pkg.join("assets/daemon").join(triple())).unwrap();
+    std::fs::create_dir_all(pkg.join("assets")).unwrap();
     let link = |from: &Path, to: &str| std::os::unix::fs::symlink(from, pkg.join(to)).unwrap();
     link(&root.join("packages/host/node_modules"), "node_modules");
     link(&root.join("apps/web/dist"), "assets/web");
     if root.join("packages/wspx/assets/cli").exists() {
         link(&root.join("packages/wspx/assets/cli"), "assets/cli");
     }
-    link(daemon, &format!("assets/daemon/{}/wsp-daemon", triple()));
+    if let Some(daemon) = daemon {
+        std::fs::create_dir_all(pkg.join("assets/daemon").join(triple())).unwrap();
+        link(daemon, &format!("assets/daemon/{}/wsp-daemon", triple()));
+    }
     pkg.join("dist/bin.js")
 }
 
@@ -174,10 +177,7 @@ impl Throwaway {
         std::fs::write(&script, claude).unwrap();
         std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
         let daemon = if daemon { wsp_daemon().ok() } else { None };
-        let bin = match &daemon {
-            Some(binary) => bundle_with(dir.path(), binary),
-            None => root().join("packages/host/dist/bin.js"),
-        };
+        let bin = bundle_with(dir.path(), daemon.as_deref());
         let state = dir.path().join("state").join("state.json").to_string_lossy().into_owned();
         let log = std::fs::File::create(dir.path().join("up.log")).unwrap();
         let host = node_in(dir.path(), &bin, &["up", "--port", "0", "--no-relay", "--state", &state])

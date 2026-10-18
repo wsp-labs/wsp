@@ -6,6 +6,7 @@
 pub mod app_shell;
 pub mod composer;
 pub mod sidebar;
+pub mod terminal;
 pub mod usage;
 
 use std::cell::RefCell;
@@ -19,6 +20,7 @@ pub fn screen(name: &str) -> Option<Entry> {
     }
     match name {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
+        terminal::TerminalScreen::NAME => Some(entry::<terminal::TerminalScreen>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
         _ => None,
     }

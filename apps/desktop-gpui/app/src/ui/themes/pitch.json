@@ -173,7 +173,31 @@
             "color": "#0000000d"
           }
         ],
-        "composer-shadow": []
+        "composer-shadow": [],
+        "terminal-background": "#000000ff",
+        "terminal-foreground": "#e8e8e8ff",
+        "terminal-cursor": "#e8e8e8ff",
+        "terminal-selection": "#e8e8e840",
+        "scrollbar-thumb": "#ffffff14",
+        "scrollbar-thumb-hover": "#ffffff1f",
+        "terminal-ansi": [
+          "#858789ff",
+          "#ce6868ff",
+          "#b5bd68ff",
+          "#f0c674ff",
+          "#81a2beff",
+          "#b294bbff",
+          "#8abeb7ff",
+          "#c5c8c6ff",
+          "#949494ff",
+          "#e25a5dff",
+          "#b9ca4aff",
+          "#e7c547ff",
+          "#7aa6daff",
+          "#c397d8ff",
+          "#70c0b1ff",
+          "#eaeaeaff"
+        ]
       }
     }
   ]
