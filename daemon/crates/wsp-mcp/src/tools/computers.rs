@@ -134,7 +134,7 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
     let client = host.client().await?;
     let words = record::words();
     let mut frame = Map::new();
-    let (place, offered) = place_named(&client, &words, &computer).await?;
+    let (place, offered) = place_named(&client, words, &computer).await?;
     frame.insert("placeId".to_owned(), Value::from(place));
     for (key, value) in [("threads", threads), ("machines", machines), ("spendPerDayUsd", spend)] {
         if let Some(n) = value {

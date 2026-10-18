@@ -50,6 +50,9 @@ impl ComposerScreen {
         let host = self.host.clone();
         let wanted = opened.thread_id;
         let new_on = opened.arg.map(String::from);
+        if let Some(workspace_id) = &new_on {
+            crate::screens::terminal::page_starts_over(workspace_id, cx);
+        }
         let threads = host.run(|client| async move { client.threads().await });
         let reading = host.clone();
         self._connect = cx.spawn_in(window, async move |this, cx| {

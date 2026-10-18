@@ -7,6 +7,7 @@ cd "$(dirname "$0")"
 [ -d vendor ] || scripts/gpui-patches.sh apply || exit 1
 cat patches/*.patch | cmp -s - vendor/.applied 2>/dev/null ||
   { echo "vendor/ is not what patches/ makes: run scripts/gpui-patches.sh apply, or save if you edited vendor/" >&2; exit 1; }
+scripts/ghostty.sh >/dev/null || exit 1
 bin=${CARGO_TARGET_DIR:-target}/debug/desktop-gpui
 stamp=$(mktemp)
 pid=

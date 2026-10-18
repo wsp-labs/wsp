@@ -466,6 +466,7 @@ impl Link {
             return;
         }
         self.target.thread_id = session.thread_id.clone().or_else(|| Some(session.id.clone()));
+        crate::screens::terminal::carry_new_thread(&self.target.workspace_id, self.target.thread_id.as_deref().unwrap_or_default(), cx);
         self.rows = vec![session];
         if let (Some(composer), Some(thread)) = (self.composer.upgrade(), self.target.thread_id.clone()) {
             composer.update(cx, |c, cx| c.thread_started(thread, cx));

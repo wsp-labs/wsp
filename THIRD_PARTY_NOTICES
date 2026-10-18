@@ -126,6 +126,9 @@ here are included or relied upon under their own licenses, reproduced below.
    Nerd Fonts release 3.4.0 (the version string in the font's name table;
    t3code, where the file was taken from, does not record it) from
    https://github.com/ryanoasis/nerd-fonts; its LICENSE sits beside it.
+   apps/desktop-gpui/app/src/screens/terminal/fonts/SymbolsNerdFontMono-Regular.ttf
+   is the same file decompressed to TTF, embedded in the desktop-gpui
+   binary; its LICENSE sits beside it.
 
    The MIT License (MIT)
    
