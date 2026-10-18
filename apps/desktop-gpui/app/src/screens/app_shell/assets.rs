@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The frame's own glyphs and the wordmark, served over the shared pieces' bundle; the app opens with [`AppAssets`].
+//! The frame's own glyphs, served over the shared pieces' bundle, which holds the wordmark; the app opens with [`AppAssets`].
 
 use std::borrow::Cow;
 
@@ -11,18 +11,11 @@ use crate::ui::UiAssets;
 // The frame's glyphs gpui-kit's default bundle lacks; the rest it already serves.
 icon_assets!(FrameGlyphs, [Activity, Earth, FileDiff, GitPullRequest, MessageSquareDashed, PanelsTopLeft, SquarePen, X]);
 
-/// `apps/web/src/brand/lockup.svg`, whose strokes take the element's text color.
-pub const LOCKUP: &str = "brand/lockup.svg";
-const LOCKUP_SVG: &[u8] = include_bytes!("../../../../../web/src/brand/lockup.svg");
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AppAssets;
 
 impl AssetSource for AppAssets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
-        if path == LOCKUP {
-            return Ok(Some(Cow::Borrowed(LOCKUP_SVG)));
-        }
         if let Some(svg) = crate::screens::pr_pane::files::rows::glyph_svg(path) {
             return Ok(Some(Cow::Borrowed(svg.as_bytes())));
         }
@@ -33,9 +26,21 @@ impl AssetSource for AppAssets {
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        let mut paths: Vec<SharedString> = [LOCKUP].into_iter().filter(|p| p.starts_with(path)).map(Into::into).collect();
-        paths.extend(FrameGlyphs.list(path)?);
+        let mut paths = FrameGlyphs.list(path)?;
         paths.extend(UiAssets.list(path)?);
         Ok(paths)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_webs_lockup_is_served_at_one_path() {
+        let web = include_bytes!("../../../../../web/src/brand/lockup.svg");
+        let paths = AppAssets.list("").unwrap();
+        let serving: Vec<_> = paths.iter().filter(|p| AppAssets.load(p).ok().flatten().is_some_and(|b| b.as_ref() == web)).collect();
+        assert_eq!(serving, [&SharedString::from(crate::ui::LOCKUP)]);
     }
 }

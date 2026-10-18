@@ -1,0 +1,389 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! Recipes (`recipes.tsx`): the list, one row per recipe with the icon the person picked from the projects' set, what
+//! it holds and the computers following it; a recipe open as its head row with the icon picker, its name and its
+//! delete; under the head the pick lists of what it holds, a tick written into the recipe its computers follow; and
+//! the empty card with the act under it.
+
+mod choices;
+mod picks;
+
+use std::rc::Rc;
+
+use gpui_kit::component::input::{InputEvent, InputState};
+use gpui_kit::component::{h_flex, v_flex};
+use gpui_kit::{div, prelude::*, App, Entity, SharedString, Subscription, Window};
+use serde_json::{json, Value};
+use wsp_host_client::ops::settings::RecipeOptions as OptionsReply;
+use wsp_host_client::protocol::{RecipeView, RecipesOptionsRequest, RecipesRemoveRequest, RecipesSaveRequest};
+
+use super::devices::CANCEL;
+use super::projects::look;
+use crate::screens::settings::model::{req, Reread};
+use crate::screens::settings::page::{CardData, Ctx, DialogBuild, Item};
+use crate::screens::settings::words::here_name;
+use crate::ui::{
+    chevron, glyph, glyph_frame, text, ActivePalette, AlertDialog, Button, Col, Field, Grid, GridHead, GridName, GridRow, HeadCell,
+    HeadRow, Refusal, Select,
+};
+
+/// `RECIPE_COLUMNS`: the name, the computers, the chevron.
+const RECIPE_COLUMNS: &[Col] = &[Col::Fill, Col::Px(140.), Col::Px(14.)];
+const ADD_COMPUTER: &str = "Add a computer";
+const NONE: &str = "No recipes yet. Save one at the end of Add a computer.";
+const DELETE: &str = "Delete";
+
+/// The icon a recipe wears: the person's pick, else the folder every project starts with.
+fn icon_of(ctx: &Ctx, slug: &str) -> String {
+    ctx.data.preferences().and_then(|p| p.recipe_look.get(slug)).map_or_else(|| "folder".to_owned(), |look| look.icon.to_string())
+}
+
+fn has_look(ctx: &Ctx, slug: &str) -> bool {
+    ctx.data.preferences().is_some_and(|p| p.recipe_look.contains_key(slug))
+}
+
+/// What deleting a recipe leaves, said on its row and in its confirm.
+fn leaving(recipe: &RecipeView) -> String {
+    if recipe.machines.is_empty() {
+        "Nothing follows it.".to_owned()
+    } else {
+        format!("{} keep what they have and follow nothing.", recipe.machines.join(" and "))
+    }
+}
+
+/// The Add a computer press under the list.
+fn add_computer() -> gpui_kit::AnyElement {
+    super::projects::held_add("add-computer-button", ADD_COMPUTER, super::computers::ADD_COMPUTER_LATER)
+}
+
+/// The recipe open in place of the list, by its slug, the host's refusal of the last write to it, and what the
+/// recipes pick from, read once a recipe opens.
+#[derive(Default)]
+struct Open {
+    slug: Option<String>,
+    refused: Option<String>,
+    options: Option<Rc<choices::RecipeOptions>>,
+    asking: bool,
+    anchors: picks::Anchors,
+}
+
+/// Reads what the recipes pick from, unless it is held or on its way; a refusal leaves the lists out, as the web's.
+fn ask_options(open: &Entity<Open>, acts: &crate::screens::settings::Acts, cx: &mut App) {
+    let held = open.read(cx);
+    if held.options.is_some() || held.asking {
+        return;
+    }
+    open.update(cx, |o, _| o.asking = true);
+    let (open, then) = (open.clone(), acts.clone());
+    acts.call(req::<RecipesOptionsRequest>(json!({})), cx, move |answer: Result<OptionsReply, String>, cx| {
+        open.update(cx, |o, _| {
+            o.asking = false;
+            o.options = answer.ok().and_then(|r| serde_json::from_value(r.options).ok()).map(Rc::new);
+        });
+        then.notify(cx);
+    });
+}
+
+/// `recipes.list` with each file as the host wrote it. The typed `RecipeView` reads a pick with nothing in it, as
+/// `configs.git`, the same as no pick, and writes it back as none.
+#[derive(serde::Serialize)]
+struct HeldRecipes {}
+
+#[derive(serde::Deserialize)]
+struct Held {
+    recipes: Vec<HeldRecipe>,
+}
+
+#[derive(serde::Deserialize)]
+struct HeldRecipe {
+    slug: String,
+    file: Value,
+}
+
+impl wsp_host_client::Op for HeldRecipes {
+    const NAME: &'static str = "recipes.list";
+    type Reply = Held;
+}
+
+/// The recipe's file as the host holds it now, else as last drawn where the host no longer lists it.
+fn held_file(
+    recipe: &RecipeView,
+    acts: &crate::screens::settings::Acts,
+    cx: &mut App,
+    then: impl FnOnce(Result<Value, String>, &mut App) + 'static,
+) {
+    let (slug, drawn) = (recipe.slug.clone(), serde_json::to_value(&recipe.file).unwrap_or(Value::Null));
+    acts.call(HeldRecipes {}, cx, move |answer, cx| {
+        then(answer.map(|held| held.recipes.into_iter().find(|r| r.slug == slug).map_or(drawn, |r| r.file)), cx)
+    });
+}
+
+/// A tick's save: its change made to the recipe as the host holds it, written under its own name, then the list read
+/// again; a refusal stands over the lists.
+fn saver(recipe: &RecipeView, open: &Entity<Open>, acts: &crate::screens::settings::Acts) -> picks::Save {
+    let (recipe, open, acts) = (recipe.clone(), open.clone(), acts.clone());
+    Rc::new(move |change: picks::Change, cx: &mut App| {
+        let (name, open, then) = (recipe.name.clone(), open.clone(), acts.clone());
+        held_file(&recipe, &acts, cx, move |held, cx| {
+            let refuse = |said: String, open: &Entity<Open>, cx: &mut App| open.update(cx, |o, _| o.refused = Some(said));
+            let file = match held {
+                Ok(file) => file,
+                Err(said) => {
+                    refuse(said, &open, cx);
+                    return then.notify(cx);
+                }
+            };
+            let mut file = change(&file);
+            file["name"] = Value::String(name.clone());
+            let acts = then.clone();
+            then.call(req::<RecipesSaveRequest>(json!({ "name": name, "file": file })), cx, move |answer, cx| {
+                match answer {
+                    Ok(_) => {
+                        open.update(cx, |o, _| o.refused = None);
+                        acts.reread(Reread::Recipes, cx);
+                    }
+                    Err(said) => refuse(said, &open, cx),
+                }
+                acts.notify(cx);
+            });
+        });
+    })
+}
+
+pub fn cards(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
+    let Some(recipes) = ctx.data.recipes.as_ref() else { return Vec::new() };
+    if recipes.is_empty() {
+        let refused = ctx.data.recipes_refused.clone().map(|said| CardData::new("recipes-refused").body(Refusal::new().said(said)));
+        let none = CardData::new("recipes").item(Item::empty("none", NONE)).under(add_computer());
+        return refused.into_iter().chain([none]).collect();
+    }
+    let open = window.use_keyed_state("recipes-open", cx, |_, _| Open::default());
+    let shown = open.read(cx).slug.as_ref().and_then(|slug| recipes.iter().find(|r| r.slug == *slug));
+    if let Some(recipe) = shown {
+        return recipe_page(recipe, &open, ctx, window, cx);
+    }
+    let p = cx.palette().clone();
+    let rows = recipes.iter().map(|recipe| {
+        let (state, slug) = (open.clone(), recipe.slug.clone());
+        let acts = ctx.acts.clone();
+        GridRow::new(SharedString::from(format!("recipe-{}", recipe.slug)), RECIPE_COLUMNS)
+            .on_open(move |_, _, cx| {
+                state.update(cx, |o, _| {
+                    o.slug = Some(slug.clone());
+                    o.refused = None;
+                });
+                ask_options(&state, &acts, cx);
+                acts.notify(cx);
+            })
+            .cell(
+                GridName::new(glyph_frame(look::glyph_of(&icon_of(ctx, &recipe.slug)), cx), recipe.name.clone())
+                    .note(recipe.summary.clone()),
+            )
+            .cell(div().min_w_0().truncate().text_size(text::FACT.0).text_color(p.muted_foreground).child(recipe.machines.join(", ")))
+            .cell(chevron(cx))
+    });
+    let grid = Grid::new("recipes")
+        .head(GridHead::new(Some(RECIPE_COLUMNS), vec![HeadCell::new("Recipe"), HeadCell::new("Computers")]))
+        .rows(rows);
+    vec![CardData::new("recipes").body(v_flex().gap_2().child(grid).child(h_flex().child(add_computer())))]
+}
+
+/// The name field, its rename on Enter or on leaving it, and the recipe and icon as last drawn, which the rename reads.
+struct Name {
+    field: Entity<InputState>,
+    recipe: RecipeView,
+    look: Option<String>,
+    _events: Subscription,
+}
+
+fn recipe_page(recipe: &RecipeView, open: &Entity<Open>, ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
+    let p = cx.palette().clone();
+    let icon = icon_of(ctx, &recipe.slug);
+    let followed = !recipe.machines.is_empty();
+    let on = recipe.machines.join(" and ");
+
+    let icon_select = {
+        let (acts, slug) = (ctx.acts.clone(), recipe.slug.clone());
+        let state = look::select_state(
+            format!("recipe-{}-icon", recipe.slug).into(),
+            || look::icon_items("neutral"),
+            String::new(),
+            &icon,
+            window,
+            cx,
+        );
+        Select::new(&state).on_change(move |next: &String, _, cx| {
+            acts.set_preferences(json!({ "recipeLook": { slug.clone(): { "icon": next } } }), cx);
+        })
+    };
+    let line = if followed { format!("Followed by {on}.") } else { "No computer follows it yet.".to_owned() };
+    let head = HeadRow::new("recipe-head", glyph(look::glyph_of(&icon), cx), recipe.name.clone()).line(line).slot(icon_select);
+    let reach = format!("Ticks here reach {}.", if followed { on.as_str() } else { "every computer that follows it" });
+    let mut cards = vec![CardData::new("recipe")
+        .item(Item::any("recipe-head", vec![recipe.name.clone().into()], head))
+        .under(div().text_size(text::NOTE.0).line_height(text::NOTE.1).text_color(p.muted_foreground).child(reach))];
+
+    if let Some(said) = open.read(cx).refused.clone() {
+        cards.push(CardData::new("recipe-refused").body(Refusal::new().said(said)));
+    }
+    if let Some(options) = open.read(cx).options.clone() {
+        let file = Rc::new(serde_json::to_value(&recipe.file).unwrap_or(Value::Null));
+        let picks = picks::Picks {
+            file,
+            options,
+            computer: if followed { on.clone() } else { String::new() },
+            here: here_name(&ctx.data.places),
+            save: saver(recipe, open, &ctx.acts),
+            anchors: open.read(cx).anchors.clone(),
+        };
+        cards.extend(picks::cards(&picks, cx));
+    }
+
+    let name = name_field(recipe, open, ctx, window, cx);
+    name.update(cx, |field, cx| field.set_readonly(followed, cx));
+    cards.push(CardData::new("rename").item(Item::row("name", "Name", None, |row| row.control(Field::new(&name)))));
+
+    let leaving = leaving(recipe);
+    let delete = delete_control(recipe, open, ctx, leaving.clone());
+    cards.push(
+        CardData::new("delete-line")
+            .item(Item::row("delete", format!("Delete {}", recipe.name), Some(&leaving), |row| row.control(delete))),
+    );
+    cards
+}
+
+/// The recipe's name, kept while its page is drawn; a new name moves the recipe's file, which only a recipe no
+/// computer follows may do, since the computers name the file.
+fn name_field(recipe: &RecipeView, open: &Entity<Open>, ctx: &Ctx, window: &mut Window, cx: &mut App) -> Entity<InputState> {
+    let look = has_look(ctx, &recipe.slug).then(|| icon_of(ctx, &recipe.slug));
+    let (first, open, acts) = (recipe.clone(), open.clone(), ctx.acts.clone());
+    let held = window.use_keyed_state(SharedString::from(format!("recipe-{}-name", recipe.slug)), cx, move |window, cx| {
+        let field = cx.new(|cx| InputState::new(window, cx).default_value(first.name.clone()));
+        let events = cx.subscribe(&field, move |name: &mut Name, field, event: &InputEvent, cx| {
+            if !matches!(event, InputEvent::PressEnter { .. } | InputEvent::Blur) {
+                return;
+            }
+            let to = field.read(cx).value().trim().to_owned();
+            if to.is_empty() || to == name.recipe.name || !name.recipe.machines.is_empty() {
+                return;
+            }
+            rename(&name.recipe, to, name.look.clone(), &open, &acts, cx);
+        });
+        Name { field, recipe: first, look: None, _events: events }
+    });
+    held.update(cx, |name, _| {
+        name.recipe = recipe.clone();
+        name.look = look;
+    });
+    held.read(cx).field.clone()
+}
+
+/// Saves the recipe under its new name, then takes the old file away and carries its icon over.
+fn rename(recipe: &RecipeView, to: String, look: Option<String>, open: &Entity<Open>, acts: &crate::screens::settings::Acts, cx: &mut App) {
+    let (old, open, acts) = (recipe.slug.clone(), open.clone(), acts.clone());
+    held_file(recipe, &acts.clone(), cx, move |held, cx| match held {
+        Ok(file) => save_renamed(file, to, old, look, open, acts, cx),
+        Err(said) => {
+            open.update(cx, |o, _| o.refused = Some(said));
+            acts.notify(cx);
+        }
+    });
+}
+
+fn save_renamed(
+    mut file: Value,
+    to: String,
+    old: String,
+    look: Option<String>,
+    open: Entity<Open>,
+    acts: crate::screens::settings::Acts,
+    cx: &mut App,
+) {
+    file["name"] = Value::String(to.clone());
+    acts.clone().call(req::<RecipesSaveRequest>(json!({ "name": to, "file": file })), cx, move |answer, cx| match answer {
+        Ok(saved) => {
+            let then = acts.clone();
+            acts.call(req::<RecipesRemoveRequest>(json!({ "name": old.clone() })), cx, move |dropped, cx| {
+                match dropped {
+                    Err(said) => open.update(cx, |o, _| o.refused = Some(said)),
+                    Ok(_) => {
+                        if let Some(icon) = look {
+                            then.set_preferences(json!({ "recipeLook": { saved.recipe.slug: { "icon": icon }, old: null } }), cx);
+                        }
+                    }
+                }
+                then.reread(Reread::Recipes, cx);
+            });
+        }
+        Err(said) => {
+            open.update(cx, |o, _| o.refused = Some(said));
+            acts.notify(cx);
+        }
+    });
+}
+
+/// Delete: asks, then takes the recipe away, its icon with it, and goes back to the list.
+fn delete_control(recipe: &RecipeView, open: &Entity<Open>, ctx: &Ctx, leaving: String) -> impl IntoElement {
+    let acts = ctx.acts.clone();
+    let (slug, name, open) = (recipe.slug.clone(), recipe.name.clone(), open.clone());
+    let look = has_look(ctx, &recipe.slug);
+    Button::danger("delete", DELETE).xs().on_click(move |_, _, cx| {
+        let (slug, name, leaving, open) = (slug.clone(), name.clone(), leaving.clone(), open.clone());
+        acts.open_dialog(
+            DialogBuild::alert(move |ctx, _, _| {
+                let cancel = {
+                    let acts = ctx.acts.clone();
+                    Button::outline("delete-cancel", CANCEL).neutral_ring().on_click(move |_, _, cx| acts.close_dialog(cx))
+                };
+                let (acts, slug, open) = (ctx.acts.clone(), slug.clone(), open.clone());
+                let confirm = Button::destructive("delete-confirm", DELETE).on_click(move |_, _, cx| {
+                    let (acts, slug, open) = (acts.clone(), slug.clone(), open.clone());
+                    acts.clone().call(req::<RecipesRemoveRequest>(json!({ "name": slug.clone() })), cx, move |answer, cx| {
+                        acts.close_dialog(cx);
+                        match answer {
+                            Ok(_) => {
+                                if look {
+                                    acts.set_preferences(json!({ "recipeLook": { slug: null } }), cx);
+                                }
+                                acts.reread(Reread::Recipes, cx);
+                                open.update(cx, |o, _| {
+                                    o.slug = None;
+                                    o.refused = None;
+                                });
+                            }
+                            Err(said) => open.update(cx, |o, _| o.refused = Some(said)),
+                        }
+                        acts.notify(cx);
+                    });
+                });
+                AlertDialog::new(format!("Delete {name}?")).layered().sentence(leaving.clone()).act(cancel).act(confirm).into_any_element()
+            }),
+            cx,
+        );
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::screens::settings::model::Data;
+    use crate::screens::settings::pages::devices::shape;
+
+    fn recipe(machines: &[&str]) -> RecipeView {
+        serde_json::from_value(json!({ "name": "Rust box", "slug": "rust-box", "summary": "claude, codex", "machines": machines, "savedAt": "2026-10-17T00:00:00Z", "file": { "name": "Rust box" } })).unwrap()
+    }
+
+    #[test]
+    fn deleting_says_what_follows_it() {
+        assert_eq!(leaving(&recipe(&[])), "Nothing follows it.");
+        assert_eq!(leaving(&recipe(&["box", "mini"])), "box and mini keep what they have and follow nothing.");
+    }
+
+    #[gpui_kit::test]
+    fn a_refused_list_says_why_over_the_empty_card(cx: &mut gpui_kit::TestAppContext) {
+        let mut data = Data::default();
+        data.take(crate::screens::settings::model::Read::Recipes(Err("the host is starting".into())));
+        let none = (vec![vec![SharedString::from(NONE)]], 1, false);
+        assert_eq!(shape(data, cards, cx), [(vec![], 0, true), none.clone()], "the refusal, then the empty card and its Add");
+        assert_eq!(shape(Data { recipes: Some(Vec::new()), ..Data::default() }, cards, cx), [none]);
+    }
+}

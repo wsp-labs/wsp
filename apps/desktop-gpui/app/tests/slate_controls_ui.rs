@@ -30,7 +30,7 @@ fn draw(cx: &mut TestAppContext, piece: impl Fn(&mut Window, &mut Context<Lone>)
     });
     let view = cx.new(|_| Lone(Box::new(piece)));
     let (_, cx) = cx.add_window_view(|window, cx| Root::new(view, window, cx));
-    cx.simulate_resize(size(px(400.), px(300.)));
+    cx.simulate_resize(size(px(640.), px(300.)));
     cx.run_until_parked();
     cx
 }

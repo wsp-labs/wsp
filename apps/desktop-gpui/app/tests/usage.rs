@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Settings > Usage against a host started for this test alone (host-client's tests/common), seeded by
-//! `tests/usage/seed.mjs`: what the page reads and draws, what it reads again on its own, and the reset it spends.
+//! `tests/usage/seed.mjs`: what the page reads and draws, what it reads again on its own, the reset it spends, and its
+//! tab order inside Settings in the app's frame.
 
 #[path = "../../host-client/tests/common/mod.rs"]
 mod common;
@@ -11,15 +12,18 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::Throwaway;
+use desktop_gpui::screens::dialogs::layer;
+use desktop_gpui::screens::settings::{SettingsScreen, DIALOG};
 use desktop_gpui::screens::usage::model::{self, Range, Split};
 use desktop_gpui::screens::usage::words;
 use desktop_gpui::screens::usage::{self as usage_screen, frame, Tab, UsagePage};
-use desktop_gpui::screens::{self, entry, Host, Opened, Parts, Place, Route, Screen};
+use desktop_gpui::screens::Host;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
-use gpui_kit::component::dialog::Confirm;
-use gpui_kit::component::{Root, WindowExt as _};
-use gpui_kit::{prelude::*, AppContext, Context, Entity, Modifiers, TestAppContext, VisualTestContext, Window};
+use gpui_kit::component::Root;
+use gpui_kit::{
+    prelude::*, AppContext, Context, Entity, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, TestAppContext, VisualTestContext, Window,
+};
 use wsp_host_client::protocol::AccountsAnswerAccountsItemNote;
 use wsp_host_client::HostClient;
 
@@ -85,9 +89,9 @@ struct Framed {
 }
 
 impl Render for Framed {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let tabs = self.page.update(cx, |page, cx| page.tabs(cx).into_any_element());
-        frame(Some(tabs), Some(self.page.clone().into_any_element()), cx)
+        frame(Some(tabs), Some(self.page.clone().into_any_element()), window, cx)
     }
 }
 
@@ -224,10 +228,51 @@ fn reads_again_on_coming_back_to_the_window_once_a_hold_has_passed(cx: &mut Test
     until(cx, &page, "the reading filed before coming back", has);
 }
 
+/// Settings opened on Usage as the app routes it, in the app's frame, with the Usage page it mounted.
+fn in_settings<'a>(cx: &'a mut TestAppContext, host: &Throwaway) -> (Entity<SettingsScreen>, Entity<UsagePage>, &'a mut VisualTestContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        ui::init(Side::Light, cx);
+        desktop_gpui::screens::app_shell::menu::init(cx);
+    });
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
+    let mut shell = None;
+    let (state, env) = (host.state(), host.env());
+    let launch = Launch { screen: Some("settings:usage".to_owned()), ..Launch::default() };
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let view = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
+        shell = Some(view.clone());
+        Root::new(view, window, cx)
+    });
+    let shell = shell.unwrap();
+    let mounted = |cx: &mut VisualTestContext| {
+        let settings = shell.read_with(cx, |s, _| s.screen_view()).and_then(|v| v.downcast::<SettingsScreen>().ok())?;
+        let page = settings.read_with(cx, |s, _| s.usage().cloned())?;
+        Some((settings, page))
+    };
+    let limit = Instant::now() + Duration::from_secs(30);
+    let (settings, page) = loop {
+        cx.run_until_parked();
+        if let Some(found) = mounted(cx) {
+            break found;
+        }
+        assert!(Instant::now() < limit, "Settings never mounted the Usage page");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    (settings, page, cx)
+}
+
+/// The notices standing in the window's toasts, oldest first.
+fn notices_of(cx: &mut VisualTestContext) -> Vec<ui::Notice> {
+    let toasts = cx.update(|window, cx| ui::toast::of(window, cx).expect("ui::init registers the stack"));
+    toasts.read_with(cx, |t, _| t.standing())
+}
+
 #[gpui_kit::test]
 fn spends_a_reset_through_the_host_and_says_what_it_answered(cx: &mut TestAppContext) {
     let host = seeded();
-    let (page, _, cx) = open(cx, &host);
+    let (settings, page, cx) = in_settings(cx, &host);
     cx.update(|_, cx| page.update(cx, |p, cx| p.pick_tab(Tab::Limits, cx)));
     until(cx, &page, "the accounts", |p| landed(p, Range::Week, Split::Agent));
     let row = cx.read(|cx| {
@@ -238,14 +283,32 @@ fn spends_a_reset_through_the_host_and_says_what_it_answered(cx: &mut TestAppCon
     let button = cx.debug_bounds(leak(format!("use-reset-{}", row.key))).expect("its Use reset button");
     cx.simulate_click(button.center(), Modifiers::none());
     cx.run_until_parked();
-    assert!(cx.update(|window, cx| window.has_active_dialog(cx)), "Use reset asks first");
-    cx.dispatch_action(Confirm { secondary: false });
+    let dialog = cx.debug_bounds("alert-dialog").expect("Use reset asks first, in Settings' alert dialog");
+    assert_eq!(dialog.size.width, gpui_kit::px(440.), "the alert's 440 px");
+
+    // Spent and Escaped in one turn of the app, so the host's answer cannot land between them.
+    let (held, open) = cx.update(|window, cx| {
+        page.update(cx, |p, cx| p.use_reset(row.clone(), window, cx));
+        let held = settings.update(cx, |s, cx| s.escape(window, cx));
+        (held, layer::is_open(DIALOG, cx))
+    });
+    assert!(held && open, "Escape is taken and leaves the dialog open while the reset is spent");
+
     until(cx, &page, "the host's answer to the reset", |p| p.said.is_some() && p.resetting.is_empty());
+    assert!(!cx.read(|cx| layer::is_open(DIALOG, cx)), "the answer closes the dialog");
     let said = cx.read(|cx| page.read(cx).said.clone().unwrap());
     println!("the host said: {said}");
     // The seeded account has no login on any computer here, so the host refuses the spend in its own words.
     assert!(said.contains(&row.label), "the host's sentence names the account: {said}");
-    assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 1, "the answer is raised as a notice");
+    let notices = notices_of(cx);
+    assert_eq!(notices.len(), 1, "the answer is raised as a notice");
+    assert!(notices[0].kind == ui::NoticeKind::Error && notices[0].text == said, "a refused spend is said as an error");
+
+    cx.simulate_click(button.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.read(|cx| layer::is_open(DIALOG, cx)), "asked again");
+    cx.update(|window, cx| settings.update(cx, |s, cx| s.escape(window, cx)));
+    assert!(!cx.read(|cx| layer::is_open(DIALOG, cx)), "with nothing spending, Escape closes it");
 }
 
 #[gpui_kit::test]
@@ -269,7 +332,7 @@ fn holds_each_account_whose_reset_is_on_the_way(cx: &mut TestAppContext) {
     });
     assert_eq!(held, [first.key.clone(), second.key.clone()], "every reset on the way holds its own button");
     until(cx, &page, "both answers", |p| p.resetting.is_empty());
-    assert_eq!(cx.update(|window, cx| window.notifications(cx).len()), 2, "one notice per reset sent");
+    assert_eq!(notices_of(cx).len(), 2, "one notice per reset sent");
 }
 
 #[gpui_kit::test]
@@ -311,7 +374,10 @@ fn the_range_split_and_tabs_take_the_arrows_and_the_refresh_takes_enter(cx: &mut
     cx.update(|window, cx| window.focus_next(cx));
     assert!(cx.update(|window, cx| page.read(cx).refresh.is_focused(window)), "the refresh is the first stop");
     let before = cx.read(|cx| page.read(cx).read_at());
-    cx.simulate_keystrokes("enter");
+    // GPUI's keyboard click lands on the key's release.
+    let enter = Keystroke::parse("enter").unwrap();
+    cx.simulate_event(KeyDownEvent { keystroke: enter.clone(), is_held: false, prefer_character_input: false });
+    cx.simulate_event(KeyUpEvent { keystroke: enter });
     until(cx, &page, "the read enter asked for", |p| landed(p, Range::Week, Split::Agent) && p.read_at() > before);
 
     cx.update(|window, cx| window.focus_next(cx));
@@ -333,64 +399,11 @@ fn the_range_split_and_tabs_take_the_arrows_and_the_refresh_takes_enter(cx: &mut
     until(cx, &page, "today by source", |p| landed(p, Range::Day, Split::Source));
 }
 
-thread_local! {
-    static MOUNTED: std::cell::RefCell<Option<Entity<UsagePage>>> = const { std::cell::RefCell::new(None) };
-}
-
-/// Usage as the shell mounts it, keeping its page where the test can read it.
-struct UsageProbe {
-    screen: Entity<usage_screen::UsageScreen>,
-}
-
-impl Render for UsageProbe {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        self.screen.clone()
-    }
-}
-
-impl Screen for UsageProbe {
-    const NAME: &'static str = "usage-probe";
-    const PLACE: Place = Place::Main;
-
-    fn new(host: Host, opened: Opened, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let screen = cx.new(|cx| usage_screen::UsageScreen::new(host, opened, window, cx));
-        MOUNTED.with(|m| *m.borrow_mut() = Some(screen.read(cx).page().clone()));
-        UsageProbe { screen }
-    }
-
-    fn parts(this: &Entity<Self>, window: &mut Window, cx: &mut gpui_kit::App) -> Parts {
-        let screen = this.read(cx).screen.clone();
-        usage_screen::UsageScreen::parts(&screen, window, cx)
-    }
-}
-
+/// Settings opened on Usage as the app routes it, in the app's frame: its tabs in the frame's header row.
 #[gpui_kit::test]
-fn tab_walks_the_pages_controls_in_the_shell(cx: &mut TestAppContext) {
-    screens::add(UsageProbe::NAME, entry::<UsageProbe>());
+fn tab_walks_the_pages_controls_in_the_frame(cx: &mut TestAppContext) {
     let host = seeded();
-    cx.executor().allow_parking();
-    cx.update(|cx| {
-        gpui_kit::init(cx);
-        ui::init(Side::Light, cx);
-        desktop_gpui::screens::app_shell::menu::init(cx);
-    });
-    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
-    let mut shell = None;
-    let (state, env) = (host.state(), host.env());
-    let (_, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
-        shell = Some(view.clone());
-        Root::new(view, window, cx)
-    });
-    let shell = shell.unwrap();
-    let limit = Instant::now() + Duration::from_secs(30);
-    while !shell.read_with(cx, |s, _| s.connected()) {
-        assert!(Instant::now() < limit, "the shell never reached the host");
-        cx.run_until_parked();
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    shell.update_in(cx, |s, window, cx| s.go(Route::Screen(UsageProbe::NAME.into()), window, cx));
-    let page = MOUNTED.with(|m| m.borrow().clone()).expect("the shell mounted the page");
+    let (_, page, cx) = in_settings(cx, &host);
     until(cx, &page, "the first read", |p| landed(p, Range::Week, Split::Agent));
 
     // Tab from wherever the shell left the focus reaches the refresh, and the page's controls follow it in order.
@@ -412,4 +425,75 @@ fn tab_walks_the_pages_controls_in_the_shell(cx: &mut TestAppContext) {
     assert_eq!(page.read_with(cx, |p, _| p.range), Range::Week, "and Shift-Tab walks back to the range");
     cx.simulate_keystrokes("shift-tab shift-tab");
     assert!(on_refresh(cx), "and on back to the refresh");
+}
+
+/// The tab a visit picked is the one the next visit in the window opens on.
+#[gpui_kit::test]
+fn the_tab_is_kept_across_visits_in_the_window(cx: &mut TestAppContext) {
+    let host = seeded();
+    let (page, handle, cx) = open(cx, &host);
+    until(cx, &page, "the first read", |p| landed(p, Range::Week, Split::Agent));
+    cx.update(|_, cx| page.update(cx, |p, cx| p.pick_tab(Tab::Limits, cx)));
+    let again = cx.update(|window, cx| usage_screen::page(handle.clone(), window, cx));
+    assert_eq!(cx.read(|cx| again.read(cx).tab), Tab::Limits, "the next visit opens on Limits");
+    cx.update(|_, cx| again.update(cx, |p, cx| p.pick_tab(Tab::Used, cx)));
+    let third = cx.update(|window, cx| usage_screen::page(handle.clone(), window, cx));
+    assert_eq!(cx.read(|cx| third.read(cx).tab), Tab::Used);
+    assert_eq!(cx.read(|cx| (third.read(cx).range, third.read(cx).split)), (Range::Week, Split::Agent), "range and split start over");
+}
+
+/// Both tabs wait on their answers with ui's sweeping skeleton bars, in the loaded page's shape.
+#[gpui_kit::test]
+fn the_loading_tabs_draw_sweeping_skeletons(cx: &mut TestAppContext) {
+    let host = seeded();
+    let (page, _, cx) = open(cx, &host);
+    until(cx, &page, "the first read", |p| landed(p, Range::Week, Split::Agent));
+    cx.update(|_, cx| {
+        page.update(cx, |p, cx| {
+            p.used.value = None;
+            cx.notify();
+        })
+    });
+    cx.run_until_parked();
+    let loading = cx.debug_bounds("used-loading").expect("the Usage tab's skeleton");
+    // The selector holds the last bar drawn: the table's last row's figure, after every other bar of the tab.
+    let bar = cx.debug_bounds("skeleton").expect("drawn with ui's Skeleton");
+    assert!(loading.contains(&bar.origin), "the bar stands in the loading tab");
+    assert_eq!((bar.size.width, bar.size.height), (gpui_kit::px(80.), gpui_kit::px(14.)), "down to its last bar");
+
+    cx.update(|_, cx| {
+        page.update(cx, |p, cx| {
+            p.accounts.value = None;
+            p.pick_tab(Tab::Limits, cx);
+        })
+    });
+    cx.run_until_parked();
+    let loading = cx.debug_bounds("limits-loading").expect("the Limits tab's skeleton");
+    let bar = cx.debug_bounds("skeleton").expect("drawn with ui's Skeleton");
+    assert!(loading.contains(&bar.origin), "the bar stands in the loading tab");
+    assert_eq!((bar.size.width, bar.size.height), (gpui_kit::px(96.), gpui_kit::px(12.)), "down to its last bar");
+}
+
+/// Every figure rolls in from zeros when the page lands, rests as text once the roll's timer ends, and rolls in again
+/// when a tab switch brings the page back.
+#[gpui_kit::test]
+fn the_figures_roll_in_and_a_tab_switch_replays_them(cx: &mut TestAppContext) {
+    let host = seeded();
+    let (page, _, cx) = open(cx, &host);
+    until(cx, &page, "the first read", |p| landed(p, Range::Week, Split::Agent) && p.models.value.is_some());
+    let rolling = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        cx.debug_bounds("digit-column").is_some()
+    };
+    assert!(rolling(cx), "the figures roll in as the answer lands");
+    cx.executor().advance_clock(Duration::from_millis(700));
+    assert!(!rolling(cx), "and rest as text after the roll");
+
+    cx.update(|_, cx| page.update(cx, |p, cx| p.pick_tab(Tab::Limits, cx)));
+    assert!(rolling(cx), "the Limits tab's figures roll in");
+    cx.executor().advance_clock(Duration::from_millis(700));
+    assert!(!rolling(cx));
+    cx.update(|_, cx| page.update(cx, |p, cx| p.pick_tab(Tab::Used, cx)));
+    assert!(rolling(cx), "back on Usage the page replays from zeros");
 }

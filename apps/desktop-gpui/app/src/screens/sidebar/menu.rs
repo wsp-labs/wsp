@@ -249,7 +249,11 @@ pub(crate) fn absence_of(w: &Value, status: Option<&Value>, places: &[Value], pl
         return silent.then(|| words::own_daemon_down(&name));
     }
     let place = place?;
-    let place = places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(place))?;
+    absent_of(places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(place))?)
+}
+
+/// Why a computer's row is not answering (`settings/places.ts` absentOf): none while it holds its link.
+pub(crate) fn absent_of(place: &Value) -> Option<Absent> {
     (place.get("present").and_then(Value::as_bool) == Some(false)).then(|| words::absent_computer(&super::looks::place_name(place)))
 }
 

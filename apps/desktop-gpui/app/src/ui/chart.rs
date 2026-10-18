@@ -3,7 +3,7 @@
 //! under each line in its own ink (or, stacked, each band down to the one under it), dashed gridlines with the axis
 //! figures beside them, the lead line's end dot, the end ticks under the plot, and a tooltip over the step under the
 //! pointer. The Usage page draws it at 300 px with figures on a round top; a slate draws it small on a fixed axis,
-//! with the lines and the scale easing from their old points. The web's rolling axis figures are motion left out.
+//! with the lines and the scale easing from their old points. On the Usage page the axis figures roll as the web's do.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -13,15 +13,15 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{
-    canvas, deferred, div, fill, font, point, prelude::*, px, quad, relative, size, transparent_black, App, BorderStyle, Bounds,
-    DispatchPhase, ElementId, Entity, Hitbox, HitboxBehavior, Hsla, MouseExitEvent, MouseMoveEvent, PathBuilder, PathStyle, Pixels, Point,
-    RenderImage, Rgba, SharedString, StrokeOptions, TextRun, Window,
+    anchored, canvas, deferred, div, fill, font, point, prelude::*, px, quad, relative, size, transparent_black, Anchor,
+    AnchoredPositionMode, App, BorderStyle, Bounds, DispatchPhase, ElementId, Entity, Hitbox, HitboxBehavior, Hsla, MouseExitEvent,
+    MouseMoveEvent, PathBuilder, PathStyle, Pixels, Point, RenderImage, Rgba, SharedString, StrokeOptions, TextRun, Window,
 };
 use image::{Frame as ImageFrame, ImageBuffer};
 use lyon::tessellation::{LineCap, LineJoin};
 
 use super::status::still;
-use super::{size as ui_size, text, ActivePalette};
+use super::{size as ui_size, text, ActivePalette, DigitRoll};
 
 pub const CHART_HEIGHT: Pixels = px(300.);
 const PAD: f64 = 6.;
@@ -43,6 +43,8 @@ const PARTS: usize = 4;
 const TICK_ROW: Pixels = px(16.);
 const END_DOT: f32 = 6.;
 const TOOLTIP_OFFSET: Pixels = px(6.);
+/// Base UI's `collisionPadding`: the tooltip shifts to stay this far inside the window.
+const TOOLTIP_MARGIN: Pixels = px(5.);
 /// The small chart's hover opens beside its step this far off, as the web's `sideOffset: 8`.
 const SIDE_OFFSET: f32 = 8.;
 const TWEEN: Duration = Duration::from_millis(520);
@@ -138,6 +140,7 @@ pub struct Chart {
     stacked: bool,
     fill: bool,
     tween: bool,
+    roll: bool,
 }
 
 impl Chart {
@@ -157,6 +160,7 @@ impl Chart {
             stacked: false,
             fill: true,
             tween: false,
+            roll: false,
         }
     }
 
@@ -218,6 +222,12 @@ impl Chart {
     /// Each change eases from where the last one stood, 520 ms out of a cubic, the first rising from the floor.
     pub fn tween(mut self) -> Self {
         self.tween = true;
+        self
+    }
+
+    /// The axis figures roll to each new figure, as the Usage page's do.
+    pub fn roll(mut self) -> Self {
+        self.roll = true;
         self
     }
 }
@@ -509,6 +519,7 @@ fn tooltip(word: String, rows: Vec<(Hsla, SharedString, String)>, mono: SharedSt
     let p = cx.palette();
     let (xs, xs_line) = text::XS;
     v_flex()
+        .debug_selector(|| "chart-tip".into())
         .flex_none()
         .rounded(ui_size::BUTTON_RADIUS)
         .border_1()
@@ -646,7 +657,12 @@ impl RenderOnce for Chart {
             .text_color(p.muted_foreground)
             .children(labels.iter().enumerate().map(|(g, label)| {
                 let gy = height - PAD - g as f64 / parts as f64 * (height - PAD * 2.);
-                div().absolute().right_0().top(px(gy as f32 - half)).child(label.clone())
+                let figure = if self.roll {
+                    DigitRoll::new(SharedString::from(format!("{}-y-{g}", self.id)), label.clone(), axis_text).roll_in().into_any_element()
+                } else {
+                    label.clone().into_any_element()
+                };
+                div().absolute().right_0().top(px(gy as f32 - half)).child(figure)
             }));
 
         let tip = hovered.map(|i| {
@@ -690,16 +706,13 @@ impl RenderOnce for Chart {
                 } else {
                     i as f32 * cell
                 };
-                div()
-                    .absolute()
-                    .top(-TOOLTIP_OFFSET)
-                    .left(relative(centre))
-                    .w_0()
-                    .h_0()
-                    .flex()
-                    .justify_center()
-                    .items_end()
-                    .child(deferred(tooltip(word, rows, mono.clone(), cx)))
+                div().absolute().top(-TOOLTIP_OFFSET).left(relative(centre)).w_0().h_0().child(deferred(
+                    anchored()
+                        .position_mode(AnchoredPositionMode::Local)
+                        .anchor(Anchor::BottomCenter)
+                        .snap_to_window_with_margin(TOOLTIP_MARGIN)
+                        .child(tooltip(word, rows, mono.clone(), cx)),
+                ))
             }
         });
 
@@ -762,6 +775,41 @@ impl RenderOnce for Chart {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct Flush;
+
+    impl Render for Flush {
+        fn render(&mut self, _: &mut Window, _: &mut gpui_kit::Context<Self>) -> impl IntoElement {
+            let line = ChartLine {
+                key: "claude".into(),
+                label: "Claude Code".into(),
+                points: vec![0., 0., 0., 0., 0., 0., 1860.],
+                ink: gpui_kit::red(),
+            };
+            let chart = Chart::new("flush", (0..7).map(f64::from).collect(), vec![line], Vec::new())
+                .figure(|v| format!("{v:.0} tokens"))
+                .step_word(|_| "Sun 18 Oct".to_owned());
+            div().size_full().pt(px(120.)).pl(px(400.)).child(chart)
+        }
+    }
+
+    /// The hover at the plot's right end, flush with the window's: the tooltip shifts left to stand inside the window,
+    /// as Base UI's positioner keeps it.
+    #[gpui_kit::test]
+    fn the_tooltip_at_the_right_end_stays_inside_the_window(cx: &mut gpui_kit::TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let (_, cx) = cx.add_window_view(|_, _| Flush);
+        cx.simulate_resize(size(px(1000.), px(600.)));
+        cx.run_until_parked();
+        cx.simulate_mouse_move(point(px(997.), px(270.)), None, gpui_kit::Modifiers::none());
+        cx.run_until_parked();
+        let tip = cx.debug_bounds("chart-tip").expect("the tooltip over the last step");
+        assert!(tip.right() <= px(995.) && tip.right() > px(990.), "5 px inside the window's right edge: {tip:?}");
+        assert!(tip.bottom() <= px(120.) - TOOLTIP_OFFSET + px(1.), "over the plot: {tip:?}");
+    }
 
     #[test]
     fn hover_index_rounds_to_the_nearest_step() {

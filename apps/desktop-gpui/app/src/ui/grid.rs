@@ -4,7 +4,7 @@
 //! right-aligned tabular figures, a state as a word or the act itself.
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
-use gpui_kit::{div, prelude::*, px, AnyElement, App, ClickEvent, FontWeight, MouseButton, Pixels, SharedString, Window};
+use gpui_kit::{div, prelude::*, px, AnyElement, App, ClickEvent, FontWeight, MouseButton, MouseDownEvent, Pixels, SharedString, Window};
 
 use super::card::{opens, row_frame, surface, CardItem, Corners};
 use super::dialog::tip;
@@ -18,17 +18,20 @@ const COLUMN_GAP: Pixels = px(16.);
 
 type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
-/// One column of a template: `minmax(0,1fr)` or a fixed width.
+/// One column of a template: `minmax(0,1fr)`, a fixed width, or `auto`, as wide as what the row puts in it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Col {
     Fill,
     Px(f32),
+    Auto,
 }
 
-use Col::{Fill, Px};
+use Col::{Auto, Fill, Px};
 
 /// `LIST_COLUMNS`: the Computers page's lists, so the state column is one line across them.
 pub const LIST_COLUMNS: &[Col] = &[Fill, Px(56.), Px(72.), Px(64.), Px(72.), Px(14.)];
+/// `LIST_COLUMNS` under 768 px: the name, one load, the state and the chevron.
+pub const LIST_COLUMNS_NARROW: &[Col] = &[Fill, Auto, Px(72.), Px(14.)];
 /// `PAGE_COLUMNS`: a computer's or a cloud's page, the name, a version and the act at the right.
 pub const PAGE_COLUMNS: &[Col] = &[Fill, Px(64.), Px(280.)];
 /// `ACTIVITY_COLUMNS`: the name, memory, CPU, energy, and the fold or the row's menu.
@@ -37,6 +40,36 @@ pub const ACTIVITY_COLUMNS: &[Col] = &[Fill, Px(76.), Px(60.), Px(64.), Px(20.)]
 pub const ACTIVITY_FLAT_COLUMNS: &[Col] = &[Fill, Px(56.), Px(76.), Px(60.), Px(64.), Px(20.)];
 /// `ACTIVITY_PORT_COLUMNS`: the port, the process, its thread, who can connect, Open, and the row's menu.
 pub const ACTIVITY_PORT_COLUMNS: &[Col] = &[Px(72.), Fill, Fill, Px(120.), Px(64.), Px(20.)];
+/// Activity's templates under 768 px (`narrow:`): the name, memory and the menu; the port, the process and the menu.
+pub const ACTIVITY_COLUMNS_NARROW: &[Col] = &[Fill, Px(72.), Px(20.)];
+pub const ACTIVITY_PORT_COLUMNS_NARROW: &[Col] = &[Px(64.), Fill, Px(20.)];
+
+/// A cell as a template lays it: over `span` columns, and over `narrow` once the narrow template stands, none where it
+/// stands only while the full template does (`WIDE_ONLY`).
+pub struct GridCell {
+    el: AnyElement,
+    span: usize,
+    narrow: usize,
+}
+
+impl GridCell {
+    pub fn new(el: impl IntoElement, span: usize, narrow: usize) -> Self {
+        GridCell { el: el.into_any_element(), span, narrow }
+    }
+}
+
+/// The template that stands at this width and the cells it lays, in order.
+fn laid(
+    wide: &'static [Col],
+    narrow: Option<&'static [Col]>,
+    cells: Vec<GridCell>,
+    window: &Window,
+) -> (&'static [Col], Vec<(AnyElement, usize)>) {
+    match narrow.filter(|_| super::narrow::width(window).md) {
+        Some(columns) => (columns, cells.into_iter().filter(|c| c.narrow > 0).map(|c| (c.el, c.narrow)).collect()),
+        None => (wide, cells.into_iter().map(|c| (c.el, c.span)).collect()),
+    }
+}
 
 /// The cell boxes of a template, `span` columns per cell; a cell that spans a fixed column and the next takes both
 /// widths and the gap between them.
@@ -53,6 +86,8 @@ fn cells(columns: &[Col], mut items: Vec<(AnyElement, usize)>) -> Vec<AnyElement
             let cell = h_flex().min_w_0();
             let cell = if cols.contains(&Fill) || cols.is_empty() {
                 cell.flex_1()
+            } else if cols == [Auto] {
+                cell.flex_none()
             } else {
                 let w: f32 = cols.iter().map(|c| if let Px(w) = c { *w } else { 0. }).sum();
                 cell.flex_none().w(px(w) + COLUMN_GAP * (cols.len() - 1) as f32)
@@ -106,12 +141,12 @@ impl RenderOnce for Grid {
 pub struct HeadCell {
     word: SharedString,
     num: bool,
-    span: usize,
+    wide_only: bool,
 }
 
 impl HeadCell {
     pub fn new(word: impl Into<SharedString>) -> Self {
-        HeadCell { word: word.into(), num: false, span: 1 }
+        HeadCell { word: word.into(), num: false, wide_only: false }
     }
 
     /// Over a column of numbers: set to the right.
@@ -120,9 +155,9 @@ impl HeadCell {
         self
     }
 
-    /// Over two columns, for a list whose one figure takes the room of another list's two.
-    pub fn span2(mut self) -> Self {
-        self.span = 2;
+    /// Over a column the narrow template drops.
+    pub fn wide_only(mut self) -> Self {
+        self.wide_only = true;
         self
     }
 }
@@ -132,22 +167,31 @@ impl HeadCell {
 #[derive(IntoElement)]
 pub struct GridHead {
     columns: Option<&'static [Col]>,
+    narrow: Option<&'static [Col]>,
     cells: Vec<HeadCell>,
 }
 
 impl GridHead {
     /// `columns` is the rows' template, or `None` for words side by side.
     pub fn new(columns: Option<&'static [Col]>, cells: Vec<HeadCell>) -> Self {
-        GridHead { columns, cells }
+        GridHead { columns, narrow: None, cells }
+    }
+
+    /// The rows' template under 768 px, where its wide-only words go.
+    pub fn narrow(mut self, columns: &'static [Col]) -> Self {
+        self.narrow = Some(columns);
+        self
     }
 }
 
 impl RenderOnce for GridHead {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette();
+        let narrow = self.narrow.filter(|_| super::narrow::width(window).md);
         let words: Vec<(AnyElement, usize)> = self
             .cells
             .into_iter()
+            .filter(|cell| narrow.is_none() || !cell.wide_only)
             .enumerate()
             .map(|(ix, cell)| {
                 let el = div()
@@ -159,7 +203,7 @@ impl RenderOnce for GridHead {
                     .when(ix > 0, |el| el.text_color(p.muted_foreground))
                     .when(cell.num, |el| el.w_full().text_right())
                     .child(cell.word);
-                (el.into_any_element(), cell.span)
+                (el.into_any_element(), 1)
             })
             .collect();
         let row = h_flex()
@@ -171,7 +215,7 @@ impl RenderOnce for GridHead {
             .border_x_1()
             .border_color(gpui_kit::transparent_black())
             .px(size::CARD_INSET);
-        match self.columns {
+        match narrow.or(self.columns) {
             Some(columns) => row.children(cells(columns, words)),
             None => row.children(words.into_iter().map(|(el, _)| el)),
         }
@@ -184,26 +228,38 @@ impl RenderOnce for GridHead {
 pub struct GridRow {
     id: SharedString,
     columns: &'static [Col],
+    narrow: Option<&'static [Col]>,
     tight: bool,
     open: Option<Click>,
     hover: Option<SharedString>,
-    cells: Vec<(AnyElement, usize)>,
-    line: Option<Vec<(AnyElement, usize)>>,
+    cells: Vec<GridCell>,
+    line: Option<Vec<GridCell>>,
+    menu: Option<Menu>,
     corners: Corners,
 }
+
+type Menu = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
 
 impl GridRow {
     pub fn new(id: impl Into<SharedString>, columns: &'static [Col]) -> Self {
         GridRow {
             id: id.into(),
             columns,
+            narrow: None,
             tight: false,
             open: None,
             hover: None,
             cells: Vec::new(),
             line: None,
+            menu: None,
             corners: Corners::default(),
         }
+    }
+
+    /// The template under 768 px; a cell over a column it drops is `wide`.
+    pub fn narrow(mut self, columns: &'static [Col]) -> Self {
+        self.narrow = Some(columns);
+        self
     }
 
     /// At a line's 48 px floor rather than a row's 60.
@@ -225,19 +281,37 @@ impl GridRow {
 
     /// The next cell, in the next column.
     pub fn cell(mut self, el: impl IntoElement) -> Self {
-        self.cells.push((el.into_any_element(), 1));
+        self.cells.push(GridCell::new(el, 1, 1));
         self
     }
 
     /// The next cell over the next two columns.
     pub fn cell2(mut self, el: impl IntoElement) -> Self {
-        self.cells.push((el.into_any_element(), 2));
+        self.cells.push(GridCell::new(el, 2, 2));
         self
     }
 
-    /// A second line under the first on the same columns, each cell over its span (`col-span-full` on a subgrid,
+    /// The next cell, gone under the narrow template (`WIDE_ONLY`).
+    pub fn wide(mut self, el: impl IntoElement) -> Self {
+        self.cells.push(GridCell::new(el, 1, 0));
+        self
+    }
+
+    /// The next cell over `span` columns, and `narrow` of them under the narrow template.
+    pub fn cell_spans(mut self, el: impl IntoElement, span: usize, narrow: usize) -> Self {
+        self.cells.push(GridCell::new(el, span, narrow));
+        self
+    }
+
+    /// The row's own menu, on a right press anywhere on it.
+    pub fn on_menu(mut self, menu: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static) -> Self {
+        self.menu = Some(Box::new(menu));
+        self
+    }
+
+    /// A second line under the first on the same columns, each cell over its spans (`col-span-full` on a subgrid,
     /// `mt-3 mb-1`): the Computers list's live band.
-    pub fn line(mut self, cells: Vec<(AnyElement, usize)>) -> Self {
+    pub fn line(mut self, cells: Vec<GridCell>) -> Self {
         self.line = Some(cells);
         self
     }
@@ -253,10 +327,15 @@ impl RenderOnce for GridRow {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
         let floor = if self.tight { size::LINE_FLOOR } else { size::ROW_FLOOR };
+        let opens_row = self.open.is_some();
+        let (columns, laid_cells) = laid(self.columns, self.narrow, self.cells, window);
         let body = h_flex()
             .gap_x_4()
-            .children(cells(self.columns, self.cells.into_iter().map(|(el, span)| (keep_press(el, self.open.is_some()), span)).collect()));
-        let line = self.line.map(|line| h_flex().mt_3().mb_1().gap_x_4().children(cells(self.columns, line)));
+            .children(cells(columns, laid_cells.into_iter().map(|(el, span)| (keep_press(el, opens_row), span)).collect()));
+        let line = self.line.map(|line| {
+            let (columns, line) = laid(self.columns, self.narrow, line, window);
+            h_flex().mt_3().mb_1().gap_x_4().children(cells(columns, line))
+        });
         let frame = row_frame(&self.id, floor, self.corners).debug_selector(|| "grid-row".into());
         let frame = match self.open {
             Some(open) => opens(frame, &self.id, window, cx).on_click(move |e, window, cx| open(e, window, cx)),
@@ -268,7 +347,11 @@ impl RenderOnce for GridRow {
                     .on_hover(motion::track_hover(over))
             }
         };
-        frame.when_some(self.hover, |el, hover| el.tooltip(tip(hover))).child(body).children(line)
+        frame
+            .when_some(self.menu, |el, menu| el.on_mouse_down(MouseButton::Right, move |e, window, cx| menu(e, window, cx)))
+            .when_some(self.hover, |el, hover| el.tooltip(tip(hover)))
+            .child(body)
+            .children(line)
     }
 }
 

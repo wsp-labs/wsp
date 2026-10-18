@@ -19,6 +19,8 @@ use super::{size, text};
 
 /// The slot's floor at 640 px and wider (`SPLIT_CLASS`'s `minmax(var(--settings-slot,10rem),auto)`).
 const SLOT_FLOOR: Pixels = px(160.);
+/// `LED_SLOT_INDENT`'s `max-sm:pl-11`: the glyph frame's 32 px and the 12 px gap.
+const LED_SLOT_INDENT: Pixels = px(44.);
 /// `max-w-xl` on a lede and a row's sentence.
 const DESCRIPTION_MAX: Pixels = px(576.);
 /// `SETTINGS_WORDS.resetRow`, the reset arrow's hover.
@@ -87,6 +89,16 @@ impl CardItem {
 
     pub fn placed(f: impl FnOnce(Corners) -> AnyElement + 'static) -> Self {
         CardItem(Box::new(f))
+    }
+
+    /// The item drawn as before, then handed to `f` with its corners, to stand inside whatever `f` puts round it.
+    pub fn map(self, f: impl FnOnce(AnyElement, Corners) -> AnyElement + 'static) -> Self {
+        CardItem(Box::new(move |corners| f((self.0)(corners), corners)))
+    }
+
+    /// Drawn at its place, for an item that stands it inside one of its own: a row that drags.
+    pub fn place(self, corners: Corners) -> AnyElement {
+        (self.0)(corners)
     }
 }
 
@@ -685,24 +697,32 @@ impl RenderOnce for Row {
             .gap(px(2.))
             .child(h_flex().min_h(px(20.)).flex_wrap().gap_x_2().child(title(self.title, title_color)).children(mark).children(reset))
             .children(description);
-        let text = h_flex().flex_1().min_w_0().gap_3().children(self.lead.map(|lead| div().flex().flex_none().child(lead))).child(words);
         let opening = self.open.is_some();
         let chevron_only = opening && self.word.is_none() && self.control.is_none();
+        // Under 640 px the slot stands under the words, and under a lead's words rather than its glyph; a chevron
+        // alone stays beside them, since on a line of its own it reads as a stray.
+        let stacked = super::narrow::width(window).sm && !chevron_only;
+        let led = self.lead.is_some();
+        let text = h_flex()
+            .when(!stacked, |el| el.flex_1())
+            .min_w_0()
+            .gap_3()
+            .children(self.lead.map(|lead| div().flex().flex_none().child(lead)))
+            .child(words);
         let slot = (self.word.is_some() || self.control.is_some() || opening).then(|| {
             h_flex()
                 .debug_selector(|| "slot".into())
-                .flex_none()
-                .when(!chevron_only, |el| el.min_w(SLOT_FLOOR))
-                .justify_end()
+                .when(!stacked, |el| el.flex_none().justify_end().when(!chevron_only, |el| el.min_w(SLOT_FLOOR)))
+                .when(stacked, |el| el.min_w_0().when(led, |el| el.pl(LED_SLOT_INDENT)))
                 .gap_3()
-                .children(self.word.map(|(text, class)| word(text, class, cx).text_right()))
+                .children(self.word.map(|(text, class)| word(text, class, cx).when(!stacked, |el| el.text_right())))
                 // A row that opens a page leaves a press on its control to the control, as rows.tsx's does.
                 .children(
                     self.control.map(|control| div().on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()).child(control)),
                 )
                 .when(opening, |el| el.child(Icon::new(Glyph::ChevronRight).with_size(px(14.)).text_color(p.muted_foreground)))
         });
-        let body = h_flex().gap_5().child(text).children(slot);
+        let body = if stacked { v_flex().gap_3().child(text).children(slot) } else { h_flex().gap_5().child(text).children(slot) };
         let mut frame = row_frame(&self.id, size::ROW_FLOOR, self.corners);
         if let Some(take) = self.take {
             let (dropped, pasted, accent) = (take.clone(), take, p.accent);

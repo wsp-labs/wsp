@@ -8,9 +8,11 @@ use std::rc::Rc;
 use gpui_kit::component::{Theme, ThemeConfig, ThemeMode, ThemeRegistry};
 use gpui_kit::{
     point, px, AnyElement, App, Bounds, BoxShadow, Element, ElementId, Global, GlobalElementId, Hsla, InspectorElementId, IntoElement,
-    LayoutId, Pixels, Rgba, SharedString, Window,
+    LayoutId, Pixels, Rgba, SharedString, Window, WindowAppearance,
 };
 use serde::Deserialize;
+
+use crate::screens::app_shell::material::{self, Look};
 
 /// Which side of the app a theme draws: the side a window's own appearance follows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -242,10 +244,40 @@ pub fn theme_by_id(id: &str) -> Option<&'static ThemeEntry> {
     THEMES.iter().find(|t| t.id == id)
 }
 
-/// The theme every window draws in, and its palette.
+/// `themeFor`: the pick when it is registered on that side, else the side's default.
+pub fn theme_for(side: Side, id: &str) -> &'static ThemeEntry {
+    let default = if side == Side::Dark { DARK } else { LIGHT };
+    THEMES.iter().find(|t| t.id == id && t.side == side).or_else(|| theme_by_id(default)).unwrap_or(&THEMES[0])
+}
+
+/// `DRAWS_DARK`: the side a mode draws, the computer's own for System.
+pub fn side_of(mode: &str, system_dark: bool) -> Side {
+    match mode {
+        "dark" => Side::Dark,
+        "light" => Side::Light,
+        _ if system_dark => Side::Dark,
+        _ => Side::Light,
+    }
+}
+
+/// `applyTheme`'s pick: the theme picked for the side the mode draws.
+pub fn picked(mode: &str, light: &str, dark: &str, system_dark: bool) -> &'static ThemeEntry {
+    match side_of(mode, system_dark) {
+        Side::Dark => theme_for(Side::Dark, dark),
+        Side::Light => theme_for(Side::Light, light),
+    }
+}
+
+/// Whether a window's appearance is the dark side, as `prefers-color-scheme: dark` reads it.
+pub fn is_dark(appearance: WindowAppearance) -> bool {
+    matches!(appearance, WindowAppearance::Dark | WindowAppearance::VibrantDark)
+}
+
+/// The theme every window draws in, its palette, and the look it stands in.
 pub struct WspTheme {
     pub entry: &'static ThemeEntry,
     pub palette: Palette,
+    pub look: Look,
 }
 
 impl Global for WspTheme {}
@@ -416,12 +448,28 @@ pub fn init(side: Side, cx: &mut App) {
     set_theme(if side == Side::Dark { DARK } else { LIGHT }, cx);
 }
 
-/// Draws every window in the theme `id` names.
+/// Draws every window in the theme `id` names, in the look the windows stand in now.
 pub fn set_theme(id: &str, cx: &mut App) {
+    let look = cx.try_global::<WspTheme>().map_or(Look { mac: false, glass: false }, |t| t.look);
+    set_theme_in(id, look, cx);
+}
+
+/// Draws every window in the theme `id` names, standing in `look`: on the Mac's glass a dark theme's muted ink moves.
+pub fn set_theme_in(id: &str, look: Look, cx: &mut App) {
     let entry = theme_by_id(id).unwrap_or_else(|| panic!("wsp has no theme {id}"));
     let config = config_of(entry, cx);
-    cx.set_global(WspTheme { entry, palette: entry.palette() });
-    Theme::update(cx, |theme| take(theme, &config));
+    let mut palette = entry.palette();
+    let muted = material::fills(look, entry.id, &palette).muted_foreground;
+    if let Some(muted) = muted {
+        palette.muted_foreground = muted;
+    }
+    cx.set_global(WspTheme { entry, palette, look });
+    Theme::update(cx, |theme| {
+        take(theme, &config);
+        if let Some(muted) = muted {
+            theme.muted_foreground = muted;
+        }
+    });
 }
 
 fn config_of(entry: &ThemeEntry, cx: &App) -> Rc<ThemeConfig> {
@@ -443,8 +491,40 @@ pub fn current(cx: &App) -> &'static ThemeEntry {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_installed, Side, MONO, SANS, THEMES};
+    use super::{first_installed, picked, Side, MONO, SANS, THEMES};
     use gpui_kit::component::{ThemeMode, ThemeSet};
+
+    #[test]
+    fn a_pick_off_the_side_its_mode_draws_draws_that_sides_default() {
+        assert_eq!(picked("dark", "paper", "paper", false).id, "graphite", "a light theme picked for the dark side");
+        assert_eq!(picked("light", "pitch", "moss", true).id, "paper");
+        assert_eq!(picked("system", "linen", "moss", true).id, "moss");
+        assert_eq!(picked("system", "linen", "moss", false).id, "linen");
+        assert_eq!(picked("dark", "linen", "nonesuch", false).id, "graphite", "a theme this build does not know");
+    }
+
+    /// A theme set from anywhere, Appearance's preview or Settings putting the pick back, keeps the glass's muted ink.
+    #[gpui_kit::test]
+    fn a_theme_set_after_the_look_keeps_the_glass_ink(cx: &mut gpui_kit::TestAppContext) {
+        use crate::screens::app_shell::material::{fills, Look};
+        use crate::ui::ActivePalette;
+        use gpui_kit::component::ActiveTheme;
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(Side::Light, cx);
+            let glass = Look { mac: true, glass: true };
+            super::set_theme_in("graphite", glass, cx);
+            super::set_theme("pitch", cx);
+            let pitch = super::theme_by_id("pitch").unwrap().palette();
+            let ink = fills(glass, "pitch", &pitch).muted_foreground.expect("a dark theme on glass moves its ink");
+            assert_ne!(ink, pitch.muted_foreground);
+            assert_eq!(cx.palette().muted_foreground, ink, "wsp's palette");
+            assert_eq!(cx.theme().muted_foreground, ink, "gpui-kit's");
+            super::set_theme("paper", cx);
+            let paper = super::theme_by_id("paper").unwrap().palette();
+            assert_eq!(cx.palette().muted_foreground, paper.muted_foreground, "a light theme keeps its own ink");
+        });
+    }
 
     #[test]
     fn every_theme_parses_on_its_side_and_feeds_gpui_kit_the_same_colors() {

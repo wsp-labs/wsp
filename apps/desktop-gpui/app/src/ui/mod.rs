@@ -11,12 +11,15 @@ pub mod computer_glyph;
 pub mod context_menu;
 pub mod controls;
 pub mod dialog;
+pub mod digit_roll;
 pub mod focus;
 pub mod grain;
 pub mod grid;
 pub mod icons;
+pub mod link;
 pub mod menu;
 pub mod motion;
+pub mod narrow;
 pub mod scrollbar;
 pub mod segmented;
 pub mod select;
@@ -40,11 +43,14 @@ pub use chart::{Axis, Chart, ChartLine, Tick, CHART_HEIGHT};
 pub use computer_glyph::ComputerIcon;
 pub use controls::{checkbox_plain, radio, Button, ButtonKind, Choice, Field, PickRow};
 pub use dialog::{narrow, quiet, shortcut_tooltip, shortcut_tooltip_view, tip, tooltip_view, AlertDialog, CopyRow, Dialog, Refusal};
+pub use digit_roll::DigitRoll;
 pub use grain::grain;
-pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
+pub use grid::{chevron, num, slash, Col, Grid, GridCell, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
 pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
+pub use link::open_link;
 pub use menu::{icon_menu, menu_of, menu_on, row_menu, MenuAct};
-pub use scrollbar::scroll_area;
+pub use narrow::Width;
+pub use scrollbar::{scroll_area, scroll_view};
 pub use segmented::Segmented;
 pub use select::{Select, SelectEvent, SelectItem, SelectState};
 pub use sparkline::Sparkline;
@@ -83,6 +89,8 @@ pub mod size {
     pub const SELECT_WIDTH: Pixels = px(176.);
     /// A row field that takes a sentence, `w-96`.
     pub const SENTENCE_FIELD_WIDTH: Pixels = px(384.);
+    /// `SELECT_WIDTH`'s `max-sm:w-36`.
+    pub const SELECT_WIDTH_NARROW: Pixels = px(144.);
     pub const CONTROL_HEIGHT: Pixels = px(30.);
     pub const CONTROL_RADIUS: Pixels = px(7.);
     /// `PAGE_GAP`.

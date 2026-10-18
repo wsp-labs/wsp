@@ -234,7 +234,16 @@ impl RenderOnce for Segmented {
 
 #[cfg(test)]
 mod tests {
-    use super::step;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use gpui_kit::component::Root;
+    use gpui_kit::{
+        div, prelude::*, px, size, Context, FocusHandle, KeyDownEvent, KeyUpEvent, Keystroke, TestAppContext, VisualTestContext, Window,
+    };
+
+    use super::{step, Segmented};
+    use crate::ui::{self, Side};
 
     #[test]
     fn the_arrows_go_round_the_ends_and_past_held_segments() {
@@ -252,5 +261,74 @@ mod tests {
         assert_eq!(step(&[false, true, true, false], None, true), Some(1));
         assert_eq!(step(&[false, true, true, false], None, false), Some(2));
         assert_eq!(step(&[false, false], None, true), None);
+    }
+
+    /// Three segments between two plain tab stops.
+    struct Three {
+        picked: Rc<Cell<usize>>,
+        before: FocusHandle,
+        after: FocusHandle,
+    }
+
+    impl Render for Three {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let (picked, this) = (self.picked.clone(), cx.entity());
+            let control =
+                Segmented::new("views", Some(self.picked.get())).segment("Threads").segment("Processes").segment("Ports").on_pick(
+                    move |ix, _, cx| {
+                        picked.set(ix);
+                        this.update(cx, |_, cx| cx.notify());
+                    },
+                );
+            gpui_kit::div()
+                .flex()
+                .p(px(24.))
+                .gap_2()
+                .child(div().size(px(20.)).track_focus(&self.before))
+                .child(control)
+                .child(div().size(px(20.)).track_focus(&self.after))
+        }
+    }
+
+    fn press(cx: &mut VisualTestContext, key: &str) {
+        let keystroke = Keystroke::parse(key).unwrap();
+        cx.simulate_event(KeyDownEvent { keystroke: keystroke.clone(), is_held: false, prefer_character_input: false });
+        cx.simulate_event(KeyUpEvent { keystroke });
+        cx.run_until_parked();
+    }
+
+    #[gpui_kit::test]
+    fn a_focused_control_is_one_tab_stop_and_its_arrows_move_the_pick(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+        });
+        let picked = Rc::new(Cell::new(0));
+        let view = cx.new(|cx| Three {
+            picked: picked.clone(),
+            before: cx.focus_handle().tab_stop(true),
+            after: cx.focus_handle().tab_stop(true),
+        });
+        let (before, after) = view.read_with(cx, |v, _| (v.before.clone(), v.after.clone()));
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(view, window, cx));
+        cx.simulate_resize(size(px(500.), px(100.)));
+        cx.run_until_parked();
+        let focused = |cx: &mut VisualTestContext| cx.update(|window, cx| window.focused(cx));
+        cx.update(|window, cx| window.focus_next(cx));
+        assert_eq!(focused(cx), Some(before.clone()));
+        cx.simulate_keystrokes("tab");
+        let control = focused(cx).expect("Tab reaches the control");
+        assert!(control != before && control != after);
+        cx.simulate_keystrokes("tab");
+        assert_eq!(focused(cx), Some(after), "the next Tab leaves it: one stop for the control, none for each segment");
+        cx.simulate_keystrokes("shift-tab");
+        assert_eq!(focused(cx), Some(control.clone()));
+        let mut steps = Vec::new();
+        for key in ["right", "right", "right", "left"] {
+            press(cx, key);
+            steps.push(picked.get());
+        }
+        assert_eq!(steps, [1, 2, 0, 2], "each arrow moves the pick, round the ends");
+        assert_eq!(focused(cx), Some(control), "and the focus stays on the control");
     }
 }

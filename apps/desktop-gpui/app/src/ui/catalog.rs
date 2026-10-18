@@ -67,38 +67,138 @@ pub fn ink(agent: &str) -> Option<(Rgba, Rgba)> {
     Some((Rgba::try_from(light).ok()?, Rgba::try_from(dark).ok()?))
 }
 
-/// Each drawn mark by agent, side and text ink.
+/// Each drawn mark by agent or brand, side and text ink.
 type Drawn = HashMap<(&'static str, bool, u32), Option<Arc<Image>>>;
 
 thread_local! {
     /// One image per agent, side and text ink: the catalog's agents in each theme at most.
     static DRAWN: RefCell<Drawn> = RefCell::new(HashMap::new());
+    /// The same for the brands' marks.
+    static BRANDS_DRAWN: RefCell<Drawn> = RefCell::new(HashMap::new());
+}
+
+/// A mark as an svg filled with its inks for one side, else the text's, `0xrrggbb`.
+fn fill(mark: &Mark, dark: bool, text: u32) -> Arc<Image> {
+    let text_hex = format!("#{text:06x}");
+    let ink = |n: usize| mark.inks.get(n).map(|(light, d)| if dark { *d } else { *light });
+    let first = ink(0).unwrap_or(text_hex.as_str());
+    let mut svg = mark.svg.replacen("<svg ", &format!("<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"{first}\" "), 1);
+    for n in 0..mark.inks.len() {
+        svg = svg.replace(&format!("var(--ink-{n})"), ink(n).unwrap_or(first));
+    }
+    svg = svg.replace("currentColor", first);
+    Arc::new(Image::from_bytes(ImageFormat::Svg, svg.into_bytes()))
+}
+
+fn rgb(text: Hsla) -> u32 {
+    let text = Rgba::from(text);
+    let hex = |c: f32| (c * 255.).round() as u32;
+    hex(text.r) << 16 | hex(text.g) << 8 | hex(text.b)
 }
 
 /// The agent's mark for one side, in its inks or else `text`'s, or none where the catalog draws none and the
 /// initials stand in.
 pub fn image(harness: &str, dark: bool, text: Hsla) -> Option<Arc<Image>> {
     let (id, src) = AGENTS.iter().find(|(id, _)| *id == harness)?;
-    let text = Rgba::from(text);
-    let hex = |c: f32| (c * 255.).round() as u32;
-    let text_rgb = hex(text.r) << 16 | hex(text.g) << 8 | hex(text.b);
-    let text_hex = format!("#{text_rgb:06x}");
-    DRAWN.with(|drawn| {
-        drawn
-            .borrow_mut()
-            .entry((id, dark, text_rgb))
-            .or_insert_with(|| {
-                let mark = read(src)?;
-                let ink = |n: usize| mark.inks.get(n).map(|(light, d)| if dark { *d } else { *light });
-                let first = ink(0).unwrap_or(text_hex.as_str());
-                let mut svg = mark.svg.replacen("<svg ", &format!("<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"{first}\" "), 1);
-                for n in 0..mark.inks.len() {
-                    svg = svg.replace(&format!("var(--ink-{n})"), ink(n).unwrap_or(first));
-                }
-                svg = svg.replace("currentColor", first);
-                Some(Arc::new(Image::from_bytes(ImageFormat::Svg, svg.into_bytes())))
-            })
-            .clone()
+    let text = rgb(text);
+    DRAWN.with(|drawn| drawn.borrow_mut().entry((id, dark, text)).or_insert_with(|| Some(fill(&read(src)?, dark, text))).clone())
+}
+
+// ---- The brands' marks (packages/catalog/src/marks), which a tool server's row leads with. ----
+
+const BRANDS: [&str; 4] = [
+    include_str!("../../../../../packages/catalog/src/marks/node.ts"),
+    include_str!("../../../../../packages/catalog/src/marks/github.ts"),
+    include_str!("../../../../../packages/catalog/src/marks/cloudflare.ts"),
+    include_str!("../../../../../packages/catalog/src/marks/linear.ts"),
+];
+
+/// `BrandMark`: its id, its mark, and the addresses and packages it claims.
+struct Brand {
+    id: &'static str,
+    mark: Mark,
+    hosts: Vec<&'static str>,
+    packages: Vec<&'static str>,
+}
+
+/// The quoted words of one list field, `hosts: ["a", "b"]`.
+fn words(src: &'static str, field: &str) -> Vec<&'static str> {
+    let Some(at) = src.find(&format!("\n  {field}: [")) else { return Vec::new() };
+    let list = &src[at..];
+    let list = &list[..list.find(']').unwrap_or(list.len())];
+    list.split('"').skip(1).step_by(2).collect()
+}
+
+fn brand(src: &'static str) -> Option<Brand> {
+    let quoted = |key: &str, from: &'static str| -> Option<&'static str> {
+        let at = from.find(&format!("{key}: \""))? + key.len() + 3;
+        Some(&from[at..at + from[at..].find('"')?])
+    };
+    let svg_at = src.find("svg: `")? + "svg: `".len();
+    let svg = &src[svg_at..svg_at + src[svg_at..].find('`')?];
+    let inks = match src.find("\n  inks: [") {
+        Some(at) => {
+            let list = &src[at..at + src[at..].find(']')?];
+            list.split('{').skip(1).filter_map(|one| Some((quoted("light", one)?, quoted("dark", one)?))).collect()
+        }
+        None => Vec::new(),
+    };
+    Some(Brand { id: quoted("id", src)?, mark: Mark { svg, inks }, hosts: words(src, "hosts"), packages: words(src, "packages") })
+}
+
+/// Every brand, read once.
+fn brands() -> &'static [Brand] {
+    static BRANDS_READ: std::sync::OnceLock<Vec<Brand>> = std::sync::OnceLock::new();
+    BRANDS_READ.get_or_init(|| BRANDS.iter().filter_map(|src| brand(src)).collect())
+}
+
+/// `hostUnder`: the domain itself or a host under it, its port and a root dot aside.
+fn host_under(host: &str, domain: &str) -> bool {
+    let bare = host.rsplit_once(':').filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit())).map_or(host, |(h, _)| h);
+    let bare = bare.trim_end_matches('.').to_lowercase();
+    bare == domain || bare.ends_with(&format!(".{domain}"))
+}
+
+/// The host of a word that is an http address.
+fn host_of(word: &str) -> Option<&str> {
+    let lower = word.get(..8).unwrap_or(word).to_ascii_lowercase();
+    let rest = word.get(
+        if lower.starts_with("https://") {
+            8
+        } else if lower.starts_with("http://") {
+            7
+        } else {
+            return None;
+        }..,
+    )?;
+    let authority = &rest[..rest.find(['/', '?', '#']).unwrap_or(rest.len())];
+    let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    (!host.is_empty()).then_some(host)
+}
+
+/// The package a word of a command line names, without a version after it: `@scope/name@1.2` is `@scope/name`.
+fn package_of(word: &str) -> &str {
+    let word = match word.rfind('@') {
+        Some(at) if at > 0 && !word[at..].contains('/') => &word[..at],
+        _ => word,
+    };
+    match word.rfind(':') {
+        Some(at) if !word[at..].contains('/') => &word[..at],
+        _ => word,
+    }
+}
+
+/// `serverMark`: the brand a tool server is reached at, by the host of its address, or the package or address its
+/// command runs.
+pub fn server_mark(reach: &str, stdio: bool) -> Option<&'static str> {
+    let brands = brands();
+    let by_host = |host: &str| brands.iter().find(|b| b.hosts.iter().any(|d| host_under(host, d))).map(|b| b.id);
+    if !stdio {
+        return by_host(reach);
+    }
+    reach.split_whitespace().find_map(|word| match host_of(word) {
+        Some(host) => by_host(host),
+        None => brands.iter().find(|b| b.packages.contains(&package_of(word))).map(|b| b.id),
     })
 }
 
@@ -133,6 +233,113 @@ pub fn mono(harness: &str, ink: Hsla) -> Option<Arc<Image>> {
             })
             .clone()
     })
+}
+
+/// `MarkSvg` of a brand at `size`, in its inks or else `ink`, the text's around it.
+pub fn brand_mark(id: &str, size: Pixels, ink: Hsla, cx: &App) -> Option<AnyElement> {
+    let dark = cx.theme().is_dark();
+    let text = rgb(ink);
+    let brand = brands().iter().find(|b| b.id == id)?;
+    let image = BRANDS_DRAWN
+        .with(|drawn| drawn.borrow_mut().entry((brand.id, dark, text)).or_insert_with(|| Some(fill(&brand.mark, dark, text))).clone())?;
+    Some(img(image).size(size).flex_none().into_any_element())
+}
+
+// ---- The editors' marks (packages/catalog/src/marks/editors), which the editor select draws. ----
+
+/// `EDITOR_MARKS` in order, each module beside the one its svg is written in: Cursor's is the agent's own.
+const EDITORS: [(&str, &str); 14] = [
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/vscode.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/vscode.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/cursor.ts"),
+        include_str!("../../../../../packages/catalog/src/agents/cursor.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/vscode-insiders.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/vscode-insiders.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/zed.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/zed.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/idea.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/idea.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/webstorm.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/webstorm.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/pycharm.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/pycharm.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/goland.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/goland.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/clion.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/clion.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/phpstorm.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/phpstorm.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/rubymine.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/rubymine.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/rider.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/rider.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/jetbrains.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/jetbrains.ts"),
+    ),
+    (
+        include_str!("../../../../../packages/catalog/src/marks/editors/finder.ts"),
+        include_str!("../../../../../packages/catalog/src/marks/editors/finder.ts"),
+    ),
+];
+
+/// `EditorMark`: the editors it marks, by the id the host opens them by, and its svg.
+struct EditorMark {
+    editors: Vec<&'static str>,
+    mark: Mark,
+}
+
+fn editor(module: &'static str, drawn: &'static str) -> Option<EditorMark> {
+    let list = &module[module.find("editors: [")?..];
+    let list = &list[..list.find(']')?];
+    let svg_at = drawn.find("svg: `")? + "svg: `".len();
+    let svg = &drawn[svg_at..svg_at + drawn[svg_at..].find('`')?];
+    Some(EditorMark { editors: list.split('"').skip(1).step_by(2).collect(), mark: Mark { svg, inks: Vec::new() } })
+}
+
+fn editors() -> &'static [EditorMark] {
+    static EDITORS_READ: std::sync::OnceLock<Vec<EditorMark>> = std::sync::OnceLock::new();
+    EDITORS_READ.get_or_init(|| EDITORS.iter().filter_map(|(module, drawn)| editor(module, drawn)).collect())
+}
+
+thread_local! {
+    /// The editors' marks, by the first editor each marks.
+    static EDITORS_DRAWN: RefCell<Drawn> = RefCell::new(HashMap::new());
+}
+
+/// `EditorGlyph`: the editor's mark at `size` in `ink`, the text's around it; none for an editor no mark claims, where
+/// the web keeps the mark's square empty.
+pub fn editor_mark(editor: &str, size: Pixels, ink: Hsla, cx: &App) -> Option<AnyElement> {
+    let found = editors().iter().find(|e| e.editors.contains(&editor))?;
+    let (dark, text) = (cx.theme().is_dark(), rgb(ink));
+    let image = EDITORS_DRAWN.with(|drawn| {
+        drawn.borrow_mut().entry((found.editors[0], dark, text)).or_insert_with(|| Some(fill(&found.mark, dark, text))).clone()
+    })?;
+    Some(img(image).size(size).flex_none().into_any_element())
 }
 
 /// HarnessMark.tsx `harnessInitials`: two letters of one word, or the first letters of two.
@@ -295,5 +502,41 @@ mod tests {
         assert!(sign_in_ways("codex").is_empty(), "only a token agent has ways");
         assert_eq!(key_env("claude"), Some("ANTHROPIC_API_KEY"));
         assert!(there_pastes("claude"));
+    }
+
+    #[test]
+    fn every_editor_mark_of_the_catalog_reads_in_its_order() {
+        let index = include_str!("../../../../../packages/catalog/src/marks/index.ts");
+        let listed = &index[index.find("export const EDITOR_MARKS").unwrap()..];
+        let listed = &listed[listed.find("= [").unwrap() + 3..];
+        let listed = &listed[..listed.find(']').unwrap()];
+        let ids: Vec<String> = listed.split(',').map(|n| n.trim().to_lowercase().replace('_', "-")).collect();
+        let module_id = |module: &str| {
+            let at = module.find("id: \"").unwrap() + 5;
+            module[at..at + module[at..].find('"').unwrap()].to_owned()
+        };
+        assert_eq!(EDITORS.map(|(module, _)| module_id(module)).to_vec(), ids, "one module per mark the catalog lists, in its order");
+        assert_eq!(editors().len(), EDITORS.len(), "every module reads");
+        assert_eq!(editors()[0].editors, ["vscode"]);
+        let rustrover = editors().iter().find(|e| e.editors.contains(&"rustrover")).expect("JetBrains' mark claims RustRover");
+        assert!(rustrover.mark.svg.starts_with("<svg viewBox=\"0 0 24 24\">"));
+        assert_eq!(editors()[1].mark.svg, read(AGENTS[4].1).unwrap().svg, "Cursor the editor wears Cursor the agent's mark");
+    }
+
+    #[test]
+    fn a_servers_brand_is_read_off_its_address_or_its_command() {
+        let github = brand(BRANDS[1]).expect("github's mark");
+        assert!(github.mark.svg.starts_with("<svg viewBox=\"0 0 24 24\">"));
+        assert_eq!(github.hosts, ["github.com", "githubcopilot.com"]);
+        assert_eq!(brand(BRANDS[0]).unwrap().mark.inks, [("#579348", "#5fa04e")], "an ink written dark first reads light first");
+        assert_eq!(server_mark("api.githubcopilot.com", false), Some("github"));
+        assert_eq!(server_mark("MCP.Linear.app:443", false), Some("linear"));
+        assert_eq!(server_mark("notlinear.app", false), None);
+        assert_eq!(server_mark("npx -y @modelcontextprotocol/server-github@1.2.0", true), Some("github"));
+        assert_eq!(server_mark("docker run ghcr.io/github/github-mcp-server:latest", true), Some("github"));
+        assert_eq!(server_mark("npx mcp-remote https://mcp.cloudflare.com/sse", true), Some("cloudflare"));
+        assert_eq!(server_mark("node ./server.js", true), None, "node the runtime claims no server");
+        assert_eq!(package_of("@scope/name@1.2"), "@scope/name");
+        assert_eq!(package_of("@scope/name"), "@scope/name");
     }
 }

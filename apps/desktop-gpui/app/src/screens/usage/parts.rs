@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! What both tabs draw with: the locked card (`data-locked`: a 14 px regular head, 16 px over a 14 px radius surface),
-//! the page's one way of naming a thing, its glyphs, the quiet line and the skeleton bar.
+//! What both tabs draw with: the locked surface (`data-locked`'s 14 px radius) where the web draws one bare, the page's
+//! one way of naming a thing, its glyphs, the quiet line and the hover's skin.
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{div, img, prelude::*, px, relative, AnyElement, App, Div, FontWeight, Hsla, Pixels, SharedString};
 
+use wsp_host_client::protocol::{PlaceView, Preferences};
+
 use super::model::Split;
-use crate::ui::{catalog, ActivePalette, Glyph};
+use crate::screens::settings::pages::projects::look;
+use crate::ui::{catalog, size, ActivePalette, ComputerIcon, Glyph};
 
 /// `rounded-xl` off `--radius`, which `data-locked` gives the card.
 pub const CARD_RADIUS: Pixels = px(14.);
@@ -18,24 +21,6 @@ pub const BLOCK_GAP: Pixels = px(40.);
 /// Text at a size with the 1.5 line height a size without its own leading takes.
 pub fn sized(el: Div, size: f32) -> Div {
     el.text_size(px(size)).line_height(px(size * 1.5))
-}
-
-/// A card: its head, 16 px, then its body, bare or on the surface.
-pub fn card(id: &'static str, head: Option<SharedString>, body: impl IntoElement, cx: &App) -> Div {
-    let p = cx.palette();
-    v_flex()
-        .debug_selector(move || id.into())
-        .gap_4()
-        .children(head.map(|head| {
-            h_flex()
-                .min_h(px(28.))
-                .text_sm()
-                .line_height(px(20.))
-                .font_weight(FontWeight::NORMAL)
-                .text_color(p.foreground.opacity(0.7))
-                .child(head)
-        }))
-        .child(body)
 }
 
 /// `CARD_SURFACE` under `data-locked`.
@@ -75,18 +60,45 @@ pub fn agent_glyph(agent: &str, size: Pixels, around: Hsla, cx: &App) -> Option<
     catalog::image(agent, cx.theme().is_dark(), around).map(|image| img(image).size(size).flex_none().into_any_element())
 }
 
-/// The glyph a split row leads with: its agent's mark, the computer, the project, the source, or the split's own
-/// stand-in where the value has none, so every row's name starts at one edge.
-pub fn split_glyph(split: Split, key: &str, agent: Option<&str>, projects: &[String], cx: &App) -> Option<AnyElement> {
+/// What the page knows of the host's computers and projects, for the glyph each wears.
+#[derive(Clone, Copy)]
+pub struct Looks<'a> {
+    pub projects: &'a [String],
+    pub places: &'a [PlaceView],
+    pub preferences: Option<&'a Preferences>,
+}
+
+impl Looks<'_> {
+    /// The icon a computer the host lists wears, its pick or what it is; none for one it does not list.
+    pub fn computer(&self, id: &str) -> Option<ComputerIcon> {
+        self.places.iter().find(|place| place.id == id).map(|place| ComputerIcon::of(place, self.preferences))
+    }
+
+    /// The icon and the hue a project picked, the folder and neutral until it picks.
+    pub fn project(&self, id: &str) -> (String, String) {
+        let picked = self.preferences.and_then(|p| p.project_look.get(id));
+        let icon = picked.and_then(|look| look.icon.as_ref()).map_or_else(|| "folder".to_owned(), |icon| icon.to_string());
+        let hue = picked.and_then(|look| look.hue.as_ref()).map_or_else(|| "neutral".to_owned(), |hue| hue.to_string());
+        (icon, hue)
+    }
+}
+
+/// The glyph a split row leads with: its agent's mark, the computer's own glyph, the project's look, the source, or the
+/// split's own stand-in where the value has none, so every row's name starts at one edge.
+pub fn split_glyph(split: Split, key: &str, agent: Option<&str>, looks: Looks, cx: &App) -> Option<AnyElement> {
     let p = cx.palette();
     if let Some(mark) = agent.and_then(|agent| agent_glyph(agent, px(16.), p.foreground, cx)) {
         return Some(mark);
     }
     let icon = |glyph: Glyph, color: Hsla| Some(Icon::new(glyph).with_size(px(16.)).text_color(color).into_any_element());
+    if let Some(computer) = looks.computer(key).filter(|_| split == Split::Computer) {
+        return Some(computer.draw(p.foreground.opacity(0.8), size::GLYPH));
+    }
     match split {
-        // The host's own computer is the one place read here, a desktop; any other computer takes the stand-in.
-        Split::Computer if key == "here" => icon(Glyph::Monitor, p.foreground.opacity(0.8)),
-        Split::Project if projects.iter().any(|id| id == key) => icon(Glyph::Folder, p.foreground),
+        Split::Project if looks.projects.iter().any(|id| id == key) => {
+            let (glyph, hue) = looks.project(key);
+            Some(look::mark(&glyph, &hue, cx).into_any_element())
+        }
         Split::Source if key == "log" => icon(Glyph::SquareTerminal, p.muted_foreground),
         Split::Source => icon(Glyph::MessagesSquare, p.muted_foreground),
         Split::Project => icon(Glyph::CircleDashed, p.muted_foreground),
@@ -141,7 +153,46 @@ pub fn share_bar(share: f64, ink: Hsla, cx: &App) -> Div {
         .child(div().h_full().rounded_full().bg(ink).w(relative((share.max(0.01)) as f32)))
 }
 
-/// `Skeleton`: a bar in the opaque border color, 6 px round.
-pub fn bone(w: Pixels, h: Pixels, cx: &App) -> Div {
-    div().flex_none().w(w).h(h).rounded(px(6.)).bg(cx.palette().border)
+/// `TooltipPopup`'s skin: the popover with its edge and shadow, 8 px round, `py-1 px-2`.
+pub fn tip_skin(cx: &App) -> Div {
+    let p = cx.palette();
+    v_flex()
+        .flex_none()
+        .rounded(size::BUTTON_RADIUS)
+        .border_1()
+        .border_color(p.border)
+        .bg(p.popover)
+        .shadow(p.tooltip_shadow.clone())
+        .px_2()
+        .py_1()
+        .whitespace_nowrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn computers_and_projects_wear_the_looks_picked_for_them() {
+        let places: Vec<PlaceView> = serde_json::from_value(json!([
+            { "id": "here", "kind": "computer", "name": "mini", "default": true },
+            { "id": "box1", "kind": "computer", "name": "box1", "default": false },
+        ]))
+        .unwrap();
+        let preferences: Preferences = serde_json::from_value(json!({ "theme": "system", "sidebarMode": "list", "terminalSize": "app",
+            "terminalZoom": {}, "access": {}, "projectOrder": [], "labs": false,
+            "computerLook": { "here": { "icon": "laptop" } },
+            "projectLook": { "p1": { "icon": "rocket", "hue": "blue" }, "p2": { "hue": "neutral" } } }))
+        .unwrap();
+        let projects = ["p1".to_owned(), "p2".to_owned()];
+        let looks = Looks { projects: &projects, places: &places, preferences: Some(&preferences) };
+        assert_eq!(looks.computer("here"), Some(ComputerIcon::Lucide(Glyph::Laptop)), "the computer's own pick");
+        assert_eq!(looks.computer("box1"), Some(ComputerIcon::Lucide(Glyph::Server)), "what a joined computer is");
+        assert_eq!(looks.computer("studio"), None, "a computer the host does not list takes the split's stand-in");
+        assert_eq!(looks.project("p1"), ("rocket".to_owned(), "blue".to_owned()));
+        assert_eq!(looks.project("p2"), ("folder".to_owned(), "neutral".to_owned()));
+        assert_eq!(looks.project("p3"), ("folder".to_owned(), "neutral".to_owned()));
+    }
 }

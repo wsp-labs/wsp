@@ -67,6 +67,12 @@ pub fn scroll_area(
     window: &mut Window,
     cx: &mut App,
 ) -> Stateful<Div> {
+    scroll_view(id, handle, div().child(content), window, cx)
+}
+
+/// `scroll_area` whose viewport is `viewport` itself: its children are the handle's items, and a height cap on it
+/// sizes the area.
+pub fn scroll_view(id: impl Into<ElementId>, handle: &ScrollHandle, viewport: Div, window: &mut Window, cx: &mut App) -> Stateful<Div> {
     let id: ElementId = id.into();
     let hovered = motion::hovered(id.clone(), window, cx);
     let now = cx.background_executor().now();
@@ -146,7 +152,7 @@ pub fn scroll_area(
             scroll_to(&dragged, &at, e.event.position.y - dragged.bounds().origin.y - ENDS - *grab.read(cx));
             window.refresh();
         })
-        .child(div().id(ElementId::from((id, "viewport"))).size_full().overflow_y_scroll().track_scroll(handle).child(content))
+        .child(viewport.id(ElementId::from((id, "viewport"))).size_full().overflow_y_scroll().track_scroll(handle))
         .children(lane)
 }
 

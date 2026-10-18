@@ -13,17 +13,22 @@ pub mod words;
 use std::rc::Rc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use gpui_kit::component::notification::Notification;
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _, WindowExt as _};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{
-    div, point, prelude::*, px, relative, Animation, AnimationExt as _, App, BoxShadow, Context, Entity, FocusHandle, FontWeight,
-    KeyDownEvent, Subscription, Task, Transformation, Window, WindowId,
+    div, prelude::*, px, relative, App, Context, Entity, FocusHandle, FontWeight, ScrollHandle, Subscription, Task, Window, WindowId,
 };
-use wsp_host_client::protocol::{self, AccountsAnswer, AccountsAnswerAccountsItem, UsedAnswer};
+use serde_json::json;
+use wsp_host_client::ops::settings::{Places, PreferencesReply};
+use wsp_host_client::protocol::{
+    self, AccountsAnswer, AccountsAnswerAccountsItem, PlaceView, PlacesListRequest, Preferences, PreferencesGetRequest, UsedAnswer,
+};
 use wsp_host_client::Failure;
 
-use crate::screens::{Host, Opened, Parts, Place, Screen};
-use crate::ui::{ActivePalette, Glyph, Segmented};
+use crate::screens::dialogs::layer;
+use crate::screens::settings::page::DialogBuild;
+use crate::screens::settings::{Acts, DIALOG};
+use crate::screens::Host;
+use crate::ui::{scroll_area, ActivePalette, AlertDialog, Button, Glyph, Notice, Segmented};
 use model::{Range, Split};
 
 /// How often the page reads again while it stands open, and the age past which coming back to the window reads again.
@@ -91,6 +96,8 @@ impl<T> Read<T> {
 }
 
 const ACCOUNTS: &str = "usage:accounts";
+/// The tab picked last in the window, which every visit opens on while the window stands.
+const TAB: &str = "usage:tab";
 
 fn used_key(range: Range, split: Split) -> String {
     format!("usage:used:{range:?}:{split:?}")
@@ -100,7 +107,7 @@ pub fn now_ms() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0., |d| d.as_millis() as f64)
 }
 
-/// The page for a screen that mounts it, Settings' list among them.
+/// The page, as Settings mounts it under `settings:usage`.
 pub fn page(host: Host, window: &mut Window, cx: &mut App) -> Entity<UsagePage> {
     cx.new(|cx| UsagePage::new(host, window, cx))
 }
@@ -118,6 +125,13 @@ pub struct UsagePage {
     pub models: Read<UsedAnswer>,
     /// The ids of the host's projects, so use filed under a project it no longer lists reads as no project's.
     pub projects: Vec<String>,
+    /// The host's computers and the person's preferences, for the glyph each computer and project wears.
+    pub places: Vec<PlaceView>,
+    pub preferences: Option<Preferences>,
+    /// Settings, which draws the reset's dialog over itself; a page standing alone asks no reset.
+    pub acts: Option<Acts>,
+    /// The account whose reset dialog stands open.
+    asking: Option<String>,
     /// What the host last said of a reset spent here, the words of the notice it raised.
     pub said: Option<String>,
     /// The accounts a reset is being spent on, whose buttons wait meanwhile.
@@ -148,16 +162,22 @@ impl UsagePage {
                 this.read_again(cx);
             }
         });
+        let window_id = window.window_handle().window_id();
+        let tab = held::get::<Tab>(window_id, TAB, Duration::MAX, cx).map_or(Tab::Used, |(tab, _, _)| *tab);
         let mut page = UsagePage {
             host,
-            window: window.window_handle().window_id(),
-            tab: Tab::Used,
+            window: window_id,
+            tab,
             range: Range::Week,
             split: Split::Agent,
             accounts: Read::default(),
             used: Read::default(),
             models: Read::default(),
             projects: Vec::new(),
+            places: Vec::new(),
+            preferences: None,
+            acts: None,
+            asking: None,
             said: None,
             resetting: Vec::new(),
             refresh: cx.focus_handle().tab_stop(true),
@@ -166,6 +186,7 @@ impl UsagePage {
             _back: Some(back),
         };
         page.read_projects(cx);
+        page.read_looks(cx);
         page.read_accounts(false, cx);
         page.read_used(false, cx);
         page
@@ -188,6 +209,7 @@ impl UsagePage {
 
     pub fn pick_tab(&mut self, tab: Tab, cx: &mut Context<Self>) {
         self.tab = tab;
+        held::put(self.window, TAB.to_owned(), Rc::new(tab), now_ms(), cx);
         cx.notify();
     }
 
@@ -211,6 +233,27 @@ impl UsagePage {
             if let Ok(projects) = asking.await {
                 _ = this.update(cx, |this, cx| {
                     this.projects = projects.into_iter().map(|p| p.id).collect();
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    /// The computers and the preferences, read once a visit as the projects are.
+    fn read_looks(&mut self, cx: &mut Context<Self>) {
+        let asking = self.host.run(|host| async move {
+            let places = serde_json::from_value::<PlacesListRequest>(json!({})).map_err(|e| Failure::new(e.to_string()))?;
+            let preferences = serde_json::from_value::<PreferencesGetRequest>(json!({})).map_err(|e| Failure::new(e.to_string()))?;
+            let places: Places = host.call(places).await?;
+            let preferences: PreferencesReply = host.call(preferences).await?;
+            Ok::<_, Failure>((places.places, preferences.preferences))
+        });
+        cx.spawn(async move |this, cx| {
+            if let Ok((places, preferences)) = asking.await {
+                _ = this.update(cx, |this, cx| {
+                    this.places = places;
+                    this.preferences = Some(preferences);
                     cx.notify();
                 });
             }
@@ -302,27 +345,36 @@ impl UsagePage {
         cx.notify();
     }
 
-    /// Spends one banked reset of `row` after the question the command line asks, says what the host answered and
-    /// puts the row it sends back in place.
-    fn ask_reset(&mut self, row: AccountsAnswerAccountsItem, window: &mut Window, cx: &mut Context<Self>) {
+    /// Asks the one question the command line asks before spending one banked reset of `row`, in Settings' alert
+    /// dialog, which stays open and holds Escape until the host has answered.
+    fn ask_reset(&mut self, row: AccountsAnswerAccountsItem, cx: &mut Context<Self>) {
+        let Some(acts) = self.acts.clone() else { return };
         let Some(question) = model::reset_line(&row, now_ms()).map(|line| line.question) else { return };
-        let page = cx.entity();
-        window.open_dialog(cx, move |dialog, _, _| {
-            let (page, row) = (page.clone(), row.clone());
-            dialog
-                .title(words::USE_RESET)
-                .child(question.clone())
-                .button_props(
-                    gpui_kit::component::dialog::DialogButtonProps::default()
-                        .ok_text(words::USE_RESET)
-                        .cancel_text(words::CANCEL)
-                        .show_cancel(true),
-                )
-                .on_ok(move |_, window, cx| {
-                    page.update(cx, |page, cx| page.use_reset(row.clone(), window, cx));
-                    true
+        self.asking = Some(row.key.clone());
+        let page = cx.weak_entity();
+        let spending = {
+            let (page, key) = (page.clone(), row.key.clone());
+            move |cx: &App| page.upgrade().is_some_and(|page| page.read(cx).resetting.contains(&key))
+        };
+        let dialog = DialogBuild::alert(move |ctx, _, cx| {
+            let busy = spending(cx);
+            let cancel = {
+                let acts = ctx.acts.clone();
+                Button::outline("reset-cancel", words::CANCEL).neutral_ring().on_click(move |_, _, cx| {
+                    if !busy {
+                        acts.close_dialog(cx);
+                    }
                 })
+            };
+            let (page, row) = (page.clone(), row.clone());
+            let confirm = Button::primary("reset-confirm", if busy { words::USING_RESET } else { words::USE_RESET }).held(busy).on_click(
+                move |_, window, cx| {
+                    _ = page.update(cx, |page, cx| page.use_reset(row.clone(), window, cx));
+                },
+            );
+            AlertDialog::new(words::USE_RESET).layered().sentence(question.clone()).act(cancel).act(confirm).into_any_element()
         });
+        acts.open_dialog(dialog, cx);
     }
 
     pub fn use_reset(&mut self, row: AccountsAnswerAccountsItem, window: &mut Window, cx: &mut Context<Self>) {
@@ -330,6 +382,9 @@ impl UsagePage {
             return;
         }
         self.resetting.push(row.key.clone());
+        if self.asking.as_ref() == Some(&row.key) {
+            layer::hold(DIALOG, true, cx);
+        }
         cx.notify();
         let key = row.key.clone();
         let spending = row.key.clone();
@@ -349,11 +404,18 @@ impl UsagePage {
                     }
                 }
                 this.resetting.retain(|key| *key != spending);
+                if this.asking.as_ref() == Some(&spending) {
+                    this.asking = None;
+                    layer::hold(DIALOG, false, cx);
+                    if let Some(acts) = &this.acts {
+                        acts.close_dialog(cx);
+                    }
+                }
                 this.said = Some(said.clone());
                 cx.notify();
             });
-            let notice = if spent { Notification::info(said) } else { Notification::error(said) };
-            _ = window.update(cx, |_, window, cx| window.push_notification(notice, cx));
+            let notice = if spent { Notice::note(said) } else { Notice::error(said) };
+            _ = window.update(cx, |_, window, cx| crate::ui::notify_in(window, cx, notice));
         })
         .detach();
     }
@@ -374,58 +436,25 @@ impl UsagePage {
     /// The page's two tabs for the top bar's right end, after the read's age and the refresh.
     pub fn tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = cx.palette().clone();
-        let reading = self.reading();
         let checked = self.read_at().map(|at| words::checked(&words::read_when((now_ms() - at).max(0.))));
         let picked = match self.tab {
             Tab::Used => 0,
             Tab::Limits => 1,
         };
-        let page = cx.entity();
-        let ring =
-            vec![BoxShadow { color: p.ring, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(2.), inset: false }];
-        let spin = Icon::new(Glyph::RotateCw).with_size(px(14.)).text_color(p.muted_foreground);
+        let (page, again) = (cx.entity(), cx.entity());
         h_flex()
             .gap_3()
             .children(checked.map(|c| {
                 div().debug_selector(|| "usage-read-at".into()).text_xs().line_height(px(16.)).text_color(p.muted_foreground).child(c)
             }))
             .child(
-                div()
-                    .id("usage-refresh")
-                    .debug_selector(|| "usage-refresh".into())
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .justify_center()
-                    .size(px(24.))
-                    .rounded(px(8.))
-                    .track_focus(&self.refresh)
-                    .focus_visible(|s| s.shadow(ring))
-                    .when(reading, |el| el.opacity(0.64))
-                    .when(!reading, |el| {
-                        let (page, keyed) = (page.clone(), page.clone());
-                        el.cursor_pointer()
-                            .hover(|s| s.bg(p.accent))
-                            .on_click(move |_, _, cx| page.update(cx, |page, cx| page.read_again(cx)))
-                            .on_key_down(move |event: &KeyDownEvent, _, cx| {
-                                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-                                    cx.stop_propagation();
-                                    keyed.update(cx, |page, cx| page.read_again(cx));
-                                }
-                            })
-                    })
-                    .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new(words::READ_AGAIN).build(window, cx))
-                    .map(|el| {
-                        if reading {
-                            el.child(spin.with_animation(
-                                "usage-refresh-spin",
-                                Animation::new(Duration::from_secs(1)).repeat(),
-                                |icon, delta| icon.transform(Transformation::rotate(gpui_kit::percentage(delta))),
-                            ))
-                        } else {
-                            el.child(spin)
-                        }
-                    }),
+                div().debug_selector(|| "usage-refresh".into()).flex().child(
+                    Button::icon_xs("usage-refresh", Glyph::RotateCw)
+                        .busy(self.reading())
+                        .track_focus(&self.refresh)
+                        .tooltip(words::READ_AGAIN)
+                        .on_click(move |_, _, cx| again.update(cx, |page, cx| page.read_again(cx))),
+                ),
             )
             .child(
                 Segmented::new("usage-tabs", picked)
@@ -450,69 +479,6 @@ impl Render for UsagePage {
     }
 }
 
-/// The page as the shell mounts it in the main column, with "Settings / Usage" as its crumbs and the tabs as its
-/// actions. Settings mounts `UsagePage` in its own frame under `settings:usage` once it lands.
-pub struct UsageScreen {
-    page: Entity<UsagePage>,
-}
-
-impl Screen for UsageScreen {
-    const NAME: &'static str = "usage";
-    const PLACE: Place = Place::Main;
-
-    fn new(host: Host, _: Opened, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        UsageScreen { page: page(host, window, cx) }
-    }
-
-    fn parts(this: &Entity<Self>, _: &mut Window, cx: &mut App) -> Parts {
-        let page = this.read(cx).page.clone();
-        Parts {
-            crumbs: Some(cx.new(|_| UsageCrumbs).into()),
-            actions: Some(cx.new(|cx| UsageActions::new(page, cx)).into()),
-            ..Default::default()
-        }
-    }
-}
-
-impl UsageScreen {
-    pub fn page(&self) -> &Entity<UsagePage> {
-        &self.page
-    }
-}
-
-impl Render for UsageScreen {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        column(Some(self.page.clone().into_any_element()), cx)
-    }
-}
-
-struct UsageCrumbs;
-
-impl Render for UsageCrumbs {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crumbs(cx)
-    }
-}
-
-/// The page's tabs in the header, drawn again whenever the page changes.
-struct UsageActions {
-    page: Entity<UsagePage>,
-    _page: Subscription,
-}
-
-impl UsageActions {
-    fn new(page: Entity<UsagePage>, cx: &mut Context<Self>) -> Self {
-        let observed = cx.observe(&page, |_, _, cx| cx.notify());
-        UsageActions { page, _page: observed }
-    }
-}
-
-impl Render for UsageActions {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.page.update(cx, |page, cx| page.tabs(cx).into_any_element())
-    }
-}
-
 /// `SettingsCrumbs` on a group page: "Settings", the slash, and the page.
 fn crumbs(cx: &App) -> gpui_kit::Div {
     let p = cx.palette();
@@ -527,18 +493,15 @@ fn crumbs(cx: &App) -> gpui_kit::Div {
 }
 
 /// The page's column as Settings lays it: at most 1080 px wide with 32 px sides, 56 px over it and 48 under.
-fn column(page: Option<gpui_kit::AnyElement>, cx: &App) -> gpui_kit::Div {
-    let p = cx.palette();
+fn column(page: Option<gpui_kit::AnyElement>, window: &mut Window, cx: &mut App) -> gpui_kit::Div {
     let column = v_flex().w_full().max_w(px(1080.)).mx_auto().px(px(32.)).pt(px(56.)).pb(px(48.)).children(page);
-    v_flex()
-        .size_full()
-        .font_family(cx.theme().font_family.clone())
-        .text_color(p.foreground)
-        .child(div().id("usage-scroll").flex_1().min_h_0().overflow_y_scroll().child(column))
+    let scroll = window.use_keyed_state("usage-scroll-handle", cx, |_, _| ScrollHandle::new()).read(cx).clone();
+    let scroll = scroll_area("usage-scroll", &scroll, column, window, cx).flex_1().min_h_0();
+    v_flex().size_full().font_family(cx.theme().font_family.clone()).text_color(cx.palette().foreground).child(scroll)
 }
 
 /// The shell's 52 px header row with the crumbs and the tabs over the page's column, for captures of the page alone.
-pub fn frame(tabs: Option<gpui_kit::AnyElement>, page: Option<gpui_kit::AnyElement>, cx: &App) -> gpui_kit::Div {
+pub fn frame(tabs: Option<gpui_kit::AnyElement>, page: Option<gpui_kit::AnyElement>, window: &mut Window, cx: &mut App) -> gpui_kit::Div {
     let bar = h_flex().flex_none().h(px(52.)).pl(px(20.)).pr(px(21.)).gap_4().child(crumbs(cx)).child(div().ml_auto().children(tabs));
-    v_flex().size_full().child(bar).child(column(page, cx))
+    v_flex().size_full().child(bar).child(column(page, window, cx))
 }

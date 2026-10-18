@@ -4,7 +4,8 @@
 // <out>/<theme>/<state>.png (1280x800 at 2x), .content.png (the centre column, x >= 256 css px), .full.png (the
 // centre column at the settings scroll area's whole height) and .json (the words on the page), and <out>/fonts.json (the fonts Chrome drew
 // with). It starts nothing: the host's port and token are read beside the state file.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -183,7 +184,10 @@ async function fontsOf(page) {
 }
 
 const executablePath = process.env.CHROME ?? "/usr/bin/google-chrome";
-const env = Object.fromEntries(["PATH", "HOME", "TZ", "DISPLAY"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
+// Chrome's own HOME in the run's temp folder, never the caller's, so nothing of the person's profile reaches the shots.
+const home = mkdtempSync(join(tmpdir(), "usage-web-home-"));
+process.on("exit", () => rmSync(home, { recursive: true, force: true }));
+const env = { HOME: home, ...Object.fromEntries(["PATH", "TZ", "DISPLAY"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]])) };
 // Chrome draws at a real 2x device scale, as on the owner's Mac, rather than under Playwright's emulated one; the
 // window is the page's whole size, so its height is moved through the browser itself.
 const browser = await chromium.launch({

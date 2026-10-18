@@ -14,8 +14,11 @@ wsp-host-client = { path = "../host-client" }
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 futures = "0.3"
-# The dither is rasterised once into an image GPUI draws, and its polylines need round joins and caps.
-image = { version = "0.25", default-features = false, features = ["gif"] }
+# Names sort as the web's localeCompare sorts them, by the same Unicode collation.
+icu_collator = "2.3"
+# The dither is rasterised once into an image GPUI draws, and its polylines need round joins and caps; a project's icon
+# is decoded from the formats the web takes.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 # The engine today's pane runs as wasm; it builds Ghostty with Zig (scripts/ghostty.sh).
 libghostty-vt = { git = "https://github.com/Uzaaft/libghostty-rs", rev = "d2036baeb605d31d09a9e2ba6d0c923e04c34d54", default-features = false }
 libc = "0.2"
@@ -23,7 +26,8 @@ lyon = "1.0"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"] }
 # A link's domain read as a browser reads the address, as the web's slateLinkDomain does with URL.
 url = "2"
 
@@ -77,7 +81,6 @@ tray-icon = { version = "0.26", default-features = false }
 
 [dev-dependencies]
 gpui-kit = { git = "https://github.com/longbridge/gpui-kit", rev = "14f59330a4aa0cb5becf140e067d64a616328612", features = ["test-support"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
 libc = "0.2"
 tempfile = "3"
 # A fake host on the lock's port, for the feed's reads of rows the record does not know.
@@ -85,6 +88,7 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 ring = "0.17"
 tokio = { version = "1", features = ["net", "io-util"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 
 [[test]]
 name = "pixels"
@@ -96,6 +100,10 @@ harness = false
 
 [[test]]
 name = "gallery"
+harness = false
+
+[[test]]
+name = "type_sample_face"
 harness = false
 
 [[test]]

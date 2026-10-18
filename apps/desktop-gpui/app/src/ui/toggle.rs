@@ -17,6 +17,8 @@ use super::theme::ActivePalette;
 
 /// `--thumb-size` from 640 px up: `--spacing(4)`.
 const THUMB: Pixels = px(16.);
+/// `--thumb-size` under 640 px: `--spacing(5)`.
+const THUMB_NARROW: Pixels = px(20.);
 
 /// CSS's own `ease`, the thumb's curve.
 fn css_ease(duration: Duration) -> Transition {
@@ -70,16 +72,16 @@ impl RenderOnce for Switch {
             (track, thumb)
         };
         let id = self.id.clone();
+        let size = if super::narrow::width(window).sm { THUMB_NARROW } else { THUMB };
         let track = ease_ink(id.clone(), "track", track, TRACK, window, cx);
         // `translate .15s`, and the press's `scale-x-110` as `scale .1s .1s`, held from its edge at the thumb's side.
         let pressed = window.use_keyed_state(SharedString::from(format!("{id}-pressed")), cx, |_, _| false);
         let stretch = *pressed.read(cx) && !self.held;
-        let x =
-            ease_px_by(id.clone(), "x", if self.on { THUMB - px(4.) } else { px(0.) }, css_ease(Duration::from_millis(150)), window, cx);
-        let wide = if stretch { THUMB * 1.1 } else { THUMB };
+        let x = ease_px_by(id.clone(), "x", if self.on { size - px(4.) } else { px(0.) }, css_ease(Duration::from_millis(150)), window, cx);
+        let wide = if stretch { size * 1.1 } else { size };
         let delay = css_ease(Duration::from_millis(100)).delay(Duration::from_millis(100));
         let w = ease_px_by(id.clone(), "w", wide, delay, window, cx);
-        let lead = if self.on { x + THUMB - w } else { x };
+        let lead = if self.on { x + size - w } else { x };
         let on = self.on;
         let (down, up, out) = (pressed.clone(), pressed.clone(), pressed);
         let set = |state: &gpui_kit::Entity<bool>, to: bool, cx: &mut App| {
@@ -95,8 +97,8 @@ impl RenderOnce for Switch {
             .debug_selector(|| "switch".into())
             .when_some(self.label, |el, label| el.aria_label(label))
             .flex_none()
-            .w(THUMB * 2. - px(2.))
-            .h(THUMB + px(2.))
+            .w(size * 2. - px(2.))
+            .h(size + px(2.))
             .p(px(1.))
             .rounded_full()
             .bg(track)
@@ -104,7 +106,7 @@ impl RenderOnce for Switch {
                 div()
                     .debug_selector(|| "switch-thumb".into())
                     .ml(lead)
-                    .h(THUMB)
+                    .h(size)
                     .w(w)
                     .rounded_full()
                     .bg(thumb)

@@ -27,18 +27,16 @@ const ALERT_WIDTH: gpui_kit::Pixels = px(440.);
 /// The fade at the right of a copy row's value while more of it waits past the box.
 const FADE: gpui_kit::Pixels = px(24.);
 
-/// Under this width a step dialog stands as a sheet along the window's foot (`max-sm`).
-pub const NARROW: Pixels = px(640.);
 /// `STEP_FRAME`'s `sm:h-[640px]`: one height across every step.
 const FRAME_HEIGHT: Pixels = px(640.);
 /// The sheet's `pt-12`: the room above it that still shows the page.
-const SHEET_TOP: Pixels = px(48.);
+pub const SHEET_TOP: Pixels = px(48.);
 
 type Outside = std::rc::Rc<dyn Fn(&mut Window, &mut App) + 'static>;
 
 /// Whether the window is narrow enough that a step dialog is a sheet along its foot.
 pub fn narrow(window: &Window) -> bool {
-    window.viewport_size().width < NARROW
+    super::narrow::width(window).sm
 }
 
 /// A dialog of steps at `STEP_WIDTH`: its surface is drawn where it is put, so a caller lays it over a scrim (gpui-kit's
@@ -662,11 +660,14 @@ pub fn shortcut_tooltip(label: impl Into<SharedString>, keys: &[&str]) -> impl F
 pub fn shortcut_tooltip_view(label: SharedString, keys: Vec<SharedString>, window: &mut Window, cx: &mut App) -> AnyView {
     tooltip_view(
         move |cx| {
-            h_flex()
-                .debug_selector(|| "tooltip".into())
-                .gap_2()
-                .child(label.clone())
-                .when(!keys.is_empty(), |el| el.child(h_flex().gap_1().children(keys.iter().cloned().map(|k| keycap(k, cx)))))
+            let named = label.clone();
+            div().debug_selector(|| "tooltip".into()).child(
+                h_flex()
+                    .debug_selector(move || format!("tip:{named}"))
+                    .gap_2()
+                    .child(label.clone())
+                    .when(!keys.is_empty(), |el| el.child(h_flex().gap_1().children(keys.iter().cloned().map(|k| keycap(k, cx))))),
+            )
         },
         window,
         cx,

@@ -38,6 +38,11 @@ impl Host {
         &self.client
     }
 
+    /// The runtime the client's socket lives on, for a screen that keeps its own host tasks.
+    pub fn runtime(&self) -> &Arc<Runtime> {
+        &self.runtime
+    }
+
     /// Runs `work` on the host's tokio runtime; await the result from a GPUI task (`cx.spawn`), which runs on the
     /// window's thread, where the client's socket does not live.
     pub fn run<T, Fut>(&self, work: impl FnOnce(Arc<HostClient>) -> Fut) -> impl Future<Output = Result<T, Failure>> + 'static
@@ -183,6 +188,12 @@ pub trait Screen: Render + Sized {
     /// such as a terminal's shell, can go. A thread switch drops the screen as well, and is not a close.
     fn closed(_host: &Host, _opened: Opened, _cx: &mut App) {}
 
+    /// Escape pressed while the screen is the open page, asked before the frame closes it: true when the screen took it
+    /// for something of its own (a dialog, an open list, a search), so the page stays.
+    fn escape(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> bool {
+        false
+    }
+
     /// The views the screen adds to the frame; none by default.
     fn parts(_this: &Entity<Self>, _window: &mut Window, _cx: &mut App) -> Parts {
         Parts::default()
@@ -199,10 +210,15 @@ pub struct Mounted {
     pub parts: Parts,
     /// [`Screen::show`] on the screen.
     pub show: Show,
+    /// [`Screen::escape`] on the screen.
+    pub escape: Escape,
 }
 
 /// [`Screen::show`] on a screen the shell holds only as a view.
 pub type Show = Rc<dyn Fn(Opened, &mut Window, &mut App)>;
+
+/// [`Screen::escape`] on a screen the shell holds only as a view.
+pub type Escape = Rc<dyn Fn(&mut Window, &mut App) -> bool>;
 
 /// A registered screen: where it goes, how it is built, and [`Screen::closed`].
 #[derive(Clone, Copy)]
@@ -223,7 +239,9 @@ fn mount<S: Screen>(host: &Host, opened: Opened, window: &mut Window, cx: &mut A
     let parts = S::parts(&entity, window, cx);
     let kept = entity.clone();
     let show = Rc::new(move |opened: Opened, window: &mut Window, cx: &mut App| kept.update(cx, |s, cx| s.show(opened, window, cx)));
-    Mounted { place: S::PLACE, view: entity.into(), parts, show }
+    let kept = entity.clone();
+    let escape = Rc::new(move |window: &mut Window, cx: &mut App| kept.update(cx, |s, cx| s.escape(window, cx)));
+    Mounted { place: S::PLACE, view: entity.into(), parts, show, escape }
 }
 
 /// Where the window is: nothing open, a thread, or a screen by its [`Screen::NAME`], with `:<arg>` after it for one

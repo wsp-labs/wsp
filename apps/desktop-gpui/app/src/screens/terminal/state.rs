@@ -33,6 +33,8 @@ pub enum PauseMode {
 /// `AbsentComputer`, the halves a pane refuses in while the workspace's computer is not answering.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Absent {
+    /// `AwayWord`: what a computer's row says it is, `no answer` or `stopped`.
+    pub away: &'static str,
     pub said: String,
     pub will: Option<String>,
     pub sentence: String,
