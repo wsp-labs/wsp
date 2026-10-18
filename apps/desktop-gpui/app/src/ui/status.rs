@@ -84,7 +84,7 @@ impl RenderOnce for Spinner {
 }
 
 /// An icon turning with the spinners, one turn a second.
-pub(super) fn turning(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
+pub fn turning(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
     if still(cx) {
         return icon;
     }
