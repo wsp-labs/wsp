@@ -329,7 +329,7 @@ focus only with a window manager on the display: start `openbox` on `:99`
 first, or the bench exits 3 (`FOCUS_WAIT` in [shell.rs](../../../apps/desktop-gpui/app/src/shell.rs)).
 Boat has no GPU (no `/dev/dri`; Mesa printed a DRI3 warning) and Linux fonts,
 so a Boat shot checks layout, clipping, overflow, alignment and states; type,
-vibrancy and color are judged on the owner's Mac every few days (map #2364).
+vibrancy and color are judged on the owner's Mac every few days (map #2364). Shoot the web side in Chrome at `--force-device-scale-factor=2`, never Playwright's `deviceScaleFactor`, under which Blink rounds font metrics in CSS px (#2405).
 
 **Open straight into the state.** Give each screen a way to start on itself in
 a fixture state, so a shot needs no clicks. Cap opens a settings page at launch
@@ -393,7 +393,7 @@ Measured on our pin, 8x16: cold `cargo build -p desktop-gpui`, downloads include
 only when the build passes, like Cap's `dev.sh` (Cap README, The dev loop).
 Measured on our pin: a rebuild after editing three files of `app/src` took 4.4 s.
 
-Keep cargo's output on screen (`| tee`, never a bare redirect) so a long build
-keeps printing. Run tests with `cargo test`, `#[gpui_kit::test]` at our pin (The fork).
+Keep cargo's output on screen (`| tee`, never a bare redirect) and every wait over a minute printing, or the turn can be cut or the machine paused. Never share `CARGO_TARGET_DIR` across worktrees: cargo knows `vendor/`'s path crates by their path in the workspace and judges freshness by file times, so one worktree's patched crates build in another as Fresh.
+Once `apps/desktop-gpui/scripts/ghostty.sh` exists, install Zig 0.16.0 and run it before cargo. Run tests with `cargo test`, `#[gpui_kit::test]` at our pin (The fork).
 Benchmarks follow Zed's gpui-bench rules: no `test-support` feature, a hard
 timeout, never two measured runs at once (linked above).
