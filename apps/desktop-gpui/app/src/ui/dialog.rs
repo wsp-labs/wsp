@@ -7,8 +7,8 @@ use std::time::Duration;
 use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{
-    div, linear_color_stop, linear_gradient, prelude::*, px, AnyElement, AnyView, App, ClipboardItem, FontWeight, Hsla, SharedString,
-    Window,
+    div, linear_color_stop, linear_gradient, prelude::*, px, AnyElement, AnyView, App, ClipboardItem, FontWeight, HighlightStyle, Hsla,
+    Pixels, SharedString, StyledText, Window,
 };
 
 use super::card::{keycap, word, CardItem, WordClass};
@@ -21,6 +21,8 @@ use super::{size, text};
 const COPIED: Duration = Duration::from_millis(1_400);
 /// `w-14`: the copy row's label column, so the values under each other line up.
 const LABEL_WIDTH: gpui_kit::Pixels = px(56.);
+/// `max-w-110`: an alert dialog's and a sheet's popup.
+const ALERT_WIDTH: gpui_kit::Pixels = px(440.);
 /// The fade at the right of a copy row's value while more of it waits past the box.
 const FADE: gpui_kit::Pixels = px(24.);
 
@@ -78,7 +80,7 @@ impl Dialog {
 }
 
 impl RenderOnce for Dialog {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
         let head = h_flex()
             .items_start()
@@ -106,7 +108,12 @@ impl RenderOnce for Dialog {
                     ),
             )
             .children(self.count.map(|count| div().flex_none().pt(px(2.)).child(word(count, WordClass::Fact, cx))));
-        let body = v_flex().gap_5().px_5().pt_2().pb_5().children(self.body);
+        let body = v_flex()
+            .id("dialog-body")
+            .flex_shrink(1.)
+            .min_h_0()
+            .overflow_y_scroll()
+            .child(v_flex().gap_5().px_5().pt_2().pb_5().children(self.body));
         let foot = h_flex()
             .justify_end()
             .gap_2()
@@ -118,6 +125,7 @@ impl RenderOnce for Dialog {
         v_flex()
             .debug_selector(|| "dialog".into())
             .w(size::DIALOG_WIDTH)
+            .max_h(popup_max(window))
             .rounded(size::DIALOG_RADIUS)
             .border_1()
             .border_color(p.popover_edge)
@@ -127,6 +135,163 @@ impl RenderOnce for Dialog {
             .child(head)
             .child(body)
             .child(foot)
+    }
+}
+
+/// A popup's `max-h-full` inside the viewport's `p-4`: past it the body scrolls and the head and foot stay.
+fn popup_max(window: &Window) -> Pixels {
+    window.viewport_size().height - px(32.)
+}
+
+/// `AlertDialog`: the one confirmation before something that does not come back, and the sheet that edits one value.
+/// The title and the sentence computed from what goes, a body (a field, the refusal), and the foot: Cancel with the
+/// neutral ring, then the destructive confirm or Save. A surface, laid over a scrim by the caller as `Dialog` is.
+#[derive(IntoElement)]
+pub struct AlertDialog {
+    title: SharedString,
+    sentence: Option<AnyElement>,
+    body: Vec<AnyElement>,
+    acts: Vec<AnyElement>,
+}
+
+impl AlertDialog {
+    pub fn new(title: impl Into<SharedString>) -> Self {
+        AlertDialog { title: title.into(), sentence: None, body: Vec::new(), acts: Vec::new() }
+    }
+
+    /// The description under the title: what leaves, read off what the thing holds now.
+    pub fn sentence(mut self, sentence: impl IntoElement) -> Self {
+        self.sentence = Some(sentence.into_any_element());
+        self
+    }
+
+    /// One block of the body, `px-5 pt-2`: a copy row, a field, the `Refusal`.
+    pub fn child(mut self, el: impl IntoElement) -> Self {
+        self.body.push(el.into_any_element());
+        self
+    }
+
+    /// An act at the foot's right, in order: `Button::outline(..).neutral_ring()` for Cancel, then
+    /// `Button::destructive(..)`.
+    pub fn act(mut self, button: Button) -> Self {
+        self.acts.push(button.into_any_element());
+        self
+    }
+}
+
+impl RenderOnce for AlertDialog {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette().clone();
+        let head = v_flex()
+            .gap_1()
+            .px_5()
+            .pt_4()
+            .pb_1()
+            .child(
+                div()
+                    .debug_selector(|| "dialog-title".into())
+                    .text_size(text::DIALOG_TITLE.0)
+                    .line_height(text::DIALOG_TITLE.1)
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(self.title),
+            )
+            .children(self.sentence.map(|sentence| {
+                div()
+                    .debug_selector(|| "dialog-sentence".into())
+                    .text_size(text::NOTE.0)
+                    .line_height(text::NOTE.1)
+                    .text_color(p.muted_foreground)
+                    .child(sentence)
+            }));
+        let body = (!self.body.is_empty()).then(|| {
+            v_flex()
+                .id("alert-body")
+                .flex_shrink(1.)
+                .min_h_0()
+                .overflow_y_scroll()
+                .child(v_flex().gap_2().px_5().pt_2().children(self.body))
+        });
+        v_flex()
+            .debug_selector(|| "alert-dialog".into())
+            .w(ALERT_WIDTH)
+            .max_h(popup_max(window))
+            .rounded(size::DIALOG_RADIUS)
+            .border_1()
+            .border_color(p.popover_edge)
+            .bg(p.popover)
+            .shadow(p.dialog_shadow.clone())
+            .text_color(p.foreground)
+            .child(head)
+            .children(body)
+            .child(h_flex().justify_end().gap_2().px_5().pt_3().pb_4().children(self.acts))
+    }
+}
+
+/// `RefusalSlot`: the host's refusal under what it refused, in the destructive ink, its fix in the foreground; or what
+/// the dialog waits on, quiet. It keeps two lines of room so nothing moves when one lands.
+#[derive(IntoElement)]
+pub struct Refusal {
+    said: Option<SharedString>,
+    fix: Option<SharedString>,
+    quiet: Option<SharedString>,
+}
+
+impl Refusal {
+    pub fn new() -> Self {
+        Refusal { said: None, fix: None, quiet: None }
+    }
+
+    pub fn said(mut self, said: impl Into<SharedString>) -> Self {
+        self.said = Some(said.into());
+        self
+    }
+
+    pub fn fix(mut self, fix: impl Into<SharedString>) -> Self {
+        self.fix = Some(fix.into());
+        self
+    }
+
+    /// What the dialog waits on, or a note, while nothing is refused.
+    pub fn quiet(mut self, quiet: impl Into<SharedString>) -> Self {
+        self.quiet = Some(quiet.into());
+        self
+    }
+}
+
+impl Default for Refusal {
+    fn default() -> Self {
+        Refusal::new()
+    }
+}
+
+impl RenderOnce for Refusal {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette();
+        let quiet = if self.said.is_none() { self.quiet } else { None };
+        let runs: Vec<(SharedString, Hsla)> = [
+            self.said.map(|s| (s, p.error_foreground)),
+            self.fix.map(|f| (format!(" {f}").into(), p.foreground)),
+            quiet.map(|q| (q, p.muted_foreground)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let text: SharedString = runs.iter().map(|(t, _)| t.as_ref()).collect::<String>().into();
+        let mut at = 0;
+        let highlights = runs
+            .iter()
+            .map(|(t, color)| {
+                let range = at..at + t.len();
+                at += t.len();
+                (range, HighlightStyle { color: Some(*color), ..Default::default() })
+            })
+            .collect::<Vec<_>>();
+        div()
+            .debug_selector(|| "refusal".into())
+            .min_h(px(36.))
+            .text_size(text::FACT)
+            .line_height(px(18.))
+            .child(StyledText::new(text).with_highlights(highlights))
     }
 }
 
@@ -233,6 +398,12 @@ impl RenderOnce for CopyRow {
     }
 }
 
+/// A hover word or sentence in wsp's tooltip: `.tooltip(tip("Back to the default"))` on any element with an id.
+pub fn tip(text: impl Into<SharedString>) -> impl Fn(&mut Window, &mut App) -> AnyView + 'static {
+    let text: SharedString = text.into();
+    move |window, cx| shortcut_tooltip_view(text.clone(), Vec::new(), window, cx)
+}
+
 /// The tooltip a shortcut lives in: the word, then the chord's keycaps. Never a hint strip.
 pub fn shortcut_tooltip(label: impl Into<SharedString>, keys: &[&str]) -> impl Fn(&mut Window, &mut App) -> AnyView + 'static {
     let label: SharedString = label.into();
@@ -240,11 +411,14 @@ pub fn shortcut_tooltip(label: impl Into<SharedString>, keys: &[&str]) -> impl F
     move |window, cx| shortcut_tooltip_view(label.clone(), keys.clone(), window, cx)
 }
 
-/// The same tooltip as a view, for a caller that draws it in place.
+/// The same tooltip as a view, for a caller that draws it in place; with no keys it is the plain hover word.
 pub fn shortcut_tooltip_view(label: SharedString, keys: Vec<SharedString>, window: &mut Window, cx: &mut App) -> AnyView {
     let p = cx.palette().clone();
     Tooltip::element(move |_, cx| {
-        h_flex().gap_2().child(label.clone()).child(h_flex().gap_1().children(keys.iter().cloned().map(|k| keycap(k, cx))))
+        h_flex()
+            .gap_2()
+            .child(label.clone())
+            .when(!keys.is_empty(), |el| el.child(h_flex().gap_1().children(keys.iter().cloned().map(|k| keycap(k, cx)))))
     })
     .m_0()
     .rounded(size::BUTTON_RADIUS)
