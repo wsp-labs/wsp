@@ -13,6 +13,8 @@ use wsp_host_client::protocol::{
 
 use super::model::{self, Shape, Tile};
 use super::{dialogs, host, Asked, Processes, Sidebar};
+use crate::screens::terminal::state::Absent;
+use crate::screens::terminal::words;
 use crate::ui::context_menu::MenuItem;
 
 /// What a menu item does.
@@ -180,22 +182,48 @@ pub(crate) fn gone_refusal(action: &str) -> String {
     )
 }
 
-/// Why a workspace's computer is not there (`settings/places.ts` absenceOf): this computer's daemon stopped, or
-/// another computer not answering; with the word of the button that starts the daemon again where there is one.
-fn absence(s: &Sidebar, w: &Value, status: Option<&Value>) -> Option<(String, bool)> {
-    if w.get("kind").and_then(Value::as_str) == Some("local") {
-        let silent = matches!(status.and_then(|s| s.pointer("/reach/state")?.as_str()), Some("unreachable" | "no-daemon"));
-        let here = s.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some("here"));
-        let name = here
+impl Sidebar {
+    /// The computer the host runs on, by its own name (`hereName`); empty until the places list holds that row.
+    pub(crate) fn here_name(&self) -> String {
+        self.around
+            .places
+            .iter()
+            .find(|p| p.get("id").and_then(Value::as_str) == Some("here"))
             .map(super::looks::place_name)
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| w.get("name").and_then(Value::as_str).unwrap_or_default().to_owned());
-        return silent.then(|| (format!("{name}'s terminals and files stopped"), true));
+            .unwrap_or_default()
     }
-    let id = s.place_of(w.get("id")?.as_str()?)?;
-    let place = s.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(id.as_str()))?;
-    (place.get("present").and_then(Value::as_bool) == Some(false))
-        .then(|| (format!("{} is not answering; it connects on its own when it is on", super::looks::place_name(place)), false))
+
+    fn place_row(&self, workspace_id: &str) -> Option<&Value> {
+        let id = self.place_of(workspace_id)?;
+        self.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(id.as_str()))
+    }
+
+    /// Why a workspace's computer is not there (`settings/places.ts` absenceOf): this computer's daemon stopped, or
+    /// another computer not answering.
+    pub(crate) fn absence(&self, workspace_id: &str) -> Option<Absent> {
+        let w = self.around.workspaces.get(workspace_id)?;
+        if w.get("kind").and_then(Value::as_str) == Some("local") {
+            let status = self.around.statuses.get(workspace_id);
+            let silent = matches!(status.and_then(|s| s.pointer("/reach/state")?.as_str()), Some("unreachable" | "no-daemon"));
+            let here = self.here_name();
+            let name = if here.is_empty() { w.get("name").and_then(Value::as_str).unwrap_or_default().to_owned() } else { here };
+            return silent.then(|| words::own_daemon_down(&name));
+        }
+        let place = self.place_row(workspace_id)?;
+        (place.get("present").and_then(Value::as_bool) == Some(false)).then(|| words::absent_computer(&super::looks::place_name(place)))
+    }
+
+    /// The person's own computer a workspace runs on, by its own name (`ownComputerName` in `terminal/paneWords.ts`):
+    /// none for a machine a cloud lends.
+    pub(crate) fn own_computer_name(&self, workspace_id: &str) -> Option<String> {
+        let local = self.around.workspaces.get(workspace_id)?.get("kind").and_then(Value::as_str) == Some("local");
+        let name = match self.place_row(workspace_id) {
+            Some(place) if local || place.get("kind").and_then(Value::as_str) == Some("computer") => super::looks::place_name(place),
+            None if local => self.here_name(),
+            _ => return None,
+        };
+        (!name.is_empty()).then_some(name)
+    }
 }
 
 /// A workspace's own items (`workspaceActions.ts`): each its kind and state can take, a refused one with its reason.
@@ -214,7 +242,7 @@ pub(crate) fn workspace_items(s: &Sidebar, workspace_id: &str) -> Vec<Item> {
     let zombie = status.and_then(|s| s.pointer("/reach/state")?.as_str()) == Some("zombie");
     let dead = state == "gone" || zombie || read("wakeRefused").is_some();
     let driven = kind == "cloud";
-    let absent = absence(s, w, status);
+    let absent = s.absence(workspace_id);
     let name = w.get("name").and_then(Value::as_str).unwrap_or_default();
     let mut out = Vec::new();
     if driven {
@@ -229,7 +257,7 @@ pub(crate) fn workspace_items(s: &Sidebar, workspace_id: &str) -> Vec<Item> {
             out.push(item(Act::Rebuild, "Rebuild task", "state", None));
         }
     }
-    if absent.as_ref().is_some_and(|(_, start)| *start) {
+    if absent.as_ref().is_some_and(|a| a.start.is_some()) {
         out.push(item(Act::Reconnect, "Reconnect", "state", None));
     }
     out.push(item(Act::NewThreadHere, "New thread here", "open", dead.then(|| "New threads wait for the rebuild".to_owned())));
@@ -237,7 +265,7 @@ pub(crate) fn workspace_items(s: &Sidebar, workspace_id: &str) -> Vec<Item> {
         keys: chord("secondary-j"),
         ..item(Act::OpenTerminal, "Open terminal", "open", (state == "gone").then(|| gone_refusal("open a terminal")))
     });
-    let sentence = absent.as_ref().map(|(said, _)| said.clone());
+    let sentence = absent.map(|a| a.sentence);
     out.push(Item {
         keys: chord("secondary-shift-j"),
         ..item(Act::OpenBrowser, "Open browser", "open", sentence.clone().or_else(|| action_refusal(state, "preview")))

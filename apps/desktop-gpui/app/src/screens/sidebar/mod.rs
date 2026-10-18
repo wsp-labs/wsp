@@ -474,6 +474,11 @@ impl Sidebar {
         model::sidebar(&self.threads, &self.prefs, self.now, self.held.as_deref())
     }
 
+    /// A workspace's record and its live status as this connection last read them.
+    pub fn workspace(&self, id: &str) -> (Option<&Value>, Option<&Value>) {
+        (self.around.workspaces.get(id), self.around.statuses.get(id))
+    }
+
     /// Where a root stands among the roots that move in its section, for the menu's moves.
     pub fn root_place(&self, key: &str) -> Option<model::RootPlace> {
         self.view().root_place(key)
