@@ -1,0 +1,51 @@
+diff --git a/crates/base/src/input/base/element.rs b/crates/base/src/input/base/element.rs
+index 9915b4f..3330fa2 100644
+--- a/crates/base/src/input/base/element.rs
++++ b/crates/base/src/input/base/element.rs
+@@ -548,7 +548,7 @@ impl<M: InputModeKind> TextElement<M> {
+         last_layout: &LastLayout,
+         bounds: &mut Bounds<Pixels>,
+         scroll_size: Size<Pixels>,
+-        _: &mut Window,
++        window: &mut Window,
+         cx: &mut App,
+     ) -> (Vec<CursorRenderInfo>, Point<Pixels>, Option<usize>) {
+         let state = self.state.read(cx);
+@@ -590,7 +590,14 @@ impl<M: InputModeKind> TextElement<M> {
+             line_origin
+         };
+ 
+-        let cursor_height = 0.85 * line_height;
++        // The caret spans the font's ascent and descent about the baseline, as Chromium draws it.
++        let style = window.text_style();
++        let font_size = style.font_size.to_pixels(window.rem_size());
++        let probe = window.text_system().shape_line(" ".into(), font_size, &[style.to_run(1)], None);
++        let scale_factor = window.scale_factor();
++        let (ascent, descent) = gpui::device_font_height(probe.ascent, probe.descent, scale_factor);
++        let cursor_top = gpui::line_baseline(line_height, probe.ascent, probe.descent, scale_factor) - ascent;
++        let cursor_height = ascent + descent;
+ 
+         for selection in state.selections.iter() {
+             let is_active = selection.id == active_id;
+@@ -707,7 +714,7 @@ impl<M: InputModeKind> TextElement<M> {
+                 bounds: Bounds::new(
+                     point(
+                         cursor_x,
+-                        bounds.top() + cursor_pos.y + ((line_height - cursor_height) / 2.),
++                        bounds.top() + cursor_pos.y + cursor_top,
+                     ),
+                     size(CURSOR_WIDTH, cursor_height),
+                 ),
+diff --git a/crates/component/src/shimmer.rs b/crates/component/src/shimmer.rs
+index 08b910d..edfcff6 100644
+--- a/crates/component/src/shimmer.rs
++++ b/crates/component/src/shimmer.rs
+@@ -283,7 +283,7 @@ impl ShimmerGlyphs {
+                 let line = &wrapped_line.unwrapped_layout;
+                 let baseline_offset = point(
+                     px(0.),
+-                    (line_height - line.ascent - line.descent) / 2. + line.ascent,
++                    gpui::line_baseline(line_height, line.ascent, line.descent, window.scale_factor()),
+                 );
+                 let mut wraps = wrapped_line.wrap_boundaries.iter().peekable();
+                 let mut glyph_origin = point(

@@ -68,7 +68,8 @@ pub fn section_head(head: impl Into<SharedString>, cx: &App) -> impl IntoElement
     h_flex()
         .debug_selector(|| "section-head".into())
         .min_h(size::SECTION_HEAD_FLOOR)
-        .text_size(text::SECTION_HEAD)
+        .text_size(text::SECTION_HEAD.0)
+        .line_height(text::SECTION_HEAD.1)
         .font_weight(FontWeight::MEDIUM)
         .text_color(cx.palette().foreground.opacity(0.7))
         .child(head.into())
@@ -191,7 +192,7 @@ pub fn word(text: impl Into<SharedString>, class: WordClass, cx: &App) -> impl I
         WordClass::Value => (text::VALUE, p.foreground),
         WordClass::Fact => (text::FACT, p.muted_foreground),
     };
-    div().debug_selector(|| "word".into()).text_size(size).text_color(color).child(text.into())
+    div().debug_selector(|| "word".into()).text_size(size.0).line_height(size.1).text_color(color).child(text.into())
 }
 
 /// One row: the title over its sentence, and beside them the slot with at most one word and one control.

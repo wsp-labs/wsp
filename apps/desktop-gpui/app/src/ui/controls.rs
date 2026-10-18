@@ -409,7 +409,8 @@ impl RenderOnce for Select {
             .border_color(edge)
             .bg(fill)
             .text_color(ink)
-            .text_size(text::FACT);
+            .text_size(text::FACT.0)
+            .line_height(text::FACT.1);
         field_frame(select, self.held)
     }
 }
@@ -448,7 +449,7 @@ impl RenderOnce for Field {
             .py_0()
             .border_color(p.input)
             .bg(p.input_fill)
-            .text_size(text::FACT);
+            .text_size(text::FACT.0);
         field_frame(input, false)
     }
 }

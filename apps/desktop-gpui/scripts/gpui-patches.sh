@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# Our patches over the published gpui-pre crates (backdrop blur, rounded clipping of children), kept as one diff per
-# crate in patches/ and applied to fresh copies in vendor/, which [patch.crates-io] in Cargo.toml points at.
-#   apply  unpack each pinned .crate (checksum-verified) into vendor/ and apply its patch; run after a fresh clone
+# Our patches over the published gpui-pre crates (backdrop blur, rounded clipping of children, text placement) and over
+# gpui-kit's pinned commit (text placement in its input and shimmer), kept as one diff per crate or repository in
+# patches/ and applied to fresh copies in vendor/, which the [patch] tables in Cargo.toml point at.
+#   apply  unpack each pinned .crate (checksum-verified) and gpui-kit's commit into vendor/ and apply each patch; run after a fresh clone
 #          and after a pull that changes patches/ (vendor/.applied keeps the patches it applied, for dev.sh to compare)
 #   save   rewrite patches/ from your edits under vendor/
 #   check  apply into a scratch folder and fail if a patch no longer applies or vendor/ differs from the result
@@ -16,8 +17,15 @@ root=$(pwd)
 crates='gpui-pre 0.3.9 34f61c1cfd36fc9c436af09308c963822ae27a45a84feb21a77ba5c9e051f1c0
 gpui-pre-wgpu 0.3.9 5b1cdb26c1503bf9662ee8fbc5ab0b44b2deeee4b5c12dc67491ba6fb5fc544b
 gpui-pre-apple 0.3.9 b52f58893fe1a0836464428dfad2b5eaf42c9c303a9638f4c2aced5a69072a15'
+# gpui-kit, a git dependency pinned by its commit, whose hash is its checksum.
+kit_url=https://github.com/longbridge/gpui-kit
+kit_rev=14f59330a4aa0cb5becf140e067d64a616328612
+kit=gpui-kit-${kit_rev:0:7}
 # gpui-pre-apple's build script reads these gpui-pre files from its own vendor/gpui to generate the Metal header.
 apple_mirror='src/scene.rs src/geometry.rs src/color.rs src/window.rs src/platform.rs'
+
+# A GIT_DIR from a hook or a linked worktree would point every git below at another repository.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
@@ -43,6 +51,48 @@ fetch() {
   echo "vendor/.crates/$file"
 }
 
+# Prints a git repository whose HEAD is gpui-kit's pinned commit: cargo's own checkout, or a fetch into vendor/.kit.
+fetch_kit() {
+  local cached
+  for cached in "${CARGO_HOME:-$HOME/.cargo}"/git/checkouts/gpui-kit-*/"${kit_rev:0:7}" vendor/.kit; do
+    if [ "$(git -C "$cached" rev-parse HEAD 2>/dev/null)" = "$kit_rev" ]; then
+      echo "$cached"
+      return
+    fi
+  done
+  rm -rf vendor/.kit
+  { git init -q vendor/.kit && git -C vendor/.kit fetch -q --depth 1 "$kit_url" "$kit_rev" && git -C vendor/.kit checkout -q FETCH_HEAD; } >&2 || {
+    echo "refused: could not fetch gpui-kit $kit_rev from $kit_url, and cargo's git cache has no checkout of it" >&2
+    exit 1
+  }
+  echo vendor/.kit
+}
+
+# Writes gpui-kit's pinned commit, exactly as committed, into the folder $1.
+unpack_kit() {
+  local repo
+  repo=$(fetch_kit)
+  mkdir -p "$1"
+  git -C "$repo" archive "$kit_rev" | tar -x -C "$1"
+}
+
+# Every folder vendor/ holds, one per line.
+folders() {
+  while read -r name version _; do echo "$name-$version"; done <<<"$crates"
+  echo "$kit"
+}
+
+# Applies patches/$2.patch to the fresh copy $1/$2.
+patch_into() {
+  [ -f "patches/$2.patch" ] || { echo "refused: patches/$2.patch is missing" >&2; exit 1; }
+  [ -s "patches/$2.patch" ] || return 0
+  # Under a git worktree (a TMPDIR inside one), git apply skips every path outside it and still succeeds.
+  (cd "$1/$2" && GIT_CEILING_DIRECTORIES="$1" git apply -p1 --whitespace=nowarn "$root/patches/$2.patch") || {
+    echo "refused: patches/$2.patch no longer applies to $2" >&2
+    exit 1
+  }
+}
+
 # Unpacks fresh, patched copies of every crate into $1.
 build() {
   local out=$1 name version sum dir file crate
@@ -52,14 +102,10 @@ build() {
     # An assignment, so a refused fetch stops the script under set -e instead of handing tar an empty path.
     crate=$(fetch "$name" "$version" "$sum")
     tar -xzf "$crate" -C "$out"
-    [ -f "patches/$dir.patch" ] || { echo "refused: patches/$dir.patch is missing" >&2; exit 1; }
-    [ -s "patches/$dir.patch" ] || continue
-    # Under a git worktree (a TMPDIR inside one), git apply skips every path outside it and still succeeds.
-    (cd "$out/$dir" && GIT_CEILING_DIRECTORIES="$out" git apply -p1 --whitespace=nowarn "$root/patches/$dir.patch") || {
-      echo "refused: patches/$dir.patch no longer applies to $name $version" >&2
-      exit 1
-    }
+    patch_into "$out" "$dir"
   done <<<"$crates"
+  unpack_kit "$out/$kit"
+  patch_into "$out" "$kit"
   for file in $apple_mirror; do
     cp "$out/gpui-pre-0.3.9/$file" "$out/gpui-pre-apple-0.3.9/vendor/gpui/$file"
   done
@@ -72,10 +118,10 @@ case "${1:-}" in
   apply)
     build "$scratch/new"
     rm -f vendor/.applied
-    while read -r name version _; do
-      rm -rf "vendor/$name-$version"
-      mv "$scratch/new/$name-$version" "vendor/$name-$version"
-    done <<<"$crates"
+    for dir in $(folders); do
+      rm -rf "vendor/$dir"
+      mv "$scratch/new/$dir" "vendor/$dir"
+    done
     cat patches/*.patch >vendor/.applied
     echo "applied patches/ to fresh copies in vendor/"
     ;;
@@ -88,23 +134,28 @@ case "${1:-}" in
       crate=$(fetch "$name" "$version" "$sum")
       tar -xzf "$crate" -C "$scratch/$name"
       mv "$scratch/$name/$name-$version" "$scratch/$name/a"
-      cp -R "vendor/$name-$version" "$scratch/$name/b"
-      rm -rf "$scratch/$name/b/vendor/gpui" "$scratch/$name/a/vendor/gpui" "$scratch/$name/b/target"
-      find "$scratch/$name" -name .DS_Store -exec rm -f {} +
-      (cd "$scratch/$name" && git diff --no-index --no-color --no-ext-diff --no-prefix a b >"$root/patches/$name-$version.patch") || true
-      echo "patches/$name-$version.patch: $(grep -c '^diff --git' "patches/$name-$version.patch") files"
     done <<<"$crates"
+    unpack_kit "$scratch/$kit/a"
+    for dir in $(folders); do
+      name=${dir%-*}
+      [ "$dir" = "$kit" ] && name=$kit
+      cp -R "vendor/$dir" "$scratch/$name/b"
+      rm -rf "$scratch/$name/b/vendor/gpui" "$scratch/$name/a/vendor/gpui"
+      find "$scratch/$name" -name target -prune -exec rm -rf {} + -o -name .DS_Store -exec rm -f {} +
+      (cd "$scratch/$name" && git diff --no-index --no-color --no-ext-diff --no-prefix a b >"$root/patches/$dir.patch") || true
+      echo "patches/$dir.patch: $(grep -c '^diff --git' "patches/$dir.patch") files"
+    done
     cat patches/*.patch >vendor/.applied
     ;;
   check)
     build "$scratch/new"
     status=0
-    while read -r name version _; do
-      if ! diff -r -q -x target -x .DS_Store "$scratch/new/$name-$version" "vendor/$name-$version"; then
-        echo "vendor/$name-$version differs from patches/$name-$version.patch applied to a fresh copy; run save or apply" >&2
+    for dir in $(folders); do
+      if ! diff -r -q -x target -x .DS_Store "$scratch/new/$dir" "vendor/$dir"; then
+        echo "vendor/$dir differs from patches/$dir.patch applied to a fresh copy; run save or apply" >&2
         status=1
       fi
-    done <<<"$crates"
+    done
     [ "$status" -eq 0 ] && echo "every patch applies, and vendor/ matches"
     exit "$status"
     ;;
