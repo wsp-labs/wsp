@@ -1055,7 +1055,7 @@ pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&
 
 /// Sidebar.logic.ts threadForest over the sorted threads: each thread under its opener where the opener is listed,
 /// rows whose parents lead round in a circle kept at the end in their own order.
-fn forest(all: &[Thread], sorted: &[usize]) -> Vec<Tree> {
+pub(crate) fn forest(all: &[Thread], sorted: &[usize]) -> Vec<Tree> {
     let index: HashMap<&str, usize> = all.iter().enumerate().map(|(i, t)| (t.key.as_str(), i)).collect();
     let mut spawned: HashMap<usize, Vec<usize>> = HashMap::new();
     let mut under = vec![false; all.len()];

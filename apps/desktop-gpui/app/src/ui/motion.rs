@@ -2,7 +2,7 @@
 //! The web's short transitions: `transition-colors duration-150` on a hover's fill and ink, and a switch's thumb.
 //! Each value eases toward its target from wherever it stood, in Tailwind's default curve.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gpui_kit::base::animation::Lerp;
 use gpui_kit::base::{transition, Easing, Transition};
@@ -10,7 +10,7 @@ use gpui_kit::{
     prelude::*, px, Animation, AnimationExt as _, AnyElement, App, ElementId, Entity, Hsla, Pixels, Rgba, SharedString, Window,
 };
 
-use super::status::still;
+use super::status::{still, Still};
 use super::theme;
 
 /// `duration-150`, every hover's colors.
@@ -50,7 +50,7 @@ fn policy(duration: Duration) -> Transition {
 }
 
 /// Tailwind's `--ease-in-out`, which is its `--default-transition-timing-function` too; not CSS's own `ease-in-out`.
-fn tailwind_ease() -> Easing {
+pub fn tailwind_ease() -> Easing {
     Easing::cubic_bezier(0.4, 0., 0.2, 1.).expect("a valid curve")
 }
 
@@ -111,14 +111,20 @@ pub fn track_hover(state: Entity<bool>) -> impl Fn(&bool, &mut Window, &mut App)
 }
 
 /// `el` fading in over `DIALOG` from the first frame it is drawn, as `data-starting-style` opens a dialog's popup and
-/// backdrop; at once under reduced motion. GPUI has no scale for a box and its text, so the popup's `scale-98` is not
-/// drawn.
-pub fn open_fade<E: Styled + IntoElement + 'static>(id: impl Into<ElementId>, el: E, cx: &App) -> AnyElement {
-    if still(cx) {
+/// backdrop. The web keeps dialog fades under reduced motion (W2-DLG-186), so this is timed here rather than by
+/// `with_animation`, which holds still then; only captures hold it still. GPUI has no scale for a box and its text, so
+/// the popup's `scale-98` is not drawn.
+pub fn open_fade<E: Styled + IntoElement + 'static>(id: impl Into<ElementId>, el: E, window: &mut Window, cx: &mut App) -> AnyElement {
+    if cx.try_global::<Still>().is_some_and(|s| s.0) {
         return el.into_any_element();
     }
-    let curve = tailwind_ease();
-    el.with_animation(id, Animation::new(DIALOG).with_easing(move |t| curve.sample(t)), |el, t| el.opacity(t)).into_any_element()
+    let now = Instant::now();
+    let since = *window.use_keyed_state(ElementId::from((id.into(), "opened")), cx, |_, _| now).read(cx);
+    let t = (now.saturating_duration_since(since).as_secs_f32() / DIALOG.as_secs_f32()).min(1.);
+    if t < 1. {
+        window.request_animation_frame();
+    }
+    el.opacity(tailwind_ease().sample(t)).into_any_element()
 }
 
 /// `animation: slate-piece-in 150ms ease-out`, a slate piece fading in once as it first draws.
@@ -179,8 +185,7 @@ pub fn fold(
 /// A scrollbar's opacity: in over `BAR_IN` while `shown`, out over `BAR_OUT` after its delay; at once under reduced
 /// motion.
 pub fn bar_opacity(id: impl Into<ElementId>, shown: bool, window: &mut Window, cx: &mut App) -> f32 {
-    let curve = || Easing::cubic_bezier(0.4, 0., 0.2, 1.).expect("a valid curve");
-    let timing = if shown { Transition::new(BAR_IN).easing(curve()) } else { Transition::new(BAR_OUT.1).delay(BAR_OUT.0).easing(curve()) };
+    let timing = if shown { policy(BAR_IN) } else { policy(BAR_OUT.1).delay(BAR_OUT.0) };
     f32::from(ease_px_by(id, "bar", px(if shown { 1. } else { 0. }), timing, window, cx))
 }
 

@@ -338,7 +338,18 @@ fn a_popup_fades_in_over_200_ms_then_asks_for_no_frame(cx: &mut TestAppContext) 
 }
 
 #[gpui_kit::test]
-fn under_reduced_motion_a_popup_stands_at_once(cx: &mut TestAppContext) {
+fn in_a_capture_a_popup_stands_at_once(cx: &mut TestAppContext) {
     let cx = alone(cx, true);
-    assert_eq!(asked(cx), 0, "with motion reduced the popup asks for no frame");
+    assert_eq!(asked(cx), 0, "a capture's popup asks for no frame");
+}
+
+/// Catches: reduced motion dropping a sheet's fade, which the web keeps for every dialog (W2-DLG-186).
+#[gpui_kit::test]
+fn under_reduced_motion_a_popup_still_fades_in(cx: &mut TestAppContext) {
+    cx.update(|cx| cx.set_reduce_motion(true));
+    let cx = alone(cx, false);
+    assert!(asked(cx) > 0, "with motion reduced the popup still fades in as it opens");
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    asked(cx);
+    assert_eq!(asked(cx), 0, "and past its 200 ms asks for no frame");
 }

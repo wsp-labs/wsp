@@ -22,7 +22,7 @@ use serde_json::{json, Map, Value};
 use wsp_host_client::{protocol, Event, Failure, HostClient, Op};
 
 use crate::screens::{Host, Opened, Pane, Parts, Place, Screen};
-use crate::ui::{icon_menu, ActivePalette, Button, MenuAct};
+use crate::ui::{icon_menu, scroll_area, ActivePalette, Button, MenuAct};
 use model::{Doc, Piece, Record, Row, Rows};
 
 /// The panel's words, `SLATE_WORDS` in `SlateSurface.tsx`.
@@ -351,7 +351,7 @@ pub struct SlateScreen {
     live: bool,
     /// Words a press's fill puts in the composer on the next draw, which has the window the composer needs.
     filling: Option<String>,
-    bar: Bar,
+    scroll: gpui_kit::ScrollHandle,
     _follow: Option<Task<()>>,
     _pump: Option<Task<()>>,
     _tick: Option<Task<()>>,
@@ -394,7 +394,7 @@ impl Screen for SlateScreen {
             asking: None,
             live: true,
             filling: None,
-            bar: Bar::default(),
+            scroll: gpui_kit::ScrollHandle::default(),
             _follow: None,
             _pump: None,
             _tick: None,
@@ -1753,89 +1753,12 @@ impl Render for SlateScreen {
                     .debug_selector(|| "slate-surface".into())
                     .child(column().child(header))
                     .children(held)
-                    .child(self.scroll_area(column().pb(px(32.)).children(body), window, cx))
+                    .child(scroll_area("slate-scroll", &self.scroll, column().pb(px(32.)).children(body), window, cx).flex_1().min_h_0())
                     .into_any_element()
             }
         };
         let overlays = consent::overlays(self, window, cx);
         div().key_context(KEY_CONTEXT).size_full().flex().flex_col().child(surface).children(overlays)
-    }
-}
-
-/// The slate's scrollbar: the box it scrolls, whether the pointer is over it, and when it last scrolled.
-#[derive(Default)]
-struct Bar {
-    scroll: gpui_kit::ScrollHandle,
-    over: bool,
-    scrolled_at: Option<Instant>,
-    _hold: Option<Task<()>>,
-}
-
-/// How long a scroll keeps the bar shown after its last wheel event, Base UI's `SCROLL_TIMEOUT`.
-const SCROLLING: Duration = Duration::from_millis(500);
-
-impl SlateScreen {
-    /// The slate's scroll box and its bar, `ScrollArea`'s: 6 px, 4 px clear of each end and 1 px of the edge, shown
-    /// while the pointer is over the box or it scrolls.
-    fn scroll_area(&mut self, body: impl IntoElement, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let now = cx.background_executor().now();
-        let scrolling = self.bar.scrolled_at.is_some_and(|at| now.saturating_duration_since(at) < SCROLLING);
-        let opacity = crate::ui::motion::bar_opacity("slate-scrollbar", self.bar.over || scrolling, window, cx);
-        let hovered = crate::ui::motion::hovered("slate-scrollbar", window, cx);
-        let p = cx.palette();
-        let ink = if *hovered.read(cx) { p.scrollbar_thumb_hover } else { p.scrollbar_thumb };
-        let ink = crate::ui::motion::ease_ink("slate-scrollbar", "thumb", ink, crate::ui::motion::COLORS, window, cx);
-        let handle = &self.bar.scroll;
-        let (view, most) = (f32::from(handle.bounds().size.height), f32::from(handle.max_offset().y));
-        let bar = (opacity > 0. && most > 0. && view > 8.).then(|| {
-            let track = view - 8.;
-            let thumb = (track * view / (view + most)).max(16.).min(track);
-            let top = 4. + (track - thumb) * (-f32::from(handle.offset().y) / most).clamp(0., 1.);
-            div()
-                .id("slate-scrollbar")
-                .debug_selector(|| "slate-scrollbar".into())
-                .on_hover(crate::ui::motion::track_hover(hovered))
-                .absolute()
-                .right(px(1.))
-                .top(px(top))
-                .w(px(6.))
-                .h(px(thumb))
-                .rounded_full()
-                .bg(ink)
-                .opacity(opacity)
-        });
-        div()
-            .id("slate-scroll-area")
-            .relative()
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h_0()
-            .on_hover(cx.listener(|this, over: &bool, _, cx| {
-                this.bar.over = *over;
-                cx.notify();
-            }))
-            .child(
-                div()
-                    .id("slate-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&self.bar.scroll)
-                    .on_scroll_wheel(cx.listener(|this, _, _, cx| this.scrolled(cx)))
-                    .child(body),
-            )
-            .children(bar)
-            .into_any_element()
-    }
-
-    fn scrolled(&mut self, cx: &mut Context<Self>) {
-        self.bar.scrolled_at = Some(cx.background_executor().now());
-        self.bar._hold = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(SCROLLING).await;
-            _ = this.update(cx, |_, cx| cx.notify());
-        }));
-        cx.notify();
     }
 }
 
