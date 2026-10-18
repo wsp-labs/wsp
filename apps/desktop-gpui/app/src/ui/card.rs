@@ -170,7 +170,12 @@ pub fn section_head(head: impl Into<SharedString>, cx: &App) -> impl IntoElement
 /// The head's box: 13.5 px medium, or a locked page's 14 px regular.
 fn head_box(locked: bool, _: &App) -> gpui_kit::Div {
     let (size, weight) = if locked { (text::VALUE, FontWeight::NORMAL) } else { (text::SECTION_HEAD, FontWeight::MEDIUM) };
-    h_flex().debug_selector(|| "section-head".into()).min_h(size::SECTION_HEAD_FLOOR).text_size(size).font_weight(weight)
+    h_flex()
+        .debug_selector(|| "section-head".into())
+        .min_h(size::SECTION_HEAD_FLOOR)
+        .text_size(size.0)
+        .when(!locked, |el| el.line_height(size.1))
+        .font_weight(weight)
 }
 
 /// `GLYPH`: a lucide glyph at 16 px in the foreground at 80%.
@@ -362,7 +367,13 @@ pub fn word(words: impl Into<Words>, class: WordClass, cx: &App) -> gpui_kit::Di
         WordClass::Value => (text::VALUE, p.foreground),
         WordClass::Fact => (text::FACT, p.muted_foreground),
     };
-    div().debug_selector(|| "word".into()).min_w_0().text_size(size).text_color(color).child(spaced(words.into(), false))
+    div()
+        .debug_selector(|| "word".into())
+        .min_w_0()
+        .text_size(size.0)
+        .line_height(size.1)
+        .text_color(color)
+        .child(spaced(words.into(), false))
 }
 
 /// One chip of `Chips`: a fact in the mono with its own glyph.
@@ -597,7 +608,7 @@ impl RenderOnce for Row {
                 .flex()
                 .flex_none()
                 .items_center()
-                .text_size(text::FACT)
+                .text_size(text::FACT.0)
                 .line_height(line)
                 .text_color(p.muted_foreground)
                 .child(mark)
@@ -743,7 +754,7 @@ impl RenderOnce for HeadRow {
                     .debug_selector(|| "mark".into())
                     .flex_none()
                     .line_height(text::LIST_TITLE.1)
-                    .text_size(text::FACT)
+                    .text_size(text::FACT.0)
                     .text_color(p.muted_foreground)
                     .child(mark)
             }));

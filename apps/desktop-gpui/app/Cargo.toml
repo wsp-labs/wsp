@@ -49,6 +49,10 @@ harness = false
 name = "composer_shots"
 harness = false
 
+[[test]]
+name = "text"
+harness = false
+
 [lints.rust]
 # objc's msg_send! tests a cargo-clippy feature inside this crate.
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }

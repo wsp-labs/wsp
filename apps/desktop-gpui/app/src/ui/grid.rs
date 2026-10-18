@@ -377,7 +377,7 @@ impl RenderOnce for VersionFact {
             .min_w_0()
             .flex_wrap()
             .font_family(cx.theme().mono_font_family.clone())
-            .text_size(text::FACT)
+            .text_size(text::FACT.0)
             .line_height(px(20.))
             .text_color(p.muted_foreground)
             .children(self.parts.into_iter().enumerate().map(|(ix, part)| {
@@ -395,7 +395,7 @@ pub fn num(value: impl Into<SharedString>, cx: &App) -> impl IntoElement {
         .min_w_0()
         .truncate()
         .text_right()
-        .text_size(text::VALUE)
+        .text_size(text::VALUE.0)
         .text_color(cx.palette().foreground)
         .child(value.into())
 }
@@ -436,7 +436,7 @@ impl RenderOnce for StateCell {
             .min_w_0()
             .justify_end()
             .whitespace_nowrap()
-            .text_size(text::FACT)
+            .text_size(text::FACT.0)
             .line_height(px(20.))
             .text_color(cx.palette().muted_foreground)
             .when_some(self.why, |el, why| el.tooltip(tip(why)))

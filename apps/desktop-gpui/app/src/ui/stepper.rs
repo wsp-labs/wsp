@@ -83,7 +83,7 @@ impl RenderOnce for Stepper {
                     .min_w(px(32.))
                     .px_1()
                     .text_center()
-                    .text_size(text::FACT)
+                    .text_size(text::FACT.0)
                     .text_color(p.foreground)
                     .child(value.to_string()),
             )
