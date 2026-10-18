@@ -198,6 +198,28 @@ fn the_drawer_shows_each_waiting_row_and_the_queue_opens_its_bar(cx: &mut TestAp
 }
 
 #[gpui_kit::test]
+fn a_slates_words_fold_the_bar_and_the_box_takes_the_keys(cx: &mut TestAppContext) {
+    let cx = open("queued", cx);
+    let composer = composer_of(cx);
+    composer.update_in(cx, |c, window, cx| c.set_thread_key("thread-1".into(), window, cx));
+    composer.update(cx, |c, cx| c.open_bar(Bar::Queue, cx));
+    assert!(cx.update(|window, cx| desktop_gpui::screens::composer::fill("thread-1", "Build a slate", window, cx)));
+    composer.read_with(cx, |c, cx| {
+        assert_eq!(c.text(cx), "Build a slate");
+        assert_eq!(c.editor().read(cx).cursor(), "Build a slate".len(), "the caret after the words");
+        assert_eq!(c.bar(), None, "Ask for one folds the bar");
+    });
+    assert!(cx.update(|window, cx| composer.read(cx).editor().focus_handle(cx).is_focused(window)), "the box has the keys");
+    composer.update(cx, |c, cx| c.open_bar(Bar::Queue, cx));
+    assert!(cx.update(|window, cx| desktop_gpui::screens::composer::insert("thread-1", "> a: 1", window, cx)));
+    composer.read_with(cx, |c, cx| {
+        assert_eq!(c.text(cx), "Build a slate\n> a: 1\n", "a fill's block goes in at the caret on lines of its own");
+        assert_eq!(c.bar(), None, "and folds the bar too");
+    });
+    assert!(!cx.update(|window, cx| desktop_gpui::screens::composer::fill("thread-3", "x", window, cx)), "no composer has thread-3");
+}
+
+#[gpui_kit::test]
 fn a_long_paste_goes_as_a_text_file(cx: &mut TestAppContext) {
     let cx = open("empty", cx);
     let composer = composer_of(cx);

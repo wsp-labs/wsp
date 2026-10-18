@@ -139,6 +139,7 @@ palette!(
     primary,
     primary_foreground,
     primary_hover,
+    slate_accent,
     border,
     input,
     input_fill,

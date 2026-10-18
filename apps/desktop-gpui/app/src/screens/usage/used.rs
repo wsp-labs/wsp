@@ -2,17 +2,14 @@
 //! The Usage tab: the range and the split, the totals strip, the chart, the split table and where the tokens went.
 //! The last range's figures stand while the next range is read.
 
-use std::rc::Rc;
-
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{div, prelude::*, px, relative, AnyElement, App, Context, FontWeight, Hsla, SharedString, Window};
 use wsp_host_client::protocol::UsedAnswer;
 
-use super::chart::{self, UsageChart, CHART_HEIGHT};
 use super::model::{self, Chart, InkTheme, MixPart, Range, Split};
 use super::parts::{self, bone, card, identity, quiet, rule, share_bar, sized, split_glyph, surface, BLOCK_GAP};
 use super::{words, UsagePage};
-use crate::ui::{ActivePalette, Segmented};
+use crate::ui::{chart, ActivePalette, Segmented, CHART_HEIGHT};
 
 /// The split table's columns past the first: tokens, cache hit, turns and the estimate.
 const COLUMNS: [f32; 4] = [104., 96., 80., 120.];
@@ -142,9 +139,9 @@ fn chart_card(used: &UsedAnswer, chart: &Chart, ink: &InkTheme, window: &Window,
     let ticks = model::ticks(used, &tz).into_iter().map(|t| chart::Tick { at: t.at as f32, word: t.word.into() }).collect();
     let steps = used.series.iter().map(|s| s.t).collect();
     let body = v_flex().gap_4().child(legend(items, window, cx)).child(
-        UsageChart::new("usage-chart-plot", steps, lines, ticks)
+        chart::Chart::new("usage-chart-plot", steps, lines, ticks)
             .figure(words::fmt_tokens)
-            .step_word(Rc::new(move |t| words::step_word(range, t, &chrono::Local))),
+            .step_word(move |t| words::step_word(range, t, &chrono::Local)),
     );
     card("usage-chart", Some(words::chart_head(range).into()), body, cx)
 }

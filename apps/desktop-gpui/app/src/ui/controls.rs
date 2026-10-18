@@ -5,8 +5,8 @@
 use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
-    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, Entity, Focusable as _, FontWeight, Hsla, MouseButton, Pixels,
-    SharedString, Window,
+    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, DefiniteLength, Div, ElementId, Entity, Focusable as _, FontWeight,
+    Hsla, MouseButton, Pixels, SharedString, Window,
 };
 
 use super::card::{framed, glyph_frame, row_frame, CardItem, Corners};
@@ -25,28 +25,28 @@ const HELD: f32 = 0.64;
 
 /// How a held control's parts read: the web dims the control as one layer, but GPUI fades each fill, edge and glyph
 /// on its own, which stacks them; so each part is drawn solid in the color the dimmed layer shows over the page.
-pub(super) struct Dim {
+pub(crate) struct Dim {
     page: Hsla,
     ground: Hsla,
 }
 
 impl Dim {
-    pub(super) fn new(page: Hsla, fill: Hsla) -> Self {
+    pub(crate) fn new(page: Hsla, fill: Hsla) -> Self {
         Dim { page, ground: page.blend(fill) }
     }
 
-    pub(super) fn fill(&self) -> Hsla {
+    pub(crate) fn fill(&self) -> Hsla {
         self.page.blend(self.ground.opacity(HELD))
     }
 
     /// A part drawn over the control's fill.
-    pub(super) fn over(&self, part: Hsla) -> Hsla {
+    pub(crate) fn over(&self, part: Hsla) -> Hsla {
         self.page.blend(self.ground.blend(part).opacity(HELD))
     }
 }
 
 /// `KEYCAP_BEVEL`, `inset 0 1px 0 var(--keycap-top)`: the 1 px light along the inside of the top edge.
-fn bevel(p: &Palette) -> Vec<BoxShadow> {
+pub fn bevel(p: &Palette) -> Vec<BoxShadow> {
     vec![BoxShadow { color: p.keycap_top, offset: point(px(0.), px(1.)), blur_radius: px(0.), spread_radius: px(0.), inset: true }]
 }
 
@@ -363,18 +363,30 @@ fn radio(picked: bool, cx: &App) -> impl IntoElement {
     })
 }
 
-/// The checkbox of a `PickRow`: 16 px with a 4 px radius, and once ticked the primary fill with its tick.
-fn checkbox(checked: bool, cx: &App) -> impl IntoElement {
-    let p = cx.palette();
-    let dark = cx.theme().is_dark();
-    let ground = if dark { p.input.opacity(0.32) } else { p.background };
-    div().debug_selector(|| "checkbox".into()).flex().flex_none().items_center().justify_center().size(px(16.)).rounded(px(4.)).map(|el| {
-        if checked {
-            el.bg(p.primary).child(Icon::empty().path(TICK).with_size(px(12.)).text_color(p.primary_foreground))
-        } else {
-            el.border_1().border_color(p.input).bg(ground).shadow(p.control_shadow.clone())
-        }
-    })
+/// `Checkbox`: 16 px with a 4 px radius; ticked, the primary fill and its tick; held, its edge dashed and a ticked
+/// one's tick muted on no fill. Its lift, there only while open and unticked, eases as `transition-shadow` does.
+pub fn checkbox(id: impl Into<ElementId>, checked: bool, held: bool, window: &mut Window, cx: &mut App) -> Div {
+    let p = cx.palette().clone();
+    let ground = if cx.theme().is_dark() { p.input.opacity(0.32) } else { p.background };
+    let lift = motion::ease_px(id, "lift", px(if checked || held { 0. } else { 1. }), motion::COLORS, window, cx);
+    let lift: f32 = lift.into();
+    let shadow: Vec<BoxShadow> = p.control_shadow.iter().map(|s| BoxShadow { color: s.color.opacity(lift), ..s.clone() }).collect();
+    let tick = |ink: Hsla| Icon::empty().path(TICK).with_size(px(12.)).text_color(ink);
+    div()
+        .debug_selector(|| "checkbox".into())
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .size(px(16.))
+        .rounded(px(4.))
+        .shadow(shadow)
+        .map(|el| match (checked, held) {
+            (true, false) => el.bg(p.primary).child(tick(p.primary_foreground)),
+            (true, true) => el.border_1().border_dashed().border_color(p.input).child(tick(p.muted_foreground)),
+            (false, false) => el.border_1().border_color(p.input).bg(ground),
+            (false, true) => el.border_1().border_dashed().border_color(p.input).bg(ground),
+        })
 }
 
 /// The words of a pick: the name in `LIST_TITLE`, muted while not picked, a tag and marks after it, and its note under
@@ -584,8 +596,8 @@ impl PickRow {
 }
 
 impl RenderOnce for PickRow {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mark = checkbox(self.0.on, cx);
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let mark = checkbox(SharedString::from(format!("{}-checkbox", self.0.id)), self.0.on, false, window, cx);
         // The web's rule stands on the row's wrapper, outside the label's floor, where a choice's stands inside it.
         let floor = size::ROW_FLOOR + if self.0.corners.rule.is_some() { px(1.) } else { px(0.) };
         self.0.render(mark, px(4.), floor, cx)
@@ -619,11 +631,25 @@ pub struct Field {
     held: bool,
     invalid: bool,
     sheet: Option<bool>,
+    width: Option<DefiniteLength>,
+    mono: bool,
 }
 
 impl Field {
     pub fn new(state: &Entity<InputState>) -> Self {
-        Field { state: state.clone(), held: false, invalid: false, sheet: None }
+        Field { state: state.clone(), held: false, invalid: false, sheet: None, width: None, mono: false }
+    }
+
+    /// A row field at a width other than the select's: a slate field's 160 px slot, or the whole line.
+    pub fn width(mut self, width: impl Into<DefiniteLength>) -> Self {
+        self.width = Some(width.into());
+        self
+    }
+
+    /// A row field in the mono.
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
     }
 
     pub fn held(mut self, held: bool) -> Self {
@@ -660,8 +686,9 @@ impl RenderOnce for Field {
             (false, _) => p.input,
         };
         let dim = Dim::new(p.background, p.input_fill);
-        let (edge, fill, ink) =
-            if self.held { (dim.over(edge), dim.fill(), dim.over(p.foreground)) } else { (edge, p.input_fill, p.foreground) };
+        // A disabled input draws its text at half its ink itself, the nearest it comes to the web's 64%.
+        let (edge, fill) = if self.held { (dim.over(edge), dim.fill()) } else { (edge, p.input_fill) };
+        let ink = p.foreground;
         let input = Input::new(&self.state)
             .disabled(self.held)
             .focus_bordered(!self.invalid)
@@ -672,7 +699,12 @@ impl RenderOnce for Field {
             .bg(fill)
             .text_color(ink);
         match self.sheet {
-            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT.0), self.held),
+            None => {
+                let width = self.width.unwrap_or(size::SELECT_WIDTH.into());
+                let input = Styled::h(input, size::CONTROL_HEIGHT).w(width).text_size(text::FACT.0);
+                let input = if self.mono { input.font_family(cx.theme().mono_font_family.clone()) } else { input };
+                field_frame(input, self.held).w(width)
+            }
             Some(mono) => {
                 let input = Styled::h(input, px(40.)).w_full().rounded(size::BUTTON_RADIUS);
                 let input = if mono {
