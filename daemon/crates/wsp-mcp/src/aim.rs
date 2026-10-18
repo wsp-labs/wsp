@@ -92,7 +92,7 @@ pub fn wsp_home(env: &Env) -> PathBuf {
         return PathBuf::from(home);
     }
     let user = env.get("HOME").filter(|h| !h.is_empty()).map(PathBuf::from).or_else(std::env::home_dir).unwrap_or_default();
-    user.join(names.files.home)
+    user.join(&names.files.home)
 }
 
 pub fn aimed(state: &Path, pick: &Pick) -> Result<Aim, Failure> {
@@ -193,7 +193,7 @@ pub fn here_door(state: &Path) -> Result<(String, String, String), Failure> {
 
 /// Where a tool on this computer dials the host a lock names: the address it bound, and loopback for the wildcard.
 pub fn dial_address(lock: &Lock) -> String {
-    let loopback = record::host().loopback;
+    let loopback = record::host().loopback.clone();
     let at = lock.address.clone().unwrap_or(loopback.clone());
     if is_wildcard(&at) {
         loopback
@@ -239,20 +239,20 @@ fn read_host(home: &Path, alias: &str) -> Option<HostRecord> {
     if !alias_ok(alias) {
         return None;
     }
-    let record: HostRecord = read_json(&home.join(record::host().files.hosts).join(format!("{alias}.json")))?;
+    let record: HostRecord = read_json(&home.join(&record::host().files.hosts).join(format!("{alias}.json")))?;
     (record.via.kind == "account").then_some(record)
 }
 
 /// The key this computer signs an admission with, or none where the command line never made one.
 pub fn device_key(home: &Path) -> Option<DeviceKey> {
-    read_json(&home.join(record::host().files.device_key))
+    read_json(&home.join(&record::host().files.device_key))
 }
 
 /// The record under this alias written again, as the command line's writeOwn writes it: the home and the hosts
 /// folder held to 0700, the bytes through a 0600 file and a rename, since the token in it opens the host.
 pub fn write_host(home: &Path, alias: &str, record: &HostRecord) -> std::io::Result<()> {
     use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
-    let hosts = home.join(record::host().files.hosts);
+    let hosts = home.join(&record::host().files.hosts);
     for dir in [home, hosts.as_path()] {
         std::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
         if std::fs::metadata(dir)?.permissions().mode() & 0o777 != 0o700 {
@@ -270,7 +270,7 @@ pub fn write_host(home: &Path, alias: &str, record: &HostRecord) -> std::io::Res
 
 /// Every record under the hosts folder with its alias, by alias.
 fn account_records(home: &Path) -> Vec<(String, HostRecord)> {
-    let Ok(dir) = std::fs::read_dir(home.join(record::host().files.hosts)) else { return Vec::new() };
+    let Ok(dir) = std::fs::read_dir(home.join(&record::host().files.hosts)) else { return Vec::new() };
     let mut held: Vec<(String, HostRecord)> = dir
         .filter_map(|entry| entry.ok()?.file_name().into_string().ok()?.strip_suffix(".json").map(str::to_owned))
         .filter_map(|alias| read_host(home, &alias).map(|record| (alias, record)))

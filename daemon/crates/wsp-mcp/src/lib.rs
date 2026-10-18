@@ -79,7 +79,7 @@ pub fn run(args: &Args) -> i32 {
 /// A scoped server missing its pair refuses before anything else is read: it would otherwise dial this computer's
 /// host on the host's own token, which is acting as the person.
 fn refused_before(args: &Args, env: &Env) -> Option<Failure> {
-    (args.scoped && aim::launched(env).is_none()).then(|| Failure::auth(record::words().scoped_no_pair))
+    (args.scoped && aim::launched(env).is_none()).then(|| Failure::auth(record::words().scoped_no_pair.clone()))
 }
 
 pub async fn serve<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin>(args: &Args, env: &Env, input: R, output: W) -> i32 {

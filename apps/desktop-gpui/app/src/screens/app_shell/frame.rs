@@ -139,7 +139,10 @@ pub fn layout_controls(
         .h_full()
         .items_center()
         .gap_1()
-        .child(toggle("toggle-drawer", IconName::PanelBottom, drawer_open, on_drawer, cx))
+        .child(
+            toggle("toggle-drawer", IconName::PanelBottom, drawer_open, on_drawer, cx)
+                .tooltip(crate::ui::tip(crate::screens::terminal::toolbar::toggle_label(cfg!(target_os = "macos")))),
+        )
         .child(toggle("toggle-panel", IconName::PanelRight, panel_open, on_panel, cx))
 }
 
@@ -150,7 +153,7 @@ fn toggle(
     pressed: bool,
     f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     cx: &App,
-) -> impl IntoElement {
+) -> gpui_kit::Stateful<gpui_kit::Div> {
     let p = cx.palette();
     div()
         .id(id)

@@ -1,0 +1,34 @@
+diff --git a/src/cosmic_text_system.rs b/src/cosmic_text_system.rs
+index ab50043..380f1ca 100644
+--- a/src/cosmic_text_system.rs
++++ b/src/cosmic_text_system.rs
+@@ -237,16 +237,21 @@ impl PlatformTextSystem for CosmicTextSystem {
+         }
+     }
+ 
++    // The glyph's ink in font units, y up, as Core Text answers on the Mac; a glyph with no outline has none.
+     fn typographic_bounds(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Bounds<f32>> {
+-        let lock = self.0.read();
+-        let glyph_metrics = lock.loaded_font(font_id).font.as_swash().glyph_metrics(&[]);
+-        let glyph_id = glyph_id.0 as u16;
++        let mut lock = self.0.write();
++        let state = &mut *lock;
++        let font = state.loaded_fonts[font_id.0].font.as_swash();
++        let ink = state
++            .swash_scale_context
++            .builder(font)
++            .build()
++            .scale_outline(glyph_id.0 as u16)
++            .map(|outline| outline.bounds())
++            .unwrap_or_default();
+         Ok(Bounds {
+-            origin: point(0.0, 0.0),
+-            size: size(
+-                glyph_metrics.advance_width(glyph_id),
+-                glyph_metrics.advance_height(glyph_id),
+-            ),
++            origin: point(ink.min.x, ink.min.y),
++            size: size(ink.width(), ink.height()),
+         })
+     }
+ 

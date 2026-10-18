@@ -86,7 +86,7 @@ impl ContextMenu {
                         destructive: it.destructive,
                         held: it.refusal.is_some(),
                         why: it.refusal.clone(),
-                        keys: it.keys.as_ref().map(|k| keys_label(k).into()),
+                        keys: it.keys.as_ref().map(|k| keys_label(k, false).into()),
                         run: Rc::new(move |_, _| picked.set(Some(ix))),
                     }
                 })
@@ -187,14 +187,25 @@ fn key_equivalent(k: &Keystroke) -> Option<(String, u64)> {
     Some((key, mask))
 }
 
-/// A chord as `keybindings.ts` labels it off the Mac: `Ctrl+Shift+E`, `Alt+Shift+Up`.
-pub fn keys_label(k: &Keystroke) -> String {
+/// `formatShortcutLabel` in `keybindings.ts`: `⇧⌘E` on the Mac, `Ctrl+Shift+E` elsewhere.
+pub fn keys_label(k: &Keystroke, mac: bool) -> String {
     let m = &k.modifiers;
-    let mut words: Vec<String> =
-        [(m.control, "Ctrl"), (m.alt, "Alt"), (m.shift, "Shift")].into_iter().filter(|(on, _)| *on).map(|(_, w)| w.to_owned()).collect();
-    let mut key = k.key.chars();
-    words.push(key.next().map_or_else(String::new, |c| c.to_uppercase().chain(key).collect()));
-    words.join("+")
+    let key = match k.key.as_str() {
+        "space" => "Space".to_owned(),
+        "escape" => "Esc".to_owned(),
+        other => {
+            let mut chars = other.chars();
+            chars.next().map_or_else(String::new, |c| c.to_uppercase().chain(chars).collect())
+        }
+    };
+    if mac {
+        let marks = [(m.control, "⌃"), (m.alt, "⌥"), (m.shift, "⇧"), (m.platform, "⌘")];
+        return marks.into_iter().filter(|(on, _)| *on).map(|(_, mark)| mark).collect::<String>() + &key;
+    }
+    let words = [(m.control, "Ctrl"), (m.alt, "Alt"), (m.shift, "Shift"), (m.platform, "Meta")];
+    let mut out: Vec<String> = words.into_iter().filter(|(on, _)| *on).map(|(_, w)| w.to_owned()).collect();
+    out.push(key);
+    out.join("+")
 }
 
 /// The width the placement reckons with: the menu's rows fit it in the words the sidebar's menus hold.
@@ -300,10 +311,13 @@ mod tests {
     }
 
     #[test]
-    fn a_chord_reads_as_the_page_labels_it_off_the_mac() {
-        let label = |chord: &str| keys_label(&Keystroke::parse(chord).unwrap());
-        assert_eq!(label("ctrl-shift-e"), "Ctrl+Shift+E");
-        assert_eq!(label("alt-shift-up"), "Alt+Shift+Up");
-        assert_eq!(label("ctrl-j"), "Ctrl+J");
+    fn a_chord_reads_as_the_page_labels_it() {
+        let label = |chord: &str, mac| keys_label(&Keystroke::parse(chord).unwrap(), mac);
+        assert_eq!(label("ctrl-shift-e", false), "Ctrl+Shift+E");
+        assert_eq!(label("alt-shift-up", false), "Alt+Shift+Up");
+        assert_eq!(label("ctrl-j", false), "Ctrl+J");
+        assert_eq!(label("escape", false), "Esc");
+        assert_eq!(label("cmd-shift-e", true), "⇧⌘E");
+        assert_eq!(label("ctrl-alt-space", true), "⌃⌥Space");
     }
 }
