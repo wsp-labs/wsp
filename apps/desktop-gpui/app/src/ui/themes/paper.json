@@ -177,6 +177,28 @@
             "spread": -18,
             "color": "#00000066"
           }
+        ],
+        "terminal-background": "#fcfcfcff",
+        "terminal-foreground": "#27272aff",
+        "terminal-cursor": "#27272aff",
+        "terminal-selection": "#1b4ed833",
+        "terminal-ansi": [
+          "#1d1f21ff",
+          "#c63340ff",
+          "#686e25ff",
+          "#846726ff",
+          "#296ea3ff",
+          "#a634c5ff",
+          "#29766eff",
+          "#696c6aff",
+          "#666666ff",
+          "#a92e36ff",
+          "#586122ff",
+          "#6b5b22ff",
+          "#235d9cff",
+          "#8b30afff",
+          "#26665cff",
+          "#525252ff"
         ]
       }
     }

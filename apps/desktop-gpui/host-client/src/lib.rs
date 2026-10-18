@@ -203,28 +203,38 @@ pub enum Event {
     Sys(Box<WorkspaceSysEvent>),
     PlaceSys(Box<PlaceSysEvent>),
     AppProcs(Box<AppProcsEvent>),
-    /// A frame of a type no recorded schema names, as it was sent.
+    /// A frame of a type no recorded schema names, or a daemon channel's that does not read, as it was sent.
     Other(Value),
 }
 
+impl Event {
+    /// A pushed frame by the schema its type names. One of a recorded type that does not read as that type is a
+    /// failure, since the record is then behind the host, except a daemon channel's: today's client routes those by
+    /// their channel unread (`protocol/client.ts`).
+    fn read(kind: &str, frame: Value) -> Result<Event, Failure> {
+        let read = |e: serde_json::Error| Failure::new(format!("{kind}: {e}"));
+        match kind {
+            "workspace.sys" => serde_json::from_value(frame).map(|e| Event::Sys(Box::new(e))).map_err(read),
+            "place.sys" => serde_json::from_value(frame).map(|e| Event::PlaceSys(Box::new(e))).map_err(read),
+            "app.procs" => serde_json::from_value(frame).map(|e| Event::AppProcs(Box::new(e))).map_err(read),
+            "agents.signIn" => serde_json::from_value(frame).map(|e| Event::SignIn(Box::new(e))).map_err(read),
+            _ if kind.starts_with("daemon.") => {
+                Ok(serde_json::from_value(frame.clone()).map_or(Event::Other(frame), |e| Event::Daemon(Box::new(e))))
+            }
+            _ if host_event_types().contains(kind) => serde_json::from_value(frame).map(|e| Event::Host(Box::new(e))).map_err(read),
+            _ => Ok(Event::Other(frame)),
+        }
+    }
+}
+
 impl Events {
-    /// The next frame as it arrives; none once the socket is gone. A frame of a recorded type that does not read as
-    /// that type is a failure, since the record is then behind the host.
+    /// The next frame as it arrives, read by [`Event::read`]; none once the socket is gone.
     pub async fn next(&mut self) -> Option<Result<Event, Failure>> {
         loop {
             let text = self.frames.next().await?;
             let Ok(frame) = serde_json::from_str::<Value>(&text) else { continue };
             let Some(kind) = frame.get("type").and_then(Value::as_str).map(str::to_owned) else { continue };
-            let read = |e: serde_json::Error| Failure::new(format!("{kind}: {e}"));
-            return Some(match kind.as_str() {
-                "workspace.sys" => serde_json::from_value(frame).map(|e| Event::Sys(Box::new(e))).map_err(read),
-                "place.sys" => serde_json::from_value(frame).map(|e| Event::PlaceSys(Box::new(e))).map_err(read),
-                "app.procs" => serde_json::from_value(frame).map(|e| Event::AppProcs(Box::new(e))).map_err(read),
-                "agents.signIn" => serde_json::from_value(frame).map(|e| Event::SignIn(Box::new(e))).map_err(read),
-                _ if kind.starts_with("daemon.") => serde_json::from_value(frame).map(|e| Event::Daemon(Box::new(e))).map_err(read),
-                _ if host_event_types().contains(&kind) => serde_json::from_value(frame).map(|e| Event::Host(Box::new(e))).map_err(read),
-                _ => Ok(Event::Other(frame)),
-            });
+            return Some(Event::read(&kind, frame));
         }
     }
 }
@@ -284,6 +294,14 @@ fn types_of(union: impl FnOnce(Unions) -> Union) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_daemon_channels_frame_that_does_not_read_comes_as_it_was_sent() {
+        let closed = serde_json::json!({ "type": "daemon.closed", "channel": "c1" });
+        assert!(matches!(Event::read("daemon.closed", closed.clone()), Ok(Event::Other(frame)) if frame == closed));
+        let whole = serde_json::json!({ "type": "daemon.closed", "channel": "c1", "code": 1000, "reason": "" });
+        assert!(matches!(Event::read("daemon.closed", whole), Ok(Event::Daemon(_))));
+    }
 
     #[test]
     fn every_transcript_type_is_read_off_the_record() {

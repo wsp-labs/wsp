@@ -78,7 +78,7 @@ fn size_word(offer: &Offer) -> String {
 /// The size refused in the one sentence every road gives, with every size on offer and its rate.
 pub(super) fn size_refused(word: &str, offered: &[Offer]) -> Failure {
     let sizes = offered.iter().map(|o| format!("{} ({})", size_word(o), fmt_rate(o.rate_usd_per_hour))).collect::<Vec<_>>().join(", ");
-    let template = workspace::words().size_refused;
+    let template = workspace::words().size_refused.clone();
     // An empty list leaves the sentence ending where the list would start, and the fix follows its full stop.
     let template = if sizes.is_empty() { template.replace(" {sizes}", "") } else { template };
     Failure::usage(fill(&template, &[("word", word), ("sizes", &sizes)]))

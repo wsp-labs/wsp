@@ -68,6 +68,7 @@ pub struct Throwaway {
     /// The wsp-daemon the host serves files and git through, where the caller asked for one and one was found.
     pub daemon: Option<PathBuf>,
     bin: PathBuf,
+    /// The shell that runs the host and stops it once its stdin, held here, closes.
     host: Child,
 }
 
@@ -80,6 +81,24 @@ pub fn env_in(dir: &Path) -> Env {
         .into_iter()
         .collect()
 }
+
+/// Runs the command after it and stops it when its stdin reaches end of file or it is sent SIGTERM: a test process
+/// that dies without unwinding closes the pipe, so its host stops with it. SIGTERM first, as the host stops its daemon
+/// on that, then SIGKILL after 20 s.
+const STOPS_WITH_THE_TEST: &str = r#"exec 3<&0
+"$@" 3<&- </dev/null & host=$!
+stop() {
+  kill -TERM "$host" 2>/dev/null
+  i=0
+  while kill -0 "$host" 2>/dev/null && [ $i -lt 200 ]; do sleep 0.1; i=$((i + 1)); done
+  kill -KILL "$host" 2>/dev/null
+  wait "$host"
+  exit 0
+}
+trap stop TERM
+cat <&3 >/dev/null & wait $!
+stop
+"#;
 
 fn node_in(dir: &Path, bin: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("node");
@@ -100,22 +119,25 @@ fn copy_dir(from: &Path, to: &Path) {
     }
 }
 
-/// A copy of the host's bundle under `dir` carrying `daemon`, and its bin.js. A bundle reads each asset out of the
-/// assets folder beside it before the checkout's, and finds the checkout's relative to itself, so the copy links all
-/// of them there.
-fn bundle_with(dir: &Path, daemon: &Path) -> PathBuf {
+/// A copy of the host's bundle under `dir` carrying `daemon`, or none, and its bin.js. A bundle reads each asset out of
+/// the assets folder beside it before the checkout's, and finds the checkout's relative to itself, so the copy links
+/// all of them there, and a copy with no daemon finds none where the checkout stages one.
+fn bundle_with(dir: &Path, daemon: Option<&Path>) -> PathBuf {
     let root = root();
     let pkg = dir.join("hostpkg");
     copy_dir(&root.join("packages/host/dist"), &pkg.join("dist"));
     std::fs::copy(root.join("packages/host/package.json"), pkg.join("package.json")).unwrap();
-    std::fs::create_dir_all(pkg.join("assets/daemon").join(triple())).unwrap();
+    std::fs::create_dir_all(pkg.join("assets")).unwrap();
     let link = |from: &Path, to: &str| std::os::unix::fs::symlink(from, pkg.join(to)).unwrap();
     link(&root.join("packages/host/node_modules"), "node_modules");
     link(&root.join("apps/web/dist"), "assets/web");
     if root.join("packages/wspx/assets/cli").exists() {
         link(&root.join("packages/wspx/assets/cli"), "assets/cli");
     }
-    link(daemon, &format!("assets/daemon/{}/wsp-daemon", triple()));
+    if let Some(daemon) = daemon {
+        std::fs::create_dir_all(pkg.join("assets/daemon").join(triple())).unwrap();
+        link(daemon, &format!("assets/daemon/{}/wsp-daemon", triple()));
+    }
     pkg.join("dist/bin.js")
 }
 
@@ -174,14 +196,16 @@ impl Throwaway {
         std::fs::write(&script, claude).unwrap();
         std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
         let daemon = if daemon { wsp_daemon().ok() } else { None };
-        let bin = match &daemon {
-            Some(binary) => bundle_with(dir.path(), binary),
-            None => root().join("packages/host/dist/bin.js"),
-        };
+        let bin = bundle_with(dir.path(), daemon.as_deref());
         let state = dir.path().join("state").join("state.json").to_string_lossy().into_owned();
         let log = std::fs::File::create(dir.path().join("up.log")).unwrap();
-        let host = node_in(dir.path(), &bin, &["up", "--port", "0", "--no-relay", "--state", &state])
-            .stdin(Stdio::null())
+        let mut host = Command::new("/bin/sh");
+        host.args(["-c", STOPS_WITH_THE_TEST, "sh", "node"]).arg(&bin).args(["up", "--port", "0", "--no-relay", "--state", &state]);
+        let host = host
+            .env_clear()
+            .envs(env_in(dir.path()))
+            .current_dir(dir.path())
+            .stdin(Stdio::piped())
             .stdout(log.try_clone().unwrap())
             .stderr(log)
             .spawn()
@@ -221,9 +245,8 @@ impl Drop for Throwaway {
         if matches!(self.host.try_wait(), Ok(None)) {
             interrupt_turns(self.dir.path());
         }
-        // SAFETY: a signal to the pid of the child this test spawned and has not yet reaped.
-        unsafe { libc::kill(self.host.id() as i32, libc::SIGTERM) };
-        let until = Instant::now() + Duration::from_secs(20);
+        drop(self.host.stdin.take());
+        let until = Instant::now() + Duration::from_secs(25);
         while matches!(self.host.try_wait(), Ok(None)) && Instant::now() < until {
             std::thread::sleep(Duration::from_millis(100));
         }
@@ -256,7 +279,7 @@ pub fn shared() -> &'static Shared {
         if let Some(dir) = DIR.get() {
             interrupt_turns(dir);
         }
-        // SAFETY: a signal to the host this binary spawned, then reaping it; the binary is exiting and holds no other handle on it.
+        // SAFETY: a signal to the shell running the host this binary spawned, then reaping it; the binary is exiting and holds no other handle on it.
         unsafe {
             libc::kill(pid, libc::SIGTERM);
             let until = Instant::now() + Duration::from_secs(20);
