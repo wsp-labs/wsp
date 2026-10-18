@@ -1,0 +1,58 @@
+<slate title="Every piece">
+  <value name="steps" start={[{ title: "Write the parser", done: true }, { title: "Draw every piece", done: false }]} />
+  <value name="name" start="" />
+  <value name="pick" start="Done" />
+  <value name="answer" start={null} />
+  <value name="showDone" start={true} />
+  <value name="presses" start={0} />
+  <run name="hello" cmd="echo hello" />
+  <column>
+    <heading level="title">Every piece</heading>
+    <text>A plain line of text.</text>
+    <markdown>**Why.** Markdown with `code`, a [link](https://example.com) and a list:
+
+- one
+- two</markdown>
+    <number label="Spent" value={4.64} format="usd" note="this week" />
+    <meter label="Weekly" value={62} note="resets Monday" />
+    <grid columns={2}>
+      <ring label="Done" value={3} max={4} format="fraction" />
+      <sparkline label="Load" values={[3, 5, 4, 8, 6, 9]} />
+    </grid>
+    <row>
+      <status tone="good">Live</status>
+      <chip>main</chip>
+    </row>
+    <bars label="Busiest" items={[{ n: "node", v: 42 }, { n: "vite", v: 18 }, { n: "git", v: 4 }]} name={item.n} value={item.v} />
+    <chart label="Gold, per ounce" items={[{ at: "2026-10-18T10:00:00Z", v: 2410 }, { at: "2026-10-18T10:01:00Z", v: 2415 }, { at: "2026-10-18T10:02:00Z", v: 2408 }, { at: "2026-10-18T10:03:00Z", v: 2421 }, { at: "2026-10-18T10:04:00Z", v: 2430 }, { at: "2026-10-18T10:05:00Z", v: 2426 }]} x={item.at} value={item.v} format="usd" />
+    <donut label="By country" items={[{ name: "India", n: 420 }, { name: "United States", n: 310 }, { name: "Germany", n: 120 }, { name: "Brazil", n: 80 }, { name: "Japan", n: 60 }, { name: "Kenya", n: 30 }]} name={item.name} value={item.n} format="integer" />
+    <timeline label="CI run" now="2026-10-18T10:20:00Z" items={[{ name: "install", job: "build", s: "2026-10-18T10:00:00Z", e: "2026-10-18T10:03:00Z" }, { name: "compile", job: "build", s: "2026-10-18T10:03:00Z", e: "2026-10-18T10:09:00Z" }, { name: "unit", job: "test", s: "2026-10-18T10:09:00Z", e: "2026-10-18T10:14:00Z", st: "failed" }, { name: "e2e", job: "test", s: "2026-10-18T10:09:00Z" }, { name: "deploy", job: "ship" }]} name={item.name} start={item.s} end={item.e} state={item.st} group={item.job} />
+    <treemap label="Bundle" items={[{ name: "react-dom", bytes: 130000, pkg: "react" }, { name: "react", bytes: 8000, pkg: "react" }, { name: "mermaid", bytes: 900000, pkg: "mermaid" }, { name: "katex", bytes: 270000, pkg: "katex" }, { name: "app", bytes: 400000, pkg: "web" }, { name: "slate", bytes: 160000, pkg: "web" }]} name={item.name} value={item.bytes} group={item.pkg} format="bytes" />
+    <diagram label="Deploy">flowchart LR
+  build[Build] --> check{Tests pass?}
+  check -->|yes| ship([Ship])
+  check -->|no| fix[Fix]</diagram>
+    <image src="shots/plot.png" caption="A saved plot" />
+    <images items={[{ p: "shots/before.png", c: "Before" }, { p: "shots/after.png", c: "After" }, { p: "shots/plot.png", c: "Plot" }]} src={item.p} caption={item.c} />
+    <section title="Lists" collapsible>
+      <table items={[{ name: "lint", state: "pass", took: "12s" }, { name: "unit", state: "fail", took: "1m 4s" }, { name: "e2e", state: "pass", took: "3m 10s" }]} key={item.name}>
+        <col title="Check" value={item.name} />
+        <col title="State" value={item.state} tone={item.state == 'fail' ? 'bad' : 'good'} />
+        <col title="Took" value={item.took} mono align="end" />
+        <action label="Count it" when={item.state == 'fail'} onPress={set($presses, $presses + 1)} />
+      </table>
+      <checklist items={$steps} title={item.title} done={item.done} editable />
+      <facts layout="grid">
+        <fact label="Branch" value="main" mono />
+        <fact label="Review" value="Approved" tone="good" />
+      </facts>
+    </section>
+    <output run={$hello} label="Hello" />
+    <input label="Your name" value={$name} placeholder="Ada" onSubmit={set($presses, $presses + 1)} />
+    <select label="Hide" value={$pick}><option value="Done" /><option value="Canceled" /></select>
+    <choices label="Which layer routes packets?" value={$answer} options={["Link", "Network", "Transport"]} answer="Network" />
+    <toggle label="Show done" value={$showDone} note="Ticked steps stay in the list" />
+    <button label="Run hello" variant="primary" onPress={start($hello)} />
+    <empty title="No pull request yet">This branch has none.</empty>
+  </column>
+</slate>
