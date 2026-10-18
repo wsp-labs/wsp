@@ -39,6 +39,9 @@ pub struct Host {
     /// The socket a line that dials past the release check holds, kept apart so no other tool rides it to a host of
     /// another release.
     held_any_release: Mutex<Option<Arc<Client>>>,
+    /// The device token a pairing code bought for the host here, which every later dial presents in place of the file
+    /// beside the state, for as long as this lives.
+    paired: std::sync::Mutex<Option<String>>,
 }
 
 impl Host {
@@ -61,6 +64,7 @@ impl Host {
             cwd,
             held: Mutex::new(None),
             held_any_release: Mutex::new(None),
+            paired: std::sync::Mutex::new(None),
         }
     }
 
@@ -136,7 +140,11 @@ impl Host {
                 if again.is_none() && aim::serving(state).is_none() && !self.args.wsp.is_empty() {
                     start::started(state, &self.args.wsp, &self.process_env, &mut |line| eprintln!("{line}")).await?;
                 }
-                let (url, token, at) = aim::here_door(state)?;
+                let held = self.paired.lock().unwrap().clone();
+                let (url, token, at) = match held {
+                    Some(token) => aim::here_address(state).map(|(url, at)| (url, token, at))?,
+                    None => aim::here_door(state)?,
+                };
                 let release = ReleaseHost::Here { state: state.to_string_lossy().into_owned() };
                 let to = Dial { url: &url, at: &at, window, pinned: None, alias: None, release: judged.then_some(&release) };
                 Ok(client::dial(&to, Presents::Token(&token)).await.map_err(|r| r.failure)?.0)
@@ -158,6 +166,50 @@ impl Host {
             }
             Aim::Alias { alias, record } => self.dial_account(alias, record, window, judged).await,
         }
+    }
+
+    /// Spends a pairing code on the host this aims at, over a socket that presents no token, as a browser does
+    /// (`redeemPairingCode`). The token it buys is written into an account host's record, and held for the host here,
+    /// which keeps no record of a device. The pairing socket goes: the next call dials with the token, release checked.
+    /// Nothing is started.
+    pub async fn redeem(&self, code: &str, name: &str) -> Result<(), Failure> {
+        let pick = Pick { host: self.args.host.as_deref(), env: &self.process_env, home: self.home.clone() };
+        let aim = aim::aimed(&self.args.state, &pick)?;
+        let window = Duration::from_millis(aim::window_ms(&aim));
+        let presents = Presents::Redeem { code, name };
+        let (_, paired) = match &aim {
+            Aim::Here => {
+                let (url, at) = aim::here_address(&self.args.state)?;
+                let to = Dial { url: &url, at: &at, window, pinned: None, alias: None, release: None };
+                client::dial(&to, presents).await.map_err(|r| r.failure)?
+            }
+            Aim::Alias { alias, record } => {
+                let url = ws_url(&record.url)?;
+                let to = Dial { url: &url, at: &record.url, window, pinned: record.host_key.as_deref(), alias: Some(alias), release: None };
+                client::dial(&to, presents).await.map_err(|r| r.failure)?
+            }
+            Aim::Url { url, .. } => return Err(Failure::usage(fill(&record::words().address_not_paired, &[("url", url)]))),
+        };
+        let Some(paired) = paired else { return Err(Failure::new("pair.redeem answered no device token")) };
+        match &aim {
+            Aim::Alias { alias, record } => {
+                let mut kept = record.clone();
+                (kept.device_id, kept.device_token) = (paired.device_id, paired.device_token);
+                aim::write_host(&self.home, alias, &kept).map_err(|e| Failure::new(e.to_string()))?;
+            }
+            _ => self.hold_token(paired.device_token),
+        }
+        Ok(())
+    }
+
+    /// Presents `token` to the host here in place of the file beside the state: one a pairing bought earlier.
+    pub fn hold_token(&self, token: String) {
+        *self.paired.lock().unwrap() = Some(token);
+    }
+
+    /// The token a pairing bought for the host here, where one did.
+    pub fn held_token(&self) -> Option<String> {
+        self.paired.lock().unwrap().clone()
     }
 
     /// A host on the account. A record written off the listing holds no token until its first dial, which is

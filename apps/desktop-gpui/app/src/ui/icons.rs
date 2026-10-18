@@ -62,6 +62,8 @@ icon_assets!(
         Flame,
         FlaskConical,
         Folder,
+        FolderGit,
+        FolderOpen,
         Gamepad2,
         Gauge,
         GitBranch,

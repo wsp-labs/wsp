@@ -9,7 +9,7 @@ use gpui_kit::{
     SharedString, Window,
 };
 
-use super::card::{framed, glyph_frame, row_frame, CardItem, Corners};
+use super::card::{framed, glyph_frame, row_frame, word, CardItem, Corners, WordClass};
 use super::dialog::tip;
 use super::focus::ring;
 use super::icons::{Glyph, TICK};
@@ -77,6 +77,8 @@ enum ButtonSize {
     Icon,
     /// 24 px square, the copy row's button.
     IconXs,
+    /// The setup keycap: 40 px tall, 15 px words, 22 px sides, a 10 px radius (`desktop:onboarding.html` `.primary`).
+    Keycap,
 }
 
 /// `Button`: the keycap, in its kind and size. A held button keeps its look at 64% and takes no click.
@@ -182,6 +184,12 @@ impl Button {
         Button { size: ButtonSize::IconXs, ..Button::icon(id, glyph) }
     }
 
+    /// The setup keycap's size, a first launch's one press.
+    pub fn keycap(mut self) -> Self {
+        self.size = ButtonSize::Keycap;
+        self
+    }
+
     /// The xs size, for an inline act in a row.
     pub fn xs(mut self) -> Self {
         self.size = ButtonSize::Xs;
@@ -276,7 +284,9 @@ impl RenderOnce for Button {
             ButtonSize::Xs => (px(24.), px(8.), text::XS, px(4.), px(14.)),
             ButtonSize::Icon => (px(28.), px(0.), (text::BUTTON, px(19.5)), px(0.), px(16.)),
             ButtonSize::IconXs => (px(24.), px(0.), (text::BUTTON, px(19.5)), px(0.), px(14.)),
+            ButtonSize::Keycap => (px(40.), px(22.), (px(15.), px(22.5)), px(8.), px(16.)),
         };
+        let radius = if self.size == ButtonSize::Keycap { px(10.) } else { size::BUTTON_RADIUS };
         let side = self.side.unwrap_or(side);
         let height = self.height.unwrap_or(side);
         let hovered = motion::hovered(self.id.clone(), window, cx);
@@ -314,14 +324,14 @@ impl RenderOnce for Button {
             .gap(gap)
             .map(|el| match self.corners {
                 Some(c) => el.rounded_tl(c.top_left).rounded_tr(c.top_right).rounded_br(c.bottom_right).rounded_bl(c.bottom_left),
-                None => el.rounded(size::BUTTON_RADIUS),
+                None => el.rounded(radius),
             })
             .border_1()
             .border_color(edge)
             .bg(fill)
             // GPUI paints an inset shadow under the border, where CSS keeps it inside; a child filling the padding box holds it there.
             .when(!matches!(self.kind, ButtonKind::Ghost | ButtonKind::GhostDanger | ButtonKind::Text), |el| {
-                el.child(div().absolute().inset_0().rounded(size::BUTTON_RADIUS - px(1.)).shadow(keycap))
+                el.child(div().absolute().inset_0().rounded(radius - px(1.)).shadow(keycap))
             })
             .text_size(font)
             .line_height(line)
@@ -364,7 +374,7 @@ fn radio(picked: bool, cx: &App) -> impl IntoElement {
 }
 
 /// The checkbox of a `PickRow`: 16 px with a 4 px radius, and once ticked the primary fill with its tick.
-fn checkbox(checked: bool, cx: &App) -> impl IntoElement {
+pub fn checkbox(checked: bool, cx: &App) -> impl IntoElement {
     let p = cx.palette();
     let dark = cx.theme().is_dark();
     let ground = if dark { p.input.opacity(0.32) } else { p.background };
@@ -377,6 +387,35 @@ fn checkbox(checked: bool, cx: &App) -> impl IntoElement {
     })
 }
 
+/// The checkbox in `desktop:onboarding.html`'s own look: the page's ground on both sides and no shadow, and one that
+/// cannot be ticked at 64%.
+pub fn checkbox_plain(checked: bool, disabled: bool, cx: &App) -> impl IntoElement {
+    let p = cx.palette();
+    div().debug_selector(|| "checkbox".into()).flex().flex_none().items_center().justify_center().size(px(16.)).rounded(px(4.)).map(|el| {
+        let el = if disabled { el.opacity(0.64) } else { el };
+        if checked {
+            el.bg(p.primary).child(Icon::empty().path(TICK).with_size(px(12.)).text_color(p.primary_foreground))
+        } else {
+            el.border_1().border_color(p.input).bg(p.background)
+        }
+    })
+}
+
+/// A checkbox whose tick the host fixed: its look at 64%, each part drawn solid as the dimmed layer shows it.
+fn checkbox_held(checked: bool, cx: &App) -> impl IntoElement {
+    let p = cx.palette();
+    let dark = cx.theme().is_dark();
+    let ground = if dark { p.input.opacity(0.32) } else { p.background };
+    let dim = Dim::new(p.background, if checked { p.primary } else { ground });
+    div().debug_selector(|| "checkbox".into()).flex().flex_none().items_center().justify_center().size(px(16.)).rounded(px(4.)).map(|el| {
+        if checked {
+            el.bg(dim.fill()).child(Icon::empty().path(TICK).with_size(px(12.)).text_color(dim.over(p.primary_foreground)))
+        } else {
+            el.border_1().border_color(dim.over(p.input)).bg(dim.fill())
+        }
+    })
+}
+
 /// The words of a pick: the name in `LIST_TITLE`, muted while not picked, a tag and marks after it, and its note under
 /// it.
 fn pick_words(
@@ -385,10 +424,11 @@ fn pick_words(
     marks: Option<AnyElement>,
     note: Option<SharedString>,
     on: bool,
+    full: bool,
     cx: &App,
 ) -> impl IntoElement {
     let p = cx.palette();
-    let ink: Hsla = if on { p.foreground } else { p.muted_foreground };
+    let ink: Hsla = if on || full { p.foreground } else { p.muted_foreground };
     v_flex()
         .flex_1()
         .min_w_0()
@@ -433,9 +473,17 @@ struct Pick {
     tag: Option<SharedString>,
     marks: Option<AnyElement>,
     note: Option<SharedString>,
+    /// A quiet fact after the words, in the `FACT` class: a choice's cheapest rate.
+    fact: Option<SharedString>,
     slot: Option<AnyElement>,
     on_click: Option<SharedClick>,
     corners: Corners,
+    /// The one sentence on the row's hover: the keys that tick it.
+    hover: Option<SharedString>,
+    /// The name stays in the foreground while not picked: a list where every row is an answer to read.
+    full_ink: bool,
+    /// A tick the host fixed: drawn held, and the row takes no pointer of its own.
+    locked: bool,
 }
 
 impl Pick {
@@ -449,16 +497,20 @@ impl Pick {
             tag: None,
             marks: None,
             note: None,
+            fact: None,
             slot: None,
             on_click: None,
             corners: Corners::default(),
+            hover: None,
+            full_ink: false,
+            locked: false,
         }
     }
 
     /// The mark is the tab stop and wears the ring, as the web's radio and checkbox do; the whole row takes a press.
     fn render(self, mark: impl IntoElement, radius: Pixels, floor: Pixels, cx: &App) -> AnyElement {
         let ring_ink = cx.palette().ring;
-        let words = pick_words(self.name, self.tag, self.marks, self.note, self.on, cx);
+        let words = pick_words(self.name, self.tag, self.marks, self.note, self.on, self.full_ink, cx);
         let keyed = self.on_click.clone();
         let mark = div()
             .id(SharedString::from(format!("{}-mark", self.id)))
@@ -478,7 +530,11 @@ impl Pick {
             (None, Some(g)) => Some(glyph_frame(g, cx).into_any_element()),
             (None, None) => None,
         };
-        let lead = h_flex().flex_1().min_w_0().gap_3().child(mark).children(frame).child(words);
+        // The web's row is a two-column grid whose 20 px gap stands even when its slot column is empty.
+        let gap = if self.slot.is_none() { px(20.) } else { px(0.) };
+        let fact_id = format!("{}-fact", self.id);
+        let fact = self.fact.map(|f| word(f, WordClass::Fact, cx).flex_none().mr(gap).debug_selector(move || fact_id));
+        let lead = h_flex().flex_1().min_w_0().gap_3().child(mark).children(frame).child(words).children(fact);
         // A press on the slot's fact or control is not a tick, as the web's slot prevents its label's click.
         let slot = self.slot.map(|slot| {
             h_flex()
@@ -491,7 +547,8 @@ impl Pick {
                 .child(slot)
         });
         row_frame(&self.id, floor, self.corners)
-            .cursor_pointer()
+            .when(!self.locked, |el| el.cursor_pointer())
+            .when_some(self.hover, |el, hover| el.tooltip(tip(hover)))
             .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
             .child(h_flex().gap_5().child(lead).children(slot))
             .into_any_element()
@@ -515,6 +572,18 @@ macro_rules! pick_builders {
                 self.0.on_click = Some(std::rc::Rc::new(f));
                 self
             }
+
+            /// One sentence on the row's hover, the web's `title`: what a shift-press does.
+            pub fn hover(mut self, hover: impl Into<SharedString>) -> Self {
+                self.0.hover = Some(hover.into());
+                self
+            }
+
+            /// Keeps the name in the foreground while not picked, for a list where every row is an answer to read.
+            pub fn full_ink(mut self) -> Self {
+                self.0.full_ink = true;
+                self
+            }
         }
     };
 }
@@ -531,6 +600,14 @@ impl Choice {
 }
 
 pick_builders!(Choice);
+
+impl Choice {
+    /// A quiet fact at the words' right, in the `FACT` class: "from $0.018/h".
+    pub fn fact(mut self, fact: impl Into<SharedString>) -> Self {
+        self.0.fact = Some(fact.into());
+        self
+    }
+}
 
 impl RenderOnce for Choice {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
@@ -581,11 +658,17 @@ impl PickRow {
         self.0.slot = Some(slot.into_any_element());
         self
     }
+
+    /// A tick the host fixed: the checkbox held at 64%, and no pointer hand over the row.
+    pub fn locked(mut self, locked: bool) -> Self {
+        self.0.locked = locked;
+        self
+    }
 }
 
 impl RenderOnce for PickRow {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mark = checkbox(self.0.on, cx);
+        let mark = if self.0.locked { checkbox_held(self.0.on, cx).into_any_element() } else { checkbox(self.0.on, cx).into_any_element() };
         // The web's rule stands on the row's wrapper, outside the label's floor, where a choice's stands inside it.
         let floor = size::ROW_FLOOR + if self.0.corners.rule.is_some() { px(1.) } else { px(0.) };
         self.0.render(mark, px(4.), floor, cx)
@@ -619,11 +702,15 @@ pub struct Field {
     held: bool,
     invalid: bool,
     sheet: Option<bool>,
+    lead: Option<Glyph>,
+    height: Option<Pixels>,
+    fill: bool,
+    type_size: Option<Pixels>,
 }
 
 impl Field {
     pub fn new(state: &Entity<InputState>) -> Self {
-        Field { state: state.clone(), held: false, invalid: false, sheet: None }
+        Field { state: state.clone(), held: false, invalid: false, sheet: None, lead: None, height: None, fill: false, type_size: None }
     }
 
     pub fn held(mut self, held: bool) -> Self {
@@ -646,6 +733,30 @@ impl Field {
     /// The sheet's field for words, a name: the sans at 14 px.
     pub fn sheet_words(mut self) -> Self {
         self.sheet = Some(false);
+        self
+    }
+
+    /// A sheet field's glyph at its left, the muted 16 px 12 px in, the text after it (`ps-9`): a key's KeyRound.
+    pub fn lead(mut self, glyph: Glyph) -> Self {
+        self.lead = Some(glyph);
+        self
+    }
+
+    /// A row field as wide as its row leaves it (`flex-1`), not the select's 176 px: a pick list's filter.
+    pub fn fill(mut self) -> Self {
+        self.fill = true;
+        self
+    }
+
+    /// A sheet field's type size other than its own: a large mono field's 14 px.
+    pub fn type_size(mut self, size: Pixels) -> Self {
+        self.type_size = Some(size);
+        self
+    }
+
+    /// A sheet field's height other than 40 px: the pair screen's `h-8`.
+    pub fn height(mut self, height: Pixels) -> Self {
+        self.height = Some(height);
         self
     }
 }
@@ -672,20 +783,39 @@ impl RenderOnce for Field {
             .bg(fill)
             .text_color(ink);
         match self.sheet {
+            None if self.fill => div()
+                .debug_selector(|| "control".into())
+                .relative()
+                .flex_1()
+                .min_w_0()
+                .h(size::CONTROL_HEIGHT)
+                .child(Styled::h(input, size::CONTROL_HEIGHT).w_full().text_size(text::FACT.0))
+                .when(self.held, |el| el.child(div().absolute().inset_0().occlude())),
             None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT.0), self.held),
             Some(mono) => {
-                let input = Styled::h(input, px(40.)).w_full().rounded(size::BUTTON_RADIUS);
+                let height = self.height.unwrap_or(px(40.));
+                let input = Styled::h(input, height).w_full().rounded(size::BUTTON_RADIUS).when(self.lead.is_some(), |i| i.pl(px(36.)));
                 let input = if mono {
-                    input.font_family(cx.theme().mono_font_family.clone()).text_size(text::FACT.0)
+                    input.font_family(cx.theme().mono_font_family.clone()).text_size(self.type_size.unwrap_or(text::FACT.0))
                 } else {
-                    input.text_size(text::VALUE.0)
+                    input.text_size(self.type_size.unwrap_or(text::VALUE.0))
                 };
                 div()
                     .debug_selector(|| "control".into())
                     .relative()
                     .w_full()
-                    .h(px(40.))
+                    .h(height)
                     .child(input)
+                    .children(self.lead.map(|g| {
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .left(px(12.))
+                            .flex()
+                            .items_center()
+                            .child(Icon::new(g).with_size(size::GLYPH).text_color(p.muted_foreground))
+                    }))
                     .when(self.held, |el| el.child(div().absolute().inset_0().occlude()))
             }
         }

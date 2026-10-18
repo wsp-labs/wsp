@@ -191,6 +191,7 @@ palette!(
     sidebar_rail,
     sidebar_row_rest,
     pr_merged,
+    hero_field,
     hue_red,
     hue_orange,
     hue_amber,

@@ -5,6 +5,7 @@
 
 pub mod app_shell;
 pub mod composer;
+pub mod dialogs;
 pub mod sidebar;
 pub mod usage;
 
@@ -20,6 +21,10 @@ pub fn screen(name: &str) -> Option<Entry> {
     match name {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
+        dialogs::AddComputerScreen::NAME => Some(entry::<dialogs::AddComputerScreen>()),
+        dialogs::AddCloudScreen::NAME => Some(entry::<dialogs::AddCloudScreen>()),
+        dialogs::AddProjectScreen::NAME => Some(entry::<dialogs::AddProjectScreen>()),
+        dialogs::ExportProjectScreen::NAME => Some(entry::<dialogs::ExportProjectScreen>()),
         _ => None,
     }
 }

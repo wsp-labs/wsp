@@ -7,8 +7,8 @@ use std::time::Duration;
 use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{
-    div, linear_color_stop, linear_gradient, prelude::*, px, AnyElement, AnyView, App, ClipboardItem, FontWeight, HighlightStyle, Hsla,
-    Pixels, SharedString, StyledText, Window,
+    div, linear_color_stop, linear_gradient, prelude::*, px, AnyElement, AnyView, App, ClipboardItem, FocusHandle, FontWeight,
+    HighlightStyle, Hsla, MouseButton, Pixels, ScrollHandle, SharedString, StyledText, Window,
 };
 
 use super::card::{keycap, word, CardItem, WordClass};
@@ -26,26 +26,64 @@ const ALERT_WIDTH: gpui_kit::Pixels = px(440.);
 /// The fade at the right of a copy row's value while more of it waits past the box.
 const FADE: gpui_kit::Pixels = px(24.);
 
+/// Under this width a step dialog stands as a sheet along the window's foot (`max-sm`).
+pub const NARROW: Pixels = px(640.);
+/// `STEP_FRAME`'s `sm:h-[640px]`: one height across every step.
+const FRAME_HEIGHT: Pixels = px(640.);
+/// The sheet's `pt-12`: the room above it that still shows the page.
+const SHEET_TOP: Pixels = px(48.);
+
+type Outside = std::rc::Rc<dyn Fn(&mut Window, &mut App) + 'static>;
+
+/// Whether the window is narrow enough that a step dialog is a sheet along its foot.
+pub fn narrow(window: &Window) -> bool {
+    window.viewport_size().width < NARROW
+}
+
 /// A dialog of steps at `STEP_WIDTH`: its surface is drawn where it is put, so a caller lays it over a scrim (gpui-kit's
-/// dialog layer) or shows it in place.
+/// dialog layer) or shows it in place. With [`Dialog::frame`] it is the step frame Add a computer walks: 640 px high
+/// from 640 px up, and under that a sheet along the window's foot with its acts stacked, the primary on top.
 #[derive(IntoElement)]
 pub struct Dialog {
     title: SharedString,
-    count: Option<SharedString>,
+    count: Option<(SharedString, SharedString)>,
     line: Option<SharedString>,
     body: Vec<AnyElement>,
     state: Option<AnyElement>,
     acts: Vec<AnyElement>,
+    frame: bool,
+    page: Option<AnyElement>,
+    focus: Option<FocusHandle>,
+    scroll: Option<ScrollHandle>,
+    outside: Option<Outside>,
 }
 
 impl Dialog {
     pub fn new(title: impl Into<SharedString>) -> Self {
-        Dialog { title: title.into(), count: None, line: None, body: Vec::new(), state: None, acts: Vec::new() }
+        Dialog {
+            title: title.into(),
+            count: None,
+            line: None,
+            body: Vec::new(),
+            state: None,
+            acts: Vec::new(),
+            frame: false,
+            page: None,
+            focus: None,
+            scroll: None,
+            outside: None,
+        }
     }
 
-    /// The step's place as a quiet fact at the head's right: "2 of 5".
+    /// The step's place as a quiet fact at the head's right: "2 of 5", "Step 2 of 5" on its hover.
     pub fn count(mut self, step: usize, of: usize) -> Self {
-        self.count = Some(format!("{step} of {of}").into());
+        self.count = Some((format!("{step} of {of}").into(), format!("Step {step} of {of}").into()));
+        self
+    }
+
+    /// The head's fact in words of the caller's own and its hover: "3 of 9 done", "3 of 9 steps done".
+    pub fn count_words(mut self, words: impl Into<SharedString>, why: impl Into<SharedString>) -> Self {
+        self.count = Some((words.into(), why.into()));
         self
     }
 
@@ -66,6 +104,11 @@ impl Dialog {
         self
     }
 
+    pub fn children(mut self, els: impl IntoIterator<Item = impl IntoElement>) -> Self {
+        self.body.extend(els.into_iter().map(IntoElement::into_any_element));
+        self
+    }
+
     /// The quiet state at the foot's left: "Saved, you can finish later".
     pub fn state(mut self, state: impl IntoElement) -> Self {
         self.state = Some(state.into_any_element());
@@ -73,8 +116,39 @@ impl Dialog {
     }
 
     /// An act at the foot's right, in order: the outline secondary, then the one primary.
-    pub fn act(mut self, button: Button) -> Self {
+    pub fn act(mut self, button: impl IntoElement) -> Self {
         self.acts.push(button.into_any_element());
+        self
+    }
+
+    /// The step frame (`STEP_FRAME`): one height of 640 px across the steps, and under 640 px a sheet along the foot.
+    pub fn frame(mut self) -> Self {
+        self.frame = true;
+        self
+    }
+
+    /// A whole page in place of the head, body and foot: a ready page.
+    pub fn page(mut self, page: impl IntoElement) -> Self {
+        self.page = Some(page.into_any_element());
+        self
+    }
+
+    /// The handle the dialog holds focus with while no field of it does, so Escape still reaches the layer once the
+    /// field that had focus is gone.
+    pub fn focus(mut self, handle: &FocusHandle) -> Self {
+        self.focus = Some(handle.clone());
+        self
+    }
+
+    /// The body's scroll, for a caller that brings a row into view.
+    pub fn scroll(mut self, handle: &ScrollHandle) -> Self {
+        self.scroll = Some(handle.clone());
+        self
+    }
+
+    /// What a press on the page above a sheet does, as a press on the scrim does: the layer's dismiss.
+    pub fn on_outside(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.outside = Some(std::rc::Rc::new(f));
         self
     }
 }
@@ -82,59 +156,107 @@ impl Dialog {
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
-        let head = h_flex()
-            .items_start()
-            .justify_between()
-            .gap_6()
-            .px_5()
-            .pt_4()
-            .pb_3()
-            .child(
-                v_flex()
-                    .min_w_0()
-                    .gap_1()
-                    .child(
-                        div()
-                            .debug_selector(|| "dialog-title".into())
-                            .text_size(text::DIALOG_TITLE.0)
-                            .line_height(text::DIALOG_TITLE.1)
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(p.foreground)
-                            .child(self.title),
-                    )
-                    .children(
-                        self.line
-                            .map(|line| div().text_size(text::NOTE.0).line_height(text::NOTE.1).text_color(p.muted_foreground).child(line)),
-                    ),
-            )
-            .children(self.count.map(|count| div().flex_none().pt(px(2.)).child(word(count, WordClass::Fact, cx))));
-        let body = v_flex()
-            .id("dialog-body")
-            .flex_shrink(1.)
-            .min_h_0()
-            .overflow_y_scroll()
-            .child(v_flex().gap_5().px_5().pt_2().pb_5().children(self.body));
-        let foot = h_flex()
-            .justify_end()
-            .gap_2()
-            .px_5()
-            .pt_3()
-            .pb_4()
-            .child(h_flex().flex_1().min_w_0().min_h(px(20.)).children(self.state))
-            .children(self.acts);
-        v_flex()
+        let sheet = self.frame && narrow(window);
+        let viewport = window.viewport_size();
+        let surface = v_flex()
             .debug_selector(|| "dialog".into())
-            .w(size::DIALOG_WIDTH)
-            .max_h(popup_max(window))
-            .rounded(size::DIALOG_RADIUS)
-            .border_1()
-            .border_color(p.popover_edge)
+            .when_some(self.focus.as_ref(), |el, f| el.track_focus(f))
+            .relative()
+            .min_h_0()
             .bg(p.popover)
             .shadow(p.dialog_shadow.clone())
             .text_color(p.foreground)
-            .child(head)
-            .child(body)
-            .child(foot)
+            .border_color(p.popover_edge)
+            .map(|el| {
+                if sheet {
+                    el.w(viewport.width).max_h(viewport.height - SHEET_TOP).border_t_1()
+                } else {
+                    el.w(size::DIALOG_WIDTH)
+                        .when(self.frame, |el| el.h(FRAME_HEIGHT))
+                        .max_h(popup_max(window))
+                        .rounded(size::DIALOG_RADIUS)
+                        .border_1()
+                }
+            });
+        let surface = match self.page {
+            Some(page) => surface.child(page),
+            None => {
+                let head = h_flex()
+                    .items_start()
+                    .justify_between()
+                    .gap_6()
+                    .px_5()
+                    .pt_4()
+                    .pb_3()
+                    .child(
+                        v_flex()
+                            .min_w_0()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .debug_selector(|| "dialog-title".into())
+                                    .text_size(text::DIALOG_TITLE.0)
+                                    .line_height(text::DIALOG_TITLE.1)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(p.foreground)
+                                    .child(self.title),
+                            )
+                            .children(self.line.map(|line| {
+                                div()
+                                    .debug_selector(|| "dialog-line".into())
+                                    .text_size(text::NOTE.0)
+                                    .line_height(text::NOTE.1)
+                                    .text_color(p.muted_foreground)
+                                    .child(line)
+                            })),
+                    )
+                    .children(self.count.map(|(words, why)| {
+                        div()
+                            .id("dialog-count")
+                            .debug_selector(|| "dialog-count".into())
+                            .flex_none()
+                            .pt(px(2.))
+                            .tooltip(tip(why))
+                            .child(word(words, WordClass::Fact, cx))
+                    }));
+                let scroll = self.scroll.unwrap_or_default();
+                let body = v_flex()
+                    .id("dialog-body")
+                    .debug_selector(|| "dialog-body".into())
+                    .when(self.frame, |el| el.flex_1())
+                    .flex_shrink(1.)
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(v_flex().gap_5().px_5().pt_2().pb_5().children(self.body));
+                let left = h_flex().min_w_0().min_h(px(20.)).children(self.state);
+                let foot = if sheet {
+                    v_flex().gap_2().px_5().pt_3().pb_4().children(self.acts.into_iter().rev()).child(left.justify_center())
+                } else {
+                    h_flex().justify_end().gap_2().px_5().pt_3().pb_4().child(left.flex_1()).children(self.acts)
+                };
+                surface.child(head).child(body).child(foot.debug_selector(|| "dialog-foot".into()))
+            }
+        };
+        if !sheet {
+            return surface.into_any_element();
+        }
+        // The layer centres what it holds inside the viewport's 16 px; a sheet takes the whole window, the room over it
+        // showing the page and closing the dialog as the scrim does.
+        let outside = self.outside;
+        v_flex()
+            .w(viewport.width)
+            .h(viewport.height)
+            .m(px(-16.))
+            .child(
+                div()
+                    .id("sheet-outside")
+                    .flex_1()
+                    .min_h(SHEET_TOP)
+                    .when_some(outside, |el, f| el.on_mouse_down(MouseButton::Left, move |_, window, cx| f(window, cx))),
+            )
+            .child(surface)
+            .into_any_element()
     }
 }
 
@@ -234,11 +356,18 @@ pub struct Refusal {
     said: Option<SharedString>,
     fix: Option<SharedString>,
     quiet: Option<SharedString>,
+    mono: bool,
 }
 
 impl Refusal {
     pub fn new() -> Self {
-        Refusal { said: None, fix: None, quiet: None }
+        Refusal { said: None, fix: None, quiet: None, mono: false }
+    }
+
+    /// In the mono face at 12 px, as onboarding's refusal slot draws it.
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
     }
 
     pub fn said(mut self, said: impl Into<SharedString>) -> Self {
@@ -289,7 +418,8 @@ impl RenderOnce for Refusal {
         div()
             .debug_selector(|| "refusal".into())
             .min_h(px(36.))
-            .text_size(text::FACT.0)
+            .text_size(if self.mono { px(12.) } else { text::FACT.0 })
+            .when(self.mono, |el| el.font_family(cx.theme().mono_font_family.clone()))
             .line_height(px(18.))
             .child(StyledText::new(text).with_highlights(highlights))
     }
