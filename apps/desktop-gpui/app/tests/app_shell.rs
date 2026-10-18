@@ -968,6 +968,26 @@ fn a_thread_on_a_workspace_the_host_lists_as_running_opens_a_shell(cx: &mut Test
     assert_eq!(panel.read_with(cx, |p, _| p.active()), Some(Pane::Terminal), "the host lists the thread's workspace as running");
 }
 
+/// New thread's chord, and the header's glyph that sends the same action, answered by the frame wherever the window
+/// is: a page open closes, as the web's `openProjectHome` closes Settings, and the composer opens on the thread's
+/// workspace.
+#[gpui_kit::test]
+fn new_thread_closes_settings_and_opens_the_composer_on_the_threads_workspace(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let route = |cx: &mut VisualTestContext| shell.read_with(cx, |s, _| s.route().clone());
+    press(cx, "chat.new");
+    assert_eq!(route(cx), Route::Screen("composer:w1".into()), "from a thread");
+    shell.update_in(cx, |s, window, cx| s.go(Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, window, cx));
+    shell.update_in(cx, |s, window, cx| s.go(Route::Screen(SETTINGS.into()), window, cx));
+    cx.run_until_parked();
+    press(cx, "chat.new");
+    assert_eq!(route(cx), Route::Screen("composer:w2".into()), "from Settings, on the thread it was opened over");
+    cx.dispatch_action(keys::CloseSettings);
+    cx.run_until_parked();
+    assert_eq!(route(cx), Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, "Settings is closed behind it");
+}
+
 #[gpui_kit::test]
 fn the_sidebars_asks_with_a_page_today_open_it(cx: &mut TestAppContext) {
     let (shell, cx) = hostless(cx);

@@ -428,10 +428,15 @@ fn the_right_click_menu_reads_todays_rows_and_each_row_does_its_work(cx: &mut Te
     cx.simulate_mouse_down(at, MouseButton::Right, Modifiers::none());
     cx.simulate_mouse_up(at, MouseButton::Right, Modifiers::none());
     cx.run_until_parked();
-    assert!(drawer.read_with(cx, |d, _| d.menu_open()), "a right-click opens the menu");
-    cx.simulate_keystrokes("escape");
-    cx.run_until_parked();
     let rows = cx.update(|_, cx| drawer.update(cx, |d, cx| d.menu_rows(&pty, cx)));
+    let labels: Vec<_> = rows.iter().map(|(_, i)| i.label.clone()).collect();
+    assert_eq!(drawer.read_with(cx, |d, _| d.menu_asked()), labels, "a right-click asks for today's rows");
+    // On the Mac AppKit draws the menu, which the test platform cannot drive.
+    if !cfg!(target_os = "macos") {
+        assert!(drawer.read_with(cx, |d, _| d.menu_open()), "a right-click opens the menu");
+        cx.simulate_keystrokes("escape");
+        cx.run_until_parked();
+    }
     let read: Vec<(String, Option<String>)> =
         rows.iter().map(|(_, i)| (i.label.to_string(), i.refusal.as_ref().map(|r| r.to_string()))).collect();
     assert_eq!(read[0], ("Copy".to_owned(), Some(menu::NOTHING_SELECTED.to_owned())), "{read:?}");

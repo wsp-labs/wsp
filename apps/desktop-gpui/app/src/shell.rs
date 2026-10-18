@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use futures::channel::mpsc;
 use futures::StreamExt;
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Theme};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{
     div, prelude::*, px, AnyView, App, Context, DragMoveEvent, Empty, Entity, FocusHandle, KeyBinding, KeyContext, KeyDownEvent,
     MouseButton, MouseDownEvent, Pixels, SharedString, StyleRefinement, Subscription, Task, Window,
@@ -39,7 +39,6 @@ use crate::screens::thread_view::{Capture, ThreadScreen};
 use crate::screens::{self, app_shell, dialogs, Entry, Host, Mounted, Opened, Pane, Place, Route, Screen, THREAD};
 use crate::sidebar::{Asked, Link, Selected, Sidebar, ThreadItem};
 use crate::thread_view::ThreadView;
-use crate::ui::theme::WspTheme;
 use crate::ui::{self, ActivePalette};
 
 /// `transition-[left,right,width] duration-200 ease-linear` on the sidebar.
@@ -162,7 +161,7 @@ pub struct Shell {
     drawer_open: bool,
     /// The chord rules bound now, so a change of the person's overrides can unbind exactly them.
     rules: Vec<Bound>,
-    theme: Option<String>,
+    theme: Option<&'static str>,
     picks: Picks,
     look: Look,
     vibrancy: Vibrancy,
@@ -250,8 +249,8 @@ impl Shell {
                     this.panel.update(cx, |p, cx| p.toggle_pane(Pane::Browser, window, cx));
                 }
             }
-            Asked::ProjectSettings(_) => {}
-            Asked::ComputerSettings(_) => {}
+            Asked::ProjectSettings(id) => this.go(Route::Screen(format!("{SETTINGS}:project:{id}").into()), window, cx),
+            Asked::ComputerSettings(id) => this.go(Route::Screen(format!("{SETTINGS}:computer:{id}").into()), window, cx),
         });
         let page = crate::sidebar::host_page(&state);
         screens::terminal::boot::read_from(page.clone(), cx);
@@ -283,6 +282,7 @@ impl Shell {
                     palette::attach(Host::new(host.clone(), runtime.clone()), &this.sidebar, window, cx);
                     let (center, first) = (this.thread_view.clone().into(), Host::new(host.clone(), runtime.clone()));
                     this.first_run = Some(cx.new(|cx| dialogs::first_run::FirstRun::new(first, page.clone(), center, cx)));
+                    crate::desktop::app_procs::offer_once(host.clone(), &runtime, cx);
                     this.sidebar.update(cx, |s, cx| s.attach(Link { host: host.clone(), runtime, page }, cx));
                     if let Some(preferences) = &preferences {
                         this.apply(preferences, window, cx);
@@ -339,7 +339,7 @@ impl Shell {
         let rules = keys::bound(mac, &BTreeMap::new());
         if !std::mem::replace(&mut cx.default_global::<KeysBound>().0, true) {
             cx.bind_keys(keys::bindings_of(mac, &rules));
-            cx.bind_keys([KeyBinding::new("escape", keys::CloseSettings, Some(&format!("{} && {}", keys::SHELL, keys::SETTINGS_OPEN)))]);
+            cx.bind_keys([KeyBinding::new("escape", keys::EscapePage, Some(&format!("{} && {}", keys::SHELL, keys::SETTINGS_OPEN)))]);
             cx.bind_keys(screens::terminal::view::key_bindings());
         }
         let focus = cx.focus_handle();
@@ -421,6 +421,11 @@ impl Shell {
 
     pub fn route(&self) -> &Route {
         &self.route
+    }
+
+    /// The page mounted in the main column, as a test reaches into it.
+    pub fn screen_view(&self) -> Option<AnyView> {
+        self.screen.as_ref().map(|m| m.view.clone())
     }
 
     pub fn sidebar_open(&self) -> bool {
@@ -593,12 +598,7 @@ impl Shell {
         let value = serde_json::to_value(preferences).unwrap_or_default();
         crate::screens::thread_view::markdown::set_sizes(&value, cx);
         self.sidebar_width = value.get("sidebarWidth").and_then(|w| w.as_f64()).map_or(frame::SIDEBAR_DEFAULT, |w| px(w as f32));
-        let overrides: BTreeMap<String, Option<String>> = value
-            .get("keybindings")
-            .and_then(|k| k.as_object())
-            .map(|k| k.iter().map(|(command, chord)| (command.clone(), chord.as_str().map(str::to_owned))).collect())
-            .unwrap_or_default();
-        self.rebind(&overrides, cx);
+        self.rebind(&keys::overrides_of(value.get("keybindings")), cx);
         screens::terminal::read_preferences(&value, cx);
         let side = |key: &str, default: &str| value.get(key).and_then(|t| t.as_str()).unwrap_or(default).to_owned();
         self.picks = Picks {
@@ -619,38 +619,25 @@ impl Shell {
 
     /// The theme the person's picks name for the computer's appearance now, which a system pick follows as it moves.
     fn pick_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(theme) = cx.try_global::<Capture>().and_then(|c| c.theme.clone()) {
-            self.restyle(Some(theme), self.picks.transparency, window, cx);
+        if let Some(entry) = cx.try_global::<Capture>().and_then(|c| c.theme.as_deref()).and_then(ui::theme::theme_by_id) {
+            self.restyle(entry.id, self.picks.transparency, window, cx);
             return;
         }
-        let dark = match self.picks.mode.as_deref() {
-            Some("dark") => true,
-            Some("light") => false,
-            _ => matches!(window.appearance(), gpui_kit::WindowAppearance::Dark | gpui_kit::WindowAppearance::VibrantDark),
-        };
-        let theme = if dark { self.picks.dark.clone() } else { self.picks.light.clone() };
-        if ui::theme::theme_by_id(&theme).is_some() {
-            self.restyle(Some(theme), self.picks.transparency, window, cx);
-        }
+        let mode = self.picks.mode.as_deref().unwrap_or("system");
+        let theme = ui::theme::picked(mode, &self.picks.light, &self.picks.dark, ui::theme::is_dark(window.appearance()));
+        self.restyle(theme.id, self.picks.transparency, window, cx);
     }
 
     /// Draws the window in `theme` and, on the Mac, on its glass or solid as `transparency` and the computer ask.
-    fn restyle(&mut self, theme: Option<String>, transparency: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn restyle(&mut self, theme: &'static str, transparency: bool, window: &mut Window, cx: &mut Context<Self>) {
         let look = Look { mac: cfg!(target_os = "macos"), glass: transparency && !vibrancy::reduce_transparency() };
-        if theme == self.theme && look == self.look {
+        if self.theme == Some(theme) && look == self.look {
             return;
         }
-        if let Some(theme) = &theme {
-            ui::theme::set_theme(theme, cx);
-        }
-        let fills = material::fills(look, ui::theme::current(cx).id, cx.palette());
-        // The glass moves the page's muted ink, which every screen reads off the palette.
-        if let Some(muted) = fills.muted_foreground {
-            cx.global_mut::<WspTheme>().palette.muted_foreground = muted;
-            Theme::update(cx, |theme| theme.muted_foreground = muted);
-        }
+        ui::theme::set_theme_in(theme, look, cx);
+        let fills = material::fills(look, theme, cx.palette());
         self.vibrancy.set(fills.vibrancy, window);
-        self.theme = theme;
+        self.theme = Some(theme);
         self.look = look;
         window.refresh();
     }
@@ -755,8 +742,22 @@ impl Shell {
         if self.settings_open() {
             let behind = std::mem::replace(&mut self.behind, Route::Empty);
             self.screen = None;
+            // A theme a page showed under the pointer goes with the page.
+            if let Some(theme) = self.theme.filter(|theme| ui::theme::current(cx).id != *theme) {
+                ui::theme::set_theme(theme, cx);
+            }
             self.go(behind, window, cx);
         }
+    }
+
+    /// Escape on a page: the page takes it first for something of its own, and only then does the page close.
+    fn escape_page(&mut self, _: &keys::EscapePage, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(escape) = self.screen.as_ref().map(|screen| screen.escape.clone()) {
+            if escape(window, cx) {
+                return;
+            }
+        }
+        self.close_settings(&keys::CloseSettings, window, cx);
     }
 
     fn close_panel_tab(&mut self, _: &keys::ClosePanelTab, window: &mut Window, cx: &mut Context<Self>) {
@@ -1327,6 +1328,7 @@ impl Render for Shell {
             .on_action(cx.listener(Self::toggle_drawer))
             .on_action(cx.listener(Self::toggle_settings))
             .on_action(cx.listener(Self::close_settings))
+            .on_action(cx.listener(Self::escape_page))
             .on_action(cx.listener(Self::close_panel_tab))
             .on_action(cx.listener(Self::select_workspace))
             .on_action(cx.listener(|this, _: &keys::NextPanelTab, window, cx| this.panel.update(cx, |p, cx| p.step(1, window, cx))))

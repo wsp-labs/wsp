@@ -7,20 +7,24 @@ use gpui_kit::{div, prelude::*, px, relative, AnyElement, App, Context, FontWeig
 use wsp_host_client::protocol::UsedAnswer;
 
 use super::model::{self, Chart, InkTheme, MixPart, Range, Split};
-use super::parts::{self, bone, card, identity, quiet, rule, share_bar, sized, split_glyph, surface, BLOCK_GAP};
+use super::parts::{self, identity, quiet, rule, share_bar, sized, split_glyph, surface, Looks, BLOCK_GAP};
 use super::{words, UsagePage};
-use crate::ui::{chart, ActivePalette, Segmented, CHART_HEIGHT};
+use crate::ui::{chart, ActivePalette, Card, DigitRoll, Segmented, Skeleton, CHART_HEIGHT};
 
 /// The split table's columns past the first: tokens, cache hit, turns and the estimate.
 const COLUMNS: [f32; 4] = [104., 96., 80., 120.];
 const COLUMN_GAP: f32 = 24.;
+/// Under 640 px: tokens and the estimate, `max-sm:grid-cols-[minmax(0,1fr)_72px_88px] max-sm:gap-x-4`.
+const COLUMNS_NARROW: [f32; 2] = [72., 88.];
+const COLUMN_GAP_NARROW: f32 = 16.;
 
 pub fn render(page: &UsagePage, _now: f64, window: &mut Window, cx: &mut Context<UsagePage>) -> AnyElement {
-    let controls = controls(page, cx);
+    let narrow = crate::ui::narrow::width(window).sm;
+    let controls = controls(page, narrow, cx);
     let mut section = v_flex().debug_selector(|| "usage-used".into()).gap(BLOCK_GAP).child(controls);
     section = match (&page.used.value, &page.used.refused) {
         (None, Some(refused)) => section.child(quiet(words::used_refused(refused), cx).py(px(20.))),
-        (None, None) => section.child(skeleton(page.range, cx)),
+        (None, None) => section.child(skeleton(page.range, narrow, cx)),
         (Some(used), _) if used.rows.is_empty() => {
             section.child(quiet(words::NO_USE, cx).py(px(40.)).w_full().flex().justify_center().debug_selector(|| "no-use".into()))
         }
@@ -30,17 +34,20 @@ pub fn render(page: &UsagePage, _now: f64, window: &mut Window, cx: &mut Context
             } else {
                 &[][..]
             };
-            let chart = Chart::of(used, &page.projects);
+            let looks = Looks { projects: &page.projects, places: &page.places, preferences: page.preferences.as_ref() };
+            let chart = Chart::of(used, &page.projects, |key| Some(looks.project(key).1));
+            let p = cx.palette();
             let ink = InkTheme {
-                foreground: cx.palette().foreground,
-                background: cx.palette().background,
-                muted_foreground: cx.palette().muted_foreground,
+                foreground: p.foreground,
+                background: p.background,
+                muted_foreground: p.muted_foreground,
                 dark: cx.theme().is_dark(),
+                hues: [p.hue_red, p.hue_orange, p.hue_amber, p.hue_green, p.hue_teal, p.hue_blue, p.hue_violet, p.hue_pink],
             };
             section
-                .child(totals(used, cx))
+                .child(totals(used, narrow, cx))
                 .child(chart_card(used, &chart, &ink, window, cx))
-                .child(table(used, models, &chart, &ink, &page.projects, cx))
+                .child(table(used, models, &chart, &ink, looks, narrow, cx))
                 .children(mix(used, cx))
                 .children(used.logs.as_ref().map(|logs| quiet(words::logs_line(&logs.agents, &logs.computers), cx)))
         }
@@ -48,19 +55,21 @@ pub fn render(page: &UsagePage, _now: f64, window: &mut Window, cx: &mut Context
     section.into_any_element()
 }
 
-fn controls(page: &UsagePage, cx: &mut Context<UsagePage>) -> impl IntoElement {
+/// The range and the split; a segment's sides are `px-3.5`, `max-sm:px-2`.
+fn controls(page: &UsagePage, narrow: bool, cx: &mut Context<UsagePage>) -> impl IntoElement {
     let (ranges, splits) = (Range::ALL, Split::ALL);
     let entity = cx.entity();
+    let pad = if narrow { px(8.) } else { px(14.) };
     let range = ranges.iter().fold(
         Segmented::new("usage-range", ranges.iter().position(|r| *r == page.range).unwrap_or(1))
             .height(px(36.))
-            .segment_size((px(14.), px(20.)), px(14.)),
+            .segment_size((px(14.), px(20.)), pad),
         |s, r| s.segment(r.word()),
     );
     let split = splits.iter().fold(
         Segmented::new("usage-split", splits.iter().position(|s| *s == page.split).unwrap_or(0))
             .height(px(36.))
-            .segment_size((px(14.), px(20.)), px(14.)),
+            .segment_size((px(14.), px(20.)), pad),
         |s, split| s.segment(split.word()),
     );
     let on_split = entity.clone();
@@ -69,38 +78,69 @@ fn controls(page: &UsagePage, cx: &mut Context<UsagePage>) -> impl IntoElement {
         .justify_between()
         .gap_x_4()
         .gap_y_2()
-        .child(range.on_pick(move |ix, _, cx| entity.update(cx, |page, cx| page.pick_range(ranges[ix], cx))))
-        .child(split.on_pick(move |ix, _, cx| on_split.update(cx, |page, cx| page.pick_split(splits[ix], cx))))
+        .child(
+            div()
+                .debug_selector(|| "usage-range".into())
+                .child(range.on_pick(move |ix, _, cx| entity.update(cx, |page, cx| page.pick_range(ranges[ix], cx)))),
+        )
+        .child(
+            div()
+                .debug_selector(|| "usage-split".into())
+                .child(split.on_pick(move |ix, _, cx| on_split.update(cx, |page, cx| page.pick_split(splits[ix], cx)))),
+        )
 }
 
 fn mono(cx: &App) -> SharedString {
     cx.theme().mono_font_family.clone()
 }
 
-fn totals(used: &UsedAnswer, cx: &App) -> impl IntoElement {
+/// Cells on a strip's grid: one row with a rule between each, or two columns with none under 640 px
+/// (`max-sm:grid-cols-2 max-sm:divide-x-0`), a short last row keeping its columns' widths.
+fn strip(cells: Vec<gpui_kit::Div>, narrow: bool, cx: &App) -> gpui_kit::Div {
+    let count = cells.len();
+    let per = if narrow { 2 } else { count.max(1) };
+    let mut cells = cells.into_iter().enumerate();
+    let mut grid = surface(cx);
+    loop {
+        let line: Vec<AnyElement> = cells
+            .by_ref()
+            .take(per)
+            .map(|(ix, cell)| cell.when(!narrow && ix + 1 < count, |el| el.border_r_1().border_color(rule(cx))).into_any_element())
+            .collect();
+        if line.is_empty() {
+            break;
+        }
+        let blanks = per - line.len();
+        grid = grid.child(h_flex().items_stretch().children(line).children((0..blanks).map(|_| div().flex_1().min_w_0())));
+    }
+    grid
+}
+
+fn totals(used: &UsedAnswer, narrow: bool, cx: &App) -> impl IntoElement {
     let p = cx.palette();
     let stats = model::Totals::of(used).stats();
-    let count = stats.len();
-    surface(cx).debug_selector(|| "usage-totals".into()).flex_row().children(stats.into_iter().enumerate().map(|(ix, stat)| {
+    let cells = stats.into_iter().map(|stat| {
         v_flex()
             .debug_selector(move || format!("stat-{}", stat.key))
             .flex_1()
             .min_w_0()
             .gap(px(6.))
             .p(px(20.))
-            .when(ix + 1 < count, |el| el.border_r_1().border_color(rule(cx)))
             .child(sized(div(), 13.).text_color(p.muted_foreground).child(stat.label))
             .child(
                 div()
+                    .debug_selector(move || format!("{}-figure", stat.key))
+                    .whitespace_nowrap()
                     .font_family(mono(cx))
                     .text_size(px(26.))
                     .line_height(px(32.))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(p.foreground)
-                    .child(stat.value),
+                    .child(DigitRoll::new(SharedString::from(format!("stat-{}-figure", stat.key)), stat.value, px(32.)).roll_in()),
             )
             .children(stat.note.map(|note| div().truncate().text_xs().line_height(px(16.)).text_color(p.muted_foreground).child(note)))
-    }))
+    });
+    strip(cells.collect(), narrow, cx).debug_selector(|| "usage-totals".into())
 }
 
 /// `LEGEND`: each line's 14 by 2 swatch before its name, an agent's 12 px mark between them.
@@ -138,32 +178,51 @@ fn chart_card(used: &UsedAnswer, chart: &Chart, ink: &InkTheme, window: &Window,
     let tz = chrono::Local;
     let ticks = model::ticks(used, &tz).into_iter().map(|t| chart::Tick { at: t.at as f32, word: t.word.into() }).collect();
     let steps = used.series.iter().map(|s| s.t).collect();
-    let body = v_flex().gap_4().child(legend(items, window, cx)).child(
+    let body = v_flex().debug_selector(|| "usage-chart".into()).gap_4().child(legend(items, window, cx)).child(
         chart::Chart::new("usage-chart-plot", steps, lines, ticks)
+            .tween()
+            .roll()
             .figure(words::fmt_tokens)
             .step_word(move |t| words::step_word(range, t, &chrono::Local)),
     );
-    card("usage-chart", Some(words::chart_head(range).into()), body, cx)
+    Card::new("usage-chart").locked(true).head(words::chart_head(range)).body(body)
 }
 
-fn table(used: &UsedAnswer, models: &[model::Row], chart: &Chart, ink: &InkTheme, projects: &[String], cx: &App) -> impl IntoElement {
+/// The split table; under 640 px its cache hit and turns go (`max-sm:hidden`).
+fn table(
+    used: &UsedAnswer,
+    models: &[model::Row],
+    chart: &Chart,
+    ink: &InkTheme,
+    looks: Looks,
+    narrow: bool,
+    cx: &App,
+) -> impl IntoElement {
     let p = cx.palette();
     let split = Split::from(used.split);
     let t = model::split_table(used, models);
     let line = rule(cx);
-    let head_cell = |text: &'static str| div().child(text).into_any_element();
-    let mut heads = vec![head_cell(words::TOKENS), head_cell(words::CACHE_HIT)];
-    if t.turns {
-        heads.push(head_cell(words::TURNS));
+    let head_cell =
+        |text: &'static str, k: &'static str| div().debug_selector(move || format!("used-head-{k}")).child(text).into_any_element();
+    let mut heads = vec![head_cell(words::TOKENS, "tokens")];
+    if !narrow {
+        heads.push(head_cell(words::CACHE_HIT, "cache-hit"));
+        if t.turns {
+            heads.push(head_cell(words::TURNS, "turns"));
+        }
     }
-    heads.push(head_cell(words::ESTIMATE));
+    heads.push(head_cell(words::ESTIMATE, "estimate"));
     let mut widths = COLUMNS.to_vec();
     if !t.turns {
         widths.remove(2);
     }
+    if narrow {
+        widths = COLUMNS_NARROW.to_vec();
+    }
+    let gap = if narrow { COLUMN_GAP_NARROW } else { COLUMN_GAP };
     let row = move |first: AnyElement, cells: Vec<AnyElement>| {
         h_flex()
-            .gap(px(COLUMN_GAP))
+            .gap(px(gap))
             .child(div().flex_1().min_w_0().child(first))
             .children(cells.into_iter().zip(widths.clone()).map(|(cell, w)| div().flex_none().w(px(w)).flex().justify_end().child(cell)))
     };
@@ -172,9 +231,12 @@ fn table(used: &UsedAnswer, models: &[model::Row], chart: &Chart, ink: &InkTheme
     };
     let cells_of = |r: &model::Row| {
         let c = model::row_cells(r);
-        let mut cells = vec![number(c.tokens, p.foreground), number(c.cache_hit, p.muted_foreground)];
-        if t.turns {
-            cells.push(number(c.turns, p.muted_foreground));
+        let mut cells = vec![number(c.tokens, p.foreground)];
+        if !narrow {
+            cells.push(number(c.cache_hit, p.muted_foreground));
+            if t.turns {
+                cells.push(number(c.turns, p.muted_foreground));
+            }
         }
         cells.push(number(c.price, if c.estimated { p.foreground } else { p.muted_foreground }));
         cells
@@ -190,7 +252,7 @@ fn table(used: &UsedAnswer, models: &[model::Row], chart: &Chart, ink: &InkTheme
     let groups = t.groups.iter().map(|group| {
         let r = group.row;
         let bar = chart.ink_of(&r.key).map_or(p.foreground.opacity(0.45), |i| i.resolve(ink));
-        let glyph = split_glyph(split, &r.key, r.agent.as_deref(), projects, cx);
+        let glyph = split_glyph(split, &r.key, r.agent.as_deref(), looks, cx);
         let first = identity(glyph, r.label.clone(), None, Some(share_bar(group.share, bar, cx).into_any_element()), cx);
         let key = r.key.clone();
         v_flex()
@@ -215,7 +277,7 @@ fn table(used: &UsedAnswer, models: &[model::Row], chart: &Chart, ink: &InkTheme
             }))
     });
     let body = v_flex().border_b_1().border_color(line).child(head).children(groups);
-    card("usage-by", Some(words::by(split.word()).into()), body, cx)
+    Card::new("usage-used").locked(true).head(words::by(split.word())).body(body)
 }
 
 fn mix(used: &UsedAnswer, cx: &App) -> Option<impl IntoElement> {
@@ -240,31 +302,33 @@ fn mix(used: &UsedAnswer, cx: &App) -> Option<impl IntoElement> {
             .child(s.part.word())
             .child(div().font_family(mono(cx)).text_color(p.foreground).child(words::fmt_tokens(s.n)))
     }));
-    Some(card("usage-mix", Some(words::MIX.into()), v_flex().gap_3().child(bar).child(legend), cx))
+    let body = v_flex().debug_selector(|| "usage-mix".into()).gap_3().child(bar).child(legend);
+    Some(Card::new("usage-mix-card").locked(true).head(words::MIX).body(body))
 }
 
 /// The tab while its answer is on the way, in the loaded page's shape and heights so nothing moves when it lands.
-fn skeleton(range: Range, cx: &App) -> impl IntoElement {
-    let strip = surface(cx).flex_row().children((0..4).map(|ix| {
+fn skeleton(range: Range, narrow: bool, cx: &App) -> impl IntoElement {
+    let bar = |w: f32, h: f32| Skeleton::new(px(w), px(h));
+    let cells = (0..4).map(|_| {
         v_flex()
             .flex_1()
             .gap(px(6.))
             .p(px(20.))
-            .when(ix < 3, |el| el.border_r_1().border_color(rule(cx)))
-            .child(bone(px(64.), px(12.), cx).my_1())
-            .child(bone(px(112.), px(28.), cx).my(px(2.)))
-            .child(bone(px(96.), px(12.), cx).my(px(2.)))
-    }));
-    let axis = v_flex().w(px(36.)).h(CHART_HEIGHT).py_1().justify_between().children((0..5).map(|_| bone(px(32.), px(10.), cx)));
+            .child(div().my_1().child(bar(64., 12.)))
+            .child(div().my(px(2.)).child(bar(112., 28.)))
+            .child(div().my(px(2.)).child(bar(96., 12.)))
+    });
+    let strip = strip(cells.collect(), narrow, cx);
+    let axis = v_flex().w(px(36.)).h(CHART_HEIGHT).py_1().justify_between().children((0..5).map(|_| bar(32., 10.)));
     let chart = v_flex()
         .gap_4()
-        .child(h_flex().gap_6().child(bone(px(112.), px(14.), cx)).child(bone(px(80.), px(14.), cx)))
+        .child(h_flex().gap_6().child(bar(112., 14.)).child(bar(80., 14.)))
         .child(
             h_flex()
                 .gap_3()
                 .items_start()
                 .child(axis)
-                .child(div().flex_1().h(CHART_HEIGHT).rounded(px(8.)).bg(cx.palette().border).opacity(0.6)),
+                .child(div().flex_1().opacity(0.6).child(Skeleton::new(px(0.), CHART_HEIGHT).full().radius(px(8.)))),
         )
         .child(div().h_4());
     let line = rule(cx);
@@ -274,22 +338,18 @@ fn skeleton(range: Range, cx: &App) -> impl IntoElement {
             .py_4()
             .border_t_1()
             .border_color(line)
-            .child(div().size(px(32.)).rounded(px(8.)).bg(cx.palette().border))
-            .child(v_flex().flex_1().gap_2().child(bone(px(128.), px(14.), cx)).child(bone(px(192.), px(4.), cx)))
-            .child(bone(px(64.), px(14.), cx))
-            .child(bone(px(80.), px(14.), cx).ml_6())
+            .child(bar(32., 32.).radius(px(8.)))
+            .child(v_flex().flex_1().gap_2().child(bar(128., 14.)).child(bar(192., 4.)))
+            .child(bar(64., 14.))
+            .child(div().ml_6().child(bar(80., 14.)))
     });
-    let table = v_flex().gap_4().child(bone(px(80.), px(14.), cx)).child(
-        v_flex()
-            .border_b_1()
-            .border_color(line)
-            .child(div().py_3().border_t_1().border_color(line).child(bone(px(96.), px(12.), cx)))
-            .children(rows),
+    let table = v_flex().gap_4().child(bar(80., 14.)).child(
+        v_flex().border_b_1().border_color(line).child(div().py_3().border_t_1().border_color(line).child(bar(96., 12.))).children(rows),
     );
     v_flex()
         .debug_selector(|| "used-loading".into())
         .gap(BLOCK_GAP)
         .child(strip)
-        .child(card("usage-chart-loading", Some(words::chart_head(range).into()), chart, cx))
+        .child(Card::new("usage-chart-loading").locked(true).head(words::chart_head(range)).body(chart))
         .child(table)
 }

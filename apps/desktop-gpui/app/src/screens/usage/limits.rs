@@ -3,75 +3,78 @@
 //! under it and a segment per account; then the accounts no window speaks for. The accounts and the tokens are two
 //! ledgers and are never summed.
 
-use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
-use gpui_kit::{div, prelude::*, px, relative, AnyElement, App, Context, FontWeight, Hsla, SharedString, Window};
+use gpui_kit::{deferred, div, prelude::*, px, relative, AnyElement, App, Context, FontWeight, Hsla, SharedString, Window};
 
 use super::model::{self, Account, AccountLine, Pool, PoolWindow, Tone};
-use super::parts::{agent_glyph, bone, card, identity, quiet, rule, sized, surface, BLOCK_GAP, CARD_PAD};
+use super::parts::{agent_glyph, identity, quiet, rule, sized, surface, tip_skin, BLOCK_GAP, CARD_PAD};
 use super::{words, UsagePage};
-use crate::ui::{ActivePalette, Button};
+use crate::ui::{motion, ActivePalette, Button, Card, CardItem, DigitRoll, Skeleton};
 
 /// The window's figure column at its `14rem`.
 const WINDOW_COLUMN: f32 = 224.;
 const SEGMENT_RADIUS: f32 = 5.;
+/// The segment's hover opens this far above it (`sideOffset={8}`).
+const TIP_OFFSET: f32 = 8.;
 
-pub fn render(page: &UsagePage, now: f64, _: &mut Window, cx: &mut Context<UsagePage>) -> AnyElement {
+pub fn render(page: &UsagePage, now: f64, window: &mut Window, cx: &mut Context<UsagePage>) -> AnyElement {
     let entity = cx.entity();
     let accounts = page.accounts.value.as_ref().map(|a| &a.accounts[..]);
     let el = match (accounts, &page.accounts.refused) {
-        (None, Some(refused)) => {
-            card("usage-limits", None, surface(cx).child(quiet(words::limits_refused(refused), cx).px(CARD_PAD).py_5()), cx)
+        (None, Some(refused)) => Card::new("usage-limits")
+            .locked(true)
+            .item(CardItem::any(quiet(words::limits_refused(refused), cx).px(CARD_PAD).py_5()))
+            .into_any_element(),
+        (None, None) => skeleton(cx).into_any_element(),
+        (Some([]), _) => {
+            Card::new("usage-limits").locked(true).item(CardItem::any(quiet(words::NO_ACCOUNTS, cx).px(CARD_PAD).py_5())).into_any_element()
         }
-        (None, None) => skeleton(cx),
-        (Some([]), _) => card("usage-limits", None, surface(cx).child(quiet(words::NO_ACCOUNTS, cx).px(CARD_PAD).py_5()), cx),
         (Some(accounts), _) => {
             let limits = model::limits(accounts);
             let no_limit = limits.no_limit_word();
             let quiet_card = limits.has_quiet_card().then(|| {
-                let line = rule(cx);
-                let rows = limits
-                    .quiet
-                    .iter()
-                    .enumerate()
-                    .map(|(ix, row)| account_line(row, cx).when(ix > 0, |el| el.border_t_1().border_color(line)));
-                let body = v_flex()
-                    .gap_4()
-                    .when(!limits.quiet.is_empty(), |el| el.child(surface(cx).children(rows)))
-                    .children(no_limit.map(|word| quiet(word, cx).px(CARD_PAD).debug_selector(|| "no-limit".into())));
-                card("usage-no-plan", Some(words::NO_PLAN_LIMIT.into()), body, cx)
+                let rows = limits.quiet.iter().map(|row| CardItem::any(account_line(row, cx))).collect::<Vec<_>>();
+                let card = Card::new("usage-limits").locked(true).head(words::NO_PLAN_LIMIT).items(rows);
+                match no_limit {
+                    Some(word) => card.under(quiet(word, cx).px(CARD_PAD).debug_selector(|| "no-limit".into())),
+                    None => card,
+                }
             });
             v_flex()
                 .gap(BLOCK_GAP)
-                .children(limits.pools.iter().map(|pool| pool_card(pool, now, &page.resetting, &entity, cx)))
+                .children(limits.pools.iter().map(|pool| pool_card(pool, now, &page.resetting, &entity, window, cx)))
                 .children(quiet_card)
+                .into_any_element()
         }
     };
-    el.debug_selector(|| "usage-limits-tab".into()).into_any_element()
+    div().debug_selector(|| "usage-limits-tab".into()).child(el).into_any_element()
 }
 
 fn small(cx: &App) -> gpui_kit::Div {
     sized(div(), 12.5).text_color(cx.palette().muted_foreground)
 }
 
-fn pool_card(pool: &Pool, now: f64, resetting: &[String], page: &gpui_kit::Entity<UsagePage>, cx: &App) -> gpui_kit::Div {
-    let p = cx.palette();
+fn pool_card(pool: &Pool, now: f64, resetting: &[String], page: &gpui_kit::Entity<UsagePage>, window: &mut Window, cx: &mut App) -> Card {
+    let p = cx.palette().clone();
     let tz = chrono::Local;
     let mark = agent_glyph(pool.agent, px(16.), p.foreground, cx);
     let head =
         h_flex().flex_wrap().justify_between().gap_x_6().gap_y_2().child(identity(mark, pool.title(), Some(pool.line()), None, cx)).child(
             sized(h_flex().flex_wrap().gap_x_5(), 12.5).text_color(p.muted_foreground).children(pool.burn_word()).child(pool.checked(now)),
         );
-    let resets = pool.accounts.iter().filter_map(|account| reset_line(account, now, resetting.contains(&account.key), page, cx));
+    let resets: Vec<_> =
+        pool.accounts.iter().filter_map(|account| reset_line(account, now, resetting.contains(&account.key), page, cx)).collect();
     let line = rule(cx);
-    let windows = v_flex()
-        .mt_2()
-        .children(pool.windows(now, &tz).into_iter().map(|window| pool_window(window, now, cx).border_t_1().border_color(line)));
     let agent = pool.agent.to_string();
-    let body = surface(cx).child(
-        v_flex().debug_selector(move || format!("usage-pool-{agent}")).pt_5().px(CARD_PAD).child(head).children(resets).child(windows),
-    );
-    card("usage-pool", Some(pool.head().into()), body, cx)
+    let windows = pool
+        .windows(now, &tz)
+        .into_iter()
+        .map(|w| pool_window(&agent, w, now, window, cx).border_t_1().border_color(line))
+        .collect::<Vec<_>>();
+    let windows = v_flex().mt_2().children(windows);
+    let body =
+        v_flex().debug_selector(move || format!("usage-pool-{agent}")).pt_5().px(CARD_PAD).child(head).children(resets).child(windows);
+    Card::new(SharedString::from(format!("usage-pool-{}", pool.agent))).locked(true).head(pool.head()).item(CardItem::any(body))
 }
 
 /// An account's banked resets, and Use reset where one is banked.
@@ -102,15 +105,19 @@ fn reset_line(account: &Account, now: f64, busy: bool, page: &gpui_kit::Entity<U
                         )
                         .xs()
                         .held(busy)
-                        .on_click(move |_, window, cx| page.update(cx, |page, cx| page.ask_reset(row.clone(), window, cx))),
+                        .on_click(move |_, _, cx| page.update(cx, |page, cx| page.ask_reset(row.clone(), cx))),
                     ),
                 )
             }),
     )
 }
 
-fn pool_window(window: PoolWindow, now: f64, cx: &App) -> gpui_kit::Div {
-    let p = cx.palette();
+/// One window: its figure column beside its meter, the figure over the meter under 640 px (`max-sm:grid-cols-1
+/// max-sm:gap-y-3`).
+fn pool_window(agent: &str, window: PoolWindow, now: f64, win: &mut Window, cx: &mut App) -> gpui_kit::Div {
+    let narrow = crate::ui::narrow::width(win).sm;
+    let p = cx.palette().clone();
+    let kind = format!("{:?}", window.kind);
     let tz = chrono::Local;
     let verdict_ink = match window.verdict.tone {
         Tone::Warn => p.warning_foreground,
@@ -118,8 +125,9 @@ fn pool_window(window: PoolWindow, now: f64, cx: &App) -> gpui_kit::Div {
         Tone::Plain => p.foreground.opacity(0.8),
     };
     let figure = v_flex()
-        .flex_none()
-        .w(px(WINDOW_COLUMN))
+        .debug_selector(|| "usage-window-figure".into())
+        .when(!narrow, |el| el.flex_none().w(px(WINDOW_COLUMN)))
+        .min_w_0()
         .gap_1()
         .child(small(cx).line_height(px(20.)).child(window.word.clone()))
         .child(
@@ -133,73 +141,83 @@ fn pool_window(window: PoolWindow, now: f64, cx: &App) -> gpui_kit::Div {
                         .line_height(px(32.))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(if window.stale { p.muted_foreground } else { p.foreground })
-                        .child(window.left.clone()),
+                        .child(DigitRoll::new(SharedString::from(format!("left-{agent}-{kind}")), window.left.clone(), px(32.)).roll_in()),
                 )
                 .child(small(cx).child(words::LEFT)),
         )
         .child(sized(div(), 12.5).line_height(px(20.)).truncate().text_color(verdict_ink).child(window.verdict.word.clone()));
-    let kind = format!("{:?}", window.kind);
-    let meter = h_flex().flex_1().min_w_0().h(px(20.)).gap_1().children(window.segments.iter().enumerate().map(|(ix, s)| {
-        let fill: Hsla = if s.stale_at.is_some() {
-            p.foreground.opacity(0.2)
-        } else if s.used >= 90. {
-            p.warning
-        } else {
-            p.foreground.opacity(0.55)
-        };
-        let label: SharedString = s.account.label.clone().into();
-        let said: SharedString = words::segment_tip(s.used, s.stale_at, s.resets_at, now, &tz).into();
-        let (border, popover, shadow, fg, muted, mono) =
-            (p.border, p.popover, p.tooltip_shadow.clone(), p.foreground, p.muted_foreground, cx.theme().mono_font_family.clone());
-        div()
-            .id(SharedString::from(format!("segment-{kind}-{ix}")))
-            .debug_selector(|| "usage-segment".into())
-            .relative()
-            .flex_1()
-            .h_full()
-            .rounded(px(SEGMENT_RADIUS))
-            .bg(p.foreground.opacity(0.09))
-            .child(
+    let segments = window
+        .segments
+        .iter()
+        .enumerate()
+        .map(|(ix, s)| {
+            let fill: Hsla = if s.stale_at.is_some() {
+                p.foreground.opacity(0.2)
+            } else if s.used >= 90. {
+                p.warning
+            } else {
+                p.foreground.opacity(0.55)
+            };
+            let label: SharedString = s.account.label.clone().into();
+            let said: SharedString = words::segment_tip(s.used, s.stale_at, s.resets_at, now, &tz).into();
+            let id = SharedString::from(format!("segment-{agent}-{kind}-{ix}"));
+            let hovered = motion::hovered(id.clone(), win, cx);
+            let tip = (*hovered.read(cx)).then(|| {
+                let mono = cx.theme().mono_font_family.clone();
+                let body = tip_skin(cx)
+                    .debug_selector(|| "segment-tip".into())
+                    .gap(px(2.))
+                    .text_xs()
+                    .line_height(px(16.))
+                    .child(div().text_color(p.foreground).child(label))
+                    .child(div().font_family(mono).text_color(p.muted_foreground).child(said));
                 div()
                     .absolute()
-                    .top_0()
-                    .bottom_0()
-                    .left_0()
-                    .rounded(px(SEGMENT_RADIUS))
-                    .bg(fill)
-                    .w(relative((s.used.clamp(0., 100.) / 100.) as f32)),
-            )
-            .children(s.elapsed.map(|elapsed| {
-                div()
-                    .absolute()
-                    .top(px(-4.))
-                    .bottom(px(-4.))
-                    .left(relative(elapsed as f32))
-                    .w(px(2.))
-                    .rounded_full()
-                    .bg(p.foreground.opacity(0.8))
-            }))
-            .tooltip(move |window, cx| {
-                let (label, said, mono) = (label.clone(), said.clone(), mono.clone());
-                Tooltip::element(move |_, _| {
-                    v_flex()
-                        .gap(px(2.))
-                        .text_xs()
-                        .line_height(px(16.))
-                        .child(div().text_color(fg).child(label.clone()))
-                        .child(div().font_family(mono.clone()).text_color(muted).child(said.clone()))
-                })
-                .m_0()
-                .rounded(px(8.))
-                .py_1()
-                .px_2()
-                .border_color(border)
-                .bg(popover)
-                .shadow(shadow.clone())
-                .build(window, cx)
-            })
-    }));
-    h_flex().debug_selector(|| "usage-window".into()).items_center().gap(px(40.)).py_4().child(figure).child(meter)
+                    .top(px(-TIP_OFFSET))
+                    .left(relative(0.5))
+                    .w_0()
+                    .h_0()
+                    .flex()
+                    .justify_center()
+                    .items_end()
+                    .child(deferred(body))
+            });
+            div()
+                .id(id)
+                .debug_selector(|| "usage-segment".into())
+                .relative()
+                .flex_1()
+                .h_full()
+                .rounded(px(SEGMENT_RADIUS))
+                .bg(p.foreground.opacity(0.09))
+                .on_hover(motion::track_hover(hovered))
+                .child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .left_0()
+                        .rounded(px(SEGMENT_RADIUS))
+                        .bg(fill)
+                        .w(relative((s.used.clamp(0., 100.) / 100.) as f32)),
+                )
+                .children(s.elapsed.map(|elapsed| {
+                    div()
+                        .absolute()
+                        .top(px(-4.))
+                        .bottom(px(-4.))
+                        .left(relative(elapsed as f32))
+                        .w(px(2.))
+                        .rounded_full()
+                        .bg(p.foreground.opacity(0.8))
+                }))
+                .children(tip)
+        })
+        .collect::<Vec<_>>();
+    let meter =
+        h_flex().debug_selector(|| "usage-meter".into()).when(!narrow, |el| el.flex_1()).min_w_0().h(px(20.)).gap_1().children(segments);
+    let line = if narrow { v_flex().gap_3() } else { h_flex().items_center().gap(px(40.)) };
+    line.debug_selector(|| "usage-window".into()).py_4().child(figure).child(meter)
 }
 
 fn account_line(row: &AccountLine, cx: &App) -> gpui_kit::Div {
@@ -228,24 +246,20 @@ fn account_line(row: &AccountLine, cx: &App) -> gpui_kit::Div {
 
 /// One pool's card with two windows, as most people have, while the accounts are on the way.
 fn skeleton(cx: &App) -> gpui_kit::Div {
+    let bar = |w: f32, h: f32| Skeleton::new(px(w), px(h));
     let row = || {
         h_flex()
             .gap_4()
-            .child(div().w(px(88.)).child(bone(px(48.), px(12.), cx)))
-            .child(div().flex_1().h(px(10.)).rounded(px(6.)).bg(cx.palette().border))
-            .child(div().w(px(48.)).flex().justify_end().child(bone(px(32.), px(12.), cx)))
-            .child(div().w(px(160.)).child(bone(px(96.), px(12.), cx)))
+            .child(div().w(px(88.)).child(bar(48., 12.)))
+            .child(div().flex_1().child(Skeleton::new(px(0.), px(10.)).full()))
+            .child(div().w(px(48.)).flex().justify_end().child(bar(32., 12.)))
+            .child(div().w(px(160.)).child(bar(96., 12.)))
     };
-    v_flex().debug_selector(|| "limits-loading".into()).gap_4().child(bone(px(64.), px(14.), cx)).child(
+    v_flex().debug_selector(|| "limits-loading".into()).gap_4().child(bar(64., 14.)).child(
         surface(cx)
             .gap_4()
             .p_4()
-            .child(
-                h_flex()
-                    .gap_3()
-                    .child(div().size(px(32.)).rounded(px(8.)).bg(cx.palette().border))
-                    .child(v_flex().gap_2().child(bone(px(160.), px(14.), cx)).child(bone(px(112.), px(12.), cx))),
-            )
+            .child(h_flex().gap_3().child(bar(32., 32.).radius(px(8.))).child(v_flex().gap_2().child(bar(160., 14.)).child(bar(112., 12.))))
             .child(row())
             .child(row()),
     )
