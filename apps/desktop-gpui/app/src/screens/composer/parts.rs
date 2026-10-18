@@ -10,9 +10,9 @@ use gpui_kit::{
 };
 
 use super::model::{self, Layout};
-use super::{marks, menus, Banner, Composer, Popup};
+use super::{menus, Banner, Composer, Popup};
 use crate::ui::icons::{SEND, STOP};
-use crate::ui::{ActivePalette, Button, Glyph, Palette};
+use crate::ui::{catalog, ActivePalette, Button, Glyph, Palette};
 
 const RADIUS: Pixels = px(22.);
 /// `--chat-composer-drawer-inset`: how far the tray, the drawer, the banner and the menus sit in from the box's sides.
@@ -135,26 +135,6 @@ pub fn access_glyph(value: &str) -> Glyph {
     }
 }
 
-/// The agent's mark beside the model's name, or its initials where it has none; a mark with no inks of its own, and the
-/// initials, take `ink`, the text's around them.
-pub fn agent_mark(harness: &str, label: &str, size: Pixels, ink: Hsla, cx: &App) -> AnyElement {
-    match marks::image(harness, cx.theme().is_dark(), ink) {
-        Some(image) => img(image).size(size).flex_none().into_any_element(),
-        None => div()
-            .flex()
-            .flex_none()
-            .items_center()
-            .justify_center()
-            .size(size)
-            .text_size(size * 0.7)
-            .font_family(cx.theme().mono_font_family.clone())
-            .font_weight(FontWeight::EXTRA_BOLD)
-            .text_color(ink)
-            .child(marks::initials(label))
-            .into_any_element(),
-    }
-}
-
 /// Model, then reasoning, then (in the full layout, where the box is wider than 640 px) access, each a trigger that
 /// opens its popup.
 pub fn pickers(c: &Composer, layout: Layout, cx: &mut Context<Composer>) -> AnyElement {
@@ -170,7 +150,7 @@ pub fn pickers(c: &Composer, layout: Layout, cx: &mut Context<Composer>) -> AnyE
             .relative()
             .child(
                 trigger("picker-model", c.popup == Some(Popup::Model), compact, &p)
-                    .child(agent_mark(&agent.harness, &agent.label, px(16.), p.foreground, cx))
+                    .child(catalog::mark(&agent.harness, &agent.label, px(16.), p.foreground, cx))
                     .child(div().truncate().child(r.model_word()))
                     .child(chevron(&p))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_popup(Popup::Model, cx))),

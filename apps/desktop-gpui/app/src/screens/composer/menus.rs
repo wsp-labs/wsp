@@ -8,8 +8,9 @@ use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{anchored, deferred, div, point, prelude::*, px, Anchor, AnyElement, App, Context, Div, FontWeight, SharedString};
 
 use super::model::{Choice, ItemKind, Stash};
-use super::parts::{access_glyph, agent_mark, attached_surface, INSET};
+use super::parts::{access_glyph, attached_surface, INSET};
 use super::{Composer, Popup};
+use crate::ui::catalog;
 use crate::ui::{ActivePalette, Glyph, Palette};
 
 /// The values a popup's rows pick, in the order the keyboard walks them.
@@ -268,7 +269,7 @@ fn model_picker(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
                 .hover(|s| s.text_color(p.foreground))
                 .on_click(cx.listener(move |this, _, _, cx| this.set_rail(harness.clone(), cx)))
                 .when(on, |el| el.child(div().absolute().top_2().bottom_2().left(px(-6.)).w(px(2.)).rounded_full().bg(p.primary)))
-                .child(agent_mark(&agent.harness, &agent.label, px(20.), if on { p.foreground } else { p.muted_foreground }, cx)),
+                .child(catalog::mark(&agent.harness, &agent.label, px(20.), if on { p.foreground } else { p.muted_foreground }, cx)),
         );
     }
     let search = h_flex()
@@ -334,7 +335,7 @@ fn model_picker(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
                                 // The row's `text-sm` leading, 20 over 14, at 15 and 13 px.
                                 .line_height(px(18.57))
                                 .text_color(p.muted_foreground)
-                                .child(agent_mark(&agent.harness, &agent.label, px(14.), p.muted_foreground, cx))
+                                .child(catalog::mark(&agent.harness, &agent.label, px(14.), p.muted_foreground, cx))
                                 .child(agent.label.clone()),
                         ),
                 )
