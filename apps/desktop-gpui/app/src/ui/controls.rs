@@ -89,6 +89,8 @@ pub struct Button {
     size: ButtonSize,
     label: Option<SharedString>,
     glyph: Option<Glyph>,
+    /// An svg of the app's own drawn where a glyph would be, for a mark gpui-kit's bundle lacks.
+    path: Option<&'static str>,
     held: bool,
     busy: bool,
     neutral_ring: bool,
@@ -110,6 +112,7 @@ impl Button {
             size: ButtonSize::Default,
             label: Some(label.into()),
             glyph: None,
+            path: None,
             held: false,
             busy: false,
             neutral_ring: false,
@@ -168,6 +171,7 @@ impl Button {
             size: ButtonSize::Icon,
             label: None,
             glyph: Some(glyph),
+            path: None,
             held: false,
             busy: false,
             neutral_ring: false,
@@ -194,6 +198,11 @@ impl Button {
     pub fn xs(mut self) -> Self {
         self.size = ButtonSize::Xs;
         self
+    }
+
+    /// The 24 px ghost icon button around one of the app's own svgs, such as `SMILE_PLUS`.
+    pub fn icon_xs_path(id: impl Into<SharedString>, path: &'static str) -> Self {
+        Button { glyph: None, path: Some(path), ..Button::icon_xs(id, Glyph::Plus) }
     }
 
     pub fn glyph(mut self, glyph: Glyph) -> Self {
@@ -342,7 +351,10 @@ impl RenderOnce for Button {
                     let glyph = if self.label.is_some() { Glyph::LoaderCircle } else { glyph.unwrap_or(Glyph::LoaderCircle) };
                     Some(super::status::turning(Icon::new(glyph).with_size(glyph_size).text_color(glyph_ink), window, cx))
                 }
-                (false, glyph) => glyph.map(|g| Icon::new(g).with_size(glyph_size).text_color(glyph_ink)),
+                (false, glyph) => glyph
+                    .map(Icon::new)
+                    .or(self.path.map(|p| Icon::empty().path(p)))
+                    .map(|icon| icon.with_size(glyph_size).text_color(glyph_ink)),
             })
             .children(self.label)
             .map(|el| {

@@ -7,7 +7,7 @@ mod common;
 use std::time::{Duration, Instant};
 
 use common::Throwaway;
-use wsp_host_client::protocol::{SessionEvent, SessionEventResultStatus};
+use wsp_host_client::protocol::{SessionEvent, SessionEventResultStatus, WorkspacesDeleteRequest};
 use wsp_host_client::{HostClient, Live};
 
 fn prompt_of(event: &SessionEvent) -> Option<&str> {
@@ -77,4 +77,24 @@ async fn lists_threads_and_receives_a_turn_started_after_it_subscribed() {
 
 fn event_type(event: &SessionEvent) -> String {
     serde_json::to_value(event).unwrap()["type"].as_str().unwrap_or_default().to_owned()
+}
+
+#[tokio::test]
+async fn a_deleted_workspace_leaves_the_statuses() {
+    let host = Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    let client = HostClient::connect(&host.state(), &host.env()).await.unwrap_or_else(|f| panic!("{}", f.message));
+    let threads = client.threads().await.unwrap_or_else(|f| panic!("{}", f.message));
+    let workspace = threads.iter().find(|t| t.prompt.as_deref() == Some("first")).expect("the thread wsp run opened").workspace_id.clone();
+    let listed = |rows: Vec<serde_json::Value>| rows.iter().any(|s| s["id"] == workspace.as_str());
+    assert!(listed(client.statuses().await.unwrap_or_else(|f| panic!("{}", f.message))), "the workspace has a status");
+    let delete: WorkspacesDeleteRequest = serde_json::from_value(serde_json::json!({ "workspaceId": workspace })).unwrap();
+    client.call(delete).await.unwrap_or_else(|f| panic!("{}", f.message));
+    let until = Instant::now() + Duration::from_secs(30);
+    while listed(client.statuses().await.unwrap_or_else(|f| panic!("{}", f.message))) {
+        assert!(Instant::now() < until, "the deleted workspace's status still listed after 30 s");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }

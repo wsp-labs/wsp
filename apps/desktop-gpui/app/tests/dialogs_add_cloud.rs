@@ -408,7 +408,8 @@ fn the_sealed_notices_open_shows_the_ready_page_owed_to_that_build(cx: &mut Test
 /// Catches: a sign-in run the dialog started outliving its close, so reopening starts a second.
 #[gpui_kit::test]
 fn closing_stops_the_sign_in_runs_the_dialog_started(cx: &mut TestAppContext) {
-    let server = common::Throwaway::start_with(STAYS, true);
+    // The test's PATH holds no real codex; a stand-in whose login waits keeps the run going until it is stopped.
+    let server = common::Throwaway::start_with_tools(STAYS, true, &[("codex", CODEX_LOGIN_WAITS)]);
     if server.daemon.is_none() {
         println!("skipped the sign-in stop, whose run the host starts through a wsp-daemon: {}", common::wsp_daemon().unwrap_err());
         return;
@@ -417,8 +418,15 @@ fn closing_stops_the_sign_in_runs_the_dialog_started(cx: &mut TestAppContext) {
     let host = host(&server);
     cx.update(|window, cx| add_cloud::open_on(Some(&host), cloud::summary(false), window, cx));
     until(cx, "Codex's Sign in", 60, |cx| drawn("sign-in-codex", cx));
-    click("sign-in-codex", cx);
-    until(cx, "the run to start", 60, |_| server.log().contains("sign-in si_") && server.log().contains("started: codex"));
+    // Beside the binary's other tests a first press can start nothing; press again until a run starts.
+    let mut pressed = Instant::now() - Duration::from_secs(2);
+    until(cx, "the run to start", 60, |cx| {
+        if pressed.elapsed() >= Duration::from_secs(2) && !server.log().contains("sign-in si_") {
+            click("sign-in-codex", cx);
+            pressed = Instant::now();
+        }
+        server.log().contains("sign-in si_") && server.log().contains("started: codex")
+    });
     std::thread::sleep(Duration::from_millis(500));
     cx.run_until_parked();
     cx.update(layer::dismiss);
@@ -431,4 +439,5 @@ fn closing_stops_the_sign_in_runs_the_dialog_started(cx: &mut TestAppContext) {
 }
 
 /// A claude the host finds, which never answers; Codex's sign-in runs on its own road.
+const CODEX_LOGIN_WAITS: &str = "#!/bin/sh\ncase \" $* \" in\n  *\" --version \"*) echo \"codex-cli 0.162.1\"; exit 0 ;;\n  *\" login status \"*) echo \"Not logged in\"; exit 1 ;;\nesac\nsleep 60\n";
 const STAYS: &str = "#!/bin/sh\ncase \" $* \" in *\" --version \"*) echo \"2.1.295 (Claude Code)\"; exit 0 ;; esac\nsleep 60\n";

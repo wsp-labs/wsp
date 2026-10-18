@@ -37,6 +37,7 @@ pub struct Segmented {
     glyph: (Pixels, Pixels),
     keycap: bool,
     held: bool,
+    fill: bool,
     on_pick: Option<Pick>,
 }
 
@@ -54,6 +55,7 @@ impl Segmented {
             glyph: (px(16.), px(8.)),
             keycap: false,
             held: false,
+            fill: false,
             on_pick: None,
         }
     }
@@ -109,6 +111,12 @@ impl Segmented {
         self
     }
 
+    /// The track as wide as its row, its segments sharing the width alike (`className="flex w-full"`, `flex-1`).
+    pub fn fill(mut self) -> Self {
+        self.fill = true;
+        self
+    }
+
     pub fn on_pick(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_pick = Some(Rc::new(f));
         self
@@ -138,7 +146,7 @@ impl RenderOnce for Segmented {
         let all_held = self.held;
         let open: Vec<bool> = self.segments.iter().map(|s| s.held.is_none() && !all_held).collect();
         let (picked, on_pick) = (self.picked, self.on_pick.clone());
-        let ((font, line), pad, (glyph, gap)) = (self.text, self.pad, self.glyph);
+        let ((font, line), pad, (glyph, gap), wide) = (self.text, self.pad, self.glyph, self.fill);
         let keycap = self.keycap;
         let segment_radius = if keycap { TRACK_RADIUS } else { SEGMENT_RADIUS };
         h_flex()
@@ -156,7 +164,7 @@ impl RenderOnce for Segmented {
                     f(next, window, cx);
                 }
             })
-            .flex_none()
+            .map(|el| if wide { el.w_full() } else { el.flex_none() })
             .items_stretch()
             .h(self.height)
             .p(px(2.))
@@ -181,6 +189,7 @@ impl RenderOnce for Segmented {
                     .id((self.id.clone(), ix))
                     .debug_selector(|| "segment".into())
                     .justify_center()
+                    .when(wide, |el| el.flex_1())
                     .px(pad)
                     .gap(gap)
                     .rounded(segment_radius)

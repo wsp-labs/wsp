@@ -123,9 +123,7 @@ impl DropdownMenu for Trigger {}
 pub fn row_menu(id: impl Into<SharedString>, acts: Rc<Vec<MenuAct>>) -> impl IntoElement {
     let id: SharedString = id.into();
     let button = Button::icon_xs(id.clone(), Glyph::Ellipsis).side(px(20.)).corners(Corners::all(px(4.)));
-    Trigger(div().id(SharedString::from(format!("{id}-menu"))).flex().child(button)).dropdown_menu(move |menu, _, cx| {
-        menu_of(menu.surface(surface(cx.palette())), &acts, cx.palette().error_foreground, cx.palette().muted_foreground)
-    })
+    menu_on(id, button, gpui_kit::Anchor::TopLeft, acts)
 }
 
 /// A panel head's menu: the ellipsis on the 28 px ghost icon button (`size="icon"`), named on its hover, its acts on a
@@ -133,8 +131,19 @@ pub fn row_menu(id: impl Into<SharedString>, acts: Rc<Vec<MenuAct>>) -> impl Int
 pub fn icon_menu(id: impl Into<SharedString>, name: impl Into<SharedString>, acts: Rc<Vec<MenuAct>>) -> impl IntoElement {
     let id: SharedString = id.into();
     let button = Button::icon(id.clone(), Glyph::Ellipsis).tooltip(name);
-    Trigger(div().id(SharedString::from(format!("{id}-menu"))).flex().child(button)).dropdown_menu_with_anchor(
-        gpui_kit::Anchor::TopRight,
+    menu_on(id, button, gpui_kit::Anchor::TopRight, acts)
+}
+
+/// Any button opening the acts on a press, the menu standing from the corner given: a split button's chevron.
+pub fn menu_on(
+    id: impl Into<SharedString>,
+    trigger: impl IntoElement,
+    corner: gpui_kit::Anchor,
+    acts: Rc<Vec<MenuAct>>,
+) -> impl IntoElement {
+    let id: SharedString = id.into();
+    Trigger(div().id(SharedString::from(format!("{id}-menu"))).flex().child(trigger)).dropdown_menu_with_anchor(
+        corner,
         move |menu, _, cx| {
             menu_of(menu.surface(surface(cx.palette())), &acts, cx.palette().error_foreground, cx.palette().muted_foreground)
         },

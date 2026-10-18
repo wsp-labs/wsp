@@ -72,10 +72,16 @@ pub struct Throwaway {
     host: Child,
 }
 
-/// What every process of the test runs in: the folder as its home, and the stand-in ahead of anything on PATH.
+/// What every process of the test runs in: the folder as its home, and its bin, holding the stand-ins and a link to
+/// node, ahead of the system's own folders. Never the caller's PATH: the host runs every agent it finds on it, and a
+/// real codex or opencode there reaches the network.
 pub fn env_in(dir: &Path) -> Env {
+    std::fs::create_dir_all(dir.join("bin")).unwrap();
+    if let Err(e) = std::os::unix::fs::symlink(node(), dir.join("bin/node")) {
+        assert_eq!(e.kind(), std::io::ErrorKind::AlreadyExists, "linking node into the test's bin: {e}");
+    }
     let home = dir.to_string_lossy().into_owned();
-    let path = format!("{}/bin:{}", home, std::env::var("PATH").unwrap_or_default());
+    let path = format!("{home}/bin:/usr/bin:/bin:/usr/sbin:/sbin");
     [("HOME", home.as_str()), ("PATH", path.as_str()), ("ANTHROPIC_API_KEY", ""), ("SOLARI_API_KEY", ""), ("WSP_UPDATE_CHECK", "0")]
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
         .into_iter()
@@ -100,6 +106,12 @@ wait "$host"
 wait "$host" 2>/dev/null
 kill "$watch" 2>/dev/null
 "#;
+
+/// node where the caller's PATH finds it, linked into each test's bin, since nothing else on that PATH reaches the host.
+fn node() -> PathBuf {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    std::env::split_paths(&path).map(|dir| dir.join("node")).find(|node| node.is_file()).expect("node on PATH")
+}
 
 fn node_in(dir: &Path, bin: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("node");
@@ -140,6 +152,15 @@ fn bundle_with(dir: &Path, daemon: Option<&Path>) -> PathBuf {
         link(daemon, &format!("assets/daemon/{}/wsp-daemon", triple()));
     }
     pkg.join("dist/bin.js")
+}
+
+/// `wsp up` on the state under `dir` under `STOPS_WITH_THE_TEST`, its output in up.log.
+fn up(dir: &Path, bin: &Path) -> Child {
+    let state = dir.join("state").join("state.json").to_string_lossy().into_owned();
+    let log = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("up.log")).unwrap();
+    let mut host = Command::new("/bin/sh");
+    host.args(["-c", STOPS_WITH_THE_TEST, "sh", "node"]).arg(bin).args(["up", "--port", "0", "--no-relay", "--state", &state]);
+    host.env_clear().envs(env_in(dir)).current_dir(dir).stdin(Stdio::piped()).stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap()
 }
 
 /// Interrupts every turn the host serving `dir` runs, until none runs or 20 s pass. On a thread and a runtime of its
@@ -187,42 +208,67 @@ impl Throwaway {
     /// A host whose claude is the script `claude`, run from a copy of its bundle carrying `wsp_daemon()` where
     /// `daemon` asks for one and one is found.
     pub fn start_with(claude: &str, daemon: bool) -> Throwaway {
+        Throwaway::start_with_tools(claude, daemon, &[])
+    }
+
+    /// As `start_with`, with more stand-ins in the test's bin before the host starts and looks for its tools: each
+    /// a program's name and its script.
+    pub fn start_with_tools(claude: &str, daemon: bool, tools: &[(&str, &str)]) -> Throwaway {
         for built in ["packages/host/dist/bin.js", "apps/web/dist/index.html"].map(|path| root().join(path)) {
             assert!(built.exists(), "{} is not built: run pnpm install && pnpm build", built.display());
         }
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("bin")).unwrap();
         std::fs::create_dir_all(dir.path().join("state")).unwrap();
-        let script = dir.path().join("bin/claude");
-        std::fs::write(&script, claude).unwrap();
-        std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        for (name, body) in [("claude", claude)].into_iter().chain(tools.iter().copied()) {
+            let script = dir.path().join("bin").join(name);
+            std::fs::write(&script, body).unwrap();
+            std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        }
         let daemon = if daemon { wsp_daemon().ok() } else { None };
         let bin = bundle_with(dir.path(), daemon.as_deref());
-        let state = dir.path().join("state").join("state.json").to_string_lossy().into_owned();
-        let log = std::fs::File::create(dir.path().join("up.log")).unwrap();
-        let mut host = Command::new("/bin/sh");
-        host.args(["-c", STOPS_WITH_THE_TEST, "sh", "node"]).arg(&bin).args(["up", "--port", "0", "--no-relay", "--state", &state]);
-        let host = host
-            .env_clear()
-            .envs(env_in(dir.path()))
-            .current_dir(dir.path())
-            .stdin(Stdio::piped())
-            .stdout(log.try_clone().unwrap())
-            .stderr(log)
-            .spawn()
-            .unwrap();
+        let host = up(dir.path(), &bin);
         let throwaway = Throwaway { dir, daemon, bin, host };
+        throwaway.until_listening();
+        throwaway
+    }
+
+    /// Stops the host and starts it again on the same state, as a person's restart does: every socket to it drops.
+    pub fn restart(&mut self) {
+        self.stop();
+        for file in ["host.lock", "host-token"] {
+            let _ = std::fs::remove_file(self.state().with_file_name(file));
+        }
+        self.host = up(self.dir.path(), &self.bin);
+        self.until_listening();
+    }
+
+    fn until_listening(&self) {
         let until = Instant::now() + Duration::from_secs(30);
         // The lock is written before the host listens, with port 0 until it does.
         let listening = || {
-            let lock = std::fs::read_to_string(throwaway.state().with_file_name("host.lock")).unwrap_or_default();
+            let lock = std::fs::read_to_string(self.state().with_file_name("host.lock")).unwrap_or_default();
             serde_json::from_str::<serde_json::Value>(&lock).ok().and_then(|lock| lock["port"].as_u64()).is_some_and(|port| port != 0)
         };
-        while !throwaway.state().with_file_name("host-token").exists() || !listening() {
-            assert!(Instant::now() < until, "no host came up: {}", throwaway.log());
+        while !self.state().with_file_name("host-token").exists() || !listening() {
+            assert!(Instant::now() < until, "no host came up: {}", self.log());
             std::thread::sleep(Duration::from_millis(100));
         }
-        throwaway
+    }
+
+    /// A terminated host stops its daemon on its way out and a killed one leaves it running. Neither stops a running
+    /// turn, whose process runs apart from the host so it outlives a restart, so those are interrupted first.
+    fn stop(&mut self) {
+        if matches!(self.host.try_wait(), Ok(None)) {
+            interrupt_turns(self.dir.path());
+        }
+        drop(self.host.stdin.take());
+        let until = Instant::now() + Duration::from_secs(25);
+        while matches!(self.host.try_wait(), Ok(None)) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let _ = self.host.kill();
+        let _ = self.host.wait();
     }
 
     pub fn log(&self) -> String {
@@ -240,19 +286,8 @@ impl Throwaway {
 }
 
 impl Drop for Throwaway {
-    /// A terminated host stops its daemon on its way out and a killed one leaves it running. Neither stops a running
-    /// turn, whose process runs apart from the host so it outlives a restart, so those are interrupted first.
     fn drop(&mut self) {
-        if matches!(self.host.try_wait(), Ok(None)) {
-            interrupt_turns(self.dir.path());
-        }
-        drop(self.host.stdin.take());
-        let until = Instant::now() + Duration::from_secs(25);
-        while matches!(self.host.try_wait(), Ok(None)) && Instant::now() < until {
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        let _ = self.host.kill();
-        let _ = self.host.wait();
+        self.stop();
     }
 }
 
