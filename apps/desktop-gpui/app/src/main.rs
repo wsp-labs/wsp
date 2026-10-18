@@ -64,6 +64,7 @@ fn main() {
         ui::init(if dark { Side::Dark } else { Side::Light }, cx);
         local_store::init(kept.clone(), cx);
         composer::init(cx);
+        screens::palette::init(cx);
         if gallery {
             let bounds = Bounds::centered(None, size(px(760.), px(900.)), cx);
             cx.open_window(

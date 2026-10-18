@@ -5,6 +5,9 @@
 
 pub mod app_shell;
 pub mod composer;
+pub mod computer;
+pub mod notices;
+pub mod palette;
 pub mod sidebar;
 pub mod usage;
 
@@ -19,6 +22,7 @@ pub fn screen(name: &str) -> Option<Entry> {
     }
     match name {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
+        computer::Computer::NAME => Some(entry::<computer::Computer>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
         _ => None,
     }

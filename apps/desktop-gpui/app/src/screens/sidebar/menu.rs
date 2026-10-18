@@ -72,10 +72,14 @@ pub struct Item {
     pub refusal: Option<String>,
     pub keys: Option<Keystroke>,
     pub destructive: bool,
+    /// `buttonWord`: what a button for the act says, where it is not the label.
+    pub word: Option<&'static str>,
+    /// `hint`: what the act does, on a button's hover while it is not refused.
+    pub hint: Option<String>,
 }
 
 fn item(act: Act, label: impl Into<SharedString>, group: &'static str, refusal: Option<String>) -> Item {
-    Item { act, label: label.into(), group, refusal, keys: None, destructive: false }
+    Item { act, label: label.into(), group, refusal, keys: None, destructive: false, word: None, hint: None }
 }
 
 /// A chord as GPUI reads one, `secondary` being ⌘ on the Mac and Ctrl elsewhere, as `keybindings.ts` binds it.
@@ -134,6 +138,22 @@ pub(crate) fn workspace_state(w: &Value, status: Option<&Value>) -> &'static str
     }
 }
 
+/// `workspaceWord`: the one word for a state, a pause on a computer that keeps the memory of a paused machine.
+pub(crate) fn workspace_word(state: &str, pause_mode: Option<&str>) -> &'static str {
+    match (state, pause_mode) {
+        ("pausing", Some("memory")) => "Pausing",
+        ("paused", Some("memory")) => "Paused",
+        ("pausing", _) => "Stopping",
+        ("paused", _) => "Stopped",
+        ("waking", _) => "Waking",
+        ("unreachable", _) => "Unreachable",
+        ("gone", _) => "Gone",
+        ("waiting", _) => "Waiting",
+        ("released", _) => "Deleted",
+        _ => "Running",
+    }
+}
+
 /// `actionRefusal` in `workspace-state.ts`, for the states a workspace in this list can be in.
 fn action_refusal(state: &str, action: &str) -> Option<String> {
     match state {
@@ -180,9 +200,18 @@ pub(crate) fn gone_refusal(action: &str) -> String {
     )
 }
 
+/// `AbsentComputer` as the panes read it: what happened, the whole sentence, and whether this host can start what is
+/// missing, which is this computer's own daemon and reads Stopped where another computer reads Unreachable.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Absent {
+    pub said: String,
+    pub sentence: String,
+    pub start: bool,
+}
+
 /// Why a workspace's computer is not there (`settings/places.ts` absenceOf): this computer's daemon stopped, or
-/// another computer not answering; with the word of the button that starts the daemon again where there is one.
-fn absence(s: &Sidebar, w: &Value, status: Option<&Value>) -> Option<(String, bool)> {
+/// another computer not answering.
+pub(crate) fn absence(s: &Sidebar, w: &Value, status: Option<&Value>) -> Option<Absent> {
     if w.get("kind").and_then(Value::as_str) == Some("local") {
         let silent = matches!(status.and_then(|s| s.pointer("/reach/state")?.as_str()), Some("unreachable" | "no-daemon"));
         let here = s.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some("here"));
@@ -190,12 +219,31 @@ fn absence(s: &Sidebar, w: &Value, status: Option<&Value>) -> Option<(String, bo
             .map(super::looks::place_name)
             .filter(|n| !n.is_empty())
             .unwrap_or_else(|| w.get("name").and_then(Value::as_str).unwrap_or_default().to_owned());
-        return silent.then(|| (format!("{name}'s terminals and files stopped"), true));
+        let said = format!("{name}'s terminals and files stopped");
+        return silent.then(|| Absent { sentence: said.clone(), said, start: true });
     }
     let id = s.place_of(w.get("id")?.as_str()?)?;
     let place = s.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(id.as_str()))?;
-    (place.get("present").and_then(Value::as_bool) == Some(false))
-        .then(|| (format!("{} is not answering; it connects on its own when it is on", super::looks::place_name(place)), false))
+    let said = format!("{} is not answering", super::looks::place_name(place));
+    (place.get("present").and_then(Value::as_bool) == Some(false)).then(|| Absent {
+        sentence: format!("{said}; it connects on its own when it is on"),
+        said,
+        start: false,
+    })
+}
+
+impl Sidebar {
+    /// A task's one state word as its rows read it: its absent computer's word (`absenceOf`), else `workspaceWord` in
+    /// its computer's pause mode.
+    pub(crate) fn state_word(&self, workspace_id: &str) -> String {
+        let Some(w) = self.around.workspaces.get(workspace_id) else { return workspace_word("running", None).to_owned() };
+        let status = self.around.statuses.get(workspace_id);
+        if let Some(absent) = absence(self, w, status) {
+            return if absent.start { "Stopped" } else { "Unreachable" }.to_owned();
+        }
+        let pause_mode = status.and_then(|s| s.get("pauseMode")?.as_str()).or_else(|| w.get("pauseMode")?.as_str());
+        workspace_word(workspace_state(w, status), pause_mode).to_owned()
+    }
 }
 
 /// A workspace's own items (`workspaceActions.ts`): each its kind and state can take, a refused one with its reason.
@@ -206,7 +254,17 @@ pub(crate) fn workspace_items(s: &Sidebar, workspace_id: &str) -> Vec<Item> {
     let kind = w.get("kind").and_then(Value::as_str).unwrap_or("cloud");
     let state = workspace_state(w, status);
     let machine = read("machineId").unwrap_or_default().to_owned();
-    let delete = Item { destructive: true, ..item(Act::DeleteTask, "Delete task", "remove", None) };
+    let asked = if machine.is_empty() {
+        "create failed before any computer was made, so there is none to delete".to_owned()
+    } else {
+        dialogs::on_delete(s, w)
+    };
+    let delete = Item {
+        destructive: true,
+        word: Some("Delete"),
+        hint: Some(format!("Its {asked}")),
+        ..item(Act::DeleteTask, "Delete task", "remove", None)
+    };
     // A create that failed before any machine stood has its delete alone (`startFailed`).
     if read("phase") == Some("gone") && machine.is_empty() {
         return vec![delete];
@@ -224,27 +282,37 @@ pub(crate) fn workspace_items(s: &Sidebar, workspace_id: &str) -> Vec<Item> {
             _ => format!("Wake {name}"),
         };
         let why = status.and_then(|s| s.pointer("/queue/why")).or_else(|| w.pointer("/queue/why")).and_then(Value::as_str);
-        out.push(item(Act::Phase, label, "state", phase_refusal(state, why)));
+        let (word, hint) = match state {
+            "waking" => ("Stop", format!("{label} {name}")),
+            "running" | "unreachable" => ("Pause", format!("{label} and every thread on it; its files are kept")),
+            "pausing" => ("Pausing…", format!("{label} and every thread on it, with its files as they were")),
+            "waiting" => ("Waiting…", format!("{label} and every thread on it, with its files as they were")),
+            _ => ("Wake", format!("{label} and every thread on it, with its files as they were")),
+        };
+        out.push(Item { word: Some(word), hint: Some(hint), ..item(Act::Phase, label, "state", phase_refusal(state, why)) });
         if dead {
-            out.push(item(Act::Rebuild, "Rebuild task", "state", None));
+            let reason = read("wakeRefused").or_else(|| read("reason")).or_else(|| read("gone"));
+            let hint = reason.unwrap_or("The task answers nothing; rebuild it from your image").to_owned();
+            out.push(Item { word: Some("Rebuild"), hint: Some(hint), ..item(Act::Rebuild, "Rebuild task", "state", None) });
         }
     }
-    if absent.as_ref().is_some_and(|(_, start)| *start) {
-        out.push(item(Act::Reconnect, "Reconnect", "state", None));
+    if let Some(absent) = absent.as_ref().filter(|a| a.start) {
+        out.push(Item { word: Some("Start again"), hint: Some(absent.said.clone()), ..item(Act::Reconnect, "Reconnect", "state", None) });
     }
     out.push(item(Act::NewThreadHere, "New thread here", "open", dead.then(|| "New threads wait for the rebuild".to_owned())));
     out.push(Item {
         keys: chord("secondary-j"),
         ..item(Act::OpenTerminal, "Open terminal", "open", (state == "gone").then(|| gone_refusal("open a terminal")))
     });
-    let sentence = absent.as_ref().map(|(said, _)| said.clone());
+    let sentence = absent.as_ref().map(|a| a.sentence.clone());
     out.push(Item {
         keys: chord("secondary-shift-j"),
         ..item(Act::OpenBrowser, "Open browser", "open", sentence.clone().or_else(|| action_refusal(state, "preview")))
     });
     if kind != "place" {
         let away = action_refusal(state, if matches!(state, "waking" | "unreachable" | "waiting") { "git action" } else { "push" });
-        out.push(item(Act::BringBack, "Bring back", "project", sentence.or(away)));
+        let hint = Some("Pushes the agent's branch and opens a pull request".to_owned());
+        out.push(Item { hint, ..item(Act::BringBack, "Bring back", "project", sentence.or(away)) });
         out.push(item(Act::ExportProject, "Export project", "project", dead.then(|| "Projects wait for the rebuild".to_owned())));
     }
     out.push(item(Act::RenameTask, "Rename task", "edit", None));
@@ -252,7 +320,13 @@ pub(crate) fn workspace_items(s: &Sidebar, workspace_id: &str) -> Vec<Item> {
         out.push(item(Act::Fork, "Run a copy", "edit", Some(NO_WORKSPACE_FORK.to_owned())));
     }
     out.push(item(Act::CopyComputerId(machine), "Copy computer id", "copy", None));
-    out.push(if state == "gone" { Item { destructive: true, ..item(Act::ForgetTask, "Forget task", "remove", None) } } else { delete });
+    let forget = Item {
+        destructive: true,
+        word: Some("Forget"),
+        hint: Some("Its computer is gone; forget the task to drop it from this computer".to_owned()),
+        ..item(Act::ForgetTask, "Forget task", "remove", None)
+    };
+    out.push(if state == "gone" { forget } else { delete });
     out
 }
 
@@ -441,7 +515,7 @@ impl Sidebar {
     }
 
     /// A workspace's act, from its own tile or from a thread's tile on it, whose rename box takes a task's rename.
-    fn run_workspace(&mut self, id: &str, thread: Option<&str>, act: Act, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn run_workspace(&mut self, id: &str, thread: Option<&str>, act: Act, window: &mut Window, cx: &mut Context<Self>) {
         let id = id.to_owned();
         let phase = self.around.workspaces.get(&id).and_then(|w| w.get("phase")?.as_str()).unwrap_or("running").to_owned();
         match act {
