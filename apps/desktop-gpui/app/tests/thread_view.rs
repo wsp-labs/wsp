@@ -175,6 +175,39 @@ fn a_scroll_driven_from_the_top_reaches_the_end_and_stamps_its_frames(cx: &mut T
     assert!(!frames.borrow().is_empty(), "no frame was stamped");
 }
 
+#[gpui_kit::test]
+fn a_list_narrowed_partway_down_keeps_its_length_and_a_driven_scroll_reaches_its_end(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(transcript(TURNS), cx);
+    });
+    cx.run_until_parked();
+    while offset(&view, cx) < px(5000.) {
+        view.update(cx, |v, cx| {
+            v.list().scroll_by(px(400.));
+            cx.notify();
+        });
+        cx.run_until_parked();
+    }
+    let length = |cx: &mut VisualTestContext| view.read_with(cx, |v, _| v.list().max_offset_for_scrollbar().y);
+    let wide = length(cx);
+    // The rows sit in a 768 px column, so narrowing the window changes the list's width and no row's height.
+    cx.simulate_resize(size(px(880.), px(600.)));
+    cx.run_until_parked();
+    assert_eq!(length(cx), wide, "the list forgot its rows' heights when it narrowed");
+
+    let frames = Rc::new(RefCell::new(Vec::new()));
+    let long_ago = Instant::now() - Duration::from_secs(1000);
+    view.update(cx, |v, cx| v.drive(2400., long_ago, frames.clone(), cx));
+    for _ in 0..10 {
+        view.update(cx, |_, cx| cx.notify());
+        cx.run_until_parked();
+    }
+    let end = view.read_with(cx, |v, _| v.list().is_scrolled_to_end());
+    assert!(view.read_with(cx, |v, _| v.driven_to_end()), "the scroll stopped at {:?} with the end check {end:?}", offset(&view, cx));
+}
+
 fn event(value: serde_json::Value) -> SessionEvent {
     let mut v = serde_json::json!({"workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": "long"});
     v.as_object_mut().unwrap().extend(value.as_object().unwrap().clone());
