@@ -1,0 +1,10 @@
+{
+  "extends": "open",
+  "pr": {
+    "updatedAt": "@-15m",
+    "closedAt": "@-15m",
+    "state": "CLOSED",
+    "mergeable": "UNKNOWN",
+    "mergeStateStatus": "UNKNOWN"
+  }
+}

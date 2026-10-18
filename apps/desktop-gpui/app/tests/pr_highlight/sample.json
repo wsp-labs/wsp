@@ -1,0 +1,6 @@
+{
+  "name": "wsp",
+  "version": 1,
+  "private": true,
+  "deps": ["a", null]
+}

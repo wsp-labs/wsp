@@ -7,7 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -48,6 +48,13 @@ pub struct Done {}
 pub struct HostClient {
     /// Keeps one socket across calls and dials again once it closes, as the tool server's host does.
     host: Host,
+    /// Every workspace's status on the socket in use, kept by its pushes.
+    statuses: tokio::sync::Mutex<Option<Statuses>>,
+}
+
+struct Statuses {
+    socket: Weak<Client>,
+    rows: Arc<Mutex<HashMap<String, Value>>>,
 }
 
 impl HostClient {
@@ -65,7 +72,45 @@ impl HostClient {
             host.hold_token(token);
         }
         host.client().await?;
-        Ok(HostClient { host })
+        Ok(HostClient { host, statuses: tokio::sync::Mutex::new(None) })
+    }
+
+    /// Every workspace's status as this socket last heard it. `status.subscribe` is asked once a socket, as the web
+    /// app's store asks it at bind and at reconnect: each ask holds a watcher on the host until the socket closes and
+    /// has the provider asked about every machine, which keeps a cloud machine from napping. The socket's
+    /// `workspace.status` pushes keep the rows after it, and a `workspace.deleted` takes its row away.
+    pub async fn statuses(&self) -> Result<Vec<Value>, Failure> {
+        let socket = self.host.client().await?;
+        let mut held = self.statuses.lock().await;
+        let same = |s: &&Statuses| s.socket.upgrade().is_some_and(|on| Arc::ptr_eq(&on, &socket));
+        if let Some(rows) = held.as_ref().filter(same).map(|s| s.rows.clone()) {
+            return Ok(rows.lock().unwrap().values().cloned().collect());
+        }
+        // Listening before the snapshot is asked, so no push falls between the two.
+        let mut frames = socket.frames();
+        socket.events().await?;
+        let reply: Value = socket.request("status.subscribe", Map::new()).await?;
+        let rows: HashMap<String, Value> = reply["statuses"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|status| Some((status["id"].as_str()?.to_owned(), status.clone())))
+            .collect();
+        let rows = Arc::new(Mutex::new(rows));
+        let kept = rows.clone();
+        tokio::spawn(async move {
+            while let Some(text) = frames.next().await {
+                let Ok(frame) = serde_json::from_str::<Value>(&text) else { continue };
+                match (frame["type"].as_str(), frame["status"]["id"].as_str(), frame["workspaceId"].as_str()) {
+                    (Some("workspace.status"), Some(id), _) => _ = kept.lock().unwrap().insert(id.to_owned(), frame["status"].clone()),
+                    (Some("workspace.deleted"), _, Some(id)) => _ = kept.lock().unwrap().remove(id),
+                    _ => {}
+                }
+            }
+        });
+        *held = Some(Statuses { socket: Arc::downgrade(&socket), rows: rows.clone() });
+        let shown = rows.lock().unwrap().values().cloned().collect();
+        Ok(shown)
     }
 
     /// The same host as `connect` finds, paired by a code its `wsp host pair` printed: the code goes as the first frame
@@ -73,7 +118,7 @@ impl HostClient {
     pub async fn redeem(state: &Path, env: &Env, code: &str, name: &str) -> Result<HostClient, Failure> {
         let host = attached(state, env);
         host.redeem(code, name).await?;
-        Ok(HostClient { host })
+        Ok(HostClient { host, statuses: tokio::sync::Mutex::new(None) })
     }
 
     /// The token a pairing bought for the host here, which an account host keeps in its record instead.

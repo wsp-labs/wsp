@@ -11,6 +11,7 @@ description = "The desktop app's road to the host: dial it as wsp does, list pro
 wsp-mcp = { path = "../../../daemon/crates/wsp-mcp" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["rt", "sync"] }
 # Generates the protocol's types from record/protocol.json at compile time.
 typify = "0.8"
 

@@ -200,6 +200,123 @@
           "#70c0b1ff",
           "#eaeaeaff"
         ]
+      },
+      "highlight": {
+        "editor.foreground": "#fafafaff",
+        "success": "#07c480ff",
+        "error": "#ff2e3fff",
+        "info": "#009fffff",
+        "syntax": {
+          "attribute": {
+            "color": "#60d199ff"
+          },
+          "boolean": {
+            "color": "#68cdf2ff"
+          },
+          "comment": {
+            "color": "#737373ff"
+          },
+          "comment.doc": {
+            "color": "#737373ff"
+          },
+          "constant": {
+            "color": "#ffab16ff"
+          },
+          "constant.builtin": {
+            "color": "#68cdf2ff"
+          },
+          "constructor": {
+            "color": "#d568eaff"
+          },
+          "emphasis": {
+            "color": "#ff678dff",
+            "font_style": "italic"
+          },
+          "emphasis.strong": {
+            "color": "#ffd452ff"
+          },
+          "enum": {
+            "color": "#d568eaff"
+          },
+          "function": {
+            "color": "#9d6afbff"
+          },
+          "keyword": {
+            "color": "#ff678dff"
+          },
+          "keyword.storage": {
+            "color": "#d568eaff"
+          },
+          "link_text": {
+            "color": "#9d6afbff"
+          },
+          "namespace": {
+            "color": "#ffab16ff"
+          },
+          "number": {
+            "color": "#68cdf2ff"
+          },
+          "operator": {
+            "color": "#08c0efff"
+          },
+          "property": {
+            "color": "#ffa359ff"
+          },
+          "punctuation": {
+            "color": "#636363ff"
+          },
+          "punctuation.bracket": {
+            "color": "#636363ff"
+          },
+          "punctuation.delimiter": {
+            "color": "#636363ff"
+          },
+          "punctuation.list_marker": {
+            "color": "#ff855eff"
+          },
+          "punctuation.special": {
+            "color": "#ff678dff"
+          },
+          "string": {
+            "color": "#5ecc71ff"
+          },
+          "string.escape": {
+            "color": "#61d5c0ff"
+          },
+          "string.regex": {
+            "color": "#64d1dbff"
+          },
+          "string.special": {
+            "color": "#5ecc71ff"
+          },
+          "string.special.symbol": {
+            "color": "#5ecc71ff"
+          },
+          "tag": {
+            "color": "#ff855eff"
+          },
+          "tag.doctype": {
+            "color": "#636363ff"
+          },
+          "title": {
+            "color": "#ff855eff"
+          },
+          "type": {
+            "color": "#d568eaff"
+          },
+          "variable": {
+            "color": "#ffa359ff"
+          },
+          "variable.parameter": {
+            "color": "#a3a3a3ff"
+          },
+          "variable.special": {
+            "color": "#ffab16ff"
+          },
+          "variant": {
+            "color": "#ffa359ff"
+          }
+        }
       }
     }
   ]

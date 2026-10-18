@@ -5,6 +5,7 @@ import { createServer } from "node:net";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { deflateSync } from "node:zlib";
+import prStates from "./pr-states.mjs";
 
 const PANEL = "[data-preview-panel-mode]";
 const DRAWER = 'aside[data-terminal-owner="drawer"]';
@@ -497,6 +498,11 @@ export default [
       await app.click(css('[data-changed-file="src/keep.ts"] [data-viewed-tick]'));
       await app.waitFor(() => document.querySelector("[data-viewed-count]")?.textContent.includes("1 of"), 10_000);
     },
+    // The tick marks keep.ts's blob for the bench workspace every thread shares, which the next shot writes again.
+    cleanup: async (host, id) => {
+      const row = (await host.threads()).find(t => t.threadId === id || t.id === id);
+      await host.op("workspaces.viewed", { workspaceId: row.workspaceId, path: "src/keep.ts", blob: null });
+    },
   },
   {
     id: "W2-PRP-030",
@@ -556,9 +562,9 @@ export default [
     id: "W2-PRP-043",
     clip: "[data-file-finder]",
     data: async host => (await seed(host), reset(host.fixture), fresh(host, "W2-PRP-043")),
-    go: async (app, id) => (await app.route.thread(id), await app.key("mod+p"), await app.type("kee"), await has(app, '[data-file-finder="files"]')),
+    go: async (app, id) => (await app.route.thread(id), await app.key("mod+p"), await has(app, "[data-file-finder-input]", 10_000), await app.type("kee"), await has(app, '[data-file-finder="files"]')),
   },
-  skip("W2-PRP-044", "the Pull request pane reads GitHub through gh; the throwaway host has no pull request and no fake gh"),
+  ...prStates,
 
   slate("W2-SLT-045", "every.slate", async app => {
     await has(app, '[data-slate-type="empty"]', 20_000);

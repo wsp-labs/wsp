@@ -157,7 +157,7 @@ pub(crate) fn workspace_word(state: &str, pause_mode: Option<&str>) -> &'static 
 }
 
 /// `actionRefusal` in `workspace-state.ts`, for the states a workspace in this list can be in.
-fn action_refusal(state: &str, action: &str) -> Option<String> {
+pub(crate) fn action_refusal(state: &str, action: &str) -> Option<String> {
     match state {
         "running" => None,
         "pausing" | "paused" => Some(format!("Workspace is {state}; wake it to {action}")),
@@ -202,47 +202,72 @@ pub(crate) fn gone_refusal(action: &str) -> String {
     )
 }
 
+/// The id of the place a workspace stands on: the place it names, this computer for a local one, else its provider's
+/// row.
+pub(crate) fn place_of(w: &Value, places: &[Value]) -> Option<String> {
+    let id = |p: &Value| p.get("id").and_then(Value::as_str).map(str::to_owned);
+    if let Some(named) = w.get("place").and_then(Value::as_str) {
+        return places.iter().filter_map(id).find(|p| p == named);
+    }
+    if w.get("kind").and_then(Value::as_str) == Some("local") {
+        return places.iter().filter_map(id).find(|p| p == "here").or_else(|| places.first().and_then(id));
+    }
+    let providers = places.iter().filter(|p| p.get("kind").and_then(Value::as_str) == Some("provider"));
+    match w.get("provider").and_then(Value::as_str) {
+        None => providers.clone().next().and_then(id),
+        Some(named) => providers.filter_map(id).find(|p| p == named),
+    }
+}
+
+/// The computer the host runs on, by its own name (`hereName`); empty until the places list holds that row.
+pub(crate) fn here_name(places: &[Value]) -> String {
+    places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some("here")).map(super::looks::place_name).unwrap_or_default()
+}
+
+/// Why a workspace's computer is not there (`settings/places.ts` absenceOf): this computer's daemon stopped, or
+/// another computer not answering. `place` is the id of the place the workspace stands on.
+pub(crate) fn absence_of(w: &Value, status: Option<&Value>, places: &[Value], place: Option<&str>) -> Option<Absent> {
+    if w.get("kind").and_then(Value::as_str) == Some("local") {
+        let silent = matches!(status.and_then(|s| s.pointer("/reach/state")?.as_str()), Some("unreachable" | "no-daemon"));
+        let here = here_name(places);
+        let name = if here.is_empty() { w.get("name").and_then(Value::as_str).unwrap_or_default().to_owned() } else { here };
+        return silent.then(|| words::own_daemon_down(&name));
+    }
+    let place = place?;
+    let place = places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(place))?;
+    (place.get("present").and_then(Value::as_bool) == Some(false)).then(|| words::absent_computer(&super::looks::place_name(place)))
+}
+
+/// The person's own computer a workspace runs on, by its own name (`ownComputerName` in `terminal/paneWords.ts`): none
+/// for a machine a cloud lends.
+pub(crate) fn own_computer_name(w: &Value, places: &[Value]) -> Option<String> {
+    let local = w.get("kind").and_then(Value::as_str) == Some("local");
+    let id = place_of(w, places);
+    let row = places.iter().find(|p| id.is_some() && p.get("id").and_then(Value::as_str) == id.as_deref());
+    let name = match row {
+        Some(place) if local || place.get("kind").and_then(Value::as_str) == Some("computer") => super::looks::place_name(place),
+        None if local => here_name(places),
+        _ => return None,
+    };
+    (!name.is_empty()).then_some(name)
+}
+
 impl Sidebar {
     /// The computer the host runs on, by its own name (`hereName`); empty until the places list holds that row.
     pub(crate) fn here_name(&self) -> String {
-        self.around
-            .places
-            .iter()
-            .find(|p| p.get("id").and_then(Value::as_str) == Some("here"))
-            .map(super::looks::place_name)
-            .unwrap_or_default()
+        here_name(&self.around.places)
     }
 
-    fn place_row(&self, workspace_id: &str) -> Option<&Value> {
-        let id = self.place_of(workspace_id)?;
-        self.around.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(id.as_str()))
-    }
-
-    /// Why a workspace's computer is not there (`settings/places.ts` absenceOf): this computer's daemon stopped, or
-    /// another computer not answering.
+    /// Why a workspace's computer is not there: `absence_of` over this connection's last reads.
     pub(crate) fn absence(&self, workspace_id: &str) -> Option<Absent> {
         let w = self.around.workspaces.get(workspace_id)?;
-        if w.get("kind").and_then(Value::as_str) == Some("local") {
-            let status = self.around.statuses.get(workspace_id);
-            let silent = matches!(status.and_then(|s| s.pointer("/reach/state")?.as_str()), Some("unreachable" | "no-daemon"));
-            let here = self.here_name();
-            let name = if here.is_empty() { w.get("name").and_then(Value::as_str).unwrap_or_default().to_owned() } else { here };
-            return silent.then(|| words::own_daemon_down(&name));
-        }
-        let place = self.place_row(workspace_id)?;
-        (place.get("present").and_then(Value::as_bool) == Some(false)).then(|| words::absent_computer(&super::looks::place_name(place)))
+        absence_of(w, self.around.statuses.get(workspace_id), &self.around.places, self.place_of(workspace_id).as_deref())
     }
 
     /// The person's own computer a workspace runs on, by its own name (`ownComputerName` in `terminal/paneWords.ts`):
     /// none for a machine a cloud lends.
     pub(crate) fn own_computer_name(&self, workspace_id: &str) -> Option<String> {
-        let local = self.around.workspaces.get(workspace_id)?.get("kind").and_then(Value::as_str) == Some("local");
-        let name = match self.place_row(workspace_id) {
-            Some(place) if local || place.get("kind").and_then(Value::as_str) == Some("computer") => super::looks::place_name(place),
-            None if local => self.here_name(),
-            _ => return None,
-        };
-        (!name.is_empty()).then_some(name)
+        own_computer_name(self.around.workspaces.get(workspace_id)?, &self.around.places)
     }
 
     /// A task's one state word as its rows read it: its absent computer's word (`absenceOf`), else `workspaceWord` in
