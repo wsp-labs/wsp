@@ -257,9 +257,10 @@ impl Shell {
         });
         if bench.is_some() {
             // A window that stops drawing (covered, minimized) never ticks, so the limit runs on a timer of its own.
-            cx.spawn(async move |_, cx| {
+            cx.spawn(async move |this, cx| {
                 cx.background_executor().timer(BENCH_LIMIT).await;
-                eprintln!("desktop-gpui: the bench did not finish in {} s", BENCH_LIMIT.as_secs());
+                let stuck = this.read_with(cx, |this, cx| this.bench_stuck(cx)).unwrap_or_else(|_| "its window gone".to_owned());
+                eprintln!("desktop-gpui: the bench did not finish in {} s, {stuck}", BENCH_LIMIT.as_secs());
                 std::process::exit(2);
             })
             .detach();
@@ -801,6 +802,24 @@ impl Shell {
         self.bench = Some(run);
         if !holding {
             window.request_animation_frame();
+        }
+    }
+
+    /// Where a bench past its limit waits, so a run on another machine says it.
+    fn bench_stuck(&self, cx: &App) -> String {
+        let list = self.thread_view.read(cx).list();
+        match self.bench.as_ref().map(|run| &run.phase) {
+            Some(Phase::Opening) => "waiting for the host or a first frame".to_owned(),
+            Some(Phase::Loading(_)) => "waiting for the thread's first frame and the window's focus".to_owned(),
+            Some(Phase::Scrolling { .. }) => format!(
+                "scrolling at {:?} of {:?}, the end check {:?}",
+                -list.scroll_px_offset_for_scrollbar().y,
+                list.max_offset_for_scrollbar().y,
+                list.is_scrolled_to_end()
+            ),
+            Some(Phase::Holding { .. }) => "holding after the scroll".to_owned(),
+            Some(Phase::Switching { ix, .. }) => format!("waiting for switch {} to draw", ix + 1),
+            None => "past its last step".to_owned(),
         }
     }
 
