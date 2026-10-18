@@ -1,3 +1,17 @@
+diff --git a/src/cosmic_text_system.rs b/src/cosmic_text_system.rs
+index b7c38bb..ab50043 100644
+--- a/src/cosmic_text_system.rs
++++ b/src/cosmic_text_system.rs
+@@ -527,7 +527,8 @@ impl CosmicTextSystemState {
+             .swash_scale_context
+             .builder(font_ref)
+             .size(pixel_size * params.scale_factor)
+-            .hint(true)
++            // Chromium stops hinting above scale 1, where it places glyphs at subpixel offsets.
++            .hint(params.scale_factor <= 1.)
+             .build();
+ 
+         let sources: &[Source] = if params.is_emoji {
 diff --git a/src/shaders.wgsl b/src/shaders.wgsl
 index 718cb75..7bbb71a 100644
 --- a/src/shaders.wgsl

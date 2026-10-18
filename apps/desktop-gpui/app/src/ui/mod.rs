@@ -67,9 +67,10 @@ pub mod text {
     pub const NOTE: (Pixels, Pixels) = (px(13.), px(20.));
     /// A row's description, `text-[13px] leading-[1.45]`.
     pub const DESCRIPTION: (Pixels, Pixels) = (px(13.), px(18.85));
-    pub const SECTION_HEAD: Pixels = px(13.5);
-    pub const FACT: Pixels = px(13.);
-    pub const VALUE: Pixels = px(14.);
+    /// `text-[13.5px]` and `text-[13px]` keep the 1.5 line height Tailwind's base gives the page.
+    pub const SECTION_HEAD: (Pixels, Pixels) = (px(13.5), px(20.25));
+    pub const FACT: (Pixels, Pixels) = (px(13.), px(19.5));
+    pub const VALUE: (Pixels, Pixels) = (px(14.), px(20.));
     pub const BUTTON: Pixels = px(13.);
     pub const XS: (Pixels, Pixels) = (px(12.), px(16.));
     pub const DIALOG_TITLE: (Pixels, Pixels) = (px(15.), px(20.));

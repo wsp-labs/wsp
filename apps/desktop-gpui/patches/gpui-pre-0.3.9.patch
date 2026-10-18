@@ -190,6 +190,25 @@ index fc292f2..8b004e4 100644
                          });
                      });
                  });
+diff --git a/src/elements/text.rs b/src/elements/text.rs
+index d1896ad..5ccb339 100644
+--- a/src/elements/text.rs
++++ b/src/elements/text.rs
+@@ -640,11 +640,9 @@ impl TextLayout {
+     ) -> LayoutId {
+         let text_style = window.text_style();
+         let font_size = text_style.font_size.to_pixels(window.rem_size());
+-        let line_height = window.pixel_snap(
+-            text_style
+-                .line_height
+-                .to_pixels(font_size.into(), window.rem_size()),
+-        );
++        let line_height = text_style
++            .line_height
++            .to_pixels(font_size.into(), window.rem_size());
+ 
+         let runs = if let Some(runs) = runs {
+             runs
 diff --git a/src/scene.rs b/src/scene.rs
 index be37813..b40b4f7 100644
 --- a/src/scene.rs
@@ -763,8 +782,221 @@ index a24982a..ec3fc06 100644
      /// Sets the grid columns of this element.
      fn grid_cols(mut self, cols: u16) -> Self {
          self.style().grid_cols = Some(GridTemplate {
+diff --git a/src/taffy.rs b/src/taffy.rs
+index b9e583a..3428e5e 100644
+--- a/src/taffy.rs
++++ b/src/taffy.rs
+@@ -2,7 +2,7 @@ use crate::{
+     AbsoluteLength, App, Bounds, DefiniteLength, Edges, GridTemplate, Length, Pixels, Point, Size,
+     Style, Window, size,
+     util::{
+-        ceil_to_device_pixel, round_half_toward_zero, round_stroke_to_device_pixel,
++        ceil_to_device_pixel, round_half_up, round_stroke_to_device_pixel,
+         round_to_device_pixel,
+     },
+ };
+@@ -284,17 +284,18 @@ impl TaffyLayoutEngine {
+     // by `scale_factor`, so that snapping targets physical pixels. Bounds
+     // are divided by `scale_factor` before being returned to GPUI.
+     //
+-    // Midpoints are rounded toward zero. This is a stylistic choice: a
+-    // 1-logical-pixel line at 150% scale should render as 1 dp rather than
+-    // 2 dp.
++    // Midpoints are rounded up, as Chromium rounds them, so a box on half a
++    // device pixel lands where Chromium paints it. Stroke widths still round
++    // midpoints toward zero: a 1-logical-pixel border at 150% scale renders
++    // as 1 dp rather than 2 dp.
+     //
+     // Pixel snapping is done in two phases:
+     //
+     //  1. Pre-layout metric snapping. Before Taffy computes layout, all
+     //     authored absolute lengths are rounded in `to_taffy`. This
+     //     includes borders, padding, gaps, and explicit sizes.
+-    //     Custom-measured leaf nodes have their measured sizes rounded up
+-    //     to integer device-pixel lengths.
++    //     Custom-measured leaf nodes have their measured widths rounded up
++    //     to integer device-pixel lengths; their heights stay fractional.
+     //
+     //  2. Post-layout edge snapping. After Taffy resolves the tree, layout
+     //     relationships such as flex shares, grid tracks, percentages, and
+@@ -369,8 +370,8 @@ impl TaffyLayoutEngine {
+ 
+         let absolute_far = absolute_outer_origin + Point::from(Size::from(layout_size));
+         let snapped_bounds = Bounds::from_corners(
+-            absolute_outer_origin.map(round_half_toward_zero),
+-            absolute_far.map(round_half_toward_zero),
++            absolute_outer_origin.map(round_half_up),
++            absolute_far.map(round_half_up),
+         );
+ 
+         let bounds = (snapped_bounds / scale_factor).map(Pixels);
+@@ -410,7 +411,11 @@ impl From<LayoutId> for NodeId {
+ }
+ 
+ fn snap_measured_size_to_device_pixels(size: Size<Pixels>, scale_factor: f32) -> Size<f32> {
+-    size.map(|d| ceil_to_device_pixel(d.0.max(0.0), scale_factor))
++    // A stack of text lines keeps its fractional height, as in Chromium; rounding each up would drift the stack.
++    Size {
++        width: ceil_to_device_pixel(size.width.0.max(0.0), scale_factor),
++        height: size.height.0.max(0.0) * scale_factor,
++    }
+ }
+ 
+ fn border_widths_to_taffy(
+diff --git a/src/text_system/line.rs b/src/text_system/line.rs
+index f521005..6150ea4 100644
+--- a/src/text_system/line.rs
++++ b/src/text_system/line.rs
+@@ -1,7 +1,7 @@
+ use crate::{
+     App, Bounds, DevicePixels, Half, Hsla, LineLayout, Pixels, Point, RenderGlyphParams, Result,
+     SharedString, StrikethroughStyle, TextAlign, UnderlineStyle, Window, WrapBoundary,
+-    WrappedLineLayout, black, fill, point, px, size, underline_y_offset,
++    WrappedLineLayout, black, fill, line_baseline, point, px, size, underline_y_offset,
+ };
+ use derive_more::{Deref, DerefMut};
+ use smallvec::SmallVec;
+@@ -545,9 +545,13 @@ fn paint_line(
+         wrap_boundaries,
+     );
+     window.paint_layer(line_bounds, |window| {
+-        let padding_top = (line_height - layout.ascent - layout.descent) / 2.;
+-        let baseline_offset = point(px(0.), padding_top + layout.ascent);
+-        let underline_y_offset = underline_y_offset(line_height, layout.ascent, layout.descent);
++        let scale_factor = window.scale_factor();
++        let baseline_offset = point(
++            px(0.),
++            line_baseline(line_height, layout.ascent, layout.descent, scale_factor),
++        );
++        let underline_y_offset =
++            underline_y_offset(line_height, layout.ascent, layout.descent, scale_factor);
+         let mut decoration_runs = decoration_runs.iter();
+         let mut wraps = wrap_boundaries.iter().peekable();
+         let mut run_end = 0;
+@@ -1213,7 +1217,7 @@ mod tests {
+                     )
+                     .unwrap();
+                     let start = px(origin_x + offset);
+-                    let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++                    let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+                     assert_eq!(
+                         strokes,
+                         [
+@@ -1299,7 +1303,7 @@ mod tests {
+                 / 2.;
+             let origin = point(px(40.25), px(10.25));
+             let line_height = px(20.);
+-            let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++            let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+             for (align, offset) in [
+                 (TextAlign::Left, 0.),
+                 (TextAlign::Center, 16.),
+@@ -1368,7 +1372,7 @@ mod tests {
+                     / 2.;
+                 let origin = point(px(40.25), px(10.25));
+                 let line_height = px(20.);
+-                let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++                let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+                 let wrapped = WrappedLine {
+                     layout: Arc::new(WrappedLineLayout {
+                         unwrapped_layout: line.layout,
+diff --git a/src/text_system.rs b/src/text_system.rs
+index cf6bb10..74bfe8c 100644
+--- a/src/text_system.rs
++++ b/src/text_system.rs
+@@ -55,9 +55,38 @@ pub const SUBPIXEL_VARIANTS_Y: u8 = 1;
+ const UNDERLINE_DESCENT_OFFSET_FACTOR: f32 = 0.618;
+ 
+ /// Returns the vertical offset used to paint an underline within a line.
+-pub fn underline_y_offset(line_height: Pixels, ascent: Pixels, descent: Pixels) -> Pixels {
+-    let padding_top = (line_height - ascent - descent) / 2.;
+-    padding_top + ascent + descent * UNDERLINE_DESCENT_OFFSET_FACTOR
++pub fn underline_y_offset(
++    line_height: Pixels,
++    ascent: Pixels,
++    descent: Pixels,
++    scale_factor: f32,
++) -> Pixels {
++    line_baseline(line_height, ascent, descent, scale_factor)
++        + descent * UNDERLINE_DESCENT_OFFSET_FACTOR
++}
++
++/// A font's ascent and descent as Chromium lays text out: each rounded to whole device pixels.
++pub fn device_font_height(ascent: Pixels, descent: Pixels, scale_factor: f32) -> (Pixels, Pixels) {
++    let exact_descent = descent.0 * scale_factor;
++    let (mut ascent, mut descent) = ((ascent.0 * scale_factor).round(), exact_descent.round());
++    // Chromium on Linux, placing glyphs at subpixel offsets above scale 1, moves a pixel to a rounded-down descent.
++    if cfg!(any(target_os = "linux", target_os = "freebsd"))
++        && scale_factor > 1.
++        && descent < exact_descent
++        && ascent >= 1.
++    {
++        ascent -= 1.;
++        descent += 1.;
++    }
++    (px(ascent / scale_factor), px(descent / scale_factor))
++}
++
++/// How far below a line's top Chromium puts its baseline: metrics rounded to device pixels, half-leading floored.
++pub fn line_baseline(line_height: Pixels, ascent: Pixels, descent: Pixels, scale_factor: f32) -> Pixels {
++    let (ascent, descent) = device_font_height(ascent, descent, scale_factor);
++    let (ascent, descent) = (ascent.0 * scale_factor, descent.0 * scale_factor);
++    let leading = line_height.0 * scale_factor - ascent - descent;
++    px(((leading / 2.).floor() + ascent) / scale_factor)
+ }
+ 
+ const MAX_REPORTED_MISSING_GLYPHS: usize = 1024;
+diff --git a/src/util.rs b/src/util.rs
+index 13ee752..b98f6e5 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -136,9 +136,15 @@ pub(crate) fn round_half_toward_zero_f64(value: f64) -> f64 {
+     (value.abs() - 0.5).ceil().copysign(value)
+ }
+ 
++/// Rounds to the nearest integer with 0.5 ties up, as Chromium snaps lengths and edges.
++#[inline]
++pub(crate) fn round_half_up(value: f32) -> f32 {
++    (value + 0.5).floor()
++}
++
+ #[inline]
+ pub(crate) fn round_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
+-    round_half_toward_zero(logical * scale_factor)
++    round_half_up(logical * scale_factor)
+ }
+ 
+ #[inline]
+@@ -146,7 +152,8 @@ pub(crate) fn round_stroke_to_device_pixel(logical: f32, scale_factor: f32) -> f
+     if logical == 0.0 {
+         0.0
+     } else {
+-        round_to_device_pixel(logical.max(0.0), scale_factor).max(1.0)
++        // A 1px border at 150% stays one device pixel, as Chromium draws it.
++        round_half_toward_zero(logical.max(0.0) * scale_factor).max(1.0)
+     }
+ }
+ 
+@@ -190,14 +197,14 @@ mod tests {
+ 
+     #[test]
+     fn test_device_pixel_helpers() {
+-        // Snap uses half-toward-zero: 1.0 * 1.5 = 1.5 ties toward 1.0.
+-        assert_eq!(round_to_device_pixel(1.0, 1.5), 1.0);
++        // Snap uses half-up: 1.0 * 1.5 = 1.5 ties up to 2.0.
++        assert_eq!(round_to_device_pixel(1.0, 1.5), 2.0);
+         // Below the tie rounds down, above rounds up.
+         assert_eq!(round_to_device_pixel(0.3, 2.0), 1.0);
+         assert_eq!(round_to_device_pixel(1.4, 1.0), 1.0);
+         assert_eq!(round_to_device_pixel(1.6, 1.0), 2.0);
+ 
+-        // Stroke uses snap, but clamps non-zero input up to at least 1dp.
++        // Stroke ties toward zero, and clamps non-zero input up to at least 1dp.
+         assert_eq!(round_stroke_to_device_pixel(0.0, 1.0), 0.0);
+         assert_eq!(round_stroke_to_device_pixel(0.4, 1.0), 1.0);
+         assert_eq!(round_stroke_to_device_pixel(0.5, 1.0), 1.0);
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..f1492a4 100644
+index 1214b03..f91bcae 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -6,7 +6,8 @@ use crate::Inspector;
@@ -777,6 +1009,15 @@ index 1214b03..f1492a4 100644
      Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
      DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
      EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs,
+@@ -74,7 +75,7 @@ use self::a11y::A11y;
+ #[cfg(not(target_family = "wasm"))]
+ use self::a11y::ROOT_NODE_ID;
+ use crate::util::{
+-    atomic_incr_if_not_zero, ceil_to_device_pixel, floor_to_device_pixel, round_half_toward_zero,
++    atomic_incr_if_not_zero, ceil_to_device_pixel, floor_to_device_pixel, round_half_toward_zero, round_half_up,
+     round_half_toward_zero_f64, round_stroke_to_device_pixel, round_to_device_pixel,
+ };
+ pub use prompts::*;
 @@ -1240,6 +1241,7 @@ pub struct Window {
      pub(crate) element_offset_stack: Vec<Point<Pixels>>,
      pub(crate) element_opacity: f32,
@@ -1146,6 +1387,17 @@ index 1214b03..f1492a4 100644
              thickness: self.snap_stroke(style.thickness),
              color: style.color.unwrap_or_default().opacity(opacity),
              wavy: false.into(),
+@@ -4835,8 +4999,8 @@ impl Window {
+         let quantized_origin = Point::new(
+             round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
+                 / SUBPIXEL_VARIANTS_X as f32,
+-            round_half_toward_zero(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32)
+-                / SUBPIXEL_VARIANTS_Y as f32,
++            // Half up, as Skia places a glyph on half a device pixel.
++            round_half_up(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32) / SUBPIXEL_VARIANTS_Y as f32,
+         );
+         let subpixel_variant = Point::new(
+             (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
 @@ -4872,21 +5036,21 @@ impl Window {
              let content_mask = self.snapped_content_mask();
  
