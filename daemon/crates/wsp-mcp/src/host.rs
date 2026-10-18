@@ -229,9 +229,9 @@ mod tests {
 
     #[test]
     fn reads_the_cloud_flag_as_the_protocol_does() {
-        for (word, want) in record::host().clouds {
+        for (word, want) in &record::host().clouds {
             let env: Env = [("WSP_CLOUD".to_owned(), word.clone())].into_iter().collect();
-            assert_eq!(cloud_on(&env), want, "WSP_CLOUD={word:?}");
+            assert_eq!(cloud_on(&env), *want, "WSP_CLOUD={word:?}");
         }
         assert!(!cloud_on(&Env::new()));
     }

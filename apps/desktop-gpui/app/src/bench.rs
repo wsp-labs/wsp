@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Bench mode's flags and its result, in the shape the Electron bench writes too.
 
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::time::Instant;
+
+use gpui_kit::{App, Global};
 
 /// The scroll rate both apps' benches run at.
 pub const PX_PER_S: f32 = 2400.;
@@ -25,13 +30,15 @@ pub struct Bench {
     pub out: PathBuf,
     pub thread: String,
     pub switch: Vec<String>,
+    /// A line typed into the thread's terminal drawer, in place of the scroll: the frames its output draws are timed.
+    pub terminal: Option<String>,
 }
 
-/// `desktop-gpui [--state <state.json>] [--glass] [--screen <name>] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...>]]`,
+/// `desktop-gpui [--state <state.json>] [--glass] [--screen <name>] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line>]]`,
 /// or `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
-    let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen) =
-        (None, None, None, Vec::new(), None, false, false, None);
+    let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen, mut terminal) =
+        (None, None, None, Vec::new(), None, false, false, None, None);
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or(format!("{flag} takes a value"));
         match flag.as_str() {
@@ -42,13 +49,15 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--bench-thread" => thread = Some(value()?),
             "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
+            "--bench-terminal" => terminal = Some(value()?),
             "--glass" => glass = true,
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
     let bench = match (out, thread) {
-        (Some(out), Some(thread)) => Some(Bench { out, thread, switch }),
-        (None, None) if switch.is_empty() => None,
+        (Some(out), Some(thread)) if switch.is_empty() || terminal.is_none() => Some(Bench { out, thread, switch, terminal }),
+        (Some(_), Some(_)) => return Err("--bench-switch and --bench-terminal do not go together".to_owned()),
+        (None, None) if switch.is_empty() && terminal.is_none() => None,
         _ => return Err("--bench and --bench-thread go together".to_owned()),
     };
     if bench.is_some() && open.is_some() {
@@ -73,6 +82,25 @@ pub fn result(thread_rows: usize, frame_ms: &[f64], switch: &[(String, f64)]) ->
     })
 }
 
+/// The terminal bench's result: when each terminal frame was painted and when each batch of output reached the
+/// shell, in milliseconds from the moment the line was sent.
+pub fn terminal_result(line: &str, frame_ms: &[f64], output_ms: &[f64]) -> serde_json::Value {
+    serde_json::json!({ "app": "gpui", "terminal": { "line": line, "frame_ms": frame_ms, "output_ms": output_ms } })
+}
+
+/// Where a terminal bench keeps the times its terminals paint at; absent outside one.
+#[derive(Default)]
+pub struct Frames(pub Option<Rc<RefCell<Vec<Instant>>>>);
+
+impl Global for Frames {}
+
+/// A terminal painted a frame.
+pub fn painted(cx: &App) {
+    if let Some(frames) = cx.try_global::<Frames>().and_then(|f| f.0.as_ref()) {
+        frames.borrow_mut().push(Instant::now());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,8 +115,14 @@ mod tests {
         assert_eq!(args.state, Some(PathBuf::from("/s/state.json")));
         assert_eq!(
             args.bench,
-            Some(Bench { out: "/o.json".into(), thread: "long".into(), switch: vec!["a".into(), "b".into(), "c".into()] })
+            Some(Bench { out: "/o.json".into(), thread: "long".into(), switch: vec!["a".into(), "b".into(), "c".into()], terminal: None })
         );
+        let typed =
+            parse(["--bench", "/o.json", "--bench-thread", "short", "--bench-terminal", "seq 1 100000"].map(str::to_owned).into_iter())
+                .unwrap();
+        assert_eq!(typed.bench.and_then(|b| b.terminal), Some("seq 1 100000".to_owned()));
+        assert!(parse(words("--bench-terminal vim")).is_err());
+        assert!(parse(words("--bench /o.json --bench-thread long --bench-switch a --bench-terminal vim")).is_err());
         assert_eq!(parse(words("--state /s")).unwrap().bench, None);
         assert!(parse(words("--bench /o.json")).is_err());
         assert!(parse(words("--bench-thread")).is_err());
