@@ -265,11 +265,14 @@ impl RenderOnce for AlertDialog {
 /// `dialog-backdrop`: the page at 60%, 64% in a dark theme, blurred 4 px, the size of the window, fading in with the
 /// popup it holds.
 pub fn scrim(id: impl Into<gpui_kit::ElementId>, window: &Window, cx: &App) -> AnyElement {
-    let p = cx.palette();
-    let dark = cx.theme().is_dark();
     let size = window.viewport_size();
-    let el = div().w(size.width).h(size.height).bg(p.background.opacity(if dark { 0.64 } else { 0.6 })).backdrop_blur(px(4.));
-    open_fade(id, el, cx)
+    open_fade(id, backdrop(cx).w(size.width).h(size.height), cx)
+}
+
+/// `dialog-backdrop`'s look alone, for a layer that sizes and fades it itself.
+pub fn backdrop(cx: &App) -> gpui_kit::Div {
+    let dark = cx.theme().is_dark();
+    div().bg(cx.palette().background.opacity(if dark { 0.64 } else { 0.6 })).backdrop_blur(px(4.))
 }
 
 /// `RefusalSlot`: the host's refusal under what it refused, in the destructive ink, its fix in the foreground; or what

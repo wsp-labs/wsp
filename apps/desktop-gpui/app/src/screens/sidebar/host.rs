@@ -74,7 +74,15 @@ enum Again {
     Projects,
 }
 
-fn kind_of(event: &Event) -> Option<(String, Value)> {
+/// `frameEndsStep`: a setup frame that ends the run, lands a row, or carries a line no longer running.
+fn ends_step(frame: &Value) -> bool {
+    let has = |key: &str| frame.get(key).is_some_and(|v| !v.is_null());
+    has("end")
+        || has("landed")
+        || frame.get("line").filter(|l| !l.is_null()).is_some_and(|l| l.get("state").and_then(Value::as_str) != Some("running"))
+}
+
+pub(crate) fn kind_of(event: &Event) -> Option<(String, Value)> {
     let value = match event {
         Event::Host(e) => serde_json::to_value(e).ok()?,
         Event::PlaceSys(e) => serde_json::to_value(e).ok()?,
@@ -89,7 +97,7 @@ async fn call<O: Op + DeserializeOwned>(host: &HostClient, params: Value) -> Res
     host.call(op).await
 }
 
-fn values<T: serde::Serialize>(items: &[T]) -> Vec<Value> {
+pub(crate) fn values<T: serde::Serialize>(items: &[T]) -> Vec<Value> {
     items.iter().filter_map(|i| serde_json::to_value(i).ok()).collect()
 }
 
@@ -175,10 +183,11 @@ pub fn follow(host: Arc<HostClient>, runtime: &Runtime, tx: mpsc::UnboundedSende
                                 frame.get("workspaceId").and_then(Value::as_str).map(|w| Ok(Change::WorkspaceDeleted(w.to_owned())))
                             }
                             k if k.starts_with("workspace.") && k != "workspace.sys" => Some(again(&host, Again::Workspaces).await),
-                            // A place's own frames (its setup's steps, its readings) say nothing the foot reads.
                             "place.changed" | "place.removed" | "place.joined" | "place.present" | "place.absent" => {
                                 Some(again(&host, Again::Places).await)
                             }
+                            // A step's rows and the end's outcome ride the record, not the frame: read once per step.
+                            "place.setup" if ends_step(&frame) => Some(again(&host, Again::Places).await),
                             _ => None,
                         };
                         if let Some(change) = change {
@@ -215,4 +224,20 @@ where
 /// One call and its reply, typed, for a reply the sidebar reads by its fields.
 pub async fn ask<O: Op + DeserializeOwned + Send>(host: Arc<HostClient>, params: Value) -> Result<O::Reply, Failure> {
     call::<O>(&host, params).await
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::ends_step;
+
+    #[test]
+    fn a_setup_frame_ends_a_step_as_the_web_reads_it() {
+        assert!(ends_step(&json!({ "placeId": "p", "end": "done" })));
+        assert!(ends_step(&json!({ "placeId": "p", "landed": { "row": "gh" } })));
+        assert!(ends_step(&json!({ "placeId": "p", "line": { "state": "done" } })));
+        assert!(!ends_step(&json!({ "placeId": "p", "line": { "state": "running" } })));
+        assert!(!ends_step(&json!({ "placeId": "p", "stage": "copy", "end": null })));
+    }
 }
