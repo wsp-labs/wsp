@@ -190,6 +190,22 @@ index fc292f2..8b004e4 100644
                          });
                      });
                  });
+diff --git a/src/elements/list.rs b/src/elements/list.rs
+index fa21d10..2cdc0f9 100644
+--- a/src/elements/list.rs
++++ b/src/elements/list.rs
+@@ -1545,9 +1545,10 @@ impl Element for List {
+             .last_layout_bounds
+             .is_none_or(|last_bounds| last_bounds.size.width != bounds.size.width)
+         {
++            // Old heights stay as hints: rows above the view are not laid out again, and as 0 px rows the list loses its length.
+             let new_items = SumTree::from_iter(
+                 state.items.iter().map(|item| ListItem::Unmeasured {
+-                    size_hint: None,
++                    size_hint: item.size_hint(),
+                     focus_handle: item.focus_handle(),
+                 }),
+                 (),
 diff --git a/src/elements/text.rs b/src/elements/text.rs
 index d1896ad..5ccb339 100644
 --- a/src/elements/text.rs
