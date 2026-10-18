@@ -1,0 +1,22 @@
+{
+  "extends": "open",
+  "checks": [
+    { "bucket": "pass", "completedAt": "@-50m", "description": "", "link": "https://github.com/wsp-test/repo/actions/runs/12/job/32", "name": "lint", "startedAt": "@-54m", "workflow": "CI" },
+    { "bucket": "pass", "completedAt": "@-47m", "description": "", "link": "https://github.com/wsp-test/repo/actions/runs/12/job/33", "name": "test", "startedAt": "@-54m", "workflow": "CI" },
+    { "bucket": "pass", "completedAt": "@-51m", "description": "", "link": "https://github.com/wsp-test/repo/actions/runs/12/job/34", "name": "build", "startedAt": "@-54m", "workflow": "CI" },
+    { "bucket": "pass", "completedAt": "@-52m", "description": "", "link": "https://github.com/wsp-test/repo/actions/runs/12/job/35", "name": "typecheck", "startedAt": "@-54m", "workflow": "CI" },
+    { "bucket": "pass", "completedAt": "@-53m", "description": "", "link": "https://github.com/wsp-test/repo/actions/runs/12/job/36", "name": "format", "startedAt": "@-54m", "workflow": "CI" },
+    { "bucket": "skipping", "completedAt": "@-54m", "description": "", "link": "https://github.com/wsp-test/repo/actions/runs/12/job/37", "name": "docs", "startedAt": "@-54m", "workflow": "CI" }
+  ],
+  "pr": {
+    "updatedAt": "@-10m",
+    "closedAt": "@-10m",
+    "mergedAt": "@-10m",
+    "mergedBy": { "login": "ana" },
+    "mergeCommit": { "oid": "5d7f9b1d3f5b7d9f1b3d5f7b9d1f3b5d7f9b1d3f" },
+    "state": "MERGED",
+    "mergeable": "UNKNOWN",
+    "mergeStateStatus": "UNKNOWN",
+    "reviewDecision": "APPROVED"
+  }
+}

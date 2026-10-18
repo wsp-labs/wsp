@@ -28,7 +28,7 @@ pub fn start_refused_line(refused: &Failure) -> String {
     let said = refused.said();
     match refused.fix.as_deref() {
         Some(fix) => refusal_line(said, fix),
-        None if said.trim_end() == NO_REASON || said == "workspaces.restartDaemon failed" => NO_REASON.to_owned(),
+        None if said.trim().is_empty() || said.trim_end() == NO_REASON || said == "workspaces.restartDaemon failed" => NO_REASON.to_owned(),
         None => refusal_line(said, "Start again."),
     }
 }
@@ -62,13 +62,13 @@ pub struct DaemonDown {
     host: Host,
     workspace_id: SharedString,
     said: SharedString,
-    start: Option<&'static str>,
+    start: Option<SharedString>,
     sentence: bool,
     state: Option<Entity<Restart>>,
 }
 
 impl DaemonDown {
-    pub fn new(host: Host, workspace_id: impl Into<SharedString>, said: impl Into<SharedString>, start: Option<&'static str>) -> Self {
+    pub fn new(host: Host, workspace_id: impl Into<SharedString>, said: impl Into<SharedString>, start: Option<SharedString>) -> Self {
         DaemonDown { host, workspace_id: workspace_id.into(), said: said.into(), start, sentence: true, state: None }
     }
 
@@ -86,9 +86,9 @@ impl DaemonDown {
     }
 
     /// The button's word.
-    pub fn word(busy: bool, start: &'static str) -> &'static str {
+    pub fn word(busy: bool, start: SharedString) -> SharedString {
         if busy {
-            STARTING_WORD
+            STARTING_WORD.into()
         } else {
             start
         }
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn the_button_reads_starting_while_the_ask_is_out() {
-        assert_eq!(DaemonDown::word(false, "Start again"), "Start again");
-        assert_eq!(DaemonDown::word(true, "Start again"), "Starting…");
+        assert_eq!(DaemonDown::word(false, "Start again".into()), "Start again");
+        assert_eq!(DaemonDown::word(true, "Start again".into()), "Starting…");
     }
 }

@@ -1,0 +1,98 @@
+diff --git a/crates/component/src/highlighter/registry.rs b/crates/component/src/highlighter/registry.rs
+index df35977..4ba0963 100644
+--- a/crates/component/src/highlighter/registry.rs
++++ b/crates/component/src/highlighter/registry.rs
+@@ -15,7 +15,7 @@ use anyhow::Result;
+ 
+ use crate::{ActiveTheme, DEFAULT_THEME_COLORS, ThemeMode, highlighter::languages};
+ 
+-pub(super) const HIGHLIGHT_NAMES: [&str; 41] = [
++pub(super) const HIGHLIGHT_NAMES: [&str; 45] = [
+     "attribute",
+     "boolean",
+     "comment",
+@@ -57,6 +57,10 @@ pub(super) const HIGHLIGHT_NAMES: [&str; 41] = [
+     "variable",
+     "variable.special",
+     "variant",
++    "constant.builtin",
++    "keyword.storage",
++    "namespace",
++    "variable.parameter",
+ ];
+ 
+ #[derive(Debug, Clone, PartialEq, Eq)]
+@@ -172,6 +176,13 @@ pub struct SyntaxColors {
+     #[serde(rename = "variable.special")]
+     pub variable_special: Option<ThemeStyle>,
+     pub variant: Option<ThemeStyle>,
++    #[serde(rename = "constant.builtin")]
++    pub constant_builtin: Option<ThemeStyle>,
++    #[serde(rename = "keyword.storage")]
++    pub keyword_storage: Option<ThemeStyle>,
++    pub namespace: Option<ThemeStyle>,
++    #[serde(rename = "variable.parameter")]
++    pub variable_parameter: Option<ThemeStyle>,
+ }
+ 
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, JsonSchema, Serialize, Deserialize)]
+@@ -288,6 +299,10 @@ impl SyntaxColors {
+             "variable" => self.variable,
+             "variable.special" => self.variable_special,
+             "variant" => self.variant,
++            "constant.builtin" => self.constant_builtin,
++            "keyword.storage" => self.keyword_storage,
++            "namespace" => self.namespace,
++            "variable.parameter" => self.variable_parameter,
+             _ => None,
+         }
+         .map(|s| s.into());
+diff --git a/crates/component/src/highlighter/wasm_stub.rs b/crates/component/src/highlighter/wasm_stub.rs
+index b192d18..434f4f0 100644
+--- a/crates/component/src/highlighter/wasm_stub.rs
++++ b/crates/component/src/highlighter/wasm_stub.rs
+@@ -240,6 +240,13 @@ pub struct SyntaxColors {
+     #[serde(rename = "variable.special")]
+     pub variable_special: Option<ThemeStyle>,
+     pub variant: Option<ThemeStyle>,
++    #[serde(rename = "constant.builtin")]
++    pub constant_builtin: Option<ThemeStyle>,
++    #[serde(rename = "keyword.storage")]
++    pub keyword_storage: Option<ThemeStyle>,
++    pub namespace: Option<ThemeStyle>,
++    #[serde(rename = "variable.parameter")]
++    pub variable_parameter: Option<ThemeStyle>,
+ }
+ 
+ impl SyntaxColors {
+@@ -290,6 +297,10 @@ impl SyntaxColors {
+             "variable" => self.variable,
+             "variable.special" => self.variable_special,
+             "variant" => self.variant,
++            "constant.builtin" => self.constant_builtin,
++            "keyword.storage" => self.keyword_storage,
++            "namespace" => self.namespace,
++            "variable.parameter" => self.variable_parameter,
+             _ => None,
+         }
+         .map(|s| s.into());
+@@ -304,7 +315,7 @@ impl SyntaxColors {
+     }
+ 
+     pub fn style_for_index(&self, index: usize) -> Option<HighlightStyle> {
+-        const HIGHLIGHT_NAMES: [&str; 41] = [
++        const HIGHLIGHT_NAMES: [&str; 45] = [
+             "attribute",
+             "boolean",
+             "comment",
+@@ -346,6 +357,10 @@ impl SyntaxColors {
+             "variable",
+             "variable.special",
+             "variant",
++            "constant.builtin",
++            "keyword.storage",
++            "namespace",
++            "variable.parameter",
+         ];
+ 
+         HIGHLIGHT_NAMES.get(index).and_then(|name| self.style(name))

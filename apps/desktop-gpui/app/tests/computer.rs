@@ -366,7 +366,8 @@ struct Down {
 
 impl Render for Down {
     fn render(&mut self, _: &mut Window, _: &mut gpui_kit::Context<Self>) -> impl IntoElement {
-        let down = DaemonDown::new(self.host.clone(), self.workspace.clone(), "mini's terminals and files stopped", Some("Start again"));
+        let down =
+            DaemonDown::new(self.host.clone(), self.workspace.clone(), "mini's terminals and files stopped", Some("Start again".into()));
         div().size_full().flex().child(down.state(self.state.clone()))
     }
 }

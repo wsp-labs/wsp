@@ -9,6 +9,7 @@ pub mod computer;
 pub mod dialogs;
 pub mod notices;
 pub mod palette;
+pub mod pr_pane;
 pub mod sidebar;
 pub mod slate;
 pub mod terminal;
@@ -33,6 +34,9 @@ pub fn screen(name: &str) -> Option<Entry> {
         dialogs::AddCloudScreen::NAME => Some(entry::<dialogs::AddCloudScreen>()),
         dialogs::AddProjectScreen::NAME => Some(entry::<dialogs::AddProjectScreen>()),
         dialogs::ExportProjectScreen::NAME => Some(entry::<dialogs::ExportProjectScreen>()),
+        pr_pane::changes::ChangesScreen::NAME => Some(entry::<pr_pane::changes::ChangesScreen>()),
+        pr_pane::pull_request::PullRequestScreen::NAME => Some(entry::<pr_pane::pull_request::PullRequestScreen>()),
+        pr_pane::files::FilesScreen::NAME => Some(entry::<pr_pane::files::FilesScreen>()),
         _ => None,
     }
 }

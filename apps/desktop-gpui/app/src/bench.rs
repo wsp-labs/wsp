@@ -21,7 +21,8 @@ pub struct Args {
     pub glass: bool,
     /// The gallery of shared pieces in place of the app.
     pub gallery: bool,
-    /// A screen to open at launch by its name, as captures of one screen start.
+    /// A screen to open at launch by its name, as captures of one screen start; after `--open`'s thread, so a pane
+    /// opens on it.
     pub screen: Option<String>,
 }
 
@@ -34,7 +35,8 @@ pub struct Bench {
     pub terminal: Option<String>,
 }
 
-/// `desktop-gpui [--state <state.json>] [--glass] [--screen <name>] [--open <id> | --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line>]]`,
+/// `desktop-gpui [--state <state.json>] [--glass] [--open <id>] [--screen <name>]`, `desktop-gpui [--state <state.json>] [--glass]
+/// --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line>]`,
 /// or `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen, mut terminal) =
@@ -66,8 +68,8 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     if gallery && (bench.is_some() || open.is_some() || glass) {
         return Err("--gallery goes alone".to_owned());
     }
-    if screen.is_some() && (bench.is_some() || open.is_some() || gallery) {
-        return Err("--screen goes without --open, --bench and --gallery".to_owned());
+    if screen.is_some() && (bench.is_some() || gallery) {
+        return Err("--screen goes without --bench and --gallery".to_owned());
     }
     Ok(Args { state, bench, open, glass, gallery, screen })
 }
@@ -134,7 +136,8 @@ mod tests {
         assert!(parse(words("--gallery --open long")).is_err());
         assert!(parse(words("--gallery --glass")).is_err());
         assert_eq!(parse(words("--screen settings --state /s")).unwrap().screen, Some("settings".to_owned()));
-        assert!(parse(words("--screen settings --open long")).is_err());
+        assert_eq!(parse(words("--screen changes --open long")).unwrap().open, Some("long".to_owned()));
+        assert!(parse(words("--screen settings --gallery")).is_err());
     }
 
     #[test]

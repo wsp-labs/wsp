@@ -287,15 +287,15 @@ impl Shell {
                         this.screen = this.mount(&route, window, cx);
                     }
                     this.sidebar.update(cx, |s, cx| s.set_items(threads.iter().filter_map(ThreadItem::of).collect(), cx));
-                    if let Some(name) = &screen {
-                        this.go(Route::Screen(name.clone().into()), window, cx);
-                    }
                     if let Some(thread) = &open {
                         let Some(item) = this.sidebar.read(cx).items().iter().find(|i| i.thread_id == *thread).cloned() else {
                             eprintln!("desktop-gpui: the host lists no thread {thread}");
                             std::process::exit(1);
                         };
                         this.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
+                    }
+                    if let Some(name) = &screen {
+                        this.go(Route::Screen(name.clone().into()), window, cx);
                     }
                 }
                 Err(failure) => {
