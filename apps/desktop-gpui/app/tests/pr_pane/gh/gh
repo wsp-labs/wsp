@@ -1,0 +1,658 @@
+#!/usr/bin/env node
+'use strict';
+// A stand-in gh that answers only the lines wsp-daemon runs, from the fixtures beside it; any other line exits 1.
+
+const fs = require('fs');
+const path = require('path');
+
+const REPO = 'wsp-test/repo';
+const NUMBER = 42;
+const BRANCH = 'work';
+const BASE = 'main';
+const VIEWER = 'octo';
+const PR_URL = `https://github.com/${REPO}/pull/${NUMBER}`;
+const API = `https://api.github.com/repos/${REPO}`;
+const MERGE_OID = '5d7f9b1d3f5b7d9f1b3d5f7b9d1f3b5d7f9b1d3f';
+
+// Copied byte for byte from daemon/crates/wsp-daemon/src/hosts/github.rs, so a changed line is refused, not guessed.
+const FIELDS =
+  'number,url,state,updatedAt,isDraft,baseRefName,headRefName,headRefOid,mergeable,mergeStateStatus,reviewDecision,additions,deletions,changedFiles,commits,author,isCrossRepository,maintainerCanModify,headRepositoryOwner,autoMergeRequest';
+const CHECK_FIELDS = 'name,bucket,link,workflow,description,startedAt,completedAt';
+const LIST_FIELDS = 'number,title,body,url';
+const PROBE_JQ = '"\\(.updated_at) \\(.head.sha) \\(.state)"';
+const PAGE_QUERY =
+  'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { title body author { login } createdAt updatedAt closedAt mergedAt mergedBy { login } mergeCommit { oid } labels(first: 100) { nodes { name color description } } reviewRequests(first: 100) { nodes { requestedReviewer { __typename ... on User { login } ... on Team { slug name organization { login } } ... on Bot { login } ... on Mannequin { login } } } } latestReviews(first: 100) { nodes { author { login } state submittedAt } } assignees(first: 100) { nodes { login } } commits(first: 100) { totalCount nodes { commit { oid messageHeadline messageBody committedDate author { name user { login } } additions deletions parents { totalCount } statusCheckRollup { state } } } } reviews(last: 100) { pageInfo { hasPreviousPage } nodes { id databaseId author { login } authorAssociation state body submittedAt reactionGroups { content viewerHasReacted reactors { totalCount } } } } files(first: 100) { nodes { path additions deletions } } comments(last: 100) { pageInfo { hasPreviousPage } nodes { id databaseId author { __typename login avatarUrl } authorAssociation body url createdAt reactionGroups { content viewerHasReacted reactors { totalCount } } } } reviewThreads(last: 100) { pageInfo { hasPreviousPage } nodes { id isResolved path diffSide comments(first: 100) { nodes { id databaseId author { __typename login avatarUrl } authorAssociation body url createdAt diffHunk line originalLine replyTo { databaseId } pullRequestReview { databaseId } reactionGroups { content viewerHasReacted reactors { totalCount } } } } } } } } }';
+const SCOPE_QUERY =
+  'query($id: ID!) { node(id: $id) { __typename ... on PullRequestReviewThread { pullRequest { number repository { nameWithOwner } } } ... on PullRequestReviewComment { pullRequest { number repository { nameWithOwner } } } ... on PullRequestReview { pullRequest { number repository { nameWithOwner } } } ... on IssueComment { pullRequest { number repository { nameWithOwner } } } } }';
+const RESOLVE_MUTATION = 'mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id isResolved } } }';
+const UNRESOLVE_MUTATION = 'mutation($id: ID!) { unresolveReviewThread(input: {threadId: $id}) { thread { id isResolved } } }';
+const REACT_MUTATION =
+  'mutation($id: ID!, $content: ReactionContent!) { addReaction(input: {subjectId: $id, content: $content}) { subject { reactionGroups { content viewerHasReacted reactors { totalCount } } } } }';
+const UNREACT_MUTATION =
+  'mutation($id: ID!, $content: ReactionContent!) { removeReaction(input: {subjectId: $id, content: $content}) { subject { reactionGroups { content viewerHasReacted reactors { totalCount } } } } }';
+
+const REACTIONS = ['THUMBS_UP', 'THUMBS_DOWN', 'LAUGH', 'HOORAY', 'CONFUSED', 'HEART', 'ROCKET', 'EYES'];
+const PAGE_KEYS = [
+  'title', 'body', 'author', 'createdAt', 'updatedAt', 'closedAt', 'mergedAt', 'mergedBy', 'mergeCommit', 'labels',
+  'reviewRequests', 'latestReviews', 'assignees', 'commits', 'reviews', 'files', 'comments', 'reviewThreads',
+];
+const METHODS = { '--merge': 'MERGE', '--squash': 'SQUASH', '--rebase': 'REBASE' };
+const MERGED_WORDS = { MERGE: 'Merged', SQUASH: 'Squashed and merged', REBASE: 'Rebased and merged' };
+const REVIEW_STATES = { COMMENT: 'COMMENTED', APPROVE: 'APPROVED', REQUEST_CHANGES: 'CHANGES_REQUESTED' };
+const UNIT = { s: 1e3, m: 6e4, h: 36e5, d: 864e5 };
+
+const here = path.dirname(fs.realpathSync(__filename));
+const box = path.join(process.env.HOME || '/nonexistent', 'gh-stub');
+const stateFile = path.join(box, 'state.json');
+
+const answer = (stdout) => ({ code: 0, stdout: stdout.endsWith('\n') ? stdout : `${stdout}\n`, stderr: '' });
+const json = (value) => answer(JSON.stringify(value));
+const refuse = (stderr, stdout = '') => ({ code: 1, stdout, stderr: `${stderr}\n` });
+const notFound = () => refuse('gh: Not Found (HTTP 404)');
+const noPr = (n) => refuse(`GraphQL: Could not resolve to a PullRequest with the number of ${n}. (repository.pullRequest)`);
+const noNode = (id, where) =>
+  refuse(
+    `GraphQL: Could not resolve to a node with the global id of '${id}' (${where})`,
+    JSON.stringify({ data: { [where]: null }, errors: [{ type: 'NOT_FOUND', path: [where], message: `Could not resolve to a node with the global id of '${id}'` }] }),
+  );
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const iso = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
+const sorted = (o) => Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// Relative times in fixtures count back from the first call, so a probe that compares updatedAt sees it stand.
+function anchor() {
+  const file = path.join(box, 'anchor');
+  try {
+    fs.writeFileSync(file, `${Math.floor(Date.now() / 1000) * 1000}\n`, { flag: 'wx' });
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+  }
+  return Number(fs.readFileSync(file, 'utf8').trim());
+}
+
+function timed(value, at) {
+  if (typeof value === 'string') {
+    const m = /^@-(\d+)([smhd])$/.exec(value);
+    return m ? iso(at - Number(m[1]) * UNIT[m[2]]) : value;
+  }
+  if (Array.isArray(value)) return value.map((v) => timed(v, at));
+  if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, timed(v, at)]));
+  return value;
+}
+
+function overlay(a, b) {
+  if (!isObject(a) || !isObject(b)) return b;
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) out[k] = overlay(a[k], v);
+  return out;
+}
+
+function fixture(name) {
+  if (!/^[a-z][a-z0-9_-]*$/.test(name || '')) return null;
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(path.join(here, `pr_page_${name}.json`), 'utf8'));
+  } catch {
+    return null;
+  }
+  const { extends: parent, ...rest } = raw;
+  if (!parent) return rest;
+  const base = fixture(parent);
+  return base && overlay(base, rest);
+}
+
+function parseDiff(text) {
+  const files = [];
+  let file = null;
+  for (const line of text.split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      file = { path: line.split(' b/').pop(), lines: [], additions: 0, deletions: 0 };
+      files.push(file);
+    } else if (file && (file.lines.length || line.startsWith('@@'))) {
+      if (line.startsWith('+')) file.additions += 1;
+      if (line.startsWith('-')) file.deletions += 1;
+      file.lines.push(line);
+    }
+  }
+  return files.map((f) => ({ path: f.path, additions: f.additions, deletions: f.deletions, patch: f.lines.join('\n') }));
+}
+
+// The hunk from its header down to the line named, which is the diffHunk GitHub gives a comment on that line.
+function hunkTo(patch, line, side) {
+  let hunk = null;
+  let oldN = 0;
+  let newN = 0;
+  for (const l of (patch || '').split('\n')) {
+    const h = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l);
+    if (h) {
+      [hunk, oldN, newN] = [[l], Number(h[1]), Number(h[2])];
+      continue;
+    }
+    if (!hunk) continue;
+    hunk.push(l);
+    const [left, right] = [l[0] !== '+', l[0] !== '-'];
+    if (side === 'LEFT' ? left && oldN === line : right && newN === line) return hunk.join('\n');
+    if (left) oldN += 1;
+    if (right) newN += 1;
+  }
+  return null;
+}
+
+function rollup(checks) {
+  if (checks.some((c) => c.bucket === 'fail')) return 'FAILURE';
+  if (checks.some((c) => c.bucket === 'pending')) return 'PENDING';
+  return 'SUCCESS';
+}
+
+function groups(reactions = {}) {
+  return REACTIONS.map((content) => {
+    const [count, mine] = reactions[content] || [0, false];
+    return { content, viewerHasReacted: mine, reactors: { totalCount: count } };
+  });
+}
+
+function threadsOf(pr) {
+  return new Map(pr.reviewThreads.nodes.map((t) => [t.id, t]));
+}
+
+function itemsOf(pr) {
+  const items = new Map();
+  for (const r of pr.reviews.nodes) items.set(r.id, ['PullRequestReview', r]);
+  for (const c of pr.comments.nodes) items.set(c.id, ['IssueComment', c]);
+  for (const t of pr.reviewThreads.nodes) for (const c of t.comments.nodes) items.set(c.id, ['PullRequestReviewComment', c]);
+  return items;
+}
+
+function loadState() {
+  try {
+    return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+// Writes hold a lock folder so two writes the daemon runs at once never lose one another's change.
+function withState(change) {
+  const lock = path.join(box, 'state.lock');
+  for (let tries = 0; ; tries += 1) {
+    try {
+      fs.mkdirSync(lock);
+      break;
+    } catch (e) {
+      if (e.code !== 'EEXIST' || tries > 200) throw e;
+      sleep(10);
+    }
+  }
+  try {
+    const state = loadState();
+    const said = change(state);
+    const tmp = `${stateFile}.${process.pid}`;
+    fs.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+    fs.renameSync(tmp, stateFile);
+    return said;
+  } finally {
+    fs.rmdirSync(lock);
+  }
+}
+
+function nextId(state) {
+  state.next = (state.next || 9000) + 1;
+  return state.next;
+}
+
+function world() {
+  let scenario = 'open';
+  try {
+    scenario = fs.readFileSync(path.join(box, 'scenario'), 'utf8').trim() || 'open';
+  } catch {}
+  const state = loadState();
+  let fx = fixture(scenario);
+  if (!fx) return { missing: scenario };
+  if (!fx.pr && state.created) {
+    fx = fixture(fx.onCreate);
+    if (!fx) return { missing: 'onCreate' };
+  }
+  fx = timed(fx, anchor());
+  delete fx.onCreate;
+  fx.files = parseDiff((fx.diff || []).join('\n'));
+  if (fx.pr) settle(fx, state);
+  return fx;
+}
+
+function settle(fx, state) {
+  const pr = fx.pr;
+  if (state.created) {
+    pr.title = state.created.title ?? pr.title;
+    pr.body = state.created.body ?? pr.body;
+    pr.createdAt = state.created.at;
+    pr.updatedAt = state.created.at;
+  }
+  pr.files = { nodes: fx.files.map(({ path: p, additions, deletions }) => ({ path: p, additions, deletions })) };
+  const head = pr.commits.nodes[pr.commits.nodes.length - 1];
+  if (head && head.commit.statusCheckRollup === undefined) head.commit.statusCheckRollup = { state: rollup(fx.checks) };
+
+  const merge = state.merge;
+  if (merge && merge.auto) {
+    pr.autoMergeRequest = {
+      authorEmail: null, commitBody: null, commitHeadline: null, enabledAt: merge.at,
+      enabledBy: { id: 'MDQ6VXNlcjE=', is_bot: false, login: VIEWER, name: '' }, mergeMethod: merge.method,
+    };
+  } else if (merge) {
+    Object.assign(pr, {
+      state: 'MERGED', mergedAt: merge.at, closedAt: merge.at, mergedBy: { login: VIEWER }, mergeCommit: { oid: MERGE_OID },
+      mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN', autoMergeRequest: null,
+    });
+  }
+  pr.comments.nodes.push(...(state.comments || []));
+  for (const { review, threads } of state.reviews || []) {
+    pr.reviews.nodes.push(review);
+    pr.latestReviews.nodes = pr.latestReviews.nodes.filter((r) => r.author.login !== review.author.login);
+    pr.latestReviews.nodes.push({ author: review.author, state: review.state, submittedAt: review.submittedAt });
+    pr.reviewThreads.nodes.push(...threads);
+  }
+  const threads = threadsOf(pr);
+  for (const { thread, comment } of state.replies || []) threads.get(thread)?.comments.nodes.push(comment);
+  for (const [id, resolved] of Object.entries(state.resolved || {})) if (threads.has(id)) threads.get(id).isResolved = resolved;
+  const items = itemsOf(pr);
+  for (const [id, set] of Object.entries(state.reactions || {})) {
+    const item = items.get(id)?.[1];
+    if (item) item.reactions = { ...item.reactions, ...set };
+  }
+  if (state.updatedAt && state.updatedAt > pr.updatedAt) pr.updatedAt = state.updatedAt;
+
+  const patches = new Map(fx.files.map((f) => [f.path, f.patch]));
+  for (const t of pr.reviewThreads.nodes) {
+    for (const c of t.comments.nodes) {
+      if (c.diffHunk === undefined) c.diffHunk = hunkTo(patches.get(t.path), c.line ?? c.originalLine, t.diffSide) || '';
+    }
+  }
+  for (const [, item] of itemsOf(pr).values()) {
+    item.reactionGroups = groups(item.reactions);
+    delete item.reactions;
+  }
+}
+
+function view(fx) {
+  const pr = fx.pr;
+  const sum = (key) => fx.files.reduce((n, f) => n + f[key], 0);
+  return {
+    additions: sum('additions'),
+    author: { id: 'MDQ6VXNlcjE=', is_bot: false, login: pr.author.login, name: '' },
+    autoMergeRequest: pr.autoMergeRequest ?? null,
+    baseRefName: BASE,
+    changedFiles: fx.files.length,
+    commits: pr.commits.nodes.map(({ commit: c }) => ({
+      authoredDate: c.committedDate,
+      authors: [{ email: `${c.author.user?.login || 'someone'}@example.com`, id: '', login: c.author.user?.login || '', name: c.author.name }],
+      committedDate: c.committedDate,
+      messageBody: c.messageBody,
+      messageHeadline: c.messageHeadline,
+      oid: c.oid,
+    })),
+    deletions: sum('deletions'),
+    headRefName: BRANCH,
+    headRefOid: pr.headRefOid,
+    headRepositoryOwner: { id: 'MDEyOk9yZ2FuaXphdGlvbjE=', login: REPO.split('/')[0] },
+    isCrossRepository: false,
+    isDraft: pr.isDraft,
+    maintainerCanModify: false,
+    mergeStateStatus: pr.mergeStateStatus,
+    mergeable: pr.mergeable,
+    number: NUMBER,
+    reviewDecision: pr.reviewDecision,
+    state: pr.state,
+    updatedAt: pr.updatedAt,
+    url: PR_URL,
+  };
+}
+
+function pick(full, fields) {
+  const out = {};
+  for (const field of fields.split(',')) {
+    if (!(field in full)) return null;
+    out[field] = full[field];
+  }
+  return sorted(out);
+}
+
+function picked(full, fields) {
+  const out = pick(full, fields);
+  return out ? json(out) : refuse(`Unknown JSON field: "${fields.split(',').find((f) => !(f in full))}"`);
+}
+
+function refused(word) {
+  let words;
+  try {
+    words = fs.readFileSync(path.join(box, 'refuse'), 'utf8').split(/\s+/);
+  } catch {
+    return null;
+  }
+  if (!words.includes(word)) return null;
+  return refuse(word === 'merge' ? 'stub gh refused this merge' : `GraphQL: stub gh refused this ${word}`);
+}
+
+function match(argv, pattern) {
+  if (argv.length !== pattern.length) return null;
+  const got = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const p = pattern[i];
+    if (p === null) {
+      got.push(argv[i]);
+    } else if (p instanceof RegExp) {
+      const m = p.exec(argv[i]);
+      if (!m) return null;
+      got.push(...m.slice(1));
+    } else if (p !== argv[i]) {
+      return null;
+    }
+  }
+  return got;
+}
+
+function restUser(login) {
+  return {
+    login, id: 1, node_id: 'MDQ6VXNlcjE=', avatar_url: '', gravatar_id: '', url: `https://api.github.com/users/${login}`,
+    html_url: `https://github.com/${login}`, type: 'User', user_view_type: 'public', site_admin: false,
+  };
+}
+
+function restReactions(url) {
+  return { url: `${url}/reactions`, total_count: 0, '+1': 0, '-1': 0, laugh: 0, hooray: 0, confused: 0, heart: 0, rocket: 0, eyes: 0 };
+}
+
+function bodyOf(stdin) {
+  try {
+    const parsed = JSON.parse(stdin);
+    return isObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function graphAuthor() {
+  return { __typename: 'User', login: VIEWER, avatarUrl: '' };
+}
+
+function reply(fx, number, to, stdin) {
+  if (Number(number) !== NUMBER || !fx.pr) return notFound();
+  const body = bodyOf(stdin);
+  if (!body) return refuse('gh: Problems parsing JSON (HTTP 400)');
+  if (typeof body.body !== 'string' || !body.body.trim()) return refuse('gh: Validation Failed (HTTP 422)');
+  const thread = to && fx.pr.reviewThreads.nodes.find((t) => t.comments.nodes.some((c) => c.databaseId === Number(to)));
+  if (to && !thread) return notFound();
+  const no = refused('reply');
+  if (no) return no;
+  const at = iso(Date.now());
+  return withState((state) => {
+    const id = nextId(state);
+    state.updatedAt = at;
+    if (!thread) {
+      const comment = {
+        id: `IC_kwDOKwStub6New${id}`, databaseId: id, author: graphAuthor(), authorAssociation: 'OWNER', body: body.body,
+        url: `${PR_URL}#issuecomment-${id}`, createdAt: at, reactions: {},
+      };
+      (state.comments ||= []).push(comment);
+      const url = `${API}/issues/comments/${id}`;
+      return json({
+        url, html_url: comment.url, issue_url: `${API}/issues/${NUMBER}`, id, node_id: comment.id, user: restUser(VIEWER),
+        created_at: at, updated_at: at, author_association: 'OWNER', body: body.body, reactions: restReactions(url),
+        performed_via_github_app: null,
+      });
+    }
+    const root = thread.comments.nodes[0];
+    const comment = {
+      id: `PRRC_kwDOKwStub6New${id}`, databaseId: id, author: graphAuthor(), authorAssociation: 'OWNER', body: body.body,
+      url: `${PR_URL}#discussion_r${id}`, createdAt: at, diffHunk: root.diffHunk, line: root.line, originalLine: root.originalLine,
+      replyTo: { databaseId: root.databaseId }, pullRequestReview: null, reactions: {},
+    };
+    (state.replies ||= []).push({ thread: thread.id, comment });
+    (state.resolved ||= {})[thread.id] = false;
+    const url = `${API}/pulls/comments/${id}`;
+    return json({
+      url, pull_request_review_id: null, id, node_id: comment.id, diff_hunk: root.diffHunk, path: thread.path,
+      commit_id: fx.pr.headRefOid, original_commit_id: fx.pr.headRefOid, user: restUser(VIEWER), body: body.body,
+      created_at: at, updated_at: at, html_url: comment.url, pull_request_url: `${API}/pulls/${NUMBER}`,
+      author_association: 'OWNER', reactions: restReactions(url), start_line: null, original_start_line: null, start_side: null,
+      line: root.line, original_line: root.originalLine, side: thread.diffSide, in_reply_to_id: root.databaseId,
+      subject_type: 'line',
+    });
+  });
+}
+
+function review(fx, stdin) {
+  const body = bodyOf(stdin);
+  if (!body) return refuse('gh: Problems parsing JSON (HTTP 400)');
+  const state = REVIEW_STATES[body.event];
+  if (!state) return refuse('gh: Validation Failed (HTTP 422)');
+  const patches = new Map(fx.files.map((f) => [f.path, f.patch]));
+  const comments = Array.isArray(body.comments) ? body.comments : [];
+  const hunks = comments.map((c) => hunkTo(patches.get(c.path), c.line, c.side));
+  if (hunks.some((h) => h === null)) {
+    return refuse('gh: Validation Failed: Pull request review thread line must be part of the diff (HTTP 422)');
+  }
+  const no = refused('review');
+  if (no) return no;
+  const at = iso(Date.now());
+  return withState((st) => {
+    const rid = nextId(st);
+    st.updatedAt = at;
+    const posted = {
+      id: `PRR_kwDOKwStub6New${rid}`, databaseId: rid, author: { login: VIEWER }, authorAssociation: 'OWNER', state,
+      body: body.body || '', submittedAt: at, reactions: {},
+    };
+    const threads = comments.map((c, i) => {
+      const cid = nextId(st);
+      return {
+        id: `PRRT_kwDOKwStub6New${cid}`, isResolved: false, path: c.path, diffSide: c.side,
+        comments: {
+          nodes: [{
+            id: `PRRC_kwDOKwStub6New${cid}`, databaseId: cid, author: graphAuthor(), authorAssociation: 'OWNER', body: c.body,
+            url: `${PR_URL}#discussion_r${cid}`, createdAt: at, diffHunk: hunks[i], line: c.line, originalLine: c.line,
+            replyTo: null, pullRequestReview: { databaseId: rid }, reactions: {},
+          }],
+        },
+      };
+    });
+    (st.reviews ||= []).push({ review: posted, threads });
+    return json({
+      id: rid, node_id: posted.id, user: restUser(VIEWER), body: posted.body, state, html_url: `${PR_URL}#pullrequestreview-${rid}`,
+      pull_request_url: `${API}/pulls/${NUMBER}`, author_association: 'OWNER', submitted_at: at, commit_id: body.commit_id || '',
+    });
+  });
+}
+
+function merge(fx, argv) {
+  const auto = argv[6] === '--auto';
+  const tail = argv.slice(auto ? 7 : 6);
+  const method = METHODS[argv[5]];
+  if (!method || tail.length !== 2 || tail[0] !== '--match-head-commit') return null;
+  if (argv[2] !== String(NUMBER) || !fx.pr) return noPr(argv[2]);
+  const no = refused('merge');
+  if (no) return no;
+  const pr = fx.pr;
+  const named = `${REPO}#${NUMBER}`;
+  if (pr.state === 'MERGED') return refuse(`Pull request ${named} (${pr.title}) was already merged`);
+  if (pr.state === 'CLOSED') return refuse(`Pull request ${named} (${pr.title}) is closed`);
+  if (pr.mergeable === 'CONFLICTING') return refuse('GraphQL: Pull Request is not mergeable (mergePullRequest)');
+  if (tail[1] !== pr.headRefOid) return refuse('GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)');
+  const at = iso(Date.now());
+  withState((state) => {
+    state.merge = { method, auto, at };
+    state.updatedAt = at;
+  });
+  const said = auto
+    ? `Pull request ${named} will be automatically merged via ${method.toLowerCase()} when all requirements are met`
+    : `${MERGED_WORDS[method]} pull request ${named} (${pr.title})`;
+  return { code: 0, stdout: '', stderr: `${said}\n` };
+}
+
+function scope(fx, id) {
+  if (!fx.pr) return noNode(id, 'node');
+  const kind = threadsOf(fx.pr).has(id) ? 'PullRequestReviewThread' : itemsOf(fx.pr).get(id)?.[0];
+  if (!kind) return noNode(id, 'node');
+  return json({ data: { node: { __typename: kind, pullRequest: { number: NUMBER, repository: { nameWithOwner: REPO } } } } });
+}
+
+function resolve(fx, id, resolved) {
+  const where = resolved ? 'resolveReviewThread' : 'unresolveReviewThread';
+  if (!fx.pr || !threadsOf(fx.pr).has(id)) return noNode(id, where);
+  const no = refused('resolve');
+  if (no) return no;
+  withState((state) => {
+    (state.resolved ||= {})[id] = resolved;
+  });
+  return json({ data: { [where]: { thread: { id, isResolved: resolved } } } });
+}
+
+function react(fx, id, content, on) {
+  const where = on ? 'addReaction' : 'removeReaction';
+  if (!REACTIONS.includes(content)) {
+    return refuse(`GraphQL: Argument 'content' on InputObject '${on ? 'AddReactionInput' : 'RemoveReactionInput'}' has an invalid value (${content}).`);
+  }
+  const item = fx.pr && itemsOf(fx.pr).get(id)?.[1];
+  if (!item) return noNode(id, where);
+  const no = refused('react');
+  if (no) return no;
+  const group = item.reactionGroups.find((g) => g.content === content);
+  const [count, mine] = [group.reactors.totalCount, group.viewerHasReacted];
+  const now = on ? (mine ? [count, true] : [count + 1, true]) : mine ? [count - 1, false] : [count, false];
+  withState((state) => {
+    ((state.reactions ||= {})[id] ||= {})[content] = now;
+  });
+  const after = itemsOf(world().pr).get(id)[1];
+  return json({ data: { [where]: { subject: { reactionGroups: after.reactionGroups } } } });
+}
+
+function create(fx, argv) {
+  const head = ['pr', 'create', '--base', BASE, '--head', BRANCH, '--fill'];
+  if (!head.every((w, i) => argv[i] === w)) return null;
+  const rest = argv.slice(head.length);
+  const given = {};
+  for (const flag of ['--title', '--body']) {
+    if (rest[0] === flag && rest.length >= 2) given[flag.slice(2)] = rest.splice(0, 2)[1];
+  }
+  if (rest.length) return null;
+  if (fx.pr) return refuse(`a pull request for branch "${BRANCH}" into branch "${BASE}" already exists:\n${PR_URL}`);
+  const no = refused('create');
+  if (no) return no;
+  withState((state) => {
+    state.created = { ...given, at: iso(Date.now()) };
+  });
+  return answer(PR_URL);
+}
+
+function run(argv, stdin) {
+  if (match(argv, ['--version'])) return answer('gh version 2.97.0 (stub)\nhttps://github.com/cli/cli/releases/tag/v2.97.0');
+  if (match(argv, ['auth', 'status'])) return answer(`github.com\n  Logged in to github.com account ${VIEWER} (stub)`);
+
+  const fx = world();
+  if (fx.missing) return refuse(`stub gh: no fixture pr_page_${fx.missing}.json beside ${here}`);
+  // The review flow's own lines live in the file its tests own, asked first where it stands beside this one.
+  const own = path.join(here, 'pr_review.cjs');
+  if (fs.existsSync(own)) {
+    const said = require(own).run(argv, stdin, fx, { answer, json, refuse });
+    if (said) return said;
+  }
+  const pr = fx.pr;
+  let m;
+
+  if ((m = match(argv, [/^(pr|issue)$/, 'list', '--state', 'open', '--limit', /^\d+$/, '--json', LIST_FIELDS]))) return answer('[]');
+  if (match(argv, ['repo', 'view', REPO, '--json', null])) return picked(fx.repo, argv[4]);
+  if (match(argv, ['api', `repos/${REPO}`, '--jq', '.allow_auto_merge'])) return answer(String(fx.allowAutoMerge));
+  if ((m = match(argv, ['api', new RegExp(`^repos/${REPO}/compare/${BASE}\\.\\.\\.([0-9A-Za-z._/-]+)$`), '--jq', /^(\.behind_by|\{ahead_by,behind_by,status\})$/]))) {
+    const [head, jq] = m;
+    if (head !== BRANCH && !(pr && head === pr.headRefOid)) return notFound();
+    return jq === '.behind_by' ? answer(String(fx.compare.behind_by)) : json(fx.compare);
+  }
+  if ((m = match(argv, ['run', 'view', /^(\d+)$/, '-R', REPO, '--job', /^(\d+)$/, '--log-failed']))) {
+    const log = (fx.logs || {})[`${m[0]}/${m[1]}`];
+    return log ? answer(log.join('\n')) : notFound();
+  }
+  if ((m = match(argv, ['pr', 'view', null, '-R', REPO, '--json', null]))) {
+    const [which, fields] = m;
+    if (!/^\d+$/.test(which)) {
+      if (which !== BRANCH || !pr) return refuse(`no pull requests found for branch "${which}"`);
+    } else if (Number(which) !== NUMBER || !pr) {
+      return noPr(which);
+    }
+    return picked(view(fx), fields);
+  }
+  if ((m = match(argv, ['pr', 'checks', /^(\d+)$/, '-R', REPO, '--json', null]))) {
+    if (Number(m[0]) !== NUMBER || !pr) return noPr(m[0]);
+    const rows = fx.checks.map((c) => pick(c, m[1]));
+    return rows.every(Boolean) ? json(rows) : refuse(`Unknown JSON field: "${m[1]}"`);
+  }
+  if ((m = match(argv, ['api', new RegExp(`^repos/${REPO}/pulls/(\\d+)$`), '--jq', PROBE_JQ]))) {
+    if (Number(m[0]) !== NUMBER || !pr) return notFound();
+    return answer(`${pr.updatedAt} ${pr.headRefOid} ${pr.state === 'OPEN' ? 'open' : 'closed'}`);
+  }
+  if ((m = match(argv, ['api', 'graphql', '-f', `query=${PAGE_QUERY}`, '-f', `owner=${REPO.split('/')[0]}`, '-f', `name=${REPO.split('/')[1]}`, '-F', /^number=(\d+)$/]))) {
+    if (Number(m[0]) !== NUMBER || !pr) return noPr(m[0]);
+    return json({ data: { repository: { pullRequest: Object.fromEntries(PAGE_KEYS.map((k) => [k, pr[k] ?? null])) } } });
+  }
+  if ((m = match(argv, ['pr', 'diff', /^(\d+)$/, '-R', REPO]))) {
+    if (Number(m[0]) !== NUMBER || !pr) return noPr(m[0]);
+    return answer(fx.diff.join('\n'));
+  }
+  if ((m = match(argv, ['api', new RegExp(`^repos/${REPO}/pulls/(\\d+)/files\\?per_page=100$`)]))) {
+    if (Number(m[0]) !== NUMBER || !pr) return notFound();
+    return json(
+      fx.files.map((f, i) => ({
+        sha: `${i + 1}`.repeat(40).slice(0, 40), filename: f.path, status: 'modified', additions: f.additions,
+        deletions: f.deletions, changes: f.additions + f.deletions, blob_url: `https://github.com/${REPO}/blob/${pr.headRefOid}/${f.path}`,
+        raw_url: `https://github.com/${REPO}/raw/${pr.headRefOid}/${f.path}`, contents_url: `${API}/contents/${f.path}?ref=${pr.headRefOid}`,
+        patch: f.patch,
+      })),
+    );
+  }
+  if ((m = match(argv, ['api', '--method', 'POST', new RegExp(`^repos/${REPO}/pulls/(\\d+)/reviews$`), '--input', '-']))) {
+    if (Number(m[0]) !== NUMBER || !pr) return notFound();
+    return review(fx, stdin);
+  }
+  if ((m = match(argv, ['api', '--method', 'POST', new RegExp(`^repos/${REPO}/issues/(\\d+)/comments$`), '--input', '-']))) {
+    return reply(fx, m[0], null, stdin);
+  }
+  if ((m = match(argv, ['api', '--method', 'POST', new RegExp(`^repos/${REPO}/pulls/(\\d+)/comments/(\\d+)/replies$`), '--input', '-']))) {
+    return reply(fx, m[0], m[1], stdin);
+  }
+  if ((m = match(argv, ['api', 'graphql', '-f', `query=${SCOPE_QUERY}`, '-f', /^id=(.+)$/]))) return scope(fx, m[0]);
+  for (const [query, resolved] of [[RESOLVE_MUTATION, true], [UNRESOLVE_MUTATION, false]]) {
+    if ((m = match(argv, ['api', 'graphql', '-f', `query=${query}`, '-f', /^id=(.+)$/]))) return resolve(fx, m[0], resolved);
+  }
+  for (const [query, on] of [[REACT_MUTATION, true], [UNREACT_MUTATION, false]]) {
+    if ((m = match(argv, ['api', 'graphql', '-f', `query=${query}`, '-f', /^id=(.+)$/, '-f', /^content=(.*)$/]))) {
+      return react(fx, m[0], m[1], on);
+    }
+  }
+  if (argv[0] === 'pr' && argv[1] === 'merge' && argv[3] === '-R' && argv[4] === REPO) {
+    const said = merge(fx, argv);
+    if (said) return said;
+  }
+  if (argv[0] === 'pr' && argv[1] === 'create') {
+    const said = create(fx, argv);
+    if (said) return said;
+  }
+  return null;
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  if (!process.env.HOME) {
+    process.stderr.write('stub gh: HOME is not set\n');
+    return 1;
+  }
+  fs.mkdirSync(box, { recursive: true });
+  const takesInput = argv.some((w, i) => w === '--input' && argv[i + 1] === '-');
+  const stdin = takesInput ? fs.readFileSync(0, 'utf8') : undefined;
+  fs.appendFileSync(path.join(box, 'calls.jsonl'), `${JSON.stringify(stdin === undefined ? { argv } : { argv, stdin })}\n`);
+  const said = run(argv, stdin) || refuse(`stub gh: no answer for ${JSON.stringify(argv)}`);
+  process.stdout.write(said.stdout);
+  process.stderr.write(said.stderr);
+  return said.code;
+}
+
+process.exitCode = main();

@@ -21,6 +21,7 @@ pub mod select;
 pub mod sparkline;
 pub mod status;
 pub mod stepper;
+pub mod text_area;
 pub mod theme;
 pub mod toggle;
 
@@ -37,12 +38,13 @@ pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, tip, AlertDialo
 pub use grain::grain;
 pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
 pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
-pub use menu::{menu_of, row_menu, MenuAct};
+pub use menu::{menu_of, menu_on, row_menu, MenuAct};
 pub use segmented::Segmented;
 pub use select::{Select, SelectEvent, SelectItem, SelectState};
 pub use sparkline::Sparkline;
 pub use status::{spinner, step_mark, Crab, MarkState, RowSkeleton, Skeleton, Status, StatusMark, Step, StepRow, Still};
 pub use stepper::Stepper;
+pub use text_area::{chord_key, Look as TextAreaLook, TextArea};
 pub use theme::{ActivePalette, Palette, Side};
 pub use toggle::Switch;
 

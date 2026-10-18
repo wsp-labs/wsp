@@ -13,7 +13,7 @@ pub mod host;
 mod keys;
 pub mod looks;
 mod markdown;
-mod menu;
+pub(crate) mod menu;
 pub mod model;
 pub mod rows;
 mod switcher;
