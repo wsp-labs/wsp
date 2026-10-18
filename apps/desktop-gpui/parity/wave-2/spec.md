@@ -383,7 +383,7 @@ Sources: `settings/add/`, the confirm dialogs, `desktop:onboarding.html`, `deskt
 - W2-DLG-025 Checks refused. Shot: unknown host. `settings/add/AddComputerDialog.tsx:82`
 - W2-DLG-026 Host key, sudo, picks, summary, disk short, running, sign-in wait, failed, needs you, ready. No shot: real SSH host. `settings/add/AddComputerDialog.tsx:666`
 - W2-DLG-027 Cloud key step. Shot: Add a cloud provider. `settings/add/AddCloudDialog.tsx:488`
-- W2-DLG-028 Key refused or unreachable. Shot: fake key, Enter. `settings/add/AddCloudDialog.tsx:60`
+- W2-DLG-028 Key refused or unreachable. No shot: needs the live provider: the host checks a Boat key against boat.dev directly (packages/host/src/providers-key.ts takes BOX_API_URL from packages/engine/src/box-backend.ts:25, with no override), so no capture can reach this state without calling Boat; the app's own test covers it with a fixture answer. `settings/add/AddCloudDialog.tsx:60`
 - W2-DLG-029 Key held, cloud picks, summary, build, ready. No shot: Boat account. `settings/add/AddCloudDialog.tsx:466`
 - W2-DLG-030 Remove a computer. No shot: second computer. `settings/RemoveComputerDialog.tsx:144`
 - W2-DLG-031 Delete thread. No shot: opens from a native menu. `components/DeleteThreadDialog.tsx:76`

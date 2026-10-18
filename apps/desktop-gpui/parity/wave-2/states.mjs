@@ -298,6 +298,27 @@ const slate = (id, file, go, clip = PANEL) => ({
 });
 const skip = (id, why) => ({ id, skip: why, go: () => Promise.reject(new Error(why)) });
 
+const WINDOW = app => app.page(() => ({ x: 0, y: 0, width: innerWidth, height: innerHeight }));
+/** The side the driver set on the empty home's host for this shot: light for Paper, dark for Graphite. */
+const sideOf = async host => (await host.empty.op("preferences.get")).preferences.theme;
+/** Onboarding follows the computer's colour scheme, which the driver cannot set per shot, so the page is put on that
+ * scheme's side the way its own follow() does. */
+const scheme = (app, side) =>
+  app.page(dark => {
+    const html = document.documentElement;
+    html.classList.add("no-transitions");
+    html.classList.toggle("dark", dark);
+    window.wsp.setTitleBar?.();
+    requestAnimationFrame(() => html.classList.remove("no-transitions"));
+  }, side === "dark");
+const onboarding = (id, go) => ({ id, home: "empty", clip: WINDOW, data: sideOf, go: async (app, side) => (await scheme(app, side), await go(app), await app.park(), await app.sleep(600)) });
+/** Get started, then the agents screen once its scan has drawn the rows: one ticked when `found`, none ticked when not. */
+async function agentsScreen(app, found) {
+  await app.click(css("#start"));
+  await has(app, "#agents:not([hidden])");
+  await has(app, found ? "#rows input:checked" : "#rows .row");
+}
+
 const run = (id, go, clip = PANEL) => slate(id, "runs.slate", async app => (await has(app, '[data-slate-piece="go-quick"] button', 20_000), await go(app)), clip);
 const press = piece => css(`[data-slate-piece="${piece}"] button`);
 async function runOnce(app, piece, output, state) {
@@ -695,30 +716,64 @@ export default [
   },
   skip("W2-DLG-026", "every Add a computer step past Checks needs a real SSH host that joins"),
   { id: "W2-DLG-027", clip: DIALOG, go: async app => (await computers(app), await app.click(css('[data-k="add-cloud-button"]')), await has(app, '[data-add-cloud="key"] [data-k="cloud-key"]')) },
-  {
-    id: "W2-DLG-028",
-    clip: DIALOG,
-    go: async app => {
-      await computers(app);
-      await app.click(css('[data-k="add-cloud-button"]'));
-      await app.click(css('[data-k="cloud-key"]'));
-      await app.type("bk_fake_0000");
-      await app.key("enter");
-      await has(app, '[data-k="key-check"][data-state="refused"], [data-k="key-check"][data-state="unreachable"]', 30_000);
-    },
-  },
+  skip(
+    "W2-DLG-028",
+    "needs the live provider: the host checks a Boat key against boat.dev directly (packages/host/src/providers-key.ts takes BOX_API_URL from packages/engine/src/box-backend.ts:25, with no override), so no capture can reach this state without calling Boat",
+  ),
   skip("W2-DLG-029", "every Add a cloud provider step past the key needs a working Boat key and account"),
   skip("W2-DLG-030", "this computer has no Remove line; the dialog needs a second computer or a cloud"),
-  skip("W2-DLG-031", "Delete thread opens from the row's menu, which Electron draws natively"),
-  skip("W2-DLG-032", "the onboarding window needs a second launch on an empty home, which baseline.mjs does not do"),
-  skip("W2-DLG-033", "onboarding, as W2-DLG-032"),
-  skip("W2-DLG-034", "onboarding, as W2-DLG-032"),
-  skip("W2-DLG-035", "onboarding, as W2-DLG-032"),
-  skip("W2-DLG-036", "onboarding, as W2-DLG-032"),
-  skip("W2-DLG-038", "the starting window needs a launch while the host is held, which baseline.mjs does not do"),
-  skip("W2-DLG-040", "first run needs a home with no project, which baseline.mjs does not make"),
-  skip("W2-DLG-041", "the pair screen draws only in a page with no desktop bridge, and Electron's window always has one"),
-  skip("W2-DLG-042", "the pair refusal, as W2-DLG-041"),
+  {
+    id: "W2-DLG-031",
+    clip: ALERT,
+    data: host => fresh(host, "W2-DLG-031"),
+    go: async (app, id) => (await app.route.thread(id), await app.menu(`[data-row-id='thread:${id}']`, "Delete thread"), await has(app, '[data-k="delete-thread"]'), await app.park()),
+    cleanup: (host, id) => id !== undefined && host.removeThread(id),
+  },
+  onboarding("W2-DLG-032", async app => (await has(app, "#start"), await app.sleep(1500))),
+  onboarding("W2-DLG-033", app => agentsScreen(app, true)),
+  onboarding("W2-DLG-034", async app => {
+    await agentsScreen(app, true);
+    await app.click(css("#rows input:checked"));
+    await has(app, "#open:disabled");
+  }),
+  { ...onboarding("W2-DLG-035", async app => (await agentsScreen(app, false), await reads(app, "No agent found"))), agents: false },
+  {
+    ...onboarding("W2-DLG-036", async app => {
+      await agentsScreen(app, true);
+      await app.click(css("#open"));
+      await app.waitFor(() => document.getElementById("status").textContent.includes("would not take the wsp tools"), 15_000);
+    }),
+    // The install's config file is one it cannot parse, which installMcp refuses as a person's broken ~/.claude.json.
+    data: async host => (writeFileSync(join(host.empty.home, "parity-home", ".claude.json"), "{ this is not json\n"), sideOf(host)),
+  },
+  { id: "W2-DLG-038", home: "held", clip: WINDOW, go: async app => (await has(app, ".starting"), await app.park()) },
+  {
+    id: "W2-DLG-040",
+    home: "empty",
+    clip: css('[data-k="first-run"]'),
+    go: async app => {
+      await agentsScreen(app, true);
+      await app.click(css("#open"));
+      await app.window("app");
+      await has(app, '[data-k="first-run"] [data-k="add-project"]', 30_000);
+      await app.park();
+      await app.sleep(800);
+    },
+  },
+  { id: "W2-DLG-041", bridge: false, clip: css("form:has(#pair-code)"), go: async app => (await has(app, "#pair-code", 20_000), await app.park()) },
+  {
+    id: "W2-DLG-042",
+    bridge: false,
+    clip: css("form:has(#pair-code)"),
+    go: async app => {
+      await has(app, "#pair-code", 20_000);
+      await app.click(css("#pair-code"));
+      await app.type("000000");
+      await app.click(css('form:has(#pair-code) button[type="submit"]'));
+      await has(app, 'form:has(#pair-code) [role="alert"]', 15_000);
+      await app.park();
+    },
+  },
 
   { id: "W2-PAL-016", clip: PALETTE, data: unsettled, go: app => palette(app) },
   {

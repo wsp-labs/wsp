@@ -169,9 +169,12 @@ pub fn open_in_editor(workspace_id: String, window: &mut Window, cx: &mut App) {
     });
 }
 
-/// Something of the app's that reads no key context holds Escape: the palette or the switcher, the sidebar's dialog,
-/// menu or switcher.
+/// Something of the app's that reads no key context holds Escape: a dialog on the layer, the palette or the switcher,
+/// the sidebar's dialog, menu or switcher.
 fn holds_escape(window: &Window, cx: &App) -> bool {
+    if crate::screens::dialogs::layer::top(cx).is_some() {
+        return true;
+    }
     let Some(overlays) = overlays::of(window, cx) else { return false };
     let o = overlays.read(cx);
     o.palette.is_some()

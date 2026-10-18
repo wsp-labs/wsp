@@ -11,13 +11,16 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{
-    canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, relative, size as gsize, App, Bounds, Context, ElementId,
-    EntityId, FontWeight, Global, Hsla, Pixels, SharedString, Task, Transformation, Window,
+    canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, relative, size as gsize, AnyElement, App, Bounds,
+    ClickEvent, Context, ElementId, EntityId, FontWeight, Global, HighlightStyle, Hsla, Pixels, SharedString, StyledText, Task,
+    Transformation, Window,
 };
 
-use super::card::{row_frame, CardItem, Corners};
+use super::card::{CardItem, Corners};
 use super::dialog::tip;
+use super::focus::ring_inset;
 use super::icons::Glyph;
+use super::motion;
 use super::theme::ActivePalette;
 use super::{size, text};
 
@@ -404,18 +407,40 @@ impl RenderOnce for StatusMark {
     }
 }
 
-/// A step's state in a list of steps.
-#[derive(Clone, Copy, PartialEq)]
+/// A step's state in a list of steps (`StepState` in `settings/add/setup.ts`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
+    /// The muted empty circle, the name muted.
     NotStarted,
-    /// A setup step at work: the plain spinner, never the crab.
+    /// At work: the plain spinner, or the crab on an agent's own step.
     Running,
+    /// Set aside: the muted minus.
     Skipped,
     Done,
     Failed,
+    NeedsYou,
+    /// Passed with a warning: the triangle.
+    Warned,
 }
 
-/// The step's mark in its 16 px box.
+impl Step {
+    /// The one word the mark's hover says (`StateMark`'s `MARK_WORDS`, and `StepRow.tsx`'s own labels).
+    fn word(self, agent: bool) -> &'static str {
+        match self {
+            Step::NotStarted => "Not started",
+            Step::Running if agent => "Working",
+            Step::Running => MarkState::Working.word(),
+            Step::Skipped => "Skipped",
+            Step::Done => MarkState::Done.word(),
+            Step::Failed => MarkState::Failed.word(),
+            Step::NeedsYou => MarkState::NeedsYou.word(),
+            Step::Warned => "Passed with a warning",
+        }
+    }
+}
+
+/// The step's mark in its 16 px box, as `StepRow.tsx` draws it: `StateMark`'s glyphs and inks, the muted circle, minus
+/// and triangle of its own states.
 pub fn step_mark(step: Step, cx: &App) -> impl IntoElement {
     let p = cx.palette();
     let glyph = |g: Glyph, ink: Hsla| Icon::new(g).with_size(px(14.)).text_color(ink).into_any_element();
@@ -425,23 +450,83 @@ pub fn step_mark(step: Step, cx: &App) -> impl IntoElement {
         Step::Skipped => glyph(Glyph::CircleMinus, p.muted_foreground),
         Step::Done => glyph(Glyph::CircleCheck, p.status_done),
         Step::Failed => glyph(Glyph::CircleAlert, p.status_failed),
+        Step::NeedsYou => glyph(Glyph::MessageCircleQuestionMark, p.status_input),
+        Step::Warned => glyph(Glyph::TriangleAlert, p.warning),
     };
     div().debug_selector(|| "step-mark".into()).flex().flex_none().items_center().justify_center().size(px(16.)).child(mark)
 }
 
-/// One step in a list of steps: its mark, then its title, muted until it starts.
+/// What happened and what to do about it, one paragraph in two inks (`data-k="step-refusal"`): the refusal's ink, then
+/// the fix in the foreground. No room is kept for it, as `RefusalSlot` keeps.
+pub fn step_refusal(said: impl Into<SharedString>, fix: Option<SharedString>, cx: &App) -> impl IntoElement {
+    let p = cx.palette();
+    let said: SharedString = said.into();
+    let fix = fix.map(|f| format!(" {f}"));
+    let whole: SharedString = format!("{said}{}", fix.as_deref().unwrap_or_default()).into();
+    let mut highlights = vec![(0..said.len(), HighlightStyle { color: Some(p.error_foreground), ..Default::default() })];
+    if let Some(fix) = &fix {
+        highlights.push((said.len()..said.len() + fix.len(), HighlightStyle { color: Some(p.foreground), ..Default::default() }));
+    }
+    div()
+        .debug_selector(|| "step-refusal".into())
+        .text_size(text::FACT.0)
+        .line_height(px(18.))
+        .child(StyledText::new(whole).with_highlights(highlights))
+}
+
+type Toggle = std::rc::Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
+/// What a row's time says: nothing, how long it took, or the time since it started, ticking.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Time {
+    None,
+    Took(u64),
+    Since(f64),
+}
+
+/// The words' edge in a step row: the 16 px mark and its 12 px gap.
+const MARK_EDGE: Pixels = px(28.);
+
+/// One step in a list of steps (`StepRow.tsx`): its mark, the title (muted until it starts) with its quiet note, the
+/// time in the mono at the right and the chevron of a row that opens; under it what happened (`said` in the refusal's
+/// ink, its fix in the foreground), what the caller puts there (a log, a sign-in) and the acts. An item under a step
+/// steps in by the mark's width.
 #[derive(IntoElement)]
 pub struct StepRow {
     id: SharedString,
     step: Step,
     title: SharedString,
     tooltip: Option<SharedString>,
+    note: Option<SharedString>,
+    time: Time,
+    said: Option<SharedString>,
+    fix: Option<SharedString>,
+    nested: bool,
+    agent: bool,
+    toggle: Option<(bool, Option<Toggle>)>,
+    under: Vec<AnyElement>,
+    acts: Vec<AnyElement>,
     corners: Corners,
 }
 
 impl StepRow {
     pub fn new(id: impl Into<SharedString>, step: Step, title: impl Into<SharedString>) -> Self {
-        StepRow { id: id.into(), step, title: title.into(), tooltip: None, corners: Corners::default() }
+        StepRow {
+            id: id.into(),
+            step,
+            title: title.into(),
+            tooltip: None,
+            note: None,
+            time: Time::None,
+            said: None,
+            fix: None,
+            nested: false,
+            agent: false,
+            toggle: None,
+            under: Vec::new(),
+            acts: Vec::new(),
+            corners: Corners::default(),
+        }
     }
 
     /// The step's state in words on its mark's hover: "Skipped: Claude Code is not installed there".
@@ -449,45 +534,241 @@ impl StepRow {
         self.tooltip = Some(text.into());
         self
     }
+
+    /// The quiet note under the title: what the step is doing, or what it put there.
+    pub fn note(mut self, note: impl Into<SharedString>) -> Self {
+        self.note = Some(note.into());
+        self
+    }
+
+    /// How long an ended step took, in ms: "0.4s", "1m 5s".
+    pub fn took(mut self, ms: u64) -> Self {
+        self.time = Time::Took(ms);
+        self
+    }
+
+    /// When a running step began, in ms since the epoch: its time climbs from there once a second.
+    pub fn since(mut self, epoch_ms: f64) -> Self {
+        self.time = Time::Since(epoch_ms);
+        self
+    }
+
+    /// What happened, in the refusal's ink under the row, and what to do about it in the foreground.
+    pub fn said(mut self, said: impl Into<SharedString>, fix: Option<SharedString>) -> Self {
+        self.said = Some(said.into()).filter(|s| !s.is_empty());
+        self.fix = fix;
+        self
+    }
+
+    /// An item under a step (one sign-in, one skill that did not land): it steps in by the mark's width.
+    pub fn nested(mut self, nested: bool) -> Self {
+        self.nested = nested;
+        self
+    }
+
+    /// The steps are an agent's own (`TasksBar`): a step at work is the crab, not the spinner.
+    pub fn agent(mut self, agent: bool) -> Self {
+        self.agent = agent;
+        self
+    }
+
+    /// A row in a list where rows open on their output: whether it is open, and the press that turns it; none on a row
+    /// with nothing to open, which keeps the chevron's room so every time stands on one edge.
+    pub fn toggle(mut self, open: bool, on_toggle: Option<impl Fn(&ClickEvent, &mut Window, &mut App) + 'static>) -> Self {
+        self.toggle = Some((open, on_toggle.map(|f| std::rc::Rc::new(f) as Toggle)));
+        self
+    }
+
+    /// What stands under the row before its acts: a log, a sign-in, a refusal.
+    pub fn under(mut self, el: impl IntoElement) -> Self {
+        self.under.push(el.into_any_element());
+        self
+    }
+
+    /// An act under the row, in order: Retry, Skip, Copy the keys, Sign in.
+    pub fn act(mut self, act: impl IntoElement) -> Self {
+        self.acts.push(act.into_any_element());
+        self
+    }
 }
 
 impl From<StepRow> for CardItem {
     fn from(row: StepRow) -> Self {
         // A step's rule stands above its 48 px floor, not inside it, as `StepRow.tsx` draws it.
-        CardItem::placed(move |corners| {
-            let rule = corners.rule;
-            div()
-                .when_some(rule, |el, rule| el.border_t_1().border_color(rule))
-                .child(StepRow { corners: Corners { rule: None, ..corners }, ..row })
-                .into_any_element()
-        })
+        CardItem::placed(move |corners| StepRow { corners, ..row }.into_any_element())
     }
 }
 
 impl RenderOnce for StepRow {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let p = cx.palette();
-        let waiting = self.step == Step::NotStarted;
-        row_frame(&self.id, size::LINE_FLOOR, self.corners).child(
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette().clone();
+        let corners = self.corners;
+        let inset = corners.inset;
+        let lead = inset + if self.nested { MARK_EDGE } else { px(0.) };
+        let quiet = self.step == Step::NotStarted;
+        let crab = self.agent && self.step == Step::Running;
+        let tip_words = self.tooltip.clone().unwrap_or_else(|| self.step.word(self.agent).into());
+        let mark = div().id(SharedString::from(format!("{}-mark", self.id))).tooltip(tip(tip_words)).child(if crab {
+            div()
+                .flex()
+                .flex_none()
+                .items_center()
+                .justify_center()
+                .size(px(16.))
+                .child(Crab::new(p.status_working).key(SharedString::from(format!("{}-crab", self.id))))
+                .into_any_element()
+        } else {
+            step_mark(self.step, cx).into_any_element()
+        });
+        let time = match self.time {
+            Time::None => None,
+            Time::Took(ms) => Some(div().child(fmt_duration(ms as f64)).into_any_element()),
+            Time::Since(at) => {
+                let ticking =
+                    window.use_keyed_state(SharedString::from(format!("{}-time", self.id)), cx, |_, _| Ticking { since: at, next: None });
+                ticking.update(cx, |t, _| t.since = at);
+                Some(ticking.into_any_element())
+            }
+        };
+        let chevron = self.toggle.as_ref().map(|(open, on)| match on {
+            None => div().flex_none().size(px(14.)).into_any_element(),
+            Some(_) => {
+                let icon = Icon::new(Glyph::ChevronRight).with_size(px(14.)).flex_none().text_color(p.muted_foreground);
+                if *open { icon.transform(Transformation::rotate(gpui_kit::percentage(0.25))) } else { icon }.into_any_element()
+            }
+        });
+        let words = gpui_kit::component::v_flex()
+            .flex_1()
+            .min_w_0()
+            .child(
+                div()
+                    .debug_selector(|| "title".into())
+                    .min_w_0()
+                    .text_size(text::SETTING_TITLE.0)
+                    .line_height(text::SETTING_TITLE.1)
+                    .font_weight(if quiet { FontWeight::NORMAL } else { FontWeight::MEDIUM })
+                    .text_color(if quiet { p.muted_foreground } else { p.foreground })
+                    .child(self.title),
+            )
+            .children(self.note.map(|note| {
+                div()
+                    .debug_selector(|| "step-note".into())
+                    .text_size(text::NOTE.0)
+                    .line_height(text::NOTE.1)
+                    .text_color(p.muted_foreground)
+                    .child(note)
+            }));
+        let right = (time.is_some() || chevron.is_some()).then(|| {
             h_flex()
-                .gap_3()
+                .flex_none()
+                .justify_end()
+                .gap_2()
                 .child(
                     div()
-                        .id(SharedString::from(format!("{}-mark", self.id)))
-                        .when_some(self.tooltip, |el, t| el.tooltip(tip(t)))
-                        .child(step_mark(self.step, cx)),
+                        .debug_selector(|| "step-time".into())
+                        .font_family(gpui_kit::component::ActiveTheme::theme(cx).mono_font_family.clone())
+                        .text_size(text::FACT.0)
+                        .line_height(text::FACT.1)
+                        .text_color(p.muted_foreground)
+                        .children(time),
                 )
-                .child(
-                    div()
-                        .debug_selector(|| "title".into())
-                        .min_w_0()
-                        .text_size(text::SETTING_TITLE.0)
-                        .line_height(text::SETTING_TITLE.1)
-                        .font_weight(if waiting { FontWeight::NORMAL } else { FontWeight::MEDIUM })
-                        .text_color(if waiting { p.muted_foreground } else { p.foreground })
-                        .child(self.title),
-                ),
-        )
+                .children(chevron)
+        });
+        let line =
+            h_flex().gap_x_3().py(size::ROW_PAD_Y).pl(lead).pr(inset).min_h(size::LINE_FLOOR).child(mark).child(words).children(right);
+        let opened = !self.under.is_empty() || !self.acts.is_empty() || self.said.is_some();
+        let r = corners.radius - px(1.);
+        let line = match self.toggle.and_then(|(_, on)| on) {
+            None => line.into_any_element(),
+            Some(on) => {
+                let id = SharedString::from(format!("{}-toggle", self.id));
+                let over = motion::hovered(id.clone(), window, cx);
+                let ground = if *over.read(cx) { p.accent.opacity(0.6) } else { p.accent.opacity(0.) };
+                let ground = motion::ease_ink(id.clone(), "ground", ground, motion::COLORS, window, cx);
+                line.id(id)
+                    .debug_selector(|| "step-toggle".into())
+                    .cursor_pointer()
+                    .bg(ground)
+                    .when(corners.top, |el| el.rounded_tl(r).rounded_tr(r))
+                    .when(corners.bottom && !opened, |el| el.rounded_bl(r).rounded_br(r))
+                    .tab_index(0)
+                    .focus_visible(move |s| s.shadow(vec![ring_inset(p.ring)]))
+                    .on_hover(motion::track_hover(over))
+                    .on_click(move |e, window, cx| on(e, window, cx))
+                    .into_any_element()
+            }
+        };
+        let part = opened.then(|| {
+            gpui_kit::component::v_flex()
+                .debug_selector(|| "step-opened".into())
+                .gap_3()
+                .pb_4()
+                .pl(lead + MARK_EDGE)
+                .pr(inset)
+                .children(self.said.map(|said| step_refusal(said, self.fix, cx)))
+                .children(self.under)
+                .when(!self.acts.is_empty(), |el| el.child(h_flex().flex_wrap().gap_2().children(self.acts)))
+        });
+        let wrap = div().id(self.id).debug_selector(|| "row".into()).flex().flex_col();
+        let wrap = match corners.rule {
+            Some(rule) => wrap.border_t_1().border_color(rule),
+            None => wrap,
+        };
+        wrap.child(line).children(part)
+    }
+}
+
+/// A running step's time, written again each second in an entity of its own so nothing else draws for the clock.
+struct Ticking {
+    since: f64,
+    next: Option<Task<()>>,
+}
+
+impl Render for Ticking {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !still(cx) && self.next.is_none() {
+            self.next = Some(cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(Duration::from_secs(1)).await;
+                let _ = this.update(cx, |t, cx| {
+                    t.next = None;
+                    cx.notify();
+                });
+            }));
+        }
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64() * 1000.).unwrap_or(0.);
+        div().child(fmt_elapsed(now - self.since))
+    }
+}
+
+/// `fmtDuration`'s short style: ms under a second, tenths under ten, whole seconds under a minute, then minutes and
+/// seconds.
+pub fn fmt_duration(ms: f64) -> String {
+    if ms < 60_000. || !ms.is_finite() {
+        if ms < 1_000. {
+            return format!("{}ms", ms.round().max(1.) as i64);
+        }
+        if ms < 10_000. {
+            let tenths = (ms / 100.).round() / 10.;
+            return if tenths >= 10. { "10s".into() } else { format!("{tenths:.1}s") };
+        }
+        return format!("{}s", (ms / 1_000.).round() as i64);
+    }
+    let total = (ms / 1_000.).round() as i64;
+    let (minutes, seconds) = (total / 60, total % 60);
+    if seconds == 0 {
+        format!("{minutes}m")
+    } else {
+        format!("{minutes}m {seconds}s")
+    }
+}
+
+/// `fmtElapsed`: whole seconds, then the short style's minutes and seconds.
+pub fn fmt_elapsed(ms: f64) -> String {
+    let seconds = if ms.is_finite() && ms > 0. { (ms / 1_000.).floor() } else { 0. };
+    if seconds < 60. {
+        format!("{seconds}s")
+    } else {
+        fmt_duration(seconds * 1_000.)
     }
 }
 

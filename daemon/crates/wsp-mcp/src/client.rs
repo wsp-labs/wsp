@@ -49,6 +49,10 @@ struct Head {
     errors: Option<Box<RawValue>>,
     #[serde(default)]
     warnings: Option<Box<RawValue>>,
+    #[serde(default)]
+    fix: Option<Value>,
+    #[serde(default)]
+    left: Option<Value>,
 }
 
 struct Shared {
@@ -105,10 +109,12 @@ impl Drop for Client {
 }
 
 /// What a dial presents once any seal is open: the token this computer holds, or its device key for a host on the
-/// account that has handed it none yet.
+/// account that has handed it none yet, or a pairing code the host issued, which a socket that presents no token
+/// spends for a device token of its own.
 pub enum Presents<'a> {
     Token(&'a str),
     Admit(&'a Admit),
+    Redeem { code: &'a str, name: &'a str },
 }
 
 /// A computer the account admitted: the key that host was told to trust, and what its listing calls this computer.
@@ -187,6 +193,7 @@ pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Opti
             None => None,
         };
         let admit = matches!(presents, Presents::Admit(_));
+        let redeem = matches!(presents, Presents::Redeem { .. });
         let answered = match presents {
             Presents::Token(token) => {
                 let mut params = Map::new();
@@ -207,6 +214,15 @@ pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Opti
                     serde_json::from_value::<Paired>(answer).map(|paired| (Some(paired), released)).map_err(|e| Failure::new(e.to_string()))
                 })
             }
+            Presents::Redeem { code, name } => {
+                let mut params = Map::new();
+                params.insert("code".to_owned(), Value::from(code));
+                params.insert("name".to_owned(), Value::from(name));
+                client.request::<Value>("pair.redeem", params).await.and_then(|answer| {
+                    let released = Released::of(&answer);
+                    serde_json::from_value::<Paired>(answer).map(|paired| (Some(paired), released)).map_err(|e| Failure::new(e.to_string()))
+                })
+            }
         };
         match answered {
             Ok((paired, released)) => {
@@ -218,6 +234,8 @@ pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Opti
                 }
                 Ok((client, paired))
             }
+            // The host's one sentence for every code it will not spend is the whole answer: there is no token to pair again for.
+            Err(refused) if redeem => Err(Refused { failure: Failure::auth(refused.message), token: true }),
             Err(refused) => Err(Refused { failure: client.token_refused(refused, to.alias, admit, at).await, token: true }),
         }
     };
@@ -346,11 +364,16 @@ impl Client {
             let said = head.error.as_ref().and_then(Value::as_str).map_or_else(|| format!("{op} failed"), str::to_owned);
             // Only a list is carried, as problemListsOf carries one.
             let list = |raw: Option<Box<RawValue>>| raw.filter(|r| r.get().starts_with('[')).map(|r| r.get().to_owned());
+            let kind = head.kind.as_ref().and_then(Value::as_str).map(str::to_owned);
+            // The host sends a list only beside a processes-left refusal (`refusalFields`).
+            let left = head.left.filter(Value::is_array).map(Box::new);
             return Err(Failure {
                 message: said,
-                kind: head.kind.as_ref().and_then(Value::as_str).map(str::to_owned),
+                kind,
                 errors: list(head.errors),
                 warnings: list(head.warnings),
+                fix: head.fix.as_ref().and_then(Value::as_str).map(Box::from),
+                left,
             });
         }
         serde_json::from_str(&text).map_err(|e| Failure::new(format!("{op}: {e}")))
@@ -496,6 +519,35 @@ impl Shared {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A delete refused over processes still running, as the host frames it: the sentence with its fix joined on, the
+    /// fix again on its own, and the threads with what each still runs. No host here runs a thread's processes
+    /// without a wsp-daemon, so the frame is the host's shape, served by hand.
+    #[tokio::test]
+    async fn a_refusal_keeps_its_fix_and_the_processes_it_names() {
+        let (near, far) = tokio::io::duplex(1 << 16);
+        let fix = "delete it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).";
+        let left = serde_json::json!([{ "threadId": "t1", "title": "dev", "workspaceId": "w1", "memory": 1024, "cpu": 0.5,
+            "processes": [{ "pid": 41, "name": "vite", "kind": "server", "ports": [5173] }] }]);
+        let said = "the thread to delete still runs a process: 41 vite (server, :5173) of thread t1:";
+        let frame =
+            serde_json::json!({ "ok": false, "error": format!("{said} {fix}"), "kind": "processes-left", "fix": fix, "left": left });
+        let serving = tokio::spawn(async move {
+            let mut ws = tokio_tungstenite::accept_async(far).await.unwrap();
+            let Some(Ok(Message::Text(asked))) = ws.next().await else { panic!("no request") };
+            let mut reply = frame;
+            reply["id"] = serde_json::from_str::<Value>(&asked).unwrap()["id"].clone();
+            ws.send(Message::text(reply.to_string())).await.unwrap();
+            ws
+        });
+        let (ws, _) = tokio_tungstenite::client_async("ws://host/ws", near).await.unwrap();
+        let client = Client::over(ws);
+        let refused = client.request::<Value>("sessions.delete", Map::new()).await.unwrap_err();
+        let _server = serving.await.unwrap();
+        assert_eq!((refused.message.as_str(), refused.said()), (format!("{said} {fix}").as_str(), said), "the message stays whole");
+        assert_eq!((refused.kind.as_deref(), refused.fix.as_deref()), (Some("processes-left"), Some(fix)));
+        assert_eq!(refused.left, Some(Box::new(left)));
+    }
 
     #[tokio::test]
     async fn a_listener_goes_when_its_frames_is_dropped() {
