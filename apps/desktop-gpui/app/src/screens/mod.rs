@@ -13,10 +13,13 @@ pub use app_shell::{entry, navigate, Entry, Host, Mounted, Opened, Pane, Parts, 
 
 /// The screen named `name`, where it goes and how it is built, or None for a name no screen has.
 pub fn screen(name: &str) -> Option<Entry> {
+    if let Some(added) = ADDED.with(|added| added.borrow().iter().find(|(n, _)| *n == name).map(|(_, e)| *e)) {
+        return Some(added);
+    }
     match name {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
-        _ => ADDED.with(|added| added.borrow().iter().find(|(n, _)| *n == name).map(|(_, e)| *e)),
+        _ => None,
     }
 }
 
@@ -24,7 +27,8 @@ thread_local! {
     static ADDED: RefCell<Vec<(&'static str, Entry)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Adds a screen to [`screen`]'s answers on this thread, as a test mounts one through the shell's own road.
+/// Adds a screen to [`screen`]'s answers on this thread, ahead of its arms, as a test mounts one through the shell's
+/// own road under a name a real screen may also take, such as [`THREAD`].
 #[doc(hidden)]
 pub fn add(name: &'static str, entry: Entry) {
     ADDED.with(|added| added.borrow_mut().push((name, entry)));

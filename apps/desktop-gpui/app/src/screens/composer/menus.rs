@@ -273,6 +273,7 @@ fn model_picker(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
         );
     }
     let search = h_flex()
+        .debug_selector(|| "composer-model-search".into())
         .mx_2()
         .gap(px(10.))
         .px(px(6.))
@@ -305,6 +306,7 @@ fn model_picker(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
         list = list.child(
             h_flex()
                 .id(SharedString::from(format!("model-{}", value)))
+                .debug_selector(move || format!("composer-model-row-{ix}"))
                 .gap_3()
                 .px_3()
                 .py(px(10.))
