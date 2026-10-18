@@ -15,12 +15,14 @@ base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 futures = "0.3"
 # The dither is rasterised once into an image GPUI draws, and its polylines need round joins and caps.
-image = { version = "0.25", default-features = false }
+image = { version = "0.25", default-features = false, features = ["gif"] }
 libc = "0.2"
 lyon = "1.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+# A link's domain read as a browser reads the address, as the web's slateLinkDomain does with URL.
+url = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
@@ -47,6 +49,10 @@ harness = false
 
 [[test]]
 name = "composer_shots"
+harness = false
+
+[[test]]
+name = "slate_shots"
 harness = false
 
 [[test]]

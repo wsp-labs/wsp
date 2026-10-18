@@ -1,0 +1,86 @@
+diff --git a/crates/component/src/menu/mod.rs b/crates/component/src/menu/mod.rs
+index 3152a15..d7bbf3a 100644
+--- a/crates/component/src/menu/mod.rs
++++ b/crates/component/src/menu/mod.rs
+@@ -9,7 +9,7 @@ mod popup_menu;
+ pub use app_menu_bar::AppMenuBar;
+ pub use context_menu::{ContextMenu, ContextMenuExt, ContextMenuState};
+ pub use dropdown_menu::DropdownMenu;
+-pub use popup_menu::{PopupMenu, PopupMenuItem};
++pub use popup_menu::{MenuSurface, PopupMenu, PopupMenuItem};
+ 
+ pub(crate) fn init(cx: &mut App) {
+     app_menu_bar::init(cx);
+diff --git a/crates/component/src/menu/popup_menu.rs b/crates/component/src/menu/popup_menu.rs
+index 8fad53f..aada590 100644
+--- a/crates/component/src/menu/popup_menu.rs
++++ b/crates/component/src/menu/popup_menu.rs
+@@ -6,8 +6,8 @@ use crate::scroll::ScrollableElement;
+ use crate::{ActiveTheme, ElementExt, Icon, IconName, Sizable as _, h_flex, v_flex};
+ use crate::{Side, Size, kbd::Kbd};
+ use gpui::{
+-    Action, Anchor, AnyElement, App, AppContext, Bounds, Context, DismissEvent, Edges, Entity,
+-    EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement, KeyBinding,
++    Action, Anchor, AnyElement, App, AppContext, Bounds, BoxShadow, Context, DismissEvent, Edges,
++    Entity, EventEmitter, FocusHandle, Hsla, Focusable, InteractiveElement, IntoElement, KeyBinding,
+     ParentElement, Pixels, Render, Role, ScrollHandle, SharedString, StatefulInteractiveElement,
+     Styled, WeakEntity, Window, anchored, deferred, div, prelude::FluentBuilder, px, rems,
+ };
+@@ -326,10 +326,19 @@ pub struct PopupMenu {
+     /// content mask, so the items container's `overflow_y_scroll` clip never
+     /// reaches it, while the scroll offset is still baked into its anchor.
+     priority: usize,
++    surface: Option<MenuSurface>,
+ 
+     _subscriptions: Vec<Subscription>,
+ }
+ 
++/// A popup surface of the caller's own, in place of the theme's `popover_style`.
++#[derive(Clone)]
++pub struct MenuSurface {
++    pub radius: Pixels,
++    pub edge: Hsla,
++    pub shadow: Vec<BoxShadow>,
++}
++
+ impl PopupMenu {
+     pub(crate) fn new(cx: &mut App) -> Self {
+         Self {
+@@ -351,6 +360,7 @@ impl PopupMenu {
+             size: Size::default(),
+             submenu_anchor: (Anchor::TopLeft, Pixels::ZERO),
+             priority: gpui_base::POPUP_PRIORITY,
++            surface: None,
+             _subscriptions: vec![],
+         }
+     }
+@@ -451,6 +461,12 @@ impl PopupMenu {
+         self
+     }
+ 
++    /// Draw the popup with this radius, a 1px edge and these shadows instead of the theme's popover style.
++    pub fn surface(mut self, surface: MenuSurface) -> Self {
++        self.surface = Some(surface);
++        self
++    }
++
+     /// Set the side to show check icon, default is `Side::Left`.
+     pub fn check_side(mut self, side: Side) -> Self {
+         self.check_side = side;
+@@ -1496,7 +1512,15 @@ impl Render for PopupMenu {
+             .on_action(cx.listener(Self::confirm))
+             .on_action(cx.listener(Self::dismiss))
+             .on_mouse_down_out(cx.listener(Self::on_mouse_down_out))
+-            .popover_style(cx)
++            .map(|this| match self.surface.clone() {
++                Some(surface) => this
++                    .bg(cx.theme().popover)
++                    .rounded(surface.radius)
++                    .border_1()
++                    .border_color(surface.edge)
++                    .shadow(surface.shadow),
++                None => this.popover_style(cx),
++            })
+             .text_color(cx.theme().popover_foreground)
+             .relative()
+             .occlude()

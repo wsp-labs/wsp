@@ -22,7 +22,7 @@ use gpui_kit::component::input::{
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Sizable as _};
 use gpui_kit::{
     actions, canvas, div, prelude::*, px, App, Bounds, ClipboardEntry, Context, Entity, EventEmitter, ExternalPaths, FocusHandle,
-    Focusable, KeyBinding, Pixels, SharedString, Subscription, Unbind, Window,
+    Focusable, Global, KeyBinding, Pixels, SharedString, Subscription, Unbind, WeakEntity, Window,
 };
 
 use crate::local_store::LocalStore;
@@ -219,8 +219,61 @@ impl Focusable for Composer {
     }
 }
 
+/// The composers open now, so a pane can put words in the one for its thread, as a slate's Ask for one does.
+#[derive(Default)]
+struct Open(Vec<WeakEntity<Composer>>);
+
+impl Global for Open {}
+
+fn open_on(thread: &str, cx: &App) -> Option<Entity<Composer>> {
+    let open: Vec<Entity<Composer>> =
+        cx.try_global::<Open>().map(|o| o.0.iter().filter_map(WeakEntity::upgrade).collect()).unwrap_or_default();
+    open.into_iter().find(|c| c.read(cx).thread_key.as_deref() == Some(thread))
+}
+
+/// Puts `text` in the open composer whose thread is `thread`, the caret after it, its bar folded and the focus in it;
+/// false where no composer has that thread open.
+pub fn fill(thread: &str, text: &str, window: &mut Window, cx: &mut App) -> bool {
+    let Some(composer) = open_on(thread, cx) else { return false };
+    composer.update(cx, |c, cx| {
+        c.set_text(text, window, cx);
+        c.fold_bar(window, cx);
+    });
+    true
+}
+
+/// Puts `block` at the caret of the open composer whose thread is `thread`, on lines of its own, the caret after it, its
+/// bar folded and the focus in it (`insertIntoComposer`); false where no composer has that thread open.
+pub fn insert(thread: &str, block: &str, window: &mut Window, cx: &mut App) -> bool {
+    let Some(composer) = open_on(thread, cx) else { return false };
+    composer.update(cx, |c, cx| {
+        let (text, at) = c.editor.read_with(cx, |e, _| (e.value().to_string(), e.cursor()));
+        let (text, caret) = with_block(&text, at, block);
+        c.editor.update(cx, |e, cx| {
+            e.set_value(text, window, cx);
+            e.set_selected_range(caret..caret, cx);
+        });
+        c.edited_in(window, cx);
+        c.fold_bar(window, cx);
+    });
+    true
+}
+
+/// `insertComposerBlock`: `text` with `block` at byte `at` on lines of its own, and the caret after it.
+pub fn with_block(text: &str, at: usize, block: &str) -> (String, usize) {
+    let at = (0..=at.min(text.len())).rev().find(|&i| text.is_char_boundary(i)).unwrap_or(0);
+    let before = if at == 0 || text[..at].ends_with('\n') { "" } else { "\n" };
+    let after = if text[at..].starts_with('\n') { "" } else { "\n" };
+    let block = format!("{before}{block}{after}");
+    (format!("{}{block}{}", &text[..at], &text[at..]), at + block.len())
+}
+
 impl Composer {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let me = cx.entity().downgrade();
+        let open = cx.default_global::<Open>();
+        open.0.retain(|c| c.upgrade().is_some());
+        open.0.push(me);
         let editor = cx.new(|cx| TextareaState::new(window, cx).auto_grow(1, 8).submit_on_enter(true).placeholder("Ask anything"));
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search models..."));
         let subscriptions = vec![

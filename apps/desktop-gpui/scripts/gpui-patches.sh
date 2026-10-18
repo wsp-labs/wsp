@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
 # Our patches over the published gpui-pre crates (backdrop blur, rounded clipping of children, text placement, list
-# heights kept across a width change) and over gpui-kit's pinned commit (text placement in its input and shimmer), kept
-# as diffs per crate or repository in patches/
+# heights kept across a width change) and over gpui-kit's pinned commit (text placement in its input and shimmer, the
+# ink a disabled input draws its text at), kept as diffs per crate or repository in patches/
 # and applied to fresh copies in vendor/, which the [patch] tables in Cargo.toml point at. A folder's diffs are
 # patches/<folder>.patch, then any patches/<folder>.<topic>.patch in name order; one folder's diffs touch different files.
 #   apply  unpack each pinned .crate (checksum-verified) and gpui-kit's commit into vendor/ and apply each patch; run after a fresh clone

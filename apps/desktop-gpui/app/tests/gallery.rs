@@ -17,7 +17,10 @@ use desktop_gpui::ui::{
 use gpui_kit::component::input::InputState;
 use gpui_kit::component::{ActiveTheme, Root};
 use gpui_kit::test::TestWindowExt;
-use gpui_kit::{div, prelude::*, px, size, AnyElement, AnyWindowHandle, AppContext, Context, Entity, HeadlessAppContext, Pixels, Window};
+use gpui_kit::{
+    div, prelude::*, px, size, AnyElement, AnyWindowHandle, AppContext, Context, Entity, HeadlessAppContext, InputEvent as _, Pixels,
+    Window,
+};
 use image::RgbaImage;
 
 const SEGMENTED: &str = include_str!("../../../web/src/components/ui/segmented-control.tsx");
@@ -124,6 +127,50 @@ fn main() {
     println!("test the_pieces_draw_the_web_radii_and_control_sizes ... ok");
     the_sparkline_draws_the_points_it_is_given();
     println!("test the_sparkline_draws_the_points_it_is_given ... ok");
+    a_held_field_draws_its_text_at_the_webs_64_percent();
+    println!("test a_held_field_draws_its_text_at_the_webs_64_percent ... ok");
+    the_row_menu_opens_on_the_twelve_px_surface();
+    println!("test the_row_menu_opens_on_the_twelve_px_surface ... ok");
+}
+
+/// A row's menu, opened by a press on its trigger, draws `MenuPopup`'s `rounded-[12px]`, read off the popup's own corner
+/// under the trigger, so a menu that stops passing `ui::menu::surface` draws the theme's popover radius and fails.
+fn the_row_menu_opens_on_the_twelve_px_surface() {
+    let mut cx = app("graphite");
+    let run: ui::act::Run = std::rc::Rc::new(|_, _| {});
+    let acts = std::rc::Rc::new(vec![ui::menu::MenuAct {
+        group: 0,
+        glyph: None,
+        title: "Copy".into(),
+        destructive: false,
+        held: false,
+        why: None,
+        keys: None,
+        run,
+    }]);
+    let handle: AnyWindowHandle = cx
+        .open_window(size(px(688.), px(400.)), |window, cx| {
+            let piece = move |_: &mut Window, _: &mut Context<Lone>| ui::menu::row_menu("row", acts.clone()).into_any_element();
+            cx.new(|cx| Root::new(cx.new(|_| Lone(Box::new(piece))), window, cx))
+        })
+        .unwrap()
+        .into();
+    draw(&mut cx, handle);
+    cx.update_window(handle, |_, window, cx| {
+        // The trigger's centre: its 20 px square at the padding.
+        let position = gpui_kit::point(PAD + px(10.), PAD + px(10.));
+        let (modifiers, button) = (gpui_kit::Modifiers::default(), gpui_kit::MouseButton::Left);
+        window.dispatch_event(gpui_kit::MouseMoveEvent { position, pressed_button: None, modifiers }.to_platform_input(), cx);
+        window.dispatch_event(
+            gpui_kit::MouseDownEvent { position, modifiers, button, click_count: 1, first_mouse: false }.to_platform_input(),
+            cx,
+        );
+        window.dispatch_event(gpui_kit::MouseUpEvent { position, modifiers, button, click_count: 1 }.to_platform_input(), cx);
+    })
+    .unwrap();
+    let scale = draw(&mut cx, handle);
+    let image = cx.capture_screenshot(handle).unwrap();
+    near("the row menu's radius", measure_below(&image, scale, PAD + px(24.)).radius, 12.);
 }
 
 /// The faces the pieces draw with are the first of `--font-sans-system` and `--font-mono-system` this machine has,
@@ -194,7 +241,11 @@ impl Render for Lone {
 /// `piece` alone at the window's 24 px padding, in Graphite, where every piece's edge and fill are lighter than the
 /// page and every shadow darker, so the piece's own shape is the pixels lighter than the page.
 fn shoot(piece: impl Fn(&mut Window, &mut Context<Lone>) -> AnyElement + 'static) -> (RgbaImage, f32) {
-    let mut cx = app("graphite");
+    shoot_in("graphite", piece)
+}
+
+fn shoot_in(theme: &str, piece: impl Fn(&mut Window, &mut Context<Lone>) -> AnyElement + 'static) -> (RgbaImage, f32) {
+    let mut cx = app(theme);
     let handle = cx
         .open_window(size(px(688.), px(400.)), |window, cx| cx.new(|cx| Root::new(cx.new(|_| Lone(Box::new(piece))), window, cx)))
         .unwrap();
@@ -227,12 +278,18 @@ struct Measured {
 
 /// The piece's drawn box and its top-left corner radius, in logical px.
 fn measure(image: &RgbaImage, scale: f32) -> Measured {
+    measure_below(image, scale, PAD)
+}
+
+/// `measure` of the first piece whose top is at or below `y`.
+fn measure_below(image: &RgbaImage, scale: f32, y: Pixels) -> Measured {
     let ground = lum(image.get_pixel(2, 2));
     let start = (f32::from(PAD) * scale) as u32 - 6;
+    let start_y = (f32::from(y) * scale) as u32 - 6;
     // A line through the piece's middle needs its middle, found from its first lit row and column.
     let lit = |x: u32, y: u32| lum(image.get_pixel(x, y)) > ground + 1.;
-    let top = (start..image.height()).find(|&y| (start..image.width()).any(|x| lit(x, y))).unwrap();
-    let left = (start..image.width()).find(|&x| (start..image.height()).any(|y| lit(x, y))).unwrap();
+    let top = (start_y..image.height()).find(|&y| (start..image.width()).any(|x| lit(x, y))).unwrap();
+    let left = (start..image.width()).find(|&x| (top..image.height()).any(|y| lit(x, y))).unwrap();
     let bottom = (top..image.height()).take_while(|&y| (left..image.width()).any(|x| lit(x, y))).last().unwrap();
     let right = (left..image.width()).take_while(|&x| (top..=bottom).any(|y| lit(x, y))).last().unwrap();
     let (mx, my) = ((left + right) / 2, (top + bottom) / 2);
@@ -240,7 +297,7 @@ fn measure(image: &RgbaImage, scale: f32) -> Measured {
     let col = |ys: &mut dyn Iterator<Item = u32>| ys.map(|y| lum(image.get_pixel(mx, y))).collect::<Vec<_>>();
     let l = start as f32 + edge(&row(&mut (start..mx)), ground);
     let r = (right + 6) as f32 - edge(&row(&mut (mx..right + 6).rev()), ground);
-    let t = start as f32 + edge(&col(&mut (start..my)), ground);
+    let t = start_y as f32 + edge(&col(&mut (start_y..my)), ground);
     let b = (bottom + 6) as f32 - edge(&col(&mut (my..bottom + 6).rev()), ground);
     // The arc meets the diagonal at r(1 - 1/sqrt 2) in from each edge.
     let (x0, y0) = (l.floor() as u32, t.floor() as u32);
@@ -390,4 +447,26 @@ fn the_sparkline_draws_the_points_it_is_given() {
         assert!(diff(&p.0, &ground.0) <= 6, "something is drawn off the line at ({x}, {yy}): {p:?}");
     }
     println!("    the run lights its points and its legs, and nothing beside them");
+}
+
+/// A held field's value on Paper takes the web's `opacity-64` over the page, not a disabled gpui-kit input's half: its
+/// strongest stroke stands 64% of the way from the page to the same field's stroke unheld (on Boat, 116 against 40 on a
+/// page of 252). Within 3 levels, a stroke's own rounding; half would land 25 levels lighter, a third 70.
+fn a_held_field_draws_its_text_at_the_webs_64_percent() {
+    let strongest = |held: bool| {
+        let (image, scale) = shoot_in("paper", move |window, cx| {
+            let state = cx.new(|cx| InputState::new(window, cx).default_value("~/code"));
+            Field::new(&state).held(held).into_any_element()
+        });
+        let (x0, y0) = (((f32::from(PAD) + 4.) * scale) as u32, ((f32::from(PAD) + 4.) * scale) as u32);
+        let stroke = (x0..x0 + (160. * scale) as u32).flat_map(|x| (y0..y0 + (24. * scale) as u32).map(move |y| (x, y)));
+        (lum(image.get_pixel(2, 2)), stroke.map(|(x, y)| lum(image.get_pixel(x, y))).fold(255., f32::min))
+    };
+    let ((page, full), (_, held)) = (strongest(false), strongest(true));
+    let want = page + 0.64 * (full - page);
+    assert!(
+        (held - want).abs() <= 3.,
+        "a held field's strongest stroke is {held:.1}, the web's 64% is {want:.1} (unheld {full:.1}, page {page:.1})"
+    );
+    println!("    a held field's strongest stroke: {held:.1}, the web's 64% is {want:.1} (unheld {full:.1}, page {page:.1})");
 }

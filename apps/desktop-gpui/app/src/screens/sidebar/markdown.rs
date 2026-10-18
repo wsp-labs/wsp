@@ -410,7 +410,8 @@ fn fmt_tokens(n: f64) -> String {
     format!("{trimmed}{unit}")
 }
 
-fn fmt_duration(ms: f64) -> String {
+/// `fmtDuration` in its short style, from milliseconds.
+pub(crate) fn fmt_duration(ms: f64) -> String {
     if ms < 60_000.0 || !ms.is_finite() {
         if !ms.is_finite() || ms < 0.0 {
             return "0ms".to_string();

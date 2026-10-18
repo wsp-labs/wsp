@@ -1354,6 +1354,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "url",
  "wsp-host-client",
 ]
 
