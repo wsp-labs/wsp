@@ -21,6 +21,45 @@ pub const ABOVE_TOP_MS: f64 = 1.0;
 pub const BELOW_LAST_MS: f64 = 60_000.0;
 const REKEY_GAP_MS: f64 = 1.0;
 
+/// `SETUP_ROWS` in `settings/add/setup.ts`: the steps a setup counts, in their order, each by the name its row goes by.
+pub(crate) const SETUP_ROWS: [(&str, &str); 9] = [
+    ("floor", "Base packages"),
+    ("agents", "Agents"),
+    ("mcp", "MCP servers"),
+    ("clis", "CLIs"),
+    ("skills", "Skills"),
+    ("plugins", "Plugins"),
+    ("github", "GitHub"),
+    ("folders", "Projects"),
+    ("configs", "Other config"),
+];
+
+/// `SETUP_STEP_WORDS` in `views/place.ts`: each setup step as a line names it.
+const SETUP_STEP_WORDS: [(&str, &str); 12] = [
+    ("floor", "the base tools"),
+    ("agents", "the agents"),
+    ("signins", "the agents' sign-ins"),
+    ("clis", "the CLIs"),
+    ("skills", "the skills"),
+    ("mcp", "the agents' own files and MCP servers"),
+    ("plugins", "the plugins"),
+    ("configs", "git and the shell"),
+    ("folders", "the folders, as projects"),
+    ("folderServers", "the projects' own MCP servers"),
+    ("github", "the GitHub sign-in"),
+    ("context", "what the agents read about this computer"),
+];
+
+/// A setup step's words; none for a step the protocol does not name.
+pub(crate) fn setup_step_words(step: &str) -> Option<&'static str> {
+    SETUP_STEP_WORDS.iter().find(|(s, _)| *s == step).map(|(_, w)| *w)
+}
+
+pub(crate) fn capitalised(word: &str) -> String {
+    let mut c = word.chars();
+    c.next().map_or_else(String::new, |f| f.to_uppercase().chain(c).collect())
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Status {
     #[default]
@@ -420,6 +459,11 @@ fn unseen_at(t: &Thread, ended: Option<f64>) -> Option<f64> {
 }
 
 /// The latest turn finished or was stopped, or a snooze ended, and no window has shown it since. A failure is no finish.
+/// `startFailed`: gone with no machine ever named, a create refused before any machine stood.
+pub fn start_failed(w: &Value) -> bool {
+    w.get("phase").and_then(Value::as_str) == Some("gone") && w.get("machineId").and_then(Value::as_str) == Some("")
+}
+
 pub fn thread_unread(t: &Thread) -> bool {
     matches!(t.status, Status::Completed | Status::Interrupted) && unseen_at(t, t.ended_at).is_some()
 }

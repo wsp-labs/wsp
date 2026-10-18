@@ -26,14 +26,17 @@ pub struct Restart {
 /// `NO_REASON`: what a refusal with no sentence says; the host client words one as the op having failed.
 pub const NO_REASON: &str = "The host answered with no reason. Try again.";
 
-/// `startRefusedLine`: the host's sentence, then another start; a refusal with no sentence asks for another try already.
+/// `startRefusedLine`: the host's sentence, then its fix, else another start; a refusal with no sentence asks for
+/// another try already.
 pub fn start_refused_line(refused: &Failure) -> String {
-    let said = refused.message.trim_end();
-    if said == NO_REASON || said == "workspaces.restartDaemon failed" {
-        return NO_REASON.to_owned();
+    let said = refused.said().trim_end();
+    // `refusalLine`: what happened, closed with a full stop where it does not close itself, then what to do.
+    let then = |fix: &str| format!("{said}{} {fix}", if said.ends_with(['.', '!', '?', ':']) { "" } else { "." });
+    match refused.fix.as_deref() {
+        Some(fix) => then(fix),
+        None if said == NO_REASON || said == "workspaces.restartDaemon failed" => NO_REASON.to_owned(),
+        None => then("Start again."),
     }
-    let stop = if said.ends_with(['.', '!', '?', ':']) { "" } else { "." };
-    format!("{said}{stop} Start again.")
 }
 
 /// Asks the host to start `workspace_id`'s daemon again, holding `state` busy until it answers.
@@ -147,6 +150,15 @@ mod tests {
         assert_eq!(start_refused_line(&Failure::new("no daemon for this computer.")), "no daemon for this computer. Start again.");
         assert_eq!(start_refused_line(&Failure::new(NO_REASON)), NO_REASON, "a refusal with no sentence already asks again");
         assert_eq!(start_refused_line(&Failure::new("workspaces.restartDaemon failed")), NO_REASON);
+        let fixed = Failure {
+            fix: Some("Run wsp add mini --update.".into()),
+            ..Failure::new("mini's daemon is too old Run wsp add mini --update.")
+        };
+        assert_eq!(
+            start_refused_line(&fixed),
+            "mini's daemon is too old. Run wsp add mini --update.",
+            "the host's fix takes the place of another start"
+        );
     }
 
     #[test]

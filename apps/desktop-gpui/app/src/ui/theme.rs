@@ -194,6 +194,7 @@ palette!(
     sidebar_rail,
     sidebar_row_rest,
     pr_merged,
+    hero_field,
     hue_red,
     hue_orange,
     hue_amber,
@@ -275,18 +276,34 @@ pub fn within<C: std::ops::DerefMut<Target = App>, R>(palette: Palette, cx: &mut
 /// Lays out, prepaints and paints `child` with `palette` as the active one, so a shared piece drawn inside reads the
 /// scope's tokens, as a CSS scope's custom properties reach every element under it.
 pub fn scoped(palette: Palette, child: impl IntoElement) -> Scoped {
-    Scoped { palette, child: child.into_any_element() }
+    Scoped { palette, kit: None, child: child.into_any_element() }
+}
+
+/// [`scoped`] in the whole theme `id` names, gpui-kit's own tokens too (a field's caret, selection and ring): a window
+/// that stands in one theme whatever the app's, which it leaves as it was.
+pub fn scoped_theme(id: &str, child: impl IntoElement, cx: &App) -> Scoped {
+    let entry = theme_by_id(id).unwrap_or_else(|| panic!("wsp has no theme {id}"));
+    let mut kit = Theme::global(cx).clone();
+    take(&mut kit, &config_of(entry, cx));
+    Scoped { palette: entry.palette(), kit: Some(kit), child: child.into_any_element() }
 }
 
 pub struct Scoped {
     palette: Palette,
+    kit: Option<Theme>,
     child: AnyElement,
 }
 
 impl Scoped {
     fn within<R>(&mut self, cx: &mut App, f: impl FnOnce(&mut AnyElement, &mut App) -> R) -> R {
         std::mem::swap(&mut cx.global_mut::<WspTheme>().palette, &mut self.palette);
+        if let Some(kit) = self.kit.as_mut() {
+            std::mem::swap(Theme::global_mut(cx), kit);
+        }
         let out = f(&mut self.child, cx);
+        if let Some(kit) = self.kit.as_mut() {
+            std::mem::swap(Theme::global_mut(cx), kit);
+        }
         std::mem::swap(&mut cx.global_mut::<WspTheme>().palette, &mut self.palette);
         out
     }
@@ -391,15 +408,22 @@ pub fn init(side: Side, cx: &mut App) {
 /// Draws every window in the theme `id` names.
 pub fn set_theme(id: &str, cx: &mut App) {
     let entry = theme_by_id(id).unwrap_or_else(|| panic!("wsp has no theme {id}"));
+    let config = config_of(entry, cx);
+    cx.set_global(WspTheme { entry, palette: entry.palette() });
+    Theme::update(cx, |theme| take(theme, &config));
+}
+
+fn config_of(entry: &ThemeEntry, cx: &App) -> Rc<ThemeConfig> {
     let config: Rc<ThemeConfig> =
         ThemeRegistry::global(cx).themes().get(&entry.name()).cloned().unwrap_or_else(|| panic!("{} is not registered", entry.word));
     debug_assert_eq!(config.mode, if entry.side == Side::Dark { ThemeMode::Dark } else { ThemeMode::Light });
-    cx.set_global(WspTheme { entry, palette: entry.palette() });
-    Theme::update(cx, |theme| {
-        theme.apply_config(&config);
-        // wsp's focused field tints its edge in the ring color and draws no ring outside it.
-        theme.focus_ring = false;
-    });
+    config
+}
+
+fn take(theme: &mut Theme, config: &Rc<ThemeConfig>) {
+    theme.apply_config(config);
+    // wsp's focused field tints its edge in the ring color and draws no ring outside it.
+    theme.focus_ring = false;
 }
 
 pub fn current(cx: &App) -> &'static ThemeEntry {

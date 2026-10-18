@@ -419,6 +419,11 @@ impl Sidebar {
         &self.prefs
     }
 
+    /// A workspace's record as the host last listed it, which says whether its start failed (`Failed::of`).
+    pub fn workspace(&self, id: &str) -> Option<&Value> {
+        self.around.workspaces.get(id)
+    }
+
     /// The rows the list draws, top to bottom.
     pub fn lines(&self) -> &[Line] {
         &self.lines

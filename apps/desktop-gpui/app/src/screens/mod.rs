@@ -6,6 +6,7 @@
 pub mod app_shell;
 pub mod composer;
 pub mod computer;
+pub mod dialogs;
 pub mod notices;
 pub mod palette;
 pub mod sidebar;
@@ -26,6 +27,10 @@ pub fn screen(name: &str) -> Option<Entry> {
         computer::Computer::NAME => Some(entry::<computer::Computer>()),
         slate::SlateScreen::NAME => Some(entry::<slate::SlateScreen>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
+        dialogs::AddComputerScreen::NAME => Some(entry::<dialogs::AddComputerScreen>()),
+        dialogs::AddCloudScreen::NAME => Some(entry::<dialogs::AddCloudScreen>()),
+        dialogs::AddProjectScreen::NAME => Some(entry::<dialogs::AddProjectScreen>()),
+        dialogs::ExportProjectScreen::NAME => Some(entry::<dialogs::ExportProjectScreen>()),
         _ => None,
     }
 }

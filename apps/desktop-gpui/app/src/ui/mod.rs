@@ -31,13 +31,13 @@ use gpui_kit::{px, App, Pixels};
 
 pub use act::{act_button, Act, Ask, Asks, Run};
 pub use card::{
-    chips, framed, glyph, glyph_frame, is_paste, section_head, word, Card, CardItem, Chip, HeadRow, KeyCaps, Line, Row, Taken, WordClass,
-    Words, RESET_WORD,
+    chips, fmt_bytes, framed, glyph, glyph_frame, is_paste, section_head, size_ink, word, Card, CardItem, Chip, HeadRow, KeyCaps, Line,
+    Row, Taken, WordClass, Words, RESET_WORD,
 };
 pub use chart::{Axis, Chart, ChartLine, Tick, CHART_HEIGHT};
 pub use computer_glyph::ComputerIcon;
-pub use controls::{Button, ButtonKind, Choice, Field, PickRow};
-pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, tip, AlertDialog, CopyRow, Dialog, Refusal};
+pub use controls::{checkbox_plain, Button, ButtonKind, Choice, Field, PickRow};
+pub use dialog::{narrow, quiet, shortcut_tooltip, shortcut_tooltip_view, tip, AlertDialog, CopyRow, Dialog, Refusal};
 pub use grain::grain;
 pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
 pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
@@ -46,7 +46,10 @@ pub use scrollbar::scroll_area;
 pub use segmented::Segmented;
 pub use select::{Select, SelectEvent, SelectItem, SelectState};
 pub use sparkline::Sparkline;
-pub use status::{spinner, step_mark, Crab, MarkState, RowSkeleton, Skeleton, Status, StatusMark, Step, StepRow, Still};
+pub use status::{
+    fmt_duration, fmt_elapsed, spinner, step_mark, step_refusal, Crab, MarkState, RowSkeleton, Skeleton, Status, StatusMark, Step, StepRow,
+    Still,
+};
 pub use stepper::Stepper;
 pub use theme::{ActivePalette, Palette, Side};
 pub use toast::{end_notice, notify, notify_in, Action as NoticeAction, Kind as NoticeKind, Notice};

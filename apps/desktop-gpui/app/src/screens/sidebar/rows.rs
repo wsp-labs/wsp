@@ -293,7 +293,7 @@ impl Sidebar {
         let p = cx.palette().clone();
         let project = self.workspace_project(id);
         let place = self.where_words(project.as_deref(), Some(id));
-        let failed = w.get("phase").and_then(Value::as_str) == Some("gone") && w.get("machineId").and_then(Value::as_str) == Some("");
+        let failed = model::start_failed(&w);
         let slot = failed.then(|| StatusMark::new(Status::Failed).text(px(11.), px(14.)).into_any_element());
         let name = w.get("name").and_then(Value::as_str).unwrap_or_default().to_owned();
         let hover = p.sidebar_row_hover;
