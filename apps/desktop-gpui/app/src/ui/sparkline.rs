@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! `ChartPlot` with no end dot, as a tile or a live band draws it: the rule lines or none, the baseline, and each run
+//! as a 1.5 px line over a fill that fades down from its ink. A gap in the readings is a break between runs.
+
+use gpui_kit::{canvas, div, linear_color_stop, linear_gradient, point, prelude::*, px, App, Bounds, Hsla, PathBuilder, Pixels, Window};
+
+use super::theme::ActivePalette;
+
+/// `CHART_PAD` of `CHART_H`: the room kept above the top and below the baseline.
+const PAD: f32 = 1. / 96.;
+
+#[derive(IntoElement)]
+pub struct Sparkline {
+    runs: Vec<Vec<(f32, f32)>>,
+    ink: Hsla,
+    rules: bool,
+    fill: f32,
+    height: Pixels,
+}
+
+impl Sparkline {
+    /// One run in `ink`, its points 0 to 1 across and 0 to 1 up, with the rules, a fill from 20% and `ChartPlot`'s
+    /// `h-24`.
+    pub fn new(points: Vec<(f32, f32)>, ink: Hsla) -> Self {
+        Sparkline { runs: vec![points], ink, rules: true, fill: 0.2, height: px(96.) }
+    }
+
+    /// Runs with a break between each, where the readings stopped.
+    pub fn runs(runs: Vec<Vec<(f32, f32)>>, ink: Hsla) -> Self {
+        Sparkline { runs, ..Sparkline::new(Vec::new(), ink) }
+    }
+
+    /// `rules={false}`: no rule lines, the baseline at the border's 60%.
+    pub fn no_rules(mut self) -> Self {
+        self.rules = false;
+        self
+    }
+
+    /// `fillOpacity`: the fill's ink at the top.
+    pub fn fill(mut self, opacity: f32) -> Self {
+        self.fill = opacity;
+        self
+    }
+
+    pub fn height(mut self, height: Pixels) -> Self {
+        self.height = height;
+        self
+    }
+}
+
+impl RenderOnce for Sparkline {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let border = cx.palette().border;
+        let Sparkline { runs, ink, rules, fill, height } = self;
+        let base = if rules { border } else { border.opacity(0.6) };
+        let plot = canvas(
+            |_, _, _| {},
+            move |bounds: Bounds<Pixels>, _, window: &mut Window, _| {
+                let (o, w, h) = (bounds.origin, bounds.size.width, bounds.size.height);
+                let pad = h * PAD;
+                let y_at = |v: f32| o.y + pad + (h - pad * 2.) * (1. - v);
+                let mut rule = |y: Pixels, dashed: bool, ink: Hsla| {
+                    let mut line = PathBuilder::stroke(px(1.));
+                    if dashed {
+                        line = line.dash_array(&[px(2.), px(3.)]);
+                    }
+                    line.move_to(point(o.x, y));
+                    line.line_to(point(o.x + w, y));
+                    if let Ok(path) = line.build() {
+                        window.paint_path(path, ink);
+                    }
+                };
+                if rules {
+                    for at in [0.25, 0.5, 0.75, 1.] {
+                        rule(y_at(at), at < 1., border);
+                    }
+                }
+                rule(o.y + h - pad, false, base);
+                let at = |(x, y): (f32, f32)| point(o.x + w * x, y_at(y));
+                for run in runs.iter().filter(|r| !r.is_empty()) {
+                    let (first, last) = (run[0], run[run.len() - 1]);
+                    if run.len() > 1 {
+                        let mut area = PathBuilder::fill();
+                        area.move_to(at(first));
+                        for pt in &run[1..] {
+                            area.line_to(at(*pt));
+                        }
+                        area.line_to(point(o.x + w * last.0, o.y + h));
+                        area.line_to(point(o.x + w * first.0, o.y + h));
+                        area.close();
+                        if let Ok(path) = area.build() {
+                            let fade =
+                                linear_gradient(180., linear_color_stop(ink.opacity(fill), 0.), linear_color_stop(ink.opacity(0.), 1.));
+                            window.paint_path(path, fade);
+                        }
+                    }
+                    let mut line = PathBuilder::stroke(px(1.5));
+                    line.move_to(at(first));
+                    for pt in run.iter().skip(1) {
+                        line.line_to(at(*pt));
+                    }
+                    if run.len() == 1 {
+                        line.line_to(at(first));
+                    }
+                    if let Ok(path) = line.build() {
+                        window.paint_path(path, ink);
+                    }
+                }
+            },
+        )
+        .size_full();
+        div().debug_selector(|| "sparkline".into()).w_full().h(height).child(plot)
+    }
+}

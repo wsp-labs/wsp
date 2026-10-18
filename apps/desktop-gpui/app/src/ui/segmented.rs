@@ -28,17 +28,28 @@ struct Segment {
 pub struct Segmented {
     id: SharedString,
     segments: Vec<Segment>,
-    picked: usize,
+    picked: Option<usize>,
     height: Pixels,
     text: (Pixels, Pixels),
     pad: Pixels,
+    glyph: (Pixels, Pixels),
     on_pick: Option<Pick>,
 }
 
 impl Segmented {
-    /// The control at its default `h-8`, its segments `px-3 text-[13px] leading-none`.
-    pub fn new(id: impl Into<SharedString>, picked: usize) -> Self {
-        Segmented { id: id.into(), segments: Vec::new(), picked, height: px(32.), text: (px(13.), px(13.)), pad: px(12.), on_pick: None }
+    /// The control at its default `h-8`, its segments `px-3 text-[13px] leading-none`; none picked where the value the
+    /// caller holds is none of the segments'.
+    pub fn new(id: impl Into<SharedString>, picked: impl Into<Option<usize>>) -> Self {
+        Segmented {
+            id: id.into(),
+            segments: Vec::new(),
+            picked: picked.into(),
+            height: px(32.),
+            text: (px(13.), px(13.)),
+            pad: px(12.),
+            glyph: (px(16.), px(8.)),
+            on_pick: None,
+        }
     }
 
     pub fn segment(mut self, label: impl Into<SharedString>) -> Self {
@@ -46,7 +57,7 @@ impl Segmented {
         self
     }
 
-    /// A segment led by its glyph, 8 px before the label.
+    /// A segment led by its glyph, by default 16 px and 8 px before the label.
     pub fn glyph_segment(mut self, glyph: Glyph, label: impl Into<SharedString>) -> Self {
         self.segments.push(Segment { label: label.into(), glyph: Some(glyph), held: None });
         self
@@ -71,15 +82,25 @@ impl Segmented {
         self
     }
 
+    /// The glyphs' size and the gap after them.
+    pub fn glyph_size(mut self, size: Pixels, gap: Pixels) -> Self {
+        self.glyph = (size, gap);
+        self
+    }
+
     pub fn on_pick(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_pick = Some(Rc::new(f));
         self
     }
 }
 
-/// The segment an arrow lands on from `from`, round the ends and past the held ones; none where none can be picked.
-pub fn step(open: &[bool], from: usize, forward: bool) -> Option<usize> {
+/// The segment an arrow lands on from `from`, round the ends and past the held ones, from either end where none is
+/// picked; none where none can be picked.
+pub fn step(open: &[bool], from: Option<usize>, forward: bool) -> Option<usize> {
     let n = open.len();
+    let Some(from) = from else {
+        return if forward { open.iter().position(|o| *o) } else { open.iter().rposition(|o| *o) };
+    };
     (1..=n).map(|k| if forward { (from + k) % n } else { (from + n * 2 - k) % n }).find(|&ix| open[ix] && ix != from)
 }
 
@@ -95,7 +116,7 @@ impl RenderOnce for Segmented {
             vec![BoxShadow { color: p.ring, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(2.), inset: false }];
         let open: Vec<bool> = self.segments.iter().map(|s| s.held.is_none()).collect();
         let (picked, on_pick) = (self.picked, self.on_pick.clone());
-        let ((font, line), pad) = (self.text, self.pad);
+        let ((font, line), pad, (glyph, gap)) = (self.text, self.pad, self.glyph);
         h_flex()
             .id(self.id.clone())
             .debug_selector(|| "segmented".into())
@@ -120,7 +141,7 @@ impl RenderOnce for Segmented {
             .border_1()
             .border_color(p.border)
             .children(self.segments.into_iter().enumerate().map(|(ix, segment)| {
-                let is_picked = ix == picked;
+                let is_picked = picked == Some(ix);
                 let held = segment.held.is_some();
                 let ink = if is_picked { p.foreground } else { p.muted_foreground };
                 let on_pick = self.on_pick.clone().filter(|_| !is_picked && !held);
@@ -130,7 +151,7 @@ impl RenderOnce for Segmented {
                     .debug_selector(|| "segment".into())
                     .justify_center()
                     .px(pad)
-                    .gap(px(8.))
+                    .gap(gap)
                     .rounded(SEGMENT_RADIUS)
                     .text_size(font)
                     .line_height(line)
@@ -142,7 +163,7 @@ impl RenderOnce for Segmented {
                     .when_some(segment.held, |el, why| {
                         el.tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(why.clone()).build(window, cx))
                     })
-                    .children(segment.glyph.map(|g| Icon::new(g).with_size(px(16.))))
+                    .children(segment.glyph.map(|g| Icon::new(g).with_size(glyph)))
                     .child(segment.label)
                     .when_some(on_pick, |el, f| {
                         el.on_click(move |_, window, cx| {
@@ -161,11 +182,18 @@ mod tests {
     #[test]
     fn the_arrows_go_round_the_ends_and_past_held_segments() {
         let open = [true, true, true];
-        assert_eq!(step(&open, 0, true), Some(1));
-        assert_eq!(step(&open, 2, true), Some(0));
-        assert_eq!(step(&open, 0, false), Some(2));
-        assert_eq!(step(&[true, false, true], 0, true), Some(2));
-        assert_eq!(step(&[true, false, true], 2, false), Some(0));
-        assert_eq!(step(&[true, false], 0, true), None);
+        assert_eq!(step(&open, Some(0), true), Some(1));
+        assert_eq!(step(&open, Some(2), true), Some(0));
+        assert_eq!(step(&open, Some(0), false), Some(2));
+        assert_eq!(step(&[true, false, true], Some(0), true), Some(2));
+        assert_eq!(step(&[true, false, true], Some(2), false), Some(0));
+        assert_eq!(step(&[true, false], Some(0), true), None);
+    }
+
+    #[test]
+    fn with_none_picked_the_arrows_start_from_the_open_end() {
+        assert_eq!(step(&[false, true, true, false], None, true), Some(1));
+        assert_eq!(step(&[false, true, true, false], None, false), Some(2));
+        assert_eq!(step(&[false, false], None, true), None);
     }
 }

@@ -89,6 +89,8 @@ macro_rules! palette {
             control_shadow: Vec<ShadowSpec>,
             tooltip_shadow: Vec<ShadowSpec>,
             composer_shadow: Vec<ShadowSpec>,
+            thumb_shadow: Vec<ShadowSpec>,
+            dropdown_shadow: Vec<ShadowSpec>,
         }
 
         /// wsp's tokens, named as `apps/web/src/index.css` and the theme sheets name them, resolved to sRGB.
@@ -100,6 +102,10 @@ macro_rules! palette {
             pub control_shadow: Vec<BoxShadow>,
             pub tooltip_shadow: Vec<BoxShadow>,
             pub composer_shadow: Vec<BoxShadow>,
+            /// `shadow-sm/5`, a switch's thumb.
+            pub thumb_shadow: Vec<BoxShadow>,
+            /// `dropdown-glass`'s shadow, and in dark `popover-shadow` over it: a select's list.
+            pub dropdown_shadow: Vec<BoxShadow>,
         }
 
         impl From<&PaletteSpec> for Palette {
@@ -111,6 +117,8 @@ macro_rules! palette {
                     control_shadow: shadows(&spec.control_shadow),
                     tooltip_shadow: shadows(&spec.tooltip_shadow),
                     composer_shadow: shadows(&spec.composer_shadow),
+                    thumb_shadow: shadows(&spec.thumb_shadow),
+                    dropdown_shadow: shadows(&spec.dropdown_shadow),
                 }
             }
         }
@@ -133,15 +141,19 @@ palette!(
     input_fill,
     input_fill_hover,
     keycap_top,
+    chip_top,
+    skeleton_highlight,
     popover,
     popover_edge,
     ring,
     success,
     warning,
     warning_foreground,
+    yellow_foreground,
     error,
     error_foreground,
     destructive,
+    on_destructive,
     info_foreground,
     placeholder,
     sidebar,
@@ -150,6 +162,11 @@ palette!(
     sidebar_row_hover,
     sidebar_row_selected,
     sidebar_row_edge,
+    sidebar_border,
+    sidebar_whisper,
+    top_row_meta,
+    sidebar_prose,
+    sidebar_icon_color,
     status_input,
     status_working,
     status_failed,
@@ -159,6 +176,14 @@ palette!(
     composer_menu_outline,
     button_light,
     destructive_ink,
+    hue_red,
+    hue_orange,
+    hue_amber,
+    hue_green,
+    hue_teal,
+    hue_blue,
+    hue_violet,
+    hue_pink,
 );
 
 #[derive(Deserialize)]

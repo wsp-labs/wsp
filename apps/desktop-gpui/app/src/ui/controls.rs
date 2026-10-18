@@ -3,39 +3,44 @@
 //! or a checkbox at the left of a row), and the tactile keycap buttons.
 
 use gpui_kit::component::input::{Input, InputState};
-use gpui_kit::component::searchable_list::SearchableVec;
-use gpui_kit::component::select::{Select as KitSelect, SelectState};
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme, FocusableExt as _, Icon, Sizable as _};
-use gpui_kit::{div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, Entity, FontWeight, Hsla, SharedString, Window};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
+use gpui_kit::{
+    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, Entity, Focusable as _, FontWeight, Hsla, MouseButton, Pixels,
+    SharedString, Window,
+};
 
-use super::card::{glyph_frame, row_frame, CardItem, Corners};
+use super::card::{framed, glyph_frame, row_frame, CardItem, Corners};
+use super::dialog::tip;
+use super::focus::ring;
 use super::icons::{Glyph, TICK};
+use super::motion;
 use super::theme::{ActivePalette, Palette};
 use super::{size, text};
 
 type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+type SharedClick = std::rc::Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// A held control waits on something beside it: dimmed in its own look, and nothing else.
 const HELD: f32 = 0.64;
 
 /// How a held control's parts read: the web dims the control as one layer, but GPUI fades each fill, edge and glyph
 /// on its own, which stacks them; so each part is drawn solid in the color the dimmed layer shows over the page.
-struct Dim {
+pub(super) struct Dim {
     page: Hsla,
     ground: Hsla,
 }
 
 impl Dim {
-    fn new(page: Hsla, fill: Hsla) -> Self {
+    pub(super) fn new(page: Hsla, fill: Hsla) -> Self {
         Dim { page, ground: page.blend(fill) }
     }
 
-    fn fill(&self) -> Hsla {
+    pub(super) fn fill(&self) -> Hsla {
         self.page.blend(self.ground.opacity(HELD))
     }
 
     /// A part drawn over the control's fill.
-    fn over(&self, part: Hsla) -> Hsla {
+    pub(super) fn over(&self, part: Hsla) -> Hsla {
         self.page.blend(self.ground.blend(part).opacity(HELD))
     }
 }
@@ -53,8 +58,15 @@ pub enum ButtonKind {
     Outline,
     /// No edge, the muted ink, the accent fill under the pointer.
     Ghost,
+    /// The ghost for an act that does not come back: the danger ink under the pointer.
+    GhostDanger,
     /// A quiet word with no padding, so its text edge is its box edge.
     Text,
+    /// The act that does not come back, red at rest: a destructive dialog's confirm.
+    Destructive,
+    /// `DANGER_BUTTON`: the outline door to a destructive dialog, neutral at rest, the danger edge and ink under the
+    /// pointer.
+    Danger,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -76,12 +88,35 @@ pub struct Button {
     label: Option<SharedString>,
     glyph: Option<Glyph>,
     held: bool,
+    busy: bool,
+    neutral_ring: bool,
+    tooltip: Option<SharedString>,
+    /// A height other than the size's own: a toolbar's Add stands at 30 px (`h-[30px]`).
+    height: Option<Pixels>,
+    /// An icon button's side other than its size's: a row menu's 20 px trigger.
+    side: Option<Pixels>,
+    /// Corners other than the size's radius all round: a stepper's ends are square where they meet its number.
+    corners: Option<gpui_kit::Corners<Pixels>>,
     on_click: Option<Click>,
 }
 
 impl Button {
     fn new(id: impl Into<SharedString>, kind: ButtonKind, label: impl Into<SharedString>) -> Self {
-        Button { id: id.into(), kind, size: ButtonSize::Default, label: Some(label.into()), glyph: None, held: false, on_click: None }
+        Button {
+            id: id.into(),
+            kind,
+            size: ButtonSize::Default,
+            label: Some(label.into()),
+            glyph: None,
+            held: false,
+            busy: false,
+            neutral_ring: false,
+            tooltip: None,
+            height: None,
+            side: None,
+            corners: None,
+            on_click: None,
+        }
     }
 
     pub fn primary(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
@@ -90,6 +125,27 @@ impl Button {
 
     pub fn outline(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         Button::new(id, ButtonKind::Outline, label)
+    }
+
+    /// No edge and the muted ink, the accent fill under the pointer: Restore defaults, `.xs().glyph(Glyph::RotateCcw)`.
+    pub fn ghost(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Button::new(id, ButtonKind::Ghost, label)
+    }
+
+    /// A quiet link to an act that does not come back, as Cancel the build: neutral at rest, the danger ink under the
+    /// pointer.
+    pub fn ghost_danger(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Button::new(id, ButtonKind::GhostDanger, label)
+    }
+
+    /// The red confirm of a destructive dialog: Remove, Revoke, Delete.
+    pub fn destructive(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Button::new(id, ButtonKind::Destructive, label)
+    }
+
+    /// The outline door to a destructive dialog (`DANGER_BUTTON`); the red stands in the dialog, not the row.
+    pub fn danger(id: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Button::new(id, ButtonKind::Danger, label)
     }
 
     /// The quiet word, as Skip for now.
@@ -111,6 +167,12 @@ impl Button {
             label: None,
             glyph: Some(glyph),
             held: false,
+            busy: false,
+            neutral_ring: false,
+            tooltip: None,
+            height: None,
+            side: None,
+            corners: None,
             on_click: None,
         }
     }
@@ -131,8 +193,44 @@ impl Button {
         self
     }
 
+    /// A height other than the size's own; a square keeps its size's width, as CSS's `size-6 h-full`.
+    pub fn height(mut self, height: Pixels) -> Self {
+        self.height = Some(height);
+        self
+    }
+
+    /// An icon button's side other than its size's, as the row menu's `size-5`.
+    pub fn side(mut self, side: Pixels) -> Self {
+        self.side = Some(side);
+        self
+    }
+
+    pub fn corners(mut self, corners: gpui_kit::Corners<Pixels>) -> Self {
+        self.corners = Some(corners);
+        self
+    }
+
     pub fn held(mut self, held: bool) -> Self {
         self.held = held;
+        self
+    }
+
+    /// Its road is running: held, a labelled button's glyph gives way to the spinner and an icon button's own glyph
+    /// turns, as the web's `Spinner` in an act and the head's turning refresh do.
+    pub fn busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
+        self
+    }
+
+    /// `NEUTRAL_RING`: the muted focus ring, for the Cancel standing beside a destructive confirm.
+    pub fn neutral_ring(mut self) -> Self {
+        self.neutral_ring = true;
+        self
+    }
+
+    /// The word or sentence on its hover: an icon button's name.
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
 
@@ -143,73 +241,109 @@ impl Button {
 }
 
 impl RenderOnce for Button {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
+        let held = self.held || self.busy;
         let transparent = gpui_kit::transparent_black();
-        let (fill, edge, ink, glyph_ink, hover) = match self.kind {
-            ButtonKind::Primary => (p.primary, p.primary, p.primary_foreground, p.primary_foreground, Some(p.primary_hover)),
-            ButtonKind::Outline => (p.input_fill, p.input, p.foreground, p.muted_foreground, Some(p.input_fill_hover)),
-            ButtonKind::Ghost => (transparent, transparent, p.muted_foreground, p.muted_foreground, Some(p.accent)),
-            ButtonKind::Text => (transparent, transparent, p.muted_foreground, p.muted_foreground, None),
+        // At rest, then under the pointer: fill, edge, ink.
+        let (rest, over, glyph_ink) = match self.kind {
+            ButtonKind::Primary => {
+                ((p.primary, p.primary, p.primary_foreground), (p.primary_hover, p.primary, p.primary_foreground), p.primary_foreground)
+            }
+            ButtonKind::Outline => ((p.input_fill, p.input, p.foreground), (p.input_fill_hover, p.input, p.foreground), p.muted_foreground),
+            ButtonKind::Danger => (
+                (p.input_fill, p.input, p.foreground),
+                (p.input_fill_hover, p.destructive.opacity(0.5), p.error_foreground),
+                p.muted_foreground,
+            ),
+            ButtonKind::Destructive => (
+                (p.destructive, p.destructive, p.on_destructive),
+                (p.destructive.opacity(0.9), p.destructive, p.on_destructive),
+                p.on_destructive,
+            ),
+            ButtonKind::Ghost => {
+                ((transparent, transparent, p.muted_foreground), (p.accent, transparent, p.foreground), p.muted_foreground)
+            }
+            ButtonKind::GhostDanger => {
+                ((transparent, transparent, p.muted_foreground), (p.accent, transparent, p.error_foreground), p.muted_foreground)
+            }
+            ButtonKind::Text => {
+                ((transparent, transparent, p.muted_foreground), (transparent, transparent, p.foreground), p.muted_foreground)
+            }
         };
-        let (height, pad, (font, line), gap, glyph_size) = match self.size {
+        let (side, pad, (font, line), gap, glyph_size) = match self.size {
             ButtonSize::Default => (px(32.), px(12.), (text::BUTTON, px(19.5)), px(6.), px(14.)),
             ButtonSize::Xs => (px(24.), px(8.), text::XS, px(4.), px(14.)),
             ButtonSize::Icon => (px(28.), px(0.), (text::BUTTON, px(19.5)), px(0.), px(16.)),
             ButtonSize::IconXs => (px(24.), px(0.), (text::BUTTON, px(19.5)), px(0.), px(14.)),
         };
+        let side = self.side.unwrap_or(side);
+        let height = self.height.unwrap_or(side);
+        let hovered = motion::hovered(self.id.clone(), window, cx);
+        let (fill, edge, ink) = if *hovered.read(cx) && !held { over } else { rest };
         let mut keycap = bevel(&p);
-        let (fill, edge, ink, glyph_ink) = if self.held {
+        let (fill, edge, ink, glyph_ink) = if held {
             let dim = Dim::new(p.background, fill);
             keycap[0].color = dim.over(p.keycap_top);
             let edge = if edge.a > 0. { dim.over(edge) } else { edge };
             let fill = if fill.a > 0. { dim.fill() } else { fill };
             (fill, edge, dim.over(ink), dim.over(glyph_ink))
         } else {
-            (fill, edge, ink, glyph_ink)
+            let id = self.id.clone();
+            let fill = motion::ease_ink(id.clone(), "fill", fill, motion::COLORS, window, cx);
+            let edge = motion::ease_ink(id.clone(), "edge", edge, motion::COLORS, window, cx);
+            (fill, edge, motion::ease_ink(id, "ink", ink, motion::COLORS, window, cx), glyph_ink)
         };
         let square = matches!(self.size, ButtonSize::Icon | ButtonSize::IconXs);
         let pad = if self.kind == ButtonKind::Text { px(0.) } else { pad };
-        let weight = if matches!(self.kind, ButtonKind::Ghost | ButtonKind::Text) { FontWeight::NORMAL } else { FontWeight::MEDIUM };
+        let weight = if matches!(self.kind, ButtonKind::Ghost | ButtonKind::GhostDanger | ButtonKind::Text) {
+            FontWeight::NORMAL
+        } else {
+            FontWeight::MEDIUM
+        };
+        // `NEUTRAL_RING`: a blue ring between a neutral button and a red one says nothing about either.
+        let ring_ink = if self.kind == ButtonKind::Destructive || self.neutral_ring { p.muted_foreground } else { p.ring };
         h_flex()
             .id(self.id)
             .debug_selector(|| "button".into())
             .flex_none()
             .justify_center()
             .h(height)
-            .when(square, |el| el.w(height))
+            .when(square, |el| el.w(side))
             .px(pad)
             .gap(gap)
-            .rounded(size::BUTTON_RADIUS)
+            .map(|el| match self.corners {
+                Some(c) => el.rounded_tl(c.top_left).rounded_tr(c.top_right).rounded_br(c.bottom_right).rounded_bl(c.bottom_left),
+                None => el.rounded(size::BUTTON_RADIUS),
+            })
             .border_1()
             .border_color(edge)
             .bg(fill)
             // GPUI paints an inset shadow under the border, where CSS keeps it inside; a child filling the padding box holds it there.
-            .when(matches!(self.kind, ButtonKind::Primary | ButtonKind::Outline), |el| {
+            .when(!matches!(self.kind, ButtonKind::Ghost | ButtonKind::GhostDanger | ButtonKind::Text), |el| {
                 el.child(div().absolute().inset_0().rounded(size::BUTTON_RADIUS - px(1.)).shadow(keycap))
             })
             .text_size(font)
             .line_height(line)
             .font_weight(weight)
             .text_color(ink)
-            .children(self.glyph.map(|g| Icon::new(g).with_size(glyph_size).text_color(glyph_ink)))
+            .children(match (self.busy, self.glyph) {
+                (true, glyph) => {
+                    let glyph = if self.label.is_some() { Glyph::LoaderCircle } else { glyph.unwrap_or(Glyph::LoaderCircle) };
+                    Some(super::status::turning(Icon::new(glyph).with_size(glyph_size).text_color(glyph_ink), window, cx))
+                }
+                (false, glyph) => glyph.map(|g| Icon::new(g).with_size(glyph_size).text_color(glyph_ink)),
+            })
             .children(self.label)
             .map(|el| {
-                if self.held {
+                if held {
                     return el;
                 }
                 el.cursor_pointer()
-                    .hover(|s| {
-                        let s = match hover {
-                            Some(hover) => s.bg(hover),
-                            None => s,
-                        };
-                        if matches!(self.kind, ButtonKind::Ghost | ButtonKind::Text) {
-                            s.text_color(p.foreground)
-                        } else {
-                            s
-                        }
-                    })
+                    .tab_index(0)
+                    .focus_visible(|s| s.shadow(vec![ring(ring_ink)]))
+                    .on_hover(motion::track_hover(hovered))
+                    .when_some(self.tooltip, |el, t| el.tooltip(tip(t)))
                     .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
             })
     }
@@ -243,23 +377,40 @@ fn checkbox(checked: bool, cx: &App) -> impl IntoElement {
     })
 }
 
-/// The words of a pick: the name in `LIST_TITLE`, muted while not picked, and its note under it.
-fn pick_words(name: SharedString, note: Option<SharedString>, on: bool, cx: &App) -> impl IntoElement {
+/// The words of a pick: the name in `LIST_TITLE`, muted while not picked, a tag and marks after it, and its note under
+/// it.
+fn pick_words(
+    name: SharedString,
+    tag: Option<SharedString>,
+    marks: Option<AnyElement>,
+    note: Option<SharedString>,
+    on: bool,
+    cx: &App,
+) -> impl IntoElement {
     let p = cx.palette();
     let ink: Hsla = if on { p.foreground } else { p.muted_foreground };
     v_flex()
         .flex_1()
         .min_w_0()
         .child(
-            h_flex().flex_wrap().items_baseline().gap_x_2().child(
-                div()
-                    .debug_selector(|| "title".into())
-                    .text_size(text::LIST_TITLE.0)
-                    .line_height(text::LIST_TITLE.1)
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(ink)
-                    .child(name),
-            ),
+            h_flex()
+                .flex_wrap()
+                .items_baseline()
+                .gap_x_2()
+                .child(
+                    div()
+                        .debug_selector(|| "title".into())
+                        .text_size(text::LIST_TITLE.0)
+                        .line_height(text::LIST_TITLE.1)
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(ink)
+                        .child(name),
+                )
+                .children(tag.map(|tag| {
+                    div().debug_selector(|| "pick-tag".into()).flex_none().text_size(text::FACT).text_color(p.muted_foreground).child(tag)
+                }))
+                // The web's marks sit on the name's baseline by their bottom edge: 3.5 px down a 24 px line of 15 px type.
+                .children(marks.map(|marks| div().flex_none().self_start().mt(px(3.5)).child(marks))),
         )
         .children(note.map(|note| {
             div()
@@ -276,24 +427,73 @@ struct Pick {
     id: SharedString,
     on: bool,
     glyph: Option<Glyph>,
+    /// A mark of the thing's own in the frame in place of a glyph: an agent's logo.
+    framed: Option<AnyElement>,
     name: SharedString,
+    tag: Option<SharedString>,
+    marks: Option<AnyElement>,
     note: Option<SharedString>,
-    on_click: Option<Click>,
+    slot: Option<AnyElement>,
+    on_click: Option<SharedClick>,
     corners: Corners,
 }
 
 impl Pick {
     fn new(id: impl Into<SharedString>, name: impl Into<SharedString>, on: bool) -> Self {
-        Pick { id: id.into(), on, glyph: None, name: name.into(), note: None, on_click: None, corners: Corners::default() }
+        Pick {
+            id: id.into(),
+            on,
+            glyph: None,
+            framed: None,
+            name: name.into(),
+            tag: None,
+            marks: None,
+            note: None,
+            slot: None,
+            on_click: None,
+            corners: Corners::default(),
+        }
     }
 
-    fn render(self, mark: impl IntoElement, cx: &App) -> AnyElement {
-        let words = pick_words(self.name, self.note, self.on, cx);
-        let lead = h_flex().flex_1().min_w_0().gap_3().child(mark).children(self.glyph.map(|g| glyph_frame(g, cx))).child(words);
-        row_frame(&self.id, size::ROW_FLOOR, self.corners)
+    /// The mark is the tab stop and wears the ring, as the web's radio and checkbox do; the whole row takes a press.
+    fn render(self, mark: impl IntoElement, radius: Pixels, floor: Pixels, cx: &App) -> AnyElement {
+        let ring_ink = cx.palette().ring;
+        let words = pick_words(self.name, self.tag, self.marks, self.note, self.on, cx);
+        let keyed = self.on_click.clone();
+        let mark = div()
+            .id(SharedString::from(format!("{}-mark", self.id)))
+            .flex_none()
+            .rounded(radius)
+            .tab_index(0)
+            .focus_visible(move |s| s.shadow(vec![ring(ring_ink)]))
+            .when_some(keyed, |el, f| {
+                el.on_click(move |e, window, cx| {
+                    cx.stop_propagation();
+                    f(e, window, cx)
+                })
+            })
+            .child(mark);
+        let frame = match (self.framed, self.glyph) {
+            (Some(own), _) => Some(framed(own, cx).into_any_element()),
+            (None, Some(g)) => Some(glyph_frame(g, cx).into_any_element()),
+            (None, None) => None,
+        };
+        let lead = h_flex().flex_1().min_w_0().gap_3().child(mark).children(frame).child(words);
+        // A press on the slot's fact or control is not a tick, as the web's slot prevents its label's click.
+        let slot = self.slot.map(|slot| {
+            h_flex()
+                .debug_selector(|| "pick-slot".into())
+                .flex_none()
+                .min_w_0()
+                .justify_end()
+                .gap_3()
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(slot)
+        });
+        row_frame(&self.id, floor, self.corners)
             .cursor_pointer()
             .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
-            .child(lead)
+            .child(h_flex().gap_5().child(lead).children(slot))
             .into_any_element()
     }
 }
@@ -312,7 +512,7 @@ macro_rules! pick_builders {
             }
 
             pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
-                self.0.on_click = Some(Box::new(f));
+                self.0.on_click = Some(std::rc::Rc::new(f));
                 self
             }
         }
@@ -335,7 +535,7 @@ pick_builders!(Choice);
 impl RenderOnce for Choice {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let mark = radio(self.0.on, cx);
-        self.0.render(mark, cx)
+        self.0.render(mark, px(8.), size::ROW_FLOOR, cx)
     }
 }
 
@@ -357,10 +557,38 @@ impl PickRow {
 
 pick_builders!(PickRow);
 
+impl PickRow {
+    /// The thing's own mark in the frame, in place of a glyph: an agent's logo.
+    pub fn framed(mut self, mark: impl IntoElement) -> Self {
+        self.0.framed = Some(mark.into_any_element());
+        self
+    }
+
+    /// A version or a path, in the `FACT` class after the name.
+    pub fn tag(mut self, tag: impl Into<SharedString>) -> Self {
+        self.0.tag = Some(tag.into());
+        self
+    }
+
+    /// The marks of the agents a thing is set up for, after the name.
+    pub fn marks(mut self, marks: impl IntoElement) -> Self {
+        self.0.marks = Some(marks.into_any_element());
+        self
+    }
+
+    /// One control or the facts at the right.
+    pub fn slot(mut self, slot: impl IntoElement) -> Self {
+        self.0.slot = Some(slot.into_any_element());
+        self
+    }
+}
+
 impl RenderOnce for PickRow {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let mark = checkbox(self.0.on, cx);
-        self.0.render(mark, cx)
+        // The web's rule stands on the row's wrapper, outside the label's floor, where a choice's stands inside it.
+        let floor = size::ROW_FLOOR + if self.0.corners.rule.is_some() { px(1.) } else { px(0.) };
+        self.0.render(mark, px(4.), floor, cx)
     }
 }
 
@@ -370,52 +598,8 @@ impl From<PickRow> for CardItem {
     }
 }
 
-/// The state a select in a row reads and writes.
-pub type SelectList = SelectState<SearchableVec<SharedString>>;
-
-/// A select in a row at `SELECT_WIDTH`: gpui-kit's select, its trigger drawn to wsp's size.
-#[derive(IntoElement)]
-pub struct Select {
-    state: Entity<SelectList>,
-    held: bool,
-}
-
-impl Select {
-    pub fn new(state: &Entity<SelectList>) -> Self {
-        Select { state: state.clone(), held: false }
-    }
-
-    pub fn held(mut self, held: bool) -> Self {
-        self.held = held;
-        self
-    }
-}
-
-impl RenderOnce for Select {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let p = cx.palette();
-        let chevron = Icon::new(Glyph::ChevronDown).opacity(0.5).mr(px(-4.));
-        let dim = Dim::new(p.background, p.input_fill);
-        let (edge, fill, ink) =
-            if self.held { (dim.over(p.input), dim.fill(), dim.over(p.foreground)) } else { (p.input, p.input_fill, p.foreground) };
-        let select = KitSelect::new(&self.state)
-            .icon(chevron)
-            .focus_ring(false)
-            .w(size::SELECT_WIDTH)
-            .h(size::CONTROL_HEIGHT)
-            .rounded(size::CONTROL_RADIUS)
-            .px(px(9.))
-            .py_0()
-            .border_color(edge)
-            .bg(fill)
-            .text_color(ink)
-            .text_size(text::FACT);
-        field_frame(select, self.held)
-    }
-}
-
 /// A control at the row's width that, while held, lets nothing through.
-fn field_frame(control: impl IntoElement, held: bool) -> impl IntoElement {
+fn field_frame(control: impl IntoElement, held: bool) -> gpui_kit::Div {
     div()
         .debug_selector(|| "control".into())
         .relative()
@@ -426,29 +610,134 @@ fn field_frame(control: impl IntoElement, held: bool) -> impl IntoElement {
         .when(held, |el| el.child(div().absolute().inset_0().occlude()))
 }
 
-/// A field a person types into in a row (`ROW_FIELD`): gpui-kit's input at the select's height and size.
+/// A field a person types into: in a row (`ROW_FIELD`), gpui-kit's input at the select's height and size; in a sheet
+/// (`FIELD`), 40 px across the sheet. Held, it keeps its look at 64% and takes nothing; invalid, its edge takes the
+/// destructive ink, stronger while it has focus.
 #[derive(IntoElement)]
 pub struct Field {
     state: Entity<InputState>,
+    held: bool,
+    invalid: bool,
+    sheet: Option<bool>,
 }
 
 impl Field {
     pub fn new(state: &Entity<InputState>) -> Self {
-        Field { state: state.clone() }
+        Field { state: state.clone(), held: false, invalid: false, sheet: None }
+    }
+
+    pub fn held(mut self, held: bool) -> Self {
+        self.held = held;
+        self
+    }
+
+    /// What it holds was refused: `aria-invalid` while the refusal stands under it.
+    pub fn invalid(mut self, invalid: bool) -> Self {
+        self.invalid = invalid;
+        self
+    }
+
+    /// The sheet's field, 40 px high across the sheet: a path or a command in the mono at 13 px.
+    pub fn sheet(mut self) -> Self {
+        self.sheet = Some(true);
+        self
+    }
+
+    /// The sheet's field for words, a name: the sans at 14 px.
+    pub fn sheet_words(mut self) -> Self {
+        self.sheet = Some(false);
+        self
     }
 }
 
 impl RenderOnce for Field {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let p = cx.palette();
-        let input = Styled::h(Input::new(&self.state), size::CONTROL_HEIGHT)
-            .w(size::SELECT_WIDTH)
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette().clone();
+        let focused = self.state.read(cx).focus_handle(cx).is_focused(window);
+        let edge = match (self.invalid, focused) {
+            (true, true) => p.destructive.opacity(0.64),
+            (true, false) => p.destructive.opacity(0.36),
+            (false, _) => p.input,
+        };
+        let dim = Dim::new(p.background, p.input_fill);
+        let (edge, fill, ink) =
+            if self.held { (dim.over(edge), dim.fill(), dim.over(p.foreground)) } else { (edge, p.input_fill, p.foreground) };
+        let input = Input::new(&self.state)
+            .disabled(self.held)
+            .focus_bordered(!self.invalid)
             .rounded(size::CONTROL_RADIUS)
             .px(px(11.))
             .py_0()
-            .border_color(p.input)
-            .bg(p.input_fill)
-            .text_size(text::FACT);
-        field_frame(input, false)
+            .border_color(edge)
+            .bg(fill)
+            .text_color(ink);
+        match self.sheet {
+            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT), self.held),
+            Some(mono) => {
+                let input = Styled::h(input, px(40.)).w_full().rounded(size::BUTTON_RADIUS);
+                let input = if mono {
+                    input.font_family(cx.theme().mono_font_family.clone()).text_size(text::FACT)
+                } else {
+                    input.text_size(text::VALUE)
+                };
+                div()
+                    .debug_selector(|| "control".into())
+                    .relative()
+                    .w_full()
+                    .h(px(40.))
+                    .child(input)
+                    .when(self.held, |el| el.child(div().absolute().inset_0().occlude()))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use gpui_kit::component::Root;
+    use gpui_kit::{div, prelude::*, px, size, Context, TestAppContext, Window};
+
+    use super::Button;
+    use crate::ui::{self, Side};
+
+    struct Lone {
+        busy: bool,
+        pressed: Rc<Cell<u32>>,
+    }
+
+    impl Render for Lone {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            let pressed = self.pressed.clone();
+            div().p(px(24.)).child(Button::outline("save", "Save").busy(self.busy).on_click(move |_, _, _| pressed.set(pressed.get() + 1)))
+        }
+    }
+
+    fn press(cx: &mut TestAppContext, busy: bool) -> u32 {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+        });
+        let pressed = Rc::new(Cell::new(0));
+        let view = cx.new(|_| Lone { busy, pressed: pressed.clone() });
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(view, window, cx));
+        cx.simulate_resize(size(px(400.), px(200.)));
+        cx.run_until_parked();
+        let at = cx.debug_bounds("button").expect("the button is drawn");
+        cx.simulate_click(at.center(), gpui_kit::Modifiers::none());
+        cx.run_until_parked();
+        pressed.get()
+    }
+
+    #[gpui_kit::test]
+    fn a_busy_button_holds_its_press(cx: &mut TestAppContext) {
+        assert_eq!(press(cx, true), 0, "a press while its road runs goes nowhere");
+    }
+
+    #[gpui_kit::test]
+    fn a_button_at_rest_takes_its_press(cx: &mut TestAppContext) {
+        assert_eq!(press(cx, false), 1);
     }
 }
