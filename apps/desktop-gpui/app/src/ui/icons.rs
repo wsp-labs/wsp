@@ -141,6 +141,9 @@ icon_assets!(
         Wrench,
         X,
         Zap,
+        SquareSplitHorizontal,
+        SquareSplitVertical,
+        Type,
     ]
 );
 

@@ -22,7 +22,7 @@ pub fn refusal(theirs: &str, road: Option<&str>, host: &ReleaseHost) -> Option<F
     if theirs == mine {
         return None;
     }
-    let words = record::words().release;
+    let words = &record::words().release;
     let named = match host {
         ReleaseHost::Here { state } => fill(&words.host_here, &[("state", state)]),
         ReleaseHost::At { at, .. } => fill(&words.host_at, &[("where", at)]),
@@ -39,9 +39,9 @@ pub fn refusal(theirs: &str, road: Option<&str>, host: &ReleaseHost) -> Option<F
         // packages/host/src/verbs/client.ts reads it.
         match road {
             Some("app") => fill(&words.reopen_app, &[("mine", &mine)]),
-            Some("up") => words.restart_up,
-            Some("init") => words.init_finish,
-            _ => words.restart,
+            Some("up") => words.restart_up.clone(),
+            Some("init") => words.init_finish.clone(),
+            _ => words.restart.clone(),
         }
     };
     Some(Failure::usage(format!("{said} {fix}")))
@@ -116,22 +116,22 @@ mod tests {
 
     #[test]
     fn reads_the_road_off_a_path_as_the_node_line_does() {
-        for (path, road) in record::words().release.road_samples {
-            assert_eq!(road_of(&path), road, "{path}");
+        for (path, road) in &record::words().release.road_samples {
+            assert_eq!(road_of(path), road, "{path}");
         }
     }
 
     #[test]
     fn orders_releases_as_the_node_line_does() {
-        for (a, b, sign) in record::words().release.order_samples {
-            assert_eq!(order(&a, &b) as i32, sign.signum() as i32, "{a} against {b}");
+        for (a, b, sign) in &record::words().release.order_samples {
+            assert_eq!(order(a, b) as i32, sign.signum() as i32, "{a} against {b}");
         }
     }
 
     #[test]
     fn says_what_to_run_on_the_older_end() {
         let mine = record::server().version;
-        let words = record::words().release;
+        let words = &record::words().release;
         let here = ReleaseHost::Here { state: "/s/state.json".into() };
         assert!(refusal(&mine, Some("service"), &here).is_none());
         let fix = |road: Option<&str>, host: &ReleaseHost| {

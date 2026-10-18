@@ -278,7 +278,7 @@ impl Client {
                     // A frame in the clear after the seal began and one that will not open are the same thing:
                     // somebody carrying the bytes writing into the socket. It ends, and every waiting reply with it.
                     Err(()) => {
-                        let refusal = CloseFrame { code: CloseCode::Protocol, reason: record::host().seal_refusal.into() };
+                        let refusal = CloseFrame { code: CloseCode::Protocol, reason: record::host().seal_refusal.clone().into() };
                         let _ = closer.send(Message::Close(Some(refusal)));
                         code = Some(u16::from(CloseCode::Protocol));
                         break;
@@ -362,7 +362,7 @@ impl Client {
     /// Answers the bytes the host expects this end to sign for an admission, or none where it proved nothing, which
     /// is one refusal whichever check caught it.
     async fn open_seal(&self, pinned: &str) -> Option<Vec<u8>> {
-        let word = record::host().seal_client;
+        let word = &record::host().seal_client;
         let (private, mine) = wsp_seal::fresh_ephemeral()?;
         let mine: PlaceEphemeral = Base64Bytes::from_bytes(&mine);
         let mut nonce = [0u8; numbers::PLACE_LINK_NONCE_BYTES];
@@ -377,14 +377,14 @@ impl Client {
             return None;
         }
         let asked = LinkEphemerals { challenger: mine.as_str(), answerer: opened.ephemeral.as_str() };
-        let host_bytes = place_link_transcript(LinkRole::Host, &word, nonce.as_str(), opened.nonce.as_str(), asked);
+        let host_bytes = place_link_transcript(LinkRole::Host, word, nonce.as_str(), opened.nonce.as_str(), asked);
         if !wsp_seal::verify(&key, &host_bytes, &opened.signature.to_bytes()) {
             return None;
         }
         let secret = wsp_seal::agree(private, &opened.ephemeral.to_bytes())?;
-        *self.shared.seal.lock().unwrap() = Some(Seal::place(&wsp_seal::seal_keys(&secret, &word)));
+        *self.shared.seal.lock().unwrap() = Some(Seal::place(&wsp_seal::seal_keys(&secret, word)));
         let answered = LinkEphemerals { challenger: opened.ephemeral.as_str(), answerer: mine.as_str() };
-        Some(place_link_transcript(LinkRole::Place, &word, opened.nonce.as_str(), nonce.as_str(), answered))
+        Some(place_link_transcript(LinkRole::Place, word, opened.nonce.as_str(), nonce.as_str(), answered))
     }
 
     pub fn is_closed(&self) -> bool {
@@ -430,9 +430,9 @@ impl Client {
 fn close_words(code: Option<u16>) -> String {
     let words = record::words();
     if code == Some(record::host().stopping_close) {
-        words.host_stopping
+        words.host_stopping.clone()
     } else {
-        words.host_closed
+        words.host_closed.clone()
     }
 }
 
