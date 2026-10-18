@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! `ChartPlot` with no end dot, as a tile or a live band draws it: the rule lines or none, the baseline, and each run
-//! as a 1.5 px line over a fill that fades down from its ink. A gap in the readings is a break between runs.
+//! `ChartPlot`: the rule lines or none, the baseline, and each run as a 1.5 px line over a fill that fades down from
+//! its ink. A gap in the readings is a break between runs. The dot on the newest point is drawn where asked.
 
-use gpui_kit::{canvas, div, linear_color_stop, linear_gradient, point, prelude::*, px, App, Bounds, Hsla, PathBuilder, Pixels, Window};
+use gpui_kit::{
+    canvas, div, linear_color_stop, linear_gradient, point, prelude::*, px, quad, size, transparent_black, App, BorderStyle, Bounds, Hsla,
+    PathBuilder, Pixels, Window,
+};
 
 use super::theme::ActivePalette;
 
@@ -17,13 +20,14 @@ pub struct Sparkline {
     baseline: bool,
     fill: f32,
     height: Pixels,
+    end: Option<Hsla>,
 }
 
 impl Sparkline {
     /// One run in `ink`, its points 0 to 1 across and 0 to 1 up, with the rules, a fill from 20% and `ChartPlot`'s
     /// `h-24`.
     pub fn new(points: Vec<(f32, f32)>, ink: Hsla) -> Self {
-        Sparkline { runs: vec![points], ink, rules: true, baseline: true, fill: 0.2, height: px(96.) }
+        Sparkline { runs: vec![points], ink, rules: true, baseline: true, fill: 0.2, height: px(96.), end: None }
     }
 
     /// Runs with a break between each, where the readings stopped.
@@ -53,12 +57,18 @@ impl Sparkline {
         self.height = height;
         self
     }
+
+    /// `end`: the newest point's 6 px dot in the ink, ringed 2 px in `ring` (`ring-2 ring-background`).
+    pub fn end(mut self, ring: Hsla) -> Self {
+        self.end = Some(ring);
+        self
+    }
 }
 
 impl RenderOnce for Sparkline {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let border = cx.palette().border;
-        let Sparkline { runs, ink, rules, baseline, fill, height } = self;
+        let Sparkline { runs, ink, rules, baseline, fill, height, end } = self;
         let base = if rules { border } else { border.opacity(0.6) };
         let plot = canvas(
             |_, _, _| {},
@@ -113,6 +123,14 @@ impl RenderOnce for Sparkline {
                     }
                     if let Ok(path) = line.build() {
                         window.paint_path(path, ink);
+                    }
+                }
+                let newest = runs.iter().rev().find_map(|run| run.last()).copied();
+                if let (Some(ring), Some(newest)) = (end, newest) {
+                    let centre = at(newest);
+                    for (r, color) in [(5., ring), (3., ink)] {
+                        let dot = Bounds::new(centre - point(px(r), px(r)), size(px(r * 2.), px(r * 2.)));
+                        window.paint_quad(quad(dot, px(r), color, px(0.), transparent_black(), BorderStyle::default()));
                     }
                 }
             },

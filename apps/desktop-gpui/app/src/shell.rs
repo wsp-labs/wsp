@@ -31,6 +31,10 @@ use crate::screens::app_shell::panel::{At, RightPanel};
 use crate::screens::app_shell::vibrancy::{self, Vibrancy};
 use crate::screens::app_shell::AbortOnDrop;
 use crate::screens::composer::screen::ComposerScreen;
+use crate::screens::palette::{
+    self,
+    switcher::{self, Level},
+};
 use crate::screens::{self, app_shell, Entry, Host, Mounted, Opened, Pane, Place, Route, Screen, THREAD};
 use crate::sidebar::{Asked, Link, Selected, Sidebar, ThreadItem};
 use crate::thread_view::ThreadView;
@@ -217,13 +221,9 @@ impl Shell {
             Asked::Settings => this.go(Route::Screen(SETTINGS.into()), window, cx),
             Asked::Usage => this.go(Route::Screen(format!("{SETTINGS}:usage").into()), window, cx),
             Asked::Activity => this.go(Route::Screen(format!("{SETTINGS}:activity").into()), window, cx),
-            Asked::NewThread => {
-                if let Some(workspace) = this.workspace_on_screen(cx) {
-                    this.go(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), window, cx);
-                }
-            }
+            Asked::NewThread => this.new_thread(window, cx),
             Asked::NewThreadIn(workspace) => this.go(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), window, cx),
-            Asked::Search => {}
+            Asked::Search => palette::palette::open(window, cx),
             Asked::AddProject => {}
             Asked::AddComputer => {}
             Asked::AddCloud => {}
@@ -259,6 +259,7 @@ impl Shell {
                     this.host = Some(host.clone());
                     let runtime = this.runtime.clone();
                     this.panel.update(cx, |p, cx| p.set_host(Host::new(host.clone(), runtime.clone()), window, cx));
+                    palette::attach(Host::new(host.clone(), runtime.clone()), &this.sidebar, window, cx);
                     this.sidebar.update(cx, |s, cx| s.attach(Link { host: host.clone(), runtime, page }, cx));
                     if let Some(preferences) = &preferences {
                         this.apply(preferences, window, cx);
@@ -370,6 +371,11 @@ impl Shell {
     /// The chords bound for `command` now, in the web app's spelling.
     pub fn chords(&self, command: &str) -> Vec<String> {
         self.rules.iter().filter(|r| r.command == command).map(|r| r.chord.clone()).collect()
+    }
+
+    /// The chord rules bound now, in the order they were bound.
+    pub fn rules(&self) -> &[Bound] {
+        &self.rules
     }
 
     pub fn route(&self) -> &Route {
@@ -485,12 +491,40 @@ impl Shell {
         cx.notify();
     }
 
+    /// `openNewThread`: the page of projects where New thread asks for one, else the composer on the task on screen.
+    fn new_thread(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if palette::palette::new_thread(window, cx) {
+            return;
+        }
+        if let Some(workspace) = self.workspace_on_screen(cx) {
+            self.go(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), window, cx);
+        }
+    }
+
     /// The workspace of the thread on screen or left behind a page, else of the newest thread the sidebar lists.
     fn workspace_on_screen(&self, cx: &App) -> Option<String> {
         match (&self.route, &self.behind) {
             (Route::Thread { workspace_id, .. }, _) | (_, Route::Thread { workspace_id, .. }) => Some(workspace_id.clone()),
             _ => self.sidebar.read(cx).items().first().map(|i| i.workspace_id.clone()),
         }
+    }
+
+    /// The web's `selectedId` and `selectedThreadId`, and whether a page stands over them (`settingsOpen`): the thread
+    /// on screen, the task a new thread's composer is on, or the thread a page was opened over.
+    pub fn selected(&self) -> Option<(String, Option<String>, bool)> {
+        match (&self.route, &self.behind) {
+            (Route::Thread { workspace_id, thread_id }, _) => Some((workspace_id.clone(), Some(thread_id.clone()), false)),
+            (Route::Screen(route), _) if app_shell::split(route).0 == ComposerScreen::NAME => {
+                app_shell::split(route).1.map(|workspace| (workspace.to_owned(), None, false))
+            }
+            (Route::Screen(_), Route::Thread { workspace_id, thread_id }) => Some((workspace_id.clone(), Some(thread_id.clone()), true)),
+            _ => None,
+        }
+    }
+
+    /// The task mod+o opens in an editor: the one selected, never from under a page.
+    pub fn editor_workspace(&self) -> Option<String> {
+        self.selected().filter(|(_, _, page)| !page).map(|(workspace, _, _)| workspace)
     }
 
     /// What the page `route` names is opened on: the thread the window was showing, and the route's argument.
@@ -591,6 +625,7 @@ impl Shell {
         }
         cx.bind_keys(keys::unbindings(mac, &self.rules));
         cx.bind_keys(keys::bindings_of(mac, &next));
+        palette::palette::rebind(&self.rules, &next, cx);
         self.rules = next;
     }
 
@@ -720,7 +755,14 @@ impl Shell {
 
     fn workspace_threads(&self, cx: &App) -> Vec<ThreadItem> {
         let Route::Thread { workspace_id, .. } = &self.route else { return Vec::new() };
-        self.sidebar.read(cx).items().iter().filter(|i| i.workspace_id == *workspace_id).cloned().collect()
+        let sidebar = self.sidebar.read(cx);
+        let item = |t: switcher::Target| ThreadItem {
+            title: sidebar.title_of(&t.thread_id).unwrap_or_default(),
+            project: String::new(),
+            workspace_id: t.workspace_id,
+            thread_id: t.thread_id,
+        };
+        switcher::walk::thread_walk(sidebar, workspace_id).into_iter().map(item).collect()
     }
 
     /// Shows `item`'s transcript, read whole, then follows it live.
@@ -1209,12 +1251,28 @@ impl Render for Shell {
             .on_action(cx.listener(Self::select_workspace))
             .on_action(cx.listener(|this, _: &keys::NextPanelTab, window, cx| this.panel.update(cx, |p, cx| p.step(1, window, cx))))
             .on_action(cx.listener(|this, _: &keys::PreviousPanelTab, window, cx| this.panel.update(cx, |p, cx| p.step(-1, window, cx))))
-            .on_action(cx.listener(|this, _: &keys::NextWorkspace, window, cx| this.step_thread(this.workspaces(cx), 1, window, cx)))
-            .on_action(cx.listener(|this, _: &keys::PreviousWorkspace, window, cx| this.step_thread(this.workspaces(cx), -1, window, cx)))
-            .on_action(cx.listener(|this, _: &keys::NextThread, window, cx| this.step_thread(this.workspace_threads(cx), 1, window, cx)))
-            .on_action(
-                cx.listener(|this, _: &keys::PreviousThread, window, cx| this.step_thread(this.workspace_threads(cx), -1, window, cx)),
-            )
+            .on_action(cx.listener(|_, _: &keys::ToggleCommandPalette, window, cx| palette::palette::toggle(window, cx)))
+            .on_action(cx.listener(|this, _: &keys::SettleThread, _, cx| {
+                if let Some((workspace, thread, _)) = this.selected() {
+                    this.sidebar.update(cx, |s, cx| s.settle_open(&workspace, thread.as_deref(), cx));
+                }
+            }))
+            .on_action(cx.listener(|this, _: &keys::OpenInEditor, window, cx| {
+                if let Some(workspace) = this.editor_workspace() {
+                    crate::screens::notices::open_in_editor(workspace, window, cx);
+                }
+            }))
+            .on_action(cx.listener(|this, _: &keys::NewThread, window, cx| this.new_thread(window, cx)))
+            .on_action(cx.listener(|_, _: &keys::NextWorkspace, window, cx| switcher::step(Level::Workspace, 1, window, cx)))
+            .on_action(cx.listener(|_, _: &keys::PreviousWorkspace, window, cx| switcher::step(Level::Workspace, -1, window, cx)))
+            .on_action(cx.listener(|_, _: &keys::NextThread, window, cx| switcher::step(Level::Thread, 1, window, cx)))
+            .on_action(cx.listener(|_, _: &keys::PreviousThread, window, cx| switcher::step(Level::Thread, -1, window, cx)))
+            .on_action(cx.listener(|this, step: &keys::StepWorkspace, window, cx| {
+                this.step_thread(this.workspaces(cx), step.0 as isize, window, cx)
+            }))
+            .on_action(cx.listener(|this, step: &keys::StepThread, window, cx| {
+                this.step_thread(this.workspace_threads(cx), step.0 as isize, window, cx)
+            }))
             .on_drag_move(cx.listener(|this, e: &DragMoveEvent<Side>, window, cx| {
                 let side = *e.drag(cx);
                 let x = e.event.position.x - this.grab;
