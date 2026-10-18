@@ -175,6 +175,111 @@
             "color": "#00000066"
           }
         ]
+      },
+      "highlight": {
+        "editor.foreground": "#0a0a0aff",
+        "success": "#18a46cff",
+        "error": "#d52c36ff",
+        "info": "#009fffff",
+        "syntax": {
+          "attribute": {
+            "color": "#18a46cff"
+          },
+          "boolean": {
+            "color": "#1ca1c7ff"
+          },
+          "comment": {
+            "color": "#737373ff"
+          },
+          "comment.doc": {
+            "color": "#737373ff"
+          },
+          "constant": {
+            "color": "#d5901cff"
+          },
+          "constructor": {
+            "color": "#a631beff"
+          },
+          "emphasis": {
+            "color": "#d32a61ff",
+            "font_style": "italic"
+          },
+          "emphasis.strong": {
+            "color": "#d5a910ff"
+          },
+          "enum": {
+            "color": "#a631beff"
+          },
+          "function": {
+            "color": "#693acfff"
+          },
+          "keyword": {
+            "color": "#d32a61ff"
+          },
+          "link_text": {
+            "color": "#199f43ff"
+          },
+          "number": {
+            "color": "#1ca1c7ff"
+          },
+          "operator": {
+            "color": "#08c0efff"
+          },
+          "property": {
+            "color": "#d47628ff"
+          },
+          "punctuation": {
+            "color": "#636363ff"
+          },
+          "punctuation.bracket": {
+            "color": "#636363ff"
+          },
+          "punctuation.delimiter": {
+            "color": "#636363ff"
+          },
+          "punctuation.list_marker": {
+            "color": "#636363ff"
+          },
+          "punctuation.special": {
+            "color": "#636363ff"
+          },
+          "string": {
+            "color": "#199f43ff"
+          },
+          "string.escape": {
+            "color": "#16a994ff"
+          },
+          "string.regex": {
+            "color": "#17a5afff"
+          },
+          "string.special": {
+            "color": "#199f43ff"
+          },
+          "string.special.symbol": {
+            "color": "#199f43ff"
+          },
+          "tag": {
+            "color": "#d5512fff"
+          },
+          "tag.doctype": {
+            "color": "#636363ff"
+          },
+          "title": {
+            "color": "#d5512fff"
+          },
+          "type": {
+            "color": "#a631beff"
+          },
+          "variable": {
+            "color": "#d47628ff"
+          },
+          "variable.special": {
+            "color": "#d5901cff"
+          },
+          "variant": {
+            "color": "#d47628ff"
+          }
+        }
       }
     }
   ]

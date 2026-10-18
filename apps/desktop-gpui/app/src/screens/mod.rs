@@ -5,6 +5,7 @@
 
 pub mod app_shell;
 pub mod composer;
+pub mod pr_pane;
 pub mod sidebar;
 pub mod usage;
 
@@ -20,6 +21,9 @@ pub fn screen(name: &str) -> Option<Entry> {
     match name {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
+        pr_pane::changes::ChangesScreen::NAME => Some(entry::<pr_pane::changes::ChangesScreen>()),
+        pr_pane::pull_request::PullRequestScreen::NAME => Some(entry::<pr_pane::pull_request::PullRequestScreen>()),
+        pr_pane::files::FilesScreen::NAME => Some(entry::<pr_pane::files::FilesScreen>()),
         _ => None,
     }
 }

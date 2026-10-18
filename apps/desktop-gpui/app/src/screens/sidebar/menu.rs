@@ -135,7 +135,7 @@ pub(crate) fn workspace_state(w: &Value, status: Option<&Value>) -> &'static str
 }
 
 /// `actionRefusal` in `workspace-state.ts`, for the states a workspace in this list can be in.
-fn action_refusal(state: &str, action: &str) -> Option<String> {
+pub(crate) fn action_refusal(state: &str, action: &str) -> Option<String> {
     match state {
         "running" => None,
         "pausing" | "paused" => Some(format!("Workspace is {state}; wake it to {action}")),

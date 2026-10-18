@@ -1,0 +1,15 @@
+{
+  "extends": "merged",
+  "compare": { "ahead_by": 4, "behind_by": 5, "status": "diverged" },
+  "pr": {
+    "updatedAt": "@-20m",
+    "closedAt": null,
+    "mergedAt": null,
+    "mergedBy": null,
+    "mergeCommit": null,
+    "state": "OPEN",
+    "mergeable": "CONFLICTING",
+    "mergeStateStatus": "DIRTY",
+    "reviewDecision": "REVIEW_REQUIRED"
+  }
+}

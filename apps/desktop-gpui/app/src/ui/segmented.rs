@@ -33,6 +33,7 @@ pub struct Segmented {
     text: (Pixels, Pixels),
     pad: Pixels,
     glyph: (Pixels, Pixels),
+    fill: bool,
     on_pick: Option<Pick>,
 }
 
@@ -48,6 +49,7 @@ impl Segmented {
             text: (px(13.), px(13.)),
             pad: px(12.),
             glyph: (px(16.), px(8.)),
+            fill: false,
             on_pick: None,
         }
     }
@@ -88,6 +90,12 @@ impl Segmented {
         self
     }
 
+    /// The track as wide as its row, its segments sharing the width alike (`className="flex w-full"`, `flex-1`).
+    pub fn fill(mut self) -> Self {
+        self.fill = true;
+        self
+    }
+
     pub fn on_pick(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_pick = Some(Rc::new(f));
         self
@@ -116,7 +124,7 @@ impl RenderOnce for Segmented {
             vec![BoxShadow { color: p.ring, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(2.), inset: false }];
         let open: Vec<bool> = self.segments.iter().map(|s| s.held.is_none()).collect();
         let (picked, on_pick) = (self.picked, self.on_pick.clone());
-        let ((font, line), pad, (glyph, gap)) = (self.text, self.pad, self.glyph);
+        let ((font, line), pad, (glyph, gap), fill) = (self.text, self.pad, self.glyph, self.fill);
         h_flex()
             .id(self.id.clone())
             .debug_selector(|| "segmented".into())
@@ -132,7 +140,7 @@ impl RenderOnce for Segmented {
                     f(next, window, cx);
                 }
             })
-            .flex_none()
+            .map(|el| if fill { el.w_full() } else { el.flex_none() })
             .items_stretch()
             .h(self.height)
             .p(px(2.))
@@ -150,6 +158,7 @@ impl RenderOnce for Segmented {
                     .id((self.id.clone(), ix))
                     .debug_selector(|| "segment".into())
                     .justify_center()
+                    .when(fill, |el| el.flex_1())
                     .px(pad)
                     .gap(gap)
                     .rounded(SEGMENT_RADIUS)
