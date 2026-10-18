@@ -16,6 +16,12 @@ pub struct Failure {
     /// `problemListsOf` in packages/protocol/src/exit.ts.
     pub errors: Option<String>,
     pub warnings: Option<String>,
+    /// What to do about it, where the host said: `message` ends with it, as `refusal` joins the two; `said()` is the
+    /// sentence before it (`refusalParts` in packages/protocol/src/exit.ts).
+    pub fix: Option<Box<str>>,
+    /// The threads a `processes-left` refusal names, each with what it still runs, as the host sent them
+    /// (`processesLeftOf`, the protocol's `LeftThread[]`).
+    pub left: Option<Box<serde_json::Value>>,
 }
 
 /// The failure object: what --json prints on stderr and a tool error carries beside its text.
@@ -33,7 +39,7 @@ pub struct Object {
 impl Failure {
     /// A failure with no kind, which is the provider's class: the host, the runtime or the machine said no.
     pub fn new(message: impl Into<String>) -> Self {
-        Failure { message: message.into(), kind: None, errors: None, warnings: None }
+        Failure { message: message.into(), kind: None, errors: None, warnings: None, fix: None, left: None }
     }
 
     pub fn of_kind(message: impl Into<String>, kind: &str) -> Self {
@@ -46,6 +52,15 @@ impl Failure {
 
     pub fn auth(message: impl Into<String>) -> Self {
         Self::of_kind(message, "auth")
+    }
+
+    /// The sentence before the fix, as `refusalSaid` takes the fix back off the end; the whole message where none was
+    /// joined on.
+    pub fn said(&self) -> &str {
+        match &self.fix {
+            Some(fix) => self.message.strip_suffix(&**fix).and_then(|m| m.strip_suffix(' ')).unwrap_or(&self.message),
+            None => &self.message,
+        }
     }
 
     pub fn object(&self) -> Object {

@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use desktop_gpui::gallery::Gallery;
 use desktop_gpui::screens::app_shell::{assets::AppAssets, menu};
 use desktop_gpui::screens::composer;
+use desktop_gpui::screens::dialogs::startup::{self, Claim};
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
-use desktop_gpui::{bench, local_store, screens, TITLE};
+use desktop_gpui::{bench, local_store, screens};
 use gpui_kit::component::Root;
-use gpui_kit::{point, px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
+use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
 use wsp_host_client::Env;
 
 /// The state file a launch means, as the Electron app picks it: WSP_HOME names the home outright, else ~/.wsp.
@@ -38,6 +40,17 @@ fn main() {
         None => local_store::default_path(),
     };
     let state = args.state.unwrap_or_else(default_state);
+    // A launch that names what to open (a bench, a thread, a screen) skips the lock and onboarding.
+    let plain = args.bench.is_none() && args.open.is_none() && args.screen.is_none() && !args.gallery;
+    let lock = match plain.then(|| startup::claim(&startup::home_of(&state))) {
+        Some(Ok(Claim::Held(lock))) => Some(lock),
+        Some(Ok(Claim::Taken)) => std::process::exit(0),
+        Some(Err(e)) => {
+            eprintln!("desktop-gpui: the app's lock could not be taken: {e}");
+            None
+        }
+        None => None,
+    };
     let env: Env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let gallery = args.gallery;
@@ -82,27 +95,28 @@ fn main() {
             return;
         }
         menu::init(cx);
-        open_main(state, env, runtime, launch, cx);
+        let reopen = {
+            let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
+            Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), cx))
+        };
+        if let Some(lock) = lock {
+            startup::follow_raises(lock, reopen.clone(), cx);
+        }
+        if plain {
+            startup::open(state, env, runtime, reopen, cx);
+        } else {
+            open_main(state, env, runtime, launch, cx);
+        }
     });
 }
 
 /// The app's window, the shell in it.
 fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, launch: Launch, cx: &mut App) {
-    // The Electron app's window size, so both benches scroll the same viewport.
-    let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
-    // Electron's hiddenInset: no title bar, the lights centred on the frame row's 26 px line.
-    let titlebar = if cfg!(target_os = "macos") {
-        TitlebarOptions { title: Some(TITLE.into()), appears_transparent: true, traffic_light_position: Some(point(px(16.), px(19.))) }
-    } else {
-        TitlebarOptions { title: Some(TITLE.into()), ..Default::default() }
-    };
-    cx.open_window(
-        WindowOptions { window_bounds: Some(WindowBounds::Windowed(bounds)), titlebar: Some(titlebar), ..Default::default() },
-        |window, cx| {
-            let shell = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
-            cx.new(|cx| Root::new(shell, window, cx))
-        },
-    )
+    let options = startup::window_options(cx);
+    cx.open_window(options, |window, cx| {
+        let shell = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
+        cx.new(|cx| Root::new(shell, window, cx))
+    })
     .expect("failed to open the window");
     cx.activate(true);
 }
