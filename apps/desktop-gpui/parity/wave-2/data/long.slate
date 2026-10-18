@@ -1,0 +1,27 @@
+<slate title="Long text">
+  <column>
+    <heading level="title">A heading long enough to wrap onto a second line in the narrow four hundred pixel panel</heading>
+    <text>This paragraph runs on for a while so that it wraps over several lines in the panel. It names a path, /Users/someone/projects/bench/packages/a-very-long-package-name/src/index.ts, and a branch, feature/a-branch-name-that-has-no-spaces-in-it-at-all, which must break rather than run past the edge.</text>
+    <section title="A section title that keeps all of its words and wraps past two thirds of the row" note="and a note that wraps in the rest of the row">
+      <table items={[{ f: "The cart rounds each line before it sums the lines, so totals drift by a cent", w: "packages/cart/src/total.ts, in the reducer that runs on every change", y: "Rounding once at the end keeps the total exact for every currency we support" }, { f: "Short one", w: "here", y: "because" }]}>
+        <col title="Finding" value={item.f} />
+        <col title="Where" value={item.w} />
+        <col title="Why" value={item.y} />
+      </table>
+      <facts layout="grid">
+        <fact label="Folder" value="/Users/someone/projects/bench/packages/a-very-long-package-name/src" mono />
+        <fact label="Reason" value="The host keeps the last five thousand events and drops the oldest first when it runs out of room" />
+      </facts>
+      <checklist items={[{ t: "Find where the cart rounds totals, in every reducer and in the server's own copy of the sum", d: true, n: "Three places, two of them in code nobody has touched since the first release" }, { t: "Fix it", d: false }]} title={item.t} done={item.d} note={item.n} />
+    </section>
+    <table items={[{ c: "pnpm exec vitest run --minWorkers=1 --maxWorkers=2 test/cart.test.ts --reporter=verbose", o: "2 failed" }]}>
+      <col title="Command" value={item.c} mono />
+      <col title="Result" value={item.o} />
+    </table>
+    <row>
+      <status tone="warning">Waiting on a reviewer who has been away for the whole of this week</status>
+      <chip>feature/a-very-long-branch-name-that-does-not-fit</chip>
+    </row>
+    <empty title="No pull request yet for this branch, which has been open for a long time">Push the branch and open one from the pull request pane when the tests pass.</empty>
+  </column>
+</slate>
