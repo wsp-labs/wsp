@@ -15,6 +15,27 @@ index b8dda5e..23990b0 100644
          ]);
          config.no_includes = true;
          config.enumeration.prefix_with_name = true;
+diff --git a/src/metal_atlas.rs b/src/metal_atlas.rs
+index a635bc4..3a7967f 100644
+--- a/src/metal_atlas.rs
++++ b/src/metal_atlas.rs
+@@ -135,7 +135,15 @@ impl MetalAtlasTextures {
+             width: DevicePixels(16384),
+             height: DevicePixels(16384),
+         };
+-        let size = min_size.min(&MAX_ATLAS_SIZE).max(&DEFAULT_ATLAS_SIZE);
++        // A colour page costs 4 bytes a texel and often holds one small image, such as an agent's mark.
++        let default_size = match kind {
++            AtlasTextureKind::Polychrome => Size {
++                width: DevicePixels(256),
++                height: DevicePixels(256),
++            },
++            _ => DEFAULT_ATLAS_SIZE,
++        };
++        let size = min_size.min(&MAX_ATLAS_SIZE).max(&default_size);
+         let texture_descriptor = metal::TextureDescriptor::new();
+         texture_descriptor.set_width(size.width.into());
+         texture_descriptor.set_height(size.height.into());
 diff --git a/src/metal_renderer.rs b/src/metal_renderer.rs
 index e466205..b5a9d1f 100644
 --- a/src/metal_renderer.rs
