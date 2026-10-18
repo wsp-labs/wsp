@@ -595,8 +595,29 @@ index bf5f629..6bb92ea 100644
 +        array<u32, 3>(parent.y, parent.z, parent.w),
 +    );
 +}
+diff --git a/src/wgpu_atlas.rs b/src/wgpu_atlas.rs
+index b541607..ed04fd3 100644
+--- a/src/wgpu_atlas.rs
++++ b/src/wgpu_atlas.rs
+@@ -195,7 +195,15 @@ impl WgpuAtlasTextures {
+             height: DevicePixels(max_texture_size),
+         };
+ 
+-        let size = min_size.min(&max_atlas_size).max(&DEFAULT_ATLAS_SIZE);
++        // A colour page costs 4 bytes a texel and often holds one small image, such as an agent's mark.
++        let default_size = match kind {
++            AtlasTextureKind::Polychrome => Size {
++                width: DevicePixels(256),
++                height: DevicePixels(256),
++            },
++            _ => DEFAULT_ATLAS_SIZE,
++        };
++        let size = min_size.min(&max_atlas_size).max(&default_size);
+         let format = match kind {
+             AtlasTextureKind::Monochrome => wgpu::TextureFormat::R8Unorm,
+             AtlasTextureKind::Subpixel | AtlasTextureKind::Polychrome => self.color_texture_format,
 diff --git a/src/wgpu_renderer.rs b/src/wgpu_renderer.rs
-index 8387528..2a47cb1 100644
+index 8387528..71fb0f4 100644
 --- a/src/wgpu_renderer.rs
 +++ b/src/wgpu_renderer.rs
 @@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
@@ -652,18 +673,102 @@ index 8387528..2a47cb1 100644
  }
  
  pub struct WgpuSurfaceConfig {
-@@ -134,6 +155,42 @@ struct WgpuPipelines {
+@@ -123,6 +144,7 @@ pub struct WgpuSurfaceConfig {
+     pub preferred_present_mode: Option<wgpu::PresentMode>,
+ }
+ 
++#[derive(Clone)]
+ struct WgpuPipelines {
+     quads: wgpu::RenderPipeline,
+     shadows: wgpu::RenderPipeline,
+@@ -134,6 +156,118 @@ struct WgpuPipelines {
      poly_sprites: wgpu::RenderPipeline,
      #[allow(dead_code)]
      surfaces: wgpu::RenderPipeline,
 +    backdrop_blurs: Option<BackdropBlurPipelines>,
 +}
 +
++impl WgpuPipelines {
++    fn of_kind(&self, kind: u16) -> &wgpu::RenderPipeline {
++        match kind {
++            EffectKinds::QUADS => &self.quads,
++            EffectKinds::SHADOWS => &self.shadows,
++            EffectKinds::PATHS => &self.path_rasterization,
++            EffectKinds::PATH_SPRITES => &self.paths,
++            EffectKinds::UNDERLINES => &self.underlines,
++            EffectKinds::MONO_SPRITES => &self.mono_sprites,
++            EffectKinds::SUBPIXEL_SPRITES => {
++                self.subpixel_sprites.as_ref().unwrap_or(&self.mono_sprites)
++            }
++            EffectKinds::POLY_SPRITES => &self.poly_sprites,
++            _ => &self.surfaces,
++        }
++    }
++}
++
++#[derive(Clone)]
 +struct BackdropBlurPipelines {
 +    downsample: wgpu::RenderPipeline,
 +    horizontal: wgpu::RenderPipeline,
 +    vertical: wgpu::RenderPipeline,
 +    composite: wgpu::RenderPipeline,
++}
++
++/// The pipelines a frame needs with effects: each primitive kind it draws with a rounded clip, and
++/// the blurs. A software rasterizer compiles every pipeline into code, so only these are built.
++#[derive(Clone, Copy, Default)]
++struct EffectKinds(u16);
++
++impl EffectKinds {
++    const QUADS: u16 = 1;
++    const SHADOWS: u16 = 1 << 1;
++    const PATHS: u16 = 1 << 2;
++    const UNDERLINES: u16 = 1 << 3;
++    const MONO_SPRITES: u16 = 1 << 4;
++    const SUBPIXEL_SPRITES: u16 = 1 << 5;
++    const POLY_SPRITES: u16 = 1 << 6;
++    const BLURS: u16 = 1 << 7;
++    /// Never drawn with effects.
++    const PATH_SPRITES: u16 = 1 << 8;
++    const SURFACES: u16 = 1 << 9;
++
++    fn of(scene: &Scene) -> Self {
++        let mut kinds = if scene.backdrop_blurs.is_empty() {
++            0
++        } else {
++            Self::BLURS
++        };
++        if !scene.rounded_clips.is_empty() {
++            let mut add = |clipped: bool, kind: u16| {
++                if clipped {
++                    kinds |= kind;
++                }
++            };
++            add(scene.quads.iter().any(|q| q.rounded_clip != 0), Self::QUADS);
++            add(
++                scene.shadows.iter().any(|s| s.rounded_clip != 0),
++                Self::SHADOWS,
++            );
++            add(scene.paths.iter().any(|p| p.rounded_clip != 0), Self::PATHS);
++            add(
++                scene.underlines.iter().any(|u| u.rounded_clip != 0),
++                Self::UNDERLINES,
++            );
++            add(
++                scene.monochrome_sprites.iter().any(|s| s.rounded_clip != 0),
++                Self::MONO_SPRITES,
++            );
++            add(
++                scene.subpixel_sprites.iter().any(|s| s.rounded_clip != 0),
++                Self::SUBPIXEL_SPRITES,
++            );
++            add(
++                scene.polychrome_sprites.iter().any(|s| s.rounded_clip != 0),
++                Self::POLY_SPRITES,
++            );
++        }
++        EffectKinds(kinds)
++    }
 +}
 +
 +/// Where one frame allocation of instance data lives.
@@ -695,16 +800,18 @@ index 8387528..2a47cb1 100644
  }
  
  /// One frame allocation of instance data, ready to bind.
-@@ -183,6 +240,8 @@ struct WgpuResources {
+@@ -183,6 +317,10 @@ struct WgpuResources {
      device: Arc<wgpu::Device>,
      queue: Arc<wgpu::Queue>,
      pipelines: WgpuPipelines,
-+    /// Built on the first frame that draws a rounded clip or a backdrop blur.
++    /// Each kind built on the first frame that draws it with a rounded clip, the blurs on the first
++    /// frame with a backdrop blur; a kind not built yet holds `pipelines`' and is never drawn.
 +    effect_pipelines: Option<WgpuPipelines>,
++    effect_kinds: EffectKinds,
      bind_group_layouts: WgpuBindGroupLayouts,
      atlas_sampler: wgpu::Sampler,
      atlas_texture_bind_groups: FxHashMap<AtlasTextureId, CachedTextureBindGroup>,
-@@ -194,6 +253,16 @@ struct WgpuResources {
+@@ -194,6 +332,16 @@ struct WgpuResources {
      path_intermediate_view: Option<wgpu::TextureView>,
      path_msaa_texture: Option<wgpu::Texture>,
      path_msaa_view: Option<wgpu::TextureView>,
@@ -721,7 +828,7 @@ index 8387528..2a47cb1 100644
  }
  
  struct CachedTextureBindGroup {
-@@ -207,6 +276,7 @@ impl WgpuResources {
+@@ -207,6 +355,7 @@ impl WgpuResources {
          self.path_intermediate_view = None;
          self.path_msaa_texture = None;
          self.path_msaa_view = None;
@@ -729,7 +836,7 @@ index 8387528..2a47cb1 100644
      }
  }
  
-@@ -224,7 +294,11 @@ struct WgpuRendererCore {
+@@ -224,7 +373,11 @@ struct WgpuRendererCore {
      dual_source_blending: bool,
      adapter_info: wgpu::AdapterInfo,
      target_format: wgpu::TextureFormat,
@@ -741,7 +848,7 @@ index 8387528..2a47cb1 100644
  }
  
  /// GPU resources of a windowed renderer. A surface is only ever configured against the
-@@ -252,6 +326,7 @@ pub struct WgpuRenderer {
+@@ -252,6 +405,7 @@ pub struct WgpuRenderer {
      compositor_gpu: Option<CompositorGpuHint>,
      state: RendererState,
      surface_config: wgpu::SurfaceConfiguration,
@@ -749,7 +856,7 @@ index 8387528..2a47cb1 100644
      atlas: Arc<WgpuAtlas>,
      transparent_alpha_mode: wgpu::CompositeAlphaMode,
      opaque_alpha_mode: wgpu::CompositeAlphaMode,
-@@ -468,6 +543,7 @@ impl WgpuRenderer {
+@@ -468,6 +622,7 @@ impl WgpuRenderer {
              compositor_gpu,
              state: RendererState::Ready { surface, core },
              surface_config,
@@ -757,7 +864,7 @@ index 8387528..2a47cb1 100644
              atlas,
              transparent_alpha_mode,
              opaque_alpha_mode,
-@@ -537,9 +613,17 @@ impl WgpuRendererCore {
+@@ -537,9 +692,17 @@ impl WgpuRendererCore {
              count: None,
          };
  
@@ -776,28 +883,47 @@ index 8387528..2a47cb1 100644
          });
  
          let texture = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-@@ -662,6 +746,7 @@ impl WgpuRendererCore {
+@@ -662,6 +825,7 @@ impl WgpuRendererCore {
          path_sample_count: u32,
          dual_source_blending: bool,
          uses_webgl_instance_data: bool,
-+        effects: bool,
++        effects: Option<(EffectKinds, &WgpuPipelines)>,
      ) -> WgpuPipelines {
          // Diagnostic guard: verify the device actually has
          // DUAL_SOURCE_BLENDING. We have a crash report (ZED-5G1) where a
-@@ -718,6 +803,12 @@ impl WgpuRendererCore {
+@@ -718,7 +882,20 @@ impl WgpuRendererCore {
              write_mask: wgpu::ColorWrites::ALL,
          };
  
+-        let create_pipeline = |name: &str,
 +        // A software rasterizer runs clip code for every fragment, so pipelines without effects compile it out.
-+        let constants: &[(&str, f64)] = if effects {
++        let constants: &[(&str, f64)] = if effects.is_some() {
 +            &[]
 +        } else {
 +            &[("ROUNDED_CLIPS", 0.0)]
 +        };
-         let create_pipeline = |name: &str,
++        // The kinds not asked for keep the pipelines already built.
++        let kept = |kind: u16| {
++            effects
++                .filter(|(kinds, _)| kinds.0 & kind == 0)
++                .map(|(_, built)| built)
++        };
++        let create_pipeline = |kind: u16,
++                               name: &str,
                                 vs_entry: &str,
                                 fs_entry: &str,
-@@ -743,13 +834,19 @@ impl WgpuRendererCore {
+                                globals_layout: &wgpu::BindGroupLayout,
+@@ -728,6 +905,9 @@ impl WgpuRendererCore {
+                                color_targets: &[Option<wgpu::ColorTargetState>],
+                                sample_count: u32,
+                                module: &wgpu::ShaderModule| {
++            if let Some(built) = kept(kind) {
++                return built.of_kind(kind).clone();
++            }
+             let mut bind_group_layouts = vec![Some(globals_layout), Some(data_layout)];
+             bind_group_layouts.extend(texture_layout.map(Some));
+             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+@@ -743,13 +923,19 @@ impl WgpuRendererCore {
                      module,
                      entry_point: Some(vs_entry),
                      buffers: &[],
@@ -819,7 +945,79 @@ index 8387528..2a47cb1 100644
                  }),
                  primitive: wgpu::PrimitiveState {
                      topology,
-@@ -925,11 +1022,48 @@ impl WgpuRendererCore {
+@@ -772,6 +958,7 @@ impl WgpuRendererCore {
+         };
+ 
+         let quads = create_pipeline(
++            EffectKinds::QUADS,
+             "quads",
+             "vs_quad",
+             "fs_quad",
+@@ -785,6 +972,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let shadows = create_pipeline(
++            EffectKinds::SHADOWS,
+             "shadows",
+             "vs_shadow",
+             "fs_shadow",
+@@ -798,6 +986,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let path_rasterization = create_pipeline(
++            EffectKinds::PATHS,
+             "path_rasterization",
+             "vs_path_rasterization",
+             "fs_path_rasterization",
+@@ -828,6 +1017,7 @@ impl WgpuRendererCore {
+         };
+ 
+         let paths = create_pipeline(
++            EffectKinds::PATH_SPRITES,
+             "paths",
+             "vs_path",
+             "fs_path",
+@@ -845,6 +1035,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let underlines = create_pipeline(
++            EffectKinds::UNDERLINES,
+             "underlines",
+             "vs_underline",
+             "fs_underline",
+@@ -858,6 +1049,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let mono_sprites = create_pipeline(
++            EffectKinds::MONO_SPRITES,
+             "mono_sprites",
+             "vs_mono_sprite",
+             "fs_mono_sprite",
+@@ -885,6 +1077,7 @@ impl WgpuRendererCore {
+             };
+ 
+             Some(create_pipeline(
++                EffectKinds::SUBPIXEL_SPRITES,
+                 "subpixel_sprites",
+                 "vs_subpixel_sprite",
+                 "fs_subpixel_sprite",
+@@ -905,6 +1098,7 @@ impl WgpuRendererCore {
+         };
+ 
+         let poly_sprites = create_pipeline(
++            EffectKinds::POLY_SPRITES,
+             "poly_sprites",
+             "vs_poly_sprite",
+             "fs_poly_sprite",
+@@ -918,6 +1112,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let surfaces = create_pipeline(
++            EffectKinds::SURFACES,
+             "surfaces",
+             "vs_surface",
+             "fs_surface",
+@@ -925,11 +1120,54 @@ impl WgpuRendererCore {
              &layouts.surfaces,
              None,
              wgpu::PrimitiveTopology::TriangleStrip,
@@ -831,6 +1029,7 @@ index 8387528..2a47cb1 100644
  
 +        let backdrop_blur_scratch = |fs_entry| {
 +            create_pipeline(
++                EffectKinds::BLURS,
 +                fs_entry,
 +                "vs_backdrop_blur_scratch",
 +                fs_entry,
@@ -847,29 +1046,34 @@ index 8387528..2a47cb1 100644
 +                &shader_module,
 +            )
 +        };
-+        let backdrop_blurs =
-+            (effects && !uses_webgl_instance_data).then(|| BackdropBlurPipelines {
-+                downsample: backdrop_blur_scratch("fs_backdrop_blur_downsample"),
-+                horizontal: backdrop_blur_scratch("fs_backdrop_blur_horizontal"),
-+                vertical: backdrop_blur_scratch("fs_backdrop_blur_vertical"),
-+                composite: create_pipeline(
-+                    "backdrop_blur_composite",
-+                    "vs_backdrop_blur_composite",
-+                    "fs_backdrop_blur_composite",
-+                    &layouts.globals,
-+                    &layouts.instances,
-+                    Some(&layouts.texture),
-+                    wgpu::PrimitiveTopology::TriangleStrip,
-+                    &[Some(color_target)],
-+                    1,
-+                    &shader_module,
-+                ),
-+            });
++        let backdrop_blurs = match kept(EffectKinds::BLURS) {
++            Some(built) => built.backdrop_blurs.clone(),
++            None => {
++                (effects.is_some() && !uses_webgl_instance_data).then(|| BackdropBlurPipelines {
++                    downsample: backdrop_blur_scratch("fs_backdrop_blur_downsample"),
++                    horizontal: backdrop_blur_scratch("fs_backdrop_blur_horizontal"),
++                    vertical: backdrop_blur_scratch("fs_backdrop_blur_vertical"),
++                    composite: create_pipeline(
++                        EffectKinds::BLURS,
++                        "backdrop_blur_composite",
++                        "vs_backdrop_blur_composite",
++                        "fs_backdrop_blur_composite",
++                        &layouts.globals,
++                        &layouts.instances,
++                        Some(&layouts.texture),
++                        wgpu::PrimitiveTopology::TriangleStrip,
++                        &[Some(color_target)],
++                        1,
++                        &shader_module,
++                    ),
++                })
++            }
++        };
 +
          WgpuPipelines {
              quads,
              shadows,
-@@ -940,6 +1074,7 @@ impl WgpuRendererCore {
+@@ -940,6 +1178,7 @@ impl WgpuRendererCore {
              subpixel_sprites,
              poly_sprites,
              surfaces,
@@ -877,7 +1081,7 @@ index 8387528..2a47cb1 100644
          }
      }
  
-@@ -1039,6 +1174,13 @@ impl WgpuRenderer {
+@@ -1039,6 +1278,13 @@ impl WgpuRenderer {
          if let Some(ref texture) = resources.path_msaa_texture {
              texture.destroy();
          }
@@ -891,18 +1095,19 @@ index 8387528..2a47cb1 100644
  
          // Invalidate intermediate textures - they will be lazily recreated
          // in draw() after we confirm the surface is healthy. This avoids
-@@ -1081,7 +1223,10 @@ impl WgpuRenderer {
+@@ -1081,7 +1327,11 @@ impl WgpuRenderer {
              core.rendering_params.path_sample_count,
              core.dual_source_blending,
              core.uses_webgl_instance_data,
-+            false,
++            None,
          );
 +        resources.effect_pipelines = None;
++        resources.effect_kinds = EffectKinds::default();
 +        core.alpha_mode = new_alpha_mode;
  
          if let RendererState::Ready { surface, core } = &self.state {
              surface.configure(&core.resources.device, &self.surface_config);
-@@ -1164,6 +1309,18 @@ impl WgpuRenderer {
+@@ -1164,6 +1414,18 @@ impl WgpuRenderer {
              self.failed_frame_count = 0;
          }
  
@@ -921,7 +1126,7 @@ index 8387528..2a47cb1 100644
          let frame = match surface.get_current_texture() {
              wgpu::CurrentSurfaceTexture::Success(frame) => frame,
              wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-@@ -1198,6 +1355,7 @@ impl WgpuRenderer {
+@@ -1198,6 +1460,7 @@ impl WgpuRenderer {
              self.surface_config.alpha_mode == wgpu::CompositeAlphaMode::PreMultiplied;
          if let Err(error) = core.render_frame(
              scene,
@@ -929,23 +1134,24 @@ index 8387528..2a47cb1 100644
              &frame_view,
              size,
              premultiplied_alpha,
-@@ -1234,6 +1392,7 @@ impl WgpuRendererCore {
+@@ -1234,6 +1497,7 @@ impl WgpuRendererCore {
              rendering_params.path_sample_count,
              dual_source_blending,
              uses_webgl_instance_data,
-+            false,
++            None,
          );
          let atlas_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
              label: Some("atlas_sampler"),
-@@ -1342,6 +1501,7 @@ impl WgpuRendererCore {
+@@ -1342,6 +1606,8 @@ impl WgpuRendererCore {
                  device,
                  queue,
                  pipelines,
 +                effect_pipelines: None,
++                effect_kinds: EffectKinds::default(),
                  bind_group_layouts,
                  atlas_sampler,
                  atlas_texture_bind_groups: FxHashMap::default(),
-@@ -1353,6 +1513,7 @@ impl WgpuRendererCore {
+@@ -1353,6 +1619,7 @@ impl WgpuRendererCore {
                  path_intermediate_view: None,
                  path_msaa_texture: None,
                  path_msaa_view: None,
@@ -953,7 +1159,7 @@ index 8387528..2a47cb1 100644
              },
              atlas,
              path_globals_offset,
-@@ -1366,7 +1527,10 @@ impl WgpuRendererCore {
+@@ -1366,7 +1633,10 @@ impl WgpuRendererCore {
              dual_source_blending,
              adapter_info: context.adapter.get_info(),
              target_format,
@@ -964,7 +1170,7 @@ index 8387528..2a47cb1 100644
          }
      }
  
-@@ -1374,6 +1538,13 @@ impl WgpuRendererCore {
+@@ -1374,6 +1644,13 @@ impl WgpuRendererCore {
          &self.resources
      }
  
@@ -978,7 +1184,7 @@ index 8387528..2a47cb1 100644
      fn resources_mut(&mut self) -> &mut WgpuResources {
          &mut self.resources
      }
-@@ -1417,6 +1588,7 @@ impl WgpuRendererCore {
+@@ -1417,6 +1694,7 @@ impl WgpuRendererCore {
      fn render_frame(
          &mut self,
          scene: &Scene,
@@ -986,7 +1192,7 @@ index 8387528..2a47cb1 100644
          target_view: &wgpu::TextureView,
          size: Size<DevicePixels>,
          premultiplied_alpha: bool,
-@@ -1468,7 +1640,7 @@ impl WgpuRendererCore {
+@@ -1468,7 +1746,7 @@ impl WgpuRendererCore {
              bytemuck::bytes_of(&gamma_params),
          );
  
@@ -995,7 +1201,7 @@ index 8387528..2a47cb1 100644
              .inspect_err(|_| {
                  // Queue writes are staged before encoding; flush them even if the frame fails.
                  self.resources.queue.submit(std::iter::empty());
-@@ -1478,10 +1650,37 @@ impl WgpuRendererCore {
+@@ -1478,10 +1756,41 @@ impl WgpuRendererCore {
      fn record_frame(
          &mut self,
          scene: &Scene,
@@ -1016,9 +1222,9 @@ index 8387528..2a47cb1 100644
 +        if scene.backdrop_blurs.is_empty() {
 +            self.free_backdrop_blur_textures();
 +        }
-+        if (!scene.rounded_clips.is_empty() || !scene.backdrop_blurs.is_empty())
-+            && self.resources.effect_pipelines.is_none()
-+        {
++        let missing = EffectKinds::of(scene).0 & !self.resources.effect_kinds.0;
++        if missing != 0 {
++            let built = self.resources.effect_pipelines.take();
 +            self.resources.effect_pipelines = Some(Self::create_pipelines(
 +                &self.resources.device,
 +                &self.resources.bind_group_layouts,
@@ -1027,13 +1233,17 @@ index 8387528..2a47cb1 100644
 +                self.rendering_params.path_sample_count,
 +                self.dual_source_blending,
 +                self.uses_webgl_instance_data,
-+                true,
++                Some((
++                    EffectKinds(missing),
++                    built.as_ref().unwrap_or(&self.resources.pipelines),
++                )),
 +            ));
++            self.resources.effect_kinds.0 |= missing;
 +        }
          let instance_bindings = self
              .write_instances(scene, &mut instance_offset)
              .with_context(|| {
-@@ -1525,13 +1724,25 @@ impl WgpuRendererCore {
+@@ -1525,13 +1834,25 @@ impl WgpuRendererCore {
                  match batch {
                      PrimitiveBatch::Quads(range) => self.draw_instances(
                          &instance_bindings.quads,
@@ -1061,7 +1271,7 @@ index 8387528..2a47cb1 100644
                          instance_range(range),
                          &mut pass,
                      ),
-@@ -1573,7 +1784,13 @@ impl WgpuRendererCore {
+@@ -1573,7 +1894,13 @@ impl WgpuRendererCore {
                      }
                      PrimitiveBatch::Underlines(range) => self.draw_instances(
                          &instance_bindings.underlines,
@@ -1076,7 +1286,7 @@ index 8387528..2a47cb1 100644
                          instance_range(range),
                          &mut pass,
                      ),
-@@ -1581,21 +1798,30 @@ impl WgpuRendererCore {
+@@ -1581,21 +1908,30 @@ impl WgpuRendererCore {
                          self.draw_sprites(
                              &instance_bindings.monochrome_sprites,
                              texture_id,
@@ -1112,7 +1322,7 @@ index 8387528..2a47cb1 100644
                              instance_range(range),
                              &mut pass,
                          )?;
-@@ -1604,7 +1830,13 @@ impl WgpuRendererCore {
+@@ -1604,7 +1940,13 @@ impl WgpuRendererCore {
                          self.draw_sprites(
                              &instance_bindings.polychrome_sprites,
                              texture_id,
@@ -1127,7 +1337,7 @@ index 8387528..2a47cb1 100644
                              instance_range(range),
                              &mut pass,
                          )?;
-@@ -1612,6 +1844,38 @@ impl WgpuRendererCore {
+@@ -1612,6 +1954,38 @@ impl WgpuRendererCore {
                      // Surfaces are macOS-only for video playback and are not
                      // implemented by the WGPU renderer.
                      PrimitiveBatch::Surfaces(_surfaces) => {}
@@ -1166,7 +1376,7 @@ index 8387528..2a47cb1 100644
                  }
              }
          }
-@@ -1847,6 +2111,8 @@ impl WgpuRendererCore {
+@@ -1847,6 +2221,8 @@ impl WgpuRendererCore {
                  st_position: v.st_position,
                  color: path.color,
                  bounds,
@@ -1175,7 +1385,7 @@ index 8387528..2a47cb1 100644
              }));
          }
  
-@@ -1887,7 +2153,8 @@ impl WgpuRendererCore {
+@@ -1887,7 +2263,8 @@ impl WgpuRendererCore {
                  ..Default::default()
              });
  
@@ -1185,7 +1395,7 @@ index 8387528..2a47cb1 100644
              pass.set_bind_group(0, &resources.path_globals_bind_group, &[]);
              pass.set_bind_group(1, &vertex_binding.bind_group, &[]);
              // The path rasterization shader loads records by vertex index
-@@ -1903,12 +2170,252 @@ impl WgpuRendererCore {
+@@ -1903,12 +2280,252 @@ impl WgpuRendererCore {
          Ok(true)
      }
  
@@ -1438,7 +1648,7 @@ index 8387528..2a47cb1 100644
          let data = unsafe { Self::instance_bytes(instances) };
          // wgpu rejects zero-sized bindings, so empty primitive arrays still
          // reserve the 16-byte minimum.
-@@ -1949,31 +2456,15 @@ impl WgpuRendererCore {
+@@ -1949,31 +2566,15 @@ impl WgpuRendererCore {
                  }
              }
          }
@@ -1479,7 +1689,7 @@ index 8387528..2a47cb1 100644
      }
  
      fn write_instance_texture(resources: &WgpuResources, offset: u64, data: &[u8]) {
-@@ -2399,14 +2890,13 @@ impl WgpuHeadlessRenderer {
+@@ -2399,14 +3000,13 @@ impl WgpuHeadlessRenderer {
      fn render(&mut self, scene: &Scene, size: Size<DevicePixels>) -> anyhow::Result<()> {
          self.check_gpu_errors()?;
          self.ensure_render_target(size)?;
@@ -1498,7 +1708,7 @@ index 8387528..2a47cb1 100644
          Ok(())
      }
  
-@@ -2549,6 +3039,29 @@ fn instance_range(range: Range<usize>) -> Range<u32> {
+@@ -2549,6 +3149,29 @@ fn instance_range(range: Range<usize>) -> Range<u32> {
      range.start as u32..range.end as u32
  }
  
@@ -1528,7 +1738,7 @@ index 8387528..2a47cb1 100644
  #[cfg(not(target_family = "wasm"))]
  fn create_surface(
      instance: &wgpu::Instance,
-@@ -2614,9 +3127,9 @@ impl RenderingParameters {
+@@ -2614,9 +3237,9 @@ impl RenderingParameters {
  mod tests {
      use super::*;
      use gpui::{
@@ -1541,7 +1751,7 @@ index 8387528..2a47cb1 100644
      };
      #[cfg(target_os = "linux")]
      use gpui::{DevicePixels, PlatformHeadlessRenderer, Scene};
-@@ -2630,8 +3143,8 @@ mod tests {
+@@ -2630,8 +3253,8 @@ mod tests {
      }
  
      #[cfg(target_os = "linux")]
@@ -1552,7 +1762,7 @@ index 8387528..2a47cb1 100644
              origin: Point {
                  x: x.into(),
                  y: y.into(),
-@@ -2640,7 +3153,12 @@ mod tests {
+@@ -2640,7 +3263,12 @@ mod tests {
                  width: width.into(),
                  height: height.into(),
              },
@@ -1566,7 +1776,7 @@ index 8387528..2a47cb1 100644
          Quad {
              order: 0,
              border_style: BorderStyle::Solid,
-@@ -2650,6 +3168,8 @@ mod tests {
+@@ -2650,6 +3278,8 @@ mod tests {
              border_color: color,
              corner_radii: Corners::default(),
              border_widths: Edges::default(),
@@ -1575,7 +1785,7 @@ index 8387528..2a47cb1 100644
          }
      }
  
-@@ -2673,6 +3193,8 @@ mod tests {
+@@ -2673,6 +3303,8 @@ mod tests {
      const BLUE: [u8; 4] = [0, 0, 255, 255];
      #[cfg(target_os = "linux")]
      const BLACK: [u8; 4] = [0, 0, 0, 255];
@@ -1584,7 +1794,7 @@ index 8387528..2a47cb1 100644
  
      #[cfg(target_os = "linux")]
      #[test]
-@@ -2771,6 +3293,207 @@ mod tests {
+@@ -2771,6 +3403,207 @@ mod tests {
          Ok(())
      }
  
@@ -1792,7 +2002,7 @@ index 8387528..2a47cb1 100644
      #[test]
      fn webgl_shader_is_valid_wgsl_without_storage_buffers() {
          assert!(!WEBGL_SHADERS.contains("var<storage"));
-@@ -2797,16 +3520,66 @@ mod tests {
+@@ -2797,16 +3630,66 @@ mod tests {
              .expect("shader should validate");
      }
  
@@ -1861,7 +2071,7 @@ index 8387528..2a47cb1 100644
      }
  
      #[test]
-@@ -2876,6 +3649,8 @@ mod tests {
+@@ -2876,6 +3759,8 @@ mod tests {
                  bottom: 32.0.into(),
                  left: 33.0.into(),
              },
@@ -1870,7 +2080,7 @@ index 8387528..2a47cb1 100644
          };
  
          let bytes = unsafe { WgpuRendererCore::instance_bytes(std::slice::from_ref(&quad)) };
-@@ -2923,6 +3698,10 @@ mod tests {
+@@ -2923,6 +3808,10 @@ mod tests {
                  31.0_f32.to_bits(),
                  32.0_f32.to_bits(),
                  33.0_f32.to_bits(),
