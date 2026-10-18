@@ -5,8 +5,8 @@
 use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
-    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, Entity, Focusable as _, FontWeight, Hsla, MouseButton, Pixels,
-    SharedString, Window,
+    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, DefiniteLength, Entity, Focusable as _, FontWeight, Hsla,
+    MouseButton, Pixels, SharedString, Window,
 };
 
 use super::card::{framed, glyph_frame, row_frame, CardItem, Corners};
@@ -46,7 +46,7 @@ impl Dim {
 }
 
 /// `KEYCAP_BEVEL`, `inset 0 1px 0 var(--keycap-top)`: the 1 px light along the inside of the top edge.
-fn bevel(p: &Palette) -> Vec<BoxShadow> {
+pub fn bevel(p: &Palette) -> Vec<BoxShadow> {
     vec![BoxShadow { color: p.keycap_top, offset: point(px(0.), px(1.)), blur_radius: px(0.), spread_radius: px(0.), inset: true }]
 }
 
@@ -619,11 +619,25 @@ pub struct Field {
     held: bool,
     invalid: bool,
     sheet: Option<bool>,
+    width: Option<DefiniteLength>,
+    mono: bool,
 }
 
 impl Field {
     pub fn new(state: &Entity<InputState>) -> Self {
-        Field { state: state.clone(), held: false, invalid: false, sheet: None }
+        Field { state: state.clone(), held: false, invalid: false, sheet: None, width: None, mono: false }
+    }
+
+    /// A row field at a width other than the select's: a slate field's 160 px slot, or the whole line.
+    pub fn width(mut self, width: impl Into<DefiniteLength>) -> Self {
+        self.width = Some(width.into());
+        self
+    }
+
+    /// A row field in the mono.
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
     }
 
     pub fn held(mut self, held: bool) -> Self {
@@ -672,7 +686,12 @@ impl RenderOnce for Field {
             .bg(fill)
             .text_color(ink);
         match self.sheet {
-            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT.0), self.held),
+            None => {
+                let width = self.width.unwrap_or(size::SELECT_WIDTH.into());
+                let input = Styled::h(input, size::CONTROL_HEIGHT).w(width).text_size(text::FACT.0);
+                let input = if self.mono { input.font_family(cx.theme().mono_font_family.clone()) } else { input };
+                field_frame(input, self.held).w(width)
+            }
             Some(mono) => {
                 let input = Styled::h(input, px(40.)).w_full().rounded(size::BUTTON_RADIUS);
                 let input = if mono {

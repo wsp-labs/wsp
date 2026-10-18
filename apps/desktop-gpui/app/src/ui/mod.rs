@@ -6,6 +6,7 @@
 pub mod act;
 pub mod card;
 pub mod catalog;
+pub mod chart;
 pub mod computer_glyph;
 pub mod context_menu;
 pub mod controls;
@@ -31,13 +32,14 @@ pub use card::{
     chips, framed, glyph, glyph_frame, is_paste, section_head, word, Card, CardItem, Chip, HeadRow, KeyCaps, Line, Row, Taken, WordClass,
     Words, RESET_WORD,
 };
+pub use chart::{Axis, Chart, ChartLine, Tick, CHART_HEIGHT};
 pub use computer_glyph::ComputerIcon;
 pub use controls::{Button, ButtonKind, Choice, Field, PickRow};
 pub use dialog::{quiet, shortcut_tooltip, shortcut_tooltip_view, tip, AlertDialog, CopyRow, Dialog, Refusal};
 pub use grain::grain;
 pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
 pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
-pub use menu::{menu_of, row_menu, MenuAct};
+pub use menu::{icon_menu, menu_of, row_menu, MenuAct};
 pub use segmented::Segmented;
 pub use select::{Select, SelectEvent, SelectItem, SelectState};
 pub use sparkline::Sparkline;

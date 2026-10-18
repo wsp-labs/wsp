@@ -8,7 +8,9 @@ use std::rc::Rc;
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{point, prelude::*, px, App, BoxShadow, FocusHandle, KeyDownEvent, Pixels, SharedString, Window};
 
+use super::controls::bevel;
 use super::icons::Glyph;
+use super::motion;
 use super::theme::ActivePalette;
 
 type Pick = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
@@ -33,6 +35,7 @@ pub struct Segmented {
     text: (Pixels, Pixels),
     pad: Pixels,
     glyph: (Pixels, Pixels),
+    keycap: bool,
     on_pick: Option<Pick>,
 }
 
@@ -48,6 +51,7 @@ impl Segmented {
             text: (px(13.), px(13.)),
             pad: px(12.),
             glyph: (px(16.), px(8.)),
+            keycap: false,
             on_pick: None,
         }
     }
@@ -88,6 +92,15 @@ impl Segmented {
         self
     }
 
+    /// `SEGMENTED` and `SEGMENT` in the slate's `look.ts`: the keycap's edge, fill and bevel on an `h-9` track, its
+    /// segments `rounded-lg px-3.5`.
+    pub fn keycap(mut self) -> Self {
+        self.keycap = true;
+        self.height = px(36.);
+        self.pad = px(14.);
+        self
+    }
+
     pub fn on_pick(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_pick = Some(Rc::new(f));
         self
@@ -117,6 +130,8 @@ impl RenderOnce for Segmented {
         let open: Vec<bool> = self.segments.iter().map(|s| s.held.is_none()).collect();
         let (picked, on_pick) = (self.picked, self.on_pick.clone());
         let ((font, line), pad, (glyph, gap)) = (self.text, self.pad, self.glyph);
+        let keycap = self.keycap;
+        let segment_radius = if keycap { TRACK_RADIUS } else { SEGMENT_RADIUS };
         h_flex()
             .id(self.id.clone())
             .debug_selector(|| "segmented".into())
@@ -136,14 +151,21 @@ impl RenderOnce for Segmented {
             .items_stretch()
             .h(self.height)
             .p(px(2.))
-            .gap(px(1.))
+            .gap(px(if keycap { 2. } else { 1. }))
             .rounded(TRACK_RADIUS)
             .border_1()
-            .border_color(p.border)
+            .border_color(if keycap { p.input } else { p.border })
+            .when(keycap, |el| el.bg(p.input_fill).shadow(bevel(&p)))
             .children(self.segments.into_iter().enumerate().map(|(ix, segment)| {
                 let is_picked = picked == Some(ix);
                 let held = segment.held.is_some();
-                let ink = if is_picked { p.foreground } else { p.muted_foreground };
+                let key = SharedString::from(format!("{}-{ix}", self.id));
+                let over = motion::hovered(key.clone(), window, cx);
+                let lit = is_picked || (*over.read(cx) && !held);
+                let ink =
+                    motion::ease_ink(key.clone(), "ink", if lit { p.foreground } else { p.muted_foreground }, motion::COLORS, window, cx);
+                let fill =
+                    motion::ease_ink(key, "fill", if is_picked { p.accent } else { p.accent.opacity(0.) }, motion::COLORS, window, cx);
                 let on_pick = self.on_pick.clone().filter(|_| !is_picked && !held);
                 let focus = focus.clone();
                 h_flex()
@@ -152,14 +174,15 @@ impl RenderOnce for Segmented {
                     .justify_center()
                     .px(pad)
                     .gap(gap)
-                    .rounded(SEGMENT_RADIUS)
+                    .rounded(segment_radius)
                     .text_size(font)
                     .line_height(line)
                     .text_color(ink)
-                    .when(is_picked, |el| el.bg(p.accent))
+                    .bg(fill)
+                    .on_hover(motion::track_hover(over))
                     .when(is_picked && ringed, |el| el.shadow(ring.clone()))
                     .when(held, |el| el.opacity(0.5))
-                    .when(!is_picked && !held, |el| el.cursor_pointer().hover(|s| s.text_color(p.foreground)))
+                    .when(!is_picked && !held, |el| el.cursor_pointer())
                     .when_some(segment.held, |el, why| {
                         el.tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(why.clone()).build(window, cx))
                     })

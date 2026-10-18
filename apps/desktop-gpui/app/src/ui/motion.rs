@@ -53,19 +53,34 @@ fn channel(name: &str, cx: &App) -> SharedString {
 
 /// `target`, eased over `duration` from the value the piece `id` showed for `name` last frame.
 pub fn ease_ink(id: impl Into<ElementId>, name: &str, target: Hsla, duration: Duration, window: &mut Window, cx: &mut App) -> Hsla {
-    if still(cx) {
-        return target;
-    }
-    let channel = channel(name, cx);
-    transition((id.into(), channel), Ink(target), policy(duration), window, cx).0
+    ease_ink_by(id, name, target, policy(duration), window, cx)
 }
 
 pub fn ease_px(id: impl Into<ElementId>, name: &str, target: Pixels, duration: Duration, window: &mut Window, cx: &mut App) -> Pixels {
+    ease_px_by(id, name, target, policy(duration), window, cx)
+}
+
+/// `ease-[cubic-bezier(0.23,1,0.32,1)]`: a figure's digits rolling and a meter's fill.
+pub fn snappy(duration: Duration) -> Transition {
+    Transition::new(duration).easing(Easing::cubic_bezier(0.23, 1., 0.32, 1.).expect("a valid curve"))
+}
+
+/// `ease_ink` in a timing of the caller's own.
+pub fn ease_ink_by(id: impl Into<ElementId>, name: &str, target: Hsla, timing: Transition, window: &mut Window, cx: &mut App) -> Hsla {
     if still(cx) {
         return target;
     }
     let channel = channel(name, cx);
-    px(transition((id.into(), channel), Length(target.into()), policy(duration), window, cx).0)
+    transition((id.into(), channel), Ink(target), timing, window, cx).0
+}
+
+/// `ease_px` in a timing of the caller's own.
+pub fn ease_px_by(id: impl Into<ElementId>, name: &str, target: Pixels, timing: Transition, window: &mut Window, cx: &mut App) -> Pixels {
+    if still(cx) {
+        return target;
+    }
+    let channel = channel(name, cx);
+    px(transition((id.into(), channel), Length(target.into()), timing, window, cx).0)
 }
 
 /// Whether the pointer is over the piece `id`, kept between frames: set it from the element's `on_hover`.
