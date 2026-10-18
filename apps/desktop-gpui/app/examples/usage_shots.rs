@@ -41,14 +41,14 @@ struct Shot {
 }
 
 impl Render for Shot {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let tabs = self.page.update(cx, |page, cx| page.tabs(cx).into_any_element());
         let height = self.height.clone();
         let measured = div()
             .relative()
             .child(self.page.clone())
             .child(canvas(move |bounds, _, _| height.set(bounds.size.height), |_, _, _, _| {}).absolute().top_0().left_0().size_full());
-        frame(Some(tabs), Some(measured.into_any_element()), cx).bg(cx.palette().background)
+        frame(Some(tabs), Some(measured.into_any_element()), window, cx).bg(cx.palette().background)
     }
 }
 
@@ -85,6 +85,8 @@ fn main() {
     cx.update(|cx| {
         gpui_kit::init(cx);
         ui::init(Side::Light, cx);
+        // The web's run reduces motion, which stills its rolls and its chart's tween.
+        cx.set_global(ui::Still(true));
     });
     for theme in ["paper", "graphite"] {
         cx.update(|cx| ui::theme::set_theme(theme, cx));

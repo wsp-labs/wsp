@@ -132,11 +132,25 @@ fn turn(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
 pub struct Skeleton {
     width: Pixels,
     height: Pixels,
+    full: bool,
+    radius: Pixels,
 }
 
 impl Skeleton {
     pub fn new(width: Pixels, height: Pixels) -> Self {
-        Skeleton { width, height }
+        Skeleton { width, height, full: false, radius: px(6.) }
+    }
+
+    /// As wide as what holds it, as a bar with no width class stretches.
+    pub fn full(mut self) -> Self {
+        self.full = true;
+        self
+    }
+
+    /// A radius other than `rounded-sm`'s 6 px: `rounded-md`'s 8 px for a glyph frame's room.
+    pub fn radius(mut self, radius: Pixels) -> Self {
+        self.radius = radius;
+        self
     }
 }
 
@@ -175,9 +189,9 @@ impl RenderOnce for Skeleton {
             .relative()
             .flex_none()
             .overflow_hidden()
-            .w(self.width)
+            .map(|el| if self.full { el.w_full() } else { el.w(self.width) })
             .h(self.height)
-            .rounded(px(6.))
+            .rounded(self.radius)
             .bg(p.border)
             .children(left.map(sweep))
     }

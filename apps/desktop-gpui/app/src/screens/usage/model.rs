@@ -6,7 +6,7 @@
 use std::cmp::Ordering;
 
 use chrono::TimeZone;
-use gpui_kit::{rgb, Hsla, Rgba};
+use gpui_kit::{Hsla, Rgba};
 use wsp_host_client::protocol::{
     AccountsAnswerAccountsItem, AccountsAnswerAccountsItemNote, AccountsAnswerAccountsItemStatus,
     AccountsAnswerAccountsItemWindowsItemKind, ResetAnswerAccount, UsageUsedRequest, UsageUsedRequestRange, UsageUsedRequestSplit,
@@ -348,8 +348,10 @@ pub fn ticks<Tz: TimeZone>(used: &UsedAnswer, tz: &Tz) -> Vec<Tick> {
 pub enum Ink {
     Foreground,
     MutedForeground,
-    /// `SPLIT_INKS` by rank: sky, violet, amber, pink, teal.
+    /// `SPLIT_INKS`: sky, violet, amber, pink, teal, by their place in `SPLIT_HUES`.
     Split(usize),
+    /// A project's own hue, one of `HUES`.
+    Hue(String),
     /// An agent's mark ink, its second account and on mixed toward the text or the page; rank 0 to 3.
     Agent {
         agent: String,
@@ -359,8 +361,11 @@ pub enum Ink {
     Neutral(usize),
 }
 
-/// Tailwind's sky, violet, amber, pink and teal 500, none of them Claude's orange nor the done and failed colours.
-const SPLIT_INKS: [u32; 5] = [0x00a6f4, 0x8e51ff, 0xfe9a00, 0xf6339a, 0x00bba7];
+/// The hues a project may pick (`PROJECT_HUES`), in the order `InkTheme::hues` holds their inks.
+pub const HUES: [&str; 8] = ["red", "orange", "amber", "green", "teal", "blue", "violet", "pink"];
+/// `SPLIT_INKS`, Tailwind's sky, violet, amber, pink and teal 500, as the project hues that draw them: none of them
+/// Claude's orange nor the done and failed colours.
+const SPLIT_HUES: [&str; 5] = ["blue", "violet", "amber", "pink", "teal"];
 
 fn agent_ink(agent: &str, rank: usize) -> Ink {
     if catalog::ink(agent).is_some() {
@@ -377,6 +382,14 @@ pub struct InkTheme {
     pub background: Hsla,
     pub muted_foreground: Hsla,
     pub dark: bool,
+    /// The palette's `hue-*` inks in `HUES`' order.
+    pub hues: [Hsla; 8],
+}
+
+impl InkTheme {
+    fn hue(&self, name: &str) -> Option<Hsla> {
+        HUES.iter().position(|h| *h == name).map(|at| self.hues[at])
+    }
 }
 
 impl Ink {
@@ -384,7 +397,8 @@ impl Ink {
         match self {
             Ink::Foreground => theme.foreground,
             Ink::MutedForeground => theme.muted_foreground,
-            Ink::Split(i) => SPLIT_INKS.get(*i).map_or(theme.muted_foreground, |hex| rgb(*hex).into()),
+            Ink::Split(i) => SPLIT_HUES.get(*i).and_then(|hue| theme.hue(hue)).unwrap_or(theme.muted_foreground),
+            Ink::Hue(hue) => theme.hue(hue).unwrap_or(theme.muted_foreground),
             Ink::Neutral(0) => theme.muted_foreground,
             Ink::Neutral(1) => theme.foreground.opacity(0.8),
             Ink::Neutral(_) => theme.foreground.opacity(0.4),
@@ -467,8 +481,9 @@ pub struct Chart {
 }
 
 impl Chart {
-    /// `known_projects` are the project ids this host has: use filed under any other is drawn muted.
-    pub fn of(used: &UsedAnswer, known_projects: &[impl AsRef<str>]) -> Chart {
+    /// `known_projects` are the project ids this host has: use filed under any other is drawn muted. `hue_of` names the
+    /// hue a project picked, which is its line's alone, so the hues handed out by rank skip it.
+    pub fn of(used: &UsedAnswer, known_projects: &[impl AsRef<str>], hue_of: impl Fn(&str) -> Option<String>) -> Chart {
         // The host always sends lines, empty only where nothing was used; an answer without them draws the total.
         if used.lines.is_empty() {
             let points = used.series.iter().map(|s| s.tokens).collect();
@@ -477,6 +492,9 @@ impl Chart {
         }
         let split = Split::from(used.split);
         let agent_of = |key: &str| used.rows.iter().find(|r| r.key == key).and_then(|r| r.agent.clone());
+        let own = |key: &str| if split == Split::Project { hue_of(key).filter(|hue| HUES.contains(&hue.as_str())) } else { None };
+        let picked: Vec<String> = used.lines.iter().filter_map(|line| own(&line.key)).collect();
+        let free: Vec<usize> = (0..SPLIT_HUES.len()).filter(|&i| !picked.iter().any(|hue| hue == SPLIT_HUES[i])).collect();
         let mut next = 0;
         let mut ranks: Vec<(String, usize)> = vec![];
         let lines = used
@@ -487,6 +505,8 @@ impl Chart {
                 let unowned = split == Split::Project && !known_projects.iter().any(|p| p.as_ref() == line.key);
                 let ink = if unowned {
                     Ink::MutedForeground
+                } else if let Some(hue) = own(&line.key) {
+                    Ink::Hue(hue)
                 } else if let Some(agent) = &agent {
                     let rank = match ranks.iter_mut().find(|(a, _)| a == agent) {
                         Some((_, n)) => {
@@ -502,11 +522,7 @@ impl Chart {
                 } else {
                     let rank = next;
                     next += 1;
-                    if rank < SPLIT_INKS.len() {
-                        Ink::Split(rank)
-                    } else {
-                        Ink::MutedForeground
-                    }
+                    free.get(rank).map_or(Ink::MutedForeground, |&i| Ink::Split(i))
                 };
                 ChartLine { key: line.key.clone(), label: line.label.clone(), points: line.points.clone(), ink, agent }
             })
@@ -811,6 +827,7 @@ pub fn limits(accounts: &[Account]) -> Limits<'_> {
 mod tests {
     use super::*;
     use chrono::FixedOffset;
+    use gpui_kit::rgb;
     use serde_json::json;
 
     /// Sat 17 Oct 2026 14:05 UTC.
@@ -999,7 +1016,7 @@ mod tests {
         ]);
         let keys = ["claude:a", "claude:b", "codex:a", "codex:b", "claude:c", "claude:d", "claude:e"];
         let answer = used(json!({ "split": "account", "rows": rows, "lines": keys.map(line) }));
-        let chart = Chart::of(&answer, &[] as &[&str]);
+        let chart = Chart::of(&answer, &[] as &[&str], |_| None);
         let claude = |rank| Ink::Agent { agent: "claude".into(), rank };
         assert_eq!(
             chart.lines.iter().map(|l| l.ink.clone()).collect::<Vec<_>>(),
@@ -1010,7 +1027,7 @@ mod tests {
         let keys = ["a", "b", "c", "d", "e", "f", "g"];
         let rows: Vec<_> = keys.iter().map(|k| row(k, 1.0, 0.0, json!({}))).collect();
         let answer = used(json!({ "split": "computer", "rows": rows, "lines": keys.map(line) }));
-        let inks: Vec<Ink> = Chart::of(&answer, &[] as &[&str]).lines.into_iter().map(|l| l.ink).collect();
+        let inks: Vec<Ink> = Chart::of(&answer, &[] as &[&str], |_| None).lines.into_iter().map(|l| l.ink).collect();
         assert_eq!(
             inks,
             [Ink::Split(0), Ink::Split(1), Ink::Split(2), Ink::Split(3), Ink::Split(4), Ink::MutedForeground, Ink::MutedForeground]
@@ -1019,15 +1036,31 @@ mod tests {
         let answer = used(
             json!({ "split": "project", "rows": [row("p1", 1.0, 0.0, json!({})), row("", 1.0, 0.0, json!({}))], "lines": [line(""), line("p1"), line("p2")] }),
         );
-        let inks: Vec<Ink> = Chart::of(&answer, &["p1", "p2"]).lines.into_iter().map(|l| l.ink).collect();
+        let inks: Vec<Ink> = Chart::of(&answer, &["p1", "p2"], |_| None).lines.into_iter().map(|l| l.ink).collect();
         assert_eq!(inks, [Ink::MutedForeground, Ink::Split(0), Ink::Split(1)]);
+    }
+
+    #[test]
+    fn a_projects_picked_hue_is_its_lines_alone_and_the_ranked_hues_skip_it() {
+        let rows: Vec<_> = ["p1", "p2", "p3", ""].iter().map(|k| row(k, 1.0, 0.0, json!({}))).collect();
+        let answer = used(json!({ "split": "project", "rows": rows, "lines": [line("p1"), line("p2"), line("p3"), line("")] }));
+        let hue_of = |key: &str| Some(if key == "p1" { "blue" } else { "neutral" }.to_owned());
+        let inks: Vec<Ink> = Chart::of(&answer, &["p1", "p2", "p3"], hue_of).lines.into_iter().map(|l| l.ink).collect();
+        assert_eq!(inks, [Ink::Hue("blue".into()), Ink::Split(1), Ink::Split(2), Ink::MutedForeground]);
+        let paper = theme(0x27272a, 0xfcfcfc, 0x6c6c76, false);
+        assert_eq!(hex(Ink::Hue("blue".into()).resolve(&paper)), [0x00, 0xa6, 0xf4], "the palette's blue, sky 500");
+        assert_eq!(hex(Ink::Split(1).resolve(&paper)), [0x8e, 0x51, 0xff], "violet, the first hue no project picked");
+
+        let answer = used(json!({ "split": "computer", "rows": rows, "lines": [line("p1"), line("p2")] }));
+        let inks: Vec<Ink> = Chart::of(&answer, &["p1"], hue_of).lines.into_iter().map(|l| l.ink).collect();
+        assert_eq!(inks, [Ink::Split(0), Ink::Split(1)], "only the project split wears a project's hue");
     }
 
     #[test]
     fn an_answer_without_lines_draws_one_total_line() {
         let answer =
             used(json!({ "rows": [row("a", 1.0, 0.0, json!({}))], "series": [{ "t": 0, "tokens": 5 }, { "t": 1, "tokens": 1250 }] }));
-        let chart = Chart::of(&answer, &[] as &[&str]);
+        let chart = Chart::of(&answer, &[] as &[&str], |_| None);
         assert!(!chart.per_split);
         assert_eq!(chart.lines.len(), 1);
         assert_eq!(
@@ -1044,7 +1077,8 @@ mod tests {
     }
 
     fn theme(fg: u32, bg: u32, muted: u32, dark: bool) -> InkTheme {
-        InkTheme { foreground: rgb(fg).into(), background: rgb(bg).into(), muted_foreground: rgb(muted).into(), dark }
+        let hues = [0xfb2c36, 0xff6900, 0xfe9a00, 0x00bc7d, 0x00bba7, 0x00a6f4, 0x8e51ff, 0xf6339a].map(|hex| rgb(hex).into());
+        InkTheme { foreground: rgb(fg).into(), background: rgb(bg).into(), muted_foreground: rgb(muted).into(), dark, hues }
     }
 
     /// The colours Chrome resolves the claude shades to on Paper and Graphite.

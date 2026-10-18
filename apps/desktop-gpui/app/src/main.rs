@@ -10,7 +10,7 @@ use desktop_gpui::screens::dialogs::startup::{self, Claim};
 use desktop_gpui::screens::{composer, Place, Route};
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
-use desktop_gpui::{bench, local_store, screens};
+use desktop_gpui::{bench, desktop, local_store, screens};
 use futures::StreamExt as _;
 use gpui_kit::component::Root;
 use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
@@ -154,6 +154,7 @@ fn main() {
     });
     app.run(move |cx: &mut App| {
         gpui_kit::init(cx);
+        cx.set_global(desktop::Launched { state: state.clone(), env: env.clone() });
         // A Mac app lives on in the menu bar with its last window closed, as Electron's does.
         cx.on_window_closed(|cx, _| {
             if cx.windows().is_empty() && !cfg!(target_os = "macos") {

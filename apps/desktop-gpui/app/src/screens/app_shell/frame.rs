@@ -83,7 +83,7 @@ pub fn sidebar_quiet(cx: &App) -> Hsla {
 
 /// `Lockup`: the tilde beside the wordmark, 14 px tall, set 2 px low so its optical centre sits on the row's.
 pub fn lockup(ink: Hsla) -> impl IntoElement {
-    svg().path(super::assets::LOCKUP).flex_none().w(px(51.)).h(px(14.)).mt(px(4.)).text_color(ink)
+    svg().path(crate::ui::LOCKUP).flex_none().w(px(51.)).h(px(14.)).mt(px(4.)).text_color(ink)
 }
 
 /// A row that starts a column: 52 px, its children 16 px apart.

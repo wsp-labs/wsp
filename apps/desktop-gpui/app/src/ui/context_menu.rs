@@ -49,6 +49,7 @@ struct Open {
     menu: Entity<PopupMenu>,
     at: Point<Pixels>,
     above: bool,
+    left: bool,
     closed: Rc<Cell<bool>>,
     _dismissed: Subscription,
 }
@@ -108,7 +109,8 @@ impl ContextMenu {
             // gpui-kit's menu takes its height from its rows; a menu with no room below opens above the pointer.
             let rules = items.windows(2).filter(|w| w[0].group != w[1].group).count();
             let height = px(items.len() as f32 * ROW + rules as f32 * RULE + PADDING);
-            let above = place_menu(at, gpui_kit::size(px(MENU_WIDTH), height), window.viewport_size()).y < at.y;
+            let placed = place_menu(at, gpui_kit::size(px(MENU_WIDTH), height), window.viewport_size());
+            let (above, left) = (placed.y < at.y, placed.x < at.x);
             let closed = Rc::new(Cell::new(false));
             let mut chose = Some(chose);
             let dismissed = cx.subscribe_in(&menu, window, {
@@ -127,7 +129,7 @@ impl ContextMenu {
             // The press that opened it is still being dispatched and may move the keys, so they go to the menu after it.
             let focus = menu.focus_handle(cx);
             window.defer(cx, move |window, cx| focus.focus(window, cx));
-            self.open = Some(Open { menu, at, above, closed, _dismissed: dismissed });
+            self.open = Some(Open { menu, at, above, left, closed, _dismissed: dismissed });
             cx.notify();
         }
     }
@@ -144,8 +146,17 @@ impl ContextMenu {
     /// The page's menu over everything else, while one is open.
     pub fn overlay(&self) -> Option<AnyElement> {
         let open = self.open.as_ref().filter(|m| !m.closed.get())?;
-        let anchor = if open.above { Anchor::BottomLeft } else { Anchor::TopLeft };
-        let placed = anchored().position(open.at).anchor(anchor).snap_to_window_with_margin(px(MENU_MARGIN)).child(open.menu.clone());
+        let anchor = match (open.above, open.left) {
+            (true, true) => Anchor::BottomRight,
+            (true, false) => Anchor::BottomLeft,
+            (false, true) => Anchor::TopRight,
+            (false, false) => Anchor::TopLeft,
+        };
+        let placed = anchored()
+            .position(open.at)
+            .anchor(anchor)
+            .snap_to_window_with_margin(px(MENU_MARGIN))
+            .child(gpui_kit::div().debug_selector(|| "context-menu".into()).child(open.menu.clone()));
         Some(deferred(placed).with_priority(2).into_any_element())
     }
 }
@@ -318,6 +329,21 @@ mod tests {
             [Some(1), None, None, None],
             "Enter on the refused row picks nothing; Escape and a press outside close it"
         );
+    }
+
+    // The Mac opens the native menu, whose place the system picks; the popup measured here is the other platforms'.
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn a_menu_with_no_room_right_of_the_pointer_opens_to_its_left(cx: &mut TestAppContext) {
+        let (owner, cx) = opened(cx);
+        owner.update_in(cx, |o, window, cx| {
+            let items = vec![item("Open thread", "go", None), item("Copy PID", "copy", None)];
+            o.menu.open(point(px(1200.), px(100.)), items, window, cx, |o, pick, _, _| o.picks.push(pick));
+        });
+        cx.run_until_parked();
+        let menu = cx.debug_bounds("context-menu").expect("the menu is drawn");
+        assert!(menu.right() <= px(1201.) && menu.left() < px(1100.), "the menu ends at the pointer: {menu:?}");
+        assert!(menu.top() >= px(99.), "with room below it still opens down: {menu:?}");
     }
 
     #[test]

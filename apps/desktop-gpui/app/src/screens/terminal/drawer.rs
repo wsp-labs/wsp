@@ -709,6 +709,11 @@ impl Drawer {
         self.menu.is_open()
     }
 
+    /// The labels of the rows the last right-click asked for, whoever draws the menu.
+    pub fn menu_asked(&self) -> Vec<gpui_kit::SharedString> {
+        self.menu.asked().to_vec()
+    }
+
     fn pick(&mut self, pick: Pick, window: &mut Window, cx: &mut Context<Self>) {
         match pick {
             Pick::Shell(pty) => self.activate(&pty, true, window, cx),

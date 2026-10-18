@@ -59,6 +59,7 @@ actions!(
         PreviousPanelTab,
         ClosePanelTab,
         CloseSettings,
+        EscapePage,
     ]
 );
 
@@ -174,9 +175,19 @@ pub fn action(command: &str) -> Option<Box<dyn Action>> {
     })
 }
 
-/// A web chord (`mod+shift+b`) as a GPUI keystroke (`cmd-shift-b`), or None where the web parser refuses it or GPUI
-/// would read it as another key. `mod` is Command on macOS and Control elsewhere, `meta` is Command or Super.
-pub fn keystroke(chord: &str, mac: bool) -> Option<String> {
+/// `parseKeybindingShortcut`: a web chord's key and the modifiers it holds, `mod` held apart from Command and Control.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Chord {
+    pub key: String,
+    pub meta: bool,
+    pub ctrl: bool,
+    pub shift: bool,
+    pub alt: bool,
+    pub modk: bool,
+}
+
+/// `parseKeybindingShortcut`: none where a token is empty, no key is named or two are.
+pub fn parse(chord: &str) -> Option<Chord> {
     let lower = chord.to_lowercase();
     let mut tokens: Vec<&str> = lower.split('+').map(str::trim).collect();
     let trailing = tokens.iter().rev().take_while(|token| token.is_empty()).count();
@@ -184,24 +195,36 @@ pub fn keystroke(chord: &str, mac: bool) -> Option<String> {
     if trailing > 0 {
         tokens.push("+");
     }
-    if tokens.iter().any(|token| token.is_empty()) {
+    if tokens.is_empty() || tokens.iter().any(|token| token.is_empty()) {
         return None;
     }
-    let (mut platform, mut ctrl, mut alt, mut shift, mut key) = (false, false, false, false, None);
+    let mut read = Chord { key: String::new(), meta: false, ctrl: false, shift: false, alt: false, modk: false };
+    let mut key = None;
     for token in tokens {
         match token {
-            "cmd" | "meta" => platform = true,
-            "ctrl" | "control" => ctrl = true,
-            "shift" => shift = true,
-            "alt" | "option" => alt = true,
-            "mod" if mac => platform = true,
-            "mod" => ctrl = true,
+            "cmd" | "meta" => read.meta = true,
+            "ctrl" | "control" => read.ctrl = true,
+            "shift" => read.shift = true,
+            "alt" | "option" => read.alt = true,
+            "mod" => read.modk = true,
             _ if key.is_some() => return None,
+            "space" => key = Some(" "),
+            "esc" => key = Some("escape"),
             other => key = Some(other),
         }
     }
-    let key = match key? {
-        "esc" => "escape",
+    read.key = key?.to_owned();
+    Some(read)
+}
+
+/// A web chord (`mod+shift+b`) as a GPUI keystroke (`cmd-shift-b`), or None where the web parser refuses it or GPUI
+/// would read it as another key. `mod` is Command on macOS and Control elsewhere, `meta` is Command or Super.
+pub fn keystroke(chord: &str, mac: bool) -> Option<String> {
+    let read = parse(chord)?;
+    let platform = read.meta || (read.modk && mac);
+    let ctrl = read.ctrl || (read.modk && !mac);
+    let key = match read.key.as_str() {
+        " " => "space",
         "arrowup" => "up",
         "arrowdown" => "down",
         "arrowleft" => "left",
@@ -218,11 +241,27 @@ pub fn keystroke(chord: &str, mac: bool) -> Option<String> {
             ""
         },
         if ctrl { "ctrl-" } else { "" },
-        if alt { "alt-" } else { "" },
-        if shift { "shift-" } else { "" },
+        if read.alt { "alt-" } else { "" },
+        if read.shift { "shift-" } else { "" },
     );
-    let read = Keystroke::parse(&text).ok()?;
-    (read.key == key && read.key_char.is_none()).then_some(text)
+    let typed = Keystroke::parse(&text).ok()?;
+    (typed.key == key && typed.key_char.is_none()).then_some(text)
+}
+
+/// `shortcutConflictKey` equality: two chords that press the same keys on this platform, however each is spelled.
+pub fn same_chord(left: &str, right: &str, mac: bool) -> bool {
+    keystroke(left, mac).is_some_and(|at| keystroke(right, mac).as_ref() == Some(&at))
+}
+
+/// `defaultOn`: the command's default rule on this chord, however the chord is spelled for the platform.
+pub fn default_on(command: &str, chord: &str, mac: bool) -> Option<&'static Rule<'static>> {
+    DEFAULTS.iter().find(|rule| rule.command == command && same_chord(rule.chord, chord, mac))
+}
+
+/// `overrideWhen`: the when a chord of the person's own takes, its default's on the same chord, else its first
+/// default's.
+pub fn override_when(command: &str, chord: &str, mac: bool) -> Option<&'static str> {
+    default_on(command, chord, mac).or_else(|| DEFAULTS.iter().find(|rule| rule.command == command)).and_then(|rule| rule.when)
 }
 
 /// A when clause as a GPUI context predicate over the names above. `terminalOwnsMod` is a focused terminal off macOS,
@@ -272,13 +311,15 @@ pub fn rules_with<'a>(mac: bool, overrides: &'a BTreeMap<String, Option<String>>
         .filter(|(command, chord)| DEFAULTS.iter().any(|rule| rule.command == *command) && keystroke(chord, mac).is_some())
         .collect();
     let kept = DEFAULTS.iter().copied().filter(|rule| !moved.iter().any(|(command, _)| *command == rule.command));
-    let added = moved.iter().map(|&(command, chord)| {
-        let on = keystroke(chord, mac);
-        let defaults = || DEFAULTS.iter().filter(move |rule| rule.command == command);
-        let when = defaults().find(|rule| keystroke(rule.chord, mac) == on).or_else(|| defaults().next()).and_then(|rule| rule.when);
-        Rule { command, chord, when }
-    });
+    let added = moved.iter().map(|&(command, chord)| Rule { command, chord, when: override_when(command, chord, mac) });
     kept.chain(added).collect()
+}
+
+/// The person's overrides as the host's preferences hold them (`keybindings`: a command and its chord, or null), as
+/// [`rules_with`] reads them; anything but an object is none.
+pub fn overrides_of(keybindings: Option<&serde_json::Value>) -> BTreeMap<String, Option<String>> {
+    let entries = keybindings.and_then(|k| k.as_object()).into_iter().flatten();
+    entries.map(|(command, chord)| (command.clone(), chord.as_str().map(str::to_owned))).collect()
 }
 
 /// A rule as bound: its command and when are the table's own, its chord may be the person's.
@@ -836,6 +877,21 @@ mod tests {
     }
 
     #[test]
+    fn one_parser_reads_a_chord_for_the_table_and_the_page() {
+        let read = parse("Control + Option + Esc").unwrap();
+        assert_eq!((read.key.as_str(), read.ctrl, read.alt, read.meta, read.modk), ("escape", true, true, false, false));
+        assert_eq!(parse("cmd+space").unwrap().key, " ");
+        assert_eq!(parse("mod++").unwrap().key, "+");
+        assert!(parse("mod+a+b").is_none() && parse("mod+shift").is_none() && parse("mod+").unwrap().key == "+");
+        assert!(same_chord("mod+b", "Ctrl+B", false) && !same_chord("mod+b", "ctrl+b", true));
+        assert!(same_chord("meta+esc", "cmd+escape", true));
+        assert_eq!(default_on("sidebar.toggle", "ctrl+b", false).map(|rule| rule.chord), Some("mod+b"));
+        assert_eq!(override_when("sidebar.toggle", "ctrl+b", false), Some("!terminalOwnsMod"));
+        assert_eq!(override_when("sidebar.toggle", "ctrl+b", true), None);
+        assert_eq!(override_when("thread.findOlder", "f4", false), Some("threadFindOpen && !terminalFocus"));
+    }
+
+    #[test]
     fn refuses_chords_that_do_not_read() {
         for chord in ["mod", "mod+shift", "mod+a+b", "mod++b", "mod+fn", "mod+a-b"] {
             assert_eq!(keystroke(chord, false), None, "{chord}");
@@ -898,6 +954,14 @@ mod tests {
         let kept: Vec<Rule> = DEFAULTS.iter().copied().filter(|rule| rule.command != "sidebar.toggle").collect();
         assert_eq!(rules[..kept.len()], kept[..]);
         assert_eq!(rules[kept.len()..], [Rule { command: "sidebar.toggle", chord: "mod+shift+s", when: None }]);
+    }
+
+    #[test]
+    fn reads_the_overrides_the_host_keeps() {
+        let kept = serde_json::json!({ "sidebar.toggle": "mod+shift+s", "chat.new": null });
+        assert_eq!(overrides_of(Some(&kept)), overrides(&[("sidebar.toggle", Some("mod+shift+s")), ("chat.new", None)]));
+        assert_eq!(overrides_of(Some(&serde_json::json!("mod+b"))), BTreeMap::new());
+        assert_eq!(overrides_of(None), BTreeMap::new());
     }
 
     #[test]

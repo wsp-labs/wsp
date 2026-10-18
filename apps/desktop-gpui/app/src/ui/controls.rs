@@ -5,8 +5,8 @@
 use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
-    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, DefiniteLength, Div, ElementId, Entity, Focusable as _, FontWeight,
-    Hsla, MouseButton, Pixels, SharedString, Window,
+    div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, DefiniteLength, Div, ElementId, Entity, FocusHandle,
+    Focusable as _, FontWeight, Hsla, MouseButton, Pixels, SharedString, Window,
 };
 
 use super::card::{framed, glyph_frame, row_frame, word, CardItem, Corners, WordClass};
@@ -22,6 +22,9 @@ type SharedClick = std::rc::Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'sta
 
 /// A held control waits on something beside it: dimmed in its own look, and nothing else.
 const HELD: f32 = 0.64;
+
+/// `PickRow`'s slot under 640 px, `max-sm:pl-[72px]`: past the checkbox, the glyph frame and their gaps.
+const PICK_SLOT_INDENT: Pixels = px(72.);
 
 /// How a held control's parts read: the web dims the control as one layer, but GPUI fades each fill, edge and glyph
 /// on its own, which stacks them; so each part is drawn solid in the color the dimmed layer shows over the page.
@@ -91,6 +94,8 @@ pub struct Button {
     glyph: Option<Glyph>,
     /// An svg of the app's own drawn where a glyph would be, for a mark gpui-kit's bundle lacks.
     path: Option<&'static str>,
+    /// A 12 px glyph after the label: a link's external mark.
+    after: Option<Glyph>,
     held: bool,
     busy: bool,
     neutral_ring: bool,
@@ -105,6 +110,8 @@ pub struct Button {
     glyph_after: bool,
     /// No keycap bevel (`shadow-none`).
     flat: bool,
+    /// A handle of the caller's for its tab stop, so the caller can tell when it has the focus.
+    focus: Option<FocusHandle>,
     on_click: Option<Click>,
 }
 
@@ -117,6 +124,7 @@ impl Button {
             label: Some(label.into()),
             glyph: None,
             path: None,
+            after: None,
             held: false,
             busy: false,
             neutral_ring: false,
@@ -126,6 +134,7 @@ impl Button {
             corners: None,
             glyph_after: false,
             flat: false,
+            focus: None,
             on_click: None,
         }
     }
@@ -178,6 +187,7 @@ impl Button {
             label: None,
             glyph: Some(glyph),
             path: None,
+            after: None,
             held: false,
             busy: false,
             neutral_ring: false,
@@ -187,6 +197,7 @@ impl Button {
             corners: None,
             glyph_after: false,
             flat: false,
+            focus: None,
             on_click: None,
         }
     }
@@ -215,6 +226,20 @@ impl Button {
 
     pub fn glyph(mut self, glyph: Glyph) -> Self {
         self.glyph = Some(glyph);
+        self
+    }
+
+    /// A 12 px glyph after the label, as the skills.sh link's external mark (`size-3` after the word).
+    pub fn after(mut self, glyph: Glyph) -> Self {
+        self.after = Some(glyph);
+        self
+    }
+
+    /// Its glyph alone at its size's padding, the label gone as `max-sm:hidden` takes it: Restore defaults under 640 px.
+    pub fn glyph_only(mut self, only: bool) -> Self {
+        if only {
+            self.label = None;
+        }
         self
     }
 
@@ -250,6 +275,12 @@ impl Button {
     /// No keycap bevel, as the PR box's merge (`shadow-none`).
     pub fn flat(mut self) -> Self {
         self.flat = true;
+        self
+    }
+
+    /// Its tab stop on `handle`, so a page can tell when the button has the focus.
+    pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
+        self.focus = Some(handle.clone());
         self
     }
 
@@ -384,11 +415,15 @@ impl RenderOnce for Button {
                     .map(|icon| icon.with_size(glyph_size).text_color(glyph_ink)),
             })
             .children(self.label)
+            .children(self.after.map(|g| {
+                div().debug_selector(|| "button-after".into()).flex().child(Icon::new(g).with_size(px(12.)).text_color(glyph_ink))
+            }))
             .map(|el| {
                 if held {
                     return el;
                 }
                 el.cursor_pointer()
+                    .when_some(self.focus, |el, focus| el.track_focus(&focus))
                     .tab_index(0)
                     .focus_visible(|s| s.shadow(vec![ring(ring_ink)]))
                     .on_hover(motion::track_hover(hovered))
@@ -580,7 +615,8 @@ impl Pick {
     }
 
     /// The mark is the tab stop and wears the ring, as the web's radio and checkbox do; the whole row takes a press.
-    fn render(self, mark: impl IntoElement, radius: Pixels, floor: Pixels, cx: &App) -> AnyElement {
+    /// `stacked` sets the slot under the words, in from the row's edge by that much.
+    fn render(self, mark: impl IntoElement, radius: Pixels, floor: Pixels, stacked: Option<Pixels>, cx: &App) -> AnyElement {
         let ring_ink = cx.palette().ring;
         let words = pick_words(self.name, self.title, self.tag, self.marks, self.note, self.on || self.full_ink, cx);
         let keyed = self.on_click.clone();
@@ -606,23 +642,29 @@ impl Pick {
         let gap = if self.slot.is_none() { px(20.) } else { px(0.) };
         let fact_id = format!("{}-fact", self.id);
         let fact = self.fact.map(|f| word(f, WordClass::Fact, cx).flex_none().mr(gap).debug_selector(move || fact_id));
-        let lead = h_flex().flex_1().min_w_0().gap_3().child(mark).children(frame).child(words).children(fact);
+        let lead =
+            h_flex().when(stacked.is_none(), |el| el.flex_1()).min_w_0().gap_3().child(mark).children(frame).child(words).children(fact);
         // A press on the slot's fact or control is not a tick, as the web's slot prevents its label's click.
         let slot = self.slot.map(|slot| {
             h_flex()
                 .debug_selector(|| "pick-slot".into())
                 .flex_none()
                 .min_w_0()
-                .justify_end()
+                .map(|el| match stacked {
+                    Some(indent) => el.pl(indent),
+                    None => el.justify_end(),
+                })
                 .gap_3()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .child(slot)
         });
+        let body =
+            if stacked.is_some() { v_flex().gap_3().child(lead).children(slot) } else { h_flex().gap_5().child(lead).children(slot) };
         row_frame(&self.id, floor, self.corners)
             .when(!self.locked, |el| el.cursor_pointer())
             .when_some(self.hover, |el, hover| el.tooltip(tip(hover)))
             .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
-            .child(h_flex().gap_5().child(lead).children(slot))
+            .child(body)
             .into_any_element()
     }
 }
@@ -696,7 +738,7 @@ impl Choice {
 impl RenderOnce for Choice {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let mark = radio(self.0.on, false, cx);
-        self.0.render(mark, px(8.), size::ROW_FLOOR, cx)
+        self.0.render(mark, px(8.), size::ROW_FLOOR, None, cx)
     }
 }
 
@@ -755,7 +797,8 @@ impl RenderOnce for PickRow {
         let mark = checkbox(SharedString::from(format!("{}-checkbox", self.0.id)), self.0.on, self.0.locked, window, cx);
         // The web's rule stands on the row's wrapper, outside the label's floor, where a choice's stands inside it.
         let floor = size::ROW_FLOOR + if self.0.corners.rule.is_some() { px(1.) } else { px(0.) };
-        self.0.render(mark, px(4.), floor, cx)
+        let stacked = super::narrow::width(window).sm.then_some(PICK_SLOT_INDENT);
+        self.0.render(mark, px(4.), floor, stacked, cx)
     }
 }
 

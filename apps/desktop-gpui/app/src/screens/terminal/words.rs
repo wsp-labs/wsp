@@ -4,6 +4,7 @@
 //! and why a keystroke is refused.
 
 use super::state::{Absent, PaneState, PauseMode};
+use crate::ui::fmt_bytes;
 
 /// SHELL_ENDED_LINE: the overlay and the scrollback of a shell whose daemon went away read this one sentence.
 pub const SHELL_ENDED_LINE: &str = "This shell ended when the terminal process on its computer restarted";
@@ -44,14 +45,14 @@ pub fn refusal_line(happened: &str, fix: &str) -> String {
 /// `ownDaemonDown`: the daemon this host started for its own computer is not running.
 pub fn own_daemon_down(name: &str) -> Absent {
     let said = format!("{name}'s terminals and files stopped");
-    Absent { sentence: said.clone(), said, will: None, start: Some(START_DAEMON_WORD.into()) }
+    Absent { away: "stopped", sentence: said.clone(), said, will: None, start: Some(START_DAEMON_WORD.into()) }
 }
 
 /// `absentComputer`: a computer of the person's own that is not answering.
 pub fn absent_computer(name: &str) -> Absent {
     let said = format!("{name} is not answering");
     let will = "it connects on its own when it is on".to_owned();
-    Absent { sentence: format!("{said}; {will}"), said, will: Some(will), start: None }
+    Absent { away: "no answer", sentence: format!("{said}; {will}"), said, will: Some(will), start: None }
 }
 
 /// `MEMORY_NEAR_FULL` in `words/thread.ts`: the share of memory in use past which the kernel's killer is one
@@ -79,8 +80,8 @@ pub fn out_of_memory_line(m: &Memory) -> String {
     format!(
         "Out of memory ({} of {} used, load {:.1}) when the thread's computer last answered; the work there took the memory, not a \
          fault in the computer",
-        fmt_bytes(m.used),
-        fmt_bytes(m.total),
+        fmt_bytes(m.used as u64),
+        fmt_bytes(m.total as u64),
         (m.load1 * 10.).round() / 10.
     )
 }
@@ -104,26 +105,6 @@ pub fn bigger_size_line(mem_mb: f64, offers: &[Offer]) -> String {
             (o.mem_mb / 1024. * 10.).round() / 10.,
             fmt_rate(o.rate_usd_per_hour)
         ),
-    }
-}
-
-/// `fmtBytes`: binary units, whole under a gigabyte, GB with one decimal unless whole.
-fn fmt_bytes(n: f64) -> String {
-    const K: f64 = 1024.;
-    if n < K {
-        return format!("{n} B");
-    }
-    if n < K * K {
-        return format!("{} KB", (n / K).round());
-    }
-    if n < K * K * K {
-        return format!("{} MB", (n / (K * K)).round());
-    }
-    let gb = (n / (K * K * K) * 10.).round() / 10.;
-    if gb.fract() == 0. {
-        format!("{gb} GB")
-    } else {
-        format!("{gb:.1} GB")
     }
 }
 

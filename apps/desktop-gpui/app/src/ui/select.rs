@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
 use gpui_kit::{
-    anchored, deferred, div, point, prelude::*, px, AnyElement, App, Context, Entity, EventEmitter, KeyDownEvent, Keystroke, MouseButton,
-    Pixels, ScrollHandle, SharedString, Task, Window,
+    anchored, canvas, deferred, div, point, prelude::*, px, AnyElement, App, Context, Entity, EventEmitter, KeyDownEvent, Keystroke,
+    MouseButton, Pixels, ScrollHandle, SharedString, Task, Window,
 };
 
 use super::controls::Dim;
@@ -36,6 +36,8 @@ const TYPED_RESET: Duration = Duration::from_millis(750);
 
 type Mark = Rc<dyn Fn(&App) -> AnyElement>;
 type Change<T> = Rc<dyn Fn(&T, &mut Window, &mut App) + 'static>;
+/// An item as the open list draws it: its index, words, mark, rule above and face.
+type ListRow = (usize, SharedString, Option<Mark>, bool, Option<SharedString>);
 
 /// One item of a select: its value, its words and an optional mark before them.
 pub struct SelectItem<T> {
@@ -44,20 +46,40 @@ pub struct SelectItem<T> {
     /// The trigger's words once this item is picked, where the list's are too long for its 176 px.
     short: Option<SharedString>,
     mark: Option<Mark>,
+    /// The family its words are drawn in in the list, as a font picker draws each family in itself.
+    face: Option<SharedString>,
     /// Shown on the trigger while picked, never in the list: a value the list does not offer.
     hidden: bool,
     /// `SelectSeparator` before it in the list.
     rule_above: bool,
+    /// The value Base UI reads as none picked, `""`: picked, its words stand on the trigger in the placeholder ink.
+    blank: bool,
 }
 
 impl<T> SelectItem<T> {
     pub fn new(value: T, label: impl Into<SharedString>) -> Self {
-        SelectItem { value, label: label.into(), short: None, mark: None, hidden: false, rule_above: false }
+        SelectItem { value, label: label.into(), short: None, mark: None, face: None, hidden: false, rule_above: false, blank: false }
+    }
+
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    /// Its words in the list drawn in `family`; the trigger keeps the select's own face.
+    pub fn face(mut self, family: impl Into<SharedString>) -> Self {
+        self.face = Some(family.into());
+        self
     }
 
     /// The trigger says it while it is picked, and the list leaves it out (`SelectValue` over a value no item holds).
     pub fn hidden(mut self) -> Self {
         self.hidden = true;
+        self
+    }
+
+    /// Picked, the trigger says it in the placeholder ink, as Base UI marks an empty value `data-placeholder`.
+    pub fn blank(mut self) -> Self {
+        self.blank = true;
         self
     }
 
@@ -117,6 +139,8 @@ pub struct SelectState<T> {
     cursor: Option<usize>,
     scroll: ScrollHandle,
     typed: Typed,
+    /// The trigger's width as last laid out, for a select that fills what holds it.
+    anchor: Pixels,
 }
 
 /// The letters typed so far toward an item, after `useTypeahead`.
@@ -133,7 +157,7 @@ impl<T: Clone + PartialEq + 'static> SelectState<T> {
     /// Make it with `cx.new(|_| SelectState::new(items, Some(&value)))`.
     pub fn new(items: Vec<SelectItem<T>>, value: Option<&T>) -> Self {
         let picked = value.and_then(|v| items.iter().position(|i| &i.value == v));
-        SelectState { items, picked, open: false, cursor: None, scroll: ScrollHandle::new(), typed: Typed::default() }
+        SelectState { items, picked, open: false, cursor: None, scroll: ScrollHandle::new(), typed: Typed::default(), anchor: px(0.) }
     }
 
     pub fn value(&self) -> Option<&T> {
@@ -263,12 +287,14 @@ impl<T: Clone + PartialEq + 'static> SelectState<T> {
 
 impl<T: 'static> EventEmitter<SelectEvent<T>> for SelectState<T> {}
 
-/// A select in a row at `SELECT_WIDTH`. Held, it keeps its look at 64% and neither the pointer nor the keys open it.
+/// A select in a row at `SELECT_WIDTH`, 144 px under 640. Held, it keeps its look at 64% and neither the pointer nor the
+/// keys open it.
 #[derive(IntoElement)]
 pub struct Select<T: Clone + PartialEq + 'static> {
     state: Entity<SelectState<T>>,
     held: bool,
-    width: Pixels,
+    width: Option<Pixels>,
+    fill: bool,
     height: Pixels,
     placeholder: Option<SharedString>,
     on_change: Option<Change<T>>,
@@ -279,7 +305,8 @@ impl<T: Clone + PartialEq + 'static> Select<T> {
         Select {
             state: state.clone(),
             held: false,
-            width: size::SELECT_WIDTH,
+            width: None,
+            fill: false,
             height: size::CONTROL_HEIGHT,
             placeholder: None,
             on_change: None,
@@ -293,7 +320,13 @@ impl<T: Clone + PartialEq + 'static> Select<T> {
 
     /// A width other than the row's 176 px.
     pub fn width(mut self, width: Pixels) -> Self {
-        self.width = width;
+        self.width = Some(width);
+        self
+    }
+
+    /// The whole width of what holds it, as `w-full`.
+    pub fn fill(mut self, fill: bool) -> Self {
+        self.fill = fill;
         self
     }
 
@@ -394,19 +427,26 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
         let id = SharedString::from(format!("select-{}", self.state.entity_id()));
+        let filling = self.fill;
         let state = self.state.read(cx);
+        let width = match (filling, self.width) {
+            (true, _) => state.anchor,
+            (false, Some(width)) => width,
+            (false, None) if super::narrow::width(window).sm => size::SELECT_WIDTH_NARROW,
+            (false, None) => size::SELECT_WIDTH,
+        };
         let (open, picked, cursor, scroll) = (state.open && !self.held, state.picked, state.cursor, state.scroll.clone());
         let shown = picked.map(|ix| {
             let item = &state.items[ix];
-            (item.short.clone().unwrap_or_else(|| item.label.clone()), item.mark.clone())
+            (item.short.clone().unwrap_or_else(|| item.label.clone()), item.mark.clone(), item.blank)
         });
-        let rows: Vec<(usize, SharedString, Option<Mark>, bool)> = if open {
+        let rows: Vec<ListRow> = if open {
             state
                 .items
                 .iter()
                 .enumerate()
                 .filter(|(_, i)| !i.hidden)
-                .map(|(ix, i)| (ix, i.label.clone(), i.mark.clone(), i.rule_above))
+                .map(|(ix, i)| (ix, i.label.clone(), i.mark.clone(), i.rule_above, i.face.clone()))
                 .collect()
         } else {
             Vec::new()
@@ -418,8 +458,17 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
             (p.input, p.input_fill, p.foreground, p.placeholder)
         };
         let words = match shown {
-            Some((label, mark)) => h_flex().gap_2().min_w_0().children(mark.map(|m| m(cx))).child(div().min_w_0().truncate().child(label)),
-            None => h_flex().min_w_0().text_color(placeholder).child(div().truncate().child(self.placeholder.unwrap_or_default())),
+            Some((label, mark, blank)) => h_flex()
+                .gap_2()
+                .min_w_0()
+                .when(blank, |el| el.debug_selector(|| "select-placeholder".into()).text_color(placeholder))
+                .children(mark.map(|m| m(cx)))
+                .child(div().min_w_0().truncate().child(label)),
+            None => h_flex()
+                .debug_selector(|| "select-placeholder".into())
+                .min_w_0()
+                .text_color(placeholder)
+                .child(div().truncate().child(self.placeholder.unwrap_or_default())),
         };
         let chevron = Icon::new(Glyph::ChevronDown).with_size(px(12.)).flex_none().mr(px(-4.)).text_color(if self.held {
             dim.over(p.muted_foreground.opacity(0.5))
@@ -431,10 +480,10 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
             .id(id.clone())
             .debug_selector(|| "select".into())
             .relative()
-            .flex_none()
+            .when(filling, |el| el.w_full())
+            .when(!filling, |el| el.flex_none().w(width))
             .justify_between()
             .gap_2()
-            .w(self.width)
             .h(self.height)
             .px(px(9.))
             .rounded(size::CONTROL_RADIUS)
@@ -446,6 +495,19 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
             .text_color(ink)
             .child(words.flex_1())
             .child(chevron)
+            .when(filling, |el| {
+                let anchor = self.state.clone();
+                el.child(
+                    canvas(
+                        move |bounds, _, cx| {
+                            anchor.update(cx, |s, _| s.anchor = bounds.size.width);
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .size_full(),
+                )
+            })
             .when(!self.held, |el| {
                 let (toggle, keyed) = (self.state.clone(), self.state.clone());
                 el.cursor_pointer()
@@ -461,9 +523,9 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
             });
         let popup = open.then(|| {
             let at = picked.and_then(|picked| rows.iter().position(|(ix, ..)| *ix == picked)).unwrap_or(0);
-            let ruled = rows.iter().take(at + 1).filter(|(.., rule)| *rule).count();
+            let ruled = rows.iter().take(at + 1).filter(|(_, _, _, rule, _)| *rule).count();
             let top = -(px(1.) + LIST_PAD + ITEM_HEIGHT * at as f32 + RULE * ruled as f32) + (self.height - ITEM_HEIGHT) / 2. - px(1.);
-            let items = rows.into_iter().map(|(ix, label, mark, rule)| {
+            let items = rows.into_iter().map(|(ix, label, mark, rule, face)| {
                 let (hover, confirm) = (self.state.clone(), self.state.clone());
                 let on_change = self.on_change.clone();
                 let ground = if cursor == Some(ix) {
@@ -477,7 +539,7 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
                     .id(ix)
                     .debug_selector(|| "select-item".into())
                     .min_h(ITEM_HEIGHT)
-                    .min_w(self.width + ITEM_WIDER)
+                    .min_w(width + ITEM_WIDER)
                     .gap_2()
                     .px_2()
                     .py_1()
@@ -488,7 +550,16 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
                     .line_height(px(20.))
                     .text_color(p.foreground)
                     .children(mark.map(|m| m(cx)))
-                    .child(div().min_w_0().flex_1().child(label))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .when_some(face, |el, face| {
+                                let named = face.clone();
+                                el.debug_selector(move || format!("select-face:{named}")).font_family(face)
+                            })
+                            .child(label),
+                    )
                     .on_hover(move |over, _, cx| {
                         if *over {
                             hover.update(cx, |s, cx| {
@@ -544,7 +615,13 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
             let list = deferred(anchored().offset(point(-TEXT_SHIFT, top)).snap_to_window_with_margin(px(8.)).child(list)).with_priority(2);
             div().absolute().top_0().left_0().child(backdrop).child(list)
         });
-        div().debug_selector(|| "control".into()).relative().flex_none().child(trigger).children(popup)
+        div()
+            .debug_selector(|| "control".into())
+            .relative()
+            .when(filling, |el| el.w_full())
+            .when(!filling, |el| el.flex_none())
+            .child(trigger)
+            .children(popup)
     }
 }
 
@@ -636,6 +713,24 @@ mod tests {
         assert!(list < ITEM_HEIGHT * 3., "two items and the separator, not Three: {list:?}");
         cx.simulate_keystrokes("down down down enter");
         assert_eq!(cx.read(|cx| state.read(cx).value().copied()), Some(2), "the keys stop at the last item the list shows");
+    }
+
+    #[gpui_kit::test]
+    fn an_item_with_a_face_draws_its_words_in_it_in_the_list_alone(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+        });
+        let items = vec![SelectItem::new(1, "Default"), SelectItem::new(2, "Liberation Mono").face("Liberation Mono")];
+        let state = cx.new(|_| SelectState::new(items, Some(&2)));
+        let view = cx.new(|_| Lone { state: state.clone(), held: false });
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(view, window, cx));
+        cx.simulate_resize(size(px(400.), px(400.)));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("select-face:Liberation Mono").is_none(), "the trigger keeps the select's face");
+        cx.update(|window, cx| window.focus_next(cx));
+        cx.simulate_keystrokes("down");
+        assert!(cx.debug_bounds("select-face:Liberation Mono").is_some(), "the family's item is drawn in the family");
     }
 
     #[gpui_kit::test]

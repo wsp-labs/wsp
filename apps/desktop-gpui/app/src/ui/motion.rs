@@ -19,6 +19,45 @@ pub const COLORS: Duration = Duration::from_millis(150);
 pub const TRACK: Duration = Duration::from_millis(200);
 /// `duration-200 ease-in-out`, a dialog's popup and backdrop as they open.
 pub const DIALOG: Duration = Duration::from_millis(200);
+/// `animate-sub-open`: a sidebar group's list growing from nothing, its height and its opacity.
+pub const SUB_OPEN: Duration = Duration::from_millis(140);
+/// How long a found row's flash fades (`revealItem`).
+pub const FLASH: Duration = Duration::from_millis(900);
+/// The flash's first fill: the foreground at 9%.
+pub const FLASH_FILL: f32 = 0.09;
+
+/// `--animate-sub-open`'s `cubic-bezier(0.23, 1, 0.32, 1)`.
+pub fn sub_open_curve() -> Easing {
+    Easing::cubic_bezier(0.23, 1., 0.32, 1.).expect("a valid curve")
+}
+
+/// CSS's `ease-out`.
+pub fn ease_out() -> Easing {
+    Easing::cubic_bezier(0., 0., 0.58, 1.).expect("a valid curve")
+}
+
+/// Chromium's smooth `scrollIntoView`: an ease-in-out over the square root of the distance in frames at 60 Hz, at most
+/// 0.7 s (`ScrollOffsetAnimationCurve`, its delta-based duration).
+pub fn smooth_scroll(distance: Pixels) -> (Duration, Easing) {
+    let frames = f32::from(distance.abs()).sqrt().min(0.7 * 60.);
+    (Duration::from_secs_f32(frames / 60.), Easing::cubic_bezier(0.42, 0., 0.58, 1.).expect("a valid curve"))
+}
+
+/// Whether motion stands still: the person's reduced motion, or a capture's.
+pub fn reduced(cx: &App) -> bool {
+    still(cx)
+}
+/// `transition-transform duration-150`, a chevron's turn.
+pub const TURN: Duration = Duration::from_millis(150);
+/// `DigitRoll`'s `duration-500`: a digit's column moving to its new figure.
+pub const ROLL: Duration = Duration::from_millis(500);
+/// `ROLL_MS + 100`: the timer that ends a roll, whether or not its columns finished moving.
+pub const ROLL_END: Duration = Duration::from_millis(600);
+
+/// `cubic-bezier(0.23, 1, 0.32, 1)`, the curve `settle-in`, `sub-open` and a digit's roll share.
+pub fn settle_curve() -> Easing {
+    sub_open_curve()
+}
 
 /// A color eased as CSS eases it: in sRGB with premultiplied alpha, so a fade from transparent keeps its hue.
 #[derive(Clone, Copy, PartialEq)]
@@ -89,6 +128,15 @@ pub fn ease_px_by(id: impl Into<ElementId>, name: &str, target: Pixels, timing: 
     }
     let channel = channel(name, cx);
     px(transition((id.into(), channel), Length(target.into()), timing, window, cx).0)
+}
+
+/// A number eased as `ease_px` eases a length: a chevron's turn in degrees.
+pub fn ease_f32(id: impl Into<ElementId>, name: &str, target: f32, duration: Duration, window: &mut Window, cx: &mut App) -> f32 {
+    if still(cx) {
+        return target;
+    }
+    let channel = channel(name, cx);
+    transition((id.into(), channel), Length(target), policy(duration), window, cx).0
 }
 
 /// Whether the pointer is over the piece `id`, kept between frames: set it from the element's `on_hover`.
