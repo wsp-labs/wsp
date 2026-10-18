@@ -144,13 +144,18 @@ fn field(value: &Value, key: &str) -> Option<String> {
 pub fn input_for(read: &WorkspaceRead, socket: Status, absent: Option<Absent>) -> PaneInput {
     let record = serde_json::to_value(read.record).unwrap_or(Value::Null);
     let status = read.status.and_then(|s| serde_json::to_value(s).ok());
-    let view = status.as_ref().unwrap_or(&record);
+    input_of(&record, status.as_ref(), read.computer, socket, absent)
+}
+
+/// [`input_for`] off the record and status as the host's JSON, for a caller that keeps them so.
+pub fn input_of(record: &Value, status: Option<&Value>, computer: Option<&str>, socket: Status, absent: Option<Absent>) -> PaneInput {
+    let view = status.unwrap_or(record);
     let phase = field(view, "phase").unwrap_or_else(|| "running".into());
-    let machine = status.as_ref().and_then(|s| field(s, "machineState"));
-    let reach = status.as_ref().and_then(|s| s.get("reach")).and_then(|r| field(r, "state"));
-    let local = field(&record, "kind").as_deref() == Some("local");
-    let name = field(&record, "name").unwrap_or_default();
-    let computer = read.computer.map(str::to_owned);
+    let machine = status.and_then(|s| field(s, "machineState"));
+    let reach = status.and_then(|s| s.get("reach")).and_then(|r| field(r, "state"));
+    let local = field(record, "kind").as_deref() == Some("local");
+    let name = field(record, "name").unwrap_or_default();
+    let computer = computer.map(str::to_owned);
     let where_ = computer.clone().unwrap_or(if name.is_empty() { "the thread's computer".into() } else { name });
     PaneInput {
         state: workspace_state(&phase, machine.as_deref(), reach.as_deref()),
@@ -161,7 +166,7 @@ pub fn input_for(read: &WorkspaceRead, socket: Status, absent: Option<Absent>) -
         absent,
         where_,
         computer,
-        pause_mode: match field(&record, "pauseMode").as_deref() {
+        pause_mode: match field(record, "pauseMode").as_deref() {
             Some("memory") => Some(PauseMode::Memory),
             Some("disk") => Some(PauseMode::Disk),
             _ => None,

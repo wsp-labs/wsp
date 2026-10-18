@@ -68,7 +68,7 @@ pub enum LinkEvent {
 /// DEFAULT_HEARTBEAT_MS: the host's edge sweeps quiet sockets, so liveness is an app-level ping.
 const HEARTBEAT: Duration = Duration::from_secs(10);
 /// DEFAULT_FIRST_ANSWER_MS: long enough for a daemon the host starts on the first dial.
-const FIRST_ANSWER: Duration = Duration::from_secs(20);
+pub(crate) const FIRST_ANSWER: Duration = Duration::from_secs(20);
 /// REFUSED_ATTEMPT: a door that answered with a status is dialled again only at the backoff's ceiling.
 const REFUSED_ATTEMPT: u32 = 32;
 /// The kinds a dial at the usual pace can mend; any other kind is an answer the link holds with its sentence.

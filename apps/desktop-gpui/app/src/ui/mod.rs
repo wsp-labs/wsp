@@ -23,6 +23,8 @@ pub mod select;
 pub mod sparkline;
 pub mod status;
 pub mod stepper;
+pub mod syntax;
+pub mod text_area;
 pub mod theme;
 pub mod toast;
 pub mod toggle;
@@ -41,7 +43,7 @@ pub use dialog::{narrow, quiet, shortcut_tooltip, shortcut_tooltip_view, tip, Al
 pub use grain::grain;
 pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
 pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
-pub use menu::{icon_menu, menu_of, row_menu, MenuAct};
+pub use menu::{icon_menu, menu_of, menu_on, row_menu, MenuAct};
 pub use scrollbar::scroll_area;
 pub use segmented::Segmented;
 pub use select::{Select, SelectEvent, SelectItem, SelectState};
@@ -51,6 +53,7 @@ pub use status::{
     Still,
 };
 pub use stepper::Stepper;
+pub use text_area::{chord_key, Look as TextAreaLook, TextArea};
 pub use theme::{ActivePalette, Palette, Side};
 pub use toast::{end_notice, notify, notify_in, Action as NoticeAction, Kind as NoticeKind, Notice};
 pub use toggle::Switch;
@@ -123,8 +126,9 @@ pub mod text {
     }
 }
 
-/// Installs wsp's themes and font stacks; call once after `gpui_kit::init`. Open the app with `UiAssets` for the glyphs.
+/// Installs wsp's themes, font stacks and code colors; call once after `gpui_kit::init`. Open the app with `UiAssets` for the glyphs.
 pub fn init(side: Side, cx: &mut App) {
     theme::init(side, cx);
     toast::init(cx);
+    syntax::init();
 }

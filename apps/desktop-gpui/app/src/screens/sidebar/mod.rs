@@ -761,20 +761,7 @@ impl Sidebar {
 
     /// The id of the computer a workspace stands on (`place-state.ts` workspacePlaceId).
     pub(crate) fn place_of(&self, workspace_id: &str) -> Option<String> {
-        let w = self.around.workspaces.get(workspace_id)?;
-        let places = &self.around.places;
-        let id = |p: &Value| p.get("id").and_then(Value::as_str).map(str::to_owned);
-        if let Some(named) = w.get("place").and_then(Value::as_str) {
-            return places.iter().filter_map(id).find(|p| p == named);
-        }
-        if w.get("kind").and_then(Value::as_str) == Some("local") {
-            return places.iter().filter_map(id).find(|p| p == "here").or_else(|| places.first().and_then(id));
-        }
-        let providers = places.iter().filter(|p| p.get("kind").and_then(Value::as_str) == Some("provider"));
-        match w.get("provider").and_then(Value::as_str) {
-            None => providers.clone().next().and_then(id),
-            Some(named) => providers.filter_map(id).find(|p| p == named),
-        }
+        menu::place_of(self.around.workspaces.get(workspace_id)?, &self.around.places)
     }
 
     fn take_projects(&mut self, projects: &[Value]) {
