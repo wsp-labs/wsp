@@ -1341,11 +1341,13 @@ name = "desktop-gpui"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "cocoa 0.26.0",
  "futures",
  "gpui-kit",
  "image",
  "libc",
+ "lyon",
  "objc",
  "raw-window-handle",
  "serde",

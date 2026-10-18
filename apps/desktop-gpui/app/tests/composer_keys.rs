@@ -590,3 +590,55 @@ fn a_notice_shows_under_the_box_until_the_person_writes(cx: &mut TestAppContext)
     cx.simulate_input("a");
     assert_eq!(composer.read_with(cx, |c, _| c.notice().map(str::to_owned)), None, "writing again puts it away");
 }
+
+/// The composer's column beside one more tab stop, as the window always has past the field.
+struct WithStop {
+    composer: gpui_kit::Entity<desktop_gpui::screens::composer::Composer>,
+    stop: gpui_kit::FocusHandle,
+}
+
+impl gpui_kit::Render for WithStop {
+    fn render(&mut self, _: &mut gpui_kit::Window, cx: &mut gpui_kit::Context<Self>) -> impl gpui_kit::IntoElement {
+        use desktop_gpui::ui::ActivePalette as _;
+        use gpui_kit::{InteractiveElement as _, ParentElement as _, Styled as _};
+        let fresh = self.composer.read(cx).fresh();
+        gpui_kit::div()
+            .size_full()
+            .child(desktop_gpui::screens::composer::screen::column(fresh, cx.palette().background, self.composer.clone()))
+            .child(gpui_kit::div().track_focus(&self.stop).size(gpui_kit::px(10.)))
+    }
+}
+
+#[gpui_kit::test]
+fn tab_takes_the_menus_row_and_walks_the_focus_only_with_no_menu_open(cx: &mut TestAppContext) {
+    use gpui_kit::AppContext as _;
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+        desktop_gpui::screens::composer::init(cx);
+    });
+    let mut made = None;
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let composer = cx.new(|cx| desktop_gpui::screens::composer::Composer::new(window, cx));
+        made = Some(composer.clone());
+        let view = cx.new(|cx| WithStop { composer, stop: cx.focus_handle().tab_stop(true) });
+        gpui_kit::component::Root::new(view, window, cx)
+    });
+    let composer = made.unwrap();
+    composer.update_in(cx, |c, window, cx| {
+        c.set_skills(vec![Skill { name: "tidy-imports".into(), description: Some("Sort the imports".into()) }], cx);
+        c.editor().focus_handle(cx).focus(window, cx);
+    });
+    cx.run_until_parked();
+    let in_field =
+        |cx: &mut gpui_kit::VisualTestContext| cx.update(|window, cx| composer.read(cx).editor().focus_handle(cx).is_focused(window));
+    cx.simulate_input("$ti");
+    cx.simulate_keystrokes("tab");
+    assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "$tidy-imports ", "Tab takes the menu's row");
+    assert!(in_field(cx), "and the field keeps the focus while the menu takes it");
+    // With no menu open the web composer leaves Tab to the browser, which moves the focus on (ChatComposer.tsx); here
+    // gpui-kit's Root walks it.
+    cx.simulate_keystrokes("tab");
+    assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "$tidy-imports ", "the field writes no tab of its own");
+    assert!(!in_field(cx), "Tab with no menu walks the focus on, as the browser does");
+}
