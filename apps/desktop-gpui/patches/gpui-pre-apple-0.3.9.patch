@@ -987,3 +987,163 @@ index 2b52bb9..1959c7d 100644
  // A standard gaussian function, used for weighting samples
  float gaussian(float x, float sigma) {
    return exp(-(x * x) / (2. * sigma * sigma)) / (sqrt(2. * M_PI_F) * sigma);
+diff --git a/src/text_system.rs b/src/text_system.rs
+index 3c0e17d..b599194 100644
+--- a/src/text_system.rs
++++ b/src/text_system.rs
+@@ -4,6 +4,7 @@ use core_foundation::{
+     array::{CFArray, CFArrayRef},
+     attributed_string::CFMutableAttributedString,
+     base::{CFRange, TCFType},
++    dictionary::CFDictionary,
+     number::CFNumber,
+     string::CFString,
+ };
+@@ -17,8 +18,8 @@ use core_text::{
+     font::CTFont,
+     font_collection::CTFontCollectionRef,
+     font_descriptor::{
+-        CTFontDescriptor, kCTFontSlantTrait, kCTFontSymbolicTrait, kCTFontWeightTrait,
+-        kCTFontWidthTrait,
++        CTFontDescriptor, kCTFontSlantTrait, kCTFontSymbolicTrait, kCTFontVariationAttribute,
++        kCTFontWeightTrait, kCTFontWidthTrait,
+     },
+     line::CTLine,
+     string_attributes::kCTFontAttributeName,
+@@ -173,7 +174,10 @@ impl PlatformTextSystem for AppleTextSystem {
+                 },
+             )?;
+ 
+-            let font_id = candidates[ix];
++            let mut font_id = candidates[ix];
++            if matches!(font.family.as_ref(), ".SystemUIFont" | ".AppleSystemUIFont") {
++                font_id = lock.system_font_at_weight(font_id, font.weight);
++            }
+             lock.font_selections.insert(font.clone(), font_id);
+             Ok(font_id)
+         }
+@@ -390,6 +394,32 @@ impl AppleTextSystemState {
+         Ok(font_ids)
+     }
+ 
++    /// The system font at `weight` through its `wght` axis, as Chromium draws a weight the family lists no face for.
++    fn system_font_at_weight(&mut self, font_id: FontId, weight: FontWeight) -> FontId {
++        let native = self.fonts[font_id.0].native_font();
++        if (self.fonts[font_id.0].properties().weight.0 - weight.0).abs() < 1. {
++            return font_id;
++        }
++        let wght = CFNumber::from(i64::from(u32::from_be_bytes(*b"wght")));
++        let variations =
++            CFDictionary::from_CFType_pairs(&[(wght, CFNumber::from(f64::from(weight.0)))]);
++        let key = unsafe { CFString::wrap_under_get_rule(kCTFontVariationAttribute) };
++        let attributes = CFDictionary::from_CFType_pairs(&[(key, variations.to_untyped())]);
++        let Ok(descriptor) = native
++            .copy_descriptor()
++            .create_copy_with_attributes(attributes.to_untyped())
++        else {
++            return font_id;
++        };
++        let weighted = core_text::font::new_from_descriptor(&descriptor, native.pt_size());
++        let weighted_id = FontId(self.fonts.len());
++        self.postscript_names_by_font_id
++            .insert(weighted_id, weighted.postscript_name());
++        self.fonts
++            .push(unsafe { FontKitFont::from_native_font(&weighted) });
++        weighted_id
++    }
++
+     fn advance(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Size<f32>> {
+         Ok(size_from_vector2f(
+             self.fonts[font_id.0].advance(glyph_id.0)?,
+@@ -542,6 +572,7 @@ impl AppleTextSystemState {
+         let mut string = CFMutableAttributedString::new();
+         let mut max_ascent = 0.0f32;
+         let mut max_descent = 0.0f32;
++        let mut requested = SmallVec::<[(usize, usize, FontId); 4]>::new();
+ 
+         {
+             let mut text = text;
+@@ -555,6 +586,7 @@ impl AppleTextSystemState {
+                 string.replace_str(&CFString::new(text_run), CFRange::init(utf16_start, 0));
+                 let utf16_end = string.char_len();
+ 
++                requested.push((utf16_start as usize, utf16_end as usize, run.font_id));
+                 let length = utf16_end - utf16_start;
+                 let cf_range = CFRange::init(utf16_start, length);
+                 let font = &self.fonts[run.font_id.0];
+@@ -592,7 +624,16 @@ impl AppleTextSystemState {
+                     .downcast::<CTFont>()
+                     .unwrap()
+             };
+-            let font_id = self.id_for_native_font(font);
++            // A weight of the system font can share its PostScript name with the face it was made from.
++            let first = run.string_indices().first().map(|&ix| ix as usize);
++            let font_id = requested
++                .iter()
++                .find(|&&(start, end, _)| first.is_some_and(|ix| (start..end).contains(&ix)))
++                .map(|&(_, _, id)| id)
++                .filter(|id| {
++                    self.postscript_names_by_font_id.get(id) == Some(&font.postscript_name())
++                })
++                .unwrap_or_else(|| self.id_for_native_font(font));
+ 
+             let glyphs = match runs.last_mut() {
+                 Some(run) if run.font_id == font_id => &mut run.glyphs,
+@@ -801,6 +842,57 @@ mod tests {
+         assert!(!layout.runs.is_empty());
+     }
+ 
++    #[test]
++    fn test_system_font_medium_keeps_its_face_and_fallbacks_keep_theirs() {
++        let fonts = AppleTextSystem::new();
++        let regular = fonts.font_id(&font(".SystemUIFont")).unwrap();
++        let mut medium_font = font(".SystemUIFont");
++        medium_font.weight = gpui::FontWeight::MEDIUM;
++        let medium = fonts.font_id(&medium_font).unwrap();
++        assert_ne!(regular, medium);
++        let w = fonts.glyph_for_char(medium, 'W').unwrap();
++        assert!(fonts.advance(medium, w).unwrap().width > fonts.advance(regular, w).unwrap().width);
++
++        let text = "Sonnet 😀 漢字";
++        let layout = fonts.layout_line(
++            text,
++            px(13.),
++            &[FontRun {
++                font_id: medium,
++                len: text.len(),
++            }],
++        );
++        let state = fonts.0.read();
++        let name = |id| state.postscript_names_by_font_id[&id].clone();
++        let first = layout.runs[0].font_id;
++        assert_eq!(
++            first,
++            medium,
++            "drawn with {} ({first:?}); regular is {} ({regular:?})",
++            name(first),
++            name(regular)
++        );
++        assert!(layout.runs.iter().any(|run| state.is_emoji(run.font_id)));
++        let cjk = text.find('漢').unwrap();
++        let cjk_run = layout
++            .runs
++            .iter()
++            .find(|run| run.glyphs.iter().any(|g| g.index == cjk))
++            .unwrap();
++        assert!(
++            ![regular, medium].contains(&cjk_run.font_id),
++            "漢 is drawn with {}",
++            name(cjk_run.font_id)
++        );
++        for run in &layout.runs {
++            assert!(
++                run.font_id == medium || name(run.font_id) != name(medium),
++                "a fallback took {}",
++                name(medium)
++            );
++        }
++    }
++
+     #[test]
+     fn test_layout_line_bom_char() {
+         let fonts = AppleTextSystem::new();

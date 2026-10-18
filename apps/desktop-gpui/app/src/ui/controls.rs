@@ -407,7 +407,7 @@ fn pick_words(
                         .child(name),
                 )
                 .children(tag.map(|tag| {
-                    div().debug_selector(|| "pick-tag".into()).flex_none().text_size(text::FACT).text_color(p.muted_foreground).child(tag)
+                    div().debug_selector(|| "pick-tag".into()).flex_none().text_size(text::FACT.0).text_color(p.muted_foreground).child(tag)
                 }))
                 // The web's marks sit on the name's baseline by their bottom edge: 3.5 px down a 24 px line of 15 px type.
                 .children(marks.map(|marks| div().flex_none().self_start().mt(px(3.5)).child(marks))),
@@ -672,13 +672,13 @@ impl RenderOnce for Field {
             .bg(fill)
             .text_color(ink);
         match self.sheet {
-            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT), self.held),
+            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT.0), self.held),
             Some(mono) => {
                 let input = Styled::h(input, px(40.)).w_full().rounded(size::BUTTON_RADIUS);
                 let input = if mono {
-                    input.font_family(cx.theme().mono_font_family.clone()).text_size(text::FACT)
+                    input.font_family(cx.theme().mono_font_family.clone()).text_size(text::FACT.0)
                 } else {
-                    input.text_size(text::VALUE)
+                    input.text_size(text::VALUE.0)
                 };
                 div()
                     .debug_selector(|| "control".into())

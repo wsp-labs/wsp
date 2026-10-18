@@ -84,18 +84,33 @@ pub mod size {
 /// The type scale as the pieces use it: size and line height in pixels.
 pub mod text {
     use super::*;
+    use gpui_kit::{font, SharedString, TextRun, Window};
 
     pub const SETTING_TITLE: (Pixels, Pixels) = (px(14.), px(20.));
     pub const LIST_TITLE: (Pixels, Pixels) = (px(15.), px(24.));
     pub const NOTE: (Pixels, Pixels) = (px(13.), px(20.));
     /// A row's description, `text-[13px] leading-[1.45]`.
     pub const DESCRIPTION: (Pixels, Pixels) = (px(13.), px(18.85));
-    pub const SECTION_HEAD: Pixels = px(13.5);
-    pub const FACT: Pixels = px(13.);
-    pub const VALUE: Pixels = px(14.);
+    /// `text-[13.5px]` and `text-[13px]` keep the 1.5 line height Tailwind's base gives the page.
+    pub const SECTION_HEAD: (Pixels, Pixels) = (px(13.5), px(20.25));
+    pub const FACT: (Pixels, Pixels) = (px(13.), px(19.5));
+    pub const VALUE: (Pixels, Pixels) = (px(14.), px(20.));
     pub const BUTTON: Pixels = px(13.);
     pub const XS: (Pixels, Pixels) = (px(12.), px(16.));
     pub const DIALOG_TITLE: (Pixels, Pixels) = (px(15.), px(20.));
+
+    /// A line's width to the fraction, as the web lays text out; a text box rounds it up, and a row of them drifts.
+    pub fn width(text: &str, size: f32, family: SharedString, window: &Window) -> Pixels {
+        let run = TextRun {
+            len: text.len(),
+            font: font(family),
+            color: gpui_kit::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        window.text_system().shape_line(SharedString::from(text.to_owned()), px(size), &[run], None).width
+    }
 }
 
 /// Installs wsp's themes and font stacks; call once after `gpui_kit::init`. Open the app with `UiAssets` for the glyphs.

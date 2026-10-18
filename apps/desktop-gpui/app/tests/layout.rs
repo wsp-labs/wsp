@@ -113,6 +113,22 @@ fn the_glyph_frame_and_the_section_head_take_their_sizes(cx: &mut TestAppContext
 }
 
 #[gpui_kit::test]
+fn stacked_lines_keep_their_fractional_line_height(cx: &mut TestAppContext) {
+    // Five 18.85 px lines stand 94.25 px, as Chromium stacks them; each line rounded up to a whole pixel would stand 95.
+    let cx = draw(cx, |_, _| {
+        div()
+            .debug_selector(|| "stack".into())
+            .flex()
+            .flex_col()
+            .text_size(ui::text::DESCRIPTION.0)
+            .line_height(ui::text::DESCRIPTION.1)
+            .children((1..=5).map(|n| div().child(format!("Line {n}"))))
+            .into_any_element()
+    });
+    near("five description lines", bounds(cx, "stack").size.height, 5. * f32::from(ui::text::DESCRIPTION.1));
+}
+
+#[gpui_kit::test]
 fn the_dialog_takes_the_step_width_and_its_inset(cx: &mut TestAppContext) {
     let cx = draw(cx, |_, _| {
         Dialog::new("Add a computer").count(2, 5).card(Card::new("card").item(Row::new("r", "Claude Code"))).into_any_element()

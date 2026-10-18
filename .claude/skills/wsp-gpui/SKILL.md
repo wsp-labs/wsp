@@ -83,13 +83,13 @@ Why (the reversal):
   passed on a Boat machine with no display (the wsp-map#2365 review). The
   app's own pixel test is `apps/desktop-gpui/app/tests/pixels.rs`.
 
-Backdrop blur and rounded clipping of children are our patch (wsp-map#2373):
+Backdrop blur, rounded clipping of children (wsp-map#2373) and Chromium's text placement are our patch:
 [patches/](../../../apps/desktop-gpui/patches/gpui-pre-0.3.9.patch) over three
-pinned crates, applied in `vendor/` by
+pinned crates and gpui-kit's pinned commit, applied in `vendor/` by
 [gpui-patches.sh](../../../apps/desktop-gpui/scripts/gpui-patches.sh) (`apply`
 after a clone, `save` after an edit). `.backdrop_blur(..)` is CSS's
 `backdrop-filter`, `.rounded(..).overflow_hidden()` clips children to the
-corners; [effects.rs](../../../apps/desktop-gpui/app/tests/effects.rs) checks both against Chromium.
+corners; [effects.rs](../../../apps/desktop-gpui/app/tests/effects.rs) checks both against Chromium. [text.rs](../../../apps/desktop-gpui/app/tests/text.rs) holds text to Chrome's ink and widths but cannot see which face drew it: on macOS the Medium variant shares Regular's PostScript name (`.SFNS-Regular`), and only gpui-pre-apple's `test_system_font_medium_keeps_its_face_and_fallbacks_keep_theirs` goes red if Regular draws Medium.
 
 The vendored gpui-kit skills match this pin. Their `UPSTREAM` commit d4c5681
 is 14f5933's parent, and `git log --oneline -- skills/` at 14f5933 shows no
