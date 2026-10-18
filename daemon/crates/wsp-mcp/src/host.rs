@@ -120,7 +120,8 @@ impl Host {
         if let Some(open) = held.as_ref().filter(|c| !c.is_closed()) {
             return Ok(open.clone());
         }
-        let dialled = Arc::new(self.dial(again, judged).await?);
+        // Boxed: a socket is dialled once, and inline the dial would ride in every request's future.
+        let dialled = Arc::new(Box::pin(self.dial(again, judged)).await?);
         *held = Some(dialled.clone());
         Ok(dialled)
     }

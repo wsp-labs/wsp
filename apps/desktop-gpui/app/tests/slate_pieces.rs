@@ -17,7 +17,9 @@ use desktop_gpui::screens::{Host, Opened, Screen};
 use desktop_gpui::ui::{self, Side};
 use gpui_kit::component::Root;
 use gpui_kit::test::TestWindowExt as _;
-use gpui_kit::{point, prelude::*, px, size, Entity, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext};
+use gpui_kit::{
+    point, prelude::*, px, size, Entity, Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
+};
 use wsp_host_client::HostClient;
 
 fn bench() -> (&'static Throwaway, &'static PathBuf) {
@@ -69,7 +71,7 @@ fn bar_after(cx: &mut VisualTestContext, ms: u64) -> bool {
         cx.update(|window, cx| window.render_frame(cx));
         cx.run_until_parked();
     }
-    cx.debug_bounds("slate-scrollbar").is_some()
+    cx.debug_bounds("scrollbar-thumb").is_some()
 }
 
 #[gpui_kit::test]
@@ -93,4 +95,33 @@ fn the_bar_comes_in_on_scroll_and_hover_and_goes_after_its_delay(cx: &mut TestAp
     cx.simulate_mouse_move(outside, None, Modifiers::none());
     assert!(bar_after(cx, 200), "it waits 300 ms once the pointer leaves");
     assert!(!bar_after(cx, 400), "then goes");
+}
+
+#[gpui_kit::test]
+fn the_thumb_drags_and_a_press_on_its_lane_scrolls_there(cx: &mut TestAppContext) {
+    let thread = long_thread();
+    let (_, cx) = open(cx, &thread);
+    cx.simulate_mouse_move(point(px(270.), px(300.)), None, Modifiers::none());
+    assert!(bar_after(cx, 200), "the pointer over the slate brings the bar in");
+    let at = cx.debug_bounds("scrollbar-thumb").unwrap();
+    let grip = at.center();
+    cx.simulate_mouse_down(grip, MouseButton::Left, Modifiers::none());
+    for down in [3., 60.] {
+        cx.simulate_mouse_move(grip + point(px(0.), px(down)), MouseButton::Left, Modifiers::none());
+    }
+    cx.simulate_mouse_up(grip + point(px(0.), px(60.)), MouseButton::Left, Modifiers::none());
+    assert!(bar_after(cx, 50));
+    let dragged = cx.debug_bounds("scrollbar-thumb").unwrap();
+    assert_eq!(dragged.top() - at.top(), px(60.), "the thumb follows the pointer that holds it");
+
+    let lane = cx.debug_bounds("scrollbar").unwrap();
+    let below = point(lane.center().x, lane.bottom() - px(20.));
+    cx.simulate_mouse_down(below, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_up(below, MouseButton::Left, Modifiers::none());
+    assert!(bar_after(cx, 50));
+    let jumped = cx.debug_bounds("scrollbar-thumb").unwrap();
+    assert!(
+        jumped.bottom() == lane.bottom() || (jumped.center().y - below.y).abs() < px(1.),
+        "a press below the thumb brings it there: {jumped:?} for a press at {below:?}"
+    );
 }

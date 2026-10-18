@@ -13,11 +13,11 @@ pub mod host;
 mod keys;
 pub mod looks;
 pub(crate) mod markdown;
-mod menu;
+pub(crate) mod menu;
 pub mod model;
 pub mod rows;
 mod switcher;
-mod tile;
+pub(crate) mod tile;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -407,6 +407,16 @@ impl Sidebar {
 
     pub fn items(&self) -> &[ThreadItem] {
         &self.items
+    }
+
+    /// What the sidebar reads besides the threads, for the palette's rows.
+    pub(crate) fn around(&self) -> &Around {
+        &self.around
+    }
+
+    /// The person's picks the list is narrowed by.
+    pub(crate) fn prefs(&self) -> &Prefs {
+        &self.prefs
     }
 
     /// The rows the list draws, top to bottom.
@@ -887,18 +897,20 @@ impl Sidebar {
         .detach();
     }
 
-    /// Pushes a workspace's branch and opens its pull request; the answer is said over the list (`broughtBackLine`).
+    /// Pushes a workspace's branch and opens its pull request; what it brought back is a done toast (`broughtBackLine`),
+    /// a refusal is said over the list.
     pub fn bring_back(&mut self, workspace_id: &str, cx: &mut Context<Self>) {
         let Some(link) = self.link.clone() else { return };
         self.refusal = None;
         let params = json!({ "workspaceId": workspace_id });
+        let place = self.around.workspaces.get(workspace_id).and_then(|w| crate::screens::notices::host::copy_name(w, &self.around.places));
         let task = link.runtime.spawn(host::write_read::<WorkspacesBringBackRequest>(link.host.clone(), params));
-        cx.spawn(async move |this, cx| {
-            let said = match task.await.unwrap_or_else(|e| Err(wsp_host_client::Failure::new(e.to_string()))) {
-                Ok(back) => brought_back_line(&back),
-                Err(failure) => failure.message,
-            };
-            _ = this.update(cx, |this, cx| this.refuse(said, cx));
+        cx.spawn(async move |this, cx| match task.await.unwrap_or_else(|e| Err(wsp_host_client::Failure::new(e.to_string()))) {
+            Ok(back) => {
+                let notice = crate::ui::Notice::done(brought_back_line(&back));
+                cx.update(|cx| crate::ui::notify(cx, if let Some(place) = place { notice.place(place) } else { notice }))
+            }
+            Err(failure) => _ = this.update(cx, |this, cx| this.refuse(failure.message, cx)),
         })
         .detach();
     }
@@ -911,6 +923,32 @@ impl Sidebar {
     pub fn settle_with(&mut self, key: &str, processes: Processes, cx: &mut Context<Self>) {
         // The host settles a thread with everything under it, so the web names the tree's top alone.
         self.settle_ids(vec![key.to_owned()], processes, cx);
+    }
+
+    /// `settleOpenThread`: settles the root tree of `open`, else of the workspace's top thread, as the tile's Settle
+    /// does; nothing while a thread of the tree works or the tree is settled already.
+    pub fn settle_open(&mut self, workspace_id: &str, open: Option<&str>, cx: &mut Context<Self>) {
+        if let Some(root) = self.open_root(workspace_id, open) {
+            self.settle(&root, cx);
+        }
+    }
+
+    /// The root [`Sidebar::settle_open`] settles, by its key; None where it settles nothing.
+    pub fn open_root(&self, workspace_id: &str, open: Option<&str>) -> Option<String> {
+        fn holds(node: &model::Tree, all: &[Thread], key: &str) -> bool {
+            node.thread.is_some_and(|i| all[i].key == key) || node.children.iter().any(|c| holds(c, all, key))
+        }
+        self.around.workspaces.get(workspace_id)?;
+        let top = || {
+            let walk = crate::screens::palette::switcher::walk::in_workspace(&self.threads, &self.around.workspaces, workspace_id);
+            walk.into_iter().next().map(|t| t.thread_id)
+        };
+        let open = open.filter(|key| self.thread(key).is_some()).map(str::to_owned).or_else(top)?;
+        let prefs = Prefs { project: None, ..self.prefs.clone() };
+        let view = model::sidebar(&self.threads, &prefs, self.now, Some(&open));
+        let mut live = view.pinned.iter().chain(view.needs_you.iter().filter(|n| n.inbox.is_none())).chain(&view.threads);
+        let root = live.find(|n| holds(n, &self.threads, &open)).filter(|n| n.thread.is_some())?.key.clone();
+        (!self.tree_works(&root)).then_some(root)
     }
 
     /// Settles threads; where the host leaves them for processes still running, asks as the web does.
@@ -926,10 +964,12 @@ impl Sidebar {
                     None
                 }
                 Err(failure) => Some(format!("Not settled: {}", failure.message)),
-                Ok(reply) => reply["left"]
-                    .as_array()
-                    .and_then(|left| left.iter().find(|l| l["why"] != "already settled"))
-                    .map(|l| format!("Not settled: {}", l["why"].as_str().unwrap_or_default())),
+                Ok(reply) => {
+                    let back = this.clone();
+                    let restore = move |ids: Vec<String>, cx: &mut gpui_kit::App| _ = back.update(cx, |this, cx| this.restore_ids(ids, cx));
+                    cx.update(|cx| crate::ui::notify(cx, crate::screens::notices::settled(&reply, restore)));
+                    None
+                }
             };
             if let Some(said) = said {
                 _ = this.update(cx, |this, cx| this.refuse(said, cx));

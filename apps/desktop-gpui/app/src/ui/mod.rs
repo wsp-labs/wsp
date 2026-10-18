@@ -17,12 +17,14 @@ pub mod grid;
 pub mod icons;
 pub mod menu;
 pub mod motion;
+pub mod scrollbar;
 pub mod segmented;
 pub mod select;
 pub mod sparkline;
 pub mod status;
 pub mod stepper;
 pub mod theme;
+pub mod toast;
 pub mod toggle;
 
 use gpui_kit::{px, App, Pixels};
@@ -40,12 +42,14 @@ pub use grain::grain;
 pub use grid::{chevron, num, slash, Col, Grid, GridHead, GridName, GridRow, HeadCell, StateCell, VersionFact};
 pub use icons::{Glyph, UiAssets, LOCKUP, MARK};
 pub use menu::{icon_menu, menu_of, row_menu, MenuAct};
+pub use scrollbar::scroll_area;
 pub use segmented::Segmented;
 pub use select::{Select, SelectEvent, SelectItem, SelectState};
 pub use sparkline::Sparkline;
 pub use status::{spinner, step_mark, Crab, MarkState, RowSkeleton, Skeleton, Status, StatusMark, Step, StepRow, Still};
 pub use stepper::Stepper;
 pub use theme::{ActivePalette, Palette, Side};
+pub use toast::{end_notice, notify, notify_in, Action as NoticeAction, Kind as NoticeKind, Notice};
 pub use toggle::Switch;
 
 /// Every size below is `layout.ts`'s, or the Tailwind class a piece in its list writes, in pixels.
@@ -119,4 +123,5 @@ pub mod text {
 /// Installs wsp's themes and font stacks; call once after `gpui_kit::init`. Open the app with `UiAssets` for the glyphs.
 pub fn init(side: Side, cx: &mut App) {
     theme::init(side, cx);
+    toast::init(cx);
 }

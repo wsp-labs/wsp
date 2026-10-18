@@ -50,7 +50,7 @@ fn policy(duration: Duration) -> Transition {
 }
 
 /// Tailwind's `--ease-in-out`, which is its `--default-transition-timing-function` too; not CSS's own `ease-in-out`.
-fn tailwind_ease() -> Easing {
+pub fn tailwind_ease() -> Easing {
     Easing::cubic_bezier(0.4, 0., 0.2, 1.).expect("a valid curve")
 }
 
@@ -179,8 +179,7 @@ pub fn fold(
 /// A scrollbar's opacity: in over `BAR_IN` while `shown`, out over `BAR_OUT` after its delay; at once under reduced
 /// motion.
 pub fn bar_opacity(id: impl Into<ElementId>, shown: bool, window: &mut Window, cx: &mut App) -> f32 {
-    let curve = || Easing::cubic_bezier(0.4, 0., 0.2, 1.).expect("a valid curve");
-    let timing = if shown { Transition::new(BAR_IN).easing(curve()) } else { Transition::new(BAR_OUT.1).delay(BAR_OUT.0).easing(curve()) };
+    let timing = if shown { policy(BAR_IN) } else { policy(BAR_OUT.1).delay(BAR_OUT.0) };
     f32::from(ease_px_by(id, "bar", px(if shown { 1. } else { 0. }), timing, window, cx))
 }
 

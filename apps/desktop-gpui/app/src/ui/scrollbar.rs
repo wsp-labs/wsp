@@ -1,0 +1,150 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The scroll area's vertical bar (`components/ui/scroll-area.tsx`): a 6 px thumb in `--app-scrollbar-thumb`, rounded
+//! full, easing to its hover ink over 150 ms, in a lane 4 px short of each end and 1 px in from the right edge, drawn
+//! only where the content overflows. It shows while the pointer rests on the area or it scrolls, as Base UI shows it;
+//! the thumb drags, and a press on the lane beside it scrolls there, as Base UI's do.
+
+use std::time::{Duration, Instant};
+
+use gpui_kit::{div, prelude::*, px, App, Div, ElementId, Empty, MouseButton, Pixels, Point, ScrollHandle, Stateful, Window};
+
+use super::{motion, ActivePalette};
+
+/// `w-1.5`: the bar and its thumb.
+pub const WIDTH: Pixels = px(6.);
+/// `my-1`: how far short of each end the lane stops.
+pub const ENDS: Pixels = px(4.);
+/// `mr-px`: how far in from the right edge the lane runs.
+pub const EDGE: Pixels = px(1.);
+/// Base UI's `MIN_THUMB_SIZE`.
+const MIN_THUMB: Pixels = px(16.);
+/// Base UI's `SCROLL_TIMEOUT`: the area reads as scrolling this long after its last move.
+const SCROLL_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// The thumb in its lane, as Base UI sizes it: the lane's share the viewport is of the content, at least
+/// `MIN_THUMB`, and where along the lane's spare length the offset stands.
+struct Thumb {
+    top: Pixels,
+    length: Pixels,
+    travel: Pixels,
+    most: Pixels,
+}
+
+fn thumb(handle: &ScrollHandle) -> Option<Thumb> {
+    let (view, most) = (handle.bounds().size.height, handle.max_offset().y);
+    let lane = view - ENDS * 2.;
+    if most <= px(0.) || lane <= px(0.) {
+        return None;
+    }
+    let length = (lane * (view / (view + most))).max(MIN_THUMB).min(lane);
+    let travel = lane - length;
+    Some(Thumb { top: travel * (-handle.offset().y / most).clamp(0., 1.), length, travel, most })
+}
+
+/// Scrolls `handle` so the thumb's top stands `top` down its lane.
+fn scroll_to(handle: &ScrollHandle, thumb: &Thumb, top: Pixels) {
+    if thumb.travel > px(0.) {
+        let offset = handle.offset();
+        handle.set_offset(Point::new(offset.x, -thumb.most * (top / thumb.travel).clamp(0., 1.)));
+    }
+}
+
+/// A drag of the thumb of the area it names.
+struct Grab(ElementId);
+
+/// Where the area last stood and until when it reads as scrolling.
+struct Seen {
+    offset: Point<Pixels>,
+    until: Option<Instant>,
+}
+
+/// `ScrollArea`: `content` scrolling on `handle` in the area `id` names, with its vertical bar over the right edge.
+pub fn scroll_area(
+    id: impl Into<ElementId>,
+    handle: &ScrollHandle,
+    content: impl IntoElement,
+    window: &mut Window,
+    cx: &mut App,
+) -> Stateful<Div> {
+    let id: ElementId = id.into();
+    let hovered = motion::hovered(id.clone(), window, cx);
+    let now = cx.background_executor().now();
+    let offset = handle.offset();
+    let seen = window.use_keyed_state(ElementId::from((id.clone(), "scrolled")), cx, |_, _| Seen { offset, until: None });
+    let scrolling = seen.update(cx, |s, _| {
+        if s.offset != offset {
+            s.offset = offset;
+            s.until = Some(now + SCROLL_TIMEOUT);
+        }
+        s.until.is_some_and(|u| now < u)
+    });
+    if scrolling {
+        window.request_animation_frame();
+    }
+    let opacity = motion::bar_opacity(id.clone(), *hovered.read(cx) || scrolling, window, cx);
+    // A viewport not laid out yet says nothing of its overflow; the next frame reads it.
+    if handle.bounds().size.height <= px(0.) {
+        window.request_animation_frame();
+    }
+    let grab = window.use_keyed_state(ElementId::from((id.clone(), "grab")), cx, |_, _| px(0.));
+    let lane = thumb(handle).map(|at| {
+        let thumb_id = ElementId::from((id.clone(), "thumb"));
+        let over = motion::hovered(thumb_id.clone(), window, cx);
+        let p = cx.palette();
+        let ink = if *over.read(cx) { p.scrollbar_thumb_hover } else { p.scrollbar_thumb };
+        let ink = motion::ease_ink(thumb_id.clone(), "ink", ink, motion::COLORS, window, cx);
+        let grab = grab.clone();
+        let jump = handle.clone();
+        div()
+            .id(ElementId::from((id.clone(), "lane")))
+            .debug_selector(|| "scrollbar".into())
+            .absolute()
+            .top(ENDS)
+            .bottom(ENDS)
+            .right(EDGE)
+            .w(WIDTH)
+            .on_mouse_down(MouseButton::Left, move |e, window, cx| {
+                cx.stop_propagation();
+                let Some(at) = thumb(&jump) else { return };
+                let y = e.position.y - jump.bounds().origin.y - ENDS;
+                if y < at.top || y > at.top + at.length {
+                    scroll_to(&jump, &at, y - at.length / 2.);
+                    window.refresh();
+                } else {
+                    grab.update(cx, |g, _| *g = y - at.top);
+                }
+            })
+            .when(opacity > 0., |el| {
+                el.child(
+                    div()
+                        .id(thumb_id)
+                        .debug_selector(|| "scrollbar-thumb".into())
+                        .absolute()
+                        .top(at.top)
+                        .w_full()
+                        .h(at.length)
+                        .rounded_full()
+                        .bg(ink)
+                        .opacity(opacity)
+                        .on_hover(motion::track_hover(over))
+                        .on_drag(Grab(id.clone()), |_, _, _, cx| cx.new(|_| Empty)),
+                )
+            })
+    });
+    let dragged = handle.clone();
+    let area = id.clone();
+    div()
+        .id(id.clone())
+        .relative()
+        .on_hover(motion::track_hover(hovered))
+        .on_drag_move(move |e: &gpui_kit::DragMoveEvent<Grab>, window, cx| {
+            if e.drag(cx).0 != area {
+                return;
+            }
+            let Some(at) = thumb(&dragged) else { return };
+            scroll_to(&dragged, &at, e.event.position.y - dragged.bounds().origin.y - ENDS - *grab.read(cx));
+            window.refresh();
+        })
+        .child(div().id(ElementId::from((id, "viewport"))).size_full().overflow_y_scroll().track_scroll(handle).child(content))
+        .children(lane)
+}
