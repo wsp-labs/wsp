@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- The app's text styles, one row each, as the web app's CSS draws them. text.rs reads the samples below and draws
+     the same rows in GPUI; reference.sh shoots this page and dumps the layout numbers the script writes into #out. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #fff; color: #000; }
+  /* --font-sans-system and --font-mono-system in apps/web/src/index.css. */
+  .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Liberation Sans", system-ui, sans-serif; }
+  .mono { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; }
+  .row { position: absolute; left: 16px; white-space: nowrap; }
+  .centered { display: flex; align-items: center; }
+  .probe { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+  #out { display: none; }
+</style>
+</head>
+<body>
+<script id="samples" type="application/json">
+{"row": 48, "left": 16, "width": 760, "styles": [
+  {"name": "sans 12/16", "family": "sans", "size": 12, "line": 16},
+  {"name": "sans 13/18.85", "family": "sans", "size": 13, "line": 18.85, "second": true},
+  {"name": "sans 13/19.5", "family": "sans", "size": 13, "line": 19.5},
+  {"name": "sans 13/20", "family": "sans", "size": 13, "line": 20},
+  {"name": "sans 13.5/20.25", "family": "sans", "size": 13.5, "line": 20.25, "second": true},
+  {"name": "sans 14/20", "family": "sans", "size": 14, "line": 20},
+  {"name": "sans 15/20", "family": "sans", "size": 15, "line": 20},
+  {"name": "sans 15/24", "family": "sans", "size": 15, "line": 24},
+  {"name": "mono 11/16", "family": "mono", "size": 11, "line": 16},
+  {"name": "mono 13/38", "family": "mono", "size": 13, "line": 38}
+], "weights": [400, 500], "places": ["top", "nudged", "centered", "second"], "box": 40, "texts": [
+  "Sonnet 5",
+  "Refactor the sidebar so each thread row shows its branch and last commit"
+]}
+</script>
+<div id="rows"></div>
+<pre id="out"></pre>
+<script>
+  const spec = JSON.parse(document.getElementById("samples").textContent);
+  const stacks = {
+    sans: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Inter", "Liberation Sans", "system-ui"],
+    mono: ["ui-monospace", "SF Mono", "SFMono-Regular", "Menlo", "Consolas", "DejaVu Sans Mono", "Liberation Mono"],
+  };
+  // The first face of a stack this machine has: only a face that is present measures the same whatever generic follows.
+  const canvas = document.createElement("canvas").getContext("2d");
+  const width = (font) => { canvas.font = font; return canvas.measureText("mmmmmmmmmmlli1WQ@ 0O").width; };
+  const quote = (face) => (/^[a-z-]+$/.test(face) ? face : `"${face}"`);
+  const drew = (stack) =>
+    stack.find((face) => width(`40px ${quote(face)}, monospace`) === width(`40px ${quote(face)}, serif`)) ?? "fallback";
+  const rows = [];
+  let i = 0;
+  for (const style of spec.styles) {
+    for (const weight of spec.weights) {
+      for (const place of spec.places) for (const text of place === "top" ? spec.texts : spec.texts.slice(0, 1)) {
+        // A second line starts a fractional line height down, so its glyphs can sit on half a device pixel.
+        if (place === "second" && !style.second) continue;
+        const nudge = place === "nudged" ? 0.25 : 0;
+        const row = document.createElement("div");
+        row.className = `row ${style.family}`;
+        Object.assign(row.style, {
+          top: `${i * spec.row + nudge}px`, fontSize: `${style.size}px`, lineHeight: `${style.line}px`, fontWeight: String(weight),
+        });
+        const span = document.createElement("span");
+        span.textContent = place === "second" ? `${text}\n${text}` : text;
+        if (place === "second") span.style.whiteSpace = "pre";
+        const probe = document.createElement("i");
+        probe.className = "probe";
+        span.append(probe);
+        if (place === "centered") {
+          span.style.display = "block";
+          row.classList.add("centered");
+          row.style.height = `${spec.box}px`;
+        }
+        row.append(span);
+        document.getElementById("rows").append(row);
+        rows.push({ row, span, probe, top: i * spec.row + nudge });
+        i++;
+      }
+    }
+  }
+  const out = rows.map(({ span, probe, top }) => ({
+    width: span.getBoundingClientRect().width,
+    baseline: probe.getBoundingClientRect().top - top,
+  }));
+  document.getElementById("out").textContent = JSON.stringify({
+    sans: drew(stacks.sans), mono: drew(stacks.mono), dpr: devicePixelRatio, ua: navigator.userAgent, rows: out,
+  });
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 //! the page's one way of naming a thing, its glyphs, the quiet line and the skeleton bar.
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
-use gpui_kit::{div, font, img, prelude::*, px, relative, AnyElement, App, Div, FontWeight, Hsla, Pixels, SharedString, TextRun, Window};
+use gpui_kit::{div, img, prelude::*, px, relative, AnyElement, App, Div, FontWeight, Hsla, Pixels, SharedString};
 
 use super::model::Split;
 use crate::ui::{catalog, ActivePalette, Glyph};
@@ -18,11 +18,6 @@ pub const BLOCK_GAP: Pixels = px(40.);
 /// Text at a size with the 1.5 line height a size without its own leading takes.
 pub fn sized(el: Div, size: f32) -> Div {
     el.text_size(px(size)).line_height(px(size * 1.5))
-}
-
-/// One line of `sized` text held at its fractional height, which GPUI's line box rounds to a whole pixel.
-pub fn one_line(el: Div, size: f32) -> Div {
-    sized(el, size).h(px(size * 1.5))
 }
 
 /// A card: its head, 16 px, then its body, bare or on the surface.
@@ -131,19 +126,6 @@ pub fn identity(
             )
             .children(under),
     )
-}
-
-/// A line's width to the fraction, as the web lays text out; a text box rounds it up, and a row of them drifts.
-pub fn text_width(text: &str, size: f32, family: SharedString, window: &Window) -> Pixels {
-    let run = TextRun {
-        len: text.len(),
-        font: font(family),
-        color: gpui_kit::black(),
-        background_color: None,
-        underline: None,
-        strikethrough: None,
-    };
-    window.text_system().shape_line(SharedString::from(text.to_owned()), px(size), &[run], None).width
 }
 
 /// A bar a person reads as a share: its track and its fill.
