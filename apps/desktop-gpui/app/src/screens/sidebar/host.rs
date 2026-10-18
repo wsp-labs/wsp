@@ -125,7 +125,7 @@ pub async fn read(host: &HostClient, subscribe: bool) -> Result<Snapshot, Failur
 
 async fn again(host: &HostClient, what: Again) -> Result<Change, Failure> {
     Ok(match what {
-        Again::Sessions => Change::Whole(Box::new(read(host, false).await?)),
+        Again::Sessions => Change::Whole(Box::new(Box::pin(read(host, false)).await?)),
         Again::Places => Change::Places(values(&call::<PlacesListRequest>(host, json!({})).await?.places)),
         Again::Job => {
             Change::Job(call::<InitGetRequest>(host, json!({})).await?.setup.job.as_ref().and_then(|j| serde_json::to_value(j).ok()))
@@ -143,8 +143,9 @@ pub fn follow(host: Arc<HostClient>, runtime: &Runtime, tx: mpsc::UnboundedSende
             loop {
                 let ended: Result<(), Failure> = async {
                     // Listening before the read, so nothing pushed between the two is lost.
+                    // The read is boxed: built inline, its frame overflows a 2 MiB tokio worker's stack in a debug build.
                     let mut events = host.events().await?;
-                    tx.unbounded_send(Change::Whole(Box::new(read(&host, true).await?))).map_err(|_| Failure::new("gone"))?;
+                    tx.unbounded_send(Change::Whole(Box::new(Box::pin(read(&host, true)).await?))).map_err(|_| Failure::new("gone"))?;
                     while let Some(event) = events.next().await {
                         // A frame of a newer protocol than the record is skipped: the next read brings what it said.
                         let Ok(event) = event else { continue };

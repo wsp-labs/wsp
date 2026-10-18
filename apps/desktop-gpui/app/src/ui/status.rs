@@ -27,7 +27,7 @@ pub struct Still(pub bool);
 
 impl Global for Still {}
 
-pub(super) fn still(cx: &App) -> bool {
+pub(crate) fn still(cx: &App) -> bool {
     cx.reduce_motion() || cx.try_global::<Still>().is_some_and(|s| s.0)
 }
 
@@ -257,18 +257,27 @@ pub struct StatusMark {
     tooltip: Option<SharedString>,
     crab: bool,
     rest: Option<Hsla>,
+    glyph_ink: Option<Hsla>,
     key: Option<ElementId>,
     text: (Pixels, Pixels),
 }
 
 impl StatusMark {
     pub fn new(status: Status) -> Self {
-        StatusMark { marked: Marked::Thread(status), tooltip: None, crab: true, rest: None, key: None, text: text::XS }
+        StatusMark { marked: Marked::Thread(status), tooltip: None, crab: true, rest: None, glyph_ink: None, key: None, text: text::XS }
     }
 
     /// `StateMark`: a machine's or a step's state, its word on the hover until `tooltip` gives the sentence.
     pub fn state(id: impl Into<SharedString>, state: MarkState) -> Self {
-        StatusMark { marked: Marked::State(id.into(), state), tooltip: None, crab: true, rest: None, key: None, text: text::XS }
+        StatusMark {
+            marked: Marked::State(id.into(), state),
+            tooltip: None,
+            crab: true,
+            rest: None,
+            glyph_ink: None,
+            key: None,
+            text: text::XS,
+        }
     }
 
     /// Whether a working thread's crab stands in the slot; a tile draws it at its title's end instead.
@@ -280,6 +289,13 @@ impl StatusMark {
     /// The ink of a kind with no tone, which takes its row's own; the muted ink where none is given.
     pub fn rest_ink(mut self, ink: Hsla) -> Self {
         self.rest = Some(ink);
+        self
+    }
+
+    /// The ink its glyph takes over its kind's, where the list it stands in inks every glyph alike, as the palette's
+    /// rows do (`[&_svg:not([class*='text-'])]:text-muted-foreground` in `autocomplete.tsx`).
+    pub fn glyph_ink(mut self, ink: Hsla) -> Self {
+        self.glyph_ink = Some(ink);
         self
     }
 
@@ -365,7 +381,7 @@ impl RenderOnce for StatusMark {
             .font_weight(if toned { FontWeight::MEDIUM } else { FontWeight::NORMAL })
             .text_color(ink)
             .children(time)
-            .children(glyph.map(|g| Icon::new(g).with_size(px(12.)).text_color(ink)))
+            .children(glyph.map(|g| Icon::new(g).with_size(px(12.)).text_color(self.glyph_ink.unwrap_or(ink))))
             .when(crab, |el| {
                 let crab = Crab::new(ink);
                 el.child(match key {

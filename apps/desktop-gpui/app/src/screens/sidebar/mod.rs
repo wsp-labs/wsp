@@ -12,12 +12,12 @@ mod foot;
 pub mod host;
 mod keys;
 pub mod looks;
-mod markdown;
-mod menu;
+pub(crate) mod markdown;
+pub(crate) mod menu;
 pub mod model;
 pub mod rows;
 mod switcher;
-mod tile;
+pub(crate) mod tile;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -407,6 +407,16 @@ impl Sidebar {
 
     pub fn items(&self) -> &[ThreadItem] {
         &self.items
+    }
+
+    /// What the sidebar reads besides the threads, for the palette's rows.
+    pub(crate) fn around(&self) -> &Around {
+        &self.around
+    }
+
+    /// The person's picks the list is narrowed by.
+    pub(crate) fn prefs(&self) -> &Prefs {
+        &self.prefs
     }
 
     /// The rows the list draws, top to bottom.
@@ -887,18 +897,16 @@ impl Sidebar {
         .detach();
     }
 
-    /// Pushes a workspace's branch and opens its pull request; the answer is said over the list (`broughtBackLine`).
+    /// Pushes a workspace's branch and opens its pull request; what it brought back is a done toast (`broughtBackLine`),
+    /// a refusal is said over the list.
     pub fn bring_back(&mut self, workspace_id: &str, cx: &mut Context<Self>) {
         let Some(link) = self.link.clone() else { return };
         self.refusal = None;
         let params = json!({ "workspaceId": workspace_id });
         let task = link.runtime.spawn(host::write_read::<WorkspacesBringBackRequest>(link.host.clone(), params));
-        cx.spawn(async move |this, cx| {
-            let said = match task.await.unwrap_or_else(|e| Err(wsp_host_client::Failure::new(e.to_string()))) {
-                Ok(back) => brought_back_line(&back),
-                Err(failure) => failure.message,
-            };
-            _ = this.update(cx, |this, cx| this.refuse(said, cx));
+        cx.spawn(async move |this, cx| match task.await.unwrap_or_else(|e| Err(wsp_host_client::Failure::new(e.to_string()))) {
+            Ok(back) => cx.update(|cx| crate::ui::notify(cx, crate::ui::Notice::done(brought_back_line(&back)))),
+            Err(failure) => _ = this.update(cx, |this, cx| this.refuse(failure.message, cx)),
         })
         .detach();
     }
@@ -926,10 +934,12 @@ impl Sidebar {
                     None
                 }
                 Err(failure) => Some(format!("Not settled: {}", failure.message)),
-                Ok(reply) => reply["left"]
-                    .as_array()
-                    .and_then(|left| left.iter().find(|l| l["why"] != "already settled"))
-                    .map(|l| format!("Not settled: {}", l["why"].as_str().unwrap_or_default())),
+                Ok(reply) => {
+                    let back = this.clone();
+                    let restore = move |ids: Vec<String>, cx: &mut gpui_kit::App| _ = back.update(cx, |this, cx| this.restore_ids(ids, cx));
+                    cx.update(|cx| crate::ui::notify(cx, crate::screens::notices::settled(&reply, restore)));
+                    None
+                }
             };
             if let Some(said) = said {
                 _ = this.update(cx, |this, cx| this.refuse(said, cx));

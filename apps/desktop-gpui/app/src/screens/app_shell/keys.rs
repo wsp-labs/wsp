@@ -11,6 +11,8 @@ use std::rc::Rc;
 
 use gpui_kit::{actions, Action, DummyKeyboardMapper, KeyBinding, KeyBindingContextPredicate, Keystroke, Unbind};
 
+use crate::ui::Glyph;
+
 /// The window root, always.
 pub const SHELL: &str = "Shell";
 /// On the root too, while a thread is on screen and Settings is closed.
@@ -64,6 +66,17 @@ actions!(
 #[derive(Clone, Debug, PartialEq, Eq, Action)]
 #[action(namespace = shell, no_json)]
 pub struct SelectWorkspace(pub u8);
+
+/// One step along the sidebar's tasks, or back with a negative count, at once: what the palette's Next task runs,
+/// where the chord's own action opens the switcher and waits for the key to come up.
+#[derive(Clone, Debug, PartialEq, Eq, Action)]
+#[action(namespace = shell, no_json)]
+pub struct StepWorkspace(pub i8);
+
+/// [`StepWorkspace`] over the threads of the task on screen.
+#[derive(Clone, Debug, PartialEq, Eq, Action)]
+#[action(namespace = shell, no_json)]
+pub struct StepThread(pub i8);
 
 /// One row of the chord table, spelled as the web writes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -350,6 +363,423 @@ pub fn bindings(mac: bool, overrides: &BTreeMap<String, Option<String>>) -> Vec<
     bindings_of(mac, &bound(mac, overrides))
 }
 
+/// The web's label for a chord (`formatShortcutLabel` in keybindings.ts): ⌃⌥⇧⌘ glued before the key on a Mac, the
+/// modifiers' names joined by `+` elsewhere.
+pub fn label(chord: &str, mac: bool) -> Option<String> {
+    let typed = Keystroke::parse(&keystroke(chord, mac)?).ok()?;
+    let m = &typed.modifiers;
+    let key = match typed.key.as_str() {
+        "space" => "Space".to_owned(),
+        "escape" => "Esc".to_owned(),
+        k if k.chars().count() == 1 => k.to_uppercase(),
+        k => {
+            let mut chars = k.chars();
+            chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
+        }
+    };
+    if mac {
+        let marks = [(m.control, "⌃"), (m.alt, "⌥"), (m.shift, "⇧"), (m.platform, "⌘")];
+        return Some(marks.iter().filter(|(on, _)| *on).map(|(_, mark)| *mark).chain([key.as_str()]).collect());
+    }
+    let names = [(m.control, "Ctrl"), (m.alt, "Alt"), (m.shift, "Shift"), (m.platform, "Meta")];
+    Some(names.iter().filter(|(on, _)| *on).map(|(_, name)| *name).chain([key.as_str()]).collect::<Vec<_>>().join("+"))
+}
+
+/// `shortcutLabelForCommand` as a palette row reads it: the last rule bound for `command` whose when clause holds with
+/// nothing focused, skipping a chord a later rule took.
+pub fn shortcut_label(rules: &[Bound], command: &str, mac: bool) -> Option<String> {
+    let mut claimed: Vec<String> = Vec::new();
+    for rule in rules.iter().rev() {
+        let at_rest = rule.when.is_none_or(|when| when.split("&&").all(|term| term.trim().starts_with('!')));
+        let Some(typed) = keystroke(&rule.chord, mac).filter(|_| at_rest) else { continue };
+        if claimed.contains(&typed) {
+            continue;
+        }
+        if rule.command == command {
+            return label(&rule.chord, mac);
+        }
+        claimed.push(typed);
+    }
+    None
+}
+
+/// Why a palette row is held, in the words it says under its title (`paletteItems.tsx`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Held {
+    NotConnected,
+    NoProject,
+    /// The page of projects with none to pick, or no host to make a thread on.
+    NoPick,
+    OneTask,
+    OneThread,
+    /// No task on screen, so no threads to walk.
+    NoThreads,
+    /// The task on screen, by name, holds nothing to step to.
+    NothingToStep(String),
+    NoTask,
+    NoProjectOpen,
+}
+
+impl Held {
+    pub fn words(&self) -> String {
+        match self {
+            Held::NotConnected => "Not connected to the runtime".to_owned(),
+            Held::NoProject => "Add a project first".to_owned(),
+            Held::NoPick => "Pick the project first".to_owned(),
+            Held::OneTask => "Only one task".to_owned(),
+            Held::OneThread => "Only one thread".to_owned(),
+            Held::NoThreads => "No threads to walk".to_owned(),
+            Held::NothingToStep(task) => format!("Nothing to step to on {task}; a walk stays inside one task"),
+            Held::NoTask => "Select a task first".to_owned(),
+            Held::NoProjectOpen => "Open a project first".to_owned(),
+        }
+    }
+}
+
+/// What a command needs to run, which the palette reads off the window to hold the row or leave it out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Need {
+    Nothing,
+    /// A host to make a thread on and a project to make it in: [`Held::NotConnected`], then [`Held::NoProject`].
+    Create,
+    /// The same, said as the page's own line: [`Held::NoPick`].
+    Pick,
+    /// Two tasks to step between: [`Held::OneTask`].
+    Tasks,
+    /// Two threads in the task on screen: [`Held::OneThread`], [`Held::NoThreads`] or [`Held::NothingToStep`].
+    Walk,
+    /// A task on screen: [`Held::NoTask`].
+    Task,
+    /// A project on screen: [`Held::NoProjectOpen`].
+    Project,
+    /// A thread on screen; with none the row is not listed at all.
+    Thread,
+}
+
+/// What a row says under its title while it is not held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Says {
+    Nothing,
+    Words(&'static str),
+    /// The task on screen's name.
+    Task,
+    /// The project on screen's name.
+    Project,
+}
+
+/// What running a command does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Run {
+    /// The chord command's own action, dispatched to the shell.
+    Command(&'static str),
+    /// One step along the tasks at once; never the chord's own action, which opens the switcher and waits for the
+    /// key to come up.
+    StepWorkspace(i8),
+    StepThread(i8),
+    /// A screen by its route.
+    Screen(&'static str),
+    /// An address, opened in the system's browser.
+    Url(&'static str),
+    /// New thread: the composer on its project, or the page of projects where it asks for one.
+    NewThread,
+    /// Opens the page of projects New thread picks from.
+    PickProject,
+    AddProject,
+    CopyMarkdown,
+    ResumeConversation,
+}
+
+/// The list a command's row stands in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Group {
+    Actions,
+    /// The last row of the page of projects.
+    Projects,
+}
+
+/// One command as the palette lists it (`paletteItems.tsx`): its row's words and glyph, what it needs, the chord its
+/// row names and what it runs. The chordless commands sit here too, so the palette has one table.
+#[derive(Clone, Copy, Debug)]
+pub struct Command {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub terms: &'static [&'static str],
+    pub glyph: Glyph,
+    pub group: Group,
+    pub says: Says,
+    pub need: Need,
+    /// The palette stays open after the run, as New thread's does while it asks for the project.
+    pub keep_open: bool,
+    /// The command in [`DEFAULTS`] whose chord the row names.
+    pub chord: Option<&'static str>,
+    pub run: Run,
+}
+
+const fn command(id: &'static str, title: &'static str, terms: &'static [&'static str], glyph: Glyph, run: Run) -> Command {
+    Command { id, title, terms, glyph, group: Group::Actions, says: Says::Nothing, need: Need::Nothing, keep_open: false, chord: None, run }
+}
+
+const fn says(mut c: Command, says: Says) -> Command {
+    c.says = says;
+    c
+}
+
+const fn needs(mut c: Command, need: Need) -> Command {
+    c.need = need;
+    c
+}
+
+const fn chord(mut c: Command, chord: &'static str) -> Command {
+    c.chord = Some(chord);
+    c
+}
+
+/// wsp's repository, `REPO` in `packages/protocol/src/bundles.mjs`.
+pub const REPO: &str = "https://github.com/wsp-labs/wsp";
+
+/// The palette's commands in the order its Actions list them. The open thread's moves and the open task's own acts
+/// join the list before Next task.
+pub const COMMANDS: &[Command] = &[
+    needs(
+        says(
+            command("action:new-thread", "New thread", &["new thread", "new chat", "new task", "create task"], Glyph::Plus, Run::NewThread),
+            Says::Words("One piece of work on one project"),
+        ),
+        Need::Create,
+    ),
+    needs(
+        says(
+            command(
+                "page:new-thread",
+                "New thread in...",
+                &["new thread in", "new thread on", "pick a project", "new chat in"],
+                Glyph::FolderOpen,
+                Run::PickProject,
+            ),
+            Says::Words("Pick the project first"),
+        ),
+        Need::Pick,
+    ),
+    needs(
+        says(
+            command(
+                "action:resume-conversation",
+                "Resume a conversation",
+                &["resume a conversation", "pick up a conversation", "claude code", "codex"],
+                Glyph::RotateCcwClock,
+                Run::ResumeConversation,
+            ),
+            Says::Project,
+        ),
+        Need::Project,
+    ),
+    says(
+        command(
+            "action:add-project",
+            "Add a project",
+            &["add a project", "project", "folder", "repository", "clone", "record a project"],
+            Glyph::FolderPlus,
+            Run::AddProject,
+        ),
+        Says::Words("One folder or repository address on one computer"),
+    ),
+    needs(
+        says(
+            command(
+                "action:copy-markdown",
+                "Copy as Markdown",
+                &["copy", "markdown", "export thread", "copy chat"],
+                Glyph::FileText,
+                Run::CopyMarkdown,
+            ),
+            Says::Words("The thread on screen, as the host holds it"),
+        ),
+        Need::Thread,
+    ),
+    chord(
+        needs(
+            command(
+                "action:next-workspace",
+                "Next task",
+                &["next task", "switch task", "cycle tasks"],
+                Glyph::ArrowDown,
+                Run::StepWorkspace(1),
+            ),
+            Need::Tasks,
+        ),
+        "workspace.next",
+    ),
+    chord(
+        needs(
+            command(
+                "action:previous-workspace",
+                "Previous task",
+                &["previous task", "switch task", "cycle tasks"],
+                Glyph::ArrowUp,
+                Run::StepWorkspace(-1),
+            ),
+            Need::Tasks,
+        ),
+        "workspace.previous",
+    ),
+    chord(
+        needs(
+            command(
+                "action:next-thread",
+                "Next thread",
+                &["next thread", "switch thread", "cycle threads"],
+                Glyph::ChevronDown,
+                Run::StepThread(1),
+            ),
+            Need::Walk,
+        ),
+        "thread.next",
+    ),
+    chord(
+        needs(
+            command(
+                "action:previous-thread",
+                "Previous thread",
+                &["previous thread", "switch thread", "cycle threads"],
+                Glyph::ChevronUp,
+                Run::StepThread(-1),
+            ),
+            Need::Walk,
+        ),
+        "thread.previous",
+    ),
+    chord(
+        command(
+            "action:toggle-sidebar",
+            "Toggle sidebar",
+            &["toggle sidebar", "hide sidebar", "show sidebar"],
+            Glyph::PanelLeft,
+            Run::Command("sidebar.toggle"),
+        ),
+        "sidebar.toggle",
+    ),
+    says(
+        command(
+            "action:add-computer",
+            "Add a computer",
+            &["add a computer", "join", "box", "another mac", "laptop", "linux", "ssh"],
+            Glyph::Monitor,
+            Run::Screen("settings:computers"),
+        ),
+        Says::Words("Computers in Settings"),
+    ),
+    chord(
+        says(
+            command(
+                "action:settings",
+                "Settings",
+                &[
+                    "settings",
+                    "preferences",
+                    "computers",
+                    "projects",
+                    "devices",
+                    "account",
+                    "privacy",
+                    "keybindings",
+                    "appearance",
+                    "theme",
+                    "sidebar width",
+                    "terminal size",
+                ],
+                Glyph::Settings,
+                Run::Screen("settings"),
+            ),
+            Says::Words(
+                "General, Appearance, Agents, Computers, Recipes, Projects, Usage, Activity, Keybindings, Privacy, Devices, Account",
+            ),
+        ),
+        "settings.toggle",
+    ),
+    says(
+        command(
+            "action:activity",
+            "Activity",
+            &["activity", "task manager", "processes", "memory", "cpu", "power", "ports", "end a process"],
+            Glyph::Activity,
+            Run::Screen("settings:activity"),
+        ),
+        Says::Words("Every thread's processes, memory and CPU in Settings"),
+    ),
+    says(
+        command(
+            "action:github",
+            "wsp on GitHub",
+            &["github", "source", "repo", "about", "licence", "license"],
+            Glyph::Github,
+            Run::Url(REPO),
+        ),
+        Says::Words("github.com/wsp-labs/wsp"),
+    ),
+    says(
+        command(
+            "action:docs",
+            "wsp docs",
+            &["docs", "documentation", "help", "manual"],
+            Glyph::BookOpen,
+            Run::Url("https://usewsp.com/docs"),
+        ),
+        Says::Words("usewsp.com/docs"),
+    ),
+    says(
+        command(
+            "action:report-bug",
+            "Report a bug",
+            &["bug", "issue", "report", "feedback", "help"],
+            Glyph::Bug,
+            Run::Url("https://github.com/wsp-labs/wsp/issues/new"),
+        ),
+        Says::Words("github.com/wsp-labs/wsp/issues/new"),
+    ),
+    chord(
+        needs(
+            says(
+                command(
+                    "action:toggle-right-panel",
+                    "Toggle right panel",
+                    &["toggle right panel", "hide panel", "show panel"],
+                    Glyph::PanelRight,
+                    Run::Command("rightPanel.toggle"),
+                ),
+                Says::Task,
+            ),
+            Need::Task,
+        ),
+        "rightPanel.toggle",
+    ),
+    Command {
+        group: Group::Projects,
+        ..command(
+            "action:new-project",
+            "Add a project",
+            &["new project", "add a project", "folder", "repository", "clone"],
+            Glyph::Plus,
+            Run::AddProject,
+        )
+    },
+];
+
+/// The command whose row has the id `id`.
+pub fn command_of(id: &str) -> Option<&'static Command> {
+    COMMANDS.iter().find(|c| c.id == id)
+}
+
+/// The action a command's run dispatches to the shell, where it is one.
+pub fn run_action(run: Run) -> Option<Box<dyn Action>> {
+    match run {
+        Run::Command(command) => action(command),
+        Run::StepWorkspace(by) => Some(Box::new(StepWorkspace(by))),
+        Run::StepThread(by) => Some(Box::new(StepThread(by))),
+        Run::NewThread => Some(Box::new(NewThread)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -524,6 +954,55 @@ mod tests {
         let keymap = Keymap::new(bindings(false, &overrides(&[("chat.new", Some("shift+t"))])));
         assert_eq!(fired(&keymap, "shift-t", &["Shell"]).as_deref(), Some("NewThread"));
         assert_eq!(fired(&keymap, "shift-t", &["Shell", "Input"]), None);
+    }
+
+    #[test]
+    fn a_rows_label_is_the_last_chord_bound_at_rest() {
+        let rules = bound(false, &BTreeMap::new());
+        let mac_rules = bound(true, &BTreeMap::new());
+        let cases = [
+            ("workspace.next", "Ctrl+Tab", "⌃Tab"),
+            ("thread.next", "Ctrl+Alt+Down", "⌥⌘Down"),
+            ("sidebar.toggle", "Ctrl+B", "⌘B"),
+            ("rightPanel.toggle", "Ctrl+Alt+B", "⌥⌘B"),
+            ("settings.toggle", "Ctrl+,", "⌘,"),
+            ("workspace.select.3", "Ctrl+3", "⌘3"),
+            ("commandPalette.toggle", "Ctrl+K", "⌘K"),
+        ];
+        for (command, other, mac) in cases {
+            assert_eq!(shortcut_label(&rules, command, false).as_deref(), Some(other), "{command}");
+            assert_eq!(shortcut_label(&mac_rules, command, true).as_deref(), Some(mac), "{command} on mac");
+        }
+        assert_eq!(shortcut_label(&rules, "thread.find", false), None, "a chord bound only with a thread open names no row");
+        let moved = bound(false, &overrides(&[("files.search", Some("mod+b"))]));
+        assert_eq!(shortcut_label(&moved, "sidebar.toggle", false).as_deref(), Some("Ctrl+Shift+B"), "a later rule took mod+b");
+        assert_eq!(label("mod+alt+shift+arrowleft", true).as_deref(), Some("⌥⇧⌘Left"));
+        assert_eq!(label("shift+f3", false).as_deref(), Some("Shift+F3"));
+    }
+
+    #[test]
+    fn the_palettes_steps_go_at_once_and_never_open_the_switcher() {
+        for (id, step, chord) in [
+            ("action:next-workspace", Run::StepWorkspace(1), "workspace.next"),
+            ("action:previous-workspace", Run::StepWorkspace(-1), "workspace.previous"),
+            ("action:next-thread", Run::StepThread(1), "thread.next"),
+            ("action:previous-thread", Run::StepThread(-1), "thread.previous"),
+        ] {
+            let command = command_of(id).unwrap();
+            assert_eq!((command.run, command.chord), (step, Some(chord)), "{id}");
+            let dispatched = run_action(command.run).unwrap();
+            assert!(!dispatched.partial_eq(action(chord).unwrap().as_ref()), "{id} dispatches the step, not the chord's own action");
+        }
+        assert!(run_action(Run::StepWorkspace(1)).unwrap().partial_eq(&StepWorkspace(1)));
+        assert!(run_action(Run::StepThread(-1)).unwrap().partial_eq(&StepThread(-1)));
+        let ids: Vec<&str> = COMMANDS.iter().map(|c| c.id).collect();
+        let unique: std::collections::BTreeSet<&str> = ids.iter().copied().collect();
+        assert_eq!(unique.len(), ids.len(), "one row per id");
+        for command in COMMANDS {
+            if let Some(chord) = command.chord {
+                assert!(DEFAULTS.iter().any(|r| r.command == chord), "{} names a chord the table binds", command.id);
+            }
+        }
     }
 
     fn quoted<'a>(line: &'a str, field: &str) -> Option<&'a str> {
