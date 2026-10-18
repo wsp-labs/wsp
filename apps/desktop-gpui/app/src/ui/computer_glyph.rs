@@ -46,6 +46,12 @@ pub fn default_icon(place: &PlaceView) -> Pick {
     }
 }
 
+impl From<Glyph> for ComputerIcon {
+    fn from(glyph: Glyph) -> Self {
+        ComputerIcon::Lucide(glyph)
+    }
+}
+
 impl ComputerIcon {
     /// `ComputerGlyph`'s pick: the person's icon, else a cloud's provider mark, else `default_icon`.
     pub fn of(place: &PlaceView, preferences: Option<&Preferences>) -> ComputerIcon {

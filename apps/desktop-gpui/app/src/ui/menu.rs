@@ -73,6 +73,17 @@ pub fn surface(p: &Palette) -> MenuSurface {
     MenuSurface { radius: px(12.), edge: p.popover_edge, shadow: p.popover_shadow.clone() }
 }
 
+/// `dropdown-glass popover-shadow` on a surface of the caller's: the popover ground in its 1 px edge under the popover
+/// shadow; off the Mac near solid over an 8 px blur, on the Mac whole.
+pub fn glass<E: Styled>(el: E, p: &Palette) -> E {
+    let el = el.border_1().border_color(p.popover_edge).shadow(p.popover_shadow.clone());
+    if cfg!(target_os = "macos") {
+        el.bg(p.popover)
+    } else {
+        el.bg(p.popover.opacity(0.96)).backdrop_blur(px(8.))
+    }
+}
+
 /// The button a popup opens from: gpui-kit's popover takes the press on the element round it.
 struct Trigger(Stateful<Div>);
 

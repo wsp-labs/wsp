@@ -8,6 +8,7 @@ use gpui_kit::{
     MouseButton, Pixels, SharedString, Window,
 };
 
+use super::computer_glyph::ComputerIcon;
 use super::controls::Button;
 use super::dialog::tip;
 use super::focus::{ring, ring_inset};
@@ -381,11 +382,11 @@ pub fn word(words: impl Into<Words>, class: WordClass, cx: &App) -> gpui_kit::Di
         .child(spaced(words.into(), false))
 }
 
-/// One chip of `Chips`: a fact in the mono with its own glyph.
+/// One chip of `Chips`: a fact in the mono with its own glyph, or a computer's own icon.
 #[derive(Clone)]
 pub struct Chip {
     text: SharedString,
-    glyph: Option<Glyph>,
+    glyph: Option<ComputerIcon>,
 }
 
 impl Chip {
@@ -393,8 +394,8 @@ impl Chip {
         Chip { text: text.into(), glyph: None }
     }
 
-    pub fn glyph(mut self, glyph: Glyph) -> Self {
-        self.glyph = Some(glyph);
+    pub fn glyph(mut self, glyph: impl Into<ComputerIcon>) -> Self {
+        self.glyph = Some(glyph.into());
         self
     }
 }
@@ -424,7 +425,7 @@ pub fn chips(id: impl Into<SharedString>, items: Vec<Chip>, cx: &App) -> impl In
                 .text_size(px(11.))
                 .text_color(p.foreground.opacity(0.75))
                 .tooltip(tip(whole))
-                .children(chip.glyph.map(|g| Icon::new(g).with_size(px(12.)).flex_none().text_color(p.muted_foreground)))
+                .children(chip.glyph.map(|g| g.draw(p.muted_foreground, px(12.))))
                 .child(div().min_w_0().truncate().child(chip.text))
                 .child(div().absolute().inset_0().rounded(size::BUTTON_RADIUS - px(1.)).shadow(top.clone()))
         }),
@@ -810,19 +811,26 @@ impl KeyCaps {
 /// One key, `Kbd`: 20 px high and at least as wide, mono 12 px on the muted fill.
 pub fn keycap(key: SharedString, cx: &App) -> impl IntoElement {
     let p = cx.palette();
+    cap_box(cx).debug_selector(|| "keycap".into()).bg(p.muted).text_color(p.muted_foreground).child(key)
+}
+
+/// `Kbd` as `CommandFooter` restyles it: the foreground at 8% under the foreground's own ink, in regular weight; `key`
+/// a word or a glyph.
+pub fn footer_keycap(key: impl IntoElement, cx: &App) -> gpui_kit::Div {
+    let p = cx.palette();
+    cap_box(cx).flex_none().font_weight(FontWeight::NORMAL).bg(p.foreground.opacity(0.08)).text_color(p.foreground).child(key)
+}
+
+fn cap_box(cx: &App) -> gpui_kit::Div {
     h_flex()
-        .debug_selector(|| "keycap".into())
         .h(px(20.))
         .min_w(px(20.))
         .px_1()
         .justify_center()
         .rounded(px(6.))
-        .bg(p.muted)
         .font_family(cx.theme().mono_font_family.clone())
         .text_size(text::XS.0)
         .line_height(text::XS.1)
-        .text_color(p.muted_foreground)
-        .child(key)
 }
 
 impl RenderOnce for KeyCaps {

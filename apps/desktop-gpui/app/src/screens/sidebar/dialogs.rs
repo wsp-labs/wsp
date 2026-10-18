@@ -165,7 +165,7 @@ fn fmt_threads(n: usize) -> String {
 }
 
 /// What a delete does to a copy's computer (`onDeleteOf`), in its kind's words, or the computer it stands on.
-fn on_delete(s: &Sidebar, w: &Value) -> String {
+pub(super) fn on_delete(s: &Sidebar, w: &Value) -> String {
     let worktree = w.get("worktree").filter(|t| t.get("made") == Some(&json!(true))).and_then(|t| t.get("path")?.as_str());
     if let Some(path) = worktree {
         return format!("worktree at {path} is removed and the project folder is left as it is");
