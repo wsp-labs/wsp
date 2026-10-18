@@ -317,15 +317,7 @@ pub fn row_cells(row: &Row) -> RowCells {
     }
 }
 
-/// The axis's top: the smallest round figure at or over the largest point, so the four gridlines read as round numbers.
-pub fn nice_top(max: f64) -> f64 {
-    if max <= 0.0 {
-        return 0.0;
-    }
-    let magnitude = 10f64.powi(max.log10().floor() as i32);
-    let step = [1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0].into_iter().find(|m| m * magnitude >= max).unwrap_or(10.0);
-    step * magnitude
-}
+pub use crate::ui::chart::nice_top;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tick {

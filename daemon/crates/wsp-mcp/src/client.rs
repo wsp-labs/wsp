@@ -436,8 +436,40 @@ fn close_words(code: Option<u16>) -> String {
     }
 }
 
+/// JavaScript escapes half an emoji as a lone surrogate, which serde refuses with the whole frame, so each becomes U+FFFD.
+fn lossy(text: &str) -> std::borrow::Cow<'_, str> {
+    let surrogate = |at: usize| {
+        let hex = text.get(at + 2..at + 6).filter(|_| text[at..].starts_with("\\u"))?;
+        u16::from_str_radix(hex, 16).ok().filter(|unit| (0xD800..0xE000).contains(unit))
+    };
+    let bytes = text.as_bytes();
+    let (mut out, mut kept, mut at) = (String::new(), 0, 0);
+    while at < bytes.len() {
+        if bytes[at] != b'\\' {
+            at += 1;
+            continue;
+        }
+        match surrogate(at) {
+            Some(0xD800..0xDC00) if surrogate(at + 6).is_some_and(|low| low >= 0xDC00) => at += 12,
+            Some(_) => {
+                out.push_str(&text[kept..at]);
+                out.push_str("\\uFFFD");
+                at += 6;
+                kept = at;
+            }
+            None => at += 2,
+        }
+    }
+    if kept == 0 {
+        return text.into();
+    }
+    out.push_str(&text[kept..]);
+    out.into()
+}
+
 impl Shared {
     fn take(&self, text: &str) {
+        let text = &*lossy(text);
         let id = serde_json::from_str::<Head>(text).ok().and_then(|head| head.id).and_then(|id| id.as_u64());
         if let Some(waiter) = id.and_then(|id| self.waiting.lock().unwrap().remove(&id)) {
             let _ = waiter.send(Ok(text.to_owned()));
@@ -477,5 +509,24 @@ mod tests {
         drop(dropped);
         let left: Vec<u64> = client.shared.listeners.lock().unwrap().iter().map(|(id, _)| *id).collect();
         assert_eq!(left, [kept.id]);
+    }
+
+    #[tokio::test]
+    async fn half_an_emoji_blanks_only_its_own_answer() {
+        let (near, far) = tokio::io::duplex(4096);
+        let serving = tokio::spawn(async move {
+            let mut server = tokio_tungstenite::accept_async(far).await.unwrap();
+            let asked = server.next().await.unwrap().unwrap();
+            let id = serde_json::from_str::<Value>(asked.to_text().unwrap()).unwrap()["id"].clone();
+            let reply = format!(r#"{{"id":{id},"ok":true,"values":["a\ud83d","b","\\ud83d","\ud83d\ude00","\ude00c"]}}"#);
+            server.send(Message::text(reply)).await.unwrap();
+            server
+        });
+        let (ws, _) = tokio_tungstenite::client_async("ws://host/ws", near).await.unwrap();
+        let client = Client::over(ws);
+        let asked = tokio::time::timeout(Duration::from_secs(5), client.request::<Value>("slates.resolve", Map::new()));
+        let reply = asked.await.expect("the reply never reached its request").unwrap();
+        let _server = serving.await.unwrap();
+        assert_eq!(reply["values"], serde_json::json!(["a\u{FFFD}", "b", "\\ud83d", "\u{1F600}", "\u{FFFD}c"]));
     }
 }

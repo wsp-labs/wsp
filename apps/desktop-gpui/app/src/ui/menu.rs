@@ -4,13 +4,13 @@
 
 use std::rc::Rc;
 
-use gpui_kit::component::menu::{DropdownMenu, PopupMenu, PopupMenuItem};
+use gpui_kit::component::menu::{DropdownMenu, MenuSurface, PopupMenu, PopupMenuItem};
 use gpui_kit::component::{h_flex, ActiveTheme as _, Icon, Selectable};
 use gpui_kit::{div, prelude::*, px, Corners, Div, Hsla, Interactivity, SharedString, Stateful, StyleRefinement};
 
 use super::act::Run;
 use super::dialog::tip;
-use super::theme::ActivePalette;
+use super::theme::{ActivePalette, Palette};
 use super::{Button, Glyph};
 
 /// One act of a row's menu: its group (a rule stands between groups), glyph, title, whether it destroys, and whether
@@ -67,6 +67,12 @@ pub fn menu_of(mut menu: PopupMenu, acts: &[MenuAct], danger: Hsla, muted: Hsla)
     menu
 }
 
+/// `MenuPopup`'s `dropdown-glass popover-shadow rounded-[12px]`: the popover ground in its 1 px edge, under the
+/// theme's popover shadow.
+pub fn surface(p: &Palette) -> MenuSurface {
+    MenuSurface { radius: px(12.), edge: p.popover_edge, shadow: p.popover_shadow.clone() }
+}
+
 /// The button a popup opens from: gpui-kit's popover takes the press on the element round it.
 struct Trigger(Stateful<Div>);
 
@@ -106,8 +112,22 @@ impl DropdownMenu for Trigger {}
 pub fn row_menu(id: impl Into<SharedString>, acts: Rc<Vec<MenuAct>>) -> impl IntoElement {
     let id: SharedString = id.into();
     let button = Button::icon_xs(id.clone(), Glyph::Ellipsis).side(px(20.)).corners(Corners::all(px(4.)));
-    Trigger(div().id(SharedString::from(format!("{id}-menu"))).flex().child(button))
-        .dropdown_menu(move |menu, _, cx| menu_of(menu, &acts, cx.palette().error_foreground, cx.palette().muted_foreground))
+    Trigger(div().id(SharedString::from(format!("{id}-menu"))).flex().child(button)).dropdown_menu(move |menu, _, cx| {
+        menu_of(menu.surface(surface(cx.palette())), &acts, cx.palette().error_foreground, cx.palette().muted_foreground)
+    })
+}
+
+/// A panel head's menu: the ellipsis on the 28 px ghost icon button (`size="icon"`), named on its hover, its acts on a
+/// press in a popup aligned to the button's end (`MenuPopup align="end"`).
+pub fn icon_menu(id: impl Into<SharedString>, name: impl Into<SharedString>, acts: Rc<Vec<MenuAct>>) -> impl IntoElement {
+    let id: SharedString = id.into();
+    let button = Button::icon(id.clone(), Glyph::Ellipsis).tooltip(name);
+    Trigger(div().id(SharedString::from(format!("{id}-menu"))).flex().child(button)).dropdown_menu_with_anchor(
+        gpui_kit::Anchor::TopRight,
+        move |menu, _, cx| {
+            menu_of(menu.surface(surface(cx.palette())), &acts, cx.palette().error_foreground, cx.palette().muted_foreground)
+        },
+    )
 }
 
 #[cfg(test)]
@@ -118,7 +138,7 @@ mod tests {
     use gpui_kit::component::Root;
     use gpui_kit::{div, prelude::*, px, size, Context, TestAppContext, Window};
 
-    use super::{row_menu, MenuAct};
+    use super::{icon_menu, row_menu, MenuAct};
     use crate::ui::{self, Glyph, Side};
 
     struct Lone(Rc<Vec<MenuAct>>);
@@ -157,5 +177,88 @@ mod tests {
         cx.simulate_keystrokes("down down enter");
         cx.run_until_parked();
         assert_eq!((copied.get(), ended.get()), (0, 1), "the second item, End, ran once and Copy did not");
+    }
+
+    /// A panel head's menu over a surface that counts the presses reaching it.
+    struct Head(Rc<Vec<MenuAct>>, Rc<Cell<u32>>);
+
+    impl Render for Head {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            let reached = self.1.clone();
+            div().size_full().p(px(16.)).child(div().flex().justify_end().child(icon_menu("head", "Head menu", self.0.clone()))).child(
+                div()
+                    .debug_selector(|| "beneath".into())
+                    .h(px(200.))
+                    .w_full()
+                    .on_mouse_down(gpui_kit::MouseButton::Left, move |_, _, _| reached.set(reached.get() + 1)),
+            )
+        }
+    }
+
+    /// How often the held act ran, the act that can run, and a press reached the surface under the menu.
+    type Counts = (Rc<Cell<u32>>, Rc<Cell<u32>>, Rc<Cell<u32>>);
+
+    fn head(cx: &mut TestAppContext) -> (Counts, &mut gpui_kit::VisualTestContext, gpui_kit::Bounds<gpui_kit::Pixels>) {
+        let counts: Counts = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
+        let act = |title: &'static str, held: bool, ran: &Rc<Cell<u32>>| {
+            let ran = ran.clone();
+            let run: crate::ui::act::Run = Rc::new(move |_, _| ran.set(ran.get() + 1));
+            MenuAct { group: 0, glyph: None, title: title.into(), destructive: false, held, why: None, keys: None, run }
+        };
+        let acts = Rc::new(vec![act("Undo v1", true, &counts.0), act("Clear", false, &counts.1)]);
+        let reached = counts.2.clone();
+        let view = cx.new(|_| Head(acts, reached));
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(view, window, cx));
+        cx.simulate_resize(size(px(400.), px(320.)));
+        cx.run_until_parked();
+        let trigger = cx.debug_bounds("button").expect("the trigger is drawn");
+        cx.simulate_click(trigger.center(), gpui_kit::Modifiers::none());
+        cx.run_until_parked();
+        (counts, cx, trigger)
+    }
+
+    #[gpui_kit::test]
+    fn the_head_menu_passes_over_its_held_act_and_runs_the_next(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+        });
+        let ((undone, cleared, _), cx, trigger) = head(cx);
+        assert_eq!((trigger.size.width, trigger.size.height), (px(28.), px(28.)), "the trigger is `size=\"icon\"`'s size-7");
+        cx.simulate_keystrokes("down down enter");
+        cx.run_until_parked();
+        assert_eq!((undone.get(), cleared.get()), (0, 1), "Clear ran once and the held Undo did not");
+    }
+
+    #[gpui_kit::test]
+    fn escape_shuts_the_head_menu(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+        });
+        let ((_, cleared, _), cx, _) = head(cx);
+        cx.simulate_keystrokes("escape");
+        cx.run_until_parked();
+        cx.simulate_keystrokes("down down enter");
+        cx.run_until_parked();
+        assert_eq!(cleared.get(), 0, "Escape shut the menu, so the keys that run Clear while it is open run nothing");
+    }
+
+    #[gpui_kit::test]
+    fn the_head_menu_covers_what_is_under_it(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+        });
+        let ((undone, _, reached), cx, trigger) = head(cx);
+        let over = gpui_kit::point(trigger.right() - px(40.), trigger.bottom() + px(20.));
+        assert!(cx.debug_bounds("beneath").expect("the surface is drawn").contains(&over), "the press lands where the surface lies");
+        cx.simulate_click(over, gpui_kit::Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(
+            (reached.get(), undone.get()),
+            (0, 0),
+            "the popup takes the press on its held act: nothing under it runs, nor the held act"
+        );
     }
 }

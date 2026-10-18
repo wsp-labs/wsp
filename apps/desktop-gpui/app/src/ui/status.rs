@@ -70,21 +70,29 @@ fn wake_after(wait: Duration, window: &Window, cx: &mut App) {
 }
 
 /// The plain spinner: lucide's loader-circle at 14 px in the muted ink, one turn a second.
-pub fn spinner(_: &App) -> impl IntoElement {
-    Spinner
+pub fn spinner(_: &App) -> Spinner {
+    Spinner(px(14.))
 }
 
 #[derive(IntoElement)]
-struct Spinner;
+pub struct Spinner(Pixels);
+
+impl Spinner {
+    /// Another size: 12 px for a refreshing mark, 16 for a picture on its way.
+    pub fn size(mut self, size: Pixels) -> Self {
+        self.0 = size;
+        self
+    }
+}
 
 impl RenderOnce for Spinner {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        turning(Icon::new(Glyph::LoaderCircle).with_size(px(14.)).text_color(cx.palette().muted_foreground), window, cx)
+        turning(Icon::new(Glyph::LoaderCircle).with_size(self.0).text_color(cx.palette().muted_foreground), window, cx)
     }
 }
 
 /// An icon turning with the spinners, one turn a second.
-pub(super) fn turning(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
+pub fn turning(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
     if still(cx) {
         return icon;
     }
