@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The Ghostty source libghostty-vt builds from, which scripts/ghostty.sh fetches at the crate's pinned commit.
+[env]
+GHOSTTY_SOURCE_DIR = { value = "vendor/ghostty", relative = true }
+# Zig's Debug build of it carries 256 KiB of thread-local data, which glibc takes from every thread's 2 MiB stack.
+LIBGHOSTTY_VT_SYS_OPTIMIZE = "ReleaseFast"

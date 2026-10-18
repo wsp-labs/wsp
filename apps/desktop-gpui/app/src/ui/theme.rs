@@ -94,6 +94,7 @@ macro_rules! palette {
             composer_shadow: Vec<ShadowSpec>,
             thumb_shadow: Vec<ShadowSpec>,
             dropdown_shadow: Vec<ShadowSpec>,
+            terminal_ansi: Vec<String>,
         }
 
         /// wsp's tokens, named as `apps/web/src/index.css` and the theme sheets name them, resolved to sRGB.
@@ -109,6 +110,8 @@ macro_rules! palette {
             pub thumb_shadow: Vec<BoxShadow>,
             /// `dropdown-glass`'s shadow, and in dark `popover-shadow` over it: a select's list.
             pub dropdown_shadow: Vec<BoxShadow>,
+            /// `--terminal-ansi-0` to `-15`: the terminal's first sixteen colours when its config names none.
+            pub terminal_ansi: Vec<Hsla>,
         }
 
         impl From<&PaletteSpec> for Palette {
@@ -122,6 +125,7 @@ macro_rules! palette {
                     composer_shadow: shadows(&spec.composer_shadow),
                     thumb_shadow: shadows(&spec.thumb_shadow),
                     dropdown_shadow: shadows(&spec.dropdown_shadow),
+                    terminal_ansi: spec.terminal_ansi.iter().map(|c| color(c)).collect(),
                 }
             }
         }
@@ -199,6 +203,12 @@ palette!(
     hue_blue,
     hue_violet,
     hue_pink,
+    terminal_background,
+    terminal_foreground,
+    terminal_cursor,
+    terminal_selection,
+    scrollbar_thumb,
+    scrollbar_thumb_hover,
 );
 
 #[derive(Deserialize)]

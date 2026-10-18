@@ -75,10 +75,39 @@ type Presented = Rc<RefCell<Option<Instant>>>;
 enum Phase {
     Opening,
     Loading(Presented),
-    Scrolling { start: Instant, frames: Rc<RefCell<Vec<Instant>>> },
-    Holding { until: Instant, _wake: Task<()> },
-    Switching { ix: usize, start: Instant, presented: Presented },
+    Scrolling {
+        start: Instant,
+        frames: Rc<RefCell<Vec<Instant>>>,
+    },
+    Holding {
+        until: Instant,
+        _wake: Task<()>,
+    },
+    Switching {
+        ix: usize,
+        start: Instant,
+        presented: Presented,
+    },
+    /// The terminal bench: the drawer's shell drawing its prompt, then the line's output, each until 1 s passes quiet.
+    Prompting {
+        output: Times,
+        _heard: Option<Subscription>,
+        _step: Task<()>,
+    },
+    Streaming {
+        sent: Instant,
+        frames: Times,
+        output: Times,
+        _heard: Subscription,
+        _step: Task<()>,
+    },
 }
+
+/// When the terminal bench's frames were painted, or its shell's output batches arrived.
+type Times = Rc<RefCell<Vec<Instant>>>;
+
+/// How long a terminal bench waits with no output before it calls the shell's output done.
+const QUIET: Duration = Duration::from_secs(1);
 
 struct BenchRun {
     args: bench::Bench,
@@ -124,7 +153,7 @@ pub struct Shell {
     /// held off its centre does not jump to the pointer.
     dragging: Option<Side>,
     grab: Pixels,
-    /// The terminal drawer under the thread, whose own screen draws it.
+    /// Whether the route's terminal drawer is open, as the terminal keeps it per thread; read at each draw.
     drawer_open: bool,
     /// The chord rules bound now, so a change of the person's overrides can unbind exactly them.
     rules: Vec<Bound>,
@@ -181,6 +210,7 @@ impl Shell {
             let route = Route::Thread { workspace_id: item.workspace_id.clone(), thread_id: item.thread_id.clone() };
             this.go(route, window, cx);
         });
+        screens::terminal::read_workspaces_from(&sidebar, cx);
         let asked = cx.subscribe_in(&sidebar, window, |this, _, asked: &Asked, window, cx| match asked {
             Asked::Settings => this.go(Route::Screen(SETTINGS.into()), window, cx),
             Asked::Usage => this.go(Route::Screen(format!("{SETTINGS}:usage").into()), window, cx),
@@ -197,7 +227,7 @@ impl Shell {
             Asked::AddCloud => {}
             Asked::Setup(_) => {}
             Asked::ExportProject(_) => {}
-            Asked::OpenTerminal(_) => {}
+            Asked::OpenTerminal(workspace) => screens::terminal::open_terminal(this, workspace, window, cx),
             Asked::OpenBrowser(_) => {}
             Asked::ProjectSettings(_) => {}
             Asked::ComputerSettings(_) => {}
@@ -494,6 +524,7 @@ impl Shell {
             .map(|k| k.iter().map(|(command, chord)| (command.clone(), chord.as_str().map(str::to_owned))).collect())
             .unwrap_or_default();
         self.rebind(&overrides, cx);
+        screens::terminal::read_preferences(&value, cx);
         let side = |key: &str, default: &str| value.get(key).and_then(|t| t.as_str()).unwrap_or(default).to_owned();
         self.picks = Picks {
             mode: value.get("theme").and_then(|t| t.as_str()).map(str::to_owned),
@@ -624,7 +655,7 @@ impl Shell {
 
     fn toggle_drawer(&mut self, _: &keys::ToggleTerminal, _: &mut Window, cx: &mut Context<Self>) {
         if !self.settings_open() {
-            self.drawer_open = !self.drawer_open;
+            screens::terminal::toggle_drawer(&self.route, cx);
             cx.notify();
         }
     }
@@ -743,7 +774,7 @@ impl Shell {
     /// One step of bench mode, run on every frame until it writes its result and quits.
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(mut run) = self.bench.take() else { return };
-        let measuring = matches!(run.phase, Phase::Scrolling { .. } | Phase::Switching { .. });
+        let measuring = matches!(run.phase, Phase::Scrolling { .. } | Phase::Switching { .. } | Phase::Streaming { .. });
         if !window.is_window_active() && (measuring || run.began.elapsed() > FOCUS_WAIT) {
             eprintln!("desktop-gpui: the bench window has no focus, and GPUI caps a window without focus at 30 fps");
             std::process::exit(UNFOCUSED);
@@ -754,6 +785,64 @@ impl Shell {
                     cx.activate(true);
                     window.activate_window();
                     run.phase = Phase::Loading(self.bench_open(&run.args.thread, window, cx));
+                }
+            }
+            Phase::Loading(presented) if run.args.terminal.is_some() => {
+                if presented.borrow().is_some() && window.is_window_active() {
+                    if !screens::terminal::drawer_open(&self.route, cx) {
+                        screens::terminal::toggle_drawer(&self.route, cx);
+                    }
+                    eprintln!("bench: drawer open");
+                    // A step on a timer, not on every frame, so the bench's own redraws do not count as the terminal's.
+                    let step = cx.spawn_in(window, async move |this, cx| loop {
+                        cx.background_executor().timer(Duration::from_millis(50)).await;
+                        if this.update_in(cx, |this, window, cx| this.tick(window, cx)).is_err() {
+                            return;
+                        }
+                    });
+                    run.phase = Phase::Prompting { output: Rc::default(), _heard: None, _step: step };
+                }
+            }
+            Phase::Prompting { output, _heard: None, .. } => {
+                let output = output.clone();
+                if let Some(heard) = self.bench_hear(output.clone(), cx) {
+                    eprintln!("bench: shell found");
+                    let Phase::Prompting { _step, .. } = std::mem::replace(&mut run.phase, Phase::Opening) else { unreachable!() };
+                    run.phase = Phase::Prompting { output, _heard: Some(heard), _step };
+                }
+            }
+            Phase::Prompting { output, .. } => {
+                if output.borrow().last().is_some_and(|t| t.elapsed() > QUIET) {
+                    let Phase::Prompting { output, _heard: Some(_heard), _step } = std::mem::replace(&mut run.phase, Phase::Opening) else {
+                        unreachable!()
+                    };
+                    let frames = Rc::new(RefCell::new(Vec::new()));
+                    cx.set_global(bench::Frames(Some(frames.clone())));
+                    output.borrow_mut().clear();
+                    let line = format!("{}\r", run.args.terminal.as_deref().unwrap_or_default());
+                    if let Some(session) = bench_session(cx) {
+                        session.update(cx, |s, cx| s.send(line.as_bytes(), cx));
+                    }
+                    eprintln!("bench: line sent");
+                    run.phase = Phase::Streaming { sent: Instant::now(), frames, output, _heard, _step };
+                }
+            }
+            Phase::Streaming { sent, frames, output, .. } => {
+                if output.borrow().last().is_some_and(|t| t.elapsed() > QUIET) {
+                    let ms = |t: &Instant| t.duration_since(*sent).as_secs_f64() * 1000.;
+                    let frame_ms: Vec<f64> = frames.borrow().iter().map(ms).collect();
+                    if frame_ms.is_empty() {
+                        eprintln!("desktop-gpui: the line's output drew no frame; the shell it went to is not the one on screen");
+                        std::process::exit(1);
+                    }
+                    let output_ms: Vec<f64> = output.borrow().iter().map(ms).collect();
+                    let json = bench::terminal_result(run.args.terminal.as_deref().unwrap_or_default(), &frame_ms, &output_ms);
+                    if let Err(e) = std::fs::write(&run.args.out, format!("{json}\n")) {
+                        eprintln!("desktop-gpui: {}: {e}", run.args.out.display());
+                        std::process::exit(1);
+                    }
+                    cx.quit();
+                    return;
                 }
             }
             Phase::Loading(presented) => {
@@ -797,7 +886,7 @@ impl Shell {
             cx.quit();
             return;
         }
-        let holding = matches!(run.phase, Phase::Holding { .. });
+        let holding = matches!(run.phase, Phase::Holding { .. } | Phase::Prompting { .. } | Phase::Streaming { .. });
         self.bench = Some(run);
         if !holding {
             window.request_animation_frame();
@@ -808,6 +897,21 @@ impl Shell {
         let start = Instant::now();
         let presented = args.switch.get(ix).map(|thread| self.bench_open(thread, window, cx)).unwrap_or_default();
         Phase::Switching { ix, start, presented }
+    }
+
+    /// Notes each time the drawer's shell draws output, once the drawer holds one; a prompt already drawn counts.
+    fn bench_hear(&mut self, output: Times, cx: &mut Context<Self>) -> Option<Subscription> {
+        let session = bench_session(cx)?;
+        let mut frame = screens::terminal::engine::Frame::default();
+        session.update(cx, |s, _| s.engine_mut().frame(&mut frame));
+        if frame.rows.iter().any(|r| !r.plain().trim().is_empty()) {
+            output.borrow_mut().push(Instant::now());
+        }
+        Some(cx.subscribe(&session, move |_, _, changed: &screens::terminal::session::Changed, _| {
+            if *changed == screens::terminal::session::Changed::Output {
+                output.borrow_mut().push(Instant::now());
+            }
+        }))
     }
 
     /// Opens a thread as a click does and watches for the first presented frame that shows it.
@@ -837,6 +941,10 @@ impl Render for Shell {
         let sidebar_width = frame::clamp_sidebar(self.sidebar_width, viewport, inline);
         let row = viewport - sidebar_width * shown;
         let panel_width = frame::clamp_panel(self.panel.read(cx).width(), viewport, row);
+
+        let host = self.host.clone().map(|host| Host::new(host, self.runtime.clone()));
+        let drawer = screens::terminal::drawer(host, &self.route, window, cx);
+        self.drawer_open = screens::terminal::drawer_open(&self.route, cx);
 
         let mut context = KeyContext::new_with_defaults();
         context.add(keys::SHELL);
@@ -981,8 +1089,10 @@ impl Render for Shell {
             .bg(fills.centre)
             .when(fills.grain, |el| el.child(frame::grain()))
             .child(header)
-            .child(div().flex_1().min_h_0().child(main.cached(StyleRefinement::default().size_full())))
-            .when(self.glass, |el| el.child(h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx))));
+            .child(div().relative().flex_1().min_h_0().child(main.cached(StyleRefinement::default().size_full())).when(self.glass, |el| {
+                el.child(h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx)))
+            }))
+            .children(drawer);
 
         let panel = panel_open.then(|| {
             let controls = if inline { controls(cx).into_any_element() } else { div().into_any_element() };
@@ -1105,6 +1215,15 @@ impl Render for Shell {
             .children(rail)
             .children(sheet_panel)
     }
+}
+
+/// The active shell of the drawer on screen, which a terminal bench types into; the drawer may also hold shells an
+/// earlier run left on the daemon.
+fn bench_session(cx: &mut App) -> Option<Entity<screens::terminal::session::Session>> {
+    let drawer = screens::terminal::shown_drawer(cx)?;
+    let active = drawer.update(cx, |d, cx| d.ui(cx)).active_terminal_id;
+    let view = drawer.read(cx).views().iter().find(|(id, _)| *id == active)?.1.clone();
+    Some(view.read(cx).session().clone())
 }
 
 /// `RIGHT_PANEL_SHEET_CLASS_NAME`: 42% of the window up to 448 px and down to 320, or 88% up to 384 under 760 px.
