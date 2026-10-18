@@ -10,58 +10,124 @@ use gpui_kit::{AssetSource, Result, SharedString};
 icon_assets!(
     Glyphs,
     [
+        Activity,
+        AppWindow,
+        ArrowDown,
+        ArrowLeft,
+        Book,
         Bookmark,
+        Bot,
         Box,
         Brain,
+        Camera,
         ChartLine,
         Check,
         ChevronDown,
+        ChevronLeft,
         ChevronRight,
         ChevronUp,
         Circle,
         CircleAlert,
+        CircleArrowUp,
         CircleCheck,
         CircleDashed,
         CircleDot,
         CircleMinus,
         CircleSlash,
+        CircleStop,
+        ClipboardCopy,
+        Clock,
         Cloud,
+        Code,
+        Cog,
+        Computer,
+        Container,
         Copy,
+        Cpu,
+        Database,
+        Download,
+        Earth,
+        Ellipsis,
+        EthernetPort,
+        ExternalLink,
         File,
         FileText,
         FileX,
+        Flame,
+        FlaskConical,
         Folder,
+        Gamepad2,
         Gauge,
         GitBranch,
+        GitCommitHorizontal,
         GitPullRequest,
+        Github,
+        Globe,
+        GripVertical,
+        Hammer,
         Hand,
+        HardDrive,
+        Heart,
         Hourglass,
+        House,
+        Image,
         KeyRound,
+        Keyboard,
+        Laptop,
+        Leaf,
+        ListChecks,
         ListTodo,
         LoaderCircle,
         Lock,
         LockOpen,
+        LogIn,
         MessageCircleQuestionMark,
+        MessageSquare,
         MessageSquareText,
         MessagesSquare,
+        Minus,
         Monitor,
+        Music,
         Package,
+        Palette,
+        PanelLeft,
+        PanelLeftClose,
+        PanelsTopLeft,
         Paperclip,
+        PcCase,
         PenLine,
+        Pencil,
         PencilRuler,
+        Plug,
         Plus,
+        Power,
+        PowerOff,
+        Puzzle,
+        RefreshCw,
+        Rocket,
         RotateCcw,
         RotateCcwClock,
         RotateCw,
+        ScrollText,
         Search,
+        Server,
         Settings,
         Shield,
+        SlidersHorizontal,
+        Smartphone,
         Sparkles,
         Split,
         SquareTerminal,
+        SquareX,
         Star,
+        Tag,
         Terminal,
+        Trash,
+        TriangleAlert,
+        Unplug,
+        User,
         UserRound,
+        Wrench,
         X,
         Zap,
     ]
@@ -79,6 +145,18 @@ pub const STOP: &str = "icons/wsp-stop.svg";
 pub const STAR_FILLED: &str = "icons/wsp-star-filled.svg";
 const STAR_FILLED_SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>"#;
 const STOP_SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="8" height="8" rx="1.5"/></svg>"#;
+/// wsp's lockup, the tilde beside the wordmark: the web's own file, so the two cannot drift.
+pub const LOCKUP: &str = "icons/wsp-lockup.svg";
+const LOCKUP_SVG: &[u8] = include_bytes!("../../../../web/src/brand/lockup.svg");
+
+/// `--surface-grain`, the 256 px noise tile the web lays over the body and the sidebar, drawn by Chromium from the
+/// web's own SVG at 3.5% and kept with its alpha.
+pub const GRAIN: &str = "images/wsp-grain.png";
+const GRAIN_PNG: &[u8] = include_bytes!("grain.png");
+
+/// wsp's mark, the tilde alone: the Version row's lead.
+pub const MARK: &str = "icons/wsp-mark.svg";
+const MARK_SVG: &[u8] = include_bytes!("../../../../web/src/brand/mark.svg");
 
 /// The glyphs a piece names, by lucide's own names.
 pub type Glyph = IconName;
@@ -94,6 +172,15 @@ impl AssetSource for UiAssets {
                 return Ok(Some(Cow::Borrowed(svg)));
             }
         }
+        if path == MARK {
+            return Ok(Some(Cow::Borrowed(MARK_SVG)));
+        }
+        if path == LOCKUP {
+            return Ok(Some(Cow::Borrowed(LOCKUP_SVG)));
+        }
+        if path == GRAIN {
+            return Ok(Some(Cow::Borrowed(GRAIN_PNG)));
+        }
         match Glyphs.load(path)? {
             Some(bytes) => Ok(Some(bytes)),
             None => Assets.load(path),
@@ -102,7 +189,7 @@ impl AssetSource for UiAssets {
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         let mut paths: Vec<SharedString> =
-            [TICK, SEND, STOP, STAR_FILLED].into_iter().filter(|p| p.starts_with(path)).map(Into::into).collect();
+            [TICK, SEND, STOP, STAR_FILLED, MARK, LOCKUP, GRAIN].into_iter().filter(|p| p.starts_with(path)).map(Into::into).collect();
         paths.extend(Glyphs.list(path)?);
         paths.extend(Assets.list(path)?);
         Ok(paths)

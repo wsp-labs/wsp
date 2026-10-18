@@ -5,16 +5,18 @@
 //! The crab is the Whimsy Loaders pixel crab by Sasha (https://www.whimsically.app/loaders), transcribed from
 //! `apps/web/src/components/status/Crab.tsx`; THIRD_PARTY_NOTICES, item 10, carries its credit.
 
+use std::collections::HashMap;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{
-    canvas, div, fill, point, prelude::*, px, size as gsize, Animation, AnimationExt as _, App, Bounds, FontWeight, Global, Hsla, Pixels,
-    SharedString, Transformation, Window,
+    canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, relative, size as gsize, App, Bounds, EntityId,
+    FontWeight, Global, Hsla, Pixels, SharedString, Transformation, Window,
 };
 
 use super::card::{row_frame, CardItem, Corners};
+use super::dialog::tip;
 use super::icons::Glyph;
 use super::theme::ActivePalette;
 use super::{size, text};
@@ -25,20 +27,160 @@ pub struct Still(pub bool);
 
 impl Global for Still {}
 
-fn still(cx: &App) -> bool {
+pub(super) fn still(cx: &App) -> bool {
     cx.reduce_motion() || cx.try_global::<Still>().is_some_and(|s| s.0)
 }
 
-/// The plain spinner: lucide's loader-circle at 14 px in the muted ink, one turn a second.
-pub fn spinner(cx: &App) -> impl IntoElement {
-    let icon = Icon::new(Glyph::LoaderCircle).with_size(px(14.)).text_color(cx.palette().muted_foreground);
-    if still(cx) {
-        return icon.into_any_element();
+/// The most often a spinner or a skeleton asks for a frame: each frame draws again the whole view it stands in, and
+/// every view above that one.
+const LOADING_FRAME: Duration = Duration::from_millis(33);
+
+/// When the first spinner or skeleton was drawn, so they all turn and sweep in step and ask for the same frames.
+fn loading_started() -> Instant {
+    static STARTED: OnceLock<Instant> = OnceLock::new();
+    *STARTED.get_or_init(Instant::now)
+}
+
+/// The frame each view already waits for.
+#[derive(Default)]
+struct Wakes(HashMap<EntityId, Instant>);
+
+impl Global for Wakes {}
+
+/// Draws the view being drawn again after `wait`, unless a frame at or before then is already on its way to it.
+fn wake_after(wait: Duration, window: &Window, cx: &mut App) {
+    let view = window.current_view();
+    let due = cx.background_executor().now() + wait;
+    let wakes = cx.default_global::<Wakes>();
+    if wakes.0.get(&view).is_some_and(|at| *at <= due) {
+        return;
     }
-    icon.with_animation("spinner", Animation::new(Duration::from_secs(1)).repeat(), |icon, delta| {
-        icon.transform(Transformation::rotate(gpui_kit::percentage(delta)))
+    wakes.0.insert(view, due);
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(wait).await;
+        cx.update(|cx| {
+            let wakes = cx.default_global::<Wakes>();
+            if wakes.0.get(&view) == Some(&due) {
+                wakes.0.remove(&view);
+            }
+            cx.notify(view);
+        });
     })
-    .into_any_element()
+    .detach();
+}
+
+/// The plain spinner: lucide's loader-circle at 14 px in the muted ink, one turn a second.
+pub fn spinner(_: &App) -> impl IntoElement {
+    Spinner
+}
+
+#[derive(IntoElement)]
+struct Spinner;
+
+impl RenderOnce for Spinner {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        turning(Icon::new(Glyph::LoaderCircle).with_size(px(14.)).text_color(cx.palette().muted_foreground), window, cx)
+    }
+}
+
+/// An icon turning with the spinners, one turn a second.
+pub(super) fn turning(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
+    if still(cx) {
+        return icon;
+    }
+    wake_after(LOADING_FRAME, window, cx);
+    icon.transform(Transformation::rotate(gpui_kit::percentage(loading_started().elapsed().as_secs_f32().fract())))
+}
+
+/// `Skeleton`: a bar in the hairline tier while what fills it is on its way, a highlight sweeping it every 2 s.
+#[derive(IntoElement)]
+pub struct Skeleton {
+    width: Pixels,
+    height: Pixels,
+}
+
+impl Skeleton {
+    pub fn new(width: Pixels, height: Pixels) -> Self {
+        Skeleton { width, height }
+    }
+}
+
+impl RenderOnce for Skeleton {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // The band crosses in the first 60% of each 2 s and is parked off the bar for the rest, as `skeleton` does; parked,
+        // it asks for one frame, at the next crossing.
+        let left = (!still(cx)).then(|| {
+            let t = (loading_started().elapsed().as_secs_f32() / 2.).fract();
+            let wait = if t < 0.6 { LOADING_FRAME } else { Duration::from_secs_f32((1. - t) * 2.) };
+            wake_after(wait, window, cx);
+            -1. + 2. * (t / 0.6).min(1.)
+        });
+        let p = cx.palette();
+        let glow = p.skeleton_highlight;
+        // GPUI's gradient takes two stops, so the 40-50-60% band is two halves; the web's 120 degree tilt is dropped.
+        let half = |from: Hsla, to: Hsla| {
+            div().absolute().top_0().bottom_0().w(relative(0.1)).bg(linear_gradient(
+                90.,
+                linear_color_stop(from, 0.),
+                linear_color_stop(to, 1.),
+            ))
+        };
+        let sweep = |left: f32| {
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .w_full()
+                .left(relative(left))
+                .child(half(glow.opacity(0.), glow).left(relative(0.4)))
+                .child(half(glow, glow.opacity(0.)).left(relative(0.5)))
+        };
+        div()
+            .debug_selector(|| "skeleton".into())
+            .relative()
+            .flex_none()
+            .overflow_hidden()
+            .w(self.width)
+            .h(self.height)
+            .rounded(px(6.))
+            .bg(p.border)
+            .children(left.map(sweep))
+    }
+}
+
+/// `RowSkeleton`: one row's room while the card's rows are on their way, a title bar over a line bar on its own card
+/// surface; a card's `body`.
+#[derive(IntoElement)]
+pub struct RowSkeleton {
+    id: SharedString,
+}
+
+impl RowSkeleton {
+    pub fn new(id: impl Into<SharedString>) -> Self {
+        RowSkeleton { id: id.into() }
+    }
+}
+
+impl RenderOnce for RowSkeleton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let p = cx.palette();
+        div()
+            .id(self.id)
+            .debug_selector(|| "row-skeleton".into())
+            .flex()
+            .flex_col()
+            .justify_center()
+            .gap_2()
+            .py(size::ROW_PAD_Y)
+            .px(size::CARD_INSET)
+            .min_h(size::ROW_FLOOR)
+            .rounded(size::CARD_RADIUS)
+            .border_1()
+            .border_color(p.border.opacity(0.6))
+            .bg(p.card.opacity(0.4))
+            .child(Skeleton::new(px(160.), px(14.)))
+            .child(Skeleton::new(px(256.), px(12.)))
+    }
 }
 
 /// A thread's state in its row's status slot. The glyph stands alone; its word belongs on the hover.
@@ -54,22 +196,99 @@ pub enum Status {
     Read(SharedString),
 }
 
-/// The status mark in a one-line row: 12 px, the time before the glyph or the crab, weight 500 where it is toned.
+/// `MarkState`: a machine's or a step's state, as `StateMark` draws it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MarkState {
+    /// Setting up: the plain spinner, never the crab, since a machine at work is not an agent.
+    Working,
+    Done,
+    NeedsYou,
+    Failed,
+    Pending,
+    Offline,
+    /// Draws nothing.
+    Waiting,
+    /// Draws nothing, as a resting thread does.
+    Ready,
+}
+
+impl MarkState {
+    /// `MARK_WORDS`: the one word a state is read as, for a hover that says nothing more.
+    pub fn word(self) -> &'static str {
+        match self {
+            MarkState::Working => "Setting up",
+            MarkState::Done => "Done",
+            MarkState::NeedsYou => "Needs you",
+            MarkState::Failed => "Failed",
+            MarkState::Pending => "Pending",
+            MarkState::Offline => "Offline",
+            MarkState::Waiting => "Not started",
+            MarkState::Ready => "Ready",
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+enum Marked {
+    Thread(Status),
+    State(SharedString, MarkState),
+}
+
+/// The status mark: a thread's in a one-line row, 12 px, the time before the glyph or the crab, weight 500 where it is
+/// toned; or a machine's or a step's (`StateMark`), one 14 px icon in its ink with the sentence on its hover.
 #[derive(IntoElement)]
 pub struct StatusMark {
-    status: Status,
+    marked: Marked,
+    tooltip: Option<SharedString>,
 }
 
 impl StatusMark {
     pub fn new(status: Status) -> Self {
-        StatusMark { status }
+        StatusMark { marked: Marked::Thread(status), tooltip: None }
+    }
+
+    /// `StateMark`: a machine's or a step's state, its word on the hover until `tooltip` gives the sentence.
+    pub fn state(id: impl Into<SharedString>, state: MarkState) -> Self {
+        StatusMark { marked: Marked::State(id.into(), state), tooltip: None }
+    }
+
+    /// The state's word on the hover: "Needs you", "Working for 1h 5m".
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
     }
 }
 
 impl RenderOnce for StatusMark {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette();
-        let (glyph, time, ink, toned) = match &self.status {
+        let status = match self.marked {
+            Marked::Thread(status) => status,
+            Marked::State(id, state) => {
+                let glyph = |g: Glyph, ink: Hsla| Icon::new(g).with_size(px(14.)).text_color(ink).into_any_element();
+                let inner = match state {
+                    MarkState::Waiting | MarkState::Ready => return div().into_any_element(),
+                    MarkState::Working => spinner(cx).into_any_element(),
+                    MarkState::Done => glyph(Glyph::CircleCheck, p.status_done),
+                    MarkState::NeedsYou => glyph(Glyph::MessageCircleQuestionMark, p.status_input),
+                    MarkState::Failed => glyph(Glyph::CircleAlert, p.status_failed),
+                    MarkState::Pending => glyph(Glyph::CircleDashed, p.muted_foreground),
+                    MarkState::Offline => glyph(Glyph::Unplug, p.muted_foreground),
+                };
+                let label = self.tooltip.unwrap_or_else(|| state.word().into());
+                return div()
+                    .id(id)
+                    .debug_selector(|| "state-mark".into())
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .justify_center()
+                    .tooltip(tip(label))
+                    .child(inner)
+                    .into_any_element();
+            }
+        };
+        let (glyph, time, ink, toned) = match &status {
             Status::NeedsYou => (Some(Glyph::MessageCircleQuestionMark), None, p.status_input, true),
             Status::Working(elapsed) => (None, Some(elapsed.clone()), p.status_working, true),
             Status::Failed => (Some(Glyph::CircleAlert), None, p.status_failed, true),
@@ -77,8 +296,8 @@ impl RenderOnce for StatusMark {
             Status::Waiting => (Some(Glyph::Hourglass), None, p.muted_foreground, false),
             Status::Read(age) => (None, Some(age.clone()), p.muted_foreground, false),
         };
-        let working = matches!(self.status, Status::Working(_));
-        h_flex()
+        let working = matches!(status, Status::Working(_));
+        let mark = h_flex()
             .debug_selector(|| "status-mark".into())
             .flex_none()
             .min_w(px(16.))
@@ -90,7 +309,11 @@ impl RenderOnce for StatusMark {
             .text_color(ink)
             .children(time)
             .children(glyph.map(|g| Icon::new(g).with_size(px(12.)).text_color(ink)))
-            .when(working, |el| el.child(Crab::new(ink)))
+            .when(working, |el| el.child(Crab::new(ink)));
+        match self.tooltip {
+            Some(text) => mark.id(SharedString::from(format!("status-mark-{text}"))).tooltip(tip(text)).into_any_element(),
+            None => mark.into_any_element(),
+        }
     }
 }
 
@@ -125,12 +348,19 @@ pub struct StepRow {
     id: SharedString,
     step: Step,
     title: SharedString,
+    tooltip: Option<SharedString>,
     corners: Corners,
 }
 
 impl StepRow {
     pub fn new(id: impl Into<SharedString>, step: Step, title: impl Into<SharedString>) -> Self {
-        StepRow { id: id.into(), step, title: title.into(), corners: Corners::default() }
+        StepRow { id: id.into(), step, title: title.into(), tooltip: None, corners: Corners::default() }
+    }
+
+    /// The step's state in words on its mark's hover: "Skipped: Claude Code is not installed there".
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
     }
 }
 
@@ -152,16 +382,24 @@ impl RenderOnce for StepRow {
         let p = cx.palette();
         let waiting = self.step == Step::NotStarted;
         row_frame(&self.id, size::LINE_FLOOR, self.corners).child(
-            h_flex().gap_3().child(step_mark(self.step, cx)).child(
-                div()
-                    .debug_selector(|| "title".into())
-                    .min_w_0()
-                    .text_size(text::SETTING_TITLE.0)
-                    .line_height(text::SETTING_TITLE.1)
-                    .font_weight(if waiting { FontWeight::NORMAL } else { FontWeight::MEDIUM })
-                    .text_color(if waiting { p.muted_foreground } else { p.foreground })
-                    .child(self.title),
-            ),
+            h_flex()
+                .gap_3()
+                .child(
+                    div()
+                        .id(SharedString::from(format!("{}-mark", self.id)))
+                        .when_some(self.tooltip, |el, t| el.tooltip(tip(t)))
+                        .child(step_mark(self.step, cx)),
+                )
+                .child(
+                    div()
+                        .debug_selector(|| "title".into())
+                        .min_w_0()
+                        .text_size(text::SETTING_TITLE.0)
+                        .line_height(text::SETTING_TITLE.1)
+                        .font_weight(if waiting { FontWeight::NORMAL } else { FontWeight::MEDIUM })
+                        .text_color(if waiting { p.muted_foreground } else { p.foreground })
+                        .child(self.title),
+                ),
         )
     }
 }
@@ -304,7 +542,48 @@ impl RenderOnce for Crab {
 
 #[cfg(test)]
 mod tests {
-    use super::crab_frame;
+    use gpui_kit::component::{h_flex, Root};
+    use gpui_kit::{prelude::*, px, size, Context, TestAppContext, Window};
+
+    use super::{crab_frame, MarkState, StatusMark};
+    use crate::ui::{self, Side};
+
+    struct Lone(MarkState);
+
+    impl Render for Lone {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            h_flex().p(px(24.)).child(StatusMark::state("mark", self.0))
+        }
+    }
+
+    /// Every state `StateMark` draws is one 14 px icon; waiting and ready draw nothing.
+    #[gpui_kit::test]
+    fn a_state_mark_is_one_14_px_icon_and_ready_draws_nothing(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+            cx.set_global(ui::Still(true));
+        });
+        let all = [
+            MarkState::Working,
+            MarkState::Done,
+            MarkState::NeedsYou,
+            MarkState::Failed,
+            MarkState::Pending,
+            MarkState::Offline,
+            MarkState::Waiting,
+            MarkState::Ready,
+        ];
+        for state in all {
+            let view = cx.new(|_| Lone(state));
+            let (_, vcx) = cx.add_window_view(|window, cx| Root::new(view, window, cx));
+            vcx.simulate_resize(size(px(120.), px(80.)));
+            vcx.run_until_parked();
+            let drawn = vcx.debug_bounds("state-mark").map(|b| (b.size.width, b.size.height));
+            let want = (!matches!(state, MarkState::Waiting | MarkState::Ready)).then_some((px(14.), px(14.)));
+            assert_eq!(drawn, want, "{state:?}");
+        }
+    }
 
     /// Composited alpha per pixel, two decimals, as the web's canvas stacks them: `.claude/skills/wsp-design`'s
     /// `crab.js` run at the same `t`.

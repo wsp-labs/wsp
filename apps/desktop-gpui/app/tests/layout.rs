@@ -9,7 +9,9 @@ mod web;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use desktop_gpui::ui::{self, glyph_frame, section_head, Button, Card, Dialog, Glyph, KeyCaps, Line, PickRow, Row, Side};
+use desktop_gpui::ui::{
+    self, glyph_frame, section_head, Button, Card, Dialog, Glyph, KeyCaps, Line, PickRow, Row, Segmented, Side, Switch,
+};
 use gpui_kit::component::Root;
 use gpui_kit::{div, prelude::*, px, size, AnyElement, Bounds, Context, Modifiers, Pixels, TestAppContext, VisualTestContext, Window};
 
@@ -65,13 +67,13 @@ fn the_font_stacks_are_index_css_s() {
 
 #[gpui_kit::test]
 fn a_row_with_one_line_stands_at_the_row_floor(cx: &mut TestAppContext) {
-    let cx = draw(cx, |_, _| Card::new().item(Row::new("r", "Send with Enter")).into_any_element());
+    let cx = draw(cx, |_, _| Card::new("card").item(Row::new("r", "Send with Enter")).into_any_element());
     near("ROW_FLOOR", bounds(cx, "row").size.height, web::px(web::constant(web::LAYOUT, "ROW_FLOOR"), "min-h"));
 }
 
 #[gpui_kit::test]
 fn a_row_keeps_the_card_inset_and_its_padding(cx: &mut TestAppContext) {
-    let cx = draw(cx, |_, _| Card::new().item(Row::new("r", "Default folder").note("New threads start here.")).into_any_element());
+    let cx = draw(cx, |_, _| Card::new("card").item(Row::new("r", "Default folder").note("New threads start here.")).into_any_element());
     let (row, title) = (bounds(cx, "row"), bounds(cx, "title"));
     near("CARD_INSET", title.left() - row.left(), web::px(web::constant(web::LAYOUT, "CARD_INSET"), "px"));
     near("a row's py-3", title.top() - row.top(), web::px(web::literal(web::ROWS, "flex flex-col justify-center py-"), "py"));
@@ -80,7 +82,7 @@ fn a_row_keeps_the_card_inset_and_its_padding(cx: &mut TestAppContext) {
 
 #[gpui_kit::test]
 fn a_line_stands_at_the_line_floor(cx: &mut TestAppContext) {
-    let cx = draw(cx, |_, _| Card::new().item(Line::new("l", "Disk").value("9.4 GB")).into_any_element());
+    let cx = draw(cx, |_, _| Card::new("card").item(Line::new("l", "Disk").value("9.4 GB")).into_any_element());
     let (row, label, word) = (bounds(cx, "row"), bounds(cx, "label"), bounds(cx, "word"));
     near("LINE_FLOOR", row.size.height, web::px(web::constant(web::LAYOUT, "LINE_FLOOR"), "min-h"));
     let inset = web::px(web::constant(web::LAYOUT, "CARD_INSET"), "px");
@@ -91,7 +93,7 @@ fn a_line_stands_at_the_line_floor(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn a_pick_names_its_thing_in_the_list_title_over_a_note(cx: &mut TestAppContext) {
     let cx = draw(cx, |_, _| {
-        Card::new().item(PickRow::new("p", "Claude Code", true).glyph(Glyph::Terminal).note("Signed in")).into_any_element()
+        Card::new("card").item(PickRow::new("p", "Claude Code", true).glyph(Glyph::Terminal).note("Signed in")).into_any_element()
     });
     near("LIST_TITLE's line", bounds(cx, "title").size.height, web::px(web::constant(web::LAYOUT, "LIST_TITLE"), "leading"));
     near("NOTE's line", bounds(cx, "note").size.height, web::px(web::constant(web::LAYOUT, "NOTE"), "leading"));
@@ -112,8 +114,9 @@ fn the_glyph_frame_and_the_section_head_take_their_sizes(cx: &mut TestAppContext
 
 #[gpui_kit::test]
 fn the_dialog_takes_the_step_width_and_its_inset(cx: &mut TestAppContext) {
-    let cx =
-        draw(cx, |_, _| Dialog::new("Add a computer").count(2, 5).card(Card::new().item(Row::new("r", "Claude Code"))).into_any_element());
+    let cx = draw(cx, |_, _| {
+        Dialog::new("Add a computer").count(2, 5).card(Card::new("card").item(Row::new("r", "Claude Code"))).into_any_element()
+    });
     near("STEP_WIDTH", bounds(cx, "dialog").size.width, web::px(web::constant(web::STEP_DIALOG, "STEP_WIDTH"), "max-w"));
     let frame = web::constant(web::STEP_DIALOG, "STEP_FRAME");
     let inset: f32 = frame.split("--settings-inset:").nth(1).unwrap().split("px").next().unwrap().parse().unwrap();
@@ -168,11 +171,70 @@ fn a_press_on_a_rows_control_does_not_open_the_row(cx: &mut TestAppContext) {
     let cx = draw(cx, move |_, _| {
         let (o, p) = (o.clone(), p.clone());
         let change = Button::outline("change", "Change").xs().on_click(move |_, _, _| p.set(p.get() + 1));
-        Card::new().item(Row::new("r", "Send with Enter").control(change).on_open(move |_, _, _| o.set(o.get() + 1))).into_any_element()
+        Card::new("card")
+            .item(Row::new("r", "Send with Enter").control(change).on_open(move |_, _, _| o.set(o.get() + 1)))
+            .into_any_element()
     });
     let (button, title) = (bounds(cx, "button").center(), bounds(cx, "title").center());
     cx.simulate_click(button, Modifiers::none());
     assert_eq!((pressed.get(), opened.get()), (1, 0), "the press reached the row");
     cx.simulate_click(title, Modifiers::none());
     assert_eq!((pressed.get(), opened.get()), (1, 1), "a press on the words opens the row");
+}
+
+#[gpui_kit::test]
+fn a_press_on_a_switch_asks_for_the_other_value(cx: &mut TestAppContext) {
+    let asked = Rc::new(Cell::new(None));
+    let a = asked.clone();
+    let cx = draw(cx, move |_, _| {
+        let a = a.clone();
+        Switch::new("s", true).on_change(move |next, _, _| a.set(Some(*next))).into_any_element()
+    });
+    let at = bounds(cx, "switch").center();
+    cx.simulate_click(at, Modifiers::none());
+    assert_eq!(asked.get(), Some(false), "a press on a switch that is on asks for off");
+}
+
+#[gpui_kit::test]
+fn a_held_switch_takes_no_press(cx: &mut TestAppContext) {
+    let asked = Rc::new(Cell::new(None));
+    let a = asked.clone();
+    let cx = draw(cx, move |_, _| {
+        let a = a.clone();
+        Switch::new("s", false).held(true).on_change(move |next, _, _| a.set(Some(*next))).into_any_element()
+    });
+    let at = bounds(cx, "switch").center();
+    cx.simulate_click(at, Modifiers::none());
+    assert_eq!(asked.get(), None, "a held switch asked for a value");
+}
+
+#[gpui_kit::test]
+fn a_press_on_a_segment_hands_its_value(cx: &mut TestAppContext) {
+    let picked = Rc::new(Cell::new(None));
+    let p = picked.clone();
+    let cx = draw(cx, move |_, _| {
+        let p = p.clone();
+        Segmented::new("s", 0).segment("Enter").segment("Ctrl Enter").on_pick(move |ix, _, _| p.set(Some(ix))).into_any_element()
+    });
+    // `debug_bounds` keeps the last segment drawn: the one not picked.
+    let at = bounds(cx, "segment").center();
+    cx.simulate_click(at, Modifiers::none());
+    assert_eq!(picked.get(), Some(1));
+}
+
+#[gpui_kit::test]
+fn a_held_segment_takes_no_press(cx: &mut TestAppContext) {
+    let picked = Rc::new(Cell::new(None));
+    let p = picked.clone();
+    let cx = draw(cx, move |_, _| {
+        let p = p.clone();
+        Segmented::new("s", 0)
+            .segment("Enter")
+            .held_segment("Time", "No timings yet.")
+            .on_pick(move |ix, _, _| p.set(Some(ix)))
+            .into_any_element()
+    });
+    let at = bounds(cx, "segment").center();
+    cx.simulate_click(at, Modifiers::none());
+    assert_eq!(picked.get(), None, "a held segment was picked");
 }
