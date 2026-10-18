@@ -16,7 +16,7 @@ index b8dda5e..23990b0 100644
          config.no_includes = true;
          config.enumeration.prefix_with_name = true;
 diff --git a/src/metal_renderer.rs b/src/metal_renderer.rs
-index e466205..ac8b308 100644
+index e466205..b5a9d1f 100644
 --- a/src/metal_renderer.rs
 +++ b/src/metal_renderer.rs
 @@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
@@ -71,7 +71,19 @@ index e466205..ac8b308 100644
  }
  
  impl MetalRenderer {
-@@ -359,6 +372,39 @@ impl MetalRenderer {
+@@ -181,10 +194,7 @@ impl MetalRenderer {
+         // https://developer.apple.com/documentation/metal/managing-your-game-window-for-metal-in-macos
+         layer.set_opaque(!transparent);
+         layer.set_maximum_drawable_count(3);
+-        // Allow texture reading for visual tests and UI automation screenshots
+-        // (captures without ScreenCaptureKit). Only debug builds pay the
+-        // presentation cost, even when `test-support` is compiled in.
+-        #[cfg(all(feature = "test-support", debug_assertions))]
++        // Every drawable is readable, since a backdrop blur copies from it.
+         layer.set_framebuffer_only(false);
+         // metal-rs doesn't bind these setters, so view the same object through
+         // objc2's typed CAMetalLayer binding.
+@@ -359,6 +369,39 @@ impl MetalRenderer {
              "surface_fragment",
              MTLPixelFormat::BGRA8Unorm,
          );
@@ -111,7 +123,7 @@ index e466205..ac8b308 100644
  
          let command_queue = device.new_command_queue();
          let supports_shared_storage = cfg!(target_os = "ios") || is_apple_gpu;
-@@ -399,6 +445,10 @@ impl MetalRenderer {
+@@ -399,6 +442,10 @@ impl MetalRenderer {
              monochrome_sprites_pipeline_state,
              polychrome_sprites_pipeline_state,
              surfaces_pipeline_state,
@@ -122,7 +134,7 @@ index e466205..ac8b308 100644
              unit_vertices,
              instance_buffer_pool,
              sprite_atlas,
-@@ -406,6 +456,7 @@ impl MetalRenderer {
+@@ -406,6 +453,7 @@ impl MetalRenderer {
              path_intermediate_texture: None,
              path_intermediate_msaa_texture: None,
              path_sample_count: PATH_SAMPLE_COUNT,
@@ -130,18 +142,7 @@ index e466205..ac8b308 100644
              #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
              headless_render_target: None,
          }
-@@ -504,6 +555,10 @@ impl MetalRenderer {
-             (viewport_size.width.ceil() as i32).into(),
-             (viewport_size.height.ceil() as i32).into(),
-         );
-+        // A backdrop blur copies from the drawable, so only a window that draws one pays for a readable layer.
-+        if !scene.backdrop_blurs.is_empty() && layer.framebuffer_only() {
-+            layer.set_framebuffer_only(false);
-+        }
-         let drawable = if let Some(drawable) = layer.next_drawable() {
-             drawable
-         } else {
-@@ -720,6 +775,9 @@ impl MetalRenderer {
+@@ -720,6 +768,9 @@ impl MetalRenderer {
          let command_queue = self.command_queue.clone();
          let command_buffer = command_queue.new_command_buffer();
          let alpha = if self.opaque { 1. } else { 0. };
@@ -151,7 +152,7 @@ index e466205..ac8b308 100644
  
          let mut command_encoder = new_command_encoder_for_texture(
              command_buffer,
-@@ -727,6 +785,7 @@ impl MetalRenderer {
+@@ -727,6 +778,7 @@ impl MetalRenderer {
              viewport_size,
              Some(metal::MTLClearColor::new(0., 0., 0., alpha)),
          );
@@ -159,7 +160,7 @@ index e466205..ac8b308 100644
  
          for batch in scene.batches() {
              match batch {
-@@ -742,6 +801,7 @@ impl MetalRenderer {
+@@ -742,6 +794,7 @@ impl MetalRenderer {
  
                      let did_draw = self.draw_paths_to_intermediate(
                          paths,
@@ -167,7 +168,7 @@ index e466205..ac8b308 100644
                          writer,
                          viewport_size,
                          command_buffer,
-@@ -753,6 +813,7 @@ impl MetalRenderer {
+@@ -753,6 +806,7 @@ impl MetalRenderer {
                          viewport_size,
                          None,
                      );
@@ -175,7 +176,7 @@ index e466205..ac8b308 100644
  
                      if did_draw {
                          if let Err(error) = self.draw_paths_from_intermediate(
-@@ -792,6 +853,32 @@ impl MetalRenderer {
+@@ -792,6 +846,32 @@ impl MetalRenderer {
                      viewport_size,
                      command_encoder,
                  ),
@@ -208,7 +209,7 @@ index e466205..ac8b308 100644
                  PrimitiveBatch::SubpixelSprites { .. } => unreachable!(),
              }
          }
-@@ -804,6 +891,7 @@ impl MetalRenderer {
+@@ -804,6 +884,7 @@ impl MetalRenderer {
      fn draw_paths_to_intermediate(
          &self,
          paths: &[Path<ScaledPixels>],
@@ -216,7 +217,7 @@ index e466205..ac8b308 100644
          writer: &mut InstanceBufferWriter,
          viewport_size: Size<DevicePixels>,
          command_buffer: &metal::CommandBufferRef,
-@@ -823,6 +911,7 @@ impl MetalRenderer {
+@@ -823,6 +904,7 @@ impl MetalRenderer {
                  st_position: v.st_position,
                  color: path.color,
                  bounds: path.bounds.intersect(&path.content_mask.bounds),
@@ -224,7 +225,7 @@ index e466205..ac8b308 100644
              }));
          }
          let vertex_instance_bindings = writer.write(&vertices)?;
-@@ -861,6 +950,7 @@ impl MetalRenderer {
+@@ -861,6 +943,7 @@ impl MetalRenderer {
              Some(&vertex_instance_bindings.buffer),
              vertex_instance_bindings.offset as u64,
          );
@@ -232,7 +233,7 @@ index e466205..ac8b308 100644
          command_encoder.draw_primitives(
              metal::MTLPrimitiveType::Triangle,
              0,
-@@ -1274,6 +1364,239 @@ impl MetalRenderer {
+@@ -1274,6 +1357,234 @@ impl MetalRenderer {
              );
          }
      }
@@ -405,11 +406,6 @@ index e466205..ac8b308 100644
 +    blur: &BackdropBlur,
 +    texture: &metal::TextureRef,
 +) -> Option<Bounds<DevicePixels>> {
-+    // A drawable vended before the layer stopped being framebuffer-only cannot be copied from.
-+    if texture.framebuffer_only() {
-+        log::warn!("skipped a backdrop blur: the drawable is still framebuffer-only");
-+        return None;
-+    }
 +    let bounds = blur.bounds;
 +    let left = (bounds.origin.x.0.floor() as i32).max(0);
 +    let top = (bounds.origin.y.0.floor() as i32).max(0);
@@ -472,7 +468,7 @@ index e466205..ac8b308 100644
  }
  
  fn new_command_encoder_for_texture<'a>(
-@@ -1458,6 +1781,7 @@ struct InstanceBindings {
+@@ -1458,6 +1769,7 @@ struct InstanceBindings {
      monochrome_sprites: InstanceBinding,
      polychrome_sprites: InstanceBinding,
      surfaces: InstanceBinding,
@@ -480,7 +476,7 @@ index e466205..ac8b308 100644
  }
  
  fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<InstanceBindings> {
-@@ -1471,6 +1795,12 @@ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<I
+@@ -1471,6 +1783,12 @@ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<I
              bounds: surface.bounds,
              content_mask: surface.content_mask,
          }))?,
@@ -493,7 +489,7 @@ index e466205..ac8b308 100644
      })
  }
  
-@@ -1645,6 +1975,33 @@ enum SurfaceInputIndex {
+@@ -1645,6 +1963,33 @@ enum SurfaceInputIndex {
      CbCrTexture = 5,
  }
  
@@ -528,7 +524,7 @@ index e466205..ac8b308 100644
  enum PathRasterizationInputIndex {
      Vertices = 0,
 diff --git a/src/shaders.metal b/src/shaders.metal
-index 2b52bb9..2d45164 100644
+index 2b52bb9..1959c7d 100644
 --- a/src/shaders.metal
 +++ b/src/shaders.metal
 @@ -28,6 +28,10 @@ float pick_corner_radius(float2 center_to_point, Corners_ScaledPixels corner_rad
@@ -621,7 +617,7 @@ index 2b52bb9..2d45164 100644
  };
  
  vertex ShadowVertexOutput shadow_vertex(
-@@ -491,12 +502,14 @@ vertex ShadowVertexOutput shadow_vertex(
+@@ -491,13 +502,24 @@ vertex ShadowVertexOutput shadow_vertex(
        device_position,
        color,
        shadow_id,
@@ -635,22 +631,31 @@ index 2b52bb9..2d45164 100644
 +                                [[buffer(ShadowInputIndex_Shadows)]],
 +                                constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]) {
    Shadow shadow = shadows[input.shadow_id];
++  // An outer shadow paints nothing under its element, so the blur below is skipped there.
++  float outside = 1.;
++  if (shadow.inset == 0u) {
++    outside = saturate(0.5 + quad_sdf(input.position.xy, shadow.element_bounds,
++                                      shadow.element_corner_radii));
++    if (outside == 0.) {
++      return float4(0.);
++    }
++  }
  
    float2 origin = float2(shadow.bounds.origin.x, shadow.bounds.origin.y);
-@@ -549,7 +562,12 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
+   float2 size = float2(shadow.bounds.size.width, shadow.bounds.size.height);
+@@ -549,7 +571,11 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
      float element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
                                        shadow.element_corner_radii);
      alpha *= saturate(0.5 - element_distance);
 +  } else {
 +    // CSS paints an outer shadow only outside its element's border box.
-+    alpha *= saturate(0.5 + quad_sdf(input.position.xy, shadow.element_bounds,
-+                                     shadow.element_corner_radii));
++    alpha *= outside;
    }
 +  alpha *= rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips);
  
    return input.color * float4(1., 1., 1., alpha);
  }
-@@ -558,6 +576,7 @@ struct UnderlineVertexOutput {
+@@ -558,6 +584,7 @@ struct UnderlineVertexOutput {
    float4 position [[position]];
    float4 color [[flat]];
    uint underline_id [[flat]];
@@ -658,7 +663,7 @@ index 2b52bb9..2d45164 100644
    float clip_distance [[clip_distance]][4];
  };
  
-@@ -565,6 +584,7 @@ struct UnderlineFragmentInput {
+@@ -565,6 +592,7 @@ struct UnderlineFragmentInput {
    float4 position [[position]];
    float4 color [[flat]];
    uint underline_id [[flat]];
@@ -666,7 +671,7 @@ index 2b52bb9..2d45164 100644
  };
  
  vertex UnderlineVertexOutput underline_vertex(
-@@ -584,16 +604,19 @@ vertex UnderlineVertexOutput underline_vertex(
+@@ -584,16 +612,19 @@ vertex UnderlineVertexOutput underline_vertex(
        device_position,
        color,
        underline_id,
@@ -687,7 +692,7 @@ index 2b52bb9..2d45164 100644
    if (underline.wavy) {
      float half_thickness = underline.thickness * 0.5;
      float2 origin =
-@@ -612,9 +635,9 @@ fragment float4 underline_fragment(UnderlineFragmentInput input [[stage_in]],
+@@ -612,9 +643,9 @@ fragment float4 underline_fragment(UnderlineFragmentInput input [[stage_in]],
      float distance_from_bottom_border = distance_in_pixels + half_thickness;
      float alpha = saturate(
          0.5 - max(-distance_from_bottom_border, distance_from_top_border));
@@ -699,7 +704,7 @@ index 2b52bb9..2d45164 100644
    }
  }
  
-@@ -623,6 +646,7 @@ struct MonochromeSpriteVertexOutput {
+@@ -623,6 +654,7 @@ struct MonochromeSpriteVertexOutput {
    float2 tile_position;
    float4 color [[flat]];
    float4 clip_distance;
@@ -707,7 +712,7 @@ index 2b52bb9..2d45164 100644
  };
  
  struct MonochromeSpriteFragmentInput {
-@@ -630,6 +654,7 @@ struct MonochromeSpriteFragmentInput {
+@@ -630,6 +662,7 @@ struct MonochromeSpriteFragmentInput {
    float2 tile_position;
    float4 color [[flat]];
    float4 clip_distance;
@@ -715,7 +720,7 @@ index 2b52bb9..2d45164 100644
  };
  
  vertex MonochromeSpriteVertexOutput monochrome_sprite_vertex(
-@@ -652,13 +677,15 @@ vertex MonochromeSpriteVertexOutput monochrome_sprite_vertex(
+@@ -652,13 +685,15 @@ vertex MonochromeSpriteVertexOutput monochrome_sprite_vertex(
        device_position,
        tile_position,
        color,
@@ -733,7 +738,7 @@ index 2b52bb9..2d45164 100644
    if (any(input.clip_distance < float4(0.0))) {
      return float4(0.0);
    }
-@@ -668,7 +695,7 @@ fragment float4 monochrome_sprite_fragment(
+@@ -668,7 +703,7 @@ fragment float4 monochrome_sprite_fragment(
    float4 sample =
        atlas_texture.sample(atlas_texture_sampler, input.tile_position);
    float4 color = input.color;
@@ -742,7 +747,7 @@ index 2b52bb9..2d45164 100644
    return color;
  }
  
-@@ -676,6 +703,7 @@ struct PolychromeSpriteVertexOutput {
+@@ -676,6 +711,7 @@ struct PolychromeSpriteVertexOutput {
    float4 position [[position]];
    float2 tile_position;
    uint sprite_id [[flat]];
@@ -750,7 +755,7 @@ index 2b52bb9..2d45164 100644
    float clip_distance [[clip_distance]][4];
  };
  
-@@ -683,6 +711,7 @@ struct PolychromeSpriteFragmentInput {
+@@ -683,6 +719,7 @@ struct PolychromeSpriteFragmentInput {
    float4 position [[position]];
    float2 tile_position;
    uint sprite_id [[flat]];
@@ -758,7 +763,7 @@ index 2b52bb9..2d45164 100644
  };
  
  vertex PolychromeSpriteVertexOutput polychrome_sprite_vertex(
-@@ -705,13 +734,15 @@ vertex PolychromeSpriteVertexOutput polychrome_sprite_vertex(
+@@ -705,13 +742,15 @@ vertex PolychromeSpriteVertexOutput polychrome_sprite_vertex(
        device_position,
        tile_position,
        sprite_id,
@@ -775,7 +780,7 @@ index 2b52bb9..2d45164 100644
    PolychromeSprite sprite = sprites[input.sprite_id];
    constexpr sampler atlas_texture_sampler(mag_filter::linear,
                                            min_filter::linear);
-@@ -727,7 +758,8 @@ fragment float4 polychrome_sprite_fragment(
+@@ -727,7 +766,8 @@ fragment float4 polychrome_sprite_fragment(
      color.g = grayscale;
      color.b = grayscale;
    }
@@ -785,7 +790,7 @@ index 2b52bb9..2d45164 100644
    return color;
  }
  
-@@ -735,6 +767,7 @@ struct PathRasterizationVertexOutput {
+@@ -735,6 +775,7 @@ struct PathRasterizationVertexOutput {
    float4 position [[position]];
    float2 st_position;
    uint vertex_id [[flat]];
@@ -793,7 +798,7 @@ index 2b52bb9..2d45164 100644
    float clip_rect_distance [[clip_distance]][4];
  };
  
-@@ -742,6 +775,7 @@ struct PathRasterizationFragmentInput {
+@@ -742,6 +783,7 @@ struct PathRasterizationFragmentInput {
    float4 position [[position]];
    float2 st_position;
    uint vertex_id [[flat]];
@@ -801,7 +806,7 @@ index 2b52bb9..2d45164 100644
  };
  
  vertex PathRasterizationVertexOutput path_rasterization_vertex(
-@@ -760,6 +794,7 @@ vertex PathRasterizationVertexOutput path_rasterization_vertex(
+@@ -760,6 +802,7 @@ vertex PathRasterizationVertexOutput path_rasterization_vertex(
        position,
        float2(v.st_position.x, v.st_position.y),
        vertex_id,
@@ -809,7 +814,7 @@ index 2b52bb9..2d45164 100644
        {
          v.xy_position.x - v.bounds.origin.x,
          v.bounds.origin.x + v.bounds.size.width - v.xy_position.x,
-@@ -771,7 +806,8 @@ vertex PathRasterizationVertexOutput path_rasterization_vertex(
+@@ -771,7 +814,8 @@ vertex PathRasterizationVertexOutput path_rasterization_vertex(
  
  fragment float4 path_rasterization_fragment(
    PathRasterizationFragmentInput input [[stage_in]],
@@ -819,7 +824,7 @@ index 2b52bb9..2d45164 100644
  ) {
    float2 dx = dfdx(input.st_position);
    float2 dy = dfdy(input.st_position);
-@@ -791,6 +827,7 @@ fragment float4 path_rasterization_fragment(
+@@ -791,6 +835,7 @@ fragment float4 path_rasterization_fragment(
      float distance = f / length(gradient);
      alpha = saturate(0.5 - distance);
    }
@@ -827,7 +832,7 @@ index 2b52bb9..2d45164 100644
  
    GradientColor gradient_color = prepare_fill_color(
      background.tag,
-@@ -899,6 +936,104 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
+@@ -899,6 +944,104 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
    return ycbcrToRGBTransform * ycbcr;
  }
  
@@ -932,7 +937,7 @@ index 2b52bb9..2d45164 100644
  float4 hsla_to_rgba(Hsla hsla) {
    float h = hsla.h * 6.0; // Now, it's an angle but scaled in [0, 6) range
    float s = hsla.s;
-@@ -1089,6 +1224,49 @@ float quad_sdf_impl(float2 corner_center_to_point, float corner_radius) {
+@@ -1089,6 +1232,49 @@ float quad_sdf_impl(float2 corner_center_to_point, float corner_radius) {
      }
  }
  
