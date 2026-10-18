@@ -5,7 +5,6 @@
 //! only by `link::Link`, which turns this view's events into `wsp-host-client` calls.
 
 pub mod link;
-mod marks;
 mod menus;
 pub mod model;
 mod parts;

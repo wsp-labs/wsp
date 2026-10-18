@@ -5,6 +5,7 @@
 
 pub mod app_shell;
 pub mod composer;
+pub mod usage;
 
 use std::cell::RefCell;
 
@@ -14,6 +15,7 @@ pub use app_shell::{entry, navigate, Entry, Host, Mounted, Opened, Pane, Parts, 
 pub fn screen(name: &str) -> Option<Entry> {
     match name {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
+        usage::UsageScreen::NAME => Some(entry::<usage::UsageScreen>()),
         _ => ADDED.with(|added| added.borrow().iter().find(|(n, _)| *n == name).map(|(_, e)| *e)),
     }
 }
