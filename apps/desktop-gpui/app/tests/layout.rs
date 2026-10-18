@@ -13,6 +13,7 @@ use desktop_gpui::ui::{
     self, glyph_frame, section_head, Button, Card, Dialog, Glyph, KeyCaps, Line, PickRow, Row, Segmented, Side, Switch,
 };
 use gpui_kit::component::Root;
+use gpui_kit::test::TestWindowExt as _;
 use gpui_kit::{div, prelude::*, px, size, AnyElement, Bounds, Context, Modifiers, Pixels, TestAppContext, VisualTestContext, Window};
 
 type Draw = Box<dyn Fn(&mut Window, &mut Context<Lone>) -> AnyElement>;
@@ -236,6 +237,27 @@ fn a_press_on_a_segment_hands_its_value(cx: &mut TestAppContext) {
     let at = bounds(cx, "segment").center();
     cx.simulate_click(at, Modifiers::none());
     assert_eq!(picked.get(), Some(1));
+}
+
+#[gpui_kit::test]
+fn a_new_pick_eases_its_colours_then_asks_for_no_frame(cx: &mut TestAppContext) {
+    let picked = Rc::new(Cell::new(0));
+    let p = picked.clone();
+    let cx = draw(cx, move |_, _| Segmented::new("s", p.get()).segment("Enter").segment("Ctrl Enter").into_any_element());
+    // The frames one drawn frame asks for, after what earlier frames asked for is spent.
+    let asked = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| {
+            window.simulate_next_frame(cx);
+            window.render_frame(cx);
+            window.simulate_next_frame(cx)
+        })
+    };
+    assert_eq!(asked(cx), 0, "at rest the control asks for no frame");
+    picked.set(1);
+    assert!(asked(cx) > 0, "the new pick's fill and ink ease");
+    cx.executor().advance_clock(std::time::Duration::from_millis(200));
+    asked(cx);
+    assert_eq!(asked(cx), 0, "past its 150 ms the ease is done and asks for no frame");
 }
 
 #[gpui_kit::test]

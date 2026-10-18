@@ -139,6 +139,9 @@ palette!(
     primary,
     primary_foreground,
     primary_hover,
+    slate_accent,
+    scrollbar_thumb,
+    scrollbar_thumb_hover,
     border,
     input,
     input_fill,
@@ -460,6 +463,23 @@ mod tests {
                     assert_eq!(ours, format!("{value}ff"), "{id}: --{name}");
                 }
             }
+        }
+    }
+
+    /// `--app-scrollbar-thumb` and its hover: grays on the light side, white at 8% and 12% on the dark, as `index.css`
+    /// writes them.
+    #[test]
+    fn the_scrollbar_thumb_is_the_webs_on_each_side() {
+        let css = include_str!("../../../../web/src/index.css");
+        assert!(css.contains("--app-scrollbar-thumb: rgb(217 217 217);"), "the web's light thumb moved");
+        assert!(css.contains("--app-scrollbar-thumb: rgb(255 255 255 / 8%);"), "the web's dark thumb moved");
+        assert!(css.contains("--app-scrollbar-thumb-hover: rgb(191 191 191);"), "the web's light hover moved");
+        assert!(css.contains("--app-scrollbar-thumb-hover: rgb(255 255 255 / 12%);"), "the web's dark hover moved");
+        for entry in &THEMES {
+            let dark = entry.side == Side::Dark;
+            let (rest, hover) = if dark { ("#ffffff14", "#ffffff1f") } else { ("#d9d9d9ff", "#bfbfbfff") };
+            assert_eq!(entry.palette().scrollbar_thumb, super::color(rest), "{}", entry.id);
+            assert_eq!(entry.palette().scrollbar_thumb_hover, super::color(hover), "{} hovered", entry.id);
         }
     }
 

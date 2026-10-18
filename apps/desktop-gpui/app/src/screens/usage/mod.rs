@@ -3,7 +3,6 @@
 //! what its agent last said of its plan's windows. It reads through the host client alone, again each hold while it
 //! stands open, again on coming back to the window once a hold has passed, and when asked.
 
-pub mod chart;
 mod held;
 mod limits;
 pub mod model;

@@ -15,7 +15,7 @@ use gpui_kit::{
 use super::{Entry, Host, Opened, Pane, Place, Title};
 use crate::screens;
 use crate::ui::card::keycap;
-use crate::ui::ActivePalette;
+use crate::ui::{motion, ActivePalette};
 
 /// `PreviewPanelShell`'s width: 540 at first, never under 360.
 pub const DEFAULT_WIDTH: Pixels = px(540.);
@@ -149,6 +149,8 @@ pub struct RightPanel {
     adding: bool,
     closed_at: Option<Instant>,
     focus: FocusHandle,
+    /// The host's agent writes, each of which opens its thread's Slate tab once.
+    _slates: Option<gpui_kit::Task<()>>,
 }
 
 impl Focusable for RightPanel {
@@ -172,13 +174,50 @@ impl RightPanel {
             adding: false,
             closed_at: None,
             focus: cx.focus_handle(),
+            _slates: None,
         }
     }
 
     pub fn set_host(&mut self, host: Host, window: &mut Window, cx: &mut Context<Self>) {
+        let (follow, mut writes) = screens::slate::agent_writes(&host);
+        self._slates = Some(cx.spawn_in(window, async move |this, cx| {
+            let _follow = follow;
+            while let Some(thread) = futures::StreamExt::next(&mut writes).await {
+                let on = |at: &At| matches!(at, At::Thread { thread_id, .. } if *thread_id == thread);
+                if this
+                    .update_in(cx, |this, window, cx| {
+                        if on(&this.at) {
+                            this.show_slate_once(window, cx)
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        }));
         self.host = Some(host);
         self.mount_active(window, cx);
+        self.show_slate_once(window, cx);
         cx.notify();
+    }
+
+    /// Opens the Slate tab once on the thread here when its slate was never shown, as the web's `showOnce` does as a
+    /// thread is picked and as its agent writes.
+    fn show_slate_once(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (At::Thread { thread_id, .. }, Some(host)) = (&self.at, &self.host) else { return };
+        let (thread, never) = (thread_id.clone(), screens::slate::never_shown(host, thread_id.clone()));
+        cx.spawn_in(window, async move |this, cx| {
+            if never.await {
+                _ = this.update_in(cx, |this, window, cx| {
+                    let here = matches!(&this.at, At::Thread { thread_id, .. } if *thread_id == thread);
+                    if here && screens::slate::first_showing(&thread, cx) {
+                        this.add(Pane::Slate, None, window, cx);
+                    }
+                });
+            }
+        })
+        .detach();
     }
 
     pub fn is_open(&self) -> bool {
@@ -246,6 +285,7 @@ impl RightPanel {
         self.tabs = saved.tabs.into_iter().map(|(pane, id)| Tab { pane, id, view: None, title: None }).collect();
         self.active = saved.active.filter(|&ix| ix < self.tabs.len());
         self.mount_active(window, cx);
+        self.show_slate_once(window, cx);
         cx.notify();
     }
 
@@ -572,40 +612,36 @@ impl RightPanel {
             });
             let dim = if open.is_ok() { 1. } else { 0.64 };
             let key = pane.key().map(|k| SharedString::from(k.to_string()));
-            Some(
-                h_flex()
-                    .id(SharedString::new_static(pane.name()))
-                    .w_full()
-                    .h(px(54.))
-                    .gap_3()
-                    .px_3()
-                    .py_2()
-                    .rounded(px(10.))
-                    .border_1()
-                    .border_color(edge)
-                    .bg(card)
-                    .when(open.is_ok(), |el| {
-                        el.cursor_pointer()
-                            .hover(|s| s.bg(p.card_hover))
-                            .on_click(cx.listener(move |this, _, window, cx| this.add(pane, None, window, cx)))
-                    })
-                    .child(Icon::new(pane.glyph()).with_size(px(16.)).text_color(p.foreground.opacity(0.8)).opacity(dim))
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .child(
-                                div()
-                                    .text_size(px(14.))
-                                    .line_height(px(20.))
-                                    .text_color(p.foreground)
-                                    .opacity(dim)
-                                    .child(SharedString::new_static(pane.label())),
-                            )
-                            .child(div().text_size(px(12.)).line_height(px(16.)).text_color(p.muted_foreground).child(line)),
-                    )
-                    .children(key.map(|k| div().opacity(dim).child(keycap(k, cx)))),
-            )
+            let tile = h_flex()
+                .id(SharedString::new_static(pane.name()))
+                .w_full()
+                .h(px(54.))
+                .gap_3()
+                .px_3()
+                .py_2()
+                .rounded(px(10.))
+                .border_1()
+                .border_color(edge)
+                .when(open.is_ok(), |el| {
+                    el.cursor_pointer().on_click(cx.listener(move |this, _, window, cx| this.add(pane, None, window, cx)))
+                })
+                .child(Icon::new(pane.glyph()).with_size(px(16.)).text_color(p.foreground.opacity(0.8)).opacity(dim))
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .child(
+                            div()
+                                .text_size(px(14.))
+                                .line_height(px(20.))
+                                .text_color(p.foreground)
+                                .opacity(dim)
+                                .child(SharedString::new_static(pane.label())),
+                        )
+                        .child(div().text_size(px(12.)).line_height(px(16.)).text_color(p.muted_foreground).child(line)),
+                )
+                .children(key.map(|k| div().opacity(dim).child(keycap(k, cx))));
+            Some(Tile { name: pane.name(), rest: card, hover: open.is_ok().then_some(p.card_hover), tile })
         });
         div().flex().flex_1().min_h_0().items_center().justify_center().px_6().pt_6().pb(BAR_HEIGHT + px(24.)).child(
             div()
@@ -675,5 +711,23 @@ impl RightPanel {
             .size_full()
             .child(self.bar(controls, cx))
             .child(content)
+    }
+}
+
+/// A launcher tile, its fill eased to the hover's over `COLORS` as `transition-colors duration-150` does.
+#[derive(IntoElement)]
+struct Tile {
+    name: &'static str,
+    rest: Hsla,
+    hover: Option<Hsla>,
+    tile: gpui_kit::Stateful<gpui_kit::Div>,
+}
+
+impl RenderOnce for Tile {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let over = motion::hovered(self.name, window, cx);
+        let fill = self.hover.filter(|_| *over.read(cx)).unwrap_or(self.rest);
+        let fill = motion::ease_ink(self.name, "fill", fill, motion::COLORS, window, cx);
+        self.tile.bg(fill).when(self.hover.is_some(), |el| el.on_hover(motion::track_hover(over)))
     }
 }

@@ -167,6 +167,11 @@ pub fn section_head(head: impl Into<SharedString>, cx: &App) -> impl IntoElement
     head_box(false, cx).text_color(cx.palette().foreground.opacity(0.7)).child(head.into())
 }
 
+/// A locked page's head (`data-locked`) on its own, out of a card: 14 px regular in the foreground at 70%.
+pub fn locked_head(head: impl Into<SharedString>, cx: &App) -> gpui_kit::Div {
+    head_box(true, cx).min_w_0().text_color(cx.palette().foreground.opacity(0.7)).child(gpui_kit::div().min_w_0().child(head.into()))
+}
+
 /// The head's box: 13.5 px medium, or a locked page's 14 px regular.
 fn head_box(locked: bool, _: &App) -> gpui_kit::Div {
     let (size, weight) = if locked { (text::VALUE, FontWeight::NORMAL) } else { (text::SECTION_HEAD, FontWeight::MEDIUM) };

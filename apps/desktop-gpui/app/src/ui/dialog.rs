@@ -14,6 +14,7 @@ use gpui_kit::{
 use super::card::{keycap, word, CardItem, WordClass};
 use super::controls::Button;
 use super::icons::Glyph;
+use super::motion::open_fade;
 use super::theme::ActivePalette;
 use super::{size, text};
 
@@ -30,17 +31,30 @@ const FADE: gpui_kit::Pixels = px(24.);
 /// dialog layer) or shows it in place.
 #[derive(IntoElement)]
 pub struct Dialog {
-    title: SharedString,
+    title: AnyElement,
     count: Option<SharedString>,
     line: Option<SharedString>,
     body: Vec<AnyElement>,
     state: Option<AnyElement>,
     acts: Vec<AnyElement>,
+    sheet: bool,
 }
 
 impl Dialog {
     pub fn new(title: impl Into<SharedString>) -> Self {
-        Dialog { title: title.into(), count: None, line: None, body: Vec::new(), state: None, acts: Vec::new() }
+        Dialog::titled(title.into())
+    }
+
+    /// A title drawn as `title` is, for one with a mono run in it.
+    pub fn titled(title: impl IntoElement) -> Self {
+        Dialog { title: title.into_any_element(), count: None, line: None, body: Vec::new(), state: None, acts: Vec::new(), sheet: false }
+    }
+
+    /// The web's plain `DialogPopup` at `max-w-110`: the header, one `DialogPanel` at `pt-1` (`pb-0` over a foot,
+    /// `pb-3` where there is none) and the foot only where it has an act.
+    pub fn sheet(mut self) -> Self {
+        self.sheet = true;
+        self
     }
 
     /// The step's place as a quiet fact at the head's right: "2 of 5".
@@ -82,13 +96,15 @@ impl Dialog {
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
+        let sheet = self.sheet;
+        let footless = sheet && self.acts.is_empty() && self.state.is_none();
         let head = h_flex()
             .items_start()
             .justify_between()
             .gap_6()
             .px_5()
             .pt_4()
-            .pb_3()
+            .pb(if sheet { px(4.) } else { px(12.) })
             .child(
                 v_flex()
                     .min_w_0()
@@ -108,23 +124,30 @@ impl RenderOnce for Dialog {
                     ),
             )
             .children(self.count.map(|count| div().flex_none().pt(px(2.)).child(word(count, WordClass::Fact, cx))));
+        let (top, bottom) = match (sheet, footless) {
+            (false, _) => (px(8.), px(20.)),
+            (true, false) => (px(4.), px(0.)),
+            (true, true) => (px(4.), px(12.)),
+        };
         let body = v_flex()
             .id("dialog-body")
             .flex_shrink(1.)
             .min_h_0()
             .overflow_y_scroll()
-            .child(v_flex().gap_5().px_5().pt_2().pb_5().children(self.body));
-        let foot = h_flex()
-            .justify_end()
-            .gap_2()
-            .px_5()
-            .pt_3()
-            .pb_4()
-            .child(h_flex().flex_1().min_w_0().min_h(px(20.)).children(self.state))
-            .children(self.acts);
-        v_flex()
+            .child(v_flex().gap_5().px_5().pt(top).pb(bottom).children(self.body));
+        let foot = (!footless).then(|| {
+            h_flex()
+                .justify_end()
+                .gap_2()
+                .px_5()
+                .pt_3()
+                .pb_4()
+                .child(h_flex().flex_1().min_w_0().min_h(px(20.)).children(self.state))
+                .children(acts(self.acts))
+        });
+        let surface = v_flex()
             .debug_selector(|| "dialog".into())
-            .w(size::DIALOG_WIDTH)
+            .w(if sheet { ALERT_WIDTH } else { size::DIALOG_WIDTH })
             .max_h(popup_max(window))
             .rounded(size::DIALOG_RADIUS)
             .border_1()
@@ -134,8 +157,14 @@ impl RenderOnce for Dialog {
             .text_color(p.foreground)
             .child(head)
             .child(body)
-            .child(foot)
+            .children(foot);
+        open_fade("dialog-open", surface, cx)
     }
+}
+
+/// The foot's acts, each findable in a test as `dialog-act-<n>` in order from the left.
+fn acts(acts: Vec<AnyElement>) -> impl Iterator<Item = AnyElement> {
+    acts.into_iter().enumerate().map(|(n, act)| div().debug_selector(move || format!("dialog-act-{n}")).child(act).into_any_element())
 }
 
 /// A popup's `max-h-full` inside the viewport's `p-4`: past it the body scrolls and the head and foot stay.
@@ -148,7 +177,7 @@ fn popup_max(window: &Window) -> Pixels {
 /// neutral ring, then the destructive confirm or Save. A surface, laid over a scrim by the caller as `Dialog` is.
 #[derive(IntoElement)]
 pub struct AlertDialog {
-    title: SharedString,
+    title: AnyElement,
     sentence: Option<AnyElement>,
     body: Vec<AnyElement>,
     acts: Vec<AnyElement>,
@@ -156,7 +185,12 @@ pub struct AlertDialog {
 
 impl AlertDialog {
     pub fn new(title: impl Into<SharedString>) -> Self {
-        AlertDialog { title: title.into(), sentence: None, body: Vec::new(), acts: Vec::new() }
+        AlertDialog::titled(title.into())
+    }
+
+    /// A title drawn as `title` is, for one with a mono run in it.
+    pub fn titled(title: impl IntoElement) -> Self {
+        AlertDialog { title: title.into_any_element(), sentence: None, body: Vec::new(), acts: Vec::new() }
     }
 
     /// The description under the title: what leaves, read off what the thing holds now.
@@ -211,7 +245,7 @@ impl RenderOnce for AlertDialog {
                 .overflow_y_scroll()
                 .child(v_flex().gap_2().px_5().pt_2().children(self.body))
         });
-        v_flex()
+        let surface = v_flex()
             .debug_selector(|| "alert-dialog".into())
             .w(ALERT_WIDTH)
             .max_h(popup_max(window))
@@ -223,8 +257,19 @@ impl RenderOnce for AlertDialog {
             .text_color(p.foreground)
             .child(head)
             .children(body)
-            .child(h_flex().justify_end().gap_2().px_5().pt_3().pb_4().children(self.acts))
+            .child(h_flex().justify_end().gap_2().px_5().pt_3().pb_4().children(acts(self.acts)));
+        open_fade("alert-dialog-open", surface, cx)
     }
+}
+
+/// `dialog-backdrop`: the page at 60%, 64% in a dark theme, blurred 4 px, the size of the window, fading in with the
+/// popup it holds.
+pub fn scrim(id: impl Into<gpui_kit::ElementId>, window: &Window, cx: &App) -> AnyElement {
+    let p = cx.palette();
+    let dark = cx.theme().is_dark();
+    let size = window.viewport_size();
+    let el = div().w(size.width).h(size.height).bg(p.background.opacity(if dark { 0.64 } else { 0.6 })).backdrop_blur(px(4.));
+    open_fade(id, el, cx)
 }
 
 /// `RefusalSlot`: the host's refusal under what it refused, in the destructive ink, its fix in the foreground; or what

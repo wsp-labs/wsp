@@ -14,6 +14,7 @@ pub struct Sparkline {
     runs: Vec<Vec<(f32, f32)>>,
     ink: Hsla,
     rules: bool,
+    baseline: bool,
     fill: f32,
     height: Pixels,
 }
@@ -22,7 +23,7 @@ impl Sparkline {
     /// One run in `ink`, its points 0 to 1 across and 0 to 1 up, with the rules, a fill from 20% and `ChartPlot`'s
     /// `h-24`.
     pub fn new(points: Vec<(f32, f32)>, ink: Hsla) -> Self {
-        Sparkline { runs: vec![points], ink, rules: true, fill: 0.2, height: px(96.) }
+        Sparkline { runs: vec![points], ink, rules: true, baseline: true, fill: 0.2, height: px(96.) }
     }
 
     /// Runs with a break between each, where the readings stopped.
@@ -33,6 +34,12 @@ impl Sparkline {
     /// `rules={false}`: no rule lines, the baseline at the border's 60%.
     pub fn no_rules(mut self) -> Self {
         self.rules = false;
+        self
+    }
+
+    /// The line alone, as a slate's sparkline draws it: no rules, no baseline, no fill.
+    pub fn bare(mut self) -> Self {
+        (self.rules, self.baseline, self.fill) = (false, false, 0.);
         self
     }
 
@@ -51,7 +58,7 @@ impl Sparkline {
 impl RenderOnce for Sparkline {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let border = cx.palette().border;
-        let Sparkline { runs, ink, rules, fill, height } = self;
+        let Sparkline { runs, ink, rules, baseline, fill, height } = self;
         let base = if rules { border } else { border.opacity(0.6) };
         let plot = canvas(
             |_, _, _| {},
@@ -75,11 +82,13 @@ impl RenderOnce for Sparkline {
                         rule(y_at(at), at < 1., border);
                     }
                 }
-                rule(o.y + h - pad, false, base);
+                if baseline {
+                    rule(o.y + h - pad, false, base);
+                }
                 let at = |(x, y): (f32, f32)| point(o.x + w * x, y_at(y));
                 for run in runs.iter().filter(|r| !r.is_empty()) {
                     let (first, last) = (run[0], run[run.len() - 1]);
-                    if run.len() > 1 {
+                    if run.len() > 1 && fill > 0. {
                         let mut area = PathBuilder::fill();
                         area.move_to(at(first));
                         for pt in &run[1..] {
