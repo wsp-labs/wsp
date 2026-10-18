@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use desktop_gpui::gallery::Gallery;
 use desktop_gpui::screens::app_shell::{assets::AppAssets, menu};
-use desktop_gpui::screens::composer;
+use desktop_gpui::screens::{composer, Place, Route};
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
 use desktop_gpui::{bench, local_store, screens, TITLE};
@@ -20,11 +20,41 @@ fn default_state() -> PathBuf {
     home.join("state.json")
 }
 
+/// `--pane launcher` opens the right panel on no tab, the launcher, which a memory reading sets beside a pane's.
+const LAUNCHER: &str = "launcher";
+
+/// Takes `--pane <name>` out of the launch's words: a right panel pane to open once `--open`'s thread is on screen.
+fn take_pane(words: impl Iterator<Item = String>) -> Result<(Vec<String>, Option<String>), String> {
+    let (mut rest, mut pane) = (Vec::new(), None);
+    let mut words = words.into_iter();
+    while let Some(word) = words.next() {
+        match word.as_str() {
+            "--pane" => pane = Some(words.next().ok_or("--pane takes a value")?),
+            _ => rest.push(word),
+        }
+    }
+    Ok((rest, pane))
+}
+
 fn main() {
-    let args = bench::parse(std::env::args().skip(1)).unwrap_or_else(|e| {
+    let (words, pane) = take_pane(std::env::args().skip(1)).unwrap_or_else(|e| {
         eprintln!("desktop-gpui: {e}");
         std::process::exit(64);
     });
+    let args = bench::parse(words.into_iter()).unwrap_or_else(|e| {
+        eprintln!("desktop-gpui: {e}");
+        std::process::exit(64);
+    });
+    if let Some(name) = &pane {
+        if args.open.is_none() {
+            eprintln!("desktop-gpui: --pane goes with --open");
+            std::process::exit(64);
+        }
+        if name != LAUNCHER && !screens::screen(name).is_some_and(|e| matches!(e.place, Place::Panel(_))) {
+            eprintln!("desktop-gpui: no right panel pane is named {name}");
+            std::process::exit(64);
+        }
+    }
     if let Some(name) =
         args.screen.as_deref().map(|route| screens::app_shell::split(route).0).filter(|name| screens::screen(name).is_none())
     {
@@ -48,7 +78,7 @@ fn main() {
     app.on_reopen(move |cx| {
         if cx.windows().is_empty() {
             let (state, env, runtime) = reopen.clone();
-            open_main(state, env, runtime, Launch::default(), cx);
+            open_main(state, env, runtime, Launch::default(), None, cx);
         }
     });
     app.run(move |cx: &mut App| {
@@ -82,12 +112,12 @@ fn main() {
             return;
         }
         menu::init(cx);
-        open_main(state, env, runtime, launch, cx);
+        open_main(state, env, runtime, launch, pane.clone(), cx);
     });
 }
 
-/// The app's window, the shell in it.
-fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, launch: Launch, cx: &mut App) {
+/// The app's window, the shell in it, with `pane` opened in the right panel once the shell first shows a thread.
+fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, launch: Launch, pane: Option<String>, cx: &mut App) {
     // The Electron app's window size, so both benches scroll the same viewport.
     let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
     // Electron's hiddenInset: no title bar, the lights centred on the frame row's 26 px line.
@@ -100,9 +130,42 @@ fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, la
         WindowOptions { window_bounds: Some(WindowBounds::Windowed(bounds)), titlebar: Some(titlebar), ..Default::default() },
         |window, cx| {
             let shell = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
+            if let Some(pane) = pane {
+                let mut pane = Some(pane);
+                window
+                    .observe(&shell, cx, move |shell, window, cx| {
+                        if matches!(shell.read(cx).route(), Route::Thread { .. }) {
+                            match pane.take() {
+                                Some(pane) if pane == LAUNCHER => {
+                                    let panel = shell.read(cx).panel().clone();
+                                    if !panel.read(cx).is_open() {
+                                        panel.update(cx, |p, cx| p.toggle(window, cx));
+                                    }
+                                }
+                                Some(pane) => shell.update(cx, |s, cx| s.go(Route::Screen(pane.into()), window, cx)),
+                                None => {}
+                            }
+                        }
+                    })
+                    .detach();
+            }
             cx.new(|cx| Root::new(shell, window, cx))
         },
     )
     .expect("failed to open the window");
     cx.activate(true);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::take_pane;
+
+    #[test]
+    fn takes_the_pane_and_leaves_the_rest() {
+        let words = "--state /s.json --open t1 --pane slate".split(' ').map(str::to_owned);
+        let (rest, pane) = take_pane(words).unwrap();
+        assert_eq!(rest, ["--state", "/s.json", "--open", "t1"]);
+        assert_eq!(pane.as_deref(), Some("slate"));
+        assert!(take_pane(["--pane".to_owned()].into_iter()).is_err());
+    }
 }

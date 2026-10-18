@@ -12,7 +12,7 @@ mod foot;
 pub mod host;
 mod keys;
 pub mod looks;
-mod markdown;
+pub(crate) mod markdown;
 mod menu;
 pub mod model;
 pub mod rows;
