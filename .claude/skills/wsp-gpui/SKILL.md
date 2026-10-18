@@ -88,8 +88,8 @@ Why (the reversal):
   passed on a Boat machine with no display (the wsp-map#2365 review). The
   app's own pixel test is `apps/desktop-gpui/app/tests/pixels.rs`.
 
-Backdrop blur, rounded clipping of children (wsp-map#2373) and Chromium's text placement are our patch:
-[patches/](../../../apps/desktop-gpui/patches/gpui-pre-0.3.9.patch) over three
+Backdrop blur, rounded clipping of children (wsp-map#2373), Chromium's text placement and a list that keeps its rows'
+heights when its width changes are our patch: [patches/](../../../apps/desktop-gpui/patches/gpui-pre-0.3.9.patch) over three
 pinned crates and gpui-kit's pinned commit, applied in `vendor/` by
 [gpui-patches.sh](../../../apps/desktop-gpui/scripts/gpui-patches.sh) (`apply`
 after a clone, `save` after an edit). `.backdrop_blur(..)` is CSS's
