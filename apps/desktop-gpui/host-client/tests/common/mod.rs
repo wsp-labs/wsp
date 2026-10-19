@@ -135,7 +135,7 @@ fn copy_dir(from: &Path, to: &Path) {
 /// A copy of the host's bundle under `dir` carrying `daemon`, or none, and its bin.js. A bundle reads each asset out of
 /// the assets folder beside it before the checkout's, and finds the checkout's relative to itself, so the copy links
 /// all of them there, and a copy with no daemon finds none where the checkout stages one.
-fn bundle_with(dir: &Path, daemon: Option<&Path>) -> PathBuf {
+pub fn bundle_with(dir: &Path, daemon: Option<&Path>) -> PathBuf {
     let root = root();
     let pkg = dir.join("hostpkg");
     copy_dir(&root.join("packages/host/dist"), &pkg.join("dist"));

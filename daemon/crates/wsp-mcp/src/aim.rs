@@ -7,11 +7,14 @@
 //! held to are in record/.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
 use crate::failure::Failure;
+use crate::proof::{self, Signalled};
 use crate::record::{self, fill};
+use crate::release::ReleaseRule;
 use crate::Env;
 
 /// Where a call dials: the host serving the state file here, a host on the account under an alias, or an address
@@ -170,30 +173,41 @@ pub fn serving(state: &Path) -> Option<Lock> {
 
 /// Whether a pid is a live process, whoever owns it: a lock another login holds is still a held lock.
 fn pid_alive(pid: i32) -> bool {
-    // SAFETY: signal 0 checks the pid and delivers nothing.
-    unsafe { libc::kill(pid, 0) == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM) }
+    proof::signalled(pid) != Signalled::Gone
 }
 
 /// Where the host serving this state file here answers, the token it wrote beside the file, and the address as a
-/// person reads it.
-pub fn here_door(state: &Path) -> Result<(String, String, String), Failure> {
-    let (url, at) = here_address(state)?;
+/// person reads it, once the lock is proved the owner's own host within `window`: the token goes nowhere else. A
+/// refusal is said in the words of the caller `rule` names.
+pub async fn here_door(state: &Path, window: Duration, rule: ReleaseRule) -> Result<(String, String, String), Failure> {
+    let lock = serving_or_refused(state)?;
+    proof::own_login(state, &lock, rule)?;
     let token_path = beside(state, &record::host().files.token).unwrap_or_default();
     let Some(token) = std::fs::read_to_string(&token_path).ok().map(|t| t.trim().to_owned()) else {
         return Err(Failure::auth(fill(&record::words().host_token_missing, &[("path", &token_path.to_string_lossy())])));
     };
+    proof::page_carries(state, &lock, Some(&token), window, rule).await?;
+    let (url, at) = address_of(&lock);
     Ok((url, token, at))
 }
 
-/// Where the host serving this state file here answers, and the address as a person reads it, whatever token this
-/// computer holds for it.
-pub fn here_address(state: &Path) -> Result<(String, String), Failure> {
-    let Some(lock) = serving(state) else {
-        return Err(Failure::new(fill(&record::words().no_host_serving, &[("state", &state.to_string_lossy())])));
-    };
-    let at = authority(&dial_address(&lock), lock.port);
+/// Where the host serving this state file here answers, and the address as a person reads it, for a device token or
+/// a pairing code: the lock is proved this login's and its port a wsp page within `window` before either leaves.
+pub async fn here_address(state: &Path, window: Duration, rule: ReleaseRule) -> Result<(String, String), Failure> {
+    let lock = serving_or_refused(state)?;
+    proof::own_login(state, &lock, rule)?;
+    proof::page_carries(state, &lock, None, window, rule).await?;
+    Ok(address_of(&lock))
+}
+
+fn serving_or_refused(state: &Path) -> Result<Lock, Failure> {
+    serving(state).ok_or_else(|| Failure::new(fill(&record::words().no_host_serving, &[("state", &state.to_string_lossy())])))
+}
+
+fn address_of(lock: &Lock) -> (String, String) {
+    let at = authority(&dial_address(lock), lock.port);
     let url = ws_url_of(&format!("http://{at}")).unwrap_or_default();
-    Ok((url, at))
+    (url, at)
 }
 
 /// Where a tool on this computer dials the host a lock names: the address it bound, and loopback for the wildcard.

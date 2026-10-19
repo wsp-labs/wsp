@@ -15,11 +15,26 @@ pub enum ReleaseHost {
     At { at: String, here: bool },
 }
 
-/// The refusal for a host that answered `theirs` and named `road` beside it, or nothing where it runs this binary's
-/// own release.
-pub fn refusal(theirs: &str, road: Option<&str>, host: &ReleaseHost) -> Option<Failure> {
-    let mine = record::server().version;
-    if theirs == mine {
+/// Which releases of a host a line goes on with past the answer to its token: its own alone, as the command line and
+/// the tool server hold it, or its own and any newer, as the desktop app attaches to the host it opens on and says
+/// the two releases (`desktop:host-lifecycle.ts`), an older host being refused all the same. A refusal of the lock
+/// beside the state is said in the words of the caller it names.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseRule {
+    #[default]
+    Own,
+    OwnOrNewer,
+}
+
+/// This binary's own release, the record's.
+pub fn own() -> String {
+    record::server().version
+}
+
+/// The refusal for a host that answered `theirs` and named `road` beside it, or nothing where `rule` takes it.
+pub fn refusal(theirs: &str, road: Option<&str>, host: &ReleaseHost, rule: ReleaseRule) -> Option<Failure> {
+    let mine = own();
+    if theirs == mine || (rule == ReleaseRule::OwnOrNewer && order(&mine, theirs) == Ordering::Less) {
         return None;
     }
     let words = &record::words().release;
@@ -64,7 +79,7 @@ fn road_of(path: &str) -> &'static str {
 /// Semver order as `compareVersions` in packages/protocol/src/semver.mjs reads it: the dotted core, a missing part
 /// read as 0, then a release above its own prereleases; build metadata carries none. The record's orderSamples hold
 /// the two to one answer.
-fn order(a: &str, b: &str) -> Ordering {
+pub fn order(a: &str, b: &str) -> Ordering {
     let parts = |v: &str| -> (Vec<String>, Option<Vec<String>>) {
         let rest = v.split('+').next().unwrap_or("");
         match rest.split_once('-') {
@@ -133,9 +148,9 @@ mod tests {
         let mine = record::server().version;
         let words = &record::words().release;
         let here = ReleaseHost::Here { state: "/s/state.json".into() };
-        assert!(refusal(&mine, Some("service"), &here).is_none());
+        assert!(refusal(&mine, Some("service"), &here, ReleaseRule::Own).is_none());
         let fix = |road: Option<&str>, host: &ReleaseHost| {
-            let failure = refusal("0.0.1", road, host).unwrap();
+            let failure = refusal("0.0.1", road, host, ReleaseRule::Own).unwrap();
             assert_eq!(failure.kind.as_deref(), Some("usage"));
             failure.message
         };
@@ -149,7 +164,39 @@ mod tests {
         assert!(fix(Some("service"), &pair).ends_with(&words.restart));
         let there = ReleaseHost::At { at: "attic".into(), here: false };
         assert!(fix(Some("service"), &there).ends_with(&fill(&words.update_there, &[("mine", &mine)])));
-        let newer = refusal("999.0.0", Some("service"), &there).unwrap();
+        let newer = refusal("999.0.0", Some("service"), &there, ReleaseRule::Own).unwrap();
         assert!(newer.message.ends_with("on this computer brings this line to 999.0.0."), "{}", newer.message);
+    }
+
+    /// Catches: the desktop's rule refusing a newer host, taking an older one, or saying anything else than the
+    /// command line says to an older one; and the rule a line gets by default being anything but its own release.
+    #[test]
+    fn the_desktop_rule_takes_a_newer_host_and_refuses_an_older_one_in_the_lines_words() {
+        assert_eq!(ReleaseRule::default(), ReleaseRule::Own);
+        let mine = own();
+        let here = ReleaseHost::Here { state: "/s/state.json".into() };
+        let newer = |v: &str| order(&mine, v) == Ordering::Less;
+        for theirs in [mine.as_str(), "999.0.0", "0.0.1"] {
+            assert_eq!(
+                refusal(theirs, Some("service"), &here, ReleaseRule::OwnOrNewer).is_none(),
+                theirs == mine || newer(theirs),
+                "{theirs}"
+            );
+        }
+        assert!(refusal("999.0.0", Some("service"), &here, ReleaseRule::Own).is_some(), "the line's own rule takes its own release alone");
+        let core = mine.split(['-', '+']).next().unwrap().to_owned();
+        let (pre_of_mine, pre_of_next) = (format!("{core}-rc.1"), format!("{}-rc.1", next_minor(&core)));
+        assert!(refusal(&pre_of_next, Some("service"), &here, ReleaseRule::OwnOrNewer).is_none(), "{pre_of_next} is newer than {mine}");
+        for older in ["0.0.1", pre_of_mine.as_str()] {
+            for road in [Some("service"), Some("app"), Some("up"), None] {
+                let line = refusal(older, road, &here, ReleaseRule::Own).unwrap();
+                assert_eq!(refusal(older, road, &here, ReleaseRule::OwnOrNewer), Some(line), "{older} on {road:?}");
+            }
+        }
+    }
+
+    fn next_minor(core: &str) -> String {
+        let parts: Vec<u64> = core.split('.').map(|p| p.parse().unwrap()).collect();
+        format!("{}.{}.0", parts[0], parts[1] + 1)
     }
 }

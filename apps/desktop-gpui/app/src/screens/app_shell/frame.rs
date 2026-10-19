@@ -88,7 +88,9 @@ pub fn lockup(ink: Hsla) -> impl IntoElement {
 
 /// A row that starts a column: 52 px, its children 16 px apart.
 pub fn row(id: &'static str) -> gpui_kit::Stateful<gpui_kit::Div> {
-    h_flex().id(id).debug_selector(move || id.into()).flex_none().h(TOPBAR).min_h(TOPBAR).min_w_0().items_center().gap(HEADER_GAP)
+    crate::desktop::frame::drag(
+        h_flex().id(id).debug_selector(move || id.into()).flex_none().h(TOPBAR).min_h(TOPBAR).min_w_0().items_center().gap(HEADER_GAP),
+    )
 }
 
 /// The crumbs of the header: the project, a slash, the thread; or the line for no thread. The line takes what it holds
@@ -126,7 +128,8 @@ pub fn crumbs(project: Option<&str>, title: Option<&str>, cx: &App) -> AnyElemen
         .into_any_element()
 }
 
-/// `PanelLayoutControls`: the terminal drawer's toggle and the right panel's, 28 px ghost toggles 4 px apart.
+/// `PanelLayoutControls`: the terminal drawer's toggle and the right panel's, 28 px ghost toggles 4 px apart, then the
+/// room for the window's controls where the app draws them over the row's right end.
 pub fn layout_controls(
     drawer_open: bool,
     panel_open: bool,
@@ -144,6 +147,7 @@ pub fn layout_controls(
                 .tooltip(crate::ui::tip(crate::screens::terminal::toolbar::toggle_label(cfg!(target_os = "macos")))),
         )
         .child(toggle("toggle-panel", IconName::PanelRight, panel_open, on_panel, cx))
+        .child(crate::desktop::frame::ControlsRoom)
 }
 
 /// `Toggle` ghost at `sm`: no edge, the foreground glyph at 80%, the accent fill once pressed or under the pointer.
@@ -166,6 +170,7 @@ fn toggle(
         .cursor_pointer()
         .when(pressed, |el| el.bg(p.accent))
         .hover(|s| s.bg(p.accent))
+        .on_mouse_down(gpui_kit::MouseButton::Left, |_, window, _| window.prevent_default())
         .on_click(f)
         .child(Icon::new(glyph).with_size(px(16.)).text_color(p.foreground.opacity(0.8)))
 }

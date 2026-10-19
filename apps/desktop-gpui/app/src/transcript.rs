@@ -293,6 +293,7 @@ fn entries(events: &[SessionEvent]) -> (Vec<Entry>, HashMap<String, Turn>) {
                         let action = action(tool_name.as_deref().unwrap_or("tool"));
                         entries.push(Entry { key: key("tool"), turn, body: Body::Work(Work::Tool { action, file: None }) });
                     }
+                    SessionEventKind::Unknown => {}
                 }
             }
             SessionEvent::SessionDone { result, turn_id, at, .. } => {

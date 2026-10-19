@@ -31,7 +31,7 @@ impl Render for StartingView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &self.dark;
         // The spinner reads its ink as it lays out, inside the dark scope.
-        let words = h_flex().debug_selector(|| "starting".into()).gap(px(8.)).child(spinner(cx).size(px(16.))).child(WORDS);
+        let words = h_flex().debug_selector(|| "starting".into()).gap(px(8.)).child(spinner(cx).size(px(16.)).endless()).child(WORDS);
         theme::scoped(
             p.clone(),
             div()
