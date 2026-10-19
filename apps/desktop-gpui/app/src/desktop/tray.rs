@@ -431,7 +431,7 @@ mod native {
                 }
             };
             if let Err(e) = added {
-                eprintln!("desktop-gpui: menu bar: {e}");
+                crate::desktop::log::error(&format!("menu bar: {e}"));
             }
         }
         (menu, acts)
@@ -445,7 +445,7 @@ mod native {
             let icon = match TrayIconBuilder::new().with_id("wsp").build() {
                 Ok(icon) => icon,
                 Err(e) => {
-                    eprintln!("desktop-gpui: menu bar: {e}");
+                    crate::desktop::log::error(&format!("menu bar: {e}"));
                     return;
                 }
             };
@@ -473,7 +473,7 @@ mod native {
         }
         tray.icon.set_title(Some(&model.title));
         if let Err(e) = tray.icon.set_tooltip(Some(model.tooltip())) {
-            eprintln!("desktop-gpui: menu bar: {e}");
+            crate::desktop::log::error(&format!("menu bar: {e}"));
         }
         tray.icon.set_menu(Some(Box::new(menu)));
         tray.acts = acts;

@@ -94,11 +94,16 @@ pub struct FeedState {
     pub lost: bool,
     /// The host serves from another computer.
     pub remote: bool,
+    /// The alias of the host on the account the feed dials, where it dials one.
+    pub alias: Option<String>,
 }
 
 impl FeedState {
-    /// What the menu calls the host: the name of the computer it runs on.
+    /// What the menu calls the host: the alias of one on the account, else the name of the computer it runs on.
     pub fn label(&self) -> String {
+        if let Some(alias) = &self.alias {
+            return alias.clone();
+        }
         self.places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some("here")).map(place_name).unwrap_or_default()
     }
 
@@ -234,17 +239,26 @@ impl Drop for Feed {
     }
 }
 
-/// Follows the host serving `state` on `runtime`, handing each change to `tx`, until the feed or the receiver goes.
-pub fn follow(state: PathBuf, env: Env, runtime: &Runtime, settle: Duration, retry: Duration, tx: mpsc::UnboundedSender<Fed>) -> Feed {
+/// Follows the host on the account saved under `alias`, or the host serving `state` for none, on `runtime`, handing
+/// each change to `tx`, until the feed or the receiver goes.
+pub fn follow(
+    alias: Option<String>,
+    state: PathBuf,
+    env: Env,
+    runtime: &Runtime,
+    settle: Duration,
+    retry: Duration,
+    tx: mpsc::UnboundedSender<Fed>,
+) -> Feed {
     let (asks, mut asked) = mpsc::unbounded();
     let task = runtime
         .spawn(async move {
             let mut fed = FeedState::default();
             loop {
-                match HostClient::connect(&state, &env).await {
+                match HostClient::connect_on(&state, &env, alias.as_deref(), None).await {
                     Ok(client) => {
                         if let Err(failure) = listen(Arc::new(client), &mut fed, settle, &tx, &mut asked).await {
-                            eprintln!("desktop-gpui: menu bar: {}", failure.message);
+                            super::log::error(&format!("menu bar: {}", failure.message));
                         }
                         if tx.is_closed() {
                             return;
@@ -255,7 +269,7 @@ pub fn follow(state: PathBuf, env: Env, runtime: &Runtime, settle: Duration, ret
                         _ = tx.unbounded_send(Fed::State(Box::new(fed.clone())));
                     }
                     Err(failure) => {
-                        eprintln!("desktop-gpui: menu bar: {}", failure.message);
+                        super::log::error(&format!("menu bar: {}", failure.message));
                         if !fed.lost {
                             fed.lost = true;
                             _ = tx.unbounded_send(Fed::State(Box::new(fed.clone())));
@@ -292,7 +306,7 @@ async fn reread(client: &Arc<HostClient>, fed: &mut FeedState) -> Result<(), Fai
     fed.places = match places {
         Ok(places) => places,
         Err(failure) => {
-            eprintln!("desktop-gpui: menu bar: {}", failure.message);
+            super::log::error(&format!("menu bar: {}", failure.message));
             Vec::new()
         }
     };
@@ -307,7 +321,7 @@ pub(super) async fn listed(client: &HostClient, op: &str, key: &str) -> Result<V
     let read = |(at, row): &(usize, Value)| {
         let read = row.get("id").is_some_and(Value::is_string);
         if !read {
-            eprintln!("desktop-gpui: menu bar: {op} answered row {at} with no id, skipped");
+            super::log::error(&format!("menu bar: {op} answered row {at} with no id, skipped"));
         }
         read
     };
@@ -358,6 +372,7 @@ async fn listen(
     fed.prefs = Prefs::of(&preferences);
     fed.lost = false;
     fed.remote = !client.here();
+    fed.alias = client.alias();
     replayed(&mut events, fed);
     reread(&client, fed).await?;
     send(tx, fed)?;
@@ -372,7 +387,7 @@ async fn listen(
             }
             _ = settled => match reread(&client, fed).await {
                 Ok(()) => send(tx, fed)?,
-                Err(failure) => eprintln!("desktop-gpui: menu bar: {}", failure.message),
+                Err(failure) => super::log::error(&format!("menu bar: {}", failure.message)),
             },
             ask = asked.next() => match ask {
                 None => return Ok(()),
@@ -390,7 +405,7 @@ async fn listen(
                 }
                 Some(Ask::Interrupt(session_id)) => {
                     if let Err(failure) = call::<SessionsInterruptRequest>(client.clone(), json!({ "sessionId": session_id })).await {
-                        eprintln!("desktop-gpui: menu bar: {}", failure.message);
+                        super::log::error(&format!("menu bar: {}", failure.message));
                     }
                 }
                 Some(Ask::Redial) => {}
@@ -406,6 +421,8 @@ struct Desk {
     runtime: Arc<Runtime>,
     feed: Option<Feed>,
     fed: Option<FeedState>,
+    /// Counts the feeds begun, so what a feed left behind once the window moved is not taken for the next one's.
+    begun: u64,
 }
 
 impl Global for Desk {}
@@ -417,25 +434,52 @@ pub fn start(state: PathBuf, env: Env, runtime: Arc<Runtime>, reopen: Rc<dyn Fn(
     notify::init(reopen, cx);
     #[cfg(target_os = "macos")]
     super::mac::offer_move(cx);
-    cx.set_global(Desk { state, env, runtime, feed: None, fed: None });
+    cx.set_global(Desk { state, env, runtime, feed: None, fed: None, begun: 0 });
     cx.observe_new::<Shell>(|_, _, cx| cx.defer(begin)).detach();
 }
 
 fn begin(cx: &mut App) {
-    let desk = cx.global_mut::<Desk>();
-    if desk.feed.is_some() {
+    if cx.global::<Desk>().feed.is_some() {
         return;
     }
-    let (tx, mut rx) = mpsc::unbounded();
-    desk.feed = Some(follow(desk.state.clone(), desk.env.clone(), &desk.runtime, SETTLE, RETRY, tx));
+    let alias = super::hosts::picked(cx);
+    let desk = cx.global_mut::<Desk>();
+    let (tx, rx) = mpsc::unbounded();
+    desk.begun += 1;
+    let begun = desk.begun;
+    desk.feed = Some(follow(alias, desk.state.clone(), desk.env.clone(), &desk.runtime, SETTLE, RETRY, tx));
+    take(rx, begun, cx);
+}
+
+/// What the feed numbered `begun` hands over, taken while it is the latest feed begun.
+fn take(mut rx: mpsc::UnboundedReceiver<Fed>, begun: u64, cx: &mut App) {
+    let current = move |cx: &App| cx.global::<Desk>().begun == begun;
     cx.spawn(async move |cx: &mut AsyncApp| {
         while let Some(fed) = rx.next().await {
-            cx.update(|cx| took(fed, cx));
+            cx.update(|cx| {
+                if current(cx) {
+                    took(fed, cx)
+                }
+            });
         }
         // The feed's task ended, a panic in it included, so nothing says a thread works here any more.
-        cx.update(|cx| awake::hold(false, cx));
+        cx.update(|cx| {
+            if current(cx) {
+                awake::hold(false, cx)
+            }
+        });
     })
     .detach();
+}
+
+/// The feed dialled again at the host the window is on now, once the window moved; nothing before the feed began.
+pub fn follow_window(cx: &mut App) {
+    if !cx.try_global::<Desk>().is_some_and(|d| d.feed.is_some()) {
+        return;
+    }
+    let desk = cx.global_mut::<Desk>();
+    (desk.feed, desk.fed) = (None, None);
+    begin(cx);
 }
 
 fn took(fed: Fed, cx: &mut App) {
@@ -505,8 +549,8 @@ fn start_host(cx: &mut App) {
     cx.spawn(async move |cx: &mut AsyncApp| {
         match started.await {
             Ok(Ok(())) => {}
-            Ok(Err(failed)) => eprintln!("desktop-gpui: menu bar: {}", failed.failure.message),
-            Err(e) => eprintln!("desktop-gpui: menu bar: {e}"),
+            Ok(Err(failed)) => super::log::error(&format!("menu bar: {}", failed.failure.message)),
+            Err(e) => super::log::error(&format!("menu bar: {e}")),
         }
         cx.update(|cx| {
             if let Some(feed) = cx.try_global::<Desk>().and_then(|d| d.feed.as_ref()) {
@@ -547,6 +591,29 @@ pub fn fed(cx: &App) -> Option<FeedState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Catches: a state, or the awake hold's release, that a feed the window moved away from left behind, taken as the
+    /// next feed's.
+    #[gpui_kit::test]
+    fn what_a_feed_left_behind_is_not_taken(cx: &mut gpui_kit::TestAppContext) {
+        let runtime = Arc::new(tokio::runtime::Builder::new_current_thread().build().unwrap());
+        cx.update(|cx| cx.set_global(Desk { state: PathBuf::new(), env: Env::default(), runtime, feed: None, fed: None, begun: 2 }));
+        let ((old, left), (new, now)) = (mpsc::unbounded(), mpsc::unbounded());
+        cx.update(|cx| {
+            take(left, 1, cx);
+            take(now, 2, cx);
+        });
+        let studio = FeedState { remote: true, alias: Some("studio".to_owned()), ..FeedState::default() };
+        new.unbounded_send(Fed::State(Box::new(studio.clone()))).unwrap();
+        cx.run_until_parked();
+        cx.update(|cx| awake::hold(true, cx));
+        cx.run_until_parked();
+        old.unbounded_send(Fed::State(Box::default())).unwrap();
+        drop(old);
+        cx.run_until_parked();
+        assert_eq!(cx.update(|cx| fed(cx)), Some(studio), "the state is the latest feed's");
+        assert!(cx.update(|cx| awake::held(cx)), "the old feed's end lets go of nothing");
+    }
 
     fn permission() -> Value {
         json!({ "type": "session.permission", "workspaceId": "ws_mac", "sessionId": "s1", "threadId": "t1", "askId": "a1", "toolName": "Bash", "input": "{}", "options": [{ "id": "o_yes", "label": "Yes", "effect": "allow" }] })

@@ -134,7 +134,7 @@ fn a_row_the_record_cannot_read_is_read_as_sent_and_the_feed_stays() {
     let state = locked(dir.path(), runtime.block_on(fake_host(asked.clone())));
     let env: Env = [("HOME".to_owned(), dir.path().to_string_lossy().into_owned())].into_iter().collect();
     let (tx, mut rx) = mpsc::unbounded();
-    let feed = feed::follow(state, env, &runtime, feed::SETTLE, Duration::from_millis(300), tx);
+    let feed = feed::follow(None, state, env, &runtime, feed::SETTLE, Duration::from_millis(300), tx);
 
     let mut states: Vec<FeedState> = Vec::new();
     let until = Instant::now() + Duration::from_secs(3);

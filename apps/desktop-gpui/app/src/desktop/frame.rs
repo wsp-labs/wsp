@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 use gpui_kit::assets::IconName;
 use gpui_kit::base::{Root, RootPlugin};
-use gpui_kit::component::{h_flex, ActiveTheme as _, Icon, Sizable as _};
+use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{
     div, prelude::*, px, App, Context, Decorations, Div, MouseButton, Pixels, Stateful, Window, WindowControlArea, WindowControls,
     WindowDecorations,
@@ -166,7 +166,7 @@ pub fn drag_region(row: Stateful<Div>) -> Stateful<Div> {
         })
 }
 
-/// The window's controls over the header's right end, and its rem at the run's zoom.
+/// The window's controls over the header's right end.
 pub struct WindowFrame;
 
 impl WindowFrame {
@@ -234,13 +234,7 @@ pub fn window_controls(held: WindowControls, maximized: bool, cx: &App) -> impl 
     )
 }
 
-/// gpui-kit's own root plugin, before this one, sets the theme's rem and puts a window the app frames in its resize
-/// border; this one scales that rem by the run's zoom.
-impl RootPlugin for WindowFrame {
-    fn prepare(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        window.set_rem_size(cx.theme().font_size * super::zoom::level(cx).factor());
-    }
-}
+impl RootPlugin for WindowFrame {}
 
 /// `raiseWindow`: a minimised window restored, the app brought forward over whatever the person is in, then the
 /// window shown and focused.

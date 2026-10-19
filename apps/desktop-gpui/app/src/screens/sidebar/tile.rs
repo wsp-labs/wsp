@@ -217,11 +217,28 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
                 _ => None,
             };
             let key = format!("sub-{}-{}", s.threads[*lead].key, sub.id);
+            // `SubagentRow`: lit while its page is open, and a press opens that page.
+            let lit = sub_lit(s, *lead, sub);
+            let page = sub.call.as_ref().map(|call| {
+                let at =
+                    crate::transcript::ThreadAt { workspace: s.threads[*lead].workspace_id.clone(), thread: s.threads[*lead].key.clone() };
+                crate::screens::Route::Screen(crate::screens::thread_view::cards::subagent_route(&at, call).into())
+            });
             frame(ix, line, 36., &p)
                 .child(
                     one_line(SharedString::from(key.clone()), &p)
+                        .debug_selector({
+                            let key = key.clone();
+                            move || key.clone()
+                        })
                         .gap(px(6.))
-                        .child(Icon::new(Glyph::Bot).with_size(px(12.)).text_color(p.sidebar_icon_color))
+                        .when(lit, |el| el.bg(p.sidebar_row_selected).font_weight(gpui_kit::FontWeight::MEDIUM))
+                        .when_some(page, |el, page| el.on_click(move |_, _, cx| crate::screens::navigate(page.clone(), cx)))
+                        .child(Icon::new(Glyph::Bot).with_size(px(12.)).text_color(if lit {
+                            p.sidebar_foreground
+                        } else {
+                            p.sidebar_icon_color
+                        }))
                         .child(div().flex_1().min_w_0().truncate().text_color(p.sidebar_muted_foreground).child(sub.title.clone()))
                         .child(
                             StatusMark::new(status_of(kind, text))
@@ -263,13 +280,37 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
     }
 }
 
+/// Whether the subagent `sub` of the thread at `lead` has its page open.
+fn sub_lit(s: &Sidebar, lead: usize, sub: &model::Subagent) -> bool {
+    s.selected.as_deref() == Some(s.threads[lead].key.as_str()) && sub.call.is_some() && s.opened == sub.call
+}
+
+/// Whether the thread at `thread` draws as the open one: a subagent's page marks no tile of its lead, its row being
+/// the one lit wherever it is drawn, unless the person folded the lead (`useTileActive`).
+pub(super) fn tile_lit(s: &Sidebar, thread: usize) -> bool {
+    let t = &s.threads[thread];
+    s.selected.as_deref() == Some(t.key.as_str()) && (s.opened.is_none() || t.folded_at.is_some())
+}
+
+/// The row drawn as the open one: `tile-<thread>` or `sub-<lead>-<subagent>`, as their selectors name them.
+pub(super) fn lit_row(s: &Sidebar) -> Option<String> {
+    s.lines.iter().find_map(|l| match &l.item {
+        Item::Tile(t) if tile_lit(s, t.thread) => Some(format!("tile-{}", s.threads[t.thread].key)),
+        Item::Subagent { lead, index, .. } => {
+            let sub = s.threads[*lead].subagents.get(*index)?;
+            sub_lit(s, *lead, sub).then(|| format!("sub-{}-{}", s.threads[*lead].key, sub.id))
+        }
+        _ => None,
+    })
+}
+
 /// The two rows of a thread's tile, or its slim row in Settled or a Finished fold, with its act and its menu.
 fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut Window, cx: &mut Context<Sidebar>) -> AnyElement {
     let p = cx.palette().clone();
     let me = cx.weak_entity();
     let t = &s.threads[tile.thread];
     let key = t.key.clone();
-    let active = s.selected.as_deref() == Some(key.as_str());
+    let active = tile_lit(s, tile.thread);
     let kind = model::tile_kind(t, tile, s.now);
     let slot = model::tile_slot(t, tile, s.now);
     let slim = tile.shape != Shape::Full;

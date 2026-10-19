@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Our patches over the published gpui-pre crates (backdrop blur, rounded clipping of children, text placement, list
 # heights kept across a width change, an X11 window's ground before its first frame, one bus connection for every Linux
-# notification) and over gpui-kit's pinned commit
-# (text placement in its input and shimmer, the ink a disabled input draws its text at), kept as diffs per crate or
+# notification, a window's zoom as a browser's page zoom) and over gpui-kit's pinned commit
+# (text placement in its input and shimmer, the ink a disabled input draws its text at, resize edges at a window's
+# zoom), kept as diffs per crate or
 # repository in patches/
 # and applied to fresh copies in vendor/, which the [patch] tables in Cargo.toml point at. A folder's diffs are
 # patches/<folder>.patch, then any patches/<folder>.<topic>.patch in name order; one folder's diffs touch different files.
