@@ -49,6 +49,7 @@ extern "C" {
 struct Hooks {
     holes: Vec<Bounds<Pixels>>,
     tx: UnboundedSender<Raw>,
+    zoom: f32,
 }
 
 thread_local! {
@@ -123,7 +124,7 @@ impl Native {
             let preferences: id = msg_send![configuration, preferences];
             let _: () = msg_send![preferences, setJavaScriptCanOpenWindowsAutomatically: YES];
         }
-        HOOKS.with(|hooks| hooks.borrow_mut().insert(view as usize, Hooks { holes: Vec::new(), tx }));
+        HOOKS.with(|hooks| hooks.borrow_mut().insert(view as usize, Hooks { holes: Vec::new(), tx, zoom: 1. }));
         if dir.kept {
             // SAFETY: as above.
             unsafe { load_once_cleared(view, url) };
@@ -131,7 +132,9 @@ impl Native {
         Ok(Native { webview, view, gpui, shown: Cell::new(false) })
     }
 
-    pub fn show(&self, at: Bounds<Pixels>, holes: &[Bounds<Pixels>], _scale: f32) {
+    pub fn show(&self, at: Bounds<Pixels>, holes: &[Bounds<Pixels>], _scale: f32, zoom: f32) {
+        let at = super::screen_points(at, zoom);
+        let holes: Vec<Bounds<Pixels>> = holes.iter().map(|h| super::screen_points(*h, zoom)).collect();
         _ = self.webview.set_bounds(wry::Rect {
             position: LogicalPosition::new(f64::from(at.origin.x), f64::from(at.origin.y)).into(),
             size: LogicalSize::new(f64::from(at.size.width), f64::from(at.size.height)).into(),
@@ -142,6 +145,7 @@ impl Native {
         HOOKS.with(|hooks| {
             if let Some(h) = hooks.borrow_mut().get_mut(&(self.view as usize)) {
                 h.holes = local;
+                h.zoom = zoom;
             }
         });
         if !self.shown.replace(true) {
@@ -228,9 +232,9 @@ impl Native {
         }
     }
 
-    /// WebKit follows the window's backing scale itself; the zoom is the tab's alone.
-    pub fn set_zoom(&self, zoom: f32, _scale: f32) {
-        _ = self.webview.zoom(f64::from(zoom));
+    /// WebKit follows the window's backing scale itself, not the window's zoom, so the page zoom carries that.
+    pub fn set_zoom(&self, zoom: f32, _scale: f32, window_zoom: f32) {
+        _ = self.webview.zoom(f64::from(super::page_zoom(zoom, window_zoom)));
     }
 
     pub fn run_script(&self, script: &str) {
@@ -565,7 +569,7 @@ unsafe fn pressed(this: id, event: id) {
     let at = top_left(this, local);
     HOOKS.with(|hooks| {
         if let Some(h) = hooks.borrow().get(&(this as usize)) {
-            _ = h.tx.unbounded_send(Raw::Pressed(at));
+            _ = h.tx.unbounded_send(Raw::Pressed(super::window_point(at, h.zoom)));
         }
     });
 }

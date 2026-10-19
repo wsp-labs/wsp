@@ -18,6 +18,7 @@ use wsp_host_client::protocol::{
 };
 use wsp_host_client::{Event, Op};
 
+use crate::screens::app_shell::frame::{crumb_line, TITLE_SHARE};
 use crate::screens::app_shell::title::thread_title;
 use crate::screens::pr_pane::files::open_split::{self, OpenSplit};
 use crate::screens::pr_pane::pull_request::git_split::GitSplit;
@@ -942,8 +943,6 @@ pub const NEW_THREAD: &str = "New thread";
 pub const RENAME: &str = "Rename thread";
 /// A text field's `size`: the width the name box asks for, in characters of its own face.
 const NAME_BOX_CHARS: f32 = 20.;
-/// `OWN_CRUMB`: beside its project the thread keeps at most this share of the line.
-const OWN_SHARE: f32 = 0.7;
 
 /// What the crumbs read off the thread's newest row: its project, its title, and what it waits on where it waits.
 #[derive(Clone, Debug, PartialEq)]
@@ -1045,8 +1044,7 @@ pub type OnMenu = Rc<dyn Fn(Point<Pixels>, &mut Window, &mut App)>;
 /// opens the title's menu at the pointer.
 pub fn crumbs(view: &mut ThreadView, on_menu: OnMenu, window: &mut Window, cx: &mut Context<ThreadView>) -> AnyElement {
     let p = cx.palette().clone();
-    let line =
-        h_flex().id("crumbs").debug_selector(|| "crumbs".into()).min_w_0().items_center().gap_2().text_size(px(14.)).line_height(px(20.));
+    let line = crumb_line("crumbs");
     let Some(thread) = view.thread().map(str::to_owned) else { return line.into_any_element() };
     let bar = bar(&thread, cx);
     let Some(crumb) = bar.read(cx).row.as_ref().map(crumb) else { return line.into_any_element() };
@@ -1085,7 +1083,7 @@ pub fn crumbs(view: &mut ThreadView, on_menu: OnMenu, window: &mut Window, cx: &
     });
     line.children(project)
         .children(opener)
-        .child(div().flex().min_w_0().when(own, |el| el.flex_none().max_w(gpui_kit::relative(OWN_SHARE))).child(title))
+        .child(div().flex().min_w_0().when(own, |el| el.flex_none().max_w(gpui_kit::relative(TITLE_SHARE))).child(title))
         .children(waiting)
         .into_any_element()
 }

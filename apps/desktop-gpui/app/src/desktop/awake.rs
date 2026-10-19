@@ -56,7 +56,7 @@ pub fn hold(want: bool, cx: &mut App) {
         let guard = match held.await {
             Ok(guard) => guard,
             Err(e) => {
-                eprintln!("desktop-gpui: keep awake: {e:#}");
+                super::log::error(&format!("keep awake: {e:#}"));
                 return;
             }
         };

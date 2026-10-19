@@ -315,11 +315,12 @@ fn a_failed_start_says_its_first_line_and_opens_the_hosts_log() {
     assert_eq!(startup::first_line(" \n"), startup::START_FAILED);
     let dir = tempfile::tempdir().unwrap();
     let state = dir.path().join("state.json");
-    assert_eq!(startup::log_of(&state, None), dir.path(), "no host log yet: its folder");
+    let app = dir.path().join("logs/app.log");
+    assert_eq!(startup::log_of(&state, None, &app), app, "no host log yet: the app's own");
     std::fs::write(dir.path().join("host.log"), "").unwrap();
-    assert_eq!(startup::log_of(&state, None), dir.path().join("host.log"));
+    assert_eq!(startup::log_of(&state, None, &app), dir.path().join("host.log"));
     let named = dir.path().join("elsewhere.log");
-    assert_eq!(startup::log_of(&state, Some(&named)), named, "the log a failed start names comes first");
+    assert_eq!(startup::log_of(&state, Some(&named), &app), named, "the log a failed start names comes first");
 }
 
 #[test]

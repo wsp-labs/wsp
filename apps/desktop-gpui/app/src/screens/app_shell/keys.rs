@@ -21,7 +21,7 @@ pub const THREAD_OPEN: &str = "ThreadOpen";
 pub const THREAD_FIND: &str = "ThreadFind";
 /// A focused terminal.
 pub const TERMINAL: &str = "Terminal";
-/// The browser pane, focused.
+/// Focus anywhere in the right panel, `previewFocus`.
 pub const PREVIEW: &str = "Preview";
 /// Focus inside the right panel while it holds more than one tab.
 pub const PANEL_TABS: &str = "PanelTabs";
