@@ -242,14 +242,7 @@ impl Render for Crumbs {
         });
         let project = screen.lead.as_ref().and_then(|l| header::project_of(&l.thread, cx));
         let project = project.map(|(id, name)| header::project_crumb(id.as_deref(), name, window, cx));
-        h_flex()
-            .id("subagent-crumbs")
-            .debug_selector(|| "crumbs".into())
-            .min_w_0()
-            .items_center()
-            .gap_2()
-            .text_size(px(14.))
-            .line_height(px(20.))
+        crate::screens::app_shell::frame::crumb_line("subagent-crumbs")
             .children(project)
             .children(lead.map(|lead| header::thread_link("crumbs-lead", lead, cx)))
             .child(crate::ui::slash(cx))

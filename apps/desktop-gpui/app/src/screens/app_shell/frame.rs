@@ -3,9 +3,10 @@
 //! sidebar's toggle and wordmark, the crumbs, the panel toggles, and the widths each column may take.
 
 use gpui_kit::assets::IconName;
+use gpui_kit::base::{Presence, Transition};
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
-use gpui_kit::{div, prelude::*, px, svg, AnyElement, App, ClickEvent, FontWeight, Hsla, Pixels, SharedString, Window};
+use gpui_kit::{div, prelude::*, px, svg, AnyElement, App, ClickEvent, ElementId, FontWeight, Hsla, Pixels, SharedString, Window};
 
 use crate::ui::{ActivePalette, Button, Glyph};
 
@@ -56,6 +57,22 @@ pub fn clamp_panel(width: Pixels, viewport: Pixels, row: Pixels) -> Pixels {
     width.min(panel_max(viewport, row)).max(super::panel::MIN_WIDTH)
 }
 
+/// `-translate-x-8`: how far a sheet slides in from its side as it fades in.
+pub const SHEET_SLIDE: Pixels = px(32.);
+
+/// A sheet's way in and out, `SheetPopup`'s and `SheetBackdrop`'s `duration-200` on Tailwind's ease: how far in it
+/// stands, 0 to 1, or None once it has gone; at once under reduced motion. Sampled on every frame its side can show,
+/// so it knows where it stood.
+pub fn sheet_in(id: &'static str, open: bool, window: &mut Window, cx: &mut App) -> Option<f32> {
+    if crate::ui::motion::reduced(cx) {
+        return open.then_some(1.);
+    }
+    let policy = Transition::new(crate::ui::motion::DIALOG).easing(crate::ui::motion::tailwind_ease());
+    let sample = Presence::new(id, open).transition(policy).sample(window, cx);
+    // A sheet first sampled shut reads as on its way out from nothing; it is gone.
+    (sample.should_render() && (open || sample.progress > 0.)).then_some(sample.progress)
+}
+
 /// The frame row's left inset: the Mac keeps the traffic lights' room.
 pub fn frame_inset() -> Pixels {
     if cfg!(target_os = "macos") {
@@ -93,36 +110,34 @@ pub fn row(id: &'static str) -> gpui_kit::Stateful<gpui_kit::Div> {
     )
 }
 
-/// The crumbs of the header: the project, a slash, the thread; or the line for no thread. The line takes what it holds
-/// and gives way to the row; beside its project the thread takes at most 70% of the line, as `max-w-[70%]` does in
-/// the web app, so a long title stops at 70% of the room the row leaves it.
-pub fn crumbs(project: Option<&str>, title: Option<&str>, cx: &App) -> AnyElement {
+/// `OWN_CRUMB`, `max-w-[70%]`: beside its project the thread's title takes at most this share of the crumbs' line.
+pub const TITLE_SHARE: f32 = 0.7;
+
+/// `ThreadBreadcrumb`'s line, which every header's crumbs stand in: words at 14 px, 8 px apart, giving way to the row.
+pub fn crumb_line(id: impl Into<ElementId>) -> gpui_kit::Stateful<gpui_kit::Div> {
+    h_flex().id(id).debug_selector(|| "crumbs".into()).min_w_0().items_center().gap_2().text_size(px(14.)).line_height(px(20.))
+}
+
+/// The crumbs of the header: the thread view's project crumb and its slash, then the thread; or the line for no
+/// thread. The line takes what it holds and gives way to the row; beside its project the thread takes at most
+/// [`TITLE_SHARE`] of the line.
+pub fn crumbs(project: Option<&str>, title: Option<&str>, window: &Window, cx: &App) -> AnyElement {
     let p = cx.palette();
-    let line =
-        h_flex().id("crumbs").debug_selector(|| "crumbs".into()).min_w_0().items_center().gap_2().text_size(px(14.)).line_height(px(20.));
+    let line = crumb_line("crumbs");
     let Some(title) = title else {
         return line.child(div().truncate().text_color(p.muted_foreground).child("No thread selected")).into_any_element();
     };
-    let slash = div().flex_none().text_color(p.muted_foreground.opacity(0.5)).child("/");
-    let project = project.filter(|p| !p.is_empty()).map(|name| {
-        h_flex()
-            .min_w_0()
-            .items_center()
-            .gap_2()
-            .text_color(p.muted_foreground)
-            .child(Icon::new(IconName::Folder).with_size(px(16.)).flex_none())
-            .child(div().truncate().child(SharedString::from(name.to_owned())))
-    });
+    let project =
+        project.filter(|p| !p.is_empty()).map(|name| crate::screens::thread_view::header::project_crumb(None, name.to_owned(), window, cx));
     let own = project.is_some();
     line.children(project)
-        .when(own, |el| el.child(slash))
         .child(
             div()
                 .debug_selector(|| "crumbs-title".into())
                 .truncate()
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(p.foreground)
-                .when(own, |el| el.flex_none().max_w(gpui_kit::relative(0.7)))
+                .when(own, |el| el.flex_none().max_w(gpui_kit::relative(TITLE_SHARE)))
                 .child(SharedString::from(title.to_owned())),
         )
         .into_any_element()
@@ -144,7 +159,8 @@ pub fn layout_controls(
         .gap_1()
         .child(
             toggle("toggle-drawer", IconName::PanelBottom, drawer_open, on_drawer, cx)
-                .tooltip(crate::ui::tip(crate::screens::terminal::toolbar::toggle_label(cfg!(target_os = "macos")))),
+                .tooltip(crate::ui::tip(crate::screens::terminal::toolbar::toggle_label(cfg!(target_os = "macos"))))
+                .tooltip_side(gpui_kit::TooltipSide::Bottom),
         )
         .child(toggle("toggle-panel", IconName::PanelRight, panel_open, on_panel, cx))
         .child(crate::desktop::frame::ControlsRoom)
@@ -161,6 +177,7 @@ fn toggle(
     let p = cx.palette();
     div()
         .id(id)
+        .debug_selector(move || id.into())
         .flex()
         .flex_none()
         .size(px(28.))

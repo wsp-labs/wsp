@@ -281,6 +281,29 @@ fn a_panel_tab_keeps_its_shell_across_a_switch_and_ends_it_when_it_closes(cx: &m
     assert!(!listed(&pty), "closing the tab ends its shell");
 }
 
+/// A launch holds no surface for a panel tab the app's store kept: its tab adopts the shell the host still holds under
+/// the tab's tag, and opens no second one beside it.
+#[gpui_kit::test]
+fn a_kept_panel_tab_with_no_surface_adopts_its_shell_and_opens_no_other(cx: &mut TestAppContext) {
+    let Some(host) = with_daemon() else { return };
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host", |cx| shell.read_with(cx, |s, _| s.connected()));
+    shell.update_in(cx, |s, window, cx| s.go(Route::Screen("terminal".into()), window, cx));
+    let tab = shell.read_with(cx, |s, cx| s.panel().read(cx).tabs()).first().cloned().expect("a terminal tab").1;
+    let surface = |cx: &mut VisualTestContext| cx.update(|_, cx| hub::surface(&tab, cx)).map(|ui| ui.terminal_ids).unwrap_or_default();
+    until(cx, "the tab's shell", |cx| surface(cx).len() == 1);
+    let pty = surface(cx)[0].clone();
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    panel.update_in(cx, |p, window, cx| p.toggle(window, cx));
+    cx.update(|_, cx| hub::drop_surface(&tab, cx));
+    panel.update_in(cx, |p, window, cx| p.toggle(window, cx));
+    until(cx, "the tab's shell again", |cx| !surface(cx).is_empty());
+    std::thread::sleep(Duration::from_secs(1));
+    cx.run_until_parked();
+    assert_eq!(surface(cx), std::slice::from_ref(&pty), "the kept shell, adopted");
+    assert_eq!(daemon_ptys(&host), std::slice::from_ref(&pty), "and no second shell on the host");
+}
+
 #[gpui_kit::test]
 fn the_sidebars_open_terminal_opens_the_drawer_and_never_the_panel(cx: &mut TestAppContext) {
     let (shell, cx, _home) = hostless(cx);

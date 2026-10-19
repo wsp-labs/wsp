@@ -262,7 +262,8 @@ impl Native {
         }
     }
 
-    pub fn show(&self, at: Bounds<Pixels>, holes: &[Bounds<Pixels>], scale: f32) {
+    /// `scale` is the window's, its zoom already in it, so device pixels need no zoom of their own.
+    pub fn show(&self, at: Bounds<Pixels>, holes: &[Bounds<Pixels>], scale: f32, _zoom: f32) {
         // Shown before it is sized: GTK allocates no size to a hidden child, and the web view would stay 2x2.
         if !self.shown.replace(true) {
             _ = self.webview.set_visible(true);
@@ -370,7 +371,8 @@ impl Native {
     }
 
     /// GTK draws at the window's whole scale; the page's zoom carries the rest, so a 1.5 window shows CSS pixels at 1.5.
-    pub fn set_zoom(&self, zoom: f32, scale: f32) {
+    /// The window's zoom is in `scale` already.
+    pub fn set_zoom(&self, zoom: f32, scale: f32, _window_zoom: f32) {
         let rest = f64::from(scale) / f64::from(self.gtk_scale);
         self.scale.set(scale);
         _ = self.webview.zoom(f64::from(zoom) * rest);

@@ -128,6 +128,7 @@ pub struct Page {
     at: Option<(Bounds<Pixels>, Vec<Bounds<Pixels>>)>,
     scale: f32,
     zoom: f32,
+    window_zoom: f32,
     pub loading: bool,
     pub url: String,
     pub title: String,
@@ -151,7 +152,7 @@ impl Page {
         let (tx, mut rx) = mpsc::unbounded::<Raw>();
         let native = native::Native::new(url, dir, tx, window, cx)?;
         let handle = Window::window_handle(window);
-        let scale = window.scale_factor();
+        let (scale, window_zoom) = (window.scale_factor(), window.zoom());
         let page = cx.new(|cx: &mut Context<Page>| {
             let hitbox: Rc<Cell<Option<HitboxId>>> = Rc::default();
             let this = cx.entity().downgrade();
@@ -176,6 +177,7 @@ impl Page {
                 at: None,
                 scale,
                 zoom,
+                window_zoom,
                 loading: true,
                 url: url.to_owned(),
                 title: String::new(),
@@ -186,7 +188,7 @@ impl Page {
                 _events: events,
             }
         });
-        page.update(cx, |p, _| p.on(|n| n.set_zoom(zoom, scale)));
+        page.update(cx, |p, _| p.on(|n| n.set_zoom(zoom, scale, window_zoom)));
         Ok(page)
     }
 
@@ -246,10 +248,14 @@ impl Page {
         }
         if scale != self.scale {
             self.scale = scale;
-            self.on(|n| n.set_zoom(self.zoom, scale));
+            self.window_zoom = window.zoom();
+            self.on(|n| n.set_zoom(self.zoom, scale, self.window_zoom));
         }
         match &at {
-            Some((bounds, holes)) => self.on(|n| n.show(*bounds, holes, scale)),
+            Some((bounds, holes)) => {
+                let zoom = window.zoom();
+                self.on(|n| n.show(*bounds, holes, scale, zoom))
+            }
             None => {
                 self.on(|n| n.hide());
                 if self.holds_keys() {
@@ -348,7 +354,7 @@ impl Page {
     /// Per tab, 50% to 200%, on top of the window's own scale where the web view does not follow it.
     pub fn set_zoom(&mut self, zoom: f32) {
         self.zoom = zoom;
-        self.on(|n| n.set_zoom(zoom, self.scale));
+        self.on(|n| n.set_zoom(zoom, self.scale, self.window_zoom));
     }
 
     /// Kept hidden whatever its slot does, as a tab whose place is the servers list keeps its page for Forward.
@@ -406,6 +412,7 @@ impl Page {
             at: None,
             scale: 1.,
             zoom: 1.,
+            window_zoom: 1.,
             loading: false,
             url: String::new(),
             title: String::new(),
@@ -433,6 +440,24 @@ pub fn device(bounds: Bounds<Pixels>, scale: f32) -> (i32, i32, i32, i32) {
     let (left, top) = (edge(bounds.origin.x), edge(bounds.origin.y));
     let (right, bottom) = (edge(bounds.origin.x + bounds.size.width), edge(bounds.origin.y + bounds.size.height));
     (left, top, (right - left).max(0), (bottom - top).max(0))
+}
+
+/// Window pixels as the screen's points, which the Mac lays a child view out in: larger by the window's zoom.
+#[cfg(any(target_os = "macos", test))]
+pub fn screen_points(bounds: Bounds<Pixels>, zoom: f32) -> Bounds<Pixels> {
+    bounds.map(|v| v * zoom)
+}
+
+/// The zoom a tab's page draws at: its own on top of the window's, as Electron's guest follows its embedder's.
+#[cfg(any(target_os = "macos", test))]
+pub fn page_zoom(tab: f32, window_zoom: f32) -> f32 {
+    tab * window_zoom
+}
+
+/// A point in the screen's points back in window pixels.
+#[cfg(any(target_os = "macos", test))]
+pub fn window_point(at: Point<Pixels>, zoom: f32) -> Point<Pixels> {
+    at.map(|v| v / zoom)
 }
 
 /// `holes` in device pixels relative to the page at `at`.
@@ -507,6 +532,20 @@ mod tests {
         let (bx, _, _, _) = device(b, 1.5);
         assert_eq!(ax + aw, bx, "the right edge of one is the left edge of the next");
         assert_eq!(device(a, 2.), (21, 0, 200, 100));
+    }
+
+    #[test]
+    fn a_zoomed_windows_pixels_reach_the_screen_as_larger_points_and_come_back() {
+        let slot = Bounds::new(point(px(600.), px(92.)), size(px(540.), px(700.)));
+        assert_eq!(screen_points(slot, 1.25), Bounds::new(point(px(750.), px(115.)), size(px(675.), px(875.))));
+        assert_eq!(screen_points(slot, 1.), slot);
+        assert_eq!(window_point(point(px(125.), px(62.5)), 1.25), point(px(100.), px(50.)));
+    }
+
+    #[test]
+    fn a_tabs_page_zooms_on_top_of_the_window() {
+        assert_eq!(page_zoom(1.5, 1.25), 1.875);
+        assert_eq!(page_zoom(1.5, 1.), 1.5);
     }
 
     #[test]

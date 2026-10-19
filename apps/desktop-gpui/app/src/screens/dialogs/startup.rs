@@ -357,8 +357,8 @@ pub fn first_line(message: &str) -> &str {
 }
 
 /// The log Open log opens (`startFailedDialog`): the one a failed start names, else the host's beside the state file
-/// where it wrote one, else the state's folder, as this app keeps no log of its own.
-pub fn log_of(state: &Path, failed: Option<&Path>) -> PathBuf {
+/// where it wrote one, else the app's own, `app`.
+pub fn log_of(state: &Path, failed: Option<&Path>, app: &Path) -> PathBuf {
     if let Some(log) = failed {
         return log.to_owned();
     }
@@ -366,7 +366,7 @@ pub fn log_of(state: &Path, failed: Option<&Path>) -> PathBuf {
     if log.exists() {
         log
     } else {
-        home_of(state)
+        app.to_owned()
     }
 }
 
@@ -431,7 +431,7 @@ pub fn offers_back(cx: &App) -> bool {
 /// starting window, which stands for it if it did not yet. The starting window goes once it is answered, except under
 /// the way back, whose own failure box it holds.
 fn say_failed(title: &'static str, failed: &Failed, state: &Path, mut starting: Starting, cx: &mut App) {
-    eprintln!("desktop-gpui: {title}: {}", failed.failure.message);
+    crate::desktop::log::error(&format!("{title}: {}", failed.failure.message));
     let Some(window) = starting.stand(cx) else {
         cx.quit();
         return;
@@ -440,7 +440,8 @@ fn say_failed(title: &'static str, failed: &Failed, state: &Path, mut starting: 
     let back = offers_back(cx);
     let answers = failed_answers(back);
     let answer = window.update(cx, |_, window, cx| window.prompt(PromptLevel::Critical, title, Some(&line), &answers, cx));
-    let log = log_of(state, failed.log.as_deref());
+    let app_log = cx.try_global::<crate::desktop::Launched>().map(|l| l.logs().join(crate::desktop::log::APP_LOG)).unwrap_or_default();
+    let log = log_of(state, failed.log.as_deref(), &app_log);
     cx.spawn(async move |cx: &mut AsyncApp| {
         let picked = match answer {
             Ok(answer) => answer.await.ok(),

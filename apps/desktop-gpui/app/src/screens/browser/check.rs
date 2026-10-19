@@ -299,6 +299,14 @@ async fn run(pane: Entity<CheckPane>, url: String, cx: &mut AsyncWindowContext) 
             return 1;
         }
     };
+    let frames = Rc::new(Cell::new(0u32));
+    let counted = frames.clone();
+    let _counting = cx.update(|window, _| {
+        window.on_drawn(move |_, _| {
+            counted.set(counted.get() + 1);
+            true
+        })
+    });
     // The page opens once the window stands, as a person opens one: typed into the pane the window already shows.
     wait(cx, 500).await;
     _ = cx.update(|window, cx| pane.update(cx, |p, cx| p.screen.update(cx, |s, cx| s.open_text(&url, window, cx))));
@@ -315,11 +323,18 @@ async fn run(pane: Entity<CheckPane>, url: String, cx: &mut AsyncWindowContext) 
             }));
         })
     });
-    wait(cx, 300).await;
+    frames.set(0);
+    until(cx, 3_000, |_, cx| placed(&pane, cx).is_some()).await;
 
     let at = cx.update(|window, cx| placed(&pane, cx).map(|(b, _)| (b, window.scale_factor()))).ok().flatten();
     let Some((slot, scale)) = at else {
-        tally.check("bounds", false, "the page was never placed");
+        let (zoom, active) = cx.update(|window, _| (window.zoom(), window.is_window_active())).unwrap_or_default();
+        let drawn = frames.get();
+        tally.check(
+            "bounds",
+            false,
+            format!("the page was never placed; {drawn} frame(s) drawn in 3 s since it loaded, zoom {zoom}, active {active}"),
+        );
         return tally.failed.get();
     };
     let native = cx.update(|_, cx| synth::page_geometry(&page, cx)).ok().flatten();
@@ -336,15 +351,36 @@ async fn run(pane: Entity<CheckPane>, url: String, cx: &mut AsyncWindowContext) 
     );
     let center = slot.center();
 
-    // At rest, with the page loaded, GPUI draws nothing: a page that is still costs the window no frames.
-    let frames = Rc::new(Cell::new(0u32));
-    let counted = frames.clone();
-    let _counting = cx.update(|window, _| {
-        window.on_drawn(move |_, _| {
-            counted.set(counted.get() + 1);
-            true
-        })
+    // Zoomed as Cmd+Plus twice leaves the window, the page still stands in its slot, laid out at the slot's size.
+    _ = cx.update(|_, cx| cx.set_window_zoom(1.2));
+    let moved = until(cx, 3_000, |window, cx| window.zoom() == 1.2 && placed(&pane, cx).is_some_and(|(b, _)| b != slot)).await;
+    let zoomed = cx.update(|window, cx| placed(&pane, cx).map(|(b, _)| (b, window.scale_factor()))).ok().flatten();
+    _ = cx.update(|_, cx| page.read(cx).run_script("document.title = 'inner=' + innerWidth + 'x' + innerHeight"));
+    until(cx, 2_000, |_, cx| title(&pane, cx).starts_with("inner=")).await;
+    let t = cx.update(|_, cx| title(&pane, cx)).unwrap_or_default();
+    let inner: Option<(f32, f32)> = field_of(&t, "inner").split_once('x').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?)));
+    let native = cx.update(|_, cx| synth::page_geometry(&page, cx)).ok().flatten();
+    let fills = zoomed.is_some_and(|(at, scale)| {
+        let fits = inner.is_some_and(|(w, h)| (w - f32::from(at.size.width)).abs() <= 1. && (h - f32::from(at.size.height)).abs() <= 1.);
+        let want = super::page::device(at, scale);
+        let near =
+            |n: (i32, i32, i32, i32)| [(n.0, want.0), (n.1, want.1), (n.2, want.2), (n.3, want.3)].iter().all(|(a, b)| (a - b).abs() <= 1);
+        fits && native.is_some_and(near)
     });
+    tally.check(
+        "the page fills its slot at 1.2x",
+        moved && fills,
+        format!("slot {zoomed:?} in window px at that scale, the page's own {native:?} device px, its viewport {inner:?} css px"),
+    );
+    _ = cx.update(|_, cx| {
+        cx.set_window_zoom(1.);
+        page.read(cx).run_script("say()");
+    });
+    until(cx, 3_000, |window, cx| window.zoom() == 1. && placed(&pane, cx).is_some_and(|(b, _)| b == slot)).await;
+
+    // At rest, with the page loaded, GPUI draws nothing: a page that is still costs the window no frames.
+    wait(cx, 300).await;
+    frames.set(0);
     wait(cx, 1000).await;
     let at_rest = frames.replace(0);
     tally.check("the window rests", at_rest <= 10, format!("{at_rest} frame(s) drawn in a second with the page still"));
