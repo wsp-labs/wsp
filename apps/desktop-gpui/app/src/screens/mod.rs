@@ -4,6 +4,7 @@
 //! both the shell's routing and `desktop-gpui --screen <name>` call. Its [`Screen::PLACE`] says where it opens.
 
 pub mod app_shell;
+pub mod browser;
 pub mod composer;
 pub mod computer;
 pub mod dialogs;
@@ -25,6 +26,7 @@ pub fn screen(name: &str) -> Option<Entry> {
         return Some(added);
     }
     match name {
+        browser::BrowserScreen::NAME => Some(entry::<browser::BrowserScreen>()),
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         computer::Computer::NAME => Some(entry::<computer::Computer>()),
         slate::SlateScreen::NAME => Some(entry::<slate::SlateScreen>()),

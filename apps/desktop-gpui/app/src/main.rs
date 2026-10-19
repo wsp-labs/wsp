@@ -47,6 +47,8 @@ fn main() {
         eprintln!("desktop-gpui: {e}");
         std::process::exit(64);
     });
+    // `--screen browser` with no state runs the pane's own checks on a page it serves, with no host.
+    let browser_check = args.screen.as_deref() == Some(screens::browser::NAME) && args.state.is_none();
     if let Some(name) = &pane {
         if args.open.is_none() {
             eprintln!("desktop-gpui: --pane goes with --open");
@@ -57,8 +59,11 @@ fn main() {
             std::process::exit(64);
         }
     }
-    if let Some(name) =
-        args.screen.as_deref().map(|route| screens::app_shell::split(route).0).filter(|name| screens::screen(name).is_none())
+    if let Some(name) = args
+        .screen
+        .as_deref()
+        .map(|route| screens::app_shell::split(route).0)
+        .filter(|name| !browser_check && screens::screen(name).is_none())
     {
         eprintln!("desktop-gpui: no screen is named {name}");
         std::process::exit(64);
@@ -67,6 +72,7 @@ fn main() {
     // writes into the person's own.
     let kept = match &args.state {
         Some(state) => state.with_file_name("desktop-gpui-local-store.json"),
+        None if browser_check => screens::browser::check::scratch().join("desktop-gpui-local-store.json"),
         None => local_store::default_path(),
     };
     let state = args.state.unwrap_or_else(default_state);
@@ -85,7 +91,7 @@ fn main() {
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let gallery = args.gallery;
     let launch = Launch { bench: args.bench, open: args.open, glass: args.glass, screen: args.screen };
-    let app = gpui_kit::application().with_assets(AppAssets);
+    let app = screens::browser::page::application().with_assets(AppAssets);
     let reopen = (state.clone(), env.clone(), runtime.clone());
     // Electron's activate: the dock's icon on a Mac app with no window opens one again.
     app.on_reopen(move |cx| {
@@ -106,6 +112,10 @@ fn main() {
         let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         ui::init(if dark { Side::Dark } else { Side::Light }, cx);
         local_store::init(kept.clone(), cx);
+        // The browser pane's pages keep their cookies and storage beside the store; a check run's keep none.
+        if !browser_check {
+            cx.set_global(screens::browser::page::DataDir(kept.with_file_name("browser")));
+        }
         composer::init(cx);
         screens::palette::init(cx);
         if gallery {
@@ -126,6 +136,10 @@ fn main() {
             return;
         }
         menu::init(cx);
+        if browser_check {
+            screens::browser::check::open(cx);
+            return;
+        }
         let reopen = {
             let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
             Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), None, cx))

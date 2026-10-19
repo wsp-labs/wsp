@@ -364,6 +364,13 @@ impl RightPanel {
         self.open = true;
         self.adding = false;
         let id = id.unwrap_or_else(|| self.mint(pane));
+        // `openBrowser`: a browser tab on a page takes the place of the one placeholder.
+        if pane == Pane::Browser && id != "browser:new" {
+            if let Some(ix) = self.tabs.iter().position(|t| t.pane == pane && t.id == "browser:new") {
+                self.tabs.remove(ix);
+                self.active = self.active.filter(|&a| a != ix).map(|a| if a > ix { a - 1 } else { a });
+            }
+        }
         let ix = match self.tabs.iter().position(|t| t.pane == pane && t.id == id) {
             Some(ix) => ix,
             None => {
