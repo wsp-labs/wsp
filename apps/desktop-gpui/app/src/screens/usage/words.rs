@@ -63,7 +63,7 @@ pub fn window_word(kind: AccountsAnswerAccountsItemWindowsItemKind) -> String {
         K::WeekOpus => "Week, Opus".into(),
         K::WeekSonnet => "Week, Sonnet".into(),
         K::Month => "Month".into(),
-        K::Overage => kind.to_string(),
+        K::Overage | K::Unknown => kind.to_string(),
     }
 }
 
@@ -184,7 +184,7 @@ pub fn state_word(word: &str) -> String {
 pub fn account_state(status: Option<AccountsAnswerAccountsItemStatus>, note: Option<AccountsAnswerAccountsItemNote>) -> String {
     match (status, note) {
         (Some(AccountsAnswerAccountsItemStatus::Reached), _) => LIMIT_REACHED.to_string(),
-        (_, Some(note)) => note.to_string(),
+        (_, Some(note)) if note != AccountsAnswerAccountsItemNote::Unknown => note.to_string(),
         _ => String::new(),
     }
 }

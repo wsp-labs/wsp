@@ -40,7 +40,7 @@ use wsp_host_client::protocol::{
     SessionsInterruptRequest, SessionsMarkRequest, SessionsRenameRequest, SessionsRestoreRequest, SessionsSettleRequest,
     WorkspacesBringBackRequest, WorkspacesRenameRequest, WorkspacesWakeRequest,
 };
-use wsp_host_client::{HostClient, Op};
+use wsp_host_client::{lock, HostClient, Op};
 
 use crate::screens::app_shell::title::thread_title;
 use crate::ui::catalog;
@@ -156,11 +156,10 @@ pub struct Link {
     pub page: Option<String>,
 }
 
-/// The page the host serving `state` answers on, read off its lock file as the desktop app loads it.
+/// The page the host serving `state` answers on, where its lock says it is dialled, as the desktop app loads it.
 pub fn host_page(state: &std::path::Path) -> Option<String> {
-    let lock: Value = serde_json::from_str(&std::fs::read_to_string(state.with_file_name("host.lock")).ok()?).ok()?;
-    let address = lock.get("address").and_then(Value::as_str).unwrap_or("127.0.0.1");
-    Some(format!("http://{address}:{}/", lock.get("port")?.as_u64()?))
+    let held = lock::serving(state)?;
+    Some(format!("http://{}/", lock::authority(&lock::dial_address(&held), held.port)))
 }
 
 /// The reader's offset from UTC in ms, for times a person reads.
@@ -1496,6 +1495,24 @@ fn brought_back_line(back: &Value) -> String {
 mod tests {
     use super::*;
     use crate::ui::{self, Side};
+
+    /// Catches: a thread link naming the wildcard a host bound or an unbracketed IPv6 address, where the dial and
+    /// today's app name the loopback the lock is dialled on; or a lock whose process is gone read as a page.
+    #[test]
+    fn the_host_page_is_where_the_lock_is_dialled() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = dir.path().join("state.json");
+        let lock = |pid: u32, address: &str| {
+            let lock = format!(r#"{{"pid":{pid},"port":4100,"address":"{address}","startedAt":"2026-10-19T00:00:00.000Z"}}"#);
+            std::fs::write(dir.path().join("host.lock"), lock).unwrap();
+            host_page(&state)
+        };
+        let me = std::process::id();
+        assert_eq!(lock(me, "0.0.0.0").as_deref(), Some("http://127.0.0.1:4100/"));
+        assert_eq!(lock(me, "::1").as_deref(), Some("http://[::1]:4100/"));
+        assert_eq!(lock(me, "127.0.0.2").as_deref(), Some("http://127.0.0.2:4100/"));
+        assert_eq!(lock(0, "127.0.0.1"), None);
+    }
     use gpui_kit::component::Root;
     use gpui_kit::{size, TestAppContext, VisualTestContext};
     use model::Item;

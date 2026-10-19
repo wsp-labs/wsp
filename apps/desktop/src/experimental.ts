@@ -54,17 +54,18 @@ export interface Launch {
   env: Record<string, string>;
 }
 
-/** How the GPUI app at this path is started, with the wsp:// link that brought this app up: on a Mac its bundle by
- * the system's opener, as the update's swap opens one, which hands the link over as an open-url; a bare executable
- * or Linux's by itself, with the link as its argument. The opener hands an app none of its own environment, so a
- * named wsp home rides its --env. */
-export function gpuiLaunch(platform: NodeJS.Platform, path: string, env: Env, link?: string): Launch {
+/** How the GPUI app at this path is started on the state file this app serves, with the wsp:// link that brought
+ * this app up: on a Mac its bundle by the system's opener, as the update's swap opens one, which hands the link over
+ * as an open-url and the state after --args; a bare executable or Linux's by itself, with the link and the state as
+ * its arguments. The state is named every time, since a development checkout's state is in no place the GPUI app
+ * would look. The opener hands an app none of its own environment, so a named wsp home rides its --env. */
+export function gpuiLaunch(platform: NodeJS.Platform, path: string, env: Env, state: string, link?: string): Launch {
   const kept = Object.fromEntries(KEPT.flatMap(name => (env[name] === undefined ? [] : [[name, env[name]!]])));
   const links = link === undefined ? [] : [link];
   const bundle = platform === "darwin" ? (path.endsWith(".app") ? path : bundleOf(path)) : undefined;
-  if (bundle === undefined) return { command: path, args: links, env: kept };
+  if (bundle === undefined) return { command: path, args: [...links, "--state", state], env: kept };
   const home = env[HOME_ENV];
-  return { command: "/usr/bin/open", args: [...(home === undefined ? [] : ["--env", `${HOME_ENV}=${home}`]), "-a", bundle, ...links], env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", ...kept } };
+  return { command: "/usr/bin/open", args: [...(home === undefined ? [] : ["--env", `${HOME_ENV}=${home}`]), "-a", bundle, ...links, "--args", "--state", state], env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", ...kept } };
 }
 
 export const EXPERIMENTAL_WORDS = {

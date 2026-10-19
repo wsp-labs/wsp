@@ -698,3 +698,62 @@ fn a_builds_need_goes_once_the_sidebars_job_no_longer_carries_it(cx: &mut TestAp
     job_read(cx, json!({ "id": "j_need", "phase": "building", "place": { "id": "box", "name": "Boat" } }));
     assert_eq!(needs(cx), Vec::<String>::new(), "the sidebar's job no longer carries the need, so it goes");
 }
+
+/// A push the window's rules take, as the notices' road hands it over.
+fn hear(cx: &mut VisualTestContext, frame: Value) {
+    cx.update(|window, cx| {
+        let notices = overlays::of(window, cx).expect("the window's overlays").read(cx).notices.clone();
+        let kind = frame["type"].as_str().unwrap_or_default().to_owned();
+        notices.update(cx, |n, cx| n.hear(Heard { kind, frame, preferences: None }, window, cx));
+    });
+    cx.run_until_parked();
+}
+
+/// Catches: one of the moments today's page says over the system (`sayOutside` in `hostNotices.ts`) going unsaid by
+/// the window's rules while the window is up with no focus, a sign-in a setup waits on said once per frame rather
+/// than once while it stands, or the sign-in's click opening anything but Add a computer. Seven lines: a setup's
+/// sign-in, its needs-you, ready and failed ends, a build's seal, a build's need, and a workspace waking.
+#[gpui_kit::test]
+fn the_window_says_the_pages_moments_over_the_system_while_it_has_no_focus(cx: &mut TestAppContext) {
+    use desktop_gpui::desktop::notify;
+    use gpui_kit::SystemNotificationResponse;
+    let (_server, cx) = live(cx);
+    cx.update(|_, cx| {
+        notify::init(Rc::new(|_| {}), cx);
+        notify::take_as_bundled(true, cx);
+    });
+    cx.deactivate_window();
+    let mut waiting = lab_box("s_out", "running", json!([]));
+    waiting["setup"]["waiting"] = json!([{ "row": "gh", "state": "waiting", "label": "GitHub" }]);
+    let wait = json!({ "type": "place.setup", "placeId": "p_box", "addId": "s_out", "wait": { "row": "gh", "state": "waiting", "label": "GitHub" } });
+    // Listed again before each push: the sidebar's own read of the host's computers, which lists no lab-box, can land late.
+    listed(cx, vec![waiting.clone()]);
+    hear(cx, wait.clone());
+    listed(cx, vec![waiting.clone()]);
+    hear(cx, wait);
+    for (end, said) in [("needs-you", "a code"), ("ready", "rg failed"), ("failed", "no\nroute")] {
+        listed(cx, vec![waiting.clone()]);
+        setup_ended(cx, "s_out", end, Some(said));
+    }
+    let job = json!({ "id": "j_out", "phase": "done", "place": { "id": "box", "name": "Boat" }, "golden": { "version": 3 } });
+    hear(cx, json!({ "type": "init.job", "job": job }));
+    job_read(cx, json!({ "id": "j_need", "phase": "building", "place": { "id": "box", "name": "Boat" } }));
+    job_moved(cx, Change::JobNeed(json!({ "what": "Sign in to GitHub" })));
+    job_moved(cx, Change::Workspaces(vec![json!({ "id": "ws_api", "kind": "cloud", "name": "api" })]));
+    hear(cx, json!({ "type": "workspace.woken", "workspaceId": "ws_api" }));
+    let shown = cx.shown_system_notifications();
+    let said: Vec<(String, String)> = shown.iter().map(|n| (n.title.to_string(), n.body.to_string())).collect();
+    let want = [
+        ("wsp needs you", "lab-box: GitHub waits on you to sign in"),
+        ("wsp needs you", "lab-box needs you: a code"),
+        ("lab-box is ready; rg failed", ""),
+        ("lab-box: setup failed", "no route"),
+        ("Boat is ready", "Image v3 sealed"),
+        ("wsp needs you", "Sign in to GitHub"),
+        ("wsp needs you", "api is awake"),
+    ];
+    assert_eq!(said, want.map(|(t, b)| (t.to_owned(), b.to_owned())));
+    cx.simulate_system_notification_response(SystemNotificationResponse { tag: shown[0].tag.clone(), action_id: None });
+    cx.run_until_parked();
+    assert_eq!(cx.update(|_, cx| dialogs::layer::top(cx)), Some(dialogs::ADD_COMPUTER), "the sign-in's click opens Add a computer");
+}

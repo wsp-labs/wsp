@@ -11,11 +11,22 @@ description = "The desktop app's road to the host: dial it as wsp does, list pro
 wsp-mcp = { path = "../../../daemon/crates/wsp-mcp" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "sync"] }
-# Generates the protocol's types from record/protocol.json at compile time.
-typify = "0.8"
+libc = "0.2"
+ring = "0.17"
+tokio = { version = "1", features = ["rt", "sync", "process", "time", "net", "io-util"] }
 
 [dev-dependencies]
 libc = "0.2"
 tokio = { version = "1", features = ["macros", "rt", "process", "time"] }
 tempfile = "3"
+# A fake host on the lock's port, for the release rule and the checks the token waits on.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+# build.rs generates the protocol's types from record/protocol.json, opened to a newer host's values and fields.
+[build-dependencies]
+typify = { version = "0.8", default-features = false }
+schemars = "0.8"
+serde_json = "1"
+syn = { version = "3", features = ["full"] }
+quote = "1"

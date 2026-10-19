@@ -1,0 +1,375 @@
+diff --git a/src/linux/platform.rs b/src/linux/platform.rs
+index 1fd4139..6a8b8bc 100644
+--- a/src/linux/platform.rs
++++ b/src/linux/platform.rs
+@@ -945,9 +945,11 @@ impl Platform for LinuxPlatform {
+ 
+     fn show_system_notification(&self, notification: gpui::SystemNotification) {
+         self.with_common(|common| {
+-            common
+-                .system_notifications
+-                .show(common.app_name.as_deref(), notification)
++            common.system_notifications.show(
++                &common.background_executor,
++                common.app_name.as_deref(),
++                notification,
++            )
+         });
+     }
+ 
+diff --git a/src/linux/system_notifications.rs b/src/linux/system_notifications.rs
+index 3530c6f..b191615 100644
+--- a/src/linux/system_notifications.rs
++++ b/src/linux/system_notifications.rs
+@@ -1,14 +1,15 @@
+-//! System notifications over the XDG notifications D-Bus interface, via
+-//! `notify-rust`.
++//! System notifications over the XDG notifications D-Bus interface: built
++//! with `notify-rust`, sent and heard over one session-bus connection.
+ 
+ use std::cell::RefCell;
+-use std::collections::HashMap;
++use std::collections::{HashMap, VecDeque};
+ use std::rc::Rc;
+ 
+ use futures::StreamExt as _;
+ use futures::channel::mpsc;
+ use gpui::{
+-    ForegroundExecutor, SharedString, SystemNotification, SystemNotificationResponse, Task,
++    BackgroundExecutor, ForegroundExecutor, SharedString, SystemNotification,
++    SystemNotificationResponse, Task,
+ };
+ 
+ /// The XDG action key invoked when the user activates the notification body
+@@ -22,6 +23,37 @@ pub(crate) struct SystemNotificationState {
+     response_receiver: Option<mpsc::UnboundedReceiver<SystemNotificationResponse>>,
+     callback: ResponseCallback,
+     _response_task: Option<Task<()>>,
++    /// Feeds the one task that sends every notification and hears every
++    /// response, while its connection stands.
++    shows: Option<mpsc::UnboundedSender<Shown>>,
++}
++
++/// A notification to send, and what its response is reported as.
++struct Shown {
++    notification: notify_rust::Notification,
++    tag: SharedString,
++    action_ids: HashMap<String, SharedString>,
++}
++
++/// How many shown notifications a response is still heard for; older ones
++/// only age out of the shade.
++const HELD: usize = 50;
++
++/// Each shown notification by the server's unique name and its id, oldest first.
++type Showing = VecDeque<(String, u32, Shown)>;
++
++fn hold(showing: &mut Showing, server: &str, id: u32, shown: Shown) {
++    showing.push_back((server.to_owned(), id, shown));
++    if showing.len() > HELD {
++        showing.pop_front();
++    }
++}
++
++fn release(showing: &mut Showing, server: &str, id: u32) -> Option<Shown> {
++    let index = showing
++        .iter()
++        .position(|(held_by, held_id, _)| held_by == server && *held_id == id)?;
++    showing.remove(index).map(|(_, _, shown)| shown)
+ }
+ 
+ impl SystemNotificationState {
+@@ -32,10 +64,16 @@ impl SystemNotificationState {
+             response_receiver: Some(response_receiver),
+             callback: Rc::new(RefCell::new(None)),
+             _response_task: None,
++            shows: None,
+         }
+     }
+ 
+-    pub(crate) fn show(&self, app_name: Option<&str>, notification: SystemNotification) {
++    pub(crate) fn show(
++        &mut self,
++        executor: &BackgroundExecutor,
++        app_name: Option<&str>,
++        notification: SystemNotification,
++    ) {
+         let mut builder = notify_rust::Notification::new();
+         if let Some(app_name) = app_name {
+             builder.appname(app_name);
+@@ -50,46 +88,35 @@ impl SystemNotificationState {
+             builder.action(&transport_id, &action.label);
+             action_ids.insert(transport_id, action.id.clone());
+         }
+-        let built = builder.finalize();
+-
+-        let sender = self.response_sender.clone();
+-        let tag = notification.tag.clone();
+-        // `show` connects to the session bus and `wait_for_action` blocks
+-        // until the notification closes, so both run off the UI thread.
+-        let spawn_result = std::thread::Builder::new()
+-            .name("system-notification".to_string())
+-            .spawn(move || match built.show() {
+-                Ok(handle) => handle.wait_for_action(|action| {
+-                    let action_id = match action {
+-                        // Sent by `notify-rust` when the notification closes
+-                        // without being activated.
+-                        "__closed" => return,
+-                        transport_id => {
+-                            let Some(action_id) = response_action_id(transport_id, &action_ids)
+-                            else {
+-                                log::warn!(
+-                                    "system notification returned unknown action {transport_id:?}"
+-                                );
+-                                return;
+-                            };
+-                            action_id
+-                        }
+-                    };
+-                    sender
+-                        .unbounded_send(SystemNotificationResponse { tag, action_id })
+-                        .ok();
+-                }),
+-                Err(error) => log::warn!("failed to show system notification: {error}"),
+-            });
+-        if let Err(error) = spawn_result {
+-            log::warn!("failed to spawn system notification thread: {error}");
++        let mut shown = Shown {
++            notification: builder.finalize(),
++            tag: notification.tag,
++            action_ids,
++        };
++
++        if let Some(shows) = &self.shows {
++            match shows.unbounded_send(shown) {
++                Ok(()) => return,
++                Err(lost) => shown = lost.into_inner(),
++            }
+         }
++        #[cfg(any(feature = "wayland", feature = "x11"))]
++        {
++            let (shows, requests) = mpsc::unbounded();
++            shows.unbounded_send(shown).ok();
++            executor
++                .spawn(serve(requests, self.response_sender.clone()))
++                .detach();
++            self.shows = Some(shows);
++        }
++        #[cfg(not(any(feature = "wayland", feature = "x11")))]
++        let _ = (executor, shown);
+     }
+ 
+     pub(crate) fn dismiss(&self, _tag: &str) {
+         // The XDG notifications protocol only allows closing via the
+-        // server-assigned id on a live handle, which `wait_for_action`
+-        // consumes; stale notifications simply age out of the shade.
++        // server-assigned id, which only the bus task holds; stale
++        // notifications simply age out of the shade.
+     }
+ 
+     pub(crate) fn on_response(
+@@ -99,8 +126,8 @@ impl SystemNotificationState {
+     ) {
+         *self.callback.borrow_mut() = Some(callback);
+ 
+-        // Responses arrive from per-notification threads; this task hands
+-        // them to the registered callback on the main thread.
++        // Responses arrive from the bus task; this task hands them to the
++        // registered callback on the main thread.
+         if let Some(mut receiver) = self.response_receiver.take() {
+             let callback = self.callback.clone();
+             self._response_task = Some(executor.spawn(async move {
+@@ -118,6 +145,157 @@ impl SystemNotificationState {
+     }
+ }
+ 
++/// Sends each notification over one session-bus connection and reports the
++/// response to each, until the platform goes or the connection is lost; the
++/// next notification after a loss connects again.
++#[cfg(any(feature = "wayland", feature = "x11"))]
++async fn serve(
++    mut shows: mpsc::UnboundedReceiver<Shown>,
++    responses: mpsc::UnboundedSender<SystemNotificationResponse>,
++) {
++    if let Err(error) = serve_on_bus(&mut shows, &responses).await {
++        log::warn!("system notifications lost the session bus: {error}");
++    }
++}
++
++#[cfg(any(feature = "wayland", feature = "x11"))]
++use ashpd::zbus;
++
++#[cfg(any(feature = "wayland", feature = "x11"))]
++const NOTIFICATIONS: &str = "org.freedesktop.Notifications";
++
++#[cfg(any(feature = "wayland", feature = "x11"))]
++async fn serve_on_bus(
++    shows: &mut mpsc::UnboundedReceiver<Shown>,
++    responses: &mpsc::UnboundedSender<SystemNotificationResponse>,
++) -> zbus::Result<()> {
++    let connection = zbus::Connection::session().await?;
++    let bus = zbus::fdo::DBusProxy::new(&connection).await?;
++    for member in ["ActionInvoked", "NotificationClosed"] {
++        let rule = zbus::MatchRule::builder()
++            .msg_type(zbus::message::Type::Signal)
++            .interface(NOTIFICATIONS)?
++            .member(member)?
++            .build();
++        bus.add_match_rule(rule).await?;
++    }
++    // Replies and signals arrive in the order the server sent them, so a
++    // notification's id is known before any signal about it is read.
++    let mut messages = zbus::MessageStream::from(&connection);
++    let mut sending = HashMap::new();
++    let mut showing = Showing::new();
++    loop {
++        futures::select! {
++            shown = shows.next() => {
++                let Some(shown) = shown else { return Ok(()) };
++                match notify_call(&shown.notification) {
++                    Ok(call) => {
++                        if let Err(error) = connection.send(&call).await {
++                            log::warn!("failed to show system notification: {error}");
++                            return Err(error);
++                        }
++                        sending.insert(call.primary_header().serial_num(), shown);
++                    }
++                    Err(error) => log::warn!("failed to show system notification: {error}"),
++                }
++            }
++            message = messages.next() => match message {
++                Some(Ok(message)) => heard(&message, &mut sending, &mut showing, responses),
++                Some(Err(_)) => {}
++                None => return Ok(()),
++            },
++        }
++    }
++}
++
++#[cfg(any(feature = "wayland", feature = "x11"))]
++fn notify_call(notification: &notify_rust::Notification) -> zbus::Result<zbus::Message> {
++    zbus::Message::method_call("/org/freedesktop/Notifications", "Notify")?
++        .destination(NOTIFICATIONS)?
++        .interface(NOTIFICATIONS)?
++        .build(&(
++            &notification.appname,
++            0u32,
++            &notification.icon,
++            &notification.summary,
++            &notification.body,
++            &notification.actions,
++            HashMap::<&str, zbus::zvariant::Value>::new(),
++            i32::from(notification.timeout),
++        ))
++}
++
++/// Takes a reply to a `Notify` call or a signal about a notification.
++#[cfg(any(feature = "wayland", feature = "x11"))]
++fn heard(
++    message: &zbus::Message,
++    sending: &mut HashMap<std::num::NonZeroU32, Shown>,
++    showing: &mut Showing,
++    responses: &mpsc::UnboundedSender<SystemNotificationResponse>,
++) {
++    use zbus::message::Type;
++
++    let header = message.header();
++    // Signals count only from the server that answered the notification's
++    // `Notify`: any client on the bus may send one.
++    let Some(sender) = header.sender().map(|sender| sender.as_str()) else {
++        return;
++    };
++    match header.message_type() {
++        Type::MethodReturn | Type::Error => {
++            let Some(shown) = header
++                .reply_serial()
++                .and_then(|serial| sending.remove(&serial))
++            else {
++                return;
++            };
++            let id = match header.message_type() {
++                Type::MethodReturn => message.body().deserialize::<u32>(),
++                _ => Err(zbus::Error::from(message.clone())),
++            };
++            match id {
++                Ok(id) => hold(showing, sender, id, shown),
++                Err(error) => log::warn!("failed to show system notification: {error}"),
++            }
++        }
++        Type::Signal
++            if header
++                .interface()
++                .is_some_and(|i| i.as_str() == NOTIFICATIONS) =>
++        {
++            match header.member().map(|member| member.as_str()) {
++                Some("ActionInvoked") => {
++                    let Ok((id, transport_id)) = message.body().deserialize::<(u32, String)>()
++                    else {
++                        return;
++                    };
++                    let Some(shown) = release(showing, sender, id) else {
++                        return;
++                    };
++                    let Some(action_id) = response_action_id(&transport_id, &shown.action_ids)
++                    else {
++                        log::warn!("system notification returned unknown action {transport_id:?}");
++                        return;
++                    };
++                    responses
++                        .unbounded_send(SystemNotificationResponse {
++                            tag: shown.tag,
++                            action_id,
++                        })
++                        .ok();
++                }
++                Some("NotificationClosed") => {
++                    if let Ok((id, _reason)) = message.body().deserialize::<(u32, u32)>() {
++                        release(showing, sender, id);
++                    }
++                }
++                _ => {}
++            }
++        }
++        _ => {}
++    }
++}
++
+ fn response_action_id(
+     transport_id: &str,
+     action_ids: &HashMap<String, SharedString>,
+@@ -151,4 +329,35 @@ mod tests {
+         );
+         assert_eq!(response_action_id("unknown", &action_ids), None);
+     }
++
++    fn shown(tag: &str) -> Shown {
++        Shown {
++            notification: notify_rust::Notification::new(),
++            tag: tag.to_owned().into(),
++            action_ids: HashMap::new(),
++        }
++    }
++
++    #[test]
++    fn only_the_last_fifty_notifications_are_held() {
++        let mut showing = Showing::new();
++        for id in 1..=101 {
++            hold(&mut showing, ":1.7", id, shown(&format!("line {id}")));
++        }
++        assert_eq!(showing.len(), HELD);
++        assert!(release(&mut showing, ":1.7", 51).is_none());
++        assert_eq!(release(&mut showing, ":1.7", 52).unwrap().tag, "line 52");
++        assert_eq!(release(&mut showing, ":1.7", 101).unwrap().tag, "line 101");
++        assert_eq!(showing.len(), HELD - 2);
++    }
++
++    #[test]
++    fn a_notification_is_released_only_by_the_server_that_showed_it() {
++        let mut showing = Showing::new();
++        hold(&mut showing, ":1.7", 3, shown("line"));
++        assert!(release(&mut showing, ":1.9", 3).is_none());
++        assert_eq!(showing.len(), 1);
++        assert_eq!(release(&mut showing, ":1.7", 3).unwrap().tag, "line");
++        assert!(showing.is_empty());
++    }
+ }

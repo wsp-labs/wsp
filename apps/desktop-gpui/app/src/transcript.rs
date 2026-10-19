@@ -696,7 +696,7 @@ enum State {
 impl From<SessionEventResultStatus> for State {
     fn from(status: SessionEventResultStatus) -> Self {
         match status {
-            SessionEventResultStatus::Completed => State::Completed,
+            SessionEventResultStatus::Completed | SessionEventResultStatus::Unknown => State::Completed,
             SessionEventResultStatus::Interrupted => State::Interrupted,
             SessionEventResultStatus::Failed => State::Failed,
         }
@@ -1064,6 +1064,7 @@ fn head(event: &SessionEvent) -> (Option<u64>, Option<f64>, Option<&str>, &str) 
         | E::SessionSubagent { pos, at, turn_id, session_id, .. }
         | E::SessionSlate { pos, at, turn_id, session_id, .. }
         | E::ThreadWaited { pos, at, turn_id, session_id, .. } => (pos.map(NonZeroU64::get), *at, turn_id.as_deref(), session_id),
+        E::Unknown => (None, None, None, ""),
     }
 }
 
@@ -1554,7 +1555,9 @@ impl Model {
                 let body = match who {
                     SessionEventWho::Person => Body::Person { text: text.clone(), files: Vec::new(), turn: None, steered: false },
                     SessionEventWho::Agent => Body::Agent { text: text.clone(), streaming: false, updated: at },
-                    SessionEventWho::Note => Body::Work(Box::new(Work::new(text.clone(), Tone::Notice, Source::Other))),
+                    SessionEventWho::Note | SessionEventWho::Unknown => {
+                        Body::Work(Box::new(Work::new(text.clone(), Tone::Notice, Source::Other)))
+                    }
                     SessionEventWho::Tool => Body::Work(Box::new(Work::new(text.clone(), Tone::Tool, Source::Other))),
                 };
                 self.entries.push(Entry { key, turn: None, at, earlier: true, body });
@@ -1666,6 +1669,7 @@ impl Model {
                 let did = open.filter(|_| !failed).and_then(|(name, input)| tool_done_line(Some(&name), &input));
                 self.fold_line(parent, at, true, did, result_line(text, failed), key);
             }
+            SessionEventKind::Unknown => {}
         }
     }
 
@@ -1713,6 +1717,7 @@ impl Model {
             return;
         }
         match kind {
+            SessionEventKind::Unknown => {}
             SessionEventKind::Text => {
                 let t = self.turn.as_ref().expect("turn_for opened a turn");
                 if t.open_id.is_some() && message_id.is_some() && *message_id != t.open_id {

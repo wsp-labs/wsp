@@ -25,7 +25,7 @@ function stub(body: string): { path: string; starts: () => number; args: () => s
 }
 
 const installed = (path: string): void => writeFileSync(join(dir, GPUI_PATH_FILE), `${path}\n`);
-const launchOf = (path: string) => gpuiLaunch("linux", path, { PATH: "/usr/bin:/bin", HOME: dir });
+const launchOf = (path: string) => gpuiLaunch("linux", path, { PATH: "/usr/bin:/bin", HOME: dir }, join(dir, "state.json"));
 
 function deps(): HandOverDeps & { quits: number; lines: string[]; errors: string[] } {
   const d = {
@@ -34,7 +34,7 @@ function deps(): HandOverDeps & { quits: number; lines: string[]; errors: string
     lines: [] as string[],
     errors: [] as string[],
     leaving: () => false,
-    open: (path: string, link?: string) => openGpui(gpuiLaunch("linux", path, { PATH: "/usr/bin:/bin", HOME: dir }, link), 300),
+    open: (path: string, link?: string) => openGpui(gpuiLaunch("linux", path, { PATH: "/usr/bin:/bin", HOME: dir }, join(dir, "state.json"), link), 300),
     quit: () => void (d.quits += 1),
     log: (line: string) => void d.lines.push(line),
     error: (line: string) => void d.errors.push(line),
@@ -68,25 +68,28 @@ describe("where the switch is kept and how the GPUI app is found", () => {
 describe("how the GPUI app is started on each platform", () => {
   const env = { PATH: "/usr/bin:/bin", HOME: "/home/dev", DISPLAY: ":0", WSP_HOME: "/home/dev/.wsp-b", APPDIR: "/tmp/.mount_wsp", APPIMAGE: "/home/dev/wsp.AppImage", ELECTRON_RUN_AS_NODE: "1", GH_TOKEN: "x" };
 
-  it("on Linux runs the executable itself, handed only the names a desktop app needs, a named home among them", () => {
-    const launch = gpuiLaunch("linux", "/opt/wsp/desktop-gpui", env);
+  const state = "/home/dev/wsp/.wsp/state.json";
+
+  it("on Linux runs the executable itself on this app's state, handed only the names a desktop app needs, a named home among them", () => {
+    const launch = gpuiLaunch("linux", "/opt/wsp/desktop-gpui", env, state);
     expect(launch.command).toBe("/opt/wsp/desktop-gpui");
-    expect(launch.args).toEqual([]);
+    expect(launch.args).toEqual(["--state", state]);
     expect(Object.keys(launch.env).sort()).toEqual(["DISPLAY", "HOME", "PATH", "WSP_HOME"]);
-    expect(gpuiLaunch("linux", "/opt/wsp/desktop-gpui", env, "wsp://thread/t1").args).toEqual(["wsp://thread/t1"]);
+    expect(gpuiLaunch("linux", "/opt/wsp/desktop-gpui", env, state, "wsp://thread/t1").args).toEqual(["wsp://thread/t1", "--state", state]);
   });
 
-  it("on a Mac opens the bundle the executable sits in by the system's opener, carrying a named home in --env", () => {
-    const launch = gpuiLaunch("darwin", "/Applications/wsp Experimental.app/Contents/MacOS/desktop-gpui", env);
+  it("on a Mac opens the bundle the executable sits in by the system's opener, carrying a named home in --env and the state after --args", () => {
+    const launch = gpuiLaunch("darwin", "/Applications/wsp Experimental.app/Contents/MacOS/desktop-gpui", env, state);
     expect(launch.command).toBe("/usr/bin/open");
-    expect(launch.args).toEqual(["--env", "WSP_HOME=/home/dev/.wsp-b", "-a", "/Applications/wsp Experimental.app"]);
-    expect(gpuiLaunch("darwin", "/Applications/wsp Experimental.app", { HOME: "/Users/dev" }, "wsp://thread/t1").args).toEqual(["-a", "/Applications/wsp Experimental.app", "wsp://thread/t1"]);
+    expect(launch.args).toEqual(["--env", "WSP_HOME=/home/dev/.wsp-b", "-a", "/Applications/wsp Experimental.app", "--args", "--state", state]);
+    expect(gpuiLaunch("darwin", "/Applications/wsp Experimental.app", { HOME: "/Users/dev" }, state, "wsp://thread/t1").args).toEqual(["-a", "/Applications/wsp Experimental.app", "wsp://thread/t1", "--args", "--state", state]);
     expect(Object.keys(launch.env)).not.toContain("APPDIR");
   });
 
-  it("on a Mac runs a bare executable, a cargo build's, itself", () => {
-    const launch = gpuiLaunch("darwin", "/Users/dev/wsp/target/release/desktop-gpui", env, "wsp://thread/t1");
-    expect([launch.command, ...launch.args]).toEqual(["/Users/dev/wsp/target/release/desktop-gpui", "wsp://thread/t1"]);
+  it("on a Mac runs a bare executable, a cargo build's, itself on this app's state", () => {
+    const launch = gpuiLaunch("darwin", "/Users/dev/wsp/target/release/desktop-gpui", env, state, "wsp://thread/t1");
+    expect([launch.command, ...launch.args]).toEqual(["/Users/dev/wsp/target/release/desktop-gpui", "wsp://thread/t1", "--state", state]);
+    expect(gpuiLaunch("darwin", "/Users/dev/wsp/target/release/desktop-gpui", env, state).args).toEqual(["--state", state]);
   });
 });
 
@@ -168,7 +171,7 @@ describe("a way into this app while the switch is on", () => {
     installed(app.path);
     keepSwitch(dir, true);
     expect(await handOver(deps())("link", "wsp://thread/t1")).toBe(true);
-    expect(app.args()).toEqual(["wsp://thread/t1"]);
+    expect(app.args()).toEqual([`wsp://thread/t1 --state ${join(dir, "state.json")}`]);
   });
 
   it("goes on as with the switch off where the GPUI app did not open, saying why in the log", async () => {

@@ -14,7 +14,7 @@ use crate::aim::{self, Aim, HostRecord, Pick};
 use crate::client::{self, Admit, Client, Dial, Presents};
 use crate::failure::Failure;
 use crate::record::{self, fill};
-use crate::release::ReleaseHost;
+use crate::release::{ReleaseHost, ReleaseRule};
 use crate::start;
 use crate::{Args, Env};
 
@@ -42,6 +42,13 @@ pub struct Host {
     /// The device token a pairing code bought for the host here, which every later dial presents in place of the file
     /// beside the state, for as long as this lives.
     paired: std::sync::Mutex<Option<String>>,
+    /// Which releases a dial held to one goes on with, and whose words a refusal of the lock is said in: the line's
+    /// own unless the desktop app says otherwise.
+    rule: ReleaseRule,
+    /// The release the host named on the last socket dialled, where it named one.
+    released: std::sync::Mutex<Option<String>>,
+    /// How long a dial at the account's host waits in place of the line's own window, where the desktop app sets one.
+    account_window: Option<Duration>,
 }
 
 impl Host {
@@ -65,7 +72,27 @@ impl Host {
             held: Mutex::new(None),
             held_any_release: Mutex::new(None),
             paired: std::sync::Mutex::new(None),
+            rule: ReleaseRule::default(),
+            released: std::sync::Mutex::new(None),
+            account_window: None,
         }
+    }
+
+    /// The same host with every dial held to `rule` in place of the line's own release alone.
+    pub fn with_release_rule(mut self, rule: ReleaseRule) -> Host {
+        self.rule = rule;
+        self
+    }
+
+    /// The same host with a dial at the account's host bounded by `window`, as the desktop app's `ACCOUNT_DIAL_MS`.
+    pub fn with_account_window(mut self, window: Duration) -> Host {
+        self.account_window = Some(window);
+        self
+    }
+
+    /// The release the host named on the last socket dialled, where it named one.
+    pub fn host_release(&self) -> Option<String> {
+        self.released.lock().unwrap().clone()
     }
 
     /// The environment a tool reads a value it sends by name from.
@@ -126,6 +153,7 @@ impl Host {
         }
         // Boxed: a socket is dialled once, and inline the dial would ride in every request's future.
         let dialled = Arc::new(Box::pin(self.dial(again, judged)).await?);
+        *self.released.lock().unwrap() = dialled.release().map(str::to_owned);
         *held = Some(dialled.clone());
         Ok(dialled)
     }
@@ -142,12 +170,15 @@ impl Host {
                     start::started(state, &self.args.wsp, &self.process_env, &mut |line| eprintln!("{line}")).await?;
                 }
                 let held = self.paired.lock().unwrap().clone();
+                let until = Instant::now() + window;
                 let (url, token, at) = match held {
-                    Some(token) => aim::here_address(state).map(|(url, at)| (url, token, at))?,
-                    None => aim::here_door(state)?,
+                    Some(token) => aim::here_address(state, window, self.rule).await.map(|(url, at)| (url, token, at))?,
+                    None => aim::here_door(state, window, self.rule).await?,
                 };
+                let window = until.saturating_duration_since(Instant::now()).max(Duration::from_millis(1));
                 let release = ReleaseHost::Here { state: state.to_string_lossy().into_owned() };
-                let to = Dial { url: &url, at: &at, window, pinned: None, alias: None, release: judged.then_some(&release) };
+                let to =
+                    Dial { url: &url, at: &at, window, pinned: None, alias: None, release: judged.then_some(&release), rule: self.rule };
                 Ok(client::dial(&to, Presents::Token(&token)).await.map_err(|r| r.failure)?.0)
             }
             Aim::Url { url, token, host_key } => {
@@ -162,10 +193,14 @@ impl Host {
                     pinned: host_key.as_deref(),
                     alias: None,
                     release: judged.then_some(&release),
+                    rule: self.rule,
                 };
                 Ok(client::dial(&to, Presents::Token(token)).await.map_err(|r| r.failure)?.0)
             }
-            Aim::Alias { alias, record } => self.dial_account(alias, record, window, judged).await,
+            Aim::Alias { alias, record } => {
+                let window = again.or(self.account_window).unwrap_or(window);
+                self.dial_account(alias, record, window, judged).await
+            }
         }
     }
 
@@ -180,13 +215,23 @@ impl Host {
         let presents = Presents::Redeem { code, name };
         let (_, paired) = match &aim {
             Aim::Here => {
-                let (url, at) = aim::here_address(&self.args.state)?;
-                let to = Dial { url: &url, at: &at, window, pinned: None, alias: None, release: None };
+                let until = Instant::now() + window;
+                let (url, at) = aim::here_address(&self.args.state, window, self.rule).await?;
+                let window = until.saturating_duration_since(Instant::now()).max(Duration::from_millis(1));
+                let to = Dial { url: &url, at: &at, window, pinned: None, alias: None, release: None, rule: self.rule };
                 client::dial(&to, presents).await.map_err(|r| r.failure)?
             }
             Aim::Alias { alias, record } => {
                 let url = ws_url(&record.url)?;
-                let to = Dial { url: &url, at: &record.url, window, pinned: record.host_key.as_deref(), alias: Some(alias), release: None };
+                let to = Dial {
+                    url: &url,
+                    at: &record.url,
+                    window,
+                    pinned: record.host_key.as_deref(),
+                    alias: Some(alias),
+                    release: None,
+                    rule: self.rule,
+                };
                 client::dial(&to, presents).await.map_err(|r| r.failure)?
             }
             Aim::Url { url, .. } => return Err(Failure::usage(fill(&record::words().address_not_paired, &[("url", url)]))),
@@ -207,6 +252,15 @@ impl Host {
     pub fn aims_here(&self) -> bool {
         let pick = Pick { host: self.args.host.as_deref(), env: &self.process_env, home: self.home.clone() };
         matches!(aim::aimed(&self.args.state, &pick), Ok(Aim::Here))
+    }
+
+    /// The alias of the host on the account a dial now goes to, where it goes to one.
+    pub fn aimed_alias(&self) -> Option<String> {
+        let pick = Pick { host: self.args.host.as_deref(), env: &self.process_env, home: self.home.clone() };
+        match aim::aimed(&self.args.state, &pick) {
+            Ok(Aim::Alias { alias, .. }) => Some(alias),
+            _ => None,
+        }
     }
 
     /// Presents `token` to the host here in place of the file beside the state: one a pairing bought earlier.
@@ -238,6 +292,7 @@ impl Host {
             pinned: record.host_key.as_deref(),
             alias: Some(alias),
             release: judged.then_some(&release),
+            rule: self.rule,
         };
         let first = match &admit {
             Some(key) => Presents::Admit(key),

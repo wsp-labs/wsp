@@ -7,11 +7,16 @@
 //! held to are in record/.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 use crate::failure::Failure;
+use crate::proof;
 use crate::record::{self, fill};
+use crate::release::ReleaseRule;
 use crate::Env;
 
 /// Where a call dials: the host serving the state file here, a host on the account under an alias, or an address
@@ -62,6 +67,9 @@ pub struct Lock {
     pub port: u16,
     #[serde(default)]
     pub address: Option<String>,
+    /// Which road brought the host up: `service`, or `verb` for a line's own child; none for a host started by hand.
+    #[serde(default)]
+    pub started_by: Option<String>,
     /// Read so a lock without it is no lock, as the command line's reader holds it.
     #[allow(dead_code)]
     started_at: String,
@@ -162,38 +170,67 @@ fn keyed(aim: Aim, from: &str) -> Result<Aim, Failure> {
     Err(Failure::auth(fill(&record::words().host_no_key, &[("where", from)])))
 }
 
-/// The host whose lock names this state file, when that process is still alive.
-pub fn serving(state: &Path) -> Option<Lock> {
-    let lock: Lock = read_json(&beside(state, &record::host().files.lock)?)?;
-    pid_alive(lock.pid).then_some(lock)
+fn read_lock(state: &Path) -> Option<Lock> {
+    read_json(&beside(state, &record::host().files.lock)?)
 }
 
-/// Whether a pid is a live process, whoever owns it: a lock another login holds is still a held lock.
-fn pid_alive(pid: i32) -> bool {
-    // SAFETY: signal 0 checks the pid and delivers nothing.
-    unsafe { libc::kill(pid, 0) == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM) }
+/// `servingHost`: the host whose lock names this state file, while that process is alive and its program is still there.
+pub fn serving(state: &Path) -> Option<Lock> {
+    read_lock(state).filter(|lock| proof::alive(lock.pid) && !proof::runs_vanished(lock.pid))
+}
+
+/// `vanishedHost`: a lock whose process still runs a program that is gone, which to its manager is up.
+pub fn vanished(state: &Path) -> bool {
+    read_lock(state).is_some_and(|lock| proof::alive(lock.pid) && proof::runs_vanished(lock.pid))
+}
+
+/// `httpProbe`: whether the host a lock names answers where the lock says within `within`. The lock is taken before
+/// the host binds anything, so the lock alone is a claim, and any answer at all to one GET means something bound it.
+pub async fn answers(lock: &Lock, within: Duration) -> bool {
+    let at = authority(&dial_address(lock), lock.port);
+    let asked = async {
+        let mut tcp = TcpStream::connect(&at).await.ok()?;
+        tcp.write_all(format!("GET / HTTP/1.1\r\nHost: {at}\r\nConnection: close\r\n\r\n").as_bytes()).await.ok()?;
+        let mut first = [0u8; 1];
+        (tcp.read(&mut first).await.ok()? == 1).then_some(())
+    };
+    matches!(tokio::time::timeout(within, asked).await, Ok(Some(())))
 }
 
 /// Where the host serving this state file here answers, the token it wrote beside the file, and the address as a
-/// person reads it.
-pub fn here_door(state: &Path) -> Result<(String, String, String), Failure> {
-    let (url, at) = here_address(state)?;
+/// person reads it, once the lock is proved the owner's own host within `window`: the token goes nowhere else. A
+/// refusal is said in the words of the caller `rule` names.
+pub async fn here_door(state: &Path, window: Duration, rule: ReleaseRule) -> Result<(String, String, String), Failure> {
+    let lock = serving_or_refused(state)?;
+    proof::own_login(state, &lock, rule)?;
     let token_path = beside(state, &record::host().files.token).unwrap_or_default();
     let Some(token) = std::fs::read_to_string(&token_path).ok().map(|t| t.trim().to_owned()) else {
         return Err(Failure::auth(fill(&record::words().host_token_missing, &[("path", &token_path.to_string_lossy())])));
     };
+    proof::page_carries(state, &lock, Some(&token), window, rule).await?;
+    let (url, at) = address_of(&lock);
     Ok((url, token, at))
 }
 
-/// Where the host serving this state file here answers, and the address as a person reads it, whatever token this
-/// computer holds for it.
-pub fn here_address(state: &Path) -> Result<(String, String), Failure> {
-    let Some(lock) = serving(state) else {
-        return Err(Failure::new(fill(&record::words().no_host_serving, &[("state", &state.to_string_lossy())])));
-    };
-    let at = authority(&dial_address(&lock), lock.port);
+/// Where the host serving this state file here answers, and the address as a person reads it, for a device token or
+/// a pairing code: the lock is proved this login's and its port a wsp page within `window` before either leaves, and
+/// where the token file is there, the page carries its digest, as it must for the token itself.
+pub async fn here_address(state: &Path, window: Duration, rule: ReleaseRule) -> Result<(String, String), Failure> {
+    let lock = serving_or_refused(state)?;
+    proof::own_login(state, &lock, rule)?;
+    let token = beside(state, &record::host().files.token).and_then(|path| std::fs::read_to_string(path).ok());
+    proof::page_carries(state, &lock, token.as_deref().map(str::trim), window, rule).await?;
+    Ok(address_of(&lock))
+}
+
+fn serving_or_refused(state: &Path) -> Result<Lock, Failure> {
+    serving(state).ok_or_else(|| Failure::new(fill(&record::words().no_host_serving, &[("state", &state.to_string_lossy())])))
+}
+
+fn address_of(lock: &Lock) -> (String, String) {
+    let at = authority(&dial_address(lock), lock.port);
     let url = ws_url_of(&format!("http://{at}")).unwrap_or_default();
-    Ok((url, at))
+    (url, at)
 }
 
 /// Where a tool on this computer dials the host a lock names: the address it bound, and loopback for the wildcard.
@@ -442,5 +479,45 @@ mod tests {
         assert!(matches!(aimed(&state, &pick(Some("attic"), near)).unwrap(), Aim::Alias { alias, .. } if alias == "attic"));
         let unknown = aimed(&state, &pick(Some("nowhere"), empty)).unwrap_err();
         assert_eq!(unknown.message, "no host named nowhere is connected; this computer holds attic, cellar, and wsp login puts the hosts on your account here. Run wsp hosts for the list.");
+    }
+
+    fn locked(dir: &Path, pid: i32) -> PathBuf {
+        let state = dir.join("state.json");
+        std::fs::write(dir.join("host.lock"), format!(r#"{{"pid":{pid},"port":1,"startedAt":"2026-10-19T00:00:00.000Z"}}"#)).unwrap();
+        state
+    }
+
+    /// Catches: a lock naming pid 0 or below read as a live host, which signal 0 to a process group says it is; the
+    /// desktop's start would then never load the unit, and the dial would go to whatever answers on the lock's port.
+    #[test]
+    fn a_lock_naming_pid_zero_or_below_is_no_host() {
+        let dir = tempfile::tempdir().unwrap();
+        for pid in [0, -1] {
+            let state = locked(dir.path(), pid);
+            assert!(serving(&state).is_none(), "pid {pid}");
+            assert!(!vanished(&state), "pid {pid}");
+        }
+        assert!(serving(&locked(dir.path(), std::process::id() as i32)).is_some());
+    }
+
+    /// Catches: a lock whose process runs a program since removed read as a host serving, as `servingHost` never
+    /// reads it, or not read as vanished, which is what has its manager start it again.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_lock_whose_program_is_gone_is_vanished_and_serves_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let copy = dir.path().join("sleep");
+        // Copied by a child: a write handle of this process's, inherited by another test's fork, makes the exec ETXTBSY.
+        assert!(std::process::Command::new("/bin/cp").arg("/bin/sleep").arg(&copy).env_clear().status().unwrap().success());
+        let mut kid = std::process::Command::new(&copy).arg("30").env_clear().spawn().unwrap();
+        let state = locked(dir.path(), kid.id() as i32);
+        let stood = (serving(&state).is_some(), vanished(&state));
+        std::fs::remove_file(&copy).unwrap();
+        let (serves, gone) = (serving(&state).is_some(), vanished(&state));
+        kid.kill().unwrap();
+        kid.wait().unwrap();
+        assert_eq!(stood, (true, false), "its program still stands");
+        assert!(!serves, "a host whose program is gone read as serving");
+        assert!(gone, "a host whose program is gone not read as vanished");
     }
 }
