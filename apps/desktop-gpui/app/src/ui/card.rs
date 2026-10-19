@@ -366,6 +366,44 @@ pub enum WordClass {
     Fact,
 }
 
+/// `fmtBytes`: bytes in binary units, whole under a gigabyte, GB with one decimal unless whole.
+pub fn fmt_bytes(n: u64) -> String {
+    const K: f64 = 1024.;
+    let v = n as f64;
+    if v < K {
+        return format!("{n} B");
+    }
+    if v < K * K {
+        return format!("{} KB", (v / K).round());
+    }
+    if v < K * K * K {
+        return format!("{} MB", (v / (K * K)).round());
+    }
+    let gb = v / (K * K * K);
+    let tenth = (gb * 10.).round() / 10.;
+    if tenth.fract() == 0. {
+        format!("{} GB", gb.round())
+    } else {
+        format!("{tenth:.1} GB")
+    }
+}
+
+/// `sizeTone`'s ink for a size: the danger ink from a gigabyte, the warning ink from 200 MB, the yellow from 50 MB,
+/// else muted.
+pub fn size_ink(bytes: u64, cx: &App) -> Hsla {
+    let p = cx.palette();
+    const MIB: u64 = 1024 * 1024;
+    if bytes >= 1024 * MIB {
+        p.error_foreground
+    } else if bytes >= 200 * MIB {
+        p.warning_foreground
+    } else if bytes >= 50 * MIB {
+        p.yellow_foreground
+    } else {
+        p.muted_foreground
+    }
+}
+
 /// Words in the `FACT` or `VALUE` class.
 pub fn word(words: impl Into<Words>, class: WordClass, cx: &App) -> gpui_kit::Div {
     let p = cx.palette();
@@ -938,5 +976,19 @@ impl RenderOnce for Line {
             None => h_flex().child(label),
         };
         row_frame(&self.id, size::LINE_FLOOR, self.corners).when_some(self.hover, |el, hover| el.tooltip(tip(hover))).child(body)
+    }
+}
+
+#[cfg(test)]
+mod bytes_tests {
+    use super::fmt_bytes;
+
+    #[test]
+    fn bytes_read_as_the_protocol_writes_them() {
+        assert_eq!(fmt_bytes(512), "512 B");
+        assert_eq!(fmt_bytes(1536), "2 KB");
+        assert_eq!(fmt_bytes(3 * 1024 * 1024), "3 MB");
+        assert_eq!(fmt_bytes(1536 * 1024 * 1024), "1.5 GB");
+        assert_eq!(fmt_bytes(2 * 1024 * 1024 * 1024), "2 GB");
     }
 }

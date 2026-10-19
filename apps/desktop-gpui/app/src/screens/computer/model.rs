@@ -7,6 +7,8 @@ use std::collections::VecDeque;
 
 use serde::Deserialize;
 
+use crate::ui::fmt_bytes;
+
 /// `LIVE_WINDOW`: two minutes at the daemon's two-second interval.
 pub const LIVE_WINDOW: usize = 60;
 
@@ -180,30 +182,9 @@ fn js_number(n: f64) -> String {
     }
 }
 
-/// `fmtBytes`: binary units, whole under a gigabyte, GB with one decimal unless whole.
-pub fn fmt_bytes(n: f64) -> String {
-    const K: f64 = 1024.;
-    if n < K {
-        return format!("{} B", js_number(n));
-    }
-    if n < K * K {
-        return format!("{} KB", (n / K).round());
-    }
-    if n < K * K * K {
-        return format!("{} MB", (n / (K * K)).round());
-    }
-    let gb = n / (K * K * K);
-    let tenth = to_fixed(gb, 1);
-    if tenth.ends_with(".0") {
-        format!("{} GB", gb.round())
-    } else {
-        format!("{tenth} GB")
-    }
-}
-
 /// `fmtBytesOfTotal`: "4.9 GB of 20 GB".
 pub fn bytes_of_total(used: f64, total: f64) -> String {
-    format!("{} of {}", fmt_bytes(used), fmt_bytes(total))
+    format!("{} of {}", fmt_bytes(used as u64), fmt_bytes(total as u64))
 }
 
 /// `fmtMemGb`: a size's memory, whole when whole, else one decimal.
@@ -333,9 +314,7 @@ mod tests {
         assert_eq!(Plot::Load.figure(&s), "1.13");
         assert_eq!(Plot::Memory.figure(&s), "4.9 GB of 16 GB");
         assert_eq!(Plot::Disk.figure(&s), "512 MB of 2.3 GB");
-        assert_eq!(fmt_bytes(900.), "900 B");
-        assert_eq!(fmt_bytes(2048.), "2 KB");
-        assert_eq!(fmt_bytes(1.99 * gib), "2 GB");
+        assert_eq!(bytes_of_total(900., 1.99 * gib), "900 B of 2 GB");
         assert_eq!(fmt_mem_gb(16384.), "16 GB");
         assert_eq!(fmt_mem_gb(1536.), "1.5 GB");
         assert_eq!(

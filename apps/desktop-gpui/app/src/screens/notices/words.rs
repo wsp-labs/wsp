@@ -4,7 +4,7 @@
 
 use serde_json::Value;
 
-use crate::screens::computer::model::fmt_bytes;
+use crate::ui::fmt_bytes;
 
 pub const OPEN: &str = "Open";
 pub const UNDO: &str = "Undo";
@@ -173,7 +173,7 @@ fn ask_lead(tool: &str, input: &Value) -> Option<String> {
     match tool {
         "Write" => {
             let path = tool_field(input, "file_path")?;
-            let size = field(input, "content").map(|c| format!(" ({})", fmt_bytes(c.len() as f64))).unwrap_or_default();
+            let size = field(input, "content").map(|c| format!(" ({})", fmt_bytes(c.len() as u64))).unwrap_or_default();
             Some(format!("Write {}{size}", file_in_folder(path)))
         }
         "Edit" | "MultiEdit" => {

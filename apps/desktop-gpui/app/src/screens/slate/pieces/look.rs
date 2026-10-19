@@ -7,7 +7,7 @@ use gpui_kit::{App, Hsla};
 use serde_json::Value;
 
 pub(crate) use crate::screens::sidebar::markdown::fmt_duration;
-use crate::screens::usage::words::{fmt_cost, fmt_tokens, group_thousands, js_round, round_half_up, to_fixed};
+use crate::screens::usage::words::{fmt_cost, fmt_tokens, group_thousands, js_round, round_half_up};
 use crate::ui::ActivePalette;
 
 /// A value as text: nothing for null, its words for a string, JSON for a list or record.
@@ -90,27 +90,6 @@ impl Tone {
     }
 }
 
-/// `fmtBytes`: binary units, whole under a GB, one place over it unless that place is a zero.
-pub fn fmt_bytes(n: f64) -> String {
-    const K: f64 = 1024.;
-    if n < K {
-        return format!("{} B", num_text(n));
-    }
-    if n < K * K {
-        return format!("{} KB", js_round(n / K));
-    }
-    if n < K * K * K {
-        return format!("{} MB", js_round(n / (K * K)));
-    }
-    let gb = n / (K * K * K);
-    let one = to_fixed(gb, 1);
-    if one.ends_with(".0") {
-        format!("{} GB", js_round(gb))
-    } else {
-        format!("{one} GB")
-    }
-}
-
 /// A magnitude to `places` as Intl rounds it: half up from the shortest decimal that reads back as the double.
 fn intl_fixed(n: f64, places: usize) -> String {
     let shortest = format!("{}", n.abs());
@@ -175,7 +154,8 @@ pub fn slate_figure(value: f64, format: &str, max: Option<f64>) -> String {
             None => plain(value),
         },
         "tokens" => fmt_tokens(value),
-        "bytes" => fmt_bytes(value),
+        "bytes" if value < 1024. => format!("{} B", num_text(value)),
+        "bytes" => crate::ui::fmt_bytes(value as u64),
         "usd" => fmt_cost(value),
         "inr" => fmt_inr(value),
         "duration" => fmt_duration(value),
@@ -288,6 +268,9 @@ mod tests {
         assert_eq!(slate_figure(3., "fraction", Some(4.)), "3/4");
         assert_eq!(slate_figure(1_966_000., "bytes", None), "2 MB");
         assert_eq!(slate_figure(130_000., "bytes", None), "127 KB");
+        assert_eq!(slate_figure(1_610_612_736., "bytes", None), "1.5 GB");
+        assert_eq!(slate_figure(1.5, "bytes", None), "1.5 B");
+        assert_eq!(slate_figure(-5., "bytes", None), "-5 B");
         assert_eq!(slate_figure(1234.5678, "plain", None), "1,234.57");
         assert_eq!(slate_figure(420., "integer", None), "420");
         assert_eq!(slate_figure(144_740., "inr", None), "\u{20b9}1,44,740");

@@ -67,6 +67,10 @@ name = "terminal_shots"
 harness = false
 
 [[test]]
+name = "dialogs_shots"
+harness = false
+
+[[test]]
 name = "plot_dot"
 harness = false
 

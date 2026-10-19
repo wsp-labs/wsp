@@ -55,11 +55,35 @@ impl HostClient {
     /// launch pair are not read: they aim a command line, and a turn's token sees its own thread's tree alone. Nothing
     /// is started: no host answering is a refusal.
     pub async fn connect(state: &Path, env: &Env) -> Result<HostClient, Failure> {
-        let env: Env = env.iter().filter(|(name, _)| !AIMS_A_LINE.contains(&name.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
-        let args = wsp_mcp::Args { state: state.to_owned(), ..wsp_mcp::Args::default() };
-        let host = Host::new(&args, &env, None);
+        HostClient::connect_holding(state, env, None).await
+    }
+
+    /// `connect`, presenting to the host here the token a pairing bought earlier in this process, where one did.
+    pub async fn connect_holding(state: &Path, env: &Env, paired: Option<String>) -> Result<HostClient, Failure> {
+        let host = attached(state, env);
+        if let Some(token) = paired {
+            host.hold_token(token);
+        }
         host.client().await?;
         Ok(HostClient { host })
+    }
+
+    /// The same host as `connect` finds, paired by a code its `wsp host pair` printed: the code goes as the first frame
+    /// of a socket that presents no token, which then closes; the client dials with the device token it bought.
+    pub async fn redeem(state: &Path, env: &Env, code: &str, name: &str) -> Result<HostClient, Failure> {
+        let host = attached(state, env);
+        host.redeem(code, name).await?;
+        Ok(HostClient { host })
+    }
+
+    /// The token a pairing bought for the host here, which an account host keeps in its record instead.
+    pub fn paired_token(&self) -> Option<String> {
+        self.host.held_token()
+    }
+
+    /// Whether this client dials the host serving its state file on this computer.
+    pub fn here(&self) -> bool {
+        self.host.aims_here()
     }
 
     /// One op and its reply, typed both ways.
@@ -140,6 +164,13 @@ impl HostClient {
             _client: client,
         })
     }
+}
+
+/// The tool server's host for `state`, with the names that aim a command line taken out of the environment.
+fn attached(state: &Path, env: &Env) -> Host {
+    let env: Env = env.iter().filter(|(name, _)| !AIMS_A_LINE.contains(&name.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
+    let args = wsp_mcp::Args { state: state.to_owned(), ..wsp_mcp::Args::default() };
+    Host::new(&args, &env, None)
 }
 
 pub struct Thread {
