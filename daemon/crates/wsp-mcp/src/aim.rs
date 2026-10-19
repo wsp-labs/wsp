@@ -177,18 +177,23 @@ fn pid_alive(pid: i32) -> bool {
 /// Where the host serving this state file here answers, the token it wrote beside the file, and the address as a
 /// person reads it.
 pub fn here_door(state: &Path) -> Result<(String, String, String), Failure> {
-    let names = record::host();
-    let words = record::words();
-    let Some(lock) = serving(state) else {
-        return Err(Failure::new(fill(&words.no_host_serving, &[("state", &state.to_string_lossy())])));
-    };
-    let token_path = beside(state, &names.files.token).unwrap_or_default();
+    let (url, at) = here_address(state)?;
+    let token_path = beside(state, &record::host().files.token).unwrap_or_default();
     let Some(token) = std::fs::read_to_string(&token_path).ok().map(|t| t.trim().to_owned()) else {
-        return Err(Failure::auth(fill(&words.host_token_missing, &[("path", &token_path.to_string_lossy())])));
+        return Err(Failure::auth(fill(&record::words().host_token_missing, &[("path", &token_path.to_string_lossy())])));
+    };
+    Ok((url, token, at))
+}
+
+/// Where the host serving this state file here answers, and the address as a person reads it, whatever token this
+/// computer holds for it.
+pub fn here_address(state: &Path) -> Result<(String, String), Failure> {
+    let Some(lock) = serving(state) else {
+        return Err(Failure::new(fill(&record::words().no_host_serving, &[("state", &state.to_string_lossy())])));
     };
     let at = authority(&dial_address(&lock), lock.port);
     let url = ws_url_of(&format!("http://{at}")).unwrap_or_default();
-    Ok((url, token, at))
+    Ok((url, at))
 }
 
 /// Where a tool on this computer dials the host a lock names: the address it bound, and loopback for the wildcard.

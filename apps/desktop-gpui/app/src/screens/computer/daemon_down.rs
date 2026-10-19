@@ -11,10 +11,9 @@ use serde_json::json;
 use wsp_host_client::protocol::WorkspacesRestartDaemonRequest;
 use wsp_host_client::Failure;
 
+use crate::screens::terminal::words::{refusal_line, NO_REASON, STARTING_WORD};
 use crate::screens::Host;
 use crate::ui::{text, ActivePalette, Button};
-
-pub const STARTING: &str = "Starting…";
 
 /// What the last ask left: out, or refused with the line to show.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -23,17 +22,15 @@ pub struct Restart {
     pub refusal: Option<String>,
 }
 
-/// `NO_REASON`: what a refusal with no sentence says; the host client words one as the op having failed.
-pub const NO_REASON: &str = "The host answered with no reason. Try again.";
-
-/// `startRefusedLine`: the host's sentence, then another start; a refusal with no sentence asks for another try already.
+/// `startRefusedLine`: the host's sentence, then its fix, else another start; a refusal with no sentence asks for
+/// another try already.
 pub fn start_refused_line(refused: &Failure) -> String {
-    let said = refused.message.trim_end();
-    if said == NO_REASON || said == "workspaces.restartDaemon failed" {
-        return NO_REASON.to_owned();
+    let said = refused.said();
+    match refused.fix.as_deref() {
+        Some(fix) => refusal_line(said, fix),
+        None if said.trim_end() == NO_REASON || said == "workspaces.restartDaemon failed" => NO_REASON.to_owned(),
+        None => refusal_line(said, "Start again."),
     }
-    let stop = if said.ends_with(['.', '!', '?', ':']) { "" } else { "." };
-    format!("{said}{stop} Start again.")
 }
 
 /// Asks the host to start `workspace_id`'s daemon again, holding `state` busy until it answers.
@@ -91,7 +88,7 @@ impl DaemonDown {
     /// The button's word.
     pub fn word(busy: bool, start: &'static str) -> &'static str {
         if busy {
-            STARTING
+            STARTING_WORD
         } else {
             start
         }
@@ -147,6 +144,15 @@ mod tests {
         assert_eq!(start_refused_line(&Failure::new("no daemon for this computer.")), "no daemon for this computer. Start again.");
         assert_eq!(start_refused_line(&Failure::new(NO_REASON)), NO_REASON, "a refusal with no sentence already asks again");
         assert_eq!(start_refused_line(&Failure::new("workspaces.restartDaemon failed")), NO_REASON);
+        let fixed = Failure {
+            fix: Some("Run wsp add mini --update.".into()),
+            ..Failure::new("mini's daemon is too old Run wsp add mini --update.")
+        };
+        assert_eq!(
+            start_refused_line(&fixed),
+            "mini's daemon is too old. Run wsp add mini --update.",
+            "the host's fix takes the place of another start"
+        );
     }
 
     #[test]

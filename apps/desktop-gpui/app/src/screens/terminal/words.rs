@@ -41,15 +41,6 @@ pub fn refusal_line(happened: &str, fix: &str) -> String {
     format!("{said}{} {fix}", if closed { "" } else { "." })
 }
 
-/// What a start of the daemon the host refused says under its button (`startRefusedLine`).
-pub fn start_refused_line(said: &str) -> String {
-    if said == NO_REASON {
-        said.to_owned()
-    } else {
-        refusal_line(said, "Start again.")
-    }
-}
-
 /// `ownDaemonDown`: the daemon this host started for its own computer is not running.
 pub fn own_daemon_down(name: &str) -> Absent {
     let said = format!("{name}'s terminals and files stopped");

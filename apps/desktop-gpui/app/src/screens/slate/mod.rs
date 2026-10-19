@@ -566,7 +566,7 @@ pub fn refusal(failure: &Failure) -> String {
 
 /// Whether a failure says no host was there to answer: a dial that reached nobody, or a socket that went, as wsp-mcp's
 /// record words those.
-fn offline(failure: &Failure) -> bool {
+pub(crate) fn offline(failure: &Failure) -> bool {
     static GONE: std::sync::OnceLock<Vec<Vec<String>>> = std::sync::OnceLock::new();
     let gone = GONE.get_or_init(|| {
         let words: Map<String, Value> =

@@ -9,6 +9,7 @@ use wsp_host_client::protocol::{ForwardsStopRequest, HostRestartRequest, Prefere
 
 use super::chrome::{self, ROW_RADIUS};
 use super::{looks, model, Asked, Sidebar};
+use crate::screens::notices::words::wait_line;
 use crate::ui::icons::LOCKUP;
 use crate::ui::{ActivePalette, Button, Glyph};
 
@@ -29,32 +30,6 @@ struct SetupCard {
     of: usize,
 }
 
-/// `SETUP_ROWS` in `settings/add/setup.ts`: the steps a setup's card counts, in their order.
-const ROWS: [&str; 9] = ["floor", "agents", "mcp", "clis", "skills", "plugins", "github", "folders", "configs"];
-
-/// `SETUP_STEP_WORDS` in `views/place.ts`.
-fn step_words(step: &str) -> &'static str {
-    match step {
-        "floor" => "the base tools",
-        "agents" => "the agents",
-        "signins" => "the agents' sign-ins",
-        "clis" => "the CLIs",
-        "skills" => "the skills",
-        "mcp" => "the agents' own files and MCP servers",
-        "plugins" => "the plugins",
-        "configs" => "git and the shell",
-        "folders" => "the folders, as projects",
-        "folderServers" => "the projects' own MCP servers",
-        "github" => "the GitHub sign-in",
-        _ => "what the agents read about this computer",
-    }
-}
-
-fn capitalised(s: &str) -> String {
-    let mut c = s.chars();
-    c.next().map_or_else(String::new, |f| f.to_uppercase().chain(c).collect())
-}
-
 /// The places with a setup the section shows (`settingUp`, off `placeWord`): failed, waiting on a sign-in, or
 /// running, each with its line and how many of its steps are done, the row "wsp installed" counted as one.
 fn setup_cards(places: &[Value]) -> Vec<SetupCard> {
@@ -67,36 +42,29 @@ fn setup_cards(places: &[Value]) -> Vec<SetupCard> {
             let wait = setup.get("waiting").and_then(Value::as_array).and_then(|w| w.first().cloned());
             let absent = place.get("present").and_then(Value::as_bool) == Some(false);
             let (tone, line) = if state == "failed" {
-                (Tone::Failed, setup.get("said").and_then(Value::as_str).map_or_else(|| "Setup failed".to_owned(), capitalised))
+                (Tone::Failed, setup.get("said").and_then(Value::as_str).map_or_else(|| "Setup failed".to_owned(), model::capitalised))
             } else if let Some(w) = wait {
-                let label = w.get("label").and_then(Value::as_str).unwrap_or_default();
-                let line = if w.get("state").and_then(Value::as_str) == Some("expired") {
-                    format!("{label}'s sign-in ran out; a retry asks for a fresh code")
-                } else {
-                    let url = w.get("url").and_then(Value::as_str).map(|u| format!(" at {u}")).unwrap_or_default();
-                    let code = w.get("code").and_then(Value::as_str).map(|c| format!(" with code {c}")).unwrap_or_default();
-                    format!("{label} waits on you to sign in{url}{code}")
-                };
-                (Tone::NeedsYou, capitalised(&line))
+                (Tone::NeedsYou, model::capitalised(&wait_line(&w)))
             } else if absent || state != "running" {
                 return None;
             } else {
                 let under = steps.iter().find(|s| s.get("state").and_then(Value::as_str) == Some("running"));
                 let word = under
                     .and_then(|s| s.get("step")?.as_str())
-                    .map_or_else(|| "setting up".to_owned(), |s| format!("setting up {}", step_words(s)));
-                (Tone::Working, capitalised(&word))
+                    .and_then(model::setup_step_words)
+                    .map_or_else(|| "setting up".to_owned(), |w| format!("setting up {w}"));
+                (Tone::Working, model::capitalised(&word))
             };
             // `setupRows`: "wsp installed", then a row for each of the setup's nine steps, listed or not yet.
-            let done = 1 + ROWS
+            let done = 1 + model::SETUP_ROWS
                 .iter()
-                .filter(|r| {
+                .filter(|(r, _)| {
                     steps.iter().any(|s| {
-                        s.get("step").and_then(Value::as_str) == Some(**r) && s.get("state").and_then(Value::as_str) == Some("done")
+                        s.get("step").and_then(Value::as_str) == Some(*r) && s.get("state").and_then(Value::as_str) == Some("done")
                     })
                 })
                 .count();
-            Some(SetupCard { place: place.clone(), tone, line, done, of: 1 + ROWS.len() })
+            Some(SetupCard { place: place.clone(), tone, line, done, of: 1 + model::SETUP_ROWS.len() })
         })
         .collect()
 }

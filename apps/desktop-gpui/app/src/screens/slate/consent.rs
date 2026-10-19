@@ -117,6 +117,8 @@ pub struct Consent {
     pub code: HashSet<String>,
     /// The sheet last drawn, so a new one starts clean and takes the keys.
     shown: Option<String>,
+    /// Whether a dialog stood when the sheet opened, so the sheet stands over the dialogs' layer.
+    over_dialog: bool,
     drew: bool,
     focus: Option<FocusHandle>,
 }
@@ -578,6 +580,7 @@ pub fn overlays(screen: &mut SlateScreen, window: &mut Window, cx: &mut Context<
     let key = opened.key();
     if screen.consent.shown.as_deref() != Some(key.as_str()) {
         screen.consent.shown = Some(key);
+        screen.consent.over_dialog = crate::screens::dialogs::layer::top(cx).is_some();
         screen.consent.answer = Answer::default();
         screen.consent.code.clear();
         if !matches!(opened, Open::Batch(_)) {
@@ -641,7 +644,9 @@ fn layer(screen: &SlateScreen, body: AnyElement, scrim_closes: bool, window: &mu
                 .child(div().on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()).child(body)),
         )
         .focus_trap("slate-sheet-trap", &focus);
-    deferred(anchored().position(point(px(0.), px(0.))).child(layer)).with_priority(3).into_any_element()
+    // The newer stands on top, as the web stacks its dialogs: over the dialogs' layer (4) only if one stood first.
+    let priority = if screen.consent.over_dialog { 5 } else { 3 };
+    deferred(anchored().position(point(px(0.), px(0.))).child(layer)).with_priority(priority).into_any_element()
 }
 
 fn act(
