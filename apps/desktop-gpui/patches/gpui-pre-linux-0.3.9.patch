@@ -1,0 +1,26 @@
+diff --git a/src/linux/x11/window.rs b/src/linux/x11/window.rs
+index f6ee76a..9b45c74 100644
+--- a/src/linux/x11/window.rs
++++ b/src/linux/x11/window.rs
+@@ -507,7 +507,7 @@ impl X11WindowState {
+             id
+         };
+ 
+-        let win_aux = xproto::CreateWindowAux::new()
++        let mut win_aux = xproto::CreateWindowAux::new()
+             // https://stackoverflow.com/questions/43218127/x11-xlib-xcb-creating-a-window-requires-border-pixel-if-specifying-colormap-wh
+             .border_pixel(visual_set.black_pixel)
+             .colormap(colormap)
+@@ -522,6 +522,12 @@ impl X11WindowState {
+                     | xproto::EventMask::VISIBILITY_CHANGE,
+             );
+ 
++        // The server paints this until the first frame, as Electron's backgroundColor #09090b; a popup stays clear.
++        if !matches!(params.kind, WindowKind::PopUp | WindowKind::AnchoredPopup(_)) {
++            let alpha = if visual.depth == 32 { 0xff00_0000 } else { 0 };
++            win_aux = win_aux.background_pixel(alpha | 0x0009_090b);
++        }
++
+         let mut bounds = params.bounds.to_device_pixels(scale_factor);
+         if bounds.size.width.0 == 0 || bounds.size.height.0 == 0 {
+             log::warn!(

@@ -18,6 +18,7 @@ publish = false
 gpui-pre = { path = "vendor/gpui-pre-0.3.9" }
 gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu-0.3.9" }
 gpui-pre-apple = { path = "vendor/gpui-pre-apple-0.3.9" }
+gpui-pre-linux = { path = "vendor/gpui-pre-linux-0.3.9" }
 
 # gpui-kit at the commit app/Cargo.toml pins, every crate of it the app builds, so no two copies meet.
 [patch."https://github.com/longbridge/gpui-kit"]
@@ -26,3 +27,7 @@ gpui-base = { path = "vendor/gpui-kit-14f5933/crates/base" }
 gpui-component = { path = "vendor/gpui-kit-14f5933/crates/component" }
 gpui-component-macros = { path = "vendor/gpui-kit-14f5933/crates/component-macros" }
 gpui-kit-assets = { path = "vendor/gpui-kit-14f5933/crates/assets" }
+
+# Full debug info made the test target 106 GB, about 58 binaries of 1.3 GB each; line tables keep backtraces.
+[profile.dev]
+debug = "line-tables-only"

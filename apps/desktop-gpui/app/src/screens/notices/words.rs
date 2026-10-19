@@ -261,6 +261,33 @@ fn proc_name(p: &Value) -> String {
     folder_name(bin).to_owned()
 }
 
+/// `GET_THE_APP_WORD`: the word on the version notice's one button, which opens the releases page.
+pub const GET_THE_APP: &str = "Get";
+/// `RELEASES` (`packages/protocol/src/bundles.mjs`).
+pub const RELEASES: &str = "https://github.com/wsp-labs/wsp/releases";
+
+/// `ShellVersionNotice`: the one line, and whether it points at a newer app to get.
+#[derive(Debug, PartialEq)]
+pub struct VersionNotice {
+    pub line: String,
+    pub update: bool,
+}
+
+/// `shellVersionNotice`: an app and the host it attached to of two releases, the older half named with what to do about
+/// it, and nothing while the two agree. An app with no release is older than any host that reads this.
+pub fn version_notice(app: Option<&str>, host: &str, label: Option<&str>) -> Option<VersionNotice> {
+    let named = label.map_or_else(|| "the host".to_owned(), |label| format!("the host {label}"));
+    let Some(app) = app else {
+        return Some(VersionNotice { line: format!("this app is older than {named}, which is {host}: get the new app"), update: true });
+    };
+    let both = format!("this app is {app}, {named} is {host}");
+    match wsp_host_client::release_order(app, host) {
+        std::cmp::Ordering::Equal => None,
+        std::cmp::Ordering::Less => Some(VersionNotice { line: format!("{both}: get the new app"), update: true }),
+        std::cmp::Ordering::Greater => Some(VersionNotice { line: format!("{both}: run the app's own host"), update: false }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,5 +327,72 @@ mod tests {
     fn plan_alerts_name_the_window() {
         assert_eq!(plan_alert("Max", &json!({ "kind": "low", "window": "week_opus", "step": 90 })), "Max has used 90% of its Opus week");
         assert_eq!(plan_alert("Max", &json!({ "kind": "blocked" })), "Max reached its plan limit");
+    }
+
+    fn notice(line: &str, update: bool) -> Option<VersionNotice> {
+        Some(VersionNotice { line: line.to_owned(), update })
+    }
+
+    #[test]
+    fn says_nothing_while_the_app_and_host_are_one_release() {
+        assert_eq!(version_notice(Some("0.1.5"), "0.1.5", None), None);
+    }
+
+    #[test]
+    fn names_both_numbers_and_points_at_the_new_app_when_the_app_is_the_older_half() {
+        assert_eq!(version_notice(Some("0.1.3"), "0.1.5", None), notice("this app is 0.1.3, the host is 0.1.5: get the new app", true));
+    }
+
+    #[test]
+    fn names_both_numbers_and_asks_for_the_apps_own_host_when_the_host_is_the_older_half() {
+        assert_eq!(
+            version_notice(Some("0.1.5"), "0.1.3", None),
+            notice("this app is 0.1.5, the host is 0.1.3: run the app's own host", false)
+        );
+    }
+
+    #[test]
+    fn reads_an_app_with_no_release_as_older_than_the_host() {
+        assert_eq!(version_notice(None, "0.1.5", None), notice("this app is older than the host, which is 0.1.5: get the new app", true));
+    }
+
+    #[test]
+    fn names_a_host_elsewhere_by_its_alias() {
+        assert_eq!(
+            version_notice(Some("0.1.3"), "0.1.5", Some("studio")),
+            notice("this app is 0.1.3, the host studio is 0.1.5: get the new app", true)
+        );
+        assert_eq!(
+            version_notice(None, "0.1.5", Some("studio")),
+            notice("this app is older than the host studio, which is 0.1.5: get the new app", true)
+        );
+    }
+
+    #[test]
+    fn reads_the_numbers_as_numbers() {
+        assert_eq!(version_notice(Some("0.1.10"), "0.1.9", None).map(|n| n.update), Some(false));
+        assert_eq!(version_notice(Some("0.1.9"), "0.1.10", None).map(|n| n.update), Some(true));
+    }
+
+    #[test]
+    fn puts_a_prerelease_before_its_release_and_a_shorter_number_before_a_longer_one_that_grows() {
+        assert_eq!(version_notice(Some("1.0.0-rc.1"), "1.0.0", None).map(|n| n.update), Some(true));
+        assert_eq!(version_notice(Some("1.0.0"), "1.0.0-rc.1", None).map(|n| n.update), Some(false));
+        assert_eq!(version_notice(Some("0.2"), "0.2.1", None).map(|n| n.update), Some(true));
+        assert_eq!(version_notice(Some("0.2"), "0.2.0", None), None);
+    }
+
+    #[test]
+    fn tells_two_prereleases_of_one_release_apart() {
+        assert_eq!(
+            version_notice(Some("0.1.6-alpha"), "0.1.6-beta", None),
+            notice("this app is 0.1.6-alpha, the host is 0.1.6-beta: get the new app", true)
+        );
+        assert_eq!(version_notice(Some("0.1.6-beta"), "0.1.6-alpha", None).map(|n| n.update), Some(false));
+        assert_eq!(version_notice(Some("0.1.6-rc1"), "0.1.6-rc2", None).map(|n| n.update), Some(true));
+        assert_eq!(version_notice(Some("0.1.6-rc2"), "0.1.6-rc1", None).map(|n| n.update), Some(false));
+        assert_eq!(version_notice(Some("0.1.6-rc1"), "0.1.6", None).map(|n| n.update), Some(true));
+        assert_eq!(version_notice(Some("0.1.6-rc.2"), "0.1.6-rc.10", None).map(|n| n.update), Some(true));
+        assert_eq!(version_notice(Some("0.1.6+a1b2c3d"), "0.1.6+9f8e7d6", None), None);
     }
 }

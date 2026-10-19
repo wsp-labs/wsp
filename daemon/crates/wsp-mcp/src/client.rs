@@ -30,7 +30,7 @@ use wsp_seal::Seal;
 
 use crate::failure::Failure;
 use crate::record::{self, fill};
-use crate::release::{self, ReleaseHost};
+use crate::release::{self, ReleaseHost, ReleaseRule};
 
 type Waiting = HashMap<u64, oneshot::Sender<Result<String, Failure>>>;
 
@@ -73,6 +73,8 @@ pub struct Client {
     next: AtomicU64,
     subscribed: tokio::sync::OnceCell<Result<(), Failure>>,
     tasks: [JoinHandle<()>; 2],
+    /// The release the host named on the answer that let this socket in, where it named one.
+    release: Option<String>,
 }
 
 /// The frames the host pushes from the moment this was opened, held until read: a reply that names what to follow
@@ -162,8 +164,10 @@ pub struct Dial<'a> {
     pub window: Duration,
     pub pinned: Option<&'a str>,
     pub alias: Option<&'a str>,
-    /// The host a release refusal names, where this line holds the host to its own release.
+    /// The host a release refusal names, where this line holds the host to a release.
     pub release: Option<&'a ReleaseHost>,
+    /// Which releases the line goes on with.
+    pub rule: ReleaseRule,
 }
 
 /// The host's answer to seal.open: the key it proves, its nonce, its half of the agreement and its signature.
@@ -186,7 +190,7 @@ pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Opti
             failure: Failure::of_kind(fill(&words.no_answer, &[("where", at), ("why", &e.to_string())]), "unreachable"),
             token: false,
         })?;
-        let client = Client::over(ws);
+        let mut client = Client::over(ws);
         // Before the token or the key: a host on this computer is reached over its own loopback and pins nothing.
         let expect = match to.pinned {
             Some(pinned) => Some(client.open_seal(pinned).await.ok_or_else(not_proved)?),
@@ -228,10 +232,11 @@ pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Opti
             Ok((paired, released)) => {
                 // A host that names no release is one from before the answer carried it, and is not judged.
                 if let (Some(host), Some(theirs)) = (to.release, released.version.as_deref()) {
-                    if let Some(failure) = release::refusal(theirs, released.road.as_deref(), host) {
+                    if let Some(failure) = release::refusal(theirs, released.road.as_deref(), host, to.rule) {
                         return Err(Refused { failure, token: false });
                     }
                 }
+                client.release = released.version;
                 Ok((client, paired))
             }
             // The host's one sentence for every code it will not spend is the whole answer: there is no token to pair again for.
@@ -305,7 +310,7 @@ impl Client {
             }
             reading.went(code);
         });
-        Client { send, shared, next: AtomicU64::new(1), subscribed: tokio::sync::OnceCell::new(), tasks: [writer, reader] }
+        Client { send, shared, next: AtomicU64::new(1), subscribed: tokio::sync::OnceCell::new(), tasks: [writer, reader], release: None }
     }
 
     /// Every frame that answers no request from now on.
@@ -408,6 +413,11 @@ impl Client {
         *self.shared.seal.lock().unwrap() = Some(Seal::place(&wsp_seal::seal_keys(&secret, word)));
         let answered = LinkEphemerals { challenger: opened.ephemeral.as_str(), answerer: mine.as_str() };
         Some(place_link_transcript(LinkRole::Place, word, opened.nonce.as_str(), nonce.as_str(), answered))
+    }
+
+    /// The release the host named on the answer that let this socket in; none from a host before the answer carried one.
+    pub fn release(&self) -> Option<&str> {
+        self.release.as_deref()
     }
 
     pub fn is_closed(&self) -> bool {
