@@ -129,6 +129,11 @@ pub mod text {
     pub const XS: (Pixels, Pixels) = (px(12.), px(16.));
     pub const DIALOG_TITLE: (Pixels, Pixels) = (px(15.), px(20.));
 
+    /// CSS's `tabular-nums`, for `.font_features(..)`.
+    pub fn tabular() -> gpui_kit::FontFeatures {
+        gpui_kit::FontFeatures(std::sync::Arc::new(vec![("tnum".into(), 1)]))
+    }
+
     /// A line's width to the fraction, as the web lays text out; a text box rounds it up, and a row of them drifts.
     pub fn width(text: &str, size: f32, family: SharedString, window: &Window) -> Pixels {
         let run = TextRun {
@@ -147,5 +152,6 @@ pub mod text {
 pub fn init(side: Side, cx: &mut App) {
     theme::init(side, cx);
     toast::init(cx);
+    context_menu::init(cx);
     syntax::init();
 }

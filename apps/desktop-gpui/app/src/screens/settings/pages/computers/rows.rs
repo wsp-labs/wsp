@@ -223,7 +223,13 @@ fn dollars_field(ctx: &Ctx, place: &PlaceView, value: f64, window: &mut Window, 
         .border_color(p.input)
         .bg(p.input_fill)
         .child(div().flex_none().pl(px(11.)).text_size(text::FACT.0).text_color(p.muted_foreground).child("$"))
-        .child(div().flex_1().min_w_0().px(px(4.)).child(Input::new(&input).appearance(false).text_size(text::FACT.0).h(px(28.)).w_full()))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .px(px(4.))
+                .child(Input::new(&input).appearance(false).text_size(text::FACT.0).font_features(text::tabular()).h(px(28.)).w_full()),
+        )
 }
 
 fn words_dollars(usd: f64) -> String {

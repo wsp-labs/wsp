@@ -195,6 +195,8 @@ pub enum Read {
     SshInclude(Result<bool, String>),
     /// None from a host older than the answer that names it.
     Version(Option<String>),
+    /// `productUsageOff` off the boot line of the host's page.
+    UsageOff(Option<String>),
     Elsewhere(bool),
     Workspaces(Result<Vec<WorkspaceOut>, String>),
     Sessions(Result<Vec<SessionView>, String>),
@@ -262,6 +264,7 @@ impl Data {
             Read::Editors(Ok(e)) => self.editors = Some(e),
             Read::SshInclude(Ok(s)) => self.ssh_include = Some(s),
             Read::Version(v) => self.host_version = v,
+            Read::UsageOff(off) => self.product_usage_off = off,
             Read::Elsewhere(e) => self.host_elsewhere = e,
             Read::Workspaces(read) => self.standing.took_workspaces(read),
             Read::Sessions(read) => self.standing.took_sessions(read),

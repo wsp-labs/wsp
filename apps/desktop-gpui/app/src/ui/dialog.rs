@@ -690,3 +690,94 @@ pub fn tooltip_view<E: IntoElement>(content: impl Fn(&mut App) -> E + 'static, w
         .shadow(p.tooltip_shadow.clone())
         .build(window, cx)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use gpui_kit::{
+        div, point, prelude::*, px, size, Bounds, Context, Modifiers, Pixels, TestAppContext, TooltipSide, VisualTestContext, Window,
+    };
+
+    use crate::ui::{self, Button, Glyph, Side};
+
+    /// The usage head's refresh, where the test puts it, its tooltip on `side`.
+    struct Refresh(gpui_kit::Point<Pixels>, TooltipSide);
+
+    impl Render for Refresh {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            let button = Button::icon_xs("refresh", Glyph::RefreshCw).tooltip("Read usage and limits again").tooltip_side(self.1);
+            div().size_full().child(div().absolute().left(self.0.x).top(self.0.y).child(button))
+        }
+    }
+
+    /// The button at `at` in a 400 by 300 window, hovered until its tooltip shows: the button's box and the tooltip's
+    /// words' box.
+    fn hovered(at: gpui_kit::Point<Pixels>, side: TooltipSide, cx: &mut TestAppContext) -> (Bounds<Pixels>, Bounds<Pixels>) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Light, cx);
+        });
+        let (_, cx): (_, &mut VisualTestContext) = cx.add_window_view(|_, _| Refresh(at, side));
+        cx.simulate_resize(size(px(400.), px(300.)));
+        cx.run_until_parked();
+        let button = cx.debug_bounds("button").expect("the button is drawn");
+        cx.simulate_mouse_move(button.center(), None, Modifiers::none());
+        for _ in 0..2 {
+            cx.run_until_parked();
+            cx.executor().advance_clock(Duration::from_millis(600));
+            cx.update(|window, cx| window.simulate_next_frame(cx));
+        }
+        cx.run_until_parked();
+        (button, cx.debug_bounds("tooltip").expect("the tooltip shows"))
+    }
+
+    /// The words stand inside the tooltip's 1 px edge and its 4 px padding above and below, so 5 px in from its top and
+    /// bottom, and inside its 8 px sides, 9 px in from its left and right.
+    const INSET: Pixels = px(5.);
+    const SIDE_INSET: Pixels = px(9.);
+
+    fn centred_across(button: Bounds<Pixels>, tip: Bounds<Pixels>) {
+        assert!((tip.center().x - button.center().x).abs() <= px(0.5), "centred on the button: {button:?} {tip:?}");
+    }
+
+    /// `TooltipPopup`'s defaults, `side="top"` and `sideOffset` 4: centred over the button, 4 px above it.
+    #[gpui_kit::test]
+    fn a_tooltip_opens_centred_above_its_button(cx: &mut TestAppContext) {
+        let (button, tip) = hovered(point(px(188.), px(140.)), TooltipSide::Top, cx);
+        centred_across(button, tip);
+        assert_eq!(tip.bottom() + INSET, button.top() - px(4.), "4 px above the button: {button:?} {tip:?}");
+    }
+
+    /// The usage head's refresh says `side="bottom"`: centred under the button, 4 px below it.
+    #[gpui_kit::test]
+    fn the_refresh_tooltip_opens_centred_below_its_button(cx: &mut TestAppContext) {
+        let (button, tip) = hovered(point(px(188.), px(40.)), TooltipSide::Bottom, cx);
+        centred_across(button, tip);
+        assert_eq!(tip.top() - INSET, button.bottom() + px(4.), "4 px below the button: {button:?} {tip:?}");
+    }
+
+    /// The right press menu's refusal says `side="right"`: centred down the button's side, 4 px right of it.
+    #[gpui_kit::test]
+    fn a_tooltip_on_the_right_opens_beside_its_button(cx: &mut TestAppContext) {
+        let (button, tip) = hovered(point(px(40.), px(140.)), TooltipSide::Right, cx);
+        assert!((tip.center().y - button.center().y).abs() <= px(0.5), "centred down the button: {button:?} {tip:?}");
+        assert_eq!(tip.left() - SIDE_INSET, button.right() + px(4.), "4 px right of the button: {button:?} {tip:?}");
+    }
+
+    /// Against the window's right edge it shifts left to stand 5 px inside, still above the button.
+    #[gpui_kit::test]
+    fn the_tooltip_by_the_right_edge_stays_inside_the_window(cx: &mut TestAppContext) {
+        let (button, tip) = hovered(point(px(376.), px(140.)), TooltipSide::Top, cx);
+        assert_eq!(tip.right(), px(395.) - SIDE_INSET, "5 px inside the window, past the tooltip's 8 px side and edge: {tip:?}");
+        assert_eq!(tip.bottom() + INSET, button.top() - px(4.), "still above the button: {button:?} {tip:?}");
+    }
+
+    /// With no room above, it opens below the button, as the positioner flips a side that collides.
+    #[gpui_kit::test]
+    fn the_tooltip_with_no_room_above_opens_below(cx: &mut TestAppContext) {
+        let (button, tip) = hovered(point(px(188.), px(8.)), TooltipSide::Top, cx);
+        assert_eq!(tip.top() - INSET, button.bottom() + px(4.), "below the button: {button:?} {tip:?}");
+        centred_across(button, tip);
+    }
+}

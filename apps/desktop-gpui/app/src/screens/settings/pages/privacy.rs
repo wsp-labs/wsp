@@ -83,7 +83,7 @@ pub fn cards(ctx: &Ctx, _window: &mut Window, _cx: &mut App) -> Vec<CardData> {
                 return reset_to(row.control(field_switch(ctx, &p, "product-usage", "productUsage")), ctx, &p, "productUsage", on.clone());
             };
             let switch = Switch::new("product-usage", false).held(true);
-            row.control(div().id("product-usage-held").tooltip(tip(reason)).child(switch))
+            row.control(div().id("product-usage-held").debug_selector(|| "product-usage-held".into()).tooltip(tip(reason)).child(switch))
         }),
     ])]
 }

@@ -480,6 +480,7 @@ pub fn num(value: impl Into<SharedString>, cx: &App) -> impl IntoElement {
         .text_right()
         .text_size(text::VALUE.0)
         .text_color(cx.palette().foreground)
+        .font_features(text::tabular())
         .child(value.into())
 }
 
@@ -522,6 +523,7 @@ impl RenderOnce for StateCell {
             .text_size(text::FACT.0)
             .line_height(px(20.))
             .text_color(cx.palette().muted_foreground)
+            .font_features(text::tabular())
             .when_some(self.why, |el, why| el.tooltip(tip(why)))
             .children(self.content)
     }

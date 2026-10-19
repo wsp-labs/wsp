@@ -77,12 +77,27 @@ impl Read {
     }
 }
 
-/// How a sign-in goes where it was pressed (`SignInStart`).
+/// How a sign-in goes where it was pressed (`SignInStart`); `terminal` runs it in a pty there that a terminal drawn in
+/// place attaches to.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Start {
-    Run { agent: String, server: Option<(String, String, Option<String>)>, finish: Option<&'static str>, pastes: bool, cloud: bool },
-    Vault { agent: String, mint: Option<String>, word: &'static str },
-    Copy { line: String, why: Option<String> },
+    Run {
+        agent: String,
+        server: Option<(String, String, Option<String>)>,
+        finish: Option<&'static str>,
+        pastes: bool,
+        cloud: bool,
+        terminal: bool,
+    },
+    Vault {
+        agent: String,
+        mint: Option<String>,
+        word: &'static str,
+    },
+    Copy {
+        line: String,
+        why: Option<String>,
+    },
 }
 
 /// A sign-in as its row draws it while it stands (`SignInFlow`).
@@ -97,7 +112,8 @@ pub enum Flow {
         code: Option<String>,
         paste: bool,
         said: Option<String>,
-        pty: bool,
+        /// The shell on the row's computer the login runs in, which its terminal drawn in place attaches to.
+        pty: Option<String>,
     },
     Vault {
         agent: String,
@@ -114,7 +130,7 @@ pub enum Flow {
 
 impl Flow {
     fn running(id: Option<String>) -> Flow {
-        Flow::Run { id, state: "running".into(), finish: None, pastes: false, url: None, code: None, paste: false, said: None, pty: false }
+        Flow::Run { id, state: "running".into(), finish: None, pastes: false, url: None, code: None, paste: false, said: None, pty: None }
     }
 
     /// Whether a watched sign-in is still going, so its act is Cancel.
@@ -713,7 +729,7 @@ impl Store {
                 code: step.code,
                 paste: step.paste.unwrap_or(paste),
                 said: step.said,
-                pty: step.pty_id.is_some() || (pty && !failed),
+                pty: step.pty_id.or(pty.filter(|_| !failed)),
             },
         );
     }
@@ -729,7 +745,7 @@ impl Store {
                 self.stop(&key, cx);
                 self.flows.insert(key, Flow::Vault { agent, mint, word, saving: false, refused: None });
             }
-            Start::Run { agent, server, finish, pastes, cloud } => {
+            Start::Run { agent, server, finish, pastes, cloud, terminal } => {
                 self.stop(&key, cx);
                 let mut flow = Flow::running(None);
                 if let Flow::Run { finish: f, pastes: p, .. } = &mut flow {
@@ -778,7 +794,11 @@ impl Store {
                     }
                     self.call(req::<ServersSignInRequest>(params), cx, started);
                 } else {
-                    self.call(req::<AgentsSignInRequest>(json!({ "target": target(place), "agent": agent })), cx, started);
+                    let mut params = json!({ "target": target(place), "agent": agent });
+                    if terminal {
+                        params["terminal"] = json!(true);
+                    }
+                    self.call(req::<AgentsSignInRequest>(params), cx, started);
                 }
             }
         }
@@ -928,7 +948,7 @@ mod tests {
         store.update(cx, |s, cx| {
             s.hear(step("other-window"), cx);
             assert!(s.early.is_empty(), "nothing pressed here waits for a run's answer");
-            let start = Start::Run { agent: "claude".into(), server: None, finish: None, pastes: false, cloud: false };
+            let start = Start::Run { agent: "claude".into(), server: None, finish: None, pastes: false, cloud: false, terminal: false };
             s.start("here", &agent_row("claude"), start, cx);
             s.hear(step("mine"), cx);
             assert_eq!(s.early.len(), 1, "a press waits for its answer, so a step that came first is kept for it");
@@ -995,10 +1015,13 @@ mod tests {
         let store = store_on(&door, cx);
         let server = Some(("notion".to_owned(), "user".to_owned(), None));
         let rows = [
-            (agent_row("claude"), Start::Run { agent: "claude".into(), server: None, finish: None, pastes: false, cloud: false }),
+            (
+                agent_row("claude"),
+                Start::Run { agent: "claude".into(), server: None, finish: None, pastes: false, cloud: false, terminal: false },
+            ),
             (
                 server_row("claude", "user", None, "notion"),
-                Start::Run { agent: "claude".into(), server, finish: None, pastes: false, cloud: false },
+                Start::Run { agent: "claude".into(), server, finish: None, pastes: false, cloud: false, terminal: false },
             ),
         ];
         store.update(cx, |s, cx| {

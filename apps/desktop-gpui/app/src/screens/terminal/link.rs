@@ -24,11 +24,13 @@ use crate::screens::Host;
 
 pub mod run;
 
-/// Whose daemon a channel opens: a workspace's, or this computer's own (`placeId: "here"`).
+/// Whose daemon a channel opens: a workspace's, this computer's own (`placeId: "here"`), or a computer's the person
+/// added, by its place.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Target {
     Workspace(String),
     Here,
+    Place(String),
 }
 
 /// How the channel stands, by the web client's words (`daemon-link.ts`).
@@ -394,6 +396,13 @@ impl Link {
         LinkHold(self.holds.clone())
     }
 
+    /// Lets the channel go now where nothing holds it any more, as today's sign-in terminal closes its own link.
+    pub fn let_go_unheld(&mut self, cx: &mut Context<Self>) {
+        if self.holds.get() == 0 {
+            self.park(cx);
+        }
+    }
+
     fn park_when_unheld(&mut self, cx: &mut Context<Self>) {
         if self.holds.get() > 0 {
             self.unheld_since = None;
@@ -629,6 +638,7 @@ impl Link {
         match &self.target {
             Target::Workspace(id) => json!({ "workspaceId": id }),
             Target::Here => json!({ "placeId": "here" }),
+            Target::Place(id) => json!({ "placeId": id }),
         }
     }
 

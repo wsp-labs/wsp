@@ -134,6 +134,7 @@ pub fn section_head(id: SharedString, word: &str, count: usize, folded: bool, cx
         .line_height(px(16.))
         .font_weight(FontWeight::NORMAL)
         .text_color(p.sidebar_muted_foreground)
+        .font_features(crate::ui::text::tabular())
         .cursor_pointer()
         .hover(move |s| s.text_color(hover_ink))
         .child(SharedString::from(format!("{word} ({count})")))

@@ -31,7 +31,7 @@ fn plan_lines(place: &PlaceView) -> Option<AnyElement> {
         v_flex()
             .child(div().child(plan))
             .children(limit_note(place).map(|n| div().child(n)))
-            .children(starts_today_line(place).map(|s| div().child(s)))
+            .children(starts_today_line(place).map(|s| div().font_features(crate::ui::text::tabular()).child(s)))
             .into_any_element(),
     )
 }

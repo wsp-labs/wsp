@@ -8,7 +8,10 @@
 //! (`--force-device-scale-factor`): under emulated scale, as Playwright's `deviceScaleFactor` sets it, Blink rounds font
 //! metrics in CSS pixels and puts text up to a device pixel elsewhere. `TEXT_REFERENCE=<folder>` reads `<os>.png` and
 //! `<os>.json` from there instead of text/chromium/, and `TEXT_OUT=<folder>` keeps the capture and the table. Without
-//! libtest's harness, as `pixels.rs` explains.
+//! libtest's harness, as `pixels.rs` explains. The checks in text/shaping.rs run before the comparison and need no reference.
+
+#[path = "text/shaping.rs"]
+mod shaping;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -249,6 +252,17 @@ fn main() {
             (sans, mono, widths)
         })
         .unwrap();
+    // After the capture: the tabular check loads a face the sans stack would otherwise pick.
+    let mut shaped_off = Vec::new();
+    for (name, result) in cx.update_window(handle, |_, window, cx| shaping::checks(window, cx)).unwrap() {
+        match result {
+            Ok(()) => println!("test {name} ... ok"),
+            Err(why) => {
+                println!("test {name} ... FAILED: {why}");
+                shaped_off.push(name);
+            }
+        }
+    }
     let out = out_dir();
     std::fs::create_dir_all(&out).unwrap();
     shot.save(out.join(format!("gpui-{OS}.png"))).unwrap();
@@ -323,6 +337,7 @@ fn main() {
     println!("{table}");
     std::fs::write(out.join(format!("table-{OS}.txt")), format!("{table}\n")).unwrap();
     println!("capture and table in {}", out.display());
+    assert!(shaped_off.is_empty(), "failed: {shaped_off:?}");
     assert!(failed.is_empty(), "off chrome's text: {failed:?}");
     println!("test text_lands_where_chromium_draws_it ... ok");
 }

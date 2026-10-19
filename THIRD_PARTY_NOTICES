@@ -621,3 +621,14 @@ here are included or relied upon under their own licenses, reproduced below.
    in apps/desktop-gpui/vendor, which git does not track. Each patch names
    the files wsp changed and how. Copyright 2024 - 2026 Longbridge
    <https://longbridge.com>. Apache License 2.0; the text is under item 5.
+
+------------------------------------------------------------------------
+
+17. Inter (SIL OFL 1.1), The Inter Project Authors
+
+   apps/desktop-gpui/app/tests/text/InterFigures-Regular.ttf is a subset of
+   Inter 3.019 (https://github.com/rsms/inter) holding the digits 0 to 9,
+   the letter m and the tnum feature, renamed Inter Figures because it is
+   modified, for a test of tabular figures. Copyright 2020 The Inter Project
+   Authors. SIL Open Font License 1.1, whose text sits beside it in
+   InterFigures-OFL.txt.

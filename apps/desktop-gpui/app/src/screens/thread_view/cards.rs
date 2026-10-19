@@ -3920,8 +3920,8 @@ mod tests {
             return;
         }
         assert!(view.read_with(cx, |v, _| v.row_menu.is_open()), "a right-click opened no menu");
-        // Send a message is held, so the second row, Settle thread, takes the pick.
-        cx.simulate_keystrokes("down down enter");
+        // The menu opens on Send a message, its first row; one Down lights Settle thread.
+        cx.simulate_keystrokes("down enter");
         cx.run_until_parked();
         assert_eq!(ran(), ["settle th2"]);
         assert!(routed_after_clear().is_empty(), "the right-click opened the thread");

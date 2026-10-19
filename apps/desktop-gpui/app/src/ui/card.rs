@@ -429,6 +429,7 @@ pub fn word(words: impl Into<Words>, class: WordClass, cx: &App) -> gpui_kit::Di
         .text_size(size.0)
         .line_height(size.1)
         .text_color(color)
+        .font_features(text::tabular())
         .child(spaced(words.into(), false))
 }
 
@@ -667,6 +668,7 @@ impl RenderOnce for Row {
                 .text_size(text::FACT.0)
                 .line_height(line)
                 .text_color(p.muted_foreground)
+                .when(!as_word, |el| el.font_features(text::tabular()))
                 .child(mark)
         });
         let reset = self.reset.map(|reset| {
@@ -820,6 +822,7 @@ impl RenderOnce for HeadRow {
                     .line_height(text::LIST_TITLE.1)
                     .text_size(text::FACT.0)
                     .text_color(p.muted_foreground)
+                    .font_features(text::tabular())
                     .child(mark)
             }));
         let words = v_flex().min_w_0().gap(px(2.)).child(name).children(self.line.map(|line| {

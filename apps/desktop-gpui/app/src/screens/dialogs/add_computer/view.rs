@@ -42,7 +42,13 @@ fn size_cell(bytes: Option<u64>, cx: &App) -> Option<AnyElement> {
 }
 
 fn fact(words: impl Into<SharedString>, cx: &App) -> AnyElement {
-    div().text_size(text::FACT.0).line_height(text::FACT.1).text_color(cx.palette().muted_foreground).child(words.into()).into_any_element()
+    div()
+        .text_size(text::FACT.0)
+        .line_height(text::FACT.1)
+        .text_color(cx.palette().muted_foreground)
+        .font_features(text::tabular())
+        .child(words.into())
+        .into_any_element()
 }
 
 fn list<'a>(v: &'a Value, key: &str) -> &'a [Value] {
@@ -882,6 +888,7 @@ impl AddComputer {
                     .text_size(text::FACT.0)
                     .line_height(text::FACT.1)
                     .text_color(if short { p.error_foreground } else { p.muted_foreground })
+                    .font_features(text::tabular())
                     .child(said),
             );
             if let Some(n) = estimate.as_ref().and_then(|e| e.get("unmeasured")).and_then(Value::as_u64).filter(|n| *n > 0) {

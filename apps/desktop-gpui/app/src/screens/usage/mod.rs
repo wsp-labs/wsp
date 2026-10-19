@@ -453,6 +453,7 @@ impl UsagePage {
                         .busy(self.reading())
                         .track_focus(&self.refresh)
                         .tooltip(words::READ_AGAIN)
+                        .tooltip_side(gpui_kit::TooltipSide::Bottom)
                         .on_click(move |_, _, cx| again.update(cx, |page, cx| page.read_again(cx))),
                 ),
             )
