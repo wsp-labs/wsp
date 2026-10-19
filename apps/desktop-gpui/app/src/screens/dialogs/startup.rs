@@ -21,9 +21,11 @@ use gpui_kit::{
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
 use wsp_host_client::protocol::{AgentsAddToolsRequest, AgentsReadRequest, GoldenGetRequest, WorkspacesListRequest};
+use wsp_host_client::start::{self, Failed, Start, System};
 use wsp_host_client::{Env, Failure, HostClient};
 
 use super::{onboarding, starting};
+use crate::desktop::switch;
 use crate::screens::Host;
 use crate::TITLE;
 
@@ -43,7 +45,11 @@ pub fn opening(cx: &App) -> bool {
 
 /// What a failed launch's box is titled, as `main.ts` names the launch's.
 pub const START_FAILED: &str = "wsp could not start";
+/// What the box is titled for an open after the launch's: the Dock, or a second launch with no window standing.
+pub const OPEN_FAILED: &str = "wsp could not open";
 pub const OPEN_LOG: &str = "Open log";
+/// The way back, offered first while the switch is on, so today's app sets wsp up and starts it.
+pub const OPEN_CURRENT: &str = "Open the current wsp app";
 pub const QUIT: &str = "Quit";
 
 const LOCK_FILE: &str = "desktop-gpui.lock";
@@ -69,6 +75,7 @@ pub fn home_of(state: &Path) -> PathBuf {
 /// One app per home: held while the app runs, the lock file's own lock released by the OS when the holder ends.
 pub struct Lock {
     raised: Option<mpsc::UnboundedReceiver<()>>,
+    links: Option<mpsc::UnboundedReceiver<String>>,
     listener: Option<Listener>,
     socket: PathBuf,
     _file: File,
@@ -88,19 +95,27 @@ pub enum Claim {
 /// Takes the home's lock, or asks the app holding it to come forward (`app.requestSingleInstanceLock` and
 /// `second-instance`).
 pub fn claim(home: &Path) -> io::Result<Claim> {
+    claim_with(home, None)
+}
+
+/// [`claim`] for a launch that carries a wsp:// link, which the app holding the home opens in place of a raise.
+pub fn claim_with(home: &Path, link: Option<&str>) -> io::Result<Claim> {
     make_home(home)?;
     let file = OpenOptions::new().create(true).truncate(false).write(true).open(home.join(LOCK_FILE))?;
     match file.try_lock() {
         Ok(()) => {}
         Err(std::fs::TryLockError::WouldBlock) => {
-            raise(home);
+            raise(home, link);
             return Ok(Claim::Taken);
         }
         Err(std::fs::TryLockError::Error(e)) => return Err(e),
     }
     let socket = home.join(RAISE_SOCKET);
-    let (raised, listener) = listen(&socket).unzip();
-    Ok(Claim::Held(Lock { raised, listener, socket, _file: file }))
+    let (raised, links, listener) = match listen(&socket) {
+        Some((raised, links, listener)) => (Some(raised), Some(links), Some(listener)),
+        None => (None, None, None),
+    };
+    Ok(Claim::Held(Lock { raised, links, listener, socket, _file: file }))
 }
 
 /// The home at the person's own mode, as wsp makes it.
@@ -120,6 +135,11 @@ impl Lock {
     pub fn raised(&mut self) -> Option<mpsc::UnboundedReceiver<()>> {
         self.raised.take()
     }
+
+    /// Each later launch on this home that carried a link, with the link as it came.
+    pub fn links(&mut self) -> Option<mpsc::UnboundedReceiver<String>> {
+        self.links.take()
+    }
 }
 
 impl Drop for Lock {
@@ -127,47 +147,73 @@ impl Drop for Lock {
         if let Some(Listener { stop }) = self.listener.take() {
             stop.store(true, Ordering::SeqCst);
             // The thread wakes on this knock, finds the flag set and ends, closing the channel and the socket.
-            raise(self.socket.parent().unwrap_or(Path::new(".")));
+            raise(self.socket.parent().unwrap_or(Path::new(".")), None);
         }
         _ = std::fs::remove_file(&self.socket);
     }
 }
 
+/// The longest line a knock may carry, and how long the listener waits for it.
+const KNOCK_MAX: u64 = 4096;
+const KNOCK_WAIT: Duration = Duration::from_millis(500);
+
+/// The bare knocks and the links a listener hears, and the flag that ends it.
+type Knocks = (mpsc::UnboundedReceiver<()>, mpsc::UnboundedReceiver<String>, Listener);
+
 #[cfg(unix)]
-fn listen(socket: &Path) -> Option<(mpsc::UnboundedReceiver<()>, Listener)> {
+fn listen(socket: &Path) -> Option<Knocks> {
+    use std::io::{BufRead as _, BufReader, Read as _};
     use std::os::unix::net::UnixListener;
     // The holder of the lock owns the socket's name; a socket left by a holder that died is gone with it.
     _ = std::fs::remove_file(socket);
     let listener = UnixListener::bind(socket).ok()?;
-    let (tx, rx) = mpsc::unbounded();
+    let (raise_tx, raise_rx) = mpsc::unbounded();
+    let (link_tx, link_rx) = mpsc::unbounded();
     let stop = Arc::new(AtomicBool::new(false));
     let stopped = stop.clone();
     std::thread::Builder::new()
         .name("wsp-raise".into())
         .spawn(move || {
             for knock in listener.incoming() {
-                if stopped.load(Ordering::SeqCst) || knock.is_err() || tx.unbounded_send(()).is_err() {
+                let Ok(knock) = knock else { return };
+                if stopped.load(Ordering::SeqCst) {
+                    return;
+                }
+                // A bare knock closes at once; a launch with a link writes it as one line first.
+                _ = knock.set_read_timeout(Some(KNOCK_WAIT));
+                let mut line = String::new();
+                _ = BufReader::new(knock.take(KNOCK_MAX)).read_line(&mut line);
+                let sent = match line.trim() {
+                    "" => raise_tx.unbounded_send(()).is_ok(),
+                    link => link_tx.unbounded_send(link.to_owned()).is_ok(),
+                };
+                if !sent {
                     return;
                 }
             }
         })
         .ok()?;
-    Some((rx, Listener { stop }))
+    Some((raise_rx, link_rx, Listener { stop }))
 }
 
 #[cfg(not(unix))]
-fn listen(_: &Path) -> Option<(mpsc::UnboundedReceiver<()>, Listener)> {
+fn listen(_: &Path) -> Option<Knocks> {
     None
 }
 
-/// Knocks on the holder's socket; whether anyone answered.
+/// Knocks on the holder's socket, with the launch's link as one line where it carries one; whether anyone answered.
 #[cfg(unix)]
-fn raise(home: &Path) -> bool {
-    std::os::unix::net::UnixStream::connect(home.join(RAISE_SOCKET)).is_ok()
+fn raise(home: &Path, link: Option<&str>) -> bool {
+    use std::io::Write as _;
+    let Ok(mut knock) = std::os::unix::net::UnixStream::connect(home.join(RAISE_SOCKET)) else { return false };
+    match link {
+        Some(link) => knock.write_all(format!("{}\n", link.replace(['\n', '\r'], "")).as_bytes()).is_ok(),
+        None => true,
+    }
 }
 
 #[cfg(not(unix))]
-fn raise(_: &Path) -> bool {
+fn raise(_: &Path, _: Option<&str>) -> bool {
     false
 }
 
@@ -309,8 +355,12 @@ pub fn first_line(message: &str) -> &str {
     message.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or(START_FAILED)
 }
 
-/// The log Open log opens: the host's beside the state file where it wrote one, else the state's folder.
-pub fn log_of(state: &Path) -> PathBuf {
+/// The log Open log opens (`startFailedDialog`): the one a failed start names, else the host's beside the state file
+/// where it wrote one, else the state's folder, as this app keeps no log of its own.
+pub fn log_of(state: &Path, failed: Option<&Path>) -> PathBuf {
+    if let Some(log) = failed {
+        return log.to_owned();
+    }
     let log = state.with_file_name("host.log");
     if log.exists() {
         log
@@ -319,21 +369,30 @@ pub fn log_of(state: &Path) -> PathBuf {
     }
 }
 
-/// The window for this launch (`openOnHost`): the starting window after 800 ms, then onboarding on a host that holds
+/// The window for this launch (`openOnHost`): the starting window after 800 ms while the host is attached to, or
+/// started from the unit today's app wrote and waited on (`openHostReady`), then onboarding on a host that holds
 /// nothing and the app otherwise. A host that refuses this computer's token opens the app, whose window pairs.
 pub fn open(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
+    open_titled(START_FAILED, state, env, runtime, app, cx);
+}
+
+/// An open after the launch's with no window standing: the same road, its box titled as a later open's. One host step
+/// at a time: an open while another is still finding its window joins that one.
+pub fn open_later(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
+    if !opening(cx) {
+        open_titled(OPEN_FAILED, state, env, runtime, app, cx);
+    }
+}
+
+fn open_titled(title: &'static str, state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
     let starting = starting_after(STARTING_SHOWN, starting::open, cx);
     cx.set_global(Opening(true));
-    let asked = runtime.spawn({
-        let (state, env) = (state.clone(), env.clone());
-        async move {
-            let client = HostClient::connect(&state, &env).await?;
-            let next = next(&client).await?;
-            Ok::<_, Failure>((client, next))
-        }
+    let road = Start::here(&state, &env);
+    let asked = runtime.spawn(async move {
+        start::ready(&road, &System::new(&road.env), |client: Arc<HostClient>| async move { next(&client).await }).await
     });
     cx.spawn(async move |cx: &mut AsyncApp| {
-        let asked = asked.await.unwrap_or_else(|e| Err(Failure::new(e.to_string())));
+        let asked = asked.await.unwrap_or_else(|e| Err(Failed::from(Failure::new(e.to_string()))));
         cx.update(|cx| cx.set_global(Opening(false)));
         cx.update(|cx| match asked {
             Ok((_, Next::App)) => {
@@ -341,46 +400,56 @@ pub fn open(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut
                 starting.end(cx);
             }
             Ok((client, Next::Onboarding)) => {
-                onboarding::open(Host::new(Arc::new(client), runtime), app, cx);
+                onboarding::open(Host::new(client, runtime), app, cx);
                 starting.end(cx);
             }
-            Err(failure) if failure.kind.as_deref() == Some("auth") => {
+            Err(failed) if failed.failure.kind.as_deref() == Some("auth") => {
                 app(cx);
                 starting.end(cx);
             }
-            Err(failure) => say_failed(&failure, &state, starting, cx),
+            Err(failed) => say_failed(title, &failed, &state, starting, cx),
         });
     })
     .detach();
 }
 
 /// The start-failed box's answers as Electron's are: Open log the default, Quit the cancel. A Mac's alert gives the
-/// cancel button Escape; GPUI's own box elsewhere takes no Escape at all.
-pub fn failed_answers() -> [PromptButton; 2] {
-    [PromptButton::new(OPEN_LOG), PromptButton::cancel(QUIT)]
+/// cancel button Escape; GPUI's own box elsewhere takes no Escape at all. With the way `back` on offer, its button
+/// comes first, the default a Mac's alert gives Return.
+pub fn failed_answers(back: bool) -> Vec<PromptButton> {
+    let today = [PromptButton::new(OPEN_LOG), PromptButton::cancel(QUIT)];
+    back.then(|| PromptButton::new(OPEN_CURRENT)).into_iter().chain(today).collect()
 }
 
-/// `sayStartFailed`: the title, the failure's first line, Open log and Quit, on the starting window, which stands for
-/// it if it did not yet. The starting window goes once it is answered.
-fn say_failed(failure: &Failure, state: &Path, mut starting: Starting, cx: &mut App) {
-    eprintln!("desktop-gpui: {START_FAILED}: {}", failure.message);
+/// Whether a failed start offers the way back: while the switch is on and the wsp command names today's app.
+pub fn offers_back(cx: &App) -> bool {
+    switch::on(cx) && cx.has_global::<switch::Back>()
+}
+
+/// `sayStartFailed`: the title, the failure's first line, the way back where offered, Open log and Quit, on the
+/// starting window, which stands for it if it did not yet. The starting window goes once it is answered, except under
+/// the way back, whose own failure box it holds.
+fn say_failed(title: &'static str, failed: &Failed, state: &Path, mut starting: Starting, cx: &mut App) {
+    eprintln!("desktop-gpui: {title}: {}", failed.failure.message);
     let Some(window) = starting.stand(cx) else {
         cx.quit();
         return;
     };
-    let line = first_line(&failure.message).to_owned();
-    let answer = window.update(cx, |_, window, cx| window.prompt(PromptLevel::Critical, START_FAILED, Some(&line), &failed_answers(), cx));
-    let log = log_of(state);
+    let line = first_line(&failed.failure.message).to_owned();
+    let back = offers_back(cx);
+    let answers = failed_answers(back);
+    let answer = window.update(cx, |_, window, cx| window.prompt(PromptLevel::Critical, title, Some(&line), &answers, cx));
+    let log = log_of(state, failed.log.as_deref());
     cx.spawn(async move |cx: &mut AsyncApp| {
         let picked = match answer {
             Ok(answer) => answer.await.ok(),
             Err(_) => None,
         };
         cx.update(|cx| {
-            if picked == Some(0) {
-                cx.open_with_system(&log);
-            } else {
-                cx.quit();
+            match (back, picked) {
+                (true, Some(0)) => return switch::back(cx),
+                (true, Some(1)) | (false, Some(0)) => cx.open_with_system(&log),
+                _ => cx.quit(),
             }
             starting.end(cx);
         });
@@ -395,18 +464,28 @@ struct HeldLock {
 impl Global for HeldLock {}
 
 /// Holds the lock for the app's life, and brings this app's window forward on each later launch on this home, or
-/// opens one where none stands.
+/// opens one where none stands; a launch's link opens as the system's would. A launch while this one's own open is
+/// still finding its window moves nothing, and the open goes on.
 pub fn follow_raises(mut lock: Lock, reopen: Rc<dyn Fn(&mut App)>, cx: &mut App) {
-    let raised = lock.raised();
+    let (raised, links) = (lock.raised(), lock.links());
     cx.set_global(HeldLock { _lock: lock });
+    if let Some(mut links) = links {
+        cx.spawn(async move |cx: &mut AsyncApp| {
+            while let Some(link) = links.next().await {
+                cx.update(|cx| crate::desktop::links::open(&link, cx));
+            }
+        })
+        .detach();
+    }
     let Some(mut raised) = raised else { return };
     cx.spawn(async move |cx: &mut AsyncApp| {
         while raised.next().await.is_some() {
             cx.update(|cx| {
-                cx.activate(true);
+                if opening(cx) {
+                    return;
+                }
                 match cx.windows().last().copied() {
-                    Some(window) => _ = window.update(cx, |_, window, _| window.activate_window()),
-                    None if opening(cx) => {}
+                    Some(window) => _ = window.update(cx, |_, window, cx| crate::desktop::frame::raise(window, cx)),
                     None => reopen(cx),
                 }
             });

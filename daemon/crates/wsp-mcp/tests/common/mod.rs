@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A host as far as a tool call reaches one, shared by the cases that dial it.
+// Each case binary uses its own part of this.
+#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -7,8 +9,8 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
@@ -37,8 +39,6 @@ pub struct Asked {
 impl Asked {
     /// Every frame asked once each socket is closed: a call can answer on one reply while a frame it wrote beside it
     /// is still on the wire, and the host reads everything before the close.
-    // start.rs shares this module and reads only the port.
-    #[allow(dead_code)]
     pub async fn settled(&self, named: &str) -> Vec<Value> {
         let mut open = self.open.subscribe();
         let closed = tokio::time::timeout(Duration::from_secs(10), open.wait_for(|n| *n == 0)).await;
@@ -63,9 +63,43 @@ impl Drop for Open {
     }
 }
 
+/// The release the record names, which a host of this line's own release says it is.
+pub fn own_release() -> String {
+    let server: Value = serde_json::from_str(include_str!("../../record/server.json")).unwrap();
+    server["version"].as_str().unwrap().to_owned()
+}
+
+/// The sha256 of a token in hex, as a host's page carries it.
+pub fn digest(token: &str) -> String {
+    ring::digest::digest(&ring::digest::SHA256, token.as_bytes()).as_ref().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The page a host on loopback serves at `/`: its one boot line, carrying the digest of `token`, its socket's path and
+/// its release, as packages/host/src/server.ts writes it.
+pub fn wsp_page(token: &str) -> String {
+    let boot = json!({ "tokenHash": digest(token), "wsPath": "/ws", "paired": true, "version": own_release() });
+    format!("<!doctype html><html><head><script>window.__WSP__ = {boot};</script></head><body></body></html>")
+}
+
+/// A connection to a fake host: one that asks to upgrade comes back to be upgraded; any other request is answered
+/// with `page` and closed, as a host answers the GET the token is held behind.
+pub async fn upgrade_or_page(mut tcp: TcpStream, page: &str) -> Option<TcpStream> {
+    let mut head = [0u8; 2048];
+    let read = tcp.peek(&mut head).await.ok()?;
+    if String::from_utf8_lossy(&head[..read]).to_ascii_lowercase().contains("upgrade: websocket") {
+        return Some(tcp);
+    }
+    let _ = tcp.read(&mut head).await;
+    let answer = format!("HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{page}", page.len());
+    let _ = tcp.write_all(answer.as_bytes()).await;
+    let _ = tcp.shutdown().await;
+    None
+}
+
 /// A host on loopback that takes the token it was given and answers as `script` says, under the id each op was asked
 /// with, and every op past the token and the events it was asked, without its id. One port, as the host's: a plain
-/// request gets a status line, which is all a probe asks, and the runtime's socket is upgraded on its path alone.
+/// request gets the page a host serves, carrying the digest of the token, and the runtime's socket is upgraded on its
+/// path alone.
 // The path check is tungstenite's handshake callback, whose error type is tungstenite's to size.
 #[allow(clippy::result_large_err)]
 pub async fn scripted(token: &'static str, script: Script) -> (u16, Asked) {
@@ -77,18 +111,13 @@ pub async fn scripted(token: &'static str, script: Script) -> (u16, Asked) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
-        while let Ok((mut tcp, _)) = listener.accept().await {
+        while let Ok((tcp, _)) = listener.accept().await {
             let script = script.clone();
             let noted = noted.clone();
             let seen = seen.clone();
             let open = open.clone();
             tokio::spawn(async move {
-                let mut head = [0u8; 2048];
-                let read = tcp.peek(&mut head).await.unwrap();
-                if !String::from_utf8_lossy(&head[..read]).to_ascii_lowercase().contains("upgrade: websocket") {
-                    let _ = tcp.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n").await;
-                    return;
-                }
+                let Some(tcp) = upgrade_or_page(tcp, &wsp_page(token)).await else { return };
                 let _open = Open::new(&open);
                 let on_path = |asked: &Request, answer: Response| {
                     assert_eq!(asked.uri().path(), "/ws", "the runtime's socket is dialled on its path");

@@ -41,8 +41,8 @@ pub fn default_icon(place: &PlaceView) -> Pick {
         Some(PlaceViewMac::MacMini) => Pick::MacMini,
         Some(PlaceViewMac::MacStudio) => Pick::MacStudio,
         Some(PlaceViewMac::MacPro) => Pick::Tower,
-        None if place.id == HERE => Pick::Desktop,
-        None => Pick::Server,
+        None | Some(PlaceViewMac::Unknown) if place.id == HERE => Pick::Desktop,
+        None | Some(PlaceViewMac::Unknown) => Pick::Server,
     }
 }
 
@@ -76,6 +76,7 @@ impl ComputerIcon {
             Pick::Drive => lucide(Glyph::HardDrive),
             Pick::Container => lucide(Glyph::Box),
             Pick::Home => lucide(Glyph::House),
+            Pick::Unknown => ComputerIcon::of(place, None),
         }
     }
 

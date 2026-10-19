@@ -124,7 +124,8 @@ impl Held {
             Some(ReviewDraft::Variant1 { note, .. }) => Held::Note(note),
             Some(ReviewDraft::Variant0 { verdict, summary, comments, head_oid, thread_id, posted, .. }) => Held::Read(Draft {
                 verdict: match verdict {
-                    ReviewDraftVariant0Verdict::Comment => Verdict::Comment,
+                    // A verdict this release does not know posts as the one that approves and blocks nothing.
+                    ReviewDraftVariant0Verdict::Comment | ReviewDraftVariant0Verdict::Unknown => Verdict::Comment,
                     ReviewDraftVariant0Verdict::Approve => Verdict::Approve,
                     ReviewDraftVariant0Verdict::RequestChanges => Verdict::RequestChanges,
                 },

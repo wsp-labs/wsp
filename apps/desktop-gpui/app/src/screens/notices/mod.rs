@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use gpui_kit::base::Root;
 use gpui_kit::{px, App, Context, Entity, Pixels, Subscription, Task, WeakEntity, Window};
 use serde_json::{json, Value};
+use wsp_host_client::HostClient;
 
 use crate::screens::app_shell::frame;
 use crate::screens::palette::overlays;
@@ -55,6 +56,9 @@ impl Notices {
     pub fn attach(&mut self, host: Host, window: &mut Window, cx: &mut Context<Self>) {
         self.host = Some(host.clone());
         self.toasts = toast::of(window, cx).map(|t| t.downgrade());
+        if let Some(notice) = version_notice(host.client().host_release().as_deref(), host.client().alias().as_deref()) {
+            self.add(notice, cx);
+        }
         self._follow = host::follow(host, window, cx);
         // The overlays and the shell are mid-update while they hand the host over.
         cx.defer_in(window, |this, window, cx| this.watch(window, cx));
@@ -115,6 +119,14 @@ impl Notices {
     fn route_moved(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         host::settle_shown(self, window, cx);
     }
+}
+
+/// `useShellVersionEffect`: an app of another release than the host it attached to is a note, naming a host elsewhere
+/// by its alias, with the releases page behind Get where there is a newer app to get.
+fn version_notice(host: Option<&str>, alias: Option<&str>) -> Option<Notice> {
+    let said = words::version_notice(Some(&HostClient::app_release()), host?, alias)?;
+    let notice = Notice::note(said.line);
+    Some(if said.update { notice.action(Action::new(words::GET_THE_APP, |_, cx| cx.open_url(words::RELEASES))) } else { notice })
 }
 
 /// A settle's answer as `settleSaying` says it: done where it took threads and left nothing running, else a note,
@@ -212,4 +224,27 @@ fn column(window: &Window, cx: &App) -> (Pixels, Pixels, Pixels) {
     let left = if shell.sidebar_open() { frame::clamp_sidebar(shell.sidebar_width(), viewport, inline) } else { px(0.) };
     let right = if inline { viewport - frame::clamp_panel(panel.width(), viewport, viewport - left) } else { viewport };
     (left, right, frame::TOPBAR)
+}
+
+#[cfg(test)]
+mod tests {
+    use wsp_host_client::HostClient;
+
+    use super::{version_notice, words, Kind};
+
+    /// Catches: a newer host attached in silence, a host elsewhere not named, or Get offered where there is no newer
+    /// app to get.
+    #[test]
+    fn a_host_of_another_release_is_a_note_with_get_only_where_the_app_is_behind() {
+        let app = HostClient::app_release();
+        assert!(version_notice(Some(&app), None).is_none(), "one release says nothing");
+        assert!(version_notice(None, None).is_none(), "a host that named no release says nothing");
+        let behind = version_notice(Some("999.0.0"), Some("studio")).expect("a newer host is said");
+        assert_eq!(behind.kind, Kind::Note);
+        assert_eq!(behind.text.as_ref(), format!("this app is {app}, the host studio is 999.0.0: get the new app"));
+        assert_eq!(behind.action.map(|a| a.word.to_string()).as_deref(), Some(words::GET_THE_APP));
+        let ahead = version_notice(Some("0.0.1"), None).expect("an older host is said");
+        assert_eq!(ahead.text.as_ref(), format!("this app is {app}, the host is 0.0.1: run the app's own host"));
+        assert!(ahead.action.is_none(), "nothing to get when the app is the newer half");
+    }
 }
