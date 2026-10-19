@@ -52,7 +52,7 @@ fn the_feed_follows_a_real_host_and_reads_lost_when_it_goes() {
     host.wsp(&["add", &folder.to_string_lossy()]);
     let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let (tx, mut rx) = mpsc::unbounded();
-    let feed = feed::follow(host.state(), host.env(), &runtime, feed::SETTLE, Duration::from_millis(300), tx);
+    let feed = feed::follow(None, host.state(), host.env(), &runtime, feed::SETTLE, Duration::from_millis(300), tx);
     let mut events = Vec::new();
 
     let first = state_where(&runtime, &mut rx, &mut events, |s| !s.lost);

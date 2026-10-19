@@ -143,8 +143,13 @@ pub fn attach(window: &Window, shell: &Entity<Shell>, cx: &mut App) {
     }
 }
 
-/// Opens `target` once the host's rows have landed, which a later link waiting with it replaces.
+/// Opens `target` once the host's rows have landed, which a later link waiting with it replaces. A host on the account
+/// is told nothing of this computer's links: the window moves home first, and the link opens there.
 fn deliver(target: Target, window: AnyWindowHandle, shell: Entity<Shell>, cx: &mut App) {
+    if super::hosts::away(cx) {
+        cx.global_mut::<Links>().held = Some(target);
+        return super::hosts::to(None, cx);
+    }
     if landed(&shell, cx) {
         cx.global_mut::<Links>().waiting = None;
         return go(target, window, shell, cx);

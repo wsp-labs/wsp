@@ -5,7 +5,9 @@
 //! the host's service starts at login, and opening the app's log folder, one module per platform behind [`Desktop`].
 
 pub mod frame;
+pub mod hosts;
 pub mod links;
+pub mod log;
 pub mod switch;
 pub mod zoom;
 
@@ -50,14 +52,18 @@ impl Launched {
     /// `appLogsDir(homeOf(launch))`: the logs folder under the wsp home this launch means, which `wsp doctor` names and
     /// the Electron app writes its log and crash reports into.
     pub fn logs(&self) -> PathBuf {
-        let home = self.env.get("WSP_HOME").filter(|h| !h.is_empty()).map(PathBuf::from);
-        let home = home.unwrap_or_else(|| self.env_path("HOME").join(".wsp"));
-        std::path::absolute(&home).unwrap_or(home).join("logs")
+        logs_of(&self.env)
     }
 
     fn env_path(&self, name: &str) -> PathBuf {
         PathBuf::from(self.env.get(name).cloned().unwrap_or_default())
     }
+}
+
+/// The logs folder under the wsp home `env` names, as [`Launched::logs`] reads it.
+pub fn logs_of(env: &Env) -> PathBuf {
+    let home = wsp_host_client::wsp_home(env);
+    std::path::absolute(&home).unwrap_or(home).join("logs")
 }
 
 /// One platform's own roads.
@@ -151,6 +157,8 @@ mod tests {
         assert_eq!(launched(&[("HOME", "/h")]).logs(), PathBuf::from("/h/.wsp/logs"));
         assert_eq!(launched(&[("HOME", "/h"), ("WSP_HOME", "/w")]).logs(), PathBuf::from("/w/logs"));
         assert_eq!(launched(&[("HOME", "/h"), ("WSP_HOME", "")]).logs(), PathBuf::from("/h/.wsp/logs"));
+        let user = std::env::home_dir().unwrap();
+        assert_eq!(launched(&[("HOME", "")]).logs(), user.join(".wsp/logs"), "an empty HOME is the user's own, as wsp reads it");
     }
 
     #[test]

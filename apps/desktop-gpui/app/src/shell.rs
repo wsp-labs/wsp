@@ -141,6 +141,8 @@ pub struct Shell {
     host: Option<Arc<HostClient>>,
     runtime: Arc<Runtime>,
     route: Route,
+    /// The composer route on screen is a project's home (`openProjectHome`), not its workspace's New thread here.
+    home: bool,
     /// Where closing Settings goes back to.
     behind: Route,
     /// The open page, while the route names a registered one.
@@ -153,6 +155,14 @@ pub struct Shell {
     /// When the sidebar last opened or closed, while its slide runs.
     sidebar_moved: Option<Instant>,
     sidebar_width: Pixels,
+    /// Under 768 px the sidebar is a sheet over the window, shut until asked for (`openMobile` in `sidebar.tsx`).
+    sheet_open: bool,
+    /// The sheet's own focus, which a press inside it takes (the popup's `tabIndex={-1}`), and its toggle's, which
+    /// takes the focus as the sheet opens: Base UI's dialog focuses the popup's first tabbable, and the sheet's first
+    /// is its toggle (`SidebarChromeHeader`'s `SidebarTrigger`).
+    sheet_focus: FocusHandle,
+    sheet_toggle: FocusHandle,
+    sheet_focus_due: bool,
     /// The rail a drag holds, until its release, and how far from its centre line the press took hold of it, so a rail
     /// held off its centre does not jump to the pointer.
     dragging: Option<Side>,
@@ -174,6 +184,8 @@ pub struct Shell {
     _connect: Task<()>,
     _events: Option<Task<()>>,
     _selected: Subscription,
+    /// The sidebar's pushes, which carry each workspace's pull request and a New thread page's first thread.
+    _followed: Subscription,
     _asked: Subscription,
     _focus_lost: Subscription,
     _appearance: Subscription,
@@ -216,12 +228,13 @@ impl Shell {
         app_shell::install(window.window_handle(), cx.entity().downgrade(), cx);
         let sidebar = cx.new(Sidebar::new);
         let thread_view = cx.new(ThreadView::new);
-        let panel = cx.new(RightPanel::new);
+        let panel = cx.new(|cx| RightPanel::new(crate::desktop::hosts::target(cx), cx));
         let selected = cx.subscribe_in(&sidebar, window, |this, _, Selected(item), window, cx| {
             let route = Route::Thread { workspace_id: item.workspace_id.clone(), thread_id: item.thread_id.clone() };
             this.go(route, window, cx);
         });
         screens::terminal::read_workspaces_from(&sidebar, cx);
+        let followed = cx.observe(&sidebar, |this, _, cx| this.follow_panel(cx));
         let asked = cx.subscribe_in(&sidebar, window, |this, _, asked: &Asked, window, cx| match asked {
             Asked::Settings => this.go(Route::Screen(SETTINGS.into()), window, cx),
             Asked::Usage => this.go(Route::Screen(format!("{SETTINGS}:usage").into()), window, cx),
@@ -255,9 +268,9 @@ impl Shell {
         let page = crate::sidebar::host_page(&state);
         screens::terminal::boot::read_from(page.clone(), cx);
         let (pair_state, pair_env) = (state.clone(), env.clone());
-        let bought = dialogs::pair::bought(cx);
+        let (bought, alias) = (dialogs::pair::bought(cx), crate::desktop::hosts::picked(cx));
         let connecting = runtime.spawn(async move {
-            let host = HostClient::connect_holding(&state, &env, bought).await?;
+            let host = HostClient::connect_on(&state, &env, alias.as_deref(), bought).await?;
             let threads = host.threads().await?;
             let list: WorkspacesListRequest = serde_json::from_value(serde_json::json!({})).map_err(|e| Failure::new(e.to_string()))?;
             let workspaces = host.call(list).await.map(|w| w.workspaces).unwrap_or_default();
@@ -361,6 +374,7 @@ impl Shell {
             host: None,
             runtime,
             route: Route::Empty,
+            home: false,
             behind: Route::Empty,
             screen: None,
             thread: None,
@@ -368,6 +382,10 @@ impl Shell {
             sidebar_open: true,
             sidebar_moved: None,
             sidebar_width: frame::SIDEBAR_DEFAULT,
+            sheet_open: false,
+            sheet_focus: cx.focus_handle(),
+            sheet_toggle: cx.focus_handle(),
+            sheet_focus_due: false,
             dragging: None,
             grab: px(0.),
             drawer_open: false,
@@ -384,6 +402,7 @@ impl Shell {
             _connect: connect,
             _events: None,
             _selected: selected,
+            _followed: followed,
             _asked: asked,
             _focus_lost: focus_lost,
             _appearance: appearance,
@@ -468,15 +487,66 @@ impl Shell {
     }
 
     /// A screen in the main column, Settings or another, is a page: the panel hides and Escape goes back, as
-    /// `Place::Main` says, and it is blank until its screen mounts.
+    /// `Place::Main` says, and it is blank until its screen mounts. The New thread page is not one: it keeps its
+    /// workspace's sidebar, panel and drawer, as today's does.
     fn settings_open(&self) -> bool {
-        matches!(self.route, Route::Screen(_))
+        matches!(&self.route, Route::Screen(route) if app_shell::split(route).0 != ComposerScreen::NAME)
+    }
+
+    /// Where the panel stands for the route, the drawer's own key (`stateKeyOf`): the computer's, a thread's, or the
+    /// New thread page's of its workspace; none under a page.
+    fn panel_at(&self, cx: &App) -> Option<At> {
+        Some(match screens::terminal::drawer_key(&self.place(), cx)? {
+            screens::terminal::hub::Key::Thread { workspace_id, thread_id } => {
+                let running = self.running.get(&workspace_id).copied().unwrap_or(false);
+                // `isPullRequestNamed`: the workspace status's `pr`, when it names a number rather than a refusal.
+                let pr = self.sidebar.read(cx).workspace(&workspace_id).1.and_then(|s| s.pointer("/pr/number")).is_some();
+                At::Thread { workspace_id, thread_id, running, pr }
+            }
+            _ => At::Here,
+        })
+    }
+
+    /// The name of `workspace`'s project, as the host lists the workspace, else as its threads name it.
+    fn project_of(&self, workspace: &str, cx: &App) -> Option<String> {
+        let sidebar = self.sidebar.read(cx);
+        let listed = sidebar.workspace(workspace).0.and_then(|w| w.pointer("/project/name")).and_then(|n| n.as_str()).map(str::to_owned);
+        listed.or_else(|| sidebar.items().iter().find(|i| i.workspace_id == workspace).map(|i| i.project.clone()))
+    }
+
+    /// The route the panel and the drawer stand for: the computer's own (no route) on a New thread page opened as a
+    /// project's home, else the route.
+    fn place(&self) -> Route {
+        if self.home {
+            Route::Empty
+        } else {
+            self.route.clone()
+        }
+    }
+
+    /// The route's panel moved while the route stood: its workspace runs, its pull request landed, or the New thread
+    /// page's first send made the thread its panel goes on as.
+    fn follow_panel(&mut self, cx: &mut Context<Self>) {
+        if let Some(at) = self.panel_at(cx) {
+            self.panel.update(cx, |p, cx| p.follow(at, cx));
+        }
     }
 
     /// Moves the window to `route`; [`app_shell::navigate`] is the way in for everything outside the shell. A screen
     /// that lives in the right panel opens there, on its tab, and leaves the route where it was.
     pub fn go(&mut self, route: Route, window: &mut Window, cx: &mut Context<Self>) {
-        if route == self.route {
+        self.go_on(route, false, window, cx);
+    }
+
+    /// `openProjectHome`: the composer on `workspace` as New thread opens it, the sidebar's row, mod+t and the
+    /// palette's project, whose panel and drawer are this computer's own (`selectedId: null`), where New thread here
+    /// keeps the workspace's.
+    pub fn open_home(&mut self, workspace: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.go_on(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), true, window, cx);
+    }
+
+    fn go_on(&mut self, route: Route, home: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if route == self.route && home == self.home {
             return;
         }
         if let Route::Screen(route) = &route {
@@ -490,7 +560,7 @@ impl Shell {
         match &route {
             Route::Empty => {
                 self.screen = None;
-                self.panel.update(cx, |p, cx| p.show_for(At::Here, window, cx));
+                self.sidebar.update(cx, |s, cx| s.unmark(cx));
                 if let Some(thread) = &self.thread {
                     (thread.show.clone())(Opened::default(), window, cx);
                 }
@@ -501,9 +571,6 @@ impl Shell {
                 if let Some(item) = self.sidebar.read(cx).items().iter().find(|i| i.thread_id == *thread_id).cloned() {
                     crate::screens::thread_view::header::seed(thread_id, &item.project, &item.title, cx);
                 }
-                let running = self.running.get(workspace_id).copied().unwrap_or(false);
-                let at = At::Thread { workspace_id: workspace_id.clone(), thread_id: thread_id.clone(), running };
-                self.panel.update(cx, |p, cx| p.show_for(at, window, cx));
                 let opened = Opened { workspace_id: Some(workspace_id.clone()), thread_id: Some(thread_id.clone()), ..Opened::default() };
                 match (&self.thread, self.host.clone(), screens::screen(THREAD)) {
                     (Some(thread), _, _) => (thread.show.clone())(opened, window, cx),
@@ -525,9 +592,23 @@ impl Shell {
                     Some(show) => show(self.page(name), window, cx),
                     None => self.screen = self.mount(name, window, cx),
                 }
+                if app_shell::split(name).0 == ComposerScreen::NAME {
+                    self.sidebar.update(cx, |s, cx| s.unmark(cx));
+                }
+                if let (screens::thread_view::cards::SUBAGENT, Some((lead, call))) =
+                    (app_shell::split(name).0, app_shell::split(name).1.and_then(screens::thread_view::subagent::parse))
+                {
+                    self.sidebar.update(cx, |s, cx| s.mark_subagent(&lead.thread, &call, cx));
+                }
             }
         }
         self.route = route;
+        self.home = home;
+        if let Some(at) = self.panel_at(cx) {
+            self.panel.update(cx, |p, cx| p.show_for(at, window, cx));
+        }
+        let hidden = self.settings_open();
+        self.panel.update(cx, |p, cx| p.set_hidden(hidden, window, cx));
         cx.notify();
     }
 
@@ -537,7 +618,7 @@ impl Shell {
             return;
         }
         if let Some(workspace) = self.workspace_on_screen(cx) {
-            self.go(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), window, cx);
+            self.open_home(&workspace, window, cx);
         }
     }
 
@@ -554,6 +635,7 @@ impl Shell {
     pub fn selected(&self) -> Option<(String, Option<String>, bool)> {
         match (&self.route, &self.behind) {
             (Route::Thread { workspace_id, thread_id }, _) => Some((workspace_id.clone(), Some(thread_id.clone()), false)),
+            (Route::Screen(_), _) if self.home => None,
             (Route::Screen(route), _) if app_shell::split(route).0 == ComposerScreen::NAME => {
                 app_shell::split(route).1.map(|workspace| (workspace.to_owned(), None, false))
             }
@@ -583,14 +665,9 @@ impl Shell {
     }
 
     /// Takes what the host says of whether `workspace_id` runs, which decides the panes its threads can open.
-    pub fn workspace_runs(&mut self, workspace_id: &str, running: bool, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn workspace_runs(&mut self, workspace_id: &str, running: bool, _: &mut Window, cx: &mut Context<Self>) {
         self.running.insert(workspace_id.to_owned(), running);
-        if let Route::Thread { workspace_id: open, thread_id } = &self.route {
-            if open == workspace_id {
-                let at = At::Thread { workspace_id: open.clone(), thread_id: thread_id.clone(), running };
-                self.panel.update(cx, |p, cx| p.show_for(at, window, cx));
-            }
-        }
+        self.follow_panel(cx);
     }
 
     /// Reads what the host keeps for the frame: the sidebar's width, the person's chords and the theme.
@@ -681,9 +758,11 @@ impl Shell {
         })
     }
 
-    fn end_drag(&mut self) {
-        if self.dragging.take() == Some(Side::Sidebar) {
-            self.save_sidebar_width();
+    fn end_drag(&mut self, cx: &mut App) {
+        match self.dragging.take() {
+            Some(Side::Sidebar) => self.save_sidebar_width(),
+            Some(Side::Panel) => self.panel.update(cx, |p, cx| p.keep_width(cx)),
+            None => {}
         }
     }
 
@@ -700,7 +779,27 @@ impl Shell {
         });
     }
 
-    fn toggle_sidebar(&mut self, _: &keys::ToggleSidebar, _: &mut Window, cx: &mut Context<Self>) {
+    /// Whether the sidebar is drawn now: its sheet's state under 768 px, else its column's (`useSidebarVisibility`).
+    pub fn sidebar_visible(&self, window: &Window) -> bool {
+        if ui::narrow::width(window).md {
+            self.sheet_open
+        } else {
+            self.sidebar_open
+        }
+    }
+
+    /// Whether the focus is on the sidebar's sheet's own toggle.
+    pub fn sheet_toggle_focused(&self, window: &Window) -> bool {
+        self.sheet_toggle.is_focused(window)
+    }
+
+    fn toggle_sidebar(&mut self, _: &keys::ToggleSidebar, window: &mut Window, cx: &mut Context<Self>) {
+        if ui::narrow::width(window).md {
+            self.sheet_open = !self.sheet_open;
+            self.sheet_focus_due = self.sheet_open;
+            cx.notify();
+            return;
+        }
         self.sidebar_open = !self.sidebar_open;
         // Turned back mid-slide, it goes back from where it stands rather than from the far end.
         let done = self.sidebar_moved.map_or(SIDEBAR_SLIDE, |moved| moved.elapsed().min(SIDEBAR_SLIDE));
@@ -715,13 +814,13 @@ impl Shell {
     }
 
     fn toggle_preview(&mut self, _: &keys::TogglePreview, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.settings_open() && matches!(self.route, Route::Thread { .. }) {
+        if matches!(self.panel_at(cx), Some(At::Thread { .. })) {
             self.panel.update(cx, |p, cx| p.toggle_pane(Pane::Browser, window, cx));
         }
     }
 
     fn toggle_drawer(&mut self, _: &keys::ToggleTerminal, _: &mut Window, cx: &mut Context<Self>) {
-        screens::terminal::toggle_drawer(&self.route, cx);
+        screens::terminal::toggle_drawer(&self.place(), cx);
         cx.notify();
     }
 
@@ -757,7 +856,20 @@ impl Shell {
                 return;
             }
         }
+        if self.close_sheet(window, cx) {
+            return;
+        }
         self.close_settings(&keys::CloseSettings, window, cx);
+    }
+
+    /// Shuts the sidebar's sheet when it shows; false when there was none to shut.
+    pub fn close_sheet(&mut self, window: &Window, cx: &mut Context<Self>) -> bool {
+        if !(self.sheet_open && ui::narrow::width(window).md) || dialogs::layer::top(cx).is_some() {
+            return false;
+        }
+        self.sheet_open = false;
+        cx.notify();
+        true
     }
 
     fn close_panel_tab(&mut self, _: &keys::ClosePanelTab, window: &mut Window, cx: &mut Context<Self>) {
@@ -1054,11 +1166,16 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.tick(window, cx);
-        let shown = self.sidebar_shown(window);
+        let narrow = ui::narrow::width(window).md;
+        let shown = if narrow { 0. } else { self.sidebar_shown(window) };
+        let sheet_shown = narrow && self.sheet_open;
+        let sheet_in = if narrow { frame::sheet_in("sidebar-sheet", sheet_shown, window, cx) } else { None };
         let p = cx.palette().clone();
         let fills = material::fills(self.look, ui::theme::current(cx).id, &p);
         let viewport = window.viewport_size().width;
         let settings = self.settings_open();
+        // `settingsOpen` alone swaps the sidebar and drops the New thread glyph (AppShell.tsx).
+        let settings_page = matches!(&self.route, Route::Screen(route) if app_shell::split(route).0 == SETTINGS);
         let panel_open = !settings && self.panel.read(cx).is_open();
         let sheet = viewport <= frame::SHEET_MAX_VIEWPORT;
         let inline = panel_open && !sheet;
@@ -1067,12 +1184,14 @@ impl Render for Shell {
         let panel_width = frame::clamp_panel(self.panel.read(cx).width(), viewport, row);
 
         let host = self.host.clone().map(|host| Host::new(host, self.runtime.clone()));
-        let drawer = screens::terminal::drawer(host, &self.route, self.look.glass, window, cx);
-        self.drawer_open = screens::terminal::drawer_open(&self.route, cx);
+        let place = self.place();
+        let drawer = screens::terminal::drawer(host, &place, self.look.glass, window, cx);
+        self.drawer_open = screens::terminal::drawer_open(&place, cx);
 
         let mut context = KeyContext::new_with_defaults();
         context.add(keys::SHELL);
-        if settings {
+        // Escape leaves Settings alone, "the one centre view with no row of its own to pick" (KeybindingDispatcher.tsx).
+        if settings_page {
             context.add(keys::SETTINGS_OPEN);
         } else if matches!(self.route, Route::Thread { .. }) {
             context.add(keys::THREAD_OPEN);
@@ -1101,7 +1220,7 @@ impl Render for Shell {
         };
         let sidebar_content: AnyView = match parts.and_then(|p| p.sidebar.clone()) {
             Some(view) => view,
-            None if settings => self.blank.clone(),
+            None if settings_page => self.blank.clone(),
             None => self.sidebar.clone().into(),
         };
 
@@ -1111,13 +1230,20 @@ impl Render for Shell {
                 _ = this.update(cx, |this, cx| this.toggle_sidebar(&keys::ToggleSidebar, window, cx));
             })
         };
-        let sidebar = (shown > 0.).then(|| {
-            let column = v_flex()
+        // Today's sheet sets its width to `calc(100vw - var(--spacing(3)))`, which CSS drops, so it is as wide as it holds.
+        let in_sheet = sheet_in.is_some();
+        let column = (shown > 0. || in_sheet).then(|| {
+            let content = if in_sheet {
+                sidebar_content.clone().into_any_element()
+            } else {
+                sidebar_content.cached(StyleRefinement::default().size_full()).into_any_element()
+            };
+            v_flex()
                 .id("sidebar-column")
                 .debug_selector(|| "sidebar-column".into())
                 .relative()
                 .flex_none()
-                .w(sidebar_width)
+                .map(|el| if in_sheet { el.max_w(viewport) } else { el.w(sidebar_width) })
                 .h_full()
                 .border_r_1()
                 .border_color(p.border)
@@ -1126,18 +1252,66 @@ impl Render for Shell {
                 .child(
                     frame::row("sidebar-frame-row")
                         .pl(frame::frame_inset())
-                        .child(trigger("sidebar-trigger", true, cx))
+                        .child(trigger("sidebar-trigger", true, cx).track_focus(&self.sheet_toggle))
                         .child(frame::lockup(fills.sidebar_ink.unwrap_or_else(|| frame::sidebar_quiet(cx)))),
                 )
-                .child(div().flex_1().min_h_0().overflow_hidden().child(sidebar_content.cached(StyleRefinement::default().size_full())))
-                .into_any_element();
-            div()
-                .relative()
-                .flex_none()
-                .w(sidebar_width * shown)
-                .h_full()
-                .child(div().absolute().top_0().bottom_0().left(-(sidebar_width * (1. - shown))).w(sidebar_width).child(column))
+                .child(div().flex_1().min_h_0().overflow_hidden().child(content))
+                .into_any_element()
         });
+        let (sidebar, sidebar_sheet) =
+            match column {
+                Some(column) if let Some(t) = sheet_in => {
+                    if sheet_shown && std::mem::take(&mut self.sheet_focus_due) {
+                        self.sheet_toggle.focus(window, cx);
+                    }
+                    let this = cx.entity().downgrade();
+                    // `SheetPopup` over `SheetBackdrop`, each blocking the pointer while open and neither on its way out.
+                    let sheet = div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .size_full()
+                        .child(
+                            div()
+                                .id("sidebar-sheet-backdrop")
+                                .debug_selector(|| "sidebar-sheet-backdrop".into())
+                                .absolute()
+                                .size_full()
+                                .opacity(t)
+                                .bg(p.background.opacity(0.6))
+                                .backdrop_blur(px(4.))
+                                .when(sheet_shown, |el| {
+                                    el.occlude().on_click(move |_, window, cx| {
+                                        _ = this.update(cx, |this, cx| this.close_sheet(window, cx));
+                                    })
+                                }),
+                        )
+                        .child(
+                            div()
+                                .id("sidebar-sheet")
+                                .debug_selector(|| "sidebar-sheet".into())
+                                .track_focus(&self.sheet_focus)
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .left(-frame::SHEET_SLIDE * (1. - t))
+                                .opacity(t)
+                                .when(sheet_shown, |el| el.occlude())
+                                .shadow_lg()
+                                .child(column),
+                        );
+                    (None, Some(sheet))
+                }
+                Some(column) => {
+                    (
+                        Some(div().relative().flex_none().w(sidebar_width * shown).h_full().child(
+                            div().absolute().top_0().bottom_0().left(-(sidebar_width * (1. - shown))).w(sidebar_width).child(column),
+                        )),
+                        None,
+                    )
+                }
+                None => (None, None),
+            };
         let rail = (shown >= 1.).then(|| {
             div()
                 .id("sidebar-rail")
@@ -1162,10 +1336,14 @@ impl Render for Shell {
             (Route::Thread { thread_id, .. }, None) => {
                 let item = self.sidebar.read(cx).items().iter().find(|i| i.thread_id == *thread_id).cloned();
                 let title = item.as_ref().map(|i| i.title.as_str()).filter(|t| !t.is_empty()).unwrap_or("New thread");
-                frame::crumbs(item.as_ref().map(|i| i.project.as_str()), Some(title), cx)
+                frame::crumbs(item.as_ref().map(|i| i.project.as_str()), Some(title), window, cx)
+            }
+            (Route::Screen(route), None) if app_shell::split(route).0 == ComposerScreen::NAME => {
+                let project = app_shell::split(route).1.and_then(|workspace| self.project_of(workspace, cx));
+                frame::crumbs(project.as_deref(), Some(screens::thread_view::header::NEW_THREAD), window, cx)
             }
             (Route::Screen(_), None) => div().into_any_element(),
-            (Route::Empty, None) => frame::crumbs(None, None, cx),
+            (Route::Empty, None) => frame::crumbs(None, None, window, cx),
         };
         let actions = parts.and_then(|p| p.actions.clone());
         let controls = |cx: &mut Context<Self>| {
@@ -1185,9 +1363,9 @@ impl Render for Shell {
         let header = frame::row("header-row")
             .pl(frame::frame_inset() + (frame::HEADER_INSET - frame::frame_inset()) * shown)
             .pr(frame::HEADER_INSET)
-            .when(!self.sidebar_open, |row| {
+            .when(!self.sidebar_visible(window), |row| {
                 let row = row.child(trigger("header-trigger", false, cx));
-                if settings {
+                if settings_page {
                     row
                 } else {
                     row.child(
@@ -1268,6 +1446,8 @@ impl Render for Shell {
                 .bg(fills.panel)
                 .child(content);
             if sheet {
+                // Comes in as the sidebar's sheet does; it goes at once, its panes let go as it shuts.
+                let t = frame::sheet_in("panel-sheet", true, window, cx).unwrap_or(1.);
                 let this = cx.entity().downgrade();
                 // Over the whole window, as the web's sheet is; each layer blocks the pointer from what lies under it.
                 div()
@@ -1280,6 +1460,7 @@ impl Render for Shell {
                             .id("sheet-backdrop")
                             .absolute()
                             .size_full()
+                            .opacity(t)
                             .occlude()
                             .bg(p.background.opacity(0.6))
                             .backdrop_blur(px(4.))
@@ -1287,7 +1468,17 @@ impl Render for Shell {
                                 _ = this.update(cx, |this, cx| this.toggle_panel(&keys::ToggleRightPanel, window, cx));
                             }),
                     )
-                    .child(div().absolute().top_0().bottom_0().right_0().occlude().child(column.bg(p.popover).shadow_lg()))
+                    .child(
+                        div()
+                            .debug_selector(|| "panel-sheet".into())
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .right(-frame::SHEET_SLIDE * (1. - t))
+                            .opacity(t)
+                            .occlude()
+                            .child(column.bg(p.popover).shadow_lg()),
+                    )
                     .into_any_element()
             } else {
                 column
@@ -1385,13 +1576,16 @@ impl Render for Shell {
                 cx.notify();
             }))
             // A drag ends on the release wherever it falls, inside the window or past its edge.
-            .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, _| this.end_drag()))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(|this, _, _, _| this.end_drag()))
-            .when(sheet && panel_open, |el| {
-                el.on_key_down(cx.listener(|this, e: &KeyDownEvent, window, cx| {
+            .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| this.end_drag(cx)))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(|this, _, _, cx| this.end_drag(cx)))
+            .when((sheet && panel_open) || sheet_shown, |el| {
+                el.on_key_down(cx.listener(move |this, e: &KeyDownEvent, window, cx| {
                     if e.keystroke.key == "escape" {
                         cx.stop_propagation();
-                        this.toggle_panel(&keys::ToggleRightPanel, window, cx);
+                        if this.close_sheet(window, cx) {
+                        } else if sheet && panel_open {
+                            this.toggle_panel(&keys::ToggleRightPanel, window, cx);
+                        }
                     }
                 }))
             })
@@ -1399,6 +1593,7 @@ impl Render for Shell {
             .child(div().relative().flex().flex_1().min_w_0().h_full().child(center).children(inline_panel))
             .children(rail)
             .children(sheet_panel)
+            .children(sidebar_sheet)
             .children(dialogs::layer::draw(window, cx))
     }
 }

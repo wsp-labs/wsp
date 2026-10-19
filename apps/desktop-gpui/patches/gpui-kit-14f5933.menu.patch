@@ -12,7 +12,7 @@ index 3152a15..d7bbf3a 100644
  pub(crate) fn init(cx: &mut App) {
      app_menu_bar::init(cx);
 diff --git a/crates/component/src/menu/popup_menu.rs b/crates/component/src/menu/popup_menu.rs
-index 8fad53f..aada590 100644
+index 8fad53f..c9d7b4d 100644
 --- a/crates/component/src/menu/popup_menu.rs
 +++ b/crates/component/src/menu/popup_menu.rs
 @@ -6,8 +6,8 @@ use crate::scroll::ScrollableElement;
@@ -67,6 +67,15 @@ index 8fad53f..aada590 100644
      /// Set the side to show check icon, default is `Side::Left`.
      pub fn check_side(mut self, side: Side) -> Self {
          self.check_side = side;
+@@ -1467,7 +1483,7 @@ impl Render for PopupMenu {
+         let items_count = self.menu_items.len();
+ 
+         let max_height = self.max_height.unwrap_or_else(|| {
+-            let window_half_height = window.window_bounds().get_bounds().size.height * 0.5;
++            let window_half_height = window.viewport_size().height * 0.5;
+             window_half_height.min(px(450.))
+         });
+ 
 @@ -1496,7 +1512,15 @@ impl Render for PopupMenu {
              .on_action(cx.listener(Self::confirm))
              .on_action(cx.listener(Self::dismiss))

@@ -26,9 +26,10 @@ struct Offering;
 
 impl Global for Offering {}
 
-/// Offers the app's processes to the host for as long as the app runs, once however many windows connect.
+/// Offers the app's processes to the host on this computer for as long as the app runs, once however many windows
+/// connect; a host on the account is offered nothing.
 pub fn offer_once(host: Arc<HostClient>, runtime: &Runtime, cx: &mut App) {
-    if !cx.has_global::<Offering>() {
+    if host.here() && !cx.has_global::<Offering>() {
         offer(host, runtime);
         cx.set_global(Offering);
     }

@@ -112,24 +112,31 @@ fn main() {
     // A launch that names what to open (a bench, a thread, a screen) or asks for the glass skips the lock and onboarding.
     let plain = args.bench.is_none() && args.open.is_none() && args.screen.is_none() && !args.gallery && !args.glass;
     let home = startup::home_of(&state);
+    let env: Env = std::env::vars().collect();
+    // A launch that names what to open is a dev or test run, which never writes into the person's log.
+    if plain {
+        desktop::log::init(&desktop::logs_of(&env), &env);
+    }
     let lock = match plain.then(|| startup::claim_with(&home, link.as_deref())) {
         Some(Ok(Claim::Held(lock))) => {
             // Today's app offers its switch wherever this file names an app, and only a Mac's app menu has the way back.
             if cfg!(target_os = "macos") {
                 if let Err(e) = switch::own_path(std::env::var_os("APPIMAGE")).and_then(|exe| switch::write_path(&home, &exe)) {
-                    eprintln!("desktop-gpui: {} could not be written: {e}", switch::PATH_FILE);
+                    desktop::log::error(&format!("{} could not be written: {e}", switch::PATH_FILE));
                 }
             }
             Some(lock)
         }
         Some(Ok(Claim::Taken)) => std::process::exit(0),
         Some(Err(e)) => {
-            eprintln!("desktop-gpui: the app's lock could not be taken: {e}");
+            desktop::log::error(&format!("the app's lock could not be taken: {e}"));
             None
         }
         None => None,
     };
-    let env: Env = std::env::vars().collect();
+    if plain {
+        desktop::log::started(&wsp_host_client::HostClient::app_release());
+    }
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let gallery = args.gallery;
     let bench::Capture { theme, unfold, now, reveal } = args.capture;
@@ -198,6 +205,7 @@ fn main() {
             cx.activate(true);
             return;
         }
+        desktop::hosts::init(state.clone(), env.clone(), runtime.clone(), cx);
         menu::init(cx);
         cx.set_global(capture);
         if browser_check {
@@ -208,7 +216,10 @@ fn main() {
             let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
             Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), None, cx))
         };
-        desktop_gpui::desktop::feed::start(state.clone(), env.clone(), runtime.clone(), reopen.clone(), cx);
+        #[cfg(target_os = "macos")]
+        desktop::mac::offer_move(cx);
+        let draw: desktop::feed::Draw = Rc::new(desktop::feed::native);
+        desktop::feed::start(state.clone(), env.clone(), runtime.clone(), reopen.clone(), draw, cx);
         if let Some(lock) = lock {
             let (state, env, runtime, window) = (state.clone(), env.clone(), runtime.clone(), reopen.clone());
             let later = move |cx: &mut App| startup::open_later(state.clone(), env.clone(), runtime.clone(), window.clone(), cx);
