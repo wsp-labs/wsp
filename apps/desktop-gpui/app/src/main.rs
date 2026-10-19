@@ -82,6 +82,8 @@ fn main() {
         eprintln!("desktop-gpui: {e}");
         std::process::exit(64);
     });
+    // `--screen browser` with no state runs the pane's own checks on a page it serves, with no host.
+    let browser_check = args.screen.as_deref() == Some(screens::browser::NAME) && args.state.is_none();
     if let Some(name) = &pane {
         if args.open.is_none() {
             eprintln!("desktop-gpui: --pane goes with --open");
@@ -92,13 +94,20 @@ fn main() {
             std::process::exit(64);
         }
     }
-    if let Some(name) =
-        args.screen.as_deref().map(|route| screens::app_shell::split(route).0).filter(|name| screens::screen(name).is_none())
+    if let Some(name) = args
+        .screen
+        .as_deref()
+        .map(|route| screens::app_shell::split(route).0)
+        .filter(|name| !browser_check && screens::screen(name).is_none())
     {
         eprintln!("desktop-gpui: no screen is named {name}");
         std::process::exit(64);
     }
-    let kept = store_path(args.state.as_deref(), &default_state());
+    let kept = if browser_check {
+        screens::browser::check::scratch().join("desktop-gpui-local-store.json")
+    } else {
+        store_path(args.state.as_deref(), &default_state())
+    };
     let state = args.state.unwrap_or_else(default_state);
     // A launch that names what to open (a bench, a thread, a screen) or asks for the glass skips the lock and onboarding.
     let plain = args.bench.is_none() && args.open.is_none() && args.screen.is_none() && !args.gallery && !args.glass;
@@ -128,7 +137,7 @@ fn main() {
     let launch = Launch { bench: args.bench, open: args.open, glass: args.glass, screen: args.screen };
     let switched = switch::read(&home);
     frame::choose();
-    let app = gpui_kit::application().with_assets(AppAssets);
+    let app = screens::browser::page::application().with_assets(AppAssets);
     // A Mac hands over the link that launched the app before it is running, so the handler comes before `run`.
     let (urls, mut opened) = futures::channel::mpsc::unbounded::<String>();
     app.on_open_urls(move |handed| handed.into_iter().for_each(|url| _ = urls.unbounded_send(url)));
@@ -155,6 +164,8 @@ fn main() {
         let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         ui::init(if dark { Side::Dark } else { Side::Light }, cx);
         local_store::init(kept.clone(), cx);
+        // The browser pane's pages keep their cookies and storage beside the store; a check run's go with its scratch.
+        cx.set_global(screens::browser::page::DataDir { path: kept.with_file_name("browser"), kept: !browser_check });
         composer::init(cx);
         screens::palette::init(cx);
         frame::init(cx);
@@ -188,6 +199,10 @@ fn main() {
         }
         menu::init(cx);
         cx.set_global(capture);
+        if browser_check {
+            screens::browser::check::open(cx);
+            return;
+        }
         let reopen = {
             let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
             Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), None, cx))
