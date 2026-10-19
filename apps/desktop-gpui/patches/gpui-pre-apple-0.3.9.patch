@@ -1009,18 +1009,30 @@ index 2b52bb9..1959c7d 100644
  float gaussian(float x, float sigma) {
    return exp(-(x * x) / (2. * sigma * sigma)) / (sqrt(2. * M_PI_F) * sigma);
 diff --git a/src/text_system.rs b/src/text_system.rs
-index 3c0e17d..b599194 100644
+index 3c0e17d..1c0adb7 100644
 --- a/src/text_system.rs
 +++ b/src/text_system.rs
-@@ -4,6 +4,7 @@ use core_foundation::{
+@@ -3,7 +3,9 @@ use collections::{HashMap, HashSet};
+ use core_foundation::{
      array::{CFArray, CFArrayRef},
      attributed_string::CFMutableAttributedString,
-     base::{CFRange, TCFType},
+-    base::{CFRange, TCFType},
++    base::{CFIndex, CFRange, TCFType},
 +    dictionary::CFDictionary,
++    error::{CFError, CFErrorRef},
      number::CFNumber,
      string::CFString,
  };
-@@ -17,8 +18,8 @@ use core_text::{
+@@ -11,14 +13,17 @@ use core_graphics::{
+     base::{CGFloat, CGGlyph, kCGImageAlphaPremultipliedLast},
+     color_space::CGColorSpace,
+     context::{CGContext, CGTextDrawingMode},
++    data_provider::CGDataProvider,
++    font::CGFont,
+     geometry::CGPoint,
++    sys::CGFontRef,
+ };
+ use core_text::{
      font::CTFont,
      font_collection::CTFontCollectionRef,
      font_descriptor::{
@@ -1031,7 +1043,15 @@ index 3c0e17d..b599194 100644
      },
      line::CTLine,
      string_attributes::kCTFontAttributeName,
-@@ -173,7 +174,10 @@ impl PlatformTextSystem for AppleTextSystem {
+@@ -32,6 +37,7 @@ use font_kit::{
+     source::SystemSource,
+     sources::mem::MemSource,
+ };
++use foreign_types::ForeignType;
+ use gpui::{
+     Bounds, DevicePixels, Font, FontFallbacks, FontFeatures, FontId, FontMetrics, FontRun,
+     FontStyle, FontWeight, GlyphId, LineLayout, Pixels, PlatformTextSystem, RenderGlyphParams,
+@@ -173,7 +179,10 @@ impl PlatformTextSystem for AppleTextSystem {
                  },
              )?;
  
@@ -1043,7 +1063,35 @@ index 3c0e17d..b599194 100644
              lock.font_selections.insert(font.clone(), font_id);
              Ok(font_id)
          }
-@@ -390,6 +394,32 @@ impl AppleTextSystemState {
+@@ -266,15 +275,22 @@ impl AppleTextSystemState {
+             .into_iter()
+             .map(|bytes| match bytes {
+                 Cow::Borrowed(embedded_font) => {
+-                    let data_provider = unsafe {
+-                        core_graphics::data_provider::CGDataProvider::from_slice(embedded_font)
+-                    };
+-                    let font = core_graphics::font::CGFont::from_data_provider(data_provider)
++                    let data_provider = unsafe { CGDataProvider::from_slice(embedded_font) };
++                    let font = CGFont::from_data_provider(data_provider)
+                         .map_err(|()| anyhow!("Could not load an embedded font."))?;
++                    register_with_core_text(&font);
+                     let font = font_kit::loaders::core_text::Font::from_core_graphics_font(font);
+                     Ok(Handle::from_native(&font))
+                 }
+-                Cow::Owned(bytes) => Ok(Handle::from_memory(Arc::new(bytes), 0)),
++                Cow::Owned(bytes) => {
++                    let bytes = Arc::new(bytes);
++                    if let Ok(font) =
++                        CGFont::from_data_provider(CGDataProvider::from_buffer(bytes.clone()))
++                    {
++                        register_with_core_text(&font);
++                    }
++                    Ok(Handle::from_memory(bytes, 0))
++                }
+             })
+             .collect::<Result<Vec<_>>>()?;
+         self.memory_source.add_fonts(fonts.into_iter())?;
+@@ -390,6 +406,32 @@ impl AppleTextSystemState {
          Ok(font_ids)
      }
  
@@ -1076,7 +1124,7 @@ index 3c0e17d..b599194 100644
      fn advance(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Size<f32>> {
          Ok(size_from_vector2f(
              self.fonts[font_id.0].advance(glyph_id.0)?,
-@@ -542,6 +572,7 @@ impl AppleTextSystemState {
+@@ -542,6 +584,7 @@ impl AppleTextSystemState {
          let mut string = CFMutableAttributedString::new();
          let mut max_ascent = 0.0f32;
          let mut max_descent = 0.0f32;
@@ -1084,7 +1132,7 @@ index 3c0e17d..b599194 100644
  
          {
              let mut text = text;
-@@ -555,6 +586,7 @@ impl AppleTextSystemState {
+@@ -555,6 +598,7 @@ impl AppleTextSystemState {
                  string.replace_str(&CFString::new(text_run), CFRange::init(utf16_start, 0));
                  let utf16_end = string.char_len();
  
@@ -1092,7 +1140,7 @@ index 3c0e17d..b599194 100644
                  let length = utf16_end - utf16_start;
                  let cf_range = CFRange::init(utf16_start, length);
                  let font = &self.fonts[run.font_id.0];
-@@ -592,7 +624,16 @@ impl AppleTextSystemState {
+@@ -592,7 +636,16 @@ impl AppleTextSystemState {
                      .downcast::<CTFont>()
                      .unwrap()
              };
@@ -1110,7 +1158,36 @@ index 3c0e17d..b599194 100644
  
              let glyphs = match runs.last_mut() {
                  Some(run) if run.font_id == font_id => &mut run.glyphs,
-@@ -801,6 +842,57 @@ mod tests {
+@@ -666,6 +719,28 @@ impl<'a> StringIndexConverter<'a> {
+     }
+ }
+ 
++/// Core Text's fallback cascade finds a font by name only once Core Text has it, not when only font-kit's MemSource does.
++#[allow(non_upper_case_globals)]
++fn register_with_core_text(font: &CGFont) {
++    unsafe extern "C" {
++        fn CTFontManagerRegisterGraphicsFont(font: CGFontRef, error: *mut CFErrorRef) -> bool;
++    }
++    const kCTFontManagerErrorAlreadyRegistered: CFIndex = 105;
++
++    let mut error: CFErrorRef = std::ptr::null_mut();
++    if unsafe { CTFontManagerRegisterGraphicsFont(font.as_ptr(), &mut error) } || error.is_null() {
++        return;
++    }
++    let error = unsafe { CFError::wrap_under_create_rule(error) };
++    if error.code() != kCTFontManagerErrorAlreadyRegistered {
++        log::warn!(
++            "Core Text did not register {:?} for fallback: {}",
++            font.postscript_name(),
++            error.description()
++        );
++    }
++}
++
+ fn font_kit_metrics_to_metrics(metrics: Metrics) -> FontMetrics {
+     FontMetrics {
+         units_per_em: metrics.units_per_em,
+@@ -801,6 +876,57 @@ mod tests {
          assert!(!layout.runs.is_empty());
      }
  
