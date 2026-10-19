@@ -39,7 +39,7 @@ use super::files::paths::{parent_within, roots};
 use super::files::ShowInChanges;
 use crate::local_store::LocalStore;
 use crate::screens::computer::daemon_down::{DaemonDown, Restart};
-use crate::screens::terminal::link::FIRST_ANSWER;
+use crate::screens::terminal::link::Status;
 use crate::screens::terminal::state::{pane_state, WorkspaceState};
 use crate::screens::{Host, Opened, Pane, Place, Screen};
 use crate::ui::controls::checkbox;
@@ -121,11 +121,9 @@ pub struct ChangesScreen {
     reveal_note: Option<String>,
     /// The link would not open: the thread's computer is not running.
     not_running: bool,
-    /// Whether a read came over the link before, and when the pane first dialled it, which starts the first-answer
-    /// bound.
+    /// Whether a read came over the link before, and how the computer's channel stands.
     live_once: bool,
-    first_dial: Option<std::time::Instant>,
-    _first_answer: Option<Task<()>>,
+    socket: Status,
     /// The last Start again the computer-absent form asked, kept past the frames it is drawn in.
     restart: Entity<Restart>,
     code: Entity<CodeView>,
@@ -203,6 +201,7 @@ impl ChangesScreen {
                 link.read(cx).follow_shell(thread);
             }
         }
+        let socket = link.as_ref().map_or(Status::Opening, |l| l.read(cx).status());
         let mut screen = ChangesScreen {
             host,
             opened,
@@ -228,8 +227,7 @@ impl ChangesScreen {
             reveal_note: None,
             not_running: false,
             live_once: false,
-            first_dial: None,
-            _first_answer: None,
+            socket,
             restart,
             code,
             comments,
@@ -299,8 +297,7 @@ impl ChangesScreen {
         let Some(mut input) = self.facts.as_ref().and_then(|f| f.pane.clone()) else {
             return Some(not_running::Form::Thread { line: words::READ_ON_COMPUTER.to_owned() });
         };
-        let waited = self.first_dial.is_some_and(|at| at.elapsed() >= FIRST_ANSWER);
-        input.socket = not_running::socket(self.live_once, waited);
+        input.socket = self.socket.clone();
         Some(not_running::form(&pane_state(&input), words::READ_ON_COMPUTER))
     }
 
@@ -378,6 +375,9 @@ impl ChangesScreen {
                 // A daemon can come back while the phase stays running, so any word of the workspace reads again.
                 let woke = self.not_running && facts.pane.as_ref().is_some_and(|p| p.state == WorkspaceState::Running);
                 self.facts = Some(facts);
+                if let Some(link) = self.link.clone().filter(|_| woke) {
+                    DaemonLink::redial(&link, true, cx);
+                }
                 if first || moved || woke {
                     self.fetch(window, cx);
                 }
@@ -414,6 +414,7 @@ impl ChangesScreen {
 
     fn link_changed(&mut self, cx: &mut Context<Self>) {
         let Some(link) = &self.link else { return };
+        self.socket = link.read(cx).status();
         let folder = self.facts.as_ref().and_then(|f| link.read(cx).folder(self.thread_id(), f.followed.as_deref(), f.project.as_deref()));
         // The channel moved: one that came up is read over, and one that went is found out by reading again.
         let up = link.read(cx).up();
@@ -444,13 +445,7 @@ impl ChangesScreen {
     /// Reads the diff and the folder's branch again; the last diff stays through a refresh of the same read.
     pub fn fetch(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let Some(link) = self.link.clone() else { return };
-        if self.first_dial.is_none() {
-            self.first_dial = Some(std::time::Instant::now());
-            self._first_answer = Some(cx.spawn(async move |this, cx| {
-                cx.background_executor().timer(FIRST_ANSWER).await;
-                _ = this.update(cx, |_, cx| cx.notify());
-            }));
-        }
+        DaemonLink::redial(&link, false, cx);
         self.seq += 1;
         let seq = self.seq;
         self.load = Load::Pending;
@@ -1331,11 +1326,8 @@ impl ChangesScreen {
                     .into_any_element(),
             ));
         }
-        let controls_width = px(24. * controls.len() as f32);
         let controls: Vec<AnyElement> = controls.into_iter().map(|(tag, button)| tagged(tag, button)).collect();
-        let tick_width = if blob.is_some() { px(16. + 8.) } else { px(0.) };
         let renamed_from = head.old_path.clone().filter(|_| head.status == FileStatus::Renamed);
-        let path_width = (this.width - px(20. + 24. + 4. + 20. + 80. + 8.) - tick_width - controls_width).max(px(40.));
         // Pierre's head marks: its own glyphs in its addition, deletion and modified bases, which the code view's
         // colors read off the same highlight status (diff/look.rs).
         let status = &cx.theme().highlight_theme.style.status;
@@ -1354,24 +1346,24 @@ impl ChangesScreen {
             .ml(px(4.))
             .child(Icon::empty().path(mark).with_size(px(16.)).text_color(ink));
         let sans = cx.theme().font_family.clone();
+        // Pierre's `[data-header-content]`: names cut from the start (`direction: rtl`), 8 px apart, the old one at 70%.
         let name_el = h_flex()
-            .w(path_width)
-            .flex_none()
+            .flex_1()
+            .min_w_0()
             .ml(px(4.))
-            .gap(px(4.))
+            .gap(px(8.))
             .overflow_hidden()
             .whitespace_nowrap()
             .font_family(sans)
             .text_size(px(13.))
-            .children(renamed_from.map(|old| {
-                h_flex()
-                    .flex_none()
-                    .gap(px(4.))
-                    .text_color(p.muted_foreground)
-                    .child(old)
-                    .child(Icon::empty().path(crate::ui::icons::DIFF_RENAMED_TO).with_size(px(16.)).text_color(p.foreground))
-            }))
-            .child(file_title(&path, div().min_w_0().overflow_hidden().text_ellipsis().child(path.clone()), window, cx));
+            .children(
+                renamed_from
+                    .map(|old| div().min_w_0().overflow_hidden().text_ellipsis_start().text_color(p.foreground.opacity(0.7)).child(old)),
+            )
+            .when(head.status == FileStatus::Renamed && head.old_path.is_some(), |el| {
+                el.child(Icon::empty().path(crate::ui::icons::DIFF_RENAMED_TO).with_size(px(16.)).flex_none().text_color(p.foreground))
+            })
+            .child(file_title(&path, div().min_w_0().overflow_hidden().text_ellipsis_start().child(path.clone()), window, cx));
         let chevron = div()
             .id(SharedString::from(format!("fold:{path}")))
             .flex()
@@ -1407,7 +1399,6 @@ impl ChangesScreen {
             .children(tick)
             .child(mark)
             .child(name_el)
-            .child(div().flex_1())
             .child(head_counts(head.additions, head.deletions, cx))
             .child(h_flex().flex_none().gap(px(4.)).children(controls))
             .into_any_element()
@@ -1458,8 +1449,9 @@ impl ChangesScreen {
             let me = cx.weak_entity();
             let pick: Pick = Rc::new(move |folder, _, cx| _ = me.update(cx, |this, cx| this.go(folder, cx)));
             let row = CrumbRow::new("changes-folder-crumbs", self.roots(cx), folder, pick);
-            // `flex-initial shrink-[999]`: the path gives its room before the branch does.
-            div().debug_selector(|| "changes-crumbs".into()).flex().h(px(24.)).min_w_0().flex_grow(0.).flex_shrink(999.).child(row)
+            // `size-full flex-initial shrink-[999]`: a basis of the whole row, so the path takes what is left and the
+            // branch gives the sliver that cuts it, as Chromium cuts "main" to "ma…".
+            div().debug_selector(|| "changes-crumbs".into()).flex().w_full().h(px(24.)).min_w_0().flex_grow(0.).flex_shrink(999.).child(row)
         });
         let branch = (!narrow).then(|| self.repo.clone()).flatten().filter(|r| !r.branch.is_empty()).map(|repo| {
             h_flex()
@@ -1478,10 +1470,12 @@ impl ChangesScreen {
         });
         let pinned = self.pinned(cx);
         let pin = (!narrow && self.thread_id().is_some()).then(|| {
-            Button::icon_xs("changes-pin", if pinned { Glyph::PinOff } else { Glyph::Pin })
-                .side(px(20.))
-                .tooltip(if pinned { words::UNPIN } else { words::PIN })
-                .on_click(cx.listener(|this, _, _, cx| this.toggle_pin(cx)))
+            div().debug_selector(|| "changes-pin".into()).flex_none().child(
+                Button::icon_xs("changes-pin", if pinned { Glyph::PinOff } else { Glyph::Pin })
+                    .side(px(20.))
+                    .tooltip(if pinned { words::UNPIN } else { words::PIN })
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_pin(cx))),
+            )
         });
         let narrowed = turn.as_ref().filter(|t| t.only.is_some()).zip(self.diff.as_ref()).map(|(_, diff)| {
             h_flex()
@@ -1511,11 +1505,9 @@ impl ChangesScreen {
                 Button::ghost("changes-send", words::SEND_TO_THREAD).xs().on_click(cx.listener(|this, _, _, cx| this.send_comments(cx))),
             )
         });
-        let stat = self
-            .diff
-            .as_ref()
-            .filter(|d| !d.files.is_empty())
-            .map(|d| div().mr(px(4.)).child(tree::stat_inline(d.additions(), d.deletions(), px(11.), cx)));
+        let stat = self.diff.as_ref().filter(|d| !d.files.is_empty()).map(|d| {
+            div().debug_selector(|| "changes-stat".into()).mr(px(4.)).child(tree::stat_inline(d.additions(), d.deletions(), px(11.), cx))
+        });
         let commit = (model::committable(scope, turn.is_some(), files) && !self.elsewhere()).then(|| {
             div().debug_selector(|| "changes-commit".into()).child(
                 Button::outline("changes-commit", words::COMMIT)
@@ -1620,6 +1612,8 @@ impl ChangesScreen {
             .when_some(fill, |el, fill| el.bg(fill))
             .when(mono, |el| el.font_family(cx.theme().mono_font_family.clone()))
             .text_size(px(11.))
+            // `text-[11px]` sets no leading, so the page's 1.5 holds.
+            .line_height(gpui_kit::relative(1.5))
             .text_color(ink)
             .child(text.into())
     }

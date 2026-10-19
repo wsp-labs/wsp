@@ -42,6 +42,8 @@
   (thematic_break)
 ] @punctuation.list_marker
 
+(block_quote) @text.quote
+
 [
   (block_continuation)
   (block_quote_marker)

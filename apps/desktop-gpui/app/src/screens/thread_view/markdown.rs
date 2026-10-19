@@ -1399,7 +1399,7 @@ fn path_tip(path: SharedString) -> impl Fn(&mut Window, &mut App) -> gpui_kit::A
 }
 
 /// The path in a chip's tooltip, `font-mono text-[11px] leading-tight`.
-fn path_text(path: SharedString, mono: SharedString) -> gpui_kit::Stateful<gpui_kit::Div> {
+pub fn path_text(path: SharedString, mono: SharedString) -> gpui_kit::Stateful<gpui_kit::Div> {
     div()
         .id("file-chip-tip")
         .debug_selector(|| "file-chip-tip".into())
@@ -1968,8 +1968,9 @@ mod tests {
         let fallback = cx.debug_bounds("image-unavailable").expect("a web image drew no Image unavailable");
         let line = bounds(cx, "reply");
         // Chromium sets the paragraph's one line by the fallback, stood on its glyph's bottom edge: the line's top is
-        // the fallback's, and it is as tall, 29 px in Liberation Sans.
-        assert_eq!((fallback.top(), fallback.size.height), (line.top(), line.size.height), "the fallback stands off its line");
+        // the fallback's, and it is as tall, 29 px in Liberation Sans. The Mac's faces round it half a pixel apart.
+        let off = ((fallback.top() - line.top()).abs(), (fallback.size.height - line.size.height).abs());
+        assert!(off.0 <= px(0.5) && off.1 <= px(0.5), "the fallback stands off its line: {fallback:?} on {line:?}");
         assert!(fallback.size.height > px(26.), "`py-1` round a 16 px line, and the box's own line below it");
         assert!(text_of(&reply, cx).contains("Image unavailable: a cat"), "the alt text was lost: {:?}", text_of(&reply, cx));
         let (reply, cx) = open_in(cx, &format!("![dot]({DOT}) and ![]({})", "data:image/png;base64,***"), None);
@@ -1989,42 +1990,6 @@ mod tests {
         cx.update(|window, cx| window.simulate_next_frame(cx));
         cx.run_until_parked();
         assert!(cx.debug_bounds("file-chip-tip").is_some(), "the second chip for one file showed no tooltip");
-    }
-
-    /// The path a chip's tooltip shows, in a window of its own, as wide as the machine's fonts set it.
-    struct Tip(&'static str);
-
-    impl Render for Tip {
-        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            use gpui_kit::base::TestSupportExt as _;
-            // The machine's mono face, read here: gpui-kit picks the theme's once per process, and a test with no fonts
-            // may have picked it first.
-            let installed = cx.text_system().all_font_names();
-            let mono =
-                crate::ui::theme::first_installed(&crate::ui::theme::MONO, &installed, cfg!(target_os = "macos")).expect("a mono face");
-            gpui_kit::component::h_flex().child(super::path_text(self.0.into(), mono).test_support())
-        }
-    }
-
-    #[test]
-    fn a_chips_tooltip_shows_its_path_in_mono() {
-        use gpui_kit::test::TestWindowExt;
-        let mut cx = gpui_kit::HeadlessAppContext::with_platform(
-            gpui_kit::platform::current_platform(true).text_system(),
-            Arc::new(crate::ui::UiAssets),
-            gpui_kit::platform::current_headless_renderer,
-        );
-        cx.update(|cx| {
-            gpui_kit::init(cx);
-            crate::ui::init(Side::Light, cx);
-        });
-        let mut width = |path: &'static str| {
-            let options = gpui_kit::WindowOptions { focus: false, show: false, ..Default::default() };
-            let (handle, _) = cx.update(|cx| gpui_kit::open_window(options, cx, move |_, cx| cx.new(|_| Tip(path)))).unwrap();
-            cx.update_window(handle, |_, window, cx| TestWindowExt::render_frame(window, cx)).unwrap();
-            cx.update_window(handle, |_, window, _| window.find("file-chip-tip").bounds().size.width).unwrap()
-        };
-        assert_eq!(width("/w/iiiiiiii.rs"), width("/w/mmmmmmmm.rs"), "the path's tooltip is not in mono");
     }
 
     #[gpui_kit::test]

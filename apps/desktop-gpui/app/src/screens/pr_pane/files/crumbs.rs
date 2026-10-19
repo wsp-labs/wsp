@@ -16,30 +16,25 @@ use crate::ui::{menu_on, motion, tip, ActivePalette as _, Glyph, MenuAct, Run};
 
 /// `max-w-40`: a crumb's widest.
 const CRUMB_MAX: Pixels = px(160.);
+/// `text-[11px]`: the crumb's own size, under the file tab's `text-xs` on the row.
+const CRUMB_TEXT: Pixels = px(11.);
 /// The fade at a cut edge of the row.
 const FADE: Pixels = px(24.);
 
 pub type Pick = Rc<dyn Fn(&str, &mut Window, &mut App)>;
 
-/// The row over `roots` naming `folder`, at `size` px mono.
+/// The row over `roots` naming `folder`, 11 px mono over the tree and over a file alike.
 #[derive(IntoElement)]
 pub struct CrumbRow {
     id: SharedString,
     roots: Vec<String>,
     folder: String,
-    size: Pixels,
     on_pick: Pick,
 }
 
 impl CrumbRow {
     pub fn new(id: impl Into<SharedString>, roots: Vec<String>, folder: impl Into<String>, on_pick: Pick) -> Self {
-        CrumbRow { id: id.into(), roots, folder: folder.into(), size: px(11.), on_pick }
-    }
-
-    /// The type size: 11 px over the tree, 12 px over a file.
-    pub fn size(mut self, size: Pixels) -> Self {
-        self.size = size;
-        self
+        CrumbRow { id: id.into(), roots, folder: folder.into(), on_pick }
     }
 }
 
@@ -82,8 +77,8 @@ impl RenderOnce for CrumbRow {
                 .rounded(px(6.))
                 .px(px(2.))
                 .font_family(mono.clone())
-                .text_size(self.size)
-                .line_height(self.size + px(5.))
+                .text_size(CRUMB_TEXT)
+                .line_height(CRUMB_TEXT + px(5.))
                 .text_color(ink)
                 .bg(fill)
                 .when(current, |el| el.font_weight(FontWeight::MEDIUM))
@@ -110,15 +105,21 @@ impl RenderOnce for CrumbRow {
             .min_w_0()
             .h_full()
             .child(
+                // A flex box, so the row keeps its whole width (`w-max`) and the scroll knows how far it runs.
                 div()
                     .id(SharedString::from(format!("{}-scroller", self.id)))
+                    .flex()
                     .size_full()
                     .overflow_x_scroll()
                     .track_scroll(&scroll)
                     .child(row),
             )
-            .when(offset < px(0.), |el| el.child(div().absolute().left_0().top_0().bottom_0().w(FADE).bg(fade(90.))))
-            .when(max > px(0.) && -offset < max, |el| el.child(div().absolute().right_0().top_0().bottom_0().w(FADE).bg(fade(270.))))
+            .when(offset < px(0.), |el| {
+                el.child(div().debug_selector(|| "crumbs-fade-start".into()).absolute().left_0().top_0().bottom_0().w(FADE).bg(fade(90.)))
+            })
+            .when(max > px(0.) && -offset < max, |el| {
+                el.child(div().debug_selector(|| "crumbs-fade-end".into()).absolute().right_0().top_0().bottom_0().w(FADE).bg(fade(270.)))
+            })
     }
 }
 

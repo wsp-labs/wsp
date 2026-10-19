@@ -6,7 +6,7 @@
 use std::rc::Rc;
 
 use gpui_kit::component::text::TextViewState;
-use gpui_kit::component::{h_flex, v_flex};
+use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
 use gpui_kit::{div, prelude::*, px, App, Context, Entity, ScrollHandle, SharedString, Subscription, Task, Window};
 use serde_json::{json, Value};
 
@@ -16,10 +16,11 @@ use super::open_split::{self, opens_in_editor, Said, SSH_BEHIND_KIND, SSH_INCLUD
 use super::paths::{base_name, is_binary, is_markdown, roots};
 use super::words;
 use super::{RenderMarkdown, Reveal};
+use crate::screens::app_shell::frame::SHEET_MAX_VIEWPORT;
 use crate::screens::pr_pane::daemon::DaemonLink;
 use crate::screens::pr_pane::diff::FileView;
 use crate::screens::{navigate, Host, Route};
-use crate::ui::{scroll_area, spinner, ActivePalette as _, Button, Glyph, Run};
+use crate::ui::{scroll_area, spinner, tip, ActivePalette as _, Button, Glyph, Run};
 
 /// What fs.read answered, its text handed to the views and not kept here: the bytes shown, the whole file's size,
 /// whether the daemon cut it at 2 MiB, and whether a NUL in it made it binary.
@@ -265,13 +266,26 @@ impl FileTab {
             let me = me.clone();
             move |_, _, cx| _ = me.update(cx, |this, cx| this.load(cx))
         });
+        // `Toggle` ghost at `sm`, pressed while the file shows rendered.
         let toggle = (is_markdown(&self.path) && self.line.is_none()).then(|| {
             let word = if rendered { words::SHOW_SOURCE } else { words::SHOW_RENDERED };
-            div().debug_selector(|| "file-markdown-toggle".into()).child(
-                Button::icon_xs("file-markdown-toggle", if rendered { Glyph::CodeXml } else { Glyph::Eye })
-                    .tooltip(word)
-                    .on_click(move |_, _, cx| RenderMarkdown::set(!rendered, cx)),
-            )
+            div()
+                .id("file-markdown-toggle")
+                .debug_selector(|| "file-markdown-toggle".into())
+                .flex()
+                .flex_none()
+                .size(px(28.))
+                .items_center()
+                .justify_center()
+                .rounded(px(8.))
+                .cursor_pointer()
+                .when(rendered, |el| el.bg(p.accent))
+                .hover(|s| s.bg(p.accent))
+                .tooltip(tip(word))
+                .on_click(move |_, _, cx| RenderMarkdown::set(!rendered, cx))
+                .child(
+                    Icon::new(if rendered { Glyph::CodeXml } else { Glyph::Eye }).with_size(px(14.)).text_color(p.foreground.opacity(0.8)),
+                )
         });
         let open = match &self.said {
             Some(said) => div()
@@ -290,16 +304,17 @@ impl FileTab {
                 .on_click(move |_, window, cx| _ = me.update(cx, |this, cx| this.open_in_editor(window, cx)))
                 .into_any_element(),
         };
-        let _ = window;
+        let inline = window.viewport_size().width > SHEET_MAX_VIEWPORT;
         h_flex()
             .debug_selector(|| "file-head".into())
             .flex_none()
-            .h(px(40.))
+            .h(if inline { px(28.) } else { px(40.) })
+            .when(inline, |el| el.mb(px(12.)))
             .px_3()
             .gap_2()
             .items_center()
             .bg(p.background)
-            .child(CrumbRow::new("file-crumbs", roots, self.path.clone(), pick).size(px(12.)))
+            .child(CrumbRow::new("file-crumbs", roots, self.path.clone(), pick))
             .children(toggle)
             .child(reload)
             .child(open)
@@ -327,7 +342,8 @@ impl FileTab {
                 let preview = super::markdown::preview(&self.markdown, cx);
                 scroll_area("file-markdown", &self.scroll, preview, window, cx).flex_1().min_h_0().into_any_element()
             }
-            _ => div().debug_selector(|| "file-code".into()).flex_1().min_h_0().child(self.code.clone()).into_any_element(),
+            // Pierre's `[data-code]` keeps 8 px above line 1 when the file has no header.
+            _ => div().debug_selector(|| "file-code".into()).flex_1().min_h_0().mt(px(8.)).child(self.code.clone()).into_any_element(),
         }
     }
 }
@@ -358,6 +374,7 @@ impl Render for FileTab {
                 .px_3()
                 .py(px(6.))
                 .text_size(px(11.))
+                .line_height(px(16.5))
                 .text_color(p.muted_foreground)
                 .child(words::truncated(r.shown, r.size))
         });

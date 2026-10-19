@@ -62,6 +62,12 @@ pub fn wsp_daemon() -> Result<PathBuf, String> {
     })
 }
 
+/// A temp folder by its resolved path: on macOS the temp folder sits under `/var`, a link to `/private/var`, and the
+/// host and the daemon resolve every path they are handed while comparing it with roots they were given unresolved.
+pub fn tempdir() -> tempfile::TempDir {
+    tempfile::tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap()
+}
+
 /// A host on a fresh state file in a folder of its own, stopped with this.
 pub struct Throwaway {
     pub dir: tempfile::TempDir,
@@ -217,7 +223,7 @@ impl Throwaway {
         for built in ["packages/host/dist/bin.js", "apps/web/dist/index.html"].map(|path| root().join(path)) {
             assert!(built.exists(), "{} is not built: run pnpm install && pnpm build", built.display());
         }
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempdir();
         std::fs::create_dir_all(dir.path().join("bin")).unwrap();
         std::fs::create_dir_all(dir.path().join("state")).unwrap();
         for (name, body) in [("claude", claude)].into_iter().chain(tools.iter().copied()) {

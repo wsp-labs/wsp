@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use tokio::runtime::Runtime;
 use wsp_host_client::protocol::{
     ForwardsListRequest, InitGetRequest, PlacesListRequest, PreferencesGetRequest, ProjectsListRequest, ReleaseGetRequest,
-    SessionsListRequest, StatusSubscribeRequest, WorkspacesListRequest,
+    SessionsListRequest, WorkspacesListRequest,
 };
 use wsp_host_client::{Event, Failure, HostClient, Op};
 
@@ -103,13 +103,10 @@ pub(crate) fn values<T: serde::Serialize>(items: &[T]) -> Vec<Value> {
     items.iter().filter_map(|i| serde_json::to_value(i).ok()).collect()
 }
 
-/// Reads everything the sidebar draws; with `subscribe`, also asks for workspace statuses, which a socket asks once.
+/// Reads everything the sidebar draws; with `subscribe`, also the workspace statuses, through the socket's one
+/// `status.subscribe` the panes share.
 pub async fn read(host: &HostClient, subscribe: bool) -> Result<Snapshot, Failure> {
-    let statuses = if subscribe {
-        call::<StatusSubscribeRequest>(host, json!({})).await.map(|s| values(&s.statuses)).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
+    let statuses = if subscribe { host.statuses().await.unwrap_or_default() } else { Vec::new() };
     let release = call::<ReleaseGetRequest>(host, json!({})).await.ok().and_then(|r| serde_json::to_value(&r.release).ok());
     let forwards = call::<ForwardsListRequest>(host, json!({})).await.map(|f| values(&f.forwards)).unwrap_or_default();
     let (sessions, workspaces, projects, places, preferences, setup) = futures::try_join!(

@@ -1813,6 +1813,20 @@ mod tests {
         cx.simulate_mouse_down(tile, MouseButton::Right, Modifiers::none());
         cx.simulate_mouse_up(tile, MouseButton::Right, Modifiers::none());
         cx.run_until_parked();
+        let (asked, items) = sidebar.read_with(cx, |s, _| {
+            let tile = s.lines.iter().find_map(|l| match &l.item {
+                Item::Tile(t) if s.threads[t.thread].key == "t1" => Some(t.clone()),
+                _ => None,
+            });
+            let items = menu::items_for(s, &tile.unwrap(), "t1");
+            let labels: Vec<_> = items.iter().map(|i| i.label.clone()).collect();
+            (s.menu.asked().to_vec(), labels)
+        });
+        assert_eq!(asked, items, "a right-click on the tile asks for its menu");
+        // On the Mac AppKit draws the menu, which the test platform cannot drive.
+        if cfg!(target_os = "macos") {
+            return;
+        }
         assert!(sidebar.read_with(cx, |s, _| s.menu.is_open()), "the tile's menu is open");
         let downs = sidebar.read_with(cx, |s, _| {
             let tile = s.lines.iter().find_map(|l| match &l.item {

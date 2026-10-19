@@ -12,10 +12,11 @@ use gpui_kit::{div, prelude::*, px, uniform_list, AnyElement, App, ElementId, Pi
 
 use super::model::{compact, TreeFile, TreeRow};
 use crate::screens::pr_pane::diff::fold_chevron;
-use crate::ui::{motion, ActivePalette as _, Glyph};
+use crate::ui::{motion, scrollbar, ActivePalette as _, Glyph};
 
-/// A row's own height, and the `space-y-0.5` under it.
-pub const ROW: Pixels = px(24.);
+/// A row's own height, and the `space-y-0.5` under it. Today's file rows measure 24.78 px and its folder rows about 2 px
+/// less; one height for both, on the device grid, keeps every row within 3 device px of today's down a full tree.
+pub const ROW: Pixels = px(24.5);
 pub const ROW_GAP: Pixels = px(2.);
 /// `max-h-56`: past it the rows scroll.
 pub const MAX_HEIGHT: Pixels = px(224.);
@@ -91,8 +92,11 @@ impl ChangedFilesTree {
 
     /// The tree's height: every row, capped at `max-h-56`.
     pub fn height(rows: usize) -> Pixels {
-        let content = (ROW + ROW_GAP) * rows as f32 - ROW_GAP + FOOT;
-        content.min(MAX_HEIGHT)
+        Self::content(rows).min(MAX_HEIGHT)
+    }
+
+    fn content(rows: usize) -> Pixels {
+        (ROW + ROW_GAP) * rows as f32 - ROW_GAP + FOOT
     }
 }
 
@@ -123,22 +127,33 @@ pub fn stat_inline(additions: usize, deletions: usize, size: Pixels, cx: &App) -
 }
 
 impl RenderOnce for ChangedFilesTree {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let count = self.rows.len();
         let height = ChangedFilesTree::height(count);
+        // Past `max-h-56` the native bar takes its lane at the scroller's edge, outside the `px-1`.
+        let lane = ChangedFilesTree::content(count) > MAX_HEIGHT;
+        if lane {
+            self.width -= scrollbar::WIDTH;
+        }
         let me = Rc::new(self);
         let list_me = me.clone();
+        // Each row keeps its gap under it, the last one too, so the foot under the list is that much shorter.
         let list = uniform_list(SharedString::from(format!("{}-rows", me.id)), count, move |range, window, cx| {
             range.map(|ix| list_me.row(ix, window, cx)).collect::<Vec<_>>()
         })
         .h(height)
         .w_full()
-        .pb(FOOT);
-        let list = match me.scroll.clone() {
-            Some(handle) => list.track_scroll(&handle),
-            None => list,
+        .pl(px(4.))
+        .pr(px(4.) + if lane { scrollbar::WIDTH } else { px(0.) })
+        .pb(FOOT - ROW_GAP);
+        let (list, bar) = match me.scroll.clone() {
+            Some(handle) => {
+                let bar = lane.then(|| scrollbar::list_bar(format!("{}-bar", me.id), &handle, window, cx)).flatten();
+                (list.track_scroll(&handle), bar)
+            }
+            None => (list, None),
         };
-        div().debug_selector(|| "changed-files-tree".into()).px(px(4.)).child(list)
+        div().debug_selector(|| "changed-files-tree".into()).relative().child(list).children(bar)
     }
 }
 
@@ -186,7 +201,8 @@ impl ChangedFilesTree {
         let inner = h_flex().h(ROW).w_full().rounded(px(14.)).bg(fill).pl(pad);
         if row.folder {
             let open = !self.shut.contains(&row.path);
-            let fixed = pad + px(14. + 6. + 14. + 6. + 12.) + if row.additions + row.deletions > 0 { STAT_WIDTH + px(6.) } else { px(0.) };
+            let counted = row.additions + row.deletions > 0;
+            let fixed = pad + px(14. + 6. + 14. + 6. + 12.) + if counted { STAT_WIDTH + px(6.) } else { px(0.) };
             let on_folder = self.on_folder.clone();
             return frame
                 .cursor_pointer()
@@ -207,8 +223,7 @@ impl ChangedFilesTree {
                                 .text_color(p.muted_foreground.opacity(0.75)),
                         )
                         .child(name(self.width - fixed))
-                        .child(div().flex_1())
-                        .when(row.additions + row.deletions > 0, |el| el.child(stat(row.additions, row.deletions, cx))),
+                        .when(counted, |el| el.child(div().ml_auto().child(stat(row.additions, row.deletions, cx)))),
                 )
                 .into_any_element();
         }
@@ -216,7 +231,8 @@ impl ChangedFilesTree {
         let controls = self.controls.as_ref().and_then(|f| f(&row.path, window, cx));
         let lead_width = if lead.is_some() { px(16. + 4.) } else { px(0.) };
         let spacer = if self.nested || row.depth > 0 { px(14. + 6.) } else { px(0.) };
-        let fixed = pad + lead_width + spacer + px(14. + 6. + 12. + 4.) + STAT_WIDTH + px(6.) + self.controls_width;
+        let controls_width = if controls.is_some() { px(4.) + self.controls_width } else { px(0.) };
+        let fixed = pad + lead_width + spacer + px(14. + 6. + 6. + 12.) + STAT_WIDTH + controls_width;
         let on_file = self.on_file.clone();
         frame
             .child(
@@ -240,8 +256,7 @@ impl ChangedFilesTree {
                             .when(spacer > px(0.), |el| el.child(div().size(px(14.)).flex_none()))
                             .child(Icon::new(Glyph::File).with_size(px(14.)).flex_none().text_color(p.muted_foreground.opacity(0.7)))
                             .child(name(self.width - fixed))
-                            .child(div().flex_1())
-                            .child(stat(row.additions, row.deletions, cx)),
+                            .child(div().ml_auto().child(stat(row.additions, row.deletions, cx))),
                     )
                     .children(controls.map(|c| div().flex_none().pr(px(8.)).child(c))),
             )

@@ -18,11 +18,12 @@ use wsp_host_client::protocol::{
 };
 use wsp_host_client::{protocol::EventUnion, Event};
 
+use super::conversation;
 use super::parts::restricted;
 use crate::screens::composer::model::ago;
 use crate::screens::dialogs::layer::{self, Closes};
 use crate::screens::pr_pane::comments::{send_to_thread, SEND_TO_THREAD};
-use crate::screens::pr_pane::files::markdown::{on_link, open_web};
+use crate::screens::pr_pane::files::markdown::open_web;
 use crate::screens::{navigate, Host, Route};
 use crate::ui::controls::checkbox;
 use crate::ui::{self, size, ActivePalette as _, Button, Dialog, Refusal, Segmented, TextArea};
@@ -445,16 +446,21 @@ impl ReviewDraftView {
                             .truncate()
                             .font_family(cx.theme().mono_font_family.clone())
                             .text_size(px(13.))
+                            .line_height(px(19.5))
                             .text_color(p.foreground)
                             .child(place),
                     )
-                    .child(div().debug_selector(move || format!("draft-body-{i}")).text_size(px(13.)).line_height(px(20.)).child(
-                        TextView::markdown(SharedString::from(format!("draft-body-{}", c.id)), shown_body(&c.body)).on_link_click(on_link),
-                    ))
+                    .child(div().debug_selector(move || format!("draft-body-{i}")).child(conversation::prose(
+                        &format!("draft-{i}"),
+                        TextView::markdown(SharedString::from(format!("draft-body-{}", c.id)), shown_body(&c.body)),
+                        conversation::Md::Line,
+                        cx,
+                    )))
                     .when(c.in_summary, |el| {
                         el.child(div().text_size(px(11.)).line_height(px(14.)).text_color(p.muted_foreground).child(words::TO_SUMMARY))
                     })
-                    .child(h_flex().mt_1().child(div().debug_selector(move || format!("draft-send-{i}")).child(
+                    // `mt-1` on an inline button whose 19.5 px line sets its baseline 2 px under its top.
+                    .child(h_flex().mt(px(6.)).child(div().debug_selector(move || format!("draft-send-{i}")).child(
                         Button::ghost(SharedString::from(format!("draft-send-{i}")), SEND_TO_THREAD).xs().on_click(move |_, _, cx| {
                             if let Err(e) = send_to_thread(&key, &quote, cx) {
                                 eprintln!("desktop-gpui: send to thread: {e}");

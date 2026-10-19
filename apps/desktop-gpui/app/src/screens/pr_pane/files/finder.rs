@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use gpui_kit::component::input::{Input, InputEvent, InputState};
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
 use gpui_kit::{
     div, prelude::*, px, uniform_list, App, Context, Entity, FocusHandle, Focusable, KeyDownEvent, MouseButton, Pixels, ScrollStrategy,
     SharedString, Subscription, Task, UniformListScrollHandle, Window,
@@ -18,18 +18,15 @@ use super::paths::join;
 use super::rank::{rank, LIMIT};
 use super::words::finder as words;
 use crate::screens::dialogs::layer::{self, Closes};
+use crate::screens::palette::frame;
 use crate::screens::pr_pane::daemon::DaemonLink;
 use crate::screens::Host;
-use crate::ui::card::keycap;
-use crate::ui::{size, ActivePalette as _, Glyph};
+use crate::ui::{text, ActivePalette as _, Glyph};
 
 /// How long the finder waits for the typing to rest before it asks the daemon.
 const SETTLE: Duration = Duration::from_millis(120);
-/// `max-w-xl` and `max-h-105`: the popup.
-const WIDTH: Pixels = px(576.);
-const MAX_HEIGHT: Pixels = px(420.);
-/// One hit: its title over its folder or `path:line`.
-const ROW_HEIGHT: Pixels = px(44.);
+/// One hit, `py-1.5` around its title over its folder or `path:line`.
+const ROW_HEIGHT: Pixels = px(48.);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -71,7 +68,8 @@ pub struct Finder {
     link: Entity<DaemonLink>,
     facts: Option<at::Read>,
     answer: Answer,
-    highlighted: usize,
+    /// The hit a step or the pointer lit; until one does, Enter runs the first, drawn unlit as today's draws it.
+    highlighted: Option<usize>,
     list: UniformListScrollHandle,
     focus: FocusHandle,
     asking: Option<Task<()>>,
@@ -117,7 +115,7 @@ impl Finder {
             link,
             facts: None,
             answer: Answer::Idle,
-            highlighted: 0,
+            highlighted: None,
             list: UniformListScrollHandle::new(),
             focus: cx.focus_handle(),
             asking: None,
@@ -156,7 +154,7 @@ impl Finder {
     /// Asks the daemon once the typing rests; an empty search in text asks nothing.
     fn ask(&mut self, cx: &mut Context<Self>) {
         let raw = self.query(cx);
-        self.highlighted = 0;
+        self.highlighted = None;
         let Some(folder) = self.folder() else {
             self.answer = Answer::Idle;
             self.asking = None;
@@ -183,7 +181,7 @@ impl Finder {
             };
             _ = this.update(cx, |this, cx| {
                 this.answer = answer;
-                this.highlighted = 0;
+                this.highlighted = None;
                 cx.notify();
             });
         }));
@@ -202,13 +200,19 @@ impl Finder {
         if n == 0 {
             return;
         }
-        self.highlighted = (self.highlighted as isize + by).clamp(0, n as isize - 1) as usize;
-        self.list.scroll_to_item(self.highlighted, ScrollStrategy::Top);
+        let at = (self.highlighted.unwrap_or(0) as isize + by).clamp(0, n as isize - 1) as usize;
+        self.highlighted = Some(at);
+        self.list.scroll_to_item(at, ScrollStrategy::Top);
         cx.notify();
     }
 
+    /// The hit drawn lit, where a step or the pointer lit one.
+    pub fn lit(&self) -> Option<usize> {
+        self.highlighted
+    }
+
     fn enter(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(hit) = self.hits().get(self.highlighted).cloned() {
+        if let Some(hit) = self.hits().get(self.highlighted.unwrap_or(0)).cloned() {
             self.run(&hit, window, cx);
         }
     }
@@ -257,7 +261,7 @@ impl Finder {
     fn row(&self, ix: usize, hit: &Hit, cx: &mut Context<Self>) -> gpui_kit::AnyElement {
         let p = cx.palette().clone();
         let mono = cx.theme().mono_font_family.clone();
-        let on = ix == self.highlighted;
+        let on = self.highlighted == Some(ix);
         let glyph = if self.mode == Mode::Files { Glyph::File } else { Glyph::TextSearch };
         let pressed = hit.clone();
         h_flex()
@@ -268,17 +272,17 @@ impl Finder {
             .px_2()
             .gap_2()
             .items_center()
-            .rounded(px(6.))
+            .rounded(frame::RADIUS_MD)
             .cursor_pointer()
             .when(on, |el| el.bg(p.accent))
             .on_mouse_move(cx.listener(move |this, _, _, cx| {
-                if this.highlighted != ix {
-                    this.highlighted = ix;
+                if this.highlighted != Some(ix) {
+                    this.highlighted = Some(ix);
                     cx.notify();
                 }
             }))
             .on_click(cx.listener(move |this, _, window, cx| this.run(&pressed, window, cx)))
-            .child(Icon::new(glyph).with_size(px(16.)).flex_none().text_color(p.muted_foreground))
+            .child(frame::row_icon(glyph, cx).flex_none())
             .child(
                 v_flex()
                     .flex_1()
@@ -286,8 +290,8 @@ impl Finder {
                     .child(
                         div()
                             .truncate()
-                            .text_size(if self.mode == Mode::Text { px(12.) } else { px(14.) })
-                            .line_height(px(20.))
+                            .text_size(if self.mode == Mode::Text { text::XS.0 } else { text::SETTING_TITLE.0 })
+                            .line_height(text::SETTING_TITLE.1)
                             .text_color(p.foreground)
                             .when(self.mode == Mode::Text, |el| el.font_family(mono.clone()))
                             .child(hit.title.clone()),
@@ -297,8 +301,8 @@ impl Finder {
                             div()
                                 .truncate()
                                 .font_family(mono.clone())
-                                .text_size(px(12.))
-                                .line_height(px(16.))
+                                .text_size(text::XS.0)
+                                .line_height(text::XS.1)
                                 .text_color(p.muted_foreground)
                                 .child(hit.description.clone()),
                         )
@@ -342,7 +346,6 @@ impl Focusable for Finder {
 
 impl Render for Finder {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = cx.palette().clone();
         let (label, group) = match self.mode {
             Mode::Files => (words::FILES_LABEL, words::FILES_GROUP),
             Mode::Text => (words::TEXT_LABEL, words::TEXT_GROUP),
@@ -356,38 +359,17 @@ impl Render for Finder {
             Answer::Error(message) if self.folder().is_some() => message.clone().into(),
             _ => self.empty_line(cx),
         };
-        let field = h_flex().flex_none().px(px(12.)).py(px(6.)).child(
-            Input::new(&self.input)
-                .appearance(false)
-                .h(px(40.))
-                .text_size(px(15.))
-                .prefix(Icon::new(Glyph::Search).with_size(px(16.)).text_color(p.muted_foreground)),
-        );
+        let field =
+            frame::search_row(None, Input::new(&self.input).appearance(false).p_0().h(px(34.)).text_size(text::SETTING_TITLE.0), cx);
         let results = if count == 0 {
-            div()
-                .flex_none()
-                .debug_selector(|| "finder-empty".into())
-                .py(px(40.))
-                .text_center()
-                .text_size(px(14.))
-                .text_color(p.muted_foreground)
-                .child(empty)
-                .into_any_element()
+            frame::empty(empty, cx).flex_none().debug_selector(|| "finder-empty".into()).into_any_element()
         } else {
             v_flex()
                 .flex_1()
                 .min_h_0()
                 .overflow_hidden()
                 .p_2()
-                .child(
-                    div()
-                        .px(px(9.))
-                        .py(px(6.))
-                        .text_size(px(12.))
-                        .font_weight(gpui_kit::FontWeight::MEDIUM)
-                        .text_color(p.muted_foreground)
-                        .child(group),
-                )
+                .child(frame::group_label(group, cx))
                 .child(
                     uniform_list(
                         "finder-hits",
@@ -405,43 +387,22 @@ impl Render for Finder {
                 )
                 .into_any_element()
         };
-        let foot = h_flex()
-            .flex_none()
-            .debug_selector(|| "finder-foot".into())
-            .justify_between()
-            .gap_3()
-            .px_4()
-            .py(px(10.))
-            .rounded_b(px(13.))
-            .bg(p.foreground.opacity(0.025))
-            .text_size(px(14.))
-            .font_weight(gpui_kit::FontWeight::MEDIUM)
-            .text_color(p.muted_foreground)
-            .child(
-                h_flex()
-                    .gap_3()
-                    .child(h_flex().gap(px(6.)).child(keycap("↑".into(), cx)).child(keycap("↓".into(), cx)).child(words::NAVIGATE))
-                    .child(h_flex().gap(px(6.)).child(keycap("Enter".into(), cx)).child(words::OPEN))
-                    .child(h_flex().gap(px(6.)).child(keycap("Esc".into(), cx)).child(words::CLOSE)),
-            )
-            .children(more.map(|more| {
-                div().debug_selector(|| "finder-more".into()).text_size(px(12.)).font_weight(gpui_kit::FontWeight::NORMAL).child(more)
-            }));
-        let popup = v_flex()
+        let more = more.map(|more| {
+            div()
+                .debug_selector(|| "finder-more".into())
+                .text_size(text::XS.0)
+                .line_height(text::XS.1)
+                .font_weight(gpui_kit::FontWeight::NORMAL)
+                .child(more)
+                .into_any_element()
+        });
+        let foot = frame::footer(frame::hints(words::OPEN), more, window, cx).debug_selector(|| "finder-foot".into());
+        let popup = frame::popup(cx)
             .id("file-finder")
             .debug_selector(move || format!("file-finder-{}", label))
             .track_focus(&self.focus)
             .capture_key_down(cx.listener(Self::keys))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .w(WIDTH)
-            .max_w_full()
-            .max_h(MAX_HEIGHT)
-            .overflow_hidden()
-            .rounded(size::DIALOG_RADIUS)
-            .border_1()
-            .border_color(p.popover_edge)
-            .bg(p.popover)
-            .shadow(p.dialog_shadow.clone())
             .child(field)
             .child(results)
             .child(foot);

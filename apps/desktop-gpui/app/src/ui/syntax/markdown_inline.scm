@@ -1,7 +1,6 @@
-; From gpui-kit. Emphasis keeps its delimiters in its own color, as today's app draws them.
-[
-  (code_span)
-] @text.code.span
+; From gpui-kit. Emphasis keeps its delimiters in its color, a code span's are punctuation, as today's app draws them.
+((code_span) @text.code.span
+  (#set! highlight.allow-overlap))
 
 (code_span_delimiter) @punctuation.delimiter
 
@@ -27,3 +26,8 @@
     "["
     "]"
   ] @punctuation)
+(inline_link
+  [
+    "("
+    ")"
+  ] @punctuation.link)

@@ -19,6 +19,9 @@ use crate::ui::{self, menu_on, section_head, ActivePalette, Button, CardItem, Gl
 
 /// The box's buttons: 28 px, 12.5 px medium (`BOX_BUTTON`).
 const BOX_BUTTON: gpui_kit::Pixels = px(28.);
+/// How far down the review's faces stand on its 20 px line: the sentence's baseline plus 5 px, less the baseline of an
+/// initial in a face (both the system sans at 13 and 8 px), as Blink sets `align-[-5px]`.
+const FACES_DROP: gpui_kit::Pixels = px(5.25);
 
 fn check_mark(state: CheckState) -> (Glyph, Tone) {
     match state {
@@ -43,13 +46,24 @@ struct BoxRow {
     label: AnyElement,
     value: Option<AnyElement>,
     end: Option<AnyElement>,
+    /// The end is a glyph, set on the line as the lead is (`[&>svg]:mt-[2.5px]`), not a button standing in it.
+    end_glyph: bool,
     sub: bool,
     on_click: Option<ui::act::Run>,
 }
 
 impl BoxRow {
     fn new(key: impl Into<SharedString>, label: impl IntoElement) -> Self {
-        BoxRow { key: key.into(), lead: None, label: label.into_any_element(), value: None, end: None, sub: false, on_click: None }
+        BoxRow {
+            key: key.into(),
+            lead: None,
+            label: label.into_any_element(),
+            value: None,
+            end: None,
+            end_glyph: false,
+            sub: false,
+            on_click: None,
+        }
     }
 
     fn lead(mut self, glyph: Glyph, ink: Hsla) -> Self {
@@ -107,7 +121,11 @@ impl BoxRow {
                         .child(div().min_w_0().flex_1().child(self.label)),
                 )
                 .children(self.value.map(|v| div().flex_none().text_color(p.muted_foreground).child(v)))
-                .children(self.end.map(|e| div().flex_none().my(px(-4.)).child(e)));
+                .children(self.end.map(|e| {
+                    let named = format!("pr-row-end:{}", self.key);
+                    let end = div().flex_none().debug_selector(move || named.clone());
+                    if self.end_glyph { end.pt(px(2.5)) } else { end.my(px(-4.)) }.child(e)
+                }));
             let row = match self.on_click {
                 Some(f) => row.cursor_pointer().hover(|s| s.bg(p.accent.opacity(0.6))).on_click(move |_, window, cx| f(window, cx)),
                 None => row,
@@ -124,6 +142,11 @@ impl PullRequestScreen {
             Some(g) => b.glyph(g),
             None => b,
         }
+    }
+
+    /// Merge in the primary pair with no bevel (`MERGE_INK`'s `shadow-none`).
+    fn merge_button() -> Button {
+        Button::primary("pr-merge", PR_WORDS.merge).height(BOX_BUTTON).flat()
     }
 
     fn agent_mark(&self, cx: &App) -> AnyElement {
@@ -143,6 +166,7 @@ impl PullRequestScreen {
                 .with_size(px(15.))
                 .text_color(p.muted_foreground.opacity(0.7)),
         );
+        head.end_glyph = true;
         head.on_click = Some(toggle);
         rows.push(head.item(cx));
         if !open {
@@ -234,7 +258,7 @@ impl PullRequestScreen {
                                 let by = by.clone();
                                 move || format!("pr-settled-by:{by}")
                             })
-                            .child(parts::who(&by, px(18.), cx)),
+                            .child(parts::who(&by, px(18.), Some(px(20.)), cx)),
                     )
                     .into_any_element(),
                 None => said("pr-settled-word", if merged { PR_WORDS.merged } else { PR_WORDS.closed_not_merged }).into_any_element(),
@@ -266,7 +290,18 @@ impl PullRequestScreen {
             let mut review = BoxRow::new("pr-review", PR_WORDS.review).lead(Glyph::ScanEye, tone_ink(tone, &p));
             if !verdicts.is_empty() {
                 let logins: Vec<String> = verdicts.iter().map(|(a, _)| a.clone()).collect();
-                review = review.value(h_flex().child(parts::faces("pr-verdicts", &logins, cx)).child(model::review_sentence(&verdicts)));
+                // `align-[-5px]` on the faces' inline box: their initials' baseline 5 px under the sentence's.
+                review = review.value(
+                    h_flex()
+                        .items_start()
+                        .child(div().debug_selector(|| "pr-verdict-faces".into()).mt(FACES_DROP).child(parts::faces(
+                            "pr-verdicts",
+                            &logins,
+                            Some(px(20.)),
+                            cx,
+                        )))
+                        .child(model::review_sentence(&verdicts)),
+                );
             } else if fact.review == model::Review::Required {
                 review = review.value(PR_WORDS.review_required);
             }
@@ -274,7 +309,7 @@ impl PullRequestScreen {
                 let host = self.host.clone();
                 let workspace_id = self.workspace_id().unwrap_or_default().to_owned();
                 review =
-                    review.end(Button::icon("pr-review-agent", Glyph::ScanEye).side(px(28.)).tooltip(PR_WORDS.review_with_agent).on_click(
+                    review.end(Button::icon("pr-review-agent", Glyph::ScanEye).outlined().tooltip(PR_WORDS.review_with_agent).on_click(
                         move |_, window, cx| {
                             super::review::ReviewDialog::open(&host, &workspace_id, window, cx);
                         },
@@ -405,7 +440,7 @@ impl PullRequestScreen {
                     }
                 })
                 .collect();
-            let trigger = Button::primary("pr-merge", PR_WORDS.merge).height(BOX_BUTTON).glyph(Glyph::ChevronDown);
+            let trigger = Self::merge_button().glyph(Glyph::ChevronDown).glyph_after();
             out.push(
                 div()
                     .debug_selector(|| "pr-merge-menu".into())
@@ -413,14 +448,11 @@ impl PullRequestScreen {
                     .into_any_element(),
             );
         } else if methods.len() > 1 {
-            out.push(
-                Button::primary("pr-merge", PR_WORDS.merge).height(BOX_BUTTON).glyph(Glyph::ChevronDown).held(true).into_any_element(),
-            );
+            out.push(Self::merge_button().glyph(Glyph::ChevronDown).glyph_after().held(true).into_any_element());
         } else {
             let me = cx.weak_entity();
             out.push(
-                Button::primary("pr-merge", PR_WORDS.merge)
-                    .height(BOX_BUTTON)
+                Self::merge_button()
                     .held(!merges || self.acting)
                     .on_click(move |_, window, cx| {
                         _ = me.update(cx, |this, cx| this.merge(None, false, window, cx));

@@ -35,7 +35,7 @@ export const SCOPES = {
   "keyword.storage": "storage.type",
   label: "entity.name.label",
   link_text: "string.other.link.title.markdown",
-  link_uri: "markup.underline.link",
+  link_uri: "markup.underline.link.markdown",
   namespace: "entity.name.namespace",
   number: "constant.numeric",
   operator: "keyword.operator.arithmetic",
@@ -53,7 +53,7 @@ export const SCOPES = {
   "string.special.symbol": "constant.other.symbol",
   tag: "entity.name.tag",
   "tag.doctype": "meta.tag.metadata.doctype",
-  "text.code.span": "markup.inline.raw",
+  "text.code.span": "markup.inline.raw.markdown",
   "text.literal": "markup.raw",
   title: "markup.heading",
   type: "entity.name.type",
@@ -61,6 +61,18 @@ export const SCOPES = {
   "variable.parameter": "variable.parameter",
   "variable.special": "variable.language",
   variant: "variable.other.enummember",
+  "constant.other": "constant.other",
+  "property.json": "support.type.property-name.json",
+  "constant.builtin.json": "source.json meta.structure.array.json constant.language.json",
+  "property.css": "support.type.property-name.css",
+  "property.name": "support.type.property-name",
+  "attribute.pseudo": "entity.other.attribute-name.pseudo-class",
+  "attribute.id": "entity.other.attribute-name.id",
+  "keyword.unit": "keyword.other.unit",
+  "punctuation.link": "punctuation.definition.metadata.markdown",
+  "text.quote": "markup.quote.markdown",
+  "variable.parameter.python": "variable.parameter.function.python",
+  "type.builtin.python": "support.type.python",
 };
 
 /** A pierre color as the theme files write colors: `#rrggbbaa`, lower case. */
@@ -72,19 +84,45 @@ export function hex(color) {
   throw new Error(`not a hex color: ${color}`);
 }
 
-/** The settings TextMate gives `scope` under `theme`'s rules, or null. Descendant selectors (with a space) are skipped:
- * a tree-sitter name has no parent scopes to match them against. */
+/** The settings TextMate gives `scope` under `theme`'s rules, or null. `scope` is the scope, or a space-separated stack
+ * of scopes ending in it, for the rules that name parent scopes. */
 export function resolve(theme, scope) {
+  const stack = scope.split(" ");
   let best = null;
   for (const rule of theme.tokenColors) {
     const selectors = Array.isArray(rule.scope) ? rule.scope : String(rule.scope ?? "").split(",");
     for (const raw of selectors) {
-      const sel = raw.trim();
-      if (!sel || sel.includes(" ")) continue;
-      if ((scope === sel || scope.startsWith(`${sel}.`)) && (!best || sel.length >= best.sel.length)) best = { sel, settings: rule.settings };
+      const parts = raw.trim().split(/\s+/).filter(Boolean);
+      const last = parts.pop();
+      if (!last || !names(last, stack.at(-1)) || !within(parts, stack.slice(0, -1))) continue;
+      const rank = [last.length, parts.filter(p => p !== ">").length];
+      if (!best || rank[0] > best.rank[0] || (rank[0] === best.rank[0] && rank[1] >= best.rank[1])) best = { rank, settings: rule.settings };
     }
   }
   return best?.settings ?? null;
+}
+
+const names = (selector, scope) => scope === selector || scope.startsWith(`${selector}.`);
+
+/** Whether a selector's parent parts match `stack`, outermost first; `>` asks for the immediate parent. */
+function within(parts, stack) {
+  let at = stack.length;
+  let direct = false;
+  for (const part of [...parts].reverse()) {
+    if (part === ">") {
+      direct = true;
+      continue;
+    }
+    let i = at - 1;
+    while (i >= 0 && !names(part, stack[i])) {
+      if (direct) return false;
+      i -= 1;
+    }
+    if (i < 0) return false;
+    at = i;
+    direct = false;
+  }
+  return true;
 }
 
 /** The `highlight` block for one pierre theme. */

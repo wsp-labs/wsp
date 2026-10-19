@@ -5,12 +5,13 @@
 //! pushed, which opens the Commits tab. Each comment and review takes a quiet send to the agent, a quote reply and
 //! the reactions, on its head's hover.
 
+use gpui_kit::base::TextViewStyle as BaseStyle;
 use gpui_kit::component::popover::Popover;
 use gpui_kit::component::text::TextView;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
 use gpui_kit::{
-    canvas, div, linear_color_stop, linear_gradient, prelude::*, px, AnyElement, App, Context, Div, Entity, FontWeight, SharedString,
-    WeakEntity, Window,
+    canvas, div, linear_color_stop, linear_gradient, prelude::*, px, rems, AnyElement, App, Context, Div, Entity, FontWeight,
+    HighlightStyle, Hsla, Pixels, SharedString, StyleRefinement, WeakEntity, Window,
 };
 
 use super::model::{self, Entry, Item, ItemKind, Reaction, Seen};
@@ -18,7 +19,7 @@ use super::parts;
 use super::words::{self, PR_WORDS};
 use super::PullRequestScreen;
 use crate::screens::pr_pane::comments::CommentParts;
-use crate::screens::pr_pane::files::markdown::on_link;
+use crate::screens::pr_pane::files::markdown::{blink_lists, code_box, on_link};
 use crate::ui::{self, motion, section_head, tip, ActivePalette, Button, Glyph};
 
 /// Taller than this a body folds: twelve lines of the pane's 14 px text and the band its fade takes (`CLAMP_PX`).
@@ -42,7 +43,7 @@ impl PullRequestScreen {
                 out.push(
                     div()
                         .debug_selector(|| "pr-body".into())
-                        .child(self.clamped("description", markdown("description", &body, cx).into_any_element(), cx))
+                        .child(self.clamped("description", markdown("description", &body, Md::Description, cx).into_any_element(), cx))
                         .into_any_element(),
                 );
             }
@@ -215,10 +216,10 @@ impl PullRequestScreen {
                 if open {
                     let body_key = format!("comment:{}", comment.id);
                     if let Some(body) = self.body(&body_key).cloned() {
-                        content.push(div().mt_1().child(markdown(&body_key, &body, cx)).into_any_element());
+                        content.push(div().mt_1().child(markdown(&body_key, &body, Md::Said, cx)).into_any_element());
                     }
                 }
-                (parts::face(&comment.author, px(24.), false, cx), content)
+                (parts::face(&comment.author, px(24.), false, None, cx), content)
             }
             Entry::Comment { at, comment, .. } => {
                 let item = Item { kind: ItemKind::Comment, id: comment.id };
@@ -248,12 +249,12 @@ impl PullRequestScreen {
                     content.push(
                         div()
                             .mt_1()
-                            .child(self.clamped(&body_key, markdown(&body_key, &body, cx).into_any_element(), cx))
+                            .child(self.clamped(&body_key, markdown(&body_key, &body, Md::Said, cx).into_any_element(), cx))
                             .into_any_element(),
                     );
                 }
                 content.extend(self.chips(&key, comment.node_id.clone(), comment.reactions.as_deref(), cx));
-                (parts::face(&comment.author, px(24.), false, cx), content)
+                (parts::face(&comment.author, px(24.), false, None, cx), content)
             }
             Entry::Review { at, review, threads, .. } => {
                 let (verdict, tone) = model::review_verdict(&review.state);
@@ -291,7 +292,7 @@ impl PullRequestScreen {
                         content.push(
                             div()
                                 .mt_1()
-                                .child(self.clamped(&body_key, markdown(&body_key, &body, cx).into_any_element(), cx))
+                                .child(self.clamped(&body_key, markdown(&body_key, &body, Md::Said, cx).into_any_element(), cx))
                                 .into_any_element(),
                         );
                     }
@@ -302,7 +303,7 @@ impl PullRequestScreen {
                         content.push(div().mt(px(10.)).child(b.clone()).into_any_element());
                     }
                 }
-                (parts::face(&review.author, px(24.), false, cx), content)
+                (parts::face(&review.author, px(24.), false, None, cx), content)
             }
             Entry::Thread { at, thread, .. } => {
                 let first = &thread.comments[0];
@@ -322,7 +323,7 @@ impl PullRequestScreen {
                 if let Some(b) = self.threads.get(&thread.key) {
                     content.push(div().mt(px(10.)).child(b.clone()).into_any_element());
                 }
-                (parts::face(&first.author, px(24.), false, cx), content)
+                (parts::face(&first.author, px(24.), false, None, cx), content)
             }
             Entry::Push { at, commits, authors, .. } => {
                 let who = authors.iter().map(|a| model::author_name(a)).collect::<Vec<_>>().join(", ");
@@ -338,7 +339,7 @@ impl PullRequestScreen {
                     })
                     .child(head)
                     .into_any_element();
-                (parts::face(authors.first().map_or("", String::as_str), px(24.), false, cx), vec![line])
+                (parts::face(authors.first().map_or("", String::as_str), px(24.), false, None, cx), vec![line])
             }
         };
         h_flex()
@@ -465,17 +466,58 @@ impl PullRequestScreen {
     }
 }
 
-/// A body in the pane's markdown, the item's `key` naming it: 14 px at 1.55. Someone else wrote it, so a link opens
-/// only as a web page.
-pub fn markdown(key: &str, state: &Entity<gpui_kit::component::text::TextViewState>, cx: &App) -> Div {
+/// Which of the pane's readings a body takes (`PrMarkdown`): the description keeps the chat's heading ladder; what
+/// someone said holds its headings at body size (`pr-md-said`); a line comment and a draft's are a step smaller
+/// (`pr-md-line`).
+#[derive(Clone, Copy, PartialEq)]
+pub enum Md {
+    Description,
+    Said,
+    Line,
+}
+
+/// A body in the pane's markdown, the item's `key` naming it: 14 px at 1.55, 13.5 px for a line. Someone else wrote it,
+/// so a link opens only as a web page.
+pub fn markdown(key: &str, state: &Entity<gpui_kit::component::text::TextViewState>, md: Md, cx: &App) -> Div {
+    prose(key, TextView::new(state), md, cx)
+}
+
+/// `view` in the pane's markdown, as [`markdown`].
+pub fn prose(key: &str, view: TextView, md: Md, cx: &App) -> Div {
     let p = cx.palette();
     let key = key.to_owned();
+    let body = if md == Md::Line { px(13.5) } else { px(14.) };
+    let (ink, rem) = (p.foreground, cx.theme().font_size);
     div()
         .debug_selector(move || format!("pr-markdown:{key}"))
-        .text_size(px(14.))
-        .line_height(px(21.7))
+        .text_size(body)
+        .line_height(body * 1.55)
         .text_color(p.foreground)
-        .child(TextView::new(state).on_link_click(on_link))
+        .child(view.on_link_click(on_link).base_style(move |style| pr_md(style, body, md, ink, rem)))
+}
+
+/// `.chat-markdown.pr-md`: blocks 0.6em apart, lists 18 px in with 5 px between items and Blink's markers, inline code
+/// at 12.5 px on a 6% tint of the ink with `padding: 1px 5px` and 4 px corners; headings semibold at 1.3 on the chat's
+/// ladder with `margin: 1.25rem 0 0.5rem`, or for what someone said 14 px at 1.4 with `margin: 1em 0 0.4em`.
+fn pr_md(style: BaseStyle, body: Pixels, md: Md, ink: Hsla, rem: Pixels) -> BaseStyle {
+    blink_lists(style, px(18.), px(5.), ink)
+        .with_paragraph_gap(rems(f32::from(body) / f32::from(rem) * 0.6))
+        .with_inline_code(HighlightStyle { background_color: Some(ink.opacity(0.06)), ..Default::default() })
+        .with_inline_code_frame(code_box(12.5 / f32::from(body), px(5.), px(1.)))
+        .with_heading(move |level| {
+            let (size, line, top, bottom) = if md == Md::Description {
+                let size = match level {
+                    1 => px(20.),
+                    2 => px(18.),
+                    3 => px(16.),
+                    _ => px(14.),
+                };
+                (size, size * 1.3, px(20.), px(8.))
+            } else {
+                (body, body * 1.4, body, body * 0.4)
+            };
+            StyleRefinement::default().text_size(size).line_height(line).mt(top).mb(bottom)
+        })
 }
 
 /// The used reactions as 22 px chips; with a subject each is a press that toggles the person's own.
@@ -637,9 +679,9 @@ pub fn comment_parts(me: &WeakEntity<PullRequestScreen>, id: u64, cx: &mut App) 
     let sending = this.is_sending(item);
     let agent = this.agent.clone();
     let body = this.body(&key).cloned();
-    let face = parts::face(&comment.author, px(20.), false, cx);
+    let face = parts::face(&comment.author, px(20.), false, Some(px(20.)), cx);
     let body = match body {
-        Some(b) => markdown(&key, &b, cx).text_size(px(13.5)).line_height(px(20.9)).into_any_element(),
+        Some(b) => markdown(&key, &b, Md::Line, cx).into_any_element(),
         None => div().into_any_element(),
     };
     let chips =

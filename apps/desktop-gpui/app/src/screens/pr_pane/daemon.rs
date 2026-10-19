@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The workspace's daemon link (`files/wire.ts`, `terminal/daemon-link.ts`) the Changes and Files panes send `git.*`
-//! and `fs.*` over: one channel per workspace, dialled on the first request and proven with a ping, dialled again
-//! once the host says it closed, and closed when the last pane holding it goes. It also hears where each thread's agent
-//! moved its tool shell, which the folder rule follows.
+//! The workspace's daemon link (`files/wire.ts`) the Changes and Files panes send `git.*` and `fs.*` over: the road of
+//! the computer's one channel the terminal opens (`terminal/link.rs`), held while a pane is, its requests sent beside
+//! the shells. It also hears where each thread's agent moved its tool shell, which the folder rule follows.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::channel::oneshot;
 use futures::future::{select, Either};
-use futures::lock::Mutex as Dial;
 use futures::StreamExt as _;
-use gpui_kit::{App, AppContext, Context, Entity, Task, WeakEntity};
+use gpui_kit::{App, AppContext, Context, Entity, Subscription, Task, WeakEntity};
 use serde_json::{json, Map, Value};
 use wsp_host_client::ops::terminal::DaemonSent;
 use wsp_host_client::ops::thread::History;
-use wsp_host_client::protocol::{
-    DaemonCloseRequest, DaemonOpenReply, DaemonOpenRequest, DaemonSendRequest, DaemonSendRequestFrame, SessionsHistoryRequest,
-};
+use wsp_host_client::protocol::{DaemonSendRequest, DaemonSendRequestFrame, SessionsHistoryRequest};
 use wsp_host_client::{Event, Failure, HostClient};
 
 use super::files::paths::{root_of, roots};
+use crate::screens::terminal::link::{Link, LinkHold, Road, Status, Target};
 use crate::screens::Host;
 
 /// The daemon's refusal of a request, with the typed code the files and diff ops send (`DaemonRequestError`).
@@ -37,75 +35,24 @@ impl From<Failure> for Refused {
     }
 }
 
-/// The hellos kept that no dial of this link has claimed yet: every link's pushes ride the one host socket, so the
-/// others' are heard too, and only the newest few are kept.
-const UNCLAIMED: usize = 8;
-
-/// What the link's listener tells the panes' side: its channel or folder moved, or a tool call of `thread` moved the
-/// agent's shell to `dir`, at `pos` in the workspace's transcript.
+/// A tool call of `thread` moved the agent's shell to `dir`, at `pos` in the workspace's transcript.
 #[derive(Debug, PartialEq, Eq)]
-enum Told {
-    Moved,
-    Shell { thread: String, pos: Option<u64>, dir: String },
-}
-
-/// What a link holds: the channel the last dial opened and the folder its hello named, the hellos heard before their
-/// dial stored its channel, whether the host's pushes are read now (a hello pushed before that is lost), whether the
-/// link was let go, after which a dial in flight keeps nothing, and where it tells the link's panes its channel moved.
-#[derive(Default)]
-struct Held {
-    channel: Option<String>,
-    root: Option<String>,
-    unclaimed: VecDeque<(String, String)>,
-    listening: bool,
-    released: bool,
-    moved: Option<UnboundedSender<Told>>,
-}
-
-impl Held {
-    fn claim(&mut self, channel: String) {
-        self.root = self.unclaimed.iter().position(|(on, _)| *on == channel).and_then(|at| self.unclaimed.remove(at)).map(|(_, root)| root);
-        self.channel = Some(channel);
-        self.tell();
-    }
-
-    fn heard(&mut self, channel: String, root: String) {
-        if self.channel.as_deref() == Some(channel.as_str()) {
-            self.root = Some(root);
-            self.tell();
-            return;
-        }
-        if self.unclaimed.len() == UNCLAIMED {
-            self.unclaimed.pop_front();
-        }
-        self.unclaimed.push_back((channel, root));
-    }
-
-    fn let_go(&mut self) -> Option<String> {
-        self.root = None;
-        let gone = self.channel.take();
-        if gone.is_some() {
-            self.tell();
-        }
-        gone
-    }
-
-    fn tell(&self) {
-        if let Some(moved) = &self.moved {
-            _ = moved.unbounded_send(Told::Moved);
-        }
-    }
+struct Shell {
+    thread: String,
+    pos: Option<u64>,
+    dir: String,
 }
 
 pub struct DaemonLink {
     host: Host,
     workspace_id: String,
-    held: Arc<Mutex<Held>>,
-    /// One dial at a time: requests that find no channel wait on the first one's.
-    dial: Arc<Dial<()>>,
+    link: Entity<Link>,
+    road: Arc<Mutex<Road>>,
+    _hold: LinkHold,
     /// The threads whose shell folder the listener reads off their history, as each joins.
     asked: UnboundedSender<String>,
     _events: Task<()>,
+    _link: Subscription,
 }
 
 thread_local! {
@@ -144,7 +91,8 @@ fn keep_shell(shells: &mut HashMap<(String, String), (u64, String)>, key: (Strin
 }
 
 impl DaemonLink {
-    /// The workspace's link, shared by every pane that holds it; it closes once none does.
+    /// The workspace's link, shared by every pane that holds it; the computer's channel is let go as the terminal's
+    /// is, a while after nothing holds it.
     pub fn of(host: &Host, workspace_id: &str, cx: &mut App) -> Entity<DaemonLink> {
         if let Some(link) = LINKS.with(|links| links.borrow().get(workspace_id).and_then(WeakEntity::upgrade)) {
             return link;
@@ -159,48 +107,53 @@ impl DaemonLink {
     }
 
     fn new(host: Host, workspace_id: String, cx: &mut Context<Self>) -> Self {
-        let (moved, mut heard) = unbounded();
+        let link = Link::get(&host, Target::Workspace(workspace_id.clone()), cx);
+        let (hold, road) = link.update(cx, |link, _| (link.hold(), link.road()));
+        // Each move of the channel or its folder is the link's notify, so its panes read the folder again and ask
+        // again for what failed while it was down.
+        let observing = cx.observe(&link, |_, _, cx| cx.notify());
+        let (told, mut heard) = unbounded();
         let (asked, wanted) = unbounded();
-        let held = Arc::new(Mutex::new(Held { moved: Some(moved.clone()), ..Held::default() }));
-        let dial = Arc::new(Dial::new(()));
         let events = host.run({
-            let (workspace_id, held, dial) = (workspace_id.clone(), held.clone(), dial.clone());
-            move |client| listen(client, workspace_id, held, dial, wanted, moved)
+            let workspace_id = workspace_id.clone();
+            move |client| listen(client, workspace_id, wanted, told)
         });
-        // Each move of the channel, its folder or a thread's shell is the link's notify, so its panes read the folder
-        // again and ask again for what failed while it was down.
         let shells_of = workspace_id.clone();
         let _events = cx.spawn(async move |this, cx| {
             let _listening = events;
-            while let Some(told) = heard.next().await {
-                let moved = match told {
-                    Told::Moved => true,
-                    Told::Shell { thread, pos, dir } => {
-                        SHELLS.with(|shells| keep_shell(&mut shells.borrow_mut(), (shells_of.clone(), thread), pos, dir))
-                    }
-                };
+            while let Some(Shell { thread, pos, dir }) = heard.next().await {
+                let moved = SHELLS.with(|shells| keep_shell(&mut shells.borrow_mut(), (shells_of.clone(), thread), pos, dir));
                 if moved && this.update(cx, |_, cx| cx.notify()).is_err() {
                     return;
                 }
             }
         });
-        cx.on_release(|this: &mut DaemonLink, cx| {
+        cx.on_release(|this: &mut DaemonLink, _| {
             SHELLS.with(|shells| shells.borrow_mut().retain(|(workspace, _), _| *workspace != this.workspace_id));
-            let mut held = this.held.lock().unwrap();
-            held.released = true;
-            let Some(channel) = held.let_go() else { return };
-            drop(held);
-            let closing =
-                this.host.run(move |client| async move { client.call(DaemonCloseRequest(DaemonOpenReply { channel })).await.map(|_| ()) });
-            cx.background_spawn(async move { _ = closing.await }).detach();
         })
         .detach();
-        DaemonLink { host, workspace_id, held, dial, asked, _events }
+        DaemonLink { host, workspace_id, link, road, _hold: hold, asked, _events, _link: observing }
     }
 
     /// Whether a proven channel is open now; false before the first dial and after the host closed it.
     pub fn up(&self) -> bool {
-        self.held.lock().unwrap().channel.is_some()
+        self.road.lock().unwrap().channel.is_some()
+    }
+
+    /// Dials now a link waiting out its backoff, as a pane that wants a read asks; one live or dialling is left be,
+    /// and a door that refused is dialled only at the backoff's ceiling unless `woke`, the workspace just running.
+    pub fn redial(this: &Entity<DaemonLink>, woke: bool, cx: &mut App) {
+        let link = this.read(cx).link.clone();
+        link.update(cx, |link, cx| {
+            if woke || !matches!(link.status(), Status::Refused(_)) {
+                link.redial(cx);
+            }
+        });
+    }
+
+    /// How the computer's channel stands, in the terminal's words: what the panes say while it is down.
+    pub fn status(&self) -> Status {
+        self.road.lock().unwrap().status.clone()
     }
 
     /// The folder `thread`'s panes stay in while the agent moves, where the person pinned them.
@@ -244,109 +197,51 @@ impl DaemonLink {
 
     /// The folder the daemon's hello named, which every path the panes send must resolve inside; none before it came.
     pub fn root(&self) -> Option<String> {
-        let held = self.held.lock().unwrap();
-        held.channel.as_ref().and(held.root.clone())
+        let road = self.road.lock().unwrap();
+        road.channel.as_ref().and(road.root.clone())
     }
 
-    /// One request, `{ op, ...params }`, answered with the daemon's reply once its `ok` is true. Await it from a GPUI
-    /// task; the request runs on the host's runtime and stops when the returned future is dropped.
+    /// One request, `{ op, ...params }`, answered with the daemon's reply once its `ok` is true. A dial out is waited
+    /// for; a link down otherwise answers at once with its words, as `wire.ts` rejects. Await it
+    /// from a GPUI task; the request runs on the host's runtime and stops when the returned future is dropped.
     pub fn request(&self, op: &str, params: Value) -> impl std::future::Future<Output = Result<Map<String, Value>, Refused>> + 'static {
-        let (workspace_id, held, dial) = (self.workspace_id.clone(), self.held.clone(), self.dial.clone());
+        let (host, road) = (self.host.clone(), self.road.clone());
         let mut frame = match params {
             Value::Object(map) => map,
             _ => Map::new(),
         };
         frame.insert("op".into(), Value::String(op.to_owned()));
-        let sent = self.host.run(move |client| async move { Ok(send(&client, &workspace_id, &held, &dial, frame).await) });
-        async move { sent.await.map_err(Refused::from)? }
+        async move {
+            let channel = proven(&road).await?;
+            let sent = host.run(move |client| async move { on(&client, &channel, frame).await });
+            refusal(sent.await?)
+        }
     }
 }
 
-/// Sends `frame` on the link's channel, dialling one first when none is open; a channel the host no longer answers on
-/// is closed and dialled again once.
-async fn send(
-    client: &Arc<HostClient>,
-    workspace_id: &str,
-    held: &Arc<Mutex<Held>>,
-    dial: &Arc<Dial<()>>,
-    frame: Map<String, Value>,
-) -> Result<Map<String, Value>, Refused> {
-    for attempt in 0..2 {
-        let channel = open(client, workspace_id, held, dial).await?;
-        match on(client, &channel, frame.clone()).await {
-            Err(failure) if attempt == 0 => {
-                let dropped = {
-                    let mut kept = held.lock().unwrap();
-                    (kept.channel.as_deref() == Some(channel.as_str())).then(|| kept.let_go()).flatten()
-                };
-                if let Some(channel) = dropped {
-                    _ = client.call(DaemonCloseRequest(DaemonOpenReply { channel })).await;
-                }
-                eprintln!("desktop-gpui: the daemon link for {workspace_id} dropped ({}); dialling again", failure.message);
+/// The channel once a ping proved it; a dial out is waited for, up to the first-answer bound.
+async fn proven(road: &Mutex<Road>) -> Result<String, Refused> {
+    loop {
+        let changed = {
+            let mut road = road.lock().unwrap();
+            if let Some(channel) = &road.channel {
+                return Ok(channel.clone());
             }
-            Err(failure) => return Err(failure.into()),
-            Ok(reply) => return refusal(reply),
+            if !road.dialling || road.status == Status::Unanswered {
+                let message = match &road.status {
+                    Status::Refused(reason) | Status::Dead(reason) if !reason.is_empty() => reason.to_string(),
+                    _ => "not answering".to_owned(),
+                };
+                return Err(Refused { message, code: None });
+            }
+            let (tx, rx) = oneshot::channel();
+            road.waiters.push(tx);
+            rx
+        };
+        if changed.await.is_err() {
+            return Err(Refused { message: "connection lost".into(), code: None });
         }
     }
-    unreachable!("the second attempt returns")
-}
-
-/// A channel the host opened that the link does not hold yet: closed on the host if the dial stops before storing it,
-/// whether its ping failed, its task was dropped or the link was let go meanwhile.
-struct Unclaimed {
-    client: Arc<HostClient>,
-    channel: Option<String>,
-}
-
-impl Drop for Unclaimed {
-    fn drop(&mut self) {
-        let Some(channel) = self.channel.take() else { return };
-        let Ok(runtime) = tokio::runtime::Handle::try_current() else { return };
-        let client = self.client.clone();
-        runtime.spawn(async move {
-            _ = client.call(DaemonCloseRequest(DaemonOpenReply { channel })).await;
-        });
-    }
-}
-
-async fn open(client: &Arc<HostClient>, workspace_id: &str, held: &Arc<Mutex<Held>>, dial: &Arc<Dial<()>>) -> Result<String, Refused> {
-    if let Some(channel) = held.lock().unwrap().channel.clone() {
-        return Ok(channel);
-    }
-    let dialling = dial.clone().lock_owned().await;
-    // The dial runs to its end on a task of its own: a pane let go while the host opens the channel would otherwise
-    // drop the reply naming it, and the host would hold that channel until the socket closes.
-    let (client, workspace_id, held) = (client.clone(), workspace_id.to_owned(), held.clone());
-    tokio::spawn(async move {
-        let _dialling = dialling;
-        dial_once(&client, &workspace_id, &held).await
-    })
-    .await
-    .unwrap_or_else(|e| Err(Refused { message: e.to_string(), code: None }))
-}
-
-async fn dial_once(client: &Arc<HostClient>, workspace_id: &str, held: &Mutex<Held>) -> Result<String, Refused> {
-    for _ in 0..200 {
-        if held.lock().unwrap().listening {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    }
-    if let Some(channel) = held.lock().unwrap().channel.clone() {
-        return Ok(channel);
-    }
-    let opened = client.call(DaemonOpenRequest { workspace_id: Some(workspace_id.to_owned()), place_id: None }).await?;
-    let mut unclaimed = Unclaimed { client: client.clone(), channel: Some(opened.channel.clone()) };
-    let mut ping = Map::new();
-    ping.insert("op".into(), Value::String("ping".into()));
-    refusal(on(client, &opened.channel, ping).await?)?;
-    let mut kept = held.lock().unwrap();
-    if kept.released {
-        return Err(Refused { message: "the link was let go".into(), code: None });
-    }
-    kept.claim(opened.channel.clone());
-    unclaimed.channel = None;
-    Ok(opened.channel)
 }
 
 async fn on(client: &HostClient, channel: &str, mut frame: Map<String, Value>) -> Result<Value, Failure> {
@@ -389,38 +284,29 @@ async fn last_shell(client: &HostClient, workspace_id: &str, thread: &str) -> Op
     events.iter().rev().filter_map(|e| shell_of(&serde_json::to_value(e).ok()?, workspace_id)).map(|(_, pos, dir)| (pos, dir)).next()
 }
 
-fn tell_shell(frame: &Value, workspace_id: &str, told: &UnboundedSender<Told>) {
+fn tell_shell(frame: &Value, workspace_id: &str, told: &UnboundedSender<Shell>) {
     if let Some((thread, pos, dir)) = shell_of(frame, workspace_id) {
-        _ = told.unbounded_send(Told::Shell { thread, pos, dir });
+        _ = told.unbounded_send(Shell { thread, pos, dir });
     }
 }
 
-async fn tell_last_shell(client: &HostClient, workspace_id: &str, thread: &str, told: &UnboundedSender<Told>) {
+async fn tell_last_shell(client: &HostClient, workspace_id: &str, thread: &str, told: &UnboundedSender<Shell>) {
     if let Some((pos, dir)) = last_shell(client, workspace_id, thread).await {
-        _ = told.unbounded_send(Told::Shell { thread: thread.to_owned(), pos, dir });
+        _ = told.unbounded_send(Shell { thread: thread.to_owned(), pos, dir });
     }
 }
 
-/// Reads the host's pushes for the link's channel, the hello's folder, the close that drops it and its threads' shell
-/// moves, for the link's whole life: once the socket's stream ends, its channel went with it, the pushes are read again
-/// a second later with each asked thread's history, and a channel the socket took is dialled again, as the web app's
-/// wire is.
+/// Reads the host's pushes for its threads' shell moves, for the link's whole life: once the socket's stream ends, the
+/// pushes are read again a second later with each asked thread's history.
 async fn listen(
     client: Arc<HostClient>,
     workspace_id: String,
-    held: Arc<Mutex<Held>>,
-    dial: Arc<Dial<()>>,
     mut wanted: UnboundedReceiver<String>,
-    told: UnboundedSender<Told>,
+    told: UnboundedSender<Shell>,
 ) -> Result<(), Failure> {
-    let mut rejoin = false;
     let mut threads: HashSet<String> = HashSet::new();
     loop {
         if let Ok(mut events) = client.events().await {
-            held.lock().unwrap().listening = true;
-            if std::mem::take(&mut rejoin) {
-                _ = open(&client, &workspace_id, &held, &dial).await;
-            }
             for thread in &threads {
                 tell_last_shell(&client, &workspace_id, thread, &told).await;
             }
@@ -436,35 +322,12 @@ async fn listen(
                     }
                     Either::Right((None, _)) => return Ok(()),
                 };
-                let pushed = match event {
-                    Ok(Event::Daemon(event)) => event,
-                    Ok(Event::Host(event)) => {
-                        tell_shell(&serde_json::to_value(&*event).unwrap_or_default(), &workspace_id, &told);
-                        continue;
-                    }
-                    Ok(Event::Other(frame)) => {
-                        tell_shell(&frame, &workspace_id, &told);
-                        continue;
-                    }
-                    _ => continue,
-                };
-                // The union's variants differ by a `type` word typify does not name them by, so the frame is read by its keys.
-                let Ok(frame) = serde_json::to_value(&*pushed) else { continue };
-                let channel = frame.get("channel").and_then(Value::as_str).unwrap_or_default().to_owned();
-                let mut held = held.lock().unwrap();
-                match frame.get("type").and_then(Value::as_str) {
-                    Some("daemon.event") if frame["event"]["type"] == "daemon.hello" => {
-                        if let Some(root) = frame["event"]["root"].as_str() {
-                            held.heard(channel, root.to_owned());
-                        }
-                    }
-                    Some("daemon.closed") if held.channel.as_deref() == Some(channel.as_str()) => _ = held.let_go(),
+                match event {
+                    Ok(Event::Host(event)) => tell_shell(&serde_json::to_value(&*event).unwrap_or_default(), &workspace_id, &told),
+                    Ok(Event::Other(frame)) => tell_shell(&frame, &workspace_id, &told),
                     _ => {}
                 }
             }
-            let mut held = held.lock().unwrap();
-            held.listening = false;
-            rejoin = held.let_go().is_some();
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
@@ -476,7 +339,7 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{keep_pin, keep_shell, shell_of, Held, KEPT_PINS, UNCLAIMED};
+    use super::{keep_pin, keep_shell, shell_of, KEPT_PINS};
 
     #[test]
     fn past_the_cap_the_oldest_pin_goes() {
@@ -508,40 +371,5 @@ mod tests {
         assert!(!keep_shell(&mut shells, key(), Some(9), "/r/src".into()), "the same folder again moves nothing");
         assert!(keep_shell(&mut shells, key(), None, "/r/notes".into()), "a push with no pos is the newest");
         assert_eq!(shells[&key()], (9, "/r/notes".to_owned()));
-    }
-
-    #[test]
-    fn a_link_keeps_the_folder_its_own_channels_hello_named() {
-        let mut held = Held::default();
-        held.heard("theirs".into(), "/home/b".into());
-        held.heard("mine".into(), "/home/a".into());
-        held.claim("mine".into());
-        assert_eq!(held.root.as_deref(), Some("/home/a"), "a hello heard before the dial stored its channel is claimed by its channel");
-        held.heard("later".into(), "/home/c".into());
-        assert_eq!(held.root.as_deref(), Some("/home/a"), "another link's hello on the same socket leaves this root");
-        assert_eq!(held.let_go().as_deref(), Some("mine"));
-        assert_eq!(held.root, None, "the root goes with its channel");
-
-        let mut late = Held::default();
-        late.claim("mine".into());
-        assert_eq!(late.root, None, "no hello yet");
-        late.heard("theirs".into(), "/home/b".into());
-        assert_eq!(late.root, None, "another channel's hello is not this link's");
-        late.heard("mine".into(), "/home/a".into());
-        assert_eq!(late.root.as_deref(), Some("/home/a"), "a hello after the claim is taken");
-    }
-
-    #[test]
-    fn only_the_newest_unclaimed_hellos_are_kept() {
-        let mut held = Held::default();
-        for n in 0..=UNCLAIMED {
-            held.heard(format!("c{n}"), format!("/r{n}"));
-        }
-        assert_eq!(held.unclaimed.len(), UNCLAIMED);
-        held.claim("c0".into());
-        assert_eq!(held.root, None, "the oldest hello went past the cap");
-        held.let_go();
-        held.claim(format!("c{UNCLAIMED}"));
-        assert_eq!(held.root, Some(format!("/r{UNCLAIMED}")));
     }
 }
