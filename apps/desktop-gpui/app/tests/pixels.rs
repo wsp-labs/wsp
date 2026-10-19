@@ -148,6 +148,82 @@ fn render() -> (Capture, Colors) {
 fn main() {
     the_window_draws_the_sidebar_beside_the_transcript();
     println!("test the_window_draws_the_sidebar_beside_the_transcript ... ok");
+    the_launchers_lede_centres_each_line();
+    println!("test the_launchers_lede_centres_each_line ... ok");
+}
+
+/// The launcher's line under "Open a panel" wraps to two lines in its 384 px column, each centred as `text-center`
+/// centres it.
+fn the_launchers_lede_centres_each_line() {
+    let mut cx = HeadlessAppContext::with_platform(
+        gpui_kit::platform::current_platform(true).text_system(),
+        Arc::new(AppAssets),
+        gpui_kit::platform::current_headless_renderer,
+    );
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+    });
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap());
+    let dir = std::env::temp_dir().join("desktop-gpui-pixels-launcher-no-host");
+    let (state, home) = (dir.join("state.json"), [("HOME".to_owned(), dir.to_string_lossy().into_owned())].into_iter().collect());
+    let (handle, shell) = cx.update(|cx| {
+        let options = WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(Bounds { origin: Default::default(), size: size(px(W), px(H)) })),
+            focus: false,
+            show: false,
+            ..Default::default()
+        };
+        let mut shell = None;
+        let handle = cx
+            .open_window(options, |window, cx| {
+                let view = cx.new(|cx| Shell::new(state, home, runtime, Launch::default(), window, cx));
+                shell = Some(view.clone());
+                cx.new(|cx| Root::new(view, window, cx))
+            })
+            .unwrap();
+        let handle: AnyWindowHandle = handle.into();
+        (handle, shell.unwrap())
+    });
+    cx.update_window(handle, |_, window, cx| shell.update(cx, |s, cx| s.panel().update(cx, |p, cx| p.toggle(window, cx)))).unwrap();
+    for _ in 0..2 {
+        cx.update_window(handle, |_, window, cx| window.render_frame(cx)).unwrap();
+        cx.run_until_parked();
+    }
+    let lede = cx.update_window(handle, |_, window, _| window.find("panel-launcher-lede").bounds()).unwrap();
+    let scale = cx.update_window(handle, |_, window, _| window.scale_factor()).unwrap();
+    let image = cx.capture_screenshot(handle).expect("offscreen rendering must be available");
+    if let Some(path) = std::env::var_os("PIXELS_LAUNCHER_PNG") {
+        image.save(path).unwrap();
+    }
+    let (width, height) = image.dimensions();
+    let shot = Capture { width, height, scale, raw: image.into_raw() };
+    let (left, right) = (shot.device(f32::from(lede.left())), shot.device(f32::from(lede.right())));
+    let ground = shot.device_at(left + 1, shot.device(f32::from(lede.top())));
+    let ink = |x: u32, y: u32| shot.device_at(x, y).iter().zip(ground).map(|(a, b)| a.abs_diff(b) as u32).sum::<u32>() > 90;
+    let rows: Vec<(u32, u32, u32)> = (shot.device(f32::from(lede.top()))..shot.device(f32::from(lede.bottom())))
+        .filter_map(|y| {
+            let xs: Vec<u32> = (left..right).filter(|&x| ink(x, y)).collect();
+            Some((y, *xs.first()?, *xs.last()?))
+        })
+        .collect();
+    let mut lines: Vec<(u32, u32)> = Vec::new();
+    let mut last_y = None;
+    for (y, first, last) in rows {
+        match lines.last_mut() {
+            Some(line) if last_y.is_some_and(|l: u32| y - l <= 2) => *line = (line.0.min(first), line.1.max(last)),
+            _ => lines.push((first, last)),
+        }
+        last_y = Some(y);
+    }
+    assert_eq!(lines.len(), 2, "the lede wraps to two lines in {lede:?}: {lines:?}");
+    let centre = (left + right) / 2;
+    for (first, last) in &lines {
+        let off = ((first + last) / 2).abs_diff(centre);
+        // A wrapped line keeps its last space in GPUI, where Chromium hangs it, so it sits up to half a space left.
+        assert!(off <= shot.device(3.), "a line runs {first} to {last} about {centre} device px, {off} off its centre");
+    }
+    assert!(lines[1].1 - lines[1].0 + shot.device(40.) < right - left, "the second line is short enough to show it: {lines:?}");
 }
 
 fn the_window_draws_the_sidebar_beside_the_transcript() {

@@ -280,7 +280,7 @@ pub fn back(cx: &mut App) {
         cx.update(|cx| match went {
             Ok(()) => cx.quit(),
             Err(e) => {
-                eprintln!("desktop-gpui: {NOT_OPENED}: {e}");
+                super::log::error(&format!("{NOT_OPENED}: {e}"));
                 let Some(window) = cx.active_window().or_else(|| cx.windows().first().copied()) else { return };
                 let said = e.to_string();
                 _ = window.update(cx, |_, window, cx| {

@@ -265,6 +265,8 @@ pub struct Sidebar {
     /// The shell's own list, kept so it can mark a thread before the host's read lands.
     items: Vec<ThreadItem>,
     selected: Option<String>,
+    /// The call of the selected thread's subagent whose page is open, which marks its row in place of the lead's tile.
+    opened: Option<String>,
     /// The open thread, where it was opened from the live list: the time fold leaves it out of Settled.
     held: Option<String>,
     /// The roots of every tree a thread of which works, which take Stop in place of Settle.
@@ -341,6 +343,7 @@ impl Sidebar {
         Sidebar {
             items: Vec::new(),
             selected: None,
+            opened: None,
             held: None,
             working: HashSet::new(),
             note: Some("Connecting".to_owned()),
@@ -481,9 +484,29 @@ impl Sidebar {
             .any(|l| matches!(&l.item, Item::Tile(t) if t.shape == Shape::Settled && self.threads[t.thread].key == item.thread_id));
         self.held = (!settled).then(|| item.thread_id.clone());
         self.selected = Some(item.thread_id.clone());
+        self.opened = None;
         self.folds.open = self.selected.clone();
         self.rebuild(cx);
         Some(item)
+    }
+
+    /// Marks no thread as the open one, as a page with none selected (the New thread page, the computer's own) shows.
+    pub fn unmark(&mut self, cx: &mut Context<Self>) {
+        if self.selected.take().is_some() | self.opened.take().is_some() {
+            self.rebuild(cx);
+        }
+    }
+
+    /// The row drawn as the open one, by its selector.
+    pub fn lit_row(&self) -> Option<String> {
+        tile::lit_row(self)
+    }
+
+    /// Marks the page of `lead`'s subagent launched by `call` as the open one: its row, not its lead's tile.
+    pub fn mark_subagent(&mut self, lead: &str, call: &str, cx: &mut Context<Self>) {
+        self.mark(lead, cx);
+        self.opened = Some(call.to_owned());
+        cx.notify();
     }
 
     fn select(&mut self, key: &str, cx: &mut Context<Self>) {

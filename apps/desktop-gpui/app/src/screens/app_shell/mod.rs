@@ -281,3 +281,23 @@ pub fn navigate(route: Route, cx: &mut App) {
         _ = handle.update(cx, |_, window, cx| shell.update(cx, |shell, cx| shell.go(route, window, cx)));
     });
 }
+
+/// Shuts the sidebar's sheet in a narrow window, as Settings' `go` does with `setOpenMobile(false)` once a page is
+/// picked; nothing while the sidebar is a column. Safe inside any view's update, as [`navigate`] is.
+pub fn shut_sidebar_sheet(cx: &mut App) {
+    let Some(router) = cx.try_global::<Router>() else { return };
+    let (handle, shell) = (router.window, router.shell.clone());
+    cx.defer(move |cx| {
+        _ = handle.update(cx, |_, window, cx| shell.update(cx, |shell, cx| shell.close_sheet(window, cx)));
+    });
+}
+
+/// Opens New thread on `workspace` as the sidebar's row does, the computer's own panel and drawer beside it
+/// ([`Shell::open_home`]), where a route to the composer is the workspace's New thread here.
+pub fn open_home(workspace: String, cx: &mut App) {
+    let Some(router) = cx.try_global::<Router>() else { return };
+    let (handle, shell) = (router.window, router.shell.clone());
+    cx.defer(move |cx| {
+        _ = handle.update(cx, |_, window, cx| shell.update(cx, |shell, cx| shell.open_home(&workspace, window, cx)));
+    });
+}

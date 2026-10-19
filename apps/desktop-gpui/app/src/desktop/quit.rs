@@ -106,7 +106,7 @@ pub async fn stop_wsp(state: &Path, env: &Env) -> Result<(), String> {
     if let Some((client, running)) = running(state, env).await {
         for session in running {
             if let Err(failure) = call::<SessionsInterruptRequest>(client.clone(), json!({ "sessionId": session })).await {
-                eprintln!("desktop-gpui: quit: {}", failure.message);
+                super::log::error(&format!("quit: {}", failure.message));
             }
         }
     }
@@ -187,7 +187,7 @@ fn stop(host: QuitHost, cx: &mut App) {
         let (state, env) = (host.state.clone(), host.env.clone());
         let stopped = host.runtime.spawn(async move { stop_wsp(&state, &env).await }).await.unwrap_or_else(|e| Err(e.to_string()));
         if let Err(said) = stopped {
-            eprintln!("desktop-gpui: {NOT_STOPPED}: {said}");
+            super::log::error(&format!("{NOT_STOPPED}: {said}"));
             failed(&said, cx).await;
         }
         cx.update(|cx| {

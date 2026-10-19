@@ -61,6 +61,12 @@ mod native {
         NSApp(mtm).dockTile().setBadgeLabel(label.as_deref());
     }
 
+    /// Window's Bring All to Front (`role: "front"`): every window of the app in front, in the order they stood.
+    pub fn bring_all_to_front() {
+        let Some(mtm) = MainThreadMarker::new() else { return };
+        NSApp(mtm).arrangeInFront(None);
+    }
+
     /// The system's alert sound (`shell.beep`).
     pub fn beep() {
         NSBeep();
@@ -121,7 +127,7 @@ mod native {
                     cx.set_restart_path(to);
                     cx.restart();
                 }),
-                Err(why) => eprintln!("desktop-gpui: wsp could not move itself to Applications: {why}"),
+                Err(why) => crate::desktop::log::error(&format!("wsp could not move itself to Applications: {why}")),
             }
         })
         .detach();

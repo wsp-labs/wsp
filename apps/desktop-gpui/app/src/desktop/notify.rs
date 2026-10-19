@@ -267,7 +267,7 @@ pub fn beep(cx: &mut App) {
 
 /// A line the system would not show (`NOTIFIER.refused`): said in the log, and the person still drawn to the app.
 fn refused(error: &str, sound: bool, cx: &mut App) {
-    eprintln!("desktop-gpui: notification not shown: {error}");
+    super::log::error(&format!("notification not shown: {error}"));
     if cx.has_global::<Road>() {
         cx.global_mut::<Road>().refused += 1;
     }

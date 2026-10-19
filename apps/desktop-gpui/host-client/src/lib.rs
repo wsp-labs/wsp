@@ -18,6 +18,7 @@ use wsp_mcp::client::{Client, Frames};
 use wsp_mcp::host::Host;
 
 pub use wsp_mcp::failure::Failure;
+pub use wsp_mcp::hosts::wsp_home;
 pub use wsp_mcp::{lock, release_order, Env};
 
 /// The types build.rs generates from the record, each word list and tagged union with an `Unknown` arm that a value a
@@ -134,7 +135,13 @@ impl HostClient {
 
     /// `connect`, presenting to the host here the token a pairing bought earlier in this process, where one did.
     pub async fn connect_holding(state: &Path, env: &Env, paired: Option<String>) -> Result<HostClient, Failure> {
-        let host = attached(state, env);
+        HostClient::connect_on(state, env, None, paired).await
+    }
+
+    /// `connect_holding` on the host on the account saved under `alias`, dialled as `wsp --host <alias>` dials it;
+    /// none is the host `connect` finds.
+    pub async fn connect_on(state: &Path, env: &Env, alias: Option<&str>, paired: Option<String>) -> Result<HostClient, Failure> {
+        let host = attached(state, env, alias);
         if let Some(token) = paired {
             host.hold_token(token);
         }
@@ -229,7 +236,7 @@ impl HostClient {
     /// The same host as `connect` finds, paired by a code its `wsp host pair` printed: the code goes as the first frame
     /// of a socket that presents no token, which then closes; the client dials with the device token it bought.
     pub async fn redeem(state: &Path, env: &Env, code: &str, name: &str) -> Result<HostClient, Failure> {
-        let host = attached(state, env);
+        let host = attached(state, env, None);
         host.redeem(code, name).await?;
         Ok(HostClient::over(host))
     }
@@ -418,10 +425,21 @@ pub enum Unopened {
 /// The tool server's host for `state`, with the names that aim a command line taken out of the environment, attaching
 /// to a host of a newer release than this app's as the desktop app does and refusing an older one, and refusing a
 /// lock in the desktop app's words.
-fn attached(state: &Path, env: &Env) -> Host {
+fn attached(state: &Path, env: &Env, alias: Option<&str>) -> Host {
     let env: Env = env.iter().filter(|(name, _)| !AIMS_A_LINE.contains(&name.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
-    let args = wsp_mcp::Args { state: state.to_owned(), ..wsp_mcp::Args::default() };
+    let args = wsp_mcp::Args { state: state.to_owned(), host: alias.map(str::to_owned), ..wsp_mcp::Args::default() };
     Host::new(&args, &env, None).with_release_rule(wsp_mcp::ReleaseRule::OwnOrNewer).with_account_window(ACCOUNT_DIAL)
+}
+
+/// The hosts on the account this computer holds records of, less the one this state file serves, each alias with its
+/// address, in the order `wsp hosts` lists them (`accountHosts`).
+pub fn account_hosts(state: &Path, env: &Env) -> Vec<(String, String)> {
+    wsp_mcp::hosts::account_hosts(state, &wsp_mcp::hosts::wsp_home(env)).into_iter().map(|(alias, record)| (alias, record.url)).collect()
+}
+
+/// The alias of the account's host `connect` dials, where it dials one rather than the host here.
+pub fn default_alias(state: &Path, env: &Env) -> Option<String> {
+    attached(state, env, None).aimed_alias()
 }
 
 pub struct Thread {

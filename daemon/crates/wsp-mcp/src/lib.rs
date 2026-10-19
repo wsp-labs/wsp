@@ -39,6 +39,11 @@ pub mod lock {
     pub use crate::proof::alive;
 }
 
+/// The hosts on the account this computer holds records of, and the wsp home they are kept under.
+pub mod hosts {
+    pub use crate::aim::{account_hosts, wsp_home, HostRecord};
+}
+
 /// The words `wsp-daemon mcp` was started with.
 #[derive(Debug, Default, Clone)]
 pub struct Args {
