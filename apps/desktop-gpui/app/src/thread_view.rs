@@ -227,6 +227,8 @@ struct Feed {
     revision: Option<(u64, String)>,
     facts: FactsStep,
     _observed: Option<Subscription>,
+    /// The followed workspace's readings the machine line reads, let go when the view stops following.
+    readings: Option<Entity<cards::Readings>>,
 }
 
 impl gpui_kit::EventEmitter<ThreadViewEvent> for ThreadView {}
@@ -334,6 +336,7 @@ impl ThreadView {
     /// Stops following the open thread; what it shows stays until the next `show`.
     pub fn stop(&mut self, cx: &mut Context<Self>) {
         self.following = None;
+        self.feed.readings = None;
         cx.notify();
     }
 
@@ -767,6 +770,8 @@ impl ThreadView {
         }
         let Some(sidebar) = self.feed.sidebar.as_ref().and_then(|s| s.upgrade()) else { return };
         let Some(thread) = self.thread.clone() else { return };
+        let at = self.following.as_ref().map(|f| (&f.host, f.workspace.as_str()));
+        self.feed.readings = cards::readings(self.feed.readings.take(), at, &sidebar, cx);
         let read = (sidebar.read(cx).revision(), thread.clone());
         if self.feed.revision.as_ref() == Some(&read) {
             return;
@@ -774,11 +779,20 @@ impl ThreadView {
         self.feed.revision = Some(read);
         let at = self.now.unwrap_or_else(now_ms);
         let s = sidebar.read(cx);
-        let listing = crate::transcript::Listing::listed(s.rows(), &thread, at, s.settle_ms(), s.preferences(), &s.here_name());
+        let memory = self.feed.readings.as_ref().and_then(|r| r.read(cx).memory());
+        let listing = crate::transcript::Listing::listed(s.rows(), &thread, at, s.settle_ms(), s.preferences(), &s.here_name())
+            .with_workspace(s, memory);
         // The sidebar's rows never know the send in flight; the composer's link sets and clears that.
-        let starting = self.transcript.listed().filter(|l| l.thread == thread).and_then(|l| l.starting.clone());
-        self.set_listing(crate::transcript::Listing { starting, ..listing }, cx);
+        let held = self.transcript.listed().filter(|l| l.thread == thread);
+        let (starting, sent) = (held.and_then(|l| l.starting.clone()), held.and_then(|l| l.sent.clone()));
+        self.set_listing(crate::transcript::Listing { starting, sent, ..listing }, cx);
         self.ask_facts(cx);
+    }
+
+    /// Reads the listing again though the sidebar has not moved: the machine's readings did.
+    pub(crate) fn reread(&mut self, cx: &mut Context<Self>) {
+        self.feed.revision = None;
+        self.relist(cx);
     }
 
     /// Takes the thread's agent's catalog flags once its page is drawn and the listing names its agent, off the
@@ -1373,8 +1387,11 @@ impl Render for ThreadView {
         }
         for (key, (spot, look, _)) in &self.clock_spots {
             if let (Some(ix), Some((_, clock))) = (at(key), self.clocks.get(key)) {
-                // A retried model call's clock is in the mono face, as `WorkingTimelineRow` draws its retry line.
-                let mono = matches!(self.transcript.rows()[ix].kind, RowKind::Working { retry: Some(_), .. });
+                // A retried model call's clock and a machine wait's are in the mono face, as `WorkingTimelineRow` draws them.
+                let mono = matches!(
+                    self.transcript.rows()[ix].kind,
+                    RowKind::Working { retry: Some(_), .. } | RowKind::Working { wait: Some(_), .. }
+                );
                 let text = div()
                     .debug_selector(|| "clock".into())
                     .flex()
@@ -1644,6 +1661,8 @@ mod tests {
             fix: None,
             prompt: None,
             log: Vec::new(),
+            failed: true,
+            ..Default::default()
         };
         view.update(cx, |v, cx| {
             v.show("t", cx);
@@ -1706,5 +1725,31 @@ mod tests {
         });
         let (held, oldest) = view.read_with(cx, |v, _| (v.rows().iter().any(|r| r.text == "Question 5"), v.oldest));
         assert_eq!((held, oldest), (false, Some(321)), "the turns between the pages held and the newest page are missing");
+    }
+
+    /// A send in flight stands while the sidebar's rows move under it: the listing read again keeps its words.
+    #[gpui_kit::test]
+    fn a_relist_keeps_the_send_in_flight(cx: &mut TestAppContext) {
+        use crate::screens::sidebar::host::Change;
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let sidebar = cx.new(crate::sidebar::Sidebar::new);
+        cx.update(|cx| crate::screens::terminal::read_workspaces_from(&sidebar, cx));
+        let row = |status: &str| serde_json::json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": status, "threadId": "t", "startedAt": 1.0});
+        sidebar.update(cx, |s, cx| s.apply(Change::Row { id: "s1".into(), row: Some(row("completed")) }, cx));
+        let view = cx.new(ThreadView::new);
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(view.clone(), window, cx));
+        view.update(cx, |v, cx| {
+            v.show("t", cx);
+            v.relist(cx);
+            let listing = v.listing().cloned().expect("the sidebar's listing");
+            v.set_listing(crate::transcript::Listing { sent: Some("look again".into()), ..listing }, cx);
+        });
+        sidebar.update(cx, |s, cx| s.apply(Change::Row { id: "s1".into(), row: Some(row("running")) }, cx));
+        cx.run_until_parked();
+        let sent = view.read_with(cx, |v, _| v.listing().and_then(|l| l.sent.clone()));
+        assert_eq!(sent.as_deref(), Some("look again"), "the sidebar's next read dropped the send in flight");
     }
 }

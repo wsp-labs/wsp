@@ -99,6 +99,8 @@ fn try_again_sends_the_refused_message_and_takes_it_out_of_the_draft(cx: &mut Te
         fix: None,
         prompt: Some("go".into()),
         log: Vec::new(),
+        failed: true,
+        ..StartFailed::default()
     };
     view.update(cx, |v, cx| {
         v.show("t", cx);

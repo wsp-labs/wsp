@@ -1339,6 +1339,16 @@ impl Render for Shell {
                     this.sidebar.update(cx, |s, cx| s.settle_open(&workspace, thread.as_deref(), cx));
                 }
             }))
+            .on_action(cx.listener(|this, _: &keys::QuickOpen, window, cx| {
+                let host = this.host.clone().map(|h| Host::new(h, this.runtime.clone()));
+                let mode = screens::pr_pane::files::finder::Mode::Files;
+                screens::pr_pane::files::finder::chord(mode, host, this.editor_workspace(), window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &keys::SearchFiles, window, cx| {
+                let host = this.host.clone().map(|h| Host::new(h, this.runtime.clone()));
+                let mode = screens::pr_pane::files::finder::Mode::Text;
+                screens::pr_pane::files::finder::chord(mode, host, this.editor_workspace(), window, cx)
+            }))
             .on_action(cx.listener(|this, _: &keys::OpenInEditor, window, cx| {
                 if let Some(workspace) = this.editor_workspace() {
                     crate::screens::notices::open_in_editor(workspace, window, cx);

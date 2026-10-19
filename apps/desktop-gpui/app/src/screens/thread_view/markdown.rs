@@ -39,16 +39,22 @@ const HEADING_TOP: Pixels = px(20. - 10.4);
 const WORD_WRAP: bool = true;
 /// `max-width: 24rem` on a table's cells.
 const CELL_CAP: Pixels = px(384.);
-/// InlineRun's `RUN_BOX_PX`: the most of a run's output shown before it scrolls.
-const RUN_BOX: Pixels = px(232.);
+use super::run::{self as run_box, LiveRun, RUN_BOX};
 
 /// What a press under a reply's shell block asks the thread view for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RunAction {
-    /// Run: the block's index among the reply's fenced blocks (`Run::block`) and the command it holds.
-    Start { block: usize, command: String },
+    /// Run: the block's index among the fenced blocks drawn (`Run::block`), the command it holds, and where a refusal
+    /// is said under the block.
+    Start { block: usize, command: String, said: Entity<Option<SharedString>> },
     /// Send output to the agent: the person's message `runOutputMessage` writes.
     Send { message: String },
+    /// Move to terminal, pressed or as the run's program takes the whole screen.
+    Move(Run),
+    /// Open the tab a moved run went to.
+    Open(Run),
+    /// Takes back a run the thread records running that this window does not hold.
+    Resume(Run),
 }
 
 /// Takes the presses under a reply's shell blocks.
@@ -63,12 +69,19 @@ pub struct ReplyRuns<'a> {
 
 /// A row's parsed document as a person's bubble or an agent's reply; `runs` puts each shell block's run under it.
 pub fn view(state: &Entity<TextViewState>, person: bool, runs: Option<ReplyRuns<'_>>, cx: &App) -> TextView {
-    reply(state, person, runs, None, cx)
+    reply(state, person, runs, None, None, cx)
 }
 
-/// `view` for a message of a thread working in `cwd`, which a relative path in it is read against.
-pub fn reply(state: &Entity<TextViewState>, person: bool, runs: Option<ReplyRuns<'_>>, cwd: Option<&str>, cx: &App) -> TextView {
-    let dark = cx.theme().is_dark();
+/// `view` for a message of a thread working in `cwd`, which a relative path in it is read against, on `ground`: the
+/// solid colour under it, which a wide table's edges fade into; none where it is not known, which draws no fade.
+pub fn reply(
+    state: &Entity<TextViewState>,
+    person: bool,
+    runs: Option<ReplyRuns<'_>>,
+    cwd: Option<&str>,
+    ground: Option<Hsla>,
+    cx: &App,
+) -> TextView {
     let style = if person { person_style(cx) } else { style(cx) };
     // The parsed document, shared, not its source copied: the chrome reads the source only where a block asks.
     let text = state.read(cx).rendered_text();
@@ -86,20 +99,73 @@ pub fn reply(state: &Entity<TextViewState>, person: bool, runs: Option<ReplyRuns
         .text_size(text_size(cx))
         .line_height(relative(LEADING))
         .when(opens_with_heading, |view| view.mt(-HEADING_TOP))
-        .shared_code_block_highlighter(highlighter(dark))
+        .shared_code_block_highlighter(highlighter(&cx.theme().highlight_theme))
         .code_block_chrome(move |block, window, cx| chrome(&reply, block, window, cx))
-        .table_chrome(move |table, window, cx| table_chrome(view, table, window, cx))
+        .table_chrome(move |table, window, cx| table_chrome(view, ground, table, window, cx))
         // A reply's links come from the workspace: only a web page goes to the system, as the desktop app allows.
-        .on_link_click(|url, event, _, cx| {
-            let pressed = match event {
-                ClickEvent::Mouse(click) => matches!(click.up.button, MouseButton::Left | MouseButton::Middle),
-                _ => true,
-            };
-            if pressed && web_page(url) {
-                cx.open_url(url);
+        // The kit keeps this handler in the state itself, so it holds the state weakly.
+        .on_link_click({
+            let state = state.downgrade();
+            move |url, event, window, cx| {
+                let pressed = match event {
+                    ClickEvent::Mouse(click) => matches!(click.up.button, MouseButton::Left | MouseButton::Middle),
+                    _ => true,
+                };
+                if let Some(fragment) = url.strip_prefix('#') {
+                    if let Some(state) = state.upgrade() {
+                        jump(&state, fragment, cx);
+                    }
+                } else if pressed && web_page(url) && !open_forwarded(url, window, cx) {
+                    cx.open_url(url);
+                }
             }
         })
         .markdown_extensions(extensions(cwd, cx))
+}
+
+/// `handleMarkdownFragmentClick`: a link to `#<id>` scrolls the reply's own element of that id into view, nearest
+/// edge, writing no address. The ids a reply holds are its footnotes', GitHub's: a reference's number to its note
+/// (`fn-<id>`), the note's mark back to the number (`fnref-<id>`), each under any number of `user-content-`.
+pub fn jump(state: &Entity<TextViewState>, fragment: &str, cx: &mut App) -> bool {
+    let text = state.read(cx).rendered_text();
+    let Some(range) = fragment_source(text.source(), &decode(fragment)).and_then(|at| text.range_for_source(at)) else { return false };
+    state.update(cx, |s, cx| s.reveal_range(range, cx)).is_ok()
+}
+
+/// Where in `source` the element of id `fragment` was written: a footnote's definition, or its first reference.
+fn fragment_source(source: &str, fragment: &str) -> Option<Range<usize>> {
+    let mut id = fragment;
+    while let Some(rest) = id.strip_prefix("user-content-") {
+        id = rest;
+    }
+    let (note, id) = match (id.strip_prefix("fn-"), id.strip_prefix("fnref-")) {
+        (Some(id), _) => (true, id),
+        (None, Some(id)) => (false, id),
+        _ => return None,
+    };
+    let label = regex::escape(id);
+    let pattern = if note { format!(r"(?mi)^ {{0,3}}\[\^{label}\]:.*$") } else { format!(r"(?i)\[\^{label}\]") };
+    let found = regex::Regex::new(&pattern).ok()?;
+    let at = found.find_iter(source).find(|m| note || !source[m.end()..].starts_with(':')).map(|m| m.range());
+    at
+}
+
+/// A web link's tooltip: its whole address, wrapping anywhere within `min(36rem, 100vw - 2rem)`, `leading-tight`.
+fn link_address() -> Arc<gpui_kit::base::text::LinkTooltipFn> {
+    static TIP: OnceLock<Arc<gpui_kit::base::text::LinkTooltipFn>> = OnceLock::new();
+    TIP.get_or_init(|| {
+        Arc::new(|url: &SharedString, window: &mut Window, cx: &mut App| {
+            let (url, room) = (url.clone(), window.viewport_size().width - px(32.));
+            crate::ui::tooltip_view(
+                move |_| {
+                    div().debug_selector(|| "link-address".into()).max_w(px(576.).min(room)).line_height(relative(1.25)).child(url.clone())
+                },
+                window,
+                cx,
+            )
+        })
+    })
+    .clone()
 }
 
 /// The only links a reply may hand the system: `^https?://`, as the desktop app's window opener allows.
@@ -207,7 +273,7 @@ fn styled(p: &Palette, dark: bool, ink: f32, cx: &App) -> TextViewStyle {
         .font_family(mono)
         .text_size(code_size(cx))
         .line_height(relative(1.375))
-        .text_color(gpui_kit::rgb(pierre(dark).foreground));
+        .text_color(cx.theme().highlight_theme.style.editor_foreground.unwrap_or(foreground));
     // The frame clips its header, its code and its run to the rounded corners.
     code_block.overflow.x = Some(Overflow::Hidden);
     code_block.overflow.y = Some(Overflow::Hidden);
@@ -271,6 +337,8 @@ fn styled(p: &Palette, dark: bool, ink: f32, cx: &App) -> TextViewStyle {
             below_baseline: text_size(cx) * 0.125,
         })
         .with_link_hover_dots(true)
+        .with_link_tooltip(link_address())
+        .with_details_chevron(Glyph::ChevronRight.path())
         .with_list_indent(px(20.))
         .with_list_item_gap(px(4.))
         .with_nested_list_gap(GAP_PX)
@@ -366,6 +434,7 @@ fn chrome(reply: &Reply, block: &CodeBlock, window: &mut Window, cx: &mut App) -
     let code = block.code();
     let wrapped = window.use_keyed_state(block_key(CODE_WRAP, reply.view, start), cx, |_, _| WORD_WRAP);
     let copied = window.use_keyed_state(block_key(CODE_COPIED, reply.view, start), cx, |_, _| false);
+    let said = window.use_keyed_state(block_key(CODE_REFUSED, reply.view, start), cx, |_, _| None::<SharedString>);
     let (wrap, done) = (*wrapped.read(cx), *copied.read(cx));
     let index = || block_at(source, source[..start.min(source.len())].encode_utf16().count());
     let command = runnable_command(&language, &code);
@@ -381,17 +450,21 @@ fn chrome(reply: &Reply, block: &CodeBlock, window: &mut Window, cx: &mut App) -
         .when_some(title.clone(), |el, _| el.child(Icon::new(Glyph::File).with_size(px(14.)).flex_none()))
         .child(div().min_w_0().truncate().child(title.unwrap_or(language)));
     let mut actions = h_flex().flex_none().gap(px(2.));
+    let runnable = command.is_some() && reply.on_run.is_some();
     if let (Some(command), Some(on_run), true) = (command, reply.on_run.clone(), reply.can_start) {
         let running = run.is_some_and(|run| run.state == "running");
         let ix = index();
+        let said = said.clone();
+        let words = if run.is_some() { run_box::words::RUN_AGAIN } else { run_box::words::RUN };
         actions = actions.child(
             ghost_button("run", Glyph::Play, false, cx)
-                .debug_selector(|| "code-run".into())
+                .debug_selector(move || if running { "code-run-held" } else { "code-run" }.into())
+                .tooltip(crate::ui::tip(words))
                 .when(running, |el| el.opacity(0.64).cursor_default())
                 .when(!running, |el| {
                     el.on_click(move |_, window, cx| {
                         if let Some(block) = ix {
-                            on_run(RunAction::Start { block, command: command.clone() }, window, cx);
+                            on_run(RunAction::Start { block, command: command.clone(), said: said.clone() }, window, cx);
                         }
                     })
                 }),
@@ -401,6 +474,7 @@ fn chrome(reply: &Reply, block: &CodeBlock, window: &mut Window, cx: &mut App) -
         .child(
             ghost_button("wrap", Glyph::TextWrap, wrap, cx)
                 .debug_selector(move || if wrap { "code-wrapped" } else { "code-unwrapped" }.into())
+                .tooltip(crate::ui::tip(if wrap { "Disable line wrap" } else { "Wrap lines" }))
                 .on_click(move |_, _, cx| {
                     wrapped.update(cx, |wrapped, cx| {
                         *wrapped = !*wrapped;
@@ -411,6 +485,7 @@ fn chrome(reply: &Reply, block: &CodeBlock, window: &mut Window, cx: &mut App) -
         .child(
             ghost_button("copy", if done { Glyph::Check } else { Glyph::Copy }, false, cx)
                 .debug_selector(move || if done { "code-copied" } else { "code-copy" }.into())
+                .tooltip(crate::ui::tip(if done { "Copied" } else { "Copy code" }))
                 .on_click(move |_, _, cx| {
                     cx.write_to_clipboard(ClipboardItem::new_string(code.to_string()));
                     copied.update(cx, |copied, cx| {
@@ -447,10 +522,32 @@ fn chrome(reply: &Reply, block: &CodeBlock, window: &mut Window, cx: &mut App) -
             .thumb_hover(|t| t.width(px(7.)).inset(px(0.)).radius(px(3.5)).bg(thumb))
             .thumb_active(|t| t.width(px(7.)).inset(px(0.)).radius(px(3.5)).bg(thumb)),
     );
-    match (run, reply.on_run.clone()) {
-        (Some(run), Some(on_run)) => chrome.footer(run_view(run, on_run, &p, cx)),
-        _ => chrome,
+    let refused = said.read(cx).clone();
+    let run = match (run, reply.on_run.clone()) {
+        (Some(run), Some(on_run)) if run.state == "running" => {
+            let live =
+                window.use_keyed_state(block_key(CODE_LIVE, reply.view, start), cx, |_, cx| LiveRun::new(run.clone(), on_run.clone(), cx));
+            live.update(cx, |live, cx| live.set(run, on_run, cx));
+            Some(live.into_any_element())
+        }
+        (Some(run), Some(on_run)) => Some(run_view(run, on_run, &p, cx).into_any_element()),
+        _ => None,
+    };
+    if !runnable || (run.is_none() && refused.is_none()) {
+        return chrome;
     }
+    chrome.footer(v_flex().w_full().children(run).when_some(refused, |el, refused| {
+        el.child(
+            div()
+                .debug_selector(|| "run-refusal".into())
+                .px(px(12.))
+                .py(px(6.))
+                .text_size(px(12.))
+                .line_height(px(16.))
+                .text_color(p.error_foreground)
+                .child(refused),
+        )
+    }))
 }
 
 /// The kinds of element state a view's blocks keep.
@@ -458,6 +555,8 @@ const CODE_WRAP: u32 = 1;
 const CODE_COPIED: u32 = 2;
 const TABLE_EXPANDED: u32 = 3;
 const TABLE_COPIED: u32 = 4;
+const CODE_REFUSED: u32 = 5;
+const CODE_LIVE: u32 = 6;
 
 /// The element state of one of a view's blocks, which starts at byte `start` of its source, named without allocating.
 fn block_key(kind: u32, view: EntityId, start: usize) -> gpui_kit::ElementId {
@@ -468,7 +567,7 @@ fn block_key(kind: u32, view: EntityId, start: usize) -> gpui_kit::ElementId {
     gpui_kit::ElementId::OpaqueId(id)
 }
 
-/// InlineRun: an ended run's output and how it ended, or Running; Send output to the agent as a ghost `xs` button.
+/// `EndedRun`: an exited run's output, how it ended, and Send output to the agent; a moved run's Open the tab.
 fn run_view(run: &Run, on_run: OnRun, p: &Palette, cx: &App) -> impl IntoElement {
     let mono = cx.theme().mono_font_family.clone();
     // A `<pre>` draws no line after its text's last newline.
@@ -479,19 +578,20 @@ fn run_view(run: &Run, on_run: OnRun, p: &Palette, cx: &App) -> impl IntoElement
         .map(|output| SharedString::from(output.strip_suffix('\n').unwrap_or(output).to_owned()));
     let mut tabular = StyleRefinement::default();
     tabular.text.font_features = Some(FontFeatures(Arc::new(vec![("tnum".into(), 1)])));
-    let button = |id: &'static str, words: &'static str| {
-        h_flex()
-            .id(id)
-            .h(px(24.))
-            .px(px(8.))
-            .rounded(px(8.))
-            .border_1()
-            .border_color(gpui_kit::transparent_black())
-            .text_color(p.muted_foreground)
-            .cursor_pointer()
-            .hover(|s| s.bg(p.accent).text_color(p.foreground))
-            .child(words)
-    };
+    let presses = h_flex()
+        .gap(px(4.))
+        .when(run.state == "exited", |el| {
+            let (message, on_run) = (run_output_message(run), on_run.clone());
+            el.child(run_box::run_button("run-send", run_box::words::SEND, move |_, window, cx| {
+                on_run(RunAction::Send { message: message.clone() }, window, cx)
+            }))
+        })
+        .when(run.state == "moved", |el| {
+            let run = run.clone();
+            el.child(run_box::run_button("run-open", run_box::words::OPEN_TAB, move |_, window, cx| {
+                on_run(RunAction::Open(run.clone()), window, cx)
+            }))
+        });
     v_flex()
         .w_full()
         .debug_selector(|| "code-run-output".into())
@@ -502,7 +602,7 @@ fn run_view(run: &Run, on_run: OnRun, p: &Palette, cx: &App) -> impl IntoElement
                     .w_full()
                     .max_h(RUN_BOX)
                     .overflow_y_scroll()
-                    .bg(p.background)
+                    .bg(p.terminal_background)
                     .px(px(12.))
                     .py(px(8.))
                     .font_family(mono)
@@ -513,30 +613,7 @@ fn run_view(run: &Run, on_run: OnRun, p: &Palette, cx: &App) -> impl IntoElement
                     .child(output),
             )
         })
-        .child(
-            h_flex()
-                .w_full()
-                .min_h(px(36.))
-                .justify_between()
-                .gap(px(12.))
-                .py(px(4.))
-                .pr(px(6.))
-                .pl(px(12.))
-                .font_family(cx.theme().font_family.clone())
-                .text_size(px(12.))
-                .line_height(px(16.))
-                .text_color(p.muted_foreground)
-                .refine_style(&tabular)
-                .child(div().min_w_0().child(run.words()))
-                .child(h_flex().gap(px(4.)).when(run.state == "exited", |el| {
-                    let message = run_output_message(run);
-                    el.child(
-                        button("run-send", "Send output to the agent")
-                            .debug_selector(|| "run-send".into())
-                            .on_click(move |_, window, cx| on_run(RunAction::Send { message: message.clone() }, window, cx)),
-                    )
-                })),
-        )
+        .child(run_box::footer(run.words().into(), cx).child(presses))
 }
 
 /// `runOutputMessage` in packages/protocol/src/run-block.ts: the command, how it ended and the last 60 lines it printed.
@@ -636,21 +713,42 @@ fn runnable_command(language: &str, code: &str) -> Option<String> {
     (!command.is_empty()).then_some(command)
 }
 
-/// The frame's screen for the Files pane, which a file chip and Open diff open a file in.
-const FILES: &str = "files";
+/// The app's shell the window holds, whose thread a reply's links open against.
+fn shell_of(window: &Window, cx: &App) -> Option<Entity<crate::shell::Shell>> {
+    window.root::<gpui_kit::base::Root>().flatten().and_then(|r| r.read(cx).view().clone().downcast::<crate::shell::Shell>().ok())
+}
 
-/// Opens `path` as its own tab in the Files pane (`file:<path>`) where the frame has that pane's screen; nothing where
-/// it has none yet.
-pub fn open_file(path: &str, cx: &mut App) {
-    use crate::screens::{navigate, screen, Entry, Pane, Place, Route};
-    if matches!(screen(FILES), Some(Entry { place: Place::Panel(Pane::Files), .. })) {
-        navigate(Route::Screen(format!("{FILES}:file:{path}").into()), cx);
+/// `LoopbackLinks` with `openInBrowser`: in a thread in a folder on a computer the person joined (`folderOnJoined`, a
+/// `place` workspace), a link to a loopback address opens that port and path in a Browser tab of the thread the window
+/// shows, which forwards the port; true where it took the link.
+fn open_forwarded(url: &str, window: &Window, cx: &mut App) -> bool {
+    let Some(address) = crate::screens::browser::url::parse_address(url) else { return false };
+    let shell = shell_of(window, cx);
+    let Some(screen) = shell.and_then(|s| s.read(cx).thread_screen()) else { return false };
+    let view = screen.read(cx).view().read(cx);
+    let (Some(workspace), Some(thread)) = (view.followed_workspace().map(str::to_owned), view.thread().map(str::to_owned)) else {
+        return false;
+    };
+    let Some(sidebar) = crate::screens::terminal::workspaces_sidebar(cx) else { return false };
+    if sidebar.read(cx).workspace(&workspace).0.and_then(|w| w["kind"].as_str()) != Some("place") {
+        return false;
+    }
+    crate::screens::browser::open_at(&thread, Some(workspace), crate::screens::browser::url::Place::Port(address), cx);
+    true
+}
+
+/// `onOpenFile`: `path` as its own tab in the Files pane of the thread the window shows, at `line`; nothing where the
+/// window shows none, or shows a page over it.
+pub fn open_file(path: &str, line: Option<u64>, window: &Window, cx: &mut App) {
+    let shell = shell_of(window, cx);
+    if let Some(workspace) = shell.and_then(|s| s.read(cx).editor_workspace()) {
+        crate::screens::pr_pane::files::open_file(&workspace, path, line.map(|l| l as usize), cx);
     }
 }
 
 /// `MarkdownTable`'s footer: the expand toggle on the left, copy on the right; collapsed, cells keep to one line. Copy
 /// opens "Copy as Markdown" and "Copy as CSV", then reads "Copied" with a check for 1.2 s.
-fn table_chrome(view: EntityId, table: &Arc<TableData>, window: &mut Window, cx: &mut App) -> TableChrome {
+fn table_chrome(view: EntityId, ground: Option<Hsla>, table: &Arc<TableData>, window: &mut Window, cx: &mut App) -> TableChrome {
     let start = table.span.as_ref().map_or(0, |span| span.start);
     let expanded = window.use_keyed_state(block_key(TABLE_EXPANDED, view, start), cx, |_, _| WORD_WRAP);
     let copied = window.use_keyed_state(block_key(TABLE_COPIED, view, start), cx, |_, _| false);
@@ -696,8 +794,12 @@ fn table_chrome(view: EntityId, table: &Arc<TableData>, window: &mut Window, cx:
                 crate::ui::menu_of(menu, &acts, cx.palette().error_foreground, cx.palette().muted_foreground)
             }),
         );
-    // The web's `mt-0.5`.
+    // The web's `mt-0.5`; the `scrollFade` mask's edges, into the surface the table stands on.
     let chrome = TableChrome::new().footer_gap(px(2.)).footer(footer);
+    let chrome = match ground {
+        Some(ground) => chrome.scroll_fade(ground),
+        None => chrome,
+    };
     if open {
         chrome
     } else {
@@ -760,18 +862,19 @@ pub(crate) fn ghost_button(id: &'static str, glyph: Glyph, pressed: bool, cx: &A
         .child(Icon::new(glyph).with_size(px(12.)).text_color(if pressed { p.foreground } else { p.muted_foreground }))
 }
 
-/// The fence highlighter for a side, built once: a code block keeps its highlights only while this `Arc` is the same.
+/// The fence highlighter for a theme, built once: a code block keeps its highlights only while this `Arc` is the same.
 type Highlighter = dyn Fn(&CodeBlock) -> Vec<(Range<usize>, HighlightStyle)> + Send + Sync;
 
-fn highlighter(dark: bool) -> Arc<Highlighter> {
-    static SIDES: OnceLock<[Arc<Highlighter>; 2]> = OnceLock::new();
-    let sides = SIDES.get_or_init(|| {
-        [false, true].map(|dark| -> Arc<Highlighter> {
-            let theme = Arc::new(pierre(dark).theme());
-            Arc::new(move |block: &CodeBlock| highlight(block, &theme))
-        })
-    });
-    sides[dark as usize].clone()
+fn highlighter(theme: &Arc<HighlightTheme>) -> Arc<Highlighter> {
+    static BUILT: std::sync::Mutex<Vec<(Arc<HighlightTheme>, Arc<Highlighter>)>> = std::sync::Mutex::new(Vec::new());
+    let mut built = BUILT.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, held)) = built.iter().find(|(held, _)| Arc::ptr_eq(held, theme) || **held == **theme) {
+        return held.clone();
+    }
+    let colors = theme.clone();
+    let made: Arc<Highlighter> = Arc::new(move |block: &CodeBlock| highlight(block, &colors));
+    built.push((theme.clone(), made.clone()));
+    made
 }
 
 fn highlight(block: &CodeBlock, theme: &HighlightTheme) -> Vec<(Range<usize>, HighlightStyle)> {
@@ -779,19 +882,18 @@ fn highlight(block: &CodeBlock, theme: &HighlightTheme) -> Vec<(Range<usize>, Hi
     styles(&lang, &block.code(), theme)
 }
 
-/// `code` in the language a fence or a file extension names, in the side's pierre colors.
-/// Kept per language, side and code, so a command row or an open diff drawn again parses nothing; cleared past 256.
-pub fn highlight_code(lang: &str, code: &str, dark: bool) -> Vec<(Range<usize>, HighlightStyle)> {
+/// `code` in the language a fence or a file extension names, in `theme`'s colors.
+/// Kept per language, theme and code, so a command row or an open diff drawn again parses nothing; cleared past 256.
+pub fn highlight_code(lang: &str, code: &str, theme: &HighlightTheme) -> Vec<(Range<usize>, HighlightStyle)> {
     use std::hash::{Hash, Hasher};
-    static THEMES: OnceLock<[HighlightTheme; 2]> = OnceLock::new();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     code.hash(&mut hasher);
-    let key = (lang.to_owned(), dark, code.len(), hasher.finish());
+    theme.hash(&mut hasher);
+    let key = (lang.to_owned(), code.len(), hasher.finish());
     if let Some(held) = HIGHLIGHTS.with(|held| held.borrow().get(&key).cloned()) {
         return held.to_vec();
     }
-    let themes = THEMES.get_or_init(|| [pierre(false).theme(), pierre(true).theme()]);
-    let found = styles(&SharedString::from(lang.to_owned()), code, &themes[dark as usize]);
+    let found = styles(&SharedString::from(lang.to_owned()), code, theme);
     HIGHLIGHTS.with(|held| {
         let mut held = held.borrow_mut();
         if held.len() >= HIGHLIGHTS_HELD {
@@ -809,7 +911,7 @@ type Highlights = Arc<[(Range<usize>, HighlightStyle)]>;
 thread_local! {
     /// One parser per language the registry knows, every other name sharing `text`'s: never more than the registry holds.
     static PARSERS: RefCell<HashMap<SharedString, SyntaxHighlighter>> = RefCell::new(HashMap::new());
-    static HIGHLIGHTS: RefCell<HashMap<(String, bool, usize, u64), Highlights>> = RefCell::new(HashMap::new());
+    static HIGHLIGHTS: RefCell<HashMap<(String, usize, u64), Highlights>> = RefCell::new(HashMap::new());
     /// How many times a parser ran, for the tests.
     static PARSED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
@@ -824,68 +926,6 @@ fn styles(lang: &SharedString, code: &str, theme: &HighlightTheme) -> Vec<(Range
         parser.update(None, &Rope::from_str(&code), None);
         parser.styles(&(0..code.len()), theme)
     })
-}
-
-/// Shiki's `pierre-light` and `pierre-dark` from `@pierre/theme` 1.1.0, on tree-sitter's capture names.
-struct Pierre {
-    foreground: u32,
-    captures: [(&'static str, u32); 14],
-}
-
-fn pierre(dark: bool) -> Pierre {
-    if dark {
-        Pierre {
-            foreground: 0xfafafa,
-            captures: [
-                ("comment", 0x737373),
-                ("string", 0x5ecc71),
-                ("number", 0x68cdf2),
-                ("boolean", 0x68cdf2),
-                ("constant", 0xffd452),
-                ("keyword", 0xff678d),
-                ("variable", 0xffa359),
-                ("property", 0xffa359),
-                ("variable.special", 0xffab16),
-                ("function", 0x9d6afb),
-                ("type", 0xd568ea),
-                ("constructor", 0xd568ea),
-                ("operator", 0x08c0ef),
-                ("punctuation", 0x636363),
-            ],
-        }
-    } else {
-        Pierre {
-            foreground: 0x0a0a0a,
-            captures: [
-                ("comment", 0x737373),
-                ("string", 0x199f43),
-                ("number", 0x1ca1c7),
-                ("boolean", 0x1ca1c7),
-                ("constant", 0xd5a910),
-                ("keyword", 0xd32a61),
-                ("variable", 0xd47628),
-                ("property", 0xd47628),
-                ("variable.special", 0xd5901c),
-                ("function", 0x693acf),
-                ("type", 0xa631be),
-                ("constructor", 0xa631be),
-                ("operator", 0x08c0ef),
-                ("punctuation", 0x636363),
-            ],
-        }
-    }
-}
-
-impl Pierre {
-    fn theme(&self) -> HighlightTheme {
-        let syntax: serde_json::Map<String, serde_json::Value> =
-            self.captures.iter().map(|(name, hex)| (name.to_string(), serde_json::json!({ "color": format!("#{hex:06x}") }))).collect();
-        serde_json::from_value(serde_json::json!({
-            "name": "pierre",
-            "style": { "editor.foreground": format!("#{:06x}", self.foreground), "syntax": syntax },
-        }))
-        .expect("the pierre theme is a highlight theme")
-    }
 }
 
 /// `<hr>`: preflight's 1 px rule with no margin of its own, so the blocks around it set its gaps.
@@ -1187,6 +1227,12 @@ fn in_folder(raw: &str, cwd: &str) -> String {
     }
 }
 
+/// What a chip opens in Files (`panelPath` through `openNamedFile`): the whole path with `.` and `..` walked, for a file
+/// in the folder or named whole.
+fn chip_path(meta: &FileMeta) -> Option<String> {
+    meta.panel_path().map(|_| crate::screens::terminal::links::resolve_path(&meta.file_path, "/"))
+}
+
 /// `buildFileLinkMetaFromTarget`.
 fn file_meta(target: String, cwd: Option<&str>) -> FileMeta {
     let (path, line, column) = split_position(&target);
@@ -1356,7 +1402,8 @@ impl MarkdownPlugin for FileChips {
         let p = cx.palette().clone();
         let font = window.text_system().resolve_font(&context.text_style().font());
         let x_height = window.text_system().x_height(font, context.font_size());
-        let panel = chip.meta.panel_path().map(str::to_owned);
+        let panel = chip_path(&chip.meta);
+        let line = chip.meta.line;
         let target = SharedString::from(chip.meta.target.clone());
         let element = h_flex()
             .id(SharedString::from(format!("file-chip:{}", chip.meta.target)))
@@ -1377,9 +1424,9 @@ impl MarkdownPlugin for FileChips {
             .child(div().min_w_0().truncate().child(chip.label.clone()))
             .tooltip(path_tip(target))
             .when_some(panel, |el, path| {
-                el.cursor_pointer().hover(|s| s.bg(p.accent.opacity(0.7))).on_click(move |_, _, cx| {
+                el.cursor_pointer().hover(|s| s.bg(p.accent.opacity(0.7))).on_click(move |_, window, cx| {
                     cx.stop_propagation();
-                    open_file(&path, cx);
+                    open_file(&path, line, window, cx);
                 })
             });
         // `vertical-align: middle`: the chip's middle half an x-height over the line's baseline.
@@ -1644,6 +1691,7 @@ mod tests {
             output: output.map(str::to_owned),
             exit_code: Some(0),
             signal: None,
+            pty_id: None,
         }
     }
 
@@ -1666,7 +1714,8 @@ mod tests {
         let (run, reply) = (bounds(cx, "code-run"), bounds(cx, "reply"));
         assert!(run.center().y > reply.center().y, "Run sits on the second block, the shell one, in the reply's lower half");
         click(cx, "code-run");
-        assert_eq!(*said.lock().unwrap(), vec![RunAction::Start { block: 1, command: "ls -la".into() }]);
+        let said = said.lock().unwrap();
+        assert!(matches!(said.as_slice(), [RunAction::Start { block: 1, command, .. }] if command == "ls -la"), "{said:?}");
     }
 
     #[gpui_kit::test]
@@ -1689,6 +1738,71 @@ mod tests {
             sent,
             vec![RunAction::Send { message: "I ran `ls -la` and it exited 0. The last lines it printed:\n\n```text\ntotal 0\n```".into() }]
         );
+    }
+
+    fn live(state: &str) -> Run {
+        Run { pty_id: Some("p1".into()), exit_code: None, ..ran(state, None) }
+    }
+
+    fn hover(cx: &mut VisualTestContext, selector: &'static str) -> bool {
+        let at = bounds(cx, selector).center();
+        cx.simulate_mouse_move(at, None, Modifiers::none());
+        cx.executor().advance_clock(std::time::Duration::from_millis(600));
+        cx.run_until_parked();
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        cx.debug_bounds("tooltip").is_some()
+    }
+
+    #[gpui_kit::test]
+    fn run_and_its_neighbours_say_what_they_do_on_hover(cx: &mut TestAppContext) {
+        let (on_run, _) = recorder();
+        let cx = open(cx, TWO_BLOCKS, 760., Vec::new(), Some((on_run, true)));
+        assert!(hover(cx, "code-run"), "Run showed no tooltip");
+    }
+
+    #[gpui_kit::test]
+    fn a_running_run_holds_run_and_draws_its_live_box_with_move_after_three_seconds(cx: &mut TestAppContext) {
+        let (on_run, said) = recorder();
+        let cx = open(cx, TWO_BLOCKS, 760., vec![live("running")], Some((on_run, true)));
+        assert!(cx.debug_bounds("code-run").is_none() && cx.debug_bounds("code-run-held").is_some(), "Run is not held while it runs");
+        let shown = bounds(cx, "run-live");
+        assert!(shown.size.height >= px(232. + 36.), "the live box is {:?} tall, not 232 px and its footer", shown.size.height);
+        assert!(shown.top() > bounds(cx, "code-run-held").bottom(), "under the shell block's head");
+        assert_eq!(*said.lock().unwrap(), vec![RunAction::Resume(live("running"))], "a run this window holds not is taken back");
+        click(cx, "code-run-held");
+        assert_eq!(said.lock().unwrap().len(), 1, "a held Run started another");
+        assert!(cx.debug_bounds("run-move").is_none(), "Move to terminal before the run printed three seconds");
+        cx.executor().advance_clock(super::super::run::MOVE_AFTER);
+        cx.run_until_parked();
+        click(cx, "run-move");
+        assert_eq!(said.lock().unwrap().last(), Some(&RunAction::Move(live("running"))));
+    }
+
+    #[gpui_kit::test]
+    fn a_moved_run_says_where_it_went_and_opens_that_tab(cx: &mut TestAppContext) {
+        let (on_run, said) = recorder();
+        let cx = open(cx, TWO_BLOCKS, 760., vec![live("moved")], Some((on_run, true)));
+        assert!(cx.debug_bounds("run-send").is_none(), "a moved run has no output to send");
+        click(cx, "run-open");
+        assert_eq!(*said.lock().unwrap(), vec![RunAction::Open(live("moved"))]);
+    }
+
+    #[gpui_kit::test]
+    fn a_refused_run_is_said_under_its_block(cx: &mut TestAppContext) {
+        let refuse: OnRun = Arc::new(|action, _, cx| {
+            if let RunAction::Start { said, .. } = action {
+                said.update(cx, |said, cx| {
+                    *said = Some("this workspace's terminal is not connected yet".into());
+                    cx.notify();
+                });
+            }
+        });
+        let cx = open(cx, TWO_BLOCKS, 760., Vec::new(), Some((refuse, true)));
+        assert!(cx.debug_bounds("run-refusal").is_none());
+        click(cx, "code-run");
+        let said = cx.debug_bounds("run-refusal").expect("the refusal said under the block");
+        assert!(said.top() > bounds(cx, "code-run").bottom(), "the refusal stands under the block's head");
     }
 
     #[gpui_kit::test]
@@ -1791,7 +1905,7 @@ mod tests {
 
     #[test]
     fn fence_languages_share_one_parser_per_registered_language() {
-        let theme = super::pierre(false).theme();
+        let theme = gpui_kit::component::highlighter::HighlightTheme::default_light();
         for n in 0..200 {
             super::styles(&format!("made-up-{n}").into(), "x", &theme);
         }
@@ -1898,7 +2012,7 @@ mod tests {
 
     impl Render for InFolder {
         fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            div().size_full().child(div().debug_selector(|| "reply".into()).child(super::reply(&self.0, false, None, self.1, cx)))
+            div().size_full().child(div().debug_selector(|| "reply".into()).child(super::reply(&self.0, false, None, self.1, None, cx)))
         }
     }
 
@@ -2087,9 +2201,275 @@ mod tests {
         let code = format!("echo {}", std::process::id());
         let parsed = || super::PARSED.with(|p| p.get());
         let before = parsed();
-        let first = super::highlight_code("bash", &code, false);
-        let second = super::highlight_code("bash", &code, false);
+        let theme = gpui_kit::component::highlighter::HighlightTheme::default_light();
+        let first = super::highlight_code("bash", &code, &theme);
+        let second = super::highlight_code("bash", &code, &theme);
         assert_eq!(first, second);
         assert_eq!(parsed() - before, 1, "the second call parsed again");
+    }
+
+    #[gpui_kit::test]
+    fn code_takes_its_colors_from_the_active_theme(cx: &mut TestAppContext) {
+        use gpui_kit::component::ActiveTheme as _;
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(Side::Dark, cx);
+            let theme = cx.theme().highlight_theme.clone();
+            // A Python parameter is the theme's own `variable.parameter.python`; a fixed table falls back to `variable`.
+            let code = "def scale(limit):\n    return limit\n";
+            let at = code.find("limit").unwrap();
+            let color_at = |spans: Vec<(std::ops::Range<usize>, gpui_kit::HighlightStyle)>| {
+                spans.into_iter().find(|(range, _)| range.contains(&at)).and_then(|(_, style)| style.color)
+            };
+            let parameter = theme.style("variable.parameter.python").and_then(|s| s.color);
+            assert!(parameter.is_some(), "Graphite names a Python parameter's color");
+            assert_ne!(parameter, theme.style("variable").and_then(|s| s.color), "the parameter and a variable share a color");
+            assert_eq!(color_at(super::highlight_code("python", code, &theme)), parameter, "a parameter in a command or a diff");
+            let block = gpui_kit::base::text::CodeBlock::from_code(code, Some("python"));
+            assert_eq!(color_at(super::highlighter(&theme)(&block)), parameter, "a parameter in a fenced block");
+        });
+    }
+
+    #[gpui_kit::test]
+    fn a_fenced_block_is_colored_again_when_the_theme_changes(cx: &mut TestAppContext) {
+        use gpui_kit::component::ActiveTheme as _;
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(Side::Light, cx);
+            let paper = super::highlighter(&cx.theme().highlight_theme);
+            assert!(Arc::ptr_eq(&paper, &super::highlighter(&cx.theme().highlight_theme)), "one highlighter per theme");
+            crate::ui::theme::set_theme("graphite", cx);
+            assert!(!Arc::ptr_eq(&paper, &super::highlighter(&cx.theme().highlight_theme)), "Graphite's code kept Paper's colors");
+            crate::ui::theme::set_theme("paper", cx);
+            assert!(Arc::ptr_eq(&paper, &super::highlighter(&cx.theme().highlight_theme)), "Paper again built a second highlighter");
+        });
+    }
+}
+
+#[cfg(test)]
+mod reply_tests {
+    use gpui_kit::component::Root;
+    use gpui_kit::{prelude::*, px, size, Entity, Modifiers, TestAppContext, VisualTestContext};
+    use serde_json::json;
+    use wsp_host_client::protocol::SessionEvent;
+
+    use super::fragment_source;
+    use crate::thread_view::ThreadView;
+    use crate::transcript::RowKind;
+
+    struct Reply(Entity<gpui_kit::base::text::TextViewState>, bool);
+
+    impl Render for Reply {
+        fn render(&mut self, _: &mut gpui_kit::Window, cx: &mut gpui_kit::Context<Self>) -> impl IntoElement {
+            use crate::ui::ActivePalette as _;
+            let ground = self.1.then(|| cx.palette().background);
+            gpui_kit::div().size_full().child(super::reply(&self.0, false, None, None, ground, cx))
+        }
+    }
+
+    /// An agent's reply on the page.
+    fn reply<'a>(cx: &'a mut TestAppContext, markdown: &str, width: f32) -> &'a mut VisualTestContext {
+        reply_on(cx, markdown, width, true)
+    }
+
+    /// A reply on the page where `page`, else on a surface it is not told of.
+    fn reply_on<'a>(cx: &'a mut TestAppContext, markdown: &str, width: f32, page: bool) -> &'a mut VisualTestContext {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let markdown = markdown.to_owned();
+        let body = cx.new(|cx| gpui_kit::base::text::TextViewState::markdown(&markdown, cx));
+        let reply = cx.new(|_| Reply(body, page));
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(reply.clone(), window, cx));
+        cx.simulate_resize(size(px(width), px(800.)));
+        cx.run_until_parked();
+        cx
+    }
+
+    #[gpui_kit::test]
+    fn a_web_link_shows_its_address_on_hover_and_another_link_none(cx: &mut TestAppContext) {
+        let cx = reply(cx, "Read [the docs](https://wsp.dev/docs/start) first.", 600.);
+        let tip = cx.debug_bounds("link-tip").expect("no hover target over the web link");
+        cx.simulate_mouse_move(tip.center(), None, Modifiers::none());
+        cx.executor().advance_clock(std::time::Duration::from_secs(1));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("link-address").is_some(), "the link's address did not show on hover");
+        cx.simulate_mouse_move(gpui_kit::point(px(590.), px(790.)), None, Modifiers::none());
+        cx.executor().advance_clock(std::time::Duration::from_secs(1));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("link-address").is_none(), "the address stayed after the pointer left");
+    }
+
+    /// A reply drawn while it holds its body, and nothing once it lets go.
+    struct Holder(Option<Entity<gpui_kit::base::text::TextViewState>>);
+
+    impl Render for Holder {
+        fn render(&mut self, _: &mut gpui_kit::Window, cx: &mut gpui_kit::Context<Self>) -> impl IntoElement {
+            gpui_kit::div().size_full().children(self.0.as_ref().map(|body| super::reply(body, false, None, None, None, cx)))
+        }
+    }
+
+    #[gpui_kit::test]
+    fn a_replys_body_is_freed_once_no_view_draws_it(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let body =
+            cx.new(|cx| gpui_kit::base::text::TextViewState::markdown("See [the docs](https://wsp.dev) and [^1].\n\n[^1]: A note.", cx));
+        let weak = body.downgrade();
+        let holder = cx.new(|_| Holder(Some(body)));
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(holder.clone(), window, cx));
+        cx.run_until_parked();
+        holder.update(cx, |h, cx| {
+            h.0 = None;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        assert!(weak.upgrade().is_none(), "the reply's TextViewState outlived the view that drew it");
+    }
+
+    #[gpui_kit::test]
+    fn a_details_block_folds_under_its_summary_and_opens_on_a_press(cx: &mut TestAppContext) {
+        let cx = reply(cx, "<details>\n<summary>More <b>here</b></summary>\n\nHidden body.\n\n</details>\n\nAfter.", 600.);
+        let summary = cx.debug_bounds("details-summary").expect("the details block drew no summary row");
+        assert!(cx.debug_bounds("details-body").is_none(), "a details block starts shut");
+        cx.simulate_click(summary.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("details-body").is_some(), "a press on the summary did not open it");
+        cx.simulate_click(summary.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("details-body").is_none(), "a second press did not shut it");
+    }
+
+    #[gpui_kit::test]
+    fn a_details_block_written_open_starts_open(cx: &mut TestAppContext) {
+        let cx = reply(cx, "<details open>\n<summary>More</summary>\n\nShown body.\n\n</details>", 600.);
+        assert!(cx.debug_bounds("details-body").is_some(), "an open details block started shut");
+    }
+
+    #[gpui_kit::test]
+    fn a_link_to_a_note_shows_no_address(cx: &mut TestAppContext) {
+        let cx = reply(cx, "See [^1].\n\n[^1]: The note.", 600.);
+        assert!(cx.debug_bounds("link-tip").is_none(), "a footnote's number took a web link's hover");
+    }
+
+    #[gpui_kit::test]
+    fn a_wide_table_on_a_surface_the_reply_does_not_know_draws_no_fade(cx: &mut TestAppContext) {
+        let head: Vec<String> = (1..=12).map(|n| format!("Column number {n}")).collect();
+        let table = format!("| {} |\n|{}\n| {} |", head.join(" | "), "---|".repeat(12), head.join(" | "));
+        let cx = reply_on(cx, &table, 500., false);
+        assert!(cx.debug_bounds("table-fade-right").is_none(), "a reply with no ground painted the page's colour over its table");
+    }
+
+    #[gpui_kit::test]
+    fn a_wide_tables_edges_fade_while_more_lies_past_them(cx: &mut TestAppContext) {
+        let head: Vec<String> = (1..=12).map(|n| format!("Column number {n}")).collect();
+        let table = format!("| {} |\n|{}\n| {} |", head.join(" | "), "---|".repeat(12), head.join(" | "));
+        let cx = reply(cx, &table, 500.);
+        assert!(cx.debug_bounds("table-fade-left").is_none(), "a table at its start fades its left edge");
+        let right = cx.debug_bounds("table-fade-right").expect("no fade on the right edge with more past it");
+        assert_eq!(right.size.width, px(24.), "the fade is 1.5 rem wide");
+        let over = right.center() - gpui_kit::point(px(100.), px(0.));
+        let wheel = |dx: f32| gpui_kit::ScrollWheelEvent {
+            position: over,
+            delta: gpui_kit::ScrollDelta::Pixels(gpui_kit::point(px(dx), px(0.))),
+            ..Default::default()
+        };
+        cx.simulate_event(wheel(-10.));
+        cx.run_until_parked();
+        let left = cx.debug_bounds("table-fade-left").expect("no fade on the left edge after a scroll");
+        assert_eq!(left.size.width, px(10.), "the left fade is as wide as what was scrolled, under 1.5 rem");
+        cx.simulate_event(wheel(-100_000.));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("table-fade-right").is_none(), "a table at its end fades its right edge");
+        assert!(cx.debug_bounds("table-fade-left").is_some());
+    }
+
+    const NOTED: &str = "See [^a] and [^1].\n\n[^1]: The first.\n   [^a]: The other.";
+
+    #[test]
+    fn a_chip_opens_its_file_with_dots_walked() {
+        let meta = |code: &str| super::inline_file(code, Some("/r/sub")).expect("a file chip");
+        assert_eq!(super::chip_path(&meta("../x.rs")).as_deref(), Some("/r/x.rs"));
+        assert_eq!(super::chip_path(&meta("./src/../a.rs:12")).as_deref(), Some("/r/sub/a.rs"));
+        assert_eq!(super::chip_path(&meta("/r/sub/a.rs")).as_deref(), Some("/r/sub/a.rs"));
+    }
+
+    #[test]
+    fn a_fragment_names_a_footnotes_note_or_its_first_reference() {
+        let at = |fragment: &str| fragment_source(NOTED, fragment).map(|r| &NOTED[r]);
+        assert_eq!(at("user-content-fn-1"), Some("[^1]: The first."));
+        assert_eq!(at("user-content-user-content-fn-A"), Some("   [^a]: The other."));
+        assert_eq!(at("fnref-1"), Some("[^1]"));
+        assert_eq!(fragment_source(NOTED, "fnref-1").map(|r| r.start), NOTED.find("[^1]"));
+        assert_eq!(at("setup"), None, "a heading has no id in a reply, as today's has none");
+        assert_eq!(at("fn-2"), None);
+    }
+
+    fn event(kind: &str, pos: u64, extra: serde_json::Value) -> SessionEvent {
+        let mut v = json!({"type": kind, "workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": "u1", "pos": pos});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        serde_json::from_value(v).unwrap()
+    }
+
+    /// A reply opening on a footnote's number whose note stands 80 lines further down, in a window too short for both.
+    fn noted(cx: &mut TestAppContext) -> (Entity<ThreadView>, &mut VisualTestContext) {
+        let filler: String = (0..80).map(|n| format!("Line {n}.\n\n")).collect();
+        let text = format!("[^1] opens it.\n\n{filler}[^1]: The note.");
+        let events = vec![
+            event("session.start", 1, json!({"prompt": "go"})),
+            event("session.delta", 2, json!({"kind": "text", "text": text, "messageId": "m1"})),
+            event("session.done", 3, json!({"result": {"status": "completed", "durationMs": 2_000}})),
+            event("session.end", 4, json!({"exitCode": 0, "sawResult": true})),
+        ];
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let view = cx.new(ThreadView::new);
+        let (_, cx) = cx.add_window_view(|window, cx| Root::new(view.clone(), window, cx));
+        cx.simulate_resize(size(px(900.), px(500.)));
+        view.update(cx, |v, cx| {
+            v.show("t", cx);
+            v.load(events, cx);
+            v.scroll_to_top(cx);
+        });
+        cx.run_until_parked();
+        (view, cx)
+    }
+
+    fn top(view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> (usize, gpui_kit::Pixels) {
+        view.read_with(cx, |v, _| {
+            let at = v.list().logical_scroll_top();
+            (at.item_ix, at.offset_in_item)
+        })
+    }
+
+    #[gpui_kit::test]
+    fn a_footnotes_number_scrolls_to_its_note_and_the_notes_mark_back(cx: &mut TestAppContext) {
+        let (view, cx) = noted(cx);
+        let reply = view.read_with(cx, |v, _| v.rows().iter().position(|r| matches!(r.kind, RowKind::Agent { .. })).expect("the reply"));
+        let row: &'static str = Box::leak(format!("row-{reply}").into_boxed_str());
+        let start = top(&view, cx);
+        // The number is the reply's first glyph, raised to the line's top, inside the reply's `px-1`.
+        let at = cx.debug_bounds(row).expect("the reply's row").origin + gpui_kit::point(px(10.), px(2.));
+        cx.simulate_click(at, Modifiers::none());
+        for _ in 0..3 {
+            cx.update(|window, cx| window.simulate_next_frame(cx));
+            cx.run_until_parked();
+        }
+        let moved = top(&view, cx);
+        assert!(moved > start, "the footnote's number left the list where it stood: {moved:?}");
+        let body = view.read_with(cx, |v, _| v.body_of(&v.rows()[reply].key)).expect("the reply's body");
+        cx.update(|_, cx| assert!(super::jump(&body, "user-content-fnref-1", cx), "the note's mark found no number"));
+        for _ in 0..3 {
+            cx.update(|window, cx| window.simulate_next_frame(cx));
+            cx.run_until_parked();
+        }
+        assert!(top(&view, cx) < moved, "the note's mark did not lead back up");
     }
 }

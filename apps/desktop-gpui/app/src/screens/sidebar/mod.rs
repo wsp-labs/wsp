@@ -5,7 +5,7 @@
 //! on screen are built, whatever the number of threads.
 
 pub mod alone;
-mod card;
+pub(crate) mod card;
 pub mod chrome;
 mod dialogs;
 mod foot;

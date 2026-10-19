@@ -11,19 +11,23 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
+use gpui_kit::component::menu::{DropdownMenu as _, PopupMenuItem};
 use gpui_kit::component::{h_flex, v_flex};
-use gpui_kit::{div, img, prelude::*, px, Anchor, App, Context, Corners, Hsla, Image, ImageFormat, SharedString, Task, Window};
+use gpui_kit::{
+    div, img, prelude::*, px, Anchor, App, Context, Corners, Global, Hsla, Image, ImageFormat, SharedString, Subscription, Window,
+};
 use serde_json::{json, Value};
 use wsp_host_client::{protocol, Failure};
 
 use super::at::{self, request, Facts};
 use super::words::open as words;
+use crate::screens::app_shell::keys;
 use crate::screens::dialogs::layer::{self, Closes};
-use crate::screens::Host;
-use crate::ui::{menu_on, notify_in, size, spinner, ActivePalette as _, Button, Dialog, Glyph, MenuAct, Notice, Run};
+use crate::screens::{notices, Host};
+use crate::ui::menu::{surface as menu_surface, Trigger};
+use crate::ui::{notify_in, size, spinner, ActivePalette as _, Button, Dialog, Glyph, KeyCaps, Notice, Run};
 
 /// Memory at or under this, a workspace on another computer hears what an editor there costs: the editors' own
 /// servers took 1.1 to 1.8 GB on the wsp repo, measured 2026-09-29.
@@ -48,21 +52,70 @@ pub struct Editor {
 }
 
 /// `editor.list`; none where the host refused.
-pub async fn editors(host: Host) -> Vec<Editor> {
-    let Ok(list) = request::<protocol::EditorListRequest>(json!({})) else { return Vec::new() };
-    let Ok(listed) = host.run(move |client| async move { client.call(list).await }).await else { return Vec::new() };
-    listed
-        .editors
-        .iter()
-        .filter_map(|e| {
-            let v = serde_json::to_value(e).ok()?;
-            Some(Editor {
-                id: v.get("id")?.as_str()?.to_owned(),
-                name: v.get("name")?.as_str()?.to_owned(),
-                remote: v.get("remote").and_then(Value::as_bool).unwrap_or(false),
-            })
+pub async fn editors(host: Host) -> Option<Vec<Editor>> {
+    let list = request::<protocol::EditorListRequest>(json!({})).ok()?;
+    let listed = host.run(move |client| async move { client.call(list).await }).await.ok()?;
+    let editors = listed.editors.iter().filter_map(|e| {
+        let v = serde_json::to_value(e).ok()?;
+        Some(Editor {
+            id: v.get("id")?.as_str()?.to_owned(),
+            name: v.get("name")?.as_str()?.to_owned(),
+            remote: v.get("remote").and_then(Value::as_bool).unwrap_or(false),
         })
-        .collect()
+    });
+    Some(editors.collect())
+}
+
+/// The editors the host found installed and the person's pick, read once per host: the app holds one host.
+#[derive(Default)]
+pub struct Editors {
+    /// None until the host lists them.
+    pub list: Option<Vec<Editor>>,
+    pub picked: Option<String>,
+    asked: bool,
+    /// The host refused the last list: Open draws nothing until a list lands, as `useEditors` takes a refusal as none.
+    refused: bool,
+}
+
+impl Global for Editors {}
+
+/// Takes what the host said of its editors and the pick; a pick read late does not undo one made since.
+pub fn set_editors(list: Option<Vec<Editor>>, picked: Option<String>, cx: &mut App) {
+    let editors = cx.default_global::<Editors>();
+    if list.is_some() {
+        editors.asked = true;
+        editors.refused = false;
+        editors.list = list;
+    }
+    editors.picked = picked.or(editors.picked.take());
+}
+
+/// The host refused to list its editors: Open stands down, and the next to want them asks again.
+pub fn list_refused(cx: &mut App) {
+    let editors = cx.default_global::<Editors>();
+    editors.asked = false;
+    editors.refused = true;
+}
+
+/// Lists the host's editors and reads the pick the first time Open wants them; a refused list stays unread, so the
+/// next to want them asks again.
+pub fn want_editors(host: &Host, cx: &mut App) {
+    if cx.try_global::<Editors>().is_some_and(|e| e.asked) {
+        return;
+    }
+    cx.default_global::<Editors>().asked = true;
+    let host = host.clone();
+    cx.spawn(async move |cx| {
+        let picked = preference(host.clone()).await;
+        let listed = editors(host).await;
+        cx.update(|cx| {
+            if listed.is_none() {
+                list_refused(cx);
+            }
+            set_editors(listed, picked, cx);
+        });
+    })
+    .detach();
 }
 
 /// `editor.open`: `path` at `line` in `editor`, or the host's default.
@@ -93,24 +146,17 @@ pub async fn here_name(host: Host) -> String {
 
 /// `openFailed`: an Open that did not happen, said as a wait where it waits on the workspace's wsp to update, and as
 /// the host's refusal otherwise.
-pub fn say_failed(failure: &Failure, window: &mut Window, cx: &mut App) {
-    let notice = if failure.kind.as_deref() == Some(SSH_BEHIND_KIND) {
+pub fn failed_notice(failure: &Failure) -> Notice {
+    if failure.kind.as_deref() == Some(SSH_BEHIND_KIND) {
         Notice::waiting(failure.message.clone())
     } else {
         Notice::error(failure.message.clone())
-    };
-    notify_in(window, cx, notice);
+    }
 }
 
-/// Runs an Open on the host and says its refusal, as the retry after the ssh question does.
-pub fn open_and_say(open: impl std::future::Future<Output = Result<(), Failure>> + 'static, window: &mut Window, cx: &mut App) {
-    let handle = window.window_handle();
-    cx.spawn(async move |cx| {
-        if let Err(failure) = open.await {
-            _ = handle.update(cx, |_, window, cx| say_failed(&failure, window, cx));
-        }
-    })
-    .detach();
+/// [`failed_notice`] in the window's toasts.
+pub fn say_failed(failure: &Failure, window: &mut Window, cx: &mut App) {
+    notify_in(window, cx, failed_notice(failure));
 }
 
 /// The name the SSH question stands under on the dialogs' layer.
@@ -246,131 +292,70 @@ pub fn editor_mark(id: &str, ink: Hsla) -> gpui_kit::AnyElement {
             })
             .clone()
     });
-    img(image).size(px(16.)).flex_none().into_any_element()
+    let named = format!("editor-mark-{id}");
+    img(image).debug_selector(move || named).size(px(16.)).flex_none().into_any_element()
 }
 
-/// The header's Open: build it with [`OpenSplit::new`] for the thread's workspace and draw it in the header's actions.
+/// The header's Open: one per header, told the thread's workspace on a switch with [`OpenSplit::show`] and its status
+/// with [`OpenSplit::take_status`]; the editors come from [`Editors`], and every open goes the app's one road
+/// (`notices::open_copy_in_editor`), as mod+o's does.
 pub struct OpenSplit {
-    host: Host,
-    workspace_id: String,
+    workspace_id: Option<String>,
     facts: Option<Facts>,
-    editors: Option<Vec<Editor>>,
-    picked: Option<String>,
-    mem_mb: Option<u64>,
-    /// The default's chord as the keybindings label it, as `⌘O`.
-    chord: Option<SharedString>,
-    opening: bool,
-    _read: Task<()>,
-    _facts: Task<()>,
+    _editors: Subscription,
 }
 
 impl OpenSplit {
-    pub fn new(host: Host, workspace_id: String, cx: &mut Context<Self>) -> Self {
-        let reading = host.clone();
-        let workspace = workspace_id.clone();
-        let read = cx.spawn(async move |this, cx| {
-            let picked = preference(reading.clone()).await;
-            let editors = editors(reading).await;
-            _ = this.update(cx, |this, cx| {
-                this.picked = picked;
-                this.editors = Some(editors);
-                cx.notify();
-            });
-        });
-        // A workspace the host will not name draws no Open, as `OpenSplit` draws nothing for a missing one.
-        let facts = at::follow(&host, workspace, None, cx, |this: &mut Self, read, cx| {
-            this.facts = Some(read.unwrap_or_default());
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        OpenSplit { workspace_id: None, facts: None, _editors: cx.observe_global::<Editors>(|_, cx| cx.notify()) }
+    }
+
+    /// Open on another thread's workspace; its facts wait on that workspace's status.
+    pub fn show(&mut self, workspace_id: String, cx: &mut Context<Self>) {
+        if self.workspace_id.as_deref() != Some(workspace_id.as_str()) {
+            self.workspace_id = Some(workspace_id);
+            self.facts = None;
             cx.notify();
-        });
-        let chord = if cfg!(target_os = "macos") { "⌘O" } else { "Ctrl+O" };
-        OpenSplit {
-            host,
-            workspace_id,
-            facts: None,
-            editors: None,
-            picked: None,
-            mem_mb: None,
-            chord: Some(chord.into()),
-            opening: false,
-            _read: read,
-            _facts: facts,
         }
     }
 
-    /// The workspace machine's memory as its status reports it, for the small machine's note.
-    pub fn set_mem_mb(&mut self, mem_mb: Option<u64>, cx: &mut Context<Self>) {
-        self.mem_mb = mem_mb;
-        cx.notify();
+    /// The workspace's status as the header holds it; Open draws nothing without one.
+    pub fn take_status(&mut self, status: Option<&Value>, cx: &mut Context<Self>) {
+        let facts = status.map(at::facts_of);
+        if facts != self.facts {
+            self.facts = facts;
+            cx.notify();
+        }
     }
 
-    /// The default's chord as the person's keybindings label it; none hides the keycap.
-    pub fn set_chord(&mut self, chord: Option<SharedString>, cx: &mut Context<Self>) {
-        self.chord = chord;
-        cx.notify();
-    }
-
-    pub fn is_opening(&self) -> bool {
-        self.opening
+    /// Whether an open of the workspace's copy waits on the host, a pick's preference included.
+    pub fn is_opening(&self, window: &Window, cx: &App) -> bool {
+        self.workspace_id.as_deref().is_some_and(|w| notices::opening(w, window, cx))
     }
 
     /// The editors Open offers: every one here, only those with a road there for a workspace on another computer.
-    pub fn usable(&self) -> Option<Vec<Editor>> {
-        let (editors, facts) = (self.editors.as_ref()?, self.facts.as_ref()?);
+    pub fn usable(&self, cx: &App) -> Option<Vec<Editor>> {
+        let (editors, facts) = (cx.try_global::<Editors>()?.list.as_ref()?, self.facts.as_ref()?);
         Some(editors.iter().filter(|e| facts.here || e.remote).cloned().collect())
     }
 
-    fn current(&self) -> Option<Editor> {
-        let usable = self.usable()?;
-        usable.iter().find(|e| Some(&e.id) == self.picked.as_ref()).or(usable.first()).cloned()
+    fn current(&self, usable: &[Editor], cx: &App) -> Option<Editor> {
+        let picked = cx.try_global::<Editors>().and_then(|e| e.picked.as_deref());
+        usable.iter().find(|e| Some(e.id.as_str()) == picked).or(usable.first()).cloned()
     }
 
-    /// `mod+o` and the main part: the copy in the default editor.
+    /// The main part: the copy in the default editor.
     pub fn open_default(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let here = self.facts.as_ref().is_some_and(|f| f.here);
-        let editor = if here { None } else { self.current().map(|e| e.id) };
-        self.open_in(None, editor, window, cx);
+        let (Some(workspace), Some(facts)) = (self.workspace_id.clone(), self.facts.as_ref()) else { return };
+        let editor = if facts.here { None } else { self.usable(cx).and_then(|u| self.current(&u, cx)).map(|e| e.id) };
+        notices::open_copy_in_editor(workspace, None, editor, window, cx);
     }
 
-    /// Opens the copy, `pick` becoming the default first; a workspace on another computer opens in `editor`.
-    fn open_in(&mut self, pick: Option<String>, editor: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(facts) = self.facts.clone() else { return };
-        if self.opening || !opens_in_editor(&facts) {
-            return;
+    /// A pick in the menu: it becomes the default, then the copy opens in it, in one wait on the app's one road.
+    fn pick(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(workspace) = self.workspace_id.clone() {
+            notices::open_copy_in_editor(workspace, Some(id), None, window, cx);
         }
-        let Some(folder) = facts.project.clone() else { return };
-        self.opening = true;
-        if let Some(pick) = &pick {
-            self.picked = Some(pick.clone());
-        }
-        cx.notify();
-        let named = if facts.here { None } else { pick.clone().or(editor) };
-        let (host, workspace) = (self.host.clone(), self.workspace_id.clone());
-        let handle = window.window_handle();
-        cx.spawn(async move |this, cx| {
-            if let Some(pick) = pick {
-                _ = set_preference(host.clone(), pick).await;
-            }
-            let opened = open(host.clone(), workspace.clone(), folder.clone(), None, named.clone()).await;
-            _ = this.update(cx, |this, cx| {
-                this.opening = false;
-                cx.notify();
-            });
-            if let Err(failure) = opened {
-                if failure.kind.as_deref() == Some(SSH_INCLUDE_KIND) {
-                    let again: Run = Rc::new(move |window, cx| {
-                        let (host, workspace, folder, named) = (host.clone(), workspace.clone(), folder.clone(), named.clone());
-                        open_and_say(open(host, workspace, folder, None, named), window, cx);
-                    });
-                    let host = this.read_with(cx, |this, _| this.host.clone());
-                    if let Ok(host) = host {
-                        _ = handle.update(cx, |_, window, cx| ask_ssh(host, again, window, cx));
-                    }
-                } else {
-                    _ = handle.update(cx, |_, window, cx| say_failed(&failure, window, cx));
-                }
-            }
-        })
-        .detach();
     }
 }
 
@@ -380,94 +365,119 @@ async fn preference(host: Host) -> Option<String> {
     serde_json::to_value(&got.preferences).ok()?.get("editor")?.as_str().map(str::to_owned)
 }
 
-async fn set_preference(host: Host, editor: String) -> Result<(), Failure> {
-    let set: protocol::PreferencesSetRequest = request(json!({ "patch": { "editor": editor } }))?;
-    host.run(move |client| async move { client.call(set).await }).await.map(|_| ())
+pub async fn set_preference(host: Host, editor: String) -> Result<(), Failure> {
+    let patch: protocol::PreferencesSetRequest = request(json!({ "patch": { "editor": editor } }))?;
+    host.run(move |client| async move { client.call(patch).await }).await.map(|_| ())
 }
 
-impl Render for OpenSplit {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = cx.palette().clone();
-        let empty = || div().into_any_element();
-        let Some(facts) = self.facts.clone() else { return held_slot() };
-        if !opens_in_editor(&facts) {
-            return empty();
-        }
-        let Some(usable) = self.usable() else { return held_slot() };
-        let Some(current) = self.current() else { return empty() };
-        let me = cx.weak_entity();
-        let lead = if self.opening { spinner(cx).into_any_element() } else { editor_mark(&current.id, p.foreground) };
-        let main = div()
-            .id("open-main")
-            .debug_selector(|| "open-main".into())
-            .child(
-                h_flex()
-                    .h(px(32.))
-                    .px(px(12.))
-                    .gap(px(6.))
-                    .items_center()
-                    .rounded_l(size::BUTTON_RADIUS)
-                    .border_1()
-                    .border_color(p.input)
-                    .bg(p.input_fill)
-                    .hover(|s| s.bg(p.input_fill_hover))
-                    .cursor_pointer()
-                    .text_size(px(13.))
-                    .font_weight(gpui_kit::FontWeight::MEDIUM)
-                    .text_color(p.foreground)
-                    .child(lead)
-                    .child(words::OPEN),
-            )
-            .tooltip(crate::ui::tip(words::open_in(&current.name)))
-            .on_click(move |_, window, cx| _ = me.update(cx, |this, cx| this.open_default(window, cx)));
-        let small = !facts.here && self.mem_mb.is_some_and(|m| m <= SMALL_MB);
-        let mut acts: Vec<MenuAct> = Vec::new();
-        if small {
-            acts.push(MenuAct {
-                group: 0,
-                glyph: None,
-                title: words::SMALL.into(),
-                destructive: false,
-                held: true,
-                why: None,
-                keys: None,
-                run: Rc::new(|_, _| {}),
-            });
-        }
-        for editor in usable {
-            let me = cx.weak_entity();
-            let id = editor.id.clone();
-            let run: Run = Rc::new(move |window, cx| {
-                let id = id.clone();
-                _ = me.update(cx, |this, cx| this.open_in(Some(id.clone()), Some(id), window, cx));
-            });
-            let keys = (editor.id == current.id).then(|| self.chord.clone()).flatten();
-            acts.push(MenuAct {
-                group: 1,
-                glyph: None,
-                title: editor.name.clone().into(),
-                destructive: false,
-                held: false,
-                why: None,
-                keys,
-                run,
-            });
-        }
-        let chevron = Button::outline("open-choose", "")
-            .glyph(Glyph::ChevronDown)
-            .corners(Corners { top_left: px(0.), bottom_left: px(0.), top_right: size::BUTTON_RADIUS, bottom_right: size::BUTTON_RADIUS })
-            .tooltip(words::CHOOSE);
-        h_flex()
-            .debug_selector(|| "open-split".into())
-            .flex_none()
-            .items_center()
-            .child(main)
-            .child(div().ml(px(-1.)).child(menu_on("open-menu", chevron, Anchor::TopRight, Rc::new(acts))))
-            .into_any_element()
+/// The chord `editor.open` stands on as the person's keybindings label it, as `⌘O`; none where nothing is bound.
+fn open_chord(window: &Window, cx: &App) -> Option<String> {
+    let mac = cfg!(target_os = "macos");
+    match notices::shell(window, cx) {
+        Some(shell) => keys::shortcut_label(shell.read(cx).rules(), "editor.open", mac),
+        None => keys::shortcut_label(&keys::bound(mac, &Default::default()), "editor.open", mac),
     }
 }
 
-/// The slot held while the host lists its editors, so the header does not move when they arrive.
-fn held_slot() -> gpui_kit::AnyElement {
-    div().debug_selector(|| "open-split-held".into()).invisible().w(px(108.)).h(px(32.)).into_any_element()
+/// A chord's label as keycaps, one per key: `⌘O` on a Mac, `Ctrl+O` elsewhere.
+pub fn chord_keys(label: &str) -> Vec<String> {
+    if label.len() > 1 && label.contains('+') {
+        return label.split('+').map(str::to_owned).collect();
+    }
+    let marks = label.chars().take_while(|c| "⌃⌥⇧⌘".contains(*c)).count();
+    let mut keys: Vec<String> = label.chars().take(marks).map(String::from).collect();
+    keys.push(label.chars().skip(marks).collect());
+    keys.retain(|k| !k.is_empty());
+    keys
+}
+
+impl Render for OpenSplit {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = cx.palette().clone();
+        // Out of the flow, so the header's gap-2 does not stand around an Open that draws nothing.
+        let Some(facts) = self.facts.clone().filter(opens_in_editor) else { return div().absolute().into_any_element() };
+        let usable = self.usable(cx);
+        let current = match &usable {
+            None if cx.try_global::<Editors>().is_some_and(|e| e.refused) => return div().absolute().into_any_element(),
+            None => None,
+            Some(usable) => match self.current(usable, cx) {
+                Some(current) => Some(current),
+                None => return div().absolute().into_any_element(),
+            },
+        };
+        let left = Corners { top_left: size::BUTTON_RADIUS, bottom_left: size::BUTTON_RADIUS, top_right: px(0.), bottom_right: px(0.) };
+        let right = Corners { top_left: px(0.), bottom_left: px(0.), top_right: size::BUTTON_RADIUS, bottom_right: size::BUTTON_RADIUS };
+        let opening = self.is_opening(window, cx);
+        let lead = match &current {
+            None => div().size(px(16.)).flex_none().into_any_element(),
+            Some(_) if opening => spinner(cx).size(px(16.)).into_any_element(),
+            Some(current) => editor_mark(&current.id, p.foreground),
+        };
+        let lead = div().debug_selector(|| "open-mark".into()).flex_none().child(lead);
+        let me = cx.weak_entity();
+        // `max-sm:sr-only`: under 640 px the mark alone, its words on the hover.
+        let label = if crate::ui::narrow(window) { "" } else { words::OPEN };
+        let main = Button::outline("open-main", label).lead(lead).corners(left).when_some(current.as_ref(), |b, current| {
+            b.tooltip(words::open_in(&current.name))
+                .on_click(move |_, window, cx| _ = me.update(cx, |this, cx| this.open_default(window, cx)))
+        });
+        let chevron = Button::outline("open-choose", "").xs().height(px(32.)).glyph(Glyph::ChevronDown).corners(right);
+        let split = h_flex()
+            .debug_selector(|| "open-split".into())
+            .flex_none()
+            .items_center()
+            .child(div().debug_selector(|| "open-main".into()).child(main));
+        // The slot stands, hidden and inert, while the host lists its editors, so the header does not move when they land.
+        let Some(current) = current else {
+            return split.invisible().child(div().ml(px(-1.)).child(chevron)).into_any_element();
+        };
+        let small = !facts.here && facts.mem_mb.is_some_and(|m| m <= SMALL_MB);
+        let editors = usable.unwrap_or_default();
+        let me = cx.weak_entity();
+        let menu = Trigger(div().id("open-menu-trigger").flex().child(chevron.tooltip(words::CHOOSE))).dropdown_menu_with_anchor(
+            Anchor::TopRight,
+            move |menu, window, cx| {
+                let keys = open_chord(window, cx).map(|label| chord_keys(&label));
+                let mut menu = menu.surface(menu_surface(cx.palette()));
+                if small {
+                    let line = move |_: &mut Window, cx: &mut App| {
+                        div()
+                            .debug_selector(|| "open-small".into())
+                            .max_w(px(256.))
+                            .py(px(2.))
+                            .text_size(px(12.))
+                            .line_height(px(16.))
+                            .text_color(cx.palette().muted_foreground)
+                            .child(words::SMALL)
+                    };
+                    menu = menu.item(PopupMenuItem::element(line).disabled(true));
+                }
+                for editor in &editors {
+                    let (id, name) = (editor.id.clone(), SharedString::from(editor.name.clone()));
+                    let keys = keys.clone().filter(|_| editor.id == current.id);
+                    let row = move |_: &mut Window, cx: &mut App| {
+                        let ink = cx.palette().foreground;
+                        let named = id.clone();
+                        h_flex()
+                            .debug_selector(move || format!("open-item-{named}"))
+                            .w_full()
+                            .gap(px(8.))
+                            .child(editor_mark(&id, ink))
+                            .child(name.clone())
+                            .children(keys.clone().map(|keys| {
+                                let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+                                div().ml_auto().pl(px(12.)).child(KeyCaps::new(&[&keys]))
+                            }))
+                    };
+                    let (me, id) = (me.clone(), editor.id.clone());
+                    menu = menu.item(
+                        PopupMenuItem::element(row)
+                            .on_click(move |_, window, cx| _ = me.update(cx, |this, cx| this.pick(id.clone(), window, cx))),
+                    );
+                }
+                menu
+            },
+        );
+        split.child(div().debug_selector(|| "open-choose".into()).ml(px(-1.)).child(menu)).into_any_element()
+    }
 }

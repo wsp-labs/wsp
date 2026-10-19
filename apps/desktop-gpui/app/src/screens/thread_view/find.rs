@@ -883,6 +883,12 @@ fn show(view: &mut ThreadView, cx: &mut Context<ThreadView>) {
             view.toggle(&opens, cx);
         }
     }
+    // `useRevealOpen` on a clamped message: a match in it opens it whole.
+    let clamped =
+        view.rows().iter().any(|r| r.key == key && matches!(r.kind, RowKind::Person { full: false, .. }) && super::rows::clamps(&r.text));
+    if clamped {
+        view.toggle(&format!("full:{key}"), cx);
+    }
     if let Some(ix) = shown(view) {
         let height = view.list().viewport_bounds().size.height;
         view.reveal(ix, height * SHOW_AT, cx);

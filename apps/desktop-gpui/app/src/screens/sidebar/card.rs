@@ -226,50 +226,64 @@ impl Sidebar {
     fn status_line(&self, t: &model::Thread, tile: &Tile, p: &Palette) -> AnyElement {
         let kind = model::tile_kind(t, tile, self.now);
         let slot = model::tile_slot(t, tile, self.now);
-        let tone = match slot.tone {
-            Some(model::Tone::Input) => Some(p.status_input),
-            Some(model::Tone::Working) => Some(p.status_working),
-            Some(model::Tone::Failed) => Some(p.status_failed),
-            Some(model::Tone::Done) => Some(p.status_done),
-            Some(model::Tone::Warning) => Some(p.warning_foreground),
-            None => None,
-        };
-        let ink = tone.unwrap_or(p.muted_foreground);
-        let mark: Option<AnyElement> = if kind == Kind::Working || kind == Kind::Starting {
-            Some(Crab::new(p.status_working).key(gpui_kit::SharedString::from(format!("card-crab-{}", t.key))).into_any_element())
-        } else {
-            slot.glyph.map(|g| {
-                let glyph = match g {
-                    "message-circle-question" => Glyph::MessageCircleQuestionMark,
-                    "hourglass" => Glyph::Hourglass,
-                    "gauge" => Glyph::Gauge,
-                    "circle-alert" => Glyph::CircleAlert,
-                    "cloud-off" => Glyph::CloudOff,
-                    "calendar-x-2" => Glyph::CalendarX2,
-                    "circle-stop" => Glyph::CircleStop,
-                    "upload" => Glyph::Upload,
-                    _ => Glyph::CircleCheck,
-                };
-                Icon::new(glyph).with_size(px(12.)).text_color(ink).into_any_element()
-            })
-        };
         let word = model::word(t, kind, self.now, super::utc_offset_ms() as f64);
         let time = if kind == Kind::Working {
             Some(model::running_time(self.now - t.started_at.unwrap_or(self.now)))
         } else {
             tile.age_at.map(|at| model::resting_age(at, self.now))
         };
-        h_flex()
-            .gap(px(8.))
-            .child(div().flex_none().w(px(12.)).flex().justify_center().children(mark))
-            .child(
-                div()
-                    .when_some(tone, |el, ink| el.font_weight(FontWeight::MEDIUM).text_color(ink))
-                    .when(tone.is_none(), |el| el.text_color(p.foreground))
-                    .child(word.to_string()),
-            )
-            .child(div().flex_1())
-            .children(time.map(|t| div().flex_none().child(t)))
-            .into_any_element()
+        status_row(kind, slot.glyph, slot.tone, format!("card-crab-{}", t.key), word.to_string(), time, p)
     }
+}
+
+/// A card's status row (`StatusLine.tsx`): the kind's glyph or the crab, its word in the foreground, or medium in the
+/// kind's tone, then the time at the right.
+pub(crate) fn status_row(
+    kind: Kind,
+    glyph: Option<&str>,
+    tone: Option<model::Tone>,
+    crab_key: String,
+    word: String,
+    time: Option<String>,
+    p: &Palette,
+) -> AnyElement {
+    let tone = match tone {
+        Some(model::Tone::Input) => Some(p.status_input),
+        Some(model::Tone::Working) => Some(p.status_working),
+        Some(model::Tone::Failed) => Some(p.status_failed),
+        Some(model::Tone::Done) => Some(p.status_done),
+        Some(model::Tone::Warning) => Some(p.warning_foreground),
+        None => None,
+    };
+    let ink = tone.unwrap_or(p.muted_foreground);
+    let mark: Option<AnyElement> = if kind == Kind::Working || kind == Kind::Starting {
+        Some(Crab::new(p.status_working).key(gpui_kit::SharedString::from(crab_key)).into_any_element())
+    } else {
+        glyph.map(|g| {
+            let glyph = match g {
+                "message-circle-question" => Glyph::MessageCircleQuestionMark,
+                "hourglass" => Glyph::Hourglass,
+                "gauge" => Glyph::Gauge,
+                "circle-alert" => Glyph::CircleAlert,
+                "cloud-off" => Glyph::CloudOff,
+                "calendar-x-2" => Glyph::CalendarX2,
+                "circle-stop" => Glyph::CircleStop,
+                "upload" => Glyph::Upload,
+                _ => Glyph::CircleCheck,
+            };
+            Icon::new(glyph).with_size(px(12.)).text_color(ink).into_any_element()
+        })
+    };
+    h_flex()
+        .gap(px(8.))
+        .child(div().flex_none().w(px(12.)).flex().justify_center().children(mark))
+        .child(
+            div()
+                .when_some(tone, |el, ink| el.font_weight(FontWeight::MEDIUM).text_color(ink))
+                .when(tone.is_none(), |el| el.text_color(p.foreground))
+                .child(word),
+        )
+        .child(div().flex_1())
+        .children(time.map(|t| div().flex_none().child(t)))
+        .into_any_element()
 }

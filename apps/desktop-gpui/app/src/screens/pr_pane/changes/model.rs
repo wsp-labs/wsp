@@ -165,6 +165,19 @@ pub fn open_turn(store: &mut LocalStore, workspace_id: &str, range: TurnRange) -
     kept.write(store)
 }
 
+/// `onlyOf`: the files a turn's range opens narrowed to, where the turn's own files are known apart from the folder's
+/// others: the others' when the file asked for is theirs or the turn has none of its own, else its own.
+pub fn only_of(files: &[String], others: Option<&[String]>, path: Option<&str>) -> Option<Vec<String>> {
+    let others = others?;
+    Some(if others.iter().any(|f| Some(f.as_str()) == path) || files.is_empty() { others.to_vec() } else { files.to_vec() })
+}
+
+/// `changedPathOf`: the path a turn's changes name a file by, from the top of the checkout, for a path an edit named
+/// whole; the longest match wins, as git lists `package.json` before `packages/x/package.json`.
+pub fn changed_path_of(paths: &[String], named: &str) -> Option<String> {
+    paths.iter().filter(|p| named == p.as_str() || named.ends_with(&format!("/{p}"))).max_by_key(|p| p.len()).cloned()
+}
+
 /// What one file allows here: an edit where its new side is the file itself and its patch is whole text,
 /// a discard outside Branch changes and a turn.
 pub fn editable(file: &FilePatch, scope: Scope, turn: bool) -> bool {
@@ -370,6 +383,19 @@ mod tests {
         assert_eq!((rows[2].additions, rows[2].deletions), (3, 1));
         let shut: HashSet<String> = ["src".to_owned()].into();
         assert_eq!(tree_rows(&files, &shut).len(), 4);
+    }
+
+    #[test]
+    fn a_turns_range_narrows_to_the_list_its_file_is_in_and_names_files_from_the_top() {
+        let (own, others) = (vec!["src/a.rs".to_owned()], vec!["package.json".to_owned(), "packages/x/package.json".to_owned()]);
+        assert_eq!(only_of(&own, None, Some("src/a.rs")), None, "no others leaves the range whole");
+        assert_eq!(only_of(&own, Some(&others), Some("src/a.rs")), Some(own.clone()));
+        assert_eq!(only_of(&own, Some(&others), Some("package.json")), Some(others.clone()));
+        assert_eq!(only_of(&[], Some(&others), None), Some(others.clone()), "a turn with none of its own opens the others");
+        let all: Vec<String> = own.iter().chain(&others).cloned().collect();
+        assert_eq!(changed_path_of(&all, "/r/packages/x/package.json").as_deref(), Some("packages/x/package.json"));
+        assert_eq!(changed_path_of(&all, "src/a.rs").as_deref(), Some("src/a.rs"));
+        assert_eq!(changed_path_of(&all, "/r/src/b.rs"), None);
     }
 
     #[test]

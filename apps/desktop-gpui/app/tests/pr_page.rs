@@ -443,16 +443,20 @@ fn the_git_button_reads_the_checkout_and_the_pull_request(cx: &mut TestAppContex
         ui::init(Side::Light, cx);
     });
     let shell = host.host();
-    let (workspace, thread) = (host.workspace_id.clone(), host.thread_id.clone());
+    let (places, base) = (host.places(), host.base());
     let mut made = None;
     let (_, cx) = cx.add_window_view(|window, cx| {
-        let split = cx.new(|cx| GitSplit::new(shell, workspace, Some(thread), window, cx));
+        let split = cx.new(|_| GitSplit::fed(shell));
         made = Some(split.clone());
         Root::new(split, window, cx)
     });
     let split = made.unwrap();
+    split.update(cx, |s, cx| s.show(host.workspace_id.clone(), Some(host.thread_id.clone()), cx));
+    // Fed as the header feeds it: the status, the project's base and the computers, read again each look.
+    let feed = |cx: &mut VisualTestContext, status: Value| split.update(cx, |s, cx| s.feed(Some(&status), base.as_deref(), &places, cx));
     until(cx, "the branch's pull request on the button's status", |cx| {
-        split.read_with(cx, |s, _| s.state().is_some_and(|st| st.pr_open && st.base.is_some()))
+        feed(cx, host.status());
+        split.read_with(cx, |s, _| s.state().is_some_and(|st| st.pr_open))
     });
     let quick = split.read_with(cx, |s, _| quick_action(&s.state().unwrap()));
     assert_eq!(
@@ -464,6 +468,7 @@ fn the_git_button_reads_the_checkout_and_the_pull_request(cx: &mut TestAppContex
     std::fs::write(host.folder.join("src/new.rs"), "fn new() {}\n").unwrap();
     host.server.wsp(&["send", &host.thread_id, "--detach", "one more turn"]);
     until(cx, "the checkout read again with the change", |cx| {
+        feed(cx, host.status());
         split.read_with(cx, |s, _| s.state().and_then(|st| st.checkout).is_some_and(|c| c.changed > 0))
     });
     let quick = split.read_with(cx, |s, _| quick_action(&s.state().unwrap()));
@@ -478,7 +483,7 @@ fn the_git_button_reads_the_checkout_and_the_pull_request(cx: &mut TestAppContex
     let line = format!("{name}'s terminals and files stopped; git actions open once they start again");
     // Fed again each look, since the turn's own pushes may still land after it.
     until(cx, "the button held in this computer's name, read off the places, while its daemon is down", |cx| {
-        split.update(cx, |s, cx| s.take_status(stopped.clone(), cx));
+        feed(cx, stopped.clone());
         split.read_with(cx, |s, _| s.state().and_then(|st| st.away)) == Some(line.clone())
     });
 }
@@ -635,8 +640,8 @@ fn a_link_or_address_opens_only_as_a_web_page(cx: &mut TestAppContext) {
     assert_eq!(opened, vec![None; 7], "nothing but a web page reaches the opener, in the order {LINK_SITES:?}");
 }
 
-/// The sidebar, the pane and the git button read statuses through one `status.subscribe` a socket, however often
-/// they open, close or move to another workspace, and no follow of the pane's or the button's outlives them.
+/// The sidebar and the pane read statuses through one `status.subscribe` a socket, however often they open and close,
+/// and the git button, fed by the header, asks nothing; no follow of theirs outlives them.
 #[gpui_kit::test]
 fn the_pane_and_the_git_button_ask_for_statuses_once_a_socket(cx: &mut TestAppContext) {
     use desktop_gpui::screens::pr_pane::pull_request::git_split::GitSplit;
@@ -670,25 +675,19 @@ fn the_pane_and_the_git_button_ask_for_statuses_once_a_socket(cx: &mut TestAppCo
     // The sidebar reads the computers on a place's push too, which the button's count below would take for its own.
     drop(sidebar);
     cx.update(|_, _| {});
-    let split = cx.update(|window, cx| cx.new(|cx| GitSplit::new(shell.clone(), workspace.clone(), None, window, cx)));
-    until(cx, "the button's status", |cx| split.read_with(cx, |s, _| s.state().is_some()));
-    until(cx, "the button's first read of the computers", |_| door.sent("places.list") >= 1);
-    let listed = door.sent("places.list");
-    std::fs::write(host.folder.join("src/new.rs"), "fn new() {}\n").unwrap();
-    host.server.wsp(&["send", &host.thread_id, "--detach", "one more turn"]);
-    until(cx, "the turn's status pushed to the button", |cx| {
-        split.read_with(cx, |s, _| s.state().and_then(|st| st.checkout).is_some_and(|c| c.changed > 0))
-    });
-    assert_eq!(door.sent("places.list"), listed, "a status push reads the computers no more");
-    host.touch_place("here");
-    until(cx, "the computers read again on the place's push", |_| door.sent("places.list") == listed + 1);
+    // The header's button is fed what the header follows: it asks the socket nothing, however often it moves.
+    let (subscribed, listed) = (door.sent("status.subscribe"), door.sent("places.list"));
+    let split = cx.update(|_, cx| cx.new(|_| GitSplit::fed(shell.clone())));
     for elsewhere in ["no-such-workspace", workspace.as_str(), "no-such-workspace", workspace.as_str()] {
-        split.update_in(cx, |s, window, cx| s.show(elsewhere.to_owned(), None, window, cx));
+        split.update(cx, |s, cx| s.show(elsewhere.to_owned(), None, cx));
         cx.run_until_parked();
     }
-    until(cx, "the button's status again", |cx| split.read_with(cx, |s, _| s.state().is_some()));
+    split.update(cx, |s, cx| s.feed(Some(&host.status()), None, &[], cx));
+    assert!(split.read_with(cx, |s, _| s.state().is_some()), "the fed button reads what it was fed");
     drop(split);
-    assert_eq!(door.sent("status.subscribe"), 1, "the sidebar, five panes and a button moved four times asked once on their socket");
+    assert_eq!(door.sent("status.subscribe"), subscribed, "the fed button asked for statuses");
+    assert_eq!(door.sent("places.list"), listed, "the fed button read the computers");
+    assert_eq!(subscribed, 1, "the sidebar and five panes asked once on their socket");
     cx.update(|_, _| {});
     until(cx, "only the socket's one status reader left once the sidebar and the button are gone too", |_| alive() < before);
 }

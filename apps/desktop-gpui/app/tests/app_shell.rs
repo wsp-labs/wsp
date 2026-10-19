@@ -377,15 +377,14 @@ fn the_other_screens_chords_reach_the_window_as_their_actions(cx: &mut TestAppCo
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
     let heard = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
-    let commands = ["files.quickOpen", "files.search", "thread.nextNeedsYou", "thread.find"];
+    // The finder's chords are the shell's own: `thread_files_card`'s finder chord test holds them.
+    let commands = ["thread.nextNeedsYou", "thread.find"];
     fn listen<A: Action>(heard: &std::rc::Rc<std::cell::RefCell<Vec<String>>>, cx: &mut VisualTestContext) {
         let heard = heard.clone();
         cx.update(|_, cx| {
             cx.on_action(move |action: &A, _| heard.borrow_mut().push(action.name().to_owned()));
         });
     }
-    listen::<keys::QuickOpen>(&heard, cx);
-    listen::<keys::SearchFiles>(&heard, cx);
     listen::<keys::NextNeedsYou>(&heard, cx);
     listen::<keys::FindInThread>(&heard, cx);
     for command in commands {

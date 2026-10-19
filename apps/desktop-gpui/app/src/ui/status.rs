@@ -30,6 +30,12 @@ pub struct Still(pub bool);
 
 impl Global for Still {}
 
+/// A capture's fixed now, in ms since the epoch: every ticking clock reads it in place of the wall clock.
+#[derive(Clone, Copy)]
+pub struct FrozenNow(pub f64);
+
+impl Global for FrozenNow {}
+
 pub(crate) fn still(cx: &App) -> bool {
     cx.reduce_motion() || captured(cx)
 }
@@ -773,7 +779,8 @@ impl Render for Ticking {
                 });
             }));
         }
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64() * 1000.).unwrap_or(0.);
+        let wall = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64() * 1000.).unwrap_or(0.);
+        let now = cx.try_global::<FrozenNow>().map_or_else(wall, |f| f.0);
         div().child(fmt_elapsed(now - self.since))
     }
 }

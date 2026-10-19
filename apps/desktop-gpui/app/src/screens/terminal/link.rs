@@ -22,6 +22,8 @@ use super::words::{Memory, SHELL_ENDED_LINE, SHELL_STOPPED_LINE};
 use crate::local_store::LocalStore;
 use crate::screens::Host;
 
+pub mod run;
+
 /// Whose daemon a channel opens: a workspace's, or this computer's own (`placeId: "here"`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Target {
@@ -205,6 +207,7 @@ pub struct Link {
     /// The channel the current dial opened, handed to the road once proven.
     channel: Option<String>,
     road: Arc<Mutex<Road>>,
+    runs: run::Runs,
 }
 
 impl EventEmitter<LinkEvent> for Link {}
@@ -287,6 +290,7 @@ impl Link {
                     dialling: false,
                     waiters: Vec::new(),
                 })),
+                runs: run::Runs::default(),
             };
             link.connect(cx);
             link
@@ -553,7 +557,9 @@ impl Link {
                     self.touch(cx);
                 }
                 Out::Resize { cols, rows } => {
-                    Link::keep_size(cols, rows, cx);
+                    if !self.runs.holds(&pty, cx) {
+                        Link::keep_size(cols, rows, cx);
+                    }
                     self.put(json!({ "op": "pty.resize", "ptyId": pty, "cols": cols, "rows": rows }));
                 }
             }
@@ -773,6 +779,7 @@ impl Link {
                     if event["type"] == "daemon.hello" {
                         let root = event["root"].as_str().map(str::to_owned);
                         self.pave(|road| road.root = root);
+                        self.runs.hello(event);
                         cx.notify();
                         continue;
                     }
@@ -791,6 +798,9 @@ impl Link {
                         }
                         Some("pty.exit") => {
                             self.flush(&mut output, cx);
+                            if self.runs.exited(event, cx) {
+                                continue;
+                            }
                             let code = event["exitCode"].as_i64().unwrap_or(-1) as i32;
                             if let Some(session) = self.session(pty, cx) {
                                 session.update(cx, |s, cx| s.set_exited(code, cx));
@@ -823,13 +833,14 @@ impl Link {
 
     fn session(&self, pty: &str, cx: &App) -> Option<Entity<Session>> {
         let listed = self.ptys.iter().map(|p| &p.session);
-        listed.chain(self.attaching.iter()).find(|s| s.read(cx).pty() == pty).cloned()
+        listed.chain(self.attaching.iter()).chain(self.runs.sessions(cx)).find(|s| s.read(cx).pty() == pty).cloned()
     }
 
     fn flush(&mut self, output: &mut Vec<(SharedString, Vec<u8>)>, cx: &mut Context<Self>) {
         for (pty, bytes) in output.drain(..) {
             if let Some(session) = self.session(&pty, cx) {
                 session.update(cx, |s, cx| s.feed(&bytes, cx));
+                self.runs.fed(&pty, &bytes, cx);
             }
         }
     }
@@ -980,6 +991,7 @@ impl Link {
                     return;
                 }
             }
+            Link::reattach_runs(&this, dial, cx).await;
         }
         let Ok(Some(listed)) = this.update(cx, |link, cx| {
             link.stopped = false;

@@ -368,6 +368,30 @@ fn a_step_opens_the_fold_hiding_its_match_and_stands_the_row_at_two_fifths(cx: &
 }
 
 #[gpui_kit::test]
+fn a_step_to_a_match_in_a_clamped_message_opens_it_whole(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx, 900.);
+    let long = format!("{}\n\nThe last line names the zebra.", "A line of the long message.\n".repeat(40));
+    let mut events = turn(0, "Answer 0.");
+    events.extend([
+        event("u1", "session.start", 11, serde_json::json!({"prompt": long})),
+        event("u1", "session.delta", 12, serde_json::json!({"kind": "text", "text": "Read it."})),
+        event("u1", "session.done", 13, serde_json::json!({"result": {"status": "completed"}})),
+        event("u1", "session.end", 14, serde_json::json!({"exitCode": 0, "sawResult": true})),
+    ]);
+    load(&view, events, cx);
+    let full = |v: &ThreadView| v.rows().iter().any(|r| matches!(r.kind, RowKind::Person { full: true, .. }));
+    assert!(!view.read_with(cx, |v, _| full(v)), "the long message stands whole before any step");
+    focus(&view, cx);
+    cx.simulate_keystrokes(FIND);
+    cx.simulate_input("zebra");
+    frames(cx, 3);
+    assert_eq!(status(&view, cx).as_deref(), Some("1 of 1"), "find did not search the clamped message");
+    cx.simulate_keystrokes("enter");
+    frames(cx, 12);
+    assert!(view.read_with(cx, |v, _| full(v)), "the step left the match under the message's clamp");
+}
+
+#[gpui_kit::test]
 fn a_step_to_a_deep_match_keeps_its_line_clear_of_the_composer(cx: &mut TestAppContext) {
     let (view, cx) = window(cx, 900.);
     let long = (0..80).map(|i| format!("Paragraph {i} says nothing much.")).collect::<Vec<_>>().join("\n\n");

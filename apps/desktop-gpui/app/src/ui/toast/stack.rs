@@ -568,8 +568,9 @@ impl Toasts {
                 canvas(
                     move |bounds, window, _| {
                         let own = bounds.size.height + px(2.);
+                        // Mid-draw a refresh is dropped, so the size taken here is drawn on the next frame.
                         if heights.borrow_mut().insert(id, own) != Some(own) {
-                            window.refresh();
+                            window.request_animation_frame();
                         }
                     },
                     |_, _, _, _| {},

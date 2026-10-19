@@ -92,6 +92,8 @@ pub struct Button {
     size: ButtonSize,
     label: Option<SharedString>,
     glyph: Option<Glyph>,
+    /// A mark of its own before the label, as an editor's in Open.
+    lead: Option<AnyElement>,
     /// An svg of the app's own drawn where a glyph would be, for a mark gpui-kit's bundle lacks.
     path: Option<&'static str>,
     /// A 12 px glyph after the label: a link's external mark.
@@ -121,8 +123,9 @@ impl Button {
             id: id.into(),
             kind,
             size: ButtonSize::Default,
-            label: Some(label.into()),
+            label: Some(label.into()).filter(|l: &SharedString| !l.is_empty()),
             glyph: None,
+            lead: None,
             path: None,
             after: None,
             held: false,
@@ -186,6 +189,7 @@ impl Button {
             size: ButtonSize::Icon,
             label: None,
             glyph: Some(glyph),
+            lead: None,
             path: None,
             after: None,
             held: false,
@@ -240,6 +244,11 @@ impl Button {
         if only {
             self.label = None;
         }
+        self
+    }
+
+    pub fn lead(mut self, lead: impl IntoElement) -> Self {
+        self.lead = Some(lead.into_any_element());
         self
     }
 
@@ -404,6 +413,7 @@ impl RenderOnce for Button {
             .font_weight(weight)
             .text_color(ink)
             .when(self.glyph_after, |el| el.flex_row_reverse())
+            .children(self.lead)
             .children(match (self.busy, self.glyph) {
                 (true, glyph) => {
                     let glyph = if self.label.is_some() { Glyph::LoaderCircle } else { glyph.unwrap_or(Glyph::LoaderCircle) };
@@ -590,6 +600,8 @@ struct Pick {
     full_ink: bool,
     /// A tick the host fixed: drawn held, and the row takes no pointer of its own.
     locked: bool,
+    /// A choice's slot under its words across the row, as the web's dock row stands under 640 px; how far it sits in.
+    stacked: Option<Pixels>,
 }
 
 impl Pick {
@@ -611,6 +623,7 @@ impl Pick {
             hover: None,
             full_ink: false,
             locked: false,
+            stacked: None,
         }
     }
 
@@ -648,7 +661,6 @@ impl Pick {
         let slot = self.slot.map(|slot| {
             h_flex()
                 .debug_selector(|| "pick-slot".into())
-                .flex_none()
                 .min_w_0()
                 .map(|el| match stacked {
                     Some(indent) => el.pl(indent),
@@ -722,6 +734,17 @@ impl Choice {
 pick_builders!(Choice);
 
 impl Choice {
+    /// `max-sm:pl-7`: the slot past the radio.
+    const STACKED_INDENT: Pixels = px(28.);
+
+    /// The slot under the words across the row, as the web's dock row stands under 640 px.
+    pub fn stacked(mut self, stacked: bool) -> Self {
+        self.0.stacked = stacked.then_some(Self::STACKED_INDENT);
+        self
+    }
+}
+
+impl Choice {
     /// A quiet fact at the words' right, in the `FACT` class: "from $0.018/h".
     pub fn fact(mut self, fact: impl Into<SharedString>) -> Self {
         self.0.fact = Some(fact.into());
@@ -738,7 +761,8 @@ impl Choice {
 impl RenderOnce for Choice {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let mark = radio(self.0.on, false, cx);
-        self.0.render(mark, px(8.), size::ROW_FLOOR, None, cx)
+        let stacked = self.0.stacked;
+        self.0.render(mark, px(8.), size::ROW_FLOOR, stacked, cx)
     }
 }
 

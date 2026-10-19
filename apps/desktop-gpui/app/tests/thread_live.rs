@@ -123,6 +123,70 @@ fn main() {
     println!("test a_child_started_after_the_thread_opened_joins_its_listing ... ok");
     a_subagents_page_reads_and_follows_nothing_the_thread_screen_follows();
     println!("test a_subagents_page_reads_and_follows_nothing_the_thread_screen_follows ... ok");
+    a_thread_on_this_computer_holds_its_readings_until_it_leaves();
+    println!("test a_thread_on_this_computer_holds_its_readings_until_it_leaves ... ok");
+}
+
+/// The machine line's readings of this computer's own workspace: asked of the host once the thread shows, kept across
+/// a second thread on the same workspace, taken back when the view stops following.
+fn a_thread_on_this_computer_holds_its_readings_until_it_leaves() {
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
+    let host = Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    host.wsp(&["run", "repo", "second", "--agent", "claude"]);
+    let (sent, _dir, state) = wire::proxied(&host);
+    let client = Arc::new(runtime.block_on(HostClient::connect(&state, &host.env())).unwrap_or_else(|f| panic!("{}", f.message)));
+    let (first, second) = (runtime.block_on(item(&client, "first")), runtime.block_on(item(&client, "second")));
+
+    let mut cx = app();
+    let sidebar = cx.update(|cx| cx.new(desktop_gpui::sidebar::Sidebar::new));
+    let link = desktop_gpui::sidebar::Link { host: client.clone(), runtime: runtime.clone(), page: None };
+    cx.update(|cx| sidebar.update(cx, |s, cx| s.attach(link, cx)));
+    cx.update(|cx| desktop_gpui::screens::terminal::read_workspaces_from(&sidebar, cx));
+    let (view, handle) = window(&mut cx, true);
+    let shell = Host::new(client.clone(), runtime.clone());
+    cx.update(|cx| view.update(cx, |v, cx| v.follow(&shell, &first, false, cx)));
+    until(&mut cx, handle, &view, 30, "the listing", |v| v.listing().is_some_and(|l| l.workspace.is_some()));
+    let count = |op: &str| wire::count(&sent, op);
+    let limit = Instant::now() + Duration::from_secs(20);
+    while count("sys.subscribe") == 0 && Instant::now() < limit {
+        settle(&mut cx, handle, 100);
+    }
+    assert_eq!(count("sys.subscribe"), 1, "the thread on this computer asked for no readings");
+    cx.update(|cx| view.update(cx, |v, cx| v.follow(&shell, &second, false, cx)));
+    settle(&mut cx, handle, 1500);
+    assert_eq!((count("sys.subscribe"), count("sys.unsubscribe")), (1, 0), "a thread on the same workspace asked again");
+    let live = desktop_gpui::screens::computer::live::live;
+    // A reading near full while the road is down reaches the machine line with no move of the sidebar's.
+    let machine = |cx: &mut HeadlessAppContext| cx.update(|cx| view.read(cx).listing().and_then(|l| l.machine.clone()));
+    cx.update(|cx| {
+        use desktop_gpui::screens::computer::model::{Sample, Usage};
+        let gb = 1024. * 1024. * 1024.;
+        let full =
+            Sample { cpu: 1., load1: 2., mem: Usage { used: 3.8 * gb, total: 4. * gb }, disk: Usage { used: 1., total: 2. }, at: 1. };
+        live(cx).update(cx, |l, cx| {
+            l.keep(&second.workspace_id, |r| {
+                r.ring.push(full);
+                r.live = false;
+            });
+            cx.notify();
+        })
+    });
+    settle(&mut cx, handle, 300);
+    let after = machine(&mut cx);
+    assert_eq!(after.as_deref(), Some("Out of memory, 3.8 of 4 GB"), "a reading near full did not reach the machine line");
+    // A host with no wsp-daemon refuses the ask; one that took it is told to stop.
+    let answered = cx.update(|cx| live(cx).read(cx).readings(&first.workspace_id).live);
+    cx.update(|cx| view.update(cx, |v, cx| v.stop(cx)));
+    let holders = |cx: &mut HeadlessAppContext| cx.update(|cx| live(cx).read(cx).holders(&first.workspace_id));
+    let limit = Instant::now() + Duration::from_secs(20);
+    while (holders(&mut cx) > 0 || answered && count("sys.unsubscribe") == 0) && Instant::now() < limit {
+        settle(&mut cx, handle, 100);
+    }
+    assert_eq!(holders(&mut cx), 0, "the readings were held after the thread left");
+    assert_eq!(count("sys.unsubscribe"), usize::from(answered), "the ask was not taken back once, answered {answered}");
 }
 
 /// Runs the app and draws `handle` for `ms`, so anything sent late is sent.
