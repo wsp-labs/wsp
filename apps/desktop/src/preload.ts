@@ -84,6 +84,8 @@ const bridge: DesktopBridge & OnboardingBridge = {
   openLogs: (): Promise<void> => ipcRenderer.invoke("logs:open"),
   loginStart: (): Promise<boolean | null> => ipcRenderer.invoke("service:login"),
   setLoginStart: (on: boolean): Promise<boolean | null> => ipcRenderer.invoke("service:login-set", on),
+  experimental: (): Promise<boolean | null> => ipcRenderer.invoke("experimental:get"),
+  setExperimental: (on: boolean): Promise<boolean | null> => ipcRenderer.invoke("experimental:set", on),
   onOpen: (handler: (target: LinkTarget) => void): (() => void) => {
     const listen = (_event: unknown, target: LinkTarget): void => handler(target);
     ipcRenderer.on("shell:open", listen);

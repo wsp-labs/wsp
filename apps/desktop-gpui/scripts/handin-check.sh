@@ -278,10 +278,10 @@ else
   stop_sentinel
 fi
 
-if CI=true pnpm exec vitest run --minWorkers=1 --maxWorkers=2 packages/host/test/gpui-skills.test.ts; then
-  ok "the gpui-skills test"
+if CI=true pnpm exec vitest run --minWorkers=1 --maxWorkers=2 packages/host/test/gpui-skills.test.ts packages/host/test/gpui-package.test.ts; then
+  ok "the gpui-skills and gpui-package tests"
 else
-  fail "the gpui-skills test" "read the failure above"
+  fail "the gpui-skills and gpui-package tests" "read the failure above"
 fi
 
 if [ "$failed" -gt 0 ]; then

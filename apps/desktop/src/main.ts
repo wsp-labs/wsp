@@ -12,6 +12,7 @@ import { awakeWanted } from "./awake.js";
 import { closeChordOf } from "./close.js";
 import { chooseFrom, contextMenuTemplate, parseContextMenuItems } from "./context-menu.js";
 import { deepLinks, linkInArgv } from "./deep-link.js";
+import { experimentalSwitch, gpuiLaunch, handOver, openGpui, turnExperimental, type HandOverDeps } from "./experimental.js";
 import { fontDirs, fontFamilies, indexFonts, localFontFaces, type FontFile } from "./fonts.js";
 import { bundleShell, updateLogLine, type BundleShell } from "./get-bundle.js";
 import { KeptOtherRelease, earlierHostCheck, homeOf, loginStart, oneAtATime, openHost, openHostReady, servesAgainNotice, setLoginStart, statePathIn, stopWsp, userDataIn, workingHere, type HostSession, type Launch, type OpenHostOptions } from "./host-lifecycle.js";
@@ -79,8 +80,10 @@ function launch(): Launch {
   return { packaged: app.isPackaged, cwd: process.cwd(), ...(env !== undefined ? { env } : {}) };
 }
 
+/** This app's own folder in the home, where Chromium keeps its files and the Experimental switch is kept. */
+const APP_DIR = userDataIn(launch());
 // Before the app is ready, which is the last moment Chromium takes a new home for its files.
-app.setPath("userData", userDataIn(launch()));
+app.setPath("userData", APP_DIR);
 // One app per home: the lock is keyed on the folder just set, so a second launch on the same home hands its
 // arguments, a wsp:// link among them on Linux and Windows, to this one and quits.
 if (!app.requestSingleInstanceLock()) app.exit(0);
@@ -205,18 +208,43 @@ const links = deepLinks({
     if (win !== undefined) raiseWindow(win);
   },
 });
+/** The road to the GPUI app while the Experimental switch is on; nothing is stopped, since both apps serve one host. */
+const toGpui: HandOverDeps = {
+  dir: APP_DIR,
+  open: (path, link) => openGpui(gpuiLaunch(process.platform, path, process.env, link)),
+  leaving: () => quitting,
+  quit: () => {
+    quitting = true;
+    app.quit();
+  },
+  log: io.log,
+  error: io.error,
+};
+const handingOver = handOver(toGpui);
+/** The wsp:// link this launch came up with, which the launch's own hand-over carries to the GPUI app. */
+let launchLink: string | undefined;
 // Registered before the app is ready: macOS hands a link that launched the app over before ready fires.
 app.on("open-url", (event, url) => {
   event.preventDefault();
-  links.open(url);
+  if (!app.isReady()) {
+    launchLink = url;
+    return links.open(url);
+  }
+  void handingOver("link", url).then(went => went || links.open(url));
 });
 app.on("second-instance", (_event, argv) => {
   const url = linkInArgv(argv);
-  if (url !== undefined) links.open(url);
-  else if (win !== undefined) raiseWindow(win);
+  void handingOver("second launch", url).then(went => {
+    if (went) return;
+    if (url !== undefined) links.open(url);
+    else if (win !== undefined) raiseWindow(win);
+  });
 });
 const launchedWith = linkInArgv(process.argv);
-if (launchedWith !== undefined) links.open(launchedWith);
+if (launchedWith !== undefined) {
+  launchLink = launchedWith;
+  links.open(launchedWith);
+}
 // The bundle names the scheme for macOS; Linux and Windows learn it here. A build run from dist by the smoke, or
 // unpackaged, would name itself the computer's handler for every wsp:// link, so only an installed app asks.
 if (app.isPackaged && process.env["WSP_DESKTOP_SMOKE"] !== "1") app.setAsDefaultProtocolClient("wsp");
@@ -273,6 +301,10 @@ answer("logs:open", async () => {
 // Whether this computer's service starts at login is this computer's to say, so only the app's own host's page asks.
 answer("service:login", () => loginStart(where().statePath, systemService()));
 answer("service:login-set", (_event, on) => setLoginStart(where().statePath, on === true, systemService()));
+
+// The switch hands this computer's app over, so only the app's own host's page reads or turns it.
+answer("experimental:get", () => experimentalSwitch(APP_DIR));
+answer("experimental:set", (_event, on) => turnExperimental(on === true, toGpui));
 
 // The one bridge call the preload answers itself, off the shell's own webUtils: it asks here first, so a page a
 // computer this one does not own serves is handed no path from this computer's desktop.
@@ -581,7 +613,7 @@ async function askQuit(): Promise<void> {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
-app.on("activate", () => void reopen());
+app.on("activate", () => void handingOver("Dock").then(went => (went ? undefined : reopen())));
 
 /** The window standing while wsp starts, which the window after it or a failed start's answered dialog takes away. */
 let starting: { end(): void } | undefined;
@@ -867,6 +899,8 @@ app
         io.error(`the wsp on PATH was not checked: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
+    // Read here, after every step above and before any window: a launch with the switch on opens no window of its own.
+    if (await handingOver("launch", launchLink)) return;
     await openWindow();
   })
   .catch(async (e: unknown) => {

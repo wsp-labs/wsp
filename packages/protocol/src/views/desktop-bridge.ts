@@ -200,6 +200,12 @@ export interface DesktopBridge {
   loginStart(): Promise<boolean | null>;
   /** Sets that, leaving wsp running either way, and answers the reading after it. */
   setLoginStart(on: boolean): Promise<boolean | null>;
+  /** Whether the Experimental switch hands this app over to the GPUI app; null where no GPUI app is installed in
+   * this home. Only the app's own host's page is answered; absent on a shell from before the switch. */
+  experimental?(): Promise<boolean | null>;
+  /** On opens the GPUI app and quits this one, stopping nothing, or refuses in one line where it did not open and
+   * leaves the switch off; off is the write alone. Answers the reading after it. */
+  setExperimental?(on: boolean): Promise<boolean | null>;
   /** A wsp:// link the system handed the shell while the page was up, read down to what it names: the page opens it
    * and does nothing to it. Only the app's own host's page is told. Returns the unsubscribe. */
   onOpen(handler: (target: LinkTarget) => void): () => void;
