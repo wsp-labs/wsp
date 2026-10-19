@@ -2,7 +2,7 @@
 # The desktop app's own workspace, apart from daemon/'s, so GPUI's dependency tree never moves daemon/Cargo.lock.
 [workspace]
 resolver = "2"
-members = ["host-client", "app"]
+members = ["host-client", "app", "browser-spike"]
 # vendor/gpui-kit-*/ is gpui-kit's own workspace, whose crates inherit from its root, not this one.
 exclude = ["vendor"]
 
