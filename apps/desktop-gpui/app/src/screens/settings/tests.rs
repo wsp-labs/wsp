@@ -198,27 +198,45 @@ fn a_walk_never_goes_past_an_end() {
     assert_eq!(walk("down", None, 0), None);
 }
 
-#[gpui_kit::test]
-fn a_groups_list_opens_with_the_webs_motion_and_at_once_under_reduced_motion(cx: &mut TestAppContext) {
+/// A group's list on its own page opening as one block with the web's motion, its height grown from nothing to its rows'
+/// at 36 px each, however many sections the page has on this platform (Appearance's Glass card is the Mac's alone).
+fn a_groups_list_opens_from_nothing_to_its_rows(group: GroupId, cx: &mut TestAppContext) -> &mut VisualTestContext {
     init(cx);
     let runtime = Arc::new(tokio::runtime::Builder::new_current_thread().build().unwrap());
     let (_, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| SettingsScreen::with_data(bare(), At::Group(GroupId::Appearance), runtime, window, cx));
+        let view = cx.new(|cx| SettingsScreen::with_data(bare(), At::Group(group), runtime, window, cx));
         Root::new(view, window, cx)
     });
     cx.simulate_resize(size(px(1280.), px(800.)));
     cx.run_until_parked();
-    let height = |cx: &mut VisualTestContext| cx.debug_bounds("settings-trail-appearance").expect("the trail is drawn").size.height;
+    let trail: &'static str = Box::leak(format!("settings-trail-{}", group.id()).into_boxed_str());
+    let height = |cx: &mut VisualTestContext| cx.debug_bounds(trail).expect("the trail is drawn").size.height;
     assert!(height(cx) < px(1.), "it opens from nothing: {:?}", height(cx));
     tick(cx, 40);
     let midway = height(cx);
-    assert!(midway > px(1.) && midway < px(108.), "on its way at 40 ms of 140: {midway:?}");
     settle(cx);
-    assert_eq!(height(cx), px(108.), "three trail rows of 36 px");
+    let rows: Vec<Pixels> = (0..)
+        .map_while(|ix| cx.debug_bounds(Box::leak(format!("settings-section-{ix}").into_boxed_str())).map(|b| b.size.height))
+        .collect();
+    println!("{trail}: {} rows of {:?}, {:?} in all, {midway:?} at 40 ms", rows.len(), rows, height(cx));
+    assert!(!rows.is_empty() && rows.iter().all(|h| *h == px(36.)), "every trail row is 36 px, as today's: {rows:?}");
+    let full = px(36.) * rows.len() as f32;
+    assert!(midway > px(1.) && midway < full, "on its way at 40 ms of 140: {midway:?} of {full:?}");
+    assert_eq!(height(cx), full, "{} trail rows of 36 px", rows.len());
+    cx
+}
 
+#[gpui_kit::test]
+fn a_groups_list_opens_with_the_webs_motion_and_at_once_under_reduced_motion(cx: &mut TestAppContext) {
+    let cx = a_groups_list_opens_from_nothing_to_its_rows(GroupId::Appearance, cx);
     cx.update(|_, cx| cx.set_reduce_motion(true));
     click(cx, "settings-keybindings");
     assert!(height_of(cx, "settings-trail-keybindings") > px(1.), "under reduced motion it stands open on its first frame");
+}
+
+#[gpui_kit::test]
+fn a_list_of_another_length_opens_to_its_own_rows(cx: &mut TestAppContext) {
+    a_groups_list_opens_from_nothing_to_its_rows(GroupId::General, cx);
 }
 
 fn height_of(cx: &mut VisualTestContext, selector: &'static str) -> Pixels {
