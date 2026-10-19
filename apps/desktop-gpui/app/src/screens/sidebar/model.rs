@@ -670,7 +670,18 @@ pub fn recedes(kind: Kind) -> bool {
 
 /// The slot for a kind. `age_at` is the moment a resting row's age counts from, as `Tile::age_at` gives it.
 pub fn slot(t: &Thread, kind: Kind, now_ms: f64, age_at: Option<f64>) -> Slot {
-    let (glyph, tone) = match kind {
+    let (glyph, tone) = kind_slot(kind);
+    let text = match kind {
+        Kind::Resting => age_at.map(|at| resting_age(at, now_ms)),
+        Kind::Working => Some(running_time(now_ms - t.started_at.unwrap_or(now_ms))),
+        _ => None,
+    };
+    Slot { glyph, crab: matches!(kind, Kind::Starting | Kind::Working), tone, text }
+}
+
+/// A kind's slot glyph and tone.
+pub fn kind_slot(kind: Kind) -> (Option<&'static str>, Option<Tone>) {
+    match kind {
         Kind::NeedsYou => (Some("message-circle-question"), Some(Tone::Input)),
         Kind::Waiting => (Some("hourglass"), None),
         Kind::Starting | Kind::Resting => (None, (kind == Kind::Starting).then_some(Tone::Working)),
@@ -684,13 +695,7 @@ pub fn slot(t: &Thread, kind: Kind, now_ms: f64, age_at: Option<f64>) -> Slot {
         Kind::NotPushed => (Some("upload"), Some(Tone::Input)),
         Kind::Done => (Some("circle-check"), Some(Tone::Done)),
         Kind::Finished => (Some("circle-check"), None),
-    };
-    let text = match kind {
-        Kind::Resting => age_at.map(|at| resting_age(at, now_ms)),
-        Kind::Working => Some(running_time(now_ms - t.started_at.unwrap_or(now_ms))),
-        _ => None,
-    };
-    Slot { glyph, crab: matches!(kind, Kind::Starting | Kind::Working), tone, text }
+    }
 }
 
 /// A drawn tile's slot: a snoozed root's count of working threads, else "Refused" on a full tile at rest or failed
@@ -709,13 +714,21 @@ pub fn tile_slot(t: &Thread, tile: &Tile, now_ms: f64) -> Slot {
 /// The slot's word, for its tooltip and its label; Resting has none. `utc_offset_ms` places a reset days away on
 /// the reader's weekday.
 pub fn word(t: &Thread, kind: Kind, now_ms: f64, utc_offset_ms: f64) -> Cow<'static, str> {
-    Cow::Borrowed(match kind {
+    match kind {
+        Kind::Resuming => Cow::Owned(resets_word(t.resume_at.unwrap_or(0.0), now_ms, utc_offset_ms)),
+        _ => Cow::Borrowed(kind_word(kind)),
+    }
+}
+
+/// A kind's slot word; Resuming's reads its reset, which `word` says.
+pub fn kind_word(kind: Kind) -> &'static str {
+    match kind {
         Kind::NeedsYou => "Needs you",
         Kind::Waiting => "Waiting",
         Kind::Starting => "Starting",
         Kind::Working => "Working",
         Kind::Limited => "At limit",
-        Kind::Resuming => return Cow::Owned(resets_word(t.resume_at.unwrap_or(0.0), now_ms, utc_offset_ms)),
+        Kind::Resuming => "",
         Kind::Failed => "Failed",
         Kind::Released => "Released",
         Kind::Expired => "Expired",
@@ -723,7 +736,7 @@ pub fn word(t: &Thread, kind: Kind, now_ms: f64, utc_offset_ms: f64) -> Cow<'sta
         Kind::NotPushed => "Not pushed",
         Kind::Done | Kind::Finished => "Done",
         Kind::Resting => "",
-    })
+    }
 }
 
 /// A turn's running time as the slot shows it: seconds in its first minute, then minutes: "42s", "17m", "1h 5m".

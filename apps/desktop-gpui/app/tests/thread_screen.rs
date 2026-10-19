@@ -10,6 +10,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use desktop_gpui::screens::composer::model::Hold;
+use desktop_gpui::screens::pr_pane::files::open_split;
+use desktop_gpui::screens::pr_pane::pull_request::git_split::{quick_action, GitAct};
 use desktop_gpui::screens::thread_view::header;
 use desktop_gpui::screens::{entry, Host, Opened, Pane, Place, Route, Screen};
 use desktop_gpui::shell::{Launch, Shell};
@@ -357,33 +359,39 @@ fn the_git_split_follows_the_workspace_and_its_menu_opens_changes_and_the_pull_r
     });
     until(cx, "the pushed status to count the change", |cx| changed(cx).is_some_and(|n| n > 0));
 
-    let more = cx.debug_bounds("git-more").unwrap();
-    cx.simulate_click(more.center(), Modifiers::none());
-    cx.run_until_parked();
-    press(cx, "git-item-commit");
+    // The menu is the app's popup: the first Down lands on Commit, Enter runs it.
+    press(cx, "git-more");
+    cx.simulate_keystrokes("down enter");
     cx.run_until_parked();
     let active = |cx: &mut VisualTestContext| shell.read_with(cx, |s, cx| s.panel().read(cx).active());
     assert_eq!(active(cx), Some(Pane::Changes), "the menu's Commit opens the Changes pane");
 
     bar.update(cx, |b, cx| {
         if let Some(status) = b.status.as_mut() {
-            status["pr"] = serde_json::json!({ "number": 7, "state": "open", "url": "https://example.com/pr/7" });
+            status["pr"] = serde_json::json!({ "number": 7, "state": "open", "url": "https://example.com/pr/7", "base": "main" });
         }
         cx.notify();
     });
     cx.run_until_parked();
+    let git = shell.read_with(cx, |s, cx| s.thread_screen().map(|t| t.read(cx).git_split().clone())).expect("the thread screen");
+    until(cx, "the button to read the open pull request", |cx| git.read_with(cx, |g, _| g.state().is_some_and(|s| s.pr_open)));
+    // Commit, then View PR past the held Push.
     press(cx, "git-more");
-    cx.run_until_parked();
-    press(cx, "git-item-pr");
+    cx.simulate_keystrokes("down down enter");
     cx.run_until_parked();
     assert_eq!(active(cx), Some(Pane::PullRequest), "View PR opens the Pull request pane");
 }
 
-/// The refusals standing in the window's toasts, oldest first.
+/// The refusals standing in the window's toasts, oldest first, but the readings of this computer the throwaway host
+/// refuses for want of a wsp-daemon.
 fn refusals(cx: &mut VisualTestContext) -> Vec<String> {
     let toasts = cx.update(|window, cx| desktop_gpui::ui::toast::of(window, cx).expect("the window's toasts"));
     toasts.read_with(cx, |t, _| {
-        t.standing().into_iter().filter(|n| n.kind == desktop_gpui::ui::NoticeKind::Error).map(|n| n.text.to_string()).collect()
+        t.standing()
+            .into_iter()
+            .filter(|n| n.kind == desktop_gpui::ui::NoticeKind::Error && !n.text.starts_with("Live readings for "))
+            .map(|n| n.text.to_string())
+            .collect()
     })
 }
 
@@ -435,16 +443,16 @@ fn the_editors_are_listed_once_per_host_not_per_thread(cx: &mut TestAppContext) 
     host.wsp(&["run", "repo", "second", "--agent", "claude"]);
     let (shell, threads, cx) = shell_on(&host, cx);
     open(&shell, cx, ids(&threads, "first"), "first");
-    until(cx, "the host's editors", |cx| cx.update(|_, cx| cx.try_global::<header::Editors>().is_some_and(|e| e.list.is_some())));
-    let mark = header::Editor { id: "mark".to_owned(), name: "Mark".to_owned(), remote: false };
-    cx.update(|_, cx| header::set_editors(Some(vec![mark.clone()]), None, cx));
+    until(cx, "the host's editors", |cx| cx.update(|_, cx| cx.try_global::<open_split::Editors>().is_some_and(|e| e.list.is_some())));
+    let mark = open_split::Editor { id: "mark".to_owned(), name: "Mark".to_owned(), remote: false };
+    cx.update(|_, cx| open_split::set_editors(Some(vec![mark.clone()]), None, cx));
     let (workspace, second) = ids(&threads, "second");
     open(&shell, cx, (workspace, second.clone()), "second");
     let bar = bar_of(cx, &second);
     until(cx, "the second thread's catalogs", |cx| bar.read_with(cx, |b, _| !b.catalogs.is_empty()));
     std::thread::sleep(Duration::from_millis(500));
     cx.run_until_parked();
-    let listed = cx.update(|_, cx| cx.global::<header::Editors>().list.clone());
+    let listed = cx.update(|_, cx| cx.global::<open_split::Editors>().list.clone());
     assert_eq!(listed, Some(vec![mark]), "a thread switch listed the editors again");
 }
 
@@ -511,18 +519,15 @@ fn a_commit_draft_answers_only_the_thread_it_was_pressed_on(cx: &mut TestAppCont
     let (shell, threads, cx) = shell_on(&host, cx);
     let (workspace_id, first) = ids(&threads, "first");
     open(&shell, cx, (workspace_id.clone(), first.clone()), "first");
-    let bar = bar_of(cx, &first);
     let reader = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     reader.block_on(async {
         let ask: protocol::WorkspacesCheckoutRequest =
             serde_json::from_value(serde_json::json!({ "workspaceId": workspace_id, "fresh": true })).unwrap();
         host.client().await.call(ask).await.unwrap_or_else(|f| panic!("workspaces.checkout: {}", f.message));
     });
-    let quick = |b: &header::Bar| {
-        b.status.as_ref().and_then(|s| header::git_state(s, b.bases.values().next().cloned(), b.busy)).map(|g| header::git_quick(&g))
-    };
+    let git = shell.read_with(cx, |s, cx| s.thread_screen().map(|t| t.read(cx).git_split().clone())).expect("the thread screen");
     until(cx, "the quick act to commit", |cx| {
-        bar.read_with(cx, |b, _| quick(b).is_some_and(|q| q.act == Some(header::GitAct::CommitPushPr)))
+        git.read_with(cx, |g, _| g.state().is_some_and(|s| quick_action(&s).act == Some(GitAct::CommitPushPr)))
     });
     let active = |cx: &mut VisualTestContext| shell.read_with(cx, |s, cx| s.panel().read(cx).active());
 
@@ -531,7 +536,7 @@ fn a_commit_draft_answers_only_the_thread_it_was_pressed_on(cx: &mut TestAppCont
     until(cx, "the Changes pane", |cx| active(cx) == Some(Pane::Changes));
 
     // Pressed again and left before the draft answers, the next thread's panel stays as it was.
-    until(cx, "the act to end", |cx| bar.read_with(cx, |b, _| !b.busy));
+    until(cx, "the act to end", |cx| git.read_with(cx, |g, _| !g.busy()));
     // The draft's note enters over the header row on the wall clock, and takes presses there until it stands under it.
     let toasts = cx.update(|window, cx| desktop_gpui::ui::toast::of(window, cx).expect("the window's toasts"));
     // The stack sizes a toast on the draw after it is added, which nothing else in this window asks for.
@@ -543,9 +548,9 @@ fn a_commit_draft_answers_only_the_thread_it_was_pressed_on(cx: &mut TestAppCont
         cx.run_until_parked();
     }
     press(cx, "git-quick");
-    assert!(bar.read_with(cx, |b, _| b.busy), "the act did not start");
+    assert!(git.read_with(cx, |g, _| g.busy()), "the act did not start");
     open(&shell, cx, ids(&threads, "second"), "second");
-    until(cx, "the draft's answer", |cx| bar.read_with(cx, |b, _| !b.busy));
+    until(cx, "the draft's answer", |cx| git.read_with(cx, |g, _| !g.busy()));
     std::thread::sleep(Duration::from_millis(300));
     cx.run_until_parked();
     assert_eq!(active(cx), None, "a draft answered after a switch opened Changes on the next thread");

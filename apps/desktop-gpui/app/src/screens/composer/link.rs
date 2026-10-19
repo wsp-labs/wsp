@@ -19,7 +19,7 @@ use wsp_host_client::protocol::{self, SessionEvent, SessionView, SessionsAnswerR
 use wsp_host_client::{Event, Failure, Live, Op};
 
 use super::dock::{self, Answer};
-use super::model::{Agent, Command, Drawer, Hold, HostItem, Picks, Skill};
+use super::model::{Agent, Command, Drawer, Hold, HostItem, Limit, Picks, Plan, Skill, Slot};
 use super::{Composer, ComposerEvent, Fork, Outgoing};
 use crate::screens::{navigate, Host, Route};
 
@@ -87,7 +87,7 @@ pub struct Link {
     /// The thread's sent prompts by id, oldest first, for the box's Up and Down.
     prompts: Vec<(String, String)>,
     /// The step list of the turn running now, as its last `session.plan` gave it.
-    plan: Option<Value>,
+    plan: Option<Plan>,
     /// The thread followed: the host task, stopped when this is dropped, and its arrivals read on the window's thread.
     _follow: Option<(Task<()>, Task<()>)>,
     /// The rows read again after an event; a newer read replaces it.
@@ -132,7 +132,7 @@ pub struct Seen {
     begun: Option<String>,
     commands: Vec<Command>,
     prompts: Vec<(String, String)>,
-    plan: Option<Value>,
+    plan: Option<Plan>,
 }
 
 impl Seen {
@@ -162,7 +162,7 @@ impl Seen {
                 self.running = None;
                 self.plan = None;
             }
-            "session.plan" => self.plan = value.get("steps").cloned(),
+            "session.plan" => self.plan = plan_after(self.plan.take(), value),
             _ => {}
         }
         if let Some(prompt) = prompt_of(kind, value) {
@@ -249,36 +249,69 @@ pub fn clock_word(at: f64, now: std::time::SystemTime) -> String {
     format!("{day} {time}")
 }
 
+/// `sessions.mark` for the usage limit's acts: the thread goes on with its turn at the reset, or no longer.
+pub fn mark_params(thread: &str, resume: bool) -> Value {
+    json!({ "threadIds": [thread], "marks": { "resumeAtReset": resume } })
+}
+
+/// The step list after a `session.plan`: one that wrote no steps leaves the list as it stood.
+fn plan_after(earlier: Option<Plan>, value: &Value) -> Option<Plan> {
+    match value.get("steps").and_then(Value::as_array) {
+        Some(steps) => Some(Plan::next(earlier.as_ref(), steps, value.get("at").and_then(Value::as_f64))),
+        None => earlier,
+    }
+}
+
 /// What waits around the composer, off the thread's newest row and the running turn's step list (ChatComposer.tsx's
-/// `drawer`, `capRunningLine` and `LIMIT_WORDS`).
-pub fn drawer_of(rows: &[SessionView], plan: Option<&Value>, running: bool, agents: &[Agent]) -> Drawer {
+/// `drawer`, `capRunningLine`, `capBarWords`, `capRaiseAct` and `LIMIT_WORDS`).
+pub fn drawer_of(rows: &[SessionView], plan: Option<&Plan>, running: bool, agents: &[Agent]) -> Drawer {
     let Some(row) = rows.last() else { return Drawer::default() };
     let row_value = serde_json::to_value(row).unwrap_or_default();
     let agent = agents.iter().find(|a| a.harness == row.harness).map_or(row.harness.clone(), |a| a.label.clone());
     let failed = row_value.get("status").and_then(Value::as_str) == Some("failed");
     let limit = row_value.get("limit").filter(|_| failed).map(|limit| {
-        let name = if row.resume_at.is_some() { "Resumes at the reset" } else { "Usage limit reached" }.to_owned();
-        let line = match limit.get("resetsAt").and_then(Value::as_f64) {
+        let armed = row.resume_at.is_some();
+        let resets_at = limit.get("resetsAt").and_then(Value::as_f64);
+        let unknown = format!("{agent} stopped this turn and did not say when its plan resets.");
+        let line = match resets_at {
             Some(at) => format!("{agent} resumes at {}", clock_word(at, std::time::SystemTime::now())),
-            None => format!("{agent} stopped this turn and did not say when its plan resets."),
+            None => unknown.clone(),
         };
-        (name, line)
+        let note = match (armed, resets_at) {
+            (true, _) => format!("{agent} goes on with this turn when its plan resets."),
+            (false, Some(_)) => format!("{agent} stopped this turn until its plan resets."),
+            (false, None) => unknown,
+        };
+        let title = if armed { "Resumes at the reset" } else { "Usage limit reached" }.to_owned();
+        Limit { title, line, note, resets: resets_at.is_some(), armed }
     });
     let slot = row_value.get("capped").map(|c| {
         let place = c.get("place").and_then(Value::as_str).unwrap_or_default();
         let (on, of) = (c.get("running").and_then(Value::as_i64).unwrap_or(0), c.get("atOnce").and_then(Value::as_i64).unwrap_or(0));
-        match c.get("why").and_then(Value::as_str) {
+        let why = c.get("why").and_then(Value::as_str);
+        let line = match why {
             Some("minute") => format!("{place}'s starts this minute are used: {on} of {of}"),
             Some("slot") => format!("{place} is running {on} of {}", plural(of, "machine")),
             _ => format!("{place} is running {on} of {}", plural(of, "thread")),
+        };
+        let raise = match why {
+            None => Some("Raise threads at once".to_owned()),
+            Some("slot") => Some("Raise machines at once".to_owned()),
+            Some(_) => None,
+        };
+        Slot {
+            line,
+            title: format!("Waiting for a thread slot on {place}"),
+            note: format!(
+                "{on} of {} {} running. It starts on its own when one ends.",
+                plural(of, "thread"),
+                if on == 1 { "is" } else { "are" }
+            ),
+            raise,
+            place_id: c.get("placeId").and_then(Value::as_str).unwrap_or_default().to_owned(),
         }
     });
-    let tasks = plan.filter(|_| running).and_then(Value::as_array).and_then(|steps| {
-        let state = |s: &Value| s.get("state").and_then(Value::as_str).unwrap_or_default().to_owned();
-        let current = steps.iter().find(|s| state(s) == "working").or_else(|| steps.iter().find(|s| state(s) == "pending"))?;
-        let done = steps.iter().filter(|s| state(s) == "done").count();
-        Some((current.get("text").and_then(Value::as_str).unwrap_or_default().to_owned(), format!("{done}/{}", steps.len())))
-    });
+    let tasks = plan.filter(|_| running).and_then(Plan::tasks);
     Drawer { limit, slot, tasks }
 }
 
@@ -787,7 +820,7 @@ impl Link {
                         self.plan = None;
                         composer.update(cx, |c, cx| c.set_turn(true, false, cx));
                     }
-                    "session.plan" => self.plan = value.get("steps").cloned(),
+                    "session.plan" => self.plan = plan_after(self.plan.take(), &value),
                     _ => {}
                 }
                 self.prompts.extend(prompt_of(&kind, &value));
@@ -952,7 +985,28 @@ impl Link {
                 })
                 .detach();
             }
+            ComposerEvent::Mark(resume) => {
+                let Some(thread) = target.thread_id.clone() else { return };
+                cx.spawn_in(window, async move |this, cx| {
+                    let marked = match request::<protocol::SessionsMarkRequest>(mark_params(&thread, resume)) {
+                        Ok(op) => call(&host, op).await.map(|_| ()),
+                        Err(e) => Err(e),
+                    };
+                    match marked {
+                        Ok(()) => _ = this.update(cx, |this, cx| this.reread(cx)),
+                        Err(failure) => eprintln!("desktop-gpui: sessions.mark: {}", failure.message),
+                    }
+                })
+                .detach();
+            }
             ComposerEvent::Notice(_) | ComposerEvent::Answer(_) | ComposerEvent::Starting(_) => {}
+            ComposerEvent::Aside(question) => match session {
+                Some(session) => {
+                    crate::screens::aside::ask(&host, &target.workspace_id, &session, question, window, cx);
+                    composer.update(cx, |c, cx| c.aside_asked(window, cx));
+                }
+                None => crate::ui::notify(cx, crate::ui::Notice::note(crate::screens::aside::words::NO_SESSION)),
+            },
             ComposerEvent::Items => {
                 let cwd = self.rows.last().and_then(|r| r.cwd.clone());
                 let computer = self.rows.last().and_then(|r| r.computer_name.clone()).unwrap_or_else(|| "this computer".to_owned());
@@ -1162,6 +1216,56 @@ pub fn start_params(target: &Target, out: &Outgoing, ran: bool) -> Value {
 mod tests {
     use super::super::model::{Choice, File, Resolved};
     use super::*;
+
+    fn row(more: Value) -> SessionView {
+        let mut v = json!({ "id": "s1", "workspaceId": "w", "harness": "claude", "status": "failed" });
+        v.as_object_mut().unwrap().extend(more.as_object().unwrap().clone());
+        serde_json::from_value(v).unwrap()
+    }
+
+    #[test]
+    fn the_drawer_words_a_limit_a_held_turn_and_the_steps_as_the_bars_say_them() {
+        let agents = [Agent { harness: "claude".into(), label: "Claude Code".into(), ..Agent::default() }];
+        let hit = drawer_of(&[row(json!({ "limit": { "resetsAt": 1_700_000_000_000.0 } }))], None, false, &agents);
+        let limit = hit.limit.expect("a stopped turn's limit");
+        assert_eq!((limit.title.as_str(), limit.resets, limit.armed), ("Usage limit reached", true, false));
+        assert_eq!(limit.note, "Claude Code stopped this turn until its plan resets.");
+        let armed = drawer_of(&[row(json!({ "limit": { "resetsAt": 1.0 }, "resumeAt": 1.0 }))], None, false, &agents).limit.unwrap();
+        assert_eq!(
+            (armed.title.as_str(), armed.note.as_str()),
+            ("Resumes at the reset", "Claude Code goes on with this turn when its plan resets.")
+        );
+        let unknown = drawer_of(&[row(json!({ "limit": {} }))], None, false, &agents).limit.unwrap();
+        assert!(!unknown.resets);
+        assert_eq!(unknown.note, "Claude Code stopped this turn and did not say when its plan resets.");
+
+        let capped = |why: Value| {
+            let mut c = json!({ "placeId": "p1", "place": "build-box", "running": 1, "atOnce": 1 });
+            if !why.is_null() {
+                c["why"] = why;
+            }
+            drawer_of(&[row(json!({ "status": "running", "capped": c }))], None, false, &agents).slot.unwrap()
+        };
+        let slot = capped(Value::Null);
+        assert_eq!(slot.title, "Waiting for a thread slot on build-box");
+        assert_eq!(slot.note, "1 of 1 thread is running. It starts on its own when one ends.");
+        assert_eq!((slot.raise.as_deref(), slot.place_id.as_str()), (Some("Raise threads at once"), "p1"));
+        assert_eq!(capped(json!("slot")).raise.as_deref(), Some("Raise machines at once"));
+        assert_eq!(capped(json!("minute")).raise, None);
+
+        let steps = [json!({ "text": "a", "state": "done" }), json!({ "text": "b", "state": "working" })];
+        let plan = Plan::next(None, &steps, Some(5.0));
+        assert!(drawer_of(&[row(json!({}))], Some(&plan), false, &agents).tasks.is_none(), "only while the turn runs");
+        assert_eq!(drawer_of(&[row(json!({}))], Some(&plan), true, &agents).tasks.unwrap().count(), "1/2");
+    }
+
+    #[test]
+    fn resume_at_reset_marks_the_thread_by_sessions_mark() {
+        let params = mark_params("t1", true);
+        assert_eq!(params, json!({ "threadIds": ["t1"], "marks": { "resumeAtReset": true } }));
+        assert!(request::<protocol::SessionsMarkRequest>(params).is_ok(), "the host's request takes it");
+        assert!(request::<protocol::SessionsMarkRequest>(mark_params("t1", false)).is_ok());
+    }
 
     fn choice(v: &str) -> Choice {
         Choice { value: v.into(), label: v.into(), ..Default::default() }

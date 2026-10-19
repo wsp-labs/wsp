@@ -13,6 +13,7 @@ use serde_json::{Map, Value};
 use super::{Composer, ComposerEvent};
 use crate::screens::thread_view::cards::Refusal;
 use crate::transcript::{Docked, RowKind};
+use crate::ui::tagged;
 use crate::ui::{catalog, glyph_frame, size, text, ActivePalette, Button, Card, CardItem, Choice, CopyRow, Field, Glyph, Line, PickRow};
 
 /// The last row of every question, as the CLI draws it: a pick that is none of the above, typed.
@@ -734,10 +735,12 @@ impl Composer {
     }
 }
 
-/// The open field: in its row's right column wide enough for a sentence, or the question's own across the card.
+/// The open field: the sheet's own, or a row's `w-96`, `max-sm:w-full` under its words.
 fn field(c: &Composer, own: bool) -> AnyElement {
     if own {
         Field::new(&c.dock_field).sheet_words().into_any_element()
+    } else if c.narrow {
+        Field::new(&c.dock_field).width(gpui_kit::relative(1.)).into_any_element()
     } else {
         Field::new(&c.dock_field).width(size::SENTENCE_FIELD_WIDTH).into_any_element()
     }
@@ -817,38 +820,8 @@ pub(super) fn view(c: &Composer, dock: &Dock, cx: &mut Context<Composer>) -> Any
         Some(q) if q.header.is_empty() || q.question.to_lowercase().contains(&q.header.to_lowercase()) => None,
         Some(q) => Some(q.header.clone()),
     };
-    let quiet = |text: String| div().text_size(px(13.)).line_height(px(20.)).text_color(p.muted_foreground).child(text);
-    let head = h_flex()
-        .items_start()
-        .justify_between()
-        .gap_6()
-        .px_5()
-        .pt_4()
-        .pb_3()
-        .child(
-            v_flex()
-                .min_w_0()
-                .gap_1()
-                .child(
-                    h_flex()
-                        .debug_selector(|| "prompt-title".into())
-                        .min_w_0()
-                        .items_center()
-                        .gap_2()
-                        .text_size(px(16.))
-                        .line_height(px(24.))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(p.foreground)
-                        .children(mark)
-                        .child(div().min_w_0().child(title)),
-                )
-                .children(note.map(quiet))
-                .children(dock.earlier().into_iter().map(|line| quiet(line).truncate())),
-        )
-        .children(
-            dock.count()
-                .map(|count| div().flex_none().text_size(px(13.)).line_height(px(19.5)).text_color(p.muted_foreground).child(count)),
-        );
+    let mut under: Vec<AnyElement> = note.map(|n| super::parts::note(n, &p).into_any_element()).into_iter().collect();
+    under.extend(dock.earlier().into_iter().map(|line| super::parts::note(line, &p).truncate().into_any_element()));
 
     let mut body: Vec<AnyElement> = Vec::new();
     if question.is_none() {
@@ -950,6 +923,7 @@ pub(super) fn view(c: &Composer, dock: &Dock, cx: &mut Context<Composer>) -> Any
             Choice::new(SharedString::from(format!("prompt-option-{}", row.id)), row.label.clone(), picked)
                 .title(text::SETTING_TITLE)
                 .hover(row_hover(at, false))
+                .stacked(c.narrow)
                 .when(!note.is_empty(), |r| r.note(note))
                 .when(picked && row.field.is_some(), |r| r.slot(field(c, false)))
                 .on_click(move |_, window, cx| {
@@ -970,25 +944,22 @@ pub(super) fn view(c: &Composer, dock: &Dock, cx: &mut Context<Composer>) -> Any
     }
 
     let held = dock.held();
-    let foot = h_flex()
-        .items_center()
-        .gap_2()
-        .px_5()
-        .pb_5()
-        .child(h_flex().flex_1().min_w_0().min_h(px(20.)).child(Button::text("prompt-write", WRITE_INSTEAD).on_click({
-            let this = this.clone();
-            move |_, window, cx| _ = this.update(cx, |c, cx| c.fold_prompt(window, cx))
-        })))
-        .when(dock.step > 0, |el| {
-            let this = this.clone();
-            el.child(
-                Button::outline("prompt-back", "Back").on_click(move |_, window, cx| _ = this.update(cx, |c, cx| c.dock_back(window, cx))),
-            )
-        })
-        .child(Button::primary("prompt-answer", dock.primary_word()).held(held).on_click({
-            let this = this.clone();
-            move |_, window, cx| _ = this.update(cx, |c, cx| c.dock_confirm(window, cx))
-        }));
+    let write = Button::text("prompt-write", WRITE_INSTEAD).on_click({
+        let this = this.clone();
+        move |_, window, cx| _ = this.update(cx, |c, cx| c.fold_prompt(window, cx))
+    });
+    let mut acts = Vec::new();
+    if dock.step > 0 {
+        let this = this.clone();
+        let back =
+            Button::outline("prompt-back", "Back").on_click(move |_, window, cx| _ = this.update(cx, |c, cx| c.dock_back(window, cx)));
+        acts.push(tagged("prompt-back", back));
+    }
+    let answer = Button::primary("prompt-answer", dock.primary_word()).held(held).on_click({
+        let this = this.clone();
+        move |_, window, cx| _ = this.update(cx, |c, cx| c.dock_confirm(window, cx))
+    });
+    acts.push(tagged("prompt-answer", answer));
 
     let root = v_flex()
         .id("prompt-root")
@@ -998,17 +969,29 @@ pub(super) fn view(c: &Composer, dock: &Dock, cx: &mut Context<Composer>) -> Any
         .min_w_0()
         .on_key_down(cx.listener(|c, event: &KeyDownEvent, window, cx| c.dock_key(event, window, cx)))
         .capture_action(cx.listener(Composer::on_dock_escape))
-        .capture_action(cx.listener(Composer::on_dock_enter))
-        .child(head)
-        .when(!body.is_empty(), |el| el.child(v_flex().gap_5().px_5().pt_2().pb_5().children(body)))
-        .child(foot);
+        .capture_action(cx.listener(Composer::on_dock_enter));
+    let framed = super::parts::dock_frame(
+        c,
+        super::parts::DockParts {
+            selector: "composer-prompt",
+            mark,
+            title: title.into(),
+            under,
+            aside: dock.count().map(SharedString::from),
+            aside_mono: false,
+            body,
+            back: Some(tagged("prompt-write", write)),
+            acts,
+            root: Some(root),
+        },
+        cx,
+    );
     div()
         .id("composer")
         .debug_selector(|| "composer".into())
         .w_full()
-        .px_4()
-        .pb_4()
-        .child(div().mx_auto().w_full().max_w(super::COLUMN).child(super::parts::glass_box(cx).child(root)))
+        .map(|el| if c.narrow { el.px_3().pb_3() } else { el.px_4().pb_4() })
+        .child(framed)
         .into_any_element()
 }
 

@@ -24,7 +24,7 @@ use gpui_kit::component::input::{
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Sizable as _};
 use gpui_kit::{
     actions, canvas, div, prelude::*, px, App, Bounds, ClipboardEntry, Context, Entity, EventEmitter, ExternalPaths, FocusHandle,
-    Focusable, Global, KeyBinding, Pixels, SharedString, Subscription, Unbind, WeakEntity, Window,
+    Focusable, Global, KeyBinding, KeyDownEvent, Pixels, SharedString, Subscription, Unbind, WeakEntity, Window,
 };
 use std::collections::HashMap;
 
@@ -148,10 +148,13 @@ impl Banner {
     }
 }
 
-/// A bar standing in the composer's place, opened from its drawer row.
+/// A bar standing in the composer's place, opened from its drawer row (composerBar.ts `ComposerBar`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Bar {
     Queue,
+    Tasks,
+    Usage,
+    Capped,
 }
 
 /// Fork from here: the workspace and thread a fork's draft forks, the turn it carries through (none on the thread's
@@ -200,6 +203,10 @@ pub enum ComposerEvent {
     Answer(dock::Answer),
     /// The line under a send whose agent is still starting (`agentStartingLine`), none once its turn starts.
     Starting(Option<String>),
+    /// The usage limit's Resume at reset, armed or taken back (`sessions.mark` `resumeAtReset`).
+    Mark(bool),
+    /// A side question (`/btw <question>`) for the thread's agent, answered on a tab of its own.
+    Aside(String),
 }
 
 /// A thread's queue as the box left it on a switch, with the files the store does not keep, whether it was held, and
@@ -212,6 +219,8 @@ struct Parked {
 }
 
 pub struct Composer {
+    /// The window the composer draws in, which a pane's words reach it through.
+    window: gpui_kit::AnyWindowHandle,
     editor: Entity<TextareaState>,
     agents: Vec<Agent>,
     picks: Picks,
@@ -228,6 +237,9 @@ pub struct Composer {
     recalled: Option<Recalled>,
     drawer: Drawer,
     bar: Option<Bar>,
+    /// The open bar's own focus, which takes the keys as it opens so Esc folds it (composerBar.ts `useBarRoot`).
+    bar_focus: FocusHandle,
+    focus_bar: bool,
     /// The models starred, as `harness:model`.
     favourites: Vec<String>,
     /// The model picker shows the starred models in place of one agent's.
@@ -319,6 +331,8 @@ pub struct Composer {
     built: u64,
     lines: usize,
     dragging: bool,
+    /// The window is under 640 px wide (`max-sm`), as of the last draw.
+    narrow: bool,
     placeholder: &'static str,
     _subscriptions: Vec<Subscription>,
 }
@@ -385,6 +399,24 @@ pub fn insert(thread: &str, block: &str, window: &mut Window, cx: &mut App) -> b
     true
 }
 
+/// Hands the open composer whose thread is `thread` the draft `joined` makes of the words in its box, the caret after
+/// them and the focus in it (sendToThread.ts `setDraft` and `requestComposerFocus`), once the caller's update ends;
+/// false where no composer has that thread open. The box's words, not the store's, since the store waits out a pause.
+pub fn take_draft(thread: &str, joined: impl FnOnce(&str) -> String + 'static, cx: &mut App) -> bool {
+    let Some(composer) = open_on(thread, cx) else { return false };
+    let handle = composer.read(cx).window;
+    cx.defer(move |cx| {
+        _ = handle.update(cx, |_, window, cx| {
+            composer.update(cx, |c, cx| {
+                let text = joined(&c.text(cx));
+                c.set_text(&text, window, cx);
+                c.fold_bar(window, cx);
+            })
+        });
+    });
+    true
+}
+
 /// A typed send the host refused where no box holds its thread: its words go ahead of the draft the store keeps for it.
 fn refused_into_store(key: &str, prompt: &str, cx: &mut App) {
     let Some(s) = cx.try_global::<LocalStore>() else { return };
@@ -438,6 +470,7 @@ impl Composer {
             }),
         ];
         let mut composer = Composer {
+            window: window.window_handle(),
             editor,
             agents: Vec::new(),
             picks: Picks::default(),
@@ -451,6 +484,8 @@ impl Composer {
             recalled: None,
             drawer: Drawer::default(),
             bar: None,
+            bar_focus: cx.focus_handle(),
+            focus_bar: false,
             favourites: Vec::new(),
             favourites_view: false,
             fast: None,
@@ -507,6 +542,7 @@ impl Composer {
             built: 0,
             lines: 1,
             dragging: false,
+            narrow: false,
             placeholder: "Ask anything",
             _subscriptions: subscriptions,
         };
@@ -634,7 +670,7 @@ impl Composer {
         self.banner = None;
         self.forking = None;
         self.before_fork = None;
-        self.bar = None;
+        self.drop_bar(window, cx);
         self.folder_files = None;
         self.host_items = None;
         self.items_note = None;
@@ -709,6 +745,12 @@ impl Composer {
     }
 
     /// Empties the box, and the draft the store keeps with it.
+    /// The side question in the box went to the host: the box empties, as after a send.
+    pub(crate) fn aside_asked(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.clear_box(window, cx);
+        self.save_draft(cx);
+    }
+
     fn clear_box(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.editor.update(cx, |e, cx| e.set_value(String::new(), window, cx));
         self.lines = 1;
@@ -1258,12 +1300,20 @@ impl Composer {
 
     /// Enter: a new turn, a steer, or a message onto the queue.
     pub fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // Enter holds what the send button holds (ChatComposer.tsx `send`), leaving the draft in the box.
-        if model::slash_hold(&self.text(cx), &self.commands_offered()).is_some() {
+        // Enter holds what the send button holds (ChatComposer.tsx `send`): the draft stays in the box and a note says
+        // why in the button's hover words. A turn in flight is the button's word alone, not a hold on Enter.
+        let in_flight = self.hold == Some(Hold::InFlight);
+        let held = self
+            .send_held(cx)
+            .filter(|why| !in_flight || why != Hold::InFlight.words())
+            .or_else(|| model::slash_hold(&self.text(cx), &self.commands_offered()));
+        if let Some(why) = held {
+            crate::ui::notify(cx, crate::ui::Notice::note(why));
             return;
         }
-        // A computer not answering holds the send alone; the words wait in the box for the person's own send.
-        if self.absent.is_some() {
+        let asides = self.ran.agent.is_some() && self.resolved().agent.is_some_and(|a| a.asides);
+        if let Some(question) = crate::screens::aside::question(&self.text(cx)).filter(|_| asides) {
+            cx.emit(ComposerEvent::Aside(question));
             return;
         }
         let prompt = self.prompt(cx);
@@ -1399,16 +1449,39 @@ impl Composer {
 
     pub fn open_bar(&mut self, bar: Bar, cx: &mut Context<Self>) {
         self.bar = Some(bar);
+        self.focus_bar = true;
         self.popup = None;
         self.menu = None;
         cx.notify();
     }
 
+    /// The usage limit's acts: Resume at reset arms the host to go on with the turn at the reset, Cancel takes that back;
+    /// either folds the bar (UsageBar.tsx `mark`).
+    pub fn mark_resume(&mut self, resume: bool, window: &mut Window, cx: &mut Context<Self>) {
+        cx.emit(ComposerEvent::Mark(resume));
+        self.fold_bar(window, cx);
+    }
+
     /// Puts the bar away and gives the box the keys again.
     pub fn fold_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.bar = None;
-        self.editor.focus_handle(cx).focus(window, cx);
+        self.focus_box(window, cx);
         cx.notify();
+    }
+
+    /// A bar that went on its own hands the keys it held to the box.
+    fn drop_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.bar = None;
+        if self.bar_focus.is_focused(window) {
+            self.focus_box(window, cx);
+        }
+    }
+
+    /// The box takes the keys, unless the agent's question stands in its place and keeps them.
+    fn focus_box(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.dock.as_ref().is_none_or(|d| d.folded) {
+            self.editor.focus_handle(cx).focus(window, cx);
+        }
     }
 
     /// Raises a notice: emitted for the app's notices, and shown under the box until the person writes again.
@@ -1472,10 +1545,7 @@ impl Composer {
             e.insert(format!("{before}{block}{after}"), window, cx);
         });
         self.edited_in(window, cx);
-        // Under a standing dock the block joins the draft and the dock keeps the keys, since the box is not drawn.
-        if self.dock.as_ref().is_none_or(|d| d.folded) {
-            self.editor.focus_handle(cx).focus(window, cx);
-        }
+        self.focus_box(window, cx);
     }
 
     /// Stars or unstars a model in the picker, as `harness:model`.
@@ -1837,6 +1907,8 @@ impl Composer {
         if self.dragging && !cx.has_active_drag() {
             self.dragging = false;
         }
+        self.narrow = crate::ui::narrow(window);
+        let narrow = self.narrow;
         let p = cx.palette().clone();
         let layout = self.layout();
         let shut = self.hold.as_ref().is_some_and(Hold::shuts);
@@ -1882,38 +1954,67 @@ impl Composer {
                 el.child(canvas(move |bounds: Bounds<Pixels>, _, _| width.set(bounds.size.width), |_, _, _, _| {}).absolute().size_full())
             });
 
-        if self.bar == Some(Bar::Queue) && self.queue.is_empty() {
-            self.bar = None;
+        // A bar goes with what it says, as the drawer's row does.
+        let gone = match self.bar {
+            Some(Bar::Queue) => self.queue.is_empty(),
+            Some(Bar::Tasks) => self.drawer.tasks.is_none(),
+            Some(Bar::Usage) => self.drawer.limit.is_none(),
+            Some(Bar::Capped) => self.drawer.slot.is_none(),
+            None => false,
+        };
+        if gone {
+            self.drop_bar(window, cx);
         }
         if let Some(dock) = self.dock.as_ref().filter(|d| !d.folded) {
             return dock::view(self, dock, cx);
         }
-        if self.bar == Some(Bar::Queue) {
+        if let Some(bar) = self.bar {
+            if std::mem::take(&mut self.focus_bar) {
+                self.bar_focus.focus(window, cx);
+            }
+            let shown = match bar {
+                Bar::Queue => parts::queue_bar(self, cx),
+                Bar::Tasks => parts::tasks_bar(self, cx),
+                Bar::Usage => parts::usage_bar(self, cx),
+                Bar::Capped => parts::cap_bar(self, cx),
+            };
             return div()
                 .id("composer")
                 .key_context("Composer")
                 .debug_selector(|| "composer".into())
+                .track_focus(&self.bar_focus)
                 .w_full()
-                .px_4()
-                .pb_4()
+                .map(|el| if narrow { el.px_3().pb_3() } else { el.px_4().pb_4() })
                 .capture_action(cx.listener(Self::on_escape))
-                .child(parts::queue_bar(self, cx))
+                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                    if event.keystroke.key == "escape" && this.bar.is_some() {
+                        this.fold_bar(window, cx);
+                        cx.stop_propagation();
+                    }
+                }))
+                .child(shown)
                 .into_any_element();
         }
         let pickers = parts::pickers(self, layout, cx);
         let actions = parts::actions(self, shut, cx);
         let grid = match layout {
             Layout::Full => v_flex()
-                .px_4()
-                .pt_4()
-                .pb_4()
+                .map(|el| if narrow { el.px_3().pt(px(14.)).pb_3() } else { el.px_4().pt_4().pb_4() })
                 .gap_2()
                 .child(editor)
                 .child(h_flex().items_center().justify_between().gap_2().child(pickers).child(actions)),
-            Layout::Line => h_flex().items_center().gap_1().pl_5().pr_2().py_2().child(editor).child(pickers).child(actions),
+            Layout::Line => h_flex()
+                .items_center()
+                .gap_1()
+                .map(|el| if narrow { el.pl_4() } else { el.pl_5() })
+                .pr_2()
+                .py_2()
+                .child(editor)
+                .child(pickers)
+                .child(actions),
             Layout::Tall => v_flex()
                 .gap_1()
-                .pl_5()
+                .map(|el| if narrow { el.pl_4() } else { el.pl_5() })
                 .pr_2()
                 .pt(px(14.))
                 .pb_2()
@@ -1938,9 +2039,7 @@ impl Composer {
             .debug_selector(|| "composer".into())
             .relative()
             .w_full()
-            .px_5()
-            .pt_2()
-            .pb_5()
+            .map(|el| if narrow { el.px_3().pt(px(6.)).pb_4() } else { el.px_5().pt_2().pb_5() })
             .capture_action(cx.listener(Self::on_up))
             .capture_action(cx.listener(Self::on_down))
             .capture_action(cx.listener(Self::on_enter))

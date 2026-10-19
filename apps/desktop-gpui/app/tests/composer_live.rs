@@ -549,7 +549,9 @@ fn the_tasks_row_follows_the_running_turns_plan(cx: &mut TestAppContext) {
     let (composer, _link, cx) = tie(&host, cx);
     slow_turn(&host, &composer, "PLAN the work", cx);
     until(cx, "the drawer's tasks row on the step the turn is on", |cx| {
-        composer.read_with(cx, |c, _| c.drawer().tasks == Some(("Write the test".to_owned(), "0/2".to_owned())))
+        composer.read_with(cx, |c, _| {
+            c.drawer().tasks.as_ref().map(|t| (t.step.as_str(), t.count())) == Some(("Write the test", "0/2".to_owned()))
+        })
     });
     host.interrupt();
     until(cx, "the tasks row gone with the turn", |cx| composer.read_with(cx, |c, _| c.drawer().tasks.is_none() && !c.running()));

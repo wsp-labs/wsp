@@ -3,14 +3,15 @@
 //! transcript cut to that subagent's lines, the bar in the composer's place, and crumbs that end in the lead and the
 //! subagent. No context ring, Git or Open split stands in its title row.
 
-use gpui_kit::component::{h_flex, ActiveTheme as _, Icon, Sizable as _};
+use gpui_kit::component::{h_flex, ActiveTheme as _};
 use gpui_kit::{div, prelude::*, px, App, Context, Entity, FontWeight, SharedString, Subscription, Window};
 
 use super::cards::SUBAGENT;
+use super::header::{self, Opener};
 use super::rows::Clock;
 use crate::screens::{navigate, Host, Opened, Parts, Place, Route, Screen};
 use crate::sidebar::ThreadItem;
-use crate::thread_view::ThreadView;
+use crate::thread_view::{ThreadView, ThreadViewEvent};
 use crate::transcript::{Page, ThreadAt};
 use crate::ui::{catalog, tip, ActivePalette, Button, Glyph};
 
@@ -107,10 +108,16 @@ impl SubagentScreen {
         cx.notify();
     }
 
+    /// Back to lead: the lead selected and the caret in its composer (`requestComposerFocus`), once the frame has moved
+    /// the kept thread screen onto it.
     fn back(&self, cx: &mut App) {
-        if let Some(lead) = &self.lead {
-            navigate(Route::Thread { workspace_id: lead.workspace.clone(), thread_id: lead.thread.clone() }, cx);
-        }
+        let Some(lead) = self.lead.clone() else { return };
+        navigate(Route::Thread { workspace_id: lead.workspace.clone(), thread_id: lead.thread.clone() }, cx);
+        cx.defer(move |cx| {
+            if let Some(view) = super::kept_view(&lead.thread, cx) {
+                view.update(cx, |_, cx| cx.emit(ThreadViewEvent::FocusComposer));
+            }
+        });
     }
 
     /// The clock the bar counts a running subagent's time on, once it has drawn one.
@@ -173,8 +180,9 @@ impl Render for SubagentScreen {
 fn bar(page: &Page, clock: Option<Entity<Clock>>, cx: &mut Context<SubagentScreen>) -> impl IntoElement {
     let p = cx.palette().clone();
     let harness = page.harness.clone().unwrap_or_default();
-    let model = page.model.clone().unwrap_or_default();
     let agent = catalog::name(&harness);
+    // `useSubagentModel`: a subagent that says no model is named by its agent.
+    let model = page.model.clone().unwrap_or_else(|| agent.to_string());
     let ended = ended_line(page);
     let words = format!("{agent}, {model}");
     let mark = h_flex()
@@ -185,7 +193,7 @@ fn bar(page: &Page, clock: Option<Entity<Clock>>, cx: &mut Context<SubagentScree
         .text_color(p.foreground)
         .tooltip(tip(words))
         .child(catalog::mark(&harness, &agent, px(16.), p.muted_foreground, cx))
-        .child(model);
+        .child(div().debug_selector(|| "subagent-model-name".into()).child(model));
     let back =
         Button::ghost("subagent-back", BACK).glyph(Glyph::ArrowUpLeft).tooltip(BACK).on_click(cx.listener(|this, _, _, cx| this.back(cx)));
     h_flex().w_full().justify_center().px(px(20.)).pt(px(8.)).pb(px(20.)).child(
@@ -222,25 +230,18 @@ struct Crumbs {
 }
 
 impl Render for Crumbs {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = cx.palette().clone();
         let screen = self.screen.read(cx);
         let transcript = screen.view.read(cx).transcript();
-        let lead = transcript.listed().and_then(|l| l.title.clone()).unwrap_or_default();
         let title = screen.call.as_deref().and_then(|call| transcript.page_of(call)).map(|p| p.title).unwrap_or_default();
-        let project = screen.lead.as_ref().and_then(|l| super::header::project_of(&l.thread, cx));
-        let back = self.screen.clone();
-        let project = project.map(|name| {
-            h_flex()
-                .debug_selector(|| "crumbs-project".into())
-                .min_w_0()
-                .items_center()
-                .gap_2()
-                .text_color(p.muted_foreground)
-                .child(Icon::new(Glyph::Folder).with_size(px(16.)).flex_none())
-                .child(div().truncate().child(SharedString::from(name)))
-                .child(crate::ui::slash(cx))
+        let lead = screen.lead.as_ref().map(|l| Opener {
+            workspace_id: l.workspace.clone(),
+            thread_id: Some(l.thread.clone()),
+            title: transcript.listed().and_then(|l| l.title.clone()).unwrap_or_default(),
         });
+        let project = screen.lead.as_ref().and_then(|l| header::project_of(&l.thread, cx));
+        let project = project.map(|(id, name)| header::project_crumb(id.as_deref(), name, window, cx));
         h_flex()
             .id("subagent-crumbs")
             .debug_selector(|| "crumbs".into())
@@ -250,18 +251,7 @@ impl Render for Crumbs {
             .text_size(px(14.))
             .line_height(px(20.))
             .children(project)
-            .child(
-                div()
-                    .id("subagent-crumb-lead")
-                    .debug_selector(|| "crumbs-lead".into())
-                    .min_w_0()
-                    .truncate()
-                    .text_color(p.muted_foreground)
-                    .cursor_pointer()
-                    .hover(|s| s.text_color(p.foreground))
-                    .child(SharedString::from(lead))
-                    .on_click(move |_, _, cx| back.update(cx, |screen, cx| screen.back(cx))),
-            )
+            .children(lead.map(|lead| header::thread_link("crumbs-lead", lead, cx)))
             .child(crate::ui::slash(cx))
             .child(
                 div()

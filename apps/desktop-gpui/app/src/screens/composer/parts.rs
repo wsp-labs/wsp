@@ -12,13 +12,14 @@ use gpui_kit::{
 use super::model::{self, Layout};
 use super::{menus, Banner, Composer, Popup};
 use crate::ui::icons::{SEND, STOP};
-use crate::ui::{catalog, ActivePalette, Button, Glyph, Palette};
+use crate::ui::{catalog, tagged, ActivePalette, Button, Glyph, Grid, Palette, Step, StepRow};
 
 const RADIUS: Pixels = px(22.);
 /// `--chat-composer-drawer-inset`: how far the tray, the drawer, the banner and the menus sit in from the box's sides.
 pub const INSET: Pixels = px(22.);
-/// What shows of the tray under the box.
+/// What shows of the tray under the box: `--chat-composer-tray-height`, 36 px under 640 px.
 pub const TRAY: Pixels = px(32.);
+const TRAY_NARROW: Pixels = px(36.);
 
 /// The glass (index.css and ComposerSurface.tsx): the tint, the hairline and the dark side's top light. The light side's
 /// drop shadow, the theme's `composer_shadow`, is not drawn: GPUI skips a shadow whose own rect lies outside its clip,
@@ -233,12 +234,14 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
             inset: true,
         }])
     };
-    let circle = |id: &'static str| {
-        h_flex().id(id).debug_selector(move || id.into()).relative().flex_none().justify_center().size(px(32.)).rounded_full()
+    // `size-9 sm:size-8`; the stop alone keeps 32 px at every width (`size-8 sm:h-8 sm:w-8`).
+    let send_size = if c.narrow { px(36.) } else { px(32.) };
+    let circle = |id: &'static str, size: Pixels| {
+        h_flex().id(id).debug_selector(move || id.into()).relative().flex_none().justify_center().size(size).rounded_full()
     };
     let main = if c.running {
         let stopping = c.stopping;
-        circle("composer-stop")
+        circle("composer-stop", px(32.))
             .bg(p.destructive.opacity(0.9))
             .shadow(vec![BoxShadow { color: p.destructive.opacity(0.24), ..lift[0].clone() }])
             .child(light(p.button_light))
@@ -264,7 +267,7 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
         match c.send_held(cx) {
             Some(words) => {
                 let words = SharedString::from(words);
-                circle("composer-send")
+                circle("composer-send", send_size)
                     .border_1()
                     .border_color(p.input)
                     .bg(p.input_fill)
@@ -290,7 +293,7 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
                 .debug_selector(|| "composer-send".into())
                 .relative()
                 .flex_none()
-                .h(px(32.))
+                .h(send_size)
                 .px(px(14.))
                 .rounded_full()
                 .bg(fill)
@@ -309,7 +312,7 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
                     }
                 })
                 .into_any_element(),
-            None => circle("composer-send")
+            None => circle("composer-send", send_size)
                 .bg(fill)
                 .when(!empty, |el| el.shadow(lift.clone()).child(light(p.button_light)))
                 .child(arrow(p.background))
@@ -354,7 +357,12 @@ pub fn files_row(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement>
             .on_click(cx.listener(move |this, _, _, cx| this.remove_file(ix, cx)))
     };
     let tile = || h_flex().group("composer-file").relative().h(px(56.)).rounded(px(10.)).border_1().border_color(p.border.opacity(0.6));
-    let mut row = h_flex().debug_selector(|| "composer-files".into()).flex_wrap().gap(px(6.)).px_4().pt_3();
+    let mut row = h_flex()
+        .debug_selector(|| "composer-files".into())
+        .flex_wrap()
+        .gap(px(6.))
+        .map(|el| if c.narrow { el.px_3() } else { el.px_4() })
+        .pt_3();
     for (ix, file) in c.files.iter().enumerate() {
         let shown = if file.is_image() {
             let image = std::sync::Arc::new(gpui_kit::Image::from_bytes(
@@ -408,13 +416,13 @@ pub fn files_row(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement>
     Some(row.into_any_element())
 }
 
-/// One 24 px item of the tray: a 12 px glyph and 12 px muted words.
-fn tray_item(id: &'static str, p: &Palette) -> Stateful<Div> {
+/// One 24 px item of the tray, 28 px under 640 px (`ROW_ITEM_CLASS`): a 12 px glyph and 12 px muted words.
+fn tray_item(id: &'static str, narrow: bool, p: &Palette) -> Stateful<Div> {
     h_flex()
         .id(id)
         .debug_selector(move || id.into())
         .flex_none()
-        .h(px(24.))
+        .h(if narrow { px(28.) } else { px(24.) })
         .gap_1()
         .px_2()
         .rounded(px(8.))
@@ -430,10 +438,11 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
     let g = glass(cx);
     let r = c.resolved();
     let in_bar = c.layout() == Layout::Full;
-    let mut items = h_flex().relative().h(TRAY).items_center().gap_1().pl(px(6.)).pr_2();
+    let tray = if c.narrow { TRAY_NARROW } else { TRAY };
+    let mut items = h_flex().relative().h(tray).items_center().gap_1().pl(px(6.)).pr_2();
     if let Some(computer) = &c.computer {
         items = items.child(
-            tray_item("tray-computer", &p)
+            tray_item("tray-computer", c.narrow, &p)
                 .child(Icon::new(Glyph::Monitor).with_size(px(12.)))
                 .child(div().max_w(px(240.)).truncate().child(computer.clone())),
         );
@@ -444,7 +453,7 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
             div()
                 .relative()
                 .child(
-                    tray_item("tray-access", &p)
+                    tray_item("tray-access", c.narrow, &p)
                         .cursor_pointer()
                         .hover(|s| s.bg(p.accent).text_color(p.foreground))
                         .when(c.popup == Some(Popup::Access), |el| el.bg(p.accent).text_color(p.foreground))
@@ -458,7 +467,7 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
     }
     if !c.stash.entries.is_empty() {
         items = items.child(
-            tray_item("tray-stash", &p)
+            tray_item("tray-stash", c.narrow, &p)
                 .cursor_pointer()
                 .hover(|s| s.text_color(p.foreground))
                 .child(format!("Stashed {}", c.stash.entries.len()))
@@ -467,7 +476,7 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
     }
     items = match &c.branch {
         Some(branch) => items.child(
-            tray_item("tray-branch", &p)
+            tray_item("tray-branch", c.narrow, &p)
                 .child(Icon::new(Glyph::GitBranch).with_size(px(12.)))
                 .child(div().max_w(px(240.)).truncate().child(branch.clone())),
         ),
@@ -477,7 +486,7 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
         .debug_selector(|| "composer-tray".into())
         .relative()
         .mx(INSET)
-        .h(TRAY)
+        .h(tray)
         .child(
             g.frost(
                 div().absolute().inset_0().rounded_b(px(16.)).border_l_1().border_r_1().border_b_1().border_color(g.outline).bg(g.tint),
@@ -621,32 +630,44 @@ pub fn drawer(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement> {
             .on_click(cx.listener(|this, _, window, cx| this.unfold_prompt(window, cx))),
         );
     }
-    if let Some((name, line)) = &d.limit {
-        rows = rows.child(drawer_row("drawer-usage", Glyph::Gauge, p.warning, name.clone(), line.clone(), None, &mono, &p));
+    if let Some(limit) = &d.limit {
+        rows = rows.child(
+            drawer_row("drawer-usage", Glyph::Gauge, p.warning, limit.title.clone(), limit.line.clone(), None, &mono, &p)
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _, _, cx| this.open_bar(super::Bar::Usage, cx))),
+        );
     }
-    if let Some(line) = &d.slot {
-        rows = rows.child(drawer_row(
-            "drawer-capped",
-            Glyph::Hourglass,
-            p.muted_foreground,
-            "Waiting for a slot".into(),
-            line.clone(),
-            None,
-            &mono,
-            &p,
-        ));
+    if let Some(slot) = &d.slot {
+        rows = rows.child(
+            drawer_row(
+                "drawer-capped",
+                Glyph::Hourglass,
+                p.muted_foreground,
+                "Waiting for a slot".into(),
+                slot.line.clone(),
+                None,
+                &mono,
+                &p,
+            )
+            .cursor_pointer()
+            .on_click(cx.listener(|this, _, _, cx| this.open_bar(super::Bar::Capped, cx))),
+        );
     }
-    if let Some((step, count)) = &d.tasks {
-        rows = rows.child(drawer_row(
-            "drawer-tasks",
-            Glyph::ListTodo,
-            p.muted_foreground,
-            "Tasks".into(),
-            step.clone(),
-            Some(count.clone()),
-            &mono,
-            &p,
-        ));
+    if let Some(tasks) = &d.tasks {
+        rows = rows.child(
+            drawer_row(
+                "drawer-tasks",
+                Glyph::ListTodo,
+                p.muted_foreground,
+                "Tasks".into(),
+                tasks.step.clone(),
+                Some(tasks.count()),
+                &mono,
+                &p,
+            )
+            .cursor_pointer()
+            .on_click(cx.listener(|this, _, _, cx| this.open_bar(super::Bar::Tasks, cx))),
+        );
     }
     if let Some(head) = c.queue.first() {
         let name = model::queue_word(c.queue.len(), c.steering.is_some());
@@ -686,8 +707,113 @@ pub fn drawer(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement> {
     )
 }
 
-/// The queue's bar in the composer's place (bars/QueueBar.tsx in Dock.tsx): its head, one card with a row per
-/// message holding Edit and Cancel, and the way back to the box.
+/// What stands in the composer's place in the dock's frame (Dock.tsx): the agent's question or a bar; its mark,
+/// title, the lines under the title and a quiet aside at the head's right, its cards, the way back at the foot's left
+/// and its acts at the right.
+pub struct DockParts {
+    pub selector: &'static str,
+    pub mark: Option<AnyElement>,
+    pub title: SharedString,
+    pub under: Vec<AnyElement>,
+    pub aside: Option<SharedString>,
+    /// The aside in the mono face: the Tasks bar's done of all (`font-mono`), where the question's count is plain `FACT`.
+    pub aside_mono: bool,
+    pub body: Vec<AnyElement>,
+    /// The foot's way back; none for a bar's Write a message, which folds it.
+    pub back: Option<AnyElement>,
+    pub acts: Vec<AnyElement>,
+    /// The frame's inside, where the question takes its keys; none for a bar's plain column.
+    pub root: Option<Stateful<Div>>,
+}
+
+/// The dock's frame (Dock.tsx, `STEP_HEAD`, `STEP_BODY`, `DOCK_FOOT`): the glass box in the composer's column; a head of
+/// the mark and a 16 px semibold title, the lines under it and the aside at the right; the cards; the foot.
+pub fn dock_frame(c: &Composer, parts: DockParts, cx: &mut Context<Composer>) -> AnyElement {
+    let p = cx.palette().clone();
+    let head = h_flex()
+        .items_start()
+        .justify_between()
+        .gap_6()
+        .px_5()
+        .pt_4()
+        .pb_3()
+        .child(
+            v_flex()
+                .min_w_0()
+                .gap_1()
+                .child(
+                    h_flex()
+                        .debug_selector(|| "dock-title".into())
+                        .min_w_0()
+                        .items_center()
+                        .gap_2()
+                        .text_size(px(16.))
+                        .line_height(px(24.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(p.foreground)
+                        .children(parts.mark)
+                        .child(div().min_w_0().child(parts.title)),
+                )
+                .children(parts.under),
+        )
+        .children(parts.aside.map(|aside| {
+            div()
+                .debug_selector(|| "dock-aside".into())
+                .when(parts.aside_mono, |el| el.font_family(cx.theme().mono_font_family.clone()))
+                .flex_none()
+                .text_size(px(13.))
+                .line_height(px(19.5))
+                .text_color(p.muted_foreground)
+                .child(aside)
+        }));
+    let back = parts.back.unwrap_or_else(|| {
+        let this = cx.entity().downgrade();
+        let back = Button::text("dock-back", "Write a message")
+            .on_click(move |_, window, cx| _ = this.update(cx, |this, cx| this.fold_bar(window, cx)));
+        tagged("dock-back", back)
+    });
+    let foot = dock_foot(c.narrow, back, parts.acts);
+    let body = parts.body;
+    let inside = parts
+        .root
+        .unwrap_or_else(|| v_flex().id("dock-root"))
+        .child(head)
+        .when(!body.is_empty(), |el| el.child(v_flex().px_5().pt_2().pb_5().gap_5().children(body)))
+        .child(foot);
+    let selector = parts.selector;
+    v_flex()
+        .debug_selector(move || selector.into())
+        .mx_auto()
+        .w_full()
+        .max_w(super::COLUMN)
+        .child(glass_box(cx).child(inside))
+        .into_any_element()
+}
+
+/// The dock's foot (`StepFoot` with `DOCK_FOOT`): the way back at the left and the acts at the right, the primary last;
+/// under 640 px the acts stack across the foot with the primary on top and the way back centred under them.
+fn dock_foot(narrow: bool, back: AnyElement, acts: Vec<AnyElement>) -> Div {
+    let foot = if narrow { v_flex() } else { h_flex().items_center() };
+    let foot = foot.debug_selector(|| "dock-foot".into()).gap_2().px_5().pb_5();
+    if narrow {
+        foot.children(acts.into_iter().rev()).child(h_flex().justify_center().min_h(px(20.)).child(back))
+    } else {
+        foot.child(h_flex().flex_1().min_w_0().min_h(px(20.)).child(back)).children(acts)
+    }
+}
+
+/// `GLYPH`: the head's 16 px mark at 80% ink.
+fn mark(glyph: Glyph, ink: Hsla) -> AnyElement {
+    Icon::new(glyph).with_size(px(16.)).text_color(ink).into_any_element()
+}
+
+/// The quiet sentence under a bar's title (`NOTE`).
+pub(super) fn note(text: String, p: &Palette) -> Div {
+    div().debug_selector(|| "dock-note".into()).text_size(px(13.)).line_height(px(20.)).text_color(p.muted_foreground).child(text)
+}
+
+/// The queue's bar in the composer's place (bars/QueueBar.tsx): one card with a row per message holding Edit and
+/// Cancel.
 pub fn queue_bar(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
     let p = cx.palette().clone();
     let mut card = v_flex().rounded(px(11.)).border_1().border_color(p.border.opacity(0.6)).bg(p.card.opacity(0.4));
@@ -734,28 +860,129 @@ pub fn queue_bar(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
                 ),
         );
     }
-    let head = h_flex()
-        .px_5()
-        .pt_4()
-        .pb_3()
-        .gap_2()
-        .text_size(px(16.))
-        .line_height(px(24.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(p.foreground)
-        .child(Icon::new(Glyph::MessageSquareText).with_size(px(16.)).text_color(p.foreground.opacity(0.8)))
-        .child(model::queue_word(c.queue.len(), false));
-    let foot = h_flex().px_5().pb_5().child(Button::text("queue-write", "Write a message").on_click({
-        let this = cx.entity().downgrade();
-        move |_, window, cx| _ = this.update(cx, |this, cx| this.fold_bar(window, cx))
-    }));
-    v_flex()
-        .debug_selector(|| "composer-queue-bar".into())
-        .mx_auto()
-        .w_full()
-        .max_w(super::COLUMN)
-        .child(glass_box(cx).child(v_flex().child(head).child(v_flex().px_5().pt_2().pb_5().gap_5().child(card)).child(foot)))
-        .into_any_element()
+    dock_frame(
+        c,
+        DockParts {
+            selector: "composer-queue-bar",
+            mark: Some(mark(Glyph::MessageSquareText, p.foreground.opacity(0.8))),
+            title: model::queue_word(c.queue.len(), false).into(),
+            under: Vec::new(),
+            aside: None,
+            aside_mono: false,
+            body: vec![card.into_any_element()],
+            acts: Vec::new(),
+            back: None,
+            root: None,
+        },
+        cx,
+    )
+}
+
+/// The agent's step list in the composer's place (bars/TasksBar.tsx): Tasks with done of all at the head's right,
+/// then a card of the steps, each with its mark and how long it took, the step at work ticking.
+pub fn tasks_bar(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
+    let p = cx.palette().clone();
+    let Some(tasks) = c.drawer.tasks.clone() else { return div().into_any_element() };
+    let rows = tasks.steps.iter().enumerate().map(|(ix, step)| {
+        let state = match step.state {
+            model::StepState::Done => Step::Done,
+            model::StepState::Working => Step::Running,
+            model::StepState::Pending => Step::NotStarted,
+        };
+        let row = StepRow::new(SharedString::from(format!("task-{ix}")), state, step.text.clone()).agent(true);
+        match (step.took, step.since) {
+            (Some(ms), _) => row.took(ms),
+            (None, Some(at)) => row.since(at),
+            (None, None) => row,
+        }
+    });
+    dock_frame(
+        c,
+        DockParts {
+            selector: "composer-tasks-bar",
+            mark: Some(mark(Glyph::ListTodo, p.foreground.opacity(0.8))),
+            title: "Tasks".into(),
+            under: Vec::new(),
+            aside: Some(tasks.count().into()),
+            aside_mono: true,
+            body: vec![Grid::new("composer-tasks").rows(rows).into_any_element()],
+            acts: Vec::new(),
+            back: None,
+            root: None,
+        },
+        cx,
+    )
+}
+
+/// A turn the agent's usage limit stopped, in the composer's place (bars/UsageBar.tsx): the state as the title with
+/// the agent's sentence under it, then Cancel and Resume at reset, none where the agent named no reset.
+pub fn usage_bar(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
+    let p = cx.palette().clone();
+    let Some(limit) = c.drawer.limit.clone() else { return div().into_any_element() };
+    let this = cx.entity().downgrade();
+    let acts = if limit.resets {
+        let (cancel, resume) = (this.clone(), this);
+        let armed = limit.armed;
+        vec![
+            tagged(
+                "limit-cancel",
+                Button::outline("limit-cancel", "Cancel").on_click(move |_, window, cx| {
+                    _ = cancel.update(cx, |c, cx| if armed { c.mark_resume(false, window, cx) } else { c.fold_bar(window, cx) })
+                }),
+            ),
+            tagged(
+                "limit-resume",
+                Button::primary("limit-resume", "Resume at reset")
+                    .held(armed)
+                    .on_click(move |_, window, cx| _ = resume.update(cx, |c, cx| c.mark_resume(true, window, cx))),
+            ),
+        ]
+    } else {
+        Vec::new()
+    };
+    dock_frame(
+        c,
+        DockParts {
+            selector: "composer-usage-bar",
+            mark: Some(mark(Glyph::Gauge, p.warning)),
+            title: limit.title.clone().into(),
+            under: vec![note(limit.note.clone(), &p).into_any_element()],
+            aside: None,
+            aside_mono: false,
+            body: Vec::new(),
+            acts,
+            back: None,
+            root: None,
+        },
+        cx,
+    )
+}
+
+/// A turn its computer's threads at once holds back, in the composer's place (bars/CapBar.tsx): the computer it waits
+/// on as the title, what runs there and how the wait ends under it, then the setting that lets it start now.
+pub fn cap_bar(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
+    let p = cx.palette().clone();
+    let Some(slot) = c.drawer.slot.clone() else { return div().into_any_element() };
+    let acts = slot.raise.clone().map(|raise| {
+        let route = crate::screens::Route::Screen(format!("settings:computer:{}", slot.place_id).into());
+        tagged("cap-raise", Button::primary("cap-raise", raise).on_click(move |_, _, cx| crate::screens::navigate(route.clone(), cx)))
+    });
+    dock_frame(
+        c,
+        DockParts {
+            selector: "composer-cap-bar",
+            mark: Some(mark(Glyph::Hourglass, p.muted_foreground)),
+            title: slot.title.clone().into(),
+            under: vec![note(slot.note.clone(), &p).into_any_element()],
+            aside: None,
+            aside_mono: false,
+            body: Vec::new(),
+            acts: acts.into_iter().collect(),
+            back: None,
+            root: None,
+        },
+        cx,
+    )
 }
 
 /// Files dragged over the composer: the ground at 80% under the glass, and a card saying what a drop takes.

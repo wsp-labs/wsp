@@ -1131,7 +1131,7 @@ fn refusal(said: &model::Said) -> Refusal {
 
 /// A row act under the selector its kind names (`act-retry`, `act-token`), so a test finds it among the row's acts.
 fn tagged(kind: &'static str, act: Button) -> impl IntoElement {
-    div().debug_selector(move || format!("act-{kind}")).child(act)
+    crate::ui::tagged(format!("act-{kind}"), act)
 }
 
 fn pick_from(cx: &mut Context<AddComputer>, id: String, next: Value) -> impl Fn(&ClickEvent, &mut Window, &mut App) + 'static {

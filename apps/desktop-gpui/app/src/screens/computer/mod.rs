@@ -247,7 +247,7 @@ impl Computer {
         let name =
             self.sidebar.as_ref().and_then(|s| self.workspace(s.read(cx))).and_then(|(ws, _)| ws["name"].as_str().map(str::to_owned));
         let name = name.unwrap_or(key);
-        notify_in(window, cx, Notice::error(format!("Live readings for {name} are not coming from the host: {words}")));
+        notify_in(window, cx, Notice::error(live::refused_line(&name, &words)));
     }
 
     /// A pane drawn since the last check stays on screen; one that was not is asked to draw once, and lets its

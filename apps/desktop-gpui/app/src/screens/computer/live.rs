@@ -183,6 +183,11 @@ impl Live {
     }
 }
 
+/// `wireHostLive`'s notice when the host refuses a workspace's readings.
+pub fn refused_line(name: &str, words: &str) -> String {
+    format!("Live readings for {name} are not coming from the host: {words}")
+}
+
 /// What a watch hears, in order.
 #[derive(Debug)]
 pub enum Heard {

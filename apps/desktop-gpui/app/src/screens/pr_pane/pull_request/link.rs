@@ -8,10 +8,9 @@ use futures::channel::mpsc;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{json, Value};
-use wsp_host_client::protocol::{PlacesListRequest, PreferencesGetRequest, WorkspacesCheckoutRequest};
+use wsp_host_client::protocol::{PreferencesGetRequest, WorkspacesCheckoutRequest};
 use wsp_host_client::{Event, Failure, Op};
 
-use crate::screens::pr_pane::changes::host::PLACE_CHANGES;
 use crate::screens::Host;
 
 /// One op and its reply as JSON, the request read from `params` by the protocol's names.
@@ -60,34 +59,6 @@ pub fn follow(host: &Host, workspace_id: String, tx: mpsc::UnboundedSender<Value
                     if frame["type"] == "workspace.status" && frame["status"]["id"] == workspace_id.as_str() {
                         tx.unbounded_send(frame["status"].clone()).map_err(|_| Failure::new("gone"))?;
                     }
-                }
-            }
-            if tx.is_closed() {
-                return Ok(());
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        }
-    })
-}
-
-/// Sends the computers as the host lists them, then again after each push that changes one, until the receiver goes;
-/// on the socket dialled next once this one's pushes end.
-pub fn follow_places(host: &Host, tx: mpsc::UnboundedSender<Vec<Value>>) -> impl Future<Output = Result<(), Failure>> + 'static {
-    host.run(move |client| async move {
-        loop {
-            if let Ok(mut events) = client.events().await {
-                let mut read = true;
-                loop {
-                    if std::mem::take(&mut read) {
-                        let ask: PlacesListRequest = serde_json::from_value(json!({})).map_err(|e| Failure::new(e.to_string()))?;
-                        if let Ok(listed) = client.call(ask).await {
-                            let places = listed.places.iter().filter_map(|p| serde_json::to_value(p).ok()).collect();
-                            tx.unbounded_send(places).map_err(|_| Failure::new("gone"))?;
-                        }
-                    }
-                    let Some(event) = events.next().await else { break };
-                    let Ok(event) = event else { continue };
-                    read = frame_of(&event).is_some_and(|f| f["type"].as_str().is_some_and(|t| PLACE_CHANGES.contains(&t)));
                 }
             }
             if tx.is_closed() {

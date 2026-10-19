@@ -153,6 +153,8 @@ pub struct Run {
     pub output: Option<String>,
     pub exit_code: Option<i64>,
     pub signal: Option<String>,
+    /// The pty it runs or ran in, on the workspace's daemon.
+    pub pty_id: Option<String>,
 }
 
 impl Run {
@@ -187,8 +189,9 @@ pub enum FooterWord {
 #[derive(Clone, Debug, PartialEq)]
 pub enum RowKind {
     /// What the person sent (row.text, newlines as breaks); `fork` is the turn Fork from here forks at, empty on the first message;
-    /// `full`: the person asked for the whole of a long message, toggled by "full:" + key.
-    Person { at: Option<f64>, files: Vec<FileTile>, fork: Option<String>, full: bool },
+    /// `full`: the person asked for the whole of a long message, toggled by "full:" + key; `steered`: it was sent
+    /// while the agent worked, which its bubble's hover says.
+    Person { at: Option<f64>, files: Vec<FileTile>, fork: Option<String>, full: bool, steered: bool },
     /// An agent message; `meta`: the settled turn's final reply, with a 16 px foot and a hover-only meta line.
     Agent { at: Option<f64>, meta: bool, streaming: bool, rewind: Option<String>, fork: Option<String>, runs: Vec<Run> },
     /// "Worked for 12s" (row.text) over a settled turn's hidden work; toggles `turn`.
@@ -207,12 +210,14 @@ pub enum RowKind {
     /// A failed turn's error (row.text), in the destructive ink, never folded.
     Error,
     /// "Working for 12s" over the running turn; `waiting`: a prompt waits on the person, so it reads "Waiting for you";
-    /// `retry`: the agent is making its model call again, which the line says in its place (`retryLine`).
-    Working { since: Option<f64>, waiting: bool, retry: Option<String> },
+    /// `retry`: the agent is making its model call again, which the line says in its place (`retryLine`); `wait`: the
+    /// workspace cannot run the turn, which the line says in its place in the rule grammar (`machineWait`).
+    Working { since: Option<f64>, waiting: bool, retry: Option<String>, wait: Option<Wait> },
     /// The running turn's last row while no call is live.
     Thinking,
-    /// The latest turn ended without a reply: one mono word under the transcript.
-    Footer { word: FooterWord },
+    /// The latest turn ended without a reply: one mono word under the transcript; `why`: a stop that never reached the
+    /// computer, which says so under the word.
+    Footer { word: FooterWord, why: Option<String> },
     /// A permission prompt (row.text is `lead` and `code` on one line); sessions.answer takes `session` and `ask`.
     /// `fields` are the inputs the lead leaves out; `file` is a write's body, folded away; `outcome` is a closed prompt's line.
     Permission {
@@ -237,7 +242,8 @@ pub enum RowKind {
     /// The children a run of calls started, as their rows.
     Spawn { children: Vec<Child> },
     /// What a settled turn changed, under its final reply.
-    ChangedFiles { label: String, files: Vec<ChangedFile>, others: Vec<ChangedFile> },
+    /// `range` is the turn's snapshots at its launch and its end, which Open diff opens the Changes pane on.
+    ChangedFiles { label: String, files: Vec<ChangedFile>, others: Vec<ChangedFile>, range: (String, String) },
     /// "Forked from {source}" (row.text) where a fork's own history starts; `open` while the listing holds that thread.
     Fork { source: String, open: Option<ThreadAt> },
     /// A sub-thread's machine start that failed, under the message it was for, with Try again.
@@ -713,6 +719,8 @@ struct Summary {
     waited_ms: Option<f64>,
     error: Option<String>,
     limit: bool,
+    /// A stop ended it because its computer could not be reached, `error` saying so.
+    unreached: bool,
     /// The turn came with a fork's history (copiedFrom on its start).
     copied: bool,
     kept: Option<Kept>,
@@ -735,6 +743,8 @@ struct Changes {
     files: Vec<ChangedFile>,
     others: Option<Vec<ChangedFile>>,
     shared: bool,
+    from: String,
+    to: String,
 }
 
 impl Summary {
@@ -915,6 +925,7 @@ struct Ran {
     output: Option<String>,
     exit_code: Option<i64>,
     signal: Option<String>,
+    pty_id: Option<String>,
     event: usize,
 }
 
@@ -960,6 +971,7 @@ struct Outcome {
     waited_ms: Option<f64>,
     error: Option<String>,
     limit: bool,
+    unreached: bool,
     text: Option<String>,
     tokens: Option<(Option<f64>, Option<f64>)>,
 }
@@ -972,6 +984,7 @@ impl Outcome {
             waited_ms: result.waited_ms,
             error: result.error.clone(),
             limit: result.limit.is_some(),
+            unreached: result.unreached == Some(true),
             text: result.text.clone(),
             tokens: result.tokens.as_ref().map(|t| (t.context, t.window)),
         }
@@ -984,6 +997,7 @@ impl Outcome {
             waited_ms: None,
             error: Some(error),
             limit: false,
+            unreached: false,
             text: None,
             tokens: None,
         }
@@ -1160,6 +1174,7 @@ impl Model {
             waited_ms: None,
             error: None,
             limit: false,
+            unreached: false,
             copied,
             kept: None,
             changes: None,
@@ -1258,6 +1273,7 @@ impl Model {
         summary.waited_ms = outcome.waited_ms;
         summary.error = outcome.error.clone();
         summary.limit = outcome.limit;
+        summary.unreached = outcome.unreached;
         summary.tokens = outcome.tokens;
         summary.completed = at;
     }
@@ -1412,13 +1428,13 @@ impl Model {
                     _ => {}
                 }
             }
-            SessionEvent::SessionChanges { files, others, shared, .. } => {
+            SessionEvent::SessionChanges { files, others, shared, from, to, .. } => {
                 let Some(at) = self.turns.iter().position(|t| Some(t.id.as_str()) == turn_id) else { return self.far(Far::Unheld) };
                 self.reach(None, Some(at));
                 self.far(Far::Turn(at));
                 let files = files.iter().map(|f| changed_file(&f.path, f.additions, f.deletions)).collect();
                 let others = (!others.is_empty()).then(|| others.iter().map(|f| changed_file(&f.path, f.additions, f.deletions)).collect());
-                self.turns[at].changes = Some(Changes { files, others, shared: *shared == Some(true) });
+                self.turns[at].changes = Some(Changes { files, others, shared: *shared == Some(true), from: from.clone(), to: to.clone() });
             }
             SessionEvent::SessionCheckpoint { ref_, anchor, kept, .. } => {
                 let Some(at) = self.turns.iter().position(|t| Some(t.id.as_str()) == turn_id) else { return self.far(Far::Unheld) };
@@ -1429,7 +1445,7 @@ impl Model {
                     self.tangled = true;
                 }
             }
-            SessionEvent::SessionRun { block, run_id, command, state, exit_code, signal, output, .. } => {
+            SessionEvent::SessionRun { block, run_id, command, state, exit_code, signal, output, pty_id, .. } => {
                 self.elsewhere(turn_id);
                 let ran = Ran {
                     run_id: run_id.clone(),
@@ -1438,6 +1454,7 @@ impl Model {
                     output: output.clone(),
                     exit_code: *exit_code,
                     signal: signal.map(|s| s.to_string()),
+                    pty_id: pty_id.clone(),
                     event: ix,
                 };
                 self.runs.insert(block.clone(), ran);
@@ -1704,7 +1721,7 @@ impl Model {
             }
             let failed = *is_error == Some(true);
             if let Some(answer) = result_line(text, failed) {
-                self.fold_line(id, at, false, Some(answer), None, None);
+                self.fold_line(id, at, false, Some(answer), None, Some(format!("answer:{id}")));
             }
             let ix = self.fold_for(id, at);
             if let Body::Subagent(s) = &mut self.entries[ix].body {
@@ -3158,7 +3175,7 @@ fn derive(model: &Model, from: usize, turns_from: usize, opened: Opened) -> Opti
     let retry = model.retry.as_ref().filter(|r| working && r.turn.as_deref() == unsettled).map(|r| r.line.clone());
     let working_row = || Row {
         key: "working".to_owned(),
-        kind: RowKind::Working { since: latest.and_then(|t| t.started), waiting, retry: retry.clone() },
+        kind: RowKind::Working { since: latest.and_then(|t| t.started), waiting, retry: retry.clone(), wait: None },
         text: if waiting { "Waiting for you" } else { "Working" }.to_owned(),
         turn: unsettled.map(str::to_owned),
     };
@@ -3309,11 +3326,17 @@ fn derive(model: &Model, from: usize, turns_from: usize, opened: Opened) -> Opti
                     }
                 }
             }
-            Body::Person { text, files, turn, .. } => {
+            Body::Person { text, files, turn, steered } => {
                 let fork = turn.as_deref().and_then(|t| at_of.get(t)).filter(|_| openers.contains(&ix)).and_then(|&i| opener_fork(i));
                 rows.push(Row {
                     key: e.key.clone(),
-                    kind: RowKind::Person { at: e.at, files: files.clone(), fork, full: opened.ids.contains(&format!("full:{}", e.key)) },
+                    kind: RowKind::Person {
+                        at: e.at,
+                        files: files.clone(),
+                        fork,
+                        full: opened.ids.contains(&format!("full:{}", e.key)),
+                        steered: *steered,
+                    },
                     text: text.clone(),
                     turn: None,
                 });
@@ -3335,6 +3358,7 @@ fn derive(model: &Model, from: usize, turns_from: usize, opened: Opened) -> Opti
                             output: r.output.clone(),
                             exit_code: r.exit_code,
                             signal: r.signal.clone(),
+                            pty_id: r.pty_id.clone(),
                         })
                     })
                     .collect();
@@ -3375,7 +3399,14 @@ fn derive(model: &Model, from: usize, turns_from: usize, opened: Opened) -> Opti
                 State::Interrupted => (FooterWord::Interrupted, "interrupted"),
                 _ => (FooterWord::Failed, "failed"),
             };
-            rows.push(Row { key: "footer".to_owned(), kind: RowKind::Footer { word }, text: text.to_owned(), turn: Some(t.id.clone()) });
+            // Any other stop is the person's own, and its word says it all whatever the agent wrote as its reason.
+            let why = t.error.clone().filter(|_| t.state == State::Interrupted && t.unreached);
+            rows.push(Row {
+                key: "footer".to_owned(),
+                kind: RowKind::Footer { word, why },
+                text: text.to_owned(),
+                turn: Some(t.id.clone()),
+            });
         }
     }
     Some((rows, split))
@@ -3405,7 +3436,8 @@ fn changes_row(t: &Summary) -> Option<Row> {
     } else {
         count
     };
-    let kind = RowKind::ChangedFiles { label: label.clone(), files: changes.files.clone(), others };
+    let range = (changes.from.clone(), changes.to.clone());
+    let kind = RowKind::ChangedFiles { label: label.clone(), files: changes.files.clone(), others, range };
     Some(Row { key: format!("changes:{}", t.id), kind, text: label, turn: Some(t.id.clone()) })
 }
 
@@ -3549,6 +3581,7 @@ mod tests {
             RowKind::Person {
                 fork: None,
                 full: false,
+                steered: false,
                 at: Some(5_000.0),
                 files: vec![
                     FileTile { id: Some("q1".into()), ..tile("shot.png", 1200, true, 0, "image/png") },
@@ -3558,7 +3591,14 @@ mod tests {
         );
         assert_eq!(
             rows[1].kind,
-            RowKind::Person { at: Some(6_000.0), files: vec![tile("image", 9, true, 0, "image/jpeg")], fork: None, full: false }
+            RowKind::Person {
+                at: Some(6_000.0),
+                files: vec![tile("image", 9, true, 0, "image/jpeg")],
+                fork: None,
+                full: false,
+                steered: true
+            },
+            "a message sent while the agent worked is not marked so"
         );
         assert_eq!(rows[1].text, "and this");
         assert_eq!(name(&rows[2].kind), "working");
@@ -3575,7 +3615,7 @@ mod tests {
         events.truncate(6);
         let rows = rows(&events, &HashSet::new());
         assert_eq!(shown(&rows), [("person", "fix it"), ("working", "Working"), ("agent", "Looking."), ("live", "cargo test")]);
-        assert_eq!(rows[1].kind, RowKind::Working { since: Some(1_000.0), waiting: false, retry: None });
+        assert_eq!(rows[1].kind, RowKind::Working { since: Some(1_000.0), waiting: false, retry: None, wait: None });
         assert_eq!(rows[2].kind, agent(None, false, false));
         let group = "group:tool:u1:a".to_owned();
         assert_eq!(
@@ -3733,8 +3773,27 @@ mod tests {
                 ("footer", "interrupted"),
             ]
         );
-        assert_eq!(rows[5].kind, RowKind::Footer { word: FooterWord::Interrupted });
+        assert_eq!(rows[5].kind, RowKind::Footer { word: FooterWord::Interrupted, why: None });
         assert_eq!(rows[4].key, "stop:u1");
+    }
+
+    #[test]
+    fn a_stop_that_never_reached_the_computer_says_why_under_its_word() {
+        let said = "The stop did not reach box: its computer did not answer";
+        let ended = |unreached: bool| {
+            let mut result = json!({"status": "interrupted", "error": said});
+            if unreached {
+                result["unreached"] = json!(true);
+            }
+            let events = vec![
+                base("session.start", 1, json!({"prompt": "fix it"})),
+                base("session.done", 2, json!({"result": result})),
+                base("session.end", 3, json!({"exitCode": 0, "sawResult": true})),
+            ];
+            rows(&events, &HashSet::new()).last().map(|r| r.kind.clone())
+        };
+        assert_eq!(ended(true), Some(RowKind::Footer { word: FooterWord::Interrupted, why: Some(said.to_owned()) }));
+        assert_eq!(ended(false), Some(RowKind::Footer { word: FooterWord::Interrupted, why: None }), "a stop the agent heard says why");
     }
 
     #[test]
@@ -3763,7 +3822,7 @@ mod tests {
         events.push(base("session.done", 9, json!({"result": {"status": "failed"}})));
         events.push(base("session.end", 10, json!({"exitCode": 1, "sawResult": true})));
         let rows = rows(&events, &HashSet::new());
-        assert_eq!(rows.last().unwrap().kind, RowKind::Footer { word: FooterWord::Failed });
+        assert_eq!(rows.last().unwrap().kind, RowKind::Footer { word: FooterWord::Failed, why: None });
         assert!(!rows.iter().any(|r| r.kind == RowKind::Error));
     }
 
@@ -3874,7 +3933,7 @@ mod tests {
             ),
         ];
         let waiting = rows(&events, &HashSet::new());
-        assert_eq!(find(&waiting, "working").kind, RowKind::Working { since: None, waiting: true, retry: None });
+        assert_eq!(find(&waiting, "working").kind, RowKind::Working { since: None, waiting: true, retry: None, wait: None });
         assert_eq!(find(&waiting, "working").text, "Waiting for you");
         assert!(!waiting.iter().any(|r| r.kind == RowKind::Thinking));
         let row = find(&waiting, "permission");
@@ -3901,7 +3960,7 @@ mod tests {
         events.push(base("session.permission.closed", 4, json!({"askId": "k", "outcome": "allowed", "optionId": "y"})));
         let answered = rows(&events, &HashSet::new());
         assert!(matches!(&find(&answered, "permission").kind, RowKind::Permission { outcome: Some(o), open: false, .. } if o == "Allowed"));
-        assert_eq!(find(&answered, "working").kind, RowKind::Working { since: None, waiting: false, retry: None });
+        assert_eq!(find(&answered, "working").kind, RowKind::Working { since: None, waiting: false, retry: None, wait: None });
     }
 
     #[test]
@@ -4201,7 +4260,8 @@ mod tests {
         );
         let files =
             vec![ChangedFile { path: "src/a.rs".into(), added: 3, removed: 1 }, ChangedFile { path: "b.rs".into(), added: 9, removed: 0 }];
-        assert_eq!(rows[3].kind, RowKind::ChangedFiles { label: "2 changed files".into(), files, others: Vec::new() });
+        let range = ("a".into(), "b".into());
+        assert_eq!(rows[3].kind, RowKind::ChangedFiles { label: "2 changed files".into(), files, others: Vec::new(), range });
         assert_eq!((rows[3].key.as_str(), rows[3].turn.as_deref()), ("changes:u1", Some("u1")));
         assert_eq!(changes(json!({"shared": true}))[3].text, "2 changed files in this folder");
         let others = json!({"files": [], "others": [{"path": "c.rs", "kind": "modified", "additions": 1, "deletions": 1}]});
@@ -4307,6 +4367,7 @@ mod tests {
             output: output.map(str::to_owned),
             exit_code,
             signal: signal.map(str::to_owned),
+            pty_id: None,
         };
         assert_eq!(
             runs,
@@ -4914,6 +4975,11 @@ pub struct Listed {
     pub note: Option<String>,
     /// A subagent's call, which its page opens by; its id where no call names it.
     pub subagent: Option<String>,
+    /// What a subagent was asked and the model it runs, which its card says, and its own id, which Stop subagent
+    /// names.
+    pub asked: Option<String>,
+    pub model: Option<String>,
+    pub task: Option<String>,
     /// What its acts read (`ChildTarget`): the session Stop interrupts, whether its turn runs, whether anything in its
     /// subtree works, whether threads stand under it, and how many threads a settle of it takes.
     pub session: String,
@@ -4942,6 +5008,9 @@ impl Listed {
             computer: None,
             note: None,
             subagent: None,
+            asked: None,
+            model: None,
+            task: None,
             running: kind == crate::screens::sidebar::model::Kind::Working,
             working: kind == crate::screens::sidebar::model::Kind::Working,
             under: false,
@@ -4973,8 +5042,9 @@ pub struct ForkSource {
     pub at: Option<ThreadAt>,
 }
 
-/// A sub-thread's failed machine start, as the line under its message says it (`SpawnLine.tsx`, `spawnLog.ts`).
-#[derive(Clone, Debug, PartialEq)]
+/// A sub-thread's latest machine start, as the line under its message says it (`SpawnLine.tsx`, `spawnLog.ts`): under
+/// way, done, or failed on a step.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct StartFailed {
     /// The cloud by the name a person reads.
     pub on: String,
@@ -4985,6 +5055,37 @@ pub struct StartFailed {
     /// The message the start was for, which Try again sends again.
     pub prompt: Option<String>,
     pub log: Vec<String>,
+    /// Whether it failed, when it began (ms epoch), when the machine stood ready, and how long it took to the agent's
+    /// first answer once one came.
+    pub failed: bool,
+    pub since: f64,
+    pub ready: Option<f64>,
+    pub took: Option<f64>,
+    /// Each step with its mark, words, facts and time, in the order the host takes them.
+    pub steps: Vec<SpawnStep>,
+}
+
+/// One step of a machine start (`StepLine`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SpawnStep {
+    pub id: String,
+    pub name: String,
+    pub note: Option<String>,
+    pub state: StepState,
+    /// How long a done step took, or when a step under way began.
+    pub ms: Option<f64>,
+    pub since: Option<f64>,
+    pub said: Option<String>,
+    pub fix: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepState {
+    Working,
+    Done,
+    Warned,
+    Failed,
+    Waiting,
 }
 
 /// What a sub-thread's strip over the composer says (`SubThreadStrip` in SubStrip.tsx): its key, glyph, title, why,
@@ -5000,21 +5101,27 @@ pub struct Strip {
 /// One act of a sub-thread's strip, by what it does (`SubStripAct` in SubStrip.tsx).
 #[derive(Clone, Debug, PartialEq)]
 pub enum StripAct {
-    /// Raise machines at once, in the cloud's settings.
-    Raise,
+    /// Raise machines at once, in the settings of the computer the cap names, by its place id.
+    Raise(Option<String>),
     /// Copy to the computer the host runs on, by its name: the sub-thread's commits copied home.
     CopyHome(String),
     /// Push again: asks the thread's agent to push its branch again.
     PushAgain(String),
+    /// Add the cloud again, by the name a person reads it by: Settings' Computers, with Add a cloud open.
+    AddAgain(String),
+    /// Start again at the next size the cloud sells: asks the lead, on its agent, to start the work again there.
+    StartAgain { size: String, lead: ThreadAt, harness: String, prompt: String },
 }
 
 impl StripAct {
     /// Its words, `SUB_STRIP` in packages/protocol/src/sub-thread.ts.
     pub fn word(&self) -> String {
         match self {
-            StripAct::Raise => "Raise machines at once".to_owned(),
+            StripAct::Raise(_) => "Raise machines at once".to_owned(),
             StripAct::CopyHome(here) => format!("Copy to {here}"),
             StripAct::PushAgain(_) => "Push again".to_owned(),
+            StripAct::AddAgain(on) => format!("Add {on} again"),
+            StripAct::StartAgain { size, .. } => format!("Start again at {size}"),
         }
     }
 }
@@ -5052,7 +5159,25 @@ pub struct Listing {
     /// The notice under a send in flight while its agent starts (`agentStartingLine`), until its session starts; the
     /// send's link sets it off `session.starting`.
     pub starting: Option<String>,
+    /// The words of a send in flight, the person's message at once until its turn starts (`pendingPrompt`).
+    pub sent: Option<String>,
+    /// What the working line says in its place while the thread's workspace cannot run the turn (`turnWait`).
+    pub wait: Option<Wait>,
+    /// The workspace's one word while it is paused, said under a quiet thread with Wake beside it; none on a
+    /// sub-thread, whose nap is its delete timer's.
+    pub paused: Option<String>,
 }
+
+/// `turnWait` in adapt/workspaces.ts: the words, whether Wake stands beside them, and whether the turn's elapsed does.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Wait {
+    pub label: String,
+    pub wake: bool,
+    pub elapsed: bool,
+}
+
+/// The key of the paused line under the transcript, which the rule draws with Wake.
+pub const PAUSED_KEY: &str = "paused";
 
 /// `waitingAskerLine` in packages/protocol/src/words/tools.ts.
 pub fn waiting_asker_line(title: &str) -> String {
@@ -5152,7 +5277,7 @@ impl Listing {
         let by_id: HashMap<&str, &side::Row> = rows.iter().map(|r| (r.id.as_str(), r)).collect();
         let tree = Reading { cx: side::Ctx { all: &threads, now: now_ms, settle: settle_ms }, rows: by_id, lead_computer: computer };
         let children = find_node(&forest, thread).map(|node| tree.children(node)).unwrap_or_default();
-        let (strip, start_failed) = own.map(|own| sub_of(own, here)).unwrap_or_default();
+        let (strip, start_failed) = own.map(|own| sub_of(own, here, now_ms)).unwrap_or_default();
         Listing {
             thread: thread.to_owned(),
             title: threads.iter().find(|t| t.thread_id.as_deref() == Some(thread)).map(|t| t.title.clone()),
@@ -5169,6 +5294,9 @@ impl Listing {
             start_failed,
             machine: None,
             starting: None,
+            sent: None,
+            wait: None,
+            paused: None,
         }
     }
 
@@ -5328,6 +5456,9 @@ impl Reading<'_> {
                     computer: None,
                     note,
                     subagent: Some(sub.call.clone().unwrap_or_else(|| sub.id.clone())),
+                    asked: sub.asked.clone(),
+                    model: sub.model.clone(),
+                    task: Some(sub.id.clone()),
                     session: of.session_id.clone(),
                     running: sub.state == side::SubagentState::Running,
                     working: sub.state == side::SubagentState::Running,
@@ -5387,6 +5518,9 @@ impl Reading<'_> {
                     computer: t.computer.clone().filter(|c| Some(c) != self.lead_computer.as_ref()),
                     note,
                     subagent: None,
+                    asked: None,
+                    model: None,
+                    task: None,
                     session: t.session_id.clone(),
                     running: t.status == side::Status::Running,
                     working,
@@ -5401,7 +5535,7 @@ impl Reading<'_> {
 
 /// `SubThreadStrip` and the failed start's line off a sub-thread's latest row: the strip it calls for, if any, and
 /// the start that failed, if one did.
-fn sub_of(row: &side::Row, here: &str) -> (Option<Strip>, Option<StartFailed>) {
+fn sub_of(row: &side::Row, here: &str, now_ms: f64) -> (Option<Strip>, Option<StartFailed>) {
     let text = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_owned);
     let Some(sub) = row.sub_record.as_ref() else { return (None, None) };
     let on = cloud_said(&text(sub, "on").unwrap_or_default());
@@ -5411,25 +5545,7 @@ fn sub_of(row: &side::Row, here: &str) -> (Option<Strip>, Option<StartFailed>) {
         _ => "",
     };
     let spawn = sub.get("spawn").filter(|s| !s.is_null());
-    let failed = spawn.and_then(|s| s.get("failed")).filter(|f| !f.is_null()).and_then(|f| {
-        let files = spawn.and_then(|s| s.pointer("/files/paths")).and_then(|p| p.as_array()).map_or(0, |p| p.len());
-        let step = match text(f, "step")?.as_str() {
-            "files" => format!("Copying {files} picked {}", if files == 1 { "file" } else { "files" }),
-            _ => format!("Asking {on} for a machine"),
-        };
-        Some(StartFailed {
-            on: on.clone(),
-            step,
-            said: text(f, "said")?,
-            fix: text(f, "fix"),
-            prompt: spawn.and_then(|s| text(s, "asked")).or_else(|| row.prompt.clone()),
-            log: spawn
-                .and_then(|s| s.get("log"))
-                .and_then(|l| l.as_array())
-                .map(|l| l.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
-                .unwrap_or_default(),
-        })
-    });
+    let failed = spawn.and_then(|s| spawn_of(s, &on, row));
     let strip = |key: &'static str, title: String, note: String, acts: Vec<StripAct>| Some(Strip { key, title, note, acts });
     let state = text(sub, "state").unwrap_or_default();
     let capped = row.capped_record.as_ref();
@@ -5452,13 +5568,20 @@ fn sub_of(row: &side::Row, here: &str) -> (Option<Strip>, Option<StartFailed>) {
                     "waiting-machines",
                     format!("Waiting for a machine on {on}"),
                     format!("{running} of {at_once} machines are running. It starts on its own when one frees."),
-                    vec![StripAct::Raise],
+                    vec![StripAct::Raise(text(c, "placeId"))],
                 )
             }
         })
+    } else if sub.get("cloudGone").and_then(|g| g.as_bool()) == Some(true) {
+        strip(
+            "forgotten",
+            format!("{on} was removed from {here}"),
+            format!("This thread has no machine to start until {on} is added again. Its transcript stays."),
+            vec![StripAct::AddAgain(on.clone())],
+        )
     } else if let Some(line) = failure {
         strip("oom", "Killed for memory".to_owned(), capitalised(&line), Vec::new())
-    } else if state == "released" && failed.is_some() {
+    } else if state == "released" && failed.as_ref().is_some_and(|f| f.failed) {
         None
     } else if state == "released" {
         strip(
@@ -5482,11 +5605,20 @@ fn sub_of(row: &side::Row, here: &str) -> (Option<Strip>, Option<StartFailed>) {
             None => format!("They are on {branch} on this machine."),
             Some(refused) => format!("The push to {branch} was refused: {refused}."),
         };
+        // `subKept`: the day the cloud may delete the napping machine's disk from.
+        let kept = row.disk_kept_until.map(|until| format!(", but {}", crate::screens::computer::folds::disk_may_go_line(&on, until)));
         strip(
             "not-pushed",
             format!("{} not pushed", capitalised(&held_words)),
-            format!("{note} This machine stays until the work is pushed or copied to your computer."),
+            format!("{note} This machine stays until the work is pushed or copied to your computer{}.", kept.unwrap_or_default()),
             vec![StripAct::CopyHome(here.to_owned()), StripAct::PushAgain(branch.clone())],
+        )
+    } else if let Some(at) = sub.get("deleteAt").and_then(|d| d.as_f64()) {
+        strip(
+            "deleting",
+            format!("Its machine is deleted in {}", crate::screens::computer::folds::minutes_word(at - now_ms)),
+            format!("Everything is pushed to {branch}. The transcript stays, and a message after the delete starts a new machine."),
+            Vec::new(),
         )
     } else {
         None
@@ -5494,10 +5626,245 @@ fn sub_of(row: &side::Row, here: &str) -> (Option<Strip>, Option<StartFailed>) {
     (shown, failed)
 }
 
+/// `spawnLogOf`: a sub-thread's latest machine start off its row's `sub.spawn`, every step after a failed one not
+/// started; the agent's own step is done once the thread's first answer is laid over it (`Around::dress`).
+fn spawn_of(spawn: &serde_json::Value, on: &str, row: &side::Row) -> Option<StartFailed> {
+    let text = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_owned);
+    let num = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_f64());
+    let since = num(spawn, "startedAt")?;
+    let failed = spawn.get("failed").filter(|f| !f.is_null());
+    let failed_on = failed.and_then(|f| text(f, "step"));
+    let mut steps: Vec<SpawnStep> = Vec::new();
+    let mut stopped = false;
+    let mut add = |step: SpawnStep, stopped: bool| {
+        if !stopped || step.state == StepState::Warned {
+            steps.push(step);
+        } else {
+            steps.push(SpawnStep { state: StepState::Waiting, ms: None, since: None, said: None, fix: None, ..step });
+        }
+    };
+    let step = |id: &str, name: String, note: Option<String>, state: StepState| SpawnStep {
+        id: id.to_owned(),
+        name,
+        note,
+        state,
+        ms: None,
+        since: None,
+        said: None,
+        fix: None,
+    };
+    let timed = |mut s: SpawnStep, at: &serde_json::Value| {
+        match s.state {
+            StepState::Done => s.ms = num(at, "ms"),
+            StepState::Working => s.since = num(at, "since"),
+            StepState::Failed => {
+                s.said = failed.and_then(|f| text(f, "said"));
+                s.fix = failed.and_then(|f| text(f, "fix"));
+            }
+            _ => {}
+        }
+        s
+    };
+    let state_of = |at: &serde_json::Value, id: &str| match () {
+        _ if failed_on.as_deref() == Some(id) => StepState::Failed,
+        _ if num(at, "ms").is_some() => StepState::Done,
+        _ => StepState::Working,
+    };
+    let branch = spawn.get("branch").filter(|b| !b.is_null());
+    if let Some(b) = branch {
+        let fact = format!(
+            "{} is pushed at {}",
+            text(b, "branch").unwrap_or_default(),
+            text(b, "sha").unwrap_or_default().chars().take(7).collect::<String>()
+        );
+        add(SpawnStep { ms: num(b, "ms"), ..step("branch", "Checked the branch".to_owned(), Some(fact), StepState::Done) }, stopped);
+    }
+    let machine = spawn.get("machine").filter(|m| !m.is_null()).cloned();
+    if machine.is_some() || failed_on.as_deref() == Some("machine") {
+        let machine = machine.unwrap_or_else(|| serde_json::json!({ "since": since, "states": [] }));
+        let state = state_of(&machine, "machine");
+        let name = if state == StepState::Done { format!("Asked {on} for a machine") } else { format!("Asking {on} for a machine") };
+        let states: Vec<String> = machine
+            .get("states")
+            .and_then(|s| s.as_array())
+            .map(|s| s.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
+            .unwrap_or_default();
+        let note = text(&machine, "id").map(|id| std::iter::once(id).chain(states).collect::<Vec<_>>().join(", "));
+        add(timed(step("machine", name, note, state), &machine), stopped);
+        stopped |= state == StepState::Failed;
+    }
+    for line in spawn.get("replaced").and_then(|r| r.as_array()).into_iter().flatten().filter_map(|l| l.as_str()) {
+        add(step(&format!("replaced:{line}"), line.to_owned(), None, StepState::Warned), stopped);
+    }
+    if let (Some(n), Some(b)) = (spawn.get("uncommitted").and_then(|n| n.as_u64()), branch) {
+        let (name, sha) = (text(b, "branch").unwrap_or_default(), text(b, "sha").unwrap_or_default());
+        let folder = row.project_name.clone().unwrap_or_default();
+        let line = format!(
+            "{n} uncommitted {} in {folder} did not travel; the sub-thread starts at {name} as pushed ({}).",
+            if n == 1 { "change" } else { "changes" },
+            sha.chars().take(7).collect::<String>()
+        );
+        add(step("uncommitted", line, None, StepState::Warned), stopped);
+    }
+    if let Some(why) = text(spawn, "notSent") {
+        add(step("not-sent", format!("No git-ignored files were sent: {why}."), None, StepState::Warned), stopped);
+    }
+    let files = spawn.get("files").filter(|f| !f.is_null());
+    if let Some(f) = files {
+        let state = state_of(f, "files");
+        let paths: Vec<String> = f
+            .get("paths")
+            .and_then(|p| p.as_array())
+            .map(|p| p.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
+            .unwrap_or_default();
+        let n = paths.len();
+        let name =
+            format!("{} {n} picked {}", if state == StepState::Done { "Copied" } else { "Copying" }, if n == 1 { "file" } else { "files" });
+        let note = format!("{}, {}", paths.join(", "), crate::ui::fmt_bytes(num(f, "bytes").unwrap_or(0.) as u64));
+        add(timed(step("files", name, Some(note), state), f), stopped);
+        stopped |= state == StepState::Failed;
+    }
+    let ready = num(spawn, "readyAt");
+    let agent = crate::ui::catalog::name(&row.harness);
+    let agent_note = ready.and(row.model.clone());
+    add(
+        SpawnStep {
+            since: ready,
+            ..step("agent", format!("Starting {agent}"), agent_note, if ready.is_some() { StepState::Working } else { StepState::Waiting })
+        },
+        stopped,
+    );
+    let failed_step = steps.iter().find(|s| s.state == StepState::Failed).map(|s| s.name.clone());
+    Some(StartFailed {
+        on: on.to_owned(),
+        step: failed_step.unwrap_or_default(),
+        said: failed.and_then(|f| text(f, "said")).unwrap_or_default(),
+        fix: failed.and_then(|f| text(f, "fix")),
+        prompt: text(spawn, "asked").or_else(|| row.prompt.clone()),
+        log: spawn
+            .get("log")
+            .and_then(|l| l.as_array())
+            .map(|l| l.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
+            .unwrap_or_default(),
+        failed: failed.is_some(),
+        since,
+        ready,
+        took: None,
+        steps,
+    })
+}
+
 /// `isSubOomLine`: a turn's failure the strip over the composer says in its place.
 fn is_sub_oom_line(line: &str) -> bool {
     let lower = line.to_lowercase();
     lower.strip_prefix("the agent on ").and_then(|rest| rest.find(" was killed for memory: ")).is_some_and(|at| at > 0)
+}
+
+impl Listing {
+    /// What the thread's workspace says in and under the transcript, off its record and live status as the sidebar
+    /// holds them (`turnWait`, `workspaceWord` and `machineLine` in ChatView), with the newest memory reading of its
+    /// computer, if one stands near full.
+    pub fn with_workspace(self, s: &crate::sidebar::Sidebar, memory: Option<crate::screens::terminal::words::Memory>) -> Listing {
+        use crate::screens::sidebar::{looks, menu};
+        let Some(id) = self.workspace.clone() else { return self };
+        let (Some(w), status) = s.workspace(&id) else { return self };
+        let text = |v: Option<&serde_json::Value>, k: &str| v.and_then(|v| v.pointer(k)?.as_str()).map(str::to_owned);
+        let state = menu::workspace_state(w, status);
+        let name = text(Some(w), "/name").unwrap_or_else(|| id.clone());
+        let kind = text(Some(w), "/kind");
+        let local = kind.as_deref() == Some("local");
+        let at = s
+            .place_of(&id)
+            .and_then(|place| s.around().places.iter().find(|p| p.get("id").and_then(|i| i.as_str()) == Some(place.as_str())).cloned());
+        let where_ = at
+            .as_ref()
+            .map(looks::place_name)
+            .filter(|n| !n.is_empty())
+            .or_else(|| local.then(|| s.here_name()).filter(|n| !n.is_empty()))
+            .or_else(|| text(Some(w), "/provider").map(|p| cloud_said(&p)))
+            .or_else(|| text(Some(w), "/machineId"))
+            .unwrap_or_else(|| name.clone());
+        let wait = match state {
+            "pausing" | "paused" => Some(Wait { label: format!("waiting for {name} to wake"), wake: true, elapsed: false }),
+            "waking" => Some(Wait { label: format!("waking {name} on {where_}"), wake: false, elapsed: true }),
+            "unreachable" => Some(Wait { label: format!("waiting for {name} to answer"), wake: false, elapsed: false }),
+            "gone" => Some(Wait { label: format!("{name} is gone"), wake: false, elapsed: false }),
+            "released" => Some(Wait { label: format!("{name}'s computer was deleted"), wake: false, elapsed: false }),
+            _ => None,
+        };
+        let pause_mode = text(status, "/pauseMode").or_else(|| text(Some(w), "/pauseMode"));
+        let sub = s.rows().iter().any(|r| r.thread_id.as_deref() == Some(self.thread.as_str()) && r.sub_record.is_some());
+        let paused = (state == "paused" && !sub).then(|| menu::workspace_word(state, pause_mode.as_deref()).to_owned());
+        let reach = text(status, "/reach/state");
+        let lacks = text(status.or(Some(w)), "/daemonRefusedAt/why");
+        let joined = local || kind.as_deref() == Some("place");
+        let running = text(status, "/phase").or_else(|| text(Some(w), "/phase")).is_none_or(|p| p == "running");
+        let machine = match lacks {
+            _ if matches!(state, "pausing" | "paused") => None,
+            Some(lacks) if joined && reach.as_deref() == Some("unsupported") => {
+                Some(capitalised(lacks.split(',').next().unwrap_or_default().trim()))
+            }
+            _ => memory
+                .filter(|m| running && m.near_full())
+                .map(|m| format!("Out of memory, {}", crate::screens::thread_view::rows::bytes_of(m.used as u64, m.total as u64))),
+        };
+        let strip = self.strip.clone().map(|mut strip| {
+            if strip.key == "oom" {
+                strip.acts = start_again(s, &self.thread).into_iter().collect();
+            }
+            strip
+        });
+        Listing { wait, paused, machine, strip, ..self }
+    }
+}
+
+/// `sizeWord`: cpus by memory in GB to a tenth, as a plan names a size.
+fn size_word(size: &serde_json::Value) -> Option<String> {
+    let (cpu, mem) = (size.get("cpu")?.as_f64()?, size.get("memMb")?.as_f64()?);
+    Some(format!("{cpu}x{}", (mem / 1024. * 10.).round() / 10.))
+}
+
+/// Start again on a sub-thread its machine's memory killed (`SubThreadStrip`'s oom): the next size its cloud sells
+/// (`subNextSize`, `subSizesSold`), asked of the lead that starts sub-threads; none where either is unknown.
+fn start_again(s: &crate::sidebar::Sidebar, thread: &str) -> Option<StripAct> {
+    let latest = |id: &str| {
+        s.rows()
+            .iter()
+            .filter(|r| r.thread_id.as_deref() == Some(id))
+            .max_by(|a, b| a.started_at.unwrap_or(0.).total_cmp(&b.started_at.unwrap_or(0.)))
+    };
+    let own = latest(thread)?;
+    let sub = own.sub_record.as_ref()?;
+    let raw = sub.get("on")?.as_str()?;
+    let on = cloud_said(raw);
+    let text = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_owned);
+    // `namesPlace`: by its id or name, a provider also by its key's name in any case.
+    let cloud = s.around().places.iter().find(|p| {
+        let (id, name) = (text(p, "id").unwrap_or_default(), text(p, "name").unwrap_or_default());
+        raw == id
+            || raw == name
+            || (text(p, "kind").as_deref() == Some("provider")
+                && [id.clone(), name.clone(), cloud_said(&name)].iter().any(|n| n.eq_ignore_ascii_case(raw)))
+    })?;
+    let plan: Option<Vec<String>> =
+        cloud.pointer("/plan/sizes").and_then(|p| p.as_array()).map(|p| p.iter().filter_map(|w| w.as_str().map(str::to_owned)).collect());
+    let mem = sub.pointer("/size/memMb")?.as_f64()?;
+    let next = cloud
+        .get("sizes")?
+        .as_array()?
+        .iter()
+        .filter(|o| plan.as_ref().is_none_or(|plan| size_word(o).is_some_and(|w| plan.contains(&w))))
+        .filter(|o| o.get("memMb").and_then(|m| m.as_f64()).is_some_and(|m| m > mem))
+        .min_by(|a, b| a["memMb"].as_f64().unwrap_or(0.).total_cmp(&b["memMb"].as_f64().unwrap_or(0.)))?;
+    let size = size_word(next)?;
+    let lead = latest(own.parent_thread_id.as_deref()?)?;
+    let title = own.harness_title.clone().or_else(|| text(sub, "machine")).unwrap_or_default();
+    Some(StripAct::StartAgain {
+        prompt: format!("Start the work of the sub-thread \"{title}\" again on {on} at size {size}: its agent was killed for memory."),
+        size,
+        lead: ThreadAt { workspace: lead.workspace_id.clone(), thread: lead.thread_id.clone()? },
+        harness: lead.harness.clone(),
+    })
 }
 
 fn capitalised(line: &str) -> String {
@@ -5568,17 +5935,35 @@ impl Around {
             ix += 1;
         }
         let Some(listing) = listing else { return self.foot(rows, split, shut) };
-        if let Some(failed) = &listing.start_failed {
-            let at = rows.iter().position(|r| matches!(r.kind, RowKind::Person { .. })).map_or(rows.len(), |p| p + 1);
-            if whole || at >= rows.len() {
+        if let Some(start) = &listing.start_failed {
+            // `machineStartAt`: after the person's first message at or after the start began, with some slack; a start
+            // still under way or failed with no such message stands last, a finished one is not drawn.
+            let person =
+                rows.iter().position(|r| matches!(r.kind, RowKind::Person { at, .. } if at.is_none_or(|at| at >= start.since - 10_000.)));
+            let answered = person.and_then(|p| {
+                rows[p + 1..].iter().find_map(|r| match r.kind {
+                    RowKind::Agent { at, .. } => at,
+                    _ => None,
+                })
+            });
+            let mut start = start.clone();
+            if let (Some(ready), Some(answered)) = (start.ready, answered) {
+                start.took = Some((answered - start.since).max(0.));
+                if let Some(agent) = start.steps.iter_mut().find(|s| s.id == "agent") {
+                    (agent.state, agent.ms, agent.since) = (StepState::Done, Some((answered - ready).max(0.)), None);
+                }
+            }
+            let at = person.map_or(rows.len(), |p| p + 1);
+            let stands = person.is_some() || start.failed || start.ready.is_none();
+            if stands && (whole || at >= rows.len()) {
+                let text = match start.took {
+                    _ if start.failed => format!("Could not start a machine on {}", start.on),
+                    None => format!("Starting a machine on {}", start.on),
+                    Some(took) => format!("Started on {} in {}", start.on, crate::words::fmt_duration(took)),
+                };
                 rows.insert(
                     at.min(rows.len()),
-                    Row {
-                        key: "start-failed".to_owned(),
-                        kind: RowKind::StartFailed { failed: failed.clone() },
-                        text: format!("Could not start a machine on {}", failed.on),
-                        turn: None,
-                    },
+                    Row { key: "start-failed".to_owned(), kind: RowKind::StartFailed { failed: start }, text, turn: None },
                 );
                 split = split.map(|s| if s >= at { s + 1 } else { s });
             }
@@ -5623,6 +6008,16 @@ impl Around {
                 }
             }
         }
+        if let Some(wait) = &listing.wait {
+            for row in rows.iter_mut() {
+                match &mut row.kind {
+                    RowKind::Working { wait: at, .. } => *at = Some(wait.clone()),
+                    // Nothing thinks on a machine that is not running; the row keeps its room.
+                    RowKind::Thinking => row.text.clear(),
+                    _ => {}
+                }
+            }
+        }
         self.foot(rows, split, shut)
     }
 
@@ -5630,6 +6025,10 @@ impl Around {
     fn foot(&self, mut rows: Vec<Row>, split: Option<usize>, shut: bool) -> (Vec<Row>, Option<usize>) {
         // The settled turn's word stands under the Threads section, as ChatView's foot orders them.
         let word = rows.last().filter(|r| matches!(r.kind, RowKind::Footer { .. })).is_some().then(|| rows.pop()).flatten();
+        if let Some(text) = self.listing.as_ref().and_then(|l| l.sent.as_ref()) {
+            let kind = RowKind::Person { at: None, files: Vec::new(), fork: None, full: false, steered: false };
+            rows.push(Row { key: "sent".to_owned(), kind, text: text.clone(), turn: None });
+        }
         if let Some(line) = self.listing.as_ref().and_then(|l| l.starting.as_ref()) {
             rows.push(Row {
                 key: "starting".to_owned(),
@@ -5649,6 +6048,10 @@ impl Around {
             });
         }
         rows.extend(word);
+        let working = rows.iter().any(|r| matches!(r.kind, RowKind::Working { .. }));
+        if let Some(word) = self.listing.as_ref().and_then(|l| l.paused.as_ref()).filter(|_| !working) {
+            rows.push(Row { key: PAUSED_KEY.to_owned(), kind: RowKind::Rule, text: word.clone(), turn: None });
+        }
         if let Some(line) = self.listing.as_ref().and_then(|l| l.machine.as_ref()) {
             rows.push(Row { key: "machine".to_owned(), kind: RowKind::Rule, text: line.clone(), turn: None });
         }
@@ -5722,6 +6125,70 @@ impl Transcript {
         })
     }
 
+    /// A subagent's own lines folded as a thread's are, so its calls group and open as the thread's own do: its
+    /// deltas, out from under the call that launched it, in one turn of its own that is settled and open, then cut to
+    /// its replies, notes and calls, with no turn fold, working row or stop line of its own. A run that said nothing
+    /// itself, or was stopped, keeps the launching call's answer as its last line (`subagentEntries`).
+    fn page_lines(&self, call: &str, sub: &Sub) -> Vec<Row> {
+        let turn = format!("page:{call}");
+        let mut events: Vec<SessionEvent> = Vec::new();
+        let ids = self.events.first().and_then(|e| serde_json::to_value(e).ok()).unwrap_or_default();
+        let id = |k: &str| ids.get(k).cloned().unwrap_or_else(|| serde_json::json!(""));
+        let frame = |kind: &str, extra: serde_json::Value| {
+            let mut v = serde_json::json!({
+                "type": kind, "workspaceId": id("workspaceId"), "sessionId": id("sessionId"), "threadId": id("threadId"), "turnId": turn, "pos": 1,
+            });
+            if let (Some(o), Some(extra)) = (v.as_object_mut(), extra.as_object()) {
+                o.extend(extra.clone());
+            }
+            serde_json::from_value::<SessionEvent>(v).ok()
+        };
+        events.extend(frame("session.start", serde_json::json!({})));
+        for event in &self.events {
+            let SessionEvent::SessionDelta { parent_tool_use_id: Some(parent), .. } = event else { continue };
+            if parent != call {
+                continue;
+            }
+            let Ok(mut v) = serde_json::to_value(event) else { continue };
+            if let Some(o) = v.as_object_mut() {
+                o.remove("parentToolUseId");
+                o.insert("turnId".to_owned(), serde_json::json!(turn));
+            }
+            events.extend(serde_json::from_value::<SessionEvent>(v).ok());
+        }
+        let spoke = sub.lines.iter().any(|l| !l.mono && !l.label.is_empty() && !l.id.starts_with("answer:"));
+        let answer =
+            (sub.state == SubState::Stopped || !spoke).then(|| sub.lines.iter().rev().find(|l| l.id.starts_with("answer:"))).flatten();
+        if let Some(line) = answer {
+            events.extend(frame("session.delta", serde_json::json!({ "kind": "text", "text": line.label })));
+        }
+        events.extend(frame("session.done", serde_json::json!({ "result": { "status": "completed" } })));
+        events.extend(frame("session.end", serde_json::json!({ "exitCode": 0, "sawResult": true })));
+        let mut model = Model::default();
+        for (ix, event) in events.iter().enumerate() {
+            model.add(ix, event);
+        }
+        let mut ids = self.opened.clone();
+        ids.insert(turn.clone());
+        let opened = Opened { ids: &ids, shut: &self.shut, all: false, can: Can::default(), source: None, listing: None };
+        let rows = derive(&model, 0, 0, opened).map(|(rows, _)| rows).unwrap_or_default();
+        rows.into_iter()
+            .filter(|r| {
+                matches!(
+                    r.kind,
+                    RowKind::Agent { .. } | RowKind::Group { .. } | RowKind::Calls { .. } | RowKind::Work { .. } | RowKind::Live { .. }
+                )
+            })
+            .map(|mut r| {
+                if let RowKind::Agent { rewind, fork, .. } = &mut r.kind {
+                    (*rewind, *fork) = (None, None);
+                }
+                r.turn = None;
+                r
+            })
+            .collect()
+    }
+
     /// The page's rows: what it was asked as the person's message, its text as replies, its calls as rows, and its
     /// prompts last; no turn of its own to fold, count or close.
     fn page_rows(&self, call: &str) -> Vec<Row> {
@@ -5737,21 +6204,11 @@ impl Transcript {
             .or_else(|| self.around.listing.as_ref().and_then(|l| l.subagent(call)).and_then(|s| s.asked.clone()));
         let mut rows = Vec::new();
         if let Some(asked) = asked {
-            let kind = RowKind::Person { at: None, files: Vec::new(), fork: None, full: false };
+            let kind = RowKind::Person { at: None, files: Vec::new(), fork: None, full: false, steered: false };
             rows.push(Row { key: format!("{call}:asked"), kind, text: asked, turn: None });
         }
         let Some(sub) = self.sub_of(call) else { return rows };
-        let last_text = sub.lines.iter().rposition(|l| !l.mono && !l.label.is_empty());
-        for (ix, line) in sub.lines.iter().enumerate() {
-            if line.mono || line.label.is_empty() {
-                let kind = RowKind::Work { tone: Tone::Tool, glyph: Glyph::Wrench, body: line.detail.clone(), open: false };
-                rows.push(Row { key: line.id.clone(), kind, text: line.label.clone(), turn: None });
-            } else {
-                let kind =
-                    RowKind::Agent { at: None, meta: Some(ix) == last_text, streaming: false, rewind: None, fork: None, runs: Vec::new() };
-                rows.push(Row { key: line.id.clone(), kind, text: line.label.clone(), turn: None });
-            }
-        }
+        rows.extend(self.page_lines(call, sub));
         rows.extend(sub.prompts.iter().map(|p| prompt_row(&format!("permission:{}", p.ask), None, p, None)));
         rows
     }

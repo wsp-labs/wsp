@@ -283,8 +283,8 @@ impl HostItem {
     }
 }
 
-/// The commands the menu offers: the announced ones. wsp's own `/btw` asks a side question in a pane of its own, which
-/// this app does not have yet, so it is not offered.
+/// The commands the menu offers: the announced ones. wsp's own `/btw`, which asks a side question on a tab of its
+/// own, is typed rather than offered.
 pub fn commands(announced: &[Command]) -> Vec<Command> {
     announced.iter().filter(|c| c.name != "btw").cloned().collect()
 }
@@ -471,15 +471,129 @@ pub fn pasted_file(text: &str, taken: &[&str]) -> Option<File> {
 }
 
 /// What waits around the composer besides its queue (ComposerDrawer.tsx `DrawerRows`), each none while it has
-/// nothing to say.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// nothing to say; each opens its bar in the composer's place.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Drawer {
-    /// The usage limit's title and line.
-    pub limit: Option<(String, String)>,
-    /// What holds the turn back on its computer.
-    pub slot: Option<String>,
-    /// The step the turn is on, and how many of how many are done.
-    pub tasks: Option<(String, String)>,
+    pub limit: Option<Limit>,
+    pub slot: Option<Slot>,
+    pub tasks: Option<Tasks>,
+}
+
+/// A turn the agent's usage limit stopped (UsageBar.tsx `limitWords`, `LIMIT_WORDS`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Limit {
+    /// The bar's title and the drawer row's name: reached, or resuming once armed.
+    pub title: String,
+    /// The drawer row's line: the clock time the agent goes on, or that it did not say.
+    pub line: String,
+    /// The agent's sentence under the bar's title.
+    pub note: String,
+    /// The agent named its reset, so there is a resume to arm.
+    pub resets: bool,
+    /// Resume at reset is armed.
+    pub armed: bool,
+}
+
+/// A turn its computer's threads at once holds back (CapBar.tsx, `capBarWords`, `capRaiseAct`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Slot {
+    /// The drawer row's line.
+    pub line: String,
+    pub title: String,
+    pub note: String,
+    /// The act that lets it start now, where a setting moves it, and the computer whose settings it opens.
+    pub raise: Option<String>,
+    pub place_id: String,
+}
+
+/// The running turn's step list (composerTasks.logic.ts).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Tasks {
+    /// The step the turn is on: the one working, else the first still to do.
+    pub step: String,
+    pub done: usize,
+    pub total: usize,
+    pub steps: Vec<TaskStep>,
+}
+
+impl Tasks {
+    /// `done/total`, the drawer row's count and the bar's aside.
+    pub fn count(&self) -> String {
+        format!("{}/{}", self.done, self.total)
+    }
+}
+
+/// A step's state as the agent wrote it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepState {
+    Done,
+    Working,
+    Pending,
+}
+
+/// One step of the agent's list, with how long it took where the list set it working and later marked it done, or
+/// when a step at work began (adapt/session.ts `nextPlan`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaskStep {
+    /// The step's words and how many steps with those words came before it: one step's key across the list's rewrites.
+    pub key: String,
+    pub text: String,
+    pub state: StepState,
+    pub took: Option<u64>,
+    /// ms since the epoch.
+    pub since: Option<f64>,
+}
+
+/// A turn's step list as the agent last wrote it, and when each step was set working and how long it took to be marked
+/// done, by its key.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Plan {
+    pub steps: Vec<TaskStep>,
+    began: std::collections::HashMap<String, f64>,
+    took: std::collections::HashMap<String, u64>,
+}
+
+impl Plan {
+    /// The list after a `session.plan` that wrote `steps` at `at` (ms since the epoch), timing each step from the
+    /// earlier lists (adapt/session.ts `nextPlan`).
+    pub fn next(earlier: Option<&Plan>, steps: &[serde_json::Value], at: Option<f64>) -> Plan {
+        let mut plan = Plan { steps: Vec::new(), ..earlier.cloned().unwrap_or_default() };
+        let mut seen: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for step in steps {
+            let text = step.get("text").and_then(serde_json::Value::as_str).unwrap_or_default();
+            let n = seen.entry(text).or_default();
+            let key = format!("{text}\n{n}");
+            *n += 1;
+            let state = match step.get("state").and_then(serde_json::Value::as_str) {
+                Some("done") => StepState::Done,
+                Some("working") => StepState::Working,
+                _ => StepState::Pending,
+            };
+            if let Some(now) = at {
+                if state == StepState::Working {
+                    plan.began.entry(key.clone()).or_insert(now);
+                }
+                if let (StepState::Done, Some(from), false) = (state, plan.began.get(&key).copied(), plan.took.contains_key(&key)) {
+                    plan.took.insert(key.clone(), (now - from).max(0.) as u64);
+                }
+            }
+            let took = plan.took.get(&key).copied();
+            let since = plan.began.get(&key).copied().filter(|_| took.is_none() && state == StepState::Working);
+            plan.steps.push(TaskStep { key, text: text.to_owned(), state, took, since });
+        }
+        plan
+    }
+
+    /// What the drawer's row and the Tasks bar say of it, none once no step is left to work on.
+    pub fn tasks(&self) -> Option<Tasks> {
+        let current = self
+            .steps
+            .iter()
+            .find(|s| s.state == StepState::Working)
+            .or_else(|| self.steps.iter().find(|s| s.state == StepState::Pending))?;
+        let done = self.steps.iter().filter(|s| s.state == StepState::Done).count();
+        Some(Tasks { step: current.text.clone(), done, total: self.steps.len(), steps: self.steps.clone() })
+    }
 }
 
 /// A file waiting to go with the next send.
@@ -693,6 +807,22 @@ pub fn placeholder(has_commands: bool, editor_width: f32) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_plan_times_each_step_by_its_words_and_place_across_rewrites() {
+        let step = |text: &str, state: &str| serde_json::json!({ "text": text, "state": state });
+        let first = Plan::next(None, &[step("check", "working"), step("check", "pending")], Some(1_000.));
+        assert_eq!(first.steps[0].since, Some(1_000.));
+        assert_eq!((first.steps[0].key.as_str(), first.steps[1].key.as_str()), ("check\n0", "check\n1"), "two steps of the same words");
+        let second = Plan::next(Some(&first), &[step("check", "done"), step("check", "working")], Some(2_500.));
+        assert_eq!((second.steps[0].took, second.steps[0].since), (Some(1_500), None));
+        assert_eq!(second.steps[1].since, Some(2_500.));
+        let third = Plan::next(Some(&second), &[step("check", "done"), step("check", "done")], Some(4_000.));
+        assert_eq!((third.steps[0].took, third.steps[1].took), (Some(1_500), Some(1_500)), "a done step keeps its time");
+        assert_eq!(third.tasks(), None, "no step left to work on");
+        let untimed = Plan::next(None, &[step("x", "done")], None);
+        assert_eq!((untimed.steps[0].took, untimed.steps[0].since), (None, None), "a list with no time says none");
+    }
 
     fn choice(value: &str, default: bool) -> Choice {
         Choice { value: value.into(), label: value.to_uppercase(), is_default: default.then_some(true), ..Default::default() }
@@ -919,7 +1049,7 @@ mod tests {
         let review = Command { name: "review".into(), description: None, source: None };
         let btw = Command { name: "btw".into(), description: None, source: Some("wsp".into()) };
         let all = commands(&[review.clone(), btw]);
-        assert_eq!(all, [review], "no aside pane yet, so /btw is not offered");
+        assert_eq!(all, [review], "/btw is typed, not offered");
         assert_eq!(slash_hold("/", &all).as_deref(), Some("a slash on its own is not a command"));
         assert_eq!(slash_hold("/review", &all), None);
         assert_eq!(slash_hold("/btw", &all).as_deref(), Some("no command here is called /btw"));
