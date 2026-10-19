@@ -6,7 +6,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use futures::channel::{mpsc, oneshot};
@@ -148,6 +148,17 @@ fn on_channel(next: Result<Event, Failure>, channel: &str) -> Option<Value> {
     (frame["channel"] == channel).then_some(frame)
 }
 
+/// What the Files and Changes panes read of the channel off the window's thread (`files/wire.ts`): the channel once a
+/// ping proved it, how the link stands and the folder its daemon's hello named; each change wakes the requests waiting.
+pub struct Road {
+    pub channel: Option<String>,
+    pub status: Status,
+    pub root: Option<String>,
+    /// A dial is out: a request waits for what it comes to.
+    pub dialling: bool,
+    pub waiters: Vec<oneshot::Sender<()>>,
+}
+
 pub struct Link {
     target: Target,
     host: Host,
@@ -185,6 +196,9 @@ pub struct Link {
     watching_sys: bool,
     /// The last `sys.sample`, kept across a drop: what the pane says a channel lost to a full memory was about.
     memory: Option<Memory>,
+    /// The channel the current dial opened, handed to the road once proven.
+    channel: Option<String>,
+    road: Arc<Mutex<Road>>,
 }
 
 impl EventEmitter<LinkEvent> for Link {}
@@ -258,6 +272,14 @@ impl Link {
                 _parking: parking,
                 watching_sys: false,
                 memory: None,
+                channel: None,
+                road: Arc::new(Mutex::new(Road {
+                    channel: None,
+                    status: Status::Opening,
+                    root: None,
+                    dialling: false,
+                    waiters: Vec::new(),
+                })),
             };
             link.connect(cx);
             link
@@ -276,6 +298,19 @@ impl Link {
 
     pub fn ptys(&self) -> &[Pty] {
         &self.ptys
+    }
+
+    /// The road the Files and Changes panes send their requests on, beside the shells.
+    pub fn road(&self) -> Arc<Mutex<Road>> {
+        self.road.clone()
+    }
+
+    fn pave(&self, change: impl FnOnce(&mut Road)) {
+        let mut road = self.road.lock().unwrap();
+        change(&mut road);
+        for waiter in road.waiters.drain(..) {
+            _ = waiter.send(());
+        }
     }
 
     /// The workspace napped on a computer whose nap ends every process (`feedStop`).
@@ -541,6 +576,7 @@ impl Link {
             return;
         }
         self.status = status;
+        self.pave(|road| road.status = self.status.clone());
         cx.emit(LinkEvent::Changed);
         cx.notify();
     }
@@ -572,6 +608,7 @@ impl Link {
     }
 
     fn connect(&mut self, cx: &mut Context<Self>) {
+        self.pave(|road| road.dialling = true);
         self.retry = None;
         self.dial += 1;
         let dial = self.dial;
@@ -706,6 +743,12 @@ impl Link {
                         self.sampled(event, cx);
                         continue;
                     }
+                    if event["type"] == "daemon.hello" {
+                        let root = event["root"].as_str().map(str::to_owned);
+                        self.pave(|road| road.root = root);
+                        cx.notify();
+                        continue;
+                    }
                     let Some(pty) = event["ptyId"].as_str() else { continue };
                     match event["type"].as_str() {
                         Some("pty.data") => {
@@ -761,6 +804,7 @@ impl Link {
     }
 
     fn opened(&mut self, channel: String, cx: &mut Context<Self>) {
+        self.channel = Some(channel.clone());
         let (writer, mut queue) = mpsc::unbounded::<Req>();
         let writing = self.host.run(move |client| async move {
             let mut next: Option<Req> = None;
@@ -825,6 +869,7 @@ impl Link {
 
     fn proven(&mut self, cx: &mut Context<Self>) {
         self.proven = true;
+        self.pave(|road| road.channel = self.channel.clone());
         self.attempt = 0;
         let relive = self.ever_live;
         self.ever_live = true;
@@ -995,6 +1040,12 @@ impl Link {
     /// Lets go of the channel; its pump stops, and with it asks the host to end the channel unless the host ended it.
     fn drop_channel(&mut self, cx: &mut Context<Self>) {
         self.proven = false;
+        self.channel = None;
+        self.pave(|road| {
+            road.channel = None;
+            road.root = None;
+            road.dialling = false;
+        });
         self.writer = None;
         self.barrier = None;
         self.awaiting_pong = false;
@@ -1021,6 +1072,7 @@ impl Link {
     }
 
     fn schedule_retry(&mut self, at: Option<u32>, cx: &mut Context<Self>) {
+        self.pave(|road| road.dialling = false);
         let attempt = at.unwrap_or_else(|| {
             self.attempt += 1;
             self.attempt
@@ -1035,6 +1087,13 @@ impl Link {
     #[doc(hidden)]
     pub fn drop_for_test(&mut self, cx: &mut Context<Self>) {
         self.abandon(cx);
+    }
+
+    /// Turns the dial away as the host would with `failure`, for a test of a refusal no test host gives.
+    #[doc(hidden)]
+    pub fn refuse_for_test(&mut self, failure: Failure, cx: &mut Context<Self>) {
+        self.drop_channel(cx);
+        self.open_failed(failure, cx);
     }
 
     /// Keeps `memory` as if the daemon had sent it, for a test of a reading no test machine reaches.

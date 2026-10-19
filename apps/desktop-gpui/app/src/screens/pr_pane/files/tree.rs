@@ -4,6 +4,7 @@
 //! one folder at a time over the daemon's `fs.list` with gitignore on. A file opens as its own tab beside this one.
 
 use std::collections::{HashMap, HashSet};
+use std::f32::consts::FRAC_PI_2;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -20,17 +21,24 @@ use super::crumbs::CrumbRow;
 use super::paths::{parent_within, roots};
 use super::rows::{self, level_of, Kind, Level, Levels, Row};
 use super::words;
+use crate::screens::app_shell::frame::SHEET_MAX_VIEWPORT;
 use crate::screens::pr_pane::daemon::DaemonLink;
-use crate::screens::pr_pane::diff::fold_chevron;
 use crate::screens::{navigate, Host, Route};
 use crate::ui::context_menu::{ContextMenu, MenuItem};
-use crate::ui::{motion, size, ActivePalette as _, Button, Glyph};
+use crate::ui::{motion, scrollbar, size, ActivePalette as _, Button, Glyph};
 
-/// The tree's compact rows: 24 px, 12 px type, each level 20 px in.
+/// `@pierre/trees` at `density: "compact"` (its 0.8 factor): 24 px rows, 12 px type, a 16 px glyph box 4.8 px before
+/// the name, rows 1.6 px in from the scroller's 14.4 px side pads and 6.4 px pads inside them. Each level is 18.7 px in:
+/// the guides' 7.5 px lead and 12.3 px between them, 6.4 px each, and the 4.8 px gap after them.
 pub const ROW_HEIGHT: Pixels = px(24.);
-const INDENT: f32 = 20.;
-/// What a row keeps beside its name: its side pads, the chevron or glyph and the gap after it.
-const ROW_CHROME: f32 = 6.4 * 2. + 16. + 5. + 4.;
+const INDENT: f32 = 18.7;
+const SIDE: Pixels = px(14.4);
+const ROW_MARGIN: Pixels = px(1.6);
+const ROW_PAD: Pixels = px(6.4);
+const GLYPH: Pixels = px(16.);
+const GAP: Pixels = px(4.8);
+/// What a row keeps beside its name: the scroller's side pads, its lane, the row's margins and pads and the glyph box.
+const ROW_CHROME: f32 = 14.4 * 2. + 1.6 * 2. + 6.4 * 2. + 16. + 4.8;
 
 pub struct Tree {
     workspace_id: String,
@@ -146,6 +154,7 @@ impl Tree {
         }
         self.dialled = true;
         let link = self.link.clone();
+        DaemonLink::redial(&link, true, cx);
         let ping = link.read(cx).request("ping", json!({}));
         self.dialling = Some(cx.spawn(async move |this, cx| {
             let dialled = ping.await;
@@ -331,6 +340,10 @@ impl Tree {
         self.menu.is_open()
     }
 
+    pub fn menu_asked(&self) -> &[SharedString] {
+        self.menu.asked()
+    }
+
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let Some(folder) = self.folder.clone() else { return };
         let mut dirs = rows::loaded(&folder, &self.levels);
@@ -420,10 +433,13 @@ impl Tree {
         let focused = self.search.read(cx).focus_handle(cx).is_focused(window);
         let pending = self.folder.as_ref().and_then(|f| self.levels.get(f)).is_some_and(|l| l.pending);
         let me = cx.weak_entity();
+        // `in-data-[preview-panel-mode=inline]`: past the sheet's viewport the panel stands inline, 28 px with 12 under.
+        let inline = window.viewport_size().width > SHEET_MAX_VIEWPORT;
         h_flex()
             .debug_selector(|| "files-subheader".into())
             .flex_none()
-            .h(px(40.))
+            .h(px(if inline { 28. } else { 40. }))
+            .when(inline, |el| el.mb(px(12.)))
             .px_2()
             .gap_1()
             .items_center()
@@ -450,14 +466,18 @@ impl Tree {
             )
     }
 
-    fn tree(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn tree(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let me = cx.weak_entity();
         let count = self.rows.len();
         let measure = cx.weak_entity();
+        let hovered = motion::hovered("files-tree-area", window, cx);
+        let bar = scrollbar::tree_bar("files-tree-bar", &self.list, *hovered.read(cx), window, cx);
         div()
+            .id("files-tree-area")
             .relative()
             .flex_1()
             .min_h_0()
+            .on_hover(motion::track_hover(hovered))
             .child(
                 canvas(
                     move |bounds, _, cx| {
@@ -483,8 +503,11 @@ impl Tree {
                 )
                 .debug_selector(|| "files-tree".into())
                 .size_full()
+                // The right side's 8.4 px pad and the bar's lane make the same 14.4 px; a list's row takes no margin.
+                .px(SIDE + ROW_MARGIN)
                 .track_scroll(&self.list),
             )
+            .children(bar)
     }
 
     fn row(&self, row: Row, me: &gpui_kit::WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>) -> gpui_kit::AnyElement {
@@ -494,34 +517,40 @@ impl Tree {
         let selected = self.selected.as_deref() == Some(row.path.as_str());
         let note = row.kind == Kind::Note;
         let fill = match (selected, *hovered.read(cx) && !note) {
-            (true, _) => p.foreground.opacity(0.12),
-            (false, true) => p.foreground.opacity(0.07),
-            (false, false) => p.foreground.opacity(0.),
+            (true, _) => p.tree_foreground.opacity(0.12),
+            (false, true) => p.tree_foreground.opacity(0.07),
+            (false, false) => p.tree_foreground.opacity(0.),
         };
         let fill = motion::ease_ink(id.clone(), "fill", fill, motion::COLORS, window, cx);
-        let indent = px(6.4 + INDENT * row.depth as f32);
+        let indent = px(INDENT * row.depth as f32);
         let name_w = (self.width - indent - px(ROW_CHROME)).max(px(24.));
+        let glyph = |name: &str| Icon::empty().path(rows::glyph_path(name)).with_size(GLYPH).flex_none().text_color(p.tree_icon);
         let lead = match row.kind {
-            Kind::Folder { open } => fold_chevron(id.clone(), open, window, cx).into_any_element(),
-            Kind::File => Icon::new(Glyph::File).with_size(px(14.)).flex_none().text_color(p.muted_foreground).into_any_element(),
-            Kind::Note => div().w(px(14.)).flex_none().into_any_element(),
+            // Pierre's chevron points down, turned a quarter back while the folder is closed.
+            Kind::Folder { open } => glyph("chevron").when(!open, |el| el.rotate(gpui_kit::radians(-FRAC_PI_2))).into_any_element(),
+            Kind::File => glyph(rows::file_glyph(&row.name)).into_any_element(),
+            Kind::Note => div().w(GLYPH).flex_none().into_any_element(),
         };
+        // While a search is typed, the tree's focus stands on its first hit, else its first row, ringed.
+        let ringed =
+            !self.query.trim().is_empty() && self.rows.iter().find(|r| r.hit).or(self.rows.first()).is_some_and(|r| r.path == row.path);
         let path = row.path.clone();
         let (me, pressed) = (me.clone(), row.clone());
         h_flex()
             .id(id)
             .debug_selector(move || format!("tree-{path}"))
+            .relative()
             .h(ROW_HEIGHT)
-            .mx(px(1.6))
-            .pl(indent)
-            .pr(px(6.4))
-            .gap(px(5.))
+            .pl(ROW_PAD + indent)
+            .pr(ROW_PAD)
+            .gap(GAP)
             .items_center()
             .rounded(px(5.))
             .bg(fill)
             .text_size(px(12.))
             .line_height(px(16.))
-            .text_color(if note { p.muted_foreground } else { p.foreground })
+            .text_color(if note { p.muted_foreground } else { p.tree_foreground })
+            .when(row.hit, |el| el.font_weight(gpui_kit::FontWeight::SEMIBOLD))
             .on_hover(motion::track_hover(hovered))
             .when(!note, |el| {
                 let (me2, right) = (me.clone(), pressed.clone());
@@ -533,7 +562,28 @@ impl Tree {
                 )
             })
             .child(lead)
-            .child(div().w(name_w).flex_none().truncate().child(SharedString::from(row.name)))
+            .child(
+                div()
+                    .debug_selector({
+                        let tag = format!("tree-name-{}", row.path);
+                        move || tag.clone()
+                    })
+                    .w(name_w)
+                    .flex_none()
+                    .truncate()
+                    .child(SharedString::from(row.name)),
+            )
+            .when(ringed, |el| {
+                el.child(
+                    div()
+                        .debug_selector(|| "files-tree-ring".into())
+                        .absolute()
+                        .inset_0()
+                        .rounded(px(5.))
+                        .border_1()
+                        .border_color(p.tree_ring),
+                )
+            })
             .into_any_element()
     }
 }
@@ -587,7 +637,7 @@ impl Render for Tree {
                         .text_color(p.error_foreground)
                         .child(error),
                 ),
-                None => el.child(self.tree(cx)),
+                None => el.child(self.tree(window, cx)),
             })
             .children(errors.into_iter().map(|(dir, message)| {
                 div()

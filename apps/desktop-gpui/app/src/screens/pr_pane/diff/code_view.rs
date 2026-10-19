@@ -13,19 +13,23 @@ use std::time::Instant;
 
 use gpui_kit::component::diff::{Diff, DiffAnnotation, DiffChangeIndicator, DiffFile, DiffHoverHighlight, DiffMode, DiffState};
 use gpui_kit::component::{ActiveTheme as _, Theme};
-use gpui_kit::{canvas, div, prelude::*, px, AnyElement, App, Context, ElementId, Entity, SharedString, WeakEntity, Window};
+use gpui_kit::{
+    canvas, div, prelude::*, px, relative, AnyElement, App, Context, ElementId, Entity, Pixels, SharedString, WeakEntity, Window,
+};
 
 use super::look::{self, DiffColors};
 use super::model::{FilePatch, Hunk, PLAIN_LINE};
 use super::sticky::{Frame, StickyHead};
 use super::{BodyRenderer, FileHead, FileStatus, HeadRenderer, Layout, LineNote, LinePosition, LineRange, NoteRenderer, Side};
+use crate::ui::scrollbar;
 
 /// gpui-kit draws each annotation in a frame of 12 px padding and a 1 px rule above and below; a head or a note pulls
 /// itself out over that frame so it is drawn edge to edge, as pierre's slots are.
 const FRAME_INSET: f32 = 12.;
 const FRAME_RULE: f32 = 1.;
-/// `itemMetrics.diffHeaderHeight`.
-pub(super) const HEAD_HEIGHT: f32 = 32.;
+/// `itemMetrics.diffHeaderHeight`, the head's least height: `[data-diffs-header]` pads 6 px above and below at line
+/// height 1, so a 24 px control in it (the PR's "Open in Changes") makes it 36.
+const HEAD_HEIGHT: f32 = 32.;
 /// `itemMetrics.hunkSeparatorHeight`.
 const GAP_HEIGHT: f32 = 24.;
 /// `itemMetrics.paddingBottom`: the 8 px pierre paints under an open file's last line, drawn here above the next head.
@@ -50,6 +54,8 @@ pub(super) struct Shared {
     view: WeakEntity<CodeView>,
     pub frame: Rc<RefCell<Frame>>,
     pub colors: DiffColors,
+    /// The scrollbar's lane at the right, which the pinned head stops short of.
+    pub lane: Pixels,
 }
 
 /// The shared code view. See the module docs of [`super`] for what each method is for.
@@ -357,7 +363,7 @@ fn edge_to_edge(child: impl IntoElement) -> gpui_kit::Div {
     div().mx(px(-FRAME_INSET)).my(px(-(FRAME_INSET + FRAME_RULE))).child(child)
 }
 
-/// One file's head row: 32 px, today's sides, the head's background, a 3 px inset edge on hover, and a press that
+/// One file's head row: at least 32 px, today's sides, the head's background, a 3 px inset edge on hover, and a press that
 /// folds. `sticky` is the copy drawn pinned at the top, which records nothing and blocks the row under it.
 pub(super) fn head_row(shared: &Rc<Shared>, ix: usize, sticky: bool, window: &mut Window, cx: &mut App) -> AnyElement {
     let Some(head) = shared.heads.get(ix) else { return div().into_any_element() };
@@ -372,17 +378,19 @@ pub(super) fn head_row(shared: &Rc<Shared>, ix: usize, sticky: bool, window: &mu
         .relative()
         .flex()
         .items_center()
-        .h(px(HEAD_HEIGHT))
+        .min_h(px(HEAD_HEIGHT))
+        .py(px(6.))
         .pl(px(8.))
         .pr(px(12.))
         .bg(colors.background)
         .text_size(px(12.))
+        .line_height(relative(1.))
         .cursor_pointer()
         .when(sticky, |this| this.w_full().occlude())
         .on_click(move |_, window, cx| {
             _ = view.update(cx, |view, cx| view.press_head(ix, window, cx));
         })
-        .child(div().flex_1().min_w_0().h_full().flex().items_center().children(content))
+        .child(div().flex_1().min_w_0().flex().items_center().children(content))
         .child(div().absolute().left_0().top_0().bottom_0().w(px(3.)).group_hover("wsp-diff-head", move |this| this.bg(colors.edge)))
         .when(!sticky, |this| {
             this.child(canvas(move |bounds, _, _| frame.borrow_mut().saw(ix, bounds), |_, _, _, _| {}).absolute().size_full())
@@ -409,7 +417,7 @@ fn render_annotation(shared: &Rc<Shared>, annotation: &DiffAnnotation, window: &
         }
         NOTE => {
             let (Some(note), Some(render)) = (shared.notes.get(ix), shared.note.as_ref()) else { return div().into_any_element() };
-            edge_to_edge(owner_drawn(shared, cx, |cx| render(note, window, cx))).into_any_element()
+            owner_drawn(shared, cx, |cx| render(note, window, cx))
         }
         _ => div().into_any_element(),
     }
@@ -454,9 +462,18 @@ fn gap_row(count: usize, split: bool, colors: &DiffColors) -> AnyElement {
 }
 
 impl Render for CodeView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = DiffColors::of(cx);
         let annotations = self.annotations();
+        let list = self.state.read(cx).list().clone();
+        let mut app_theme = cx.theme().clone();
+        // An editor drawn as a body paints its number gutter in the editor background, the input's fill unless set.
+        if !self.bodies.is_empty() {
+            let mut highlight = (*app_theme.highlight_theme).clone();
+            highlight.style.editor_background = Some(colors.background);
+            app_theme.highlight_theme = std::sync::Arc::new(highlight);
+        }
+        let lane = if scrollbar::overflows(&list) { scrollbar::WIDTH } else { px(0.) };
         let shared = Rc::new(Shared {
             heads: self.heads.clone(),
             hunks: self.hunks.clone(),
@@ -466,10 +483,11 @@ impl Render for CodeView {
             note: self.note.clone(),
             bodies: self.bodies.clone(),
             notes: self.notes.clone(),
-            app_theme: cx.theme().clone(),
+            app_theme,
             view: cx.entity().downgrade(),
             frame: self.frame.clone(),
             colors,
+            lane,
         });
         let rows = shared.clone();
         let bars = shared.clone();
@@ -480,9 +498,12 @@ impl Render for CodeView {
             .single_line_number(true)
             .tint_line_numbers(true)
             .single_column_added_deleted(true)
-            .change_background_opacity(look::TINT)
+            .look(look::diff_look(cx))
             .inline_change_opacity(look::emphasis(cx))
             .inline_change_color(colors.ink)
+            .inline_change_pill(true)
+            .scrollbar(false)
+            .scrollbar_lane(lane)
             .row_height(px(look::ROW_HEIGHT))
             .hover_highlight(DiffHoverHighlight::None)
             .soft_wrap(self.wrap)
@@ -503,5 +524,6 @@ impl Render for CodeView {
             .bg(colors.background)
             .child(look::with_theme(look::code_theme(cx), diff))
             .child(StickyHead::new(shared, Instant::now(), still))
+            .children(scrollbar::list_bar("code-view-bar", &list, window, cx))
     }
 }

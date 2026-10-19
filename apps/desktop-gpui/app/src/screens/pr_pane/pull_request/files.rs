@@ -164,7 +164,7 @@ impl PullRequestScreen {
                     cx.notify();
                 });
             });
-        let counts = |a: u64, d: u64, cx: &App| parts::stat_whole(a, d, px(12.), cx);
+        let counts = |a: u64, d: u64, cx: &App| parts::stat_whole(a, d, px(12.), px(8.), cx);
         let head = h_flex()
             .debug_selector(|| "pr-files-head".into())
             .min_h(px(24.))
@@ -176,7 +176,7 @@ impl PullRequestScreen {
                     .min_w_0()
                     .gap(px(6.))
                     .child(words::files(files.len()))
-                    .when(adds + dels > 0, |el| el.child(counts(adds, dels, cx))),
+                    .when(adds + dels > 0, |el| el.child(parts::stat_whole(adds, dels, px(12.), px(6.), cx))),
             )
             .when(nested, |el| el.child(fold));
         let open = self.open_file.clone();
@@ -208,7 +208,7 @@ impl PullRequestScreen {
             .collect();
         order.push((None, files.iter().enumerate().filter(|(_, f)| !f.path.contains('/')).map(|(i, _)| i).collect()));
         for (dir, held) in order {
-            let indent = if dir.is_some() { px(16.) } else { px(0.) };
+            let indent = if dir.is_some() { px(18.) } else { px(0.) };
             if let Some(dir) = &dir {
                 let open_dir = self.dirs_open.get(dir).copied().unwrap_or(self.all_expanded);
                 let (a, d) = held.iter().fold((0, 0), |(a, d), i| (a + files[*i].additions, d + files[*i].deletions));
@@ -225,7 +225,7 @@ impl PullRequestScreen {
                         .px(px(6.))
                         .rounded(px(6.))
                         .cursor_pointer()
-                        .hover(|s| s.bg(p.accent.opacity(0.6)))
+                        .hover(|s| s.bg(p.foreground.opacity(0.04)))
                         .on_click(move |_, _, cx| {
                             let dir = toggled.clone();
                             _ = me.update(cx, |this, cx| {
@@ -265,8 +265,8 @@ impl PullRequestScreen {
                     .pr(px(6.))
                     .rounded(px(6.))
                     .cursor_pointer()
-                    .when(is_open, |el| el.bg(p.accent.opacity(0.6)))
-                    .hover(|s| s.bg(p.accent.opacity(0.6)))
+                    .when(is_open, |el| el.bg(p.foreground.opacity(0.05)))
+                    .hover(|s| s.bg(p.foreground.opacity(0.04)))
                     .on_click(move |_, window, cx| {
                         let path = path.clone();
                         _ = me.update(cx, |this, cx| this.press_file(path, window, cx));

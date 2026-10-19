@@ -182,6 +182,9 @@
         "terminal-foreground": "#f5f5f5ff",
         "terminal-cursor": "#f5f5f5ff",
         "terminal-selection": "#346bf140",
+        "tree-foreground": "#adadb1ff",
+        "tree-icon": "#84848aff",
+        "tree-ring": "#009fffff",
         "terminal-ansi": [
           "#858789ff",
           "#ce6868ff",
@@ -250,6 +253,9 @@
           "link_text": {
             "color": "#9d6afbff"
           },
+          "link_uri": {
+            "color": "#ff678dff"
+          },
           "namespace": {
             "color": "#ffab16ff"
           },
@@ -298,6 +304,9 @@
           "tag.doctype": {
             "color": "#636363ff"
           },
+          "text.code.span": {
+            "color": "#5ecc71ff"
+          },
           "title": {
             "color": "#ff855eff"
           },
@@ -315,6 +324,42 @@
           },
           "variant": {
             "color": "#ffa359ff"
+          },
+          "constant.other": {
+            "color": "#ffd452ff"
+          },
+          "property.json": {
+            "color": "#ff855eff"
+          },
+          "constant.builtin.json": {
+            "color": "#08c0efff"
+          },
+          "property.css": {
+            "color": "#08c0efff"
+          },
+          "property.name": {
+            "color": "#636363ff"
+          },
+          "attribute.pseudo": {
+            "color": "#08c0efff"
+          },
+          "attribute.id": {
+            "color": "#9d6afbff"
+          },
+          "keyword.unit": {
+            "color": "#ff855eff"
+          },
+          "punctuation.link": {
+            "color": "#ff855eff"
+          },
+          "text.quote": {
+            "color": "#737373ff"
+          },
+          "variable.parameter.python": {
+            "color": "#ffd452ff"
+          },
+          "type.builtin.python": {
+            "color": "#08c0efff"
           }
         }
       }

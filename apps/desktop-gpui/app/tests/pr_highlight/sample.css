@@ -9,3 +9,8 @@
     display: none !important;
   }
 }
+
+#main::before,
+a[href] {
+  content: "x";
+}

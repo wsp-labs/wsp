@@ -101,6 +101,10 @@ pub struct Button {
     side: Option<Pixels>,
     /// Corners other than the size's radius all round: a stepper's ends are square where they meet its number.
     corners: Option<gpui_kit::Corners<Pixels>>,
+    /// The glyph after the label, as a menu trigger's chevron.
+    glyph_after: bool,
+    /// No keycap bevel (`shadow-none`).
+    flat: bool,
     on_click: Option<Click>,
 }
 
@@ -120,6 +124,8 @@ impl Button {
             height: None,
             side: None,
             corners: None,
+            glyph_after: false,
+            flat: false,
             on_click: None,
         }
     }
@@ -179,6 +185,8 @@ impl Button {
             height: None,
             side: None,
             corners: None,
+            glyph_after: false,
+            flat: false,
             on_click: None,
         }
     }
@@ -224,6 +232,24 @@ impl Button {
 
     pub fn corners(mut self, corners: gpui_kit::Corners<Pixels>) -> Self {
         self.corners = Some(corners);
+        self
+    }
+
+    /// The outline keycap's edge, fill and bevel on an icon button.
+    pub fn outlined(mut self) -> Self {
+        self.kind = ButtonKind::Outline;
+        self
+    }
+
+    /// The glyph after the label, as `Merge` with its menu's chevron.
+    pub fn glyph_after(mut self) -> Self {
+        self.glyph_after = true;
+        self
+    }
+
+    /// No keycap bevel, as the PR box's merge (`shadow-none`).
+    pub fn flat(mut self) -> Self {
+        self.flat = true;
         self
     }
 
@@ -339,13 +365,14 @@ impl RenderOnce for Button {
             .border_color(edge)
             .bg(fill)
             // GPUI paints an inset shadow under the border, where CSS keeps it inside; a child filling the padding box holds it there.
-            .when(!matches!(self.kind, ButtonKind::Ghost | ButtonKind::GhostDanger | ButtonKind::Text), |el| {
+            .when(!self.flat && !matches!(self.kind, ButtonKind::Ghost | ButtonKind::GhostDanger | ButtonKind::Text), |el| {
                 el.child(div().absolute().inset_0().rounded(radius - px(1.)).shadow(keycap))
             })
             .text_size(font)
             .line_height(line)
             .font_weight(weight)
             .text_color(ink)
+            .when(self.glyph_after, |el| el.flex_row_reverse())
             .children(match (self.busy, self.glyph) {
                 (true, glyph) => {
                     let glyph = if self.label.is_some() { Glyph::LoaderCircle } else { glyph.unwrap_or(Glyph::LoaderCircle) };

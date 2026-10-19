@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The daemon link's channels as the host holds them, counted by the host's sockets to the throwaway's wsp-daemon: one
-//! per workspace however many panes hold it, none once the last holder goes, none left by a dial dropped part-way, and
-//! a link that dials again by itself after the app's host socket drops, its folder and the listings that failed coming
-//! back with it. The counts and the socket drop read Linux's `ss`. Without a daemon every test says so and passes nothing.
+//! per computer however many panes and terminals hold it, none once the last holder's release time passes, none left by
+//! a dial dropped part-way, and a link that dials again by itself after the app's host socket drops, its folder and the
+//! listings that failed coming back with it. The counts and the socket drop read Linux's `ss`. Without a daemon every
+//! test says so and passes nothing.
 #![cfg(target_os = "linux")]
 
 #[path = "../../host-client/tests/common/mod.rs"]
@@ -10,15 +11,19 @@ mod common;
 #[path = "pr_pane/stand_in.rs"]
 mod stand_in;
 
+use std::future::Future;
 use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::Throwaway;
+use desktop_gpui::screens::pr_pane::changes::{ChangesScreen, Load};
 use desktop_gpui::screens::pr_pane::daemon::DaemonLink;
 use desktop_gpui::screens::pr_pane::files::FilesScreen;
+use desktop_gpui::screens::terminal::link::{Link, Status, Target};
 use desktop_gpui::screens::{Opened, Screen};
 use desktop_gpui::ui::{self, Side};
+use futures::FutureExt as _;
 use gpui_kit::component::Root;
 use gpui_kit::{px, size, AppContext as _, Entity, TestAppContext, VisualTestContext};
 use serde_json::json;
@@ -60,9 +65,11 @@ impl Host {
 
     fn ping(&self, link: &Entity<DaemonLink>, cx: &mut TestAppContext) {
         let sent = link.read_with(cx, |link, _| link.request("ping", json!({})));
-        self.runtime
-            .block_on(async { tokio::time::timeout(Duration::from_secs(30), sent).await.expect("an answer within 30 s") })
-            .unwrap_or_else(|r| panic!("ping: {r:?}"));
+        answered(cx, "the ping", sent).unwrap_or_else(|r| panic!("ping: {r:?}"));
+    }
+
+    fn target(&self) -> Target {
+        Target::Workspace(self.workspace_id.clone())
     }
 
     /// The port the throwaway's own wsp-daemon listens on: the one whose parent is this host, or whose folder is its home.
@@ -137,9 +144,36 @@ impl Host {
     }
 }
 
+/// Runs the window's tasks, which carry the computer's channel up, until `sent` is answered.
+fn answered<T>(cx: &mut TestAppContext, what: &str, sent: impl Future<Output = T>) -> T {
+    let mut sent = std::pin::pin!(sent);
+    let until = Instant::now() + Duration::from_secs(30);
+    loop {
+        cx.run_until_parked();
+        if let Some(answer) = sent.as_mut().now_or_never() {
+            return answer;
+        }
+        assert!(Instant::now() < until, "{what} within 30 s");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// Moves the test clock past the heartbeats one at a time, letting each ping come back before the next beat.
+fn pass_time(cx: &mut TestAppContext, seconds: u64) {
+    for _ in 0..seconds / 10 {
+        cx.executor().advance_clock(Duration::from_secs(10));
+        let end = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < end {
+            cx.run_until_parked();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+}
+
 fn root(link: &Entity<DaemonLink>, cx: &mut TestAppContext, what: &str) -> String {
     let until = Instant::now() + Duration::from_secs(10);
     loop {
+        cx.executor().advance_clock(Duration::from_millis(100));
         cx.run_until_parked();
         if let Some(root) = link.read_with(cx, |l, _| l.root()) {
             return root;
@@ -165,8 +199,54 @@ fn one_channel_per_workspace_closed_with_its_last_holder(cx: &mut TestAppContext
     host.settles_at(port, before + 1, "the channel stays while one holder does");
     drop(b);
     cx.update(|_| {});
-    host.settles_at(port, before, "the channel closes with its last holder");
+    pass_time(cx, 20);
+    host.settles_at(port, before + 1, "the channel stays inside its release time, as a terminal's does");
+    pass_time(cx, 30);
+    host.settles_at(port, before, "the channel closes once its last holder's release time passed");
     println!("channels: {before} before, {} with two holders, {before} after", before + 1);
+}
+
+/// The terminal's drawer and the Files and Changes panes on one computer, each read through, hold one channel to it.
+#[gpui_kit::test]
+fn the_terminal_and_the_files_and_changes_panes_on_one_computer_open_one_channel(cx: &mut TestAppContext) {
+    let Some(host) = Host::start() else { return };
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        ui::init(Side::Light, cx);
+    });
+    let port = host.daemon_port();
+    let before = host.steady(port);
+    let shell = host.shell();
+    let terminal = cx.update(|cx| Link::get(&shell, host.target(), cx));
+    let _held = terminal.update(cx, |l, _| l.hold());
+    let (_, cx) = cx.add_window_view(|_, _| gpui_kit::EmptyView);
+    let opened = |tab: &str| Opened {
+        workspace_id: Some(host.workspace_id.clone()),
+        thread_id: Some(host.thread_id.clone()),
+        tab: Some(tab.to_owned().into()),
+        arg: None,
+    };
+    let (files, changes) = cx.update(|window, cx| {
+        let files = cx.new(|cx| FilesScreen::new(shell.clone(), opened("files"), window, cx));
+        let changes = cx.new(|cx| ChangesScreen::open(shell.clone(), opened("changes"), window, cx));
+        (files, changes)
+    });
+    let tree = files.read_with(cx, |s, _| s.tree().unwrap().clone());
+    let end = Instant::now() + Duration::from_secs(30);
+    loop {
+        cx.run_until_parked();
+        let live = terminal.read_with(cx, |l, _| *l.status() == Status::Live);
+        let listed = tree.read_with(cx, |t, _| t.rows().iter().any(|r| r.name == "src"));
+        let read = changes.read_with(cx, |c, _| *c.load() == Load::Ready && !c.not_running());
+        if live && listed && read {
+            break;
+        }
+        assert!(Instant::now() < end, "the terminal live {live}, the tree listed {listed}, the changes read {read}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    host.settles_at(port, before + 1, "the terminal and both panes ride one channel");
+    println!("channels: {before} before, {} with the terminal and both panes", before + 1);
 }
 
 #[gpui_kit::test]
@@ -179,9 +259,15 @@ fn a_dial_dropped_part_way_leaves_no_channel_open(cx: &mut TestAppContext) {
         let link = cx.update(|cx| DaemonLink::of(&host.shell(), &host.workspace_id, cx));
         let asked = link.read_with(cx, |l, _| l.request("ping", json!({})));
         std::thread::sleep(Duration::from_micros(200 * (round % 30)));
+        if round % 3 == 0 {
+            cx.run_until_parked();
+        }
         drop(asked);
         drop(link);
-        cx.update(|_| {});
+        // Let go at once rather than past its release time, so the dial is cut wherever it got to; the dropped tasks
+        // go when the executor next runs, as the app's always does.
+        cx.update(|cx| Link::find(&host.target(), cx).map(|l| l.update(cx, |l, cx| l.release_for_test(cx))));
+        cx.run_until_parked();
     }
     let left = host.steady(port);
     println!("channels left after 60 dials dropped part-way: {}", left - before);
@@ -202,6 +288,7 @@ fn the_link_dials_again_by_itself_after_the_host_socket_drops(cx: &mut TestAppCo
     while link.read_with(cx, |l, _| l.up()) {
         assert!(Instant::now() < until, "the link hears its channel go with the socket");
         std::thread::sleep(Duration::from_millis(20));
+        cx.run_until_parked();
     }
     let again = root(&link, cx, "the link dials again and its hello names the root, with no request asking");
     assert_eq!(again, first);

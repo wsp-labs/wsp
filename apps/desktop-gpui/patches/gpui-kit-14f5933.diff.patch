@@ -557,7 +557,7 @@ index ad21555..bb12ca1 100644
      }
  }
 diff --git a/crates/component/src/diff/mod.rs b/crates/component/src/diff/mod.rs
-index 036d11b..2ee6ff2 100644
+index 036d11b..9311e7d 100644
 --- a/crates/component/src/diff/mod.rs
 +++ b/crates/component/src/diff/mod.rs
 @@ -14,6 +14,8 @@ pub use conflict::{DiffConflict, DiffConflictResolution};
@@ -578,17 +578,41 @@ index 036d11b..2ee6ff2 100644
  use selection::{CodeText, SelectionLayer};
  use state::{DisplayRow, FoldExpansion, LayoutKey, SelectedLines};
  
-@@ -127,6 +129,9 @@ pub enum DiffChangeIndicator {
+@@ -127,6 +129,33 @@ pub enum DiffChangeIndicator {
      Bars,
      /// No marker.
      None,
 +    /// A 4 px bar at the row's leading edge, over its line number. A selected
 +    /// row's bar takes the theme's info color.
 +    Edge,
++}
++
++/// Pierre's row geometry and fills: a number lane `(3 + digits)` characters
++/// wide per file, a gap in the background color between it and the code,
++/// code inset one character, and each part of a row filled on its own.
++#[derive(Clone, Copy, Debug)]
++pub struct DiffLook {
++    pub gap: Pixels,
++    pub added_line: Hsla,
++    pub added_number: Hsla,
++    pub deleted_line: Hsla,
++    pub deleted_number: Hsla,
++    pub selected_line: Hsla,
++    pub selected_number: Hsla,
++    /// A selected line's number.
++    pub selected_ink: Hsla,
++    /// The stripe between the deleted edge bar's red ones.
++    pub deleted_stripe: Hsla,
++    /// The empty side of a split row: its number lane and its code's stripes.
++    pub buffer_number: Hsla,
++    pub buffer_stripe: Hsla,
++    /// A line annotation's code column and its number lane.
++    pub note: Hsla,
++    pub note_number: Hsla,
  }
  
  /// Application-owned content attached to a source line or to a whole file.
-@@ -176,6 +181,7 @@ type AnnotationRenderer = Rc<dyn Fn(&DiffAnnotation, &mut Window, &mut App) -> A
+@@ -176,6 +205,7 @@ type AnnotationRenderer = Rc<dyn Fn(&DiffAnnotation, &mut Window, &mut App) -> A
  type RangeHandler = Rc<dyn Fn(&DiffLineRange, &mut Window, &mut App)>;
  type ClickHandler = Rc<dyn Fn(&DiffLinePosition, &ClickEvent, &mut Window, &mut App)>;
  type HoverHandler = Rc<dyn Fn(Option<&DiffLinePosition>, &mut Window, &mut App)>;
@@ -596,7 +620,7 @@ index 036d11b..2ee6ff2 100644
  
  #[derive(Default)]
  struct HeaderSlots {
-@@ -210,8 +216,16 @@ pub struct Diff {
+@@ -210,8 +240,20 @@ pub struct Diff {
      hunk_separator: DiffHunkSeparator,
      change_indicator: DiffChangeIndicator,
      change_background: bool,
@@ -608,12 +632,16 @@ index 036d11b..2ee6ff2 100644
 +    single_column_added_deleted: bool,
 +    row_height: Option<Pixels>,
      soft_wrap: bool,
++    look: Option<DiffLook>,
++    inline_change_pill: bool,
++    scrollbar: bool,
++    scrollbar_lane: Pixels,
      header: HeaderSlots,
 +    hunk_separator_content: Option<HunkRenderer>,
      annotations: Rc<Annotations>,
      annotation_content: Option<AnnotationRenderer>,
      on_add_annotation: Option<RangeHandler>,
-@@ -239,8 +253,16 @@ impl Diff {
+@@ -239,8 +281,20 @@ impl Diff {
              hunk_separator: DiffHunkSeparator::default(),
              change_indicator: DiffChangeIndicator::default(),
              change_background: true,
@@ -625,12 +653,16 @@ index 036d11b..2ee6ff2 100644
 +            single_column_added_deleted: false,
 +            row_height: None,
              soft_wrap: false,
++            look: None,
++            inline_change_pill: false,
++            scrollbar: true,
++            scrollbar_lane: px(0.),
              header: HeaderSlots::default(),
 +            hunk_separator_content: None,
              annotations: Rc::default(),
              annotation_content: None,
              on_add_annotation: None,
-@@ -283,12 +305,66 @@ impl Diff {
+@@ -283,12 +337,89 @@ impl Diff {
          self.change_background = value;
          self
      }
@@ -681,6 +713,29 @@ index 036d11b..2ee6ff2 100644
          self.soft_wrap = value;
          self
      }
++    /// Lays rows out and fills them as [`DiffLook`] says. Default is none.
++    pub fn look(mut self, look: DiffLook) -> Self {
++        self.look = Some(look);
++        self
++    }
++    /// Draws the box behind a changed line's changed words as a rounded pill
++    /// the height of the text, not the row. Default is false.
++    pub fn inline_change_pill(mut self, value: bool) -> Self {
++        self.inline_change_pill = value;
++        self
++    }
++    /// Draws the component's own vertical scrollbar. Default is true; an owner
++    /// that draws its own over [`DiffState::list`] turns it off.
++    pub fn scrollbar(mut self, value: bool) -> Self {
++        self.scrollbar = value;
++        self
++    }
++    /// Keeps `width` free at the right of the rows for an owner's scrollbar.
++    /// Default is none.
++    pub fn scrollbar_lane(mut self, width: Pixels) -> Self {
++        self.scrollbar_lane = width;
++        self
++    }
 +    /// Draws the mark at the start of each hunk in place of
 +    /// [`DiffHunkSeparator`]'s, given the file and the hunk's index in
 +    /// [`DiffFile::hunks`]. An empty element takes no height.
@@ -697,7 +752,7 @@ index 036d11b..2ee6ff2 100644
      /// Supplies annotations with stable identities and targets.
      ///
      /// Rows re-measure when annotations are added, removed or replaced, and
-@@ -455,7 +531,7 @@ fn render_diff(
+@@ -455,26 +586,47 @@ fn render_diff(
      let rem = window.rem_size();
      let font_size = rem * (f32::from(cx.theme().mono_font_size) / 16.);
      let font_family = cx.theme().mono_font_family.clone();
@@ -706,8 +761,30 @@ index 036d11b..2ee6ff2 100644
      let digits = state
          .files()
          .iter()
-@@ -468,13 +544,21 @@ fn render_diff(
-         px(0.)
+         .map(|file| file.line_number_digits())
+         .max()
+         .unwrap_or(1);
+-    let gutter_width = if props.line_number {
+-        font_size * 0.7 * digits as f32 + rem
+-    } else {
+-        px(0.)
++    // Pierre's character: the code font's advance of `0`.
++    let ch = props
++        .look
++        .map(|_| {
++            let font = gpui::Font {
++                family: font_family.clone(),
++                ..Default::default()
++            };
++            let text = window.text_system();
++            text.advance(text.resolve_font(&font), font_size, '0')
++                .map_or(font_size * 0.6, |size| size.width)
++        })
++        .unwrap_or_default();
++    let gutter_width = match props.look {
++        _ if !props.line_number => px(0.),
++        Some(look) => ch * (3 + digits) as f32 + look.gap,
++        None => font_size * 0.7 * digits as f32 + rem,
      };
      let mode = state.mode();
 +    let lanes = if mode == DiffMode::Unified && props.single_line_number {
@@ -728,7 +805,7 @@ index 036d11b..2ee6ff2 100644
          soft_wrap,
      );
      if state.update_layout(layout, row_height) {
-@@ -488,6 +572,7 @@ fn render_diff(
+@@ -488,6 +640,7 @@ fn render_diff(
                  &font_family,
                  gutter_width,
                  mode,
@@ -736,7 +813,18 @@ index 036d11b..2ee6ff2 100644
                  window,
                  cx,
              )
-@@ -504,6 +589,7 @@ fn render_diff(
+@@ -495,7 +648,9 @@ fn render_diff(
+         state.set_content_width(width);
+     }
+     state.sync_annotations(&props.annotations.items);
+-    let content_width = state.content_width().max(state.viewport().width);
++    let content_width = state
++        .content_width()
++        .max(state.viewport().width - props.scrollbar_lane);
+     let column_width = if mode == DiffMode::Split {
+         content_width / 2.
+     } else {
+@@ -504,12 +659,16 @@ fn render_diff(
      let code = Rc::new(CodePresentation {
          files: state.files().to_vec(),
          presentations: state.presentations().to_vec(),
@@ -744,7 +832,16 @@ index 036d11b..2ee6ff2 100644
          mode,
          content_width,
          column_width,
-@@ -519,8 +605,15 @@ fn render_diff(
+         font_size,
+         row_height,
+         gutter_width,
++        ch,
++        look: props.look,
++        inline_change_pill: props.inline_change_pill,
+         rem,
+         expansion_lines: state.expansion_lines(),
+         line_number: props.line_number,
+@@ -519,8 +678,15 @@ fn render_diff(
          hunk_separator: props.hunk_separator,
          change_indicator: props.change_indicator,
          change_background: props.change_background,
@@ -760,7 +857,23 @@ index 036d11b..2ee6ff2 100644
          annotations: props.annotations.clone(),
          annotation_content: props.annotation_content,
          on_add_annotation: props.on_add_annotation,
-@@ -697,11 +790,15 @@ fn render_diff(
+@@ -579,11 +745,11 @@ fn render_diff(
+                 ScrollableMask::new(Axis::Horizontal, &horizontal).id("diff-horizontal-wheel"),
+             )
+         })
+-        .when(has_rows, |this| {
++        .when(has_rows && props.scrollbar, |this| {
+             this.child(Scrollbar::vertical(&scrollbar))
+-                .when(!soft_wrap, |this| {
+-                    this.child(Scrollbar::horizontal(&horizontal))
+-                })
++        })
++        .when(has_rows && !soft_wrap, |this| {
++            this.child(Scrollbar::horizontal(&horizontal))
+         })
+         // A line-number drag may finish anywhere, including outside the body.
+         .on_mouse_up(
+@@ -697,11 +863,15 @@ fn render_diff(
                                  px(0.)
                              } else {
                                  let painted = state.geometry().borrow().painted_width();
@@ -777,7 +890,7 @@ index 036d11b..2ee6ff2 100644
                          });
                      }
                  },
-@@ -742,6 +839,7 @@ fn body_focused(state: &DiffState, window: &Window, cx: &mut Context<DiffState>)
+@@ -742,12 +912,17 @@ fn body_focused(state: &DiffState, window: &Window, cx: &mut Context<DiffState>)
  struct CodePresentation {
      files: Vec<DiffFile>,
      presentations: Vec<Option<Arc<FilePresentation>>>,
@@ -785,7 +898,17 @@ index 036d11b..2ee6ff2 100644
      mode: DiffMode,
      content_width: Pixels,
      column_width: Pixels,
-@@ -757,8 +855,15 @@ struct CodePresentation {
+     font_size: Pixels,
+     row_height: Pixels,
++    /// The widest number lane and, with a look, its gap.
+     gutter_width: Pixels,
++    ch: Pixels,
++    look: Option<DiffLook>,
++    inline_change_pill: bool,
+     rem: Pixels,
+     expansion_lines: usize,
+     line_number: bool,
+@@ -757,8 +932,15 @@ struct CodePresentation {
      hunk_separator: DiffHunkSeparator,
      change_indicator: DiffChangeIndicator,
      change_background: bool,
@@ -801,10 +924,21 @@ index 036d11b..2ee6ff2 100644
      annotations: Rc<Annotations>,
      annotation_content: Option<AnnotationRenderer>,
      on_add_annotation: Option<RangeHandler>,
-@@ -786,14 +891,33 @@ impl CodePresentation {
+@@ -786,14 +968,44 @@ impl CodePresentation {
              .as_ref()
              .is_some_and(|selected| selected.contains(&self.files, file, side, ix))
      }
++
++    /// One number lane of `file`, without its gap: with a look, sized to the
++    /// file's own widest number.
++    fn lane_width(&self, file: usize) -> Pixels {
++        match self.look {
++            Some(_) if self.line_number => {
++                self.ch * (3 + self.files[file].line_number_digits()) as f32
++            }
++            _ => self.gutter_width,
++        }
++    }
 +
 +    /// Whether the file draws one column in this mode.
 +    fn single_column(&self, file: usize) -> bool {
@@ -838,7 +972,7 @@ index 036d11b..2ee6ff2 100644
      }
  }
  
-@@ -805,17 +929,23 @@ fn measure_code_width(
+@@ -805,17 +1017,23 @@ fn measure_code_width(
      family: &SharedString,
      gutter_width: Pixels,
      mode: DiffMode,
@@ -864,7 +998,7 @@ index 036d11b..2ee6ff2 100644
                  if candidates.len() == CANDIDATES
                      && candidates
                          .last()
-@@ -824,7 +954,7 @@ fn measure_code_width(
+@@ -824,7 +1042,7 @@ fn measure_code_width(
                      continue;
                  }
                  let ix = candidates.partition_point(|(widest, _)| *widest >= cells);
@@ -873,7 +1007,7 @@ index 036d11b..2ee6ff2 100644
                  candidates.truncate(CANDIDATES);
              }
          }
-@@ -854,7 +984,7 @@ fn measure_code_width(
+@@ -854,7 +1072,7 @@ fn measure_code_width(
                  .width
          })
          .fold(px(0.), Pixels::max);
@@ -882,7 +1016,7 @@ index 036d11b..2ee6ff2 100644
  }
  
  fn render_row(
-@@ -866,7 +996,7 @@ fn render_row(
+@@ -866,7 +1084,7 @@ fn render_row(
      match row {
          DisplayRow::File(file) => render_file_header(*file, &code, window, cx),
          DisplayRow::Notice(file) => render_notice(&code.files[*file], cx),
@@ -891,7 +1025,7 @@ index 036d11b..2ee6ff2 100644
          DisplayRow::Fold { file, pairs } => render_fold(*file, pairs.clone(), &code, cx),
          DisplayRow::Conflict {
              file,
-@@ -879,7 +1009,7 @@ fn render_row(
+@@ -879,7 +1097,7 @@ fn render_row(
              modified,
              changed,
          } => {
@@ -900,7 +1034,7 @@ index 036d11b..2ee6ff2 100644
                  h_flex()
                      .items_stretch()
                      .w_full()
-@@ -929,8 +1059,15 @@ fn render_hunk_separator(
+@@ -929,8 +1147,15 @@ fn render_hunk_separator(
      file: usize,
      hunk: usize,
      code: &CodePresentation,
@@ -917,15 +1051,57 @@ index 036d11b..2ee6ff2 100644
      let hunks = code.files[file].hunks();
      let row = h_flex()
          .w_full()
-@@ -1267,6 +1404,7 @@ fn render_gutter(
+@@ -1232,7 +1457,7 @@ fn file_annotations(
+         .get(path)
+         .cloned()
+         .unwrap_or_default();
+-    annotation_elements(&ixs, code, window, cx)
++    annotation_elements(&ixs, None, code, window, cx)
+ }
+ 
+ /// Summarizes a file without source rows: binary, metadata-only or empty.
+@@ -1263,13 +1488,17 @@ fn render_notice(file: &DiffFile, cx: &App) -> AnyElement {
+         .into_any_element()
+ }
+ 
++#[allow(clippy::too_many_arguments)]
+ fn render_gutter(
      file: usize,
      side: DiffSide,
      ix: Option<usize>,
 +    tint: Option<Hsla>,
++    fill: Option<Hsla>,
      code: &CodePresentation,
      cx: &App,
  ) -> AnyElement {
-@@ -1303,7 +1441,7 @@ fn render_gutter(
++    let look = code.look.is_some();
+     let hover = matches!(
+         code.hover_highlight,
+         DiffHoverHighlight::LineNumber | DiffHoverHighlight::Both
+@@ -1281,8 +1510,14 @@ fn render_gutter(
+             "new-gutter"
+         })
+         .flex_shrink_0()
+-        .w(code.gutter_width)
+-        .pr_1()
++        .map(|this| {
++            if look {
++                this.w(code.lane_width(file)).pr(code.ch)
++            } else {
++                this.w(code.gutter_width).pr_1()
++            }
++        })
++        .when_some(fill, |this, fill| this.bg(fill))
+         .when(hover, |this| {
+             this.hover(|this| this.bg(cx.theme().list_hover))
+         })
+@@ -1298,12 +1533,12 @@ fn render_gutter(
+                     .test_support()
+                     .w_full()
+                     .h(code.row_height)
+-                    .px_1()
++                    .when(!look, |this| this.px_1())
+                     .flex()
                      .items_center()
                      .justify_end()
                      .text_size(code.font_size)
@@ -934,7 +1110,75 @@ index 036d11b..2ee6ff2 100644
                      .hover(|this| this.text_color(cx.theme().foreground))
                      .role(gpui::accesskit::Role::Button)
                      .aria_label(
-@@ -1405,7 +1543,7 @@ fn render_unified_cell(
+@@ -1363,9 +1598,11 @@ fn render_cell(
+         .when(side == DiffSide::Original, |this| {
+             this.border_r_1().border_color(cx.theme().border)
+         })
+-        .when(ix.is_none(), |this| {
+-            this.bg(cx.theme().muted.opacity(0.3))
+-                .child(div().h(code.row_height))
++        .when(ix.is_none(), |this| match code.look {
++            Some(look) => this.child(buffer_row(file, look, &code)),
++            None => this
++                .bg(cx.theme().muted.opacity(0.3))
++                .child(div().h(code.row_height)),
+         });
+     let Some(ix) = ix else {
+         return cell.into_any_element();
+@@ -1393,6 +1630,52 @@ fn render_cell(
+     .into_any_element()
+ }
+ 
++/// The empty side of a split row with a look: the number lane in its fill,
++/// the gap, and pierre's buffer stripes over the code column, 2 px wide every
++/// 8 px, rising to the right.
++fn buffer_row(file: usize, look: DiffLook, code: &CodePresentation) -> impl IntoElement {
++    let stripe = look.buffer_stripe;
++    h_flex()
++        .flex_1()
++        .min_h(code.row_height)
++        .items_stretch()
++        .when(code.line_number, |this| {
++            this.child(
++                div()
++                    .flex_shrink_0()
++                    .w(code.lane_width(file))
++                    .bg(look.buffer_number),
++            )
++            .child(div().flex_shrink_0().w(look.gap))
++        })
++        .child(
++            gpui::canvas(
++                |_, _, _| {},
++                move |bounds, _, window, _| {
++                    let (w, h) = (bounds.size.width, bounds.size.height);
++                    let mut path = gpui::PathBuilder::fill();
++                    // Where x + y is 5.25 to 7.25 px into each 8, as Chromium samples pierre's tile.
++                    let mut k = px(-2.75);
++                    while k < w + h {
++                        let at = |x: Pixels, y: Pixels| point(bounds.left() + x, bounds.top() + y);
++                        path.move_to(at(k, px(0.)));
++                        path.line_to(at(k + px(2.), px(0.)));
++                        path.line_to(at(k + px(2.) - h, h));
++                        path.line_to(at(k - h, h));
++                        path.close();
++                        k += px(8.);
++                    }
++                    if let Ok(path) = path.build() {
++                        window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
++                            window.paint_path(path, stripe)
++                        });
++                    }
++                },
++            )
++            .flex_1(),
++        )
++}
++
+ #[allow(clippy::too_many_arguments)]
+ fn render_unified_cell(
+     file: usize,
+@@ -1405,7 +1688,7 @@ fn render_unified_cell(
      cx: &mut App,
  ) -> AnyElement {
      let (original, modified) = pair;
@@ -943,7 +1187,7 @@ index 036d11b..2ee6ff2 100644
      let counterpart = code.files[file].lines(side)[ix].counterpart();
      let other_ix = if side == DiffSide::Original {
          modified
-@@ -1423,8 +1561,10 @@ fn render_unified_cell(
+@@ -1423,8 +1706,10 @@ fn render_unified_cell(
              cx,
          ));
      }
@@ -955,7 +1199,20 @@ index 036d11b..2ee6ff2 100644
      } else {
          [
              Some((DiffSide::Original, original)),
-@@ -1472,18 +1612,22 @@ fn line_highlights(
+@@ -1459,6 +1744,7 @@ fn render_unified_cell(
+ }
+ 
+ /// Syntax colors with inline-change and selection emphasis layered over them.
++/// With [`Diff::inline_change_pill`], the changed words' boxes go to `pills`.
+ #[allow(clippy::too_many_arguments)]
+ fn line_highlights(
+     file: usize,
+@@ -1468,30 +1754,41 @@ fn line_highlights(
+     selected: bool,
+     status: Hsla,
+     code: &CodePresentation,
++    pills: &mut Vec<(std::ops::Range<usize>, Hsla)>,
+     cx: &App,
  ) -> Vec<(std::ops::Range<usize>, HighlightStyle)> {
      let line = &code.files[file].lines(side)[ix];
      let presentation = code.presentations.get(file).and_then(Option::as_ref);
@@ -972,26 +1229,65 @@ index 036d11b..2ee6ff2 100644
      };
      if changed && let Some(presentation) = presentation {
 +        let color = code.inline_change_color;
++        let fill = status.opacity(code.inline_change_opacity);
++        let pill = code.inline_change_pill;
          highlights.extend(presentation.inline_changes(line, side, ix).map(|range| {
++            if pill {
++                pills.push((range.clone(), fill));
++            }
              (
                  range,
                  HighlightStyle {
 -                    background_color: Some(status.opacity(0.3)),
 +                    color,
-+                    background_color: Some(status.opacity(code.inline_change_opacity)),
++                    background_color: (!pill).then_some(fill),
                      ..Default::default()
                  },
              )
-@@ -1491,7 +1635,7 @@ fn line_highlights(
+         }));
      }
-     if selected {
+-    if selected {
++    // A look fills the selected line's code cell instead.
++    if selected && code.look.is_none() {
          highlights.push((
 -            0..line.display().len(),
 +            0..line.display_len(),
              HighlightStyle {
                  background_color: Some(cx.theme().selection),
                  ..Default::default()
-@@ -1609,9 +1753,11 @@ fn code_line(
+@@ -1589,7 +1886,30 @@ fn code_line(
+                 .iter()
+                 .flatten()
+                 .any(|(side, ix)| ix.is_some_and(|ix| code.is_selected(file, *side, ix))));
+-    let highlights = line_highlights(file, side, ix, changed, selected, status, &code, cx);
++    let mut pills = Vec::new();
++    let highlights = line_highlights(
++        file, side, ix, changed, selected, status, &code, &mut pills, cx,
++    );
++    let look = code.look;
++    // A look's fills: the code cell, the number cell and the number's ink.
++    let (line_fill, number_fill, number_ink) = match look {
++        Some(look) if selected => (
++            Some(look.selected_line),
++            Some(look.selected_number),
++            Some(look.selected_ink),
++        ),
++        Some(_) if changed && conflict_part.is_some() => {
++            let fill = status.opacity(code.change_background_opacity);
++            (Some(fill), Some(fill), Some(status))
++        }
++        Some(look) if changed && side == DiffSide::Original => (
++            Some(look.deleted_line),
++            Some(look.deleted_number),
++            Some(status),
++        ),
++        Some(look) if changed => (Some(look.added_line), Some(look.added_number), Some(status)),
++        _ => (None, None, None),
++    };
+     // An unchanged Unified row shows one source line for both sides; follow
+     // the side a text selection started on so its offsets stay consistent.
+     let (text_side, text_ix) = if code.mode == DiffMode::Unified
+@@ -1609,9 +1929,11 @@ fn code_line(
      // Wrapped text must be one run to break across the column; unwrapped
      // long lines stay chunked to bound shaping and selection projection.
      let ranges: Vec<_> = if code.soft_wrap {
@@ -1005,13 +1301,37 @@ index 036d11b..2ee6ff2 100644
      };
      // A block container gives wrapped text a definite width to break at.
      let text = div()
-@@ -1657,8 +1803,18 @@ fn code_line(
+@@ -1631,14 +1953,15 @@ fn code_line(
+                 text_ix,
+                 range,
+                 highlights.clone(),
++                pills.clone(),
+                 code.selection.clone(),
+                 code.geometry.clone(),
+             )
+         }));
+-    let gutters_width = if code.line_number {
+-        code.gutter_width * gutters.iter().flatten().count() as f32
+-    } else {
+-        px(0.)
++    let gutters_width = match look {
++        _ if !code.line_number => px(0.),
++        Some(look) => code.lane_width(file) + look.gap,
++        None => code.gutter_width * gutters.iter().flatten().count() as f32,
+     };
+     let indicator = match code.change_indicator {
+         DiffChangeIndicator::Signs => div()
+@@ -1657,8 +1980,43 @@ fn code_line(
          DiffChangeIndicator::Bars => div().w_4().h_full().flex_shrink_0().when(changed, |this| {
              this.child(div().w(px(3.)).h_full().bg(status))
          }),
 -        DiffChangeIndicator::None => div().w_2().flex_shrink_0(),
 +        DiffChangeIndicator::None | DiffChangeIndicator::Edge => div().w_2().flex_shrink_0(),
      };
++    // With a look, a deleted line's bar is pierre's: red rows 1 px high every
++    // 2 px over its stripe color.
++    let hatched = look
++        .filter(|_| !selected && changed && conflict_part.is_none() && side == DiffSide::Original);
 +    let edge =
 +        (code.change_indicator == DiffChangeIndicator::Edge && (changed || selected)).then(|| {
 +            div()
@@ -1020,21 +1340,74 @@ index 036d11b..2ee6ff2 100644
 +                .top_0()
 +                .bottom_0()
 +                .w(px(4.))
-+                .bg(if selected { cx.theme().info } else { status })
++                .map(|this| match hatched {
++                    Some(look) => this.bg(look.deleted_stripe).child(
++                        gpui::canvas(
++                            |_, _, _| {},
++                            move |bounds, _, window, _| {
++                                let mut y = bounds.top();
++                                while y < bounds.bottom() {
++                                    window.paint_quad(gpui::fill(
++                                        gpui::Bounds::new(
++                                            point(bounds.left(), y),
++                                            gpui::size(bounds.size.width, px(1.)),
++                                        ),
++                                        status,
++                                    ));
++                                    y += px(2.);
++                                }
++                            },
++                        )
++                        .size_full(),
++                    ),
++                    None => this.bg(if selected { cx.theme().info } else { status }),
++                })
 +        });
      let hover_line = matches!(
          code.hover_highlight,
          DiffHoverHighlight::Line | DiffHoverHighlight::Both
-@@ -1684,7 +1840,7 @@ fn code_line(
+@@ -1670,23 +2028,33 @@ fn code_line(
+         .group("diff-line")
+         .relative()
+         .w_full()
+-        .px_2()
++        .when(look.is_none(), |this| this.px_2())
+         .map(|this| {
+             if code.soft_wrap {
+-                this.min_h(code.row_height)
+-                    .items_start()
+-                    .whitespace_normal()
++                this.min_h(code.row_height).whitespace_normal()
+             } else {
+                 this.h(code.row_height).whitespace_nowrap()
+             }
+         })
++        .map(|this| {
++            if look.is_some() {
++                this.items_stretch()
++            } else if code.soft_wrap {
++                this.items_start()
++            } else {
++                this
++            }
++        })
+         .font_family(cx.theme().mono_font_family.clone())
          .text_size(code.font_size)
          .line_height(code.row_height)
-         .when(changed && code.change_background, |this| {
+-        .when(changed && code.change_background, |this| {
 -            this.bg(status.opacity(0.12))
-+            this.bg(status.opacity(code.change_background_opacity))
++        .when(
++            look.is_none() && changed && code.change_background,
++            |this| this.bg(status.opacity(code.change_background_opacity)),
++        )
++        .when(look.is_none() && selected, |this| {
++            this.bg(cx.theme().selection)
          })
-         .when(selected, |this| this.bg(cx.theme().selection))
+-        .when(selected, |this| this.bg(cx.theme().selection))
          .when(hover_line && !selected, |this| {
-@@ -1697,12 +1853,14 @@ fn code_line(
+             this.hover(|this| this.bg(cx.theme().list_hover))
+         })
+@@ -1697,14 +2065,20 @@ fn code_line(
              })
          })
          .when(code.line_number, |this| {
@@ -1046,18 +1419,34 @@ index 036d11b..2ee6ff2 100644
 -            )
 +            this.children(gutters.into_iter().flatten().map(|(side, ix)| {
 +                let tint = match (code.tint_line_numbers, selected, changed) {
++                    _ if look.is_some() => number_ink,
 +                    (true, true, _) => Some(cx.theme().info),
 +                    (true, false, true) => Some(status),
 +                    _ => None,
 +                };
-+                render_gutter(file, side, ix, tint, &code, cx)
++                render_gutter(file, side, ix, tint, number_fill, &code, cx)
 +            }))
++            .when_some(look, |this, look| {
++                this.child(div().flex_shrink_0().w(look.gap))
++            })
          })
-         .child(indicator)
+-        .child(indicator)
++        .when(look.is_none(), |this| this.child(indicator))
          .child(
-@@ -1717,7 +1875,9 @@ fn code_line(
+             div()
+                 .id("source")
+@@ -1712,12 +2086,18 @@ fn code_line(
+                 .map(|this| {
+                     if code.soft_wrap {
+                         this.flex_1().min_w_0()
++                    } else if look.is_some() {
++                        this.flex_grow(1.).flex_shrink_0()
+                     } else {
+                         this.flex_shrink_0()
                      }
                  })
++                .when(look.is_some(), |this| this.px(code.ch))
++                .when_some(line_fill, |this, fill| this.bg(fill))
                  .role(gpui::accesskit::Role::Label)
 -                .aria_label(source_line.text().clone())
 +                .aria_label(SharedString::from(
@@ -1066,7 +1455,7 @@ index 036d11b..2ee6ff2 100644
                  .aria_description(
                      t!(
                          if changed {
-@@ -1750,6 +1910,7 @@ fn code_line(
+@@ -1750,6 +2130,7 @@ fn code_line(
                  .child(text),
          )
          .children(add_button)
@@ -1074,7 +1463,53 @@ index 036d11b..2ee6ff2 100644
          .into_any_element()
  }
  
-@@ -1844,7 +2005,7 @@ fn has_line_ending_change(
+@@ -1804,11 +2185,14 @@ fn line_annotations(
+         .get(&position)
+         .cloned()
+         .unwrap_or_default();
+-    annotation_elements(&ixs, code, window, cx)
++    annotation_elements(&ixs, Some(file), code, window, cx)
+ }
+ 
++/// `line_of`: the file of line annotations, which a look sets in the code
++/// column on its own fill, beside the number lane in its.
+ fn annotation_elements(
+     ixs: &[usize],
++    line_of: Option<usize>,
+     code: &CodePresentation,
+     window: &mut Window,
+     cx: &mut App,
+@@ -1819,6 +2203,29 @@ fn annotation_elements(
+     ixs.iter()
+         .map(|ix| {
+             let annotation = &code.annotations.items[*ix];
++            if let (Some(look), Some(file)) = (code.look, line_of) {
++                return h_flex()
++                    .id(annotation.id.clone())
++                    .w_full()
++                    .items_stretch()
++                    .when(code.line_number, |this| {
++                        this.child(
++                            div()
++                                .flex_shrink_0()
++                                .w(code.lane_width(file))
++                                .bg(look.note_number),
++                        )
++                        .child(div().flex_shrink_0().w(look.gap))
++                    })
++                    .child(
++                        div()
++                            .flex_1()
++                            .min_w_0()
++                            .bg(look.note)
++                            .child(render(annotation, window, cx)),
++                    )
++                    .into_any_element();
++            }
+             div()
+                 .id(annotation.id.clone())
+                 .w_full()
+@@ -1844,7 +2251,7 @@ fn has_line_ending_change(
          let other_side = side.other();
          let line = &file.lines(side)[ix];
          let other = &file.lines(other_side)[counterpart];
@@ -1522,9 +1957,18 @@ index da211fe..0507d5a 100644
 +    }
  }
 diff --git a/crates/component/src/diff/selection.rs b/crates/component/src/diff/selection.rs
-index 1947a0b..0d7a698 100644
+index 1947a0b..1f506c5 100644
 --- a/crates/component/src/diff/selection.rs
 +++ b/crates/component/src/diff/selection.rs
+@@ -10,7 +10,7 @@ use std::{
+ 
+ use gpui::{
+     AnyElement, App, Bounds, Element, ElementId, GlobalElementId, HighlightStyle, Hitbox,
+-    HitboxBehavior, InspectorElementId, IntoElement, LayoutId, ListState, MouseButton,
++    HitboxBehavior, Hsla, InspectorElementId, IntoElement, LayoutId, ListState, MouseButton,
+     MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollHandle, StyledText,
+     TextLayout, Window, px,
+ };
 @@ -71,9 +71,9 @@ impl SelectionGeometry {
                      .index_for_position(position)
                      .unwrap_or_else(|ix| ix);
@@ -1537,7 +1981,32 @@ index 1947a0b..0d7a698 100644
              };
              self.multi_click
                  .set((!cursor).then_some((count, position, true)));
-@@ -292,7 +292,7 @@ impl Element for CodeText {
+@@ -212,6 +212,8 @@ pub(crate) struct CodeText {
+     line_ix: usize,
+     range: Range<usize>,
+     highlights: Vec<(Range<usize>, HighlightStyle)>,
++    /// Boxes drawn behind the text, rounded and the height of its glyphs.
++    pills: Vec<(Range<usize>, Hsla)>,
+     selection: TextSelectionHandle,
+     geometry: Rc<RefCell<SelectionGeometry>>,
+     styled_text: Option<StyledText>,
+@@ -227,6 +229,7 @@ impl CodeText {
+         line_ix: usize,
+         range: Range<usize>,
+         highlights: Vec<(Range<usize>, HighlightStyle)>,
++        pills: Vec<(Range<usize>, Hsla)>,
+         selection: TextSelectionHandle,
+         geometry: Rc<RefCell<SelectionGeometry>>,
+     ) -> Self {
+@@ -238,6 +241,7 @@ impl CodeText {
+             line_ix,
+             range,
+             highlights,
++            pills,
+             selection,
+             geometry,
+             styled_text: None,
+@@ -292,7 +296,7 @@ impl Element for CodeText {
                  clip_highlight(range, &self.range).map(|range| (range, style))
              })
              .collect();
@@ -1546,7 +2015,77 @@ index 1947a0b..0d7a698 100644
          self.styled_text =
              Some(StyledText::new(text).with_highlights(merge_highlights(self.range.len(), layers)));
          self.styled_text
-@@ -517,7 +517,8 @@ impl Element for SelectionLayer {
+@@ -331,6 +335,7 @@ impl Element for CodeText {
+         window: &mut Window,
+         cx: &mut App,
+     ) {
++        self.paint_pills(window);
+         self.styled_text.as_mut().unwrap().paint(
+             id,
+             inspector,
+@@ -343,6 +348,61 @@ impl Element for CodeText {
+     }
+ }
+ 
++impl CodeText {
++    /// Each pill as Chromium draws an inline box's background: the glyphs'
++    /// ascent and descent in device pixels around the baseline, with 3 px
++    /// corners, one box per wrapped line.
++    fn paint_pills(&self, window: &mut Window) {
++        if self.pills.is_empty() {
++            return;
++        }
++        let layout = self.styled_text.as_ref().unwrap().layout();
++        let bounds = layout.bounds();
++        let line_height = layout.line_height();
++        let scale = window.scale_factor();
++        for (range, color) in &self.pills {
++            let Some(range) = clip_highlight(range.clone(), &self.range) else {
++                continue;
++            };
++            let (Some(start), Some(end), Some(line)) = (
++                layout.position_for_index(range.start),
++                layout.position_for_index(range.end),
++                layout.line_layout_for_index(range.start),
++            ) else {
++                continue;
++            };
++            let metrics = &line.unwrapped_layout;
++            let (ascent, descent) =
++                gpui::device_font_height(metrics.ascent, metrics.descent, scale);
++            let inset =
++                gpui::line_baseline(line_height, metrics.ascent, metrics.descent, scale) - ascent;
++            let mut top = start.y;
++            let mut left = start.x;
++            loop {
++                let last = top >= end.y;
++                let right = if last { end.x } else { bounds.right() };
++                if right > left {
++                    window.paint_quad(
++                        gpui::fill(
++                            Bounds::new(
++                                gpui::point(left, top + inset),
++                                gpui::size(right - left, ascent + descent),
++                            ),
++                            *color,
++                        )
++                        .corner_radii(px(3.)),
++                    );
++                }
++                if last {
++                    break;
++                }
++                top += line_height;
++                left = bounds.left();
++            }
++        }
++    }
++}
++
+ /// Later layers override only their specified fields, preserving syntax color
+ /// when inline and selection backgrounds overlap it.
+ pub(crate) fn merge_highlights(
+@@ -517,7 +577,8 @@ impl Element for SelectionLayer {
              .runs
              .iter()
              .map(|run| {
@@ -1584,7 +2123,7 @@ index 929b3c9..2aac42f 100644
      let next = &document.lines(DiffSide::Modified)[1];
      let anchor = first.source().start + first.source_offset(4);
 diff --git a/crates/component/src/diff/state.rs b/crates/component/src/diff/state.rs
-index ba0f1f7..b906a94 100644
+index ba0f1f7..798acb8 100644
 --- a/crates/component/src/diff/state.rs
 +++ b/crates/component/src/diff/state.rs
 @@ -13,11 +13,16 @@ use gpui::{
@@ -1717,7 +2256,17 @@ index ba0f1f7..b906a94 100644
      /// Sets the longest line, in bytes, given syntax emphasis. Default is 1,000.
      pub fn with_syntax_max_line_length(mut self, length: usize) -> Self {
          self.presentation_options.syntax_max_line_length = length;
-@@ -531,6 +579,20 @@ impl DiffState {
+@@ -516,7 +564,8 @@ impl DiffState {
+     pub(crate) fn rows(&self) -> &Rc<Vec<DisplayRow>> {
+         &self.rows
+     }
+-    pub(crate) fn list(&self) -> &ListState {
++    /// The rows' list, for an owner drawing its own scrollbar.
++    pub fn list(&self) -> &ListState {
+         &self.list
+     }
+     pub(crate) fn horizontal_scroll(&self) -> &ScrollHandle {
+@@ -531,6 +580,20 @@ impl DiffState {
      pub(crate) fn presentations(&self) -> &[Option<Arc<FilePresentation>>] {
          &self.presentations
      }
@@ -1738,7 +2287,7 @@ index ba0f1f7..b906a94 100644
      /// The body's size as of the last paint.
      pub(crate) fn viewport(&self) -> Size<Pixels> {
          self.viewport
-@@ -623,24 +685,45 @@ impl DiffState {
+@@ -623,24 +686,45 @@ impl DiffState {
          cx.notify();
      }
  
@@ -1796,7 +2345,7 @@ index ba0f1f7..b906a94 100644
      /// The resolution of conflict `ix` in the file at `path`, if any.
      /// Use [`DiffFile::conflicts`] to enumerate valid indices; `None` means
      /// unresolved, or that the file or index does not exist.
-@@ -1367,9 +1450,172 @@ impl DiffState {
+@@ -1367,9 +1451,172 @@ impl DiffState {
      /// Discards prepared emphasis after files or options change.
      fn reset_presentation(&mut self) {
          self.presentations = vec![None; self.files.len()];

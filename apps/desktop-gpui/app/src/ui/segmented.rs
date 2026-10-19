@@ -5,8 +5,8 @@
 
 use std::rc::Rc;
 
-use gpui_kit::component::{h_flex, Icon, Sizable as _};
-use gpui_kit::{point, prelude::*, px, App, BoxShadow, FocusHandle, KeyDownEvent, Pixels, SharedString, Window};
+use gpui_kit::component::{h_flex, ActiveTheme as _, Icon, Sizable as _};
+use gpui_kit::{div, point, prelude::*, px, App, BoxShadow, FocusHandle, KeyDownEvent, Pixels, SharedString, Window};
 
 use super::controls::bevel;
 use super::icons::Glyph;
@@ -22,6 +22,8 @@ const SEGMENT_RADIUS: Pixels = px(8.);
 struct Segment {
     label: SharedString,
     glyph: Option<Glyph>,
+    /// A count after the label, in the muted mono.
+    count: Option<SharedString>,
     /// Why the segment cannot be picked here, where it cannot.
     held: Option<SharedString>,
 }
@@ -61,19 +63,25 @@ impl Segmented {
     }
 
     pub fn segment(mut self, label: impl Into<SharedString>) -> Self {
-        self.segments.push(Segment { label: label.into(), glyph: None, held: None });
+        self.segments.push(Segment { label: label.into(), glyph: None, count: None, held: None });
+        self
+    }
+
+    /// A segment with its count after the label, `font-mono text-xs` in the muted ink.
+    pub fn count_segment(mut self, label: impl Into<SharedString>, count: impl Into<SharedString>) -> Self {
+        self.segments.push(Segment { label: label.into(), glyph: None, count: Some(count.into()), held: None });
         self
     }
 
     /// A segment led by its glyph, by default 16 px and 8 px before the label.
     pub fn glyph_segment(mut self, glyph: Glyph, label: impl Into<SharedString>) -> Self {
-        self.segments.push(Segment { label: label.into(), glyph: Some(glyph), held: None });
+        self.segments.push(Segment { label: label.into(), glyph: Some(glyph), count: None, held: None });
         self
     }
 
     /// A segment that cannot be picked here, at half strength, saying why on its hover.
     pub fn held_segment(mut self, label: impl Into<SharedString>, why: impl Into<SharedString>) -> Self {
-        self.segments.push(Segment { label: label.into(), glyph: None, held: Some(why.into()) });
+        self.segments.push(Segment { label: label.into(), glyph: None, count: None, held: Some(why.into()) });
         self
     }
 
@@ -90,7 +98,7 @@ impl Segmented {
         self
     }
 
-    /// The glyphs' size and the gap after them.
+    /// The glyphs' size and the gap after them, and before a count.
     pub fn glyph_size(mut self, size: Pixels, gap: Pixels) -> Self {
         self.glyph = (size, gap);
         self
@@ -206,6 +214,14 @@ impl RenderOnce for Segmented {
                     })
                     .children(segment.glyph.map(|g| Icon::new(g).with_size(glyph)))
                     .child(segment.label)
+                    .children(segment.count.map(|n| {
+                        div()
+                            .debug_selector(|| "segment-count".into())
+                            .font_family(cx.theme().mono_font_family.clone())
+                            .text_size(px(12.))
+                            .text_color(p.muted_foreground)
+                            .child(n)
+                    }))
                     .when_some(on_pick, |el, f| {
                         el.on_click(move |_, window, cx| {
                             window.focus(&focus, cx);

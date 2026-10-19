@@ -73,7 +73,7 @@ impl PullRequestScreen {
                     .flex_none()
                     .justify_end()
                     .opacity(0.85)
-                    .children(row.lines.map(|(a, d)| parts::stat_whole(a, d, px(12.), cx)));
+                    .children(row.lines.map(|(a, d)| parts::stat_whole(a, d, px(12.), px(8.), cx)));
                 let line = h_flex()
                     .id(SharedString::from(format!("pr-commit-{}", row.oid)))
                     .debug_selector(|| "pr-commit".into())
@@ -93,7 +93,7 @@ impl PullRequestScreen {
                         });
                     })
                     .child(h_flex().w(RAIL).h(px(36.)).flex_none().justify_center().child(dot))
-                    .child(parts::face(&row.author, FACE, false, cx))
+                    .child(parts::face(&row.author, FACE, false, None, cx))
                     .child(subject)
                     .child(lines)
                     .child(

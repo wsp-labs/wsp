@@ -4,7 +4,7 @@
 # stylesheet and themes) with apps/web's vite, serves it on 127.0.0.1, and shoots web-paper.png, web-graphite.png,
 # web-paper-split.png and web-graphite-split.png in headless Chrome at --force-device-scale-factor=2, 800 x 700.
 # pr_diff_shots.rs reads them through DIFF_WEB. Chrome and the server run with a cleared environment and a HOME of
-# their own; the script stops only the pids it started.
+# their own; the script stops only the pids it started. Scrollbars show, as the app draws them.
 set -eu
 # Headless Chrome reaches Google's servers from a fresh profile whatever its flags, so on Linux the run goes into a
 # network namespace holding only loopback, as web.sh's does; the page and its server need nothing else.
@@ -50,7 +50,7 @@ for theme in paper graphite; do
   for mode in stacked split; do
     name=web-$theme.png
     [ "$mode" = split ] && name=web-$theme-split.png
-    env -i PATH=/usr/bin:/bin HOME="$work/home" timeout 90 "$chrome" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+    env -i PATH=/usr/bin:/bin HOME="$work/home" timeout 90 "$chrome" --headless=new --no-sandbox --disable-gpu \
       --user-data-dir="$work/home/chrome" --force-device-scale-factor=2 --window-size=800,700 --virtual-time-budget=20000 \
       --screenshot="$out/$name" "http://127.0.0.1:$port/index.html?theme=$theme&mode=$mode" >/dev/null 2>&1
     echo "diff_web.sh: $out/$name"

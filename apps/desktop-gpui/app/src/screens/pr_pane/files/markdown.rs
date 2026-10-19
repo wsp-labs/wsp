@@ -4,9 +4,14 @@
 //! it, raw HTML stays as its words, as react-markdown leaves it without rehype-raw, and only an http or https link
 //! opens; any other is plain primary text.
 
+use gpui_kit::base::text::{InlineCodeFrame, ListStyleType};
+use gpui_kit::base::TextViewStyle as BaseStyle;
 use gpui_kit::component::text::{markdown_ast::Node, MarkdownNode, MarkdownParseContext, MarkdownPlugin, TextView, TextViewState};
 use gpui_kit::component::ActiveTheme as _;
-use gpui_kit::{div, prelude::*, px, App, ClickEvent, Entity, MouseButton, SharedString, Window};
+use gpui_kit::{
+    div, prelude::*, px, rems, App, ClickEvent, Entity, FontWeight, HighlightStyle, Hsla, MouseButton, Pixels, SharedString,
+    StyleRefinement, Window,
+};
 
 use crate::ui::ActivePalette as _;
 
@@ -129,9 +134,53 @@ impl MarkdownPlugin for RawHtml {
     }
 }
 
+/// `PROSE`'s blocks: 12 px apart (`my-3`), lists `pl-6` with `my-1` items and Blink's markers, inline code at 0.85em
+/// on the muted fill with `px-1 py-0.5` and 4 px corners, headings semibold with Tailwind's sizes and margins, h5 and
+/// h6 as the preflight leaves them, in the body's ink. The preview's padding keeps the first heading's `margin-top`.
+fn prose(style: BaseStyle, muted: Hsla, ink: Hsla, rem: Pixels) -> BaseStyle {
+    blink_lists(style, px(24.), px(4.), ink)
+        .with_paragraph_gap(rems(12. / f32::from(rem)))
+        .with_inline_code(HighlightStyle { background_color: Some(muted), ..Default::default() })
+        .with_inline_code_frame(code_box(0.85, px(4.), px(2.)))
+        .with_leading_margin(true)
+        .with_heading(move |level| {
+            let (size, line, top) = match level {
+                1 => (px(24.), px(32.), px(24.)),
+                2 => (px(20.), px(28.), px(24.)),
+                3 => (px(16.), px(24.), px(20.)),
+                4 => (px(14.), px(24.), px(16.)),
+                _ => (px(14.), px(24.), px(0.)),
+            };
+            let heading = StyleRefinement::default().text_size(size).line_height(line).mt(top).mb(px(12.));
+            if level > 4 {
+                heading.font_weight(FontWeight::NORMAL).text_color(ink)
+            } else {
+                heading
+            }
+        })
+}
+
+/// Lists `indent` in with `gap` above each item but the first, marked as Blink marks an outside list: discs, circles
+/// and squares by depth in the item's `ink`, a number ending a space before the text.
+pub fn blink_lists(style: BaseStyle, indent: Pixels, gap: Pixels, ink: Hsla) -> BaseStyle {
+    style
+        .with_list_indent(indent)
+        .with_list_item_gap(gap)
+        .with_list_marker(StyleRefinement::default().pr(px(3.9)).text_color(ink))
+        .with_list_markers([ListStyleType::Disc, ListStyleType::Circle, ListStyleType::Square], Vec::new())
+        .with_device_pixel_list_markers(true)
+}
+
+/// Inline code as a CSS inline box: `scale` of the text, its tint over the code font's ascent and descent grown by
+/// `padding_x` and `padding_y`, with 4 px corners.
+pub fn code_box(scale: f32, padding_x: Pixels, padding_y: Pixels) -> InlineCodeFrame {
+    InlineCodeFrame { scale, size: None, padding_x, padding_y: Some(padding_y), radius: Some(px(4.)), border: None }
+}
+
 /// The rendered file, `max-w-4xl` centered, `px-6 py-5`, 14 px at a 24 px line.
 pub fn preview(state: &Entity<TextViewState>, cx: &App) -> impl IntoElement {
     let p = cx.palette();
+    let (muted, rem, ink) = (p.muted, cx.theme().font_size, p.foreground);
     div().w_full().flex().justify_center().child(
         div()
             .debug_selector(|| "markdown-preview".into())
@@ -149,7 +198,8 @@ pub fn preview(state: &Entity<TextViewState>, cx: &App) -> impl IntoElement {
                     .plugin(DeadLink)
                     .plugin(RawHtml { block: false })
                     .plugin(RawHtml { block: true })
-                    .on_link_click(on_link),
+                    .on_link_click(on_link)
+                    .base_style(move |style| prose(style, muted, ink, rem)),
             ),
     )
 }

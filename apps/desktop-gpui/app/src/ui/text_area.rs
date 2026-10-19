@@ -2,13 +2,18 @@
 //! The multi-line field, gpui-kit's textarea in today's looks: the field (`components/ui/textarea.tsx`, the commit box
 //! and the review's summary), a line comment's field (`DiffCommentAnnotation.tsx`) and the bare field a framed box
 //! holds (`ThreadActs.tsx`'s reply and comment box). It grows with its words from its floor to `MAX_ROWS` lines, then
-//! scrolls; Cmd or Ctrl and Enter submits and Escape cancels when the caller hooks them.
+//! scrolls; Cmd or Ctrl and Enter submits and Escape cancels when the caller hooks them. The field and the comment's
+//! carry the browser's resize grip in their corner (preflight's `resize: vertical`), which drags their height.
 
+use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui_kit::component::input::{Enter, Escape, Textarea, TextareaState};
 use gpui_kit::component::{v_flex, ActiveTheme as _, Sizable as _};
-use gpui_kit::{div, prelude::*, px, App, Entity, FocusHandle, Focusable as _, MouseButton, Pixels, SharedString, Window};
+use gpui_kit::{
+    canvas, div, point, prelude::*, px, relative, App, Bounds, CursorStyle, DragMoveEvent, ElementId, Empty, Entity, FocusHandle,
+    Focusable as _, Hsla, MouseButton, PathBuilder, Pixels, SharedString, Window,
+};
 
 use super::controls::Dim;
 use super::size;
@@ -21,6 +26,13 @@ pub const MAX_ROWS: usize = 12;
 const KIT_PAD_X: Pixels = px(4.);
 
 type Hook = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
+
+/// Chromium's resizer: the scrollbar's 15 px square in the corner inside the edge.
+const GRIP: Pixels = px(15.);
+
+/// What a drag on a field's grip carries: the field's id.
+#[derive(Clone)]
+struct Grip(SharedString);
 
 /// Which of today's textareas it draws as.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -51,6 +63,11 @@ impl Look {
             // `leading-normal` at 13.5 px.
             Look::Bare => Spec { pad_x: px(10.), pad_y: px(8.), floor: px(52.), text: (px(13.5), px(20.25)), edged: false },
         }
+    }
+
+    /// `ThreadActs.tsx` sets `resize-none` on the bare field; the other two keep preflight's grip.
+    fn resizes(self) -> bool {
+        self != Look::Bare
     }
 }
 
@@ -117,7 +134,7 @@ impl TextArea {
         self
     }
 
-    /// A floor other than the look's, inside the edge: the commit box's `min-h-24`.
+    /// A floor other than the look's, inside the edge.
     pub fn min_height(mut self, floor: Pixels) -> Self {
         self.floor = Some(floor);
         self
@@ -183,7 +200,13 @@ impl RenderOnce for TextArea {
         } else {
             (edge, fill, p.foreground)
         };
+        // Preflight's `::placeholder`: the text's own ink at half.
+        self.state.update(cx, |s, cx| s.set_placeholder_color(Some(p.foreground.opacity(0.5)), cx));
         let edge_w = if spec.edged { px(1.) } else { px(0.) };
+        let resizes = self.look.resizes();
+        let dragged = window.use_keyed_state(ElementId::from((ElementId::from(self.id.clone()), "height")), cx, |_, _| None::<Pixels>);
+        let grab = window.use_keyed_state(ElementId::from((ElementId::from(self.id.clone()), "grab")), cx, |_, _| px(0.));
+        let height = *dragged.read(cx);
         let mono = self.mono.then(|| cx.theme().mono_font_family.clone());
         let field = Textarea::new(&self.state)
             .appearance(false)
@@ -192,15 +215,19 @@ impl RenderOnce for TextArea {
             .text_size(text_size)
             .line_height(line)
             .text_color(ink)
-            .when_some(mono, |el, family| el.font_family(family));
+            .when_some(mono, |el, family| el.font_family(family))
+            .when(height.is_some(), |el| el.h(relative(1.)));
         let state = self.state.clone();
+        let grip = resizes.then(|| grip(self.id.clone(), grab.clone(), edge_w));
+        let (area, least) = (self.id.clone(), floor + edge_w * 2.);
         v_flex()
             .id(self.id)
             .debug_selector(|| "text-area".into())
             .key_context("TextArea")
             .relative()
             .w_full()
-            .min_h(floor + edge_w * 2.)
+            .min_h(least)
+            .when_some(height, |el, h| el.h(h))
             .px(spec.pad_x - KIT_PAD_X)
             .py(spec.pad_y)
             .rounded(size::BUTTON_RADIUS)
@@ -232,7 +259,59 @@ impl RenderOnce for TextArea {
                     f(window, cx);
                 })
             })
+            .when(resizes, |el| {
+                el.on_drag_move(move |e: &DragMoveEvent<Grip>, window, cx| {
+                    if e.drag(cx).0 != area {
+                        return;
+                    }
+                    let h = (e.event.position.y - e.bounds.origin.y + *grab.read(cx)).max(least);
+                    dragged.update(cx, |d, _| *d = Some(h));
+                    window.refresh();
+                })
+            })
             .child(field)
+            .children(grip)
             .when(self.disabled, |el| el.child(div().absolute().inset_0().occlude()))
     }
+}
+
+/// The resizer Chromium paints in a textarea's corner: two diagonal strokes in black at 60%, each with a white one at
+/// 60% a pixel under it, the same in every theme. Dragging it sets the field's height; `grab` keeps the pointer's
+/// distance from the field's foot.
+fn grip(id: SharedString, grab: Entity<Pixels>, edge: Pixels) -> impl IntoElement {
+    // A drag starts some pixels after the press, so the press is where the pointer's distance is read.
+    let drawn = Rc::new(Cell::new(Bounds::default()));
+    let at = drawn.clone();
+    div()
+        .id(ElementId::from((ElementId::from(id.clone()), "grip")))
+        .debug_selector(|| "text-area-grip".into())
+        .absolute()
+        .right_0()
+        .bottom_0()
+        .size(GRIP)
+        .cursor(CursorStyle::ResizeUpDown)
+        .on_mouse_down(MouseButton::Left, move |e, _, cx| {
+            cx.stop_propagation();
+            grab.update(cx, |g, _| *g = at.get().bottom() + edge - e.position.y);
+        })
+        .on_drag(Grip(id), |_, _, _, cx| cx.new(|_| Empty))
+        .child(canvas(move |bounds, _, _| drawn.set(bounds), |bounds, _, window, _| paint_grip(bounds, window)).size_full())
+}
+
+fn paint_grip(bounds: Bounds<Pixels>, window: &mut Window) {
+    let corner = bounds.bottom_right();
+    // Read off today's at scale 2: each stroke's centre line, from its top end to its foot, from the inner corner.
+    let strokes = [((-0.65, -8.), (-7.65, -1.)), ((-0.65, -4.5), (-4.15, -1.))];
+    let ink = |down: f32, color: Hsla, window: &mut Window| {
+        for ((x0, y0), (x1, y1)) in strokes {
+            let mut line = PathBuilder::stroke(px(0.71));
+            line.move_to(point(corner.x + px(x0), corner.y + px(y0 + down)));
+            line.line_to(point(corner.x + px(x1), corner.y + px(y1 + down)));
+            if let Ok(path) = line.build() {
+                window.paint_path(path, color);
+            }
+        }
+    };
+    ink(0., gpui_kit::black().opacity(0.6), window);
+    ink(1., gpui_kit::white().opacity(0.6), window);
 }

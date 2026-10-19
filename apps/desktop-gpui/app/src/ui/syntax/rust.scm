@@ -8,8 +8,13 @@
 ; Identifier conventions
 
 ; Assume all-caps names are constants
-((identifier) @constant
- (#match? @constant "^[A-Z][A-Z\\d_]+$"))
+((identifier) @constant.other
+ (#match? @constant.other "^[A-Z][A-Z\\d_]+$"))
+
+; A tuple variant is drawn as a call, its body read off the text: a body field ends the match after the rule below
+((enum_variant
+  name: (identifier) @function) @_variant
+ (#match? @_variant "^\\w+\\s*\\("))
 
 ; Assume uppercase names are enum constructors
 ((identifier) @constructor
