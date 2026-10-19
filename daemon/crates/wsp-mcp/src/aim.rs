@@ -117,9 +117,7 @@ pub fn aimed(state: &Path, pick: &Pick) -> Result<Aim, Failure> {
     if serving(state).is_some() {
         return Ok(Aim::Here);
     }
-    let own = beside(state, &names.files.relay).and_then(|path| read_json::<Relay>(&path)).map(|r| r.host_id);
-    let held: Vec<(String, HostRecord)> =
-        account_records(&pick.home).into_iter().filter(|(_, r)| Some(&r.via.host_id) != own.as_ref()).collect();
+    let held = account_hosts(state, &pick.home);
     match held.as_slice() {
         [] => Ok(Aim::Here),
         [(alias, record)] => keyed(Aim::Alias { alias: alias.clone(), record: record.clone() }, alias),
@@ -128,6 +126,13 @@ pub fn aimed(state: &Path, pick: &Pick) -> Result<Aim, Failure> {
             Err(Failure::usage(fill(&words.several_hosts, &[("count", &aliases.len().to_string()), ("aliases", &aliases.join(", "))])))
         }
     }
+}
+
+/// Every host on the account this computer holds a record of, less the host this state file serves, whose record
+/// names the host id in the relay record beside it (`accountHosts`).
+pub fn account_hosts(state: &Path, home: &Path) -> Vec<(String, HostRecord)> {
+    let own = beside(state, &record::host().files.relay).and_then(|path| read_json::<Relay>(&path)).map(|r| r.host_id);
+    account_records(home).into_iter().filter(|(_, r)| Some(&r.via.host_id) != own.as_ref()).collect()
 }
 
 /// The address, token and pinned key a turn's launch left for it, where both of the first two are there.

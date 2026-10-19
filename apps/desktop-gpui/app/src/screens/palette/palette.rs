@@ -321,7 +321,7 @@ impl Palette {
             }
             Go::Project(id) => {
                 if let Some(workspace) = self.seen.projects.iter().find(|p| p.id == id).and_then(|p| p.workspace.clone()) {
-                    navigate(Route::Screen(format!("composer:{workspace}").into()), cx);
+                    crate::screens::app_shell::open_home(workspace, cx);
                 }
             }
             Go::Act(index) => {

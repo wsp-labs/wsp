@@ -248,33 +248,33 @@ impl Render for Empty {
     }
 }
 
-/// Catches: a zoom chord that leaves the rem where it was, or a window that does not follow the run's zoom.
+/// Catches: a zoom chord that leaves the window's zoom where it was, or a window that does not follow the run's zoom.
 #[gpui_kit::test]
-fn the_zoom_chords_move_every_windows_rem(cx: &mut TestAppContext) {
+fn the_zoom_chords_zoom_every_window(cx: &mut TestAppContext) {
     cx.update(|cx| {
         gpui_kit::init(cx);
         desktop_gpui::ui::init(desktop_gpui::ui::Side::Dark, cx);
         frame::init(cx);
-        desktop_gpui::desktop::zoom::init(cfg!(target_os = "macos"), cx);
+        desktop_gpui::desktop::zoom::init(desktop_gpui::screens::app_shell::menu::Os::Mac, cx);
     });
     let (_, vcx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| Empty::new(window, cx));
         Root::new(view, window, cx)
     });
     vcx.run_until_parked();
-    let m = if cfg!(target_os = "macos") { "cmd" } else { "ctrl" };
-    let rem = |vcx: &mut gpui_kit::VisualTestContext| vcx.update(|window, _| window.rem_size());
-    let near = |got: Pixels, want: f32| assert!((f32::from(got) - want).abs() < 1e-3, "rem {got:?}, not {want}");
-    near(rem(vcx), 16.);
+    let m = "cmd";
+    let zoom = |vcx: &mut gpui_kit::VisualTestContext| vcx.update(|window, _| window.zoom());
+    let near = |got: f32, want: f32| assert!((got - want).abs() < 1e-6, "zoom {got}, not {want}");
+    near(zoom(vcx), 1.);
     vcx.simulate_keystrokes(&format!("{m}-="));
     vcx.run_until_parked();
-    near(rem(vcx), 16. * 1.2f32.sqrt());
+    near(zoom(vcx), 1.2f32.sqrt());
     vcx.simulate_keystrokes(&format!("{m}-- {m}--"));
     vcx.run_until_parked();
-    near(rem(vcx), 16. / 1.2f32.sqrt());
+    near(zoom(vcx), 1. / 1.2f32.sqrt());
     vcx.simulate_keystrokes(&format!("{m}-0"));
     vcx.run_until_parked();
-    near(rem(vcx), 16.);
+    near(zoom(vcx), 1.);
 }
 
 /// A focused terminal with its own zoom binding, as the shell binds `terminal.zoomIn`, counting the presses it takes.
@@ -294,14 +294,14 @@ impl Render for Terminal {
 /// Catches: the window's zoom taking the chord from a focused terminal, whose text size it means there.
 #[gpui_kit::test]
 fn a_focused_terminal_keeps_the_zoom_chords(cx: &mut TestAppContext) {
-    let m = if cfg!(target_os = "macos") { "cmd" } else { "ctrl" };
+    let m = "cmd";
     cx.update(|cx| {
         gpui_kit::init(cx);
         desktop_gpui::ui::init(desktop_gpui::ui::Side::Dark, cx);
         frame::init(cx);
         // Bound first, so the window's chord, bound after it, would win a tie of depth.
         cx.bind_keys([gpui_kit::KeyBinding::new(&format!("{m}-="), keys::ZoomInTerminal, Some(keys::TERMINAL))]);
-        desktop_gpui::desktop::zoom::init(cfg!(target_os = "macos"), cx);
+        desktop_gpui::desktop::zoom::init(desktop_gpui::screens::app_shell::menu::Os::Mac, cx);
     });
     let took = std::rc::Rc::new(Cell::new(0));
     let counted = took.clone();
@@ -317,7 +317,7 @@ fn a_focused_terminal_keeps_the_zoom_chords(cx: &mut TestAppContext) {
     vcx.simulate_keystrokes(&format!("{m}-="));
     vcx.run_until_parked();
     assert_eq!(took.get(), 1, "the terminal took the press");
-    assert_eq!(vcx.update(|window, _| window.rem_size()), px(16.), "and the window did not zoom");
+    assert_eq!(vcx.update(|window, _| window.zoom()), 1., "and the window did not zoom");
 }
 
 /// Pumps the window until `done` holds, up to 30 s.

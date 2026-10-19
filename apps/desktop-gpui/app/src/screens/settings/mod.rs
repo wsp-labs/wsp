@@ -532,6 +532,7 @@ impl SettingsScreen {
 
     /// Moves to a page; the search is cleared, as the web's `go` does.
     pub fn go(&mut self, at: At, window: &mut Window, cx: &mut Context<Self>) {
+        crate::screens::app_shell::shut_sidebar_sheet(cx);
         kept::keep(self.window.window_id(), &at, cx);
         self.at = at;
         self.level = None;
