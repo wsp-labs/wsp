@@ -13,9 +13,9 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{
-    anchored, canvas, deferred, div, fill, font, point, prelude::*, px, quad, relative, size, transparent_black, Anchor,
-    AnchoredPositionMode, App, BorderStyle, Bounds, DispatchPhase, ElementId, Entity, Hitbox, HitboxBehavior, Hsla, MouseExitEvent,
-    MouseMoveEvent, PathBuilder, PathStyle, Pixels, Point, RenderImage, Rgba, SharedString, StrokeOptions, TextRun, Window,
+    anchored, canvas, deferred, div, font, point, prelude::*, px, quad, relative, size, transparent_black, Anchor, AnchoredPositionMode,
+    App, BorderStyle, Bounds, DispatchPhase, ElementId, Entity, Hitbox, HitboxBehavior, Hsla, MouseExitEvent, MouseMoveEvent, PathBuilder,
+    PathStyle, Pixels, Point, RenderImage, Rgba, SharedString, StrokeOptions, TextRun, Window,
 };
 use image::{Frame as ImageFrame, ImageBuffer};
 use lyon::tessellation::{LineCap, LineJoin};
@@ -320,37 +320,21 @@ fn blend(pixel: &mut [u8], ink: Rgba, a: f64) {
     pixel[3] = (out * 255.).round() as u8;
 }
 
-/// What the ground is drawn from: the fills and their inks, the gridlines' ink and count, and the scale.
+/// What the ground is drawn from: the fills and their inks, and the scale.
 struct Ground<'a> {
     fills: Vec<Fill<'a>>,
     inks: Vec<Hsla>,
-    grid: Hsla,
-    parts: usize,
     top: f64,
 }
 
 impl Ground<'_> {
-    /// The gridlines and the dither at device scale as Chrome draws them, rasterised once: a quad a cell costs 9 ms a frame.
+    /// The dither at device scale as Chrome's canvas draws it, rasterised once: a quad a cell costs 9 ms a frame.
     fn image(&self, w: f64, h: f64, scale: f64) -> Option<Arc<RenderImage>> {
         let (dw, dh) = ((w * scale).round() as usize, (h * scale).round() as usize);
         if dw == 0 || dh == 0 {
             return None;
         }
         let mut bgra = vec![0u8; dw * dh * 4];
-        let grid_ink = Rgba::from(self.grid);
-        let parts = self.parts.max(1);
-        // The web's gridlines are 1 px strokes centred on their level, dashed 2 on 4 from the plot's left.
-        for g in 0..=parts {
-            let level = h - PAD - g as f64 / parts as f64 * (h - PAD * 2.);
-            let (y0, y1) = ((level - 0.5) * scale, (level + 0.5) * scale);
-            for row in (y0.floor().max(0.) as usize)..(y1.ceil() as usize).min(dh) {
-                let cover = (y1.min(row as f64 + 1.) - y0.max(row as f64)).max(0.);
-                for dx in (0..dw).filter(|dx| g == 0 || (*dx as f64 / scale) % 6. < 2.) {
-                    let at = (row * dw + dx) * 4;
-                    blend(&mut bgra[at..at + 4], grid_ink, cover * grid_ink.a as f64);
-                }
-            }
-        }
         let inks: Vec<(Rgba, f64)> = self
             .fills
             .iter()
@@ -380,8 +364,8 @@ impl Ground<'_> {
 
     fn key(&self, w: f64, h: f64, scale: f32) -> u64 {
         let mut hasher = DefaultHasher::new();
-        (self.top.to_bits(), w.to_bits(), h.to_bits(), scale.to_bits(), self.parts).hash(&mut hasher);
-        self.inks.iter().chain([&self.grid]).flat_map(|ink| [ink.h, ink.s, ink.l, ink.a]).for_each(|c| c.to_bits().hash(&mut hasher));
+        (self.top.to_bits(), w.to_bits(), h.to_bits(), scale.to_bits()).hash(&mut hasher);
+        self.inks.iter().flat_map(|ink| [ink.h, ink.s, ink.l, ink.a]).for_each(|c| c.to_bits().hash(&mut hasher));
         for (points, below) in &self.fills {
             points.len().hash(&mut hasher);
             points.iter().chain(below.iter().flat_map(|b| b.iter())).for_each(|v| v.to_bits().hash(&mut hasher));
@@ -433,7 +417,7 @@ impl Plot {
             Vec::new()
         };
         let inks = self.order.iter().map(|&i| self.lines[i].1).collect();
-        let ground = Ground { fills, inks, grid: self.grid, parts: self.parts, top: self.top };
+        let ground = Ground { fills, inks, top: self.top };
         // The web's canvas is as wide as its rounded client width, and stretched over the plot's true width.
         let key = ground.key(w.round() as f64, h as f64, scale);
         let cached = self.state.read(cx).ground.as_ref().filter(|(k, _)| *k == key).map(|(_, image)| image.clone());
@@ -448,6 +432,11 @@ impl Plot {
                 image
             }
         };
+        let parts = self.parts.max(1);
+        for g in 0..=parts {
+            let level = h as f64 - PAD - g as f64 / parts as f64 * (h as f64 - PAD * 2.);
+            stroke_line(window, &[at(0., level), at(w, level)], 1., (g > 0).then_some((2., 4.)), self.grid);
+        }
         if let Some(image) = image {
             window.paint_image(bounds, bounds, Default::default(), image, 0, false).ok();
         }
@@ -475,7 +464,7 @@ impl Plot {
         }
 
         if let Some(i) = self.hovered {
-            hairline(window, at(x_of(i), 0.), bounds.size.height, self.crosshair);
+            stroke_line(window, &[at(x_of(i), 0.), at(x_of(i), h as f64)], 1., None, self.crosshair);
         }
         if let Some(lead) = lead.filter(|_| self.n > 0) {
             let step = self.hovered.unwrap_or(self.n - 1);
@@ -500,9 +489,23 @@ impl Plot {
     }
 }
 
-/// The hover line, 1 px wide and centred on its step.
-fn hairline(window: &mut Window, top: Point<Pixels>, height: Pixels, ink: Hsla) {
-    window.paint_quad(fill(Bounds::new(point(top.x - px(0.5), top.y), size(px(1.), height)), ink));
+/// A straight stroke `width` wide, dashed `(on, off)` from its start, in points: the web's `non-scaling-stroke` cancels
+/// only its viewBox's stretch, and Electron at scale 2 draws a 1 px line two device rows thick.
+pub(super) fn stroke_line(window: &mut Window, points: &[Point<Pixels>], width: f32, dash: Option<(f32, f32)>, ink: Hsla) {
+    let mut path = PathBuilder::stroke(px(width));
+    if let Some((on, off)) = dash {
+        path = path.dash_array(&[px(on), px(off)]);
+    }
+    for (i, p) in points.iter().enumerate() {
+        if i == 0 {
+            path.move_to(*p);
+        } else {
+            path.line_to(*p);
+        }
+    }
+    if let Ok(path) = path.build() {
+        window.paint_path(path, ink);
+    }
 }
 
 fn hover(state: &Entity<ChartState>, next: Option<usize>, cx: &mut App) {
@@ -877,10 +880,10 @@ mod tests {
     }
 
     #[test]
-    fn the_ground_covers_cells_and_gridlines_as_chrome_does() {
-        let (ink, grid) = (gpui_kit::rgb(0xff0000).into(), gpui_kit::rgb(0x0000ff).into());
+    fn the_ground_covers_cells_as_chrome_does() {
+        let ink = gpui_kit::rgb(0xff0000).into();
         let points: &[f64] = &[3., 1., 2.];
-        let ground = Ground { fills: vec![(points, None)], inks: vec![ink], grid, parts: 4, top: 4. };
+        let ground = Ground { fills: vec![(points, None)], inks: vec![ink], top: 4. };
         let image = ground.image(16., 40., 2.).unwrap();
         assert_eq!((image.size(0).width.0, image.size(0).height.0), (32, 80));
         let bytes = image.as_bytes(0).unwrap();
@@ -888,9 +891,6 @@ mod tests {
         // The cell at (0, 13) covers device rows 26..28.8: two whole pixels and four fifths of the third.
         assert_eq!((alpha(0, 27), alpha(1, 27), alpha(2, 27), alpha(2, 28)), (128, 128, 102, 102));
         assert_eq!(alpha(4, 27), 0);
-        // The floor at y 34 is a solid 1 px stroke, two device rows; the gridline at 27 is dashed 2 on 4.
-        assert_eq!((alpha(5, 67), alpha(5, 68), alpha(5, 66), alpha(5, 69)), (255, 255, 0, 0));
-        assert_eq!((alpha(3, 53), alpha(4, 53), alpha(12, 54)), (255, 0, 255));
     }
 
     #[test]

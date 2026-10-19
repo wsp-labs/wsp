@@ -757,3 +757,66 @@ fn the_window_says_the_pages_moments_over_the_system_while_it_has_no_focus(cx: &
     cx.run_until_parked();
     assert_eq!(cx.update(|_, cx| dialogs::layer::top(cx)), Some(dialogs::ADD_COMPUTER), "the sign-in's click opens Add a computer");
 }
+
+/// The page Settings stands on in the shell, once a route has moved it there.
+fn settings_at(cx: &mut VisualTestContext) -> Option<desktop_gpui::screens::settings::model::At> {
+    use desktop_gpui::screens::settings::SettingsScreen;
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        let shell = window.root::<Root>().flatten()?.read(cx).view().clone().downcast::<Shell>().ok()?;
+        let settings = shell.read(cx).screen_view()?.downcast::<SettingsScreen>().ok()?;
+        Some(settings.read(cx).at().clone())
+    })
+}
+
+/// Catches: a computer's notice, a setup's left rows or a sealed build's Open naming a Settings page that does not
+/// exist, so Settings opens wherever it last was instead of on that computer's page.
+#[gpui_kit::test]
+fn each_computer_link_opens_that_computers_own_settings_page(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::dialogs::add_cloud;
+    use desktop_gpui::screens::settings::model::{At, GroupId};
+    let (_server, cx) = live(cx);
+    let p_box = Some(At::Computer("p_box".into()));
+    listed(cx, vec![lab_box("s_left", "running", json!([]))]);
+    let frame = json!({ "type": "place.stage", "placeId": "p_box", "state": "failed", "note": "ssh refused" });
+    cx.update(|window, cx| {
+        let notices = overlays::of(window, cx).expect("the window's overlays").read(cx).notices.clone();
+        notices.update(cx, |n, cx| n.hear(Heard { kind: "place.stage".into(), frame, preferences: None }, window, cx));
+    });
+    cx.run_until_parked();
+    let stage = of_lab_box(cx).pop().and_then(|n| n.action).expect("the failed stage's notice opens its computer");
+    cx.update(|window, cx| (stage.run)(window, cx));
+    assert_eq!(settings_at(cx), p_box, "the host's computer notice opens lab-box's page");
+
+    cx.update(|_, cx| desktop_gpui::screens::navigate(Route::Screen("settings:general".into()), cx));
+    assert_eq!(settings_at(cx), Some(At::Group(GroupId::General)), "Settings leaves lab-box's page");
+    let left = json!([{ "id": "clis/rg", "label": "rg", "outcome": "failed", "step": "clis", "note": "apt refused" }]);
+    setup_runs_out(cx, "s_left", "ready", Some("rg failed"), left);
+    let setup = of_lab_box(cx).into_iter().find(|n| n.detail.is_some()).and_then(|n| n.action).expect("the left rows' notice opens");
+    cx.update(|window, cx| (setup.run)(window, cx));
+    assert_eq!(settings_at(cx), p_box, "a setup's left rows open lab-box's page");
+
+    cx.update(|_, cx| desktop_gpui::screens::navigate(Route::Screen("settings:general".into()), cx));
+    assert_eq!(settings_at(cx), Some(At::Group(GroupId::General)), "Settings leaves lab-box's page");
+    let sealed = add_cloud::open_sealed(Some("p_box".into()), "j_owed_nothing".into());
+    cx.update(|window, cx| (sealed.run)(window, cx));
+    assert_eq!(settings_at(cx), p_box, "a sealed build's Open opens its computer's page");
+}
+
+/// Catches: a computer's notice said over that computer's own Settings page, whose rows say it already.
+#[gpui_kit::test]
+fn a_computer_notice_is_not_said_over_its_own_settings_page(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::settings::model::At;
+    let (_server, cx) = live(cx);
+    listed(cx, vec![lab_box("s_page", "running", json!([]))]);
+    cx.update(|_, cx| desktop_gpui::screens::navigate(Route::Screen("settings:computer:p_box".into()), cx));
+    assert_eq!(settings_at(cx), Some(At::Computer("p_box".into())), "Settings stands on lab-box's page");
+    let frame = json!({ "type": "place.stage", "placeId": "p_box", "state": "failed", "note": "ssh refused" });
+    cx.update(|window, cx| {
+        let notices = overlays::of(window, cx).expect("the window's overlays").read(cx).notices.clone();
+        notices.update(cx, |n, cx| n.hear(Heard { kind: "place.stage".into(), frame, preferences: None }, window, cx));
+    });
+    cx.run_until_parked();
+    let texts: Vec<String> = of_lab_box(cx).iter().map(|n| n.text.to_string()).collect();
+    assert!(texts.is_empty(), "lab-box's page says it: {texts:?}");
+}

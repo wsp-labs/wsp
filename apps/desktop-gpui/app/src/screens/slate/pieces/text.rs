@@ -116,6 +116,7 @@ fn text(p: &PieceCx, cx: &App) -> Option<AnyElement> {
         .when(look.quiet, |d| d.max_w(px(QUIET_MAX)))
         .when(look.medium, |d| d.font_weight(FontWeight::MEDIUM))
         .when(look.mono, |d| d.font_family(cx.theme().mono_font_family.clone()))
+        .when(p.prop("value").is_some_and(|v| v.is_number()), |d| d.font_features(crate::ui::text::tabular()))
         .child(value);
     Some(el.into_any_element())
 }

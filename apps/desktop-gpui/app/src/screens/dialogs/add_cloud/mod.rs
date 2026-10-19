@@ -81,7 +81,7 @@ fn open_ready_owed(provider: &str, job: &str, window: &mut Window, cx: &mut App)
 pub fn open_sealed(place: Option<String>, job: String) -> NoticeAction {
     NoticeAction::new(OPEN, move |window, cx| {
         if !place.as_deref().is_some_and(|p| open_ready_owed(p, &job, window, cx)) {
-            let at = place.as_deref().map_or_else(|| "settings:computers".to_owned(), |p| format!("settings:computers:{p}"));
+            let at = place.as_deref().map_or_else(|| "settings:computers".to_owned(), |p| format!("settings:computer:{p}"));
             navigate(Route::Screen(at.into()), cx);
         }
     })

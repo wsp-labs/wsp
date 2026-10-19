@@ -242,7 +242,7 @@ fn the_tree_lists_the_folder_folders_first_without_ignored_files_and_reads_a_fol
         return;
     }
     assert!(tree.read_with(cx, |t, _| t.menu_open()), "a right-click opens the row's menu");
-    cx.simulate_keystrokes("down down down enter");
+    cx.simulate_keystrokes("down down enter");
     cx.run_until_parked();
     let copied = cx.update(|_, cx| cx.read_from_clipboard().and_then(|c| c.text()));
     assert_eq!(copied.as_deref(), Some(b.as_str()), "Copy path, the menu's third row, copies the file's path");

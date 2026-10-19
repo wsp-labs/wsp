@@ -11,9 +11,8 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{
-    canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, relative, size as gsize, AnyElement, App, Bounds,
-    ClickEvent, Context, ElementId, EntityId, FontWeight, Global, HighlightStyle, Hsla, Pixels, SharedString, StyledText, Task,
-    Transformation, Window,
+    canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, size as gsize, AnyElement, App, Bounds, ClickEvent,
+    Context, ElementId, EntityId, FontWeight, Global, HighlightStyle, Hsla, Pixels, SharedString, StyledText, Task, Transformation, Window,
 };
 
 use super::card::{CardItem, Corners};
@@ -172,23 +171,8 @@ impl RenderOnce for Skeleton {
         });
         let p = cx.palette();
         let glow = p.skeleton_highlight;
-        // GPUI's gradient takes two stops, so the 40-50-60% band is two halves; the web's 120 degree tilt is dropped.
-        let half = |from: Hsla, to: Hsla| {
-            div().absolute().top_0().bottom_0().w(relative(0.1)).bg(linear_gradient(
-                90.,
-                linear_color_stop(from, 0.),
-                linear_color_stop(to, 1.),
-            ))
-        };
-        let sweep = |left: f32| {
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .w_full()
-                .left(relative(left))
-                .child(half(glow.opacity(0.), glow).left(relative(0.4)))
-                .child(half(glow, glow.opacity(0.)).left(relative(0.5)))
+        let sweep = move |left: f32| {
+            canvas(|_, _, _| {}, move |bounds, _, window, _| sweep_band(bounds, left, glow, window)).absolute().size_full()
         };
         div()
             .debug_selector(|| "skeleton".into())
@@ -202,6 +186,30 @@ impl RenderOnce for Skeleton {
             .children(left.map(sweep))
     }
 }
+
+/// The highlight `linear-gradient(120deg, transparent 40%, glow, transparent 60%)` moved `left` of the bar's width
+/// across it. GPUI's gradient takes two stops along one axis, so each device row draws the tilted band's slice through
+/// that row as two level halves, which is the gradient Chrome draws, read at the row's middle.
+fn sweep_band(bounds: Bounds<Pixels>, left: f32, glow: Hsla, window: &mut Window) {
+    let scale = window.scale_factor();
+    let (w, h) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+    let (sin, cos) = (SKELETON_ANGLE.to_radians().sin(), SKELETON_ANGLE.to_radians().cos());
+    // CSS's gradient line runs through the centre at the angle, as long as the box's far corners need.
+    let length = w * sin.abs() + h * cos.abs();
+    for row in 0..(h * scale).ceil() as usize {
+        let (top, bottom) = (row as f32 / scale, ((row + 1) as f32 / scale).min(h));
+        let from_centre = (top + bottom) / 2. - h / 2.;
+        let x_at = |stop: f32| w / 2. + ((stop - 0.5) * length + from_centre * cos) / sin + left * w;
+        for (from, to, ink) in [(0.4, 0.5, (glow.opacity(0.), glow)), (0.5, 0.6, (glow, glow.opacity(0.)))] {
+            let (x0, x1) = (x_at(from), x_at(to));
+            let slice = Bounds::from_corners(bounds.origin + point(px(x0), px(top)), bounds.origin + point(px(x1), px(bottom)));
+            window.paint_quad(fill(slice, linear_gradient(90., linear_color_stop(ink.0, 0.), linear_color_stop(ink.1, 1.))));
+        }
+    }
+}
+
+/// The skeleton highlight's angle, `linear-gradient(120deg, ...)`.
+const SKELETON_ANGLE: f32 = 120.;
 
 /// `RowSkeleton`: one row's room while the card's rows are on their way, a title bar over a line bar on its own card
 /// surface; a card's `body`.

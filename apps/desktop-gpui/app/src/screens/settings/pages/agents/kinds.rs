@@ -252,7 +252,14 @@ fn server_sign_in(row: &McpRow, reach: &str, rows: &Rows) -> Option<Start> {
         LoginLine::Run { line, pasted } => (line, pasted),
     };
     let server = Some((row.name.clone(), row.scope.to_string(), row.project.as_ref().map(|p| p.id.clone())));
-    let run = |finish| Start::Run { agent: row.agent.clone(), server: server.clone(), finish: Some(finish), pastes: true, cloud: false };
+    let run = |finish| Start::Run {
+        agent: row.agent.clone(),
+        server: server.clone(),
+        finish: Some(finish),
+        pastes: true,
+        cloud: false,
+        terminal: false,
+    };
     if reach != "none" {
         return Some(run("callback"));
     }
@@ -1913,6 +1920,7 @@ fn fact_line(f: &Fact, label_for: &str, acts: &Acts, cx: &App) -> CardItem {
                     .cursor_pointer()
                     .text_size(text::VALUE.0)
                     .text_color(p.foreground)
+                    .font_features(text::tabular())
                     .hover(|s| s.underline())
                     .tooltip(tip(href.clone()))
                     .on_click(move |_, _, cx| cx.open_url(&href))

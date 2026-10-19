@@ -128,7 +128,31 @@ const key = chord => ({ say: chord, do: x => x("key", "--clearmodifiers", chord)
 const down = k => ({ say: `${k} down`, do: x => x("keydown", k) });
 const up = k => ({ say: `${k} up`, do: x => x("keyup", k) });
 const type = text => ({ say: `type "${text}"`, do: x => x("type", "--delay", "40", text) });
+/** Grabs until two grabs a beat apart are the same, or `within` ms pass: whether the clip held still. */
+export async function untilStill(grab, same, within, pause = ms => new Promise(done => setTimeout(done, ms)), beat = 700) {
+  let last = grab();
+  for (const end = Date.now() + within; Date.now() < end; ) {
+    await pause(beat);
+    const now = grab();
+    if (same(last, now)) return true;
+    last = now;
+  }
+  return false;
+}
+
+/** A press at a point of the window, in CSS px. */
+const press = (cssX, cssY, what) => ({
+  say: `click ${what}`,
+  do: x => x("getactivewindow", "mousemove", "--window", "%1", String(cssX * SCALE), String(cssY * SCALE), "click", "1"),
+});
+const resize = (w, h) => ({ say: `window at ${w} by ${h}`, do: x => x("getactivewindow", "windowsize", String(w * SCALE), String(h * SCALE)) });
+/** A python server in the thread's terminal, as states.mjs `serve` starts one; port 0 takes any free port. */
+const SERVE = [key("ctrl+j"), type("(python3 -m http.server 0 >/dev/null 2>&1 & s=$!; sleep 300; kill $s) >/dev/null 2>&1 &"), key("Return"), key("ctrl+j")];
+const ACTIVITY = [key("ctrl+k"), type("Activity"), key("Return")];
+// The Processes segment of the views' control at 1280 px, where w1-gpui.mjs's W1-SET-266 pressed it.
+const PROCESSES_VIEW = [{ say: "wait 3 s for Settings to draw", do: () => new Promise(done => setTimeout(done, 3000)) }, press(1081, 25, "the Processes view")];
 const AGES = "relative ages on thread rows";
+const PROCS = "the process rows themselves: pids, cpu and memory figures and which processes run at the moment of the shot";
 const LIVE = "the live readings (load, memory, disk and their plots) and the computer's name, the machine's hostname";
 const EMPTY_PANE = "the clip also changes when the tab opens on a pane with no screen behind it (Nothing open here), so read the pair";
 const MADE_TWICE = "the GPUI side ran the Electron state's data again on the shared host, so it holds one more of what that data makes";
@@ -161,6 +185,11 @@ export const STATES = [
   },
   { id: "W2-PAL-035", open: "data", steps: [key("ctrl+shift+e")], wait: 15_000, settle: 500 },
   { id: "W2-PAL-036", open: "short-1", steps: [key("ctrl+o")], wait: 15_000, settle: 500 },
+  { id: "W2-PAL-023", steps: [key("ctrl+alt+b"), key("p")], wait: 20_000, settle: 3000, moves: [PROCS] },
+  { id: "W2-PAL-025", open: "data", steps: [...SERVE, key("ctrl+alt+b"), key("p")], wait: 20_000, settle: 3000, moves: [PROCS, AGES] },
+  { id: "W2-PAL-027", open: "data", steps: [...SERVE, ...ACTIVITY], wait: 30_000, still: true, settle: 1500, moves: [PROCS, AGES] },
+  { id: "W2-PAL-028", open: "data", steps: [...SERVE, ...ACTIVITY, ...PROCESSES_VIEW], wait: 30_000, still: true, settle: 1500, moves: [PROCS] },
+  { id: "W2-PAL-038", open: "data", steps: [...SERVE, ...ACTIVITY, resize(600, 800)], wait: 30_000, still: true, settle: 1500, moves: [PROCS, AGES] },
   { id: "W2-UNO-016", open: "data", steps: [key("ctrl+alt+b"), key("m")], wait: 20_000, settle: 4000, moves: [LIVE], caveat: EMPTY_PANE },
   { id: "W2-UNO-017", steps: [key("ctrl+alt+b"), key("m")], wait: 20_000, settle: 3000, moves: [LIVE], caveat: EMPTY_PANE },
 ];
@@ -374,10 +403,19 @@ async function main() {
       await sleep(150);
     }
     let changed = false;
-    for (const end = Date.now() + (state.wait ?? 10_000); Date.now() < end; await sleep(300)) if (differing(rest, grab("moving"), "0%") > 0) {
+    const started = Date.now();
+    for (const end = started + (state.wait ?? 10_000); Date.now() < end; await sleep(300)) if (differing(rest, grab("moving"), "0%") > 0) {
       changed = true;
       break;
     }
+    // A loading skeleton sweeps on every frame; a page that has drawn its rows holds still between its samples.
+    let still = true;
+    if (changed && state.still) {
+      let beat = 0;
+      const next = () => grab(`still-${beat++ % 2}`);
+      still = await untilStill(next, (a, b) => differing(a, b, "0%") === 0, started + (state.wait ?? 10_000) - Date.now());
+    }
+    going();
     await sleep(state.settle ?? 800);
     going();
     const file = join(args.out, `${state.id}-${theme}.png`);
@@ -385,6 +423,7 @@ async function main() {
     for (const s of state.after ?? []) await s.do(xdo, host);
     await stopPid(app, "the app");
     const steps = state.steps.map(s => s.say).join(", then ");
+    if (!still) return { file, reason: `the clip never held still within ${(state.wait ?? 10_000) / 1000} s of ${steps}, so it may still be loading` };
     return { file, reason: changed ? undefined : `nothing in the clip changed within ${(state.wait ?? 10_000) / 1000} s of ${steps}, so the screen draws nothing there yet` };
   }
 

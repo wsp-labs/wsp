@@ -6,7 +6,7 @@ use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
     div, point, prelude::*, px, AnyElement, App, BoxShadow, ClickEvent, DefiniteLength, Div, ElementId, Entity, FocusHandle,
-    Focusable as _, FontWeight, Hsla, MouseButton, Pixels, SharedString, Window,
+    Focusable as _, FontWeight, Hsla, MouseButton, Pixels, SharedString, TooltipSide, Window,
 };
 
 use super::card::{framed, glyph_frame, row_frame, word, CardItem, Corners, WordClass};
@@ -102,6 +102,7 @@ pub struct Button {
     busy: bool,
     neutral_ring: bool,
     tooltip: Option<SharedString>,
+    tooltip_side: TooltipSide,
     /// A height other than the size's own: a toolbar's Add stands at 30 px (`h-[30px]`).
     height: Option<Pixels>,
     /// An icon button's side other than its size's: a row menu's 20 px trigger.
@@ -132,6 +133,7 @@ impl Button {
             busy: false,
             neutral_ring: false,
             tooltip: None,
+            tooltip_side: TooltipSide::Top,
             height: None,
             side: None,
             corners: None,
@@ -196,6 +198,7 @@ impl Button {
             busy: false,
             neutral_ring: false,
             tooltip: None,
+            tooltip_side: TooltipSide::Top,
             height: None,
             side: None,
             corners: None,
@@ -314,6 +317,12 @@ impl Button {
     /// The word or sentence on its hover: an icon button's name.
     pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
         self.tooltip = Some(text.into());
+        self
+    }
+
+    /// The side its tooltip opens on where the web's says one other than above: `side="bottom"`.
+    pub fn tooltip_side(mut self, side: TooltipSide) -> Self {
+        self.tooltip_side = side;
         self
     }
 
@@ -437,7 +446,7 @@ impl RenderOnce for Button {
                     .tab_index(0)
                     .focus_visible(|s| s.shadow(vec![ring(ring_ink)]))
                     .on_hover(motion::track_hover(hovered))
-                    .when_some(self.tooltip, |el, t| el.tooltip(tip(t)))
+                    .when_some(self.tooltip, |el, t| el.tooltip(tip(t)).tooltip_side(self.tooltip_side))
                     .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
             })
     }
@@ -561,7 +570,13 @@ fn pick_words(
                         .child(name),
                 )
                 .children(tag.map(|tag| {
-                    div().debug_selector(|| "pick-tag".into()).flex_none().text_size(text::FACT.0).text_color(p.muted_foreground).child(tag)
+                    div()
+                        .debug_selector(|| "pick-tag".into())
+                        .flex_none()
+                        .text_size(text::FACT.0)
+                        .text_color(p.muted_foreground)
+                        .font_features(text::tabular())
+                        .child(tag)
                 }))
                 // The web's marks sit on the name's baseline by their bottom edge: 3.5 px down a 24 px line of 15 px type.
                 .children(marks.map(|marks| div().flex_none().self_start().mt(px(3.5)).child(marks))),

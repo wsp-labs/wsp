@@ -86,6 +86,7 @@ fn held_of(data: &mut Data) -> Data {
         devices: data.devices.take(),
         devices_refused: data.devices_refused,
         image: data.image.take(),
+        product_usage_off: data.product_usage_off.take(),
         ..Data::default()
     }
 }
@@ -99,6 +100,7 @@ fn hold_into(data: &mut Data, held: Data) {
     data.devices = held.devices;
     data.devices_refused = held.devices_refused;
     data.image = held.image;
+    data.product_usage_off = held.product_usage_off;
 }
 
 /// What a notice says: an act that failed, one that went through, or a plain fact.
@@ -912,6 +914,11 @@ async fn read_all(host: &HostClient, tx: &mpsc::UnboundedSender<Arrival>, held: 
             send(Read::SshInclude(host.call(req::<SshIncludeRequest>(json!({}))).await.map(|r: SshInclude| r.ssh_include).map_err(said)))
         }
     };
+    let usage_off = async {
+        if !held {
+            send(Read::UsageOff(usage_off(host).await))
+        }
+    };
     let statuses = async {
         if let Ok(statuses) = host.statuses().await {
             send(Read::Statuses(statuses));
@@ -934,8 +941,17 @@ async fn read_all(host: &HostClient, tx: &mpsc::UnboundedSender<Arrival>, held: 
         image,
         editors,
         ssh,
+        usage_off,
         statuses
     );
+}
+
+/// `bootPayload()?.productUsageOff`: why the host sends no usage counts, off the boot line of the page the host here
+/// serves; none from a host elsewhere, whose page this app does not load, and none where the page did not answer.
+async fn usage_off(host: &HostClient) -> Option<String> {
+    let page = crate::screens::sidebar::host_page(host.state()).filter(|_| host.here())?;
+    let read = tokio::task::spawn_blocking(move || crate::screens::terminal::boot::read_boot_key(&page, "productUsageOff"));
+    read.await.ok()?.ok().flatten().and_then(|off| off.as_str().map(str::to_owned))
 }
 
 impl Render for SettingsScreen {

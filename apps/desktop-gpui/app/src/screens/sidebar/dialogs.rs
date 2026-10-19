@@ -599,7 +599,9 @@ impl Sidebar {
                 .hover(|s| s.bg(p.accent))
                 .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.snooze_until(key.clone(), at, cx)))
                 .child(div().text_size(px(14.)).line_height(px(20.)).child(*label))
-                .child(div().text_size(px(13.)).text_color(p.muted_foreground).child(shown.clone()))
+                .child(
+                    div().text_size(px(13.)).text_color(p.muted_foreground).font_features(crate::ui::text::tabular()).child(shown.clone()),
+                )
                 .into_any_element()
         });
         let custom = h_flex()

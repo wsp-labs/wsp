@@ -2,12 +2,10 @@
 //! The browser pane's More menu (`PreviewMoreMenu.tsx`): Hard reload, Copy URL, Open in system browser and New tab,
 //! a rule, then the Zoom row, whose buttons keep the menu open. Whether it is open is the screen's.
 
-use std::sync::Arc;
-
 use gpui_kit::component::{h_flex, v_flex};
 use gpui_kit::{
-    anchored, deferred, div, point, prelude::*, px, Anchor, AnchoredPositionMode, App, ClickEvent, Div, FocusHandle, FontFeatures, Hsla,
-    KeyDownEvent, Pixels, Point, Stateful, Window,
+    anchored, deferred, div, point, prelude::*, px, Anchor, AnchoredPositionMode, App, ClickEvent, Div, FocusHandle, Hsla, KeyDownEvent,
+    Pixels, Point, Stateful, Window,
 };
 
 use super::bars::percent;
@@ -103,7 +101,7 @@ impl RenderOnce for MoreMenu {
                             .text_center()
                             .text_size(px(12.))
                             .line_height(px(16.))
-                            .font_features(FontFeatures(Arc::new(vec![("tnum".into(), 1)])))
+                            .font_features(crate::ui::text::tabular())
                             .text_color(p.muted_foreground)
                             .child(percent(self.zoom)),
                     )

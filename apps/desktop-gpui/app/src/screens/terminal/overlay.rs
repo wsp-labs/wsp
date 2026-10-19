@@ -41,7 +41,9 @@ pub fn title(title: impl Into<SharedString>, since: Option<Instant>) -> AnyEleme
         .items_baseline()
         .gap(px(6.))
         .child(title.into())
-        .children(since.map(|since| div().debug_selector(|| "terminal-overlay-for".into()).child(seconds_since(since))))
+        .children(since.map(|since| {
+            div().debug_selector(|| "terminal-overlay-for".into()).font_features(crate::ui::text::tabular()).child(seconds_since(since))
+        }))
         .into_any_element()
 }
 

@@ -151,6 +151,7 @@ pub struct Owner {
 pub struct ProcEntry {
     pub pid: Pid,
     pub ppid: Pid,
+    pub user: String,
     pub state: String,
     pub comm: String,
     pub cmdline: String,
@@ -187,6 +188,7 @@ impl ProcEntry {
         Some(ProcEntry {
             pid: int(v, "pid")?,
             ppid: int(v, "ppid")?,
+            user: text(v, "user").unwrap_or_default(),
             state: text(v, "state")?,
             comm: text(v, "comm")?,
             cmdline: text(v, "cmdline")?,
@@ -208,6 +210,7 @@ impl ProcEntry {
         ProcEntry {
             pid,
             ppid,
+            user: String::new(),
             state: "S".into(),
             comm: comm.into(),
             cmdline: cmdline.into(),
@@ -279,6 +282,8 @@ pub struct Snapshot {
     pub at: f64,
     pub daemon: Pid,
     pub procs: Vec<ProcEntry>,
+    /// How many processes the computer had, past the cap the frame lists.
+    pub total: Option<i64>,
     pub seq: Option<i64>,
     pub cost: Option<Cost>,
     pub containers: Option<Vec<Container>>,
@@ -292,6 +297,7 @@ pub struct Changes {
     pub at: f64,
     pub daemon: Pid,
     pub procs: Vec<ProcEntry>,
+    pub total: Option<i64>,
     pub gone: Vec<Pid>,
     pub seq: i64,
     pub base: i64,
@@ -330,6 +336,7 @@ impl Frame {
                 at: num(v, "at")?,
                 daemon: int(v, "daemon")?,
                 procs: rows(v),
+                total: int(v, "total"),
                 seq: int(v, "seq"),
                 cost: cost(v),
                 containers: containers(v),
@@ -339,6 +346,7 @@ impl Frame {
                 at: num(v, "at")?,
                 daemon: int(v, "daemon")?,
                 procs: rows(v),
+                total: int(v, "total"),
                 gone: v.get("gone").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_i64).collect()).unwrap_or_default(),
                 seq: int(v, "seq")?,
                 base: int(v, "base")?,
@@ -368,6 +376,7 @@ pub fn apply_changes(snapshot: &Snapshot, changes: Changes) -> Option<Snapshot> 
         at: changes.at,
         daemon: changes.daemon,
         procs: rows.into_values().collect(),
+        total: changes.total.or(snapshot.total),
         seq: Some(changes.seq),
         cost: changes.cost,
         containers: changes.containers.or_else(|| snapshot.containers.clone()),
@@ -621,6 +630,7 @@ mod tests {
             let want = ProcEntry {
                 pid: theirs.pid.into(),
                 ppid: theirs.ppid.into(),
+                user: theirs.user.clone(),
                 state: theirs.state.clone(),
                 comm: theirs.comm.clone(),
                 cmdline: theirs.cmdline.clone(),
@@ -657,7 +667,7 @@ mod tests {
                 cgroups: Some(vec![CgroupMemory { cgroup: "/wsp.slice/t1".into(), memory: 8192 }]),
             };
             let Some(Frame::Snapshot(s)) = Frame::read(&wire(&event)) else { panic!("the daemon's snapshot does not read") };
-            assert_eq!((s.at, s.daemon, s.seq), (5_000., 9, Some(4)));
+            assert_eq!((s.at, s.daemon, s.seq, s.total), (5_000., 9, Some(4), Some(procs.len() as i64)));
             assert_eq!(s.cost, Some(Cost { cpu_ms: 1.5, held: 640. }));
             assert_eq!(s.cgroups, Some(vec![("/wsp.slice/t1".to_owned(), 8192.)]));
             assert_eq!(s.procs.len(), procs.len());

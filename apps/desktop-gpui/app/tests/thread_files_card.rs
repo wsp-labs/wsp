@@ -311,6 +311,8 @@ fn linked(thread: &str, workspace: &str, href: &str) -> Vec<SessionEvent> {
 /// Says the workspace is a folder on a computer the person joined, as the host's record for one reads.
 fn joined(o: &mut Opened1<'_>) {
     let workspace = o.workspace.clone();
+    let sidebar = o.shell.read_with(o.cx, |s, _| s.sidebar().clone());
+    until(o.cx, "the sidebar's read of the workspace", |cx| sidebar.read_with(cx, |s, _| s.workspace(&workspace).0.is_some()));
     o.shell.update(o.cx, |s, cx| {
         s.sidebar().update(cx, |sidebar, cx| {
             let mut record = sidebar.workspace(&workspace).0.cloned().expect("the workspace's record");

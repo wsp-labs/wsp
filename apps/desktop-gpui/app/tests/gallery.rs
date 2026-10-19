@@ -438,7 +438,8 @@ fn the_sparkline_draws_the_points_it_is_given() {
     let at = |x: f32, y: f32| *image.get_pixel(((f32::from(PAD) + x) * scale) as u32, ((f32::from(PAD) + y) * scale) as u32);
     // `CHART_PAD`: the run's top and bottom stand 1/96 of the height inside the box.
     let y = |v: f32| 100. / 96. + (100. - 200. / 96.) * (1. - v);
-    for (x, v) in [(2., 0.), (100., 0.5), (199., 0.99), (300., 0.5), (398., 0.)] {
+    // Each point is read where the run passes: v is 1 less x's distance from 200.
+    for (x, v) in [(2., 0.01), (100., 0.5), (199., 0.995), (300., 0.5), (398., 0.01)] {
         let p = at(x, y(v));
         assert!(diff(&p.0, &ground.0) > 60, "the line is not drawn at ({x}, {:.1}): {p:?} against the page's {ground:?}", y(v));
     }
