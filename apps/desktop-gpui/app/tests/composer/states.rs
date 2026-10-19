@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use desktop_gpui::screens::composer::dock::{Pick, Prompt};
-use desktop_gpui::screens::composer::model::{Agent, Drawer, File, Hold, Picks, Skill};
+use desktop_gpui::screens::composer::model::{Agent, Drawer, File, Hold, Limit, Picks, Skill, Slot, Tasks};
 use desktop_gpui::screens::composer::{Banner, Bar, Composer, Popup};
 use gpui_kit::{Context, Window};
 
@@ -202,8 +202,19 @@ pub fn stage(state: &str, c: &mut Composer, window: &mut Window, cx: &mut Contex
                     c.fold_prompt(window, cx);
                     Drawer::default()
                 }
-                "drawer-slot" => Drawer { slot: Some(format!("{} is running 3 of 3 threads", computer())), ..Drawer::default() },
-                _ => Drawer { tasks: Some(("Pin the scroll anchor before tool output mounts".into(), "1/4".into())), ..Drawer::default() },
+                "drawer-slot" => Drawer {
+                    slot: Some(Slot { line: format!("{} is running 3 of 3 threads", computer()), ..Slot::default() }),
+                    ..Drawer::default()
+                },
+                _ => Drawer {
+                    tasks: Some(Tasks {
+                        step: "Pin the scroll anchor before tool output mounts".into(),
+                        done: 1,
+                        total: 4,
+                        steps: Vec::new(),
+                    }),
+                    ..Drawer::default()
+                },
             };
             c.set_drawer(drawer, cx);
         }
@@ -212,7 +223,10 @@ pub fn stage(state: &str, c: &mut Composer, window: &mut Window, cx: &mut Contex
             c.set_prompt(Some(asked()), window, cx);
         }
         "drawer-limit" => c.set_drawer(
-            Drawer { limit: Some(("Usage limit reached".into(), "Claude Code resumes at 02:00".into())), ..Drawer::default() },
+            Drawer {
+                limit: Some(Limit { title: "Usage limit reached".into(), line: "Claude Code resumes at 02:00".into(), ..Limit::default() }),
+                ..Drawer::default()
+            },
             cx,
         ),
         "resume-banner" => c.set_banner(

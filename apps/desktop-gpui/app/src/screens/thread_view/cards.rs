@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The transcript's cards as the web app draws them: prompts, plans, subagent folds, children, changed files, forks, files.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
-    anchored, deferred, div, img, linear_color_stop, linear_gradient, point, prelude::*, px, Anchor, AnyElement, App, BoxShadow,
-    ClipboardItem, Context, FontWeight, Hsla, Image, ImageFormat, ImageSource, ObjectFit, Pixels, SharedString, StyledText, Window,
+    anchored, canvas, deferred, div, img, linear_color_stop, linear_gradient, point, prelude::*, px, Anchor, AnyElement, App, Bounds,
+    BoxShadow, ClipboardItem, Context, Display, Element, ElementId, FlexDirection, FontWeight, GlobalElementId, Hsla, Image, ImageFormat,
+    ImageSource, InspectorElementId, LayoutId, ObjectFit, Pixels, SharedString, Style, StyledText, Window,
 };
 use wsp_host_client::protocol::{SessionsAnswerRequest, SessionsAttachmentRequest};
 
 use super::rows::{icon_slot, SM};
 use super::{find, markdown};
 use crate::screens::composer::dock::{answer_words, sentence};
-use crate::screens::{navigate, Pane, Route};
+use crate::screens::pr_pane::changes::model::{tree_rows, TreeFile};
+use crate::screens::pr_pane::changes::tree::{stat_inline, ChangedFilesTree};
+use crate::screens::{navigate, Route};
 use crate::thread_view::ThreadView;
 use crate::transcript::{
     self, Asked, ChangedFile, Child, ChildPart, FileTile, Glyph as RowGlyph, Listed, PromptOption, Row, RowKind, StartFailed, ThreadAt,
@@ -29,8 +32,6 @@ const SM_TIGHT: (Pixels, Pixels) = (px(14.), px(20.));
 const XS: (Pixels, Pixels) = (px(12.), px(16.));
 /// `text-[11px] leading-4`.
 const META: (Pixels, Pixels) = (px(11.), px(16.));
-/// `text-[11px]` under the page's `line-height: 1.5`.
-const META_LOOSE: (Pixels, Pixels) = (px(11.), px(16.5));
 /// `pb-4`: every card row's foot.
 const FOOT: Pixels = px(16.);
 /// A plan folds behind Expand plan at `max-h-104`, its last `h-24` faded into the card.
@@ -105,10 +106,16 @@ pub fn card(view: &mut ThreadView, ix: usize, row: &Row, window: &mut Window, cx
             subagent(view, id, title, state.as_deref(), *open, lines, rail_follows(view, ix), page, &p, cx)
         }
         RowKind::Spawn { children } => spawn(view, &row.key, children, &p, cx),
-        RowKind::ChangedFiles { label, files, others } => changed_files(&row.key, label, files, others, &p, window, cx),
+        RowKind::ChangedFiles { label, files, others, .. } => {
+            changed_files(&row.key, label, files, others, row.turn.as_deref(), &p, window, cx)
+        }
         RowKind::Fork { open, .. } => fork(&row.text, open.clone(), &p, cx),
-        RowKind::StartFailed { failed } => start_failed(view, &row.key, failed, &p, window, cx),
+        RowKind::StartFailed { failed } => start_failed(view, row, failed, &p, window, cx),
         RowKind::Threads { open, .. } => threads(&row.key, *open, view.listing(), &p, window, cx),
+        RowKind::Rule if row.key == transcript::PAUSED_KEY => {
+            let wake = wake_button("workspace-wake", view.followed_workspace().or(view.listing().and_then(|l| l.workspace.as_deref())));
+            rule_line("workspace-paused", &row.text, wake, p.muted_foreground)
+        }
         RowKind::Rule => rule_line("machine-line", &row.text, None, p.muted_foreground),
         RowKind::Slate => slate_line(&row.key, &row.text, &p, window, cx),
         _ => div().into_any_element(),
@@ -361,15 +368,11 @@ fn consent(
 
 /// `PromptRefusal`: 13 px on a 20 px line in the error ink, the fix after it in the foreground.
 pub(crate) fn refusal(refused: Refusal, p: &Palette) -> impl IntoElement {
-    let fix = refused.fix.map(|fix| div().text_color(p.foreground).child(format!(" {fix}")));
-    h_flex()
-        .debug_selector(|| "refusal".into())
-        .flex_wrap()
-        .text_size(px(13.))
-        .line_height(px(20.))
-        .text_color(p.error_foreground)
-        .child(refused.said)
-        .children(fix)
+    let fix = refused.fix.map(|fix| format!(" {fix}")).unwrap_or_default();
+    let whole = format!("{}{fix}", refused.said);
+    let body = gpui_kit::HighlightStyle { color: Some(p.foreground), ..Default::default() };
+    let text = gpui_kit::StyledText::new(whole).with_highlights([(refused.said.len()..refused.said.len() + fix.len(), body)]);
+    div().debug_selector(|| "refusal".into()).text_size(px(13.)).line_height(px(20.)).text_color(p.error_foreground).child(text)
 }
 
 /// `QuestionPrompt`: one single-answer question answers on the press; any other takes ticks and an Answer button.
@@ -644,7 +647,7 @@ fn plan(
         .debug_selector(|| "plan-body".into())
         .relative()
         .when(folded, |el| el.max_h(PLAN_FOLDED).overflow_hidden())
-        .child(markdown::reply(&body, false, None, cwd.as_deref(), cx))
+        .child(markdown::reply(&body, false, None, cwd.as_deref(), Some(mix_over(p.card, 0.7, p.background)), cx))
         .when(folded, |el| {
             el.child(
                 v_flex()
@@ -992,17 +995,144 @@ fn rule_line(id: &'static str, line: &str, act: Option<AnyElement>, ink: Hsla) -
         .into_any_element()
 }
 
-#[cfg(test)]
-thread_local! {
-    /// Every pane and tab the cards asked the frame to open in this test thread, and the slate line's last ink.
-    pub static PANES: std::cell::RefCell<Vec<(Pane, Option<String>)>> = const { std::cell::RefCell::new(Vec::new()) };
-    pub static SLATE_INK: std::cell::Cell<Option<Hsla>> = const { std::cell::Cell::new(None) };
+/// Wake beside a rule line (`WAKE_ACT`): `workspaces.wake` through the sidebar's runner, which says a refusal.
+fn wake_button(id: &'static str, workspace: Option<&str>) -> Option<AnyElement> {
+    let workspace = workspace?.to_owned();
+    let button = Button::outline(id, "Wake").xs().on_click(move |_, _, cx| {
+        let params = serde_json::json!({ "workspaceId": workspace });
+        on_sidebar(format!("wake {workspace}"), cx, |s, cx| s.write_op::<wsp_host_client::protocol::WorkspacesWakeRequest>(params, cx));
+    });
+    Some(div().debug_selector(move || id.into()).flex_none().child(button).into_any_element())
 }
 
-fn open_pane(pane: Pane, tab: Option<&str>, cx: &mut App) {
-    #[cfg(test)]
-    PANES.with(|p| p.borrow_mut().push((pane, tab.map(str::to_owned))));
-    super::open_pane(pane, tab, cx);
+/// `machineWait` in `WorkingTimelineRow`: the line in place of the working line while the workspace cannot run the
+/// turn, `my-1`, its elapsed in the mono face where the wait counts, then Wake where a wake answers it.
+pub fn machine_wait(
+    view: &mut ThreadView,
+    row: &Row,
+    wait: &transcript::Wait,
+    since: Option<f64>,
+    selector: &'static str,
+    cx: &mut Context<ThreadView>,
+) -> AnyElement {
+    let clock = since.filter(|_| wait.elapsed).map(|since| {
+        view.clock(row, since, cx);
+        let look = super::shimmer::ClockLook { size: px(11.), line_height: None, height: px(24.) };
+        div().flex_none().ml(px(4.)).child(super::shimmer::clock_slot(view, row, look, cx))
+    });
+    let workspace = view.followed_workspace().or(view.listing().and_then(|l| l.workspace.as_deref())).map(str::to_owned);
+    let wake = wait.wake.then(|| wake_button("wait-wake", workspace.as_deref())).flatten();
+    let acts =
+        (clock.is_some() || wake.is_some()).then(|| h_flex().flex_none().gap(px(8.)).children(clock).children(wake).into_any_element());
+    div()
+        .debug_selector(move || selector.into())
+        .my(px(4.))
+        .child(rule_line("machine-wait-line", &wait.label, acts, cx.palette().muted_foreground))
+        .into_any_element()
+}
+
+/// The readings the machine line reads while a thread on `workspace` shows (`useOutOfMemoryReadings`): this computer's
+/// own workspace held on the host (`sys.subscribe`), every other computer's watched down a daemon channel of its own
+/// while it runs (`sys.watch`, as today's link per running workspace asks), each until the view lets go of this. Only
+/// the newest reading near full is held here.
+pub struct Readings {
+    workspace: String,
+    /// The workspace by its name, which a refused ask names.
+    name: String,
+    road: Option<crate::screens::computer::model::Road>,
+    memory: Option<crate::screens::terminal::words::Memory>,
+    _observed: gpui_kit::Subscription,
+}
+
+impl Readings {
+    pub fn memory(&self) -> Option<crate::screens::terminal::words::Memory> {
+        self.memory
+    }
+}
+
+/// `outOfMemoryReading` off what is kept of a computer: the newest sample near full while its road is down.
+fn near_full(kept: &crate::screens::computer::live::Readings) -> Option<crate::screens::terminal::words::Memory> {
+    let last = kept.ring.last().filter(|_| !kept.live)?;
+    let memory = crate::screens::terminal::words::Memory { used: last.mem.used, total: last.mem.total, load1: last.load1 };
+    memory.near_full().then_some(memory)
+}
+
+/// The readings for the thread followed at `at` (its host and workspace): the ones held while the workspace stays,
+/// new ones for another, none while nothing is followed. Dropping the last handle lets go of the host's.
+pub fn readings(
+    held: Option<gpui_kit::Entity<Readings>>,
+    at: Option<(&crate::screens::Host, &str)>,
+    sidebar: &gpui_kit::Entity<crate::sidebar::Sidebar>,
+    cx: &mut Context<ThreadView>,
+) -> Option<gpui_kit::Entity<Readings>> {
+    let (host, workspace) = at?;
+    // The kind is known once the sidebar has read the workspace's record.
+    let record = sidebar.read(cx).workspace(workspace).0;
+    let kind = record.and_then(|w| w.get("kind")?.as_str().map(str::to_owned));
+    let name = record.and_then(|w| w.get("name")?.as_str().map(str::to_owned)).unwrap_or_else(|| workspace.to_owned());
+    use crate::screens::computer::model::{metrics_road, Road};
+    let status = sidebar.read(cx).workspace(workspace).1;
+    let phase = status.or(record).and_then(|w| w.get("phase")?.as_str()).unwrap_or("running");
+    let road = match metrics_road(kind.as_deref()) {
+        Road::Host => Some(Road::Host),
+        Road::Daemon => (record.is_some() && phase == "running").then_some(Road::Daemon),
+    };
+    if let Some(held) = held.filter(|h| h.read(cx).workspace == workspace && h.read(cx).road == road) {
+        return Some(held);
+    }
+    let (live, view, workspace, host) = (crate::screens::computer::live::live(cx), cx.weak_entity(), workspace.to_owned(), host.clone());
+    Some(cx.new(|cx: &mut Context<Readings>| {
+        let key = workspace.clone();
+        match road {
+            Some(Road::Host) => {
+                live.update(cx, |l, cx| l.hold_host(&host, &workspace, cx));
+                let live = live.clone();
+                cx.on_release(move |_, cx| live.update(cx, |l, cx| l.release_host(&key, cx))).detach();
+            }
+            Some(Road::Daemon) => {
+                let target = crate::screens::computer::live::Target::Workspace(workspace.clone());
+                let (run, mut heard, stop) = crate::screens::computer::live::watch_daemon(&host, &target);
+                let (fed, feed_key) = (live.clone(), key.clone());
+                let task = cx.spawn(async move |_, cx| {
+                    let _run = run;
+                    while let Some(heard) = futures::StreamExt::next(&mut heard).await {
+                        fed.update(cx, |l, cx| l.hear(&feed_key, heard, cx));
+                    }
+                });
+                let live = live.clone();
+                // The watch closes its own channel, one still opening included, and ends.
+                cx.on_release(move |_, cx| {
+                    _ = stop.send(futures::channel::oneshot::channel().0);
+                    task.detach();
+                    live.update(cx, |l, _| l.keep(&key, |r| r.live = false));
+                })
+                .detach();
+            }
+            None => {}
+        }
+        let memory = near_full(&live.read(cx).readings(&workspace));
+        let observed = cx.observe(&live, move |this: &mut Readings, live, cx| {
+            // `wireHostLive`: the host's refusal is said once on each socket.
+            if let Some(words) = live.update(cx, |l, _| l.unsaid(&this.workspace)).filter(|_| this.road == Some(Road::Host)) {
+                let said = crate::screens::computer::live::refused_line(&this.name, &words);
+                crate::ui::notify(cx, crate::ui::Notice::error(said));
+            }
+            let memory = near_full(&live.read(cx).readings(&this.workspace));
+            if memory != this.memory {
+                this.memory = memory;
+                // After this update ends, as the relist reads what this holds.
+                let view = view.clone();
+                cx.defer(move |cx| _ = view.update(cx, |v, cx| v.reread(cx)));
+            }
+        });
+        Readings { workspace, name, road, memory, _observed: observed }
+    }))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The slate line's last ink in this test thread.
+    pub static SLATE_INK: std::cell::Cell<Option<Hsla>> = const { std::cell::Cell::new(None) };
 }
 
 /// `SlateUpdatedLine`: the rule line as a button, `mt-1` under the reply, its ink easing to the foreground under the
@@ -1035,20 +1165,34 @@ fn fork(line: &str, open: Option<ThreadAt>, p: &Palette, _cx: &App) -> AnyElemen
     rule_line("fork", line, act, p.muted_foreground)
 }
 
-/// `SpawnLine` for a start that failed: the words in the refusal ink with the chevron, open on the failed step with
-/// what the host said and Try again, then the raw log one level further down.
+/// `SpawnLine`: one centred quiet line under the message a sub-thread's machine was made for: the spinner, the words and
+/// the elapsed while under way, "Started on Boat in 42s" once the agent answered, the refusal ink where it failed, and a
+/// chevron opening the steps, each with its mark, words, facts and time, then the raw log one level further down. A
+/// failed start opens on its failed step with Try again.
 fn start_failed(
-    view: &ThreadView,
-    key: &str,
+    view: &mut ThreadView,
+    row: &Row,
     failed: &StartFailed,
     p: &Palette,
     window: &mut Window,
     cx: &mut Context<ThreadView>,
 ) -> AnyElement {
-    let open_state = window.use_keyed_state(SharedString::from(format!("spawn-open-{key}")), cx, |_, _| true);
+    let key = row.key.as_str();
+    let live = !failed.failed && failed.took.is_none();
+    let open_state = window.use_keyed_state(SharedString::from(format!("spawn-open-{key}")), cx, |_, _| None::<bool>);
     let raw_state = window.use_keyed_state(SharedString::from(format!("spawn-raw-{key}")), cx, |_, _| false);
-    let (open, raw) = (*open_state.read(cx), *raw_state.read(cx));
-    let flip = |state: gpui_kit::Entity<bool>| {
+    let (open, raw) = (open_state.read(cx).unwrap_or(failed.failed), *raw_state.read(cx));
+    let flip_open = {
+        let state = open_state.clone();
+        move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
+            state.update(cx, |b, cx| {
+                *b = Some(!open);
+                cx.notify();
+            })
+        }
+    };
+    let flip_raw = {
+        let state = raw_state.clone();
         move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
             state.update(cx, |b, cx| {
                 *b = !*b;
@@ -1056,34 +1200,116 @@ fn start_failed(
             })
         }
     };
-    let ink = p.error_foreground;
-    let mark = |g: Glyph, ink: Hsla| Icon::new(g).with_size(px(12.)).text_color(ink);
+    let error = p.error_foreground;
+    let ink = if failed.failed { error } else { p.muted_foreground };
+    let hover = if failed.failed { error } else { p.foreground };
+    let mark = |g: Glyph, ink: Hsla| Icon::new(g).with_size(px(12.)).text_color(ink).into_any_element();
+    let lead = if live {
+        Some(crate::ui::spinner(cx).size(px(12.)).into_any_element())
+    } else {
+        failed.failed.then(|| mark(Glyph::CircleAlert, ink))
+    };
+    // The elapsed ticks on the row's clock over the cached rows; its slot keeps room for "59m 59s".
+    let clock = live.then(|| {
+        view.clock(row, failed.since, cx);
+        let look = super::shimmer::ClockLook { size: META.0, line_height: Some(META.1), height: META.1 };
+        div().flex_none().w(px(44.)).child(super::shimmer::clock_slot(view, row, look, cx))
+    });
     let head = h_flex()
         .id(SharedString::from(format!("spawn-line-{key}")))
         .debug_selector(|| "spawn-line".into())
         .gap(px(6.))
         .text_color(ink)
         .cursor_pointer()
-        .child(mark(Glyph::CircleAlert, ink))
-        .child(format!("Could not start a machine on {}", failed.on))
+        .hover(move |s| s.text_color(hover))
+        .children(lead)
+        .child(row.text.clone())
+        .children(clock)
         .child(mark(if open { Glyph::ChevronDown } else { Glyph::ChevronRight }, ink))
-        .on_click(flip(open_state.clone()));
-    let _ = view;
+        .on_click(flip_open);
+    let now = view
+        .frozen()
+        .unwrap_or_else(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0., |d| d.as_millis() as f64));
     let prompt = failed.prompt.clone();
     let steps = open.then(|| {
-        let said = h_flex()
-            .flex_wrap()
-            .text_color(ink)
-            .child(failed.said.clone())
-            .children(failed.fix.clone().map(|fix| div().text_color(p.foreground).child(format!(" {fix}"))));
-        let again = prompt.map(|prompt| {
-            let again = Button::outline("spawn-try-again", "Try again").xs().on_click(cx.listener(move |view, _, _, cx| {
-                view.send(prompt.clone(), cx);
-                if let Some(thread) = view.thread().map(str::to_owned) {
-                    cx.emit(crate::thread_view::ThreadViewEvent::SentElsewhere { thread, prompt: prompt.clone() });
-                }
-            }));
-            div().debug_selector(|| "spawn-try-again".into()).child(again)
+        let mono = cx.theme().mono_font_family.clone();
+        // A failed start read with no steps says its failed step alone, with what the host said.
+        let lone = (failed.failed && !failed.steps.iter().any(|s| s.said.is_some())).then(|| transcript::SpawnStep {
+            id: "failed".to_owned(),
+            name: failed.step.clone(),
+            note: None,
+            state: transcript::StepState::Failed,
+            ms: None,
+            since: None,
+            said: Some(failed.said.clone()),
+            fix: failed.fix.clone(),
+        });
+        let lines = lone.iter().chain(failed.steps.iter().filter(|_| lone.is_none())).map(|step| {
+            let (glyph, mark_ink) = match step.state {
+                transcript::StepState::Done => (Some(Glyph::CircleCheck), p.muted_foreground),
+                transcript::StepState::Warned => (Some(Glyph::TriangleAlert), p.warning_foreground),
+                transcript::StepState::Failed => (Some(Glyph::CircleAlert), error),
+                transcript::StepState::Waiting => (Some(Glyph::Circle), p.muted_foreground.opacity(0.5)),
+                transcript::StepState::Working => (None, p.muted_foreground),
+            };
+            let step_mark = glyph.map_or_else(|| crate::ui::spinner(cx).size(px(12.)).into_any_element(), |g| mark(g, mark_ink));
+            let time = match (step.since, step.ms) {
+                (Some(since), _) => crate::ui::status::fmt_elapsed(now - since),
+                (None, Some(ms)) => crate::words::fmt_duration(ms),
+                _ => String::new(),
+            };
+            let name_ink = if step.state == transcript::StepState::Failed { error } else { p.muted_foreground };
+            let said = step.said.clone().map(|said| {
+                let again = prompt.clone().map(|prompt| {
+                    let again = Button::outline("spawn-try-again", "Try again").xs().on_click(cx.listener(move |view, _, _, cx| {
+                        view.send(prompt.clone(), cx);
+                        if let Some(thread) = view.thread().map(str::to_owned) {
+                            cx.emit(crate::thread_view::ThreadViewEvent::SentElsewhere { thread, prompt: prompt.clone() });
+                        }
+                    }));
+                    div().debug_selector(|| "spawn-try-again".into()).child(again)
+                });
+                v_flex()
+                    .items_start()
+                    .gap(px(8.))
+                    .pl(px(20.))
+                    .child(
+                        h_flex()
+                            .flex_wrap()
+                            .text_color(error)
+                            .child(said)
+                            .children(step.fix.clone().map(|fix| div().text_color(p.foreground).child(format!(" {fix}")))),
+                    )
+                    .children(again)
+            });
+            let selector = format!("spawn-step-{}", step.id);
+            v_flex()
+                .debug_selector(move || selector.clone())
+                .gap(px(4.))
+                .child(
+                    h_flex()
+                        .min_w_0()
+                        .gap(px(8.))
+                        .child(div().flex_none().child(step_mark))
+                        .child(
+                            div()
+                                .when(step.note.is_none(), |el| el.min_w_0())
+                                .when(step.note.is_some(), |el| el.flex_none())
+                                .text_color(name_ink)
+                                .child(step.name.clone()),
+                        )
+                        .children(step.note.clone().map(|note| {
+                            div()
+                                .id(SharedString::from(format!("spawn-note-{}", step.id)))
+                                .min_w_0()
+                                .truncate()
+                                .opacity(0.7)
+                                .tooltip(tip(note.clone()))
+                                .child(note)
+                        }))
+                        .child(div().ml_auto().flex_none().font_family(mono.clone()).child(time)),
+                )
+                .children(said)
         });
         v_flex()
             .debug_selector(|| "spawn-steps".into())
@@ -1092,18 +1318,7 @@ fn start_failed(
             .max_w(px(576.))
             .gap(px(4.))
             .pl(px(24.))
-            .child(
-                v_flex()
-                    .gap(px(4.))
-                    .child(
-                        h_flex()
-                            .min_w_0()
-                            .gap(px(8.))
-                            .child(mark(Glyph::CircleAlert, ink))
-                            .child(div().text_color(ink).child(failed.step.clone())),
-                    )
-                    .child(v_flex().items_start().gap(px(8.)).pl(px(20.)).child(said).children(again)),
-            )
+            .children(lines)
             .child(
                 h_flex()
                     .id(SharedString::from(format!("spawn-details-{key}")))
@@ -1113,9 +1328,9 @@ fn start_failed(
                     .hover(|s| s.text_color(p.foreground))
                     .child(mark(if raw { Glyph::ChevronDown } else { Glyph::ChevronRight }, p.muted_foreground))
                     .child(if raw { "Hide details" } else { "Show details" })
-                    .on_click(flip(raw_state.clone())),
+                    .on_click(flip_raw),
             )
-            .when(raw, |el| el.child(div().pl(px(20.)).font_family(cx.theme().mono_font_family.clone()).child(failed.log.join("\n"))))
+            .when(raw, |el| el.child(div().pl(px(20.)).font_family(mono.clone()).child(failed.log.join("\n"))))
     });
     v_flex()
         .debug_selector(|| "start-failed".into())
@@ -1151,6 +1366,12 @@ fn on_sidebar(said: String, cx: &mut App, act: impl FnOnce(&mut crate::sidebar::
     if let Some(sidebar) = crate::screens::terminal::workspaces_sidebar(cx) {
         sidebar.update(cx, act);
     }
+}
+
+/// `stopSubagent`: interrupts one subagent's task in its lead's session.
+fn stop_task(session: &str, task: &str, cx: &mut App) {
+    let params = serde_json::json!({ "sessionId": session, "task": task });
+    on_sidebar(format!("stop {session} {task}"), cx, |s, cx| s.write_op::<wsp_host_client::protocol::SessionsInterruptRequest>(params, cx));
 }
 
 fn stop_child(session: &str, cx: &mut App) {
@@ -1529,7 +1750,13 @@ fn tree_level(
 /// they follow it in the list it stands in.
 fn tree_item(node: &Listed, depth: usize, p: &Palette, window: &mut Window, cx: &mut Context<ThreadView>) -> Vec<TreeEntry> {
     let row = tree_row(node, false, p, window, cx);
-    let two = node.note.is_some() || node.computer.is_some();
+    // The row's message field stands in its second line's place, which the elbow follows.
+    let sending = node.subagent.is_none()
+        && window
+            .use_keyed_state(SharedString::from(format!("tree-row-{}-sending", node.at.thread)), cx, |_, _| None::<Sending>)
+            .read(cx)
+            .is_some();
+    let two = sending || node.note.is_some() || node.computer.is_some();
     let scope = format!("{}-{}", node.at.thread, node.subagent.as_deref().unwrap_or(""));
     let kids =
         if node.part == ChildPart::Settled { Vec::new() } else { tree_level(&node.children, depth + 1, false, &scope, p, window, cx) };
@@ -1543,8 +1770,9 @@ fn tree_item(node: &Listed, depth: usize, p: &Palette, window: &mut Window, cx: 
 }
 
 /// A child's row (`ThreadRow`, `SubagentRow`): the mark, the title over the computer and the note, then the status slot,
-/// which yields on hover to its state act and More; a press opens the thread, or a subagent's page. `inert` draws it
-/// for the shut section's peek, which takes no act of its own.
+/// which yields on hover to Send a message and its state act, then More; a press opens the thread, or a subagent's
+/// page. While a message is typed its field stands in the second line's place. `inert` draws it for the shut
+/// section's peek, which takes no act of its own.
 fn tree_row(node: &Listed, inert: bool, p: &Palette, window: &mut Window, cx: &mut Context<ThreadView>) -> AnyElement {
     let id = match &node.subagent {
         Some(call) => format!("tree-sub-{}-{call}", node.at.thread),
@@ -1552,29 +1780,29 @@ fn tree_row(node: &Listed, inert: bool, p: &Palette, window: &mut Window, cx: &m
     };
     let group = SharedString::from(format!("{id}-group"));
     let settled = node.part == ChildPart::Settled;
-    let two = node.note.is_some() || node.computer.is_some();
+    let message = (!inert && node.subagent.is_none())
+        .then(|| window.use_keyed_state(SharedString::from(format!("{id}-sending")), cx, |_, _| None::<Sending>));
+    let sending = message.as_ref().and_then(|m| m.read(cx).as_ref().map(|s| s.input.clone()));
+    let two = sending.is_some() || node.note.is_some() || node.computer.is_some();
     let mark = match &node.subagent {
         Some(_) => Icon::new(Glyph::Bot).with_size(px(13.)).text_color(p.muted_foreground).into_any_element(),
         None => catalog::mark(&node.harness, &catalog::name(&node.harness), px(13.), p.muted_foreground, cx),
     };
-    let second = two.then(|| {
-        h_flex()
-            .min_w_0()
-            .gap(px(12.))
-            .text_size(px(11.))
-            .line_height(px(14.))
-            .text_color(p.muted_foreground)
-            .children(node.computer.clone().map(|c| div().flex_none().child(c)))
-            .children(node.note.clone().map(|note| div().min_w_0().truncate().child(note)))
-    });
+    let second = match &sending {
+        Some(input) => Some(send_field(&id, input, message.clone(), p).into_any_element()),
+        None if two => Some(second_line(node, &id, p, cx).into_any_element()),
+        None => None,
+    };
     let status = StatusMark::new(listed_status(node)).key(SharedString::from(format!("{id}-crab")));
-    let acts = if inert { Vec::new() } else { tree_acts(node, &id, p, window, cx) };
-    let menu = if inert { Vec::new() } else { child_menu(node) };
+    let send = message.clone().map(|m| open_send(node, m));
+    let acts = if inert || sending.is_some() { (Vec::new(), 0) } else { tree_acts(node, &id, send.clone(), p, window, cx) };
+    let menu = if inert { Vec::new() } else { child_menu(node, send) };
+    let (acts, count) = acts;
     let slot = if acts.is_empty() {
         div().flex_none().child(status).into_any_element()
     } else {
         // `ACTS_ROOM`: as wide as the acts it holds with 4 px between, so the title's width never moves as they show.
-        let room = [0., 24., 52., 80.][acts.len().min(3)];
+        let room = [0., 24., 52., 80.][count.min(3)];
         h_flex()
             .relative()
             .flex_none()
@@ -1603,6 +1831,28 @@ fn tree_row(node: &Listed, inert: bool, p: &Palette, window: &mut Window, cx: &m
         None => Some(Route::Thread { workspace_id: node.at.workspace.clone(), thread_id: node.at.thread.clone() }),
         Some(call) => Some(Route::Screen(subagent_route(&node.at, call).into())),
     };
+    let ink = if settled { p.muted_foreground } else { p.foreground };
+    let title_id = SharedString::from(format!("{id}-title"));
+    let title_selector = format!("{id}-title");
+    // `ThreadLink` and the subagent's own link: underlined under the pointer where a press opens something.
+    let title = div()
+        .id(title_id)
+        .debug_selector(move || title_selector.clone())
+        .min_w_0()
+        .truncate()
+        .text_color(ink)
+        .when(press.is_some(), |el| el.hover(|s| s.underline()))
+        .child(node.title.clone());
+    let title = match &node.subagent {
+        Some(_) if !inert => {
+            let node = node.clone();
+            title.tooltip_show_delay(CARD_DELAY).tooltip(move |window, cx| {
+                let node = node.clone();
+                crate::ui::tooltip_view(move |cx| subagent_card(&node, &cx.palette().clone(), cx), window, cx)
+            })
+        }
+        _ => title,
+    };
     let accent = p.accent;
     let selector = id.clone();
     let armed = window.use_keyed_state(SharedString::from(format!("{id}-armed")), cx, |_, _| None::<std::time::Instant>);
@@ -1619,19 +1869,7 @@ fn tree_row(node: &Listed, inert: bool, p: &Palette, window: &mut Window, cx: &m
         .when(!inert, |el| el.hover(move |s| s.bg(accent)))
         .map(|el| if two { el.min_h(px(48.)).py(px(6.)) } else { el.h(px(36.)) })
         .child(div().flex().flex_none().items_center().justify_center().size(px(13.)).child(mark))
-        .child(
-            v_flex()
-                .flex_1()
-                .min_w(px(112.))
-                .child(
-                    div()
-                        .min_w_0()
-                        .truncate()
-                        .text_color(if settled { p.muted_foreground } else { p.foreground })
-                        .child(node.title.clone()),
-                )
-                .children(second),
-        )
+        .child(v_flex().flex_1().min_w(px(112.)).child(title).children(second))
         .child(slot)
         // The pointer leaving the row disarms its Stop.
         .on_hover(move |over, _, cx| {
@@ -1643,7 +1881,7 @@ fn tree_row(node: &Listed, inert: bool, p: &Palette, window: &mut Window, cx: &m
                 });
             }
         })
-        .when_some(press, |el, route| el.cursor_pointer().on_click(move |_, _, cx| go(route.clone(), cx)))
+        .when_some(press.filter(|_| sending.is_none()), |el, route| el.cursor_pointer().on_click(move |_, _, cx| go(route.clone(), cx)))
         .when(!menu.is_empty(), |el| {
             let (view, menu) = (cx.weak_entity(), Rc::new(menu));
             el.on_mouse_down(gpui_kit::MouseButton::Right, move |e, window, cx| {
@@ -1653,79 +1891,288 @@ fn tree_row(node: &Listed, inert: bool, p: &Palette, window: &mut Window, cx: &m
         .into_any_element()
 }
 
-/// The acts a thread's row yields its slot to (`Slot` in ThreadRows.tsx): the state act that can run now, Stop in two
-/// presses, Settle or Restore, then More with every act the row takes; a subagent's row takes none here.
-fn tree_acts(node: &Listed, id: &str, p: &Palette, window: &mut Window, cx: &mut Context<ThreadView>) -> Vec<AnyElement> {
+/// A press on the changed files' card or one of its files, by the file's path, none for the whole turn.
+type PressPath = Rc<dyn Fn(Option<&str>, &mut App)>;
+
+/// What opens a child's message field, from its act, its menu or its More.
+type Opens = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// `CARD_DELAY_MS`: how long the pointer rests on a subagent's title before its card opens.
+const CARD_DELAY: std::time::Duration = std::time::Duration::from_millis(450);
+
+/// A message being typed to a child in its row (`RowNameInput` with `messageTo`), and what its field hears.
+struct Sending {
+    input: gpui_kit::Entity<gpui_kit::component::input::InputState>,
+    _events: gpui_kit::Subscription,
+}
+
+/// The second line (`SecondLine`): the computer it runs on with its glyph, where that is not the lead's, then the note.
+fn second_line(node: &Listed, id: &str, p: &Palette, cx: &App) -> gpui_kit::Div {
+    let computer = node.computer.clone().map(|name| {
+        let glyph = crate::screens::terminal::workspaces_sidebar(cx).and_then(|s| {
+            let s = s.read(cx);
+            let place = s.around().places.iter().find(|pl| crate::screens::sidebar::looks::place_name(pl) == name)?;
+            let glyph = crate::screens::sidebar::looks::computer_glyph(place, s.preferences(), px(12.), p.muted_foreground);
+            let selector = format!("{id}-computer-glyph");
+            Some(div().debug_selector(move || selector.clone()).flex_none().child(glyph))
+        });
+        let selector = format!("{id}-computer");
+        h_flex()
+            .id(SharedString::from(selector.clone()))
+            .debug_selector(move || selector.clone())
+            .flex_none()
+            .gap(px(4.))
+            .tooltip(tip(format!("Runs on {name}")))
+            .children(glyph)
+            .child(name)
+    });
+    h_flex()
+        .min_w_0()
+        .gap(px(12.))
+        .text_size(px(11.))
+        .line_height(px(14.))
+        .text_color(p.muted_foreground)
+        .children(computer)
+        .children(node.note.clone().map(|note| div().min_w_0().truncate().child(note)))
+}
+
+/// The one-line message field in the second line's place: `h-4.5 text-xs`, `rounded-sm border px-1`, the ring's edge
+/// while it has the keys; Escape shuts it with nothing sent.
+fn send_field(
+    id: &str,
+    input: &gpui_kit::Entity<gpui_kit::component::input::InputState>,
+    message: Option<gpui_kit::Entity<Option<Sending>>>,
+    p: &Palette,
+) -> gpui_kit::Div {
+    let selector = format!("{id}-send-field");
+    div().flex().h(px(18.)).min_w_0().text_size(XS.0).child(
+        div()
+            .debug_selector(move || selector.clone())
+            .flex()
+            .flex_1()
+            .min_w_0()
+            .items_center()
+            .rounded(px(6.))
+            .border_1()
+            .border_color(p.ring)
+            .px(px(4.))
+            .on_mouse_down(gpui_kit::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .capture_key_down(move |e: &gpui_kit::KeyDownEvent, _, cx| {
+                if e.keystroke.key == "escape" {
+                    if let Some(message) = &message {
+                        message.update(cx, |m, cx| {
+                            *m = None;
+                            cx.notify();
+                        });
+                    }
+                    cx.stop_propagation();
+                }
+            })
+            .child(gpui_kit::component::input::Input::new(input).appearance(false).p_0().h(px(16.)).text_size(XS.0).line_height(px(16.))),
+    )
+}
+
+/// Opens a child's message field, focused: Enter sends what it holds to the child as the composer would
+/// (`sendToThread`, `sessions.start` through the sidebar's runner, which says a refusal), a blank Enter or leaving it
+/// shuts it with nothing sent.
+fn open_send(node: &Listed, message: gpui_kit::Entity<Option<Sending>>) -> Opens {
+    let (workspace, thread, harness) = (node.at.workspace.clone(), node.at.thread.clone(), node.harness.clone());
+    Rc::new(move |window, cx| {
+        use gpui_kit::component::input::{InputEvent, InputState};
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Send a message"));
+        let (workspace, thread, harness, held) = (workspace.clone(), thread.clone(), harness.clone(), message.downgrade());
+        let events = window.subscribe(&input, cx, move |input, event: &InputEvent, _, cx| {
+            let typed = match event {
+                InputEvent::PressEnter { .. } => input.read(cx).value().trim().to_owned(),
+                InputEvent::Blur => String::new(),
+                _ => return,
+            };
+            _ = held.update(cx, |m, cx| {
+                *m = None;
+                cx.notify();
+            });
+            if typed.is_empty() {
+                return;
+            }
+            let params = serde_json::json!({
+                "workspaceId": workspace, "thread": thread, "harness": harness, "prompt": typed,
+                "requestId": crate::screens::composer::link::request_id(),
+            });
+            on_sidebar(format!("send {workspace} {thread} {harness} {typed}"), cx, |s, cx| {
+                s.write_op::<wsp_host_client::protocol::SessionsStartRequest>(params, cx)
+            });
+        });
+        input.update(cx, |state, cx| state.focus(window, cx));
+        message.update(cx, |m, cx| {
+            *m = Some(Sending { input, _events: events });
+            cx.notify();
+        });
+    })
+}
+
+/// A subagent's card (`SubagentCard`): its title, the status row with why, what it was asked under the message glyph,
+/// then its agent's mark and model.
+fn subagent_card(node: &Listed, p: &Palette, cx: &App) -> AnyElement {
+    use crate::screens::sidebar::model;
+    let model = node
+        .model
+        .as_deref()
+        .map(|m| subagent_model(m, &node.harness, &node.at.workspace, cx))
+        .unwrap_or_else(|| catalog::name(&node.harness));
+    let line = |glyph: AnyElement, text: String, clamp: bool| {
+        h_flex()
+            .items_start()
+            .gap(px(8.))
+            .min_w_0()
+            .child(div().flex_none().mt(px(3.)).child(glyph))
+            .child(div().min_w_0().when(clamp, |el| el.line_clamp(3)).child(text))
+    };
+    let (glyph, tone) = model::kind_slot(node.kind);
+    let key = format!("card-crab-{}-{}", node.at.thread, node.subagent.as_deref().unwrap_or(""));
+    let status = crate::screens::sidebar::card::status_row(
+        node.kind,
+        glyph,
+        tone,
+        key,
+        model::kind_word(node.kind).to_owned(),
+        node.slot.clone(),
+        p,
+    );
+    let reason = node.note.clone().map(|r| div().pl(px(20.)).mt(px(2.)).line_clamp(3).child(r));
+    let asked = node.asked.clone().map(|a| line(Icon::new(Glyph::MessageSquareText).with_size(px(12.)).into_any_element(), a, true));
+    let agent = line(catalog::mark(&node.harness, &catalog::name(&node.harness), px(12.), p.muted_foreground, cx), model, false);
+    v_flex()
+        .debug_selector(|| "subagent-card".into())
+        .max_w(px(288.))
+        .py(px(4.))
+        .gap(px(6.))
+        .whitespace_normal()
+        .child(div().font_weight(FontWeight::MEDIUM).text_color(p.foreground).child(node.title.clone()))
+        .child(
+            v_flex().gap(px(4.)).text_color(p.muted_foreground).child(v_flex().child(status).children(reason)).children(asked).child(agent),
+        )
+        .into_any_element()
+}
+
+/// `useSubagentModel`: the model by its agent's catalog label on that workspace, the id where the catalog has none.
+fn subagent_model(model: &str, harness: &str, workspace: &str, cx: &App) -> String {
+    let picked = model.split(':').next().unwrap_or(model);
+    crate::screens::terminal::workspaces_sidebar(cx)
+        .and_then(|s| {
+            let s = s.read(cx);
+            let catalog = s.around().catalogs.get(workspace)?.iter().find(|c| c.harness == harness)?;
+            catalog.models.iter().find(|(v, _)| v == picked).map(|(_, label)| label.clone())
+        })
+        .unwrap_or_else(|| model.to_owned())
+}
+
+/// A Stop that takes two presses (`StopAct`): the square glyph, then "Stop?" in the danger ink for two seconds, when a
+/// second press runs `stop`.
+fn stop_act(
+    id: &str,
+    label: &'static str,
+    armed: &gpui_kit::Entity<Option<std::time::Instant>>,
+    stop: Rc<dyn Fn(&mut App)>,
+    p: &Palette,
+    cx: &App,
+) -> AnyElement {
+    use crate::screens::sidebar::menu::act_words as words;
+    let is_armed = armed.read(cx).is_some_and(|at| at.elapsed() < STOP_ARMED);
+    let armed = armed.clone();
+    let press = move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
+        cx.stop_propagation();
+        let was = armed.read(cx).is_some_and(|at| at.elapsed() < STOP_ARMED);
+        if was {
+            stop(cx);
+        }
+        let at = (!was).then(std::time::Instant::now);
+        armed.update(cx, |a, cx| {
+            *a = at;
+            cx.notify();
+        });
+        if let Some(at) = at {
+            let armed = armed.downgrade();
+            cx.spawn(async move |cx| {
+                cx.background_executor().timer(STOP_ARMED).await;
+                // Only the arm this press made lapses; a later arm keeps its own two seconds.
+                _ = armed.update(cx, |a, cx| {
+                    if *a == Some(at) {
+                        *a = None;
+                        cx.notify();
+                    }
+                });
+            })
+            .detach();
+        }
+    };
+    let selector = format!("{id}-act-stop");
+    if is_armed {
+        h_flex()
+            .id(SharedString::from(format!("{id}-stop")))
+            .debug_selector(move || selector.clone())
+            .h(px(24.))
+            .px(px(6.))
+            .rounded(px(8.))
+            .text_size(XS.0)
+            .line_height(XS.1)
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(p.error_foreground)
+            .cursor_pointer()
+            .tooltip(tip(words::STOP_AGAIN))
+            .child(words::STOP_ARMED)
+            .on_click(press)
+            .into_any_element()
+    } else {
+        div()
+            .debug_selector(move || selector.clone())
+            .child(Button::icon_xs(SharedString::from(format!("{id}-stop")), Glyph::Square).tooltip(label).on_click(press))
+            .into_any_element()
+    }
+}
+
+/// The acts a row yields its slot to (`Slot` in ThreadRows.tsx), and whether one stops: a thread's Send a message and
+/// the state act that can run now (Stop in two presses, Settle or Restore), then More with every act the row takes; a
+/// running subagent's Stop subagent alone. While Stop is armed the others give way to its word.
+fn tree_acts(
+    node: &Listed,
+    id: &str,
+    send: Option<Opens>,
+    p: &Palette,
+    window: &mut Window,
+    cx: &mut Context<ThreadView>,
+) -> (Vec<AnyElement>, usize) {
     use crate::screens::sidebar::menu::{act_words as words, settle_refusal};
+    let armed = window.use_keyed_state(SharedString::from(format!("{id}-armed")), cx, |_, _| None::<std::time::Instant>);
+    let is_armed = armed.read(cx).is_some_and(|at| at.elapsed() < STOP_ARMED);
     if node.subagent.is_some() {
-        return Vec::new();
+        let (Some(task), true) = (node.task.clone(), node.running) else { return (Vec::new(), 0) };
+        let session = node.session.clone();
+        return (vec![stop_act(id, SUBAGENT_STOP, &armed, Rc::new(move |cx| stop_task(&session, &task, cx)), p, cx)], 2);
     }
     let settled = node.part == ChildPart::Settled;
     let stops = !settled && (node.running || node.working);
     let settles = !settled && !node.running;
     let held = settle_refusal(node.working);
-    let armed = window.use_keyed_state(SharedString::from(format!("{id}-armed")), cx, |_, _| None::<std::time::Instant>);
-    let is_armed = armed.read(cx).is_some_and(|at| at.elapsed() < STOP_ARMED);
     let mut out: Vec<AnyElement> = Vec::new();
+    let more_send = send.clone();
+    if let Some(send) = send.filter(|_| !is_armed) {
+        let selector = format!("{id}-act-send");
+        out.push(
+            div()
+                .debug_selector(move || selector.clone())
+                .child(Button::icon_xs(SharedString::from(format!("{id}-send")), Glyph::MessageSquare).tooltip(SEND_WORD).on_click(
+                    move |_, window, cx| {
+                        cx.stop_propagation();
+                        send(window, cx)
+                    },
+                ))
+                .into_any_element(),
+        );
+    }
     let (session, thread) = (node.session.clone(), node.at.thread.clone());
     if stops {
         let label = if node.under { words::STOP_TREE } else { words::STOP };
-        let (session, armed) = (session.clone(), armed.clone());
-        let press = move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
-            cx.stop_propagation();
-            let was = armed.read(cx).is_some_and(|at| at.elapsed() < STOP_ARMED);
-            if was {
-                stop_child(&session, cx);
-            }
-            let at = (!was).then(std::time::Instant::now);
-            armed.update(cx, |a, cx| {
-                *a = at;
-                cx.notify();
-            });
-            if let Some(at) = at {
-                let armed = armed.downgrade();
-                cx.spawn(async move |cx| {
-                    cx.background_executor().timer(STOP_ARMED).await;
-                    // Only the arm this press made lapses; a later arm keeps its own two seconds.
-                    _ = armed.update(cx, |a, cx| {
-                        if *a == Some(at) {
-                            *a = None;
-                            cx.notify();
-                        }
-                    });
-                })
-                .detach();
-            }
-        };
-        let act = if is_armed {
-            h_flex()
-                .id(SharedString::from(format!("{id}-stop")))
-                .debug_selector({
-                    let id = format!("{id}-act-stop");
-                    move || id.clone()
-                })
-                .h(px(24.))
-                .px(px(6.))
-                .rounded(px(8.))
-                .text_size(XS.0)
-                .line_height(XS.1)
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(p.error_foreground)
-                .cursor_pointer()
-                .tooltip(tip(words::STOP_AGAIN))
-                .child(words::STOP_ARMED)
-                .on_click(press)
-                .into_any_element()
-        } else {
-            div()
-                .debug_selector({
-                    let id = format!("{id}-act-stop");
-                    move || id.clone()
-                })
-                .child(Button::icon_xs(SharedString::from(format!("{id}-stop")), Glyph::Square).tooltip(label).on_click(press))
-                .into_any_element()
-        };
-        out.push(act);
+        out.push(stop_act(id, label, &armed, Rc::new(move |cx| stop_child(&session, cx)), p, cx));
     } else if settles && held.is_none() {
         out.push(
             div()
@@ -1759,11 +2206,14 @@ fn tree_acts(node: &Listed, id: &str, p: &Palette, window: &mut Window, cx: &mut
                 .into_any_element(),
         );
     }
+    // `ACTS_ROOM` counts what the slot shows unarmed, Send, the state act and More, at least two where one stops.
+    let shown = usize::from(more_send.is_some()) + usize::from(stops || (settles && held.is_none()) || settled) + 1;
+    let room = if stops { shown.max(2) } else { shown };
     if is_armed {
-        return out;
+        return (out, room);
     }
     use gpui_kit::component::menu::DropdownMenu as _;
-    let acts = Rc::new(child_menu(node));
+    let acts = Rc::new(child_menu(node, more_send));
     let trigger = crate::ui::menu::Trigger(
         div()
             .id(SharedString::from(format!("{id}-more-menu")))
@@ -1782,19 +2232,18 @@ fn tree_acts(node: &Listed, id: &str, p: &Palette, window: &mut Window, cx: &mut
             })
             .into_any_element(),
     );
-    out
+    (out, room)
 }
 
-/// Every act a thread's row takes, in the order its More and its right-click list them (`childActs`); a subagent's
-/// row takes none here.
-fn child_menu(node: &Listed) -> Vec<crate::ui::MenuAct> {
+/// `CHILD_WORDS.send` and `CHILD_WORDS.stopSubagent`.
+const SEND_WORD: &str = "Send a message";
+const SUBAGENT_STOP: &str = "Stop subagent";
+
+/// Every act a row takes, in the order its More and its right-click list them (`childActions`): a thread's Send a
+/// message, which opens its field where `send` is given, and its state acts; a running subagent's Stop subagent.
+fn child_menu(node: &Listed, send: Option<Opens>) -> Vec<crate::ui::MenuAct> {
     use crate::screens::sidebar::menu::{act_words as words, settle_refusal};
-    if node.subagent.is_some() {
-        return Vec::new();
-    }
-    let settled = node.part == ChildPart::Settled;
-    let (stops, settles) = (!settled && (node.running || node.working), !settled && !node.running);
-    let act = |group: u8, glyph: Glyph, title: &str, why: Option<String>, run: Rc<dyn Fn(&mut App)>| crate::ui::MenuAct {
+    let act = |group: u8, glyph: Glyph, title: &str, why: Option<String>, run: Opens| crate::ui::MenuAct {
         group,
         glyph: Some(glyph),
         title: SharedString::from(title.to_owned()),
@@ -1802,20 +2251,32 @@ fn child_menu(node: &Listed) -> Vec<crate::ui::MenuAct> {
         held: why.is_some(),
         why: why.map(SharedString::from),
         keys: None,
-        run: Rc::new(move |_, cx| run(cx)),
+        run: Rc::new(move |window, cx| run(window, cx)),
     };
-    let send_held = Some("This client cannot send a message".to_owned());
-    let mut menu = vec![act(0, Glyph::MessageSquare, "Send a message", send_held, Rc::new(|_| {}))];
+    if node.subagent.is_some() {
+        let (Some(task), true) = (node.task.clone(), node.running) else { return Vec::new() };
+        let session = node.session.clone();
+        return vec![act(1, Glyph::Square, SUBAGENT_STOP, None, Rc::new(move |_, cx| stop_task(&session, &task, cx)))];
+    }
+    let settled = node.part == ChildPart::Settled;
+    let (stops, settles) = (!settled && (node.running || node.working), !settled && !node.running);
+    let mut menu: Vec<crate::ui::MenuAct> = send.map(|send| act(0, Glyph::MessageSquare, SEND_WORD, None, send)).into_iter().collect();
     let (session, thread) = (node.session.clone(), node.at.thread.clone());
     if stops {
-        menu.push(act(1, Glyph::Square, words::STOP, None, Rc::new(move |cx| stop_child(&session, cx))));
+        menu.push(act(1, Glyph::Square, words::STOP, None, Rc::new(move |_, cx| stop_child(&session, cx))));
     }
     if settles {
         let ids = vec![thread.clone()];
-        menu.push(act(1, Glyph::Archive, words::SETTLE, settle_refusal(node.working), Rc::new(move |cx| settle_children(ids.clone(), cx))));
+        menu.push(act(
+            1,
+            Glyph::Archive,
+            words::SETTLE,
+            settle_refusal(node.working),
+            Rc::new(move |_, cx| settle_children(ids.clone(), cx)),
+        ));
     }
     if settled {
-        menu.push(act(1, Glyph::ArchiveRestore, words::RESTORE, None, Rc::new(move |cx| restore_child(thread.clone(), cx))));
+        menu.push(act(1, Glyph::ArchiveRestore, words::RESTORE, None, Rc::new(move |_, cx| restore_child(thread.clone(), cx))));
     }
     menu
 }
@@ -1900,6 +2361,7 @@ pub fn setup_card(setup: &Setup, composer_inset: Pixels) -> impl IntoElement {
 /// box: the state's glyph in its frame, the state as the title with the why under it, and its acts.
 pub fn strip(view: &gpui_kit::Entity<ThreadView>, strip: &transcript::Strip, cx: &App) -> AnyElement {
     let p = cx.palette();
+    let workspace = view.read(cx).followed_workspace().or(view.read(cx).listing().and_then(|l| l.workspace.as_deref())).map(str::to_owned);
     let glyph = match strip.key {
         "waiting-minute" | "waiting-machines" => Glyph::Hourglass,
         "oom" => Glyph::MemoryStick,
@@ -1932,9 +2394,33 @@ pub fn strip(view: &gpui_kit::Entity<ThreadView>, strip: &transcript::Strip, cx:
             let id = format!("sub-strip-act-{i}");
             let button = Button::outline(SharedString::from(id.clone()), act.word()).xs();
             let button = match act {
-                // The cloud's settings and the copy home have no screen in this app: held, with why on the hover.
-                transcript::StripAct::Raise => button.held(true).tooltip("This client cannot open settings"),
-                transcript::StripAct::CopyHome(_) => button.held(true).tooltip("This client cannot export projects"),
+                transcript::StripAct::Raise(place) => {
+                    let at = place.as_ref().map_or_else(|| "settings:computers".to_owned(), |p| format!("settings:computer:{p}"));
+                    button.on_click(move |_, _, cx| go(Route::Screen(at.clone().into()), cx))
+                }
+                // The shell opens both dialogs on its own host, as the sidebar's own acts ask it to.
+                transcript::StripAct::CopyHome(_) => {
+                    let workspace = workspace.clone();
+                    button.on_click(move |_, _, cx| {
+                        let Some(workspace) = workspace.clone() else { return };
+                        on_sidebar(format!("export {workspace}"), cx, |_, cx| cx.emit(crate::sidebar::Asked::ExportProject(workspace)));
+                    })
+                }
+                transcript::StripAct::AddAgain(_) => button.on_click(move |_, _, cx| {
+                    go(Route::Screen("settings:computers".into()), cx);
+                    on_sidebar("add a cloud".to_owned(), cx, |_, cx| cx.emit(crate::sidebar::Asked::AddCloud));
+                }),
+                transcript::StripAct::StartAgain { lead, harness, prompt, .. } => {
+                    let params = serde_json::json!({
+                        "workspaceId": lead.workspace, "thread": lead.thread, "harness": harness, "prompt": prompt,
+                    });
+                    let said = format!("send {} {} {harness} {prompt}", lead.workspace, lead.thread);
+                    button.on_click(move |_, _, cx| {
+                        let mut params = params.clone();
+                        params["requestId"] = crate::screens::composer::link::request_id().into();
+                        on_sidebar(said.clone(), cx, |s, cx| s.write_op::<wsp_host_client::protocol::SessionsStartRequest>(params, cx));
+                    })
+                }
                 transcript::StripAct::PushAgain(branch) => {
                     let (view, prompt) = (view.downgrade(), transcript::push_again_prompt(branch));
                     button.on_click(move |_, _, cx| {
@@ -1974,154 +2460,54 @@ pub fn strip(view: &gpui_kit::Entity<ThreadView>, strip: &transcript::Strip, cx:
         .into_any_element()
 }
 
-/// One node of the changed files' tree (`buildTurnDiffTree`): a folder, its lone-folder chain joined into its name.
-#[derive(Debug, PartialEq)]
-pub enum Node {
-    Folder { name: String, path: String, added: u64, removed: u64, children: Vec<Node> },
-    File { name: String, path: String, added: u64, removed: u64 },
-}
-
-#[derive(Default)]
-struct Building {
-    folders: BTreeMap<String, Building>,
-    files: Vec<(String, String, u64, u64)>,
-    added: u64,
-    removed: u64,
-}
-
-/// `localeCompare` with `numeric: true, sensitivity: "base"`, near enough for paths: case apart, digit runs by value.
-fn by_name(a: &str, b: &str) -> std::cmp::Ordering {
-    let key = |s: &str| {
-        let mut parts: Vec<(u8, String, u64)> = Vec::new();
-        let mut chars = s.chars().peekable();
-        while let Some(c) = chars.next() {
-            if c.is_ascii_digit() {
-                let mut n = c.to_digit(10).unwrap_or(0) as u64;
-                while let Some(d) = chars.peek().and_then(|d| d.to_digit(10)) {
-                    n = n.saturating_mul(10).saturating_add(d as u64);
-                    chars.next();
-                }
-                parts.push((0, String::new(), n));
-            } else {
-                parts.push((1, c.to_lowercase().collect(), 0));
-            }
-        }
-        parts
-    };
-    key(a).cmp(&key(b))
-}
-
-pub fn tree(files: &[ChangedFile]) -> Vec<Node> {
-    let mut root = Building::default();
-    for file in files {
-        let segments: Vec<&str> = file.path.split(['/', '\\']).filter(|s| !s.is_empty()).collect();
-        let Some((name, folders)) = segments.split_last() else { continue };
-        let mut at = &mut root;
-        at.added += file.added;
-        at.removed += file.removed;
-        for folder in folders {
-            at = at.folders.entry((*folder).to_owned()).or_default();
-            at.added += file.added;
-            at.removed += file.removed;
-        }
-        at.files.push(((*name).to_owned(), segments.join("/"), file.added, file.removed));
-    }
-    nodes(root, "")
-}
-
-fn nodes(building: Building, path: &str) -> Vec<Node> {
-    let mut folders: Vec<(String, Building)> = building.folders.into_iter().collect();
-    folders.sort_by(|a, b| by_name(&a.0, &b.0));
-    let mut out: Vec<Node> = folders
-        .into_iter()
-        .map(|(name, sub)| {
-            let here = if path.is_empty() { name.clone() } else { format!("{path}/{name}") };
-            let (added, removed) = (sub.added, sub.removed);
-            let mut node = Node::Folder { name, path: here.clone(), added, removed, children: nodes(sub, &here) };
-            while let Node::Folder { name, children, .. } = &mut node {
-                let [Node::Folder { .. }] = children.as_slice() else { break };
-                let Some(Node::Folder { name: lone, path: deeper, added, removed, children: under }) = children.pop() else { break };
-                node = Node::Folder { name: format!("{name}/{lone}"), path: deeper, added, removed, children: under };
-            }
-            node
-        })
-        .collect();
-    let mut files = building.files;
-    files.sort_by(|a, b| by_name(&a.0, &b.0));
-    out.extend(files.into_iter().map(|(name, path, added, removed)| Node::File { name, path, added, removed }));
-    out
-}
-
-/// `formatCompactDiffCount`: whole under a thousand, then `1.2k`, `12k`, `1.2m`.
-pub fn compact(n: u64) -> String {
-    let short = |v: f64, unit: &str| {
-        if v < 10. {
-            let s = format!("{v:.1}");
-            format!("{}{unit}", s.strip_suffix(".0").unwrap_or(&s))
-        } else {
-            format!("{}{unit}", v.round() as u64)
-        }
-    };
-    match n {
-        n if n < 1_000 => n.to_string(),
-        n if n < 1_000_000 => short(n as f64 / 1e3, "k"),
-        n if n < 1_000_000_000 => short(n as f64 / 1e6, "m"),
-        n => short(n as f64 / 1e9, "b"),
-    }
-}
-
-/// `DiffStatLabel` inline: `+n` in the success ink and `-n` in the error ink, mono, 4 px apart.
-fn stat(added: u64, removed: u64, p: &Palette, cx: &App) -> impl IntoElement {
-    h_flex()
-        .debug_selector(|| "stat".into())
-        .gap(px(4.))
-        .font_family(cx.theme().mono_font_family.clone())
-        .child(div().text_color(p.success).child(format!("+{}", compact(added))))
-        .child(div().text_color(p.error_foreground).child(format!("-{}", compact(removed))))
-}
-
-/// `DiffStatLabel`'s aligned layout, a tree row's: each figure right-aligned in a `4ch` column, the two `gap-2` apart.
-fn aligned_stat(added: u64, removed: u64, p: &Palette, cx: &App) -> impl IntoElement {
-    let mono = cx.theme().mono_font_family.clone();
-    let font = cx.text_system().resolve_font(&gpui_kit::font(mono.clone()));
-    let ch = cx.text_system().ch_width(font, META_LOOSE.0).unwrap_or(META_LOOSE.0 * 0.6);
-    let column = |figure: String, ink: Hsla| div().flex_none().w(ch * 4.).flex().justify_end().text_color(ink).child(figure);
-    h_flex()
-        .debug_selector(|| "stat-aligned".into())
-        .gap(px(8.))
-        .font_family(mono)
-        .child(column(format!("+{}", compact(added)), p.success))
-        .child(column(format!("-{}", compact(removed)), p.error_foreground))
-}
-
-/// Which folders a card's trees stand open in: every folder at the card's toggle, less the ones pressed since.
+/// Which folders a card's trees stand open in: every folder at the card's toggle, less the ones pressed since, by
+/// tree (the others' or the turn's own); and the card's width as last laid out.
 #[derive(Default)]
 struct Folders {
     all: bool,
-    pressed: HashMap<String, bool>,
+    pressed: HashMap<(bool, String), bool>,
+    width: Option<Pixels>,
 }
 
-/// `ChangedFilesCard`: the head with the count, the stat and its acts, then the tree with every folder shut.
+/// `@[24rem]/changed-files`: from this wide Open diff says its word.
+const OPEN_DIFF_WORD: Pixels = px(384.);
+/// `top-2`: where the head sticks under the list's top.
+const HEAD_STICK: Pixels = px(8.);
+
+/// `ChangedFilesCard`: the head with the count, the stat and its acts, sticking under the list's top while the card is
+/// in view; then the panes' tree with every folder shut, and the folder's others under their own words.
+#[allow(clippy::too_many_arguments)]
 fn changed_files(
     key: &str,
     label: &str,
     files: &[ChangedFile],
     others: &[ChangedFile],
+    turn: Option<&str>,
     p: &Palette,
     window: &mut Window,
     cx: &mut Context<ThreadView>,
 ) -> AnyElement {
     let dark = cx.theme().is_dark();
     let folders = window.use_keyed_state(SharedString::from(format!("folders-{key}")), cx, |_, _| Folders::default());
-    let all = folders.read(cx).all;
+    let (all, width) = {
+        let f = folders.read(cx);
+        (f.all, f.width.unwrap_or(super::rows::COLUMN))
+    };
     let (added, removed) = files.iter().fold((0, 0), |(a, r), f| (a + f.added, r + f.removed));
     let nested = files.iter().chain(others).any(|f| f.path.contains(['/', '\\']));
+    let (view, turn) = (cx.weak_entity(), turn.map(str::to_owned));
+    let press: PressPath = Rc::new(move |path, cx| {
+        let (Some(view), Some(turn)) = (view.upgrade(), turn.as_deref()) else { return };
+        let opens = super::rows::turn_diff(view.read(cx), turn, path, None, cx);
+        opens.run(cx);
+    });
     let toggle_all = nested.then(|| {
-        let (g, word) = if all { (Glyph::ChevronsDownUp, "Collapse all folders") } else { (Glyph::ChevronsUpDown, "Expand all folders") };
+        let words = &crate::screens::pr_pane::pull_request::words::PR_WORDS;
+        let (g, word) = if all { (Glyph::ChevronsDownUp, words.collapse_folders) } else { (Glyph::ChevronsUpDown, words.expand_folders) };
         let folders = folders.clone();
         ghost_xs(SharedString::from(format!("folders-all-{key}")), g, None, true, p)
             .debug_selector(|| "expand-all".into())
-            .tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(word).build(window, cx))
+            .tooltip(tip(word))
             .on_click(move |_, _, cx| {
                 folders.update(cx, |f, cx| {
                     f.all = !f.all;
@@ -2130,13 +2516,20 @@ fn changed_files(
                 })
             })
     });
-    // The Changes pane opens on the turn once a screen draws it; until then the press goes nowhere, as `open_pane` says.
-    let open_diff = ghost_xs(SharedString::from(format!("open-diff-{key}")), Glyph::FileDiff, Some("Open diff"), true, p)
+    let first = files.first().or(others.first()).map(|f| f.path.clone());
+    let opening = press.clone();
+    let open_diff = ghost_xs(SharedString::from(format!("open-diff-{key}")), Glyph::FileDiff, None, true, p)
         .debug_selector(|| "open-diff".into())
-        .on_click(|_, _, cx| open_pane(Pane::Changes, None, cx));
+        .w_auto()
+        .px(px(8.))
+        .when(width >= OPEN_DIFF_WORD, |el| el.child(div().debug_selector(|| "open-diff-word".into()).child("Open diff")))
+        .tooltip(tip("Open the full diff"))
+        .on_click(move |_, _, cx| opening(first.as_deref(), cx));
     let head_fill = if dark { mix_over(p.input, 0.2, p.background) } else { p.muted };
     let head = h_flex()
+        .id(SharedString::from(format!("changed-head-{key}")))
         .debug_selector(|| "changed-head".into())
+        .occlude()
         .justify_between()
         .gap(px(8.))
         .rounded_t(px(10.))
@@ -2153,109 +2546,144 @@ fn changed_files(
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(p.foreground)
                 .child(label.to_owned())
-                .when(added > 0 || removed > 0, |el| el.child(stat(added, removed, p, cx))),
+                .when(added > 0 || removed > 0, |el| el.child(stat_inline(added as usize, removed as usize, XS.0, cx))),
         )
         .child(h_flex().flex_none().gap(px(4.)).children(toggle_all).child(open_diff));
-    let tree_of = |files: &[ChangedFile], cx: &mut Context<ThreadView>| {
-        let nodes = tree(files);
-        let lead = nodes.iter().any(|n| matches!(n, Node::Folder { .. }));
-        let mut rows = Vec::new();
+    let tree_of = |list: &[ChangedFile], theirs: bool, cx: &mut Context<ThreadView>| {
+        let files: Vec<TreeFile> =
+            list.iter().map(|f| TreeFile { path: f.path.clone(), additions: f.added as usize, deletions: f.removed as usize }).collect();
         let state = folders.read(cx);
-        tree_rows(key, &nodes, 0, lead, state, &folders, p, cx, &mut rows);
-        div().p(px(8.)).child(v_flex().gap(px(2.)).children(rows))
+        let shut: HashSet<String> = tree_rows(&files, &HashSet::new())
+            .into_iter()
+            .filter(|r| r.folder && !state.pressed.get(&(theirs, r.path.clone())).copied().unwrap_or(state.all))
+            .map(|r| r.path)
+            .collect();
+        let rows = Rc::new(tree_rows(&files, &shut));
+        let (pressing, opening) = (folders.clone(), press.clone());
+        let id = format!("{key}-{}", if theirs { "others" } else { "own" });
+        let tree = ChangedFilesTree::new(id, rows, Rc::new(shut), &files, width - px(16.))
+            .uncapped()
+            .on_folder(move |path, _, cx| {
+                pressing.update(cx, |f, cx| {
+                    let now = f.pressed.get(&(theirs, path.to_owned())).copied().unwrap_or(f.all);
+                    f.pressed.insert((theirs, path.to_owned()), !now);
+                    cx.notify();
+                })
+            })
+            .on_file(move |path, _, cx| opening(Some(path), cx));
+        div().py(px(8.)).px(px(4.)).child(tree)
     };
-    let own = (!files.is_empty()).then(|| tree_of(files, cx));
+    let own = (!files.is_empty()).then(|| tree_of(files, false, cx));
     let also = (!others.is_empty()).then(|| {
         v_flex()
             .pt(px(16.))
-            .child(div().px(px(12.)).text_size(XS.0).line_height(XS.1).text_color(p.muted_foreground).child("Also changed in this folder"))
-            .child(tree_of(others, cx))
+            .child(
+                div()
+                    .debug_selector(|| "changed-also".into())
+                    .px(px(12.))
+                    .text_size(XS.0)
+                    .line_height(XS.1)
+                    .text_color(p.muted_foreground)
+                    .child("Also changed in this folder"),
+            )
+            .child(tree_of(others, true, cx))
     });
+    // A width read in this frame draws in the next, which nothing else may ask for.
+    let measure = canvas(
+        move |bounds, window, cx| {
+            let moved = folders.update(cx, |f, cx| {
+                let moved = f.width != Some(bounds.size.width);
+                if moved {
+                    f.width = Some(bounds.size.width);
+                    cx.notify();
+                }
+                moved
+            });
+            if moved {
+                window.request_animation_frame();
+            }
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .size_full();
     v_flex()
         .debug_selector(|| "changed-files".into())
+        .relative()
         .rounded(px(10.))
         .bg(if dark { p.input.opacity(0.2) } else { p.muted })
-        .child(head)
-        .children(own)
-        .children(also)
+        .child(measure)
+        .child(StickyHead { head: head.into_any_element(), body: v_flex().children(own).children(also).into_any_element() })
         .into_any_element()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn tree_rows(
-    key: &str,
-    nodes: &[Node],
-    depth: usize,
-    lead: bool,
-    state: &Folders,
-    folders: &gpui_kit::Entity<Folders>,
-    p: &Palette,
-    cx: &App,
-    out: &mut Vec<AnyElement>,
-) {
-    let mono = cx.theme().mono_font_family.clone();
-    let line = |id: String, pad: f32| {
-        h_flex()
-            .id(SharedString::from(id))
-            .w_full()
-            .gap(px(6.))
-            .rounded(px(14.))
-            .py(px(4.))
-            .pr(px(12.))
-            .pl(px(pad))
-            .font_family(mono.clone())
-            .text_size(META_LOOSE.0)
-            .line_height(META_LOOSE.1)
-            .cursor_pointer()
-            .hover(|s| s.bg(p.accent.opacity(0.6)))
-    };
-    let pad = 8. + depth as f32 * 14.;
-    for node in nodes {
-        match node {
-            Node::Folder { name, path, added, removed, children } => {
-                let open = state.pressed.get(path).copied().unwrap_or(state.all);
-                let (pressing, pressed) = (folders.clone(), path.clone());
-                out.push(
-                    line(format!("folder-{key}-{path}"), pad)
-                        .debug_selector(|| "folder".into())
-                        .child(
-                            Icon::new(if open { Glyph::ChevronDown } else { Glyph::ChevronRight })
-                                .with_size(px(14.))
-                                .text_color(p.muted_foreground.opacity(0.7)),
-                        )
-                        .child(
-                            Icon::new(if open { Glyph::Folder } else { Glyph::FolderClosed })
-                                .with_size(px(14.))
-                                .text_color(p.muted_foreground.opacity(0.75)),
-                        )
-                        .child(div().min_w_0().truncate().text_color(p.muted_foreground).child(name.clone()))
-                        .when(*added > 0 || *removed > 0, |el| {
-                            el.child(div().ml_auto().flex_none().child(aligned_stat(*added, *removed, p, cx)))
-                        })
-                        .on_click(move |_, _, cx| {
-                            pressing.update(cx, |f, cx| {
-                                let now = f.pressed.get(&pressed).copied().unwrap_or(f.all);
-                                f.pressed.insert(pressed.clone(), !now);
-                                cx.notify();
-                            })
-                        })
-                        .into_any_element(),
-                );
-                if open {
-                    tree_rows(key, children, depth + 1, lead, state, folders, p, cx, out);
-                }
-            }
-            Node::File { name, path, added, removed } => out.push(
-                line(format!("file-{key}-{path}"), pad)
-                    .debug_selector(|| "changed-file".into())
-                    .when(lead || depth > 0, |el| el.child(div().flex_none().size(px(14.))))
-                    .child(Icon::new(Glyph::File).with_size(px(14.)).text_color(p.muted_foreground.opacity(0.7)))
-                    .child(div().min_w_0().truncate().text_color(p.muted_foreground).child(name.clone()))
-                    .child(div().ml_auto().flex_none().child(aligned_stat(*added, *removed, p, cx)))
-                    .on_click(|_, _, cx| open_pane(Pane::Changes, None, cx))
-                    .into_any_element(),
-            ),
-        }
+/// `sticky top-2 z-10`: a card's head held 8 px under the list's top while the rest of its card is in view under it,
+/// drawn over the rows it passes.
+struct StickyHead {
+    head: AnyElement,
+    body: AnyElement,
+}
+
+impl IntoElement for StickyHead {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+impl Element for StickyHead {
+    type RequestLayoutState = LayoutId;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, LayoutId) {
+        let head = self.head.request_layout(window, cx);
+        let body = self.body.request_layout(window, cx);
+        let style = Style { display: Display::Flex, flex_direction: FlexDirection::Column, ..Style::default() };
+        (window.request_layout(style, [head, body], cx), head)
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        head: &mut LayoutId,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.body.prepaint(window, cx);
+        let at = window.layout_bounds(*head);
+        let shift = (window.content_mask().bounds.top() + HEAD_STICK - at.top()).min(bounds.bottom() - at.bottom()).max(px(0.));
+        window.with_element_offset(point(px(0.), shift), |window| self.head.prepaint(window, cx));
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut LayoutId,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.body.paint(window, cx);
+        self.head.paint(window, cx);
     }
 }
 
@@ -2893,42 +3321,98 @@ mod tests {
     }
 
     #[gpui_kit::test]
-    fn a_turns_changed_files_open_shut_and_expand_all(cx: &mut TestAppContext) {
+    fn a_turns_changed_files_draw_the_panes_tree_shut_and_expand_all(cx: &mut TestAppContext) {
         let (_, cx) = window(changes(), cx);
         let card = bounds(cx, "changed-files");
         let head = bounds(cx, "changed-head");
-        // `px-3 py-2` round the 24 px acts; the tree `p-2`, each row `py-1` on 11 px at the page's 1.5, 2 px apart.
+        // `px-3 py-2` round the 24 px acts; the tree `p-2`, each row the panes' row and 2 px apart, every folder shut.
         assert_eq!(head.size.height, px(40.));
-        let row = px(4. + 16.5 + 4.);
+        assert!(cx.debug_bounds("changed-files-tree").is_some(), "the card draws the panes' tree");
+        let row = crate::screens::pr_pane::changes::tree::ROW;
         assert_eq!(card.size.height, head.size.height + px(8.) + row + px(2.) + row + px(8.));
-        let folder = bounds(cx, "folder");
+        let folder = bounds(cx, "tree-row:src/ui");
         assert_eq!(folder.left() - card.left(), px(8.));
+        assert!(cx.debug_bounds("tree-row:src/ui/a.rs").is_none(), "folders start shut");
         cx.simulate_click(folder.center(), Modifiers::none());
         cx.run_until_parked();
         assert_eq!(bounds(cx, "changed-files").size.height, card.size.height + (px(2.) + row) * 2.);
         cx.simulate_click(folder.center(), Modifiers::none());
         cx.run_until_parked();
+        assert_eq!(bounds(cx, "changed-files").size.height, card.size.height);
         let all = bounds(cx, "expand-all");
         cx.simulate_click(all.center(), Modifiers::none());
         cx.run_until_parked();
         assert_eq!(bounds(cx, "changed-files").size.height, card.size.height + (px(2.) + row) * 2.);
+        assert!(cx.debug_bounds("tree-row:src/ui/c.rs").is_some(), "Expand all folders opens every folder");
         let open_diff = bounds(cx, "open-diff");
         assert_eq!((open_diff.size.height, head.right() - open_diff.right()), (px(24.), px(12.)));
+        assert!(cx.debug_bounds("open-diff-word").is_some(), "a card 384 px wide or more says Open diff");
     }
 
-    #[test]
-    fn the_tree_joins_lone_folders_and_counts_compactly() {
-        let file = |path: &str, added| ChangedFile { path: path.into(), added, removed: 1 };
-        let nodes = tree(&[file("a/b/c.rs", 2), file("a/b/d10.rs", 3), file("a/b/d9.rs", 1), file("z.rs", 1)]);
-        let Node::Folder { name, added, children, .. } = &nodes[0] else { panic!("{nodes:?}") };
-        assert_eq!((name.as_str(), *added), ("a/b", 6));
-        let names: Vec<&str> = children.iter().map(|n| if let Node::File { name, .. } = n { name.as_str() } else { "" }).collect();
-        assert_eq!(names, ["c.rs", "d9.rs", "d10.rs"]);
-        assert!(matches!(&nodes[1], Node::File { name, .. } if name == "z.rs"));
-        assert_eq!(
-            (compact(999), compact(1_200), compact(12_345), compact(1_000_000)),
-            ("999".into(), "1.2k".into(), "12k".into(), "1m".into())
-        );
+    #[gpui_kit::test]
+    fn open_diffs_word_goes_under_384_px_and_its_tooltip_says_the_full_diff(cx: &mut TestAppContext) {
+        let (_, cx) = window(changes(), cx);
+        cx.simulate_resize(size(px(420.), px(1000.)));
+        cx.run_until_parked();
+        // The card's new width is read in the frame the resize draws; the next frame, which it asks for, draws by it.
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert!(bounds(cx, "changed-files").size.width < px(384.));
+        assert!(cx.debug_bounds("open-diff-word").is_none(), "Open diff kept its word under 384 px");
+        assert_eq!(bounds(cx, "open-diff").size.width, px(30.), "the xs button keeps its padding round the glyph");
+        let at = bounds(cx, "open-diff").center();
+        cx.simulate_mouse_move(at, None, Modifiers::none());
+        cx.executor().advance_clock(std::time::Duration::from_secs(1));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tooltip").is_some(), "no Open the full diff tooltip");
+    }
+
+    #[gpui_kit::test]
+    fn the_folders_others_stand_under_their_own_words_and_tree(cx: &mut TestAppContext) {
+        let mut events = changes();
+        let others = json!([{"path": "docs/NOTES.md", "kind": "modified", "additions": 1, "deletions": 1}]);
+        let files = json!([
+            {"path": "b.rs", "kind": "added", "additions": 9, "deletions": 0},
+            {"path": "docs/a.md", "kind": "added", "additions": 2, "deletions": 0}
+        ]);
+        events[4] = base("session.changes", 5, json!({"from": "a", "to": "b", "moved": [], "others": others, "files": files}));
+        let (_, cx) = window(events, cx);
+        let also = bounds(cx, "changed-also");
+        let own = bounds(cx, "tree-row:b.rs");
+        // Both trees hold a docs folder; the map keeps the last drawn, the others'.
+        let theirs = bounds(cx, "tree-row:docs");
+        assert!(own.bottom() < also.top() && also.bottom() < theirs.top(), "the others' words stand between the two trees");
+        cx.simulate_click(theirs.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tree-row:docs/NOTES.md").is_some(), "a press on the others' docs left it shut");
+        assert!(cx.debug_bounds("tree-row:docs/a.md").is_none(), "a press on the others' docs opened the turn's own");
+        // The turn's own docs is its tree's first row, folders before files: 8 px under the head, 24 px high.
+        let head = bounds(cx, "changed-head");
+        cx.simulate_click(gpui_kit::point(own.center().x, head.bottom() + px(20.)), Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tree-row:docs/a.md").is_some(), "a press on the turn's own docs left it shut");
+        assert!(cx.debug_bounds("tree-row:docs/NOTES.md").is_some(), "a press on the turn's own docs shut the others'");
+    }
+
+    #[gpui_kit::test]
+    fn the_cards_head_sticks_8_px_under_the_lists_top_while_its_card_is_in_view(cx: &mut TestAppContext) {
+        let (view, cx) = window(changes(), cx);
+        cx.simulate_resize(size(px(900.), px(300.)));
+        cx.run_until_parked();
+        let all = bounds(cx, "expand-all").center();
+        cx.simulate_click(all, Modifiers::none());
+        cx.run_until_parked();
+        let card = bounds(cx, "changed-files");
+        let list = view.update(cx, |v, _| v.list().viewport_bounds());
+        let past = card.top() - list.top() + px(30.);
+        view.update(cx, |v, cx| {
+            v.list().scroll_by(past);
+            cx.notify();
+        });
+        cx.run_until_parked();
+        let (card, head) = (bounds(cx, "changed-files"), bounds(cx, "changed-head"));
+        assert!(card.top() < list.top(), "the card's top went past the list's");
+        assert_eq!(head.top(), list.top() + px(8.), "the head did not stick 8 px under the list's top");
     }
 
     fn attachments() -> Vec<SessionEvent> {
@@ -3471,7 +3955,7 @@ mod tests {
     }
 
     #[gpui_kit::test]
-    fn the_strips_push_again_asks_the_thread_and_an_act_with_no_screen_is_held(cx: &mut TestAppContext) {
+    fn the_strips_copy_exports_the_work_and_push_again_asks_the_thread(cx: &mut TestAppContext) {
         RAN.with(|r| r.borrow_mut().clear());
         let row = json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": "completed", "threadId": "t", "startedAt": 1.0,
             "sub": {"state": "running", "on": "box", "branch": "wsp/fix", "held": {"files": 2, "commits": 1}}});
@@ -3480,6 +3964,7 @@ mod tests {
         let strip_of = Listing::listed(&rows, "t", 10.0, None, &json!({}), "Mac mini").strip.expect("no strip for work not pushed");
         assert_eq!(strip_of.acts, [transcript::StripAct::CopyHome("Mac mini".into()), transcript::StripAct::PushAgain("wsp/fix".into())]);
         let view = cx.new(ThreadView::new);
+        view.update(cx, |v, cx| v.set_listing(Listing { thread: "t".into(), workspace: Some("w".into()), ..Listing::default() }, cx));
         let cx = piece(cx, move |_, cx| strip(&view, &strip_of, cx));
         let acts = cx.debug_bounds("sub-strip-not-pushed").expect("the strip");
         let _ = acts;
@@ -3488,7 +3973,11 @@ mod tests {
         cx.simulate_click(copy.center(), Modifiers::none());
         cx.simulate_click(push.center(), Modifiers::none());
         cx.run_until_parked();
-        assert_eq!(ran(), ["send Push wsp/fix again, and say what the remote answers."], "Push again asked nothing, or the held copy ran");
+        assert_eq!(
+            ran(),
+            ["export w", "send Push wsp/fix again, and say what the remote answers."],
+            "Copy to did not export the work, or Push again asked nothing"
+        );
     }
 
     #[gpui_kit::test]
@@ -3633,11 +4122,22 @@ mod tests {
         let strip_of = Listing::of(&[row], "t", 10.0).strip.expect("no strip for a capped sub-thread");
         assert_eq!(strip_of.title, "Waiting for a machine on Boat");
         assert_eq!(strip_of.note, "3 of 3 machines are running. It starts on its own when one frees.");
-        assert_eq!(strip_of.acts, [transcript::StripAct::Raise]);
+        assert_eq!(strip_of.acts, [transcript::StripAct::Raise(Some("p".into()))]);
         let view = cx.new(ThreadView::new);
         let cx = piece(cx, move |_, cx| strip(&view, &strip_of, cx));
         assert!(cx.debug_bounds("sub-strip-waiting-machines").is_some());
         assert_eq!(bounds(cx, "sub-strip-title").size.height, px(24.));
+        ROUTED.with(|r| r.borrow_mut().clear());
+        let raise = bounds(cx, "sub-strip-act-0");
+        cx.simulate_click(raise.center(), Modifiers::none());
+        cx.run_until_parked();
+        let sent = routed();
+        let arg = match sent.as_slice() {
+            [Route::Screen(name)] => name.strip_prefix("settings:").unwrap_or_default().to_owned(),
+            other => panic!("Raise did not open the computer's settings: {other:?}"),
+        };
+        let page = crate::screens::settings::route(Some(&arg)).map(|(at, _)| at);
+        assert_eq!(page, Ok(Some(crate::screens::settings::model::At::Computer("p".into()))), "Raise names no Settings page");
     }
 
     #[gpui_kit::test]
@@ -3782,5 +4282,401 @@ mod tests {
         cx.update(|window, cx| window.simulate_next_frame(cx));
         cx.run_until_parked();
         assert_eq!(ink(), Some(foreground));
+    }
+
+    fn running() -> Vec<SessionEvent> {
+        vec![
+            base("session.start", 1, json!({"prompt": "go", "at": 1_000.0})),
+            base("session.delta", 2, json!({"kind": "text", "text": "On it.", "at": 2_000.0})),
+        ]
+    }
+
+    #[gpui_kit::test]
+    fn a_paused_workspace_says_so_under_a_quiet_thread_with_wake(cx: &mut TestAppContext) {
+        RAN.with(|r| r.borrow_mut().clear());
+        let (view, cx) = window(plan("Plan."), cx);
+        listed(&view, Listing { workspace: Some("w".into()), paused: Some("Paused".into()), ..Listing::default() }, cx);
+        let last = view.read_with(cx, |v, _| v.rows().last().map(|r| (r.key.clone(), r.text.clone())));
+        assert_eq!(last, Some((transcript::PAUSED_KEY.to_owned(), "Paused".to_owned())), "no paused line under the thread");
+        assert_eq!(bounds(cx, "workspace-paused").size.height, px(24.));
+        let wake = bounds(cx, "workspace-wake");
+        cx.simulate_click(wake.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(ran(), ["wake w"], "Wake did not wake the workspace");
+    }
+
+    #[gpui_kit::test]
+    fn a_turn_on_a_paused_workspace_says_what_it_waits_for_in_place_of_working(cx: &mut TestAppContext) {
+        RAN.with(|r| r.borrow_mut().clear());
+        let (view, cx) = window(running(), cx);
+        let wait = transcript::Wait { label: "waiting for spoo to wake".into(), wake: true, elapsed: false };
+        listed(&view, Listing { workspace: Some("w".into()), wait: Some(wait), paused: Some("Paused".into()), ..Listing::default() }, cx);
+        let rows = view.read_with(cx, |v, _| v.rows().to_vec());
+        assert!(rows.iter().all(|r| r.key != transcript::PAUSED_KEY), "a working thread said its workspace's paused word");
+        assert!(rows.iter().all(|r| !matches!(r.kind, RowKind::Thinking) || r.text.is_empty()), "a thread on a sleeping machine thinks");
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let line = bounds(cx, "machine-wait");
+        assert_eq!(line.size.height, px(24.));
+        assert!(cx.debug_bounds("clock").is_none(), "a wait for a wake counts its seconds");
+        let wake = bounds(cx, "wait-wake");
+        cx.simulate_click(wake.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(ran(), ["wake w"], "the wait's Wake did not wake the workspace");
+        let waking = transcript::Wait { label: "waking spoo on Mac mini".into(), wake: false, elapsed: true };
+        listed(&view, Listing { workspace: Some("w".into()), wait: Some(waking), ..Listing::default() }, cx);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("wait-wake").is_none(), "a workspace already waking offers Wake");
+        assert!(cx.debug_bounds("clock").is_some(), "the waking line does not count its seconds");
+    }
+
+    #[gpui_kit::test]
+    fn a_childs_send_a_message_opens_a_field_that_enter_sends_and_escape_shuts(cx: &mut TestAppContext) {
+        let (_view, cx) = tree_window(tree_listing(Some(2. * HOUR), json!({})), cx);
+        let one = bounds(cx, "tree-row-th1").size.height;
+        let send = bounds(cx, "tree-row-th1-act-send");
+        cx.simulate_click(send.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tree-row-th1-send-field").is_some(), "Send a message opened no field");
+        assert!(routed_after_clear().is_empty(), "a press on Send a message opened the thread");
+        assert!(bounds(cx, "tree-row-th1").size.height > one, "the field does not stand in the second line's place");
+        cx.simulate_input("  fix the docs ");
+        cx.simulate_keystrokes("enter");
+        cx.run_until_parked();
+        assert_eq!(ran(), ["send w-th1 th1 codex fix the docs"], "Enter did not send the message to the child");
+        assert!(cx.debug_bounds("tree-row-th1-send-field").is_none(), "the field stayed after the send");
+        let send = bounds(cx, "tree-row-th1-act-send");
+        cx.simulate_click(send.center(), Modifiers::none());
+        cx.run_until_parked();
+        cx.simulate_input("never mind");
+        cx.simulate_keystrokes("escape");
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tree-row-th1-send-field").is_none(), "Escape left the field standing");
+        assert_eq!(ran().len(), 1, "Escape sent the message");
+    }
+
+    #[gpui_kit::test]
+    fn a_running_subagents_row_offers_stop_subagent_and_its_card_after_a_rest(cx: &mut TestAppContext) {
+        let (_view, cx) = tree_window(tree_listing(Some(2. * HOUR), json!({})), cx);
+        let stop = bounds(cx, "tree-sub-t-call-1-act-stop");
+        cx.simulate_click(stop.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert!(ran().is_empty(), "one press stopped the subagent");
+        let stop = bounds(cx, "tree-sub-t-call-1-act-stop");
+        cx.simulate_click(stop.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(ran(), ["stop s-t k1"], "Stop subagent did not interrupt the subagent's task");
+        assert!(routed_after_clear().is_empty(), "a press on Stop subagent opened its page");
+        let title = bounds(cx, "tree-sub-t-call-1-title");
+        cx.simulate_mouse_move(title.center(), None, Modifiers::none());
+        cx.executor().advance_clock(std::time::Duration::from_millis(300));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("subagent-card").is_none(), "the card opened before the pointer rested 450 ms");
+        cx.executor().advance_clock(std::time::Duration::from_millis(200));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("subagent-card").is_some(), "no card after the pointer rested on the subagent's title");
+    }
+
+    #[gpui_kit::test]
+    fn a_child_on_another_computer_names_it_with_its_glyph(cx: &mut TestAppContext) {
+        use crate::screens::sidebar::host::{Change, Snapshot};
+        let (_view, cx) = tree_window(tree_listing(Some(2. * HOUR), json!({})), cx);
+        let sidebar = cx.update(|_, cx| cx.new(crate::sidebar::Sidebar::new));
+        cx.update(|_, cx| crate::screens::terminal::read_workspaces_from(&sidebar, cx));
+        let places = vec![json!({"id": "p1", "kind": "computer", "name": "studio"})];
+        sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(Snapshot { places, ..Snapshot::default() })), cx));
+        let at = bounds(cx, "threads-fold-Finished").center();
+        cx.simulate_click(at, Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tree-row-th4-computer").is_some(), "the second line does not name the computer");
+        assert!(cx.debug_bounds("tree-row-th4-computer-glyph").is_some(), "the computer's name stands without its glyph");
+    }
+
+    #[gpui_kit::test]
+    fn the_workspaces_state_reaches_the_listing_off_the_sidebar(cx: &mut TestAppContext) {
+        use crate::screens::sidebar::host::{Change, Snapshot};
+        use crate::screens::terminal::words::Memory;
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let sidebar = cx.new(crate::sidebar::Sidebar::new);
+        let row = |status: &str| json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": status, "threadId": "t", "startedAt": 1.0});
+        let read = |cx: &mut TestAppContext, w: serde_json::Value, status: Option<serde_json::Value>, row: serde_json::Value, memory| {
+            let places = vec![json!({"id": "here", "kind": "computer", "name": "Mac mini"})];
+            let snapshot = Snapshot {
+                sessions: vec![row],
+                workspaces: vec![w],
+                statuses: status.into_iter().collect(),
+                places,
+                ..Snapshot::default()
+            };
+            sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snapshot)), cx));
+            sidebar.read_with(cx, |s, _| {
+                let l = Listing::listed(s.rows(), "t", 10.0, None, &json!({}), "").with_workspace(s, memory);
+                (l.wait.map(|w| (w.label, w.wake, w.elapsed)), l.paused, l.machine)
+            })
+        };
+        let napping = json!({"id": "w", "name": "spoo", "kind": "local", "phase": "napping"});
+        assert_eq!(
+            read(cx, napping.clone(), None, row("completed"), None).1.as_deref(),
+            Some("Stopped"),
+            "a nap on a computer that drops memory"
+        );
+        let mut kept = napping.clone();
+        kept["pauseMode"] = json!("memory");
+        let (wait, paused, machine) = read(cx, kept, None, row("running"), None);
+        assert_eq!(wait, Some(("waiting for spoo to wake".to_owned(), true, false)));
+        assert_eq!((paused.as_deref(), machine), (Some("Paused"), None), "a paused machine says a machine line");
+        let waking = json!({"id": "w", "name": "spoo", "kind": "local", "phase": "waking"});
+        assert_eq!(read(cx, waking, None, row("running"), None).0, Some(("waking spoo on Mac mini".to_owned(), false, true)));
+        let running = json!({"id": "w", "name": "spoo", "kind": "local", "phase": "running"});
+        let lacks = json!({"id": "w", "phase": "running", "reach": {"state": "unsupported"}, "daemonRefusedAt": {"machineId": "m", "at": "x", "why": "git is missing, and so is node"}});
+        let (wait, paused, machine) = read(cx, running.clone(), Some(lacks), row("completed"), None);
+        assert_eq!((wait, paused, machine.as_deref()), (None, None, Some("Git is missing")));
+        let full = Memory { used: 3.8 * 1024. * 1024. * 1024., total: 4. * 1024. * 1024. * 1024., load1: 2. };
+        let answers = Some(json!({"id": "w", "phase": "running"}));
+        assert_eq!(read(cx, running, answers, row("completed"), Some(full)).2.as_deref(), Some("Out of memory, 3.8 of 4 GB"));
+        let mut sub = row("completed");
+        sub["sub"] = json!({"state": "running", "on": "box"});
+        assert_eq!(read(cx, napping, None, sub, None).1, None, "a sub-thread's nap said the paused word");
+    }
+
+    #[gpui_kit::test]
+    fn a_sub_thread_whose_cloud_left_or_whose_machine_goes_says_so_over_its_composer(cx: &mut TestAppContext) {
+        RAN.with(|r| r.borrow_mut().clear());
+        let rows = |sub: serde_json::Value, status: &str, extra: serde_json::Value| {
+            let mut row = json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": status, "threadId": "t", "startedAt": 1.0, "sub": sub});
+            row.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            let rows: Vec<crate::screens::sidebar::model::Row> =
+                [row].into_iter().filter_map(crate::screens::sidebar::model::Row::owned).collect();
+            Listing::listed(&rows, "t", 0.0, None, &json!({}), "Mac mini").strip
+        };
+        let deleting =
+            rows(json!({"state": "running", "on": "box", "branch": "wsp/fix", "deleteAt": 90.0 * 60_000.}), "completed", json!({}));
+        let deleting = deleting.expect("no strip for a machine about to go");
+        assert_eq!((deleting.key, deleting.title.as_str()), ("deleting", "Its machine is deleted in 1 h 30 min"));
+        let kept = rows(
+            json!({"state": "running", "on": "box", "branch": "wsp/fix", "held": {"files": 1, "commits": 0}}),
+            "completed",
+            json!({"diskKeptUntil": 1_760_000_000_000.0}),
+        );
+        assert!(
+            kept.expect("no strip for work not pushed").note.contains(", but Boat may delete its disk from "),
+            "the strip leaves out when the disk may go"
+        );
+        let gone = rows(json!({"state": "running", "on": "box", "cloudGone": true}), "completed", json!({}))
+            .expect("no strip for a cloud that left");
+        assert_eq!(
+            (gone.title.as_str(), &gone.acts[..]),
+            ("Boat was removed from Mac mini", &[transcript::StripAct::AddAgain("Boat".into())][..])
+        );
+        let view = cx.new(ThreadView::new);
+        let cx = piece(cx, move |_, cx| strip(&view, &gone, cx));
+        ROUTED.with(|r| r.borrow_mut().clear());
+        let add = bounds(cx, "sub-strip-act-0");
+        cx.simulate_click(add.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(
+            (routed(), ran()),
+            (vec![Route::Screen("settings:computers".into())], vec!["add a cloud".to_owned()]),
+            "Add again did not open Add a computer"
+        );
+    }
+
+    #[gpui_kit::test]
+    fn a_sub_thread_killed_for_memory_asks_its_lead_to_start_again_at_the_next_size(cx: &mut TestAppContext) {
+        use crate::screens::sidebar::host::{Change, Snapshot};
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let sidebar = cx.new(crate::sidebar::Sidebar::new);
+        let lead = json!({"id": "s0", "workspaceId": "w0", "harness": "codex", "status": "running", "threadId": "lead", "startedAt": 1.0});
+        let sub = json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": "failed", "threadId": "t", "startedAt": 2.0,
+            "parentThreadId": "lead", "harnessTitle": "Fix docs", "failure": "the agent on box was killed for memory: 3.9 of 4 GB",
+            "sub": {"state": "running", "on": "box", "size": {"cpu": 2, "memMb": 4096}}});
+        let cloud = json!({"id": "p", "kind": "provider", "name": "box", "plan": {"sizes": ["2x4", "4x8", "8x16"]},
+            "sizes": [{"cpu": 2, "memMb": 4096}, {"cpu": 8, "memMb": 16384}, {"cpu": 4, "memMb": 8192}, {"cpu": 4, "memMb": 6144}]});
+        let snapshot = Snapshot {
+            sessions: vec![lead, sub],
+            workspaces: vec![json!({"id": "w", "name": "fix-docs", "kind": "cloud", "phase": "running"})],
+            places: vec![cloud],
+            ..Snapshot::default()
+        };
+        sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snapshot)), cx));
+        let strip = sidebar.read_with(cx, |s, _| Listing::listed(s.rows(), "t", 10.0, None, &json!({}), "").with_workspace(s, None).strip);
+        let strip = strip.expect("no strip for a sub-thread killed for memory");
+        let prompt = "Start the work of the sub-thread \"Fix docs\" again on Boat at size 4x8: its agent was killed for memory.";
+        let lead_at = ThreadAt { workspace: "w0".into(), thread: "lead".into() };
+        assert_eq!(
+            strip.acts,
+            [transcript::StripAct::StartAgain { size: "4x8".into(), lead: lead_at, harness: "codex".into(), prompt: prompt.into() }]
+        );
+        RAN.with(|r| r.borrow_mut().clear());
+        let view = cx.new(ThreadView::new);
+        let (_, cx) = cx.add_window_view(|_, _| Piece(Box::new(move |_, cx| self::strip(&view, &strip, cx))));
+        cx.simulate_resize(size(px(900.), px(700.)));
+        cx.run_until_parked();
+        let again = bounds(cx, "sub-strip-act-0");
+        cx.simulate_click(again.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(ran(), [format!("send w0 lead codex {prompt}")], "Start again did not ask the lead");
+    }
+
+    #[gpui_kit::test]
+    fn an_unreached_stop_says_why_in_12_px_under_its_word(cx: &mut TestAppContext) {
+        let said = "The stop did not reach box: its computer did not answer";
+        let (_view, cx) = window(
+            vec![
+                base("session.start", 1, json!({"prompt": "fix it"})),
+                base("session.done", 2, json!({"result": {"status": "interrupted", "error": said, "unreached": true}})),
+                base("session.end", 3, json!({"exitCode": 0, "sawResult": true})),
+            ],
+            cx,
+        );
+        // The word's 16.5 px line, 2 px, the reason's 16 px line, then the pair's own 8 px foot.
+        assert_eq!(bounds(cx, "settled-why").size.height, px(16.5 + 2. + 16. + 8.));
+    }
+
+    #[gpui_kit::test]
+    fn an_open_calls_body_takes_the_code_size_the_person_picked(cx: &mut TestAppContext) {
+        let (view, cx) = window(
+            vec![
+                base("session.start", 1, json!({"prompt": "go", "at": 1_000.0})),
+                base(
+                    "session.delta",
+                    2,
+                    json!({"kind": "tool_use", "toolName": "mcp__docs__lookup", "toolUseId": "g", "text": "{\"topic\":\"lists\"}"}),
+                ),
+                base("session.delta", 3, json!({"kind": "tool_result", "toolUseId": "g", "text": "one line of the answer"})),
+                base("session.delta", 4, json!({"kind": "text", "text": "On it.", "at": 3_000.0})),
+            ],
+            cx,
+        );
+        let group = view.read_with(cx, |v, _| {
+            v.rows().iter().find_map(|r| match &r.kind {
+                RowKind::Group { group, .. } => Some(group.clone()),
+                _ => None,
+            })
+        });
+        view.update(cx, |v, cx| v.toggle(&group.expect("no group of calls"), cx));
+        cx.run_until_parked();
+        let call = view.read_with(cx, |v, _| {
+            v.rows().iter().find_map(|r| match &r.kind {
+                RowKind::Calls { calls, .. } => calls.first().map(|c| c.key.clone()),
+                _ => None,
+            })
+        });
+        view.update(cx, |v, cx| v.toggle(&call.expect("no call in the open group"), cx));
+        cx.run_until_parked();
+        let height = |cx: &mut VisualTestContext| f32::from(bounds(cx, "call-detail").size.height);
+        assert!((height(cx) - 17.875).abs() < 0.5, "11 px at leading-relaxed where no code size is picked: {}", height(cx));
+        cx.update(|_, cx| markdown::set_sizes(&json!({"codeSize": 16}), cx));
+        cx.run_until_parked();
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        assert!((height(cx) - 26.).abs() < 0.5, "the body did not take the picked code size: {} px high", height(cx));
+    }
+
+    fn spawn_listing(spawn: serde_json::Value) -> Listing {
+        let row = json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": "running", "threadId": "t", "startedAt": 1.0,
+            "sub": {"state": "starting", "on": "box", "machine": "m-1", "spawn": spawn}});
+        Listing { thread: "t".into(), ..Listing::of(&[row], "t", 10.0) }
+    }
+
+    #[gpui_kit::test]
+    fn a_machine_start_under_way_says_so_under_its_message_and_opens_to_its_steps(cx: &mut TestAppContext) {
+        let spawn =
+            json!({"startedAt": 1_000.0, "machine": {"since": 1_000.0, "id": "m-1", "states": ["provisioning"]}, "log": ["asked box"]});
+        let events = vec![base("session.start", 1, json!({"prompt": "go", "at": 2_000.0}))];
+        let (view, cx) = window_listed(events, Some(spawn_listing(spawn)), cx);
+        let line =
+            view.read_with(cx, |v, _| v.rows().iter().find(|r| matches!(r.kind, RowKind::StartFailed { .. })).map(|r| r.text.clone()));
+        assert_eq!(line.as_deref(), Some("Starting a machine on Boat"), "a start under way says nothing under its message");
+        assert!(cx.debug_bounds("spawn-steps").is_none(), "a start under way opens on its steps");
+        let head = bounds(cx, "spawn-line");
+        cx.simulate_click(head.center(), Modifiers::none());
+        cx.run_until_parked();
+        for step in ["spawn-step-machine", "spawn-step-agent"] {
+            assert!(cx.debug_bounds(step).is_some(), "{step} not drawn once the line opened");
+        }
+    }
+
+    #[gpui_kit::test]
+    fn a_machine_start_the_agent_answered_stands_done_between_the_message_and_the_reply(cx: &mut TestAppContext) {
+        let spawn = json!({"startedAt": 1_000.0, "machine": {"since": 1_000.0, "id": "m-1", "states": [], "ms": 3_000.0}, "readyAt": 5_000.0, "log": []});
+        let events = vec![
+            base("session.start", 1, json!({"prompt": "go", "at": 2_000.0})),
+            base("session.delta", 2, json!({"kind": "text", "text": "On it.", "at": 9_000.0})),
+        ];
+        let (view, _cx) = window_listed(events, Some(spawn_listing(spawn)), cx);
+        let rows = view.read_with(_cx, |v, _| v.rows().to_vec());
+        let at = rows.iter().position(|r| matches!(r.kind, RowKind::StartFailed { .. })).expect("no start line");
+        assert_eq!(rows[at].text, "Started on Boat in 8.0s");
+        assert!(matches!(rows[at - 1].kind, RowKind::Person { .. }), "the line does not stand under the message");
+        assert!(rows[at + 1..].iter().any(|r| matches!(r.kind, RowKind::Agent { .. })), "the reply does not stand under the line");
+        let RowKind::StartFailed { failed } = &rows[at].kind else { unreachable!() };
+        let agent = failed.steps.iter().find(|s| s.id == "agent").expect("no agent step");
+        assert_eq!((agent.state, agent.ms), (transcript::StepState::Done, Some(4_000.0)));
+    }
+
+    #[gpui_kit::test]
+    fn a_subagent_pages_calls_stand_grouped_as_the_threads_own_do(cx: &mut TestAppContext) {
+        let mut events = subagent();
+        events.insert(
+            4,
+            base(
+                "session.delta",
+                7,
+                json!({"kind": "tool_use", "toolName": "Read", "toolUseId": "d", "parentToolUseId": "t", "text": "{\"file_path\":\"src/c.rs\"}"}),
+            ),
+        );
+        events.insert(
+            5,
+            base("session.delta", 8, json!({"kind": "tool_result", "toolUseId": "d", "parentToolUseId": "t", "text": "fn c() {}"})),
+        );
+        let (view, cx) = window(events, cx);
+        view.update(cx, |v, cx| v.set_page(Some("t".into()), cx));
+        cx.run_until_parked();
+        let rows = view.read_with(cx, |v, _| v.rows().to_vec());
+        let kinds: Vec<String> = rows.iter().map(|r| format!("{}: {}", r.key, r.text)).collect();
+        let group = rows
+            .iter()
+            .find(|r| matches!(r.kind, RowKind::Group { .. }))
+            .unwrap_or_else(|| panic!("no group of calls on the page: {kinds:?}"));
+        assert_eq!(group.text, "Read 2 files", "{kinds:?}");
+        assert!(
+            !rows.iter().any(|r| matches!(r.kind, RowKind::Work { tone: transcript::Tone::Tool, .. })),
+            "a call stands alone: {kinds:?}"
+        );
+        assert!(rows.iter().any(|r| matches!(r.kind, RowKind::Agent { .. }) && r.text == "Reading."), "{kinds:?}");
+        assert!(!rows.iter().any(|r| matches!(r.kind, RowKind::Working { .. } | RowKind::Fold { .. } | RowKind::Thinking)), "{kinds:?}");
+        view.update(cx, |v, cx| {
+            v.toggle(
+                &match &group.kind {
+                    RowKind::Group { group, .. } => group.clone(),
+                    _ => unreachable!(),
+                },
+                cx,
+            )
+        });
+        assert!(
+            view.read_with(cx, |v, _| v.rows().iter().any(|r| matches!(r.kind, RowKind::Calls { .. }))),
+            "the group did not open on the page"
+        );
+    }
+
+    #[gpui_kit::test]
+    fn an_armed_stop_keeps_the_room_the_acts_held(cx: &mut TestAppContext) {
+        let (_view, cx) = tree_window(tree_listing(Some(2. * HOUR), json!({})), cx);
+        let title = |cx: &mut VisualTestContext| bounds(cx, "tree-row-th1-title").size.width;
+        let before = title(cx);
+        let stop = bounds(cx, "tree-row-th1-act-stop");
+        cx.simulate_click(stop.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tree-row-th1-act-send").is_none(), "Send stayed beside the armed Stop");
+        assert_eq!(title(cx), before, "arming Stop moved the title's cut");
     }
 }

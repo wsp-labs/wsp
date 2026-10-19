@@ -9,6 +9,7 @@ pub mod math;
 pub mod minimap;
 pub mod rewind;
 pub mod rows;
+pub mod run;
 pub mod shimmer;
 pub mod subagent;
 pub mod toolbar;
@@ -30,6 +31,8 @@ use super::composer::link::{Link, Seen, Target};
 use super::composer::model::Hold;
 use super::composer::screen::types_into_composer;
 use super::composer::{dock, fork, Composer, ComposerEvent};
+use super::pr_pane::files::open_split::OpenSplit;
+use super::pr_pane::pull_request::git_split::GitSplit;
 use super::{Entry, Host, Opened, Pane, Parts, Place, Route, Screen, THREAD};
 use crate::screens::app_shell::keys;
 use crate::sidebar::ThreadItem;
@@ -68,6 +71,9 @@ pub(crate) fn kept_view(thread: &str, cx: &App) -> Option<Entity<ThreadView>> {
 pub struct ThreadScreen {
     view: Entity<ThreadView>,
     composer: Entity<Composer>,
+    /// The header's git button and Open, the panes' own, one each for the kept screen, told each thread in turn.
+    git: Entity<GitSplit>,
+    open: Entity<OpenSplit>,
     /// The composer's tie to the open thread, built again for each thread once the host has read it.
     link: Option<Entity<Link>>,
     host: Host,
@@ -93,6 +99,14 @@ impl ThreadScreen {
 
     pub fn composer(&self) -> &Entity<Composer> {
         &self.composer
+    }
+
+    pub fn git_split(&self) -> &Entity<GitSplit> {
+        &self.git
+    }
+
+    pub fn open_split(&self) -> &Entity<OpenSplit> {
+        &self.open
     }
 
     fn open(&mut self, opened: Opened, window: &mut Window, cx: &mut Context<Self>) {
@@ -311,6 +325,7 @@ impl Screen for ThreadScreen {
         });
         if let Some(now) = capture.now {
             view.update(cx, |v, cx| v.freeze_clock(now, cx));
+            cx.set_global(crate::ui::FrozenNow(now));
         }
         let steps = (capture.unfold || capture.reveal.is_some()).then(|| cx.observe(&view, |this, _, cx| this.take_steps(cx)));
         let docked = Rc::new(Cell::new(super::thread_view::rows::COMPOSER_INSET));
@@ -324,22 +339,37 @@ impl Screen for ThreadScreen {
                     let key = composer.read(cx).thread_key().unwrap_or_default().to_owned();
                     link::answer(&this.host, answer.clone(), composer.downgrade(), key, cx);
                 }
-                // The line under the send stands at the transcript's foot, as the listing's notice.
+                // The line under the send stands at the transcript's foot, as the listing's notice; with none the send's
+                // turn started or was refused, and the words drawn for it go too.
                 ComposerEvent::Starting(line) => {
                     let thread = this.thread.clone().unwrap_or_default();
                     this.view.update(cx, |v, cx| {
                         let listed = v.transcript().listed().cloned();
                         let listing = listed.unwrap_or_else(|| crate::transcript::Listing { thread, ..Default::default() });
-                        v.set_listing(crate::transcript::Listing { starting: line.clone(), ..listing }, cx);
+                        let sent = listing.sent.clone().filter(|_| line.is_some());
+                        v.set_listing(crate::transcript::Listing { starting: line.clone(), sent, ..listing }, cx);
+                    });
+                }
+                // A send stands as the person's message at once, before the host answers.
+                ComposerEvent::Start(out) if out.fork.is_none() => {
+                    let thread = this.thread.clone().unwrap_or_default();
+                    this.view.update(cx, |v, cx| {
+                        let listed = v.transcript().listed().cloned();
+                        let listing = listed.unwrap_or_else(|| crate::transcript::Listing { thread, ..Default::default() });
+                        v.set_listing(crate::transcript::Listing { sent: Some(out.prompt.clone()), ..listing }, cx);
                     });
                 }
                 _ => {}
             }
         });
         let heard = Self::hear(&host, cx);
+        let git = cx.new(|_| GitSplit::fed(host.clone()));
+        let open = cx.new(OpenSplit::new);
         let mut screen = ThreadScreen {
             view,
             composer,
+            git,
+            open,
             link: None,
             host,
             capture,
@@ -362,8 +392,9 @@ impl Screen for ThreadScreen {
     }
 
     fn parts(this: &Entity<Self>, _: &mut Window, cx: &mut App) -> Parts {
-        let view = this.read(cx).view.clone();
-        let actions = cx.new(|cx| Actions::new(view.clone(), cx));
+        let screen = this.read(cx);
+        let (view, git, open) = (screen.view.clone(), screen.git.clone(), screen.open.clone());
+        let actions = cx.new(|cx| Actions::new(view.clone(), git, open, cx));
         let crumbs = cx.new(|cx| Crumbs::new(view, cx));
         Parts { actions: Some(actions.into()), crumbs: Some(crumbs.into()), ..Parts::default() }
     }
@@ -428,21 +459,24 @@ impl Render for ThreadScreen {
 /// The header's thread cluster in the frame's actions slot, drawn again whenever the thread view or its cluster is.
 struct Actions {
     view: Entity<ThreadView>,
+    git: Entity<GitSplit>,
+    open: Entity<OpenSplit>,
     bar: header::BarWatch,
     _redraw: Subscription,
 }
 
 impl Actions {
-    fn new(view: Entity<ThreadView>, cx: &mut Context<Self>) -> Self {
+    fn new(view: Entity<ThreadView>, git: Entity<GitSplit>, open: Entity<OpenSplit>, cx: &mut Context<Self>) -> Self {
         let redraw = cx.observe(&view, |_, _, cx| cx.notify());
-        Actions { view, bar: header::BarWatch::default(), _redraw: redraw }
+        Actions { view, git, open, bar: header::BarWatch::default(), _redraw: redraw }
     }
 }
 
 impl Render for Actions {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.bar.follow(&self.view, cx);
-        self.view.update(cx, |v, cx| header::actions(v, window, cx).into_any_element())
+        let (git, open) = (self.git.clone(), self.open.clone());
+        self.view.update(cx, |v, cx| header::actions(v, &git, &open, window, cx).into_any_element())
     }
 }
 

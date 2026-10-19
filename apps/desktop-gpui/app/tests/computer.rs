@@ -222,12 +222,23 @@ fn a_local_threads_pane_is_pending_then_draws_the_hosts_readings(cx: &mut TestAp
     // The frame drawn before the close still holds the pane's view until the next one is drawn.
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
+    assert_eq!(live.read_with(cx, |l, _| l.holders(&workspace)), 1, "the pane's hold went; the thread view's machine line keeps its own");
+    stop_thread_view(&shell, cx);
     assert_eq!(live.read_with(cx, |l, _| l.holders(&workspace)), 0);
     let at = |cx: &mut VisualTestContext| live.read_with(cx, |l, _| l.readings(&workspace).ring.last().map(|s| s.at));
     let before = at(cx);
     std::thread::sleep(Duration::from_secs(5));
     cx.run_until_parked();
     assert_eq!(at(cx), before, "no reading arrives for five seconds once the pane is gone");
+}
+
+/// Stops the shell's thread view following its thread, which lets go of the hold its machine line keeps on the same
+/// readings.
+fn stop_thread_view(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
+    let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen");
+    let view = screen.read_with(cx, |s, _| s.view().clone());
+    view.update(cx, |v, cx| v.stop(cx));
+    cx.run_until_parked();
 }
 
 /// Moves the test clock across three of the pane's checks: past the frame drawn before, a check that asks for a frame,
@@ -252,6 +263,8 @@ fn the_pane_holds_its_readings_only_while_the_window_draws_it(cx: &mut TestAppCo
     let (workspace, thread) = first(&host);
     let (shell, pane, cx) = open(cx, &throwaway, Some((workspace.clone(), thread)));
     until(cx, "a sample from the host", |cx| !shown(&pane, cx).plots[0].points.is_empty());
+    // The thread view's machine line holds the same readings; with it stopped, only the pane's hold counts.
+    stop_thread_view(&shell, cx);
     let live = cx.update(|_, cx| live::live(cx));
     let holders = |cx: &mut VisualTestContext| live.read_with(cx, |l, _| l.holders(&workspace));
     let at = |cx: &mut VisualTestContext| live.read_with(cx, |l, _| l.readings(&workspace).ring.last().map(|s| s.at));

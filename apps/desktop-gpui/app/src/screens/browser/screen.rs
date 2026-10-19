@@ -211,11 +211,7 @@ impl BrowserScreen {
         }
         self.remember(&place, cx);
         if self.key.tab == PLACEHOLDER {
-            let (thread, workspace) = (self.key.thread.clone(), self.workspace());
-            let made = self.store.update(cx, |s, cx| s.open_new(&thread, workspace, Some(place), cx));
-            if let Some(made) = made {
-                navigate(Route::Screen(format!("{}:{}", super::NAME, made.tab).into()), cx);
-            }
+            super::open_at(&self.key.thread, self.workspace(), place, cx);
             return;
         }
         let key = self.key.clone();
@@ -421,11 +417,7 @@ impl BrowserScreen {
         match asked {
             // `guestWindow`: a web page opens as a tab, anything else goes nowhere.
             Asked::NewTab { from, url } if *from == self.key && words::window_road(url) == words::WindowRoad::Tab => {
-                let place = url::place_of_url(url, None);
-                let (thread, workspace) = (self.key.thread.clone(), self.workspace());
-                if let Some(made) = self.store.update(cx, |s, cx| s.open_new(&thread, workspace, Some(place), cx)) {
-                    navigate(Route::Screen(format!("{}:{}", super::NAME, made.tab).into()), cx);
-                }
+                super::open_at(&self.key.thread, self.workspace(), url::place_of_url(url, None), cx);
             }
             // A page off screen asks nothing; its next ask waits for a press on it.
             Asked::Leave { from, url } if *from == self.key && self.page(cx).is_some_and(|p| p.read(cx).placed().is_some()) => {

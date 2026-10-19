@@ -251,3 +251,132 @@ fn the_model_pickers_search_row_and_rows_keep_the_webs_pitch(cx: &mut TestAppCon
     let (first, second) = (rect(cx, "composer-model-row-0"), rect(cx, "composer-model-row-1"));
     assert_eq!(f32::from(second.top() - first.top()), 64., "each row 64 px, as the web's");
 }
+
+/// The window `width` wide, drawn again at it.
+fn at_width(cx: &mut VisualTestContext, width: f32) {
+    cx.simulate_resize(gpui_kit::size(px(width), px(800.)));
+    for _ in 0..3 {
+        cx.run_until_parked();
+        cx.update(|window, _| window.refresh());
+    }
+    cx.run_until_parked();
+}
+
+/// Under 640 px (`max-sm`): the composer's sides 12 px, the tray 36 px with 28 px items, the send 36 px; from 640 px
+/// up the 20 px sides, the 32 px tray with 24 px items and the 32 px send come back.
+#[gpui_kit::test]
+fn under_640_px_the_composer_takes_the_phone_sizes(cx: &mut TestAppContext) {
+    let cx = open("empty", cx);
+    at_width(cx, 600.);
+    let b = xywh(rect(cx, "composer-box"));
+    assert_eq!((b.0, b.2), (12., 576.), "12 px sides, `px-3`");
+    assert_eq!(xywh(rect(cx, "composer-tray")).3, 36., "the tray shows 36 px");
+    assert_eq!(xywh(rect(cx, "tray-computer")).3, 28., "28 px tray items");
+    let send = xywh(rect(cx, "composer-send"));
+    assert_eq!((send.2, send.3), (36., 36.), "a 36 px send");
+    assert_eq!(f32::from(rect(cx, "composer").bottom() - rect(cx, "composer-tray").bottom()), 16., "`pb-4` under the tray");
+
+    at_width(cx, 640.);
+    let b = xywh(rect(cx, "composer-box"));
+    assert_eq!((b.0, b.2), (20., 600.), "20 px sides from 640 px");
+    assert_eq!(xywh(rect(cx, "composer-tray")).3, 32.);
+    assert_eq!(xywh(rect(cx, "tray-computer")).3, 24.);
+    assert_eq!(xywh(rect(cx, "composer-send")).2, 32.);
+}
+
+/// The dock frame under 640 px (Dock.tsx `px-3 pb-3 sm:px-4 sm:pb-4`).
+#[gpui_kit::test]
+fn under_640_px_the_dock_takes_12_px_sides(cx: &mut TestAppContext) {
+    let cx = open("prompt-dock", cx);
+    at_width(cx, 600.);
+    let dock = xywh(rect(cx, "composer-box"));
+    assert_eq!((dock.0, dock.2), (12., 576.), "the dock's 12 px sides");
+    assert_eq!(f32::from(rect(cx, "composer").bottom() - rect(cx, "composer-box").bottom()), 12., "`pb-3` under the dock");
+}
+
+#[gpui_kit::test]
+fn under_640_px_the_full_box_takes_12_px_insets(cx: &mut TestAppContext) {
+    let cx = open("new-thread", cx);
+    at_width(cx, 600.);
+    let boxed = rect(cx, "composer-box");
+    let editor = rect(cx, "composer-editor");
+    assert_eq!(f32::from(editor.left() - boxed.left()), 1. + 12., "the hairline and `px-3`");
+    assert_eq!(f32::from(editor.top() - boxed.top()), 1. + 14., "the hairline and `pt-3.5`");
+}
+
+/// A pick the host would not take: its sentence under the cards in the error ink, and its fix after it in the body
+/// ink, one paragraph that wraps as text does (PermissionPromptRow.tsx `PromptRefusal`, a `<p>` with the fix a span).
+#[gpui_kit::test]
+fn a_refusal_under_the_dock_carries_the_hosts_fix_after_its_sentence(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::thread_view::cards::Refusal;
+    let cx = open("prompt-dock", cx);
+    let composer = composer_of(cx);
+    let ask = composer.read_with(cx, |c, _| c.dock().unwrap().prompt.ask.clone());
+    let sentence = "The host could not take this answer because the thread it was asked on has ended since the question \
+        was put, and a question outlives its turn only while that turn's agent still waits on it for an answer of its own.";
+    let said = |fix: Option<&str>| Refusal { said: sentence.to_owned(), fix: fix.map(str::to_owned) };
+    composer.update(cx, |c, cx| c.prompt_refused(&ask, Some(said(None)), cx));
+    cx.run_until_parked();
+    let alone = rect(cx, "refusal");
+    assert!(alone.size.height > px(20.), "a long sentence wraps inside the dock: {alone:?}");
+    composer.update(cx, |c, cx| c.prompt_refused(&ask, Some(said(Some("Try again."))), cx));
+    cx.run_until_parked();
+    let with_fix = rect(cx, "refusal");
+    assert_eq!(with_fix.size.height, alone.size.height, "the fix runs on after the sentence's last line: {with_fix:?}");
+}
+
+/// Under 640 px the dock's foot stacks (Dock.tsx `StepFoot`, `flex-col-reverse`): the acts full width with the primary
+/// on top, and Write instead centred under them; from 640 px up one row, the acts at the right.
+#[gpui_kit::test]
+fn under_640_px_the_dock_foot_stacks_its_acts_with_the_primary_on_top(cx: &mut TestAppContext) {
+    let cx = open("prompt-dock", cx);
+    at_width(cx, 600.);
+    let dock = rect(cx, "prompt-dock");
+    let (answer, write) = (rect(cx, "prompt-answer"), rect(cx, "prompt-write"));
+    assert_eq!((answer.left() - dock.left(), dock.right() - answer.right()), (px(20.), px(20.)), "the primary across the foot");
+    assert!(answer.bottom() <= write.top(), "the primary over Write instead: {answer:?} {write:?}");
+    assert_eq!(write.center().x, dock.center().x, "Write instead centred");
+    assert_eq!(dock.bottom() - write.bottom(), px(20.), "`pb-5` under the foot");
+
+    at_width(cx, 640.);
+    let dock = rect(cx, "prompt-dock");
+    let (answer, write) = (rect(cx, "prompt-answer"), rect(cx, "prompt-write"));
+    assert_eq!(dock.right() - answer.right(), px(20.), "the primary at the foot's right");
+    assert_eq!(answer.center().y, write.center().y, "one row");
+    assert_eq!(write.left() - dock.left(), px(20.));
+}
+
+/// A bar's foot in the dock's frame stacks the same way: Resume at reset over Cancel, both full width.
+#[gpui_kit::test]
+fn under_640_px_a_bars_foot_stacks_the_same_way(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::composer::model::{Drawer, Limit};
+    use desktop_gpui::screens::composer::Bar;
+    let cx = open("empty", cx);
+    let composer = composer_of(cx);
+    let limit = Limit { title: "Usage limit reached".into(), resets: true, ..Limit::default() };
+    composer.update(cx, |c, cx| {
+        c.set_drawer(Drawer { limit: Some(limit), ..Drawer::default() }, cx);
+        c.open_bar(Bar::Usage, cx);
+    });
+    at_width(cx, 600.);
+    let foot = rect(cx, "dock-foot");
+    let (resume, cancel, back) = (rect(cx, "limit-resume"), rect(cx, "limit-cancel"), rect(cx, "dock-back"));
+    assert_eq!((resume.left() - foot.left(), foot.right() - resume.right()), (px(20.), px(20.)));
+    assert_eq!(cancel.size.width, resume.size.width, "both across the foot");
+    assert!(resume.bottom() <= cancel.top() && cancel.bottom() <= back.top(), "Resume, Cancel, then Write a message");
+    assert_eq!(back.center().x, foot.center().x);
+}
+
+/// Under 640 px a dock row's field stands under its words across the row (PickLists.tsx `Choice`: the slot under the
+/// words with `max-sm:pl-7`, the field `max-sm:w-full`).
+#[gpui_kit::test]
+fn under_640_px_a_dock_rows_field_stands_under_its_words_full_width(cx: &mut TestAppContext) {
+    let cx = open("prompt-dock", cx);
+    at_width(cx, 600.);
+    cx.simulate_keystrokes("2");
+    cx.run_until_parked();
+    let (field, dock) = (rect(cx, "control"), rect(cx, "prompt-dock"));
+    // The body's 20 px side, the card's 1 px edge, the row's 20 px inset, then the slot's 28 px indent.
+    assert_eq!(field.left() - dock.left(), px(20. + 1. + 20. + 28.), "under the words, past the radio");
+    assert_eq!(dock.right() - field.right(), px(41.), "to the row's right edge");
+}

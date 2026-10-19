@@ -44,6 +44,8 @@ pub struct ChangedFilesTree {
     controls: Option<RowPiece>,
     /// The controls' width, so each name gets a computed width rather than one shaped on every probe.
     controls_width: Pixels,
+    /// The pane's tree stops at `max-h-56` over a foot; a turn's card draws every row.
+    capped: bool,
 }
 
 impl ChangedFilesTree {
@@ -61,7 +63,14 @@ impl ChangedFilesTree {
             lead: None,
             controls: None,
             controls_width: px(0.),
+            capped: true,
         }
+    }
+
+    /// Every row at its height, with no cap and no foot under the last, as a turn's card draws its tree.
+    pub fn uncapped(mut self) -> Self {
+        self.capped = false;
+        self
     }
 
     pub fn scroll(mut self, handle: UniformListScrollHandle) -> Self {
@@ -106,6 +115,7 @@ pub fn stat(additions: usize, deletions: usize, cx: &App) -> impl IntoElement {
     let mono = cx.theme().mono_font_family.clone();
     let col = |text: String, ink| div().w(px(4. * 6.6)).flex_none().flex().justify_end().text_color(ink).child(text);
     h_flex()
+        .debug_selector(|| "stat-aligned".into())
         .flex_none()
         .gap(px(8.))
         .font_family(mono)
@@ -131,21 +141,22 @@ impl RenderOnce for ChangedFilesTree {
         let count = self.rows.len();
         let height = ChangedFilesTree::height(count);
         // Past `max-h-56` the native bar takes its lane at the scroller's edge, outside the `px-1`.
-        let lane = ChangedFilesTree::content(count) > MAX_HEIGHT;
+        let lane = self.capped && ChangedFilesTree::content(count) > MAX_HEIGHT;
         if lane {
             self.width -= scrollbar::WIDTH;
         }
         let me = Rc::new(self);
         let list_me = me.clone();
         // Each row keeps its gap under it, the last one too, so the foot under the list is that much shorter.
+        let rows = (ROW + ROW_GAP) * count as f32;
         let list = uniform_list(SharedString::from(format!("{}-rows", me.id)), count, move |range, window, cx| {
             range.map(|ix| list_me.row(ix, window, cx)).collect::<Vec<_>>()
         })
-        .h(height)
+        .h(if me.capped { height } else { rows })
         .w_full()
         .pl(px(4.))
         .pr(px(4.) + if lane { scrollbar::WIDTH } else { px(0.) })
-        .pb(FOOT - ROW_GAP);
+        .when(me.capped, |list| list.pb(FOOT - ROW_GAP));
         let (list, bar) = match me.scroll.clone() {
             Some(handle) => {
                 let bar = lane.then(|| scrollbar::list_bar(format!("{}-bar", me.id), &handle, window, cx)).flatten();
@@ -153,7 +164,12 @@ impl RenderOnce for ChangedFilesTree {
             }
             None => (list, None),
         };
-        div().debug_selector(|| "changed-files-tree".into()).relative().child(list).children(bar)
+        if !me.capped {
+            // The card draws every row with no gap under the last: the list keeps it and the frame cuts it.
+            let frame = div().debug_selector(|| "changed-files-tree".into()).h(rows - ROW_GAP).overflow_hidden();
+            return frame.child(list).into_any_element();
+        }
+        div().debug_selector(|| "changed-files-tree".into()).relative().child(list).children(bar).into_any_element()
     }
 }
 

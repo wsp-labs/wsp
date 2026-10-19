@@ -4,15 +4,13 @@
 //! file with the message the workspace's agent drafts, then brings the work back; where no draft comes back the
 //! Changes pane opens on the uncommitted files so the person writes one. View PR opens the Pull request pane.
 //!
-//! The thread view mounts it in its header's actions: `cx.new(|cx| GitSplit::new(host, workspace_id, thread_id,
-//! window, cx))`, and tells it each thread switch with [`GitSplit::show`].
+//! The thread view mounts one in its header's actions with [`GitSplit::fed`], tells it each thread switch with
+//! [`GitSplit::show`] and hands it the status, base and computers the header already follows with [`GitSplit::feed`].
 
 use std::rc::Rc;
 
-use futures::channel::mpsc;
-use futures::StreamExt as _;
 use gpui_kit::component::h_flex;
-use gpui_kit::{div, prelude::*, px, Context, Corners, SharedString, Task, Window};
+use gpui_kit::{div, prelude::*, px, Context, Corners, SharedString, Window};
 use serde_json::{json, Value};
 use wsp_host_client::protocol;
 
@@ -185,103 +183,50 @@ pub struct GitSplit {
     /// The computers as the host last listed them, for the sentence saying the workspace's one is away.
     places: Vec<Value>,
     busy: bool,
-    _follow: Task<()>,
-    _base: Option<Task<()>>,
-    _places: Task<()>,
 }
 
 impl GitSplit {
-    pub fn new(host: Host, workspace_id: String, thread_id: Option<String>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let follow = Self::follow(&host, workspace_id.clone(), window, cx);
-        let places = Self::follow_places(&host, window, cx);
-        GitSplit {
-            host,
-            workspace_id,
-            thread_id,
-            status: None,
-            base: None,
-            places: Vec::new(),
-            busy: false,
-            _follow: follow,
-            _base: None,
-            _places: places,
-        }
+    /// A button that follows nothing: its owner tells it the thread with [`GitSplit::show`] and feeds it with
+    /// [`GitSplit::feed`].
+    pub fn fed(host: Host) -> Self {
+        GitSplit { host, workspace_id: String::new(), thread_id: None, status: None, base: None, places: Vec::new(), busy: false }
     }
 
-    /// The button on another thread: its workspace's status is followed instead.
-    pub fn show(&mut self, workspace_id: String, thread_id: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
-        self.thread_id = thread_id;
-        if workspace_id != self.workspace_id {
-            self.workspace_id = workspace_id.clone();
-            self.status = None;
-            self.base = None;
-            self._base = None;
-            self._follow = Self::follow(&self.host, workspace_id, window, cx);
+    /// What the owner of a fed button follows: the workspace's status, its project's base and the computers. The
+    /// button draws again only where one of them moved.
+    pub fn feed(&mut self, status: Option<&Value>, base: Option<&str>, places: &[Value], cx: &mut Context<Self>) {
+        if self.holds(status, base, places) {
+            return;
         }
+        self.status = status.cloned();
+        self.base = base.map(str::to_owned);
+        self.places = places.to_vec();
         cx.notify();
     }
 
-    fn follow(host: &Host, workspace_id: String, window: &mut Window, cx: &mut Context<Self>) -> Task<()> {
-        let (tx, mut rx) = mpsc::unbounded();
-        let road = link::follow(host, workspace_id, tx);
-        cx.spawn_in(window, async move |this, cx| {
-            let pushes = async {
-                while let Some(status) = rx.next().await {
-                    if this.update(cx, |this, cx| this.take_status(status, cx)).is_err() {
-                        break;
-                    }
-                }
-            };
-            futures::join!(pushes, async { _ = road.await });
-        })
+    /// Whether it holds just what [`GitSplit::feed`] would hand it.
+    pub fn holds(&self, status: Option<&Value>, base: Option<&str>, places: &[Value]) -> bool {
+        self.status.as_ref() == status && self.base.as_deref() == base && self.places == places
     }
 
-    /// The branch the work goes back to: the project's base, else its default branch.
-    fn read_base(host: &Host, project: String, cx: &mut Context<Self>) -> Task<()> {
-        let reading = host.run(move |client| async move {
-            Ok(client.projects().await?.into_iter().find(|p| p.id == project).and_then(|p| {
-                let p = serde_json::to_value(p).unwrap_or_default();
-                p["base"].as_str().or_else(|| p["defaultBranch"].as_str()).map(str::to_owned)
-            }))
-        });
-        cx.spawn(async move |this, cx| {
-            if let Ok(base) = reading.await {
-                _ = this.update(cx, |this, cx| {
-                    this.base = base;
-                    cx.notify();
-                });
-            }
-        })
+    /// The workspace it acts on and the thread it was told.
+    pub fn shows(&self) -> (&str, Option<&str>) {
+        (&self.workspace_id, self.thread_id.as_deref())
     }
 
-    /// The computers as the host lists them, read again on each push that changes one.
-    fn follow_places(host: &Host, window: &mut Window, cx: &mut Context<Self>) -> Task<()> {
-        let (tx, mut rx) = mpsc::unbounded();
-        let road = link::follow_places(host, tx);
-        cx.spawn_in(window, async move |this, cx| {
-            let pushes = async {
-                while let Some(places) = rx.next().await {
-                    let taken = this.update(cx, |this, cx| {
-                        this.places = places;
-                        cx.notify();
-                    });
-                    if taken.is_err() {
-                        break;
-                    }
-                }
-            };
-            futures::join!(pushes, async { _ = road.await });
-        })
+    /// Whether an act it started still waits on the host.
+    pub fn busy(&self) -> bool {
+        self.busy
     }
 
-    /// A status the host pushed; the first names the project whose base the button reads.
-    pub fn take_status(&mut self, status: Value, cx: &mut Context<Self>) {
-        if self._base.is_none() {
-            if let Some(project) = status.pointer("/project/id").and_then(Value::as_str) {
-                self._base = Some(Self::read_base(&self.host, project.to_owned(), cx));
-            }
+    /// The button on another thread: what it was fed of the last workspace goes until it is fed this one's.
+    pub fn show(&mut self, workspace_id: String, thread_id: Option<String>, cx: &mut Context<Self>) {
+        self.thread_id = thread_id;
+        if workspace_id != self.workspace_id {
+            self.workspace_id = workspace_id;
+            self.status = None;
+            self.base = None;
         }
-        self.status = Some(status);
         cx.notify();
     }
 
@@ -344,8 +289,12 @@ impl GitSplit {
                             let notice = ui::Notice::note(note.to_owned()).place(name.clone());
                             _ = cx.update(|_, cx| ui::notify(cx, notice));
                         }
-                        let (w, t) = (workspace_id.clone(), thread_id.clone());
-                        _ = cx.update(|_, cx| changes::open_on(&w, t.as_deref(), Scope::Head, cx));
+                        // The pane opens on the thread pressed on, never on the one the window moved to since.
+                        let pressed = this.read_with(cx, |this, _| this.workspace_id == workspace_id && this.thread_id == thread_id);
+                        if pressed.unwrap_or(false) {
+                            let (w, t) = (workspace_id.clone(), thread_id.clone());
+                            _ = cx.update(|_, cx| changes::open_on(&w, t.as_deref(), Scope::Head, cx));
+                        }
                         return Ok(());
                     };
                     link::ask::<protocol::WorkspacesCommitRequest>(&host, json!({ "workspaceId": workspace_id, "message": message }))
@@ -388,8 +337,9 @@ fn glyph_of(act: Option<GitAct>) -> Glyph {
 }
 
 impl Render for GitSplit {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let Some(state) = self.state().filter(|_| self.shown()) else { return div().into_any_element() };
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Out of the flow, so the header's gap-2 does not stand around a button that draws nothing.
+        let Some(state) = self.state().filter(|_| self.shown()) else { return div().absolute().into_any_element() };
         let quick = quick_action(&state);
         let shown = quick.act.or(quick.holds);
         let me = cx.weak_entity();
@@ -398,13 +348,14 @@ impl Render for GitSplit {
             Corners { top_left: ui::size::BUTTON_RADIUS, top_right: px(0.), bottom_right: px(0.), bottom_left: ui::size::BUTTON_RADIUS };
         let right =
             Corners { top_left: px(0.), top_right: ui::size::BUTTON_RADIUS, bottom_right: ui::size::BUTTON_RADIUS, bottom_left: px(0.) };
-        let main = Button::outline("git-quick", quick.label.clone()).glyph(glyph_of(shown)).corners(left).held(act.is_none()).on_click(
-            move |_, window, cx| {
+        // `max-sm:sr-only`: under 640 px the glyph alone, its words on the hover.
+        let label = if ui::narrow(window) { SharedString::default() } else { quick.label.clone().into() };
+        let main =
+            Button::outline("git-quick", label).glyph(glyph_of(shown)).corners(left).held(act.is_none()).on_click(move |_, window, cx| {
                 if let Some(act) = act {
                     _ = me.update(cx, |this, cx| this.run(act, window, cx));
                 }
-            },
-        );
+            });
         let hint: SharedString = quick.hint.clone().unwrap_or_else(|| quick.label.clone()).into();
         let acts: Vec<MenuAct> = menu(&state)
             .into_iter()
@@ -430,12 +381,17 @@ impl Render for GitSplit {
                 }
             })
             .collect();
-        let more = Button::outline("git-more", "").glyph(Glyph::ChevronDown).corners(right).tooltip(GitWords::MENU);
+        let more = Button::outline("git-more", "").xs().height(px(32.)).glyph(Glyph::ChevronDown).corners(right).tooltip(GitWords::MENU);
         h_flex()
             .debug_selector(|| "git-split".into())
             .flex_none()
-            .child(div().id("git-quick-hover").tooltip(tip(hint)).child(main))
-            .child(div().ml(px(-1.)).child(menu_on("git-more", more, gpui_kit::Anchor::TopRight, Rc::new(acts))))
+            .child(div().id("git-quick-hover").debug_selector(|| "git-quick".into()).tooltip(tip(hint)).child(main))
+            .child(div().debug_selector(|| "git-more".into()).ml(px(-1.)).child(menu_on(
+                "git-more",
+                more,
+                gpui_kit::Anchor::TopRight,
+                Rc::new(acts),
+            )))
             .into_any_element()
     }
 }
@@ -471,6 +427,15 @@ mod tests {
         let mut busy = state("work", 2, 0, false);
         busy.busy = true;
         assert_eq!(quick_action(&busy).hint.as_deref(), Some(GitWords::BUSY));
+        let detached = quick_action(&state(DETACHED_HEAD, 2, 0, false));
+        assert_eq!((detached.label.as_str(), detached.act, detached.hint.as_deref()), ("Commit", None, Some(GitWords::NO_BRANCH)));
+        let mut lead = state("work", 0, 0, false);
+        lead.opens_pr = false;
+        let nothing = quick_action(&lead);
+        assert_eq!((nothing.label.as_str(), nothing.act, nothing.hint.as_deref()), ("Push", None, Some(GitWords::NOTHING)));
+        let mut viewing = state("work", 0, 0, true);
+        viewing.away = Some("Workspace is paused; wake it to push".into());
+        assert_eq!(quick_action(&viewing).act, Some(GitAct::ViewPr), "View PR stopped while the machine is away");
     }
 
     #[test]

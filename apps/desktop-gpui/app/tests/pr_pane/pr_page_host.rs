@@ -115,20 +115,27 @@ impl PrHost {
         all.as_array().unwrap().iter().find(|s| s["id"] == self.workspace_id.as_str()).cloned().unwrap_or(Value::Null)
     }
 
-    /// One computer as the host lists it.
-    pub fn place(&self, id: &str) -> Value {
+    /// The computers as the host lists them.
+    pub fn places(&self) -> Vec<Value> {
         let client = self.client.clone();
         let ask: protocol::PlacesListRequest = serde_json::from_value(json!({})).unwrap();
         let listed = self.runtime.block_on(async move { client.call(ask).await }).unwrap_or_else(|f| panic!("{}", f.message));
-        let places = serde_json::to_value(listed.places).unwrap();
-        places.as_array().unwrap().iter().find(|p| p["id"] == id).cloned().unwrap_or(Value::Null)
+        listed.places.iter().map(|p| serde_json::to_value(p).unwrap()).collect()
     }
 
-    /// Sets a computer's thread cap back to its default, which the host pushes as `place.changed`.
-    pub fn touch_place(&self, id: &str) {
+    /// One computer as the host lists it.
+    pub fn place(&self, id: &str) -> Value {
+        self.places().into_iter().find(|p| p["id"] == id).unwrap_or(Value::Null)
+    }
+
+    /// The workspace's project's base as the host lists it, which the header hands the git button (`GitSplit.tsx` reads
+    /// `project.base` alone, no default branch).
+    pub fn base(&self) -> Option<String> {
+        let project = self.status()["project"]["id"].as_str()?.to_owned();
         let client = self.client.clone();
-        let ask: protocol::PlacesSetRequest = serde_json::from_value(json!({ "placeId": id, "reset": ["threads"] })).unwrap();
-        self.runtime.block_on(async move { client.call(ask).await }).unwrap_or_else(|f| panic!("{}", f.message));
+        let projects = self.runtime.block_on(async move { client.projects().await }).unwrap_or_else(|f| panic!("{}", f.message));
+        let project = projects.into_iter().find(|p| p.id == project)?;
+        serde_json::to_value(project).ok()?["base"].as_str().map(str::to_owned)
     }
 
     /// Asks the host to read the branch, which reads its pull request, until the status names one, or `WAIT` passes.

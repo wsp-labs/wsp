@@ -7,6 +7,7 @@ pub mod host;
 pub mod words;
 
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use gpui_kit::base::Root;
 use gpui_kit::{px, App, Context, Entity, Pixels, Subscription, Task, WeakEntity, Window};
@@ -15,6 +16,7 @@ use wsp_host_client::HostClient;
 
 use crate::screens::app_shell::frame;
 use crate::screens::palette::overlays;
+use crate::screens::pr_pane::files::open_split;
 use crate::screens::{Host, Route};
 use crate::shell::Shell;
 use crate::sidebar::Sidebar;
@@ -144,7 +146,7 @@ pub fn settled(reply: &Value, restore: impl Fn(Vec<String>, &mut App) + 'static)
 /// one's over ssh in the host's default editor. A wait on the computer's update is a waiting toast, any other refusal
 /// the host's sentence.
 pub fn open_in_editor(workspace_id: String, window: &mut Window, cx: &mut App) {
-    open_copy_in_editor(workspace_id, None, window, cx);
+    open_copy_in_editor(workspace_id, None, None, window, cx);
 }
 
 /// Whether an open of the workspace's copy waits on the host's answer, which a second press waits on too.
@@ -152,9 +154,10 @@ pub fn opening(workspace_id: &str, window: &Window, cx: &App) -> bool {
     overlays::of(window, cx).is_some_and(|o| o.read(cx).notices.read(cx).opening.contains(workspace_id))
 }
 
-/// [`open_in_editor`], a running workspace on another computer in `editor` where one is named (`openCopyInEditor`'s
-/// `editor`); a local one always opens in the host's default.
-pub fn open_copy_in_editor(workspace_id: String, editor: Option<String>, window: &mut Window, cx: &mut App) {
+/// [`open_in_editor`] as `openCopyInEditor`: `pick` becomes the default first, inside the open's wait, so a press
+/// meanwhile waits too; a running workspace on another computer opens in the editor picked or named, a local one in the
+/// host's default.
+pub fn open_copy_in_editor(workspace_id: String, pick: Option<String>, editor: Option<String>, window: &mut Window, cx: &mut App) {
     let Some(overlays) = overlays::of(window, cx) else { return };
     let (host, notices, sidebar) = {
         let o = overlays.read(cx);
@@ -163,30 +166,47 @@ pub fn open_copy_in_editor(workspace_id: String, editor: Option<String>, window:
     let Some(host) = host else { return };
     let workspace = sidebar.and_then(|s| s.upgrade()).and_then(|s| s.read(cx).around().workspaces.get(&workspace_id).cloned());
     let Some(workspace) = workspace.filter(|w| w["kind"] == "local" || w["phase"] == "running") else { return };
-    if !notices.update(cx, |n, _| n.opening.insert(workspace_id.clone())) {
+    let fresh = notices.update(cx, |n, cx| {
+        cx.notify();
+        n.opening.insert(workspace_id.clone())
+    });
+    if !fresh {
         return;
     }
+    let named = pick.clone().or(editor).filter(|_| workspace["kind"] != "local");
+    let (asked_again, again_with, handle) = (workspace_id.clone(), named.clone(), window.window_handle());
     let id = workspace_id.clone();
     let folder = workspace["folder"].as_str().or(workspace["project"]["path"].as_str()).unwrap_or_default().to_owned();
     let mut asked = json!({ "workspaceId": id, "path": folder });
-    if let Some(editor) = editor.filter(|_| workspace["kind"] != "local") {
+    if let Some(editor) = named {
         asked["editor"] = editor.into();
     }
-    let open = host.run(move |client| async move {
-        crate::screens::sidebar::host::ask::<wsp_host_client::protocol::EditorOpenRequest>(client, asked).await.map(drop)
-    });
     notices.update(cx, |_, cx| {
         cx.spawn(async move |this, cx| {
-            let answer = open.await;
+            let answer = async {
+                if let Some(pick) = pick {
+                    open_split::set_preference(host.clone(), pick.clone()).await?;
+                    cx.update(|cx| open_split::set_editors(None, Some(pick), cx));
+                }
+                let asking = host.clone();
+                asking
+                    .run(move |client| async move {
+                        crate::screens::sidebar::host::ask::<wsp_host_client::protocol::EditorOpenRequest>(client, asked).await.map(drop)
+                    })
+                    .await
+            }
+            .await;
             _ = this.update(cx, |n, cx| {
                 n.opening.remove(&workspace_id);
+                cx.notify();
                 if let Err(failure) = answer {
-                    let notice = if failure.kind.as_deref() == Some("sshBehind") {
-                        Notice::waiting(failure.message)
-                    } else {
-                        Notice::error(failure.message)
-                    };
-                    n.add(notice, cx);
+                    if failure.kind.as_deref() == Some(open_split::SSH_INCLUDE_KIND) {
+                        let again: crate::ui::Run =
+                            Rc::new(move |window, cx| open_copy_in_editor(asked_again.clone(), None, again_with.clone(), window, cx));
+                        _ = handle.update(cx, |_, window, cx| open_split::ask_ssh(host, again, window, cx));
+                        return;
+                    }
+                    n.add(open_split::failed_notice(&failure), cx);
                 }
             });
         })

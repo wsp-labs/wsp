@@ -55,14 +55,21 @@ pub use segmented::Segmented;
 pub use select::{Select, SelectEvent, SelectItem, SelectState};
 pub use sparkline::Sparkline;
 pub use status::{
-    fmt_duration, fmt_elapsed, spinner, step_mark, step_refusal, Crab, MarkState, RowSkeleton, Skeleton, Status, StatusMark, Step, StepRow,
-    Still,
+    fmt_duration, fmt_elapsed, spinner, step_mark, step_refusal, Crab, FrozenNow, MarkState, RowSkeleton, Skeleton, Status, StatusMark,
+    Step, StepRow, Still,
 };
 pub use stepper::Stepper;
 pub use text_area::{chord_key, Look as TextAreaLook, TextArea};
 pub use theme::{ActivePalette, Palette, Side};
 pub use toast::{end_notice, notify, notify_in, Action as NoticeAction, Kind as NoticeKind, Notice};
 pub use toggle::Switch;
+
+/// A piece a test finds by its name: a `Button` tags itself only as a button.
+pub fn tagged(selector: impl Into<String>, el: impl gpui_kit::IntoElement) -> gpui_kit::AnyElement {
+    use gpui_kit::prelude::*;
+    let selector = selector.into();
+    gpui_kit::div().debug_selector(move || selector.clone()).child(el).into_any_element()
+}
 
 /// Every size below is `layout.ts`'s, or the Tailwind class a piece in its list writes, in pixels.
 pub mod size {

@@ -44,7 +44,7 @@ use crate::screens::terminal::state::{pane_state, WorkspaceState};
 use crate::screens::{Host, Opened, Pane, Place, Screen};
 use crate::ui::controls::checkbox;
 use crate::ui::menu::menu_on;
-use crate::ui::{spinner, tip, ActivePalette as _, Button, Glyph, MenuAct};
+use crate::ui::{spinner, tagged, tip, ActivePalette as _, Button, Glyph, MenuAct};
 
 /// Tailwind's `sm`: under it the head keeps the scope and its acts and lets the folder, branch and view go.
 const NARROW: Pixels = px(640.);
@@ -1246,11 +1246,6 @@ pub fn head_count_words(additions: usize, deletions: usize) -> Vec<String> {
         words.push(format!("+{additions}"));
     }
     words
-}
-
-/// A control with its own selector, so a test finds it by the file it acts on.
-fn tagged(tag: String, el: impl IntoElement) -> AnyElement {
-    div().debug_selector(move || tag.clone()).child(el).into_any_element()
 }
 
 impl Focusable for ChangesScreen {

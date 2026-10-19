@@ -13,7 +13,7 @@ mod states;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use desktop_gpui::screens::composer::model::{Drawer, Picks};
+use desktop_gpui::screens::composer::model::{Drawer, Limit, Picks, Slot};
 use desktop_gpui::screens::composer::screen::column;
 use desktop_gpui::screens::composer::{self, Composer};
 use desktop_gpui::ui::{self, ActivePalette, Side, Still, UiAssets};
@@ -79,10 +79,13 @@ fn shoot(theme: &str, state: &str, moving: &Moving) -> RgbaImage {
     cx.update_window(handle, |_, window, cx| {
         composer.update(cx, |c, cx| {
             if let Some(line) = moving.limit.clone().filter(|_| state == "drawer-limit") {
-                c.set_drawer(Drawer { limit: Some(("Usage limit reached".into(), line)), ..Drawer::default() }, cx);
+                c.set_drawer(
+                    Drawer { limit: Some(Limit { title: "Usage limit reached".into(), line, ..Limit::default() }), ..Drawer::default() },
+                    cx,
+                );
             }
             if let Some(line) = moving.slot.clone().filter(|_| state == "drawer-slot") {
-                c.set_drawer(Drawer { slot: Some(line), ..Drawer::default() }, cx);
+                c.set_drawer(Drawer { slot: Some(Slot { line, ..Slot::default() }), ..Drawer::default() }, cx);
             }
             if moving.catalog_model && !c.fresh() {
                 let ran = Picks { model: None, ..states::ran() };

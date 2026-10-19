@@ -896,14 +896,18 @@ impl Render for ThreadBox {
 
 /// `sendToThread`: the words go under whatever the thread's composer draft holds, for the person to edit and send;
 /// nothing goes to the agent. `thread_key` is the composer's: the thread's id, else the workspace's for a new one. A
-/// composer open on that key now reads it the next time it opens.
+/// composer open on that key takes them at once, the caret after them; else the store keeps them for its next open.
 pub fn send_to_thread(thread_key: &str, quote: &str, cx: &mut App) -> std::io::Result<()> {
+    let quote = quote.to_owned();
+    let joined = move |draft: &str| if draft.is_empty() { format!("{quote}\n\n") } else { format!("{draft}\n\n{quote}\n\n") };
     if !cx.has_global::<LocalStore>() {
         return Err(std::io::Error::other("no local store"));
     }
+    if crate::screens::composer::take_draft(thread_key, joined.clone(), cx) {
+        return Ok(());
+    }
     cx.update_global(|store: &mut LocalStore, _| {
-        let draft = drafts::draft(store, thread_key).map(|(text, _)| text).unwrap_or_default();
-        let prompt = if draft.is_empty() { format!("{quote}\n\n") } else { format!("{draft}\n\n{quote}\n\n") };
+        let prompt = joined(&drafts::draft(store, thread_key).map(|(text, _)| text).unwrap_or_default());
         drafts::set_draft(store, thread_key, &prompt, prompt.chars().count())
     })
 }
