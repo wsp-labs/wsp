@@ -7,13 +7,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use desktop_gpui::screens::thread_view::header::{self, git_menu, git_quick, Checkout, Editor, GitAct, GitState, MenuAct};
+use desktop_gpui::screens::pr_pane::files::open_split::{self, Editor, OpenSplit};
+use desktop_gpui::screens::pr_pane::pull_request::git_split::{self, quick_action, GitAct, GitSplit};
+use desktop_gpui::screens::thread_view::header;
 use desktop_gpui::thread_view::ThreadView;
 use desktop_gpui::transcript::{Transcript, TurnContext};
 use gpui_kit::component::Root;
 use gpui_kit::{
-    div, point, prelude::*, px, size, AppContext, Bounds, Context, Entity, Modifiers, Pixels, Point, TestAppContext, VisualTestContext,
-    Window,
+    div, point, prelude::*, px, size, AppContext, Bounds, Context, Entity, Global, Modifiers, Pixels, Point, TestAppContext,
+    VisualTestContext, Window,
 };
 use serde_json::{json, Value};
 use wsp_host_client::protocol::SessionEvent;
@@ -104,64 +106,53 @@ fn the_ring_says_why_a_thread_that_ran_a_turn_has_no_reading() {
     assert_eq!(header::reading(&running[..1], "Claude Code", true).unwrap().compact, Some(None));
 }
 
-fn checkout(branch: &str, ahead: i64, changed: i64) -> Option<Checkout> {
-    Some(Checkout { branch: branch.to_owned(), ahead, changed })
-}
-
-fn state(checkout: Option<Checkout>) -> GitState {
-    GitState { checkout, base: Some("main".to_owned()), opens_pr: true, ..GitState::default() }
-}
-
-#[test]
-fn the_git_button_takes_the_act_the_checkout_calls_for() {
-    let quick = |s: GitState| {
-        let q = git_quick(&s);
-        (q.label, q.act)
-    };
-    assert_eq!(quick(state(checkout("fix/cart", 0, 3))), ("Commit, push and PR", Some(GitAct::CommitPushPr)));
-    assert_eq!(quick(GitState { pr_open: true, ..state(checkout("fix/cart", 1, 3)) }), ("Commit and push", Some(GitAct::CommitPush)));
-    assert_eq!(quick(GitState { pr_open: true, ..state(checkout("fix/cart", 2, 0)) }), ("Push", Some(GitAct::Push)));
-    assert_eq!(quick(state(checkout("fix/cart", 2, 0))), ("Push and create PR", Some(GitAct::CreatePr)));
-    assert_eq!(quick(GitState { pr_open: true, ..state(checkout("fix/cart", 0, 0)) }), ("View PR", Some(GitAct::ViewPr)));
-    assert_eq!(quick(state(checkout("fix/cart", 0, 0))), ("Create PR", Some(GitAct::CreatePr)));
-    assert_eq!(quick(state(checkout("main", 2, 1))), ("Commit", None));
-    assert_eq!(quick(state(checkout("(detached)", 0, 2))), ("Commit", None));
-    assert_eq!(quick(GitState { busy: true, ..state(checkout("fix/cart", 0, 2)) }), ("Commit, push and PR", None));
-    assert_eq!(quick(GitState { opens_pr: false, ..state(checkout("fix/cart", 0, 0)) }), ("Push", None));
-    let away = header::away_line("paused");
-    assert_eq!(away.as_deref(), Some("Workspace is paused; wake it to push"));
-    assert_eq!(header::away_line("waking").as_deref(), Some("Workspace is waking; git actions open when it is running"));
-    let held = git_quick(&GitState { away: away.clone(), ..state(checkout("fix/cart", 2, 0)) });
-    assert_eq!((held.act, held.holds, held.hint), (None, Some(GitAct::CreatePr), away.clone()));
-    assert_eq!(git_quick(&GitState { away, pr_open: true, ..state(checkout("fix/cart", 0, 0)) }).act, Some(GitAct::ViewPr));
-
-    let menu = |s: GitState| git_menu(&s).into_iter().map(|i| (i.id, i.label, i.act, i.disabled)).collect::<Vec<_>>();
-    assert_eq!(
-        menu(state(checkout("fix/cart", 0, 2))),
-        [
-            ("commit", "Commit", MenuAct::Changes, false),
-            ("push", "Push", MenuAct::Push, true),
-            ("pr", "Create PR", MenuAct::CreatePr, true)
-        ]
-    );
-    assert_eq!(
-        menu(GitState { pr_open: true, ..state(checkout("fix/cart", 1, 0)) }),
-        [("commit", "Commit", MenuAct::Changes, true), ("push", "Push", MenuAct::Push, false), ("pr", "View PR", MenuAct::ViewPr, false)]
-    );
-    assert_eq!(menu(GitState { opens_pr: false, ..state(checkout("fix/cart", 0, 1)) }).len(), 2);
-}
-
-/// The cluster as the app mounts it, a view of its own drawn again with the thread view (`thread_view::Actions`).
+/// The cluster as the app mounts it, a view of its own drawn again with the thread view (`thread_view::Actions`), with
+/// the panes' git button and Open, one each.
 struct Actions {
     view: Entity<ThreadView>,
+    git: Entity<GitSplit>,
+    open: Entity<OpenSplit>,
     bar: header::BarWatch,
 }
 
 impl Render for Actions {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.bar.follow(&self.view, cx);
-        self.view.update(cx, |v, cx| header::actions(v, window, cx).into_any_element())
+        let (git, open) = (self.git.clone(), self.open.clone());
+        self.view.update(cx, |v, cx| header::actions(v, &git, &open, window, cx).into_any_element())
     }
+}
+
+/// The splits the last cluster built mounts, for a test to read.
+struct Mounted(Entity<GitSplit>);
+
+impl Global for Mounted {}
+
+fn actions_of(view: &Entity<ThreadView>, host: &desktop_gpui::screens::Host, cx: &mut TestAppContext) -> Entity<Actions> {
+    let git = cx.new(|_| GitSplit::fed(host.clone()));
+    let open = cx.new(OpenSplit::new);
+    cx.update(|cx| cx.set_global(Mounted(git.clone())));
+    cx.new(|cx: &mut Context<Actions>| {
+        cx.observe(view, |_, _, cx| cx.notify()).detach();
+        Actions { view: view.clone(), git, open, bar: header::BarWatch::default() }
+    })
+}
+
+fn git_of(cx: &mut VisualTestContext) -> Entity<GitSplit> {
+    cx.update(|_, cx| cx.global::<Mounted>().0.clone())
+}
+
+/// A host handle on `host` and the threads it lists by their first prompt.
+fn connect(host: &common::Throwaway) -> (desktop_gpui::screens::Host, Listed) {
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
+    let client =
+        runtime.block_on(wsp_host_client::HostClient::connect(&host.state(), &host.env())).unwrap_or_else(|f| panic!("{}", f.message));
+    let threads = runtime.block_on(client.threads()).unwrap_or_else(|f| panic!("{}", f.message));
+    let threads = threads
+        .iter()
+        .map(|t| (t.prompt.clone().unwrap_or_default(), t.workspace_id.clone(), t.thread_id.clone().expect("a thread id")))
+        .collect();
+    (desktop_gpui::screens::Host::new(Arc::new(client), runtime), threads)
 }
 
 /// The shell's 52 px header row with its 20 px right pad, the cluster in its actions slot.
@@ -176,25 +167,36 @@ impl Render for Probe {
     }
 }
 
+/// The cluster over a thread view that follows nothing, its splits on the shared host only to hold a handle.
 fn window(cx: &mut TestAppContext, events: Vec<SessionEvent>) -> (Entity<ThreadView>, &mut VisualTestContext) {
+    let (host, _) = connect(&common::shared().host);
+    window_on(cx, events, &host)
+}
+
+fn window_on<'a>(
+    cx: &'a mut TestAppContext,
+    events: Vec<SessionEvent>,
+    host: &desktop_gpui::screens::Host,
+) -> (Entity<ThreadView>, &'a mut VisualTestContext) {
     cx.update(|cx| {
         gpui_kit::init(cx);
         desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
     });
-    cluster_window(cx, events)
+    cluster_window(cx, events, host)
 }
 
 /// The cluster over a thread view in a window of its own, in an app already set up.
-fn cluster_window(cx: &mut TestAppContext, events: Vec<SessionEvent>) -> (Entity<ThreadView>, &mut VisualTestContext) {
+fn cluster_window<'a>(
+    cx: &'a mut TestAppContext,
+    events: Vec<SessionEvent>,
+    host: &desktop_gpui::screens::Host,
+) -> (Entity<ThreadView>, &'a mut VisualTestContext) {
     let view = cx.new(ThreadView::new);
     view.update(cx, |v, cx| {
         v.show("t", cx);
         v.load(events, cx);
     });
-    let actions = cx.new(|cx: &mut Context<Actions>| {
-        cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        Actions { view: view.clone(), bar: header::BarWatch::default() }
-    });
+    let actions = actions_of(&view, host, cx);
     let probe = cx.new(|_| Probe { actions });
     let (_, cx) = cx.add_window_view(|window, cx| Root::new(probe, window, cx));
     cx.simulate_resize(size(px(WIDTH), px(600.)));
@@ -270,36 +272,26 @@ fn a_ring_with_no_figures_says_why_and_a_thread_with_no_turn_draws_none(cx: &mut
 }
 
 #[gpui_kit::test]
-fn the_git_split_is_two_32_px_keycaps_sharing_an_edge_and_its_menu_opens_under_the_chevron(cx: &mut TestAppContext) {
+fn the_git_split_is_the_panes_two_outline_buttons_joined_at_a_seam(cx: &mut TestAppContext) {
     let (_, cx) = window(cx, counted(json!({"input": 1, "output": 1}), None));
     assert!(cx.debug_bounds("git-split").is_none(), "the split shows before the host said the checkout");
-    cx.update(|_, cx| header::set_editors(Some(Vec::new()), None, cx));
+    cx.update(|_, cx| open_split::set_editors(Some(Vec::new()), None, cx));
     seed(cx, |b| {
         b.status = Some(status(json!({})));
         b.bases.insert("p".to_owned(), "main".to_owned());
     });
     let (ring, quick, more) = (bounds(cx, "context-ring"), bounds(cx, "git-quick"), bounds(cx, "git-more"));
     assert_eq!(quick.size.height, px(32.));
-    assert_eq!(more.size, size(px(31.), px(32.)), "the chevron's 8 px pads, its 14 px glyph and its right edge");
-    assert_eq!(more.left(), quick.right(), "the chevron shares the main part's right edge as its left");
+    assert_eq!(more.size, size(px(32.), px(32.)), "the chevron's 8 px pads, its 14 px glyph and its two edges");
+    assert_eq!(more.left(), quick.right() - px(1.), "the chevron's left edge lies on the main part's right one, as -ms-px");
     assert_eq!(quick.left() - ring.right(), px(8.), "the cluster's gap-2");
     assert_eq!(more.right(), px(WIDTH - 21.), "with no Open the split ends the cluster");
-
-    assert!(cx.debug_bounds("git-menu").is_none());
-    cx.simulate_click(center(more), Modifiers::none());
-    cx.run_until_parked();
-    let menu = bounds(cx, "git-menu");
-    assert_eq!(menu.top(), more.bottom() + px(4.));
-    assert_eq!(menu.right(), more.right());
-    assert!(menu.size.width >= px(128.));
-    let item = bounds(cx, "git-item-pr");
-    assert_eq!(item.size.height, px(28.));
-    assert_eq!(item.left() - menu.left(), px(5.), "the popup's 1 px edge and 4 px pad");
-    assert!(cx.debug_bounds("git-item-commit").is_some() && cx.debug_bounds("git-item-push").is_some());
-
-    cx.simulate_click(point(px(100.), px(300.)), Modifiers::none());
-    cx.run_until_parked();
-    assert!(cx.debug_bounds("git-menu").is_none(), "a click outside left the menu up");
+    let quick = git_of(cx).read_with(cx, |g, _| g.state().map(|s| quick_action(&s)));
+    assert_eq!(
+        quick.map(|q| (q.label, q.act)),
+        Some(("Create PR".to_owned(), Some(GitAct::CreatePr))),
+        "a clean branch of its own offers its PR"
+    );
 }
 
 #[gpui_kit::test]
@@ -308,11 +300,35 @@ fn the_git_split_stands_down_where_the_machine_was_released_and_a_lead_opened_co
     seed(cx, |b| b.status = Some(status(json!({"phase": "released"}))));
     assert!(cx.debug_bounds("git-split").is_none(), "a released machine drew the split");
     seed(cx, |b| b.status = Some(status(json!({"parentThreadId": "lead"}))));
-    let more = bounds(cx, "git-more");
-    cx.simulate_click(center(more), Modifiers::none());
+    assert!(cx.debug_bounds("git-split").is_some(), "a lead's copy drew no split");
+    let items = git_of(cx).read_with(cx, |g, _| g.state().map(|s| git_split::menu(&s).into_iter().map(|i| i.id).collect::<Vec<_>>()));
+    assert_eq!(items, Some(vec!["commit", "push"]), "a lead's copy offered a pull request");
+}
+
+#[gpui_kit::test]
+fn under_640_px_the_git_button_and_open_are_their_marks_alone_with_their_words_on_hover(cx: &mut TestAppContext) {
+    let (_, cx) = window(cx, Vec::new());
+    cx.update(|_, cx| open_split::set_editors(Some(vec![editor("zed", "Zed", false)]), None, cx));
+    seed(cx, |b| {
+        b.status = Some(status(json!({})));
+        b.bases.insert("p".to_owned(), "main".to_owned());
+    });
+    assert!(bounds(cx, "git-quick").size.width > px(60.), "at 1024 px the git button says its act");
+    assert!(bounds(cx, "open-main").size.width > px(60.), "at 1024 px Open says Open");
+    cx.simulate_resize(size(px(600.), px(600.)));
     cx.run_until_parked();
-    assert!(cx.debug_bounds("git-item-push").is_some());
-    assert!(cx.debug_bounds("git-item-pr").is_none(), "a lead's copy offered a pull request");
+    let (quick, open) = (bounds(cx, "git-quick"), bounds(cx, "open-main"));
+    assert_eq!(quick.size.width, px(40.), "under 640 px the git button is more than its 14 px glyph, its 12 px pads and its edges");
+    assert_eq!(open.size.width, px(42.), "under 640 px Open is more than its 16 px mark, its 12 px pads and its edges");
+    assert_eq!(bounds(cx, "git-more").left(), quick.right() - px(1.), "the seam moved off the main part's edge");
+    cx.simulate_mouse_move(open.center(), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_secs(2));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("tooltip").is_some(), "Open's words are not on its hover");
+}
+
+fn editor(id: &str, name: &str, remote: bool) -> Editor {
+    Editor { id: id.to_owned(), name: name.to_owned(), remote }
 }
 
 #[gpui_kit::test]
@@ -323,28 +339,96 @@ fn open_holds_its_slot_while_the_editors_are_listed_and_lists_them_under_its_che
     let git = bounds(cx, "git-split");
     assert_eq!(held.left() - git.right(), px(8.), "Open's slot stands 8 px past the git split while it waits");
     assert_eq!(held.right(), px(WIDTH - 21.));
-    cx.update(|_, cx| header::set_editors(Some(Vec::new()), None, cx));
+    cx.update(|_, cx| open_split::set_editors(Some(Vec::new()), None, cx));
     cx.run_until_parked();
     assert!(cx.debug_bounds("open-split").is_none(), "Open stood with no editor to open in");
-    let editor = |id: &str, name: &str| Editor { id: id.to_owned(), name: name.to_owned(), remote: false };
-    cx.update(|_, cx| header::set_editors(Some(vec![editor("vscode", "VS Code"), editor("zed", "Zed")]), Some("zed".to_owned()), cx));
+    cx.update(|_, cx| {
+        open_split::set_editors(Some(vec![editor("vscode", "VS Code", false), editor("zed", "Zed", false)]), Some("zed".to_owned()), cx)
+    });
     cx.run_until_parked();
-    let (main, choose) = (bounds(cx, "open-main"), bounds(cx, "open-choose"));
-    assert_eq!((main.size.height, choose.size), (px(32.), size(px(31.), px(32.))));
-    assert_eq!(choose.left(), main.right());
+    let (split, main, choose) = (bounds(cx, "open-split"), bounds(cx, "open-main"), bounds(cx, "open-choose"));
+    assert_eq!(split.size, held.size, "the held slot was not as wide as Open once listed");
+    assert_eq!((main.size.height, choose.size), (px(32.), size(px(32.), px(32.))));
+    assert_eq!(choose.left(), main.right() - px(1.), "the chevron's left edge lies on Open's right one");
+    assert!(cx.debug_bounds("open-item-zed").is_none(), "the menu stood before a press");
     cx.simulate_click(center(choose), Modifiers::none());
     cx.run_until_parked();
-    let menu = bounds(cx, "open-menu");
-    assert_eq!((menu.top(), menu.right()), (choose.bottom() + px(4.), choose.right()));
-    assert_eq!(bounds(cx, "open-item-zed").size.height, px(28.));
-    assert!(cx.debug_bounds("open-item-vscode").is_some());
-    cx.executor().advance_clock(Duration::from_millis(16));
+    let (zed, vscode) = (bounds(cx, "open-item-zed"), bounds(cx, "open-item-vscode"));
+    assert!(zed.top() > choose.bottom() && zed.right() <= choose.right(), "the menu does not hang under the chevron, its end on its end");
+    assert!(vscode.top() < zed.top(), "the editors are not in the host's order");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("open-item-zed").is_none(), "Escape left the menu up");
+    cx.simulate_click(center(choose), Modifiers::none());
+    cx.run_until_parked();
+    cx.simulate_click(point(px(100.), px(300.)), Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("open-item-zed").is_none(), "a click outside left the menu up");
+}
+
+#[gpui_kit::test]
+fn open_wears_the_default_editors_mark_and_its_menu_the_keycaps_of_its_chord_on_the_default(cx: &mut TestAppContext) {
+    let (_, cx) = window(cx, Vec::new());
+    cx.update(|_, cx| {
+        open_split::set_editors(Some(vec![editor("vscode", "VS Code", false), editor("zed", "Zed", false)]), Some("zed".to_owned()), cx)
+    });
+    seed(cx, |b| b.status = Some(status(json!({}))));
+    let (main, mark) = (bounds(cx, "open-main"), bounds(cx, "open-mark"));
+    let zed_mark = cx.debug_bounds("editor-mark-zed");
+    assert!(zed_mark.is_some_and(|m| m == mark), "the main part wears no mark of the default, Zed");
+    assert_eq!(mark.size, size(px(16.), px(16.)), "the mark is not 16 px");
+    assert_eq!(mark.left() - main.left(), px(13.), "the mark stands past Open's edge and its 12 px pad");
+    let choose = bounds(cx, "open-choose");
+    cx.simulate_click(center(choose), Modifiers::none());
+    cx.run_until_parked();
+    let (zed, vscode, cap) = (bounds(cx, "open-item-zed"), bounds(cx, "open-item-vscode"), bounds(cx, "keycap"));
+    let vscode_mark = bounds(cx, "editor-mark-vscode");
+    assert!(vscode.contains(&vscode_mark.center()), "VS Code's row wears no mark of its own");
+    assert!(zed.contains(&cap.center()), "the default, Zed, holds no keycap of its chord");
+    assert!(!vscode.contains(&cap.center()), "a keycap stands on an editor that is not the default");
+    assert_eq!(cap.size.height, px(20.), "the chord is not drawn in the app's 20 px keycaps");
+    assert_eq!(open_split::chord_keys("⌘O"), ["⌘", "O"]);
+    assert_eq!(open_split::chord_keys("Ctrl+O"), ["Ctrl", "O"]);
+}
+
+#[gpui_kit::test]
+fn open_on_a_small_machine_elsewhere_offers_its_roads_and_says_what_an_editor_costs_there(cx: &mut TestAppContext) {
+    let (_, cx) = window(cx, Vec::new());
+    cx.update(|_, cx| open_split::set_editors(Some(vec![editor("vscode", "VS Code", false), editor("zed", "Zed", true)]), None, cx));
+    seed(cx, |b| b.status = Some(status(json!({"kind": "cloud", "phase": "running", "size": {"memMb": 4096}}))));
+    let choose = bounds(cx, "open-choose");
+    cx.simulate_click(center(choose), Modifiers::none());
+    cx.run_until_parked();
+    let (small, zed) = (bounds(cx, "open-small"), bounds(cx, "open-item-zed"));
+    assert!(small.bottom() <= zed.top(), "the line on what an editor costs does not stand over the editors");
+    assert!(small.size.width <= px(256.), "the line runs past max-w-64");
+    assert!(cx.debug_bounds("open-item-vscode").is_none(), "an editor with no road to another computer was offered");
+    cx.simulate_keystrokes("escape");
+    seed(cx, |b| b.status = Some(status(json!({"kind": "cloud", "phase": "running", "size": {"memMb": 8192}}))));
+    let choose = bounds(cx, "open-choose");
+    cx.simulate_click(center(choose), Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("open-item-zed").is_some());
+    assert!(cx.debug_bounds("open-small").is_none(), "an 8 GB machine heard what an editor costs");
+}
+
+#[gpui_kit::test]
+fn open_draws_nothing_where_the_host_refused_to_list_its_editors(cx: &mut TestAppContext) {
+    let (_, cx) = window(cx, Vec::new());
+    seed(cx, |b| b.status = Some(status(json!({}))));
+    assert!(cx.debug_bounds("open-split").is_some(), "Open's slot stands while the host lists its editors");
+    cx.update(|_, cx| open_split::list_refused(cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("open-split").is_none(), "Open's slot stood after the host refused to list its editors");
+    cx.update(|_, cx| open_split::set_editors(Some(vec![editor("zed", "Zed", false)]), None, cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("open-split").is_some(), "Open stayed down once a list landed");
 }
 
 #[gpui_kit::test]
 fn open_draws_nothing_for_a_napping_machine_elsewhere(cx: &mut TestAppContext) {
     let (_, cx) = window(cx, Vec::new());
-    cx.update(|_, cx| header::set_editors(Some(vec![Editor { id: "zed".to_owned(), name: "Zed".to_owned(), remote: true }]), None, cx));
+    cx.update(|_, cx| open_split::set_editors(Some(vec![editor("zed", "Zed", true)]), None, cx));
     seed(cx, |b| b.status = Some(status(json!({"kind": "cloud", "phase": "napping"}))));
     assert!(cx.debug_bounds("git-split").is_some(), "a napping machine still shows its git split, held");
     assert!(cx.debug_bounds("open-split").is_none(), "Open stood for a napping machine on another computer");
@@ -470,6 +554,55 @@ fn the_crumb_wears_the_question_glyph_while_the_thread_waits_on_the_person(cx: &
 }
 
 #[gpui_kit::test]
+fn under_640_px_the_project_crumb_is_its_glyph_alone_its_name_on_hover_and_no_slash_after_it(cx: &mut TestAppContext) {
+    let (_, cx) = crumb_window(cx);
+    seed(cx, |b| b.row = Some(row(json!({"harnessTitle": "Cart fix"}))));
+    let (project, title) = (bounds(cx, "crumbs-project"), bounds(cx, "crumbs-title"));
+    assert!(project.size.width > px(16.), "at 1024 px the project's name stands beside its glyph");
+    assert!(title.left() - project.right() > px(8.), "at 1024 px no slash stands between the project and the title");
+    cx.simulate_resize(size(px(600.), px(600.)));
+    cx.run_until_parked();
+    let (project, title) = (bounds(cx, "crumbs-project"), bounds(cx, "crumbs-title"));
+    assert_eq!(project.size.width, px(16.), "under 640 px the project crumb is more than its glyph");
+    assert_eq!(title.left() - project.right(), px(8.), "under 640 px the slash after the project still stands");
+    assert!(cx.debug_bounds("tooltip").is_none());
+    cx.simulate_mouse_move(project.center(), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_secs(2));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("tooltip").is_some(), "the project's name is not on the glyph's hover");
+}
+
+#[gpui_kit::test]
+fn the_crumbs_name_the_thread_that_opened_this_one_between_its_project_and_its_title(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::sidebar::host::Change;
+    let (_, cx) = crumb_window(cx);
+    let sidebar = cx.update(|_, cx| {
+        let sidebar = cx.new(desktop_gpui::sidebar::Sidebar::new);
+        desktop_gpui::screens::terminal::read_workspaces_from(&sidebar, cx);
+        sidebar
+    });
+    let lead = json!({"id": "s-lead", "threadId": "lead", "workspaceId": "w0", "harness": "claude", "status": "completed",
+        "harnessTitle": "Plan the cart", "startedAt": 1.0, "project": {"id": "p", "name": "demo"}});
+    let child = row(json!({"parentThreadId": "lead", "harnessTitle": "Cart fix", "startedAt": 2.0}));
+    sidebar.update(cx, |s, cx| {
+        s.apply(Change::Row { id: "s-lead".into(), row: Some(lead) }, cx);
+        s.apply(Change::Row { id: "s".into(), row: Some(child.clone()) }, cx);
+    });
+    seed(cx, |b| b.row = Some(child));
+    let (project, title) = (bounds(cx, "crumbs-project"), bounds(cx, "crumbs-title"));
+    let opener = cx.debug_bounds("crumbs-opener").expect("the crumbs do not name the thread that opened this one");
+    assert!(
+        project.right() < opener.left() && opener.right() < title.left(),
+        "the opener does not stand between the project and the title"
+    );
+    assert!(title.left() - opener.right() > px(8.), "no slash stands after the opener");
+    seed(cx, |b| b.row = Some(row(json!({"harnessTitle": "Cart fix"}))));
+    sidebar.update(cx, |s, cx| s.apply(Change::Row { id: "s".into(), row: Some(row(json!({"harnessTitle": "Cart fix"}))) }, cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("crumbs-opener").is_none(), "a thread the person opened names an opener");
+}
+
+#[gpui_kit::test]
 fn a_change_to_the_cluster_draws_the_header_and_builds_no_row_of_the_transcript(cx: &mut TestAppContext) {
     let (view, cx) = crumb_window(cx);
     view.update(cx, |v, cx| v.load(counted(json!({"input": 1, "output": 1}), None), cx));
@@ -489,17 +622,9 @@ fn following<'a>(
     cx: &'a mut TestAppContext,
     host: &common::Throwaway,
 ) -> (Entity<ThreadView>, Listed, desktop_gpui::screens::Host, &'a mut VisualTestContext) {
-    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
-    let client =
-        runtime.block_on(wsp_host_client::HostClient::connect(&host.state(), &host.env())).unwrap_or_else(|f| panic!("{}", f.message));
-    let threads = runtime.block_on(client.threads()).unwrap_or_else(|f| panic!("{}", f.message));
-    let threads = threads
-        .iter()
-        .map(|t| (t.prompt.clone().unwrap_or_default(), t.workspace_id.clone(), t.thread_id.clone().expect("a thread id")))
-        .collect();
-    let shell = desktop_gpui::screens::Host::new(Arc::new(client), runtime);
+    let (shell, threads) = connect(host);
     cx.executor().allow_parking();
-    let (view, cx) = window(cx, Vec::new());
+    let (view, cx) = window_on(cx, Vec::new(), &shell);
     (view, threads, shell, cx)
 }
 
@@ -564,7 +689,7 @@ fn a_refused_editor_list_is_asked_again_by_the_next_thread(cx: &mut TestAppConte
     follow(&view, &host, &threads, "first", cx);
     std::thread::sleep(Duration::from_secs(2));
     cx.run_until_parked();
-    let listed = |cx: &mut VisualTestContext| cx.update(|_, cx| cx.try_global::<header::Editors>().and_then(|e| e.list.clone()));
+    let listed = |cx: &mut VisualTestContext| cx.update(|_, cx| cx.try_global::<open_split::Editors>().and_then(|e| e.list.clone()));
     assert_eq!(listed(cx), None, "a refused list stood as an empty one");
     server.restart();
     follow(&view, &host, &threads, "second", cx);
@@ -653,10 +778,7 @@ fn a_switch_asks_the_host_nothing_for_the_header_once_it_has_read_the_projects_a
     cx.update(|cx| desktop_gpui::screens::terminal::read_workspaces_from(&sidebar, cx));
     let order = ["first", "fourth", "second", "third"];
     let view = cx.new(ThreadView::new);
-    let actions = cx.new(|cx: &mut Context<Actions>| {
-        cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        Actions { view: view.clone(), bar: header::BarWatch::default() }
-    });
+    let actions = actions_of(&view, &host, cx);
     let drawn = cx.new(|_| Drawn { actions, view: view.clone() });
     let (_, cx) = cx.add_window_view(|window, cx| Root::new(drawn, window, cx));
     cx.simulate_resize(size(px(WIDTH), px(600.)));
@@ -774,9 +896,11 @@ fn a_view_closed_while_its_agents_are_read_leaves_them_for_the_next_thread(cx: &
     let second = item_of(&threads, "second");
     cx.update(|window, cx| {
         let gone = cx.new(ThreadView::new);
+        let git = cx.new(|_| GitSplit::fed(host.clone()));
+        let open = cx.new(OpenSplit::new);
         gone.update(cx, |v, cx| {
             v.follow(&host, &second, false, cx);
-            _ = header::actions(v, window, cx).into_any_element();
+            _ = header::actions(v, &git, &open, window, cx).into_any_element();
         });
     });
     let (_, thread) = follow(&view, &host, &threads, "first", cx);
@@ -810,10 +934,7 @@ fn a_host_read_again_whole_gives_the_header_and_the_view_its_agents_again(cx: &m
     sidebar.update(cx, |s, cx| s.attach(desktop_gpui::sidebar::Link { host: client, runtime, page: None }, cx));
     cx.update(|cx| desktop_gpui::screens::terminal::read_workspaces_from(&sidebar, cx));
     let view = cx.new(ThreadView::new);
-    let actions = cx.new(|cx: &mut Context<Actions>| {
-        cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        Actions { view: view.clone(), bar: header::BarWatch::default() }
-    });
+    let actions = actions_of(&view, &host, cx);
     let drawn = cx.new(|_| Drawn { actions, view: view.clone() });
     let (_, cx) = cx.add_window_view(|window, cx| Root::new(drawn, window, cx));
     cx.simulate_resize(size(px(WIDTH), px(600.)));
@@ -853,27 +974,21 @@ fn the_git_split_says_what_the_folder_holds_now_and_not_the_hosts_last_read(cx: 
         client.call(ask).await.unwrap_or_else(|f| panic!("{}", f.message)).statuses
     });
     let (view, threads, host, cx) = following(cx, &server);
-    let (_, thread) = follow(&view, &host, &threads, "first", cx);
+    follow(&view, &host, &threads, "first", cx);
     // What the thread screen hears as it connects: each workspace's status as the host holds it.
     for status in statuses {
         let frame = json!({ "type": "workspace.status", "status": status });
         view.update(cx, |v, cx| header::heard(v, "workspace.status", &frame, cx));
     }
-    let bar = cx.update(|_, cx| header::bar(&thread, cx));
-    let label = |cx: &mut VisualTestContext| {
-        bar.read_with(cx, |b, _| {
-            let status = b.status.clone()?;
-            let base = status.pointer("/project/id").and_then(Value::as_str).and_then(|id| b.bases.get(id).cloned());
-            header::git_state(&status, base, false).map(|g| git_quick(&g).label)
-        })
-    };
+    let git = git_of(cx);
+    let label = |cx: &mut VisualTestContext| git.read_with(cx, |g, _| g.state().map(|s| quick_action(&s).label));
     wait(cx, "the split", |cx| label(cx).is_some());
     let until = Instant::now() + Duration::from_secs(10);
-    while label(cx) != Some("Commit, push and PR") && Instant::now() < until {
+    while label(cx).as_deref() != Some("Commit, push and PR") && Instant::now() < until {
         cx.run_until_parked();
         std::thread::sleep(Duration::from_millis(50));
     }
-    assert_eq!(label(cx), Some("Commit, push and PR"), "the split read the host's checkout from before the write");
+    assert_eq!(label(cx).as_deref(), Some("Commit, push and PR"), "the split read the host's checkout from before the write");
 }
 
 #[gpui_kit::test]
@@ -906,7 +1021,7 @@ fn a_refused_git_act_says_the_hosts_sentence_beside_the_workspace_in_the_windows
         }
     });
     let (view, threads, host, cx) = following(cx, &server);
-    let (workspace, thread) = follow(&view, &host, &threads, "first", cx);
+    let (workspace, _) = follow(&view, &host, &threads, "first", cx);
     let mut name = String::new();
     for status in statuses {
         let status = serde_json::to_value(status).unwrap();
@@ -916,14 +1031,8 @@ fn a_refused_git_act_says_the_hosts_sentence_beside_the_workspace_in_the_windows
         let frame = json!({ "type": "workspace.status", "status": status });
         view.update(cx, |v, cx| header::heard(v, "workspace.status", &frame, cx));
     }
-    let bar = cx.update(|_, cx| header::bar(&thread, cx));
-    let act = |cx: &mut VisualTestContext| {
-        bar.read_with(cx, |b, _| {
-            let status = b.status.clone()?;
-            let base = status.pointer("/project/id").and_then(Value::as_str).and_then(|id| b.bases.get(id).cloned());
-            header::git_state(&status, base, false).and_then(|g| git_quick(&g).act)
-        })
-    };
+    let git = git_of(cx);
+    let act = |cx: &mut VisualTestContext| git.read_with(cx, |g, _| g.state().and_then(|s| quick_action(&s).act));
     // A folder with no remote: bring back has nowhere to push, and the host says why.
     wait(cx, "a git act to press", |cx| act(cx) == Some(GitAct::CreatePr));
     let toasts = cx.update(|window, cx| desktop_gpui::ui::toast::of(window, cx).expect("the window's toasts"));
@@ -937,20 +1046,31 @@ fn a_refused_git_act_says_the_hosts_sentence_beside_the_workspace_in_the_windows
         cx.run_until_parked();
     }
     let refused = |cx: &mut VisualTestContext| {
-        toasts.read_with(cx, |t, _| t.standing().into_iter().find(|n| n.kind == desktop_gpui::ui::NoticeKind::Error))
+        toasts.read_with(cx, |t, _| {
+            t.standing().into_iter().find(|n| n.kind == desktop_gpui::ui::NoticeKind::Error && !n.text.starts_with("Live readings for "))
+        })
     };
     assert!(refused(cx).is_none(), "a refusal stood before the press: {:?}", standing(cx));
-    let quick = bounds(cx, "git-quick").center();
-    cx.simulate_click(quick, Modifiers::none());
-    // The host can answer before the click's own wait ends, so the act may already be over.
-    let started = bar.read_with(cx, |b, _| b.busy) || refused(cx).is_some();
-    assert!(started, "the press started no act; the toasts standing: {:?}", standing(cx));
+    // The host can answer before the click's own wait ends, so the act may already be over; a press that lands while
+    // a status push redraws the split is pressed again.
+    let mut presses = 0;
+    while !(git.read_with(cx, |g, _| g.busy()) || refused(cx).is_some()) {
+        assert!(presses < 3, "three presses started no act; the toasts standing: {:?}", standing(cx));
+        let quick = bounds(cx, "git-quick").center();
+        cx.simulate_click(quick, Modifiers::none());
+        presses += 1;
+        let until = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < until && !(git.read_with(cx, |g, _| g.busy()) || refused(cx).is_some()) {
+            std::thread::sleep(Duration::from_millis(20));
+            cx.run_until_parked();
+        }
+    }
     let until = Instant::now() + Duration::from_secs(40);
     while refused(cx).is_none() {
         assert!(
             Instant::now() < until,
             "no refusal in the toasts after 40 s; busy {}, standing {:?}",
-            bar.read_with(cx, |b, _| b.busy),
+            git.read_with(cx, |g, _| g.busy()),
             standing(cx)
         );
         std::thread::sleep(Duration::from_millis(50));

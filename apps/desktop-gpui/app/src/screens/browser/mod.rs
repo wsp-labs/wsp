@@ -23,3 +23,11 @@ pub mod words;
 pub const NAME: &str = "browser";
 
 pub use screen::BrowserScreen;
+
+/// `openBrowserAt`: a new Browser tab of `thread`'s panel on `place`, shown, unless the cap refuses it, which says so.
+pub fn open_at(thread: &str, workspace: Option<String>, place: url::Place, cx: &mut gpui_kit::App) {
+    let store = store::Store::get(cx);
+    if let Some(made) = store.update(cx, |s, cx| s.open_new(&thread.to_owned().into(), workspace, Some(place), cx)) {
+        crate::screens::navigate(crate::screens::Route::Screen(format!("{NAME}:{}", made.tab).into()), cx);
+    }
+}

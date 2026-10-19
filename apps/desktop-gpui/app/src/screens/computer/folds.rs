@@ -110,13 +110,20 @@ fn rate_dollars(x: f64) -> String {
 }
 
 /// `minutesWord`: at least a minute, whole hours and the minutes past them.
-fn minutes_word(ms: f64) -> String {
+pub(crate) fn minutes_word(ms: f64) -> String {
     let m = ((ms / 60_000.).ceil() as i64).max(1);
     match (m / 60, m % 60) {
         (0, m) => format!("{m} min"),
         (h, 0) => format!("{h} h"),
         (h, m) => format!("{h} h {m} min"),
     }
+}
+
+/// `diskMayGoLine`, with the day `subKept` reads off `diskKeptUntil`.
+pub(crate) fn disk_may_go_line(on: &str, until: f64) -> String {
+    use chrono::TimeZone as _;
+    let day = chrono::Local.timestamp_millis_opt(until as i64).single().map(|d| d.format("%b %-d").to_string()).unwrap_or_default();
+    format!("{on} may delete its disk from {day}")
 }
 
 /// `subMachineFacts`: what it costs, and when its disk goes; nothing once it is released.
@@ -127,7 +134,6 @@ pub fn sub_facts(
     now_ms: f64,
     disk_kept_until: Option<f64>,
 ) -> (Option<String>, Option<String>) {
-    use chrono::TimeZone as _;
     if sub["state"] == "released" {
         return (None, None);
     }
@@ -142,8 +148,7 @@ pub fn sub_facts(
     let goes = if working {
         None
     } else if let (true, Some(until)) = (held, disk_kept_until) {
-        let day = chrono::Local.timestamp_millis_opt(until as i64).single().map(|d| d.format("%b %-d").to_string()).unwrap_or_default();
-        Some(format!("{} may delete its disk from {day}", provider_key_name(sub["on"].as_str().unwrap_or_default())))
+        Some(disk_may_go_line(&provider_key_name(sub["on"].as_str().unwrap_or_default()), until))
     } else if held {
         Some("Kept until its work is pushed".to_owned())
     } else {

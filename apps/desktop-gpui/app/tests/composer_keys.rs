@@ -9,7 +9,7 @@ mod harness;
 mod states;
 
 use desktop_gpui::local_store;
-use desktop_gpui::screens::composer::model::{Command, Drawer, HostItem, Skill};
+use desktop_gpui::screens::composer::model::{Command, Drawer, HostItem, Limit, Skill, Slot, Tasks};
 use desktop_gpui::screens::composer::screen::types_into_composer;
 use desktop_gpui::screens::composer::{store, Bar, Popup};
 use gpui_kit::{
@@ -177,9 +177,9 @@ fn the_drawer_shows_each_waiting_row_and_the_queue_opens_its_bar(cx: &mut TestAp
         c.fold_prompt(window, cx);
         c.set_drawer(
             Drawer {
-                limit: Some(("Usage limit reached".into(), "Claude Code resumes at 18:00".into())),
-                slot: Some("build-box is running 2 of 2 threads".into()),
-                tasks: Some(("Write the test".into(), "1/3".into())),
+                limit: Some(Limit { title: "Usage limit reached".into(), line: "Claude Code resumes at 18:00".into(), ..Limit::default() }),
+                slot: Some(Slot { line: "build-box is running 2 of 2 threads".into(), ..Slot::default() }),
+                tasks: Some(Tasks { step: "Write the test".into(), done: 1, total: 3, steps: Vec::new() }),
             },
             cx,
         )
@@ -220,6 +220,85 @@ fn a_slates_words_fold_the_bar_and_the_box_takes_the_keys(cx: &mut TestAppContex
         assert_eq!(c.bar(), None, "and folds the bar too");
     });
     assert!(!cx.update(|window, cx| desktop_gpui::screens::composer::fill("thread-3", "x", window, cx)), "no composer has thread-3");
+}
+
+/// Enter on a held send leaves the draft where it was typed and says why in a note toast, in the send button's hover.
+#[gpui_kit::test]
+fn enter_on_a_held_send_keeps_the_draft_and_says_why(cx: &mut TestAppContext) {
+    use desktop_gpui::ui::toast::{self, Kind};
+    let cx = open("empty", cx);
+    let composer = composer_of(cx);
+    let started = starts(&composer, cx);
+    let review = Command { name: "review".into(), description: None, source: None };
+    composer.update_in(cx, |c, window, cx| {
+        c.set_catalog(states::agents(), states::ran(), vec![review], cx);
+        c.editor().focus_handle(cx).focus(window, cx);
+        c.set_text("/nope", window, cx);
+    });
+    let hover = composer.read_with(cx, |c, cx| c.send_held(cx)).expect("a slash word naming no command holds the send");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "/nope", "the draft stays");
+    assert!(started.borrow().is_empty());
+    let said: Vec<(Kind, String)> =
+        cx.update(|window, cx| toast::of(window, cx).unwrap().read(cx).standing().iter().map(|n| (n.kind, n.text.to_string())).collect());
+    assert_eq!(said, [(Kind::Note, hover)], "one note toast in the hover's words");
+}
+
+/// Send to thread while the agent's question stands in the box's place: the words join the draft and the question
+/// keeps the keys, its digits still picking (sendToThread.ts focuses an editor that is not there while docked).
+#[gpui_kit::test]
+fn send_to_thread_under_a_standing_question_leaves_it_the_keys(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::pr_pane::comments::send_to_thread;
+    let dir = tempfile::tempdir().unwrap();
+    cx.update(|cx| local_store::init(dir.path().join("local-store.json"), cx));
+    let cx = open("prompt-dock", cx);
+    let composer = composer_of(cx);
+    composer.update_in(cx, |c, window, cx| c.set_thread_key("thread-1".into(), window, cx));
+    composer.update_in(cx, |c, window, cx| c.set_prompt(Some(states::asked()), window, cx));
+    cx.run_until_parked();
+    cx.update(|_, cx| send_to_thread("thread-1", "> a.rs:1", cx)).unwrap();
+    cx.run_until_parked();
+    assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "> a.rs:1\n\n");
+    cx.simulate_keystrokes("2");
+    cx.run_until_parked();
+    assert_eq!(composer.read_with(cx, |c, _| c.dock().map(|d| d.primary_word())), Some("Deny"), "the question still takes its digits");
+}
+
+/// Send to thread from the Changes or the Pull request pane, with the thread's composer on screen: the words land in
+/// the open box at once under what it holds, words typed but not yet kept by the store included.
+#[gpui_kit::test]
+fn send_to_thread_from_a_pane_lands_in_the_open_composer(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::pr_pane::comments::send_to_thread;
+    let dir = std::env::temp_dir().join(format!("composer-send-to-thread-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    cx.update(|cx| local_store::init(dir.join("local-store.json"), cx));
+    let cx = open("empty", cx);
+    let composer = composer_of(cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("thread-1".into(), window, cx);
+        c.set_text("half a thought", window, cx);
+    });
+    cx.update(|_, cx| send_to_thread("thread-1", "> src/keep.ts:2\n\nWhy three?", cx)).unwrap();
+    cx.run_until_parked();
+    let sent = "half a thought\n\n> src/keep.ts:2\n\nWhy three?\n\n";
+    composer.read_with(cx, |c, cx| {
+        assert_eq!(c.text(cx), sent, "the open composer shows the words without a switch");
+        assert_eq!(c.editor().read(cx).cursor(), sent.len(), "the caret after them");
+    });
+    assert!(cx.update(|window, cx| composer.read(cx).editor().focus_handle(cx).is_focused(window)), "the box has the keys");
+    cx.executor().advance_clock(std::time::Duration::from_secs(1));
+    cx.run_until_parked();
+    let kept = cx.update(|_, cx| store::draft(cx.global::<local_store::LocalStore>(), "thread-1").map(|(t, _)| t));
+    assert_eq!(kept.as_deref(), Some(sent), "and the store keeps them as the draft");
+
+    // A thread with no composer open keeps the words for its next open.
+    cx.update(|_, cx| send_to_thread("thread-2", "> b.rs:1", cx)).unwrap();
+    cx.run_until_parked();
+    let other = cx.update(|_, cx| store::draft(cx.global::<local_store::LocalStore>(), "thread-2").map(|(t, _)| t));
+    assert_eq!(other.as_deref(), Some("> b.rs:1\n\n"));
+    assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), sent, "the open box is left as it was");
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[gpui_kit::test]

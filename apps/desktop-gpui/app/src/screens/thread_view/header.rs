@@ -14,19 +14,16 @@ use gpui_kit::{
 };
 use serde_json::{json, Value};
 use wsp_host_client::protocol::{
-    EditorListRequest, HarnessesListRequest, PreferencesGetRequest, PreferencesSetRequest, ProjectsListRequest, SessionsListRequest,
-    SessionsRenameRequest, WorkspacesBringBackRequest, WorkspacesCheckoutRequest, WorkspacesCommitDraftRequest, WorkspacesCommitRequest,
-    WorkspacesWakeRequest,
+    HarnessesListRequest, ProjectsListRequest, SessionsListRequest, SessionsRenameRequest, WorkspacesCheckoutRequest, WorkspacesWakeRequest,
 };
 use wsp_host_client::{Event, Op};
 
-use super::open_pane;
 use crate::screens::app_shell::title::thread_title;
-use crate::screens::notices;
-use crate::screens::Pane;
+use crate::screens::pr_pane::files::open_split::{self, OpenSplit};
+use crate::screens::pr_pane::pull_request::git_split::GitSplit;
 use crate::thread_view::ThreadView;
 use crate::transcript::TurnContext;
-use crate::ui::{shortcut_tooltip, spinner, tip, ActivePalette, Glyph, Notice, Palette};
+use crate::ui::{tip, ActivePalette, Glyph, Notice, Palette};
 use crate::words::fmt_tokens;
 
 // The context window meter, contextMeter.logic.ts.
@@ -135,249 +132,6 @@ pub fn reading(turns: &[TurnContext], agent: &str, compacts: bool) -> Option<Rea
     Some(Reading { snapshot, missing, compact })
 }
 
-// The git button, gitAction.logic.ts.
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GitAct {
-    CommitPushPr,
-    CommitPush,
-    Push,
-    CreatePr,
-    ViewPr,
-}
-
-/// DETACHED_HEAD in packages/protocol/src/wire/daemon.ts.
-const DETACHED_HEAD: &str = "(detached)";
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Checkout {
-    pub branch: String,
-    pub ahead: i64,
-    pub changed: i64,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct GitState {
-    pub checkout: Option<Checkout>,
-    pub pr_open: bool,
-    /// The branch the copy's work goes back to, where it is known.
-    pub base: Option<String>,
-    /// False on a copy a lead's thread opened, whose work lands in the lead's pull request.
-    pub opens_pr: bool,
-    pub busy: bool,
-    /// Why the copy cannot be asked right now: every act but View PR is held on it.
-    pub away: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct GitQuick {
-    pub label: &'static str,
-    pub act: Option<GitAct>,
-    pub hint: Option<String>,
-    /// The act a part held for an away machine stands for, which its icon still shows.
-    pub holds: Option<GitAct>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MenuAct {
-    Changes,
-    Push,
-    CreatePr,
-    ViewPr,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct GitItem {
-    pub id: &'static str,
-    pub label: &'static str,
-    pub act: MenuAct,
-    pub disabled: bool,
-}
-
-pub mod git_words {
-    pub const COMMIT: &str = "Commit";
-    pub const COMMIT_PUSH_PR: &str = "Commit, push and PR";
-    pub const COMMIT_PUSH: &str = "Commit and push";
-    pub const PUSH: &str = "Push";
-    pub const PUSH_CREATE_PR: &str = "Push and create PR";
-    pub const CREATE_PR: &str = "Create PR";
-    pub const VIEW_PR: &str = "View PR";
-    pub const MENU: &str = "More git actions";
-    pub const NO_BRANCH: &str = "The copy is on no branch. Check one out in the terminal to push it.";
-    pub const NOTHING: &str = "Nothing to commit or push.";
-    pub const UNREAD: &str = "The branch is not read yet.";
-    pub const BUSY: &str = "A git action is running.";
-    pub fn on_base(base: &str) -> String {
-        format!("{base} is the branch the work goes back to; put the work on a branch of its own to push it.")
-    }
-}
-
-fn held(label: &'static str, hint: String) -> GitQuick {
-    GitQuick { label, act: None, hint: Some(hint), holds: None }
-}
-
-fn acts(label: &'static str, act: GitAct) -> GitQuick {
-    GitQuick { label, act: Some(act), hint: None, holds: None }
-}
-
-pub fn git_quick(s: &GitState) -> GitQuick {
-    use git_words as w;
-    let Some(checkout) = &s.checkout else { return held(w::COMMIT, w::UNREAD.to_owned()) };
-    if checkout.branch.is_empty() || checkout.branch == DETACHED_HEAD {
-        return held(w::COMMIT, w::NO_BRANCH.to_owned());
-    }
-    let quick = pick(s, checkout);
-    if let (Some(away), Some(act)) = (&s.away, quick.act) {
-        if act != GitAct::ViewPr {
-            return GitQuick { holds: Some(act), ..held(quick.label, away.clone()) };
-        }
-    }
-    if s.busy && quick.act.is_some() {
-        return held(quick.label, w::BUSY.to_owned());
-    }
-    quick
-}
-
-fn pick(s: &GitState, checkout: &Checkout) -> GitQuick {
-    use git_words as w;
-    if let Some(base) = s.base.as_deref().filter(|b| *b == checkout.branch) {
-        return held(w::COMMIT, w::on_base(base));
-    }
-    let quiet = !s.opens_pr || s.pr_open;
-    if checkout.changed > 0 {
-        return if quiet { acts(w::COMMIT_PUSH, GitAct::CommitPush) } else { acts(w::COMMIT_PUSH_PR, GitAct::CommitPushPr) };
-    }
-    if checkout.ahead > 0 {
-        return if quiet { acts(w::PUSH, GitAct::Push) } else { acts(w::PUSH_CREATE_PR, GitAct::CreatePr) };
-    }
-    if !s.opens_pr {
-        return held(w::PUSH, w::NOTHING.to_owned());
-    }
-    if s.pr_open {
-        return acts(w::VIEW_PR, GitAct::ViewPr);
-    }
-    acts(w::CREATE_PR, GitAct::CreatePr)
-}
-
-pub fn git_menu(s: &GitState) -> Vec<GitItem> {
-    use git_words as w;
-    let checkout = s.checkout.as_ref();
-    let branched = checkout.is_some_and(|c| !c.branch.is_empty() && c.branch != DETACHED_HEAD);
-    let changes = checkout.is_some_and(|c| c.changed > 0);
-    let ahead = checkout.is_some_and(|c| c.ahead > 0);
-    let on_base = s.base.is_some() && checkout.map(|c| &c.branch) == s.base.as_ref();
-    let stopped = s.busy || s.away.is_some();
-    let mut items = vec![
-        GitItem { id: "commit", label: w::COMMIT, act: MenuAct::Changes, disabled: stopped || !changes },
-        GitItem {
-            id: "push",
-            label: w::PUSH,
-            act: MenuAct::Push,
-            disabled: stopped || !branched || on_base || !ahead || (s.opens_pr && !s.pr_open),
-        },
-    ];
-    if s.opens_pr {
-        items.push(if s.pr_open {
-            GitItem { id: "pr", label: w::VIEW_PR, act: MenuAct::ViewPr, disabled: false }
-        } else {
-            GitItem { id: "pr", label: w::CREATE_PR, act: MenuAct::CreatePr, disabled: stopped || !branched || changes || on_base }
-        });
-    }
-    items
-}
-
-/// awayLine: actionRefusal for the git acts on a machine that is not running.
-pub fn away_line(state: &str) -> Option<String> {
-    let action = if matches!(state, "waking" | "unreachable" | "waiting") { "git action" } else { "push" };
-    match state {
-        "running" => None,
-        "pausing" | "paused" => Some(format!("Workspace is {state}; wake it to {action}")),
-        "waking" => Some(format!("Workspace is waking; {action}s open when it is running")),
-        "unreachable" => Some(format!("Workspace is unreachable; {action}s open when the machine answers")),
-        "gone" => Some(format!(
-            "This workspace's machine is gone with its disk, so work that was not pushed is lost; rebuild it to {action}, which brings back its home folder from the last saved nap"
-        )),
-        "waiting" => Some(format!("Workspace is waiting for a machine; {action}s open when it is running")),
-        _ => Some(format!("This workspace's machine was deleted once its sub-thread was done, so there is none to {action} on")),
-    }
-}
-
-fn pr_open(status: &Value) -> bool {
-    status.pointer("/pr/number").is_some() && status.pointer("/pr/state").and_then(Value::as_str) == Some("open")
-}
-
-/// The git split's state off the workspace's status row, or none where GitSplit draws nothing.
-pub fn git_state(status: &Value, base: Option<String>, busy: bool) -> Option<GitState> {
-    let machine = crate::screens::sidebar::menu::workspace_state(&Value::Null, Some(status));
-    let open = pr_open(status);
-    let checkout = status.get("checkout")?;
-    if machine == "released" || (machine == "gone" && !open) {
-        return None;
-    }
-    let count = |name: &str| checkout.get(name).and_then(Value::as_i64).unwrap_or(0);
-    Some(GitState {
-        checkout: Some(Checkout {
-            branch: checkout.get("branch").and_then(Value::as_str).unwrap_or_default().to_owned(),
-            ahead: count("ahead"),
-            changed: count("changed"),
-        }),
-        pr_open: open,
-        base,
-        opens_pr: status.get("parentThreadId").is_none(),
-        busy,
-        away: away_line(machine),
-    })
-}
-
-// Open in the editor, OpenSplit.tsx.
-
-pub const OPEN: &str = "Open";
-pub const CHOOSE: &str = "Choose an editor";
-pub const SMALL_LINE: &str = "An editor here takes about what one more thread does, or more.";
-/// Memory at or under this, a workspace on another computer hears what an editor there costs.
-const SMALL_MB: f64 = 4096.;
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Editor {
-    pub id: String,
-    pub name: String,
-    pub remote: bool,
-}
-
-/// What Open draws: none where it draws nothing; `current` none while the host lists its editors, the slot held.
-#[derive(Clone, Debug, PartialEq)]
-pub struct OpenState {
-    pub editors: Vec<Editor>,
-    pub current: Option<Editor>,
-    pub here: bool,
-    pub small: bool,
-    pub opening: bool,
-}
-
-pub fn open_state(status: &Value, editors: Option<&[Editor]>, picked: Option<&str>, opening: bool) -> Option<OpenState> {
-    let here = status.get("kind").and_then(Value::as_str).unwrap_or("cloud") == "local";
-    let running = status.get("phase").and_then(Value::as_str) == Some("running");
-    if !here && !running {
-        return None;
-    }
-    let usable: Option<Vec<Editor>> = editors.map(|all| all.iter().filter(|e| here || e.remote).cloned().collect());
-    if usable.as_ref().is_some_and(Vec::is_empty) {
-        return None;
-    }
-    let current = usable.as_ref().and_then(|u| u.iter().find(|e| Some(e.id.as_str()) == picked).or(u.first()).cloned());
-    let small = !here && status.pointer("/size/memMb").and_then(Value::as_f64).is_some_and(|mb| mb <= SMALL_MB);
-    Some(OpenState { editors: usable.unwrap_or_default(), current, here, small, opening })
-}
-
-/// The `editor.open` binding's keycap.
-fn open_shortcut() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "⌘O"
-    } else {
-        "Ctrl+O"
-    }
-}
-
 // What the cluster keeps for one thread.
 
 #[derive(Clone, Debug, PartialEq)]
@@ -406,10 +160,6 @@ pub struct Bar {
     /// Each project's base branch by project id.
     pub bases: HashMap<String, String>,
     pub catalogs: Vec<Catalog>,
-    pub busy: bool,
-    pub opening: bool,
-    pub git_menu: bool,
-    pub open_menu: bool,
     ring_hover: bool,
     card_hover: bool,
     closing: Option<Task<()>>,
@@ -453,10 +203,11 @@ pub fn bar(thread: &str, cx: &mut App) -> Entity<Bar> {
     bar
 }
 
-/// The project `thread`'s crumbs name, while its cluster stands.
-pub fn project_of(thread: &str, cx: &App) -> Option<String> {
+/// The project `thread`'s crumbs name, by its id where the row carries one and its name, while its cluster stands.
+pub fn project_of(thread: &str, cx: &App) -> Option<(Option<String>, String)> {
     let bar = cx.try_global::<Bars>()?.0.get(thread)?;
-    bar.read(cx).row.as_ref().and_then(|row| crumb(row).project)
+    let crumb = crumb(bar.read(cx).row.as_ref()?);
+    Some((crumb.project_id, crumb.project?))
 }
 
 /// Names `thread` in the crumbs with what the sidebar lists of it until the host's row lands, so a switch never draws
@@ -474,31 +225,6 @@ fn set(bar: &Entity<Bar>, cx: &mut App, f: impl FnOnce(&mut Bar)) {
         f(b);
         cx.notify();
     });
-}
-
-/// The editors the host found installed and the person's pick, read once per host: the app holds one host.
-#[derive(Default)]
-pub struct Editors {
-    /// None until the host lists them.
-    pub list: Option<Vec<Editor>>,
-    pub picked: Option<String>,
-    asked: bool,
-}
-
-impl Global for Editors {}
-
-/// Takes what the host said of its editors and the pick, and draws the open thread's split again.
-pub fn set_editors(list: Option<Vec<Editor>>, picked: Option<String>, cx: &mut App) {
-    let editors = cx.default_global::<Editors>();
-    if list.is_some() {
-        editors.asked = true;
-        editors.list = list;
-    }
-    editors.picked = picked.or(editors.picked.take());
-    let bars: Vec<Entity<Bar>> = cx.default_global::<Bars>().0.values().cloned().collect();
-    for bar in bars {
-        bar.update(cx, |_, cx| cx.notify());
-    }
 }
 
 fn request<O: serde::de::DeserializeOwned>(value: Value) -> Option<O> {
@@ -738,42 +464,9 @@ fn load(view: &mut ThreadView, bar: &Entity<Bar>, cx: &mut Context<ThreadView>) 
     }
     want_catalogs(view, &workspace, None, cx);
     ask_checkout(view, &workspace, cx);
-    if cx.default_global::<Editors>().asked {
-        return;
+    if let Some(host) = view.host() {
+        open_split::want_editors(host, cx);
     }
-    cx.default_global::<Editors>().asked = true;
-    ask_host(
-        view,
-        request::<EditorListRequest>(json!({})),
-        |r| json!({ "editors": r.editors }),
-        cx,
-        move |answer, cx| {
-            // A refusal leaves the list unread, so the next thread to open asks again.
-            let Ok(answer) = answer else {
-                cx.default_global::<Editors>().asked = false;
-                return;
-            };
-            let editors = answer["editors"].as_array().cloned().unwrap_or_default();
-            let editors = editors.iter().filter_map(|e| {
-                Some(Editor {
-                    id: e.get("id")?.as_str()?.to_owned(),
-                    name: e.get("name")?.as_str()?.to_owned(),
-                    remote: e.get("remote").and_then(Value::as_bool) == Some(true),
-                })
-            });
-            set_editors(Some(editors.collect()), None, cx);
-        },
-    );
-    ask_host(
-        view,
-        request::<PreferencesGetRequest>(json!({})),
-        |r| json!({ "preferences": r.preferences }),
-        cx,
-        move |answer, cx| {
-            let picked = answer.ok().and_then(|a| a.pointer("/preferences/editor").and_then(Value::as_str).map(str::to_owned));
-            set_editors(None, picked, cx);
-        },
-    );
 }
 
 /// Every workspace's status as the host last pushed it, which a thread opened later starts from.
@@ -828,7 +521,7 @@ pub fn heard(view: &mut ThreadView, kind: &str, frame: &Value, cx: &mut Context<
         "preferences.changed" => {
             let picked = frame.pointer("/preferences/editor").and_then(Value::as_str).map(str::to_owned);
             if picked.is_some() {
-                set_editors(None, picked, cx);
+                open_split::set_editors(None, picked, cx);
             }
         }
         _ => {}
@@ -898,129 +591,6 @@ pub fn refresh(view: &mut ThreadView, cx: &mut Context<ThreadView>) {
     );
 }
 
-/// Says `notice` in the window's toasts with the thread's workspace beside it (GitSplit's `where: name`).
-fn say(bar: &Entity<Bar>, notice: Notice, cx: &mut App) {
-    let place = bar.read(cx).status.as_ref().and_then(|s| s.get("name")).and_then(Value::as_str).map(str::to_owned);
-    crate::ui::notify(
-        cx,
-        match place {
-            Some(place) => notice.place(place),
-            None => notice,
-        },
-    );
-}
-
-/// An act the host refused: its sentence, as `noticeFailure` says it.
-fn failed(bar: &Entity<Bar>, said: String, cx: &mut App) {
-    set(bar, cx, |b| {
-        b.busy = false;
-        b.opening = false;
-    });
-    say(bar, Notice::error(said), cx);
-}
-
-/// GitSplit's run: View PR opens the PR; the rest bring back, first committing all with the agent's drafted message.
-fn run(view: &mut ThreadView, bar: &Entity<Bar>, act: GitAct, cx: &mut Context<ThreadView>) {
-    let Some(workspace) = view.followed_workspace().map(str::to_owned) else { return };
-    if act == GitAct::ViewPr {
-        open_pane(Pane::PullRequest, None, cx);
-        return;
-    }
-    set(bar, cx, |b| b.busy = true);
-    if matches!(act, GitAct::CommitPushPr | GitAct::CommitPush) {
-        let thread = view.followed().map(str::to_owned);
-        let (b, ws, pressed) = (bar.clone(), workspace.clone(), thread.clone());
-        ask(
-            view,
-            request::<WorkspacesCommitDraftRequest>(json!({ "workspaceId": workspace, "threadId": thread })),
-            |r| json!(r),
-            cx,
-            move |view, answer, cx| {
-                let draft = match answer {
-                    Ok(draft) => draft,
-                    Err(said) => return failed(&b, said, cx),
-                };
-                // With no draft the Changes pane opens on the uncommitted files, so the person writes one, while
-                // the window still shows the thread they pressed on.
-                let Some(message) = draft.get("message").and_then(Value::as_str).map(str::to_owned) else {
-                    set(&b, cx, |b| b.busy = false);
-                    if view.followed() != pressed.as_deref() {
-                        return;
-                    }
-                    if let Some(note) = draft.get("note").and_then(Value::as_str) {
-                        say(&b, Notice::note(note.to_owned()), cx);
-                    }
-                    open_pane(Pane::Changes, None, cx);
-                    return;
-                };
-                let bb = b.clone();
-                ask(
-                    view,
-                    request::<WorkspacesCommitRequest>(json!({ "workspaceId": ws, "message": message })),
-                    |_| Value::Null,
-                    cx,
-                    move |view, answer, cx| match answer {
-                        Ok(_) => bring_back(view, &bb, ws, cx),
-                        Err(said) => failed(&bb, said, cx),
-                    },
-                );
-            },
-        );
-        return;
-    }
-    bring_back(view, bar, workspace, cx);
-}
-
-/// Brings back the workspace the person pressed on, whatever the view follows by the time it is asked; the host pushes
-/// the status the act left.
-fn bring_back(view: &mut ThreadView, bar: &Entity<Bar>, workspace: String, cx: &mut Context<ThreadView>) {
-    let b = bar.clone();
-    ask(
-        view,
-        request::<WorkspacesBringBackRequest>(json!({ "workspaceId": workspace })),
-        |_| Value::Null,
-        cx,
-        move |_, answer, cx| match answer {
-            Ok(_) => set(&b, cx, |b| b.busy = false),
-            Err(said) => failed(&b, said, cx),
-        },
-    );
-}
-
-/// openCopyInEditor: the copy's folder in the default editor, or in `pick`, which becomes the default first. The open
-/// itself goes the app's one road, as mod+o's does.
-fn open_in(view: &mut ThreadView, bar: &Entity<Bar>, pick: Option<String>, window: &mut Window, cx: &mut Context<ThreadView>) {
-    let Some(workspace) = view.followed_workspace().map(str::to_owned) else { return };
-    let Some(status) = bar.read(cx).status.clone() else { return };
-    let editors = cx.default_global::<Editors>();
-    let (list, picked) = (editors.list.clone(), editors.picked.clone());
-    let opening = bar.read(cx).opening || notices::opening(&workspace, window, cx);
-    let Some(open) = open_state(&status, list.as_deref(), picked.as_deref(), opening) else { return };
-    if open.opening {
-        return;
-    }
-    let Some(pick) = pick else {
-        let editor = if open.here { None } else { open.current.map(|c| c.id) };
-        return notices::open_copy_in_editor(workspace, editor, window, cx);
-    };
-    set(bar, cx, |b| b.opening = true);
-    let (b, handle) = (bar.clone(), window.window_handle());
-    ask_host(
-        view,
-        request::<PreferencesSetRequest>(json!({ "patch": { "editor": pick } })),
-        |_| Value::Null,
-        cx,
-        move |answer, cx| {
-            if let Err(said) = answer {
-                return failed(&b, said, cx);
-            }
-            set(&b, cx, |b| b.opening = false);
-            set_editors(None, Some(pick.clone()), cx);
-            _ = handle.update(cx, |_, window, cx| notices::open_copy_in_editor(workspace, Some(pick), window, cx));
-        },
-    );
-}
-
 // Drawing.
 
 /// Draws a piece of the header again whenever the open thread's cluster changes, which leaves the transcript as drawn.
@@ -1042,8 +612,15 @@ impl BarWatch {
     }
 }
 
-/// The cluster: the ring, the git split and Open, 8 px apart, at the header's right.
-pub fn actions(view: &mut ThreadView, window: &mut Window, cx: &mut Context<ThreadView>) -> impl IntoElement {
+/// The cluster: the ring, the git split and Open, 8 px apart, at the header's right. The splits are the panes' own,
+/// one each per header: told the thread on a switch and fed the status the header follows, so they follow nothing.
+pub fn actions(
+    view: &mut ThreadView,
+    git: &Entity<GitSplit>,
+    open: &Entity<OpenSplit>,
+    window: &mut Window,
+    cx: &mut Context<ThreadView>,
+) -> impl IntoElement {
     let Some(thread) = view.thread().map(str::to_owned) else { return div().into_any_element() };
     let bar = bar(&thread, cx);
     load(view, &bar, cx);
@@ -1057,21 +634,18 @@ pub fn actions(view: &mut ThreadView, window: &mut Window, cx: &mut Context<Thre
             (turns, harness)
         }
     };
-    let in_flight = view.followed_workspace().is_some_and(|w| notices::opening(w, window, cx));
-    // Read off the status in place: the cluster draws on every frame of a scroll.
-    let (reading, compacts, git, open) = {
+    let workspace = view.followed_workspace().unwrap_or_default().to_owned();
+    if git.read(cx).shows() != (workspace.as_str(), Some(thread.as_str())) {
+        git.update(cx, |g, cx| g.show(workspace.clone(), Some(thread.clone()), cx));
+        open.update(cx, |o, cx| o.show(workspace.clone(), cx));
+    }
+    feed(&bar, git, open, cx);
+    let (reading, compacts) = {
         let b = bar.read(cx);
         let catalog = b.catalogs.iter().find(|c| c.harness == harness);
         let agent = agent_label(&b.catalogs, &harness);
         let compacts = catalog.and_then(|c| c.compacts.clone());
-        let reading = reading(&turns, &agent, compacts.is_some());
-        let status = b.status.as_ref();
-        let base = status.and_then(|s| s.pointer("/project/id")).and_then(Value::as_str).and_then(|id| b.bases.get(id).cloned());
-        let git = status.and_then(|s| git_state(s, base, b.busy));
-        let editors = cx.try_global::<Editors>();
-        let (list, picked) = (editors.and_then(|e| e.list.as_deref()), editors.and_then(|e| e.picked.as_deref()));
-        let open = status.and_then(|s| open_state(s, list, picked, b.opening || in_flight));
-        (reading, compacts, git, open)
+        (reading(&turns, &agent, compacts.is_some()), compacts)
     };
     let me = cx.entity().downgrade();
     h_flex()
@@ -1081,9 +655,37 @@ pub fn actions(view: &mut ThreadView, window: &mut Window, cx: &mut Context<Thre
         .mr(px(1.))
         .gap(px(8.))
         .children(reading.map(|r| ring(&r, &bar, compacts, me.clone(), window, cx)))
-        .children(git.map(|g| git_split(&g, &bar, me.clone(), cx)))
-        .children(open.map(|o| open_split(&o, &bar, me.clone(), cx)))
+        .child(git.clone())
+        .child(open.clone())
         .into_any_element()
+}
+
+/// Hands the splits the thread's workspace status, its project's base and the computers the sidebar holds, where
+/// they moved; compared in place, since the cluster draws on every frame of a scroll.
+fn feed(bar: &Entity<Bar>, git: &Entity<GitSplit>, open: &Entity<OpenSplit>, cx: &mut App) {
+    let none = Vec::new();
+    let sidebar = crate::screens::terminal::workspaces_sidebar(cx);
+    let held = {
+        let b = bar.read(cx);
+        let places = sidebar.as_ref().map_or(&none, |s| &s.read(cx).around().places);
+        git.read(cx).holds(b.status.as_ref(), base_of(b), places)
+    };
+    if held {
+        return;
+    }
+    let (status, base) = {
+        let b = bar.read(cx);
+        (b.status.clone(), base_of(b).map(str::to_owned))
+    };
+    let places = sidebar.map(|s| s.read(cx).around().places.clone()).unwrap_or_default();
+    git.update(cx, |g, cx| g.feed(status.as_ref(), base.as_deref(), &places, cx));
+    open.update(cx, |o, cx| o.take_status(status.as_ref(), cx));
+}
+
+/// The branch the thread's work goes back to: its project's base, where the host listed one.
+fn base_of(b: &Bar) -> Option<&str> {
+    let project = b.status.as_ref()?.pointer("/project/id")?.as_str()?;
+    b.bases.get(project).map(String::as_str)
 }
 
 /// `KEYCAP_BEVEL`: the 1 px light inside the top edge.
@@ -1091,22 +693,11 @@ fn bevel(p: &Palette) -> Vec<BoxShadow> {
     vec![BoxShadow { color: p.keycap_top, offset: point(px(0.), px(1.)), blur_radius: px(0.), spread_radius: px(0.), inset: true }]
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Ends {
-    Both,
-    Left,
-    Right,
-}
-
-/// The outline keycap (`OUTLINE_SURFACE`) with only the corners its split side keeps; held is `disabled:opacity-64`.
-fn keycap(id: &'static str, ends: Ends, held: bool, p: &Palette) -> gpui_kit::Stateful<gpui_kit::Div> {
+/// The outline keycap (`OUTLINE_SURFACE`); held is `disabled:opacity-64`.
+fn keycap(id: &'static str, held: bool, p: &Palette) -> gpui_kit::Stateful<gpui_kit::Div> {
     let radius = px(8.);
-    let corners = |el: gpui_kit::Div, r: Pixels| match ends {
-        Ends::Both => el.rounded(r),
-        Ends::Left => el.rounded_l(r),
-        Ends::Right => el.rounded_r(r),
-    };
-    let surface = corners(div(), radius)
+    let surface = div()
+        .rounded(radius)
         .relative()
         .flex()
         .flex_none()
@@ -1120,7 +711,7 @@ fn keycap(id: &'static str, ends: Ends, held: bool, p: &Palette) -> gpui_kit::St
         .font_weight(FontWeight::MEDIUM)
         .text_size(px(13.))
         .line_height(px(19.5))
-        .child(corners(div(), radius - px(1.)).absolute().inset_0().shadow(bevel(p)));
+        .child(div().rounded(radius - px(1.)).absolute().inset_0().shadow(bevel(p)));
     let hover = p.input_fill_hover;
     surface.id(id).debug_selector(move || id.into()).map(|el| {
         if held {
@@ -1131,67 +722,8 @@ fn keycap(id: &'static str, ends: Ends, held: bool, p: &Palette) -> gpui_kit::St
     })
 }
 
-/// The chevron's left edge over the main part's right one, as `-ms-px` stacks them.
-fn shared_edge(p: &Palette) -> impl IntoElement {
-    div().absolute().left(px(-1.)).top(px(-1.)).bottom(px(-1.)).w(px(1.)).bg(p.input)
-}
-
 fn glyph(icon: Glyph, size: Pixels, p: &Palette) -> Icon {
     Icon::new(icon).with_size(size).text_color(p.muted_foreground)
-}
-
-/// `MenuPopup` under its trigger, its right edge on the trigger's (align end, 4 px down).
-fn popup(id: &'static str, below: Pixels, shut: impl Fn(&mut App) + 'static, p: &Palette, items: Vec<AnyElement>) -> AnyElement {
-    let surface = crate::ui::menu::surface(p);
-    div()
-        .absolute()
-        .right_0()
-        .top(below)
-        .child(
-            deferred(
-                anchored().anchor(Anchor::TopRight).snap_to_window().child(
-                    v_flex()
-                        .id(id)
-                        .debug_selector(move || id.into())
-                        .occlude()
-                        .min_w(px(128.))
-                        .p(px(4.))
-                        .rounded(surface.radius)
-                        .border_1()
-                        .border_color(surface.edge)
-                        .bg(p.popover)
-                        .shadow(surface.shadow)
-                        .children(items)
-                        .on_mouse_down_out(move |_, _, cx| shut(cx)),
-                ),
-            )
-            .with_priority(1),
-        )
-        .into_any_element()
-}
-
-/// `MenuItem`: 28 px, its glyph at 16 in the muted ink at 80%, the accent under the pointer, held at 64%.
-fn menu_item(id: SharedString, lead: AnyElement, label: SharedString, disabled: bool, p: &Palette) -> gpui_kit::Stateful<gpui_kit::Div> {
-    let accent = p.accent;
-    h_flex()
-        .id(id.clone())
-        .debug_selector(move || id.to_string())
-        .min_h(px(28.))
-        .gap(px(8.))
-        .px(px(8.))
-        .py(px(4.))
-        .rounded(px(8.))
-        .text_size(px(14.))
-        .line_height(px(20.))
-        .text_color(p.foreground)
-        .child(lead)
-        .child(label)
-        .map(|el| if disabled { el.opacity(0.64) } else { el.cursor_pointer().hover(move |s| s.bg(accent)) })
-}
-
-/// A menu item's glyph: 16 px in the muted ink at 80%, pulled 2 px into the gap on each side.
-fn menu_glyph(icon: Glyph, p: &Palette) -> AnyElement {
-    div().flex_none().mx(px(-2.)).opacity(0.8).child(glyph(icon, px(16.), p)).into_any_element()
 }
 
 /// The 24 unit ring at 20 px as a round quad and a glyph: a painted path makes the renderer hold window-sized textures.
@@ -1331,7 +863,7 @@ fn context_card(
     };
     let compact = reading.compact.clone().map(|held| {
         let shown = held.is_some();
-        let button = keycap("context-compact", Ends::Both, shown, p)
+        let button = keycap("context-compact", shown, p)
             .mt(px(4.))
             .w_full()
             .h(px(24.))
@@ -1403,170 +935,6 @@ fn context_card(
         )
 }
 
-/// GitSplit: the quick act on the main part, the rest in the menu under the chevron.
-fn git_split(state: &GitState, bar: &Entity<Bar>, view: WeakEntity<ThreadView>, cx: &mut Context<ThreadView>) -> AnyElement {
-    let p = cx.palette().clone();
-    let quick = git_quick(state);
-    let icon = match quick.act.or(quick.holds) {
-        Some(GitAct::ViewPr | GitAct::CreatePr) => Glyph::GitPullRequest,
-        Some(GitAct::Push) => Glyph::Upload,
-        _ => Glyph::GitCommitHorizontal,
-    };
-    let tip = quick.hint.clone().unwrap_or_else(|| quick.label.to_owned());
-    let (b, v) = (bar.clone(), view.clone());
-    let main = keycap("git-quick", Ends::Left, quick.act.is_none(), &p)
-        .h(px(32.))
-        .px(px(12.))
-        .gap(px(6.))
-        .child(glyph(icon, px(14.), &p))
-        .child(quick.label)
-        .tooltip(shortcut_tooltip(tip, &[]))
-        .when_some(quick.act, |el, act| {
-            el.on_click(move |_, _, cx| {
-                let b = b.clone();
-                _ = v.update(cx, |view, cx| run(view, &b, act, cx));
-            })
-        });
-    let menu_open = bar.read(cx).git_menu;
-    let toggle = bar.clone();
-    // `-ms-px` as a missing left edge: taffy sizes a row short around a child's negative margin.
-    let more = keycap("git-more", Ends::Right, false, &p)
-        .border_l_0()
-        .child(shared_edge(&p))
-        .h(px(32.))
-        .px(px(8.))
-        .child(glyph(Glyph::ChevronDown, px(14.), &p))
-        .on_click(move |_, _, cx| set(&toggle, cx, |b| b.git_menu = !b.git_menu));
-    let menu = menu_open.then(|| {
-        let items = git_menu(state)
-            .into_iter()
-            .map(|item| {
-                let icon = match item.id {
-                    "commit" => Glyph::GitCommitHorizontal,
-                    "push" => Glyph::Upload,
-                    _ => Glyph::GitPullRequest,
-                };
-                let (b, v) = (bar.clone(), view.clone());
-                let act = item.act;
-                menu_item(SharedString::from(format!("git-item-{}", item.id)), menu_glyph(icon, &p), item.label.into(), item.disabled, &p)
-                    .when(!item.disabled, |el| {
-                        el.on_click(move |_, _, cx| {
-                            set(&b, cx, |b| b.git_menu = false);
-                            let act = match act {
-                                MenuAct::Changes => {
-                                    open_pane(Pane::Changes, None, cx);
-                                    return;
-                                }
-                                MenuAct::Push => GitAct::Push,
-                                MenuAct::CreatePr => GitAct::CreatePr,
-                                MenuAct::ViewPr => GitAct::ViewPr,
-                            };
-                            let b = b.clone();
-                            _ = v.update(cx, |view, cx| run(view, &b, act, cx));
-                        })
-                    })
-                    .into_any_element()
-            })
-            .collect();
-        let shut = bar.clone();
-        popup("git-menu", px(32. + 4.), move |cx| set(&shut, cx, |b| b.git_menu = false), &p, items)
-    });
-    h_flex()
-        .debug_selector(|| "git-split".into())
-        .flex_none()
-        .child(main)
-        .child(div().relative().flex_none().child(more).children(menu))
-        .into_any_element()
-}
-
-/// OpenSplit: Open in the default editor, and the editors the host found in the menu, the default with its keycap.
-fn open_split(state: &OpenState, bar: &Entity<Bar>, view: WeakEntity<ThreadView>, cx: &mut Context<ThreadView>) -> AnyElement {
-    let p = cx.palette().clone();
-    let listed = state.current.is_some();
-    let tip = state.current.as_ref().map_or_else(|| OPEN.to_owned(), |c| format!("Open in {}", c.name));
-    let (b, v) = (bar.clone(), view.clone());
-    let mark = if state.opening { spinner(cx).into_any_element() } else { div().size(px(16.)).flex_none().into_any_element() };
-    let main = keycap("open-main", Ends::Left, false, &p)
-        .h(px(32.))
-        .px(px(12.))
-        .gap(px(6.))
-        .child(mark)
-        .child(OPEN)
-        .tooltip(shortcut_tooltip(tip, &[]))
-        .on_click(move |_, window, cx| {
-            let b = b.clone();
-            _ = v.update(cx, |view, cx| open_in(view, &b, None, window, cx));
-        });
-    let toggle = bar.clone();
-    let more = keycap("open-choose", Ends::Right, false, &p)
-        .border_l_0()
-        .child(shared_edge(&p))
-        .h(px(32.))
-        .px(px(8.))
-        .child(glyph(Glyph::ChevronDown, px(14.), &p))
-        .on_click(move |_, _, cx| set(&toggle, cx, |b| b.open_menu = !b.open_menu));
-    let menu = bar.read(cx).open_menu.then(|| {
-        let mut items: Vec<AnyElement> = Vec::new();
-        if state.small {
-            items.push(
-                div()
-                    .max_w(px(256.))
-                    .px(px(8.))
-                    .py(px(6.))
-                    .text_size(px(12.))
-                    .line_height(px(16.))
-                    .text_color(p.muted_foreground)
-                    .child(SMALL_LINE)
-                    .into_any_element(),
-            );
-        }
-        for editor in &state.editors {
-            let (b, v, id) = (bar.clone(), view.clone(), editor.id.clone());
-            let current = state.current.as_ref().is_some_and(|c| c.id == editor.id);
-            let item = menu_item(
-                SharedString::from(format!("open-item-{}", editor.id)),
-                div().size(px(16.)).flex_none().into_any_element(),
-                editor.name.clone().into(),
-                false,
-                &p,
-            )
-            .when(current, |el| {
-                el.child(
-                    div()
-                        .ml_auto()
-                        .h(px(20.))
-                        .min_w(px(20.))
-                        .px(px(4.))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded(px(6.))
-                        .bg(p.muted)
-                        .text_size(px(12.))
-                        .line_height(px(16.))
-                        .text_color(p.muted_foreground)
-                        .child(open_shortcut()),
-                )
-            })
-            .on_click(move |_, window, cx| {
-                set(&b, cx, |b| b.open_menu = false);
-                let (b, id) = (b.clone(), id.clone());
-                _ = v.update(cx, |view, cx| open_in(view, &b, Some(id), window, cx));
-            });
-            items.push(item.into_any_element());
-        }
-        let shut = bar.clone();
-        popup("open-menu", px(32. + 4.), move |cx| set(&shut, cx, |b| b.open_menu = false), &p, items)
-    });
-    h_flex()
-        .debug_selector(|| "open-split".into())
-        .flex_none()
-        .when(!listed, |el| el.invisible())
-        .child(main)
-        .child(div().relative().flex_none().child(more).children(menu))
-        .into_any_element()
-}
-
 // The crumbs, ThreadBreadcrumb.tsx.
 
 pub const NEW_THREAD: &str = "New thread";
@@ -1581,6 +949,7 @@ const OWN_SHARE: f32 = 0.7;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Crumb {
     pub project: Option<String>,
+    pub project_id: Option<String>,
     pub title: String,
     pub waiting: Option<String>,
 }
@@ -1589,7 +958,72 @@ pub fn crumb(row: &Value) -> Crumb {
     let text = |key: &str| row.get(key).and_then(Value::as_str);
     let title = thread_title(text("harnessTitle"), text("prompt")).unwrap_or_else(|| NEW_THREAD.to_owned());
     let project = row.pointer("/project/name").and_then(Value::as_str).filter(|n| !n.is_empty()).map(str::to_owned);
-    Crumb { project, title, waiting: waiting_line(row) }
+    let project_id = row.pointer("/project/id").and_then(Value::as_str).map(str::to_owned);
+    Crumb { project, project_id, title, waiting: waiting_line(row) }
+}
+
+/// The thread that opened another, where an agent did (`openedBy`): its workspace, its id where the runtime stamped
+/// one, and its title.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Opener {
+    pub workspace_id: String,
+    pub thread_id: Option<String>,
+    pub title: String,
+}
+
+/// The thread that opened `thread`, as the sidebar lists both.
+pub fn opener_of(thread: &str, cx: &App) -> Option<Opener> {
+    let sidebar = crate::screens::terminal::workspaces_sidebar(cx)?;
+    let threads = sidebar.read(cx).threads();
+    let parent = threads.iter().find(|t| t.thread_id.as_deref() == Some(thread))?.parent.as_deref()?;
+    let opener = threads.iter().find(|t| t.thread_id.as_deref() == Some(parent) || t.key == parent)?;
+    Some(Opener { workspace_id: opener.workspace_id.clone(), thread_id: opener.thread_id.clone(), title: opener.title.clone() })
+}
+
+/// `ProjectCrumb`: the project's glyph in its look and its name, and the slash after it; under 640 px the glyph alone,
+/// its name on its hover, and no slash.
+pub fn project_crumb(project_id: Option<&str>, name: String, window: &Window, cx: &App) -> AnyElement {
+    let p = cx.palette();
+    let narrow = crate::ui::narrow(window);
+    let sidebar = crate::screens::terminal::workspaces_sidebar(cx);
+    let glyph = match &sidebar {
+        Some(s) => {
+            let around = s.read(cx).around();
+            let prefs = around.preferences.as_deref().unwrap_or(&Value::Null);
+            crate::screens::sidebar::looks::project_glyph(project_id, prefs, &around.images, px(16.), p.muted_foreground, true, p)
+        }
+        None => Icon::new(Glyph::Folder).with_size(px(16.)).text_color(p.muted_foreground).into_any_element(),
+    };
+    let crumb = h_flex()
+        .id("crumbs-project")
+        .debug_selector(|| "crumbs-project".into())
+        .min_w_0()
+        .items_center()
+        .gap_2()
+        .text_color(p.muted_foreground)
+        .child(div().flex_none().child(glyph));
+    let crumb = if narrow {
+        crumb.flex_none().tooltip(tip(name)).into_any_element()
+    } else {
+        crumb.child(div().truncate().child(SharedString::from(name))).into_any_element()
+    };
+    h_flex().min_w_0().gap_2().items_center().child(crumb).when(!narrow, |el| el.child(crate::ui::slash(cx))).into_any_element()
+}
+
+/// `ThreadLink`: the thread named as the way to it, in the muted ink, the foreground and an underline under the
+/// pointer; a press selects it. One the runtime stamped no id on is its name in plain text.
+pub fn thread_link(id: &'static str, opener: Opener, cx: &App) -> AnyElement {
+    let p = cx.palette();
+    let link = div().id(id).debug_selector(move || id.into()).min_w_0().truncate().text_color(p.muted_foreground);
+    let Some(thread) = opener.thread_id else { return link.child(SharedString::from(opener.title)).into_any_element() };
+    let (ink, workspace) = (p.foreground, opener.workspace_id);
+    link.cursor_pointer()
+        .hover(move |s| s.text_color(ink).underline())
+        .on_click(move |_, _, cx| {
+            crate::screens::navigate(crate::screens::Route::Thread { workspace_id: workspace.clone(), thread_id: thread.clone() }, cx)
+        })
+        .child(SharedString::from(opener.title))
+        .into_any_element()
 }
 
 /// `waitingLine` for a thread `threadState` reads as waiting: its own question, else the one the thread it is behind holds.
@@ -1606,8 +1040,9 @@ pub fn waiting_line(row: &Value) -> Option<String> {
 /// Opens the title's menu at the pointer.
 pub type OnMenu = Rc<dyn Fn(Point<Pixels>, &mut Window, &mut App)>;
 
-/// The crumbs of an open thread: its project and a slash, its title or the name box in the title's place, and the
-/// question glyph while it waits on the person. `on_menu` opens the title's menu at the pointer.
+/// The crumbs of an open thread: its project and a slash, the thread that opened it and a slash where an agent did,
+/// its title or the name box in the title's place, and the question glyph while it waits on the person. `on_menu`
+/// opens the title's menu at the pointer.
 pub fn crumbs(view: &mut ThreadView, on_menu: OnMenu, window: &mut Window, cx: &mut Context<ThreadView>) -> AnyElement {
     let p = cx.palette().clone();
     let line =
@@ -1615,17 +1050,10 @@ pub fn crumbs(view: &mut ThreadView, on_menu: OnMenu, window: &mut Window, cx: &
     let Some(thread) = view.thread().map(str::to_owned) else { return line.into_any_element() };
     let bar = bar(&thread, cx);
     let Some(crumb) = bar.read(cx).row.as_ref().map(crumb) else { return line.into_any_element() };
-    let project = crumb.project.clone().map(|name| {
-        h_flex()
-            .debug_selector(|| "crumbs-project".into())
-            .min_w_0()
-            .items_center()
-            .gap_2()
-            .text_color(p.muted_foreground)
-            .child(Icon::new(Glyph::Folder).with_size(px(16.)).flex_none())
-            .child(div().truncate().child(SharedString::from(name)))
-    });
-    let own = project.is_some();
+    let project = crumb.project.clone().map(|name| project_crumb(crumb.project_id.as_deref(), name, window, cx));
+    let opener =
+        opener_of(&thread, cx).map(|o| h_flex().min_w_0().gap_2().child(thread_link("crumbs-opener", o, cx)).child(crate::ui::slash(cx)));
+    let own = project.is_some() || opener.is_some();
     let me = cx.entity().downgrade();
     let renaming = bar.read(cx).renaming.as_ref().map(|r| (r.input.clone(), r.saving));
     let title = match renaming {
@@ -1656,7 +1084,7 @@ pub fn crumbs(view: &mut ThreadView, on_menu: OnMenu, window: &mut Window, cx: &
             .tooltip(tip(line))
     });
     line.children(project)
-        .when(own, |el| el.child(crate::ui::slash(cx)))
+        .children(opener)
         .child(div().flex().min_w_0().when(own, |el| el.flex_none().max_w(gpui_kit::relative(OWN_SHARE))).child(title))
         .children(waiting)
         .into_any_element()

@@ -5,25 +5,28 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::time::Duration;
 
 use gpui_kit::base::text::{TextView, TextViewState};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
     div, prelude::*, px, relative, AnyElement, App, Context, ElementId, Entity, FontWeight, HighlightStyle, Hsla, Pixels, Rgba,
-    ScrollHandle, SharedString, Task, Window,
+    ScrollHandle, SharedString, Task, WeakEntity, Window,
 };
 
 use super::{markdown, shimmer};
+use crate::local_store::LocalStore;
+use crate::screens::pr_pane::changes::model::{self as changes_model, TurnRange};
 use crate::thread_view::ThreadView;
 use crate::transcript::{Call, FilePatch, FooterWord, Glyph as RowGlyph, Row, RowKind, Tone};
 use crate::ui::{motion, ActivePalette, Glyph, Palette};
 
 /// `max-w-3xl`: the transcript column, so both apps wrap the same text at the same width.
 pub const COLUMN: Pixels = px(768.);
-/// `sm:px-5` inside the 6 px scrollbar gutter `scrollbar-gutter: stable both-edges` keeps on each side.
+/// `sm:px-5` inside the 6 px scrollbar gutter `scrollbar-gutter: stable both-edges` keeps on each side; `px-3` under
+/// 640 px.
 pub const SIDE: Pixels = px(26.);
+const SIDE_NARROW: Pixels = px(18.);
 /// The list's header and footer spacers, `h-3 sm:h-4`.
 pub const END_SPACE: Pixels = px(16.);
 /// `--chat-composer-inset` until the composer is drawn: the empty dock's height, so the last row clears the composer.
@@ -101,7 +104,7 @@ fn focusable<E: StatefulInteractiveElement + Styled>(el: E, p: &Palette) -> E {
 }
 
 /// The row's wrapper: the centred column, and the bottom padding the web's `TimelineRowContent` picks by kind.
-fn frame(ix: usize, last: bool, foot: Pixels, inset: Pixels, content: impl IntoElement) -> AnyElement {
+fn frame(ix: usize, last: bool, foot: Pixels, inset: Pixels, side: Pixels, content: impl IntoElement) -> AnyElement {
     let column = div()
         .debug_selector(|| format!("row-{ix}"))
         .mx_auto()
@@ -111,7 +114,7 @@ fn frame(ix: usize, last: bool, foot: Pixels, inset: Pixels, content: impl IntoE
         .pb(foot)
         .when(last, |el| el.pb(foot + END_SPACE + inset))
         .child(content);
-    div().w_full().px(SIDE).child(column).into_any_element()
+    div().w_full().px(side).child(column).into_any_element()
 }
 
 fn foot(kind: &RowKind) -> Pixels {
@@ -159,7 +162,7 @@ pub fn row(view: &mut ThreadView, ix: usize, row: &Row, window: &mut Window, cx:
             let spec = shimmer::Spec { glyph: RowGlyph::Brain, glyph_ink: p.foreground, verb: None, text: "Thinking".into(), mono: false };
             div().flex().items_start().min_h(px(28.)).child(shimmer::line(view, row, spec, cx)).into_any_element()
         }
-        RowKind::Footer { word } => footer(*word, &p, cx),
+        RowKind::Footer { word, why } => footer(*word, why.as_deref(), &p, cx),
         RowKind::Permission { .. }
         | RowKind::Question { .. }
         | RowKind::Plan { .. }
@@ -185,7 +188,8 @@ pub fn row(view: &mut ThreadView, ix: usize, row: &Row, window: &mut Window, cx:
         (_, None, Some(reply)) => foot(&view.rows()[reply].kind),
         (kind, None, None) => foot(kind),
     };
-    frame(ix, last, foot, view.composer_inset(), shown)
+    let side = if crate::ui::narrow(window) { SIDE_NARROW } else { SIDE };
+    frame(ix, last, foot, view.composer_inset(), side, shown)
 }
 
 /// A row today's `AssistantTimelineRow` draws inside the reply above it, over the reply's meta line.
@@ -284,9 +288,9 @@ fn clamp_fade(fill: Hsla) -> impl IntoElement {
 fn person(view: &mut ThreadView, row: &Row, p: &Palette, window: &mut Window, cx: &mut Context<ThreadView>) -> AnyElement {
     let body = view.body(row, cx);
     let cwd = view.transcript().cwd().map(str::to_owned);
-    let (files, full) = match &row.kind {
-        RowKind::Person { files, full, .. } => (super::cards::files(view, row, files, p, cx), *full),
-        _ => (None, false),
+    let (files, full, steered) = match &row.kind {
+        RowKind::Person { files, full, steered, .. } => (super::cards::files(view, row, files, p, cx), *full, *steered),
+        _ => (None, false, false),
     };
     let clamped = clamps(&row.text);
     let collapsed = clamped && !full;
@@ -315,7 +319,7 @@ fn person(view: &mut ThreadView, row: &Row, p: &Palette, window: &mut Window, cx
     let text = div()
         .relative()
         .when(collapsed, |el| el.max_h(CLAMP_HEIGHT).overflow_hidden())
-        .child(markdown::reply(&body, true, None, cwd.as_deref(), cx))
+        .child(markdown::reply(&body, true, None, cwd.as_deref(), Some(p.accent), cx))
         .when(collapsed, |el| el.child(clamp_fade(p.accent)));
     let hover = message_hover(row, window, cx);
     let thread = view.thread().unwrap_or_default().to_owned();
@@ -326,14 +330,24 @@ fn person(view: &mut ThreadView, row: &Row, p: &Palette, window: &mut Window, cx
         .w_full()
         .items_end()
         .gap(px(4.))
-        .child(div().max_w(relative(0.8)).rounded(px(18.)).bg(p.accent).p(px(12.)).text_color(p.foreground).children(files).child(
-            div().relative().child(text).children(toggle.map(|toggle| {
-                h_flex()
-                    .justify_end()
-                    .map(|el| if collapsed { el.absolute().left_0().right_0().bottom_0() } else { el.mt(px(6.)) })
-                    .child(toggle)
-            })),
-        ))
+        .child(
+            div()
+                .id(SharedString::from(format!("bubble:{}", row.key)))
+                .debug_selector(move || if steered { "bubble-steered" } else { "bubble" }.into())
+                .max_w(relative(0.8))
+                .rounded(px(18.))
+                .bg(p.accent)
+                .p(px(12.))
+                .text_color(p.foreground)
+                .when(steered, |el| el.tooltip(crate::ui::tip("Sent while the agent was working")))
+                .children(files)
+                .child(div().relative().child(text).children(toggle.map(|toggle| {
+                    h_flex()
+                        .justify_end()
+                        .map(|el| if collapsed { el.absolute().left_0().right_0().bottom_0() } else { el.mt(px(6.)) })
+                        .child(toggle)
+                }))),
+        )
         .child(meta)
         .into_any_element()
 }
@@ -516,17 +530,13 @@ fn agent(
         RowKind::Agent { runs, streaming, .. } => (runs.as_slice(), *streaming),
         _ => (&[][..], false),
     };
-    let weak = cx.entity().downgrade();
-    let on_run: markdown::OnRun = Arc::new(move |action, _, cx| {
-        if let markdown::RunAction::Send { message } = action {
-            _ = weak.update(cx, |view, cx| view.send(message, cx));
-        }
-    });
-    // A run starts in a workspace pty over the daemon's channel, which the terminal screen brings.
-    let replies = || (!streaming).then(|| markdown::ReplyRuns { runs, on_run: on_run.clone(), can_start: false });
+    let scope = super::run::Scope::of(view, row, cx);
+    let can_start = scope.is_some();
+    let on_run = super::run::on_run(scope.clone(), 0);
+    let replies = || (!streaming).then(|| markdown::ReplyRuns { runs, on_run: on_run.clone(), can_start });
     let cwd = view.transcript().cwd().map(str::to_owned);
     let reply = match insights(&row.text, streaming) {
-        None => div().child(markdown::reply(&view.body(row, cx), false, replies(), cwd.as_deref(), cx)),
+        None => div().child(markdown::reply(&view.body(row, cx), false, replies(), cwd.as_deref(), Some(p.background), cx)),
         Some(segments) => div().flex().flex_col().gap(px(10.)).children(segments.iter().enumerate().map(|(n, segment)| {
             let body = segment_body(row, n, segment.text, cwd.as_deref(), window, cx);
             // A segment numbers its shell blocks from its own start, as its ReplyRunScope's offset does.
@@ -537,8 +547,9 @@ fn agent(
                 .filter(|run| run.block >= before)
                 .map(|run| crate::transcript::Run { block: run.block - before, ..run.clone() })
                 .collect();
-            let replies = (!streaming).then(|| markdown::ReplyRuns { runs: &own, on_run: on_run.clone(), can_start: false });
-            let note = markdown::reply(&body, false, replies, cwd.as_deref(), cx);
+            let on_run = super::run::on_run(scope.clone(), before);
+            let replies = (!streaming).then(|| markdown::ReplyRuns { runs: &own, on_run, can_start });
+            let note = markdown::reply(&body, false, replies, cwd.as_deref(), Some(p.background), cx);
             if segment.insight {
                 insight_note(note, p).into_any_element()
             } else {
@@ -1025,17 +1036,20 @@ fn plain_line(
         })
 }
 
-/// An open tool row's detail: `mt-1 ms-7 border-s border-border/45 ps-3 pt-0.5`, mono at 11 px.
+/// An open tool row's detail: `mt-1 ms-7 border-s border-border/45 ps-3 pt-0.5`, mono at the picked code size, else
+/// 11 px, `leading-relaxed`.
 fn detail(key: &str, text: &str, marks: Marks, p: &Palette, cx: &App) -> impl IntoElement {
     let text = gpui_kit::StyledText::new(text.to_owned()).with_highlights(marks);
+    let size = cx.try_global::<super::markdown::Sizes>().and_then(|s| s.code).unwrap_or(px(11.));
     div().mt(px(4.)).ml(px(28.)).border_l_1().border_color(p.border.opacity(0.45)).pl(px(12.)).pt(px(2.)).child(
         div()
             .id(SharedString::from(format!("detail:{key}")))
+            .debug_selector(|| "call-detail".into())
             .max_h(px(256.))
             .overflow_y_scroll()
             .font_family(cx.theme().mono_font_family.clone())
-            .text_size(px(11.))
-            .line_height(px(17.875))
+            .text_size(size)
+            .line_height(size * 1.625)
             .text_color(p.muted_foreground)
             .child(text),
     )
@@ -1078,14 +1092,103 @@ fn file_facts(file: &FilePatch, p: &Palette, cx: &App) -> AnyElement {
     }
 }
 
-/// `OpenDiff`: the ghost `icon-xs` FileDiff, opening the file at its first hunk in Files (the turn's range in Changes
-/// is the Changes pane's, which the frame does not have yet).
-fn open_diff(file: &FilePatch, cx: &App) -> impl IntoElement {
-    let path = file.path.clone();
-    markdown::ghost_button("open-diff", Glyph::FileDiff, false, cx).debug_selector(|| "open-diff".into()).on_click(move |_, _, cx| {
-        cx.stop_propagation();
-        markdown::open_file(&path, cx);
-    })
+/// `OpenDiff`: the ghost `icon-xs` FileDiff, opening the file in Changes on its turn's range, or in Files at its first
+/// hunk where the call has no turn.
+fn open_diff(file: &FilePatch, turn: Option<&str>, view: WeakEntity<ThreadView>, cx: &App) -> impl IntoElement {
+    let (path, line, turn) = (file.path.clone(), file.line, turn.map(str::to_owned));
+    markdown::ghost_button("open-diff", Glyph::FileDiff, false, cx)
+        .debug_selector(|| "edit-open-diff".into())
+        .tooltip(crate::ui::tip("Open diff"))
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation();
+            let Some(view) = view.upgrade() else { return };
+            let line = Some(line);
+            let asked = match &turn {
+                Some(turn) => turn_diff(view.read(cx), turn, Some(&path), line, cx),
+                None => named_file(view.read(cx), &path, line, cx),
+            };
+            asked.run(cx);
+        })
+}
+
+/// What a press on a changed file or Open diff opens.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Opens {
+    /// The turn's range in the Changes pane, for the workspace.
+    Turn {
+        workspace_id: String,
+        range: TurnRange,
+    },
+    /// The file at the line in the Files pane, by its whole path.
+    File {
+        workspace_id: String,
+        path: String,
+        line: Option<usize>,
+    },
+    Nothing,
+}
+
+impl Opens {
+    pub fn run(self, cx: &mut App) {
+        match self {
+            Opens::Turn { workspace_id, range } => {
+                if cx.try_global::<LocalStore>().is_some() {
+                    if let Err(e) = cx.update_global(|store: &mut LocalStore, _| changes_model::open_turn(store, &workspace_id, range)) {
+                        eprintln!("desktop-gpui: changes: keeping the turn: {e}");
+                    }
+                }
+                super::open_pane(crate::screens::Pane::Changes, None, cx);
+            }
+            Opens::File { workspace_id, path, line } => crate::screens::pr_pane::files::open_file(&workspace_id, &path, line, cx),
+            Opens::Nothing => {}
+        }
+    }
+}
+
+/// The folder the thread worked in, else the workspace's own (`cwd ?? threadFolderOf(workspaceId)`: the copy's folder,
+/// else the project's; the port keeps no chosen folder and no daemon root).
+fn thread_folder(view: &ThreadView, workspace_id: &str, cx: &App) -> Option<String> {
+    if let Some(cwd) = view.transcript().cwd() {
+        return Some(cwd.to_owned());
+    }
+    let sidebar = crate::screens::terminal::workspaces_sidebar(cx)?;
+    let around = sidebar.read(cx).around();
+    let record = around.workspaces.get(workspace_id)?;
+    record["folder"].as_str().or(record["project"]["path"].as_str()).map(str::to_owned)
+}
+
+/// `openNamedFile`: a path a message or a call named, read against the thread's folder, in Files at `line`.
+pub fn named_file(view: &ThreadView, named: &str, line: Option<u64>, cx: &App) -> Opens {
+    let Some(workspace_id) = view.followed_workspace() else { return Opens::Nothing };
+    let Some(cwd) = thread_folder(view, workspace_id, cx) else { return Opens::Nothing };
+    let path = crate::screens::terminal::links::resolve_path(named, &cwd);
+    Opens::File { workspace_id: workspace_id.to_owned(), path, line: line.map(|l| l as usize) }
+}
+
+/// `onOpenTurnDiff`: the turn's range in Changes at the file `named`, narrowed to the list of the card it is in; where
+/// the turn recorded no change to it, the file in Files at `line`.
+pub fn turn_diff(view: &ThreadView, turn: &str, named: Option<&str>, line: Option<u64>, cx: &App) -> Opens {
+    let (Some(workspace_id), Some(thread_id)) = (view.followed_workspace(), view.thread()) else { return Opens::Nothing };
+    let Some(cwd) = thread_folder(view, workspace_id, cx) else { return Opens::Nothing };
+    let changes = view.rows().iter().find_map(|r| match &r.kind {
+        RowKind::ChangedFiles { files, others, range, .. } if r.turn.as_deref() == Some(turn) => Some((files, others, range)),
+        _ => None,
+    });
+    let Some((files, others, (from, to))) = changes else { return named.map_or(Opens::Nothing, |n| named_file(view, n, line, cx)) };
+    let (own, others): (Vec<String>, Vec<String>) =
+        (files.iter().map(|f| f.path.clone()).collect(), others.iter().map(|f| f.path.clone()).collect());
+    let all: Vec<String> = own.iter().chain(&others).cloned().collect();
+    let path = match named {
+        Some(named) => match changes_model::changed_path_of(&all, named) {
+            Some(path) => Some(path),
+            None => return named_file(view, named, line, cx),
+        },
+        None => None,
+    };
+    let only = changes_model::only_of(&own, (!others.is_empty()).then_some(others.as_slice()), path.as_deref());
+    let range =
+        TurnRange { thread_id: thread_id.to_owned(), turn_id: turn.to_owned(), cwd, from: from.clone(), to: to.clone(), path, only };
+    Opens::Turn { workspace_id: workspace_id.to_owned(), range }
 }
 
 /// A shell or edit call (`CallRow`): a 28 px line in a 10 px round block that takes the code block surface when open;
@@ -1130,7 +1233,7 @@ fn block(view: &mut ThreadView, row: &Row, call: &Call, p: &Palette, window: &mu
         }
     }
     // The web draws a command in Shiki's bash colors, the same pierre theme as the code blocks.
-    let colors = if command.is_some() { markdown::highlight_code("bash", &target, cx.theme().is_dark()) } else { Vec::new() };
+    let colors = if command.is_some() { markdown::highlight_code("bash", &target, &cx.theme().highlight_theme) } else { Vec::new() };
     let (marks, after) = match command {
         Some(_) => (super::find::marks(view, &row.key, &format!("{}:command", call.key), &target, cx), 0),
         None => {
@@ -1161,7 +1264,7 @@ fn block(view: &mut ThreadView, row: &Row, call: &Call, p: &Palette, window: &mu
         );
     let actions = open.then(|| match (command, one) {
         (Some(command), _) => Some(copy_command(&call.key, command, window, cx).into_any_element()),
-        (None, Some(file)) => Some(open_diff(file, cx).into_any_element()),
+        (None, Some(file)) => Some(open_diff(file, row.turn.as_deref(), cx.weak_entity(), cx).into_any_element()),
         _ => None,
     });
     let glyph = if running {
@@ -1196,7 +1299,7 @@ fn block(view: &mut ThreadView, row: &Row, call: &Call, p: &Palette, window: &mu
                 .on_click(cx.listener(move |this, _, _, cx| this.toggle(&key, cx)))
         });
     let body = (open && !running).then(|| match (&call.patch, &call.body) {
-        (Some(_), _) => edit_body(call, p, window, cx),
+        (Some(_), _) => edit_body(call, row.turn.as_deref(), cx.weak_entity(), p, window, cx),
         (None, Some(output)) if !output.trim().is_empty() => {
             let part = format!("{}:body", call.key);
             let mark = |shown: &str, cx: &App| super::find::marks(view, &row.key, &part, shown, cx);
@@ -1240,7 +1343,7 @@ fn copy_command(key: &str, command: &str, window: &mut Window, cx: &mut App) -> 
 
 /// An open edit's hunks (`EditCallRow`): one file's straight under the line; several, each under a head with its path,
 /// its facts and Open diff, 8 px apart; then "The transcript kept part of this change" where the host cut the patch.
-fn edit_body(call: &Call, p: &Palette, window: &mut Window, cx: &mut App) -> AnyElement {
+fn edit_body(call: &Call, turn: Option<&str>, view: WeakEntity<ThreadView>, p: &Palette, window: &mut Window, cx: &mut App) -> AnyElement {
     let many = call.files.len() > 1;
     let files = call.files.iter().enumerate().map(|(at, file)| {
         let head = many.then(|| {
@@ -1264,7 +1367,7 @@ fn edit_body(call: &Call, p: &Palette, window: &mut Window, cx: &mut App) -> Any
                         .child(file.path.clone()),
                 )
                 .child(file_facts(file, p, cx))
-                .child(open_diff(file, cx))
+                .child(open_diff(file, turn, view.clone(), cx))
         });
         v_flex().id(SharedString::from(format!("file:{}:{at}", call.key))).children(head).child(diff(&call.key, at, file, p, window, cx))
     });
@@ -1485,7 +1588,6 @@ fn diff_lines(patch: &str) -> Vec<DiffLine<'_>> {
 /// A file's patch in an open edit block (`@pierre/diffs`): a bar and tint per change, syntax colors, 13/20 px mono,
 /// folded past 20 lines to its first 16 until "+N lines" shows it whole and "Fewer lines" folds it again (`HunksBand`).
 fn diff(key: &str, at: usize, file: &FilePatch, p: &Palette, window: &mut Window, cx: &mut App) -> impl IntoElement {
-    let dark = cx.theme().is_dark();
     let ground = mix(p.card, p.background, 0.9);
     let (add, del) = (mix(p.success, ground, 0.06), mix(p.error, ground, 0.06));
     let lines = diff_lines(&file.text);
@@ -1496,7 +1598,7 @@ fn diff(key: &str, at: usize, file: &FilePatch, p: &Palette, window: &mut Window
     let code: String = shown.iter().map(|l| l.text).collect::<Vec<_>>().join("\n");
     let path = file.path.as_str();
     let lang = path.rsplit('.').next().filter(|ext| *ext != path).unwrap_or("");
-    let styles = if lang.is_empty() { Vec::new() } else { markdown::highlight_code(lang, &code, dark) };
+    let styles = if lang.is_empty() { Vec::new() } else { markdown::highlight_code(lang, &code, &cx.theme().highlight_theme) };
     let digits = shown.iter().map(|l| l.number).max().unwrap_or(1).to_string().len();
     let mut start = 0;
     let rows = shown.iter().map(|line| {
@@ -1586,27 +1688,16 @@ fn error_line(text: &str, p: &Palette, _: &App) -> AnyElement {
 /// agent makes its model call again, the retry's rule line and its clock in that place (`WorkingTimelineRow`).
 fn working(view: &mut ThreadView, row: &Row, since: Option<f64>, p: &Palette, cx: &mut Context<ThreadView>) -> AnyElement {
     let (waiting, retry) = match &row.kind {
+        RowKind::Working { wait: Some(wait), .. } => {
+            return super::cards::machine_wait(view, row, &wait.clone(), since, "machine-wait", cx)
+        }
         RowKind::Working { waiting, retry, .. } => (*waiting, retry.clone()),
         _ => (false, None),
     };
     if let Some(retry) = retry {
-        let clock = since.map(|since| {
-            view.clock(row, since, cx);
-            let look = shimmer::ClockLook { size: px(11.), line_height: None, height: px(24.) };
-            div().flex_none().ml(px(4.)).child(shimmer::clock_slot(view, row, look, cx))
-        });
-        return h_flex()
-            .debug_selector(|| "retry".into())
-            .my(px(4.))
-            .h(px(24.))
-            .min_w_0()
-            .gap(px(8.))
-            .px(px(4.))
-            .text_size(px(11.))
-            .text_color(p.muted_foreground)
-            .child(div().min_w_0().truncate().child(retry))
-            .children(clock)
-            .into_any_element();
+        // `machineWait` for a model call made again: the rule line with its count, no act.
+        let wait = crate::transcript::Wait { label: retry, wake: false, elapsed: true };
+        return super::cards::machine_wait(view, row, &wait, since, "retry", cx);
     }
     let line = h_flex().h(px(24.)).px(px(4.)).text_size(SM.0).line_height(SM.1).text_color(p.muted_foreground);
     let line = match since {
@@ -1625,22 +1716,23 @@ fn working(view: &mut ThreadView, row: &Row, since: Option<f64>, p: &Palette, cx
     div().pt(px(4.)).pb(px(8.)).child(line).into_any_element()
 }
 
-/// The settled footer's one mono word.
-fn footer(word: FooterWord, p: &Palette, cx: &App) -> AnyElement {
+/// The settled footer's one mono word, and for a stop that never reached the computer why, 2 px under it in 12 px
+/// muted (`SettledFooter`).
+fn footer(word: FooterWord, why: Option<&str>, p: &Palette, cx: &App) -> AnyElement {
     let (text, ink) = match word {
         FooterWord::Interrupted => ("interrupted", p.destructive),
         FooterWord::Failed => ("failed", p.destructive),
         FooterWord::LimitReached => ("limit reached", p.muted_foreground),
     };
     div()
+        .when(why.is_some(), |el| el.debug_selector(|| "settled-why".into()))
         .w_full()
         .px(px(4.))
         .pb(px(8.))
-        .font_family(cx.theme().mono_font_family.clone())
-        .text_size(px(11.))
-        .line_height(px(16.5))
-        .text_color(ink)
-        .child(text)
+        .child(div().font_family(cx.theme().mono_font_family.clone()).text_size(px(11.)).line_height(px(16.5)).text_color(ink).child(text))
+        .children(
+            why.map(|why| div().mt(px(2.)).text_size(px(12.)).line_height(px(16.)).text_color(p.muted_foreground).child(why.to_owned())),
+        )
         .into_any_element()
 }
 
@@ -1768,6 +1860,27 @@ mod tests {
             events.push(event("session.end", 5, json!({"exitCode": 0, "sawResult": true})));
         }
         events
+    }
+
+    #[gpui_kit::test]
+    fn a_message_sent_while_the_agent_worked_says_so_on_hover(cx: &mut TestAppContext) {
+        let (view, cx) = window(cx);
+        let events = vec![
+            event("session.start", 1, json!({"prompt": "go"})),
+            event("session.delta", 2, json!({"kind": "text", "text": "Working."})),
+            event("session.steer", 3, json!({"prompt": "also this"})),
+        ];
+        load(&view, events, cx);
+        let plain = cx.debug_bounds("bubble").expect("the first message's bubble");
+        cx.simulate_mouse_move(plain.center(), None, Modifiers::none());
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tooltip").is_none(), "a message sent between turns says it was sent while the agent worked");
+        let steered = cx.debug_bounds("bubble-steered").expect("the steered message's bubble");
+        cx.simulate_mouse_move(steered.center(), None, Modifiers::none());
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tooltip").is_some(), "no Sent while the agent was working on the steered bubble");
     }
 
     #[gpui_kit::test]
@@ -2081,7 +2194,14 @@ mod tests {
             })
         });
         assert_eq!(facts.map(|f| (f.len(), f[0].created, f[0].added)), Some((1, true, 3)), "one new file of 3 lines");
-        assert!(cx.debug_bounds("open-diff").is_some(), "Open diff on the open one-file edit");
+        let open_diff = cx.debug_bounds("edit-open-diff").expect("Open diff on the open one-file edit");
+        cx.simulate_mouse_move(open_diff.center(), None, Modifiers::none());
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("tooltip").is_some(), "the edit's Open diff tooltip is not the app's");
+        cx.simulate_mouse_move(gpui_kit::point(px(1.), px(1.)), None, Modifiers::none());
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
         assert!(cx.debug_bounds("file-head").is_none(), "a one-file edit has no head of its own");
         let two = json!([
             {"path": "a.rs", "hunks": [{"oldStart": 1, "oldLines": 1, "newStart": 1, "newLines": 1, "lines": ["-a", "+b"]}]},

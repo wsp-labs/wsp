@@ -89,6 +89,14 @@ pub fn open(mode: Mode, host: &Host, workspace_id: &str, window: &mut Window, cx
     finder
 }
 
+/// `files.quickOpen` and `files.search`: the finder stands only over a task the window shows, never from under a page,
+/// opened afresh in `mode` on each chord.
+pub fn chord(mode: Mode, host: Option<Host>, workspace_id: Option<String>, window: &mut Window, cx: &mut App) {
+    if let (Some(host), Some(workspace_id)) = (host, workspace_id) {
+        open(mode, &host, &workspace_id, window, cx);
+    }
+}
+
 impl Finder {
     fn new(mode: Mode, host: Host, workspace_id: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let placeholder = if mode == Mode::Files { words::FILES_PLACEHOLDER } else { words::TEXT_PLACEHOLDER };

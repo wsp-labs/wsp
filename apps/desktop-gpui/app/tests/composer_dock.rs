@@ -741,6 +741,40 @@ fn a_send_whose_agent_is_slow_to_start_says_so_until_its_turn_starts(cx: &mut Te
     assert!(host.history(&thread).iter().any(|e| e["type"] == "session.start" && e["prompt"] == "LATE to start"));
 }
 
+/// A send in flight: the person's words stand at the transcript's foot as their message at once, before the host
+/// answers, with the starting line under them, and give way to the turn's own message once it starts
+/// (useChatThread.ts `pendingPrompt`, `sentEntry`).
+#[gpui_kit::test]
+fn a_send_shows_the_persons_message_at_once_then_the_starting_line(cx: &mut TestAppContext) {
+    let host = Host::start(&["first"]);
+    let thread = host.thread("first");
+    let (_mounted, screen, cx) = mount(&host, &thread, cx);
+    let (view, composer) = parts(&screen, cx);
+    until(cx, "the composer's link", |cx| linked(&composer, cx) && view.read_with(cx, |v, _| v.loaded()));
+    composer.update_in(cx, |c, window, cx| {
+        c.set_text("LATE to start", window, cx);
+        c.submit(window, cx);
+    });
+    let mine = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |v, _| {
+            v.rows()
+                .iter()
+                .filter(|r| matches!(r.kind, RowKind::Person { .. }) && r.text == "LATE to start")
+                .map(|r| r.key.clone())
+                .collect::<Vec<_>>()
+        })
+    };
+    assert_eq!(mine(cx), ["sent"], "the person's message stands before the host has answered");
+    until(cx, "the starting line under the send", |cx| view.read_with(cx, |v, _| v.rows().iter().any(|r| r.key == "starting")));
+    let keys: Vec<String> = view.read_with(cx, |v, _| v.rows().iter().map(|r| r.key.clone()).collect());
+    let at = |key: &str| keys.iter().position(|k| k == key);
+    assert!(at("sent") < at("starting"), "the message, then the starting line under it: {keys:?}");
+    until(cx, "the turn's own message in its place", |cx| {
+        let shown = mine(cx);
+        shown.len() == 1 && shown[0] != "sent"
+    });
+}
+
 #[gpui_kit::test]
 fn add_to_chat_writes_into_the_open_threads_box_and_after_another_threads_draft(cx: &mut TestAppContext) {
     use desktop_gpui::local_store::{self, LocalStore};
