@@ -36,9 +36,13 @@ pub struct MenuItem {
 #[cfg(target_os = "macos")]
 type Chose = Box<dyn FnOnce(Option<usize>, &mut Window, &mut App)>;
 
-/// The menu its owner holds: the page's own while one is open, nothing on the Mac, where AppKit draws it.
+/// The menu its owner holds: the page's own while one is open, nothing on the Mac, where AppKit draws it; and the rows
+/// last asked for, on either.
 #[derive(Default)]
-pub struct ContextMenu(Option<Open>);
+pub struct ContextMenu {
+    open: Option<Open>,
+    asked: Vec<SharedString>,
+}
 
 /// The page's menu, gpui-kit's popup filled as a row's menu is (`ui::menu`), where it stands and whether it closed.
 struct Open {
@@ -62,7 +66,8 @@ impl ContextMenu {
         if items.is_empty() {
             return;
         }
-        self.0 = None;
+        self.open = None;
+        self.asked = items.iter().map(|it| it.label.clone()).collect();
         #[cfg(target_os = "macos")]
         {
             let owner = cx.entity().downgrade();
@@ -122,18 +127,23 @@ impl ContextMenu {
             // The press that opened it is still being dispatched and may move the keys, so they go to the menu after it.
             let focus = menu.focus_handle(cx);
             window.defer(cx, move |window, cx| focus.focus(window, cx));
-            self.0 = Some(Open { menu, at, above, closed, _dismissed: dismissed });
+            self.open = Some(Open { menu, at, above, closed, _dismissed: dismissed });
             cx.notify();
         }
     }
 
     pub fn is_open(&self) -> bool {
-        self.0.as_ref().is_some_and(|m| !m.closed.get())
+        self.open.as_ref().is_some_and(|m| !m.closed.get())
+    }
+
+    /// The labels of the rows the last menu was opened with, whoever draws it.
+    pub fn asked(&self) -> &[SharedString] {
+        &self.asked
     }
 
     /// The page's menu over everything else, while one is open.
     pub fn overlay(&self) -> Option<AnyElement> {
-        let open = self.0.as_ref().filter(|m| !m.closed.get())?;
+        let open = self.open.as_ref().filter(|m| !m.closed.get())?;
         let anchor = if open.above { Anchor::BottomLeft } else { Anchor::TopLeft };
         let placed = anchored().position(open.at).anchor(anchor).snap_to_window_with_margin(px(MENU_MARGIN)).child(open.menu.clone());
         Some(deferred(placed).with_priority(2).into_any_element())
@@ -277,6 +287,15 @@ mod tests {
     fn a_pick_comes_back_by_its_index_and_a_close_as_none(cx: &mut TestAppContext) {
         let (owner, cx) = opened(cx);
         open(&owner, cx);
+        assert_eq!(
+            owner.read_with(cx, |o, _| o.menu.asked().to_vec()),
+            ["Refused", "Pin", "Delete"],
+            "the menu is asked for with its rows"
+        );
+        // On the Mac AppKit draws the menu, which the test platform cannot drive.
+        if cfg!(target_os = "macos") {
+            return;
+        }
         assert!(owner.read_with(cx, |o, _| o.menu.is_open()), "the menu is open over the window");
         cx.simulate_keystrokes("down down enter");
         cx.run_until_parked();

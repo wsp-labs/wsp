@@ -3426,6 +3426,15 @@ mod tests {
             first_mouse: false,
         });
         cx.run_until_parked();
+        assert_eq!(
+            view.read_with(cx, |v, _| v.row_menu.asked().to_vec()),
+            ["Send a message", "Settle thread"],
+            "a right-click asked for no menu"
+        );
+        // On the Mac AppKit draws the menu, which the test platform cannot drive.
+        if cfg!(target_os = "macos") {
+            return;
+        }
         assert!(view.read_with(cx, |v, _| v.row_menu.is_open()), "a right-click opened no menu");
         // Send a message is held, so the second row, Settle thread, takes the pick.
         cx.simulate_keystrokes("down down enter");

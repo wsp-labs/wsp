@@ -33,17 +33,16 @@ fn initial_size(size: Pixels) -> Pixels {
     }
 }
 
-/// A face: the login's initial in a ring. No avatar is fetched.
-pub fn face(login: &str, size: Pixels, stacked: bool, cx: &App) -> AnyElement {
+/// A face: the login's initial in a ring. No avatar is fetched. `line` is the row's line height the initial inherits,
+/// else the page's 1.5: a line taller than the ring grows the grid's one row past it from the top, so the initial sits
+/// low, as `place-items-center` leaves it.
+pub fn face(login: &str, size: Pixels, stacked: bool, line: Option<Pixels>, cx: &App) -> AnyElement {
     let p = cx.palette();
     let initial: String = login.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
     let ring = if stacked { p.card } else { p.border };
     div()
         .debug_selector(|| "pr-face".into())
-        .flex()
         .flex_none()
-        .items_center()
-        .justify_center()
         .size(size)
         .rounded_full()
         .overflow_hidden()
@@ -52,15 +51,16 @@ pub fn face(login: &str, size: Pixels, stacked: bool, cx: &App) -> AnyElement {
         .border_color(ring)
         .bg(p.muted)
         .text_size(initial_size(size))
-        .line_height(initial_size(size))
+        .line_height(line.unwrap_or(initial_size(size) * 1.5))
         .font_weight(FontWeight::MEDIUM)
         .text_color(p.muted_foreground)
-        .child(initial)
+        .child(div().debug_selector(|| "pr-face-initial".into()).flex().items_center().justify_center().min_h_full().child(initial))
         .into_any_element()
 }
 
-/// Several people in one row: at most three faces overlapped, then +N, each login on its hover (`Faces`).
-pub fn faces(id: &str, logins: &[String], cx: &App) -> AnyElement {
+/// Several people in one row: at most three faces overlapped, then +N, each login on its hover (`Faces`), their
+/// initials in the row's `line`.
+pub fn faces(id: &str, logins: &[String], line: Option<Pixels>, cx: &App) -> AnyElement {
     let p = cx.palette();
     let shown = &logins[..logins.len().min(3)];
     let rest: Vec<String> = logins[shown.len()..].iter().map(|l| author_name(l)).collect();
@@ -73,7 +73,7 @@ pub fn faces(id: &str, logins: &[String], cx: &App) -> AnyElement {
                 .id(SharedString::from(format!("{id}-face-{ix}")))
                 .when(ix > 0, |el| el.ml(px(-6.)))
                 .tooltip(tip(author_name(login)))
-                .child(face(login, px(18.), true, cx))
+                .child(face(login, px(18.), true, line, cx))
         }))
         .when(!rest.is_empty(), |el| {
             el.child(
@@ -102,12 +102,12 @@ pub fn faces(id: &str, logins: &[String], cx: &App) -> AnyElement {
 }
 
 /// A login in a sentence, its face before it (`Who`).
-pub fn who(login: &str, size: Pixels, cx: &App) -> AnyElement {
+pub fn who(login: &str, size: Pixels, line: Option<Pixels>, cx: &App) -> AnyElement {
     h_flex()
         .debug_selector(|| "pr-who".into())
         .flex_none()
         .gap(px(6.))
-        .child(face(login, size, false, cx))
+        .child(face(login, size, false, line, cx))
         .child(author_name(login))
         .into_any_element()
 }
@@ -158,12 +158,12 @@ pub fn whole(n: u64) -> String {
 }
 
 /// The line counts the pane reads rather than glances at: whole figures and a true minus, in the diff inks.
-pub fn stat_whole(additions: u64, deletions: u64, size: Pixels, cx: &App) -> AnyElement {
+pub fn stat_whole(additions: u64, deletions: u64, size: Pixels, gap: Pixels, cx: &App) -> AnyElement {
     let p = cx.palette();
     h_flex()
         .debug_selector(|| "pr-stat".into())
         .flex_none()
-        .gap(px(4.))
+        .gap(gap)
         .font_family(cx.theme().mono_font_family.clone())
         .text_size(size)
         .child(div().text_color(p.success).child(format!("+{}", whole(additions))))

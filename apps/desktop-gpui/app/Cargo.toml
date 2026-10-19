@@ -79,11 +79,23 @@ name = "pr_diff_shots"
 harness = false
 
 [[test]]
+name = "tree_scrollbars"
+harness = false
+
+[[test]]
 name = "pr_diff_scroll"
 harness = false
 
 [[test]]
 name = "thread_live"
+harness = false
+
+[[test]]
+name = "thread_chip_tip"
+harness = false
+
+[[test]]
+name = "pr_markdown_shots"
 harness = false
 
 [lints.rust]

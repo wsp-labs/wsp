@@ -23,6 +23,9 @@ impl AssetSource for AppAssets {
         if path == LOCKUP {
             return Ok(Some(Cow::Borrowed(LOCKUP_SVG)));
         }
+        if let Some(svg) = crate::screens::pr_pane::files::rows::glyph_svg(path) {
+            return Ok(Some(Cow::Borrowed(svg.as_bytes())));
+        }
         match FrameGlyphs.load(path)? {
             Some(bytes) => Ok(Some(bytes)),
             None => UiAssets.load(path),

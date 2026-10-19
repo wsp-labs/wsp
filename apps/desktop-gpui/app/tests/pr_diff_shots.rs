@@ -7,7 +7,9 @@
 //! It also holds the changed rows' edge to today's: the 4 px bar at the row's edge, in the change's color, or in the
 //! selection's on a selected line, and an added file across the whole width in split; the box behind a changed line's
 //! changed characters, in today's colors and plain ink; the colors of a row far down a long file once scrolled to; and a
-//! comment opened far above a row coloring it.
+//! comment opened far above a row coloring it; pierre's number lane (its width per file, the 2 px page gap before the
+//! code, its fills and ink), the hatched deleted bar and empty split side, a pill per row behind changed characters,
+//! a note set in the code column, and the scrollbar with its lane.
 //! Without libtest's harness, as `pixels.rs` explains.
 
 use std::path::PathBuf;
@@ -237,6 +239,27 @@ fn long_comment(lines: usize) -> diff::DiffModel {
     diff::read_reply(reply.as_object().unwrap()).unwrap()
 }
 
+/// A modified TypeScript file whose two changed lines change the same character.
+fn two_changed() -> diff::DiffModel {
+    let patch = "diff --git a/p.ts b/p.ts\n--- a/p.ts\n+++ b/p.ts\n@@ -1,2 +1,2 @@\n-export const a = 1;\n-export const b = 1;\n+export const a = 2;\n+export const b = 2;\n";
+    let reply = json!({"base": null, "truncated": false, "moved": [], "files": [{"path": "p.ts", "kind": "modified", "patch": patch}]});
+    diff::read_reply(reply.as_object().unwrap()).unwrap()
+}
+
+/// Whether device `(x, y)` is `hex` within `by`, or what it is instead.
+fn at(image: &RgbaImage, x: u32, y: u32, hex: &str, by: u8, what: &str) -> Option<String> {
+    let p = image.get_pixel(x, y).0;
+    (!near(p, hex, by)).then(|| format!("{what} at ({x}, {y}) is {:?}, today's is {hex}", &p[..3]))
+}
+
+/// The darkest pixel of a region, by the sum of its channels.
+fn darkest(image: &RgbaImage, xs: std::ops::Range<u32>, ys: std::ops::Range<u32>) -> [u8; 4] {
+    xs.flat_map(|x| ys.clone().map(move |y| (x, y)))
+        .map(|(x, y)| image.get_pixel(x, y).0)
+        .min_by_key(|p| p[..3].iter().map(|&c| u32::from(c)).sum::<u32>())
+        .unwrap()
+}
+
 /// The pixels within 40 of Paper's keyword color, `export` on every row.
 fn keyword_pixels(image: &RgbaImage) -> usize {
     image.pixels().filter(|p| near(p.0, "#d32a61", 40)).count()
@@ -280,6 +303,38 @@ fn main() {
     assert!(wrong.is_empty(), "paper: {}", wrong.join("; "));
     println!("test the_changed_and_selected_rows_wear_todays_edge ... ok");
 
+    // Read off today's shots: scroll.ts's deleted line 10 (device rows 712 to 751) and added line 10 under it, each a
+    // number cell to x 78 in its own fill, the page through x 81, the code from 82; the deleted bar red on its
+    // device rows 0 and 1 of each 4, its stripe on 2 and 3; an unchanged number in pierre's gray.
+    let image = shoot("paper", Layout::Stacked, None);
+    let mut wrong: Vec<String> = [
+        at(&image, 20, 732, "#fef1f0", 2, "the deleted number cell"),
+        at(&image, 80, 732, "#fcfcfc", 1, "the gap on the deleted row"),
+        at(&image, 90, 732, "#fef0f0", 2, "the deleted code"),
+        at(&image, 20, 772, "#edf7f3", 2, "the added number cell"),
+        at(&image, 80, 772, "#fcfcfc", 1, "the gap on the added row"),
+        at(&image, 90, 772, "#ecf7f3", 2, "the added code"),
+        at(&image, 2, 732, "#d52c36", 8, "the deleted bar's red row"),
+        at(&image, 2, 734, "#fce5e2", 3, "the deleted bar's stripe"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let ink = darkest(&image, 30..70, 596..626);
+    if !near(ink, "#565656", 4) {
+        wrong.push(format!("an unchanged line number is inked {:?}, today's #565656", &ink[..3]));
+    }
+    // scroll.ts's line 15 has no old line: today's fills its number cell in pierre's context and stripes its code
+    // column 2 px in 8 with the buffer color, through the second line the new side wraps to.
+    let split = shoot("paper", Layout::Split, None);
+    wrong.extend(at(&split, 20, 1030, "#f8f8f8", 2, "the empty side's number cell"));
+    let stripes = (82..700).filter(|&x| near(split.get_pixel(x, 1030).0, "#e5e5e5", 4)).count();
+    if !(100..=200).contains(&stripes) {
+        wrong.push(format!("the empty side's code column has {stripes} stripe pixels on a row, today's about 150"));
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("; "));
+    println!("test the_number_lane_gap_fills_and_bars_are_todays ... ok");
+
     // scroll.ts `const OVERSCAN = 4;` against `= 8;`, the fourth and fifth rows under its head and 24 px bar: today's
     // Paper draws `src/keep.ts`'s `= 2;` against `= 3;` the same way, read off its shot. Graphite has no shot here, so
     // its row and box are pierre-dark's: the change color at 6.5% over the page, then at 20% over that row.
@@ -302,7 +357,65 @@ fn main() {
     assert!(wrong.is_empty(), "{}", wrong.join("; "));
     println!("test the_changed_characters_wear_todays_box_and_plain_ink ... ok");
 
+    // math.rs line 3 selected: StyledDiffCodeView's selected number cell and code, the gap between, the number dark.
+    let mut wrong: Vec<String> = [
+        at(&lit, 20, 164, "#f0f6fc", 2, "the selected number cell"),
+        at(&lit, 80, 164, "#fcfcfc", 1, "the gap on the selected row"),
+        at(&lit, 2 * W as u32 - 40, 164, "#eff6fc", 2, "the selected code"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let ink = darkest(&lit, 30..78, 150..178);
+    if !near(ink, "#20649e", 8) {
+        wrong.push(format!("the selected line's number is inked {:?}, today's #20649e", &ink[..3]));
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("; "));
+    println!("test a_selected_row_keeps_the_gap_and_a_dark_number ... ok");
+
+    // Two changed lines changing the same digit: each added row's box is its own pill, 5 device px clear of the row
+    // edge, so the two do not join across the rows' boundary at device row 184.
+    let pills = shoot_model("paper", Layout::Stacked, two_changed(), |_, _| {});
+    let boxed = |y: u32| (360..384).filter(|&x| near(pills.get_pixel(x, y).0, "#cceade", 6)).count();
+    let (inside, edge) = ((150..178).map(boxed).max().unwrap(), (181..188).map(boxed).max().unwrap());
+    assert!(inside >= 4 && edge == 0, "the added rows' boxes: {inside} pill pixels inside a row, {edge} at the rows' boundary");
+    println!("test each_changed_row_draws_its_own_pill ... ok");
+
+    // Graphite, a note under scroll.ts's line 11 (device rows 792 to 831): today's sets it in the code column on
+    // pierre's context fill, beside the number lane in its own, the page between.
+    let noted = shoot_model("graphite", Layout::Stacked, sample(), |view, cx| {
+        view.on_note(|_, _, _| div().h(px(40.)).into_any_element());
+        let note = diff::LineNote { id: "n".into(), path: "scroll.ts".into(), side: diff::Side::Modified, line: 11 };
+        view.set_notes(vec![note], cx);
+    });
+    let wrong: Vec<String> = [
+        at(&noted, 20, 860, "#131313", 2, "the note's number lane"),
+        at(&noted, 80, 860, "#0a0a0a", 1, "the gap beside the note"),
+        at(&noted, 300, 860, "#1c1c1c", 2, "the note's fill"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    assert!(wrong.is_empty(), "{}", wrong.join("; "));
+    println!("test a_note_sits_in_the_code_column ... ok");
+
     let top = shoot_model("paper", Layout::Stacked, long_file(3000), |_, _| {});
+    // Today's lane for a 4-digit file: 7 characters of 7.83 css px, to device x 110, then the gap to 114.
+    let wrong: Vec<String> = [
+        at(&top, 104, 84, "#edf7f3", 2, "the 4-digit file's number cell"),
+        at(&top, 112, 84, "#fcfcfc", 1, "the 4-digit file's gap"),
+        at(&top, 116, 84, "#ecf7f3", 2, "the 4-digit file's code"),
+        // The bar: 6 px at the right, `--app-scrollbar-thumb` at the top; the rows stop short of its lane.
+        at(&top, 2 * W as u32 - 6, 20, "#d9d9d9", 2, "the scrollbar's thumb"),
+        at(&top, 2 * W as u32 - 6, 400, "#fcfcfc", 1, "the scrollbar's lane"),
+        at(&top, 2 * W as u32 - 16, 400, "#ecf7f3", 2, "a row beside the lane"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    assert!(wrong.is_empty(), "{}", wrong.join("; "));
+    println!("test a_long_file_has_its_own_lane_width_and_the_scrollbar ... ok");
+
     let far = shoot_model("paper", Layout::Stacked, long_file(3000), |view, cx| {
         view.scroll_to("long.ts", Some((diff::Side::Modified, 2600)), cx)
     });

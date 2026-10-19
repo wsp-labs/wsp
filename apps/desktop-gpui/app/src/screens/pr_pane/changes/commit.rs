@@ -79,7 +79,8 @@ pub fn commit_box(
         .py(px(10.))
         .border_b_1()
         .border_color(p.border.opacity(0.6))
-        .child(TextArea::new("commit-message", &state.message).mono().text_size(px(12.), px(18.)).min_height(px(96.)).disabled(state.busy))
+        // `min-h-24` stands on the edged span, so 94 inside; `text-[12px]` loses to the span's `sm:text-sm` at this width.
+        .child(TextArea::new("commit-message", &state.message).mono().min_height(px(94.)).disabled(state.busy))
         .children(line)
         .child(
             h_flex()

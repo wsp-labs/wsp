@@ -571,7 +571,7 @@ fn a_quote_reply_fills_the_comment_box_and_brings_it_into_view(cx: &mut TestAppC
     assert!(text.starts_with(&format!("@{}\n\n> ", comment.author)), "the quote leads with who it answers: {text:?}");
     assert_eq!(caret, text.len(), "the caret stands after the quote, ready for the person's words");
     assert!(screen.read_with(cx, |s, _| s.scrolled()) > px(0.), "the pane scrolled down to the comment box");
-    assert!(drawn(cx, "scrollbar"), "a pane taller than its window draws the scroll area's bar");
+    assert!(drawn(cx, "pr-pane-bar"), "a pane taller than its window draws its bar");
 }
 
 /// What each press reached the opener with: a link at the start of each body someone else wrote, the number, Open
@@ -635,23 +635,30 @@ fn a_link_or_address_opens_only_as_a_web_page(cx: &mut TestAppContext) {
     assert_eq!(opened, vec![None; 7], "nothing but a web page reaches the opener, in the order {LINK_SITES:?}");
 }
 
-/// The pane and the git button read statuses through one `status.subscribe` a socket, however often they open, close
-/// or move to another workspace, and no follow of theirs outlives them.
+/// The sidebar, the pane and the git button read statuses through one `status.subscribe` a socket, however often
+/// they open, close or move to another workspace, and no follow of the pane's or the button's outlives them.
 #[gpui_kit::test]
 fn the_pane_and_the_git_button_ask_for_statuses_once_a_socket(cx: &mut TestAppContext) {
     use desktop_gpui::screens::pr_pane::pull_request::git_split::GitSplit;
+    use desktop_gpui::sidebar::{Link, Sidebar};
     let Some(host) = PrHost::start("open") else { return };
     let door = Door::open(&host.server);
     let client = host.runtime.block_on(HostClient::connect(&door.state, &host.server.env())).unwrap_or_else(|f| panic!("{}", f.message));
-    let shell = desktop_gpui::screens::Host::new(Arc::new(client), host.runtime.clone());
+    let client = Arc::new(client);
+    let shell = desktop_gpui::screens::Host::new(client.clone(), host.runtime.clone());
     let alive = || host.runtime.metrics().num_alive_tasks();
-    let before = alive();
     cx.executor().allow_parking();
     cx.update(|cx| {
         gpui_kit::init(cx);
         ui::init(Side::Light, cx);
     });
     let (_, cx) = cx.add_window_view(|_, _| gpui_kit::EmptyView);
+    let sidebar = cx.new(Sidebar::new);
+    sidebar.update(cx, |s, cx| s.attach(Link { host: client.clone(), runtime: host.runtime.clone(), page: None }, cx));
+    let workspace = host.workspace_id.clone();
+    until(cx, "the sidebar's statuses", |cx| sidebar.read_with(cx, |s, _| s.workspace(&workspace).1.is_some()));
+    // The sidebar's follow and the socket's one status reader stay from here on.
+    let before = alive();
     let opened = Opened { workspace_id: Some(host.workspace_id.clone()), thread_id: Some(host.thread_id.clone()), ..Opened::default() };
     for _ in 0..5 {
         let pane = cx.update(|window, cx| cx.new(|cx| PullRequestScreen::new(shell.clone(), opened.clone(), window, cx)));
@@ -659,8 +666,10 @@ fn the_pane_and_the_git_button_ask_for_statuses_once_a_socket(cx: &mut TestAppCo
     }
     // A dropped entity is released at the next update, not on a park.
     cx.update(|_, _| {});
-    until(cx, "only the socket's one status reader left once the five panes are gone", |_| alive() <= before + 1);
-    let workspace = host.workspace_id.clone();
+    until(cx, "only the sidebar's follow and the socket's one status reader left once the five panes are gone", |_| alive() <= before);
+    // The sidebar reads the computers on a place's push too, which the button's count below would take for its own.
+    drop(sidebar);
+    cx.update(|_, _| {});
     let split = cx.update(|window, cx| cx.new(|cx| GitSplit::new(shell.clone(), workspace.clone(), None, window, cx)));
     until(cx, "the button's status", |cx| split.read_with(cx, |s, _| s.state().is_some()));
     until(cx, "the button's first read of the computers", |_| door.sent("places.list") >= 1);
@@ -679,7 +688,51 @@ fn the_pane_and_the_git_button_ask_for_statuses_once_a_socket(cx: &mut TestAppCo
     }
     until(cx, "the button's status again", |cx| split.read_with(cx, |s, _| s.state().is_some()));
     drop(split);
-    assert_eq!(door.sent("status.subscribe"), 1, "five panes and a button moved four times asked once on their socket");
+    assert_eq!(door.sent("status.subscribe"), 1, "the sidebar, five panes and a button moved four times asked once on their socket");
     cx.update(|_, _| {});
-    until(cx, "only the socket's one status reader left once the button is gone too", |_| alive() <= before + 1);
+    until(cx, "only the socket's one status reader left once the sidebar and the button are gone too", |_| alive() < before);
+}
+
+#[gpui_kit::test]
+fn the_status_card_stands_its_parts_as_today_s_rows_do(cx: &mut TestAppContext) {
+    let Some(host) = PrHost::start("open") else { return };
+    let (screen, cx) = open_at(&host, px(700.), cx);
+    read(&screen, cx);
+    for _ in 0..2 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let bounds = |cx: &mut VisualTestContext, selector: &'static str| cx.debug_bounds(selector).unwrap_or_else(|| panic!("{selector}"));
+    let mut wrong = Vec::new();
+    let (checks, fold) = (bounds(cx, "pr-row:pr-checks"), bounds(cx, "pr-row-end:pr-checks"));
+    if (fold.top() - checks.top(), fold.size.height) != (px(14.), px(17.5)) {
+        wrong.push(format!(
+            "the fold's chevron box stands {:?} down the row, {:?} tall, not 14 px and 2.5 px over its 15",
+            fold.top() - checks.top(),
+            fold.size.height
+        ));
+    }
+    let (review, eye) = (bounds(cx, "pr-row:pr-review"), bounds(cx, "pr-row-end:pr-review"));
+    if eye.size.height != px(28.) {
+        wrong.push(format!("the review's eye is {:?} tall, not 28 px", eye.size.height));
+    }
+    let faces = bounds(cx, "pr-verdict-faces");
+    if ((faces.top() - review.top()) - px(14. + 5.25)).abs() > px(0.5) {
+        wrong.push(format!("the review's faces stand {:?} down the row, not 5.25 px under its 14 px padding", faces.top() - review.top()));
+    }
+    let (pane, bar, card) = (bounds(cx, "pr-pane"), bounds(cx, "pr-pane-bar"), bounds(cx, "pr-status"));
+    if (pane.right() - bar.right(), bar.size.width) != (px(0.), px(6.)) {
+        wrong.push(format!(
+            "the bar stands {:?} in from the pane's edge, {:?} wide, before any scroll",
+            pane.right() - bar.right(),
+            bar.size.width
+        ));
+    }
+    if pane.right() - card.right() != px(22.) {
+        wrong.push(format!(
+            "the card ends {:?} in from the pane's edge, not 16 px in from the bar's 6 px lane",
+            pane.right() - card.right()
+        ));
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("; "));
 }

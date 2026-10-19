@@ -148,3 +148,38 @@ fn the_new_names_come_after_the_old_and_fall_back_when_a_theme_leaves_them_out()
     assert_eq!(colors.style("variable.builtin"), colors.style("variable"), "variable.builtin falls back to variable");
     assert_eq!(colors.style_for_index(41), colors.style("constant.builtin"));
 }
+
+/// The names wsp's highlight patch appends, in order, each read from a theme as its own color.
+const NEW_NAMES: [&str; 16] = [
+    "constant.builtin",
+    "keyword.storage",
+    "namespace",
+    "variable.parameter",
+    "constant.other",
+    "property.json",
+    "constant.builtin.json",
+    "property.css",
+    "property.name",
+    "attribute.pseudo",
+    "keyword.unit",
+    "punctuation.link",
+    "text.quote",
+    "variable.parameter.python",
+    "type.builtin.python",
+    "attribute.id",
+];
+
+#[test]
+fn each_new_name_reads_its_own_color() {
+    let theme: serde_json::Map<String, serde_json::Value> = NEW_NAMES
+        .iter()
+        .enumerate()
+        .map(|(i, name)| (name.to_string(), serde_json::json!({ "color": format!("#00{i:02x}00ff") })))
+        .collect();
+    let colors: SyntaxColors = serde_json::from_value(theme.into()).unwrap();
+    for (i, name) in NEW_NAMES.iter().enumerate() {
+        assert!(colors.style(name).is_some(), "{name}");
+        assert_eq!(colors.style_for_index(OLD_NAMES.len() + i), colors.style(name), "{name}");
+    }
+    assert_eq!(colors.style_for_index(OLD_NAMES.len() + NEW_NAMES.len()), None);
+}

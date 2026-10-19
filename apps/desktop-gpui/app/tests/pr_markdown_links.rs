@@ -13,7 +13,7 @@ struct Body(Entity<TextViewState>);
 
 impl Render for Body {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div().w(px(400.)).child(conversation::markdown("body", &self.0, cx))
+        div().w(px(400.)).child(conversation::markdown("body", &self.0, conversation::Md::Description, cx))
     }
 }
 

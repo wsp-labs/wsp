@@ -235,6 +235,12 @@ fn the_tree_lists_the_folder_folders_first_without_ignored_files_and_reads_a_fol
     let row = cx.debug_bounds(Box::leak(format!("tree-{b}").into_boxed_str())).expect("the b.txt row draws");
     cx.simulate_mouse_down(row.center(), gpui_kit::MouseButton::Right, Modifiers::none());
     cx.run_until_parked();
+    let asked: Vec<String> = tree.read_with(cx, |t, _| t.menu_asked().iter().map(ToString::to_string).collect());
+    assert_eq!(asked, ["Open file", "Show in Changes", "Copy path"], "a right-click asks for the row's menu");
+    // On the Mac AppKit draws the menu, which the test platform cannot drive.
+    if cfg!(target_os = "macos") {
+        return;
+    }
     assert!(tree.read_with(cx, |t, _| t.menu_open()), "a right-click opens the row's menu");
     cx.simulate_keystrokes("down down down enter");
     cx.run_until_parked();
@@ -606,4 +612,54 @@ fn the_finder_finds_lines_by_content_and_stops_at_five_hundred(cx: &mut TestAppC
     cx.run_until_parked();
     assert!(cx.debug_bounds("finder-more").is_some(), "the more-match note draws");
     println!("finder by content: {} hits, more: {more}", found.len());
+}
+
+#[gpui_kit::test]
+fn the_file_tab_head_is_28_px_with_room_under_it_inline_and_its_crumbs_are_the_trees_11_px(cx: &mut TestAppContext) {
+    let Some(host) = Host::start() else { return };
+    let path = host.at("b.txt");
+    let (screen, cx) = mount(&host, &format!("file:{path}"), cx);
+    let file = screen.read_with(cx, |s, _| s.file().cloned().unwrap());
+    until(cx, "the file read", |cx| file.read_with(cx, |f, _| matches!(f.read(), Read::Ready(_))));
+    let crumb: &'static str = Box::leak(format!("crumb-{path}").into_boxed_str());
+    let gaps = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        let head = cx.debug_bounds("file-head").expect("the head draws");
+        let code = cx.debug_bounds("file-code").expect("the code draws");
+        let crumb = cx.debug_bounds(crumb).expect("the file's crumb draws");
+        (head.size.height, code.top() - head.bottom(), crumb.size.height)
+    };
+    assert_eq!(gaps(cx), (px(40.), px(8.), px(16.)), "as a sheet: h-10, then the code's own 8 px, crumbs 11 px on 16");
+    cx.simulate_resize(size(px(1200.), px(700.)));
+    assert_eq!(gaps(cx), (px(28.), px(20.), px(16.)), "inline: h-7 and mb-3, then the code's own 8 px");
+    println!("file tab head: sheet and inline gaps as today's");
+}
+
+#[gpui_kit::test]
+fn the_finders_first_hit_runs_on_enter_but_stays_unlit_until_a_key_steps(cx: &mut TestAppContext) {
+    let Some(host) = Host::start() else { return };
+    let (finder, cx) = finder_in(&host, Mode::Files, cx);
+    type_in("a", cx);
+    until(cx, "more than one hit", |cx| hits(&finder, cx).is_some_and(|(h, _)| h.len() > 1));
+    cx.run_until_parked();
+    assert_eq!(finder.read_with(cx, |f, _| f.lit()), None, "no hit is lit as the hits land");
+    let (row, foot) = (cx.debug_bounds("finder-hit-0").expect("a hit draws"), cx.debug_bounds("finder-foot").expect("the foot draws"));
+    assert_eq!((row.size.height, foot.size.height), (px(48.), px(40.)), "a hit's py-1.5 over 36 px; the foot's py-2.5 over 20 px");
+    cx.simulate_keystrokes("down");
+    assert_eq!(finder.read_with(cx, |f, _| f.lit()), Some(1), "Down steps on from the first hit, which Enter would run");
+    cx.simulate_keystrokes("up");
+    assert_eq!(finder.read_with(cx, |f, _| f.lit()), Some(0));
+    type_in("al", cx);
+    assert_eq!(finder.read_with(cx, |f, _| f.lit()), None, "typing clears the lit hit");
+}
+
+#[gpui_kit::test]
+fn the_two_megabyte_note_stands_on_its_11_px_line_and_one_and_a_half_over_the_code(cx: &mut TestAppContext) {
+    let Some(host) = Host::start() else { return };
+    let (screen, cx) = mount(&host, "file:big.txt", cx);
+    let file = screen.read_with(cx, |s, _| s.file().cloned().unwrap());
+    until(cx, "the big file read", |cx| file.read_with(cx, |f, _| matches!(f.read(), Read::Ready(_))));
+    cx.run_until_parked();
+    let (note, code) = (cx.debug_bounds("file-truncated").expect("the note draws"), cx.debug_bounds("file-code").expect("the code draws"));
+    assert_eq!((note.size.height, code.top() - note.bottom()), (px(28.5), px(8.)), "py-1.5 around 11 px at 1.5, then the code's 8 px");
 }

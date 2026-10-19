@@ -44,7 +44,7 @@ impl Host {
             println!("skipped: the host serves files through a wsp-daemon: {}", common::wsp_daemon().unwrap_err());
             return None;
         }
-        let outside = tempfile::tempdir().unwrap();
+        let outside = common::tempdir();
         std::fs::write(outside.path().join("secret.txt"), "outside\n").unwrap();
         let folder = server.repo_with("repo", &[("a.txt", "a\n"), ("src/b.txt", "b\n")]);
         std::os::unix::fs::symlink(outside.path(), folder.join("escape")).unwrap();
@@ -74,9 +74,20 @@ impl Host {
     }
 
     fn ask(&self, link: &Entity<DaemonLink>, op: &str, params: Value, cx: &mut TestAppContext) -> Result<String, String> {
+        use futures::FutureExt as _;
         let sent = link.read_with(cx, |link, _| link.request(op, params));
-        self.runtime
-            .block_on(async { tokio::time::timeout(WAIT, sent).await.expect("an answer") })
+        let mut sent = std::pin::pin!(sent);
+        let end = Instant::now() + WAIT;
+        // The window's tasks carry the computer's channel up.
+        let answer = loop {
+            cx.run_until_parked();
+            if let Some(answer) = sent.as_mut().now_or_never() {
+                break answer;
+            }
+            assert!(Instant::now() < end, "an answer to {op} within {} s", WAIT.as_secs());
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        answer
             .map(|reply| serde_json::to_string(&reply).unwrap().chars().take(160).collect())
             .map_err(|r| format!("{} ({:?})", r.message, r.code))
     }
@@ -171,7 +182,10 @@ fn the_tree_says_the_daemons_refusal_for_an_agent_folder_outside_the_roots(cx: &
         let t = tree(cx);
         t.read_with(cx, |t, _| !t.rows().is_empty())
     });
-    for cwd in ["/etc".to_owned(), host.at("../../../../etc"), host.outside.path().to_string_lossy().into_owned()] {
+    // As many steps up as the project sits deep, so the road lands on /etc and not on a folder that is not there, where
+    // the host can start no next turn.
+    let up = "../".repeat(host.folder.components().filter(|c| matches!(c, std::path::Component::Normal(_))).count());
+    for cwd in ["/etc".to_owned(), host.at(&format!("{up}etc")), host.outside.path().to_string_lossy().into_owned()] {
         host.turn_in(&cwd);
         until(cx, "the tree following the agent's folder", |cx| {
             let t = tree(cx);

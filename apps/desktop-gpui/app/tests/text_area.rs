@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The multi-line field in a window: typing reaches its state, it grows a line at a time to its ceiling, Cmd or Ctrl
-//! and Enter submits without a newline (and not while blank), Escape cancels, and a held field takes nothing.
+//! and Enter submits without a newline (and not while blank), Escape cancels, a held field takes nothing, and the grip in
+//! its corner drags its height.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -9,7 +10,9 @@ use desktop_gpui::ui::text_area::MAX_ROWS;
 use desktop_gpui::ui::{self, Side, TextArea, TextAreaLook};
 use gpui_kit::component::input::TextareaState;
 use gpui_kit::component::Root;
-use gpui_kit::{div, prelude::*, px, size, Context, Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext, Window};
+use gpui_kit::{
+    div, point, prelude::*, px, size, Context, Entity, Focusable as _, Modifiers, MouseButton, TestAppContext, VisualTestContext, Window,
+};
 
 struct Probe {
     state: Entity<TextareaState>,
@@ -151,4 +154,37 @@ fn a_held_field_takes_nothing(cx: &mut TestAppContext) {
     f.cx.update(|window, cx| state.read(cx).focus_handle(cx).focus(window, cx));
     f.cx.simulate_keystrokes("secondary-enter");
     assert_eq!(f.sent.get(), 0);
+}
+
+impl Opened<'_> {
+    /// Presses the grip, moves the pointer `by` down in steps, and lets go.
+    fn drag_grip(&mut self, by: f32) {
+        let grip = self.cx.debug_bounds("text-area-grip").expect("the grip in the corner").center();
+        self.cx.simulate_mouse_down(grip, MouseButton::Left, Modifiers::none());
+        for step in [by.signum() * 3., by / 2., by] {
+            self.cx.simulate_mouse_move(grip + point(px(0.), px(step)), MouseButton::Left, Modifiers::none());
+        }
+        self.cx.simulate_mouse_up(grip + point(px(0.), px(by)), MouseButton::Left, Modifiers::none());
+    }
+}
+
+#[gpui_kit::test]
+fn the_grip_drags_the_height_and_not_under_the_floor(cx: &mut TestAppContext) {
+    let mut f = open(cx, false);
+    let (floor, width) = (f.height(), f.cx.debug_bounds("text-area").unwrap().size.width);
+    let grip = f.cx.debug_bounds("text-area-grip").expect("the grip in the corner");
+    let field = f.cx.debug_bounds("text-area").unwrap();
+    assert_eq!((field.right() - grip.right(), field.bottom() - grip.bottom()), (px(1.), px(1.)), "inside the 1 px edge");
+    assert_eq!(grip.size, size(px(15.), px(15.)), "Chromium's 15 px resizer");
+    f.drag_grip(60.);
+    assert_eq!(f.height(), floor + 60., "the field follows the pointer that holds its grip");
+    assert_eq!(f.cx.debug_bounds("text-area").unwrap().size.width, width, "`resize: vertical` keeps the width");
+    f.click();
+    for n in 0..MAX_ROWS + 4 {
+        f.cx.simulate_input(&format!("line {n}"));
+        f.cx.simulate_keystrokes("enter");
+    }
+    assert_eq!(f.height(), floor + 60., "a dragged height holds past its words, which scroll");
+    f.drag_grip(-400.);
+    assert_eq!(f.height(), floor, "dragged up it stops at its floor");
 }

@@ -9,6 +9,7 @@ use gpui_kit::{div, prelude::*, Context, Entity, SharedString, Window};
 use super::look::{self, DiffColors};
 use super::model::PLAIN_LINE;
 use super::{LinePosition, LineRange, Side};
+use crate::ui::scrollbar;
 
 pub struct FileView {
     state: Entity<DiffState>,
@@ -70,16 +71,27 @@ fn ended(text: &str) -> String {
 }
 
 impl Render for FileView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = DiffColors::of(cx);
+        let list = self.state.read(cx).list().clone();
+        let lane = if scrollbar::overflows(&list) { scrollbar::WIDTH } else { gpui_kit::px(0.) };
         let diff = Diff::new(&self.state)
             .header_visible(false)
             .change_indicator(DiffChangeIndicator::None)
             .tint_line_numbers(true)
+            .look(look::diff_look(cx))
             .row_height(gpui_kit::px(look::ROW_HEIGHT))
             .hover_highlight(DiffHoverHighlight::None)
             .soft_wrap(false)
+            .scrollbar(false)
+            .scrollbar_lane(lane)
             .border_0();
-        div().id("file-view").size_full().bg(colors.background).child(look::with_theme(look::code_theme(cx), diff))
+        div()
+            .id("file-view")
+            .relative()
+            .size_full()
+            .bg(colors.background)
+            .child(look::with_theme(look::code_theme(cx), diff))
+            .children(scrollbar::list_bar("file-view-bar", &list, window, cx))
     }
 }

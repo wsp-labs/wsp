@@ -11,7 +11,7 @@ use gpui_kit::{
     IntoElement, LayoutId, Pixels, Style, Window,
 };
 
-use super::code_view::{head_row, Shared, HEAD_HEIGHT};
+use super::code_view::{head_row, Shared};
 
 /// `transition: opacity 200ms ease-out` on `[data-diff]`, from `@starting-style`'s 0.
 const FADE: Duration = Duration::from_millis(200);
@@ -115,7 +115,7 @@ impl Element for StickyHead {
         let mut style = Style { position: gpui_kit::Position::Absolute, ..Style::default() };
         style.inset.top = px(0.).into();
         style.inset.left = px(0.).into();
-        style.inset.right = px(0.).into();
+        style.inset.right = self.shared.lane.into();
         style.inset.bottom = px(0.).into();
         (window.request_layout(style, [], cx), ())
     }
@@ -167,10 +167,11 @@ impl Element for StickyHead {
         drop(frame);
 
         let head = pinned.map(|ix| {
-            let push = below(ix).map_or(px(0.), |next| (next - (top + px(HEAD_HEIGHT))).min(px(0.)));
             let mut head = head_row(&self.shared, ix, true, window, cx);
             window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                head.layout_as_root(size(AvailableSpace::Definite(bounds.size.width), AvailableSpace::MinContent), window, cx);
+                let tall =
+                    head.layout_as_root(size(AvailableSpace::Definite(bounds.size.width), AvailableSpace::MinContent), window, cx).height;
+                let push = below(ix).map_or(px(0.), |next| (next - (top + tall)).min(px(0.)));
                 head.prepaint_at(point(bounds.left(), top + push), window, cx);
             });
             head
