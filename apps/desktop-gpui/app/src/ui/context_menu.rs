@@ -13,17 +13,37 @@ mod mac;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use gpui_kit::component::menu::PopupMenu;
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
 use gpui_kit::{
-    anchored, deferred, point, prelude::*, px, Anchor, AnyElement, Context, DismissEvent, Entity, Focusable, Keystroke, Pixels, Point,
-    SharedString, Size, Subscription, Window,
+    actions, anchored, canvas, deferred, div, point, prelude::*, px, Anchor, AnyElement, App, Context, DismissEvent, DispatchPhase, Entity,
+    EventEmitter, FocusHandle, Focusable, KeyBinding, Keystroke, Pixels, Point, ScrollWheelEvent, SharedString, Size, Subscription,
+    TooltipSide, Window,
 };
 
-#[cfg(target_os = "macos")]
-use gpui_kit::App;
-
-use super::menu::{menu_of, MenuAct};
+use super::dialog::tip;
+use super::text;
 use super::theme::ActivePalette;
+
+actions!(page_menu, [Leave, Next, Previous, First, Last, Choose]);
+
+const PAGE_MENU: &str = "PageMenu";
+
+/// The page's menu's keys, bound in its own context so they win over the window's: the shell's Escape would close
+/// Settings under it, and the window's Tab would move the keys on.
+pub(crate) fn init(cx: &mut App) {
+    let at = Some(PAGE_MENU);
+    cx.bind_keys([
+        KeyBinding::new("escape", Leave, at),
+        KeyBinding::new("tab", Leave, at),
+        KeyBinding::new("shift-tab", Leave, at),
+        KeyBinding::new("down", Next, at),
+        KeyBinding::new("up", Previous, at),
+        KeyBinding::new("home", First, at),
+        KeyBinding::new("end", Last, at),
+        KeyBinding::new("enter", Choose, at),
+        KeyBinding::new("space", Choose, at),
+    ]);
+}
 
 pub struct MenuItem {
     pub label: SharedString,
@@ -44,9 +64,9 @@ pub struct ContextMenu {
     asked: Vec<SharedString>,
 }
 
-/// The page's menu, gpui-kit's popup filled as a row's menu is (`ui::menu`), where it stands and whether it closed.
+/// The page's menu, where it stands and whether it closed.
 struct Open {
-    menu: Entity<PopupMenu>,
+    menu: Entity<PageMenu>,
     at: Point<Pixels>,
     above: bool,
     left: bool,
@@ -78,48 +98,26 @@ impl ContextMenu {
         #[cfg(not(target_os = "macos"))]
         {
             let picked = Rc::new(Cell::new(None));
-            let mut group = 0;
-            let acts: Vec<MenuAct> = items
-                .iter()
-                .enumerate()
-                .map(|(ix, it)| {
-                    group += u8::from(ix > 0 && items[ix - 1].group != it.group);
-                    let picked = picked.clone();
-                    MenuAct {
-                        group,
-                        glyph: None,
-                        title: it.label.clone(),
-                        destructive: it.destructive,
-                        held: it.refusal.is_some(),
-                        why: it.refusal.clone(),
-                        keys: it.keys.as_ref().map(|k| keys_label(k, false).into()),
-                        run: Rc::new(move |_, _| picked.set(Some(ix))),
-                    }
-                })
-                .collect();
-            let (danger, muted) = (cx.palette().error_foreground, cx.palette().muted_foreground);
             let held = window.focused(cx);
-            let menu = PopupMenu::build(window, cx, move |menu, _, _| {
-                let menu = menu_of(menu.min_w(px(MENU_MIN_WIDTH)), &acts, danger, muted);
-                match held {
-                    Some(held) => menu.action_context(held),
-                    None => menu,
-                }
-            });
-            // gpui-kit's menu takes its height from its rows; a menu with no room below opens above the pointer.
+            // The page's menu takes its height from its rows; a menu with no room below opens above the pointer.
             let rules = items.windows(2).filter(|w| w[0].group != w[1].group).count();
             let height = px(items.len() as f32 * ROW + rules as f32 * RULE + PADDING);
             let placed = place_menu(at, gpui_kit::size(px(MENU_WIDTH), height), window.viewport_size());
             let (above, left) = (placed.y < at.y, placed.x < at.x);
+            let menu = cx.new(|cx| PageMenu::new(items, picked.clone(), window, cx));
             let closed = Rc::new(Cell::new(false));
             let mut chose = Some(chose);
             let dismissed = cx.subscribe_in(&menu, window, {
                 let closed = closed.clone();
                 move |_, _, _: &DismissEvent, window, cx| {
-                    closed.set(true);
+                    if closed.replace(true) {
+                        return;
+                    }
                     cx.notify();
-                    // The menu hands the keys back as it closes, after this; the pick runs once it has, so a pick
-                    // that opens a field keeps them.
+                    if let Some(held) = &held {
+                        held.focus(window, cx);
+                    }
+                    // The keys go back to whoever held them before the pick runs, so a pick that opens a field keeps them.
                     if let Some(chose) = chose.take() {
                         let pick = picked.take();
                         cx.defer_in(window, move |v, window, cx| chose(v, pick, window, cx));
@@ -229,12 +227,146 @@ pub fn keys_label(k: &Keystroke, mac: bool) -> String {
     out.join("+")
 }
 
+/// `InAppContextMenu`: one row per item with its chord at the right, a rule where the group changes, a refused row
+/// dimmed with its refusal on its hover. The keys light one row, from the first that runs: arrows walk every row and
+/// wrap, Home and End go to the ends, Enter and Space run the lit row, Escape and Tab close, as a press outside, a
+/// scroll, a resize of the window and the window losing the keys do.
+struct PageMenu {
+    rows: Vec<MenuItem>,
+    lit: usize,
+    picked: Rc<Cell<Option<usize>>>,
+    focus: FocusHandle,
+    /// The window's size and activation watched while the menu is open; dropped as it closes.
+    window: Option<[Subscription; 2]>,
+}
+
+impl PageMenu {
+    fn new(rows: Vec<MenuItem>, picked: Rc<Cell<Option<usize>>>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let lit = rows.iter().position(|r| r.refusal.is_none()).unwrap_or(0);
+        // The window's bounds move with it too; only a change of its size closes the menu, as the page's `resize` does.
+        let viewport = window.viewport_size();
+        let resized = cx.observe_window_bounds(window, move |menu, window, cx| {
+            if window.viewport_size() != viewport {
+                menu.close(cx);
+            }
+        });
+        let blurred = cx.observe_window_activation(window, |menu, window, cx| {
+            if !window.is_window_active() {
+                menu.close(cx);
+            }
+        });
+        PageMenu { rows, lit, picked, focus: cx.focus_handle(), window: Some([resized, blurred]) }
+    }
+
+    fn close(&mut self, cx: &mut Context<Self>) {
+        if self.window.take().is_some() {
+            cx.emit(DismissEvent);
+        }
+    }
+
+    fn choose(&mut self, ix: usize, cx: &mut Context<Self>) {
+        if self.rows.get(ix).is_some_and(|r| r.refusal.is_none()) {
+            self.picked.set(Some(ix));
+            self.close(cx);
+        }
+    }
+
+    fn light(&mut self, lit: usize, cx: &mut Context<Self>) {
+        self.lit = lit;
+        cx.notify();
+    }
+}
+
+impl EventEmitter<DismissEvent> for PageMenu {}
+
+impl Focusable for PageMenu {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
+impl Render for PageMenu {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = cx.palette().clone();
+        let mono = cx.theme().mono_font_family.clone();
+        let rows = self.rows.iter().enumerate().flat_map(|(ix, row)| {
+            let rule =
+                (ix > 0 && self.rows[ix - 1].group != row.group).then(|| div().mx_2().my_1().h(px(1.)).bg(p.border).into_any_element());
+            let (lit, runs) = (ix == self.lit, row.refusal.is_none());
+            let ink = if row.destructive { p.error_foreground } else { p.sidebar_hover_ink };
+            let line = h_flex()
+                .id(("page-menu-row", ix))
+                .debug_selector(move || format!("page-menu-row-{ix}"))
+                .w_full()
+                .min_h(px(28.))
+                .gap_3()
+                .px_2()
+                .py_1()
+                .rounded(px(6.))
+                .when(runs, |el| el.hover(move |s| s.bg(p.accent).text_color(ink)).when(lit, |el| el.bg(p.accent).text_color(ink)))
+                .when(!runs, |el| el.opacity(0.5).when(lit, |el| el.bg(p.accent.opacity(0.5))))
+                .on_click(cx.listener(move |menu, _, _, cx| menu.choose(ix, cx)))
+                .child(div().debug_selector(move || format!("page-menu-label-{ix}")).flex_1().min_w_0().truncate().child(row.label.clone()))
+                .children(
+                    row.keys
+                        .as_ref()
+                        .map(|k| div().flex_none().font_family(mono.clone()).text_color(p.muted_foreground).child(keys_label(k, false))),
+                );
+            let line = match row.refusal.clone() {
+                Some(why) => line.tooltip(tip(why)).tooltip_side(TooltipSide::Right).into_any_element(),
+                None => line.into_any_element(),
+            };
+            rule.into_iter().chain([line])
+        });
+        // A scroll of the page under it closes the menu, as the page's `scroll` listener in the capture phase does; the
+        // menu itself does not scroll.
+        let menu = cx.weak_entity();
+        let scrolled = canvas(
+            |_, _, _| {},
+            move |bounds, _, window, _| {
+                window.on_mouse_event(move |e: &ScrollWheelEvent, phase, _, cx| {
+                    if phase == DispatchPhase::Capture && !bounds.contains(&e.position) {
+                        _ = menu.update(cx, |menu, cx| menu.close(cx));
+                    }
+                })
+            },
+        )
+        .absolute()
+        .size_full();
+        v_flex()
+            .id("page-menu")
+            .key_context(PAGE_MENU)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(|menu, _: &Leave, _, cx| menu.close(cx)))
+            .on_action(cx.listener(|menu, _: &Next, _, cx| menu.light((menu.lit + 1) % menu.rows.len(), cx)))
+            .on_action(cx.listener(|menu, _: &Previous, _, cx| menu.light((menu.lit + menu.rows.len() - 1) % menu.rows.len(), cx)))
+            .on_action(cx.listener(|menu, _: &First, _, cx| menu.light(0, cx)))
+            .on_action(cx.listener(|menu, _: &Last, _, cx| menu.light(menu.rows.len() - 1, cx)))
+            .on_action(cx.listener(|menu, _: &Choose, _, cx| menu.choose(menu.lit, cx)))
+            .on_mouse_down_out(cx.listener(|menu, _, _, cx| menu.close(cx)))
+            .occlude()
+            .min_w(px(MENU_MIN_WIDTH))
+            .p_1()
+            .rounded(px(8.))
+            .border_1()
+            .border_color(p.border)
+            .bg(p.popover)
+            .shadow(p.tooltip_shadow.clone())
+            .text_size(text::XS.0)
+            .line_height(text::XS.1)
+            .text_color(p.foreground)
+            .child(scrolled)
+            .children(rows)
+    }
+}
+
 /// The width the placement reckons with: the menu's rows fit it in the words the sidebar's menus hold.
 const MENU_WIDTH: f32 = 200.;
 /// `min-w-44`, the web menu's floor.
 const MENU_MIN_WIDTH: f32 = 176.;
 const MENU_MARGIN: f32 = 8.;
-/// gpui-kit's popup row, its rule with the space round it, and its padding and edge, as the height is reckoned.
+/// The menu's row (`min-h-7`), its rule with the space round it (`my-1`), and its padding and edge, as the height is
+/// reckoned.
 const ROW: f32 = 28.;
 const RULE: f32 = 9.;
 const PADDING: f32 = 10.;
@@ -308,27 +440,159 @@ mod tests {
             return;
         }
         assert!(owner.read_with(cx, |o, _| o.menu.is_open()), "the menu is open over the window");
-        cx.simulate_keystrokes("down down enter");
+        cx.simulate_keystrokes("enter");
         cx.run_until_parked();
-        assert_eq!(owner.read_with(cx, |o, _| o.picks.clone()), [Some(1)], "the second Down passes the refused row and Enter picks Pin");
+        assert_eq!(owner.read_with(cx, |o, _| o.picks.clone()), [Some(1)], "Enter picks the lit row, Pin, the first that runs");
         assert!(owner.read_with(cx, |o, _| !o.menu.is_open()));
         let held = owner.read_with(cx, |o, _| o.focus.clone().unwrap());
         assert!(cx.update(|window, _| held.is_focused(window)), "the keys go back to whoever held them");
 
         open(&owner, cx);
-        cx.simulate_keystrokes("down enter");
+        cx.simulate_keystrokes("down down enter");
+        cx.run_until_parked();
+        assert!(owner.read_with(cx, |o, _| o.menu.is_open()), "the arrows wrap onto the refused row, where Enter runs nothing");
+        cx.simulate_keystrokes("end space");
         cx.run_until_parked();
         open(&owner, cx);
         cx.simulate_keystrokes("escape");
+        cx.run_until_parked();
+        open(&owner, cx);
+        cx.simulate_keystrokes("tab");
         cx.run_until_parked();
         open(&owner, cx);
         cx.simulate_click(point(px(900.), px(700.)), Modifiers::none());
         cx.run_until_parked();
         assert_eq!(
             owner.read_with(cx, |o, _| o.picks.clone()),
-            [Some(1), None, None, None],
-            "Enter on the refused row picks nothing; Escape and a press outside close it"
+            [Some(1), Some(2), None, None, None],
+            "End then Space picks Delete; Escape, Tab and a press outside close it"
         );
+    }
+
+    /// `InAppContextMenu` closes with no pick on a scroll, a resize of the window and the window's blur.
+    #[cfg(not(target_os = "macos"))]
+    fn closes_on(close: impl FnOnce(&mut VisualTestContext), cx: &mut TestAppContext) -> (bool, Vec<Option<usize>>) {
+        let (owner, cx) = opened(cx);
+        // A test window starts with nobody's keys; it takes them first, so there is a blur to have.
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
+        open(&owner, cx);
+        assert!(owner.read_with(cx, |o, _| o.menu.is_open()), "the menu is open over the window");
+        close(cx);
+        cx.run_until_parked();
+        owner.read_with(cx, |o, _| (o.menu.is_open(), o.picks.clone()))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn a_scroll_closes_the_menu(cx: &mut TestAppContext) {
+        let shut = closes_on(
+            |cx| {
+                cx.simulate_event(gpui_kit::ScrollWheelEvent {
+                    position: point(px(900.), px(700.)),
+                    delta: gpui_kit::ScrollDelta::Pixels(point(px(0.), px(-40.))),
+                    modifiers: Modifiers::none(),
+                    touch_phase: gpui_kit::TouchPhase::Moved,
+                })
+            },
+            cx,
+        );
+        assert_eq!(shut, (false, vec![None]), "a scroll away from the menu closes it with no pick");
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn a_resize_closes_the_menu(cx: &mut TestAppContext) {
+        let shut = closes_on(|cx| cx.simulate_resize(gpui_kit::size(px(1000.), px(700.))), cx);
+        assert_eq!(shut, (false, vec![None]), "a resize of the window closes it with no pick");
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn the_windows_blur_closes_the_menu(cx: &mut TestAppContext) {
+        let shut = closes_on(|cx| cx.deactivate_window(), cx);
+        assert_eq!(shut, (false, vec![None]), "the window losing the keys closes it with no pick");
+    }
+
+    /// The page's `scroll` comes from what scrolls; the menu itself does not, so a wheel over it leaves it open.
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn a_scroll_over_the_menu_leaves_it_open(cx: &mut TestAppContext) {
+        let (owner, cx) = opened(cx);
+        open(&owner, cx);
+        let over = cx.debug_bounds("page-menu-row-1").expect("the menu is drawn").center();
+        cx.simulate_event(gpui_kit::ScrollWheelEvent {
+            position: over,
+            delta: gpui_kit::ScrollDelta::Pixels(point(px(0.), px(-40.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui_kit::TouchPhase::Moved,
+        });
+        cx.run_until_parked();
+        assert!(owner.read_with(cx, |o, _| o.menu.is_open()), "a wheel over the menu leaves it open");
+    }
+
+    /// Once closed the menu no longer watches the window: a resize after Escape tells nobody it closed again.
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn a_closed_menu_stops_watching_the_window(cx: &mut TestAppContext) {
+        let (owner, cx) = opened(cx);
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
+        open(&owner, cx);
+        let menu = page_menu(&owner, cx);
+        cx.simulate_keystrokes("escape");
+        cx.run_until_parked();
+        assert!(owner.read_with(cx, |o, _| !o.menu.is_open()), "Escape closed the menu");
+        let told = Rc::new(Cell::new(0));
+        let _counting = cx.update(|_, cx| {
+            let told = told.clone();
+            cx.subscribe(&menu, move |_, _: &DismissEvent, _| told.set(told.get() + 1))
+        });
+        cx.simulate_resize(gpui_kit::size(px(1000.), px(700.)));
+        cx.deactivate_window();
+        cx.run_until_parked();
+        assert_eq!(told.get(), 0, "neither the resize nor the blur reached the closed menu");
+    }
+
+    /// The menu the owner holds open.
+    #[cfg(not(target_os = "macos"))]
+    fn page_menu(owner: &Entity<Owner>, cx: &mut VisualTestContext) -> Entity<PageMenu> {
+        owner.read_with(cx, |o, _| o.menu.open.as_ref().expect("a menu is open").menu.clone())
+    }
+
+    /// `InAppContextMenu`'s focus starts on the first enabled row, and the arrows walk every row, the refused one too.
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn the_first_row_that_runs_is_lit_as_the_menu_opens(cx: &mut TestAppContext) {
+        let (owner, cx) = opened(cx);
+        open(&owner, cx);
+        let lit = |cx: &mut VisualTestContext| page_menu(&owner, cx).read_with(cx, |m, _| m.lit);
+        assert_eq!(lit(cx), 1, "Pin, past the refused row, is lit as the menu opens");
+        let mut walked = Vec::new();
+        for key in ["down", "down", "down", "up", "end", "home"] {
+            cx.simulate_keystrokes(key);
+            walked.push(lit(cx));
+        }
+        assert_eq!(walked, [2, 0, 1, 0, 2, 0], "down wraps onto the refused row, up wraps back, End and Home go to the ends");
+    }
+
+    /// `ROW_CLASS`'s `min-h-7` rows of 12 px words on 16, `py-1` inside a `p-1` menu with a 1 px edge, `my-1` round a rule.
+    #[cfg(not(target_os = "macos"))]
+    #[gpui_kit::test]
+    fn the_rows_are_the_page_menus_size(cx: &mut TestAppContext) {
+        let (owner, cx) = opened(cx);
+        open(&owner, cx);
+        let row =
+            |ix: usize, cx: &mut VisualTestContext| cx.debug_bounds(Box::leak(format!("page-menu-row-{ix}").into_boxed_str())).unwrap();
+        let (first, second, third) = (row(0, cx), row(1, cx), row(2, cx));
+        assert_eq!((first.size.height, second.size.height, third.size.height), (px(28.), px(28.), px(28.)), "min-h-7 rows");
+        assert_eq!(second.top(), first.bottom(), "rows of one group stand flush");
+        assert_eq!(third.top() - second.bottom(), px(9.), "a rule with 4 px above and below it between groups");
+        let menu = cx.debug_bounds("context-menu").expect("the menu is drawn");
+        assert_eq!(first.top() - menu.top(), px(5.), "the 1 px edge and the 4 px padding");
+        assert!(menu.size.width >= px(176.), "min-w-44: {menu:?}");
+        let words = cx.debug_bounds("page-menu-label-1").unwrap();
+        assert_eq!(words.size.height, px(16.), "text-xs words on a 16 px line");
     }
 
     // The Mac opens the native menu, whose place the system picks; the popup measured here is the other platforms'.

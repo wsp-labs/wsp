@@ -3,16 +3,14 @@
 //! listening ports, each row on the window glyph (`BrowserMockup.tsx`), filtered by what is typed in the address bar.
 
 use std::rc::Rc;
-use std::sync::Arc;
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
-use gpui_kit::{
-    div, prelude::*, px, relative, AnyElement, App, Div, ElementId, FontFeatures, Hsla, MouseButton, Pixels, SharedString, Window,
-};
+use gpui_kit::{div, prelude::*, px, relative, AnyElement, App, Div, ElementId, Hsla, MouseButton, Pixels, SharedString, Window};
 
 use super::bars::empty_sentence;
 use super::words::{PREVIEW_EMPTY, PREVIEW_NO_MATCH};
 use crate::ui::focus::ring_inset;
+use crate::ui::text::tabular;
 use crate::ui::{motion, size, ActivePalette, Button, Glyph};
 
 /// `max-w-xl`: the list's column.
@@ -50,10 +48,6 @@ pub struct ServerList {
     pub filtered: bool,
     pub on_open: OnUrl,
     pub on_remove: OnUrl,
-}
-
-fn tabular() -> FontFeatures {
-    FontFeatures(Arc::new(vec![("tnum".into(), 1)]))
 }
 
 /// `BrowserMockup`: a 28 px window, three 3 px lights and two 2 px lines on the card.

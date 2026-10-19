@@ -126,6 +126,7 @@ impl RenderOnce for Button {
             .when(header && !first, |el| el.border_l_1().border_color(edge))
             .text_color(ink)
             .tooltip(crate::ui::tip(tip))
+            .tooltip_side(gpui_kit::TooltipSide::Bottom)
             .bg(fill)
             .on_hover(motion::track_hover(over))
             .map(|el| {

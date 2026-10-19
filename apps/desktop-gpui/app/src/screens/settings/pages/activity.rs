@@ -4,12 +4,12 @@
 //! which closes the link, so nothing samples while it is closed. The totals carry a line of the last minutes, kept for
 //! as long as the page stands and dropped with it.
 
-mod live;
+pub(crate) mod live;
 pub mod model;
 mod pieces;
-mod place;
-mod tables;
-mod wire;
+pub(crate) mod place;
+pub(crate) mod tables;
+pub(crate) mod wire;
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -28,11 +28,13 @@ use wsp_host_client::protocol::{ActivityEndRequest, PlaceView, SessionsInterrupt
 use wsp_host_client::HostClient;
 
 use crate::screens::app_shell::title::thread_title;
+use crate::screens::dialogs::layer;
 use crate::screens::settings::model::req;
 use crate::screens::settings::page::{CardData, Ctx, DialogBuild};
 use crate::screens::settings::words::HERE;
 use crate::screens::settings::Acts;
 use crate::screens::sidebar::menu::{absent_of, place_of};
+use crate::screens::Host;
 use crate::ui::catalog;
 use crate::ui::context_menu::ContextMenu;
 use crate::ui::fmt_bytes;
@@ -132,7 +134,7 @@ pub fn head(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Option<AnyElement> 
 
 /// A computer Activity reads: the one the host runs on over its own link, or a box over a link of one of its folders.
 #[derive(Clone, Debug)]
-struct Computer {
+pub(crate) struct Computer {
     place: PlaceView,
     glyph: ComputerIcon,
     key: String,
@@ -140,12 +142,22 @@ struct Computer {
 }
 
 impl Computer {
-    fn here(&self) -> bool {
+    /// `place` read over its own link, or over the link of its folder `workspace_id`.
+    pub(crate) fn new(place: PlaceView, glyph: ComputerIcon, workspace_id: Option<String>) -> Self {
+        let key = workspace_id.clone().unwrap_or_else(|| HERE.into());
+        Computer { place, glyph, key, workspace_id }
+    }
+
+    pub(crate) fn here(&self) -> bool {
         self.place.id == HERE
     }
 
-    fn name(&self) -> String {
+    pub(crate) fn name(&self) -> String {
         super::computers::place_name(&self.place)
+    }
+
+    pub(crate) fn place_id(&self) -> &str {
+        &self.place.id
     }
 }
 
@@ -234,7 +246,13 @@ fn now_ms() -> f64 {
 }
 
 /// `useActivityThreads` with `foldThreads`: the threads of every folder on the computer, and each one's status mark.
-fn threads_on(listing: &Listing, places: &[(PlaceView, ComputerIcon)], computer: &Computer) -> (Vec<Thread>, Latest) {
+/// Each keeps the pids its turn recorded where `pids` asks, which name processes only on the computer they ran on.
+pub(crate) fn threads_on(
+    listing: &Listing,
+    places: &[(PlaceView, ComputerIcon)],
+    computer: &Computer,
+    pids: bool,
+) -> (Vec<Thread>, Latest) {
     let mut threads = Vec::new();
     let mut latests = Vec::new();
     let listed = listed(places);
@@ -275,8 +293,8 @@ fn threads_on(listing: &Listing, places: &[(PlaceView, ComputerIcon)], computer:
                 workspace_id: wid.to_owned(),
                 session_id: field(latest, "id").unwrap_or_default().to_owned(),
                 working: status == "running",
-                pid: pid.filter(|_| here),
-                agent_pid: agent_pid.filter(|_| here),
+                pid: pid.filter(|_| pids),
+                agent_pid: agent_pid.filter(|_| pids),
                 cgroup: (!here).then(|| thread_cgroup(&id)),
                 parent: field(first, "parentThreadId").map(str::to_owned),
                 slate: None,
@@ -311,7 +329,7 @@ fn subagent_in(s: &Value) -> Option<SubagentIn> {
 }
 
 /// A thread head's status mark: what it asks, its running clock, its failure or unread finish, else its age.
-fn status_of(latest: &Value, now: f64) -> Status {
+pub(crate) fn status_of(latest: &Value, now: f64) -> Status {
     let started = latest.get("startedAt").and_then(Value::as_f64);
     let ended = latest.get("endedAt").and_then(Value::as_f64);
     let status = field(latest, "status").unwrap_or_default();
@@ -332,11 +350,11 @@ fn status_of(latest: &Value, now: f64) -> Status {
 }
 
 /// Each thread's newest turn, which its status mark reads.
-type Latest = Vec<(String, Value)>;
+pub(crate) type Latest = Vec<(String, Value)>;
 
 /// The threads and the computer a page reads, kept while the page is drawn.
-struct Lists {
-    listing: Option<Listing>,
+pub(crate) struct Lists {
+    pub(crate) listing: Option<Listing>,
     /// The threads of the computer last asked for, read again only when the lists or the computer move.
     cache: Option<(String, Vec<Thread>, Latest)>,
     _follow: Option<Held>,
@@ -344,7 +362,7 @@ struct Lists {
 }
 
 impl Lists {
-    fn new(acts: &Acts, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(acts: &Acts, cx: &mut Context<Self>) -> Self {
         let (tx, mut rx) = mpsc::unbounded();
         let follow = acts.host(cx).map(|(host, runtime)| live::follow_lists(host, &runtime, tx));
         let receive = cx.spawn(async move |this, cx| {
@@ -365,11 +383,11 @@ fn take_listing(lists: &mut Lists, listing: Listing, cx: &mut Context<Lists>) {
 }
 
 impl Lists {
-    fn threads(&mut self, places: &[(PlaceView, ComputerIcon)], computer: &Computer) -> (Vec<Thread>, Latest) {
+    pub(crate) fn threads(&mut self, places: &[(PlaceView, ComputerIcon)], computer: &Computer) -> (Vec<Thread>, Latest) {
         let fresh = self.cache.as_ref().is_some_and(|(id, _, _)| *id == computer.place.id);
         if !fresh {
             let Some(listing) = &self.listing else { return Default::default() };
-            let (threads, latests) = threads_on(listing, places, computer);
+            let (threads, latests) = threads_on(listing, places, computer, computer.here());
             self.cache = Some((computer.place.id.clone(), threads, latests));
         }
         self.cache.as_ref().map(|(_, t, l)| (t.clone(), l.clone())).unwrap_or_default()
@@ -379,33 +397,80 @@ impl Lists {
 /// What the shown groups were made from: the scope's read, the filter, the picks and the sort.
 type ShownKey = (u64, String, Picks, Sort);
 
+/// The key a pane's ask stands under on the window's dialogs layer.
+const ASK: &str = "activity-ask";
+
+/// Where Activity's asks and refusals stand: Settings' own dialog and notice, or, for the Processes pane, the window's
+/// dialogs layer and its toasts, as the web's `addNotice` says them on either.
+#[derive(Clone)]
+pub(crate) struct Voice {
+    pub(crate) acts: Acts,
+    pane: Option<AnyWindowHandle>,
+}
+
+/// What draws an ask, handed the voice its buttons close it with.
+type AskBuild = Rc<dyn Fn(&Voice, &mut Window, &mut App) -> AnyElement>;
+
+/// A pane's ask, drawn off the builder its act left.
+struct Asked(AskBuild, Voice);
+
+impl Render for Asked {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        (self.0)(&self.1, window, cx)
+    }
+}
+
+impl Voice {
+    pub(crate) fn failed(&self, said: impl Into<String>, cx: &mut App) {
+        let Some(window) = self.pane else { return self.acts.failed(said, cx) };
+        let note = Notice::error(said.into());
+        cx.defer(move |cx| _ = window.update(cx, |_, window, cx| crate::ui::notify_in(window, cx, note)));
+    }
+
+    fn ask(&self, build: impl Fn(&Voice, &mut Window, &mut App) -> AnyElement + 'static, cx: &mut App) {
+        let Some(window) = self.pane else {
+            let voice = self.clone();
+            return self.acts.open_dialog(DialogBuild::alert(move |_, window, cx| build(&voice, window, cx)), cx);
+        };
+        let view = cx.new(|_| Asked(Rc::new(build), self.clone()));
+        cx.defer(move |cx| {
+            _ = window.update(cx, |_, window, cx| layer::open(ASK, view.into(), layer::Closes::Escape, None, window, cx));
+        });
+    }
+
+    fn close(&self, cx: &mut App) {
+        let Some(window) = self.pane else { return self.acts.close_dialog(cx) };
+        cx.defer(move |cx| _ = window.update(cx, |_, window, cx| layer::close(ASK, window, cx)));
+    }
+}
+
 /// One computer's page: its link, its frame read into groups, the page's picks and folds, and what is ending.
 pub struct Scoped {
-    computer: Computer,
-    acts: Acts,
+    pub(crate) computer: Computer,
+    pub(crate) voice: Voice,
     host: Option<(Arc<HostClient>, Arc<Runtime>)>,
-    channel: Option<String>,
-    snapshot: Option<Snapshot>,
+    pub(crate) channel: Option<String>,
+    pub(crate) snapshot: Option<Snapshot>,
     resyncing: bool,
-    unavailable: Option<String>,
+    pub(crate) unavailable: Option<String>,
     ports: Vec<KnownPort>,
     mem: Option<(f64, f64)>,
-    app: HashMap<Pid, AppPart>,
+    pub(crate) app: HashMap<Pid, AppPart>,
     threads: Vec<Thread>,
-    scope: Option<Scope>,
+    pub(crate) scope: Option<Scope>,
     /// Counts the scope's reads, so the filtered and sorted groups are made again only when something moved.
     generation: u64,
     shown: Option<(ShownKey, Rc<Vec<Group>>)>,
     history: Vec<HistoryPoint>,
     interval: f64,
-    sort: Sort,
+    pub(crate) sort: Sort,
     filter: Entity<InputState>,
     filter_text: String,
     picks: Picks,
     every: bool,
-    open: HashSet<String>,
-    ending: HashSet<Pid>,
-    stopping: HashSet<String>,
+    pub(crate) open: HashSet<String>,
+    pub(crate) ending: HashSet<Pid>,
+    pub(crate) stopping: HashSet<String>,
     /// Processes a daemon too old for tree kills signalled alone, said in one notice once the wait is over.
     too_old: Vec<Proc>,
     too_old_wait: Option<Task<()>>,
@@ -413,7 +478,7 @@ pub struct Scoped {
     slates: HashMap<String, String>,
     slates_asked: HashSet<String>,
     /// The rows' right-click menu, the page's own off the Mac.
-    menu: ContextMenu,
+    pub(crate) menu: ContextMenu,
     window: AnyWindowHandle,
     /// The cgroups the last proc.watch named, none for every process; the link asks for them again on each dial.
     asked: Reads,
@@ -432,21 +497,26 @@ const ESCALATE: std::time::Duration = std::time::Duration::from_millis(5000);
 
 /// A proc.kill of the row's process, checked against its start and identity; `tree` takes everything under it too.
 fn kill_frame(p: &Proc, signal: &str, tree: bool) -> Value {
-    let mut frame = json!({ "op": "proc.kill", "pid": p.pid, "signal": signal });
+    kill_of(p.pid, p.started_at, p.id.as_deref(), signal, tree)
+}
+
+/// A proc.kill of `pid`, checked against the start and the identity its row was listed with.
+pub(crate) fn kill_of(pid: Pid, started_at: Option<f64>, id: Option<&str>, signal: &str, tree: bool) -> Value {
+    let mut frame = json!({ "op": "proc.kill", "pid": pid, "signal": signal });
     if tree {
         frame["mode"] = json!("tree");
     }
-    if let Some(at) = p.started_at {
+    if let Some(at) = started_at {
         frame["startedAt"] = json!(at.round() as i64);
     }
-    if let Some(id) = &p.id {
+    if let Some(id) = id {
         frame["identity"] = json!(id);
     }
     frame
 }
 
 /// A daemon too old for kill modes answers proc.kill with no `signalled`: TERM went to the pid alone.
-fn reached_alone(reply: &Value) -> bool {
+pub(crate) fn reached_alone(reply: &Value) -> bool {
     reply.get("signalled").is_none()
 }
 
@@ -468,6 +538,19 @@ fn reads(here: bool, view: View, every: bool) -> Option<Vec<String>> {
 
 impl Scoped {
     fn new(computer: Computer, acts: Acts, view: View, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let reads = reads(computer.here(), view, false);
+        Scoped::build(computer, Voice { acts, pane: None }, reads, window, cx)
+    }
+
+    /// One computer's state for a pane of the right panel: its every process, or on a box only its threads', with the
+    /// pane's refusals said as toasts and its asks on the window's dialogs layer. Dropping it closes the link.
+    pub(crate) fn pane(computer: Computer, host: &Host, every: bool, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let acts = Acts::new(gpui_kit::WeakEntity::new_invalid(), Some(host.client().clone()), host.runtime().clone());
+        let reads = (!every && !computer.here()).then(|| vec![THREAD_CGROUPS.to_owned()]);
+        Scoped::build(computer, Voice { acts, pane: Some(window.window_handle()) }, reads, window, cx)
+    }
+
+    fn build(computer: Computer, voice: Voice, reads: Option<Vec<String>>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let filter = cx.new(|cx| InputState::new(window, cx).placeholder(w::FILTER));
         let sub = cx.subscribe(&filter, |this: &mut Scoped, field, event: &InputEvent, cx| {
             if let InputEvent::Change = event {
@@ -475,8 +558,8 @@ impl Scoped {
                 cx.notify();
             }
         });
-        let host = acts.host(cx);
-        let asked: Reads = Arc::new(Mutex::new(reads(computer.here(), view, false)));
+        let host = voice.acts.host(cx);
+        let asked: Reads = Arc::new(Mutex::new(reads));
         let (tx, mut rx) = mpsc::unbounded();
         let target = match &computer.workspace_id {
             Some(id) => Target::Workspace(id.clone()),
@@ -493,7 +576,7 @@ impl Scoped {
         });
         Scoped {
             computer,
-            acts,
+            voice,
             host,
             channel: None,
             snapshot: None,
@@ -647,7 +730,7 @@ impl Scoped {
     }
 
     /// Laid on from the page each frame; the scope is read again only when the threads moved.
-    fn set_threads(&mut self, mut threads: Vec<Thread>) {
+    pub(crate) fn set_threads(&mut self, mut threads: Vec<Thread>) {
         for t in &mut threads {
             if let Some(title) = self.slates.get(&t.id) {
                 t.slate = Some(title.clone());
@@ -660,7 +743,7 @@ impl Scoped {
     }
 
     /// `slates.get` once for each thread with a slate run whose title is not known yet, so its heading carries it.
-    fn ask_slates(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn ask_slates(&mut self, cx: &mut Context<Self>) {
         let Some(scope) = &self.scope else { return };
         let slated: Vec<String> = scope
             .groups
@@ -672,7 +755,7 @@ impl Scoped {
         for id in slated {
             self.slates_asked.insert(id.clone());
             let this = cx.entity().downgrade();
-            self.acts.call(req::<SlatesGetRequest>(json!({ "threadId": id })), cx, move |answer, cx| {
+            self.voice.acts.call(req::<SlatesGetRequest>(json!({ "threadId": id })), cx, move |answer, cx| {
                 let Some(title) = answer.ok().and_then(|a| serde_json::to_value(a).ok()).as_ref().and_then(slate_title) else { return };
                 _ = this.update(cx, |s, cx| {
                     s.slates.insert(id.clone(), title.clone());
@@ -705,7 +788,7 @@ impl Scoped {
     }
 
     /// One frame to this computer's daemon, its answer handed back here.
-    fn daemon(
+    pub(crate) fn daemon(
         &mut self,
         frame: Value,
         cx: &mut Context<Self>,
@@ -749,7 +832,7 @@ impl Scoped {
         self.daemon(kill_frame(p, "TERM", true), cx, move |this, result, cx| match result {
             Err(said) => {
                 this.ending.remove(&pid);
-                this.acts.failed(said, cx);
+                this.voice.failed(said, cx);
                 cx.notify();
             }
             Ok(reply) if reached_alone(&reply) => this.wait_too_old(q, cx),
@@ -791,7 +874,7 @@ impl Scoped {
         for q in still {
             self.daemon(kill_frame(q, "KILL", false), cx, |this, result, cx| {
                 if let Err(said) = result {
-                    this.acts.failed(said, cx);
+                    this.voice.failed(said, cx);
                 }
             });
         }
@@ -804,11 +887,11 @@ impl Scoped {
         self.ending.insert(pid);
         cx.notify();
         let this = cx.entity().downgrade();
-        self.acts.call(req::<ActivityEndRequest>(json!({ "pid": pid, "startedAt": started })), cx, move |answer, cx| {
+        self.voice.acts.call(req::<ActivityEndRequest>(json!({ "pid": pid, "startedAt": started })), cx, move |answer, cx| {
             if let Err(said) = answer {
                 _ = this.update(cx, |s, cx| {
                     s.ending.remove(&pid);
-                    s.acts.failed(said, cx);
+                    s.voice.failed(said, cx);
                     cx.notify();
                 });
             }
@@ -823,7 +906,7 @@ impl Scoped {
         self.daemon(json!({ "op": "container.stop", "container": id }), cx, move |this, result, cx| {
             if let Err(said) = result {
                 this.stopping.remove(&id);
-                this.acts.failed(said, cx);
+                this.voice.failed(said, cx);
                 cx.notify();
             }
         });
@@ -832,32 +915,35 @@ impl Scoped {
     /// Stop asks before a running turn ends.
     pub fn ask_stop(&mut self, group: &Group, cx: &mut Context<Self>) {
         let Some(t) = group.thread.clone() else { return };
-        let acts = self.acts.clone();
         let title = w::stop_title(&t.title);
         let line = w::stop_sentence(&catalog::name(&t.harness), t.cgroup.is_some());
         let session = t.session_id.clone();
-        self.acts.open_dialog(
-            DialogBuild::alert(move |_, _, _| {
-                let (cancel, stop) = (acts.clone(), acts.clone());
+        self.voice.ask(
+            move |voice, _, _| {
+                let (cancel, stop) = (voice.clone(), voice.clone());
                 let session = session.clone();
                 AlertDialog::new(title.clone())
                     .layered()
                     .sentence(line.clone())
-                    .act(Button::outline("activity-cancel", w::CANCEL).neutral_ring().on_click(move |_, _, cx| cancel.close_dialog(cx)))
+                    .act(Button::outline("activity-cancel", w::CANCEL).neutral_ring().on_click(move |_, _, cx| cancel.close(cx)))
                     .act(Button::destructive("activity-confirm", w::STOP_TURN).on_click(move |_, _, cx| {
-                        stop.close_dialog(cx);
+                        stop.close(cx);
                         let said = stop.clone();
-                        stop.call(req::<SessionsInterruptRequest>(json!({ "sessionId": session })), cx, move |answer, cx| match answer {
-                            Ok(result) => {
-                                if let Some(left) = result.left {
-                                    said.failed(left, cx);
+                        stop.acts.call(
+                            req::<SessionsInterruptRequest>(json!({ "sessionId": session })),
+                            cx,
+                            move |answer, cx| match answer {
+                                Ok(result) => {
+                                    if let Some(left) = result.left {
+                                        said.failed(left, cx);
+                                    }
                                 }
-                            }
-                            Err(e) => said.failed(e, cx),
-                        });
+                                Err(e) => said.failed(e, cx),
+                            },
+                        );
                     }))
                     .into_any_element()
-            }),
+            },
             cx,
         );
     }
@@ -867,18 +953,17 @@ impl Scoped {
         let ends: Vec<Proc> = tables::ends_of(heading).into_iter().cloned().collect();
         let title = w::end_all_title(&heading.name);
         let line = w::end_all_sentence(ends.len(), &fmt_bytes(tables::held_by(heading) as u64));
-        let acts = self.acts.clone();
         let this = cx.entity().downgrade();
-        self.acts.open_dialog(
-            DialogBuild::alert(move |_, _, _| {
-                let (cancel, close) = (acts.clone(), acts.clone());
+        self.voice.ask(
+            move |voice, _, _| {
+                let (cancel, close) = (voice.clone(), voice.clone());
                 let (this, ends) = (this.clone(), ends.clone());
                 AlertDialog::new(title.clone())
                     .layered()
                     .sentence(line.clone())
-                    .act(Button::outline("activity-cancel", w::CANCEL).neutral_ring().on_click(move |_, _, cx| cancel.close_dialog(cx)))
+                    .act(Button::outline("activity-cancel", w::CANCEL).neutral_ring().on_click(move |_, _, cx| cancel.close(cx)))
                     .act(Button::destructive("activity-confirm", w::END_ALL_PRESS).on_click(move |_, _, cx| {
-                        close.close_dialog(cx);
+                        close.close(cx);
                         _ = this.update(cx, |s, cx| {
                             for p in &ends {
                                 s.end(p, cx);
@@ -886,7 +971,7 @@ impl Scoped {
                         });
                     }))
                     .into_any_element()
-            }),
+            },
             cx,
         );
     }
@@ -1619,6 +1704,7 @@ mod tests {
         wire::ProcEntry {
             pid,
             ppid: 1,
+            user: String::new(),
             state: "S".into(),
             comm: "node".into(),
             cmdline: String::new(),
@@ -1636,7 +1722,7 @@ mod tests {
     }
 
     fn snapshot(procs: Vec<wire::ProcEntry>) -> Snapshot {
-        Snapshot { at: 0., daemon: 1, procs, seq: None, cost: None, containers: None, cgroups: None }
+        Snapshot { at: 0., daemon: 1, procs, total: None, seq: None, cost: None, containers: None, cgroups: None }
     }
 
     #[test]

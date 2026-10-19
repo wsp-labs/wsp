@@ -12,6 +12,7 @@ pub mod dialogs;
 pub mod notices;
 pub mod palette;
 pub mod pr_pane;
+pub mod processes;
 pub mod settings;
 pub mod sidebar;
 pub mod slate;
@@ -33,6 +34,7 @@ pub fn screen(name: &str) -> Option<Entry> {
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         aside::AsideScreen::NAME => Some(entry::<aside::AsideScreen>()),
         computer::Computer::NAME => Some(entry::<computer::Computer>()),
+        processes::Processes::NAME => Some(entry::<processes::Processes>()),
         slate::SlateScreen::NAME => Some(entry::<slate::SlateScreen>()),
         terminal::TerminalScreen::NAME => Some(entry::<terminal::TerminalScreen>()),
         thread_view::ThreadScreen::NAME => Some(entry::<thread_view::ThreadScreen>()),

@@ -12,6 +12,7 @@ mod kinds;
 pub mod model;
 mod parts;
 pub mod store;
+pub mod terminal;
 
 pub use parts::agent_marks;
 
@@ -140,7 +141,7 @@ fn recipe_misses(place: &PlaceView) -> Vec<(String, Option<String>)> {
 /// `agentSignInStart`: how an agent's Sign in goes where the list stands.
 pub fn sign_in_start(row: &AgentRow, rows: &Rows) -> Option<Start> {
     if model::broker_row(&row.id, rows.broker.as_ref()).is_some_and(|b| b.held.is_none()) {
-        return Some(Start::Run { agent: row.id.clone(), server: None, finish: None, pastes: false, cloud: true });
+        return Some(Start::Run { agent: row.id.clone(), server: None, finish: None, pastes: false, cloud: true, terminal: false });
     }
     match row.sign_in_road {
         AgentRowSignInRoad::Token => {
@@ -148,12 +149,20 @@ pub fn sign_in_start(row: &AgentRow, rows: &Rows) -> Option<Start> {
             Some(Start::Vault { agent: row.id.clone(), mint, word: "token" })
         }
         AgentRowSignInRoad::Key => Some(Start::Vault { agent: row.id.clone(), mint: None, word: "key" }),
-        // A joined computer's login runs in a terminal drawn in place on the web; with no terminal here, the line (D65).
+        // On a computer the person added, its login runs there in a terminal drawn in place; here, in their own terminal.
+        AgentRowSignInRoad::Terminal if !rows.here => {
+            Some(Start::Run { agent: row.id.clone(), server: None, finish: None, pastes: false, cloud: false, terminal: true })
+        }
         AgentRowSignInRoad::Terminal => Some(Start::Copy { line: format!("wsp agents signin {}", row.id), why: None }),
         AgentRowSignInRoad::None => None,
-        road => {
-            Some(Start::Run { agent: row.id.clone(), server: None, finish: None, pastes: road == AgentRowSignInRoad::Code, cloud: false })
-        }
+        road => Some(Start::Run {
+            agent: row.id.clone(),
+            server: None,
+            finish: None,
+            pastes: road == AgentRowSignInRoad::Code,
+            cloud: false,
+            terminal: false,
+        }),
     }
 }
 
@@ -567,17 +576,22 @@ mod tests {
     use crate::screens::settings::model::Data;
     use crate::screens::settings::Acts;
 
+    /// Catches: a computer the person added showing the line where its login can run in a terminal drawn in place, or
+    /// this computer, where no terminal is drawn, losing the line for the person's own.
     #[test]
-    fn a_login_that_asks_to_pick_is_the_line_for_a_terminal_on_every_computer() {
+    fn a_login_that_asks_to_pick_runs_in_place_on_an_added_computer_and_is_the_line_here() {
         let row = agent(json!({ "id": "opencode", "name": "OpenCode", "signInRoad": "terminal" }));
-        for (place, here) in [(HERE, true), ("box1", false)] {
-            let rows = Rows { place: place.into(), here, name: place.into(), held: None, broker: None, misses: Vec::new() };
-            assert_eq!(
-                sign_in_start(&row, &rows),
-                Some(Start::Copy { line: "wsp agents signin opencode".into(), why: None }),
-                "on {place}, with no terminal to draw in place (D65)"
-            );
-        }
+        let rows = |place: &str, here| Rows { place: place.into(), here, name: place.into(), held: None, broker: None, misses: Vec::new() };
+        assert_eq!(
+            sign_in_start(&row, &rows(HERE, true)),
+            Some(Start::Copy { line: "wsp agents signin opencode".into(), why: None }),
+            "here the login runs in the person's own terminal"
+        );
+        assert_eq!(
+            sign_in_start(&row, &rows("box1", false)),
+            Some(Start::Run { agent: "opencode".into(), server: None, finish: None, pastes: false, cloud: false, terminal: true }),
+            "on a computer the person added it runs there, in a terminal drawn in place"
+        );
     }
 
     struct Listed {

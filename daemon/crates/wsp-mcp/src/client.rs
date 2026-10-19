@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
@@ -39,6 +39,8 @@ type Waiting = HashMap<u64, oneshot::Sender<Result<String, Failure>>>;
 struct Head {
     #[serde(default)]
     id: Option<Value>,
+    #[serde(default, rename = "type")]
+    push_type: Option<String>,
     #[serde(default)]
     ok: Option<bool>,
     #[serde(default)]
@@ -60,6 +62,9 @@ struct Shared {
     /// Each open `Frames` by the number it was handed, taken out when it is dropped.
     listeners: Mutex<Vec<(u64, mpsc::UnboundedSender<String>)>>,
     heard: AtomicU64,
+    /// Which pushes `counted` counts, by their type, once a caller said; read as each push arrives.
+    counts: OnceLock<fn(&str) -> bool>,
+    counted: AtomicU64,
     /// Set once the host proved the pinned key: from then on every frame either way is sealed, and one in the clear
     /// or one that will not open ends the socket.
     seal: Mutex<Option<Seal>>,
@@ -267,6 +272,8 @@ impl Client {
             waiting: Mutex::new(HashMap::new()),
             listeners: Mutex::new(Vec::new()),
             heard: AtomicU64::new(0),
+            counts: OnceLock::new(),
+            counted: AtomicU64::new(0),
             seal: Mutex::new(None),
             gone: watch::channel(None).0,
         });
@@ -322,6 +329,17 @@ impl Client {
             listeners.push((id, tell));
         }
         Frames { told, id, shared: self.shared.clone() }
+    }
+
+    /// Counts from now on each push this socket reads whose type `counts` takes, frames that answer a request apart;
+    /// the first caller's rule stands for the socket.
+    pub fn count_pushes(&self, counts: fn(&str) -> bool) {
+        let _ = self.shared.counts.set(counts);
+    }
+
+    /// How many pushes the rule `count_pushes` set has counted, each as the reader took it, before any listener had it.
+    pub fn pushes_counted(&self) -> u64 {
+        self.shared.counted.load(Ordering::SeqCst)
     }
 
     /// The host's events on this socket, asked for once however many calls follow them.
@@ -503,10 +521,16 @@ fn lossy(text: &str) -> std::borrow::Cow<'_, str> {
 impl Shared {
     fn take(&self, text: &str) {
         let text = &*lossy(text);
-        let id = serde_json::from_str::<Head>(text).ok().and_then(|head| head.id).and_then(|id| id.as_u64());
+        let head = serde_json::from_str::<Head>(text).ok();
+        let id = head.as_ref().and_then(|head| head.id.as_ref()).and_then(Value::as_u64);
         if let Some(waiter) = id.and_then(|id| self.waiting.lock().unwrap().remove(&id)) {
             let _ = waiter.send(Ok(text.to_owned()));
             return;
+        }
+        if let (Some(Head { push_type: Some(push_type), ok: None, .. }), Some(counts)) = (&head, self.counts.get()) {
+            if counts(push_type) {
+                self.counted.fetch_add(1, Ordering::SeqCst);
+            }
         }
         for (_, listener) in self.listeners.lock().unwrap().iter() {
             let _ = listener.send(text.to_owned());

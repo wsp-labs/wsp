@@ -324,9 +324,27 @@ pub fn fmt_duration(ms: f64) -> String {
     }
 }
 
+/// `clockLabel` in `lib/timestampFormat.ts`: hours and minutes as `toLocaleTimeString` writes them with a two-digit
+/// hour, `09:05 PM`, in the zone `at` is in.
+pub fn clock_label<Tz: chrono::TimeZone>(at: &chrono::DateTime<Tz>) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    at.format("%I:%M %p").to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_clock_reads_with_a_two_digit_hour_as_the_web_writes_it() {
+        use chrono::TimeZone as _;
+        let at = |h, m| chrono::Utc.with_ymd_and_hms(2026, 10, 19, h, m, 0).unwrap();
+        assert_eq!(clock_label(&at(9, 5)), "09:05 AM");
+        assert_eq!(clock_label(&at(21, 5)), "09:05 PM");
+        assert_eq!(clock_label(&at(0, 30)), "12:30 AM");
+    }
 
     #[test]
     fn tokens_and_durations_read_as_the_protocol_writes_them() {

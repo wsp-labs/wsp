@@ -85,6 +85,7 @@ impl RenderOnce for Stepper {
                     .text_center()
                     .text_size(text::FACT.0)
                     .text_color(p.foreground)
+                    .font_features(text::tabular())
                     .child(value.to_string()),
             )
             .child(end(

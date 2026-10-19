@@ -571,7 +571,7 @@ fn recent_label(raw: &str) -> String {
 /// `clockLabel`: the daemon's time in the person's zone, hours and minutes.
 fn clock(iso: &str) -> String {
     chrono::DateTime::parse_from_rfc3339(iso)
-        .map(|t| t.with_timezone(&chrono::Local).format("%-I:%M %p").to_string())
+        .map(|t| crate::words::clock_label(&t.with_timezone(&chrono::Local)))
         .unwrap_or_else(|_| iso.to_owned())
 }
 

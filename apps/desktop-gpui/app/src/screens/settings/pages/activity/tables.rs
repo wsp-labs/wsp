@@ -345,6 +345,7 @@ fn num_cell(value: String, ink: Hsla) -> AnyElement {
         .text_size(text::VALUE.0)
         .line_height(px(20.))
         .text_color(ink)
+        .font_features(text::tabular())
         .child(value)
         .into_any_element()
 }
@@ -417,7 +418,7 @@ fn lead_cell(pad: f32, mark: AnyElement, name: gpui_kit::Div, tags: Vec<gpui_kit
 }
 
 fn ports_tag(ports: &[Port], cx: &App) -> Option<gpui_kit::Div> {
-    (!ports.is_empty()).then(|| small(ports_word(ports), false, cx))
+    (!ports.is_empty()).then(|| small(ports_word(ports), false, cx).font_features(text::tabular()))
 }
 
 /// One process under a group: its glyph, its name, its kind and ports as tags, then its figures and its menu.
@@ -429,7 +430,12 @@ fn proc_row(p: &Proc, depth: usize, group: &Group, hand: &Hand, cx: &App) -> Car
         p.note.map(str::to_owned).or_else(|| (!p.kind.untagged() && !p.heading).then(|| p.kind.word().to_owned()))
     };
     let name = if p.heading { w::slate(&p.name) } else { p.name.clone() };
-    let tags: Vec<gpui_kit::Div> = hand.tag(tag).map(|t| small(t, true, cx)).into_iter().chain(ports_tag(&p.ports, cx)).collect();
+    let tags: Vec<gpui_kit::Div> = hand
+        .tag(tag)
+        .map(|t| small(t, true, cx).debug_selector(|| "activity-tag".into()))
+        .into_iter()
+        .chain(ports_tag(&p.ports, cx))
+        .collect();
     let acts = Rc::new(proc_acts(p, Some(group), None, hand));
     let key = if p.heading { format!("{}-heading", p.kind.id()) } else { p.pid.to_string() };
     let mut parts = vec![lead_cell(hand.lead_pad(depth), proc_glyph(p, cx), row_name(name, false, cx), tags)];
@@ -458,7 +464,15 @@ fn subagent_row(s: &Subagent, nest: usize, group: &Group, model: Option<String>,
     facts.extend(s.tokens.map(|t| w::tokens(&fmt_tokens(t))));
     facts.extend(model);
     let mut tags: Vec<gpui_kit::Div> = hand.tag(Some(small(w::SUBAGENT, false, cx))).into_iter().collect();
-    tags.push(h_flex().min_w_0().items_baseline().gap_2().overflow_hidden().children(facts.into_iter().map(|f| small(f, false, cx))));
+    tags.push(
+        h_flex()
+            .min_w_0()
+            .items_baseline()
+            .gap_2()
+            .overflow_hidden()
+            .font_features(text::tabular())
+            .children(facts.into_iter().map(|f| small(f, false, cx))),
+    );
     let glyph = Icon::new(Glyph::Bot).with_size(px(16.)).flex_none().text_color(cx.palette().muted_foreground).into_any_element();
     let mut parts = vec![lead_cell(hand.lead_pad(nest), glyph, row_name(s.title.clone(), false, cx), tags)];
     parts.push(div().into_any_element());
@@ -490,7 +504,15 @@ fn container_row(c: &ContainerRow, nest: usize, loose: bool, hand: &Hand, cx: &A
     }
     let mut tags: Vec<gpui_kit::Div> =
         hand.tag(Some(small(if stopping { w::ENDING } else { w::CONTAINER }, false, cx))).into_iter().collect();
-    tags.push(h_flex().min_w_0().items_baseline().gap_2().overflow_hidden().children(facts.into_iter().map(|f| small(f, true, cx))));
+    tags.push(
+        h_flex()
+            .min_w_0()
+            .items_baseline()
+            .gap_2()
+            .overflow_hidden()
+            .font_features(text::tabular())
+            .children(facts.into_iter().map(|f| small(f, true, cx))),
+    );
     let glyph = Icon::new(Glyph::Container).with_size(px(16.)).flex_none().text_color(cx.palette().muted_foreground).into_any_element();
     let acts = Rc::new(container_acts(c, hand));
     let mut parts = vec![lead_cell(hand.lead_pad(nest), glyph, row_name(c.name.clone(), false, cx), tags)];
@@ -576,7 +598,8 @@ fn group_head(
         move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| hand.with(cx, |s, cx| s.toggle(&id, cx))
     };
     let [mem, cpu, energy] = figure_cells(total.mem, total.cpu, total.energy, hand, tinted, cx);
-    let mut row = GridRow::new(format!("activity-group-{id}"), TREE).narrow(NARROW).on_open(toggle).cell(name_cell);
+    // The page's width or the pane's, as `Hand` reads it, never the window's alone.
+    let mut row = GridRow::new(format!("activity-group-{id}"), hand.tree()).on_open(toggle).cell(name_cell);
     if let Some(acts) = menu {
         let hand = hand.clone();
         row = row.on_menu(move |event, window, cx| {
@@ -584,7 +607,11 @@ fn group_head(
             hand.open_menu(event.position, acts.clone(), window, cx)
         });
     }
-    row.cell(mem).wide(cpu).wide(energy).cell(chevron).into()
+    row = row.cell(mem);
+    if !hand.width.md {
+        row = row.cell(cpu).cell(energy);
+    }
+    row.cell(chevron).into()
 }
 
 /// What a page tells the Threads view about each thread: its mark and how its subagents' models read.
@@ -746,6 +773,22 @@ fn sorts(hand: &Hand, cx: &App) -> Vec<AnyElement> {
     ]
 }
 
+/// Rows drawn as one child of a card, each rounding the card's corners it stands at and none ruled off the one above.
+fn as_one(items: Vec<CardItem>) -> CardItem {
+    CardItem::placed(move |corners| {
+        let last = items.len().saturating_sub(1);
+        let placed = items.into_iter().enumerate().map(|(ix, item)| {
+            item.place(crate::ui::card::Corners {
+                top: corners.top && ix == 0,
+                bottom: corners.bottom && ix == last,
+                rule: None,
+                ..corners
+            })
+        });
+        corners.apply(v_flex()).children(placed.collect::<Vec<_>>()).into_any_element()
+    })
+}
+
 fn list(id: &'static str, head: AnyElement, mut rows: Vec<CardItem>, empty: bool, hand: &Hand) -> AnyElement {
     if empty {
         rows.push(Line::new(format!("{id}-empty"), if hand.filtering { w::NOTHING_MATCHES } else { w::NOTHING }).empty().into());
@@ -787,8 +830,11 @@ pub fn threads_table(
             }
         }
     }
+    // Each lead with all it folds open is one child of the list, ruled off the next and with no rule inside it.
     for g in tops {
-        block(g, 0, &kids, looks, box_, cost, hand, cx, &mut rows);
+        let mut lead = Vec::new();
+        block(g, 0, &kids, looks, box_, cost, hand, cx, &mut lead);
+        rows.push(as_one(lead));
     }
     list("activity-threads", head_row(hand.tree(), name, sorts(hand, cx), cx), rows, groups.is_empty(), hand)
 }
@@ -841,6 +887,7 @@ pub fn processes_table(name: String, rows: &[Placed], hand: &Hand, cx: &App) -> 
                         .text_right()
                         .text_size(text::FACT.0)
                         .text_color(p.muted_foreground)
+                        .font_features(text::tabular())
                         .child(q.pid.to_string())
                         .into_any_element(),
                 );
@@ -950,6 +997,7 @@ pub fn ports_table(rows: &[(Port, &Proc, &Group)], hand: &Hand, cx: &App) -> Any
                     .text_size(text::VALUE.0)
                     .line_height(px(20.))
                     .text_color(p.foreground)
+                    .font_features(text::tabular())
                     .child(port.port.to_string())
                     .into_any_element(),
                 h_flex().min_w_0().gap_2().child(proc_glyph(q, cx)).child(row_name(q.name.clone(), false, cx)).into_any_element(),

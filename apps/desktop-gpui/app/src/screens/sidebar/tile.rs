@@ -318,6 +318,7 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
         h_flex()
             .flex_none()
             .gap(px(4.))
+            .font_features(crate::ui::text::tabular())
             .child(Icon::new(Glyph::AlarmClock).with_size(px(12.)))
             .child(format!("{n} working"))
             .into_any_element()

@@ -4,6 +4,7 @@
 // as a host does, so a client dials it by that state file. Each frame after the token is appended to <dir>/asked.jsonl.
 // <dir>/rules.json, read again at every frame, names per op what to do:
 //   { "<op>": { "reply": {...} } | { "error": "...", "kind": "...", "fix": "..." }, "delayMs": n, "push": [event, ...] }
+// A `daemon.send:<frame op>` rule answers that daemon op ahead of the `daemon.send` rule.
 // "push" goes to every socket as the frame arrives, before the answer; an op no rule names is refused. `GET /` serves
 // the page a dial reads first: the boot line naming the socket's path, the host package's release and the token's digest.
 import { appendFileSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -45,7 +46,7 @@ wss.on("connection", ws => {
     }
     appendFileSync(join(dir, "asked.jsonl"), `${JSON.stringify(frame)}\n`);
     if (frame.op === "events.subscribe") return answer({ ok: true });
-    const rule = rules()[frame.op];
+    const rule = (frame.op === "daemon.send" ? rules()[`daemon.send:${frame.frame?.op}`] : undefined) ?? rules()[frame.op];
     if (rule === undefined) return answer({ ok: false, error: `${frame.op} is not served here.`, kind: "usage" });
     for (const event of rule.push ?? []) for (const s of sockets) s.send(JSON.stringify(event));
     if (rule.delayMs !== undefined) await new Promise(r => setTimeout(r, rule.delayMs));

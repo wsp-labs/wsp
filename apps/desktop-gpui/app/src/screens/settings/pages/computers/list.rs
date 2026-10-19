@@ -168,6 +168,7 @@ fn cloud_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) ->
         .whitespace_nowrap()
         .text_size(text::FACT.0)
         .text_color(p.muted_foreground)
+        .font_features(text::tabular())
         .child(where_words::running(running(place)));
     let setup = cloud_setup(super::image::job_of(ctx), &place.id);
     let state = match setup {
