@@ -7,6 +7,7 @@ use gpui_kit::{
     PathBuilder, Pixels, Window,
 };
 
+use super::chart::stroke_line;
 use super::theme::ActivePalette;
 
 /// `CHART_PAD` of `CHART_H`: the room kept above the top and below the baseline.
@@ -77,15 +78,7 @@ impl RenderOnce for Sparkline {
                 let pad = h * PAD;
                 let y_at = |v: f32| o.y + pad + (h - pad * 2.) * (1. - v);
                 let mut rule = |y: Pixels, dashed: bool, ink: Hsla| {
-                    let mut line = PathBuilder::stroke(px(1.));
-                    if dashed {
-                        line = line.dash_array(&[px(2.), px(3.)]);
-                    }
-                    line.move_to(point(o.x, y));
-                    line.line_to(point(o.x + w, y));
-                    if let Ok(path) = line.build() {
-                        window.paint_path(path, ink);
-                    }
+                    stroke_line(window, &[point(o.x, y), point(o.x + w, y)], 1., dashed.then_some((2., 3.)), ink);
                 };
                 if rules {
                     for at in [0.25, 0.5, 0.75, 1.] {

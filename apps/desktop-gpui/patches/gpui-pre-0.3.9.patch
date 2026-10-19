@@ -1,3 +1,18 @@
+diff --git a/src/app.rs b/src/app.rs
+index cdbd559..3134e06 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -3452,6 +3452,10 @@ pub struct AnyTooltip {
+     /// The absolute position of the mouse when the tooltip was deployed.
+     pub mouse_position: Point<Pixels>,
+ 
++    /// The bounds of the element that owns the tooltip as last drawn, and the side of it the tooltip opens on, centred;
++    /// at the mouse when none.
++    pub owner: Option<(Bounds<Pixels>, crate::TooltipSide)>,
++
+     /// Given the bounds of the tooltip, checks whether the tooltip should still be visible and
+     /// updates its state accordingly. This is needed atop the hovered element's mouse move handler
+     /// to handle the case where the element is not painted (e.g. via use of `visible_on_hover`).
 diff --git a/src/debug_overlay.rs b/src/debug_overlay.rs
 index 0cca543..d8aab99 100644
 --- a/src/debug_overlay.rs
@@ -12,10 +27,73 @@ index 0cca543..d8aab99 100644
  }
  
 diff --git a/src/elements/div.rs b/src/elements/div.rs
-index fc292f2..8b004e4 100644
+index fc292f2..cec8846 100644
 --- a/src/elements/div.rs
 +++ b/src/elements/div.rs
-@@ -2544,91 +2544,102 @@ impl Interactivity {
+@@ -736,6 +736,12 @@ impl Interactivity {
+         self.tooltip_show_delay = Some(delay);
+     }
+ 
++    /// Sets the side of this element its tooltip opens on.
++    /// The imperative API equivalent to [`StatefulInteractiveElement::tooltip_side`].
++    pub fn tooltip_side(&mut self, side: TooltipSide) {
++        self.tooltip_side = side;
++    }
++
+     /// Block the mouse from all interactions with elements behind this element's hitbox. Typically
+     /// `block_mouse_except_scroll` should be preferred.
+     ///
+@@ -1712,6 +1718,31 @@ pub trait StatefulInteractiveElement: InteractiveElement {
+         self.interactivity().tooltip_show_delay(delay);
+         self
+     }
++
++    /// Sets the side of this element its tooltip opens on, above it by default.
++    /// The fluent API equivalent to [`Interactivity::tooltip_side`].
++    fn tooltip_side(mut self, side: TooltipSide) -> Self
++    where
++        Self: Sized,
++    {
++        self.interactivity().tooltip_side(side);
++        self
++    }
++}
++
++/// The side of its element a tooltip opens on, centred along it, as a web tooltip's `side`; it flips to the other side
++/// where the window has no room.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub enum TooltipSide {
++    /// Above the element.
++    #[default]
++    Top,
++    /// Below the element.
++    Bottom,
++    /// Left of the element.
++    Left,
++    /// Right of the element.
++    Right,
+ }
+ 
+ pub(crate) type MouseDownListener =
+@@ -2184,6 +2215,7 @@ pub struct Interactivity {
+     pub(crate) hover_listener_mode: HoverListenerMode,
+     pub(crate) tooltip_builder: Option<TooltipBuilder>,
+     pub(crate) tooltip_show_delay: Option<Duration>,
++    pub(crate) tooltip_side: TooltipSide,
+     pub(crate) window_control: Option<WindowControlArea>,
+     pub(crate) hitbox_behavior: HitboxBehavior,
+     pub(crate) tab_index: Option<isize>,
+@@ -2370,7 +2402,8 @@ impl Interactivity {
+                     }
+                     if let Some(active_tooltip) = element_state.active_tooltip.as_ref() {
+                         if self.tooltip_builder.is_some() {
+-                            self.tooltip_id = set_tooltip_on_window(active_tooltip, window);
++                            self.tooltip_id =
++                                set_tooltip_on_window(active_tooltip, Some((bounds, self.tooltip_side)), window);
+                         } else {
+                             // If there is no longer a tooltip builder, remove the active tooltip.
+                             if let Some(long_press_tooltip_active) =
+@@ -2544,91 +2577,102 @@ impl Interactivity {
                  window.with_element_opacity(style.opacity, |window| {
                      style.paint(bounds, window, cx, |window: &mut Window, cx: &mut App| {
                          window.with_text_style(style.text_style().cloned(), |window| {
@@ -190,6 +268,32 @@ index fc292f2..8b004e4 100644
                          });
                      });
                  });
+@@ -3698,14 +3742,16 @@ pub(crate) fn clear_active_tooltip_if_not_hoverable(
+ 
+ pub(crate) fn set_tooltip_on_window(
+     active_tooltip: &Rc<RefCell<Option<ActiveTooltip>>>,
++    owner: Option<(Bounds<Pixels>, TooltipSide)>,
+     window: &mut Window,
+ ) -> Option<TooltipId> {
+-    let tooltip = match active_tooltip.borrow().as_ref() {
++    let mut tooltip = match active_tooltip.borrow().as_ref() {
+         None => return None,
+         Some(ActiveTooltip::WaitingForShow { .. }) => return None,
+         Some(ActiveTooltip::Visible { tooltip, .. }) => tooltip.clone(),
+         Some(ActiveTooltip::WaitingForHide { tooltip, .. }) => tooltip.clone(),
+     };
++    tooltip.owner = owner;
+     Some(window.set_tooltip(tooltip))
+ }
+ 
+@@ -3926,6 +3972,7 @@ fn show_tooltip(
+             tooltip: AnyTooltip {
+                 view,
+                 mouse_position: window.mouse_position(),
++                owner: None,
+                 check_visible_and_update: Rc::new(move |tooltip_bounds, window, cx| {
+                     if long_press_tooltip_active
+                         .as_ref()
 diff --git a/src/elements/list.rs b/src/elements/list.rs
 index fa21d10..4fc197d 100644
 --- a/src/elements/list.rs
@@ -250,7 +354,7 @@ index fa21d10..4fc197d 100644
                  }),
                  (),
 diff --git a/src/elements/text.rs b/src/elements/text.rs
-index d1896ad..5ccb339 100644
+index d1896ad..031bcf7 100644
 --- a/src/elements/text.rs
 +++ b/src/elements/text.rs
 @@ -640,11 +640,9 @@ impl TextLayout {
@@ -268,6 +372,15 @@ index d1896ad..5ccb339 100644
  
          let runs = if let Some(runs) = runs {
              runs
+@@ -1138,7 +1136,7 @@ impl Element for InteractiveText {
+                 if let Some(interactive_state) = interactive_state.as_mut() {
+                     if self.tooltip_builder.is_some() {
+                         self.tooltip_id =
+-                            set_tooltip_on_window(&interactive_state.active_tooltip, window);
++                            set_tooltip_on_window(&interactive_state.active_tooltip, None, window);
+                     } else {
+                         // If there is no longer a tooltip builder, remove the active tooltip.
+                         interactive_state.long_press_tooltip_active.set(false);
 diff --git a/src/scene.rs b/src/scene.rs
 index be37813..b40b4f7 100644
 --- a/src/scene.rs
@@ -1093,7 +1206,7 @@ index 13ee752..14432ba 100644
      async fn test_with_timeout(cx: &mut TestAppContext) {
          Task::ready(())
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..954e903 100644
+index 1214b03..7248d3b 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -6,7 +6,8 @@ use crate::Inspector;
@@ -1117,7 +1230,52 @@ index 1214b03..954e903 100644
  };
  pub use prompts::*;
  
-@@ -1240,6 +1241,7 @@ pub struct Window {
+@@ -961,6 +962,44 @@ impl TooltipId {
+     }
+ }
+ 
++/// Where a tooltip of `size` opens on an element at `owner`: on its `side`, centred along it, 4 px off, as a Base UI
++/// tooltip's positioner sets it; on the other side where the window has no room on that one, and shifted along the
++/// side to stay 5 px inside the window.
++fn tooltip_at(
++    owner: Bounds<Pixels>,
++    side: crate::TooltipSide,
++    size: Size<Pixels>,
++    window: Size<Pixels>,
++) -> Point<Pixels> {
++    const OFFSET: Pixels = px(4.);
++    const MARGIN: Pixels = px(5.);
++    let along = |centre: Pixels, length: Pixels, room: Pixels| {
++        (centre - length / 2.).min(room - MARGIN - length).max(MARGIN)
++    };
++    // The side asked for, else the other where only it has room.
++    let across = |before: Pixels, after: Pixels, length: Pixels, room: Pixels, first: bool| {
++        let (lead, other) = ((before - OFFSET - length), (after + OFFSET));
++        let lead_fits = lead >= MARGIN;
++        let other_fits = other + length <= room - MARGIN;
++        match (first, lead_fits, other_fits) {
++            (true, false, true) => other,
++            (true, _, _) => lead,
++            (false, true, false) => lead,
++            (false, _, _) => other,
++        }
++    };
++    match side {
++        crate::TooltipSide::Top | crate::TooltipSide::Bottom => point(
++            along(owner.center().x, size.width, window.width),
++            across(owner.top(), owner.bottom(), size.height, window.height, side == crate::TooltipSide::Top),
++        ),
++        crate::TooltipSide::Left | crate::TooltipSide::Right => point(
++            across(owner.left(), owner.right(), size.width, window.width, side == crate::TooltipSide::Left),
++            along(owner.center().y, size.height, window.height),
++        ),
++    }
++}
++
+ pub(crate) struct TooltipBounds {
+     id: TooltipId,
+     bounds: Bounds<Pixels>,
+@@ -1240,6 +1279,7 @@ pub struct Window {
      pub(crate) element_offset_stack: Vec<Point<Pixels>>,
      pub(crate) element_opacity: f32,
      pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
@@ -1125,7 +1283,7 @@ index 1214b03..954e903 100644
      pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
      /// The [`TextInputConfiguration`] most recently forwarded to the platform
      /// window, so that only actual changes are forwarded (reconfiguring a live
-@@ -1255,6 +1257,7 @@ pub struct Window {
+@@ -1255,6 +1295,7 @@ pub struct Window {
      pub(crate) next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
      pub(crate) dirty_views: FxHashSet<EntityId>,
      focus_listeners: SubscriberSet<(), AnyWindowFocusListener>,
@@ -1133,7 +1291,7 @@ index 1214b03..954e903 100644
      pub(crate) focus_lost_listeners: SubscriberSet<(), AnyObserver>,
      focus_lost_path: SmallVec<[FocusId; 8]>,
      default_prevented: bool,
-@@ -2143,6 +2146,7 @@ impl Window {
+@@ -2143,6 +2184,7 @@ impl Window {
              rendered_entity_stack: Vec::new(),
              element_offset_stack: Vec::new(),
              content_mask_stack: Vec::new(),
@@ -1141,7 +1299,7 @@ index 1214b03..954e903 100644
              element_opacity: 1.0,
              requested_autoscroll: None,
              last_text_input_configuration: None,
-@@ -2155,6 +2159,7 @@ impl Window {
+@@ -2155,6 +2197,7 @@ impl Window {
              tooltip_bounds: None,
              dirty_views: FxHashSet::default(),
              focus_listeners: SubscriberSet::new(),
@@ -1149,7 +1307,7 @@ index 1214b03..954e903 100644
              focus_lost_listeners: SubscriberSet::new(),
              focus_lost_path: SmallVec::new(),
              default_prevented: true,
-@@ -2248,6 +2253,53 @@ impl ContentMask<Pixels> {
+@@ -2248,6 +2291,53 @@ impl ContentMask<Pixels> {
      }
  }
  
@@ -1203,7 +1361,7 @@ index 1214b03..954e903 100644
  impl Window {
      fn mark_view_dirty(&mut self, view_id: EntityId) {
          // Mark ancestor views as dirty. If already in the `dirty_views` set, then all its ancestors
-@@ -3174,13 +3226,6 @@ impl Window {
+@@ -3174,13 +3264,6 @@ impl Window {
          px(round_to_device_pixel(value.0, self.scale_factor()) / self.scale_factor())
      }
  
@@ -1217,7 +1375,7 @@ index 1214b03..954e903 100644
      /// Snaps a bounds' origin and size to the nearest device pixel.
      #[inline]
      pub fn pixel_snap_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
-@@ -3224,7 +3269,7 @@ impl Window {
+@@ -3224,7 +3307,7 @@ impl Window {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
          if exclusions.is_empty() {
@@ -1226,7 +1384,7 @@ index 1214b03..954e903 100644
              return;
          }
  
-@@ -3242,13 +3287,13 @@ impl Window {
+@@ -3242,13 +3325,13 @@ impl Window {
              })
              .collect::<SmallVec<[_; 4]>>();
          if exclusions.is_empty() {
@@ -1242,7 +1400,7 @@ index 1214b03..954e903 100644
                  content_mask: ContentMask {
                      bounds: Bounds::from_corners(
                          point(start, bounds.top()),
-@@ -3273,9 +3318,9 @@ impl Window {
+@@ -3273,9 +3356,9 @@ impl Window {
      fn underline(&self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) -> Underline {
          Underline {
              order: 0,
@@ -1253,7 +1411,7 @@ index 1214b03..954e903 100644
              color: style
                  .color
                  .unwrap_or_default()
-@@ -3323,6 +3368,44 @@ impl Window {
+@@ -3323,6 +3406,44 @@ impl Window {
          )
      }
  
@@ -1298,7 +1456,7 @@ index 1214b03..954e903 100644
      #[inline]
      fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
          ContentMask {
-@@ -3562,6 +3645,7 @@ impl Window {
+@@ -3562,6 +3683,7 @@ impl Window {
              self.refresh();
          }
          self.needs_present.set(true);
@@ -1306,7 +1464,29 @@ index 1214b03..954e903 100644
  
          #[cfg(feature = "profiler")]
          {
-@@ -4177,6 +4261,31 @@ impl Window {
+@@ -3820,7 +3942,9 @@ impl Window {
+                 size: self.viewport_size(),
+             };
+ 
+-            if tooltip_bounds.right() > window_bounds.right() {
++            if let Some((owner, side)) = tooltip_request.tooltip.owner {
++                tooltip_bounds.origin = tooltip_at(owner, side, tooltip_size, window_bounds.size);
++            } else if tooltip_bounds.right() > window_bounds.right() {
+                 let new_x = mouse_position.x - tooltip_bounds.size.width - px(1.);
+                 if new_x >= Pixels::ZERO {
+                     tooltip_bounds.origin.x = new_x;
+@@ -3832,7 +3956,9 @@ impl Window {
+                 }
+             }
+ 
+-            if tooltip_bounds.bottom() > window_bounds.bottom() {
++            if tooltip_request.tooltip.owner.is_none()
++                && tooltip_bounds.bottom() > window_bounds.bottom()
++            {
+                 let new_y = mouse_position.y - tooltip_bounds.size.height - px(1.);
+                 if new_y >= Pixels::ZERO {
+                     tooltip_bounds.origin.y = new_y;
+@@ -4177,6 +4303,31 @@ impl Window {
          }
      }
  
@@ -1338,7 +1518,7 @@ index 1214b03..954e903 100644
      /// Updates the global element offset relative to the current offset. This is used to implement
      /// scrolling. This method should only be called during the prepaint phase of element drawing.
      pub fn with_element_offset<R>(
-@@ -4566,24 +4675,42 @@ impl Window {
+@@ -4566,24 +4717,42 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -1385,7 +1565,7 @@ index 1214b03..954e903 100644
              });
          }
      }
-@@ -4602,7 +4729,7 @@ impl Window {
+@@ -4602,7 +4771,7 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -1394,7 +1574,7 @@ index 1214b03..954e903 100644
          let element_corner_radii = corner_radii.scale(scale_factor);
          for shadow in shadows {
              if !shadow.inset {
-@@ -4618,17 +4745,17 @@ impl Window {
+@@ -4618,17 +4787,17 @@ impl Window {
                  bottom_right: (corner_radii.bottom_right - shadow.spread_radius).max(zero),
                  bottom_left: (corner_radii.bottom_left - shadow.spread_radius).max(zero),
              };
@@ -1414,7 +1594,7 @@ index 1214b03..954e903 100644
              });
          }
      }
-@@ -4691,6 +4818,8 @@ impl Window {
+@@ -4691,6 +4860,8 @@ impl Window {
              order: 0,
              bounds: snapped_bounds,
              content_mask: self.snapped_content_mask(),
@@ -1423,7 +1603,7 @@ index 1214b03..954e903 100644
              background: quad.background.opacity(opacity),
              border_color: quad.border_color.opacity(opacity),
              corner_radii: quad.corner_radii.scale(self.scale_factor()),
-@@ -4699,7 +4828,7 @@ impl Window {
+@@ -4699,7 +4870,7 @@ impl Window {
          };
  
          if !quad.background.is_transparent() {
@@ -1432,7 +1612,7 @@ index 1214b03..954e903 100644
              return;
          }
  
-@@ -4709,7 +4838,7 @@ impl Window {
+@@ -4709,7 +4880,7 @@ impl Window {
          let inner_bounds = Self::largest_border_interior(&quad);
  
          if inner_bounds.is_empty() {
@@ -1441,7 +1621,7 @@ index 1214b03..954e903 100644
              return;
          }
  
-@@ -4739,7 +4868,7 @@ impl Window {
+@@ -4739,7 +4910,7 @@ impl Window {
          for strip in strips {
              let content_mask_bounds = quad.content_mask.bounds.intersect(&strip);
              if !content_mask_bounds.is_empty() {
@@ -1450,7 +1630,7 @@ index 1214b03..954e903 100644
                      content_mask: ContentMask {
                          bounds: content_mask_bounds,
                      },
-@@ -4749,6 +4878,39 @@ impl Window {
+@@ -4749,6 +4920,39 @@ impl Window {
          }
      }
  
@@ -1490,18 +1670,21 @@ index 1214b03..954e903 100644
      /// Paint the given `Path` into the scene for the next frame at the current z-index.
      ///
      /// This method should only be called as part of the paint phase of element drawing.
-@@ -4761,9 +4923,7 @@ impl Window {
+@@ -4761,9 +4965,10 @@ impl Window {
          path.content_mask = content_mask;
          let color: Background = color.into();
          path.color = color.opacity(opacity);
 -        self.next_frame
 -            .scene
 -            .insert_primitive(path.scale(scale_factor));
-+        self.insert_primitive(path.scale(scale_factor));
++        let mut path = path.scale(scale_factor);
++        // The renderers composite a path over its bounds, which on half a device pixel would cut that pixel's ink.
++        path.bounds = Bounds::from_corners(path.bounds.origin.map(|c| c.floor()), path.bounds.bottom_right().map(|c| c.ceil()));
++        self.insert_primitive(path);
      }
  
      /// Paint an underline into the scene for the next frame at the current z-index.
-@@ -4777,7 +4937,7 @@ impl Window {
+@@ -4777,7 +4982,7 @@ impl Window {
      ) {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
@@ -1510,7 +1693,7 @@ index 1214b03..954e903 100644
      }
  
      /// Paint a strikethrough into the scene for the next frame at the current z-index.
-@@ -4799,11 +4959,11 @@ impl Window {
+@@ -4799,11 +5004,11 @@ impl Window {
          };
          let opacity = self.element_opacity();
  
@@ -1524,7 +1707,7 @@ index 1214b03..954e903 100644
              thickness: self.snap_stroke(style.thickness),
              color: style.color.unwrap_or_default().opacity(opacity),
              wavy: false.into(),
-@@ -4835,8 +4995,8 @@ impl Window {
+@@ -4835,8 +5040,8 @@ impl Window {
          let quantized_origin = Point::new(
              round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
                  / SUBPIXEL_VARIANTS_X as f32,
@@ -1535,7 +1718,7 @@ index 1214b03..954e903 100644
          );
          let subpixel_variant = Point::new(
              (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
-@@ -4872,21 +5032,21 @@ impl Window {
+@@ -4872,21 +5077,21 @@ impl Window {
              let content_mask = self.snapped_content_mask();
  
              if subpixel_rendering {
@@ -1561,7 +1744,7 @@ index 1214b03..954e903 100644
                      color: color.opacity(element_opacity),
                      tile,
                      transformation: TransformationMatrix::unit(),
-@@ -4934,7 +5094,11 @@ impl Window {
+@@ -4934,7 +5139,11 @@ impl Window {
  
          let scale_factor = self.scale_factor();
          let glyph_origin = origin.scale(scale_factor);
@@ -1574,7 +1757,7 @@ index 1214b03..954e903 100644
          let params = RenderGlyphParams {
              font_id,
              glyph_id,
-@@ -4963,13 +5127,13 @@ impl Window {
+@@ -4963,13 +5172,13 @@ impl Window {
              let content_mask = self.snapped_content_mask();
              let opacity = self.element_opacity();
  
@@ -1590,7 +1773,7 @@ index 1214b03..954e903 100644
                  tile,
                  opacity,
              });
-@@ -5029,11 +5193,11 @@ impl Window {
+@@ -5029,11 +5238,11 @@ impl Window {
              .map_origin(|value| ScaledPixels(round_half_toward_zero(value.0)))
              .map_size(|size| size.ceil());
  
@@ -1604,7 +1787,7 @@ index 1214b03..954e903 100644
              color: color.opacity(element_opacity),
              tile,
              transformation,
-@@ -5135,12 +5299,12 @@ impl Window {
+@@ -5135,12 +5344,12 @@ impl Window {
              .scale(self.scale_factor());
          let opacity = self.element_opacity();
  
@@ -1619,7 +1802,7 @@ index 1214b03..954e903 100644
              corner_radii,
              tile: sub_tile,
              opacity,
-@@ -5163,7 +5327,7 @@ impl Window {
+@@ -5163,7 +5372,7 @@ impl Window {
  
          let bounds = self.snap_bounds(bounds);
          let content_mask = self.snapped_content_mask();
@@ -1628,7 +1811,7 @@ index 1214b03..954e903 100644
              order: 0,
              bounds,
              content_mask,
-@@ -5287,6 +5451,31 @@ impl Window {
+@@ -5287,6 +5496,31 @@ impl Window {
          bounds
      }
  

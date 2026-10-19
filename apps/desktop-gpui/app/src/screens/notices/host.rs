@@ -184,7 +184,7 @@ impl Notices {
 
 fn computer_route(place: Option<&str>) -> Route {
     Route::Screen(match place {
-        Some(id) => format!("settings:computers:{id}").into(),
+        Some(id) => format!("settings:computer:{id}").into(),
         None => "settings:computers".into(),
     })
 }
@@ -240,12 +240,12 @@ fn settings_at(window: &Window, cx: &gpui_kit::App) -> Option<String> {
 /// The computer's own page or the Computers list is in front.
 fn computer_on_screen(place: Option<&str>, window: &Window, cx: &gpui_kit::App) -> bool {
     place.is_some_and(|p| add_computer::stands_on(p, cx))
-        || settings_at(window, cx).is_some_and(|at| at == "computers" || place.is_some_and(|p| at == format!("computers:{p}")))
+        || settings_at(window, cx).is_some_and(|at| at == "computers" || place.is_some_and(|p| at == format!("computer:{p}")))
 }
 
 /// The page of the computer a build runs on, which draws its rows.
 fn build_on_screen(place: Option<&str>, window: &Window, cx: &gpui_kit::App) -> bool {
-    place.is_some_and(|p| settings_at(window, cx).is_some_and(|at| at == format!("computers:{p}")))
+    place.is_some_and(|p| settings_at(window, cx).is_some_and(|at| at == format!("computer:{p}")))
 }
 
 fn place_of<'a>(places: &'a [Value], id: Option<&str>) -> Option<&'a Value> {

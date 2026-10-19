@@ -7,11 +7,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use tokio::sync::watch;
 use wsp_mcp::client::{Client, Frames};
 use wsp_mcp::host::Host;
 
@@ -54,11 +56,67 @@ pub trait Op: Serialize {
 #[derive(Debug, Deserialize)]
 pub struct Done {}
 
+/// `SHARED_READS` in `protocol/client.ts`: reads two callers may ask with the same words while the first is in flight,
+/// which then share one request. A list, so an op added later is never shared by having been forgotten; an act is never
+/// on it, since two asks of one are two acts.
+const SHARED_READS: [&str; 23] = [
+    "workspaces.list",
+    "workspaces.get",
+    "workspaces.checkout",
+    "workspaces.landing",
+    "workspaces.pullRequestView",
+    "workspaces.pullRequestDiff",
+    "agents.read",
+    "harnesses.list",
+    "editor.list",
+    "host.terminalConfig",
+    "capabilities.get",
+    "forwards.list",
+    "init.get",
+    "account.get",
+    "devices.list",
+    "image.get",
+    "usage.used",
+    "usage.accounts",
+    "places.list",
+    "projects.list",
+    "golden.get",
+    "release.get",
+    "preferences.get",
+];
+
+type Answer = Result<Map<String, Value>, Failure>;
+
+/// One shared read in flight, until it settles.
+struct Flight {
+    client: Arc<Client>,
+    /// The events its socket had counted when the read was sent; `UNSENT` before.
+    sent_at: AtomicU64,
+    answer: watch::Receiver<Option<Answer>>,
+}
+
+const UNSENT: u64 = u64::MAX;
+
+impl Flight {
+    /// Whether an ask now shares this read: it is not sent yet, or no event was heard since it was.
+    fn joinable(&self) -> bool {
+        let sent_at = self.sent_at.load(Ordering::SeqCst);
+        sent_at == UNSENT || self.client.pushes_counted() == sent_at
+    }
+}
+
+/// A push today's client hands its event listeners (`#heard`), by its type: not a daemon channel's frame nor a reading.
+fn an_event(kind: &str) -> bool {
+    !kind.starts_with("daemon.") && !["workspace.sys", "place.sys", "app.procs"].contains(&kind)
+}
+
 pub struct HostClient {
     /// Keeps one socket across calls and dials again once it closes, as the tool server's host does.
     host: Host,
     /// Every workspace's status on the socket in use, kept by its pushes.
     statuses: tokio::sync::Mutex<Option<Statuses>>,
+    /// Each shared read in flight by its op and words.
+    in_flight: Arc<Mutex<HashMap<String, Arc<Flight>>>>,
 }
 
 struct Statuses {
@@ -81,7 +139,53 @@ impl HostClient {
             host.hold_token(token);
         }
         host.client().await?;
-        Ok(HostClient { host, statuses: tokio::sync::Mutex::new(None) })
+        Ok(HostClient::over(host))
+    }
+
+    fn over(host: Host) -> HostClient {
+        HostClient { host, statuses: tokio::sync::Mutex::new(None), in_flight: Arc::default() }
+    }
+
+    /// One op's reply with its id and ok taken off. A shared read asked with the same words as one in flight takes that
+    /// one's answer, unless an event was heard since it was sent, which may have changed it: then this ask goes once
+    /// that one settled, so its answer lands last, and asks before it goes share it (`request` in `protocol/client.ts`).
+    async fn request(&self, op: &str, params: Map<String, Value>) -> Answer {
+        let client = self.host.client().await?;
+        if !SHARED_READS.contains(&op) {
+            return sent(&client, op, params).await;
+        }
+        let key = format!("{op} {}", Value::Object(params.clone()));
+        let mut answer = {
+            let mut flights = self.in_flight.lock().unwrap();
+            match flights.get(&key).cloned() {
+                Some(held) if held.joinable() => held.answer.clone(),
+                held => {
+                    let (tell, answer) = watch::channel(None);
+                    client.count_pushes(an_event);
+                    let flight = Arc::new(Flight { client: client.clone(), sent_at: AtomicU64::new(UNSENT), answer: answer.clone() });
+                    flights.insert(key.clone(), flight.clone());
+                    let (flights, op) = (self.in_flight.clone(), op.to_owned());
+                    let before = held.map(|held| held.answer.clone());
+                    // Apart from the asker, so an ask let go of still settles the read the others share.
+                    tokio::spawn(async move {
+                        if let Some(mut before) = before {
+                            _ = before.wait_for(Option::is_some).await;
+                        }
+                        flight.sent_at.store(client.pushes_counted(), Ordering::SeqCst);
+                        let answer = sent(&client, &op, params).await;
+                        let mut held = flights.lock().unwrap();
+                        if held.get(&key).is_some_and(|f| Arc::ptr_eq(f, &flight)) {
+                            held.remove(&key);
+                        }
+                        drop(held);
+                        tell.send_replace(Some(answer));
+                    });
+                    answer
+                }
+            }
+        };
+        let settled = answer.wait_for(Option::is_some).await.map_err(|_| Failure::new(format!("{op} was dropped before it settled")))?;
+        settled.clone().unwrap_or_else(|| Err(Failure::new(format!("{op} settled with nothing"))))
     }
 
     /// Every workspace's status as this socket last heard it. `status.subscribe` is asked once a socket, as the web
@@ -127,7 +231,7 @@ impl HostClient {
     pub async fn redeem(state: &Path, env: &Env, code: &str, name: &str) -> Result<HostClient, Failure> {
         let host = attached(state, env);
         host.redeem(code, name).await?;
-        Ok(HostClient { host, statuses: tokio::sync::Mutex::new(None) })
+        Ok(HostClient::over(host))
     }
 
     /// The token a pairing bought for the host here, which an account host keeps in its record instead.
@@ -143,6 +247,11 @@ impl HostClient {
     /// This app's own release, the one a host's is read against ("this app is <app>, the host is <v>").
     pub fn app_release() -> String {
         wsp_mcp::own_release()
+    }
+
+    /// The state file this client was aimed at, whose lock names the host here.
+    pub fn state(&self) -> &Path {
+        &self.host.args().state
     }
 
     /// Whether this client dials the host serving its state file on this computer.
@@ -162,9 +271,7 @@ impl HostClient {
             Ok(other) => return Err(Failure::new(format!("{} takes an object, not {other}", O::NAME))),
             Err(e) => return Err(Failure::new(format!("{}: {e}", O::NAME))),
         };
-        let mut reply: Map<String, Value> = self.host.client().await?.request(O::NAME, params).await?;
-        reply.remove("id");
-        reply.remove("ok");
+        let reply = self.request(O::NAME, params).await?;
         serde_json::from_value(Value::Object(reply))
             .map_err(|e| Failure::new(format!("{} answered what its reply type does not read: {e}", O::NAME)))
     }
@@ -172,10 +279,7 @@ impl HostClient {
     /// One op's reply as the host sent it, for a reader that takes a few fields: nothing the record does not read
     /// fails it.
     pub async fn call_raw(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, Failure> {
-        let mut reply: Map<String, Value> = self.host.client().await?.request(op, params).await?;
-        reply.remove("id");
-        reply.remove("ok");
-        Ok(reply)
+        self.request(op, params).await
     }
 
     /// Everything the host pushes on this socket from the moment this was asked, typed.
@@ -191,7 +295,10 @@ impl HostClient {
         struct Listed {
             projects: Vec<ProjectView>,
         }
-        Ok(self.host.client().await?.request::<Listed>("projects.list", Map::new()).await?.projects)
+        let reply = self.request("projects.list", Map::new()).await?;
+        serde_json::from_value::<Listed>(Value::Object(reply))
+            .map(|listed| listed.projects)
+            .map_err(|e| Failure::new(format!("projects.list answered what its reply type does not read: {e}")))
     }
 
     /// One row per thread, its newest turn's: a thread is the sessions that share a threadId, and a session from
@@ -272,6 +379,14 @@ impl HostClient {
     pub async fn page(&self, workspace_id: &str, thread_id: &str, before: u64) -> Result<Page, Failure> {
         read_page(&*self.host.client().await?, workspace_id, thread_id, Some(before)).await
     }
+}
+
+/// One op on `client` and its reply, its id and ok taken off.
+async fn sent(client: &Client, op: &str, params: Map<String, Value>) -> Answer {
+    let mut reply: Map<String, Value> = client.request(op, params).await?;
+    reply.remove("id");
+    reply.remove("ok");
+    Ok(reply)
 }
 
 /// How many events a page of a thread's history holds: HISTORY_PAGE_EVENTS in packages/protocol.

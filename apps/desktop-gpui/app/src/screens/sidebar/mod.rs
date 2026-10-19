@@ -1835,8 +1835,8 @@ mod tests {
             });
             let items = menu::items_for(s, &tile.unwrap(), "t1");
             let rename = items.iter().position(|i| i.act == menu::Act::Rename).expect("a Rename item");
-            // gpui-kit's first Down lands on the first row, held or not, and each one after on the next that runs.
-            items[..=rename].iter().filter(|i| i.refusal.is_none()).count() + usize::from(items[0].refusal.is_some())
+            // The menu opens on its first row that runs, and each Down walks to the next row, held or not.
+            rename - items.iter().position(|i| i.refusal.is_none()).expect("a row that runs")
         });
         cx.simulate_keystrokes(&vec!["down"; downs].join(" "));
         cx.simulate_keystrokes("enter");

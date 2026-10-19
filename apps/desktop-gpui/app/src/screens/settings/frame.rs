@@ -509,7 +509,11 @@ fn restore(id: GroupId, ctx: &Ctx, narrow: bool) -> Option<AnyElement> {
     }
     let acts = ctx.acts.clone();
     let patch = restore.patch;
-    let button = Button::ghost("restore-defaults", RESTORE).glyph(Glyph::RotateCcw).xs().tooltip(RESTORE);
+    let button = Button::ghost("restore-defaults", RESTORE)
+        .glyph(Glyph::RotateCcw)
+        .xs()
+        .tooltip(RESTORE)
+        .tooltip_side(gpui_kit::TooltipSide::Bottom);
     let button = button.glyph_only(narrow).on_click(move |_, _, cx| acts.set_preferences(patch(), cx));
     Some(div().debug_selector(|| "restore-defaults".into()).child(button).into_any_element())
 }

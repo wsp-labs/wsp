@@ -878,7 +878,7 @@ fn way_act(
         Way::Token => (
             HERE.to_owned(),
             place.clone(),
-            Start::Run { agent: agent.clone(), server: None, finish: None, pastes: false, cloud: false },
+            Start::Run { agent: agent.clone(), server: None, finish: None, pastes: false, cloud: false, terminal: false },
             Glyph::LogIn,
         ),
         Way::Machine => {
@@ -886,7 +886,7 @@ fn way_act(
             (
                 place.clone(),
                 HERE.to_owned(),
-                Start::Run { agent: agent.clone(), server: None, finish: None, pastes, cloud: false },
+                Start::Run { agent: agent.clone(), server: None, finish: None, pastes, cloud: false, terminal: false },
                 Glyph::LogIn,
             )
         }

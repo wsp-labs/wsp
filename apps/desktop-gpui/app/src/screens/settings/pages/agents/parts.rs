@@ -133,7 +133,13 @@ pub fn group_head(name: String, path: Option<String>, cx: &App) -> AnyElement {
         .gap_2()
         .child(div().min_w_0().truncate().child(name))
         .children(path.map(|path| {
-            div().flex_none().font_weight(FontWeight::NORMAL).text_size(text::FACT.0).text_color(p.muted_foreground).child(path)
+            div()
+                .flex_none()
+                .font_weight(FontWeight::NORMAL)
+                .text_size(text::FACT.0)
+                .text_color(p.muted_foreground)
+                .font_features(text::tabular())
+                .child(path)
         }))
         .into_any_element()
 }

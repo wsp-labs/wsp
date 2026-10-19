@@ -137,7 +137,7 @@ pub fn say_ended(place: &Value, cx: &mut App) {
             true => ready.action(open_setup(id)),
             false => ready
                 .detail(words::left(&left, &name))
-                .action(NoticeAction::new(OPEN, move |_, cx| navigate(Route::Screen(format!("settings:computers:{id}").into()), cx))),
+                .action(NoticeAction::new(OPEN, move |_, cx| navigate(Route::Screen(format!("settings:computer:{id}").into()), cx))),
         },
     );
 }

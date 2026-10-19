@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { STATES, baselineArgs, caveatOf, deadline, geometry, inner, launchEnv, order, parseAE, parseArgs, picked, scaleClip, share } from "./gpui-shots.mjs";
+import { STATES, baselineArgs, untilStill, caveatOf, deadline, geometry, inner, launchEnv, order, parseAE, parseArgs, picked, scaleClip, share } from "./gpui-shots.mjs";
 
 const base = ["--fixture", "/f/fx.json", "--app", "/a/desktop-gpui", "--electron-app", "/x/wsp", "--electron", "/e", "--out", "/o"];
 
@@ -128,4 +128,30 @@ test("a shot that throws stops its own app", async () => {
   const stopped = [];
   await assert.rejects(deadline(1000, async shot => ((shot.app = "only"), Promise.reject(new Error("no window"))), shot => stopped.push(shot.app)), /no window/);
   assert.deepEqual(stopped, ["only"]);
+});
+
+test("drives the Processes pane and Activity states as the Electron side reaches them", async () => {
+  const said = [];
+  const run = async id => {
+    said.length = 0;
+    for (const step of STATES.find(s => s.id === id).steps) await step.do((...argv) => said.push(argv.join(" ")), {});
+    return [...said];
+  };
+  assert.deepEqual(await run("W2-PAL-023"), ["key --clearmodifiers ctrl+alt+b", "key --clearmodifiers p"]);
+  assert.equal(STATES.find(s => s.id === "W2-PAL-025").open, "data");
+  assert.ok((await run("W2-PAL-025")).some(c => c.includes("http.server 0")), "a server in the thread's terminal first");
+  assert.equal((await run("W2-PAL-028")).at(-1), "getactivewindow mousemove --window %1 2162 50 click 1");
+  for (const id of ["W2-PAL-027", "W2-PAL-028", "W2-PAL-038"]) assert.equal(STATES.find(s => s.id === id).still, true, `${id} waits out Activity's loading`);
+  assert.equal((await run("W2-PAL-038")).at(-1), "getactivewindow windowsize 1200 1600", "600 by 800 at the GPUI side's scale");
+  assert.ok((await run("W2-PAL-027")).includes("type --delay 40 Activity"));
+});
+
+test("waits for the clip to hold still, past a loading sweep", async () => {
+  const frames = ["sweep-1", "sweep-2", "sweep-3", "rows", "rows"];
+  let at = 0;
+  const paused = [];
+  const still = await untilStill(() => frames[Math.min(at++, frames.length - 1)], (a, b) => a === b, 60_000, async ms => paused.push(ms));
+  assert.equal(still, true);
+  assert.equal(at, 5, "grabbed until two grabs matched");
+  assert.equal(await untilStill(() => `sweep-${at++}`, (a, b) => a === b, 30, async () => new Promise(done => setTimeout(done, 20))), false, "a sweep that never stops is never still");
 });

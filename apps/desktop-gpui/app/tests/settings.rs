@@ -114,6 +114,20 @@ fn settings_reads_the_host_as_it_opens(cx: &mut TestAppContext) {
     });
 }
 
+/// Catches: the Product usage switch offered while the host's page says it sends nothing, or the reason not read off
+/// the page the host serves (a checkout's build carries no PostHog key, so its host says `build`).
+#[gpui_kit::test]
+fn privacy_holds_the_usage_switch_with_the_reason_the_hosts_page_gives(cx: &mut TestAppContext) {
+    let host = Throwaway::start();
+    let (screen, cx) = open(&host, At::Group(GroupId::Privacy), cx);
+    until(cx, &screen, "the preferences and the page's reason read", |s| {
+        s.data().preferences.is_some() && s.data().product_usage_off.is_some()
+    });
+    assert_eq!(screen.read_with(cx, |s, _| s.data().product_usage_off.clone()).as_deref(), Some("build"));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("product-usage-held").is_some(), "the switch is held, with the reason as its hover");
+}
+
 #[gpui_kit::test]
 fn settings_writes_preferences_through_the_host(cx: &mut TestAppContext) {
     let host = Throwaway::start();
@@ -791,6 +805,29 @@ fn settings_opened_with_no_page_named_opens_where_it_last_was(cx: &mut TestAppCo
     });
 }
 
+/// Escape over a row's right press menu closes the menu alone: the menu's keys win over the shell's Escape, which would
+/// close Settings under it.
+#[gpui_kit::test]
+fn escape_on_a_row_menu_in_the_shell_closes_the_menu_and_leaves_settings_open(cx: &mut TestAppContext) {
+    let host = Throwaway::start();
+    let (shell, cx) = in_frame(&host, "settings:computers", cx);
+    settle(cx, "the computer here's row", |cx| cx.debug_bounds("grid-row").is_some());
+    // On the Mac AppKit draws the menu, which the test platform cannot drive.
+    if cfg!(target_os = "macos") {
+        return;
+    }
+    let row = cx.debug_bounds("grid-row").unwrap().center();
+    cx.simulate_mouse_down(row, gpui_kit::MouseButton::Right, gpui_kit::Modifiers::none());
+    cx.simulate_mouse_up(row, gpui_kit::MouseButton::Right, gpui_kit::Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("computer-icon-menu").is_some(), "the row's menu is open");
+    cx.simulate_keystrokes("escape");
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("computer-icon-menu").is_none(), "Escape closed the menu");
+    assert!(mounted(&shell, cx).is_some(), "and left Settings open");
+}
+
 #[gpui_kit::test]
 fn a_right_press_on_a_computer_row_picks_the_icon_it_shows_as(cx: &mut TestAppContext) {
     let host = Throwaway::start();
@@ -817,8 +854,8 @@ fn a_right_press_on_a_computer_row_picks_the_icon_it_shows_as(cx: &mut TestAppCo
         return;
     }
     assert!(cx.debug_bounds("computer-icon-menu").is_some(), "the row's menu of icons is open");
-    // The computer here wears the desktop, so the menu's first row is the laptop.
-    cx.simulate_keystrokes("down enter");
+    // The computer here wears the desktop, so the menu's first row, lit as it opens, is the laptop.
+    cx.simulate_keystrokes("enter");
     cx.run_until_parked();
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `SignInFlowView`: one sign-in as it stands under its row or its detail's head: the line for a terminal, the paste
-//! of a token or key under the line that mints it, or a watched run's code with Open, the wait on the browser, and
-//! the field its page's answer goes back through; a failure in the refusal slot in the tool's own words.
+//! of a token or key under the line that mints it, a login that asks the person to pick in a terminal drawn in place,
+//! or a watched run's code with Open, the wait on the browser, and the field its page's answer goes back through; a
+//! failure in the refusal slot in the tool's own words.
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
 use gpui_kit::{div, prelude::*, px, AnyElement, App, Entity, SharedString, Window};
@@ -66,6 +67,10 @@ pub fn view(store: &Entity<Store>, place: &str, row: &str, flow: &Flow, reserve:
                 parts.push(refusal(refused.as_deref()));
             }
             v_flex().gap(px(12.)).children(parts).into_any_element()
+        }
+        Flow::Run { state, pty: Some(pty), .. } if state != "failed" => {
+            let host = store.read(cx).acts().host(cx).map(|(client, runtime)| crate::screens::Host::new(client, runtime));
+            v_flex().gap(px(8.)).child(super::terminal::view(host, k("terminal"), place, pty, window, cx)).into_any_element()
         }
         Flow::Run { state, finish, pastes, url, code, paste, said, .. } => {
             let failed = state == "failed";
@@ -212,7 +217,7 @@ mod tests {
             code: Some("ABCD-1234".into()),
             paste: true,
             said: None,
-            pty: false,
+            pty: None,
         };
         let shown = cx.update(|cx| cx.new(|_| Shown { store, flow }));
         let (_, cx) = cx.add_window_view(|window, cx| gpui_kit::component::Root::new(shown, window, cx));

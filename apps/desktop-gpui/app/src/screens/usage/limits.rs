@@ -93,7 +93,7 @@ fn reset_line(account: &Account, now: f64, busy: bool, page: &gpui_kit::Entity<U
                     .items_baseline()
                     .gap_2()
                     .child(words::RESETS)
-                    .child(div().text_color(p.foreground.opacity(0.8)).child(line.banked)),
+                    .child(div().text_color(p.foreground.opacity(0.8)).font_features(crate::ui::text::tabular()).child(line.banked)),
             )
             .when(line.can_use, |el| {
                 let key = account.key.clone();

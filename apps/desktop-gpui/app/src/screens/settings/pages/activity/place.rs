@@ -138,10 +138,14 @@ fn run_file(path: &str, ext: &str) -> bool {
     name.len() == 12 && name.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)) && !path.chars().any(char::is_whitespace)
 }
 
+/// `RUN_SCRIPT`: a turn's run script as either road starts it, `bash <run folder>/<12 hex>.sh`.
+pub fn is_run_script(command: &str) -> bool {
+    command.strip_prefix("bash ").is_some_and(|rest| run_file(rest, ".sh"))
+}
+
 /// `isTurnPlumbing`: a turn's run script `bash <folder>/<12 hex>.sh`, or the pump `tail -n +1 -f <folder>/<12 hex>.in`.
 pub fn is_turn_plumbing(command: &str) -> bool {
-    command.strip_prefix("bash ").is_some_and(|rest| run_file(rest, ".sh"))
-        || command.strip_prefix("tail -n +1 -f ").is_some_and(|rest| run_file(rest, ".in"))
+    is_run_script(command) || command.strip_prefix("tail -n +1 -f ").is_some_and(|rest| run_file(rest, ".in"))
 }
 
 /// From a root down to the shallowest process under it that is the agent, and on through an only child that is the
@@ -644,27 +648,29 @@ pub fn activity_name(p: &ProcEntry, daemon: Pid, host: Option<Pid>, agent: Optio
     proc_name(p)
 }
 
+/// A tab's or a frame's site, with how many more pages share its process: `github.com +2`.
+fn site_of(part: &AppPart) -> Option<String> {
+    let first = part.origins.first()?;
+    let site = first.split_once("://").map(|(_, rest)| rest.split('/').next().unwrap_or(rest)).filter(|h| !h.is_empty()).unwrap_or(first);
+    let more = part.origins.len() - 1;
+    Some(if more > 0 { format!("{site} +{more}") } else { site.to_owned() })
+}
+
 /// `appName`: an app part by what the app calls it, wsp itself for its main process; a tab by the site it shows.
 pub fn app_name(part: &AppPart) -> String {
     match part.kind {
         AppKind::Main => "wsp".into(),
-        AppKind::Tab | AppKind::Frame => match part.origins.first() {
-            None => part.kind.word().into(),
-            Some(first) => {
-                let site = first
-                    .split_once("://")
-                    .map(|(_, rest)| rest.split('/').next().unwrap_or(rest))
-                    .filter(|h| !h.is_empty())
-                    .unwrap_or(first);
-                let more = part.origins.len() - 1;
-                if more > 0 {
-                    format!("{site} +{more}")
-                } else {
-                    site.to_owned()
-                }
-            }
-        },
+        AppKind::Tab | AppKind::Frame => site_of(part).unwrap_or_else(|| part.kind.word().into()),
         kind => kind.word().into(),
+    }
+}
+
+/// `appProcLine`: an app part's label in the Processes pane, `wsp window`, or a tab by its site, `browser tab github.com`.
+pub fn app_line(part: &AppPart) -> String {
+    let word = part.kind.word().to_lowercase();
+    match part.kind {
+        AppKind::Tab | AppKind::Frame => site_of(part).map_or(word.clone(), |site| format!("{word} {site}")),
+        _ => format!("wsp {word}"),
     }
 }
 

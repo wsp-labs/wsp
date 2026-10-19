@@ -298,7 +298,7 @@ fn a_double_click_on_the_title_opens_its_name_box_that_sends_the_name_and_escape
     cx.simulate_mouse_down(title.center(), MouseButton::Right, Modifiers::none());
     cx.simulate_mouse_up(title.center(), MouseButton::Right, Modifiers::none());
     cx.run_until_parked();
-    cx.simulate_keystrokes("down enter");
+    cx.simulate_keystrokes("enter");
     cx.run_until_parked();
     assert_eq!(bar.read_with(cx, |b, cx| b.rename_box(cx)).as_deref(), Some("first"), "the menu's Rename opened no box");
 }

@@ -178,7 +178,15 @@ pub fn cards(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
                 GridName::new(glyph_frame(look::glyph_of(&icon_of(ctx, &recipe.slug)), cx), recipe.name.clone())
                     .note(recipe.summary.clone()),
             )
-            .cell(div().min_w_0().truncate().text_size(text::FACT.0).text_color(p.muted_foreground).child(recipe.machines.join(", ")))
+            .cell(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_size(text::FACT.0)
+                    .text_color(p.muted_foreground)
+                    .font_features(text::tabular())
+                    .child(recipe.machines.join(", ")),
+            )
             .cell(chevron(cx))
     });
     let grid = Grid::new("recipes")
