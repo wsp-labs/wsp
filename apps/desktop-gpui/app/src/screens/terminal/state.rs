@@ -9,7 +9,6 @@ use wsp_host_client::protocol::{WorkspaceOut, WorkspaceStatus};
 use wsp_host_client::Failure;
 
 use super::link::Status;
-use super::words;
 use crate::screens::Host;
 
 /// The one state word's key (`WorkspaceState` in `protocol:workspace-state.ts`).
@@ -208,7 +207,7 @@ pub async fn restart_daemon(host: &Host, workspace_id: &str) -> Result<(), Share
             client.call::<wsp_host_client::protocol::WorkspacesRestartDaemonRequest>(req).await.map(|_| ())
         })
         .await;
-    asked.map_err(|f| words::start_refused_line(&f.message).into())
+    asked.map_err(|f| crate::screens::computer::daemon_down::start_refused_line(&f).into())
 }
 
 #[cfg(test)]
@@ -216,7 +215,7 @@ mod tests {
     use std::time::Instant;
 
     use super::*;
-    use crate::screens::terminal::words::{empty_line, hints, input_refusal, title};
+    use crate::screens::terminal::words::{self, empty_line, hints, input_refusal, title};
 
     fn input(state: WorkspaceState, socket: Status) -> PaneInput {
         PaneInput {
@@ -345,8 +344,6 @@ mod tests {
         let away = PaneState::Absent(words::absent_computer("studio"));
         assert_eq!(hints(&away, None), ["it connects on its own when it is on"]);
         assert_eq!(empty_line(&away).unwrap(), "studio is not answering; it connects on its own when it is on, and a terminal opens then");
-        assert_eq!(words::start_refused_line("the daemon did not start"), "the daemon did not start. Start again.");
-        assert_eq!(words::start_refused_line(words::NO_REASON), words::NO_REASON);
     }
 
     #[test]

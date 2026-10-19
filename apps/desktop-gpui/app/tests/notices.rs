@@ -12,6 +12,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::Throwaway;
+use desktop_gpui::screens::dialogs;
+use desktop_gpui::screens::dialogs::add_computer::{self, model::AddStep};
+use desktop_gpui::screens::notices::host::Heard;
 use desktop_gpui::screens::palette::overlays;
 use desktop_gpui::screens::sidebar::host::Change;
 use desktop_gpui::screens::Route;
@@ -25,6 +28,7 @@ use gpui_kit::{
     VisualTestContext, Window,
 };
 use serde_json::{json, Value};
+use wsp_host_client::protocol::PlaceView;
 
 /// The page under the toasts: it counts the presses that reach it, and holds a field.
 struct Page {
@@ -503,6 +507,155 @@ fn the_pointer_on_a_scrim_over_the_stack_leaves_its_timers_running(cx: &mut Test
     cx.executor().advance_clock(store::NOTICE_MS);
     cx.run_until_parked();
     assert!(standing(cx).is_empty(), "the toast's time ran out under the scrim");
+}
+
+/// lab-box as the sidebar holds it once the host lists it: its setup `run` at `state`, with `rows` applied.
+fn lab_box(run: &str, state: &str, rows: Value) -> Value {
+    let place = json!({
+        "id": "p_box", "kind": "computer", "name": "lab-box", "default": false, "agents": [], "agentVersions": {}, "signIns": {},
+        "sizes": [], "recipe": "none", "applied": { "hash": "h", "at": "2026-10-18T10:00:00Z", "rows": rows },
+        "setup": { "state": state, "addId": run, "startedAt": "2026-10-18T10:00:00Z", "steps": [], "waiting": [] }
+    });
+    serde_json::from_value::<PlaceView>(place.clone()).unwrap_or_else(|e| panic!("{place}: {e}"));
+    place
+}
+
+/// The host's computers moved: the sidebar takes the list, as its road from the host hands it over.
+fn listed(cx: &mut VisualTestContext, places: Vec<Value>) {
+    cx.update(|window, cx| {
+        let sidebar = overlays::of(window, cx).and_then(|o| o.read(cx).sidebar.clone()).and_then(|s| s.upgrade());
+        sidebar.expect("the shell hands the overlays its sidebar").update(cx, |s, cx| {
+            s.apply(Change::Places(places), cx);
+            cx.notify();
+        });
+    });
+    cx.run_until_parked();
+}
+
+/// lab-box's setup `run` ended as `end`: the frame the host pushes, taken as the notices' road takes it.
+fn setup_ended(cx: &mut VisualTestContext, run: &str, end: &str, said: Option<&str>) {
+    let mut frame = json!({ "type": "place.setup", "addId": run, "placeId": "p_box", "end": end });
+    if let Some(said) = said {
+        frame["said"] = json!(said);
+    }
+    cx.update(|window, cx| {
+        let notices = overlays::of(window, cx).expect("the window's overlays").read(cx).notices.clone();
+        notices.update(cx, |n, cx| n.hear(Heard { kind: "place.setup".into(), frame, preferences: None }, window, cx));
+    });
+    cx.run_until_parked();
+}
+
+/// lab-box's setup `run` ends as `end`, the list moving from running to done with `rows` as the host moves it.
+fn setup_runs_out(cx: &mut VisualTestContext, run: &str, end: &str, said: Option<&str>, rows: Value) {
+    listed(cx, vec![lab_box(run, "running", json!([]))]);
+    setup_ended(cx, run, end, said);
+    listed(cx, vec![lab_box(run, "done", rows)]);
+}
+
+/// The notices said of lab-box, oldest first.
+fn of_lab_box(cx: &mut VisualTestContext) -> Vec<Notice> {
+    let notices = notices_of(cx);
+    notices.read_with(cx, |n, _| n.standing().into_iter().filter(|n| n.place.as_deref() == Some("lab-box")).collect())
+}
+
+/// Add a computer standing on lab-box, as the person left it on the running view.
+fn add_a_computer_on_lab_box(cx: &mut VisualTestContext, place: Value) {
+    cx.update(|window, cx| {
+        add_computer::staged(window, cx, |d, _, cx| {
+            d.take_places(vec![place], vec![], vec![], cx);
+            d.stage(AddStep::Running, "nobody@192.0.2.1", None, Some("p_box"), None, cx);
+        })
+    });
+    cx.run_until_parked();
+}
+
+/// Catches: the host's road saying a ready setup a second time, after the dialog or a frame said it already, or its
+/// Open going anywhere but Add a computer's running view.
+#[gpui_kit::test]
+fn a_setup_that_ends_ready_is_said_once_and_opens_add_a_computer(cx: &mut TestAppContext) {
+    let (_server, cx) = live(cx);
+    setup_runs_out(cx, "s_ready", "ready", None, json!([]));
+    let said = of_lab_box(cx);
+    let texts: Vec<&str> = said.iter().map(|n| n.text.as_ref()).collect();
+    assert_eq!(texts, ["lab-box is ready: threads you start on it run there"], "the host's road says it");
+    setup_ended(cx, "s_ready", "ready", None);
+    listed(cx, vec![lab_box("s_ready", "done", json!([]))]);
+    add_a_computer_on_lab_box(cx, lab_box("s_ready", "done", json!([])));
+    cx.update(dialogs::layer::dismiss);
+    cx.run_until_parked();
+    assert_eq!(of_lab_box(cx).len(), 1, "said once a run, whichever road said it first");
+    let open = said[0].action.clone().expect("the notice opens something");
+    assert_eq!(open.word.as_ref(), "Open");
+    cx.update(|window, cx| (open.run)(window, cx));
+    cx.run_until_parked();
+    assert_eq!(cx.update(|_, cx| dialogs::layer::top(cx)), Some(dialogs::ADD_COMPUTER), "its Open opens Add a computer");
+}
+
+/// Catches: a ready end heard after the sidebar's own read already listed the run done, so no later list says it.
+#[gpui_kit::test]
+fn a_setup_listed_done_before_its_end_is_heard_is_still_said(cx: &mut TestAppContext) {
+    let (_server, cx) = live(cx);
+    listed(cx, vec![lab_box("s_late", "running", json!([]))]);
+    listed(cx, vec![lab_box("s_late", "done", json!([]))]);
+    setup_ended(cx, "s_late", "ready", None);
+    let texts: Vec<String> = of_lab_box(cx).iter().map(|n| n.text.to_string()).collect();
+    assert_eq!(texts, ["lab-box is ready: threads you start on it run there"]);
+}
+
+/// Catches: the host's road saying a setup that left rows, or one whose folder did not land, as plainly ready.
+#[gpui_kit::test]
+fn a_setup_that_ended_says_what_it_left_or_that_it_needs_you(cx: &mut TestAppContext) {
+    let (_server, cx) = live(cx);
+    let left = json!([{ "id": "clis/rg", "label": "rg", "outcome": "failed", "step": "clis", "note": "apt refused" }]);
+    setup_runs_out(cx, "s_left", "ready", Some("rg failed"), left);
+    let said = of_lab_box(cx);
+    assert_eq!(said.len(), 1, "{:?}", said.iter().map(|n| n.text.to_string()).collect::<Vec<_>>());
+    assert_eq!(said[0].text.as_ref(), "lab-box is ready: threads you start on it run there");
+    let detail = said[0].detail.as_ref().map(|d| d.to_string()).unwrap_or_default();
+    assert_eq!(detail, "rg failed. Finish it from lab-box's page in Settings.", "it names what the setup left");
+    let folder = json!([{ "id": "folders/wsp", "label": "wsp", "outcome": "failed", "step": "folders", "note": "git clone was refused" }]);
+    setup_runs_out(cx, "s_folder", "needs-you", Some("wsp: git clone was refused"), folder);
+    let texts: Vec<String> = of_lab_box(cx).iter().map(|n| n.text.to_string()).collect();
+    assert_eq!(texts.last().map(String::as_str), Some("lab-box needs you: wsp: git clone was refused"), "a needs-you end says so");
+}
+
+/// Catches: the host's road saying a setup's end while Add a computer stands on that computer, whose rows say it.
+#[gpui_kit::test]
+fn nothing_is_said_of_a_setup_while_add_a_computer_stands_on_its_computer(cx: &mut TestAppContext) {
+    let (_server, cx) = live(cx);
+    add_a_computer_on_lab_box(cx, lab_box("s_shown", "running", json!([])));
+    setup_runs_out(cx, "s_shown", "ready", None, json!([]));
+    let texts: Vec<String> = of_lab_box(cx).iter().map(|n| n.text.to_string()).collect();
+    assert!(texts.is_empty(), "the dialog's rows say it: {texts:?}");
+}
+
+/// Catches: the host's road saying a cloud's sealed build while Add a cloud provider stands on that build, whose heading
+/// says it, so the dialog's close says it a second time.
+#[gpui_kit::test]
+fn a_seal_the_cloud_dialog_stands_on_is_said_once_by_its_close(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::dialogs::add_cloud::{self, flow};
+    let (_server, cx) = live(cx);
+    let job = json!({ "id": "j_seal", "phase": "done", "place": { "id": "box", "name": "Boat" }, "golden": { "version": 3 } });
+    cx.update(|window, cx| {
+        let mut on_build = flow::Flow::new(Some("box"));
+        on_build.step = flow::Step::Building;
+        on_build.job = Some(serde_json::from_value(job.clone()).unwrap());
+        add_cloud::open_on(None, on_build, window, cx);
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        let notices = overlays::of(window, cx).expect("the window's overlays").read(cx).notices.clone();
+        let frame = json!({ "type": "init.job", "job": job });
+        notices.update(cx, |n, cx| n.hear(Heard { kind: "init.job".into(), frame, preferences: None }, window, cx));
+    });
+    cx.run_until_parked();
+    let sealed = |cx: &mut VisualTestContext| {
+        notices_of(cx).read_with(cx, |n, _| n.standing().iter().filter(|n| n.text.as_ref() == "Boat is ready").count())
+    };
+    assert_eq!(sealed(cx), 0, "the host's road holds it while the dialog stands on the build");
+    cx.update(dialogs::layer::dismiss);
+    cx.run_until_parked();
+    assert_eq!(sealed(cx), 1, "the dialog's close says it once");
 }
 
 /// A change to the build job as the sidebar's road hands it over.

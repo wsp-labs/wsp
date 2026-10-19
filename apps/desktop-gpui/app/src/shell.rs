@@ -35,7 +35,7 @@ use crate::screens::palette::{
     self,
     switcher::{self, Level},
 };
-use crate::screens::{self, app_shell, Entry, Host, Mounted, Opened, Pane, Place, Route, Screen, THREAD};
+use crate::screens::{self, app_shell, dialogs, Entry, Host, Mounted, Opened, Pane, Place, Route, Screen, THREAD};
 use crate::sidebar::{Asked, Link, Selected, Sidebar, ThreadItem};
 use crate::thread_view::ThreadView;
 use crate::ui::theme::WspTheme;
@@ -172,6 +172,8 @@ pub struct Shell {
     following: Option<Following>,
     bench: Option<BenchRun>,
     glass: bool,
+    /// The centre while the window shows nothing, which is first run while the host holds no project.
+    first_run: Option<Entity<dialogs::first_run::FirstRun>>,
     _connect: Task<()>,
     _events: Option<Task<()>>,
     _selected: Subscription,
@@ -205,6 +207,12 @@ impl Render for Dragging {
     }
 }
 
+/// Whether the shell's chords are bound: a shell built again once a pairing lands binds none twice.
+#[derive(Default)]
+struct KeysBound(bool);
+
+impl gpui_kit::Global for KeysBound {}
+
 impl Shell {
     pub fn new(state: PathBuf, env: Env, runtime: Arc<Runtime>, launch: Launch, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let Launch { bench, open, glass, screen } = launch;
@@ -224,11 +232,17 @@ impl Shell {
             Asked::NewThread => this.new_thread(window, cx),
             Asked::NewThreadIn(workspace) => this.go(Route::Screen(format!("{}:{workspace}", ComposerScreen::NAME).into()), window, cx),
             Asked::Search => palette::palette::open(window, cx),
-            Asked::AddProject => {}
-            Asked::AddComputer => {}
-            Asked::AddCloud => {}
-            Asked::Setup(_) => {}
-            Asked::ExportProject(_) => {}
+            Asked::AddProject => this.with_host(|host, window, cx| dialogs::open_add_project(&host, window, cx), window, cx),
+            Asked::AddComputer => this.with_host(|host, window, cx| dialogs::open_add_computer(&host, None, window, cx), window, cx),
+            Asked::AddCloud => this.with_host(|host, window, cx| dialogs::open_add_cloud(&host, window, cx), window, cx),
+            Asked::Setup(id) => {
+                let id = id.clone();
+                this.with_host(move |host, window, cx| dialogs::open_add_computer(&host, Some(id), window, cx), window, cx)
+            }
+            Asked::ExportProject(workspace) => {
+                let workspace = workspace.clone();
+                this.with_host(move |host, window, cx| dialogs::open_export_project(&host, workspace, window, cx), window, cx)
+            }
             Asked::OpenTerminal(workspace) => screens::terminal::open_terminal(this, workspace, window, cx),
             Asked::OpenBrowser(_) => {}
             Asked::ProjectSettings(_) => {}
@@ -236,8 +250,10 @@ impl Shell {
         });
         let page = crate::sidebar::host_page(&state);
         screens::terminal::boot::read_from(page.clone(), cx);
+        let (pair_state, pair_env) = (state.clone(), env.clone());
+        let bought = dialogs::pair::bought(cx);
         let connecting = runtime.spawn(async move {
-            let host = HostClient::connect(&state, &env).await?;
+            let host = HostClient::connect_holding(&state, &env, bought).await?;
             let threads = host.threads().await?;
             let list: WorkspacesListRequest = serde_json::from_value(serde_json::json!({})).map_err(|e| Failure::new(e.to_string()))?;
             let workspaces = host.call(list).await.map(|w| w.workspaces).unwrap_or_default();
@@ -260,6 +276,8 @@ impl Shell {
                     let runtime = this.runtime.clone();
                     this.panel.update(cx, |p, cx| p.set_host(Host::new(host.clone(), runtime.clone()), window, cx));
                     palette::attach(Host::new(host.clone(), runtime.clone()), &this.sidebar, window, cx);
+                    let (center, first) = (this.thread_view.clone().into(), Host::new(host.clone(), runtime.clone()));
+                    this.first_run = Some(cx.new(|cx| dialogs::first_run::FirstRun::new(first, page.clone(), center, cx)));
                     this.sidebar.update(cx, |s, cx| s.attach(Link { host: host.clone(), runtime, page }, cx));
                     if let Some(preferences) = &preferences {
                         this.apply(preferences, window, cx);
@@ -282,9 +300,13 @@ impl Shell {
                 }
                 Err(failure) => {
                     eprintln!("desktop-gpui: {}", failure.message);
+                    let unpaired = failure.kind.as_deref() == Some("auth");
                     this.sidebar.update(cx, |s, cx| s.set_note(failure.message, cx));
                     if this.bench.is_some() {
                         std::process::exit(1);
+                    }
+                    if unpaired {
+                        dialogs::pair::open(dialogs::pair::Road::host(pair_state, pair_env, this.runtime.clone()), window, cx);
                     }
                 }
             });
@@ -309,14 +331,20 @@ impl Shell {
         });
         let mac = cfg!(target_os = "macos");
         let rules = keys::bound(mac, &BTreeMap::new());
-        cx.bind_keys(keys::bindings_of(mac, &rules));
-        cx.bind_keys([KeyBinding::new("escape", keys::CloseSettings, Some(&format!("{} && {}", keys::SHELL, keys::SETTINGS_OPEN)))]);
-        cx.bind_keys(screens::terminal::view::key_bindings());
+        if !std::mem::replace(&mut cx.default_global::<KeysBound>().0, true) {
+            cx.bind_keys(keys::bindings_of(mac, &rules));
+            cx.bind_keys([KeyBinding::new("escape", keys::CloseSettings, Some(&format!("{} && {}", keys::SHELL, keys::SETTINGS_OPEN)))]);
+            cx.bind_keys(screens::terminal::view::key_bindings());
+        }
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         // Focus on a view that is no longer drawn reaches nothing, and keys then start at the window's root, above the
         // shell's bindings.
-        let focus_lost = cx.on_focus_lost(window, |this, window, cx| this.focus.focus(window, cx));
+        let focus_lost = cx.on_focus_lost(window, |this, window, cx| {
+            if !dialogs::layer::refocus(window, cx) {
+                this.focus.focus(window, cx);
+            }
+        });
         let appearance = cx.observe_window_appearance(window, |this, window, cx| this.pick_theme(window, cx));
         // Reduce transparency has no window callback and is switched in System Settings, so it is read again on return.
         let activation = cx.observe_window_activation(window, |this, window, cx| this.pick_theme(window, cx));
@@ -347,6 +375,7 @@ impl Shell {
             following: None,
             bench,
             glass,
+            first_run: None,
             _connect: connect,
             _events: None,
             _selected: selected,
@@ -362,6 +391,13 @@ impl Shell {
     /// Where the window is drawn and whether the page draws glass, as the host's transparency and the computer say.
     pub fn look(&self) -> Look {
         self.look
+    }
+
+    /// Runs `open` with the connected host; a press before the host answers does nothing, as no flow can start.
+    fn with_host(&self, open: impl FnOnce(Host, &mut Window, &mut App), window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(host) = self.host.clone() {
+            open(Host::new(host, self.runtime.clone()), window, cx);
+        }
     }
 
     pub fn connected(&self) -> bool {
@@ -707,6 +743,11 @@ impl Shell {
     }
 
     fn close_settings(&mut self, _: &keys::CloseSettings, window: &mut Window, cx: &mut Context<Self>) {
+        // Escape's binding outranks the layer's key handler, so a dialog over the page passes it on to close itself.
+        if dialogs::layer::top(cx).is_some() {
+            cx.propagate();
+            return;
+        }
         if self.settings_open() {
             let behind = std::mem::replace(&mut self.behind, Route::Empty);
             self.screen = None;
@@ -1037,10 +1078,17 @@ impl Render for Shell {
             Route::Empty => None,
         };
         let parts = mounted.map(|m| &m.parts);
+        let failed = match &self.route {
+            Route::Thread { workspace_id, .. } => {
+                self.sidebar.read(cx).workspace(workspace_id).0.and_then(dialogs::failed_start::Failed::of)
+            }
+            _ => None,
+        };
         let main: AnyView = match (mounted, &self.route) {
             (Some(m), _) => m.view.clone(),
             (None, Route::Screen(_)) => self.blank.clone(),
             (None, Route::Empty) if self.thread.is_some() => self.blank.clone(),
+            (None, Route::Empty) if let Some(first_run) = &self.first_run => first_run.clone().into(),
             (None, _) => self.thread_view.clone().into(),
         };
         let sidebar_content: AnyView = match parts.and_then(|p| p.sidebar.clone()) {
@@ -1166,9 +1214,25 @@ impl Render for Shell {
             .bg(fills.centre)
             .when(fills.grain, |el| el.child(frame::grain()))
             .child(header)
-            .child(div().relative().flex_1().min_h_0().child(main.cached(StyleRefinement::default().size_full())).when(self.glass, |el| {
-                el.child(h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx)))
-            }))
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .map(|el| match failed {
+                        Some(failed) => {
+                            let me = cx.entity().downgrade();
+                            el.child(dialogs::failed_start::FailedStart::new(failed, move |lead, window, cx| {
+                                let route = Route::Thread { workspace_id: lead.workspace_id.clone(), thread_id: lead.thread_id.clone() };
+                                _ = me.update(cx, |this, cx| this.go(route, window, cx));
+                            }))
+                        }
+                        None => el.child(main.cached(StyleRefinement::default().size_full())),
+                    })
+                    .when(self.glass, |el| {
+                        el.child(h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx)))
+                    }),
+            )
             .children(drawer);
 
         let panel = panel_open.then(|| {
@@ -1307,6 +1371,7 @@ impl Render for Shell {
             .child(div().relative().flex().flex_1().min_w_0().h_full().child(center).children(inline_panel))
             .children(rail)
             .children(sheet_panel)
+            .children(dialogs::layer::draw(window, cx))
     }
 }
 

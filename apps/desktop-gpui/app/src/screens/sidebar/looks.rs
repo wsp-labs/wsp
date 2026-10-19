@@ -15,7 +15,7 @@ use crate::ui::computer_glyph::ComputerIcon;
 use crate::ui::{Glyph, Palette};
 
 /// A project's look: its glyph by `ProjectIcon`, the hue it is drawn in where one is picked.
-fn project_icon(id: &str) -> Glyph {
+pub(crate) fn project_icon(id: &str) -> Glyph {
     match id {
         "code" => Glyph::Code,
         "terminal" => Glyph::Terminal,
@@ -40,7 +40,7 @@ fn project_icon(id: &str) -> Glyph {
     }
 }
 
-fn hue(id: &str, p: &Palette) -> Option<Hsla> {
+pub(crate) fn hue(id: &str, p: &Palette) -> Option<Hsla> {
     Some(match id {
         "red" => p.hue_red,
         "orange" => p.hue_orange,

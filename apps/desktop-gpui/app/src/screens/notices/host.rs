@@ -20,6 +20,7 @@ use wsp_host_client::{Failure, HostClient};
 use super::words::{self, OPEN};
 use super::{route, Action, Kind, Notice, Notices};
 use crate::screens::app_shell::split;
+use crate::screens::dialogs::{add_cloud, add_computer};
 use crate::screens::sidebar::host::{ask, kind_of};
 use crate::screens::sidebar::looks::place_name;
 use crate::screens::{navigate, Host, Route};
@@ -55,7 +56,6 @@ pub struct Rules {
     waits: HashMap<String, (String, String)>,
     /// The setups that ended ready, by computer, with their run, until the list shows how.
     ready: HashMap<String, String>,
-    told: VecDeque<String>,
     pub(super) places: Vec<Value>,
 }
 
@@ -155,12 +155,20 @@ pub fn follow(host: Host, window: &mut Window, cx: &mut Context<Notices>) -> Vec
     });
     let apply = cx.spawn_in(window, async move |this, cx| {
         while let Some(heard) = rx.next().await {
-            if this.update_in(cx, |n, window, cx| apply(n, heard, window, cx)).is_err() {
+            if this.update_in(cx, |n, window, cx| n.hear(heard, window, cx)).is_err() {
                 break;
             }
         }
     });
     vec![keep, apply]
+}
+
+impl Notices {
+    /// Takes one push as [`follow`] hands each over: the road the host's frames take, which tests drive with frames no
+    /// host here can send, a computer's setup ending among them.
+    pub fn hear(&mut self, heard: Heard, window: &mut Window, cx: &mut Context<Notices>) {
+        apply(self, heard, window, cx);
+    }
 }
 
 fn computer_route(place: Option<&str>) -> Route {
@@ -175,9 +183,9 @@ fn open_computer(place: Option<String>) -> Action {
     Action::new(OPEN, move |_, cx| navigate(computer_route(place.as_deref()), cx))
 }
 
-/// A setup's notice opens Add a computer on its steps; that dialog is not drawn here yet, so the computer's page.
+/// A setup's notice opens Add a computer on its running steps.
 fn open_setup(place: &str) -> Action {
-    open_computer(Some(place.to_owned()))
+    add_computer::open_setup(place.to_owned())
 }
 
 fn open_usage() -> Action {
@@ -220,7 +228,8 @@ fn settings_at(window: &Window, cx: &gpui_kit::App) -> Option<String> {
 
 /// The computer's own page or the Computers list is in front.
 fn computer_on_screen(place: Option<&str>, window: &Window, cx: &gpui_kit::App) -> bool {
-    settings_at(window, cx).is_some_and(|at| at == "computers" || place.is_some_and(|p| at == format!("computers:{p}")))
+    place.is_some_and(|p| add_computer::stands_on(p, cx))
+        || settings_at(window, cx).is_some_and(|at| at == "computers" || place.is_some_and(|p| at == format!("computers:{p}")))
 }
 
 /// The page of the computer a build runs on, which draws its rows.
@@ -350,26 +359,24 @@ fn settle_ready(n: &mut Notices, cx: &mut Context<Notices>) {
             && s(&setup, "state") == Some("done")
             && setup.get("waiting").and_then(Value::as_array).is_none_or(Vec::is_empty);
         // `!(flow.open && flow.placeId === placeId)`: only Add a computer in front of it says it instead.
-        if !done || n.rules.told.contains(&run) {
+        if !done || add_computer::stands_on(&place_id, cx) {
             continue;
         }
-        push_held(&mut n.rules.told, run);
-        let name = place_name(&place);
-        add(n, Notice::done(words::computer_ready(&name)).place(name).action(open_setup(&place_id)), cx);
+        add_computer::say_ended(&place, cx);
+    }
+}
+
+/// Holds a ready end until the list shows it; says it now where the sidebar, on its own socket, already listed the end.
+fn wait_ready(n: &mut Notices, place: &Value, at: String, run: String, cx: &mut Context<Notices>) {
+    let listed = place.get("setup").is_some_and(|r| s(r, "addId") == Some(run.as_str()) && s(r, "state") != Some("running"));
+    n.rules.ready.insert(at, run);
+    if listed {
+        settle_ready(n, cx);
     }
 }
 
 fn say_sealed(n: &mut Notices, job: &Value, cx: &mut Context<Notices>) {
-    let at = job.pointer("/place/id").and_then(Value::as_str);
-    let name =
-        place_of(&n.rules.places, at).map(place_name).or_else(|| job.pointer("/place/name").and_then(Value::as_str).map(str::to_owned));
-    let sealed = words::image_sealed(job.pointer("/golden/version").and_then(Value::as_u64));
-    let notice = match name {
-        None => Notice::done(sealed),
-        Some(name) => {
-            Notice::done(words::setup_ready(&name)).detail(format!("{sealed}.")).place(name).action(open_computer(at.map(str::to_owned)))
-        }
-    };
+    let notice = add_cloud::sealed(job, &n.rules.places);
     add(n, notice, cx);
 }
 
@@ -445,13 +452,11 @@ fn apply(n: &mut Notices, heard: Heard, window: &mut Window, cx: &mut Context<No
                             add(n, Notice::note(words::setup_needs_you(&name, said)).place(name).action(open_setup(&at)), cx);
                         }
                     } else {
-                        n.rules.ready.insert(at, run);
+                        wait_ready(n, &place, at, run, cx);
                     }
                 }
                 (Some("failed"), _) => {}
-                _ => {
-                    n.rules.ready.insert(at, run);
-                }
+                _ => wait_ready(n, &place, at, run, cx),
             }
         }
         "session.done" => {
@@ -524,7 +529,7 @@ fn apply(n: &mut Notices, heard: Heard, window: &mut Window, cx: &mut Context<No
             }
             push_held(&mut n.rules.jobs_ended, id);
             let at = job.pointer("/place/id").and_then(Value::as_str).map(str::to_owned);
-            if build_on_screen(at.as_deref(), window, cx) {
+            if build_on_screen(at.as_deref(), window, cx) || at.as_deref().is_some_and(|p| add_cloud::build_on_screen(p, cx)) {
                 return;
             }
             if phase == "failed" {
