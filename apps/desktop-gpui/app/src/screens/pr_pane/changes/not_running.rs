@@ -6,10 +6,7 @@
 use gpui_kit::component::v_flex;
 use gpui_kit::{div, prelude::*, px, AnyElement, App, Pixels, SharedString, Window};
 
-use std::time::Instant;
-
 use super::words;
-use crate::screens::terminal::link::Status;
 use crate::screens::terminal::state::{Absent, PaneState};
 use crate::screens::terminal::words as pane_words;
 use crate::ui::ActivePalette as _;
@@ -55,17 +52,6 @@ pub fn link_down(pane: &PaneState) -> Option<(&'static str, String)> {
         pane => pane_words::title(pane)?,
     };
     Some((word, line))
-}
-
-/// The pane's channel as a terminal's link words it: one that was open and went is reconnecting; one never open is
-/// starting until the first-answer bound has passed, then has not answered. The port's link holds no refusal's kind,
-/// so it never reads refused.
-pub fn socket(live_once: bool, waited: bool) -> Status {
-    match (live_once, waited) {
-        (true, _) => Status::Connecting { since: Instant::now() },
-        (false, true) => Status::Unanswered,
-        (false, false) => Status::Opening,
-    }
 }
 
 /// A selector naming what an element says, so a test reads the words drawn.
@@ -124,7 +110,10 @@ pub fn view(form: &Form, daemon_down: impl FnOnce(&str, &str) -> AnyElement, win
 mod tests {
     use serde_json::json;
 
+    use std::time::Instant;
+
     use super::*;
+    use crate::screens::terminal::link::Status;
     use crate::screens::terminal::state::{input_of, pane_state};
 
     #[test]
@@ -148,21 +137,37 @@ mod tests {
 
     #[test]
     fn the_link_reads_down_off_the_workspace_and_the_panes_channel() {
-        let running = |live_once, waited| {
+        let running = |socket| {
             let record = json!({ "kind": "local", "name": "repo", "phase": "running" });
             let status = json!({ "phase": "running", "reach": { "state": "reachable" } });
-            pane_state(&input_of(&record, Some(&status), Some("Mac"), socket(live_once, waited), None))
+            pane_state(&input_of(&record, Some(&status), Some("Mac"), socket, None))
         };
-        assert_eq!(link_down(&running(true, false)), Some((words::RECONNECTING, "Reconnecting to Mac".into())));
-        assert_eq!(link_down(&running(false, true)), Some((words::UNREACHABLE, "Nothing has answered on Mac".into())), "past the bound");
-        assert_eq!(link_down(&running(false, false)), None, "inside the first-answer bound the link is starting, not down");
+        assert_eq!(
+            link_down(&running(Status::Connecting { since: Instant::now() })),
+            Some((words::RECONNECTING, "Reconnecting to Mac".into()))
+        );
+        assert_eq!(
+            link_down(&running(Status::Unanswered)),
+            Some((words::UNREACHABLE, "Nothing has answered on Mac".into())),
+            "past the bound"
+        );
+        assert_eq!(link_down(&running(Status::Opening)), None, "inside the first-answer bound the link is starting, not down");
+        assert_eq!(
+            link_down(&running(Status::Refused("the host's sentence".into()))),
+            Some((words::REFUSED, "the host's sentence".into())),
+            "a dial the host turned away by its kind"
+        );
         let refused = PaneState::Refused { reason: String::new(), computer: None };
         assert_eq!(
             link_down(&refused),
             Some((words::REFUSED, "The connection to the thread's computer was refused; its threads keep running".into()))
         );
         let napping = json!({ "kind": "cloud", "name": "repo", "phase": "napping" });
-        assert_eq!(link_down(&pane_state(&input_of(&napping, None, None, socket(true, true), None))), None, "the machine's own state");
+        assert_eq!(
+            link_down(&pane_state(&input_of(&napping, None, None, Status::Connecting { since: Instant::now() }, None))),
+            None,
+            "the machine's own state"
+        );
     }
 
     #[test]

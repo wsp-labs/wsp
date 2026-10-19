@@ -1181,7 +1181,7 @@ index 0332dde..4f52041 100644
  pub(crate) fn init(cx: &mut App) {
      state::init(cx);
 diff --git a/crates/base/src/text/node.rs b/crates/base/src/text/node.rs
-index 1114762..f5b1ff4 100644
+index 1114762..88a6b0c 100644
 --- a/crates/base/src/text/node.rs
 +++ b/crates/base/src/text/node.rs
 @@ -16,11 +16,11 @@ use gpui::{
@@ -1725,7 +1725,41 @@ index 1114762..f5b1ff4 100644
  }
  
  /// The font size the blocks inherit, which heading sizes and the spacing of
-@@ -3085,13 +3359,16 @@ fn measure_table_text_columns(
+@@ -2878,6 +3152,33 @@ fn heading_metrics(level: u8) -> (f32, f32, f32) {
+ /// The gap below a heading, relative to the heading's size.
+ const HEADING_BOTTOM_GAP: f32 = 0.35;
+ 
++/// The CSS margins a caller's heading refinement sets, taken out of it so
++/// they are not laid out a second time: the top one collapses with the gap
++/// below the block before it.
++fn heading_margins(refinement: &mut StyleRefinement, window: &Window) -> Option<(Pixels, Pixels)> {
++    let length = |length: Option<gpui::Length>| match length {
++        Some(gpui::Length::Definite(DefiniteLength::Absolute(length))) => {
++            Some(length.to_pixels(window.rem_size()))
++        }
++        _ => None,
++    };
++    let (top, bottom) = (
++        length(refinement.margin.top.take()),
++        length(refinement.margin.bottom.take()),
++    );
++    (top.is_some() || bottom.is_some())
++        .then(|| (top.unwrap_or_default(), bottom.unwrap_or_default()))
++}
++
++/// The gap a heading leaves below itself, before the block after it.
++fn heading_bottom(level: u8, node_cx: &NodeContext, window: &Window) -> Pixels {
++    let mut refinement = node_cx.style.heading(level);
++    heading_margins(&mut refinement, window).map_or(
++        heading_size(level, node_cx, window) * HEADING_BOTTOM_GAP,
++        |(_, bottom)| bottom,
++    )
++}
++
+ /// The size a heading renders at, including one a caller's heading
+ /// refinement pins, which its gaps follow.
+ fn heading_size(level: u8, node_cx: &NodeContext, window: &Window) -> Pixels {
+@@ -3085,13 +3386,16 @@ fn measure_table_text_columns(
                          range.end,
                          |range, highlight| (range, highlight.clone()),
                      );
@@ -1746,11 +1780,11 @@ index 1114762..f5b1ff4 100644
                          .width;
                  }
                  w = w.max(f32::from(line_w));
-@@ -3285,14 +3562,46 @@ impl BlockNode {
+@@ -3285,14 +3589,65 @@ impl BlockNode {
          style: &TextViewStyle,
          line_height: Pixels,
          indent: Pixels,
-+        font: (Pixels, Pixels),
++        font: (Pixels, Pixels, Option<f32>),
      ) -> Div {
 +        let marker = if options.ordered && options.list_start == Some(0) {
 +            &ListStyleType::Decimal
@@ -1772,18 +1806,37 @@ index 1114762..f5b1ff4 100644
 +                // Drawn where Chromium draws an outside symbol marker: a box
 +                // of (2/3 ascent + 1) / 2, `2/3 ascent + 7` before the text,
 +                // `3/2 (ascent - 2/3 ascent)` under the top of the text.
-+                let (ascent, descent) = (font.0.round(), font.1.round());
-+                let offset = (ascent * 2. / 3.).floor();
-+                let size = ((offset + px(1.)) / 2.).floor();
-+                let top = (line_height - ascent - descent) / 2. + ((ascent - offset) * 1.5).floor();
++                let (left, top, size) = match font.2 {
++                    // The same in device pixels, the 7 as well, on the baseline the text takes.
++                    Some(scale) => {
++                        let baseline =
++                            f32::from(gpui::line_baseline(line_height, font.0, font.1, scale))
++                                * scale;
++                        let ascent = (f32::from(gpui::device_font_height(font.0, font.1, scale).0)
++                            * scale)
++                            .round();
++                        let offset = (ascent * 2. / 3.).floor();
++                        (
++                            px((f32::from(indent) * scale - offset - 7.) / scale),
++                            px((baseline - ascent + ((ascent - offset) * 1.5).floor()) / scale),
++                            px(((offset + 1.) / 2.).floor() / scale),
++                        )
++                    }
++                    None => {
++                        let (ascent, descent) = (font.0.round(), font.1.round());
++                        let offset = (ascent * 2. / 3.).floor();
++                        (
++                            indent - offset - px(7.),
++                            (line_height - ascent - descent) / 2.
++                                + ((ascent - offset) * 1.5).floor(),
++                            ((offset + px(1.)) / 2.).floor(),
++                        )
++                    }
++                };
 +                let mut ink = StyleRefinement::default();
 +                ink.refine(style.list_marker());
 +                let color = ink.text.color.unwrap_or(style.muted_foreground());
-+                let dot = div()
-+                    .absolute()
-+                    .left(indent - offset - px(7.))
-+                    .top(top)
-+                    .size(size);
++                let dot = div().absolute().left(left).top(top).size(size);
 +                this.child(div().flex_none().w(indent)).child(match marker {
 +                    ListStyleType::Disc => dot.rounded_full().bg(color),
 +                    ListStyleType::Circle => dot.rounded_full().border_1().border_color(color),
@@ -1794,7 +1847,7 @@ index 1114762..f5b1ff4 100644
                  // The marker hangs in an indent column, right-aligned against
                  // the text like an outside list marker, and steps back in
                  // color so the item text leads.
-@@ -3303,12 +3612,14 @@ impl BlockNode {
+@@ -3303,12 +3658,14 @@ impl BlockNode {
                          .pr(indent * 0.3)
                          .text_right()
                          .text_color(style.muted_foreground())
@@ -1809,7 +1862,7 @@ index 1114762..f5b1ff4 100644
                              )
                              .trim_end()
                              .to_string(),
-@@ -3317,15 +3628,30 @@ impl BlockNode {
+@@ -3317,15 +3674,30 @@ impl BlockNode {
              })
              .when_some(checked, |this, checked| {
                  // Todo list checkbox
@@ -1846,7 +1899,7 @@ index 1114762..f5b1ff4 100644
                          .h(line_height)
                          .flex_none()
                          .items_center()
-@@ -3333,21 +3659,11 @@ impl BlockNode {
+@@ -3333,21 +3705,11 @@ impl BlockNode {
                          .child(
                              div()
                                  .flex()
@@ -1871,7 +1924,7 @@ index 1114762..f5b1ff4 100644
                          ),
                  )
              })
-@@ -3357,7 +3673,7 @@ impl BlockNode {
+@@ -3357,7 +3719,7 @@ impl BlockNode {
                      .min_w_0()
                      .overflow_hidden()
                      // A done task steps back so the open ones stand out.
@@ -1880,7 +1933,7 @@ index 1114762..f5b1ff4 100644
                          this.text_color(style.muted_foreground())
                      })
                      .child(content),
-@@ -3380,12 +3696,22 @@ impl BlockNode {
+@@ -3380,12 +3742,25 @@ impl BlockNode {
                  ..
              } => {
                  let body = body_font_size(node_cx, window);
@@ -1895,6 +1948,9 @@ index 1114762..f5b1ff4 100644
 +                let font = (
 +                    window.text_system().ascent(font_id, font_size),
 +                    window.text_system().descent(font_id, font_size).abs(),
++                    style
++                        .device_pixel_list_markers()
++                        .then(|| window.scale_factor()),
 +                );
                  div()
                      .w_full()
@@ -1905,7 +1961,7 @@ index 1114762..f5b1ff4 100644
                      .when(*spread, |this| this.child(div()))
                      .children({
                          let mut items: Vec<Div> = Vec::with_capacity(children.len());
-@@ -3437,20 +3763,32 @@ impl BlockNode {
+@@ -3437,20 +3812,32 @@ impl BlockNode {
                                          &node_cx.style,
                                          window.line_height(),
                                          indent,
@@ -1949,7 +2005,7 @@ index 1114762..f5b1ff4 100644
                                  }
                                  BlockNode::Root { .. }
                                  | BlockNode::Heading { .. }
-@@ -3480,6 +3818,7 @@ impl BlockNode {
+@@ -3480,6 +3867,7 @@ impl BlockNode {
                                              &node_cx.style,
                                              window.line_height(),
                                              indent,
@@ -1957,7 +2013,7 @@ index 1114762..f5b1ff4 100644
                                          ));
                                      } else {
                                          // Indent continuation blocks to align with a
-@@ -3553,6 +3892,26 @@ impl BlockNode {
+@@ -3553,6 +3941,26 @@ impl BlockNode {
              _ => return div().into_any_element(),
          };
  
@@ -1984,7 +2040,7 @@ index 1114762..f5b1ff4 100644
          let style = &node_cx.style;
          let col_count = table
              .children
-@@ -3565,6 +3924,12 @@ impl BlockNode {
+@@ -3565,6 +3973,12 @@ impl BlockNode {
          let nowrap = style.table_cell().text.white_space == Some(WhiteSpace::Nowrap);
          let rem_size = window.rem_size();
          let wrap_min_px = f32::from(rems(4.).to_pixels(rem_size));
@@ -1997,7 +2053,7 @@ index 1114762..f5b1ff4 100644
          // Widths were measured with the default cell padding.
          let padding_delta = table_cell_padding_x(style, rem_size) - CELL_PAD_PX;
          // Lengths are rounded to device pixels for layout. Round the content
-@@ -3576,8 +3941,8 @@ impl BlockNode {
+@@ -3576,8 +3990,8 @@ impl BlockNode {
              .iter()
              .enumerate()
              .map(|(ix, &w)| {
@@ -2008,7 +2064,7 @@ index 1114762..f5b1ff4 100644
                      w
                  } else if scroll {
                      (w / CELL_WRAP_MAX_LINES)
-@@ -3663,12 +4028,24 @@ impl BlockNode {
+@@ -3663,12 +4077,24 @@ impl BlockNode {
              // backgrounds of the action buttons off the table border, and the
              // id scopes the caller's element ids per table, so plain ids like
              // `"copy"` don't collide across tables (same as code blocks).
@@ -2039,7 +2095,7 @@ index 1114762..f5b1ff4 100644
              .into_any_element()
      }
  
-@@ -3781,6 +4158,9 @@ impl BlockNode {
+@@ -3781,6 +4207,9 @@ impl BlockNode {
                          .px_3()
                          .py(px(7.))
                          .refine_style(&style.table_cell())
@@ -2049,7 +2105,49 @@ index 1114762..f5b1ff4 100644
                          .children(content)
                          .into_any_element(),
                  );
-@@ -3913,16 +4293,13 @@ impl BlockNode {
+@@ -3868,14 +4297,30 @@ impl BlockNode {
+                 span,
+             } => {
+                 let (_, line_height, section_gap) = heading_metrics(*level);
+-                let refinement = node_cx.style.heading(*level);
++                let mut refinement = node_cx.style.heading(*level);
+                 let text_size = heading_size(*level, node_cx, window);
++                let margin = heading_margins(&mut refinement, window);
+                 // The previous block already leaves a gap below itself, so
+                 // only the rest of the section gap is added here -- the two
+                 // collapse like CSS margins. A heading right after another one
+                 // belongs to the same section and stays close. Nested in a
+                 // list item, a heading sits flush with the item.
+-                let top = if options.is_first || options.depth > 0 {
++                let top = if let Some((margin_top, _)) = margin {
++                    if options.depth > 0 || (options.is_first && !node_cx.style.leading_margin()) {
++                        px(0.)
++                    } else if options.is_first {
++                        margin_top
++                    } else {
++                        let above = match options.prev {
++                            PrevBlock::Heading(level) => heading_bottom(level, node_cx, window),
++                            PrevBlock::Rule => rule_space(body_font_size(node_cx, window)),
++                            PrevBlock::Other => {
++                                node_cx.style.paragraph_gap().to_pixels(window.rem_size())
++                            }
++                        };
++                        (margin_top - above).max(px(0.))
++                    }
++                } else if options.is_first || options.depth > 0 {
+                     px(0.)
+                 } else {
+                     match options.prev {
+@@ -3891,7 +4336,7 @@ impl BlockNode {
+                 let bottom = if options.is_last {
+                     px(0.)
+                 } else {
+-                    text_size * HEADING_BOTTOM_GAP
++                    margin.map_or(text_size * HEADING_BOTTOM_GAP, |(_, bottom)| bottom)
+                 };
+ 
+                 div()
+@@ -3913,16 +4358,13 @@ impl BlockNode {
                      ))
                      .into_any_element()
              }
@@ -2073,7 +2171,7 @@ index 1114762..f5b1ff4 100644
                              let is_last = index == children_len - 1;
                              let (is_first, prev) = flow_position(children, index);
                              c.render_block(
-@@ -3936,10 +4313,76 @@ impl BlockNode {
+@@ -3936,10 +4378,76 @@ impl BlockNode {
                                  cx,
                              )
                          })
@@ -2154,7 +2252,7 @@ index 1114762..f5b1ff4 100644
              BlockNode::List {
                  children,
                  ordered,
-@@ -3950,7 +4393,8 @@ impl BlockNode {
+@@ -3950,7 +4458,8 @@ impl BlockNode {
                  .min_w_0()
                  .pb(mb)
                  .children({
@@ -2164,7 +2262,7 @@ index 1114762..f5b1ff4 100644
                      let mut item_index = 0;
                      for (ix, item) in children.into_iter().enumerate() {
                          let is_item = item.is_list_item();
-@@ -3962,6 +4406,7 @@ impl BlockNode {
+@@ -3962,6 +4471,7 @@ impl BlockNode {
                                  ix,
                                  ordered: *ordered,
                                  list_start: *start,
@@ -2172,7 +2270,18 @@ index 1114762..f5b1ff4 100644
                                  ..options
                              },
                              node_cx,
-@@ -4975,6 +5420,7 @@ mod tests {
+@@ -4018,9 +4528,7 @@ impl BlockNode {
+                 } else {
+                     let above = match options.prev {
+                         PrevBlock::Rule => space,
+-                        PrevBlock::Heading(level) => {
+-                            heading_size(level, node_cx, window) * HEADING_BOTTOM_GAP
+-                        }
++                        PrevBlock::Heading(level) => heading_bottom(level, node_cx, window),
+                         PrevBlock::Other => {
+                             node_cx.style.paragraph_gap().to_pixels(window.rem_size())
+                         }
+@@ -4975,6 +5483,7 @@ mod tests {
      fn blockquote_selected_source_prefixes_gt() {
          let quote = BlockNode::Blockquote {
              span: None,
@@ -2486,7 +2595,7 @@ index 81d8a9a..7a52721 100644
      fn streamed_ordered_list_continuation_preserves_start() {
          let initial = parse_content(
 diff --git a/crates/base/src/text/style.rs b/crates/base/src/text/style.rs
-index 2dc7735..5365a1f 100644
+index 2dc7735..4cf9878 100644
 --- a/crates/base/src/text/style.rs
 +++ b/crates/base/src/text/style.rs
 @@ -1,6 +1,6 @@
@@ -2497,7 +2606,7 @@ index 2dc7735..5365a1f 100644
  
  use crate::ColorTokens;
  
-@@ -30,6 +30,221 @@ pub struct TextViewStyle {
+@@ -30,6 +30,225 @@ pub struct TextViewStyle {
      /// show that surface.
      table_background: Option<Hsla>,
      is_dark: bool,
@@ -2517,6 +2626,10 @@ index 2dc7735..5365a1f 100644
 +    alerts: Arc<[(AlertKind, AlertLook)]>,
 +    footnotes: FootnoteLook,
 +    table_content_width: bool,
++    /// Whether a heading's `margin-top` in [`Self::heading`] stands above
++    /// the first block too, as in a container with padding.
++    leading_margin: bool,
++    device_pixel_list_markers: bool,
 +}
 +
 +/// GitHub's alert kinds, a quote whose first line is `[!NOTE]` and the like.
@@ -2719,7 +2832,7 @@ index 2dc7735..5365a1f 100644
  }
  
  impl PartialEq for TextViewStyle {
-@@ -50,6 +265,22 @@ impl PartialEq for TextViewStyle {
+@@ -50,6 +269,24 @@ impl PartialEq for TextViewStyle {
              && self.inline_code == other.inline_code
              && self.table_background == other.table_background
              && self.is_dark == other.is_dark
@@ -2739,10 +2852,12 @@ index 2dc7735..5365a1f 100644
 +            && self.alerts == other.alerts
 +            && self.footnotes == other.footnotes
 +            && self.table_content_width == other.table_content_width
++            && self.leading_margin == other.leading_margin
++            && self.device_pixel_list_markers == other.device_pixel_list_markers
      }
  }
  
-@@ -93,6 +324,29 @@ impl TextViewStyle {
+@@ -93,6 +330,31 @@ impl TextViewStyle {
              },
              table_background: None,
              is_dark,
@@ -2769,10 +2884,12 @@ index 2dc7735..5365a1f 100644
 +            alerts: Arc::new([]),
 +            footnotes: FootnoteLook::default(),
 +            table_content_width: false,
++            leading_margin: false,
++            device_pixel_list_markers: false,
          }
      }
  
-@@ -199,6 +453,121 @@ impl TextViewStyle {
+@@ -199,6 +461,138 @@ impl TextViewStyle {
          self
      }
  
@@ -2891,13 +3008,40 @@ index 2dc7735..5365a1f 100644
 +        self
 +    }
 +
++    /// Keeps a heading's `margin-top` above the first block, as a container
++    /// with padding keeps it. A heading refinement's `margin` is read as CSS
++    /// margins, collapsing with the gap below the block before it.
++    pub fn with_leading_margin(mut self, keep: bool) -> Self {
++        self.leading_margin = keep;
++        self
++    }
++
++    /// Sets whether a disc, circle or square marker is placed in device
++    /// pixels, as Chromium places one at a device scale factor: its 7 px gap
++    /// and the font's ascent are device pixels. Defaults to false, logical
++    /// pixels, which is the same at a scale of 1.
++    pub fn with_device_pixel_list_markers(mut self, device: bool) -> Self {
++        self.device_pixel_list_markers = device;
++        self
++    }
++
      /// Sets whether content-specific assets should use their dark variant.
      pub fn with_dark(mut self, is_dark: bool) -> Self {
          self.is_dark = is_dark;
-@@ -276,6 +645,91 @@ impl TextViewStyle {
+@@ -276,6 +670,101 @@ impl TextViewStyle {
          self.is_dark
      }
  
++    /// Whether a heading's `margin-top` stands above the first block.
++    pub fn leading_margin(&self) -> bool {
++        self.leading_margin
++    }
++
++    /// Whether disc, circle and square markers are placed in device pixels.
++    pub fn device_pixel_list_markers(&self) -> bool {
++        self.device_pixel_list_markers
++    }
++
 +    /// The indent of a list item's text, when one was set.
 +    pub fn list_indent(&self) -> Option<Pixels> {
 +        self.list_indent
@@ -3263,3 +3407,96 @@ index ef38df4..549e98f 100644
 +        assert_eq!(LowerRoman.marker(4000), "4000.");
      }
  }
+diff --git a/crates/component/src/text/compat.rs b/crates/component/src/text/compat.rs
+index 15c449a..6a8af9e 100644
+--- a/crates/component/src/text/compat.rs
++++ b/crates/component/src/text/compat.rs
+@@ -30,6 +30,9 @@ use gpui_base::{Easing, text::CodeBlock};
+ const STREAM_FADE: Duration = Duration::from_millis(280);
+ const STREAM_FADE_STAGGER: Duration = Duration::from_millis(10);
+ 
++type BaseStyleFn =
++    std::sync::Arc<dyn Fn(gpui_base::TextViewStyle) -> gpui_base::TextViewStyle + 'static>;
++
+ /// The component-level rich text element.
+ ///
+ /// The rendering, parsing and selection all live in [`gpui_base::TextView`];
+@@ -41,6 +44,8 @@ pub struct TextView {
+     id: ElementId,
+     inner: gpui_base::TextView,
+     text_style: Option<TextViewStyle>,
++    /// Adjusts the theme's Base style, after any `text_style` is folded in.
++    base_style: Option<BaseStyleFn>,
+     motion: Option<TextViewMotion>,
+     /// `None` leaves the state's own policy alone; `Some(false)` turns a
+     /// fade off that an earlier frame turned on.
+@@ -60,6 +65,7 @@ impl TextView {
+             id: ElementId::Name(state.entity_id().to_string().into()),
+             inner: gpui_base::TextView::new(state),
+             text_style: None,
++            base_style: None,
+             motion: None,
+             stream_fade: None,
+         }
+@@ -71,6 +77,7 @@ impl TextView {
+             id: id.clone(),
+             inner: gpui_base::TextView::markdown(id, text),
+             text_style: None,
++            base_style: None,
+             motion: None,
+             stream_fade: None,
+         }
+@@ -82,6 +89,7 @@ impl TextView {
+             id: id.clone(),
+             inner: gpui_base::TextView::html(id, text),
+             text_style: None,
++            base_style: None,
+             motion: None,
+             stream_fade: None,
+         }
+@@ -91,6 +99,16 @@ impl TextView {
+         self.text_style = Some(style);
+         self
+     }
++    /// Adjusts the Base style the active theme derives, for what the
++    /// component style cannot say: list layout, inline code boxes, heading
++    /// margins.
++    pub fn base_style(
++        mut self,
++        f: impl Fn(gpui_base::TextViewStyle) -> gpui_base::TextViewStyle + 'static,
++    ) -> Self {
++        self.base_style = Some(std::sync::Arc::new(f));
++        self
++    }
+     /// Sets whether the text can be selected with the mouse.
+     pub fn selectable(mut self, value: bool) -> Self {
+         self.inner = self.inner.selectable(value);
+@@ -242,6 +260,12 @@ impl Element for TextView {
+         cx: &mut App,
+     ) -> (LayoutId, Self::RequestLayoutState) {
+         let mut inner = self.inner.clone();
++        let theme = crate::ActiveTheme::theme(cx);
++        if self.text_style.is_none()
++            && let Some(f) = self.base_style.as_ref()
++        {
++            inner = inner.style(f(super::base_text_view_style(theme)));
++        }
+         if let Some(style) = self.text_style.clone() {
+             // `request_layout` runs every frame, so this asks whether the
+             // caller ever replaced the theme -- a pointer comparison against
+@@ -256,10 +280,11 @@ impl Element for TextView {
+                     &style.highlight_theme,
+                 ));
+             }
+-            inner = inner.style(resolve_component_style(
+-                crate::ActiveTheme::theme(cx),
+-                style,
+-            ));
++            let style = resolve_component_style(theme, style);
++            inner = inner.style(match self.base_style.as_ref() {
++                Some(f) => f(style),
++                None => style,
++            });
+         }
+         let motion = self.motion.clone().or_else(|| {
+             self.stream_fade.map(|fade| {

@@ -211,6 +211,9 @@ palette!(
     terminal_foreground,
     terminal_cursor,
     terminal_selection,
+    tree_foreground,
+    tree_icon,
+    tree_ring,
 );
 
 #[derive(Deserialize)]
@@ -512,6 +515,19 @@ mod tests {
             let (rest, hover) = if dark { ("#ffffff14", "#ffffff1f") } else { ("#d9d9d9ff", "#bfbfbfff") };
             assert_eq!(entry.palette().scrollbar_thumb, super::color(rest), "{}", entry.id);
             assert_eq!(entry.palette().scrollbar_thumb_hover, super::color(hover), "{} hovered", entry.id);
+        }
+    }
+
+    /// `@pierre/trees`' own inks, which the Files tree keeps in every theme: `light-dark(#6c6c71, #adadb1)` for the
+    /// names, `#84848a` for the glyphs and `#009fff` for the focus ring.
+    #[test]
+    fn the_file_tree_inks_are_pierres_on_each_side() {
+        for entry in &THEMES {
+            let p = entry.palette();
+            let names = if entry.side == Side::Dark { "#adadb1ff" } else { "#6c6c71ff" };
+            assert_eq!(p.tree_foreground, super::color(names), "{}", entry.id);
+            assert_eq!(p.tree_icon, super::color("#84848aff"), "{}", entry.id);
+            assert_eq!(p.tree_ring, super::color("#009fffff"), "{}", entry.id);
         }
     }
 

@@ -158,7 +158,8 @@ here are included or relied upon under their own licenses, reproduced below.
 
    The file preview, diff and chat surfaces render with @pierre/diffs, applied
    with the patch at patches/@pierre%2Fdiffs@1.3.0-beta.10.patch; the files
-   surface's tree is @pierre/trees. Both are from
+   surface's tree is @pierre/trees, whose file glyphs the GPUI app copies into
+   apps/desktop-gpui/app/src/screens/pr_pane/files/pierre_icons.rs. Both are from
    https://github.com/pierre-computer. Apache License, Version 2.0:
 
    Apache License

@@ -1,5 +1,5 @@
 diff --git a/crates/base/src/input/base/element.rs b/crates/base/src/input/base/element.rs
-index 9915b4f..9d038bc 100644
+index 9915b4f..732f20d 100644
 --- a/crates/base/src/input/base/element.rs
 +++ b/crates/base/src/input/base/element.rs
 @@ -548,7 +548,7 @@ impl<M: InputModeKind> TextElement<M> {
@@ -48,7 +48,7 @@ index 9915b4f..9d038bc 100644
  }
  
  impl<M: InputModeKind> IntoElement for TextElement<M> {
-@@ -2577,7 +2587,8 @@ impl<M: InputModeKind> Element for TextElement<M> {
+@@ -2577,12 +2587,13 @@ impl<M: InputModeKind> Element for TextElement<M> {
  
          let text_style = window.text_style();
          let disabled = state.disabled;
@@ -57,6 +57,12 @@ index 9915b4f..9d038bc 100644
 +        let dim = |color: Hsla| if disabled { color.opacity(disabled_ink) } else { color };
          let fg = dim(text_style.color);
          let (display_text, text_color) = if is_empty {
+             (
+                 &Rope::from(placeholder.as_str()),
+-                dim(state.editor_style.muted_foreground),
++                dim(state.placeholder_color.unwrap_or(state.editor_style.muted_foreground)),
+             )
+         } else if state.masked {
              (
 @@ -2722,7 +2733,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
              for (range, style) in &highlight_styles {
@@ -68,7 +74,7 @@ index 9915b4f..9d038bc 100644
  
                  runs.extend(split_run_for_ime_underline(
 diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/state.rs
-index 4eb4c91..6d32c8b 100644
+index 4eb4c91..cf2e5f0 100644
 --- a/crates/base/src/input/base/state.rs
 +++ b/crates/base/src/input/base/state.rs
 @@ -469,6 +469,8 @@ pub struct InputBaseState<M: InputModeKind> {
@@ -80,7 +86,16 @@ index 4eb4c91..6d32c8b 100644
      pub(crate) readonly: bool,
      pub(crate) text_align: TextAlign,
      pub(super) masked: bool,
-@@ -843,6 +845,7 @@ impl<M: InputModeKind> InputBaseState<M> {
+@@ -521,6 +523,8 @@ pub struct InputBaseState<M: InputModeKind> {
+     /// its default mask when the user has not made an explicit choice.
+     pub(super) mask_pattern_set: bool,
+     pub(super) placeholder: SharedString,
++    /// The ink the placeholder draws in; unset, the muted foreground.
++    pub(super) placeholder_color: Option<gpui::Hsla>,
+ 
+     /// Diagnostic currently requested by pointer hover; applications render it.
+     pub(super) diagnostic_popover: Option<Rc<crate::input::DiagnosticEntry>>,
+@@ -843,6 +847,7 @@ impl<M: InputModeKind> InputBaseState<M> {
              selecting: false,
              touch_selection: Default::default(),
              disabled: false,
@@ -88,10 +103,28 @@ index 4eb4c91..6d32c8b 100644
              readonly: false,
              text_align: TextAlign::Left,
              masked: false,
-@@ -1212,6 +1215,16 @@ impl<M: InputModeKind> InputBaseState<M> {
+@@ -874,6 +879,7 @@ impl<M: InputModeKind> InputBaseState<M> {
+             editor_paddings: Edges::default(),
+             deferred_scroll_offset: None,
+             placeholder: SharedString::default(),
++            placeholder_color: None,
+             mask_pattern: MaskPattern::default(),
+             mask_pattern_set: false,
+             editor_style: InputEditorStyle::default(),
+@@ -1212,6 +1218,26 @@ impl<M: InputModeKind> InputBaseState<M> {
          cx.notify();
      }
  
++    /// Set the ink the placeholder draws in; `None` is the theme's muted foreground.
++    pub fn set_placeholder_color(&mut self, color: Option<gpui::Hsla>, cx: &mut Context<Self>) {
++        if self.placeholder_color == color {
++            return;
++        }
++
++        self.placeholder_color = color;
++        cx.notify();
++    }
++
 +    /// Set the opacity a disabled input draws its text and placeholder at, default is `0.5`.
 +    pub fn set_disabled_ink(&mut self, opacity: f32, cx: &mut Context<Self>) {
 +        if self.disabled_ink == opacity {

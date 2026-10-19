@@ -826,7 +826,7 @@ impl PullRequestScreen {
                                     .text_size(px(13.))
                                     .line_height(px(20.))
                                     .text_color(p.muted_foreground)
-                                    .child(parts::who(&author, px(16.), cx))
+                                    .child(parts::who(&author, px(16.), Some(px(20.)), cx))
                                     .when(!opened.is_empty(), |el| {
                                         el.child(div().debug_selector(|| "pr-when".into()).child(words::opened(&opened)))
                                     })
@@ -889,8 +889,11 @@ impl PullRequestScreen {
                         .text_color(p.muted_foreground)
                         .child(format!("{} ", PR_WORDS.review_asked_of))
                         .children(page.review_requests.iter().enumerate().map(|(i, r)| {
-                            let who =
-                                if r.team { div().child(r.name.clone()).into_any_element() } else { parts::who(&r.name, px(16.), cx) };
+                            let who = if r.team {
+                                div().child(r.name.clone()).into_any_element()
+                            } else {
+                                parts::who(&r.name, px(16.), None, cx)
+                            };
                             h_flex().child(who).when(i + 1 < page.review_requests.len(), |el| el.child(","))
                         }))
                 }))
@@ -929,30 +932,30 @@ impl PullRequestScreen {
     fn tabs(&self, seen: &Seen, cx: &mut Context<Self>) -> AnyElement {
         let page = self.page.as_ref();
         let fact = seen.fact();
-        let count = |n: Option<usize>| n.map(|n| format!(" {n}")).unwrap_or_default();
-        let conversation = count(page.map(|_| self.derived.count));
-        let commits = count(page.map(|p| p.commits.len()).or(fact.map(|f| f.commits as usize)));
-        let files = count(page.map(|p| p.files.len()).or(fact.map(|f| f.changed_files as usize)));
+        let counts = [
+            page.map(|_| self.derived.count),
+            page.map(|p| p.commits.len()).or(fact.map(|f| f.commits as usize)),
+            page.map(|p| p.files.len()).or(fact.map(|f| f.changed_files as usize)),
+        ];
         let picked = match self.tab {
             Tab::Conversation => 0,
             Tab::Commits => 1,
             Tab::Files => 2,
         };
         let me = cx.weak_entity();
+        let tabs = [PR_WORDS.conversation, PR_WORDS.commits, PR_WORDS.files].into_iter().zip(counts).fold(
+            Segmented::new("pr-tabs", picked).fill().segment_size((px(13.), px(13.)), px(8.)).glyph_size(px(16.), px(6.)),
+            |tabs, (word, count)| match count {
+                Some(n) => tabs.count_segment(word, n.to_string()),
+                None => tabs.segment(word),
+            },
+        );
         div()
             .debug_selector(|| "pr-tabs".into())
-            .child(
-                Segmented::new("pr-tabs", picked)
-                    .fill()
-                    .segment_size((px(13.), px(13.)), px(8.))
-                    .segment(format!("{}{conversation}", PR_WORDS.conversation))
-                    .segment(format!("{}{commits}", PR_WORDS.commits))
-                    .segment(format!("{}{files}", PR_WORDS.files))
-                    .on_pick(move |ix, _, cx| {
-                        let tab = [Tab::Conversation, Tab::Commits, Tab::Files][ix];
-                        _ = me.update(cx, |this, cx| this.pick_tab(tab, cx));
-                    }),
-            )
+            .child(tabs.on_pick(move |ix, _, cx| {
+                let tab = [Tab::Conversation, Tab::Commits, Tab::Files][ix];
+                _ = me.update(cx, |this, cx| this.pick_tab(tab, cx));
+            }))
             .into_any_element()
     }
 }
@@ -1072,7 +1075,16 @@ impl Render for PullRequestScreen {
             _ => vec![parts::head_skeleton(width)],
         };
         let column = v_flex().relative().w_full().gap(px(16.)).child(measure).children(body);
-        let content = div().px(px(16.)).pt(px(16.)).pb(px(20.)).child(column);
-        ui::scroll_area("pr-pane", &self.scroll, content, window, cx).debug_selector(|| "pr-pane".into()).size_full()
+        // `overflow-y-auto` under the app's 6 px `::-webkit-scrollbar`: the bar always shown and its lane kept.
+        let lane = ui::scrollbar::overflows(&self.scroll);
+        let content =
+            div().pl(px(16.)).pr(px(16.) + if lane { ui::scrollbar::WIDTH } else { px(0.) }).pt(px(16.)).pb(px(20.)).child(column);
+        div()
+            .id("pr-pane")
+            .debug_selector(|| "pr-pane".into())
+            .relative()
+            .size_full()
+            .child(div().id("pr-pane-viewport").size_full().overflow_y_scroll().track_scroll(&self.scroll).child(content))
+            .children(ui::scrollbar::list_bar("pr-pane-bar", &self.scroll, window, cx))
     }
 }

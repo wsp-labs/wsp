@@ -9,6 +9,7 @@ pub mod finder;
 pub mod markdown;
 pub mod open_split;
 pub mod paths;
+pub mod pierre_icons;
 pub mod rank;
 pub mod rows;
 pub mod tree;

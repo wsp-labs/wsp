@@ -56,9 +56,7 @@ pub mod finder {
     pub const NOT_RUNNING: &str = "Open a running thread to search its files.";
     pub const MORE_FILES: &str = "More files match than one search reads; type more of the name.";
     pub const MORE_LINES: &str = "More lines match than the first 500; type more of the word.";
-    pub const NAVIGATE: &str = "Navigate";
     pub const OPEN: &str = "Open";
-    pub const CLOSE: &str = "Close";
 }
 
 /// `OPEN_WORDS` and `EDITOR_SSH_WORDS`.

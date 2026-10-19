@@ -5,7 +5,7 @@
 
 use std::rc::Rc;
 
-use gpui_kit::{div, prelude::*, App, Context, Entity, Subscription, WeakEntity, Window};
+use gpui_kit::{div, prelude::*, px, App, Context, Entity, Subscription, WeakEntity, Window};
 
 use super::model::base_name;
 use super::{words, ChangesScreen};
@@ -66,7 +66,8 @@ impl Render for DiscardDialog {
             .debug_selector(|| "discard-dialog".into())
             .child(
                 AlertDialog::new(words::discard_title(&name))
-                    .child(refusal)
+                    // `px-5 pt-1`: this body sits 4 px nearer the title than the shared `pt-2`.
+                    .child(div().mt(px(-4.)).child(refusal))
                     .act(
                         Button::outline("discard-cancel", words::CANCEL)
                             .neutral_ring()

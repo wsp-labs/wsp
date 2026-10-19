@@ -9,7 +9,7 @@ use gpui_kit::SharedString;
 
 const JSX: &str = include_str!("syntax/jsx.scm");
 
-fn queries() -> [(&'static str, String); 7] {
+fn queries() -> [(&'static str, String); 10] {
     [
         ("javascript", [JSX, include_str!("syntax/javascript.scm")].concat()),
         ("typescript", include_str!("syntax/typescript.scm").into()),
@@ -18,6 +18,9 @@ fn queries() -> [(&'static str, String); 7] {
         ("python", include_str!("syntax/python.scm").into()),
         ("markdown", include_str!("syntax/markdown.scm").into()),
         ("markdown_inline", include_str!("syntax/markdown_inline.scm").into()),
+        ("json", include_str!("syntax/json.scm").into()),
+        ("css", include_str!("syntax/css.scm").into()),
+        ("bash", include_str!("syntax/bash.scm").into()),
     ]
 }
 

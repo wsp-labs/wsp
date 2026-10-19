@@ -107,16 +107,25 @@ fn git(server: &Throwaway, folder: &Path, args: &[&str]) {
     assert!(ok, "git {args:?}");
 }
 
-/// Runs one request over the link to its answer, the host's runtime doing the work.
+/// Runs one request over the link to its answer, the window's tasks carrying the computer's channel up meanwhile.
 fn ask(
-    host: &Host,
     link: &Entity<DaemonLink>,
     op: &str,
     params: Value,
     cx: &mut TestAppContext,
 ) -> Result<serde_json::Map<String, Value>, desktop_gpui::screens::pr_pane::daemon::Refused> {
+    use futures::FutureExt as _;
     let sent = link.read_with(cx, |link, _| link.request(op, params));
-    host.runtime.block_on(async { tokio::time::timeout(Duration::from_secs(30), sent).await.expect("the daemon answered within 30 s") })
+    let mut sent = std::pin::pin!(sent);
+    let until = Instant::now() + Duration::from_secs(30);
+    loop {
+        cx.run_until_parked();
+        if let Some(answer) = sent.as_mut().now_or_never() {
+            return answer;
+        }
+        assert!(Instant::now() < until, "the daemon answered {op} within 30 s");
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 fn paths(reply: &serde_json::Map<String, Value>) -> Vec<String> {
@@ -132,12 +141,13 @@ fn the_link_opens_and_git_diff_answers_with_the_patch(cx: &mut TestAppContext) {
     host.five_changes();
     let link = cx.update(|cx| DaemonLink::of(&host.shell(), &host.workspace_id, cx));
     let folder = host.folder.canonicalize().unwrap().to_string_lossy().into_owned();
-    let reply = ask(&host, &link, "git.diff", json!({ "cwd": folder, "scope": "head" }), cx).unwrap_or_else(|r| panic!("git.diff: {r:?}"));
+    let reply = ask(&link, "git.diff", json!({ "cwd": folder, "scope": "head" }), cx).unwrap_or_else(|r| panic!("git.diff: {r:?}"));
     assert_eq!(paths(&reply), ["logo.bin", "src/added.ts", "src/gone.txt", "src/keep.ts", "src/renamed.ts"], "{reply:?}");
     let keep = reply["files"].as_array().unwrap().iter().find(|f| f["path"] == "src/keep.ts").unwrap();
     assert!(keep["patch"].as_str().unwrap().contains("+export const c = 4;"), "{keep}");
     let until = Instant::now() + Duration::from_secs(10);
     let root = loop {
+        cx.run_until_parked();
         if let Some(root) = link.read_with(cx, |link, _| link.root()) {
             break root;
         }
@@ -860,6 +870,7 @@ fn two_workspaces_links_each_keep_their_own_root(cx: &mut TestAppContext) {
     let rooted = |link: &Entity<DaemonLink>, cx: &mut TestAppContext| {
         let until = Instant::now() + Duration::from_secs(10);
         loop {
+            cx.run_until_parked();
             if let Some(root) = link.read_with(cx, |l, _| l.root()) {
                 return root;
             }
@@ -868,13 +879,37 @@ fn two_workspaces_links_each_keep_their_own_root(cx: &mut TestAppContext) {
         }
     };
     let a = cx.update(|cx| DaemonLink::of(&host.shell(), &host.workspace_id, cx));
-    ask(&host, &a, "ping", json!({}), cx).unwrap();
+    ask(&a, "ping", json!({}), cx).unwrap();
     let root_a = rooted(&a, cx);
     let b = cx.update(|cx| DaemonLink::of(&host.shell(), &second, cx));
-    ask(&host, &b, "ping", json!({}), cx).unwrap();
+    ask(&b, "ping", json!({}), cx).unwrap();
     rooted(&b, cx);
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(a.read_with(cx, |l, _| l.root()), Some(root_a), "the first link's root outlives the second link's hello");
+}
+
+/// A dial the host turns away by its kind reads Refused over the host's sentence, as `NotRunning.tsx` says it through
+/// `useLinkDown`, and not starting, then Unreachable.
+#[gpui_kit::test]
+fn a_dial_the_host_turns_away_reads_refused_in_its_sentence(cx: &mut TestAppContext) {
+    let Some(host) = Host::start() else { return };
+    cx.executor().allow_parking();
+    let target = desktop_gpui::screens::terminal::link::Target::Workspace(host.workspace_id.clone());
+    let link = cx.update(|cx| desktop_gpui::screens::terminal::link::Link::get(&host.shell(), target, cx));
+    let mut turned = wsp_host_client::Failure::new("the host's sentence");
+    turned.kind = Some("usage".into());
+    link.update(cx, |l, cx| l.refuse_for_test(turned, cx));
+    let (screen, cx) = mount(&host, cx);
+    let refused = NotRunning::LinkDown { word: words::REFUSED, line: "the host's sentence".into() };
+    until(cx, &screen, "the link refused", |s| s.not_running_form().as_ref() == Some(&refused));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("not-running-title:Refused").is_some(), "the word drawn");
+    assert!(cx.debug_bounds("not-running-line:the host's sentence").is_some(), "over the host's sentence");
+
+    // The workspace runs again: the link is dialled then, not at its refused backoff, which this clock never reaches.
+    host.five_changes();
+    host.runtime.block_on(restart_daemon(&host.shell(), &host.workspace_id)).unwrap_or_else(|refused| panic!("{refused}"));
+    until(cx, &screen, "the diff read once the workspace runs again", |s| ready(s) && !s.not_running());
 }
 
 #[gpui_kit::test]
@@ -1013,4 +1048,59 @@ fn the_panes_in_another_repository_offer_no_discard_or_commit_the_host_would_run
         cx.debug_bounds("tree-discard:src/keep.ts").is_none() && cx.debug_bounds("changes-commit").is_none(),
         "no discard or commit for a repository the host does not act in"
     );
+}
+
+#[gpui_kit::test]
+fn the_head_commit_box_discard_dialog_and_cut_notice_stand_as_todays(cx: &mut TestAppContext) {
+    let Some(host) = Host::start() else { return };
+    host.five_changes();
+    let (screen, cx) = mount(&host, cx);
+    head_scope(cx, &screen);
+    cx.run_until_parked();
+    let at = |cx: &mut VisualTestContext, selector: &'static str| cx.debug_bounds(selector).unwrap_or_else(|| panic!("{selector}"));
+
+    // `size-full shrink-[999]`: the crumbs take the head's slack, so the branch and the pin sit against the counts.
+    let folder = cx.read(|cx| screen.read(cx).folder().map(|f| f.to_string())).expect("the pane's folder");
+    let last = at(cx, leak(format!("crumb-{folder}")));
+    let (crumbs, branch, pin, stat) = (at(cx, "changes-crumbs"), at(cx, "changes-branch"), at(cx, "changes-pin"), at(cx, "changes-stat"));
+    assert!(last.right() < crumbs.right() - px(8.), "the path ends inside its box, the slack after it: {last:?} in {crumbs:?}");
+    assert_eq!(branch.left() - crumbs.right(), px(8.), "the branch right after the crumbs' box");
+    let slack = stat.left() - px(8.) - pin.right();
+    assert!(slack.abs() < px(0.01), "no room between the pin and the counts: {slack:?}");
+
+    // `min-h-24` on the edged span: 96 px with the edge.
+    cx.update(|window, cx| screen.update(cx, |s, cx| s.open_commit(window, cx)));
+    cx.run_until_parked();
+    assert_eq!(at(cx, "text-area").size.height, px(96.), "the commit message's box");
+    cx.update(|_, cx| screen.update(cx, |s, cx| s.cancel_commit(cx)));
+
+    // 16 + 20 + 4 above the body's `pt-1`, two 18 px lines, the foot's 12 + 32 + 16, and the 1 px edge twice.
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.update(|window, cx| screen.update(cx, |s, cx| s.ask_discard("src/added.ts", window, cx)));
+    cx.run_until_parked();
+    let (dialog, title, body) = (at(cx, "alert-dialog"), at(cx, "dialog-title"), at(cx, "refusal"));
+    assert_eq!(body.top() - title.bottom(), px(8.), "the title's `pb-1` and the body's `pt-1`");
+    assert_eq!(dialog.size.height, px(142.), "the discard dialog's height, edge included");
+    cx.update(|window, cx| screen.update(cx, |s, cx| s.close_discard(window, cx)));
+    cx.run_until_parked();
+
+    // Past the daemon's 2 MB: `py-1.5` around one 11 px line at the page's 1.5, and the edge.
+    let line = "x".repeat(99) + "\n";
+    std::fs::write(host.folder.join("big.txt"), line.repeat(25_000)).unwrap();
+    cx.update(|window, cx| screen.update(cx, |s, cx| s.fetch(window, cx)));
+    until(cx, &screen, "the cut read", |s| ready(s) && s.diff().is_some_and(|d| d.cut));
+    cx.run_until_parked();
+    assert_eq!(at(cx, "changes-cut").size.height, px(29.5), "the cut notice's row");
+
+    // A head short of room cuts the path, and the cut edge fades as the crumb scroller's does.
+    let src = format!("{folder}/src");
+    cx.update(|_, cx| screen.update(cx, |s, cx| s.go(&src, cx)));
+    until(cx, &screen, "src read", |s| ready(s) && s.folder() == Some(src.as_str()));
+    cx.simulate_resize(size(px(650.), px(800.)));
+    cx.run_until_parked();
+    cx.update(|window, cx| _ = window.simulate_next_frame(cx));
+    cx.run_until_parked();
+    let (crumbs, last) = (at(cx, "changes-crumbs"), at(cx, leak(format!("crumb-{src}"))));
+    assert!(last.right() > crumbs.right(), "the path runs past its box: {last:?} in {crumbs:?}");
+    assert!(cx.debug_bounds("crumbs-fade-end").is_some(), "the cut end fades");
 }

@@ -11,3 +11,7 @@ class Rows(Base):
         if low < LIMIT and self.rows:
             return [r for r in self.rows if r > low]
         return None  # none
+
+
+def pick(xs, limit=3):
+    return sorted(xs, key=lambda r: r.type, reverse=True)[:limit]

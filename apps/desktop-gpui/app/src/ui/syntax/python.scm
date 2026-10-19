@@ -1,4 +1,4 @@
-; From tree-sitter-python. The first capture of a node wins; plain names and attributes stay uncolored.
+; From tree-sitter-python. The first capture of a node wins; names and attributes are plain outside a call's arguments.
 
 (class_definition
   name: (identifier) @type)
@@ -15,14 +15,43 @@
 
 (call
   function: (attribute attribute: (identifier) @function.method))
-(call
-  function: (identifier) @function)
 
 ((identifier) @variable.special
  (#match? @variable.special "^(self|cls)$"))
 
-((identifier) @constant
- (#match? @constant "^[A-Z][A-Z_]*$"))
+((identifier) @constant.other
+ (#match? @constant.other "^[A-Z][A-Z_]*$"))
+
+(attribute
+  attribute: (identifier) @none)
+
+((identifier) @type.builtin.python
+ (#match? @type.builtin.python "^(bool|bytearray|bytes|classmethod|complex|dict|float|frozenset|int|list|object|property|set|slice|staticmethod|str|tuple|type|super)$"))
+
+(call
+  function: (identifier) @function)
+
+((parameters
+  (identifier) @variable.parameter.python)
+ (#not-match? @variable.parameter.python "^(self|cls)$"))
+(lambda_parameters
+  (identifier) @variable.parameter.python)
+(typed_parameter
+  (identifier) @variable.parameter.python)
+(default_parameter
+  name: (identifier) @variable.parameter.python)
+(typed_default_parameter
+  name: (identifier) @variable.parameter.python)
+(keyword_argument
+  name: (identifier) @variable.parameter)
+(default_parameter
+  "=" @punctuation)
+(typed_default_parameter
+  "=" @punctuation)
+
+; What a call is given, short of its own color, is drawn as the call
+(call
+  arguments: (argument_list) @function)
 
 ; Literals
 
