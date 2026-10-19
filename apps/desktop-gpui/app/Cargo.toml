@@ -27,9 +27,22 @@ tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 # A link's domain read as a browser reads the address, as the web's slateLinkDomain does with URL.
 url = "2"
 
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+# The browser pane's page: WKWebView on the Mac, WebKitGTK on Linux, as a child of GPUI's window. 0.53 is the last
+# release on webkit2gtk 2.0.1, which the pane was proven on.
+wry = { version = "=0.53.5", default-features = false, features = ["os-webview", "x11"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+gdkx11 = "0.18"
+webkit2gtk = "=2.0.1"
+# SHAPE cuts GPUI's overlays out of the page's window; XTEST drives `--screen browser`'s checks through the server.
+x11rb = { version = "0.13", features = ["shape", "xtest"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
 objc = "0.2"
+objc2 = "0.6"
 raw-window-handle = "0.6"
 
 [dev-dependencies]

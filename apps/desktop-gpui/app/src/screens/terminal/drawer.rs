@@ -149,9 +149,11 @@ impl Drawer {
         let link = Link::get(&host, mode.key().target(), cx);
         let hold = link.update(cx, |link, _| link.hold());
         let subscriptions = vec![
-            cx.subscribe_in(&link, window, |this, _, _: &LinkEvent, window, cx| {
-                this.sync(window, cx);
-                cx.notify();
+            cx.subscribe_in(&link, window, |this, _, event: &LinkEvent, window, cx| {
+                if *event == LinkEvent::Changed {
+                    this.sync(window, cx);
+                    cx.notify();
+                }
             }),
             cx.observe_window_bounds(window, |this, window, cx| this.sync_height(window, cx)),
         ];

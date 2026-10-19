@@ -813,6 +813,42 @@ fn each_browser_the_add_menu_opens_is_a_page_of_its_own_and_the_toggle_goes_to_t
     );
 }
 
+/// `openBrowser`: the first place typed in the placeholder opens a tab of its own, which takes the placeholder's place.
+#[gpui_kit::test]
+fn a_browser_tab_on_a_page_takes_the_placeholders_place(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    panel.update_in(cx, |p, window, cx| {
+        p.add(Pane::Changes, None, window, cx);
+        p.toggle_pane(Pane::Browser, window, cx);
+    });
+    assert_eq!(panel.read_with(cx, |p, _| p.tabs())[1].1.as_ref(), "browser:new", "mod+shift+j with no browser tab opens the placeholder");
+    panel.update_in(cx, |p, window, cx| p.add(Pane::Browser, Some("browser:p1".into()), window, cx));
+    let tabs: Vec<String> = panel.read_with(cx, |p, _| p.tabs().iter().map(|(_, id)| id.to_string()).collect());
+    assert_eq!(tabs, ["changes", "browser:p1"], "the placeholder went, the new tab is at the strip's end");
+    assert_eq!(panel.read_with(cx, |p, _| p.active_index()), Some(1), "and it shows");
+}
+
+/// The sidebar's Open browser (`openSurface(workspace, "preview")`): on the workspace on screen it opens the panel on the
+/// browser and never shuts it; another workspace's opens nothing here.
+#[gpui_kit::test]
+fn the_sidebars_open_browser_opens_the_panel_on_the_browser_and_never_shuts_it(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    let ask = |workspace: &str, cx: &mut VisualTestContext| {
+        let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
+        sidebar.update(cx, |_, cx| cx.emit(Asked::OpenBrowser(workspace.into())));
+        cx.run_until_parked();
+    };
+    ask("w2", cx);
+    assert!(!panel.read_with(cx, |p, _| p.is_open()), "another workspace's Open browser opens nothing here");
+    ask("w1", cx);
+    assert_eq!(panel.read_with(cx, |p, _| (p.is_open(), p.active())), (true, Some(Pane::Browser)));
+    ask("w1", cx);
+    assert_eq!(panel.read_with(cx, |p, _| (p.is_open(), p.active())), (true, Some(Pane::Browser)), "asked again, it stays open");
+}
+
 /// `max-w-[70%]` on the title in a line that takes what it holds: Chromium gives a long title 70% of the room the row
 /// leaves the line, a short one its own width.
 #[gpui_kit::test]

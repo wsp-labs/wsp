@@ -63,6 +63,10 @@ pub struct Pty {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkEvent {
     Changed,
+    /// The daemon's `ports.watch` reply: every port listening on the computer, as `[{port, pid, process}]`.
+    Ports(Value),
+    /// A `port.open` or `port.close` the daemon pushed once watching.
+    Port(Value),
 }
 
 /// DEFAULT_HEARTBEAT_MS: the host's edge sweeps quiet sockets, so liveness is an app-level ping.
@@ -183,6 +187,8 @@ pub struct Link {
     _parking: Task<()>,
     /// Whether the computer's readings come down this channel (`sys.watch`), asked again each time it goes live.
     watching_sys: bool,
+    /// Whether the browser pane asked for the computer's ports (`ports.watch`), asked again each time it goes live.
+    watching_ports: bool,
     /// The last `sys.sample`, kept across a drop: what the pane says a channel lost to a full memory was about.
     memory: Option<Memory>,
 }
@@ -257,6 +263,7 @@ impl Link {
                 unheld_since: None,
                 _parking: parking,
                 watching_sys: false,
+                watching_ports: false,
                 memory: None,
             };
             link.connect(cx);
@@ -294,6 +301,24 @@ impl Link {
         if !std::mem::replace(&mut self.watching_sys, true) && self.status == Status::Live {
             self.ask_sys_watch(cx);
         }
+    }
+
+    /// Has the daemon say which ports listen on the computer and push each that opens or closes from now on, as
+    /// today's `wiring.ts` asks once the link is live.
+    pub fn watch_ports(&mut self, cx: &mut Context<Self>) {
+        if !std::mem::replace(&mut self.watching_ports, true) && self.status == Status::Live {
+            self.ask_ports_watch(cx);
+        }
+    }
+
+    fn ask_ports_watch(&self, cx: &mut Context<Self>) {
+        let Some(answer) = self.ask("ports.watch", json!({})) else { return };
+        cx.spawn(async move |this, cx| {
+            if let Ok(reply) = answered(answer).await {
+                _ = this.update(cx, |_, cx| cx.emit(LinkEvent::Ports(reply["ports"].clone())));
+            }
+        })
+        .detach();
     }
 
     fn ask_sys_watch(&self, cx: &mut Context<Self>) {
@@ -706,6 +731,10 @@ impl Link {
                         self.sampled(event, cx);
                         continue;
                     }
+                    if event["type"] == "port.open" || event["type"] == "port.close" {
+                        cx.emit(LinkEvent::Port(event.clone()));
+                        continue;
+                    }
                     let Some(pty) = event["ptyId"].as_str() else { continue };
                     match event["type"].as_str() {
                         Some("pty.data") => {
@@ -968,6 +997,9 @@ impl Link {
             if current(link) {
                 if link.watching_sys {
                     link.ask_sys_watch(cx);
+                }
+                if link.watching_ports {
+                    link.ask_ports_watch(cx);
                 }
                 link.set_status(Status::Live, cx);
             }

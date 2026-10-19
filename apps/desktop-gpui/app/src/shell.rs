@@ -244,7 +244,14 @@ impl Shell {
                 this.with_host(move |host, window, cx| dialogs::open_export_project(&host, workspace, window, cx), window, cx)
             }
             Asked::OpenTerminal(workspace) => screens::terminal::open_terminal(this, workspace, window, cx),
-            Asked::OpenBrowser(_) => {}
+            // `openSurface(workspace, "preview")`: the panel on the browser's first tab, else its placeholder, never shut.
+            Asked::OpenBrowser(workspace) => {
+                let here = this.workspace_on_screen(cx).as_deref() == Some(workspace.as_str());
+                let shown = this.panel.read(cx).is_open() && this.panel.read(cx).active() == Some(Pane::Browser);
+                if here && !shown {
+                    this.panel.update(cx, |p, cx| p.toggle_pane(Pane::Browser, window, cx));
+                }
+            }
             Asked::ProjectSettings(_) => {}
             Asked::ComputerSettings(_) => {}
         });

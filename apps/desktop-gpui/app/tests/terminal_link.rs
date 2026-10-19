@@ -47,6 +47,8 @@ struct Host {
     runtime: Arc<Runtime>,
     /// The workspace of a project folder the host was given, whose channel keeps the thread a shell was opened for.
     workspace: String,
+    /// That project folder.
+    folder: std::path::PathBuf,
 }
 
 impl Host {
@@ -67,7 +69,7 @@ impl Host {
         let client = Arc::new(runtime.block_on(server.client()));
         let listed = runtime.block_on(client.call(ask::<WorkspacesListRequest>(json!({})))).unwrap_or_else(|f| panic!("{}", f.message));
         let workspace = listed.workspaces.first().map(|w| w.id.clone()).expect("the folder's workspace");
-        Some(Host { server, client, runtime, workspace })
+        Some(Host { server, client, runtime, workspace, folder })
     }
 
     fn shell(&self) -> desktop_gpui::screens::Host {
@@ -740,6 +742,52 @@ fn a_watched_computers_last_reading_is_kept_once_the_channel_drops(cx: &mut Test
     assert!(read.total > 0. && read.used > 0. && read.used <= read.total, "{read:?}");
     link.update(cx, |l, cx| l.drop_for_test(cx));
     assert_eq!(link.read_with(cx, |l, _| l.memory()), Some(read), "the reading outlives the channel");
+}
+
+#[gpui_kit::test]
+fn a_port_watch_says_what_listens_in_the_workspace_and_when_it_stops(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::terminal::link::LinkEvent;
+    use std::io::BufRead as _;
+    let Some(host) = Host::start() else { return };
+    let link = open_link(&host, cx);
+    let said: std::rc::Rc<std::cell::RefCell<Vec<Value>>> = Default::default();
+    let heard = said.clone();
+    let _watch = cx.update(|cx| {
+        cx.subscribe(&link, move |_, event: &LinkEvent, _| match event {
+            LinkEvent::Ports(rows) => heard.borrow_mut().extend(rows.as_array().cloned().unwrap_or_default()),
+            LinkEvent::Port(event) => heard.borrow_mut().push(event.clone()),
+            LinkEvent::Changed => {}
+        })
+    });
+    // A listener whose folder is the workspace's, as a dev server started in it is.
+    let folder = host.folder.clone();
+    /// The listener, stopped however the test ends.
+    struct Listener(std::process::Child);
+    impl Drop for Listener {
+        fn drop(&mut self) {
+            _ = self.0.kill();
+            _ = self.0.wait();
+        }
+    }
+    let mut server = std::process::Command::new("python3")
+        .args(["-c", "import socket, time\ns = socket.socket()\ns.bind(('127.0.0.1', 0))\ns.listen()\nprint(s.getsockname()[1], flush=True)\ntime.sleep(120)"])
+        .current_dir(&folder)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("python3 listens");
+    let out = server.stdout.take().unwrap();
+    let server = Listener(server);
+    let mut line = String::new();
+    std::io::BufReader::new(out).read_line(&mut line).unwrap();
+    let port: u64 = line.trim().parse().expect("the listener says its port");
+    link.update(cx, |l, cx| l.watch_ports(cx));
+    let lists = |said: &[Value]| said.iter().any(|p| p["port"] == port && p["type"] != "port.close");
+    until(cx, "the port listed", &host, |_| lists(&said.borrow()));
+    drop(server);
+    let closed = |said: &[Value]| said.iter().any(|p| p["type"] == "port.close" && p["port"] == port);
+    until(cx, "the port's close", &host, |_| closed(&said.borrow()));
 }
 
 /// A window drawing a shell that sends it one line from inside its second draw, once the window tracks the shell.
