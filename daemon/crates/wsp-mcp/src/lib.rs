@@ -12,6 +12,7 @@ pub mod failure;
 pub mod host;
 mod js;
 mod json;
+mod proof;
 mod record;
 mod release;
 mod start;
@@ -29,6 +30,14 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufRead, AsyncWrite, BufReader};
 
 use crate::failure::Failure;
+pub use crate::proof::{LOCK_REFUSED, NOT_ANSWERING};
+pub use crate::release::{order as release_order, own as own_release, ReleaseRule};
+
+/// The host's lock beside a state file, its process and its port, read once for every reader on this computer.
+pub mod lock {
+    pub use crate::aim::{answers, authority, dial_address, serving, vanished, Lock};
+    pub use crate::proof::alive;
+}
 
 /// The words `wsp-daemon mcp` was started with.
 #[derive(Debug, Default, Clone)]

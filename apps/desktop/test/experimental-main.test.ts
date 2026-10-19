@@ -5,7 +5,7 @@
 // is a stand-in that records what main asks of it; the GPUI app is a stub
 // script that notes each start, and the home is a temp folder.
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -76,12 +76,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   rmSync(home, { recursive: true, force: true });
 });
 
 const startLines = (): string[] => (existsSync(starts) ? readFileSync(starts, "utf8").trim().split("\n") : []);
 const started = (): number => startLines().length;
+const onState = (): string => `--state ${join(home, "state.json")}`;
 
 async function main(): Promise<EventEmitter> {
   await import("../src/main.js");
@@ -93,7 +95,7 @@ describe("main's ways in with the Experimental switch on", { timeout: 30_000 }, 
     shell.ready = true;
     await main();
     await vi.waitFor(() => expect(shell.quits).toBe(1), { timeout: 15_000 });
-    expect(started()).toBe(1);
+    expect(startLines()).toEqual([`started ${onState()}`]);
     expect(shell.windows).toBe(0);
     expect(existsSync(join(home, "bin", "wsp"))).toBe(true);
   });
@@ -101,25 +103,38 @@ describe("main's ways in with the Experimental switch on", { timeout: 30_000 }, 
   it("a Dock click opens the GPUI app and quits", async () => {
     (await main()).emit("activate");
     await vi.waitFor(() => expect(shell.quits).toBe(1), { timeout: 15_000 });
-    expect(started()).toBe(1);
+    expect(startLines()).toEqual([`started ${onState()}`]);
+  });
+
+  it("an unpackaged launch in a checkout with no wsp home named hands the GPUI app the checkout's own state", async () => {
+    const checkout = join(home, "checkout");
+    mkdirSync(join(checkout, ".wsp"), { recursive: true });
+    writeFileSync(join(checkout, "package.json"), JSON.stringify({ name: "wsp" }));
+    renameSync(join(home, "desktop"), join(checkout, ".wsp", "desktop"));
+    vi.stubEnv("WSP_HOME", undefined);
+    vi.stubEnv("HOME", home);
+    vi.spyOn(process, "cwd").mockReturnValue(checkout);
+    (await main()).emit("open-url", { preventDefault: () => {} }, "wsp://thread/t4");
+    await vi.waitFor(() => expect(shell.quits).toBe(1), { timeout: 15_000 });
+    expect(startLines()).toEqual([`started wsp://thread/t4 --state ${join(checkout, ".wsp", "state.json")}`]);
   });
 
   it("a second launch opens the GPUI app and quits", async () => {
     (await main()).emit("second-instance", {}, ["wsp"]);
     await vi.waitFor(() => expect(shell.quits).toBe(1), { timeout: 15_000 });
-    expect(startLines()).toEqual(["started"]);
+    expect(startLines()).toEqual([`started ${onState()}`]);
   });
 
   it("a second launch carrying a wsp:// link hands the link to the GPUI app", async () => {
     (await main()).emit("second-instance", {}, ["wsp", "wsp://thread/t2"]);
     await vi.waitFor(() => expect(shell.quits).toBe(1), { timeout: 15_000 });
-    expect(startLines()).toEqual(["started wsp://thread/t2"]);
+    expect(startLines()).toEqual([`started wsp://thread/t2 ${onState()}`]);
   });
 
   it("a wsp:// link opens the GPUI app on that link and quits", async () => {
     (await main()).emit("open-url", { preventDefault: () => {} }, "wsp://thread/t1");
     await vi.waitFor(() => expect(shell.quits).toBe(1), { timeout: 15_000 });
-    expect(startLines()).toEqual(["started wsp://thread/t1"]);
+    expect(startLines()).toEqual([`started wsp://thread/t1 ${onState()}`]);
   });
 
   it("a launch by a wsp:// link hands the link to the GPUI app", async () => {
@@ -131,7 +146,7 @@ describe("main's ways in with the Experimental switch on", { timeout: 30_000 }, 
     } finally {
       process.argv.pop();
     }
-    expect(startLines()).toEqual(["started wsp://thread/t3"]);
+    expect(startLines()).toEqual([`started wsp://thread/t3 ${onState()}`]);
   });
 
   it("with the switch off, a second launch opens nothing and quits nothing", async () => {

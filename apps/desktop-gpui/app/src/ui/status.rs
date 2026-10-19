@@ -31,7 +31,11 @@ pub struct Still(pub bool);
 impl Global for Still {}
 
 pub(crate) fn still(cx: &App) -> bool {
-    cx.reduce_motion() || cx.try_global::<Still>().is_some_and(|s| s.0)
+    cx.reduce_motion() || captured(cx)
+}
+
+fn captured(cx: &App) -> bool {
+    cx.try_global::<Still>().is_some_and(|s| s.0)
 }
 
 /// The most often a spinner or a skeleton asks for a frame: each frame draws again the whole view it stands in, and
@@ -74,23 +78,39 @@ fn wake_after(wait: Duration, window: &Window, cx: &mut App) {
 
 /// The plain spinner: lucide's loader-circle at 14 px in the muted ink, one turn a second.
 pub fn spinner(_: &App) -> Spinner {
-    Spinner(px(14.))
+    Spinner { size: px(14.), endless: false }
 }
 
 #[derive(IntoElement)]
-pub struct Spinner(Pixels);
+pub struct Spinner {
+    size: Pixels,
+    endless: bool,
+}
 
 impl Spinner {
     /// Another size: 12 px for a refreshing mark, 16 for a picture on its way.
     pub fn size(mut self, size: Pixels) -> Self {
-        self.0 = size;
+        self.size = size;
+        self
+    }
+
+    /// One that keeps turning under reduced motion, as the starting window's does: `desktop:starting.html` has no rule
+    /// that stops it.
+    pub fn endless(mut self) -> Self {
+        self.endless = true;
         self
     }
 }
 
 impl RenderOnce for Spinner {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        turning(Icon::new(Glyph::LoaderCircle).with_size(self.0).text_color(cx.palette().muted_foreground), window, cx)
+        let icon = Icon::new(Glyph::LoaderCircle).with_size(self.size).text_color(cx.palette().muted_foreground);
+        let held = if self.endless { captured(cx) } else { still(cx) };
+        if held {
+            icon
+        } else {
+            turn(icon, window, cx)
+        }
     }
 }
 
@@ -99,6 +119,10 @@ pub fn turning(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
     if still(cx) {
         return icon;
     }
+    turn(icon, window, cx)
+}
+
+fn turn(icon: Icon, window: &mut Window, cx: &mut App) -> Icon {
     wake_after(LOADING_FRAME, window, cx);
     icon.transform(Transformation::rotate(gpui_kit::percentage(loading_started().elapsed().as_secs_f32().fract())))
 }
@@ -1008,6 +1032,7 @@ mod tests {
     use gpui_kit::{prelude::*, px, size, Context, TestAppContext, Window};
 
     use super::{crab_frame, next_pose, MarkState, StatusMark};
+    use crate::screens::dialogs::starting::StartingView;
     use crate::ui::{self, Side};
 
     #[test]
@@ -1030,6 +1055,39 @@ mod tests {
         fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
             h_flex().p(px(24.)).child(StatusMark::state("mark", self.0))
         }
+    }
+
+    struct Plain;
+
+    impl Render for Plain {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            h_flex().p(px(24.)).child(super::spinner(cx))
+        }
+    }
+
+    /// How many views wait on a spinner's next frame once `view` is drawn under reduced motion.
+    fn frames_asked<V: Render>(view: impl FnOnce() -> V, cx: &mut TestAppContext) -> usize {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Dark, cx);
+            cx.set_reduce_motion(true);
+        });
+        let view = cx.new(|_| view());
+        let (_, vcx) = cx.add_window_view(|window, cx| Root::new(view, window, cx));
+        vcx.run_until_parked();
+        vcx.update(|_, cx| cx.try_global::<super::Wakes>().map_or(0, |w| w.0.len()))
+    }
+
+    /// Catches: the starting window's spinner stopping under reduced motion, which `desktop:starting.html` never stops.
+    #[gpui_kit::test]
+    fn the_starting_spinner_keeps_turning_under_reduced_motion(cx: &mut TestAppContext) {
+        assert_eq!(frames_asked(StartingView::new, cx), 1, "the starting spinner asked for no next frame");
+    }
+
+    /// Catches: every spinner turning under reduced motion along with the starting window's.
+    #[gpui_kit::test]
+    fn a_plain_spinner_holds_still_under_reduced_motion(cx: &mut TestAppContext) {
+        assert_eq!(frames_asked(|| Plain, cx), 0, "a plain spinner asked for its next frame");
     }
 
     /// Every state `StateMark` draws is one 14 px icon; waiting and ready draw nothing.

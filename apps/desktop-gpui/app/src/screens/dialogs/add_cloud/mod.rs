@@ -87,16 +87,22 @@ pub fn open_sealed(place: Option<String>, job: String) -> NoticeAction {
     })
 }
 
-/// `saySealed`'s notice for the build `job` (`InitJob`): its computer by the name `places` lists, else the name the
-/// job carries, and its image's words.
-pub fn sealed(job: &Value, places: &[Value]) -> Notice {
+/// `sealWords`: the build `job`'s computer by the name `places` lists, else the name the job carries, and its image's
+/// words.
+pub fn seal_words(job: &Value, places: &[Value]) -> (Option<String>, String) {
     let at = job.pointer("/place/id").and_then(Value::as_str);
     let name = places
         .iter()
         .find(|p| at.is_some() && p.get("id").and_then(Value::as_str) == at)
         .map(place_name)
         .or_else(|| job.pointer("/place/name").and_then(Value::as_str).map(str::to_owned));
-    let sealed = notices::words::image_sealed(job.pointer("/golden/version").and_then(Value::as_u64));
+    (name, notices::words::image_sealed(job.pointer("/golden/version").and_then(Value::as_u64)))
+}
+
+/// `saySealed`'s notice for the build `job` (`InitJob`), by [`seal_words`].
+pub fn sealed(job: &Value, places: &[Value]) -> Notice {
+    let at = job.pointer("/place/id").and_then(Value::as_str);
+    let (name, sealed) = seal_words(job, places);
     let Some(name) = name else { return Notice::done(sealed) };
     let id = job.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
     Notice::done(notices::words::setup_ready(&name)).detail(format!("{sealed}.")).place(name).action(open_sealed(at.map(str::to_owned), id))

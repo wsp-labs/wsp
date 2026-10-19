@@ -48,7 +48,7 @@ impl From<UsedAnswerRange> for Range {
     fn from(range: UsedAnswerRange) -> Self {
         match range {
             UsedAnswerRange::Day => Range::Day,
-            UsedAnswerRange::Week => Range::Week,
+            UsedAnswerRange::Week | UsedAnswerRange::Unknown => Range::Week,
             UsedAnswerRange::Month => Range::Month,
         }
     }
@@ -92,7 +92,7 @@ impl Split {
 impl From<UsedAnswerSplit> for Split {
     fn from(split: UsedAnswerSplit) -> Self {
         match split {
-            UsedAnswerSplit::Agent => Split::Agent,
+            UsedAnswerSplit::Agent | UsedAnswerSplit::Unknown => Split::Agent,
             UsedAnswerSplit::Account => Split::Account,
             UsedAnswerSplit::Computer => Split::Computer,
             UsedAnswerSplit::Project => Split::Project,
@@ -534,7 +534,7 @@ pub fn window_ms(kind: Kind) -> Option<f64> {
         Kind::Session => Some(5.0 * 3_600_000.0),
         Kind::Week | Kind::WeekOpus | Kind::WeekSonnet => Some(7.0 * 86_400_000.0),
         Kind::Month => Some(30.0 * 86_400_000.0),
-        Kind::Overage => None,
+        Kind::Overage | Kind::Unknown => None,
     }
 }
 
@@ -1220,6 +1220,23 @@ mod tests {
         .unwrap();
         let row = account_row(&sent).unwrap();
         assert_eq!((row.key.as_str(), row.windows[0].kind, row.credits.map(|c| c.count)), ("codex:plus", Kind::Session, Some(1)));
+    }
+
+    /// A newer host's status, note and window keep the account's row, drawn plain: no warning, no state word, no pool.
+    #[test]
+    fn an_account_with_words_a_newer_host_sends_draws_plain() {
+        let sent = json!({
+            "key": "codex:pro", "agent": "codex", "label": "Codex", "computers": ["Boat"], "status": "paused",
+            "note": "bills by the hour", "windows": [{ "kind": "week-fable", "usedPercent": 40, "resetsAt": NOW + DAY }], "readAt": NOW
+        });
+        let newer = account(sent.clone());
+        let limits = limits(std::slice::from_ref(&newer));
+        assert!(limits.pools.is_empty());
+        let quiet: Vec<(&str, &str, bool)> = limits.quiet.iter().map(|l| (l.account.key.as_str(), l.state.as_str(), l.warn)).collect();
+        assert_eq!(quiet, [("codex:pro", "", false)]);
+        assert_eq!((w::window_word(newer.windows[0].kind), window_ms(newer.windows[0].kind)), ("unknown".to_owned(), None));
+        let row = account_row(&serde_json::from_value(sent).unwrap()).unwrap();
+        assert_eq!(row.status, Some(AccountsAnswerAccountsItemStatus::Unknown));
     }
 
     #[test]

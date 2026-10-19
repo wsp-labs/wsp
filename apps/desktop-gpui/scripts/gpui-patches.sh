@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
 # Our patches over the published gpui-pre crates (backdrop blur, rounded clipping of children, text placement, list
-# heights kept across a width change) and over gpui-kit's pinned commit (text placement in its input and shimmer, the
-# ink a disabled input draws its text at), kept as diffs per crate or repository in patches/
+# heights kept across a width change, an X11 window's ground before its first frame, one bus connection for every Linux
+# notification) and over gpui-kit's pinned commit
+# (text placement in its input and shimmer, the ink a disabled input draws its text at), kept as diffs per crate or
+# repository in patches/
 # and applied to fresh copies in vendor/, which the [patch] tables in Cargo.toml point at. A folder's diffs are
 # patches/<folder>.patch, then any patches/<folder>.<topic>.patch in name order; one folder's diffs touch different files.
 #   apply  unpack each pinned .crate (checksum-verified) and gpui-kit's commit into vendor/ and apply each patch; run after a fresh clone
@@ -19,7 +21,8 @@ root=$(pwd)
 # name version sha256, the sums Cargo.lock held for crates.io's copies before the patch replaced them.
 crates='gpui-pre 0.3.9 34f61c1cfd36fc9c436af09308c963822ae27a45a84feb21a77ba5c9e051f1c0
 gpui-pre-wgpu 0.3.9 5b1cdb26c1503bf9662ee8fbc5ab0b44b2deeee4b5c12dc67491ba6fb5fc544b
-gpui-pre-apple 0.3.9 b52f58893fe1a0836464428dfad2b5eaf42c9c303a9638f4c2aced5a69072a15'
+gpui-pre-apple 0.3.9 b52f58893fe1a0836464428dfad2b5eaf42c9c303a9638f4c2aced5a69072a15
+gpui-pre-linux 0.3.9 e28213c3fde6f13e91ba0b74b90cbaadec9373e36a031eda98561d31059870f3'
 # gpui-kit, a git dependency pinned by its commit, whose hash is its checksum.
 kit_url=https://github.com/longbridge/gpui-kit
 kit_rev=14f59330a4aa0cb5becf140e067d64a616328612
