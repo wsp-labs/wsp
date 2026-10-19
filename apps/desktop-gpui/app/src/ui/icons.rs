@@ -66,6 +66,7 @@ icon_assets!(
         Flame,
         FlaskConical,
         Folder,
+        FolderGit,
         FolderOpen,
         FolderOutput,
         FolderPlus,

@@ -49,6 +49,8 @@ pub struct Dialog {
     pub open: OpenDialog,
     pub focus: FocusHandle,
     focused: bool,
+    /// Whether a dialog of the dialogs' layer stood when this one first drew, so this one stands over it.
+    over_dialog: bool,
     /// Unseen while a delete reads its copies with Ask before deleting off, so a clean delete never flashes one.
     pub shown: bool,
 }
@@ -309,7 +311,7 @@ impl Sidebar {
 
     pub(crate) fn show_dialog(&mut self, open: OpenDialog, shown: bool, cx: &mut Context<Self>) {
         self.menu = ContextMenu::default();
-        self.dialog = Some(Dialog { open, focus: cx.focus_handle(), focused: false, shown });
+        self.dialog = Some(Dialog { open, focus: cx.focus_handle(), focused: false, over_dialog: false, shown });
         cx.notify();
     }
 
@@ -506,9 +508,11 @@ impl Sidebar {
         let dialog = self.dialog.as_mut().filter(|d| d.shown)?;
         // The dialog takes the keys as it opens, so Escape closes it; a field inside it takes them on its own after.
         if !std::mem::replace(&mut dialog.focused, true) {
+            dialog.over_dialog = crate::screens::dialogs::layer::top(cx).is_some();
             window.focus(&dialog.focus, cx);
         }
         let focus = dialog.focus.clone();
+        let priority = if dialog.over_dialog { 5 } else { 3 };
         let dialog = &self.dialog.as_ref()?.open;
         let (body, top) = match dialog {
             OpenDialog::Snooze { key, presets, until } => (self.snooze_body(key, presets, until, p, cx), true),
@@ -563,12 +567,14 @@ impl Sidebar {
                 el.on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _, window, cx| this.close_dialog(window, cx)))
             })
             .child(div().on_mouse_down(gpui_kit::MouseButton::Left, |_, _, cx| cx.stop_propagation()).child(body));
-        Some(deferred(anchored().position(point(px(0.), px(0.))).child(layer)).with_priority(3).into_any_element())
+        // The newer stands on top, as the web stacks its dialogs: over the dialogs' layer (4) only if one stood first.
+        Some(deferred(anchored().position(point(px(0.), px(0.))).child(layer)).with_priority(priority).into_any_element())
     }
 
     fn cancel(&self, cx: &mut Context<Self>) -> Button {
         let me = cx.weak_entity();
         Button::outline("dialog-cancel", "Cancel")
+            .neutral_ring()
             .on_click(move |_, window, cx| _ = me.update(cx, |this, cx| this.close_dialog(window, cx)))
     }
 
@@ -632,7 +638,7 @@ impl Sidebar {
         let me = cx.weak_entity();
         let answer = move |id: &'static str, word: &'static str, processes: Processes, destructive: bool| {
             let me = me.clone();
-            let b = if destructive { Button::destructive(id, word) } else { Button::outline(id, word) };
+            let b = if destructive { Button::destructive(id, word) } else { Button::outline(id, word).neutral_ring() };
             b.held(busy.is_some()).on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.finish(processes, cx))).into_any_element()
         };
         let deleting = matches!(ends, Ends::Delete(_));
@@ -735,6 +741,7 @@ impl Sidebar {
 /// `px-5 pt-3 pb-4` with its acts at the right.
 fn popup(title: SharedString, line: Option<SharedString>, body: Option<AnyElement>, acts: Vec<AnyElement>, p: &Palette) -> AnyElement {
     v_flex()
+        .debug_selector(|| "confirm-popup".into())
         .w(px(WIDTH))
         .rounded(px(14.))
         .border_1()
@@ -759,6 +766,63 @@ fn popup(title: SharedString, line: Option<SharedString>, body: Option<AnyElemen
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The sidebar in a window, its dialogs drawn over it.
+    fn drawn(cx: &mut gpui_kit::TestAppContext) -> (Entity<Sidebar>, &mut gpui_kit::VisualTestContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(crate::ui::Side::Light, cx);
+        });
+        let sidebar = cx.new(Sidebar::new);
+        let root = sidebar.clone();
+        let (_, cx) = cx.add_window_view(|window, cx| gpui_kit::component::Root::new(root, window, cx));
+        cx.simulate_resize(gpui_kit::size(px(1280.), px(800.)));
+        (sidebar, cx)
+    }
+
+    /// W2-DLG-126: one workspace by name, Keep this one's others and Delete copies by count, on either road.
+    #[gpui_kit::test]
+    fn the_workspace_dialogs_name_what_they_end(cx: &mut gpui_kit::TestAppContext) {
+        let (sidebar, cx) = drawn(cx);
+        let title = |ids: &[&str], road: Road, cx: &mut gpui_kit::VisualTestContext| {
+            sidebar.update(cx, |s, cx| {
+                for id in ids {
+                    s.around.workspaces.insert(id.to_string(), json!({ "id": id, "name": id, "kind": "local" }));
+                }
+                end_workspaces(s, ids.iter().map(|i| i.to_string()).collect(), road, cx);
+                let words = s.dialog_words().unwrap_or_default();
+                s.dialog = None;
+                words.first().cloned().unwrap_or_default()
+            })
+        };
+        assert_eq!(title(&["fix"], Road::Delete, cx), "Delete fix?");
+        assert_eq!(title(&["fix"], Road::Forget, cx), "Forget fix?");
+        assert_eq!(title(&["a", "b"], Road::Copies, cx), "Delete 2 copies?");
+        assert_eq!(title(&["a", "b", "c"], Road::Others, cx), "Delete the other 3 copies?");
+        assert_eq!(title(&["a", "b"], Road::Forget, cx), "Forget the other 2 copies?");
+    }
+
+    /// W2-DLG-012 on the sidebar's own frame: 440 px, centred in the window.
+    #[gpui_kit::test]
+    fn the_delete_stands_in_the_confirm_frame(cx: &mut gpui_kit::TestAppContext) {
+        let (sidebar, cx) = drawn(cx);
+        sidebar.update(cx, |s, cx| {
+            let open = OpenDialog::Processes {
+                ends: Ends::Delete("t".into()),
+                title: "Delete t?".into(),
+                line: Some(thread_delete_line(None).into()),
+                left: None,
+                busy: None,
+                said: None,
+                checked: true,
+            };
+            s.show_dialog(open, true, cx);
+        });
+        cx.run_until_parked();
+        let popup = cx.debug_bounds("confirm-popup").expect("the delete is drawn");
+        assert_eq!(popup.size.width, px(WIDTH));
+        assert_eq!(popup.center().x, px(640.));
+    }
 
     #[test]
     fn a_copy_names_what_it_holds_that_is_not_pushed() {
