@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The Mac's own pieces GPUI lacks, through `objc2-app-kit`: the Dock's badge and bounce, the alert sound, an
+//! app-modal alert with no parent window, and the move to Applications (`desktop:move.ts`). The move's gate and words
+//! are plain data, read on every platform.
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// `MOVE_PROMPT`.
+pub const MOVE_MESSAGE: &str = "Move wsp to your Applications folder?";
+pub const MOVE_DETAIL: &str = "Opened from anywhere else, macOS runs wsp from a copy whose path changes every launch, and the wsp command it writes for your agents stops working. wsp restarts itself once it has moved.";
+pub const MOVE_BUTTONS: [&str; 2] = ["Move to Applications", "Not now"];
+pub const APPLICATIONS: &str = "/Applications";
+
+/// Whether a bundle sits in an Applications folder: the computer's, or the person's own under their home.
+pub fn in_applications(bundle: &Path, home: Option<&Path>) -> bool {
+    bundle.starts_with(APPLICATIONS) || home.is_some_and(|home| bundle.starts_with(home.join("Applications")))
+}
+
+/// `offersMove`: only a packaged Mac bundle outside Applications is asked, and never a launch driven by a test.
+pub fn offers_move(mac: bool, bundle: Option<&Path>, home: Option<&Path>, driven: bool) -> bool {
+    let packaged = bundle.filter(|b| b.extension().is_some_and(|e| e == "app"));
+    mac && !driven && packaged.is_some_and(|b| !in_applications(b, home))
+}
+
+/// Where the moved bundle lands: Applications, under the bundle's own name.
+pub fn moved_to(bundle: &Path) -> PathBuf {
+    Path::new(APPLICATIONS).join(bundle.file_name().unwrap_or_default())
+}
+
+/// The copy that moves the bundle, as Finder copies one: `ditto` keeps its signature, links and attributes.
+pub fn move_command(bundle: &Path, to: &Path) -> Command {
+    let mut ditto = Command::new("/usr/bin/ditto");
+    ditto.env_clear().arg(bundle).arg(to);
+    ditto
+}
+
+#[cfg(target_os = "macos")]
+pub use native::*;
+
+#[cfg(target_os = "macos")]
+mod native {
+    use std::path::Path;
+
+    use gpui_kit::{App, AppContext as _, AsyncApp};
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSAlert, NSAlertFirstButtonReturn, NSAlertStyle, NSApp, NSBeep, NSRequestUserAttentionType};
+    use objc2_foundation::{NSBundle, NSFileManager, NSString, NSURL};
+
+    /// How an alert reads: a question, or a failure.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Style {
+        Question,
+        Failure,
+    }
+
+    /// The Dock's badge: the count, and none at zero (`app.setBadgeCount`).
+    pub fn set_badge(count: usize) {
+        let Some(mtm) = MainThreadMarker::new() else { return };
+        let label = (count > 0).then(|| NSString::from_str(&count.to_string()));
+        NSApp(mtm).dockTile().setBadgeLabel(label.as_deref());
+    }
+
+    /// The system's alert sound (`shell.beep`).
+    pub fn beep() {
+        NSBeep();
+    }
+
+    /// One bounce of the Dock's icon (`app.dock.bounce("informational")`).
+    pub fn bounce() {
+        let Some(mtm) = MainThreadMarker::new() else { return };
+        NSApp(mtm).requestUserAttention(NSRequestUserAttentionType::InformationalRequest);
+    }
+
+    /// Whether this process runs from an app bundle, without which macOS shows none of its notifications.
+    pub fn bundled() -> bool {
+        NSBundle::mainBundle().bundleIdentifier().is_some()
+    }
+
+    /// An app-modal alert with no parent window, the app raised first so it does not open behind another app's
+    /// window; the first button is the default, and `cancel` takes Escape unless it is the only button, whose Return
+    /// Escape would replace. The index of the button pressed. Call it from a spawned task and never inside a GPUI
+    /// update: its modal loop runs every event while it stands.
+    pub fn alert(style: Style, message: &str, detail: &str, buttons: &[&str], cancel: Option<usize>) -> usize {
+        let Some(mtm) = MainThreadMarker::new() else { return cancel.unwrap_or(0) };
+        #[allow(deprecated)]
+        NSApp(mtm).activateIgnoringOtherApps(true);
+        let alert = NSAlert::new(mtm);
+        alert.setAlertStyle(if style == Style::Failure { NSAlertStyle::Critical } else { NSAlertStyle::Informational });
+        alert.setMessageText(&NSString::from_str(message));
+        alert.setInformativeText(&NSString::from_str(detail));
+        for (at, label) in buttons.iter().enumerate() {
+            let button = alert.addButtonWithTitle(&NSString::from_str(label));
+            if Some(at) == cancel && buttons.len() > 1 {
+                button.setKeyEquivalent(&NSString::from_str("\u{1b}"));
+            }
+        }
+        let picked = alert.runModal() - NSAlertFirstButtonReturn;
+        usize::try_from(picked).ok().filter(|&at| at < buttons.len()).or(cancel).unwrap_or(0)
+    }
+
+    /// `offerMove`: a bundle outside Applications asks once at launch; Move puts a bundle already there in the Trash,
+    /// copies this one there by `ditto` off the main thread and restarts as the moved one, Not now runs on, and a move
+    /// that failed is logged and runs on.
+    pub fn offer_move(cx: &mut App) {
+        let bundle = cx.app_path().ok();
+        let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+        let driven = std::env::var_os("WSP_DESKTOP_SMOKE").is_some_and(|v| v == "1");
+        if !super::offers_move(true, bundle.as_deref(), home.as_deref(), driven) {
+            return;
+        }
+        let Some(bundle) = bundle else { return };
+        cx.spawn(async move |cx: &mut AsyncApp| {
+            if alert(Style::Question, super::MOVE_MESSAGE, super::MOVE_DETAIL, &super::MOVE_BUTTONS, Some(1)) != 0 {
+                return;
+            }
+            let to = super::moved_to(&bundle);
+            let target = to.clone();
+            match cx.background_spawn(async move { moved(&bundle, &target) }).await {
+                Ok(()) => cx.update(|cx| {
+                    cx.set_restart_path(to);
+                    cx.restart();
+                }),
+                Err(why) => eprintln!("desktop-gpui: wsp could not move itself to Applications: {why}"),
+            }
+        })
+        .detach();
+    }
+
+    fn moved(bundle: &Path, to: &Path) -> Result<(), String> {
+        if to.exists() {
+            let url = NSURL::fileURLWithPath(&NSString::from_str(&to.to_string_lossy()));
+            NSFileManager::defaultManager()
+                .trashItemAtURL_resultingItemURL_error(&url, None)
+                .map_err(|e| format!("{} could not be moved to the Trash: {}", to.display(), e.localizedDescription()))?;
+        }
+        let out = super::move_command(bundle, to).output().map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_owned())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `move.test.ts`: only a packaged Mac bundle outside Applications is asked, never a driven launch.
+    #[test]
+    fn the_move_is_offered_only_to_a_packaged_mac_bundle_outside_applications() {
+        let downloads = Path::new("/Users/z/Downloads/wsp.app");
+        let home = Some(Path::new("/Users/z"));
+        assert!(offers_move(true, Some(downloads), home, false));
+        assert!(!offers_move(false, Some(downloads), home, false), "Linux has nothing to move");
+        assert!(!offers_move(true, Some(downloads), home, true), "a driven launch answers no box");
+        assert!(!offers_move(true, None, home, false), "a build run out of a checkout is no bundle");
+        assert!(!offers_move(true, Some(Path::new("/Users/z/src/target/debug")), home, false));
+        assert!(!offers_move(true, Some(Path::new("/Applications/wsp.app")), home, false));
+        assert!(!offers_move(true, Some(Path::new("/Users/z/Applications/wsp.app")), home, false));
+    }
+
+    #[test]
+    fn the_move_copies_the_bundle_into_applications_under_its_own_name() {
+        let bundle = Path::new("/private/var/folders/x/AppTranslocation/y/d/wsp.app");
+        assert_eq!(moved_to(bundle), Path::new("/Applications/wsp.app"));
+        let ditto = move_command(bundle, &moved_to(bundle));
+        assert_eq!(ditto.get_program(), "/usr/bin/ditto");
+        assert_eq!(ditto.get_args().collect::<Vec<_>>(), [bundle.as_os_str(), Path::new("/Applications/wsp.app").as_os_str()]);
+        assert_eq!(ditto.get_envs().count(), 0, "the copy carries none of the app's environment");
+    }
+}

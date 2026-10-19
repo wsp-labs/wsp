@@ -3,8 +3,10 @@
 //! happened away from where the person is looking: an event whose home is on screen (that thread open, that
 //! computer's page, that workspace's thread) says nothing here. A wait (a build's need, a thread's prompt, a setup's
 //! sign-in) is keyed and stands until the event that closes it. What goes out on the system's own notifications, and
-//! a workspace waking, which says only that, are not toasts.
+//! a workspace waking, which says only that, are not toasts: the six moments the page says over the system
+//! (`sayOutside`) go to [`notify::say`], which says nothing while a window of the app has the person's eyes.
 
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -13,12 +15,14 @@ use std::time::Duration;
 use futures::channel::mpsc;
 use futures::StreamExt;
 use gpui_kit::{App, Context, Task, Window};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use wsp_host_client::protocol::PreferencesGetRequest;
 use wsp_host_client::{Failure, HostClient};
 
 use super::words::{self, OPEN};
 use super::{route, Action, Kind, Notice, Notices};
+use crate::desktop::feed::Prefs;
+use crate::desktop::notify::{self, Choices, Moment};
 use crate::screens::app_shell::split;
 use crate::screens::dialogs::{add_cloud, add_computer};
 use crate::screens::sidebar::host::{ask, kind_of};
@@ -57,6 +61,8 @@ pub struct Rules {
     /// The setups that ended ready, by computer, with their run, until the list shows how.
     ready: HashMap<String, String>,
     pub(super) places: Vec<Value>,
+    /// General's choices for the lines said over the system, read as the socket opens and kept by its pushes.
+    choices: Choices,
 }
 
 /// Whether the build job carries a need.
@@ -105,7 +111,9 @@ fn reads(kind: &str) -> Option<bool> {
         | "workspace.gone"
         | "session.done"
         | "session.permission.closed"
-        | "host.notice" => false,
+        | "host.notice"
+        | "workspace.woken"
+        | "preferences.changed" => false,
         _ => return None,
     })
 }
@@ -116,6 +124,9 @@ async fn hear(client: Arc<HostClient>, tx: mpsc::UnboundedSender<Heard>) {
     loop {
         let ended: Result<(), Failure> = async {
             let mut events = client.events().await?;
+            let preferences = client.call_raw("preferences.get", Map::new()).await?.remove("preferences").unwrap_or_default();
+            let read = Heard { kind: "preferences.changed".into(), frame: json!({ "preferences": preferences }), preferences: None };
+            tx.unbounded_send(read).map_err(|_| Failure::new("gone"))?;
             while let Some(event) = events.next().await {
                 let Ok(event) = event else { continue };
                 let Some((kind, frame)) = kind_of(&event) else { continue };
@@ -263,6 +274,23 @@ fn add(n: &mut Notices, notice: Notice, cx: &mut Context<Notices>) {
     n.add(notice, cx);
 }
 
+/// `sayOutside`: `moment` said over the system under the person's choices, a click on it running `open` in this
+/// window.
+fn say_outside(n: &Notices, moment: Moment, open: Option<Action>, window: &Window, cx: &mut Context<Notices>) {
+    let Some(line) = notify::outside_line(&moment, &n.rules.choices) else { return };
+    let handle = window.window_handle();
+    let open =
+        open.map(|action| Rc::new(move |cx: &mut App| _ = handle.update(cx, |_, window, cx| (action.run)(window, cx))) as notify::Opener);
+    notify::say(&line, open, cx);
+}
+
+/// The thread a workspace's notice opens: its first in the sidebar.
+fn workspace_thread(n: &Notices, workspace: &str, cx: &App) -> Option<String> {
+    let sidebar = n.sidebar.as_ref()?.upgrade()?;
+    let thread = sidebar.read(cx).threads().iter().find(|t| t.workspace_id == workspace).map(|t| t.key.clone());
+    thread
+}
+
 fn say_need(n: &mut Notices, what: String, at: Option<String>, cx: &mut Context<Notices>) {
     let notice = Notice::waiting(words::init_needs_you(&what)).key(NEED_KEY).action(open_computer(at));
     n.rules.need = Some(what);
@@ -299,6 +327,9 @@ pub(super) fn take_job(n: &mut Notices, window: &mut Window, cx: &mut Context<No
     if pushed != n.rules.pushed {
         n.rules.pushed = pushed;
         let at = job_place(job.as_deref());
+        if let Some(what) = need_what(job.as_deref()) {
+            say_outside(n, Moment::SignIn { what: &what }, Some(open_computer(at.clone())), window, cx);
+        }
         if let Some(what) = need_what(job.as_deref()).filter(|_| !build_on_screen(at.as_deref(), window, cx)) {
             say_need(n, what, at, cx);
         }
@@ -432,19 +463,28 @@ fn apply(n: &mut Notices, heard: Heard, window: &mut Window, cx: &mut Context<No
             let name = place_name(&place);
             let shows = computer_on_screen(Some(&at), window, cx);
             let said = s(&e, "said").unwrap_or_default();
+            let outside =
+                |n: &Notices, moment: Moment, cx: &mut Context<Notices>| say_outside(n, moment, Some(open_setup(&at)), window, cx);
             match (end, wait) {
                 (None, Some(w)) => {
                     let key = wait_key(&at, s(w, "row").unwrap_or_default());
                     if !shows {
                         let text = words::setup_needs_you(&name, &words::wait_line(w));
-                        add(n, Notice::waiting(text).key(key.clone()).place(name).action(open_setup(&at)), cx);
+                        add(n, Notice::waiting(text).key(key.clone()).place(name.clone()).action(open_setup(&at)), cx);
                     }
-                    n.rules.waits.entry(key).or_insert((at, run));
+                    if let Entry::Vacant(held) = n.rules.waits.entry(key) {
+                        held.insert((at.clone(), run));
+                        outside(n, Moment::SignIn { what: &format!("{name}: {}", words::wait_line(w)) }, cx);
+                    }
                 }
-                (Some("failed"), _) if !shows => {
-                    add(n, Notice::error(words::not_set_up(&name, said)).place(name).action(open_setup(&at)), cx)
+                (Some("failed"), _) => {
+                    outside(n, Moment::SetupFailed { computer: &name, said }, cx);
+                    if !shows {
+                        add(n, Notice::error(words::not_set_up(&name, said)).place(name).action(open_setup(&at)), cx)
+                    }
                 }
                 (Some("needs-you"), _) => {
+                    outside(n, Moment::SetupNeedsYou { computer: &name, what: said }, cx);
                     let setup = place.get("setup").filter(|r| s(r, "addId") == Some(run.as_str()));
                     let waiting = setup.and_then(|r| r.get("waiting")).and_then(Value::as_array).is_some_and(|w| !w.is_empty());
                     if setup.is_none() || waiting {
@@ -455,8 +495,10 @@ fn apply(n: &mut Notices, heard: Heard, window: &mut Window, cx: &mut Context<No
                         wait_ready(n, &place, at, run, cx);
                     }
                 }
-                (Some("failed"), _) => {}
-                _ => wait_ready(n, &place, at, run, cx),
+                _ => {
+                    outside(n, Moment::SetupReady { computer: &name, missed: s(&e, "said") }, cx);
+                    wait_ready(n, &place, at, run, cx)
+                }
             }
         }
         "session.done" => {
@@ -527,8 +569,12 @@ fn apply(n: &mut Notices, heard: Heard, window: &mut Window, cx: &mut Context<No
             if (phase != "done" && phase != "failed") || n.rules.jobs_ended.contains(&id) {
                 return;
             }
-            push_held(&mut n.rules.jobs_ended, id);
+            push_held(&mut n.rules.jobs_ended, id.clone());
             let at = job.pointer("/place/id").and_then(Value::as_str).map(str::to_owned);
+            if let (true, (Some(computer), image)) = (phase == "done", add_cloud::seal_words(&job, &places)) {
+                let open = add_cloud::open_sealed(at.clone(), id);
+                say_outside(n, Moment::ImageReady { computer: &computer, image: &image }, Some(open), window, cx);
+            }
             if build_on_screen(at.as_deref(), window, cx) || at.as_deref().is_some_and(|p| add_cloud::build_on_screen(p, cx)) {
                 return;
             }
@@ -545,15 +591,21 @@ fn apply(n: &mut Notices, heard: Heard, window: &mut Window, cx: &mut Context<No
                 return;
             }
             let mut notice = Notice::error(words::gone(&name, s(&e, "reason").unwrap_or_default())).place(name);
-            let thread = n
-                .sidebar
-                .as_ref()
-                .and_then(|s| s.upgrade())
-                .and_then(|side| side.read(cx).threads().iter().find(|t| t.workspace_id == workspace).map(|t| t.key.clone()));
-            if let Some(thread) = thread {
+            if let Some(thread) = workspace_thread(n, workspace, cx) {
                 notice = notice.action(open_thread(workspace.to_owned(), thread));
             }
             add(n, notice, cx);
+        }
+        "workspace.woken" => {
+            let workspace = s(&e, "workspaceId").unwrap_or_default();
+            let Some(name) = named(workspace) else { return };
+            let open = workspace_thread(n, workspace, cx).map(|thread| open_thread(workspace.to_owned(), thread));
+            say_outside(n, Moment::Awake { workspace: &name }, open, window, cx);
+        }
+        "preferences.changed" => {
+            if let Some(preferences) = e.get("preferences") {
+                n.rules.choices = Prefs::of(preferences).choices;
+            }
         }
         "usage.alert" => {
             if preferences.as_ref().and_then(|p| p.get("planAlerts")).and_then(Value::as_bool) == Some(false) {

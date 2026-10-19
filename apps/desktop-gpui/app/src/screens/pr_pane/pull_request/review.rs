@@ -122,9 +122,11 @@ impl Held {
         match review {
             None => Held::Working,
             Some(ReviewDraft::Variant1 { note, .. }) => Held::Note(note),
+            Some(ReviewDraft::Unknown(_)) => Held::Note("This draft comes from a newer wsp than this app.".to_owned()),
             Some(ReviewDraft::Variant0 { verdict, summary, comments, head_oid, thread_id, posted, .. }) => Held::Read(Draft {
                 verdict: match verdict {
-                    ReviewDraftVariant0Verdict::Comment => Verdict::Comment,
+                    // A verdict this release does not know shows as Comment; a post sends no verdict, so the host posts its own.
+                    ReviewDraftVariant0Verdict::Comment | ReviewDraftVariant0Verdict::Unknown => Verdict::Comment,
                     ReviewDraftVariant0Verdict::Approve => Verdict::Approve,
                     ReviewDraftVariant0Verdict::RequestChanges => Verdict::RequestChanges,
                 },

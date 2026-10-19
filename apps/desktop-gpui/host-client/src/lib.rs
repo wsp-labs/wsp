@@ -16,13 +16,17 @@ use wsp_mcp::client::{Client, Frames};
 use wsp_mcp::host::Host;
 
 pub use wsp_mcp::failure::Failure;
-pub use wsp_mcp::Env;
+pub use wsp_mcp::{lock, release_order, Env};
 
+/// The types build.rs generates from the record, each word list and tagged union with an `Unknown` arm that a value a
+/// newer host sends and this release does not know reads as.
+#[allow(non_camel_case_types, clippy::all)]
 pub mod protocol {
-    typify::import_types!(schema = "record/protocol.json");
+    include!(concat!(env!("OUT_DIR"), "/protocol.rs"));
 }
 
 pub mod ops;
+pub mod start;
 
 use protocol::{
     AgentsSignInEvent, AppProcsEvent, DaemonChannelEvent, EventUnion, PlaceSysEvent, ProjectView, SessionEvent, SessionView,
@@ -33,6 +37,11 @@ const RECORD: &str = include_str!("../record/protocol.json");
 
 /// HOST_ENV and the launch pair of LAUNCH_ENV in packages/protocol/src/env.ts.
 const AIMS_A_LINE: [&str; 4] = ["WSP_HOST", "WSP_HOST_URL", "WSP_HOST_TOKEN", "WSP_HOST_KEY"];
+
+/// `ACCOUNT_DIAL_MS` (`desktop:host-lifecycle.ts`): how long the one dial at the account's host waits. A person who
+/// opened the app is watching it, so a host that has not answered is one the window opens without. The floor under it
+/// is what a relayed road was measured to hold: an edge whose tunnel has just come up answers a first frame at 5.8 s.
+const ACCOUNT_DIAL: std::time::Duration = std::time::Duration::from_millis(8_000);
 
 /// One op the host serves: its request is the params record.mjs recorded for it, and its reply what the host answers
 /// once the frame's id and ok are taken off.
@@ -126,9 +135,24 @@ impl HostClient {
         self.host.held_token()
     }
 
+    /// The release the host named when this client last dialled it; none from a host before the answer carried one.
+    pub fn host_release(&self) -> Option<String> {
+        self.host.host_release()
+    }
+
+    /// This app's own release, the one a host's is read against ("this app is <app>, the host is <v>").
+    pub fn app_release() -> String {
+        wsp_mcp::own_release()
+    }
+
     /// Whether this client dials the host serving its state file on this computer.
     pub fn here(&self) -> bool {
         self.host.aims_here()
+    }
+
+    /// The alias of the account's host this client dials, where it dials one rather than the host here.
+    pub fn alias(&self) -> Option<String> {
+        self.host.aimed_alias()
     }
 
     /// One op and its reply, typed both ways.
@@ -143,6 +167,15 @@ impl HostClient {
         reply.remove("ok");
         serde_json::from_value(Value::Object(reply))
             .map_err(|e| Failure::new(format!("{} answered what its reply type does not read: {e}", O::NAME)))
+    }
+
+    /// One op's reply as the host sent it, for a reader that takes a few fields: nothing the record does not read
+    /// fails it.
+    pub async fn call_raw(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, Failure> {
+        let mut reply: Map<String, Value> = self.host.client().await?.request(op, params).await?;
+        reply.remove("id");
+        reply.remove("ok");
+        Ok(reply)
     }
 
     /// Everything the host pushes on this socket from the moment this was asked, typed.
@@ -267,11 +300,13 @@ pub enum Unopened {
     Refused(Failure),
 }
 
-/// The tool server's host for `state`, with the names that aim a command line taken out of the environment.
+/// The tool server's host for `state`, with the names that aim a command line taken out of the environment, attaching
+/// to a host of a newer release than this app's as the desktop app does and refusing an older one, and refusing a
+/// lock in the desktop app's words.
 fn attached(state: &Path, env: &Env) -> Host {
     let env: Env = env.iter().filter(|(name, _)| !AIMS_A_LINE.contains(&name.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
     let args = wsp_mcp::Args { state: state.to_owned(), ..wsp_mcp::Args::default() };
-    Host::new(&args, &env, None)
+    Host::new(&args, &env, None).with_release_rule(wsp_mcp::ReleaseRule::OwnOrNewer).with_account_window(ACCOUNT_DIAL)
 }
 
 pub struct Thread {
@@ -352,6 +387,7 @@ pub fn pos(event: &SessionEvent) -> Option<u64> {
         | E::SessionSubagent { pos, .. }
         | E::SessionSlate { pos, .. }
         | E::ThreadWaited { pos, .. } => pos,
+        E::Unknown => &None,
     };
     pos.map(std::num::NonZeroU64::get)
 }
@@ -378,7 +414,7 @@ impl Event {
     /// A pushed frame by the schema its type names. One of a recorded type that does not read as that type is a
     /// failure, since the record is then behind the host, except a daemon channel's: today's client routes those by
     /// their channel unread (`protocol/client.ts`).
-    fn read(kind: &str, frame: Value) -> Result<Event, Failure> {
+    pub fn read(kind: &str, frame: Value) -> Result<Event, Failure> {
         let read = |e: serde_json::Error| Failure::new(format!("{kind}: {e}"));
         match kind {
             "workspace.sys" => serde_json::from_value(frame).map(|e| Event::Sys(Box::new(e))).map_err(read),

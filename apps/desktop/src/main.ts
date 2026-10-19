@@ -211,7 +211,7 @@ const links = deepLinks({
 /** The road to the GPUI app while the Experimental switch is on; nothing is stopped, since both apps serve one host. */
 const toGpui: HandOverDeps = {
   dir: APP_DIR,
-  open: (path, link) => openGpui(gpuiLaunch(process.platform, path, process.env, link)),
+  open: (path, link) => openGpui(gpuiLaunch(process.platform, path, process.env, where().statePath, link)),
   leaving: () => quitting,
   quit: () => {
     quitting = true;

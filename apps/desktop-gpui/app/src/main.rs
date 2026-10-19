@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
+use desktop_gpui::desktop::{frame, links, switch};
 use desktop_gpui::gallery::Gallery;
 use desktop_gpui::screens::app_shell::{assets::AppAssets, menu};
 use desktop_gpui::screens::dialogs::startup::{self, Claim};
@@ -10,16 +11,43 @@ use desktop_gpui::screens::{composer, Place, Route};
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
 use desktop_gpui::{bench, local_store, screens};
+use futures::StreamExt as _;
 use gpui_kit::component::Root;
 use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
 use wsp_host_client::Env;
 
-/// The state file a launch means, as the Electron app picks it: WSP_HOME names the home outright, else ~/.wsp.
+/// The state file a launch means, as the Electron app picks it: WSP_HOME names the home, made absolute against the
+/// current folder, else ~/.wsp. An empty WSP_HOME names no home.
 fn default_state() -> PathBuf {
     let home = std::env::var_os("WSP_HOME")
-        .map(PathBuf::from)
+        .filter(|home| !home.is_empty())
+        .map(|home| resolved(Path::new(&home), &std::env::current_dir().unwrap_or_default()))
         .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".wsp"));
     home.join("state.json")
+}
+
+/// A path made absolute against `cwd` and tidied by its spelling alone, links left as they are (node's `path.resolve`).
+fn resolved(path: &Path, cwd: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for part in cwd.join(path).components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            part => out.push(part),
+        }
+    }
+    out
+}
+
+/// A launch on a named state keeps its store beside that state, so a capture or a bench on a throwaway host never
+/// writes into the person's own; the default state, which today's app names on every hand-over, keeps the default store.
+fn store_path(named: Option<&Path>, default: &Path) -> PathBuf {
+    match named {
+        Some(state) if state != default => state.with_file_name("desktop-gpui-local-store.json"),
+        _ => local_store::default_path(),
+    }
 }
 
 /// `--pane launcher` opens the right panel on no tab, the launcher, which a memory reading sets beside a pane's.
@@ -38,8 +66,15 @@ fn take_pane(words: impl Iterator<Item = String>) -> Result<(Vec<String>, Option
     Ok((rest, pane))
 }
 
+/// Takes the wsp:// link out of the launch's words, where the system put one (`linkInArgv`).
+fn take_link(words: Vec<String>) -> (Vec<String>, Option<String>) {
+    let link = links::link_in_argv(&words).cloned();
+    (words.into_iter().filter(|word| Some(word) != link.as_ref()).collect(), link)
+}
+
 fn main() {
-    let (words, pane) = take_pane(std::env::args().skip(1)).unwrap_or_else(|e| {
+    let (words, link) = take_link(std::env::args().skip(1).collect());
+    let (words, pane) = take_pane(words.into_iter()).unwrap_or_else(|e| {
         eprintln!("desktop-gpui: {e}");
         std::process::exit(64);
     });
@@ -63,17 +98,21 @@ fn main() {
         eprintln!("desktop-gpui: no screen is named {name}");
         std::process::exit(64);
     }
-    // A launch on a named state keeps its store beside that state, so a capture or a bench on a throwaway host never
-    // writes into the person's own.
-    let kept = match &args.state {
-        Some(state) => state.with_file_name("desktop-gpui-local-store.json"),
-        None => local_store::default_path(),
-    };
+    let kept = store_path(args.state.as_deref(), &default_state());
     let state = args.state.unwrap_or_else(default_state);
     // A launch that names what to open (a bench, a thread, a screen) or asks for the glass skips the lock and onboarding.
     let plain = args.bench.is_none() && args.open.is_none() && args.screen.is_none() && !args.gallery && !args.glass;
-    let lock = match plain.then(|| startup::claim(&startup::home_of(&state))) {
-        Some(Ok(Claim::Held(lock))) => Some(lock),
+    let home = startup::home_of(&state);
+    let lock = match plain.then(|| startup::claim_with(&home, link.as_deref())) {
+        Some(Ok(Claim::Held(lock))) => {
+            // Today's app offers its switch wherever this file names an app, and only a Mac's app menu has the way back.
+            if cfg!(target_os = "macos") {
+                if let Err(e) = switch::own_path(std::env::var_os("APPIMAGE")).and_then(|exe| switch::write_path(&home, &exe)) {
+                    eprintln!("desktop-gpui: {} could not be written: {e}", switch::PATH_FILE);
+                }
+            }
+            Some(lock)
+        }
         Some(Ok(Claim::Taken)) => std::process::exit(0),
         Some(Err(e)) => {
             eprintln!("desktop-gpui: the app's lock could not be taken: {e}");
@@ -87,13 +126,21 @@ fn main() {
     let bench::Capture { theme, unfold, now, reveal } = args.capture;
     let capture = desktop_gpui::screens::thread_view::Capture { theme, unfold, now, reveal, strict: args.bench.is_some() };
     let launch = Launch { bench: args.bench, open: args.open, glass: args.glass, screen: args.screen };
+    let switched = switch::read(&home);
+    frame::choose();
     let app = gpui_kit::application().with_assets(AppAssets);
+    // A Mac hands over the link that launched the app before it is running, so the handler comes before `run`.
+    let (urls, mut opened) = futures::channel::mpsc::unbounded::<String>();
+    app.on_open_urls(move |handed| handed.into_iter().for_each(|url| _ = urls.unbounded_send(url)));
     let reopen = (state.clone(), env.clone(), runtime.clone());
     // Electron's activate: the dock's icon on a Mac app with no window opens one again.
     app.on_reopen(move |cx| {
         if cx.windows().is_empty() && !startup::opening(cx) {
             let (state, env, runtime) = reopen.clone();
-            open_main(state, env, runtime, Launch::default(), None, cx);
+            let main = reopen.clone();
+            let window =
+                Rc::new(move |cx: &mut App| open_main(main.0.clone(), main.1.clone(), main.2.clone(), Launch::default(), None, cx));
+            startup::open_later(state, env, runtime, window, cx);
         }
     });
     app.run(move |cx: &mut App| {
@@ -110,6 +157,18 @@ fn main() {
         local_store::init(kept.clone(), cx);
         composer::init(cx);
         screens::palette::init(cx);
+        frame::init(cx);
+        cx.set_global(switched);
+        switch::init(&home, cx);
+        if let Some(link) = &link {
+            links::open(link, cx);
+        }
+        cx.spawn(async move |cx| {
+            while let Some(url) = opened.next().await {
+                cx.update(|cx| links::open(&url, cx));
+            }
+        })
+        .detach();
         if gallery {
             let bounds = Bounds::centered(None, size(px(760.), px(900.)), cx);
             cx.open_window(
@@ -133,8 +192,11 @@ fn main() {
             let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
             Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), None, cx))
         };
+        desktop_gpui::desktop::feed::start(state.clone(), env.clone(), runtime.clone(), reopen.clone(), cx);
         if let Some(lock) = lock {
-            startup::follow_raises(lock, reopen.clone(), cx);
+            let (state, env, runtime, window) = (state.clone(), env.clone(), runtime.clone(), reopen.clone());
+            let later = move |cx: &mut App| startup::open_later(state.clone(), env.clone(), runtime.clone(), window.clone(), cx);
+            startup::follow_raises(lock, Rc::new(later), cx);
         }
         if plain {
             startup::open(state, env, runtime, reopen, cx);
@@ -146,9 +208,10 @@ fn main() {
 
 /// The app's window, the shell in it, with `pane` opened in the right panel once the shell first shows a thread.
 fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, launch: Launch, pane: Option<String>, cx: &mut App) {
-    let options = startup::window_options(cx);
+    let options = WindowOptions { window_decorations: frame::decorations(), ..startup::window_options(cx) };
     cx.open_window(options, |window, cx| {
         let shell = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
+        links::attach(window, &shell, cx);
         if let Some(pane) = pane {
             let mut pane = Some(pane);
             window
@@ -176,7 +239,30 @@ fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, la
 
 #[cfg(test)]
 mod tests {
-    use super::take_pane;
+    use std::path::{Path, PathBuf};
+
+    use super::{local_store, resolved, store_path, take_link, take_pane};
+
+    /// Catches: a hand-over from today's app, which names the default state, keeping its panes in another store than a
+    /// launch from the Dock; or a throwaway state writing into the person's store.
+    #[test]
+    fn only_a_state_other_than_the_default_keeps_its_own_store() {
+        let default = Path::new("/u/.wsp/state.json");
+        assert_eq!(store_path(Some(default), default), local_store::default_path());
+        assert_eq!(store_path(None, default), local_store::default_path());
+        let bench = Path::new("/tmp/bench/state/state.json");
+        assert_eq!(store_path(Some(bench), default), PathBuf::from("/tmp/bench/state/desktop-gpui-local-store.json"));
+    }
+
+    #[test]
+    fn resolves_the_home_as_path_resolve_does() {
+        let cwd = Path::new("/work/here");
+        assert_eq!(resolved(Path::new("homes/a"), cwd), PathBuf::from("/work/here/homes/a"));
+        assert_eq!(resolved(Path::new("../b/./c"), cwd), PathBuf::from("/work/b/c"));
+        assert_eq!(resolved(Path::new("//srv//wsp-home"), cwd), PathBuf::from("/srv/wsp-home"));
+        assert_eq!(resolved(Path::new("/srv/wsp-home/"), cwd), PathBuf::from("/srv/wsp-home"));
+        assert_eq!(resolved(Path::new("/../../x"), cwd), PathBuf::from("/x"));
+    }
 
     #[test]
     fn takes_the_pane_and_leaves_the_rest() {
@@ -185,5 +271,16 @@ mod tests {
         assert_eq!(rest, ["--state", "/s.json", "--open", "t1"]);
         assert_eq!(pane.as_deref(), Some("slate"));
         assert!(take_pane(["--pane".to_owned()].into_iter()).is_err());
+    }
+
+    #[test]
+    fn takes_the_link_and_leaves_the_rest() {
+        let words = ["--state", "/s.json", "wsp://thread/t1"].map(str::to_owned).to_vec();
+        let (rest, link) = take_link(words);
+        assert_eq!(rest, ["--state", "/s.json"]);
+        assert_eq!(link.as_deref(), Some("wsp://thread/t1"));
+        assert_eq!(take_link(vec!["--glass".to_owned()]), (vec!["--glass".to_owned()], None));
+        // Linux hands a link to a first launch as its only word, which must stay a plain launch that takes the lock.
+        assert_eq!(take_link(vec!["wsp://thread/t1".to_owned()]), (vec![], Some("wsp://thread/t1".to_owned())));
     }
 }
