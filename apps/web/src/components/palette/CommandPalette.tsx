@@ -17,7 +17,7 @@ import { noticeFailure } from "../../notices/store.js";
 import { useHomeProject, useSelectedThreadId, useSelectedWorkspaceId, useSidebarProjects, useStore } from "../../protocol/store.js";
 import { copyText } from "../../actions/clipboard.js";
 import { useRightPanelStore } from "../../rightPanelStore.js";
-import { cycleThreadInSpace, goToAdjacentWorkspace, goToWorkspace, openRootMoves } from "../../shell/shellCommands.js";
+import { cycleThreadInSpace, goToWorkspace, openRootMoves, stepThreadLevel, threadLevel } from "../../shell/shellCommands.js";
 import { useKeybindings } from "../../shell/useKeybindings.js";
 import { newThreadAsks, openNewThread, useNewThreadPicks } from "../../shell/NewThreadPicks.js";
 import { requestAddProject } from "../../shell/shellRequests.js";
@@ -119,8 +119,8 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
       resumeConversation: openResumePicker,
       toggleSidebar,
       toggleRightPanel,
-      nextWorkspace: () => goToAdjacentWorkspace(1),
-      previousWorkspace: () => goToAdjacentWorkspace(-1),
+      nextAtLevel: () => stepThreadLevel(1),
+      previousAtLevel: () => stepThreadLevel(-1),
       nextThread: () => cycleThreadInSpace(1),
       previousThread: () => cycleThreadInSpace(-1),
       openSettings,
@@ -138,13 +138,14 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
   const built = useRef<PaletteItems>(SHUT);
   // Read once per open: they derive the whole sidebar, and the items are built again on every key typed.
   const threadMoves = useMemo(() => (open ? openRootMoves() : []), [open]);
+  const levelThreads = useMemo(() => (open ? threadLevel().threads.length : 0), [open]);
   const items = useMemo(() => {
     if (open) {
       const resumeProject = onScreen === null ? null : (recorded.find(p => p.id === onScreen) ?? null);
-      built.current = buildPaletteItems({ projects, threadMoves, selectedId, query, messageHits, ...(unsearched !== undefined ? { unsearched } : {}), canCreate: api !== null, recorded, picks, asks, handlers, verbs, places, resumeProject });
+      built.current = buildPaletteItems({ projects, threadMoves, levelThreads, selectedId, query, messageHits, ...(unsearched !== undefined ? { unsearched } : {}), canCreate: api !== null, recorded, picks, asks, handlers, verbs, places, resumeProject });
     }
     return built.current;
-  }, [api, asks, handlers, messageHits, onScreen, open, picks, places, projects, query, recorded, selectedId, threadMoves, unsearched, verbs]);
+  }, [api, asks, handlers, messageHits, onScreen, open, picks, places, projects, query, recorded, selectedId, threadMoves, levelThreads, unsearched, verbs]);
   // A page whose row is gone or held, as the last project's removal leaves it, reads as the root.
   const page = useMemo(() => {
     const at = pages.at(-1);

@@ -283,10 +283,9 @@ describe("index.css", () => {
 
       /* The counts in the top rows: the sidebar's quiet text at part opacity.
          Declared on the sidebar as well as the root, so the sidebar's own step-ups
-         reach it. Two surfaces read it, the sidebar's rows and the workspace
-         switcher's cards, and the switcher is portaled outside [data-app-sidebar]:
-         it takes the root's copy, which is why this token is declared on both and
-         cannot be scoped to the sidebar alone. */
+         reach it. The project switcher's menu reads it too, and that menu is
+         portaled outside [data-app-sidebar]: it takes the root's copy, which is why
+         this token is declared on both and cannot be scoped to the sidebar alone. */
       :root,
       [data-app-sidebar] {
         --top-row-meta: color-mix(in srgb, var(--sidebar-whisper) var(--top-row-meta-alpha), transparent);

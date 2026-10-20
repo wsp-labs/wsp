@@ -582,7 +582,7 @@ describe("each terminal reads as its own", () => {
     const surfaces = () => selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, WS).surfaces.map(s => (s.kind === "terminal" ? [s.id, s.terminalIds] : s.id));
     const pressNew = () => {
       document.querySelector<HTMLElement>('[data-terminal-owner="right-panel"] button')!.focus();
-      runShellCommand("terminal.new", { workspaceId: WS, toggleSidebar: () => {} }, []);
+      runShellCommand("terminal.new", { workspaceId: WS, toggleSidebar: () => {} });
     };
 
     pressNew();
