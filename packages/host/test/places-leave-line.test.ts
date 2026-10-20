@@ -82,13 +82,15 @@ describe("a box whose root login reads a bash login file before ~/.profile", () 
   const OWN = "export EDITOR=vim\n";
 
   /** What `sudo -i` runs: root's own shell as a login, which reads the first of ~/.bash_profile, ~/.bash_login and
-   * ~/.profile it finds, with a PATH that knows only node. */
+   * ~/.profile it finds, with a PATH that knows only node. It reads this computer's /etc/profile too, which may complain
+   * on stderr with so short a PATH: a GitHub runner's debuginfod.sh calls tr. */
   const loggedIn = (home: string, line: string) => spawnSync("/bin/bash", ["-l", "-c", line], { encoding: "utf8", env: { HOME: home, PATH: nodeOnly() } });
 
   it.each([".bash_profile", ".bash_login"])("finds the bundle's wsp through %s, and every road off the box leaves that file as it was", async file => {
     const home = joinedBox({ [file]: OWN });
     const typed = loggedIn(home, `${placeLeaveLineAs(true)} --help`);
-    expect(`${typed.stdout}${typed.stderr}`).toBe("bundle wsp: leave --help\n");
+    expect(typed.stdout).toBe("bundle wsp: leave --help\n");
+    expect(typed.stderr).not.toContain(home);
     // An update writes the files again: one line of wsp's in their file however often.
     const files = loginFilesStep(sshDaemonPlace({ home, path: "/usr/bin" })).join("\n");
     expect(spawnSync("bash", ["-c", files], { encoding: "utf8" }).status).toBe(0);
