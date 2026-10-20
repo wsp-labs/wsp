@@ -73,6 +73,8 @@ decisions (D23 on) and every transition line by screen with its source. Paths an
 - W1-FRM-117 Projects refused, failed start. png none: a refused list, a fork that never stood. `App.tsx:107`
 - W1-FRM-118 Window on another computer, socket down: no banner, the sidebar's line says the host sleeps. png none: needs a second computer. `shell/AppShell.tsx:153`
 - W1-FRM-119 Theme on System follows the computer's dark mode live. png none: an OS setting. `settings/theme.ts:48`
+- W1-FRM-194 No thread selected: the centre is the first project's home, its New thread page (folder mark, "What should we build in bench?", ASCII ground, composer, computer and branch chips); nothing draws a "Pick a thread" page. png `W1-FRM-017-<theme>.png`; drive: none. `App.tsx:87`
+- W1-FRM-195 Workspace link: `wsp://workspace/<id>` opens the thread today's app shows for that workspace with none picked, on the fixture the panes thread, the newest. png `W1-FRM-195-<theme>.png`; drive: the fixture's realHost; hash `#open/workspace/<bench's workspace>`, reload. `shell/links.ts:29`
 
 ### Actions and keys
 
@@ -687,6 +689,8 @@ decisions (D23 on) and every transition line by screen with its source. Paths an
 - W1-SBR-122 Ended subagent's page open: its row stands under the shut Finished head until left. png none: needs a subagent ending mid-turn. `sidebar/LeadTree.tsx:117`
 - W1-SBR-123 Waiting, Limited, Resuming, Starting, Released, Expired, Not pushed slots. png none: needs a thread cap, a usage limit or a cloud. `components/status/kinds/index.ts:24`
 - W1-SBR-124 Stale pick reads as All. png `W1-SBR-124-<theme>.png`; drive: `+project e`; click "All projects", click "e"; `+op projects.remove e`. `sidebar/picks.ts:42`
+- W1-SBR-172 A computer named apart from its hostname, as a Mac is (the fixture's realHost label "zingzy's MacBook Pro"): each tile's first row reads "bench @ zingzy's MacBook Pro", never the hostname. png `W1-SBR-172-<theme>.png`; drive: the fixture's realHost; open the panes thread. `sidebar/ThreadTile.tsx:60`
+- W1-SBR-173 Hover card on that computer's thread: its computer line reads the label. png `W1-SBR-173-<theme>.png`; drive: as W1-SBR-172; hover the panes thread's row. `sidebar/ThreadTile.tsx:83`
 
 ### Actions and keys
 
@@ -830,6 +834,8 @@ decisions (D23 on) and every transition line by screen with its source. Paths an
 - W1-THR-139 Sub-thread strip, subagent fold opened by a question, failed start line with Try again. png none: needs a cloud sub-thread or a subagent prompt. `components/chat/SpawnLine.tsx:95`
 - W1-THR-140 Setup card standing. png none: stands only after a create this window started with no message. `components/chat/SetupCard.tsx:35`
 - W1-THR-141 Fork on its way: "Loading transcript" while the forking turn runs and the fork's thread is not listed. png none: needs an agent fork. `components/chat/ChatView.tsx:460`
+- W1-THR-195 New thread page: folder mark, "What should we build in bench?" with the project's name underlined, the ASCII field behind the column, the composer under the heading, the computer and branch chips under the box. png `W1-THR-195-<theme>.png`; drive: hash `#w/<bench's workspace>/new`, reload. `components/chat/ChatView.tsx:559`
+- W1-THR-196 New thread page on a project with no thread: the same page, "What should we build in quiet?". png `W1-THR-196-<theme>.png`; drive: the fixture's realHost; hash `#open/project/<quiet's id>`, reload. `shell/ProjectHome.tsx:67`
 
 ### Actions and keys
 
@@ -947,6 +953,7 @@ decisions (D23 on) and every transition line by screen with its source. Paths an
 - W1-CMP-107 Model menu, favourites empty. png `W1-CMP-107-<theme>.png`; drive: none; new thread, click the model button, click "Favourites". `components/chat/ComposerModelPicker.tsx:341`
 - W1-CMP-108 Sub-thread strip. png none: needs a sub-thread on a cloud computer. `components/chat/SubStrip.tsx:69`
 - W1-CMP-109 Create failed. png none: needs a create the host refuses. `components/chat/SetupCard.tsx:32`
+- W1-CMP-155 Footer chips: the computer by its label ("zingzy's MacBook Pro", with its glyph) and the branch ("main"), never the hostname. png `W1-SBR-172-<theme>.png`; drive: as W1-SBR-172. `components/chat/ComposerCheckoutRow.tsx:96`
 
 ### Actions and keys
 

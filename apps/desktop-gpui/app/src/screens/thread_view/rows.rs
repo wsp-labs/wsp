@@ -270,22 +270,36 @@ pub fn clamps(text: &str) -> bool {
 /// `max-h-44`: a clamped message's height.
 const CLAMP_HEIGHT: Pixels = px(176.);
 
+/// The fade's foot: the last 1.5rem, where the web's mask is wholly transparent.
+const CLAMP_FADE_FOOT: Pixels = px(24.);
+
 /// `CLAMP_FADE_MASK`: whole until 5rem above the bottom, gone 1.5rem above it; drawn as the bubble's own fill over the
 /// text, since this base has no masks.
 fn clamp_fade(fill: Hsla) -> impl IntoElement {
-    let (from, to) = (CLAMP_HEIGHT - px(80.), CLAMP_HEIGHT - px(24.));
     div()
+        .debug_selector(|| "clamp-fade".into())
         .absolute()
         .left_0()
         .right_0()
-        .top(from)
         .bottom_0()
-        .child(div().h(to - from).bg(gpui_kit::linear_gradient(
+        .h(px(80.))
+        .child(div().h(px(56.)).bg(gpui_kit::linear_gradient(
             180.,
             gpui_kit::linear_color_stop(fill.opacity(0.), 0.),
             gpui_kit::linear_color_stop(fill, 1.),
         )))
-        .child(div().flex_1().h(px(24.)).bg(fill))
+        .child(div().h(CLAMP_FADE_FOOT).bg(fill))
+}
+
+/// The bubble as it shows over the centre's ground, solid: a see-through fade would let the text it covers show.
+fn clamp_fade_fill(centre: Hsla, accent: Hsla) -> Hsla {
+    centre.blend(accent)
+}
+
+/// The ground the shell lays under the thread view in the look the windows stand in.
+fn centre_ground(p: &Palette, cx: &App) -> Hsla {
+    cx.try_global::<crate::ui::theme::WspTheme>()
+        .map_or(p.background, |t| crate::screens::app_shell::material::fills(t.look, t.entry.id, p).centre)
 }
 
 /// `PERSON_BUBBLE`: right-aligned, at most 80% wide, 18 px round on `--message-surface`, then its hover meta line; a
@@ -321,11 +335,14 @@ fn person(view: &mut ThreadView, row: &Row, p: &Palette, window: &mut Window, cx
                 this.toggle(&id, cx);
             }))
     });
+    // On glass the bubble is see-through, so a solid fade would lay the theme's ground over the material.
+    let glass = crate::ui::theme::glass(cx);
     let text = div()
         .relative()
-        .when(collapsed, |el| el.max_h(CLAMP_HEIGHT).overflow_hidden())
+        .debug_selector(|| "message-body".into())
+        .when(collapsed, |el| el.max_h(if glass { CLAMP_HEIGHT - CLAMP_FADE_FOOT } else { CLAMP_HEIGHT }).overflow_hidden())
         .child(markdown::reply(&body, true, None, cwd.as_deref(), Some(p.accent), cx))
-        .when(collapsed, |el| el.child(clamp_fade(p.accent)));
+        .when(collapsed && !glass, |el| el.child(clamp_fade(clamp_fade_fill(centre_ground(p, cx), p.accent))));
     let hover = message_hover(row, window, cx);
     let thread = view.thread().unwrap_or_default().to_owned();
     let meta = meta_line(row, &thread, true, *hover.read(cx), p, window, cx);

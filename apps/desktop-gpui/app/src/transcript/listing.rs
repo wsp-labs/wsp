@@ -231,6 +231,13 @@ pub struct Listing {
     pub starting: Option<String>,
     /// The words of a send in flight, the person's message at once until its turn starts (`pendingPrompt`).
     pub sent: Option<String>,
+    /// The thread's own row while it runs (`drawnOffRow`): when it began, which the running turn's Working line counts
+    /// from where it is earlier (`turnFromRow`), and the head of its opening message, the person's message until the
+    /// thread has an event (`runningOffRow`).
+    pub running_since: Option<f64>,
+    pub opening: Option<String>,
+    /// Its machine is being made or waits for one (`spawning` in ChatView.tsx): the thread is not at work.
+    pub spawning: bool,
     /// What the working line says in its place while the thread's workspace cannot run the turn (`turnWait`).
     pub wait: Option<Wait>,
     /// The workspace's one word while it is paused, said under a quiet thread with Wake beside it; none on a
@@ -348,6 +355,7 @@ impl Listing {
         let tree = Reading { cx: side::Ctx { all: &threads, now: now_ms, settle: settle_ms }, rows: by_id, lead_computer: computer };
         let children = find_node(&forest, thread).map(|node| tree.children(node)).unwrap_or_default();
         let (strip, start_failed) = own.map(|own| sub_of(own, here, now_ms)).unwrap_or_default();
+        let running = own.filter(|r| r.status == side::Status::Running);
         Listing {
             thread: thread.to_owned(),
             title: threads.iter().find(|t| t.thread_id.as_deref() == Some(thread)).map(|t| t.title.clone()),
@@ -365,6 +373,11 @@ impl Listing {
             machine: None,
             starting: None,
             sent: None,
+            running_since: running.and_then(|r| r.started_at),
+            opening: running.and_then(|r| r.prompt.clone()),
+            spawning: own
+                .and_then(|r| r.sub.as_ref())
+                .is_some_and(|s| matches!(s.state, side::SubState::Starting | side::SubState::Waiting)),
             wait: None,
             paused: None,
         }

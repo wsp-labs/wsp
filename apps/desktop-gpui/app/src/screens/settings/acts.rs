@@ -13,6 +13,7 @@ use wsp_host_client::{HostClient, Op};
 use super::model::{At, Read, Reread};
 use super::{page, said, Arrival, Closed, Glide, Reveal, SettingsScreen};
 use crate::screens::app_shell::keys;
+use crate::ui::Notice;
 
 /// The acts a page's row raises, held past the frame that drew it. Each is laid onto the screen once whatever is
 /// running is over, so an act raised while the screen draws or takes an answer never re-enters it.
@@ -21,11 +22,33 @@ pub struct Acts {
     screen: WeakEntity<SettingsScreen>,
     host: Option<Arc<HostClient>>,
     runtime: Arc<Runtime>,
+    pane: Option<ToPane>,
+}
+
+type ToPane = Rc<dyn Fn(Nav, &mut App)>;
+
+/// A page move a row raises, which a right panel's pane takes where no Settings screen stands.
+pub enum Nav {
+    Go(At),
+    Level(Option<page::Level>),
 }
 
 impl Acts {
     pub fn new(screen: WeakEntity<SettingsScreen>, host: Option<Arc<HostClient>>, runtime: Arc<Runtime>) -> Self {
-        Acts { screen, host, runtime }
+        Acts { screen, host, runtime, pane: None }
+    }
+
+    /// The acts of a pane that draws Settings' rows: their page moves go to `nav`.
+    pub fn in_pane(mut self, nav: impl Fn(Nav, &mut App) + 'static) -> Self {
+        self.pane = Some(Rc::new(nav));
+        self
+    }
+
+    /// Hands `nav` to the pane, once this update ends, where the acts are the pane's.
+    fn to_pane(&self, nav: Nav, cx: &mut App) -> bool {
+        let Some(pane) = self.pane.clone() else { return false };
+        cx.defer(move |cx| pane(nav, cx));
+        true
     }
 
     fn with(&self, cx: &mut App, f: impl FnOnce(&mut SettingsScreen, &mut Context<SettingsScreen>) + 'static) {
@@ -38,6 +61,9 @@ impl Acts {
     }
 
     pub fn go(&self, at: At, window: &mut Window, cx: &mut App) {
+        if self.to_pane(Nav::Go(at.clone()), cx) {
+            return;
+        }
         let screen = self.screen.clone();
         window.defer(cx, move |window, cx| {
             if let Some(screen) = screen.upgrade() {
@@ -47,6 +73,9 @@ impl Acts {
     }
 
     pub fn go_later(&self, at: At, cx: &mut App) {
+        if self.to_pane(Nav::Go(at.clone()), cx) {
+            return;
+        }
         self.with(cx, |s, cx| s.go_later(at, cx));
     }
 
@@ -75,20 +104,29 @@ impl Acts {
         .detach();
     }
 
+    /// As [`Acts::with`], said as a toast where no Settings screen stands, as for the acts of a right panel's pane.
+    fn say(&self, notice: Notice, cx: &mut App, f: impl FnOnce(&mut SettingsScreen, &mut Context<SettingsScreen>) + 'static) {
+        let screen = self.screen.clone();
+        cx.defer(move |cx| match screen.upgrade() {
+            Some(screen) => screen.update(cx, f),
+            None => crate::ui::notify(cx, notice),
+        });
+    }
+
     pub fn failed(&self, said: impl Into<String>, cx: &mut App) {
         let said = said.into();
-        self.with(cx, |s, cx| s.failed(said, cx));
+        self.say(Notice::error(said.clone()), cx, |s, cx| s.failed(said, cx));
     }
 
     pub fn done(&self, line: impl Into<String>, cx: &mut App) {
         let line = line.into();
-        self.with(cx, |s, cx| s.done(line, cx));
+        self.say(Notice::done(line.clone()), cx, |s, cx| s.done(line, cx));
     }
 
     /// A plain fact about an act, neither a failure nor a success: an add whose dialog this app does not draw.
     pub fn note(&self, line: impl Into<String>, cx: &mut App) {
         let line = line.into();
-        self.with(cx, |s, cx| s.note(line, cx));
+        self.say(Notice::note(line.clone()), cx, |s, cx| s.note(line, cx));
     }
 
     pub fn reread(&self, what: Reread, cx: &mut App) {
@@ -118,6 +156,9 @@ impl Acts {
 
     /// Stands a page in place of the open group's list, or puts the list back with `None`.
     pub fn open_level(&self, level: Option<page::Level>, cx: &mut App) {
+        if self.to_pane(Nav::Level(level.clone()), cx) {
+            return;
+        }
         self.with(cx, move |s, cx| {
             s.level = level;
             s.page_scroll.set_offset(gpui_kit::point(px(0.), px(0.)));

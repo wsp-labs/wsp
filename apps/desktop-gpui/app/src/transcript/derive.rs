@@ -18,6 +18,9 @@ use super::{
     EARLIER,
 };
 
+/// The key of the opening message a thread with no event yet draws off its running row.
+const OPENING: &str = "opening";
+
 /// What derive treats as open: the ids the person opened, or with `all` every fold and group (a call still by its id).
 #[derive(Clone, Copy)]
 pub(super) struct Opened<'a> {
@@ -43,7 +46,8 @@ pub(super) fn derive(model: &Model, from: usize, turns_from: usize, opened: Open
     let by_id: HashMap<&str, &Summary> = model.turns[turns_from..].iter().map(|s| (s.id.as_str(), s)).collect();
     let latest = model.turns.last();
     let unsettled = latest.filter(|t| t.state == State::Running).map(|t| t.id.as_str());
-    let working = unsettled.is_some();
+    let listing = opened.listing;
+    let working = unsettled.is_some() && !listing.is_some_and(|l| l.spawning);
     let boundary = model.latest.as_ref().map(|m| m.entries);
     let turn_of = |ix: usize| entries[ix].turn.as_deref();
 
@@ -256,14 +260,22 @@ pub(super) fn derive(model: &Model, from: usize, turns_from: usize, opened: Open
     let waiting = unsettled.is_some()
         && entries[from..].iter().any(|e| e.turn.as_deref() == unsettled && matches!(&e.body, Body::Prompt(p) if p.outcome.is_none()));
     let retry = model.retry.as_ref().filter(|r| working && r.turn.as_deref() == unsettled).map(|r| r.line.clone());
+    let since = latest.and_then(|t| t.started).map(|at| listing.and_then(|l| l.running_since).map_or(at, |row| row.min(at)));
     let working_row = || Row {
         key: "working".to_owned(),
-        kind: RowKind::Working { since: latest.and_then(|t| t.started), waiting, retry: retry.clone(), wait: None },
+        kind: RowKind::Working { since, waiting, retry: retry.clone(), wait: None },
         text: if waiting { "Waiting for you" } else { "Working" }.to_owned(),
         turn: unsettled.map(str::to_owned),
     };
 
     let mut rows: Vec<Row> = Vec::new();
+    if let Some(text) =
+        listing.filter(|l| from == 0 && len == 0 && model.turns.is_empty() && l.sent.is_none()).and_then(|l| l.opening.clone())
+    {
+        let full = opened.ids.contains(&format!("full:{OPENING}"));
+        let kind = RowKind::Person { at: listing.and_then(|l| l.running_since), files: Vec::new(), fork: None, full, steered: false };
+        rows.push(Row { key: OPENING.to_owned(), kind, text, turn: None });
+    }
     let mut split = None;
     let mut activity = false;
     let mut unsaid = stops.into_iter().peekable();

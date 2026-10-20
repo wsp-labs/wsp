@@ -291,6 +291,47 @@ fn fence_languages_share_one_parser_per_registered_language() {
     assert!(held <= 2, "{held} parsers for two languages and 200 unknown names");
 }
 
+#[gpui_kit::test]
+fn a_grammar_compiles_off_the_ui_thread_and_its_blocks_highlight_once_it_lands(cx: &mut TestAppContext) {
+    let theme = gpui_kit::component::highlighter::HighlightTheme::default_light();
+    let code = "def total(rows)\n  rows.sum(&:height)\nend";
+    let landed = std::rc::Rc::new(std::cell::Cell::new(0));
+    let (before, light) = (super::LANDED.with(|l| l.get()), Arc::new(theme.clone()));
+    let held = super::highlighter(&light);
+    cx.update(|cx| {
+        let landed = landed.clone();
+        super::warm(["ruby", "rb"], move |_| landed.set(landed.get() + 1), cx)
+    });
+    assert!(super::warming("ruby"), "the grammar did not start compiling");
+    assert!(super::styles(&"ruby".into(), code, &theme).is_empty(), "a block compiled its grammar on the UI thread while it drew");
+    cx.run_until_parked();
+    assert_eq!(landed.get(), 1, "one language's two names compiled twice");
+    assert!(!super::warming("ruby") && super::LANDED.with(|l| l.get()) > before);
+    assert!(!super::styles(&"ruby".into(), code, &theme).is_empty(), "the landed grammar highlights nothing");
+    assert!(!Arc::ptr_eq(&held, &super::highlighter(&light)), "a block drawn plain while its grammar compiled keeps its plain styles");
+}
+
+#[test]
+fn a_grammar_landing_on_another_thread_keeps_this_threads_highlighter() {
+    let light = Arc::new(gpui_kit::component::highlighter::HighlightTheme::default_light());
+    let held = super::highlighter(&light);
+    std::thread::spawn(|| {
+        let cx = gpui_kit::TestAppContext::single();
+        cx.update(|cx| super::warm(["ruby"], |_| {}, cx));
+        cx.run_until_parked();
+        assert!(super::LANDED.with(|l| l.get()) > 0, "the other thread landed no grammar");
+    })
+    .join()
+    .unwrap();
+    assert!(Arc::ptr_eq(&held, &super::highlighter(&light)), "a grammar landing on another thread rebuilt this thread's highlighter");
+}
+
+#[test]
+fn a_fence_names_its_language_for_the_warm_up() {
+    let langs: Vec<&str> = super::fence_langs("Text\n```rust\nfn a() {}\n```\n  ~~~py title\nx\n~~~\n```\nplain\n```").collect();
+    assert_eq!(langs, ["rust", "py"]);
+}
+
 #[test]
 fn a_single_newline_breaks_the_line_and_a_blank_line_still_ends_the_paragraph() {
     assert_eq!(person_text("one\ntwo"), "one  \ntwo");

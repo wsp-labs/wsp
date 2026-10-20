@@ -333,7 +333,7 @@ impl Transcript {
         derive(&self.model, 0, 0, self.opened(true))
             .map(|(rows, _)| {
                 let (rows, split) = slate_lines(rows, None, &slated);
-                self.around.dress(rows, split, true, false).0
+                self.around.dress(rows, split, true, false, &self.model.entries).0
             })
             .unwrap_or_default()
     }
@@ -397,7 +397,7 @@ impl Transcript {
         let slated = self.slated();
         derive(&self.model, from, turns_from, self.opened(false)).map(|(rows, split)| {
             let (rows, split) = slate_lines(rows, split, &slated);
-            self.around.dress(rows, split, from == 0, shut)
+            self.around.dress(rows, split, from == 0, shut, &self.model.entries)
         })
     }
 

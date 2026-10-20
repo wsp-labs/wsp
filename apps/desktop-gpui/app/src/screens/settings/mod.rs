@@ -49,7 +49,7 @@ use crate::screens::app_shell::{Host, Opened, Parts, Place, Screen};
 use crate::screens::dialogs::layer::{self, Closes};
 use crate::ui::theme;
 use crate::ui::ActivePalette;
-pub use acts::Acts;
+pub use acts::{Acts, Nav};
 use model::{req, At, Data, GroupId, Push, Read, Reread};
 pub use page::{CardData, Ctx, Item};
 use parts::SettingsDialog;

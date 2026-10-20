@@ -3,6 +3,7 @@
 //! its `pub mod`, and one arm in [`screen`], `settings::Settings::NAME => Some(entry::<settings::Settings>()),`, which
 //! both the shell's routing and `desktop-gpui --screen <name>` call. Its [`Screen::PLACE`] says where it opens.
 
+pub mod agents_pane;
 pub mod app_shell;
 pub mod aside;
 pub mod browser;
@@ -33,6 +34,7 @@ pub fn screen(name: &str) -> Option<Entry> {
         browser::BrowserScreen::NAME => Some(entry::<browser::BrowserScreen>()),
         composer::screen::ComposerScreen::NAME => Some(entry::<composer::screen::ComposerScreen>()),
         aside::AsideScreen::NAME => Some(entry::<aside::AsideScreen>()),
+        agents_pane::AgentsPane::NAME => Some(entry::<agents_pane::AgentsPane>()),
         computer::Computer::NAME => Some(entry::<computer::Computer>()),
         processes::Processes::NAME => Some(entry::<processes::Processes>()),
         slate::SlateScreen::NAME => Some(entry::<slate::SlateScreen>()),

@@ -2,14 +2,17 @@
 // node --test apps/desktop-gpui/bench/bench.test.mjs: the parts of the bench that need no screen. The fixture case
 // starts a real throwaway host, so it needs the packages built (pnpm build).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EVENTS_PER_CALL, EVENTS_PER_TURN, THREADS, lastWords, turnsOf } from "./content.mjs";
+import { EVENTS_PER_CALL, EVENTS_PER_TURN, THREADS, eventsOf, lastWords, renderedLines, turnsOf } from "./content.mjs";
+import { MOMENTUM_FLOOR, SPACING, momentum } from "./momentum.mjs";
+import { OUTPUT_MAX, shot } from "./real.mjs";
 import { fps, median, row } from "./table.mjs";
+import { describe, slowFrames, unfit } from "./trace.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const lines = text => text.split("\n").length;
@@ -60,6 +63,98 @@ test("the generator's mix, the same on every call", () => {
   assert.equal(new Set(last).size, last.length);
 });
 
+test("the real thread is shaped like a person's long one, under the host's caps", () => {
+  assert.deepEqual(turnsOf("real"), turnsOf("real"));
+  const turns = turnsOf("real");
+  const calls = turns.flatMap(t => t.tools);
+  const lines = renderedLines(turns);
+  assert.ok(lines >= 6500 && lines <= 7500, `${lines} rendered lines`);
+  // Under the host's 5,000 events and 4 MB, and over a dozen pages of 200 events, so pages land while it scrolls.
+  const events = eventsOf(turns);
+  assert.ok(events < 4000 && events > 12 * 200, `${events} events`);
+  assert.ok(JSON.stringify(turns).length < 3 * 1024 * 1024);
+  assert.ok(calls.every(c => c.output.length <= OUTPUT_MAX));
+  const images = turns.flatMap(t => t.images);
+  assert.ok(images.length >= 20 && images.some(i => i.width >= 2560), `${images.length} screenshots`);
+  assert.ok(turns.filter(t => t.prompt.length > 4096).length >= 5, "long pastes past 4 KB");
+  assert.ok(turns.filter(t => t.reply.length > 4096).length >= 5, "replies past 4 KB");
+  assert.ok(new Set(turns.flatMap(t => [...t.reply.matchAll(/```(\w+)/g)].map(m => m[1]))).size >= 12, "code in many languages");
+  assert.ok(turns.some(t => t.reply.includes("| --- |")), "tables");
+  assert.equal(calls.filter(c => c.children !== undefined).length, THREADS.real.tasks);
+  assert.ok(calls.some(c => c.error === true && c.output.split("\n").length > 40), "failing calls with long output stand alone");
+  const changing = turns.filter(t => t.files.length > 0);
+  assert.equal(changing.length, THREADS.real.changes);
+  assert.ok(changing.every(t => t.files.length >= 100 && t.files.every(f => f.path.split("/").length >= 4)), "changed-files cards of 100 files and more, in nested folders");
+  const { width, height, channels, pixels } = shot(images[0]);
+  assert.equal(pixels.length, width * height * channels);
+  assert.deepEqual(shot(images[0]).pixels.subarray(0, 64), pixels.subarray(0, 64));
+});
+
+test("the momentum replay scrolls as a trackpad does: gestures, momentum, catches, reversals, mostly up", () => {
+  const events = momentum();
+  assert.deepEqual(momentum(), events);
+  assert.ok(events.at(-1).t <= 60_000 && events.at(-1).t > 55_000);
+  assert.ok(events.every((e, i) => i === 0 || e.t >= events[i - 1].t));
+  assert.ok(events.every(e => e.unit === "px" && Math.abs(e.dx) <= Math.abs(e.dy) * 0.06 + 0.31), "fingers drift sideways a little");
+  assert.ok(events.some(e => e.dx !== 0));
+  // Each gesture: Started, Moved at the trackpad's spacing, Ended, then momentum Moved decaying under the floor
+  // unless a new gesture catches it.
+  const gestures = [];
+  for (const e of events) {
+    if (e.phase === "started") gestures.push([]);
+    gestures.at(-1).push(e);
+  }
+  assert.equal(gestures.length, events.filter(e => e.phase === "started").length);
+  let caught = 0;
+  let decayed = 0;
+  for (const [i, g] of gestures.entries()) {
+    const end = g.findIndex(e => e.phase === "ended");
+    if (end < 0 && i === gestures.length - 1) continue;
+    assert.ok(end > 3, "fingers move before they lift");
+    assert.ok(g.slice(1, end).every(e => e.phase === "moved"));
+    for (let k = 1; k <= end; k++) assert.ok(Math.abs(g[k].t - g[k - 1].t - SPACING) < 0.02, `spacing at ${g[k].t}`);
+    const tail = g.slice(end + 1).map(e => Math.abs(e.dy));
+    assert.ok(tail.every((v, k) => k === 0 || v <= tail[k - 1]), "momentum only decays");
+    if (tail.length > 0 && i + 1 < gestures.length && gestures[i + 1][0].t - g.at(-1).t <= 30 + SPACING) caught++;
+    else if (tail.length > 0) {
+      decayed++;
+      assert.ok(tail.at(-1) < MOMENTUM_FLOOR / 0.955, `momentum ended at ${tail.at(-1)} px`);
+    }
+  }
+  assert.ok(caught >= 1 && decayed >= 10, `${caught} caught, ${decayed} decayed`);
+  const up = gestures.filter(g => g[1].dy > 0).length;
+  assert.ok(up > gestures.length * 0.7 && up < gestures.length, `${up} of ${gestures.length} gestures up`);
+  assert.ok(events.reduce((n, e) => n + e.dy, 0) > 20_000, "the replay pages back from the end");
+  assert.ok(gestures.some((g, i) => i > 0 && g[0].t - gestures[i - 1].at(-1).t > 1500), "a reading pause");
+});
+
+test("the trace reader finds every frame over the limit and refuses a trace that cannot stand", () => {
+  const frame = (at, draw, present, late, more = {}) => ({ frame: 0, at, draw, present, since: 16, late, inputs: 1, focused: true, rows: 0, row_ms: 0, parsed: 0, parse_ms: 0, images: 0, pages: [], view_ms: 0, input_ms: 0, app: draw, ...more });
+  const trace = { release: true, limit_ms: 50, frames: [frame(0, 10, 5, 20), frame(16, 30, 25, 40), frame(32, 5, 5, 70), frame(48, 45, 2, 10, { pages: [{ events: 200, ms: 8 }], app: 53 })] };
+  assert.deepEqual(slowFrames(trace).map(f => f.at), [16, 32]);
+  assert.deepEqual(slowFrames(trace, { app: true }).map(f => f.at), [48], "a page before a 45 ms draw is the UI thread's too");
+  assert.match(describe(trace.frames[3]), /app 53\.0 ms.*1 page landed \(200 events in 8\.0 ms\)/);
+  assert.equal(unfit(trace), null);
+  assert.match(unfit({ ...trace, release: false }), /debug build/);
+  assert.match(unfit({ ...trace, frames: [{ ...trace.frames[0], focused: false }] }), /lost focus/);
+  assert.match(unfit({ ...trace, frames: [] }), /no frames/);
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-trace-test-"));
+  try {
+    const run = frames => {
+      writeFileSync(join(tmp, "t.json"), JSON.stringify({ ...trace, mode: "replay", thread: "t", scale: 2, inputs: [], frames }));
+      return spawnSync(process.execPath, [join(here, "trace.mjs"), join(tmp, "t.json")], { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } });
+    };
+    const slow = run(trace.frames);
+    assert.equal(slow.status, 1, slow.stdout);
+    assert.match(slow.stdout, /2 frames over 50 ms/);
+    const quick = run([frame(0, 10, 5, 20)]);
+    assert.equal(quick.status, 0, quick.stdout);
+    assert.match(quick.stdout, /no frame over 50 ms/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the host", { skip: !existsSync(join(here, "../../../packages/host/dist/bin.js")) && "packages not built" }, () => {
   const tmp = mkdtempSync(join(tmpdir(), "wsp-bench-test-"));
   const out = join(tmp, "fixture.json");
@@ -85,6 +180,13 @@ test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the 
     const events = Number(/of (\d+) events/.exec(wsp("thread", "head", fixture.threads.long))?.[1]);
     assert.equal(events, 900 * EVENTS_PER_TURN + 200 * EVENTS_PER_CALL);
     for (const name of ["short-1", "short-2", "short-3"]) assert.equal(read(name).filter(r => r.who === "person" || r.who === "agent").length, 20, name);
+    // The real thread whole on the host, none of it dropped by its caps, its screenshots kept with their messages.
+    const real = turnsOf("real");
+    assert.equal(read("real").filter(r => r.who === "person").length, real.length);
+    const held = Number(/of (\d+) events/.exec(wsp("thread", "head", fixture.threads.real))?.[1]);
+    assert.ok(held >= eventsOf(real) && held < 5000, `${held} events held of the real thread`);
+    const cards = read("real").filter(r => r.who === "tool" && /^Changed \d+ files/.test(r.text));
+    assert.equal(cards.length, THREADS.real.changes, "every turn that wrote files ends with what it changed");
   } finally {
     if (existsSync(out)) assert.equal(spawnSync(join(here, "stop.sh"), [out]).status, 0);
     rmSync(tmp, { recursive: true, force: true });

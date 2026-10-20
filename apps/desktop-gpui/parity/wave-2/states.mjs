@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 import { deflateSync } from "node:zlib";
 import prStates from "./pr-states.mjs";
+import { askAside, drives, withIds } from "../wave-sweep/drives.mjs";
 
 const PANEL = "[data-preview-panel-mode]";
 const DRAWER = 'aside[data-terminal-owner="drawer"]';
@@ -832,15 +833,8 @@ export default [
     id: "W2-UNO-028",
     clip: PANEL,
     data: host => fresh(host, "W2-UNO-028"),
-    go: async (app, id) => {
-      await app.route.thread(id);
-      await app.click(css('[data-testid="composer-editor"]'));
-      await app.type("/btw what was the last reply about?");
-      await app.sleep(400);
-      await app.key("enter");
-      await app.sleep(300);
-      if (!(await app.page(() => document.querySelector('[data-k="aside-surface"]') !== null))) await app.key("enter");
-      await has(app, '[data-k="aside-refused"]', 15_000);
-    },
+    go: askAside,
   },
+  { id: "W2-UNO-078", data: withIds(), go: drives.pane("agents", "[data-agents-panel]", "checked") },
+  { id: "W2-DLG-187", home: "empty", go: drives.onboarding },
 ];

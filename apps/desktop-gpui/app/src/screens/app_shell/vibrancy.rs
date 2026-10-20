@@ -3,7 +3,23 @@
 //! behind the whole window, following the window's active state, while the page draws glass. GPUI's own Blurred
 //! appearance draws a different material with its tint and saturation taken out, so the view is added here instead.
 
-use gpui_kit::{Window, WindowBackgroundAppearance};
+use gpui_kit::component::Root;
+use gpui_kit::{AnyView, Context, Styled as _, Window, WindowBackgroundAppearance};
+
+/// The root of a window the shell fills: gpui-kit's Root paints the theme's ground over the whole window, which would
+/// hide the glass, so it paints none and the shell lays the window's ground itself while it draws no glass.
+pub fn clear_root(view: impl Into<AnyView>, window: &mut Window, cx: &mut Context<Root>) -> Root {
+    Root::new(view, window, cx).bg(gpui_kit::transparent_black())
+}
+
+/// The window's own background: clear while macOS's material stands behind it, opaque otherwise.
+pub fn background_appearance(material: bool) -> WindowBackgroundAppearance {
+    if material {
+        WindowBackgroundAppearance::Transparent
+    } else {
+        WindowBackgroundAppearance::Opaque
+    }
+}
 
 /// The material view behind the window's content, while one is there, and whether the frame last asked for it.
 #[derive(Default)]
@@ -36,16 +52,11 @@ impl Vibrancy {
                     }
                 }
             }
-            let clear = self.view.is_some();
-            window.set_background_appearance(if clear {
-                WindowBackgroundAppearance::Transparent
-            } else {
-                WindowBackgroundAppearance::Opaque
-            });
+            window.set_background_appearance(background_appearance(self.view.is_some()));
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let _ = (window, WindowBackgroundAppearance::Opaque);
+            let _ = window;
         }
     }
 }
@@ -107,5 +118,18 @@ mod mac {
             let reduce: BOOL = msg_send![workspace, accessibilityDisplayShouldReduceTransparency];
             reduce != NO
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui_kit::WindowBackgroundAppearance;
+
+    use super::background_appearance;
+
+    #[test]
+    fn the_window_is_clear_only_over_the_material() {
+        assert_eq!(background_appearance(true), WindowBackgroundAppearance::Transparent);
+        assert_eq!(background_appearance(false), WindowBackgroundAppearance::Opaque);
     }
 }

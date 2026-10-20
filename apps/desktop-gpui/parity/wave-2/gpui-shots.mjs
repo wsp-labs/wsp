@@ -5,10 +5,11 @@
 // so each GPUI shot follows its own Electron shot and both see the same host.
 //   node gpui-shots.mjs --fixture <fx.json> --app <desktop-gpui> --electron-app <Electron wsp> --electron <electron shots dir> --out <dir> [--only <globs>] [--theme paper|graphite] [--display :96]
 import { execFile, spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { describe as describeSurface, regionsFor, surfaceCheck } from "../surface.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const USAGE =
@@ -197,6 +198,134 @@ export const STATES = [
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 const say = what => console.log(`gpui-shots: ${what}`);
 
+/** The X and ImageMagick tools a capture runs, each in `env` alone: `compare` exiting 1 for a difference is not a failure. */
+export function xTools(env) {
+  const tool = (cmd, argv, ms = 30_000) => {
+    const r = spawnSync(cmd, argv, { env, encoding: "utf8", timeout: ms });
+    if (r.error) throw new Error(`${cmd} ${argv.join(" ")}: ${r.error.message}`);
+    return r;
+  };
+  const xdo = (...argv) => {
+    const r = tool("xdotool", argv);
+    if (r.status !== 0) throw new Error(`xdotool ${argv.join(" ")}: ${r.stderr.trim()}`);
+    return r.stdout.trim();
+  };
+  const magick = (cmd, ...argv) => {
+    const r = tool(cmd, argv, 60_000);
+    if (r.status !== 0 && !(cmd === "compare" && r.status === 1)) throw new Error(`${cmd} ${argv.join(" ")}: ${r.stderr.trim()}`);
+    return r;
+  };
+  const differing = (a, b, fuzz) => parseAE(magick("compare", "-metric", "AE", "-fuzz", fuzz, a, b, "null:").stderr);
+  return { tool, xdo, magick, differing };
+}
+
+/** Stops a child this run started, by its own handle: SIGTERM, then SIGKILL past `ms`. */
+export async function stopChild(child, what, ms = 5000) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const gone = new Promise(done => child.once("exit", done));
+  child.kill("SIGTERM");
+  if ((await Promise.race([gone.then(() => true), sleep(ms)])) !== true) {
+    child.kill("SIGKILL");
+    await gone;
+  }
+  say(`stopped ${what} (pid ${child.pid})`);
+}
+
+/** Xvfb on `display` with openbox on it, each pushed onto `started` as [child, name] for the run to stop. */
+export async function startDisplay(display, env, started) {
+  const x = spawn("Xvfb", [display, "-screen", "0", SCREEN, "-nolisten", "tcp"], { env, stdio: "ignore" });
+  started.push([x, "Xvfb"]);
+  for (const end = Date.now() + 10_000; !existsSync(`/tmp/.X11-unix/X${display.slice(1)}`); await sleep(100))
+    if (Date.now() > end || x.exitCode !== null) throw new Error(`Xvfb on ${display} did not start`);
+  const wm = spawn("openbox", [], { env, stdio: "ignore" });
+  started.push([wm, "openbox"]);
+  await sleep(1000);
+  say(`Xvfb ${display} (pid ${x.pid}) and openbox (pid ${wm.pid})`);
+}
+
+/** The system folders after an empty host's own bin on its PATH: none holds an agent. */
+export const EMPTY_SYSTEM = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"];
+
+/** A throwaway host on a fresh, empty home with the fixture's mark, started with the fixture host's own command line
+ * and the clean environment; the claude on its PATH is `stub` when one is given. Answers its folder, state and child. */
+export function spawnEmptyHost({ hostNode, hostBin, stub, detached = false }) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "wsp-parity-empty-")));
+  writeFileSync(join(dir, ".wsp-bench-fixture"), "");
+  mkdirSync(join(dir, "bin"));
+  mkdirSync(join(dir, "state"));
+  // The agents its scan finds are the ones in its bin alone, and node is linked there.
+  symlinkSync(hostNode, join(dir, "bin", "node"));
+  if (stub !== undefined) symlinkSync(stub, join(dir, "bin", "claude"));
+  const state = join(dir, "state", "state.json");
+  const log = openSync(join(dir, "up.log"), "a");
+  const env = { HOME: dir, PATH: [join(dir, "bin"), ...EMPTY_SYSTEM].join(":"), LANG: "en_US.UTF-8", WSP_UPDATE_CHECK: "0" };
+  const child = spawn(hostNode, [hostBin, "up", "--port", "0", "--no-relay", "--state", state], { cwd: dir, env, stdio: ["ignore", log, log], detached });
+  closeSync(log);
+  return { dir, state, child };
+}
+
+/** An authed socket on the fixture's host: `op(name, params)` answers the reply or throws its error. */
+export async function connectHost(stateDir) {
+  const port = JSON.parse(readFileSync(join(stateDir, "host.lock"), "utf8")).port;
+  const token = readFileSync(join(stateDir, "host-token"), "utf8").trim();
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+  await new Promise((done, fail) => ((ws.onopen = done), (ws.onerror = () => fail(new Error(`the host refused a socket on port ${port}`)))));
+  let next = 0;
+  const waiting = new Map();
+  ws.onmessage = m => {
+    const msg = JSON.parse(m.data);
+    if (typeof msg.id === "number") waiting.get(msg.id)?.(msg), waiting.delete(msg.id);
+  };
+  const op = (name, params = {}) =>
+    new Promise((done, fail) => {
+      const id = next++;
+      const late = setTimeout(() => (waiting.delete(id), fail(new Error(`${name}: no answer in 30 s`))), 30_000);
+      waiting.set(id, msg => (clearTimeout(late), msg.ok === false ? fail(new Error(`${name}: ${msg.error}`)) : done(msg)));
+      ws.send(JSON.stringify({ id, op: name, ...params }));
+    });
+  await op("auth", { token });
+  return { op, close: () => ws.close() };
+}
+
+/** The X window named wsp, raised, with the pointer parked in the screen's corner; answers its id. */
+export function raiseApp(xdo) {
+  const win = xdo("search", "--sync", "--onlyvisible", "--name", "^wsp$").split("\n").pop();
+  xdo("windowactivate", "--sync", win);
+  xdo("mousemove", "2790", "1790");
+  return win;
+}
+
+/** One pair scored: `<stem>-diff.png` and `<stem>-pair.png` in `out`, the share of differing pixels at each fuzz and,
+ * for a clip, inside the element; for a whole-window pair (`whole`) the surface check over `regions` instead, which
+ * scores no fuzz. */
+export function pairCompare({ magick, differing }, electronFile, gpuiFile, { out, stem, scratch, whole = false, regions }) {
+  const [w1, h1, w2, h2] = magick("identify", "-format", "%w %h ", electronFile, gpuiFile).stdout.trim().split(/\s+/).map(Number);
+  const [w, h] = [Math.max(w1, w2), Math.max(h1, h2)];
+  const a = join(scratch, "electron.png");
+  const b = join(scratch, "gpui.png");
+  magick("convert", electronFile, "-background", "magenta", "-extent", `${w}x${h}`, `PNG24:${a}`);
+  magick("convert", gpuiFile, "-background", "cyan", "-extent", `${w}x${h}`, `PNG24:${b}`);
+  magick("compare", "-fuzz", "3%", "-highlight-color", "red", a, b, join(out, `${stem}-diff.png`));
+  magick("convert", a, b, "+append", join(out, `${stem}-pair.png`));
+  const shares = Object.fromEntries(FUZZ.map(f => [f, share(differing(a, b, f), w * h)]));
+  const row = { size: `${w}x${h}`, shares };
+  if (!whole) {
+    const box = inner(w, h);
+    const [ai, bi] = [join(scratch, "electron-inner.png"), join(scratch, "gpui-inner.png")];
+    magick("convert", a, "-crop", geometry(box), "+repage", ai);
+    magick("convert", b, "-crop", geometry(box), "+repage", bi);
+    row.inside = Object.fromEntries(FUZZ.map(f => [f, share(differing(ai, bi, f), box.width * box.height)]));
+    return row;
+  }
+  if (w1 !== w2 || h1 !== h2) return { ...row, surface: { ok: false, reason: `the shots differ in size, ${w1}x${h1} against ${w2}x${h2}`, rows: [] } };
+  row.surface = surfaceCheck(readFileSync(a), readFileSync(b), { regions: regionsFor(regions), names: [electronFile, gpuiFile] });
+  return row;
+}
+
+/** The surface check in one line: the regions that differ with both colours, or that all match. */
+export const surfaceWords = surface =>
+  surface.reason !== undefined ? surface.reason : surface.ok ? "every region's ground matches" : describeSurface(surface).filter(l => l.startsWith("DIFFERS")).join("; ");
+
 async function main() {
   let args;
   try {
@@ -230,22 +359,8 @@ async function main() {
   mkdirSync(args.out, { recursive: true });
   const PATH = "/usr/bin:/bin";
   const xEnv = { HOME: join(tmp, "home"), PATH, DISPLAY: args.display };
-  const tool = (cmd, argv, ms = 30_000) => {
-    const r = spawnSync(cmd, argv, { env: xEnv, encoding: "utf8", timeout: ms });
-    if (r.error) throw new Error(`${cmd} ${argv.join(" ")}: ${r.error.message}`);
-    return r;
-  };
-  const xdo = (...argv) => {
-    const r = tool("xdotool", argv);
-    if (r.status !== 0) throw new Error(`xdotool ${argv.join(" ")}: ${r.stderr.trim()}`);
-    return r.stdout.trim();
-  };
-  const magick = (cmd, ...argv) => {
-    const r = tool(cmd, argv, 60_000);
-    if (r.status !== 0 && !(cmd === "compare" && r.status === 1)) throw new Error(`${cmd} ${argv.join(" ")}: ${r.stderr.trim()}`);
-    return r;
-  };
-  const differing = (a, b, fuzz) => parseAE(magick("compare", "-metric", "AE", "-fuzz", fuzz, a, b, "null:").stderr);
+  const tools = xTools(xEnv);
+  const { tool, xdo, magick, differing } = tools;
 
   // The fixture's own command line and socket, with a clean environment and the fixture's throwaway home.
   const wspEnv = { HOME: home, PATH: [join(home, "bin"), dirname(hostNode), PATH].join(":"), LANG: "en_US.UTF-8", WSP_UPDATE_CHECK: "0" };
@@ -255,24 +370,8 @@ async function main() {
         e ? fail(new Error(`wsp ${argv.join(" ")}: ${(stderr || stdout || e.message).trim()}`)) : done(stdout),
       ),
     );
-  const port = JSON.parse(readFileSync(join(stateDir, "host.lock"), "utf8")).port;
-  const token = readFileSync(join(stateDir, "host-token"), "utf8").trim();
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-  await new Promise((done, fail) => ((ws.onopen = done), (ws.onerror = () => fail(new Error(`the host refused a socket on port ${port}`)))));
-  let next = 0;
-  const waiting = new Map();
-  ws.onmessage = m => {
-    const msg = JSON.parse(m.data);
-    if (typeof msg.id === "number") waiting.get(msg.id)?.(msg), waiting.delete(msg.id);
-  };
-  const op = (name, params = {}) =>
-    new Promise((done, fail) => {
-      const id = next++;
-      const late = setTimeout(() => (waiting.delete(id), fail(new Error(`${name}: no answer in 30 s`))), 30_000);
-      waiting.set(id, msg => (clearTimeout(late), msg.ok === false ? fail(new Error(`${name}: ${msg.error}`)) : done(msg)));
-      ws.send(JSON.stringify({ id, op: name, ...params }));
-    });
-  await op("auth", { token });
+  const ws = await connectHost(stateDir);
+  const { op } = ws;
   const { preferences: before } = await op("preferences.get");
   const touched = new Set();
   const setPrefs = async patch => {
@@ -311,31 +410,11 @@ async function main() {
   };
 
   const started = [];
-  const stopPid = async (child, what, ms = 5000) => {
-    if (child.exitCode !== null || child.signalCode !== null) return;
-    const gone = new Promise(done => child.once("exit", done));
-    child.kill("SIGTERM");
-    if ((await Promise.race([gone.then(() => true), sleep(ms)])) !== true) {
-      child.kill("SIGKILL");
-      await gone;
-    }
-    say(`stopped ${what} (pid ${child.pid})`);
-  };
-  const startX = async () => {
-    const x = spawn("Xvfb", [args.display, "-screen", "0", SCREEN, "-nolisten", "tcp"], { env: xEnv, stdio: "ignore" });
-    started.push([x, "Xvfb"]);
-    for (const end = Date.now() + 10_000; !existsSync(`/tmp/.X11-unix/X${args.display.slice(1)}`); await sleep(100))
-      if (Date.now() > end || x.exitCode !== null) throw new Error(`Xvfb on ${args.display} did not start`);
-    const wm = spawn("openbox", [], { env: xEnv, stdio: "ignore" });
-    started.push([wm, "openbox"]);
-    await sleep(1000);
-    say(`Xvfb ${args.display} (pid ${x.pid}) and openbox (pid ${wm.pid})`);
-  };
   // baseline.mjs is given the time it takes to stop its app and put the fixture's claude and preferences back.
   const children = new Map();
   const stopAll = async () => {
-    for (const [child, what] of [...children]) await stopPid(child, what, what === "baseline.mjs" ? 30_000 : 5000);
-    for (const [child, what] of started.reverse()) await stopPid(child, what);
+    for (const [child, what] of [...children]) await stopChild(child, what, what === "baseline.mjs" ? 30_000 : 5000);
+    for (const [child, what] of started.reverse()) await stopChild(child, what);
     started.length = 0;
   };
   let ending = false;
@@ -378,9 +457,7 @@ async function main() {
     children.set(app, "the app");
     app.once("exit", () => children.delete(app));
     say(`${state.id} ${theme}: launched pid ${app.pid} ${launch.join(" ")}`);
-    const win = xdo("search", "--sync", "--onlyvisible", "--name", "^wsp$").split("\n").pop();
-    xdo("windowactivate", "--sync", win);
-    xdo("mousemove", "2790", "1790");
+    const win = raiseApp(xdo);
     const geo = geometry(clip);
     const grab = name => {
       const file = join(scratch, `${name}.png`);
@@ -419,32 +496,15 @@ async function main() {
     await sleep(state.settle ?? 800);
     going();
     const file = join(args.out, `${state.id}-${theme}.png`);
-    magick("convert", grab("shot"), "-units", "PixelsPerInch", "-density", String(72 * SCALE), file);
+    magick("convert", grab("shot"), "-units", "PixelsPerInch", "-density", String(72 * SCALE), `PNG24:${file}`);
     for (const s of state.after ?? []) await s.do(xdo, host);
-    await stopPid(app, "the app");
+    await stopChild(app, "the app");
     const steps = state.steps.map(s => s.say).join(", then ");
     if (!still) return { file, reason: `the clip never held still within ${(state.wait ?? 10_000) / 1000} s of ${steps}, so it may still be loading` };
     return { file, reason: changed ? undefined : `nothing in the clip changed within ${(state.wait ?? 10_000) / 1000} s of ${steps}, so the screen draws nothing there yet` };
   }
 
-  function compareTo(electronFile, gpuiFile, stem) {
-    const [w1, h1, w2, h2] = magick("identify", "-format", "%w %h ", electronFile, gpuiFile).stdout.trim().split(/\s+/).map(Number);
-    const [w, h] = [Math.max(w1, w2), Math.max(h1, h2)];
-    const a = join(scratch, "electron.png");
-    const b = join(scratch, "gpui.png");
-    magick("convert", electronFile, "-background", "magenta", "-extent", `${w}x${h}`, a);
-    magick("convert", gpuiFile, "-background", "cyan", "-extent", `${w}x${h}`, b);
-    magick("compare", "-fuzz", "3%", "-highlight-color", "red", a, b, join(args.out, `${stem}-diff.png`));
-    magick("convert", a, b, "+append", join(args.out, `${stem}-pair.png`));
-    const pixels = w * h;
-    const box = inner(w, h);
-    const [ai, bi] = [join(scratch, "electron-inner.png"), join(scratch, "gpui-inner.png")];
-    magick("convert", a, "-crop", geometry(box), "+repage", ai);
-    magick("convert", b, "-crop", geometry(box), "+repage", bi);
-    const shares = Object.fromEntries(FUZZ.map(f => [f, share(differing(a, b, f), pixels)]));
-    const inside = Object.fromEntries(FUZZ.map(f => [f, share(differing(ai, bi, f), box.width * box.height)]));
-    return { size: `${w}x${h}`, shares, inside };
-  }
+  const compareTo = (electronFile, gpuiFile, stem, whole) => pairCompare(tools, electronFile, gpuiFile, { out: args.out, stem, scratch, whole });
 
   /** Shoots one state's Electron side with baseline.mjs; answers how it ended, 0 when it ran through. */
   async function electron(step) {
@@ -458,7 +518,7 @@ async function main() {
   }
 
   try {
-    await startX();
+    await startDisplay(args.display, xEnv, started);
     say(`shooting in this order: ${summary.order.join(", ")}`);
     const electronEnded = new Map();
     for (const step of steps) {
@@ -486,14 +546,14 @@ async function main() {
       try {
         await setPrefs({ ...THEMES[theme], transparency: false });
         const shot = await deadline(STATE_MS, own => shoot(own, state, theme, clip), async own => {
-          if (own.app !== undefined) await stopPid(own.app, "the app");
+          if (own.app !== undefined) await stopChild(own.app, "the app");
           tool("xdotool", ["keyup", "ctrl"]);
         });
         row.file = `${id}-${theme}.png`;
         row.reached = shot.reason === undefined;
         if (shot.reason !== undefined) row.reason = shot.reason;
-        Object.assign(row, compareTo(join(args.electron, entry.file), shot.file, `${id}-${theme}`));
-        const pct = `${FUZZ.map(f => `${row.shares[f].toFixed(2)}% at fuzz ${f}`).join(", ")}; inside the element ${FUZZ.map(f => `${row.inside[f].toFixed(2)}%`).join(", ")}`;
+        Object.assign(row, compareTo(join(args.electron, entry.file), shot.file, `${id}-${theme}`, entry.clip == null));
+        const pct = `${FUZZ.map(f => `${row.shares[f].toFixed(2)}% at fuzz ${f}`).join(", ")}; ${row.surface === undefined ? `inside the element ${FUZZ.map(f => `${row.inside[f].toFixed(2)}%`).join(", ")}` : `surfaces: ${surfaceWords(row.surface)}`}`;
         say(`${id} ${theme}: ${row.reached ? "reached" : `not reached (${row.reason})`}; differing ${pct}${row.moves.length > 0 ? `; moves between runs: ${row.moves.join("; ")}` : ""}${row.reached && row.caveat !== undefined ? `; ${row.caveat}` : ""}`);
       } catch (e) {
         row.reason = e.message;
@@ -511,7 +571,9 @@ async function main() {
     writeSummary();
   }
   const reached = summary.shots.filter(s => s.reached).length;
-  say(`${reached} of ${summary.shots.length} shots reached; ${join(args.out, "summary.json")}`);
+  const offGround = summary.shots.filter(s => s.surface?.ok === false);
+  say(`${reached} of ${summary.shots.length} shots reached; ${offGround.length} whole-window pairs differ in a surface; ${join(args.out, "summary.json")}`);
+  if (offGround.length > 0) process.exitCode = 1;
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();

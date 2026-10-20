@@ -8,7 +8,7 @@ mod agent_page;
 pub mod catalog;
 pub mod flow;
 pub(crate) mod keyed;
-mod kinds;
+pub(crate) mod kinds;
 pub mod model;
 mod parts;
 pub mod store;
@@ -379,7 +379,7 @@ fn computer_head(store: &Entity<Store>, key: &str, head: AnyElement, rows: &Rows
 }
 
 /// `AgentsCards`: the agents on the computer, then the ones it could install, then what the host could not read.
-fn agents_cards(store: &Entity<Store>, rows: &Rows, window: &mut Window, cx: &mut App) -> Vec<AnyElement> {
+pub(crate) fn agents_cards(store: &Entity<Store>, rows: &Rows, window: &mut Window, cx: &mut App) -> Vec<AnyElement> {
     let (report, reading, error) = {
         let s = store.read(cx);
         let read = s.reads.get(&rows.place);

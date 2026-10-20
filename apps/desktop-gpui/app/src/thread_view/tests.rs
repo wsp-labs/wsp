@@ -6,6 +6,11 @@ use gpui_kit::{size, TestAppContext, VisualTestContext};
 
 /// `turns` settled turns from `from`, four events each, placed by pos as the host places them.
 fn turns(from: usize, to: usize) -> Vec<SessionEvent> {
+    said(from, to, |n| format!("Answer {n}.\n\nMore.\n\nAnd more."))
+}
+
+/// The turns from `from` to `to`, each replying `reply(n)`.
+fn said(from: usize, to: usize, reply: impl Fn(usize) -> String) -> Vec<SessionEvent> {
     (from..to)
         .flat_map(|n| {
             let pos = 4 * n as u64 + 1;
@@ -16,7 +21,7 @@ fn turns(from: usize, to: usize) -> Vec<SessionEvent> {
             };
             [
                 event("session.start", pos, serde_json::json!({"prompt": format!("Question {n}")})),
-                event("session.delta", pos + 1, serde_json::json!({"kind": "text", "text": format!("Answer {n}.\n\nMore.\n\nAnd more.")})),
+                event("session.delta", pos + 1, serde_json::json!({"kind": "text", "text": reply(n)})),
                 event("session.done", pos + 2, serde_json::json!({"result": {"status": "completed"}})),
                 event("session.end", pos + 3, serde_json::json!({"exitCode": 0, "sawResult": true})),
             ]
@@ -45,6 +50,27 @@ fn frames(cx: &mut VisualTestContext, n: usize) {
 
 fn page(events: Vec<SessionEvent>) -> Page {
     Page { events, pos: 80, total: 80, trimmed: None }
+}
+
+/// `turns` with each reply a fence in `lang`.
+fn fenced(from: usize, to: usize, lang: &str) -> Vec<SessionEvent> {
+    said(from, to, |_| format!("Here:\n\n```{lang}\nx = 1\n```"))
+}
+
+#[gpui_kit::test]
+fn the_grammars_a_thread_holds_compile_off_the_ui_thread_as_it_loads_and_as_its_pages_land(cx: &mut TestAppContext) {
+    use crate::screens::thread_view::markdown::warming;
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(fenced(10, 20, "python"), cx);
+    });
+    assert!(warming("python"), "the loaded thread's grammar waits for its first block to draw, on the UI thread");
+    cx.run_until_parked();
+    assert!(!warming("python"));
+    view.update(cx, |v, cx| v.land(41, Ok(page(fenced(0, 10, "lua"))), cx));
+    assert!(warming("lua"), "a landed page's grammar waits for its first block to draw, on the UI thread");
+    cx.run_until_parked();
 }
 
 #[gpui_kit::test]
@@ -262,4 +288,133 @@ fn a_relist_keeps_the_send_in_flight(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let sent = view.read_with(cx, |v, _| v.listing().and_then(|l| l.sent.clone()));
     assert_eq!(sent.as_deref(), Some("look again"), "the sidebar's next read dropped the send in flight");
+}
+
+/// The wheel at `at`, as a trackpad's fingers send it mid-gesture, scrolling toward the transcript's end.
+fn wheel(at: gpui_kit::Point<Pixels>) -> gpui_kit::ScrollWheelEvent {
+    gpui_kit::ScrollWheelEvent {
+        position: at,
+        delta: gpui_kit::ScrollDelta::Pixels(gpui_kit::point(px(1.5), px(-30.))),
+        touch_phase: gpui_kit::TouchPhase::Moved,
+        ..Default::default()
+    }
+}
+
+#[gpui_kit::test]
+fn a_trackpad_scroll_runs_straight_through_a_tool_output_a_code_block_and_a_wide_table(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    cx.simulate_resize(size(px(900.), px(1400.)));
+    let at = |kind: &str, pos: u64, extra: serde_json::Value| {
+        let mut v = serde_json::json!({"workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": "u0", "type": kind, "pos": pos});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        serde_json::from_value::<SessionEvent>(v).unwrap()
+    };
+    let output: String = (1..=40).map(|n| format!("line {n}\n")).collect();
+    let code: String = (1..=30).map(|n| format!("    let row_{n} = rows.get({n}).map(|row| row.height).unwrap_or_default();\n")).collect();
+    let heads: Vec<String> = (1..=10).map(|n| format!("Column {n} heading")).collect();
+    let table = format!("| {} |\n|{}\n| {} |", heads.join(" | "), " --- |".repeat(10), heads.join(" | "));
+    let mut events = vec![
+        at("session.start", 1, serde_json::json!({"prompt": "go"})),
+        at(
+            "session.delta",
+            2,
+            serde_json::json!({"kind": "tool_use", "toolName": "Bash", "toolUseId": "a", "text": "{\"command\":\"seq 40\"}"}),
+        ),
+        at("session.delta", 3, serde_json::json!({"kind": "tool_result", "toolUseId": "a", "text": output, "exitCode": 0})),
+        at("session.delta", 4, serde_json::json!({"kind": "text", "text": format!("Here:\n\n```rust\n{code}```\n\n{table}\n")})),
+        at("session.done", 5, serde_json::json!({"result": {"status": "completed"}})),
+        at("session.end", 6, serde_json::json!({"exitCode": 0, "sawResult": true})),
+    ];
+    events.extend(turns(2, 40));
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(events, cx);
+    });
+    for key in ["u0", "group:tool:u0:a", "u0:call:a"] {
+        view.update(cx, |v, cx| v.toggle(key, cx));
+        cx.run_until_parked();
+    }
+    view.update(cx, |v, cx| v.scroll_to_top(cx));
+    frames(cx, 3);
+    let top = |cx: &mut VisualTestContext| view.read_with(cx, |v, _| v.list.scroll_px_offset_for_scrollbar().y);
+    let over = |cx: &mut VisualTestContext, selector: &'static str, down: f32| {
+        let b = cx.debug_bounds(selector).unwrap_or_else(|| panic!("{selector} was not drawn"));
+        gpui_kit::point(b.center().x, b.bottom() + px(down))
+    };
+    let output = cx.debug_bounds("output").expect("the open call's output").center();
+    let code = over(cx, "code-copy", 40.);
+    let table = over(cx, "table-copy", 30.);
+    for (spot, place) in [("tool output", output), ("code block", code), ("wide table", table)] {
+        let before = top(cx);
+        cx.simulate_event(wheel(place));
+        cx.run_until_parked();
+        assert!(top(cx) < before, "the wheel over the {spot} never reached the transcript");
+        view.update(cx, |v, cx| v.scroll_to_top(cx));
+        frames(cx, 2);
+    }
+}
+
+/// Catches: a command's bash or an edited file's grammar compiling on the UI thread the first time its call scrolls in.
+#[gpui_kit::test]
+fn the_grammars_of_a_threads_commands_and_edits_compile_off_the_ui_thread_as_their_calls_open(cx: &mut TestAppContext) {
+    use crate::screens::thread_view::markdown::warming;
+    let (view, cx) = window(cx);
+    let at = |kind: &str, pos: u64, extra: serde_json::Value| {
+        let mut v = serde_json::json!({"workspaceId": "w", "sessionId": "s", "threadId": "t", "turnId": "u0", "type": kind, "pos": pos});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        serde_json::from_value::<SessionEvent>(v).unwrap()
+    };
+    let events = vec![
+        at("session.start", 1, serde_json::json!({"prompt": "go"})),
+        at(
+            "session.delta",
+            2,
+            serde_json::json!({"kind": "tool_use", "toolName": "Bash", "toolUseId": "a", "text": "{\"command\":\"ls\"}"}),
+        ),
+        at("session.delta", 3, serde_json::json!({"kind": "tool_result", "toolUseId": "a", "text": "a", "exitCode": 0})),
+        at(
+            "session.delta",
+            4,
+            serde_json::json!({"kind": "tool_use", "toolName": "Edit", "toolUseId": "b", "text": "{\"file_path\":\"src/a.py\"}"}),
+        ),
+        at(
+            "session.delta",
+            5,
+            serde_json::json!({"kind": "tool_result", "toolUseId": "b", "text": "ok", "patch": [{"path": "src/a.py", "hunks": [
+                {"oldStart": 1, "oldLines": 1, "newStart": 1, "newLines": 1, "lines": ["-a = 1", "+a = 2"]}
+            ]}]}),
+        ),
+        at("session.delta", 6, serde_json::json!({"kind": "text", "text": "Done."})),
+        at("session.done", 7, serde_json::json!({"result": {"status": "completed"}})),
+        at("session.end", 8, serde_json::json!({"exitCode": 0, "sawResult": true})),
+    ];
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(events, cx);
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        v.toggle("u0", cx);
+        v.toggle("group:tool:u0:a", cx);
+    });
+    let calls = view.read_with(cx, |v, _| v.transcript().rows().iter().any(|r| matches!(r.kind, RowKind::Calls { .. })));
+    assert!(calls, "opening the turn shows no calls");
+    assert!(warming("bash"), "a command's grammar waits for its row to draw, on the UI thread");
+    assert!(warming("python"), "an edited file's grammar waits for its diff to draw, on the UI thread");
+    cx.run_until_parked();
+}
+
+#[gpui_kit::test]
+fn a_rows_kind_name_is_its_variant_as_debug_writes_it(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(fenced(0, 2, "rust"), cx);
+    });
+    let kinds: Vec<(&str, String)> =
+        view.read_with(cx, |v, _| v.transcript().rows().iter().map(|r| (r.kind.name(), format!("{:?}", r.kind))).collect());
+    assert!(kinds.len() >= 4, "{kinds:?}");
+    for (name, debug) in kinds {
+        assert_eq!(debug.split([' ', '{', '(']).next(), Some(name));
+    }
 }

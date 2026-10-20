@@ -35,7 +35,7 @@ fn a_messages_files_draw_as_tiles_and_its_unheld_image_as_its_line(cx: &mut Test
     let bytes = unbase64(PNG).unwrap();
     assert_eq!(image_size(&bytes), Some((2., 1.)));
     view.update(cx, |v, cx| {
-        let held = Shot::Held(Arc::new(Image::from_bytes(ImageFormat::Png, bytes)), Some((2., 1.)));
+        let held = Shot::Held(Arc::new(Image::from_bytes(ImageFormat::Png, bytes)), Some((2., 1.)), None);
         v.images.insert(key, vec![held, Shot::File]);
         cx.notify();
     });
@@ -85,12 +85,20 @@ fn an_image_lets_go_of_its_pixels_once_its_row_leaves_the_kept_rows(cx: &mut Tes
     let key = view.read_with(cx, |v, _| v.rows()[0].key.clone());
     let image = Arc::new(Image::from_bytes(ImageFormat::Png, unbase64(PNG).unwrap()));
     view.update(cx, |v, cx| {
-        v.images.insert(key.clone(), vec![Shot::Held(image.clone(), Some((2., 1.))), Shot::File]);
+        v.images.insert(key.clone(), vec![Shot::Held(image.clone(), Some((2., 1.)), None), Shot::File]);
         cx.notify();
     });
     cx.run_until_parked();
-    assert!(cx.debug_bounds("thumb").is_some(), "the image was not drawn");
+    let thumb = cx.debug_bounds("thumb").expect("the image was not drawn");
     assert!(cx.update(|_, cx| image.is_asset_cached(cx)), "the drawn image was not decoded");
+    cx.simulate_click(thumb.center(), Modifiers::none());
+    cx.run_until_parked();
+    cx.simulate_keystrokes("escape");
+    // The layer times its fade out on the wall clock.
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("image-dialog").is_none(), "Escape left the image open");
     view.update(cx, |v, cx| v.scroll_to_end(cx));
     for _ in 0..3 {
         cx.update(|window, cx| window.simulate_next_frame(cx));
@@ -98,6 +106,40 @@ fn an_image_lets_go_of_its_pixels_once_its_row_leaves_the_kept_rows(cx: &mut Tes
     }
     assert!(view.read_with(cx, |v, _| !v.images.contains_key(&key)), "the row's attachments outlived its kept rows");
     assert!(!cx.update(|_, cx| image.is_asset_cached(cx)), "the image's decoded pixels outlived its row");
+    assert!(
+        !super::super::files::OPENED.with(|o| o.borrow().contains(&image.id())),
+        "an image with no thumbnail stayed opened past its row"
+    );
+}
+
+/// A `w` x `h` PNG in base64, as the host sends a screenshot.
+fn png(w: u32, h: u32) -> String {
+    use base64::Engine as _;
+    let mut bytes = Vec::new();
+    image::RgbaImage::from_pixel(w, h, image::Rgba([10, 20, 30, 255]))
+        .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .unwrap();
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+#[gpui_kit::test]
+fn a_screenshot_is_decoded_off_the_ui_thread_into_a_thumbnail_the_size_of_its_tile(cx: &mut TestAppContext) {
+    let (view, cx) = window(attachments(), cx);
+    let key = view.read_with(cx, |v, _| v.rows()[0].key.clone());
+    view.update(cx, |v, cx| {
+        v.images.insert(key.clone(), vec![Shot::Asking, Shot::File]);
+        super::super::files::take(key.clone(), 0, Some(("image/png".into(), png(1600, 1000))), cx);
+        assert!(matches!(v.images[&key][0], Shot::Asking), "the screenshot was decoded on the UI thread, inside the host's answer");
+    });
+    cx.run_until_parked();
+    let (whole, thumb) = view.read_with(cx, |v, _| match &v.images[&key][0] {
+        Shot::Held(_, whole, thumb) => (*whole, thumb.as_ref().map(|t| t.size(0))),
+        _ => (None, None),
+    });
+    assert_eq!(whole, Some((1600., 1000.)), "the dialog lost the screenshot's own size");
+    let side = gpui_kit::DevicePixels(112);
+    assert_eq!(thumb, Some(size(side, side)), "the 56 px tile draws from the whole screenshot, which GPUI decodes and uploads whole");
+    assert!(cx.debug_bounds("thumb").is_some(), "the held screenshot was not drawn");
 }
 
 #[test]

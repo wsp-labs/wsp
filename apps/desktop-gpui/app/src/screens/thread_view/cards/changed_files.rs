@@ -89,7 +89,8 @@ pub(super) fn changed_files(
     let head = h_flex()
         .id(SharedString::from(format!("changed-head-{key}")))
         .debug_selector(|| "changed-head".into())
-        .occlude()
+        // Occluding would drop the wheel too, so a scroll that slides the head under the pointer stops dead on it.
+        .block_mouse_except_scroll()
         .justify_between()
         .gap(px(8.))
         .rounded_t(px(10.))
