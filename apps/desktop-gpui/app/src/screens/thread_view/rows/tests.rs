@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 use gpui_kit::component::Root;
-use gpui_kit::{size, Entity, Modifiers, TestAppContext, VisualTestContext};
+use gpui_kit::{size, Entity, Modifiers, ScaledPixels, TestAppContext, VisualTestContext};
 use serde_json::json;
 use wsp_host_client::protocol::SessionEvent;
 
@@ -236,70 +236,47 @@ fn a_long_message_clamps_under_its_fade_and_show_full_message_opens_it(cx: &mut 
 }
 
 #[gpui_kit::test]
-fn the_clamp_fade_ends_at_the_clamped_bodys_bottom(cx: &mut TestAppContext) {
+fn the_clamp_fade_is_measured_from_the_clamped_bodys_bottom(cx: &mut TestAppContext) {
     let (view, cx) = window(cx);
-    load(&view, vec![event("session.start", 1, json!({"prompt": format!("[a](https://example.com/{})", "x".repeat(600))}))], cx);
+    load(&view, vec![event("session.start", 1, json!({"prompt": format!("[`a`](https://example.com/{})", "x".repeat(600))}))], cx);
     let body = cx.debug_bounds("message-body").expect("the clamped message's body");
     assert!(body.size.height < CLAMP_HEIGHT - px(24.), "the body fills the clamp, so a top-anchored fade would pass: {:?}", body.size);
-    let fade = cx.debug_bounds("clamp-fade").expect("the fade over a one word link past 600 characters");
-    assert_eq!(fade.bottom(), body.bottom(), "the fade is measured from the body's bottom, as the web's mask is");
-    assert_eq!(fade.size.height, px(80.));
+    assert_fades(cx, body, px(80.), px(24.), "the web's mask, measured from the body's bottom");
 }
 
-/// Catches: the solid fade laying the theme's ground over the Mac's glass, which shows through a dark theme's bubble.
+/// Catches: a look that cuts the folded message with no fade, or lays a fill over its text; on the Mac's glass any fill
+/// in the bubble's colour shows over the material, and on a solid dark Mac the theme's background is not the centre's.
 #[gpui_kit::test]
-fn on_glass_a_long_message_is_cut_at_the_fades_foot_under_no_fade(cx: &mut TestAppContext) {
+fn every_look_fades_a_long_message_under_the_webs_mask_and_paints_nothing_over_it(cx: &mut TestAppContext) {
     use crate::screens::app_shell::material::Look;
     let (view, cx) = window(cx);
-    cx.update(|_, cx| crate::ui::theme::set_theme_in("graphite", Look { mac: true, glass: true }, cx));
-    load(&view, vec![event("session.start", 1, json!({"prompt": "word ".repeat(400)}))], cx);
-    let body = cx.debug_bounds("message-body").expect("the clamped message's body");
-    assert_eq!(body.size.height, CLAMP_HEIGHT - CLAMP_FADE_FOOT, "on glass the body is cut where the web's mask is transparent");
-    let fades = cx.update(|window, cx| {
-        let fill = clamp_fade_fill(cx.palette().background, cx.palette().accent);
-        window.painted_quads().iter().filter(|q| q.background.as_solid() == Some(fill)).count()
-    });
-    assert_eq!(fades, 0, "on glass the collapsed message paints the solid fade");
-    assert!(cx.debug_bounds("clamp-fade").is_none(), "on glass the collapsed message draws a fade");
-}
-
-#[test]
-fn every_themes_clamp_fade_is_solid_in_the_bubbles_on_screen_color() {
-    use crate::screens::app_shell::material::{fills, Look};
-    for t in &crate::ui::theme::THEMES {
-        let p = t.palette();
-        for look in [Look { mac: false, glass: false }, Look { mac: true, glass: false }] {
-            let centre = fills(look, t.id, &p).centre;
-            let fill = clamp_fade_fill(centre, p.accent);
-            assert_eq!(fill.a, 1., "{} {look:?}: the fade lets the text show through", t.id);
-            let (ground, ink, got) = (Rgba::from(centre), Rgba::from(p.accent), Rgba::from(fill));
-            let shown = |g: f32, i: f32| g * (1. - ink.a) + i * ink.a;
-            for (channel, got, want) in
-                [("r", got.r, shown(ground.r, ink.r)), ("g", got.g, shown(ground.g, ink.g)), ("b", got.b, shown(ground.b, ink.b))]
-            {
-                assert!((got - want).abs() < 1e-3, "{} {look:?}: {channel} is {got}, the bubble shows {want}", t.id);
-            }
-        }
+    for look in [Look { mac: false, glass: false }, Look { mac: true, glass: false }, Look { mac: true, glass: true }] {
+        cx.update(|_, cx| crate::ui::theme::set_theme_in("graphite", look, cx));
+        // Inline code, since test glyphs paint nothing a clip could cut and its fills do.
+        load(&view, vec![event("session.start", 1, json!({"prompt": "`word` ".repeat(200)}))], cx);
+        let body = cx.debug_bounds("message-body").expect("the clamped message's body");
+        assert_eq!(body.size.height, CLAMP_HEIGHT, "{look:?}: the body is max-h-44 whole, its last 1.5rem the mask's clear foot");
+        assert_fades(cx, body, px(80.), px(24.), &format!("{look:?}: the folded text fades out"));
+        let over = cx.update(|window, _| {
+            let scale = window.scale_factor();
+            let body = body.scale(scale);
+            window
+                .painted_quads()
+                .iter()
+                .filter(|q| {
+                    body.intersects(&q.bounds)
+                        && q.bounds.size.width >= body.size.width - ScaledPixels(1.)
+                        && q.bounds.size.height < body.size.height
+                })
+                .count()
+        });
+        assert_eq!(over, 0, "{look:?}: a fill is laid across the folded text");
+        let toggle = cx.debug_bounds("show-full").expect("Show full message");
+        assert!(
+            toggle.top() >= body.top() + CLAMP_HEIGHT - px(24.),
+            "{look:?}: Show full message stands in the clear foot, not on the text"
+        );
     }
-}
-
-/// Catches: the fade laid in the bubble over the theme's background where the shell's centre is a dark material's ground.
-#[gpui_kit::test]
-fn the_clamp_fade_follows_the_centres_ground_on_a_solid_mac_dark_theme(cx: &mut TestAppContext) {
-    use crate::screens::app_shell::material::{fills, Look};
-    cx.update(|cx| {
-        gpui_kit::init(cx);
-        crate::ui::init(crate::ui::Side::Dark, cx);
-        crate::ui::theme::set_theme_in("graphite", Look { mac: true, glass: false }, cx);
-    });
-    let (p, centre) = cx.update(|cx| {
-        let p = cx.palette().clone();
-        let centre = fills(Look { mac: true, glass: false }, "graphite", &p).centre;
-        (p, centre)
-    });
-    assert_ne!(centre, p.background, "graphite's material ground on a solid Mac is not its page background");
-    let got = cx.update(|cx| centre_ground(&p, cx));
-    assert_eq!(got, centre, "the fade is laid over the theme's background, not the centre the shell lays");
 }
 
 #[test]

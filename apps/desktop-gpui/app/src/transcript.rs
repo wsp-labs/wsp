@@ -319,6 +319,11 @@ impl Transcript {
         self.events.len()
     }
 
+    /// Whether the fold holds a message, the person's or the agent's.
+    pub fn messaged(&self) -> bool {
+        self.model.entries.iter().any(|e| matches!(e.body, Body::Person { .. } | Body::Agent { .. }))
+    }
+
     /// The folder the thread's agent works in, off its latest start, which a path a message names is read against.
     pub fn cwd(&self) -> Option<&str> {
         self.model.cwd.as_deref()

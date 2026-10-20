@@ -21,6 +21,7 @@
     "blur-radii": { page: "#f4f4f5", ink: "#18181b" },
     "blur-tint-dark": { page: "#0a0a0a", ink: "#f4f4f5" },
     "blur-shadow": { page: "#f4f4f5", ink: "#18181b" },
+    "fade": { page: "#f4f4f5", ink: "#18181b" },
   };
   const params = new URLSearchParams(location.search);
   const name = params.get("scene") || "plain-light";
@@ -79,6 +80,27 @@
       panel.style.borderRadius = "12px";
       panel.style.backdropFilter = `blur(${blur}px)`;
     }
+  } else if (name === "fade") {
+    const bubble = document.createElement("div");
+    bubble.style.cssText = "left:24px;top:40px;width:280px;padding:12px;border-radius:18px;background:#e4e4e7";
+    document.body.appendChild(bubble);
+    const body = document.createElement("div");
+    body.style.cssText = "position:relative;width:256px;max-height:176px;overflow:hidden;" +
+      "mask-image:linear-gradient(to bottom, black calc(100% - 5rem), transparent calc(100% - 1.5rem))";
+    bubble.appendChild(body);
+    const bars = document.createElement("div");
+    bars.style.cssText = "position:relative;width:256px;height:288px";
+    body.appendChild(bars);
+    for (let i = 0; i < 8; i++) {
+      rect(bars, 0, i * 36 + 4, 120, 28, PALETTE[i % 6]);
+      stripes(bars, i, i * 36, 132);
+    }
+    const peekPage = rect(document.body, 336, 40, 280, 120, "#fde68a");
+    const row = rect(peekPage, 16, 36, 248, 48, "transparent");
+    row.style.maskImage = "linear-gradient(to bottom, black 0%, transparent 100%)";
+    rect(row, 0, 0, 112, 48, PALETTE[4]);
+    stripes(row, 0, 6, 124);
+    rect(row, 236, 8, 2, 64, scene.ink);
   } else {
     for (let i = 0; i * 36 - scroll < 480; i++) {
       const top = i * 36 - scroll;

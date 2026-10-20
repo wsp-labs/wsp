@@ -154,7 +154,7 @@ impl ThreadScreen {
                         let (host, composer) = (this.host.clone(), this.composer.clone());
                         let link = cx.new(|cx| Link::fed(host, target, opened, composer, window, cx));
                         if this.view.read(cx).loaded() {
-                            let seen = Seen::of(this.view.read(cx).transcript().event_list());
+                            let seen = seen(this.view.read(cx));
                             link.update(cx, |l, cx| l.take_history(seen, window, cx));
                         }
                         this.link = Some(link);
@@ -230,7 +230,7 @@ impl ThreadScreen {
         let Some(link) = self.link.clone() else { return };
         match event {
             ThreadViewEvent::Loaded => {
-                let seen = Seen::of(self.view.read(cx).transcript().event_list());
+                let seen = seen(self.view.read(cx));
                 link.update(cx, |l, cx| l.take_history(seen, window, cx));
             }
             ThreadViewEvent::Arrived => {
@@ -308,6 +308,13 @@ impl ThreadScreen {
         }
         self._steps = None;
     }
+}
+
+/// What the composer reads off the view: the pages it holds, whether their turn runs, and whether the thread holds a
+/// message, which it does when older pages stand above them, each turn opening on the person's prompt.
+pub(crate) fn seen(view: &ThreadView) -> Seen {
+    let transcript = view.transcript();
+    Seen::of_view(transcript.event_list(), transcript.working(), transcript.messaged() || !view.complete())
 }
 
 impl Screen for ThreadScreen {

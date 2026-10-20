@@ -30,13 +30,19 @@ pub struct Glass {
     pub highlight: Hsla,
     pub blur: Pixels,
     pub saturation: f32,
+    /// What the blurred copy is laid over, on the Mac.
+    pub ground: Option<Hsla>,
 }
 
 impl Glass {
-    /// The blur and its saturation over what lies under `el`, unless the composer's glass is turned off.
+    /// The blur and its saturation over what lies under `el`, on its ground, unless the composer's glass is turned off.
     pub fn frost<E: Styled>(&self, el: E) -> E {
         if crate::glass::composer_blurs() {
-            el.backdrop_blur(self.blur).backdrop_saturation(self.saturation)
+            let el = el.backdrop_blur(self.blur).backdrop_saturation(self.saturation);
+            match self.ground {
+                Some(ground) => el.backdrop_ground(ground),
+                None => el,
+            }
         } else {
             el
         }
@@ -45,19 +51,30 @@ impl Glass {
 
 pub fn glass(cx: &App) -> Glass {
     let p = cx.palette();
-    let mut glass = if cx.theme().is_dark() {
+    let dark = cx.theme().is_dark();
+    let look = cx.global::<crate::ui::theme::WspTheme>().look;
+    let ground = look.mac.then(|| crate::glass::mac_ground(dark));
+    let mut glass = if dark {
         Glass {
             tint: p.foreground.opacity(0.03),
             outline: p.composer_outline,
             highlight: p.composer_highlight,
             blur: px(16.),
             saturation: 1.08,
+            ground,
         }
     } else {
-        Glass { tint: p.card.opacity(0.55), outline: p.composer_outline, highlight: p.composer_highlight, blur: px(12.), saturation: 1.14 }
+        Glass {
+            tint: p.card.opacity(0.55),
+            outline: p.composer_outline,
+            highlight: p.composer_highlight,
+            blur: px(12.),
+            saturation: 1.14,
+            ground,
+        }
     };
     // `:root:root.solid [data-slot="composer-shell"]`: a page drawing no glass gives the composer the theme's card, whole.
-    if !cx.global::<crate::ui::theme::WspTheme>().look.glass {
+    if !look.glass {
         glass.tint = p.card;
     }
     glass

@@ -408,3 +408,38 @@ fn the_access_picker_waits_under_a_box_642_px_wide_or_narrower(cx: &mut TestAppC
         }
     }
 }
+
+/// Catches: the docked composer's blur on the Mac laid over nothing, which on the glass lets the transcript under the
+/// box show through sharp (`.desktop-mac`'s `--glass-ground`), or off its radius and saturation.
+#[gpui_kit::test]
+fn on_the_mac_the_box_blurs_what_is_under_it_over_the_glass_ground(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::app_shell::material::Look;
+    let cx = open("empty", cx);
+    let glass = Look { mac: true, glass: true };
+    for (theme, look, radius, saturation, ground) in [
+        ("graphite", glass, 16., 1.08, Some(0x232929)),
+        ("paper", glass, 12., 1.14, Some(0xecedec)),
+        ("graphite", Look { mac: true, glass: false }, 16., 1.08, Some(0x232929)),
+        ("graphite", Look { mac: false, glass: true }, 16., 1.08, None),
+    ] {
+        cx.update(|window, cx| {
+            desktop_gpui::ui::theme::set_theme_in(theme, look, cx);
+            window.refresh();
+        });
+        cx.run_until_parked();
+        let shown = rect(cx, "composer-box");
+        let blurs = cx.update(|window, _| {
+            let shown = shown.scale(window.scale_factor());
+            window
+                .painted_backdrop_blurs()
+                .into_iter()
+                .filter(|b| b.bounds.intersect(&shown) == b.bounds && b.bounds.size.height > shown.size.height / 2.)
+                .collect::<Vec<_>>()
+        });
+        let [blur] = blurs[..] else { panic!("{theme} {look:?}: the box paints {} blurs", blurs.len()) };
+        let scale = cx.update(|window, _| window.scale_factor());
+        assert_eq!((blur.blur_radius.0, blur.saturation), (radius * scale, saturation), "{theme} {look:?}: today's radius and saturation");
+        let want = ground.map_or(0, |g| gpui_kit::pack_ground(gpui_kit::rgb(g).into()));
+        assert_eq!(blur.ground, want, "{theme} {look:?}: the copy's ground is {:#010x}", blur.ground);
+    }
+}
