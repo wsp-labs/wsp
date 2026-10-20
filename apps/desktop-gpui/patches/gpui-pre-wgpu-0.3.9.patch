@@ -43,10 +43,10 @@ index b7c38bb..380f1ca 100644
  
          let sources: &[Source] = if params.is_emoji {
 diff --git a/src/shaders.wgsl b/src/shaders.wgsl
-index 718cb75..52868e0 100644
+index 718cb75..f56798c 100644
 --- a/src/shaders.wgsl
 +++ b/src/shaders.wgsl
-@@ -111,6 +111,13 @@ struct Corners {
+@@ -111,6 +111,15 @@ struct Corners {
      bottom_left: f32,
  }
  
@@ -54,13 +54,15 @@ index 718cb75..52868e0 100644
 +    bounds: Bounds,
 +    corner_radii: Corners,
 +    parent: u32,
-+    pad: array<u32, 3>,
++    fade_top: f32,
++    fade_bottom: f32,
++    pad: u32,
 +}
 +
  struct Edges {
      top: f32,
      right: f32,
-@@ -386,6 +393,24 @@ fn quad_sdf_impl(corner_center_to_point: vec2<f32>, corner_radius: f32) -> f32 {
+@@ -386,6 +395,27 @@ fn quad_sdf_impl(corner_center_to_point: vec2<f32>, corner_radius: f32) -> f32 {
      }
  }
  
@@ -77,6 +79,9 @@ index 718cb75..52868e0 100644
 +    while (id != 0u) {
 +        let clip = load_rounded_clip(id);
 +        alpha *= saturate(0.5 - quad_sdf(point, clip.bounds, clip.corner_radii));
++        if (clip.fade_bottom > clip.fade_top) {
++            alpha *= saturate((clip.fade_bottom - point.y) / (clip.fade_bottom - clip.fade_top));
++        }
 +        id = clip.parent;
 +    }
 +    return alpha;
@@ -85,7 +90,7 @@ index 718cb75..52868e0 100644
  // Abstract away the final color transformation based on the
  // target alpha compositing mode.
  fn blend_color(color: vec4<f32>, alpha_factor: f32) -> vec4<f32> {
-@@ -525,6 +550,8 @@ struct Quad {
+@@ -525,6 +555,8 @@ struct Quad {
      border_color: Hsla,
      corner_radii: Corners,
      border_widths: Edges,
@@ -94,7 +99,7 @@ index 718cb75..52868e0 100644
  }
  
  struct QuadVarying {
-@@ -536,6 +563,7 @@ struct QuadVarying {
+@@ -536,6 +568,7 @@ struct QuadVarying {
      @location(3) @interpolate(flat) background_solid: vec4<f32>,
      @location(4) @interpolate(flat) background_color0: vec4<f32>,
      @location(5) @interpolate(flat) background_color1: vec4<f32>,
@@ -102,7 +107,7 @@ index 718cb75..52868e0 100644
  }
  
  @vertex
-@@ -557,6 +585,7 @@ fn vs_quad(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) insta
+@@ -557,6 +590,7 @@ fn vs_quad(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) insta
      out.background_color1 = gradient.color1;
      out.border_color = hsla_to_rgba(quad.border_color);
      out.quad_id = instance_id;
@@ -110,7 +115,7 @@ index 718cb75..52868e0 100644
      out.clip_distances = distance_from_clip_rect(unit_vertex, quad.bounds, quad.content_mask);
      return out;
  }
-@@ -569,6 +598,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+@@ -569,6 +603,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
      }
  
      let quad = load_quad(input.quad_id);
@@ -118,7 +123,7 @@ index 718cb75..52868e0 100644
  
      let background_color = gradient_color(quad.background, input.position.xy, quad.bounds,
          input.background_solid, input.background_color0, input.background_color1);
-@@ -584,7 +614,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+@@ -584,7 +619,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
              quad.border_widths.right == 0.0 &&
              quad.border_widths.bottom == 0.0 &&
              unrounded) {
@@ -127,7 +132,7 @@ index 718cb75..52868e0 100644
      }
  
      let size = quad.bounds.size;
-@@ -650,7 +680,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+@@ -650,7 +685,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
      // However, that might negatively impact performance in the case of
      // reasonable sizes for rounded corners.
      if (is_within_inner_straight_border && !is_near_rounded_corner) {
@@ -136,7 +141,7 @@ index 718cb75..52868e0 100644
      }
  
      // Signed distance of the point to the outside edge of the quad's border. It
-@@ -889,7 +919,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+@@ -889,7 +924,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
                      saturate(antialias_threshold - inner_sdf));
      }
  
@@ -145,7 +150,7 @@ index 718cb75..52868e0 100644
  }
  
  // Returns the dash velocity of a corner given the dash velocity of the two
-@@ -955,13 +985,12 @@ struct Shadow {
+@@ -955,13 +990,12 @@ struct Shadow {
      corner_radii: Corners,
      content_mask: Bounds,
      color: Hsla,
@@ -161,7 +166,7 @@ index 718cb75..52868e0 100644
  }
  
  struct ShadowVarying {
-@@ -970,6 +999,7 @@ struct ShadowVarying {
+@@ -970,6 +1004,7 @@ struct ShadowVarying {
      @location(1) @interpolate(flat) shadow_id: u32,
      //TODO: use `clip_distance` once Naga supports it
      @location(3) clip_distances: vec4<f32>,
@@ -169,7 +174,7 @@ index 718cb75..52868e0 100644
  }
  
  @vertex
-@@ -992,6 +1022,7 @@ fn vs_shadow(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) ins
+@@ -992,6 +1027,7 @@ fn vs_shadow(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) ins
      out.position = to_device_position(unit_vertex, geometry);
      out.color = hsla_to_rgba(shadow.color);
      out.shadow_id = instance_id;
@@ -177,7 +182,7 @@ index 718cb75..52868e0 100644
      out.clip_distances = distance_from_clip_rect(unit_vertex, geometry, shadow.content_mask);
      return out;
  }
-@@ -1004,6 +1035,16 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
+@@ -1004,6 +1040,16 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
      }
  
      let shadow = load_shadow(input.shadow_id);
@@ -194,7 +199,7 @@ index 718cb75..52868e0 100644
      let half_size = shadow.bounds.size / 2.0;
      let center = shadow.bounds.origin + half_size;
      let center_to_point = input.position.xy - center;
-@@ -1040,9 +1081,11 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
+@@ -1040,9 +1086,11 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
          let element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
                                          shadow.element_corner_radii);
          alpha *= saturate(0.5 - element_distance);
@@ -207,7 +212,7 @@ index 718cb75..52868e0 100644
  }
  
  // --- path rasterization --- //
-@@ -1052,6 +1095,8 @@ struct PathRasterizationVertex {
+@@ -1052,6 +1100,8 @@ struct PathRasterizationVertex {
      st_position: vec2<f32>,
      color: Background,
      bounds: Bounds,
@@ -216,7 +221,7 @@ index 718cb75..52868e0 100644
  }
  
  
-@@ -1062,6 +1107,7 @@ struct PathRasterizationVarying {
+@@ -1062,6 +1112,7 @@ struct PathRasterizationVarying {
      @location(1) @interpolate(flat) vertex_id: u32,
      //TODO: use `clip_distance` once Naga supports it
      @location(3) clip_distances: vec4<f32>,
@@ -224,7 +229,7 @@ index 718cb75..52868e0 100644
  }
  
  @vertex
-@@ -1072,6 +1118,7 @@ fn vs_path_rasterization(@builtin(vertex_index) vertex_id: u32) -> PathRasteriza
+@@ -1072,6 +1123,7 @@ fn vs_path_rasterization(@builtin(vertex_index) vertex_id: u32) -> PathRasteriza
      out.position = to_device_position_impl(v.xy_position);
      out.st_position = v.st_position;
      out.vertex_id = vertex_id;
@@ -232,7 +237,7 @@ index 718cb75..52868e0 100644
      out.clip_distances = distance_from_clip_rect_impl(v.xy_position, v.bounds);
      return out;
  }
-@@ -1106,6 +1153,7 @@ fn fs_path_rasterization(input: PathRasterizationVarying) -> @location(0) vec4<f
+@@ -1106,6 +1158,7 @@ fn fs_path_rasterization(input: PathRasterizationVarying) -> @location(0) vec4<f
      );
      let color = gradient_color(background, input.position.xy, bounds,
          prepared_gradient.solid, prepared_gradient.color0, prepared_gradient.color1);
@@ -240,7 +245,7 @@ index 718cb75..52868e0 100644
      return vec4<f32>(color.rgb * color.a * alpha, color.a * alpha);
  }
  
-@@ -1148,7 +1196,7 @@ fn fs_path(input: PathVarying) -> @location(0) vec4<f32> {
+@@ -1148,7 +1201,7 @@ fn fs_path(input: PathVarying) -> @location(0) vec4<f32> {
  
  struct Underline {
      order: u32,
@@ -249,7 +254,7 @@ index 718cb75..52868e0 100644
      bounds: Bounds,
      content_mask: Bounds,
      color: Hsla,
-@@ -1163,6 +1211,7 @@ struct UnderlineVarying {
+@@ -1163,6 +1216,7 @@ struct UnderlineVarying {
      @location(1) @interpolate(flat) underline_id: u32,
      //TODO: use `clip_distance` once Naga supports it
      @location(3) clip_distances: vec4<f32>,
@@ -257,7 +262,7 @@ index 718cb75..52868e0 100644
  }
  
  @vertex
-@@ -1174,6 +1223,7 @@ fn vs_underline(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index)
+@@ -1174,6 +1228,7 @@ fn vs_underline(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index)
      out.position = to_device_position(unit_vertex, underline.bounds);
      out.color = hsla_to_rgba(underline.color);
      out.underline_id = instance_id;
@@ -265,7 +270,7 @@ index 718cb75..52868e0 100644
      out.clip_distances = distance_from_clip_rect(unit_vertex, underline.bounds, underline.content_mask);
      return out;
  }
-@@ -1189,9 +1239,10 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
+@@ -1189,9 +1244,10 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
      }
  
      let underline = load_underline(input.underline_id);
@@ -277,7 +282,7 @@ index 718cb75..52868e0 100644
      }
  
      let half_thickness = underline.thickness * 0.5;
-@@ -1207,14 +1258,14 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
+@@ -1207,14 +1263,14 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
      let distance_from_top_border = distance_in_pixels - half_thickness;
      let distance_from_bottom_border = distance_in_pixels + half_thickness;
      let alpha = saturate(0.5 - max(-distance_from_bottom_border, distance_from_top_border));
@@ -294,7 +299,7 @@ index 718cb75..52868e0 100644
      bounds: Bounds,
      content_mask: Bounds,
      color: Hsla,
-@@ -1228,6 +1279,7 @@ struct MonoSpriteVarying {
+@@ -1228,6 +1284,7 @@ struct MonoSpriteVarying {
      @location(0) tile_position: vec2<f32>,
      @location(1) @interpolate(flat) color: vec4<f32>,
      @location(3) clip_distances: vec4<f32>,
@@ -302,7 +307,7 @@ index 718cb75..52868e0 100644
  }
  
  @vertex
-@@ -1241,6 +1293,7 @@ fn vs_mono_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index
+@@ -1241,6 +1298,7 @@ fn vs_mono_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index
      out.tile_position = to_tile_position(unit_vertex, sprite.tile);
      out.color = hsla_to_rgba(sprite.color);
      out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, sprite.bounds, sprite.content_mask, sprite.transformation);
@@ -310,7 +315,7 @@ index 718cb75..52868e0 100644
      return out;
  }
  
-@@ -1254,14 +1307,14 @@ fn fs_mono_sprite(input: MonoSpriteVarying) -> @location(0) vec4<f32> {
+@@ -1254,14 +1312,14 @@ fn fs_mono_sprite(input: MonoSpriteVarying) -> @location(0) vec4<f32> {
          return vec4<f32>(0.0);
      }
  
@@ -327,7 +332,7 @@ index 718cb75..52868e0 100644
      grayscale: u32,
      opacity: f32,
      bounds: Bounds,
-@@ -1276,6 +1329,7 @@ struct PolySpriteVarying {
+@@ -1276,6 +1334,7 @@ struct PolySpriteVarying {
      @location(0) tile_position: vec2<f32>,
      @location(1) @interpolate(flat) sprite_id: u32,
      @location(3) clip_distances: vec4<f32>,
@@ -335,7 +340,7 @@ index 718cb75..52868e0 100644
  }
  
  @vertex
-@@ -1287,6 +1341,7 @@ fn vs_poly_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index
+@@ -1287,6 +1346,7 @@ fn vs_poly_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index
      out.position = to_device_position(unit_vertex, sprite.bounds);
      out.tile_position = to_tile_position(unit_vertex, sprite.tile);
      out.sprite_id = instance_id;
@@ -343,7 +348,7 @@ index 718cb75..52868e0 100644
      out.clip_distances = distance_from_clip_rect(unit_vertex, sprite.bounds, sprite.content_mask);
      return out;
  }
-@@ -1307,7 +1362,8 @@ fn fs_poly_sprite(input: PolySpriteVarying) -> @location(0) vec4<f32> {
+@@ -1307,7 +1367,8 @@ fn fs_poly_sprite(input: PolySpriteVarying) -> @location(0) vec4<f32> {
          let grayscale = dot(color.rgb, GRAYSCALE_FACTORS);
          color = vec4<f32>(vec3<f32>(grayscale), sample.a);
      }
@@ -355,10 +360,10 @@ index 718cb75..52868e0 100644
  // --- surfaces --- //
 diff --git b/src/shaders_backdrop_blur.wgsl b/src/shaders_backdrop_blur.wgsl
 new file mode 100644
-index 0000000..7d686fc
+index 0000000..f3ab646
 --- /dev/null
 +++ b/src/shaders_backdrop_blur.wgsl
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,135 @@
 +// --- backdrop blurs --- //
 +
 +struct BackdropBlur {
@@ -370,7 +375,8 @@ index 0000000..7d686fc
 +    blur_radius: f32,
 +    saturation: f32,
 +    rounded_clip: u32,
-+    pad: u32,
++    // Unread: only the Mac's clear window sets a ground; this pipeline draws its copy with alpha 1.
++    ground: u32,
 +}
 +
 +// `region` is the blur's bounds in whole target pixels, copied to the scratch textures' origin and blurred there
@@ -552,7 +558,7 @@ index 8fd9364..8018220 100644
      return out;
  }
 diff --git a/src/shaders_webgl.wgsl b/src/shaders_webgl.wgsl
-index bf5f629..6bb92ea 100644
+index bf5f629..73c59cb 100644
 --- a/src/shaders_webgl.wgsl
 +++ b/src/shaders_webgl.wgsl
 @@ -1,4 +1,6 @@
@@ -604,7 +610,7 @@ index bf5f629..6bb92ea 100644
      );
  }
  
-@@ -260,3 +267,20 @@ fn load_poly_sprite(instance_id: u32) -> PolychromeSprite {
+@@ -260,3 +267,22 @@ fn load_poly_sprite(instance_id: u32) -> PolychromeSprite {
          read_atlas_tile(&cursor),
      );
  }
@@ -622,7 +628,9 @@ index bf5f629..6bb92ea 100644
 +        Bounds(bounds.xy, bounds.zw),
 +        Corners(radii.x, radii.y, radii.z, radii.w),
 +        parent.x,
-+        array<u32, 3>(parent.y, parent.z, parent.w),
++        bitcast<f32>(parent.y),
++        bitcast<f32>(parent.z),
++        parent.w,
 +    );
 +}
 diff --git a/src/wgpu_atlas.rs b/src/wgpu_atlas.rs
@@ -647,7 +655,7 @@ index b541607..ed04fd3 100644
              AtlasTextureKind::Monochrome => wgpu::TextureFormat::R8Unorm,
              AtlasTextureKind::Subpixel | AtlasTextureKind::Polychrome => self.color_texture_format,
 diff --git a/src/wgpu_renderer.rs b/src/wgpu_renderer.rs
-index 8387528..bfe7f43 100644
+index 8387528..84a83a8 100644
 --- a/src/wgpu_renderer.rs
 +++ b/src/wgpu_renderer.rs
 @@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
@@ -1839,7 +1847,7 @@ index 8387528..bfe7f43 100644
  
      #[cfg(target_os = "linux")]
      #[test]
-@@ -2771,6 +3418,207 @@ mod tests {
+@@ -2771,6 +3418,210 @@ mod tests {
          Ok(())
      }
  
@@ -1853,6 +1861,7 @@ index 8387528..bfe7f43 100644
 +            RoundedClip {
 +                bounds: quad.bounds,
 +                corner_radii: Corners::all(8.0.into()),
++                ..Default::default()
 +            },
 +            0,
 +        );
@@ -1884,6 +1893,7 @@ index 8387528..bfe7f43 100644
 +            RoundedClip {
 +                bounds: bounds(0.0, 0.0, 32.0, 32.0),
 +                corner_radii: Corners::all(16.0.into()),
++                ..Default::default()
 +            },
 +            0,
 +        );
@@ -1891,6 +1901,7 @@ index 8387528..bfe7f43 100644
 +            RoundedClip {
 +                bounds: bounds(0.0, 0.0, 64.0, 64.0),
 +                corner_radii: Corners::all(4.0.into()),
++                ..Default::default()
 +            },
 +            outer,
 +        );
@@ -2047,7 +2058,7 @@ index 8387528..bfe7f43 100644
      #[test]
      fn webgl_shader_is_valid_wgsl_without_storage_buffers() {
          assert!(!WEBGL_SHADERS.contains("var<storage"));
-@@ -2797,16 +3645,66 @@ mod tests {
+@@ -2797,16 +3648,66 @@ mod tests {
              .expect("shader should validate");
      }
  
@@ -2116,7 +2127,7 @@ index 8387528..bfe7f43 100644
      }
  
      #[test]
-@@ -2876,6 +3774,8 @@ mod tests {
+@@ -2876,6 +3777,8 @@ mod tests {
                  bottom: 32.0.into(),
                  left: 33.0.into(),
              },
@@ -2125,7 +2136,7 @@ index 8387528..bfe7f43 100644
          };
  
          let bytes = unsafe { WgpuRendererCore::instance_bytes(std::slice::from_ref(&quad)) };
-@@ -2923,6 +3823,10 @@ mod tests {
+@@ -2923,6 +3826,10 @@ mod tests {
                  31.0_f32.to_bits(),
                  32.0_f32.to_bits(),
                  33.0_f32.to_bits(),

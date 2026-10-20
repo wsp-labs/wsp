@@ -2,9 +2,7 @@
 //! `TreeRows`: the Threads section under the transcript, its head, its counts and its levels.
 
 use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
-use gpui_kit::{
-    div, linear_color_stop, linear_gradient, prelude::*, px, AnyElement, App, Context, FontWeight, Hsla, Pixels, SharedString, Window,
-};
+use gpui_kit::{div, prelude::*, px, relative, AnyElement, App, Context, FontWeight, Hsla, Pixels, SharedString, Window};
 
 use super::tree_row::{tree_row, Sending};
 use super::{SM_TIGHT, XS};
@@ -328,20 +326,14 @@ pub(super) fn threads(
             .most_pressing()
             .map(|node| {
                 let row = tree_row(node, true, p, window, cx);
-                let ground = p.background;
                 div()
                     .id("threads-peek")
                     .debug_selector(|| "threads-peek".into())
-                    .relative()
                     .cursor_pointer()
                     .on_click(move |_, _, cx| shut_threads(&me, &lead, false, cx))
+                    // `mask-b-from-0%`: whole at the row's top, gone at its bottom.
+                    .mask_fade_bottom(relative(1.), px(0.))
                     .child(row)
-                    // `mask-b-from-0%`, drawn as the transcript's ground over the row, since this base has no masks.
-                    .child(div().absolute().inset_0().bg(linear_gradient(
-                        180.,
-                        linear_color_stop(ground.opacity(0.), 0.),
-                        linear_color_stop(ground, 1.),
-                    )))
                     .into_any_element()
             })
             .into_iter()

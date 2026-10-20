@@ -145,6 +145,27 @@ impl Seen {
         seen
     }
 
+    /// `of` the events a view holds, with what its fold says of them (ChatComposer.tsx compacts on a running turn or
+    /// any message): a page from the middle of a long thread holds no turn's start, though the turn it meets may run
+    /// and the thread holds messages above it.
+    pub fn of_view(events: &[SessionEvent], working: bool, messaged: bool) -> Seen {
+        let mut seen = Seen::of(events);
+        seen.any |= messaged;
+        if working && seen.running.is_none() {
+            seen.running = events.iter().rev().find_map(|e| kind(e).1.get("sessionId").and_then(Value::as_str).map(str::to_owned));
+        }
+        seen
+    }
+
+    /// ChatComposer.tsx's compact rule: a turn runs, or the thread holds a message.
+    pub fn compact(&self) -> bool {
+        self.any || self.running.is_some()
+    }
+
+    pub fn running(&self) -> Option<&str> {
+        self.running.as_deref()
+    }
+
     fn take(&mut self, (kind, value): &(String, Value)) {
         match kind.as_str() {
             "session.start" => {

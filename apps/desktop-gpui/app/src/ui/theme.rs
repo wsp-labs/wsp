@@ -490,11 +490,6 @@ pub fn current(cx: &App) -> &'static ThemeEntry {
     cx.global::<WspTheme>().entry
 }
 
-/// Whether the windows stand on the Mac's glass, where a view laying the theme's ground would hide it.
-pub fn glass(cx: &App) -> bool {
-    cx.try_global::<WspTheme>().is_some_and(|t| t.look.mac && t.look.glass)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{first_installed, picked, Side, MONO, SANS, THEMES};
