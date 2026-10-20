@@ -554,7 +554,7 @@ index c08d964..5b4a927 100644
              .flatten()
      }
 diff --git a/src/scene.rs b/src/scene.rs
-index be37813..b40b4f7 100644
+index be37813..068bc72 100644
 --- a/src/scene.rs
 +++ b/src/scene.rs
 @@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
@@ -568,7 +568,7 @@ index be37813..b40b4f7 100644
  use std::{
      fmt::Debug,
      iter::Peekable,
-@@ -22,6 +23,24 @@ pub type PathVertex_ScaledPixels = PathVertex<ScaledPixels>;
+@@ -22,6 +23,28 @@ pub type PathVertex_ScaledPixels = PathVertex<ScaledPixels>;
  #[expect(missing_docs)]
  pub type DrawOrder = u32;
  
@@ -586,25 +586,29 @@ index be37813..b40b4f7 100644
 +    pub corner_radii: Corners<ScaledPixels>,
 +    /// The next clip out that also cuts what this one clips, or 0.
 +    pub parent: RoundedClipId,
++    /// Where the alpha ramp starts, as [`RoundedClip`] has it.
++    pub fade_top: ScaledPixels,
++    /// Where it reaches nothing; equal to `fade_top`, no ramp.
++    pub fade_bottom: ScaledPixels,
 +    /// Pads the record to whole 16-byte texels for the WebGL instance texture.
-+    pub pad: [u32; 3],
++    pub pad: u32,
 +}
 +
  /// A boolean stored as a `u32` so that GPU-facing structs contain no
  /// compiler-inserted padding bytes, which would be undefined behavior to
  /// reinterpret as `&[u8]` when writing instance buffers. Guaranteed to be
-@@ -50,6 +69,10 @@ pub struct Scene {
+@@ -50,6 +73,10 @@ pub struct Scene {
      pub subpixel_sprites: Vec<SubpixelSprite>,
      pub polychrome_sprites: Vec<PolychromeSprite>,
      pub surfaces: Vec<PaintSurface>,
 +    pub backdrop_blurs: Vec<BackdropBlur>,
 +    /// Every rounded clip the primitives point at. Entry 0 stands for no clip once any clip is pushed.
 +    pub rounded_clips: Vec<SceneRoundedClip>,
-+    rounded_clip_ids: FxHashMap<[u32; 9], RoundedClipId>,
++    rounded_clip_ids: FxHashMap<[u32; 11], RoundedClipId>,
  }
  
  #[expect(missing_docs)]
-@@ -66,6 +89,9 @@ impl Scene {
+@@ -66,6 +93,9 @@ impl Scene {
          self.subpixel_sprites.clear();
          self.polychrome_sprites.clear();
          self.surfaces.clear();
@@ -614,7 +618,7 @@ index be37813..b40b4f7 100644
      }
  
      pub fn len(&self) -> usize {
-@@ -84,21 +110,95 @@ impl Scene {
+@@ -84,21 +114,105 @@ impl Scene {
          self.paint_operations.push(PaintOperation::EndLayer);
      }
  
@@ -636,6 +640,8 @@ index be37813..b40b4f7 100644
 +            top_right,
 +            bottom_right,
 +            bottom_left,
++            fade_top,
++            fade_bottom,
 +        ] = [
 +            bounds.origin.x,
 +            bounds.origin.y,
@@ -645,6 +651,8 @@ index be37813..b40b4f7 100644
 +            radii.top_right,
 +            radii.bottom_right,
 +            radii.bottom_left,
++            clip.fade_top,
++            clip.fade_bottom,
 +        ]
 +        .map(|value| value.0.to_bits());
 +        let key = [
@@ -656,6 +664,8 @@ index be37813..b40b4f7 100644
 +            top_right,
 +            bottom_right,
 +            bottom_left,
++            fade_top,
++            fade_bottom,
 +            parent,
 +        ];
 +        if let Some(id) = self.rounded_clip_ids.get(&key) {
@@ -669,7 +679,9 @@ index be37813..b40b4f7 100644
 +            bounds,
 +            corner_radii: radii,
 +            parent,
-+            pad: [0; 3],
++            fade_top: clip.fade_top,
++            fade_bottom: clip.fade_bottom,
++            pad: 0,
 +        });
 +        self.rounded_clip_ids.insert(key, id);
 +        id
@@ -686,6 +698,8 @@ index be37813..b40b4f7 100644
 +            RoundedClip {
 +                bounds: clip.bounds,
 +                corner_radii: clip.corner_radii,
++                fade_top: clip.fade_top,
++                fade_bottom: clip.fade_bottom,
 +            },
 +            parent,
 +        )
@@ -716,7 +730,7 @@ index be37813..b40b4f7 100644
          match &mut primitive {
              Primitive::Shadow(shadow) => {
                  shadow.order = order;
-@@ -133,15 +233,28 @@ impl Scene {
+@@ -133,15 +247,28 @@ impl Scene {
                  surface.order = order;
                  self.surfaces.push(surface.clone());
              }
@@ -746,7 +760,7 @@ index be37813..b40b4f7 100644
                  PaintOperation::StartLayer(bounds) => self.push_layer(*bounds),
                  PaintOperation::EndLayer => self.pop_layer(),
              }
-@@ -160,6 +273,7 @@ impl Scene {
+@@ -160,6 +287,7 @@ impl Scene {
          self.polychrome_sprites
              .sort_by_key(|sprite| (sprite.order, sprite.tile.tile_id));
          self.surfaces.sort_by_key(|surface| surface.order);
@@ -754,7 +768,7 @@ index be37813..b40b4f7 100644
      }
  
      #[cfg_attr(
-@@ -187,6 +301,8 @@ impl Scene {
+@@ -187,6 +315,8 @@ impl Scene {
              polychrome_sprites_iter: self.polychrome_sprites.iter().peekable(),
              surfaces_start: 0,
              surfaces_iter: self.surfaces.iter().peekable(),
@@ -763,7 +777,7 @@ index be37813..b40b4f7 100644
          }
      }
  }
-@@ -209,6 +325,7 @@ pub(crate) enum PrimitiveKind {
+@@ -209,6 +339,7 @@ pub(crate) enum PrimitiveKind {
      SubpixelSprite,
      PolychromeSprite,
      Surface,
@@ -771,7 +785,7 @@ index be37813..b40b4f7 100644
  }
  
  pub(crate) enum PaintOperation {
-@@ -228,6 +345,7 @@ pub enum Primitive {
+@@ -228,6 +359,7 @@ pub enum Primitive {
      SubpixelSprite(SubpixelSprite),
      PolychromeSprite(PolychromeSprite),
      Surface(PaintSurface),
@@ -779,7 +793,7 @@ index be37813..b40b4f7 100644
  }
  
  #[expect(missing_docs)]
-@@ -242,6 +360,32 @@ impl Primitive {
+@@ -242,6 +374,32 @@ impl Primitive {
              Primitive::SubpixelSprite(sprite) => &sprite.bounds,
              Primitive::PolychromeSprite(sprite) => &sprite.bounds,
              Primitive::Surface(surface) => &surface.bounds,
@@ -812,7 +826,7 @@ index be37813..b40b4f7 100644
          }
      }
  
-@@ -255,6 +399,7 @@ impl Primitive {
+@@ -255,6 +413,7 @@ impl Primitive {
              Primitive::SubpixelSprite(sprite) => &sprite.content_mask,
              Primitive::PolychromeSprite(sprite) => &sprite.content_mask,
              Primitive::Surface(surface) => &surface.content_mask,
@@ -820,7 +834,7 @@ index be37813..b40b4f7 100644
          }
      }
  }
-@@ -283,6 +428,8 @@ struct BatchIterator<'a> {
+@@ -283,6 +442,8 @@ struct BatchIterator<'a> {
      polychrome_sprites_iter: Peekable<slice::Iter<'a, PolychromeSprite>>,
      surfaces_start: usize,
      surfaces_iter: Peekable<slice::Iter<'a, PaintSurface>>,
@@ -829,7 +843,7 @@ index be37813..b40b4f7 100644
  }
  
  impl<'a> Iterator for BatchIterator<'a> {
-@@ -316,6 +463,10 @@ impl<'a> Iterator for BatchIterator<'a> {
+@@ -316,6 +477,10 @@ impl<'a> Iterator for BatchIterator<'a> {
                  self.surfaces_iter.peek().map(|s| s.order),
                  PrimitiveKind::Surface,
              ),
@@ -840,7 +854,7 @@ index be37813..b40b4f7 100644
          ];
          orders_and_kinds.sort_by_key(|(order, kind)| (order.unwrap_or(u32::MAX), *kind));
  
-@@ -461,6 +612,20 @@ impl<'a> Iterator for BatchIterator<'a> {
+@@ -461,6 +626,20 @@ impl<'a> Iterator for BatchIterator<'a> {
                  self.surfaces_start = surfaces_end;
                  Some(PrimitiveBatch::Surfaces(surfaces_start..surfaces_end))
              }
@@ -861,7 +875,7 @@ index be37813..b40b4f7 100644
          }
      }
  }
-@@ -493,6 +658,8 @@ pub enum PrimitiveBatch {
+@@ -493,6 +672,8 @@ pub enum PrimitiveBatch {
          range: Range<usize>,
      },
      Surfaces(Range<usize>),
@@ -870,7 +884,7 @@ index be37813..b40b4f7 100644
  }
  
  impl PrimitiveBatch {
-@@ -525,6 +692,7 @@ impl PrimitiveBatch {
+@@ -525,6 +706,7 @@ impl PrimitiveBatch {
                  )
              }
              Self::Surfaces(range) => format!("surfaces ({})", range.len()),
@@ -878,7 +892,7 @@ index be37813..b40b4f7 100644
          }
      }
  }
-@@ -541,6 +709,8 @@ pub struct Quad {
+@@ -541,6 +723,8 @@ pub struct Quad {
      pub border_color: Hsla,
      pub corner_radii: Corners<ScaledPixels>,
      pub border_widths: Edges<ScaledPixels>,
@@ -887,7 +901,7 @@ index be37813..b40b4f7 100644
  }
  
  impl From<Quad> for Primitive {
-@@ -554,7 +724,7 @@ impl From<Quad> for Primitive {
+@@ -554,7 +738,7 @@ impl From<Quad> for Primitive {
  #[expect(missing_docs)]
  pub struct Underline {
      pub order: DrawOrder,
@@ -896,7 +910,7 @@ index be37813..b40b4f7 100644
      pub bounds: Bounds<ScaledPixels>,
      pub content_mask: ContentMask<ScaledPixels>,
      pub color: Hsla,
-@@ -582,7 +752,7 @@ pub struct Shadow {
+@@ -582,7 +766,7 @@ pub struct Shadow {
      pub element_corner_radii: Corners<ScaledPixels>,
      /// 0 = drop shadow (rendered outside the element), 1 = inset shadow (rendered inside).
      pub inset: u32,
@@ -905,7 +919,7 @@ index be37813..b40b4f7 100644
  }
  
  impl From<Shadow> for Primitive {
-@@ -710,7 +880,7 @@ impl Default for TransformationMatrix {
+@@ -710,7 +894,7 @@ impl Default for TransformationMatrix {
  #[expect(missing_docs)]
  pub struct MonochromeSprite {
      pub order: DrawOrder,
@@ -914,7 +928,7 @@ index be37813..b40b4f7 100644
      pub bounds: Bounds<ScaledPixels>,
      pub content_mask: ContentMask<ScaledPixels>,
      pub color: Hsla,
-@@ -729,7 +899,7 @@ impl From<MonochromeSprite> for Primitive {
+@@ -729,7 +913,7 @@ impl From<MonochromeSprite> for Primitive {
  #[expect(missing_docs)]
  pub struct SubpixelSprite {
      pub order: DrawOrder,
@@ -923,7 +937,7 @@ index be37813..b40b4f7 100644
      pub bounds: Bounds<ScaledPixels>,
      pub content_mask: ContentMask<ScaledPixels>,
      pub color: Hsla,
-@@ -748,7 +918,7 @@ impl From<SubpixelSprite> for Primitive {
+@@ -748,7 +932,7 @@ impl From<SubpixelSprite> for Primitive {
  #[expect(missing_docs)]
  pub struct PolychromeSprite {
      pub order: DrawOrder,
@@ -932,7 +946,7 @@ index be37813..b40b4f7 100644
      pub grayscale: PaddedBool32,
      pub opacity: f32,
      pub bounds: Bounds<ScaledPixels>,
-@@ -779,6 +949,32 @@ impl From<PaintSurface> for Primitive {
+@@ -779,6 +963,45 @@ impl From<PaintSurface> for Primitive {
      }
  }
  
@@ -953,7 +967,20 @@ index be37813..b40b4f7 100644
 +    pub blur_radius: ScaledPixels,
 +    pub saturation: f32,
 +    pub rounded_clip: RoundedClipId,
-+    pub pad: u32,
++    /// What the blurred copy is laid over, as CSS's `backdrop-filter` ending in an SVG filter that floods a color
++    /// under its input: [`pack_ground`]'s sRGB bytes, red lowest, straight alpha; 0 lays nothing. A copy of a
++    /// see-through page is see-through too, and without an opaque ground under it the sharp page shows through.
++    pub ground: u32,
++}
++
++/// A [`BackdropBlur`]'s ground: the color's sRGB bytes, red in the lowest and alpha in the highest.
++pub fn pack_ground(color: Hsla) -> u32 {
++    let rgba = color.to_rgb();
++    [rgba.r, rgba.g, rgba.b, rgba.a]
++        .iter()
++        .enumerate()
++        .map(|(i, channel)| ((channel.clamp(0., 1.) * 255.).round() as u32) << (8 * i))
++        .sum()
 +}
 +
 +impl From<BackdropBlur> for Primitive {
@@ -965,7 +992,7 @@ index be37813..b40b4f7 100644
  #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
  #[expect(missing_docs)]
  pub struct PathId(pub usize);
-@@ -793,6 +989,7 @@ pub struct Path<P: Clone + Debug + Default + PartialEq> {
+@@ -793,6 +1016,7 @@ pub struct Path<P: Clone + Debug + Default + PartialEq> {
      pub content_mask: ContentMask<P>,
      pub vertices: Vec<PathVertex<P>>,
      pub color: Background,
@@ -973,7 +1000,7 @@ index be37813..b40b4f7 100644
      start: Point<P>,
      current: Point<P>,
      contour_count: usize,
-@@ -813,6 +1010,7 @@ impl Path<Pixels> {
+@@ -813,6 +1037,7 @@ impl Path<Pixels> {
              },
              content_mask: Default::default(),
              color: Default::default(),
@@ -981,7 +1008,7 @@ index be37813..b40b4f7 100644
              contour_count: 0,
          }
      }
-@@ -833,6 +1031,7 @@ impl Path<Pixels> {
+@@ -833,6 +1058,7 @@ impl Path<Pixels> {
              current: self.current.scale(factor),
              contour_count: self.contour_count,
              color: self.color,
@@ -990,7 +1017,7 @@ index be37813..b40b4f7 100644
      }
  
 diff --git a/src/style.rs b/src/style.rs
-index 9150fdd..62e9e03 100644
+index 9150fdd..467cfe1 100644
 --- a/src/style.rs
 +++ b/src/style.rs
 @@ -8,8 +8,8 @@ use crate::{
@@ -1004,7 +1031,7 @@ index 9150fdd..62e9e03 100644
  };
  use collections::HashSet;
  use refineable::Refineable;
-@@ -301,6 +301,13 @@ pub struct Style {
+@@ -301,6 +301,21 @@ pub struct Style {
      /// The opacity of this element
      pub opacity: Option<f32>,
  
@@ -1015,22 +1042,43 @@ index 9150fdd..62e9e03 100644
 +    /// Saturates what is painted behind this element, like CSS's `backdrop-filter: saturate()`
 +    pub backdrop_saturation: Option<f32>,
 +
++    /// The color the blurred backdrop is laid over, like an SVG filter flooding it under `backdrop-filter`'s copy
++    pub backdrop_ground: Option<Hsla>,
++
++    /// Fades what this element's children paint toward its bottom, like CSS's
++    /// `mask-image: linear-gradient(to bottom, black, transparent)`: whole above the first length, gone below the
++    /// second, both measured up from the bottom edge, and clipped to the element's box; its own fill does not fade
++    pub mask_fade_bottom: Option<(DefiniteLength, DefiniteLength)>,
++
      /// The grid columns of this element
      /// Roughly equivalent to the Tailwind `grid-cols-<number>`
      pub grid_cols: Option<GridTemplate>,
-@@ -684,6 +691,49 @@ impl Style {
+@@ -684,6 +699,64 @@ impl Style {
          }
      }
  
 +    /// Get the rounded clip for this element style: like CSS, an element that hides its overflow on either axis
-+    /// clips its children to its rounded padding box. Returns `None` when it does not, or has square corners.
++    /// clips its children to its rounded padding box, and one with a mask clips them to its box under the mask's
++    /// ramp. Returns `None` when it does neither, or hides its overflow with square corners and no mask.
 +    pub fn overflow_rounded_clip(
 +        &self,
 +        bounds: Bounds<Pixels>,
 +        rem_size: Pixels,
 +    ) -> Option<RoundedClip<Pixels>> {
++        let (fade_top, fade_bottom) = self.mask_fade_bottom.map_or((Pixels::ZERO, Pixels::ZERO), |(whole, gone)| {
++            let height = AbsoluteLength::Pixels(bounds.size.height);
++            (
++                bounds.bottom() - whole.to_pixels(height, rem_size),
++                bounds.bottom() - gone.to_pixels(height, rem_size),
++            )
++        });
 +        if self.overflow.x == Overflow::Visible && self.overflow.y == Overflow::Visible {
-+            return None;
++            return self.mask_fade_bottom.map(|_| RoundedClip {
++                bounds,
++                corner_radii: Corners::default(),
++                fade_top,
++                fade_bottom,
++            });
 +        }
 +        let mut corner_radii = self
 +            .corner_radii
@@ -1056,19 +1104,21 @@ index 9150fdd..62e9e03 100644
 +            };
 +        }
 +        // Square corners clip no more than the content mask does.
-+        if corner_radii == Corners::default() {
++        if corner_radii == Corners::default() && self.mask_fade_bottom.is_none() {
 +            return None;
 +        }
 +        Some(RoundedClip {
 +            bounds,
 +            corner_radii,
++            fade_top,
++            fade_bottom,
 +        })
 +    }
 +
      /// Paints the background of an element styled with this style.
      pub fn paint(
          &self,
-@@ -710,6 +760,15 @@ impl Style {
+@@ -710,6 +783,16 @@ impl Style {
  
          window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
  
@@ -1078,23 +1128,26 @@ index 9150fdd..62e9e03 100644
 +                corner_radii,
 +                self.backdrop_blur.unwrap_or_default(),
 +                self.backdrop_saturation.unwrap_or(1.),
++                self.backdrop_ground,
 +            );
 +        }
 +
          let background_color = self.background.as_ref().and_then(Fill::color);
          if background_color.is_some_and(|color| !color.is_transparent()) {
              let mut border_color = match background_color {
-@@ -809,6 +868,8 @@ impl Default for Style {
+@@ -809,6 +892,10 @@ impl Default for Style {
              text: TextStyleRefinement::default(),
              mouse_cursor: None,
              opacity: None,
 +            backdrop_blur: None,
 +            backdrop_saturation: None,
++            backdrop_ground: None,
++            mask_fade_bottom: None,
              grid_rows: None,
              grid_cols: None,
              grid_location: None,
 diff --git a/src/styled.rs b/src/styled.rs
-index a24982a..ec3fc06 100644
+index a24982a..a26f11c 100644
 --- a/src/styled.rs
 +++ b/src/styled.rs
 @@ -2,7 +2,7 @@ use crate::{
@@ -1106,7 +1159,7 @@ index a24982a..ec3fc06 100644
      TextStyleRefinement, UnderlineStyle, WhiteSpace, px, relative, rems,
  };
  pub use gpui_macros::{
-@@ -748,6 +748,19 @@ pub trait Styled: Sized {
+@@ -748,6 +748,33 @@ pub trait Styled: Sized {
          self
      }
  
@@ -1120,6 +1173,20 @@ index a24982a..ec3fc06 100644
 +    /// Saturates what is painted behind this element, like CSS's `backdrop-filter: saturate()`.
 +    fn backdrop_saturation(mut self, saturation: f32) -> Self {
 +        self.style().backdrop_saturation = Some(saturation);
++        self
++    }
++
++    /// Lays the blurred backdrop over `color`, so a see-through page under it cannot show through the copy.
++    fn backdrop_ground(mut self, color: impl Into<Hsla>) -> Self {
++        self.style().backdrop_ground = Some(color.into());
++        self
++    }
++
++    /// Fades what this element's children paint toward its bottom, like CSS's `mask-image: linear-gradient(to bottom,
++    /// black, transparent)`: whole above `whole`, gone below `gone`, both measured up from the bottom edge. The
++    /// element's own fill, border and shadow do not fade, and each child fades on its own rather than composited.
++    fn mask_fade_bottom(mut self, whole: impl Into<DefiniteLength>, gone: impl Into<DefiniteLength>) -> Self {
++        self.style().mask_fade_bottom = Some((whole.into(), gone.into()));
 +        self
 +    }
 +
@@ -1378,7 +1445,7 @@ index 13ee752..14432ba 100644
      async fn test_with_timeout(cx: &mut TestAppContext) {
          Task::ready(())
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..c5066fb 100644
+index 1214b03..6e720a2 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -6,7 +6,8 @@ use crate::Inspector;
@@ -1632,7 +1699,7 @@ index 1214b03..c5066fb 100644
              bounds_observers: SubscriberSet::new(),
              appearance,
              appearance_observers: SubscriberSet::new(),
-@@ -2248,6 +2399,53 @@ impl ContentMask<Pixels> {
+@@ -2248,6 +2399,68 @@ impl ContentMask<Pixels> {
      }
  }
  
@@ -1645,6 +1712,18 @@ index 1214b03..c5066fb 100644
 +    pub bounds: Bounds<P>,
 +    /// The radius of each corner
 +    pub corner_radii: Corners<P>,
++    /// Where an alpha ramp starts and ends, top to bottom: whole above `fade_top`, gone below `fade_bottom`, like
++    /// CSS's `mask-image: linear-gradient(to bottom, black, transparent)` between them. Equal, the clip fades nothing.
++    pub fade_top: P,
++    /// Where the ramp reaches nothing.
++    pub fade_bottom: P,
++}
++
++impl<P: Clone + Debug + Default + PartialEq + PartialOrd> RoundedClip<P> {
++    /// Whether the clip fades what it clips.
++    pub fn fades(&self) -> bool {
++        self.fade_bottom > self.fade_top
++    }
 +}
 +
 +impl RoundedClip<ScaledPixels> {
@@ -1658,6 +1737,7 @@ index 1214b03..c5066fb 100644
 +            size: size(radius, radius),
 +        };
 +        bounds.intersect(&clip) != *bounds
++            || self.fades() && bounds.bottom() > self.fade_top
 +            || [
 +                corner(clip.left(), clip.top(), radii.top_left),
 +                corner(clip.right() - radii.top_right, clip.top(), radii.top_right),
@@ -1679,6 +1759,8 @@ index 1214b03..c5066fb 100644
 +        RoundedClip {
 +            bounds: self.bounds.scale(factor),
 +            corner_radii: self.corner_radii.scale(factor),
++            fade_top: self.fade_top.scale(factor),
++            fade_bottom: self.fade_bottom.scale(factor),
 +        }
 +    }
 +}
@@ -1686,7 +1768,7 @@ index 1214b03..c5066fb 100644
  impl Window {
      fn mark_view_dirty(&mut self, view_id: EntityId) {
          // Mark ancestor views as dirty. If already in the `dirty_views` set, then all its ancestors
-@@ -2490,7 +2688,7 @@ impl Window {
+@@ -2490,7 +2703,7 @@ impl Window {
      /// surface be moved out of others' exclusive zones, and -1 ignores reserved
      /// space and may extend under other surfaces. (Wayland layer-shell windows only)
      pub fn set_exclusive_zone(&self, zone: Pixels) {
@@ -1695,7 +1777,7 @@ index 1214b03..c5066fb 100644
      }
  
      /// Set which anchored edge a layer-shell surface's exclusive zone applies to.
-@@ -2516,7 +2714,13 @@ impl Window {
+@@ -2516,7 +2729,13 @@ impl Window {
      /// - `Some(&[])` is an empty region, so the window receives no pointer or touch input.
      /// - `None` resets the region to the default, so the whole window receives input again.
      pub fn set_input_region(&self, region: Option<&[Bounds<Pixels>]>) {
@@ -1710,7 +1792,7 @@ index 1214b03..c5066fb 100644
      }
  
      /// Return the `WindowBounds` to indicate that how a window should be opened
-@@ -2789,9 +2993,10 @@ impl Window {
+@@ -2789,9 +3008,10 @@ impl Window {
      /// the platform window, then notifies observers. Normally called automatically
      /// by the platform's resize callback, but exposed publicly for test infrastructure.
      pub fn bounds_changed(&mut self, cx: &mut App) {
@@ -1724,7 +1806,7 @@ index 1214b03..c5066fb 100644
  
          self.refresh();
  
-@@ -2860,8 +3065,10 @@ impl Window {
+@@ -2860,8 +3080,10 @@ impl Window {
      }
  
      /// Returns the bounds of the current window in the global coordinate space, which could span across multiple displays.
@@ -1736,7 +1818,26 @@ index 1214b03..c5066fb 100644
      }
  
      /// Renders the current frame's scene to a texture and returns the pixel data as an RGBA image.
-@@ -2935,7 +3142,7 @@ impl Window {
+@@ -2882,6 +3104,18 @@ impl Window {
+         self.rendered_frame.scene.quads.clone()
+     }
+ 
++    /// Returns the rounded clips in the most recently rendered frame's scene, by their ids; id 0 is no clip.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_rounded_clips(&self) -> Vec<crate::SceneRoundedClip> {
++        self.rendered_frame.scene.rounded_clips.clone()
++    }
++
++    /// Returns the backdrop blurs in the most recently rendered frame's scene.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_backdrop_blurs(&self) -> Vec<BackdropBlur> {
++        self.rendered_frame.scene.backdrop_blurs.clone()
++    }
++
+     /// Returns the underlines in the most recently rendered frame's scene.
+     #[cfg(any(test, feature = "test-support"))]
+     pub fn painted_underlines(&self) -> Vec<Underline> {
+@@ -2935,7 +3169,7 @@ impl Window {
      /// During drawing this is a consistent frame snapshot. Outside drawing it
      /// reflects the latest platform sample, not a synchronous geometry query.
      pub fn visual_viewport_bounds(&self) -> Bounds<Pixels> {
@@ -1745,7 +1846,7 @@ index 1214b03..c5066fb 100644
      }
  
      /// Returns a conservative rectangle avoiding platform-known obscured content.
-@@ -2943,7 +3150,7 @@ impl Window {
+@@ -2943,7 +3177,7 @@ impl Window {
      /// Intersects the visual viewport with the full layout area inset by system
      /// safe areas and keyboard occlusion. Unknown overlays cannot be excluded.
      pub fn fully_visible_bounds(&self) -> Bounds<Pixels> {
@@ -1754,7 +1855,7 @@ index 1214b03..c5066fb 100644
          let viewport = self.viewport_size();
          let left = insets.left.max(Pixels::ZERO).min(viewport.width);
          let top = insets.top.max(Pixels::ZERO).min(viewport.height);
-@@ -2996,7 +3203,7 @@ impl Window {
+@@ -2996,7 +3230,7 @@ impl Window {
  
      /// Opens the native title bar context menu, useful when implementing client side decorations (Wayland and X11)
      pub fn show_window_menu(&self, position: Point<Pixels>) {
@@ -1763,7 +1864,7 @@ index 1214b03..c5066fb 100644
      }
  
      /// Handle window movement for Linux and macOS.
-@@ -3010,7 +3217,7 @@ impl Window {
+@@ -3010,7 +3244,7 @@ impl Window {
      /// When using client side decorations, set this to the width of the invisible decorations (Wayland and X11)
      pub fn set_client_inset(&mut self, inset: Pixels) {
          self.client_inset = Some(inset);
@@ -1772,7 +1873,7 @@ index 1214b03..c5066fb 100644
      }
  
      /// Returns the client_inset value by [`Self::set_client_inset`].
-@@ -3085,6 +3292,21 @@ impl Window {
+@@ -3085,6 +3319,21 @@ impl Window {
          self.platform_window.show_character_palette();
      }
  
@@ -1794,7 +1895,7 @@ index 1214b03..c5066fb 100644
      /// The scale factor of the display associated with the window. For example, it could
      /// return 2.0 for a "retina" display, indicating that each logical pixel should actually
      /// be rendered as two pixels on screen.
-@@ -3174,13 +3396,6 @@ impl Window {
+@@ -3174,13 +3423,6 @@ impl Window {
          px(round_to_device_pixel(value.0, self.scale_factor()) / self.scale_factor())
      }
  
@@ -1808,7 +1909,7 @@ index 1214b03..c5066fb 100644
      /// Snaps a bounds' origin and size to the nearest device pixel.
      #[inline]
      pub fn pixel_snap_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
-@@ -3224,7 +3439,7 @@ impl Window {
+@@ -3224,7 +3466,7 @@ impl Window {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
          if exclusions.is_empty() {
@@ -1817,7 +1918,7 @@ index 1214b03..c5066fb 100644
              return;
          }
  
-@@ -3242,13 +3457,13 @@ impl Window {
+@@ -3242,13 +3484,13 @@ impl Window {
              })
              .collect::<SmallVec<[_; 4]>>();
          if exclusions.is_empty() {
@@ -1833,7 +1934,7 @@ index 1214b03..c5066fb 100644
                  content_mask: ContentMask {
                      bounds: Bounds::from_corners(
                          point(start, bounds.top()),
-@@ -3273,9 +3488,9 @@ impl Window {
+@@ -3273,9 +3515,9 @@ impl Window {
      fn underline(&self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) -> Underline {
          Underline {
              order: 0,
@@ -1844,7 +1945,7 @@ index 1214b03..c5066fb 100644
              color: style
                  .color
                  .unwrap_or_default()
-@@ -3323,6 +3538,44 @@ impl Window {
+@@ -3323,6 +3565,44 @@ impl Window {
          )
      }
  
@@ -1889,7 +1990,7 @@ index 1214b03..c5066fb 100644
      #[inline]
      fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
          ContentMask {
-@@ -3562,6 +3815,7 @@ impl Window {
+@@ -3562,6 +3842,7 @@ impl Window {
              self.refresh();
          }
          self.needs_present.set(true);
@@ -1897,7 +1998,7 @@ index 1214b03..c5066fb 100644
  
          #[cfg(feature = "profiler")]
          {
-@@ -3820,7 +4074,9 @@ impl Window {
+@@ -3820,7 +4101,9 @@ impl Window {
                  size: self.viewport_size(),
              };
  
@@ -1908,7 +2009,7 @@ index 1214b03..c5066fb 100644
                  let new_x = mouse_position.x - tooltip_bounds.size.width - px(1.);
                  if new_x >= Pixels::ZERO {
                      tooltip_bounds.origin.x = new_x;
-@@ -3832,7 +4088,9 @@ impl Window {
+@@ -3832,7 +4115,9 @@ impl Window {
                  }
              }
  
@@ -1919,7 +2020,7 @@ index 1214b03..c5066fb 100644
                  let new_y = mouse_position.y - tooltip_bounds.size.height - px(1.);
                  if new_y >= Pixels::ZERO {
                      tooltip_bounds.origin.y = new_y;
-@@ -4177,6 +4435,31 @@ impl Window {
+@@ -4177,6 +4462,34 @@ impl Window {
          }
      }
  
@@ -1934,9 +2035,12 @@ index 1214b03..c5066fb 100644
 +        let Some(clip) = clip else {
 +            return f(self);
 +        };
++        let scale_factor = self.scale_factor();
 +        self.rounded_clip_stack.push(RoundedClip {
 +            bounds: self.snap_bounds(clip.bounds),
-+            corner_radii: clip.corner_radii.scale(self.scale_factor()),
++            corner_radii: clip.corner_radii.scale(scale_factor),
++            fade_top: clip.fade_top.scale(scale_factor),
++            fade_bottom: clip.fade_bottom.scale(scale_factor),
 +        });
 +        let result = self.with_content_mask(
 +            Some(ContentMask {
@@ -1951,7 +2055,7 @@ index 1214b03..c5066fb 100644
      /// Updates the global element offset relative to the current offset. This is used to implement
      /// scrolling. This method should only be called during the prepaint phase of element drawing.
      pub fn with_element_offset<R>(
-@@ -4566,24 +4849,42 @@ impl Window {
+@@ -4566,24 +4879,42 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -1998,7 +2102,7 @@ index 1214b03..c5066fb 100644
              });
          }
      }
-@@ -4602,7 +4903,7 @@ impl Window {
+@@ -4602,7 +4933,7 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -2007,7 +2111,7 @@ index 1214b03..c5066fb 100644
          let element_corner_radii = corner_radii.scale(scale_factor);
          for shadow in shadows {
              if !shadow.inset {
-@@ -4618,17 +4919,17 @@ impl Window {
+@@ -4618,17 +4949,17 @@ impl Window {
                  bottom_right: (corner_radii.bottom_right - shadow.spread_radius).max(zero),
                  bottom_left: (corner_radii.bottom_left - shadow.spread_radius).max(zero),
              };
@@ -2027,7 +2131,7 @@ index 1214b03..c5066fb 100644
              });
          }
      }
-@@ -4691,6 +4992,8 @@ impl Window {
+@@ -4691,6 +5022,8 @@ impl Window {
              order: 0,
              bounds: snapped_bounds,
              content_mask: self.snapped_content_mask(),
@@ -2036,7 +2140,7 @@ index 1214b03..c5066fb 100644
              background: quad.background.opacity(opacity),
              border_color: quad.border_color.opacity(opacity),
              corner_radii: quad.corner_radii.scale(self.scale_factor()),
-@@ -4699,7 +5002,7 @@ impl Window {
+@@ -4699,7 +5032,7 @@ impl Window {
          };
  
          if !quad.background.is_transparent() {
@@ -2045,7 +2149,7 @@ index 1214b03..c5066fb 100644
              return;
          }
  
-@@ -4709,7 +5012,7 @@ impl Window {
+@@ -4709,7 +5042,7 @@ impl Window {
          let inner_bounds = Self::largest_border_interior(&quad);
  
          if inner_bounds.is_empty() {
@@ -2054,7 +2158,7 @@ index 1214b03..c5066fb 100644
              return;
          }
  
-@@ -4739,7 +5042,7 @@ impl Window {
+@@ -4739,7 +5072,7 @@ impl Window {
          for strip in strips {
              let content_mask_bounds = quad.content_mask.bounds.intersect(&strip);
              if !content_mask_bounds.is_empty() {
@@ -2063,13 +2167,14 @@ index 1214b03..c5066fb 100644
                      content_mask: ContentMask {
                          bounds: content_mask_bounds,
                      },
-@@ -4749,6 +5052,39 @@ impl Window {
+@@ -4749,6 +5082,41 @@ impl Window {
          }
      }
  
 +    /// Paint a backdrop blur: what is already painted under `bounds` is blurred by `blur_radius` (the Gaussian's
 +    /// standard deviation, as CSS's `blur()` takes it), saturated by `saturation` and drawn back clipped to
-+    /// `corner_radii`. Paint the element's own background after it, as a translucent tint.
++    /// `corner_radii`, over `ground` when one is given. Paint the element's own background after it, as a
++    /// translucent tint.
 +    ///
 +    /// This method should only be called as part of the paint phase of element drawing.
 +    pub fn paint_backdrop_blur(
@@ -2078,6 +2183,7 @@ index 1214b03..c5066fb 100644
 +        corner_radii: Corners<Pixels>,
 +        blur_radius: Pixels,
 +        saturation: f32,
++        ground: Option<Hsla>,
 +    ) {
 +        self.invalidator.debug_assert_paint();
 +        let opacity = self.element_opacity();
@@ -2096,14 +2202,14 @@ index 1214b03..c5066fb 100644
 +            blur_radius: blur_radius.scale(scale_factor),
 +            saturation,
 +            rounded_clip: 0,
-+            pad: 0,
++            ground: ground.map_or(0, crate::pack_ground),
 +        });
 +    }
 +
      /// Paint the given `Path` into the scene for the next frame at the current z-index.
      ///
      /// This method should only be called as part of the paint phase of element drawing.
-@@ -4761,9 +5097,10 @@ impl Window {
+@@ -4761,9 +5129,10 @@ impl Window {
          path.content_mask = content_mask;
          let color: Background = color.into();
          path.color = color.opacity(opacity);
@@ -2117,7 +2223,7 @@ index 1214b03..c5066fb 100644
      }
  
      /// Paint an underline into the scene for the next frame at the current z-index.
-@@ -4777,7 +5114,7 @@ impl Window {
+@@ -4777,7 +5146,7 @@ impl Window {
      ) {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
@@ -2126,7 +2232,7 @@ index 1214b03..c5066fb 100644
      }
  
      /// Paint a strikethrough into the scene for the next frame at the current z-index.
-@@ -4799,11 +5136,11 @@ impl Window {
+@@ -4799,11 +5168,11 @@ impl Window {
          };
          let opacity = self.element_opacity();
  
@@ -2140,7 +2246,7 @@ index 1214b03..c5066fb 100644
              thickness: self.snap_stroke(style.thickness),
              color: style.color.unwrap_or_default().opacity(opacity),
              wavy: false.into(),
-@@ -4835,8 +5172,8 @@ impl Window {
+@@ -4835,8 +5204,8 @@ impl Window {
          let quantized_origin = Point::new(
              round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
                  / SUBPIXEL_VARIANTS_X as f32,
@@ -2151,7 +2257,7 @@ index 1214b03..c5066fb 100644
          );
          let subpixel_variant = Point::new(
              (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
-@@ -4872,21 +5209,21 @@ impl Window {
+@@ -4872,21 +5241,21 @@ impl Window {
              let content_mask = self.snapped_content_mask();
  
              if subpixel_rendering {
@@ -2177,7 +2283,7 @@ index 1214b03..c5066fb 100644
                      color: color.opacity(element_opacity),
                      tile,
                      transformation: TransformationMatrix::unit(),
-@@ -4934,7 +5271,11 @@ impl Window {
+@@ -4934,7 +5303,11 @@ impl Window {
  
          let scale_factor = self.scale_factor();
          let glyph_origin = origin.scale(scale_factor);
@@ -2190,7 +2296,7 @@ index 1214b03..c5066fb 100644
          let params = RenderGlyphParams {
              font_id,
              glyph_id,
-@@ -4963,13 +5304,13 @@ impl Window {
+@@ -4963,13 +5336,13 @@ impl Window {
              let content_mask = self.snapped_content_mask();
              let opacity = self.element_opacity();
  
@@ -2206,7 +2312,7 @@ index 1214b03..c5066fb 100644
                  tile,
                  opacity,
              });
-@@ -5029,11 +5370,11 @@ impl Window {
+@@ -5029,11 +5402,11 @@ impl Window {
              .map_origin(|value| ScaledPixels(round_half_toward_zero(value.0)))
              .map_size(|size| size.ceil());
  
@@ -2220,7 +2326,7 @@ index 1214b03..c5066fb 100644
              color: color.opacity(element_opacity),
              tile,
              transformation,
-@@ -5135,12 +5476,12 @@ impl Window {
+@@ -5135,12 +5508,12 @@ impl Window {
              .scale(self.scale_factor());
          let opacity = self.element_opacity();
  
@@ -2235,7 +2341,7 @@ index 1214b03..c5066fb 100644
              corner_radii,
              tile: sub_tile,
              opacity,
-@@ -5163,7 +5504,7 @@ impl Window {
+@@ -5163,7 +5536,7 @@ impl Window {
  
          let bounds = self.snap_bounds(bounds);
          let content_mask = self.snapped_content_mask();
@@ -2244,7 +2350,7 @@ index 1214b03..c5066fb 100644
              order: 0,
              bounds,
              content_mask,
-@@ -5287,6 +5628,31 @@ impl Window {
+@@ -5287,6 +5660,31 @@ impl Window {
          bounds
      }
  
@@ -2276,7 +2382,7 @@ index 1214b03..c5066fb 100644
      /// This method should be called during `prepaint`. You can use
      /// the returned [Hitbox] during `paint` or in an event handler
      /// to determine whether the inserted hitbox was the topmost.
-@@ -6654,7 +7020,7 @@ impl Window {
+@@ -6654,7 +7052,7 @@ impl Window {
          self.on_next_frame(|window, cx| {
              if let Some(mut input_handler) = window.platform_window.take_input_handler() {
                  if let Some(bounds) = input_handler.selected_bounds(window, cx) {

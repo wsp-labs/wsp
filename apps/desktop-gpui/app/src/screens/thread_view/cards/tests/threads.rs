@@ -139,6 +139,32 @@ fn a_section_the_preferences_shut_says_its_counts_over_a_fading_peek(cx: &mut Te
     assert!(cx.debug_bounds("threads-fold-Finished").is_some(), "the section did not open at once");
 }
 
+/// Catches: a fill laid over the peek to stand in for the mask, which shows as a darker band over its lower half
+/// wherever the transcript's ground is not that fill: a dark theme on the Mac, solid or on glass.
+#[gpui_kit::test]
+fn the_peek_fades_under_the_webs_mask_and_paints_nothing_over_its_row(cx: &mut TestAppContext) {
+    use crate::screens::app_shell::material::Look;
+    let (_view, cx) = tree_window(tree_listing(Some(2. * HOUR), json!({"threadsShut": {"t": true}})), cx);
+    for look in [Look { mac: false, glass: false }, Look { mac: true, glass: false }, Look { mac: true, glass: true }] {
+        cx.update(|window, cx| {
+            crate::ui::theme::set_theme_in("graphite", look, cx);
+            window.refresh();
+        });
+        cx.run_until_parked();
+        let peek = bounds(cx, "threads-peek");
+        crate::screens::thread_view::rows::assert_fades(cx, peek, peek.size.height, px(0.), &format!("{look:?}: mask-b-from-0%"));
+        let laid = cx.update(|window, _| {
+            let peek = peek.scale(window.scale_factor());
+            window
+                .painted_quads()
+                .iter()
+                .filter(|q| q.bounds.intersect(&peek) == q.bounds && q.bounds.size.height > peek.size.height / 2.)
+                .count()
+        });
+        assert_eq!(laid, 0, "{look:?}: a fill is laid over the peek");
+    }
+}
+
 #[gpui_kit::test]
 fn the_open_head_settles_the_finished_part_and_shuts_through_the_preferences(cx: &mut TestAppContext) {
     let (_view, cx) = tree_window(tree_listing(Some(2. * HOUR), json!({})), cx);

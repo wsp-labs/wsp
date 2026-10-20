@@ -29,7 +29,8 @@ use wsp_host_client::HostClient;
 const WAIT: Duration = Duration::from_secs(40);
 
 /// A prompt holding ASK raises a permission prompt to run `rm -rf build` and waits; the answer the host sends back is
-/// said as the reply. One holding LATE starts seven seconds late. Every other prompt is answered at once.
+/// said as the reply. One holding LATE starts seven seconds late. One holding MANY makes 450 calls with no words, more
+/// than two history pages, then waits, or with DONE also ends. Every other prompt is answered at once.
 const STAND_IN: &str = r#"#!/usr/bin/env node
 const argv = process.argv.slice(2);
 const at = flag => (argv.indexOf(flag) >= 0 ? argv[argv.indexOf(flag) + 1] : undefined);
@@ -70,7 +71,13 @@ process.stdin.on("data", d => {
         continue;
       }
       init();
-      if (prompt.includes("ASK")) {
+      if (prompt.includes("MANY")) {
+        for (let i = 0; i < 450; i++) {
+          const id = ++n;
+          say({ type: "assistant", message: { id: `msg_${id}`, type: "message", role: "assistant", model: "claude-haiku-5-5", content: [{ type: "tool_use", id: `toolu_${id}`, name: "Bash", input: { command: "true" } }], stop_reason: null, usage }, parent_tool_use_id: null, session_id: sid, uuid: `a_${id}` });
+        }
+        if (prompt.includes("DONE")) result("done");
+      } else if (prompt.includes("ASK")) {
         const id = ++n;
         say({ type: "assistant", message: { id: `msg_${id}`, type: "message", role: "assistant", model: "claude-haiku-5-5", content: [{ type: "tool_use", id: "toolu_ask", name: "Bash", input: { command: "rm -rf build" } }], stop_reason: null, usage }, parent_tool_use_id: null, session_id: sid, uuid: `a_${id}` });
         say({ type: "control_request", request_id: "perm-1", request: { subtype: "can_use_tool", tool_name: "Bash", tool_use_id: "toolu_ask", input: { command: "rm -rf build" } } });
@@ -964,4 +971,50 @@ fn a_fork_answered_after_the_person_left_moves_nothing(cx: &mut TestAppContext) 
         thread_route(&host, &first),
         "the window stays on the thread the person chose"
     );
+}
+
+/// Runs `prompt` on the host's project without waiting, until the host holds `calls` of its turn's events and, with
+/// `ended`, the turn's end.
+fn many(host: &Host, prompt: &str, ended: bool) -> String {
+    host.server.wsp(&["run", "repo", prompt, "--agent", "claude", "--detach"]);
+    let thread = host.thread(prompt);
+    let end = Instant::now() + WAIT;
+    loop {
+        let history = host.history(&thread);
+        let deltas = history.iter().filter(|e| e["type"] == "session.delta").count();
+        if deltas >= 450 && (!ended || history.iter().any(|e| e["type"] == "session.end")) {
+            return thread;
+        }
+        assert!(Instant::now() < end, "the host held {deltas} of {prompt}'s calls");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+/// The newest page of `thread`'s history, as the thread view first reads it, and how many events the thread holds.
+fn newest(host: &Host, thread: &str) -> (Vec<Value>, u64) {
+    let page = host.runtime.block_on(host.client.open_page(&host.workspace, thread)).unwrap_or_else(|_| panic!("no page of {thread}"));
+    (page.history.iter().map(|e| serde_json::to_value(e).unwrap()).collect(), page.total)
+}
+
+/// Catches: the composer reading its compact rule (ChatComposer.tsx: a running turn or any message) off the one page of
+/// history the view first holds, whose newest 200 events on a long thread are calls with no message and no turn's start.
+#[gpui_kit::test]
+fn a_long_threads_newest_page_of_calls_still_reads_as_running_and_messaged(cx: &mut TestAppContext) {
+    let host = Host::start(&["first"]);
+    let running = many(&host, "MANY calls, then wait", false);
+    let done = many(&host, "MANY calls DONE", true);
+    for thread in [&running, &done] {
+        let (page, total) = newest(&host, thread);
+        let said = page.iter().any(|e| e["type"] == "session.start" || e["kind"] == "text");
+        assert!(total > page.len() as u64 && !said, "{thread}'s newest page holds a start or words, or the whole thread");
+    }
+    let (mounted, screen, cx) = mount(&host, &running, cx);
+    let (view, composer) = parts(&screen, cx);
+    until(cx, "the newest page and the link", |cx| view.read_with(cx, |v, _| v.loaded()) && linked(&composer, cx));
+    assert!(composer.read_with(cx, |c, _| !c.fresh() && c.running()), "a running turn on a long thread leaves the composer tall and idle");
+    show(&mounted, &host, &done, cx);
+    until(cx, "the finished thread's newest page", |cx| {
+        view.read_with(cx, |v, _| v.loaded() && v.thread() == Some(done.as_str())) && composer.read_with(cx, |c, _| !c.running())
+    });
+    assert!(composer.read_with(cx, |c, _| !c.fresh()), "a thread with messages above its newest page reads as fresh");
 }

@@ -2,7 +2,7 @@
 //! The effects scenes in GPUI, drawn to match scene.html beside this file pixel for pixel: rows that scroll under a
 //! frosted panel, and a rounded box clipping a scrolled list to its corners.
 
-use gpui_kit::{div, point, prelude::*, px, rgb, AnyElement, BoxShadow, Div, Rgba};
+use gpui_kit::{div, point, prelude::*, px, relative, rgb, AnyElement, BoxShadow, Div, Rgba};
 
 pub const W: f32 = 640.;
 pub const H: f32 = 480.;
@@ -26,10 +26,12 @@ pub enum Scene {
     BlurTintDark,
     /// The light composer's drop shadow, once inside a clipping pane and once scrolled out of its top.
     BlurShadow,
+    /// A folded message whose capped body fades out at its bottom, and a row that fades out over its whole height.
+    Fade,
 }
 
 impl Scene {
-    pub const ALL: [Scene; 9] = [
+    pub const ALL: [Scene; 10] = [
         Scene::PlainLight,
         Scene::BlurLight,
         Scene::BlurDark,
@@ -39,6 +41,7 @@ impl Scene {
         Scene::BlurRadii,
         Scene::BlurTintDark,
         Scene::BlurShadow,
+        Scene::Fade,
     ];
 
     pub fn name(self) -> &'static str {
@@ -52,6 +55,7 @@ impl Scene {
             Scene::BlurRadii => "blur-radii",
             Scene::BlurTintDark => "blur-tint-dark",
             Scene::BlurShadow => "blur-shadow",
+            Scene::Fade => "fade",
         }
     }
 
@@ -60,7 +64,7 @@ impl Scene {
         match self {
             Scene::PlainLight | Scene::BlurLight | Scene::BlurDark | Scene::BlurTwo | Scene::Clip => &[0., 50., 117.],
             Scene::ClipNested => &[CARD_SCROLL],
-            Scene::BlurRadii | Scene::BlurTintDark | Scene::BlurShadow => &[0.],
+            Scene::BlurRadii | Scene::BlurTintDark | Scene::BlurShadow | Scene::Fade => &[0.],
         }
     }
 }
@@ -172,6 +176,38 @@ fn composer(top: f32) -> Div {
         .shadow(vec![shadow])
 }
 
+pub const BUBBLE: u32 = 0xe4e4e7;
+pub const PEEK_PAGE: u32 = 0xfde68a;
+
+/// The folded message from rows.rs: a bubble around a body capped at 176 px, whole down to 80 px above its bottom
+/// and gone in its last 24, over eight rows that run past the cap. Nothing in it overlaps, since the ramp fades each
+/// primitive on its own where Chromium masks them composited.
+fn folded() -> Div {
+    let bars = (0..8).flat_map(|i| {
+        let top = i as f32 * ROW;
+        std::iter::once(at(0., top + 4., 120., 28.).bg(rgb(PALETTE[i % 6]))).chain(ink(i, 132., top, rgb(0x18181b)))
+    });
+    let body = div()
+        .relative()
+        .w(px(256.))
+        .max_h(px(176.))
+        .overflow_hidden()
+        .mask_fade_bottom(px(80.), px(24.))
+        .child(div().relative().w(px(256.)).h(px(8. * ROW)).children(bars));
+    div().absolute().left(px(24.)).top(px(40.)).w(px(280.)).p(px(12.)).rounded(px(18.)).bg(rgb(BUBBLE)).child(body)
+}
+
+/// The peek row from threads.rs, fading over its whole height with its overflow visible, on a page of its own
+/// colour; one stroke runs 24 px past the row's bottom, where the mask hides it.
+fn peek() -> Div {
+    let row = at(16., 36., 248., 48.)
+        .mask_fade_bottom(relative(1.), px(0.))
+        .child(at(0., 0., 112., 48.).bg(rgb(PALETTE[4])))
+        .children(ink(0, 124., 6., rgb(0x18181b)))
+        .child(at(236., 8., 2., 64.).bg(rgb(0x18181b)));
+    at(336., 40., 280., 120.).bg(rgb(PEEK_PAGE)).child(row)
+}
+
 const PANE_TOP: f32 = 200.;
 const SCROLLED_COMPOSER_TOP: f32 = -116.;
 
@@ -209,6 +245,7 @@ pub fn draw(scene: Scene, scroll: f32) -> Div {
             .bg(rgb(0xf4f4f5))
             .children(rows(scroll, rgb(0x18181b)))
             .child(at(0., PANE_TOP, W, H - PANE_TOP).overflow_hidden().child(composer(SCROLLED_COMPOSER_TOP)).child(composer(120.))),
+        Scene::Fade => page.bg(rgb(0xf4f4f5)).child(folded()).child(peek()),
         Scene::BlurDark => page.bg(rgb(0x0a0a0a)).children(rows(scroll, rgb(0xf4f4f5))).child(panel(scene)),
         Scene::PlainLight | Scene::BlurLight => page.bg(rgb(0xf4f4f5)).children(rows(scroll, rgb(0x18181b))).child(panel(scene)),
         Scene::BlurTwo => {

@@ -115,18 +115,40 @@ fn thread(shell: &Entity<Shell>, cx: &mut VisualTestContext) -> Option<String> {
     })
 }
 
-/// Catches: gpui-kit's Root laying the theme's ground over the whole window under the shell, which hides the Mac's glass;
-/// and the shell no longer laying it itself where it draws no glass, as here.
+/// The solid fills of quads that cover the whole window.
+fn full_window_grounds(cx: &mut VisualTestContext) -> Vec<gpui_kit::Hsla> {
+    let (full, quads) = cx.update(|window, _| {
+        (gpui_kit::Bounds::new(point(px(0.), px(0.)), window.viewport_size()).scale(window.scale_factor()), window.painted_quads())
+    });
+    quads.iter().filter(|q| q.bounds == full).filter_map(|q| q.background.as_solid()).filter(|c| c.a > 0.).collect()
+}
+
+/// Catches: gpui-kit's Root laying the theme's ground over the whole window under the shell; and the shell no longer
+/// laying it itself with transparency off, which macOS's default of on would hide.
 #[gpui_kit::test]
 fn only_the_shell_lays_the_windows_ground(cx: &mut TestAppContext) {
     use desktop_gpui::ui::ActivePalette as _;
-    let (_, cx) = hostless(cx);
-    let (full, quads, ground) = cx.update(|window, cx| {
-        let full = gpui_kit::Bounds::new(point(px(0.), px(0.)), window.viewport_size()).scale(window.scale_factor());
-        (full, window.painted_quads(), cx.palette().background)
-    });
-    let grounds: Vec<_> = quads.iter().filter(|q| q.bounds == full).filter_map(|q| q.background.as_solid()).filter(|c| c.a > 0.).collect();
-    assert_eq!(grounds, [ground], "the window's ground is laid once, by the shell, in the theme's background");
+    let host = common::Throwaway::start();
+    set(&host, json!({ "transparency": false }));
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host's transparency off", |cx| shell.read_with(cx, |s, _| s.connected() && !s.look().glass));
+    let ground = cx.update(|_, cx| cx.palette().background);
+    assert_eq!(full_window_grounds(cx), [ground], "the window's ground is laid once, by the shell, in the theme's background");
+}
+
+/// Catches: anything laying an opaque ground over the whole window while the Mac draws glass, which hides macOS's material.
+#[gpui_kit::test]
+fn on_glass_no_ground_covers_the_window(cx: &mut TestAppContext) {
+    use desktop_gpui::ui::ActivePalette as _;
+    let (shell, cx) = hostless(cx);
+    assert!(shell.read_with(cx, |s, _| s.look().glass), "transparency is on until the host says otherwise");
+    let grounds = full_window_grounds(cx);
+    if MAC {
+        assert!(grounds.is_empty(), "no opaque ground over the Mac's glass: {grounds:?}");
+    } else {
+        let ground = cx.update(|_, cx| cx.palette().background);
+        assert_eq!(grounds, [ground], "Linux has no material to show, so the shell lays its ground as with transparency off");
+    }
 }
 
 #[gpui_kit::test]

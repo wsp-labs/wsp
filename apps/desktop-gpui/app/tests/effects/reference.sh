@@ -8,7 +8,7 @@ out=${EFFECTS_REFERENCE_DIR:-$here/chromium}
 scenes="plain-light blur-light blur-dark blur-two clip"
 scrolls="0 50 117"
 # Scenes drawn at one scroll position, as scene:scroll.
-single="clip-nested:40 blur-radii:0 blur-tint-dark:0 blur-shadow:0"
+single="clip-nested:40 blur-radii:0 blur-tint-dark:0 blur-shadow:0 fade:0"
 shots=
 for scene in $scenes; do
   for scroll in $scrolls; do
