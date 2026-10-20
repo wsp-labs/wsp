@@ -44,6 +44,8 @@ export interface OpenHostOptions {
   service: ServiceDeps;
   /** Asks the person the question a host of another release with turns running puts, and answers whether to restart. */
   ask(prompt: ReplacePrompt): Promise<boolean>;
+  /** True once where this launch rewrote the shim: a service's host started before that runs the line it started on. */
+  staleShim?(): boolean;
 }
 
 /** The page served at this authority, empty where it answered with an error, or nothing where nothing there answers:
@@ -224,7 +226,8 @@ const answersAsOwn =
  * shim is kept as it stands, and loaded where the manager has let it go, or where what it runs is a host whose
  * program has gone, which the manager reads as up. `rewrite` writes even that one again, which restarts the host it
  * serves. A unit the person set not to start at login is loaded all the same and left that way. Read only when
- * nothing serves, or to replace a host of another release, so a rewrite never restarts wsp under a window on it. */
+ * nothing serves, to replace a host of another release, or by the launch that rewrote the shim, so a rewrite never
+ * restarts wsp under a window on it. */
 export async function ensureService(opts: Pick<OpenHostOptions, "statePath" | "home" | "shim" | "service" | "io">, rewrite = false): Promise<void> {
   const { manager, run } = opts.service;
   if (manager === undefined) throw new Error(noManagerLine(opts.service.platform));
@@ -300,14 +303,18 @@ export class StartFailed extends Error {
  * is older. */
 export async function openHost(opts: OpenHostOptions): Promise<HostSession> {
   const held = await lockedHost(opts.statePath);
+  // An update's swap restarts the service before the new app rewrites the shim, so its host runs the old line.
+  const stale = opts.staleShim?.() === true;
   if (held !== undefined) {
     const theirs = otherRelease(held.release);
-    if (theirs === undefined || compareVersions(theirs, VERSION) > 0) return held.session;
-    await replaceHost(opts, held.lock, theirs);
+    if (theirs !== undefined && compareVersions(theirs, VERSION) > 0) return held.session;
+    if (theirs !== undefined) await replaceHost(opts, held.lock, theirs);
+    else if (stale && held.lock.startedBy === "service") await restartService(opts, held.lock, VERSION);
+    else return held.session;
   } else {
     const away = await accountSession(opts);
     if (away !== undefined) return away;
-    await ensureService(opts);
+    await ensureService(opts, stale);
   }
   return ownServed(opts);
 }
@@ -436,11 +443,19 @@ async function replaceHost(opts: OpenHostOptions, lock: HostLock, theirs: string
     }
     return ensureService(opts);
   }
+  return restartService(opts, lock, theirs);
+}
+
+/** Restarts the service's host the lock names onto this app's shim: a unit running the shim through the host's own
+ * restart, which keeps the unit, its words and its login setting, and one running another program, or whose host
+ * refused, by writing the unit again. */
+async function restartService(opts: OpenHostOptions, lock: HostLock, release: string): Promise<void> {
+  const { statePath, service } = opts;
   const unit = service.manager?.unit(serviceAddressHere(statePath));
   const runsShim = unit !== undefined && existsSync(unit.path) && service.manager!.runs(readFileSync(unit.path, "utf8"), opts.shim);
   if (!runsShim || !(await restarted(opts, lock))) return ensureService(opts, runsShim);
   for (const until = Date.now() + service.waitMs; servingHost(statePath)?.pid === lock.pid; await pause()) {
-    if (Date.now() >= until) throw new Error(`wsp ${theirs} (pid ${lock.pid}) took the restart and still serves ${statePath} after ${fmtDuration(service.waitMs)}`);
+    if (Date.now() >= until) throw new Error(`wsp ${release} (pid ${lock.pid}) took the restart and still serves ${statePath} after ${fmtDuration(service.waitMs)}`);
   }
   return ensureService(opts);
 }
