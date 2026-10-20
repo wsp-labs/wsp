@@ -23,6 +23,8 @@ set -eu
 REPO="wsp-labs/wsp"
 BUNDLE_ID="wsp.desktop"
 SHIM_HEAD="# The wsp app writes this on each launch; it runs the wsp the app bundles."
+# The V8 flag the app's shim puts between its binary and the script (apps/desktop/src/shim.ts).
+V8_FLAGS="--no-memory-pool"
 
 step=""
 tmp=""
@@ -127,7 +129,7 @@ write_command() {
   step="writing the wsp command"
   parts="$shim.part
 $parts"
-  if ! { make_dir "$HOME/.wsp/bin" && printf '#!/bin/sh\n%s\nELECTRON_RUN_AS_NODE=1 exec %s %s "$@"\n' "$SHIM_HEAD" "$(quote "$1")" "$(quote "$2")" >"$shim.part" && chmod 755 "$shim.part"; } 2>/dev/null; then
+  if ! { make_dir "$HOME/.wsp/bin" && printf '#!/bin/sh\n%s\nELECTRON_RUN_AS_NODE=1 exec %s %s %s "$@"\n' "$SHIM_HEAD" "$(quote "$1")" "$(quote "$V8_FLAGS")" "$(quote "$2")" >"$shim.part" && chmod 755 "$shim.part"; } 2>/dev/null; then
     why="could not be written at $shim"
     return 1
   fi
@@ -325,7 +327,7 @@ install_mac() {
   [ -f "$new/Contents/MacOS/wsp" ] && [ -f "$new/Contents/Resources/app/main/cli.mjs" ] || die "it holds no wsp command"
   codesign --verify --deep --strict "$new" 2>/dev/null </dev/null || die "its signature does not verify"
   # The new copy runs once where it was unpacked, before anything installed moves.
-  answers env ELECTRON_RUN_AS_NODE=1 "$new/Contents/MacOS/wsp" "$new/Contents/Resources/app/main/cli.mjs" || die "its wsp command $why; nothing was changed"
+  answers env ELECTRON_RUN_AS_NODE=1 "$new/Contents/MacOS/wsp" "$V8_FLAGS" "$new/Contents/Resources/app/main/cli.mjs" || die "its wsp command $why; nothing was changed"
 
   if app_running; then
     step="quitting wsp"
@@ -477,7 +479,7 @@ install_linux() {
   ensure_libraries "$tree/wsp"
 
   step="checking the app"
-  answers env ELECTRON_RUN_AS_NODE=1 "$tree/wsp" "$tree/resources/app/main/cli.mjs" || die "its wsp command $why; nothing was changed"
+  answers env ELECTRON_RUN_AS_NODE=1 "$tree/wsp" "$V8_FLAGS" "$tree/resources/app/main/cli.mjs" || die "its wsp command $why; nothing was changed"
 
   # A window run from the files below would go on running from deleted ones, and the launch at the end would only
   # bring it forward.

@@ -21,9 +21,14 @@ export interface ShimTarget {
   daemon?: string;
 }
 
+/** Electron 43's V8 keeps freed heap pages in a pool it rarely hands back (nodejs/node#66564). Only the app's own
+ * binary takes the flag: Node 22 and 24 refuse to start with it, and NODE_OPTIONS refuses it on every Node. */
+const SHIM_V8_FLAGS = ["--no-memory-pool"];
+
 export function shimText(target: ShimTarget): string {
-  const wsp = `${shellQuote(target.execPath)} ${shellQuote(target.script)}`;
-  const line = target.daemon === undefined ? wsp : `${shellQuote(target.daemon)} forward --wsp-argv ${shellQuote(target.execPath)} --wsp-argv ${shellQuote(target.script)} --`;
+  const argv = [target.execPath, ...SHIM_V8_FLAGS, target.script];
+  const wsp = argv.map(shellQuote).join(" ");
+  const line = target.daemon === undefined ? wsp : `${shellQuote(target.daemon)} forward ${argv.map(word => `--wsp-argv ${shellQuote(word)}`).join(" ")} --`;
   return `#!/bin/sh\n# The wsp app writes this on each launch; it runs the wsp the app bundles.\nELECTRON_RUN_AS_NODE=1 exec ${line} "$@"\n`;
 }
 
