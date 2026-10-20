@@ -23,7 +23,6 @@ import { allowed, fromAppPage, fromOnboardingPage, hostsViewFor, notForThisPage 
 import { hostFeed, type FeedEvent, type FeedState, type HostFeed } from "./host-feed.js";
 import { guardWorkers, loadHostPage } from "./page-session.js";
 import { shellMenu } from "./menu.js";
-import { pagePreviews } from "./previews.js";
 import { QUIT_WORD, quitAnswer, quitChoice, quitPrompt } from "./quit.js";
 import { RELOADS_PER_MINUTE, reloadAfter, reloadPacer } from "./revive.js";
 import { bundleOf, discardStage, inPlaceRefusal, settleStage, stageOf, stageUpdate, startSwap } from "./self-update.js";
@@ -139,11 +138,6 @@ const fonts = (): Promise<FontFile[]> => (fontIndex ??= indexFonts(fontDirs(proc
 // The font files are this computer's, so only the app's own host's page may read them.
 answer("fonts:local", (_event, family) => localFontFaces(typeof family === "string" ? family : "", fonts));
 answer("fonts:families", () => fontFamilies(fonts));
-
-const previews = pagePreviews();
-// A picture of the page can hold anything the page shows, so only the app's own host's page may take one or read one.
-answer("preview:capture", (event, workspaceId, bounded) => previews.capture(typeof workspaceId === "string" ? workspaceId : "", event.sender, bounded === true));
-answer("preview:read", (_event, workspaceId) => previews.get(typeof workspaceId === "string" ? workspaceId : ""));
 
 // The picker returns a path on this computer, so only the app's own host's page may open it.
 answer("folder:pick", async event => {

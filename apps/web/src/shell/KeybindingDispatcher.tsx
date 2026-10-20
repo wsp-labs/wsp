@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The window key listeners that resolve a shortcut against the rules and the
 // focus context, then run the command. Mounted once, inside the sidebar
-// provider so the sidebar toggle is reachable. The switcher overlay is the
-// one command that outlives its keydown: it stays up while the switch chord's
-// modifier is held, so this listens for that key coming up, for the Escape
-// that cancels, and for the window losing focus with the hold unresolved.
+// provider so the sidebar toggle is reachable.
 import { useEffect, useRef } from "react";
 import { isCommandPaletteOpen } from "../commandPaletteBus.js";
 import { isTypingTarget } from "../keyOwners.js";
 import { useSidebar } from "../components/ui/sidebar.js";
-import { eventHoldKeys, resolveShortcutCommand } from "../keybindings.js";
+import { resolveShortcutCommand } from "../keybindings.js";
 import type { ResolvedKeybindingsConfig } from "../keybindingTypes.js";
 import { desktopBridge } from "../lib/desktopShell.js";
 import { isPanelTabsFocused } from "../lib/panelFocus.js";
@@ -17,9 +14,8 @@ import { isPreviewFocused } from "../lib/previewFocus.js";
 import { isTerminalFocused } from "../lib/terminalFocus.js";
 import { threadFindOpen, threadOnScreen } from "../components/chat/find/store.js";
 import { useSelectedWorkspaceId, useStore } from "../protocol/store.js";
-import { cancelWorkspaceSwitch, commitWorkspaceSwitch, runShellCommand, type ShellCommandTarget } from "./shellCommands.js";
+import { runShellCommand, type ShellCommandTarget } from "./shellCommands.js";
 import { useKeybindings } from "./useKeybindings.js";
-import { releasesSwitchHold, useWorkspaceSwitcher } from "./workspaceSwitcher.js";
 
 /** Where focus is, read on every chord: the rules' when clauses name these. */
 const focusContext = () => ({
@@ -42,13 +38,6 @@ export function KeybindingDispatcher({ keybindings: given }: { keybindings?: Res
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.isComposing) return;
-      // Escape is the only key the overlay takes out of the rules; every other chord still reaches the shell under
-      // it, so mod+k opens the palette over it and mod+b moves the sidebar behind it.
-      if (event.key === "Escape" && useWorkspaceSwitcher.getState().open) {
-        event.preventDefault();
-        cancelWorkspaceSwitch();
-        return;
-      }
       // Escape leaves the settings page, the one centre view with no row of its own to pick; a palette over it takes
       // the key first.
       if (event.key === "Escape" && useStore.getState().settingsOpen && !isCommandPaletteOpen()) {
@@ -63,23 +52,10 @@ export function KeybindingDispatcher({ keybindings: given }: { keybindings?: Res
       if (!chorded && event.target instanceof Element && isTypingTarget(event.target)) return;
       event.preventDefault();
       event.stopPropagation();
-      runShellCommand(command, target.current, eventHoldKeys(event));
+      runShellCommand(command, target.current);
     };
-    const onKeyUp = (event: KeyboardEvent): void => {
-      if (!releasesSwitchHold(useWorkspaceSwitcher.getState(), event.key)) return;
-      commitWorkspaceSwitch();
-    };
-    // A chord that takes focus away (the system's own window switch) never delivers its key up here, so the hold
-    // would stay unresolved and the overlay would sit over the page.
-    const onBlur = (): void => cancelWorkspaceSwitch();
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
-    };
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [keybindings]);
 
   useEffect(() => {
@@ -105,7 +81,7 @@ export function KeybindingDispatcher({ keybindings: given }: { keybindings?: Res
     window.addEventListener("focusout", scheduleReport);
     const stopChords = onShellChord(chord => {
       const command = resolveShortcutCommand(chord, keybindings, { context: focusContext() });
-      if (command !== null) runShellCommand(command, target.current, eventHoldKeys(chord));
+      if (command !== null) runShellCommand(command, target.current);
     });
     return () => {
       if (pending !== null) clearTimeout(pending);

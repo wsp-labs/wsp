@@ -22,8 +22,8 @@
 // a pick, which the prompt says under its options; ?local=1&ws=ws_m&fold=1 replays one
 // that fanned out to three subagents, one holding a prompt of its own and one
 // launched in the background, so a fold's body can be measured against its
-// header; ?shell=desktop puts a desktop bridge on the page so the workspace
-// switch chord reaches it; ?mac=1 marks the html the way the macOS preload
+// header; ?shell=desktop puts a desktop bridge on the page so the Tab pair
+// reaches it; ?mac=1 marks the html the way the macOS preload
 // does; ?panel=terminal opens the right panel with a Browser tab and a
 // terminal over a fake daemon wire, the host answering a translucent Ghostty
 // config, so the pane's material can be measured with each tab active;
@@ -60,8 +60,7 @@
 // each kind of notice; ?silent=1 has the running and the napping machine both read no daemon, under the app's own
 // workspace-line rule, so only the running one is said. ?switcher=1 adds six
 // threads over two more projects, every workspace on a named computer and
-// each project a glyph and a hue of its own, so the switcher's row is full
-// past its six cards. ?pick=1 holds three projects, two on this Mac and one
+// each project a glyph and a hue of its own. ?pick=1 holds three projects, two on this Mac and one
 // on a joined box, with New thread set to ask, and opens the palette on the
 // page of projects it picks from; ?settings=general opens Settings on its
 // General page, ?settings=appearance on Appearance, ?settings=computer&places=1 on
@@ -112,10 +111,9 @@ const picks = { lightTheme: params.get("lightTheme") ?? DEFAULT_PREFERENCES.ligh
 applyTheme({ theme, ...picks }, theme === "dark");
 document.documentElement.classList.toggle(DESKTOP_MAC_CLASS, params.get("mac") === "1");
 // The bridge alone tells the page which shell holds it; with ?shell=desktop the chords a browser tab keeps for its
-// own tabs reach the page, which is what the switcher's chord needs. It carries the two picture calls, which is what
-// the switcher's well reads, and neither answers with a picture, so the wells draw empty.
+// own tabs reach the page, which is what the Tab pair's step needs.
 if (params.get("shell") === "desktop") {
-  window.wsp = { capturePreview: async () => undefined, workspacePreview: async () => undefined };
+  window.wsp = {};
 }
 if (params.get("linux") === "1") {
   document.documentElement.classList.add(DESKTOP_WCO_CLASS);
