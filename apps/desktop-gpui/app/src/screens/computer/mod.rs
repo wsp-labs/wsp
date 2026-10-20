@@ -105,23 +105,16 @@ impl Computer {
         Some((s.around().workspaces.get(id)?, s.around().statuses.get(id)))
     }
 
-    /// Finds the sidebar through the window's layers, which the shell hands it once connected.
     fn find_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.sidebar.is_some() {
-            return;
-        }
-        let Some(layers) = overlays::of(window, cx) else { return };
-        match layers.read(cx).sidebar.as_ref().and_then(|s| s.upgrade()) {
-            Some(sidebar) => {
-                self._observed.push(cx.observe_in(&sidebar, window, |this, _, window, cx| {
-                    this.sync(window, cx);
-                    cx.notify();
-                }));
-                self.sidebar = Some(sidebar);
-                self.sync(window, cx);
-            }
-            None => self._observed.push(cx.observe_in(&layers, window, |this, _, window, cx| this.find_sidebar(window, cx))),
-        }
+        let waiting = overlays::find_sidebar(self, window, cx, |this, sidebar, window, cx| {
+            this._observed.push(cx.observe_in(&sidebar, window, |this, _, window, cx| {
+                this.sync(window, cx);
+                cx.notify();
+            }));
+            this.sidebar = Some(sidebar);
+            this.sync(window, cx);
+        });
+        self._observed.extend(waiting);
     }
 
     /// The road the readings take now: the host's for this computer's own workspace, else a daemon's, none while a

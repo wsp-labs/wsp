@@ -12,11 +12,11 @@ use std::time::{Duration, Instant};
 use desktop_gpui::screens::app_shell::frame;
 use desktop_gpui::screens::app_shell::keys::{self, DEFAULTS};
 use desktop_gpui::screens::app_shell::panel::DEFAULT_WIDTH;
+use desktop_gpui::screens::app_shell::vibrancy;
 use desktop_gpui::screens::browser::store::Store;
 use desktop_gpui::screens::{self, entry, Host, Opened, Pane, Parts, Place, Route, Screen, THREAD};
 use desktop_gpui::shell::{Launch, Shell, SETTINGS};
 use desktop_gpui::sidebar::{Asked, ThreadItem};
-use gpui_kit::component::Root;
 use gpui_kit::{
     div, point, prelude::*, px, size, Action, AnyView, App, AppContext, Entity, Modifiers, MouseButton, SharedString, TestAppContext,
     VisualTestContext, Window,
@@ -46,7 +46,7 @@ fn open(cx: &mut TestAppContext, state: std::path::PathBuf, env: Env) -> (Entity
     let (_, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
         shell = Some(view.clone());
-        Root::new(view, window, cx)
+        vibrancy::clear_root(view, window, cx)
     });
     cx.simulate_resize(size(px(1280.), px(800.)));
     cx.run_until_parked();
@@ -113,6 +113,20 @@ fn thread(shell: &Entity<Shell>, cx: &mut VisualTestContext) -> Option<String> {
         Route::Thread { thread_id, .. } => Some(thread_id.clone()),
         _ => None,
     })
+}
+
+/// Catches: gpui-kit's Root laying the theme's ground over the whole window under the shell, which hides the Mac's glass;
+/// and the shell no longer laying it itself where it draws no glass, as here.
+#[gpui_kit::test]
+fn only_the_shell_lays_the_windows_ground(cx: &mut TestAppContext) {
+    use desktop_gpui::ui::ActivePalette as _;
+    let (_, cx) = hostless(cx);
+    let (full, quads, ground) = cx.update(|window, cx| {
+        let full = gpui_kit::Bounds::new(point(px(0.), px(0.)), window.viewport_size()).scale(window.scale_factor());
+        (full, window.painted_quads(), cx.palette().background)
+    });
+    let grounds: Vec<_> = quads.iter().filter(|q| q.bounds == full).filter_map(|q| q.background.as_solid()).filter(|c| c.a > 0.).collect();
+    assert_eq!(grounds, [ground], "the window's ground is laid once, by the shell, in the theme's background");
 }
 
 #[gpui_kit::test]

@@ -558,6 +558,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 ### States
 
 - W2-DLG-140 Filter matches nothing: "No row matches X.". No shot: pick steps need a real SSH host. `settings/add/PickList.tsx:114`
+- W2-DLG-187 Onboarding welcome, whole window, as an empty home first opens it (W2-DLG-032's state, reached by baseline.mjs's empty home). Shot: an empty home, no drive. `desktop:onboarding.html:141`
 
 ### Actions and keys
 
@@ -752,6 +753,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W2-UNO-057 Agents paused: last report, nap word, acts held. No shot: pause needs a cloud. `components/agents/AgentsPanel.tsx:49`
 - W2-UNO-058 Side question long answer scrolls in the pane. No shot: the stub never answers. `components/chat/AsideSurface.tsx:33`
 - W2-UNO-059 Side question after reload: tab gone. No shot: draws as before the ask. `panes.ts:154`
+- W2-UNO-078 Agents panel on a thread, whole window: the four tabs, "On <computer>" by its label, "checked just now", a row per agent with its version and Sign in; never "Nothing open here". Shot: the fixture's realHost panes thread, Open a panel, Agents. `components/agents/AgentsPanel.tsx:79`
 
 ### Actions and keys
 

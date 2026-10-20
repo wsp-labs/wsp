@@ -131,23 +131,16 @@ impl Processes {
         cx.default_global::<Sessions>().0.insert(tab_of(&self.opened), self.session.clone());
     }
 
-    /// Finds the sidebar through the window's layers, as the Computer pane does.
     fn find_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.sidebar.is_some() {
-            return;
-        }
-        let Some(layers) = overlays::of(window, cx) else { return };
-        match layers.read(cx).sidebar.as_ref().and_then(|s| s.upgrade()) {
-            Some(sidebar) => {
-                self._observed.push(cx.observe_in(&sidebar, window, |this, _, window, cx| {
-                    this.settle_form(window, cx);
-                    cx.notify();
-                }));
-                self.sidebar = Some(sidebar);
-                self.settle_form(window, cx);
-            }
-            None => self._observed.push(cx.observe_in(&layers, window, |this, _, window, cx| this.find_sidebar(window, cx))),
-        }
+        let waiting = overlays::find_sidebar(self, window, cx, |this, sidebar, window, cx| {
+            this._observed.push(cx.observe_in(&sidebar, window, |this, _, window, cx| {
+                this.settle_form(window, cx);
+                cx.notify();
+            }));
+            this.sidebar = Some(sidebar);
+            this.settle_form(window, cx);
+        });
+        self._observed.extend(waiting);
     }
 
     fn workspace<'a>(&self, s: &'a Sidebar) -> Option<(&'a Value, Option<&'a Value>)> {

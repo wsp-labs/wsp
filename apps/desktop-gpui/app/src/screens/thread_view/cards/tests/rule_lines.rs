@@ -188,3 +188,102 @@ fn a_machine_start_the_agent_answered_stands_done_between_the_message_and_the_re
     let agent = failed.steps.iter().find(|s| s.id == "agent").expect("no agent step");
     assert_eq!((agent.state, agent.ms), (transcript::StepState::Done, Some(4_000.0)));
 }
+
+/// Catches: the line standing under a message with no time, which `machineStartAt` never takes as the asking one, while
+/// its time counts from the message that did ask.
+#[gpui_kit::test]
+fn a_machine_start_stands_under_the_message_its_time_counts_from(cx: &mut TestAppContext) {
+    let spawn = json!({"startedAt": 1_000.0, "machine": {"since": 1_000.0, "id": "m-1", "states": [], "ms": 3_000.0}, "readyAt": 5_000.0, "log": []});
+    let events = vec![
+        base("session.start", 1, json!({"prompt": "before"})),
+        base("session.start", 2, json!({"prompt": "go", "at": 2_000.0, "turnId": "u2"})),
+        base("session.delta", 3, json!({"kind": "text", "text": "On it.", "at": 9_000.0, "turnId": "u2"})),
+    ];
+    let (view, _cx) = window_listed(events, Some(spawn_listing(spawn)), cx);
+    let rows = view.read_with(_cx, |v, _| v.rows().to_vec());
+    let at = rows.iter().position(|r| matches!(r.kind, RowKind::StartFailed { .. })).expect("no start line");
+    assert_eq!(rows[at].text, "Started on Boat in 8.0s");
+    assert_eq!(rows[at - 1].text, "go", "the line stands under another message than the one its time counts from");
+}
+
+/// The listing off a sub-thread's own row, running since `started` with its machine in `state`.
+fn own_listing(state: &str, started: f64, spawn: serde_json::Value) -> Listing {
+    let row = json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": "running", "threadId": "t", "startedAt": started,
+        "prompt": "Fix the flaky test", "sub": {"state": state, "on": "box", "machine": "m-1", "spawn": spawn}});
+    Listing { thread: "t".into(), ..Listing::of(&[row], "t", started) }
+}
+
+#[gpui_kit::test]
+fn a_machine_start_counts_to_the_agents_first_entry_of_any_kind_on_a_settled_turn(cx: &mut TestAppContext) {
+    let spawn = json!({"startedAt": 1_000.0, "machine": {"since": 1_000.0, "states": [], "ms": 3_000.0}, "readyAt": 5_000.0, "log": []});
+    let events = vec![
+        base("session.start", 1, json!({"prompt": "go", "at": 2_000.0})),
+        base("session.delta", 2, json!({"kind": "thinking", "text": "Reading the test.", "at": 9_000.0})),
+        base(
+            "session.delta",
+            3,
+            json!({"kind": "tool_use", "toolName": "Bash", "toolUseId": "b", "text": "{\"command\":\"ls\"}", "at": 10_000.0}),
+        ),
+        base("session.delta", 4, json!({"kind": "tool_result", "toolUseId": "b", "text": "a", "at": 11_000.0})),
+        base("session.delta", 5, json!({"kind": "text", "text": "Fixed ", "at": 150_000.0})),
+        base("session.delta", 6, json!({"kind": "text", "text": "it.", "at": 151_000.0})),
+        base("session.done", 7, json!({"result": {"status": "completed", "durationMs": 149_000}, "at": 152_000.0})),
+        base("session.end", 8, json!({"exitCode": 0, "sawResult": true, "at": 152_000.0})),
+    ];
+    let (view, _cx) = window_listed(events, Some(own_listing("running", 2_000.0, spawn)), cx);
+    let rows = view.read_with(_cx, |v, _| v.rows().to_vec());
+    let line = rows.iter().find(|r| matches!(r.kind, RowKind::StartFailed { .. })).expect("no start line");
+    assert_eq!(line.text, "Started on Boat in 8.0s", "the start line does not count to the thinking that came first");
+    let RowKind::StartFailed { failed } = &line.kind else { unreachable!() };
+    let agent = failed.steps.iter().find(|s| s.id == "agent").expect("no agent step");
+    assert_eq!(agent.ms, Some(4_000.0), "the agent's step does not count from the machine standing to its first entry");
+}
+
+#[gpui_kit::test]
+fn a_running_turn_counts_from_its_rows_start_where_that_came_first(cx: &mut TestAppContext) {
+    let spawn = json!({"startedAt": 1_000.0, "readyAt": 5_000.0, "log": []});
+    let events = vec![
+        base("session.start", 1, json!({"prompt": "go", "at": 20_000.0})),
+        base("session.delta", 2, json!({"kind": "text", "text": "On it.", "at": 21_000.0})),
+    ];
+    let (view, _cx) = window_listed(events, Some(own_listing("running", 12_000.0, spawn)), cx);
+    let since = view.read_with(_cx, |v, _| {
+        v.rows().iter().find_map(|r| match r.kind {
+            RowKind::Working { since, .. } => Some(since),
+            _ => None,
+        })
+    });
+    assert_eq!(since, Some(Some(12_000.0)), "the Working line does not count from the row's start");
+}
+
+#[gpui_kit::test]
+fn a_sub_thread_whose_machine_is_starting_is_not_at_work(cx: &mut TestAppContext) {
+    let spawn = json!({"startedAt": 1_000.0, "log": []});
+    let (view, cx) = window_listed(running(), Some(own_listing("starting", 1_000.0, spawn.clone())), cx);
+    let working = |view: &Entity<ThreadView>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |v, _| v.rows().iter().any(|r| matches!(r.kind, RowKind::Working { .. } | RowKind::Thinking)))
+    };
+    assert!(!working(&view, cx), "a sub-thread whose machine is starting says it is working");
+    listed(&view, own_listing("running", 1_000.0, json!({"startedAt": 1_000.0, "readyAt": 2_000.0, "log": []})), cx);
+    assert!(working(&view, cx), "a sub-thread whose machine stands says nothing of its turn");
+}
+
+#[gpui_kit::test]
+fn a_starting_sub_thread_with_no_event_shows_its_opening_message_with_its_time(cx: &mut TestAppContext) {
+    let spawn = json!({"startedAt": 1_000.0, "machine": {"since": 1_000.0, "states": ["provisioning"]}, "log": []});
+    let (view, cx) = window_listed(Vec::new(), Some(own_listing("starting", 1_000.0, spawn)), cx);
+    let rows = view.read_with(cx, |v, _| v.rows().to_vec());
+    let drawn: Vec<(&str, &str)> = rows.iter().map(|r| (r.key.as_str(), r.text.as_str())).collect();
+    assert_eq!(
+        drawn,
+        [("opening", "Fix the flaky test"), ("start-failed", "Starting a machine on Boat")],
+        "the opening message is not drawn"
+    );
+    assert!(matches!(rows[0].kind, RowKind::Person { at: Some(at), .. } if at == 1_000.0), "the opening message has no time");
+    let (bubble, meta) = (bounds(cx, "bubble"), bounds(cx, "meta"));
+    assert!(meta.top() >= bubble.bottom(), "the opening message has no line for its time and Copy");
+    assert!(
+        view.read_with(cx, |v, _| v.rows().iter().all(|r| !matches!(r.kind, RowKind::Working { .. }))),
+        "a starting machine is at work"
+    );
+}

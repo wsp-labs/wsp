@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use desktop_gpui::desktop::{frame, links, switch};
 use desktop_gpui::gallery::Gallery;
-use desktop_gpui::screens::app_shell::{assets::AppAssets, menu};
+use desktop_gpui::screens::app_shell::{assets::AppAssets, menu, vibrancy};
 use desktop_gpui::screens::dialogs::startup::{self, Claim};
 use desktop_gpui::screens::{composer, Place, Route};
 use desktop_gpui::shell::{Launch, Shell};
@@ -141,6 +141,15 @@ fn main() {
     let gallery = args.gallery;
     let bench::Capture { theme, unfold, now, reveal } = args.capture;
     let capture = desktop_gpui::screens::thread_view::Capture { theme, unfold, now, reveal, strict: args.bench.is_some() };
+    let replay = args.bench.as_ref().filter(|b| b.replay.is_some());
+    if replay.is_some() || args.record.is_some() || args.trace.is_some() {
+        desktop_gpui::scroll_trace::plan(desktop_gpui::scroll_trace::Plan {
+            record: args.record.clone(),
+            trace: args.trace.clone().or_else(|| replay.map(|b| b.out.clone())),
+            thread: replay.map(|b| b.thread.clone()).or_else(|| args.open.clone()),
+            replay: replay.is_some(),
+        });
+    }
     let launch = Launch { bench: args.bench, open: args.open, glass: args.glass, screen: args.screen };
     let switched = switch::read(&home);
     frame::choose();
@@ -258,7 +267,7 @@ fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, la
                 })
                 .detach();
         }
-        cx.new(|cx| Root::new(shell, window, cx))
+        cx.new(|cx| vibrancy::clear_root(shell, window, cx))
     })
     .expect("failed to open the window");
     cx.activate(true);

@@ -5,7 +5,7 @@
 //! host here once the shell is connected.
 
 use gpui_kit::base::{Root, RootPlugin};
-use gpui_kit::{deferred, div, prelude::*, App, Context, Entity, FocusHandle, WeakEntity, Window};
+use gpui_kit::{deferred, div, prelude::*, App, Context, Entity, FocusHandle, Subscription, WeakEntity, Window};
 
 use super::palette::Palette;
 use super::switcher::Switcher;
@@ -37,6 +37,29 @@ pub fn init(cx: &mut App) {
 /// The window's layers, where its root was built after [`init`].
 pub fn of(window: &Window, cx: &App) -> Option<Entity<Overlays>> {
     window.root::<Root>().flatten()?.read(cx).plugin::<Overlays>()
+}
+
+/// Hands `found` the sidebar the shell gives the window's layers once connected: now, or on the first change of the
+/// layers that brings it, while the view holds the subscription this returns.
+pub fn find_sidebar<V: 'static>(
+    view: &mut V,
+    window: &mut Window,
+    cx: &mut Context<V>,
+    found: impl FnOnce(&mut V, Entity<Sidebar>, &mut Window, &mut Context<V>) + 'static,
+) -> Option<Subscription> {
+    let layers = of(window, cx)?;
+    let sidebar_in = |layers: &Entity<Overlays>, cx: &App| layers.read(cx).sidebar.as_ref().and_then(|s| s.upgrade());
+    if let Some(sidebar) = sidebar_in(&layers, cx) {
+        found(view, sidebar, window, cx);
+        return None;
+    }
+    let mut found = Some(found);
+    Some(cx.observe_in(&layers, window, move |view, layers, window, cx| {
+        let Some(sidebar) = sidebar_in(&layers, cx) else { return };
+        if let Some(found) = found.take() {
+            found(view, sidebar, window, cx);
+        }
+    }))
 }
 
 /// Hands the layers the host and the sidebar once the shell is connected.

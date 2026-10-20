@@ -67,8 +67,23 @@ test("a fixture folder fixture.sh did not mark is refused before anything launch
     writeFileSync(fixture, JSON.stringify({ state: join(home, "state", "state.json"), pid: 1, threads: {} }));
     const got = run(["--wave", "1", "--out", join(home, "out"), "--app", "/nowhere/wsp", "--fixture", fixture]);
     assert.equal(got.status, 2);
-    assert.match(got.stderr, /has no \.wsp-bench-fixture mark/);
+    assert.match(got.stderr, /has no \.wsp-bench-fixture or \.wsp-starting-fixture mark/);
     assert.equal(existsSync(join(home, "out")), false);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a home starting-host.mjs marked gets past the mark to the host check", () => {
+  const home = mkdtempSync(join(tmpdir(), "parity-test-"));
+  try {
+    writeFileSync(join(home, ".wsp-starting-fixture"), "");
+    const fixture = join(home, "fx.json");
+    writeFileSync(fixture, JSON.stringify({ state: join(home, "state", "state.json"), pid: 1, threads: {} }));
+    const got = run(["--wave", "1", "--out", join(home, "out"), "--app", "/nowhere/wsp", "--fixture", fixture]);
+    assert.equal(got.status, 2);
+    assert.doesNotMatch(got.stderr, /mark/);
+    assert.match(got.stderr, /is not running on/);
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

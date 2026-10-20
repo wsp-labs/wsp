@@ -96,3 +96,38 @@ fn the_cards_head_sticks_8_px_under_the_lists_top_while_its_card_is_in_view(cx: 
     assert!(card.top() < list.top(), "the card's top went past the list's");
     assert_eq!(head.top(), list.top() + px(8.), "the head did not stick 8 px under the list's top");
 }
+
+#[gpui_kit::test]
+fn a_trackpad_scroll_runs_straight_through_a_changed_files_card(cx: &mut TestAppContext) {
+    let mut events = changes();
+    for n in 2..40u64 {
+        let (turn, pos) = (json!({"turnId": format!("u{n}")}), 10 * n);
+        let with = |extra: serde_json::Value| {
+            let mut v = turn.clone();
+            v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            v
+        };
+        events.push(base("session.start", pos, with(json!({"prompt": format!("Question {n}")}))));
+        events.push(base("session.delta", pos + 1, with(json!({"kind": "text", "text": format!("Answer {n}.\n\nMore.")}))));
+        events.push(base("session.done", pos + 2, with(json!({"result": {"status": "completed"}}))));
+        events.push(base("session.end", pos + 3, with(json!({"exitCode": 0, "sawResult": true}))));
+    }
+    let (view, cx) = window(events, cx);
+    let top = |cx: &mut VisualTestContext| view.read_with(cx, |v, _| v.list().scroll_px_offset_for_scrollbar().y);
+    let before = top(cx);
+    let wheel = |at| gpui_kit::ScrollWheelEvent {
+        position: at,
+        delta: gpui_kit::ScrollDelta::Pixels(gpui_kit::point(px(0.), px(-40.))),
+        touch_phase: gpui_kit::TouchPhase::Moved,
+        ..Default::default()
+    };
+    let head = bounds(cx, "changed-head").center();
+    cx.simulate_event(wheel(head));
+    cx.run_until_parked();
+    assert!(top(cx) < before, "the wheel over the card's head never reached the transcript, which stood at {:?}", top(cx));
+    let moved = top(cx);
+    let tree = bounds(cx, "changed-files-tree").center();
+    cx.simulate_event(wheel(tree));
+    cx.run_until_parked();
+    assert!(top(cx) < moved, "the wheel over the card's tree never reached the transcript");
+}

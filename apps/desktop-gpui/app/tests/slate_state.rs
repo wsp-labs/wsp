@@ -252,7 +252,7 @@ fn a_format_past_the_hosts_cap_draws_its_words_and_holes(cx: &mut TestAppContext
 }
 
 #[gpui_kit::test]
-fn a_pane_step_refuses_a_pane_this_build_does_not_have(cx: &mut TestAppContext) {
+fn a_pane_step_opens_every_pane_this_build_mounts(cx: &mut TestAppContext) {
     let thread = thread_with(
         r#"<slate><column>
   <button id="agents" label="Agents" onPress={pane("agents")} />
@@ -269,7 +269,7 @@ fn a_pane_step_refuses_a_pane_this_build_does_not_have(cx: &mut TestAppContext) 
     }
     until(cx, &screen, "both answered", |s| s.slate().is_some_and(|sl| sl.busy.is_empty()));
     let outcome = |p: &str| cx.read(|cx| screen.read(cx).slate().unwrap().outcomes.get(p).cloned());
-    assert_eq!(outcome("agents"), Some(Outcome::Refused(words::NO_PANE.into())));
+    assert_eq!(outcome("agents"), None, "the Agents pane opens here");
     assert_eq!(outcome("slate"), None, "the slate's own pane opens here");
 }
 
@@ -548,7 +548,7 @@ fn a_slate_never_shown_opens_its_tab_once_as_its_thread_is_picked(cx: &mut TestA
     panel.update_in(cx, |p, window, cx| p.add(Pane::Agents, None, window, cx));
     cx.update(|_, cx| assert!(slate::open_pane(Pane::Slate, cx), "this build mounts the Slate pane"));
     until_shell(cx, "the pane step's road opened the Slate tab", |cx| active(&shell, cx) == Some(Pane::Slate));
-    cx.update(|_, cx| assert!(!slate::open_pane(Pane::Agents, cx), "and no Agents"));
+    cx.update(|_, cx| assert!(slate::open_pane(Pane::Agents, cx), "and the Agents pane, which this build mounts too"));
 }
 
 /// Draws a frame after moving the test's clock past a fold's 200 ms.

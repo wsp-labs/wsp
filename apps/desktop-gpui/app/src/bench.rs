@@ -26,6 +26,10 @@ pub struct Args {
     pub screen: Option<String>,
     /// How a capture stands the thread view: its theme, its clicks, its clock and where it scrolls.
     pub capture: Capture,
+    /// Beside `--open`: where the wheel events over the thread go, for `--bench-replay` to play again.
+    pub record: Option<PathBuf>,
+    /// Beside `--open`: where the frame-time trace of the first scroll's 60 s goes.
+    pub trace: Option<PathBuf>,
 }
 
 /// A capture's flags, each beside `--open`: `--theme <id>`, `--unfold`, `--now <ms>`, `--reveal <text>@<y>`.
@@ -44,15 +48,24 @@ pub struct Bench {
     pub switch: Vec<String>,
     /// A line typed into the thread's terminal drawer, in place of the scroll: the frames its output draws are timed.
     pub terminal: Option<String>,
+    /// Wheel events to play over the thread from its end, in place of the scroll; `out` takes their frame-time trace.
+    pub replay: Option<PathBuf>,
+    /// Where the pointer rests for every replayed event, in the list's own pixels, in place of where each says.
+    pub pointer: Option<(f32, f32)>,
+    /// Every turn's fold opened before the replay, so tool output stands in the transcript.
+    pub unfold: bool,
 }
 
 /// `desktop-gpui [--state <state.json>] [--glass] [--open <id>] [--screen <name>]`, `desktop-gpui [--state <state.json>] [--glass]
-/// --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line>]`,
-/// `desktop-gpui --open <id> [--theme <id>] [--unfold] [--now <ms>] [--reveal <text>@<y>]` for a capture, or
-/// `desktop-gpui --gallery`.
+/// --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line> | --bench-replay <events.jsonl>
+/// [--bench-pointer <x>,<y>] [--bench-unfold]]`,
+/// `desktop-gpui --open <id> [--theme <id>] [--unfold] [--now <ms>] [--reveal <text>@<y>]` for a capture,
+/// `desktop-gpui --open <id> [--record-scroll <events.jsonl>] [--trace <trace.json>]`, or `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen, mut terminal) =
         (None, None, None, Vec::new(), None, false, false, None, None);
+    let (mut replay, mut record, mut trace) = (None, None, None);
+    let (mut pointer, mut unfold) = (None, false);
     let mut capture = Capture::default();
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or(format!("{flag} takes a value"));
@@ -65,6 +78,16 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--bench-terminal" => terminal = Some(value()?),
+            "--bench-replay" => replay = Some(PathBuf::from(value()?)),
+            "--bench-pointer" => {
+                let said = value()?;
+                let (x, y) = said.split_once(',').ok_or("--bench-pointer takes <x>,<y>")?;
+                let num = |n: &str| n.trim().parse::<f32>().map_err(|e| format!("--bench-pointer: {e}"));
+                pointer = Some((num(x)?, num(y)?));
+            }
+            "--bench-unfold" => unfold = true,
+            "--record-scroll" => record = Some(PathBuf::from(value()?)),
+            "--trace" => trace = Some(PathBuf::from(value()?)),
             "--glass" => glass = true,
             "--theme" => capture.theme = Some(value()?),
             "--unfold" => capture.unfold = true,
@@ -78,9 +101,11 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
         }
     }
     let bench = match (out, thread) {
-        (Some(out), Some(thread)) if switch.is_empty() || terminal.is_none() => Some(Bench { out, thread, switch, terminal }),
-        (Some(_), Some(_)) => return Err("--bench-switch and --bench-terminal do not go together".to_owned()),
-        (None, None) if switch.is_empty() && terminal.is_none() => None,
+        (Some(out), Some(thread)) if [!switch.is_empty(), terminal.is_some(), replay.is_some()].iter().filter(|x| **x).count() <= 1 => {
+            Some(Bench { out, thread, switch, terminal, replay, pointer, unfold })
+        }
+        (Some(_), Some(_)) => return Err("--bench-switch, --bench-terminal and --bench-replay go one at a time".to_owned()),
+        (None, None) if switch.is_empty() && terminal.is_none() && replay.is_none() => None,
         _ => return Err("--bench and --bench-thread go together".to_owned()),
     };
     if bench.is_some() && open.is_some() {
@@ -95,7 +120,13 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     if capture != Capture::default() && open.is_none() {
         return Err("--theme, --unfold, --now and --reveal go with --open".to_owned());
     }
-    Ok(Args { state, bench, open, glass, gallery, screen, capture })
+    if (pointer.is_some() || unfold) && bench.as_ref().is_none_or(|b| b.replay.is_none()) {
+        return Err("--bench-pointer and --bench-unfold go with --bench-replay".to_owned());
+    }
+    if (record.is_some() || trace.is_some()) && open.is_none() {
+        return Err("--record-scroll and --trace go with --open".to_owned());
+    }
+    Ok(Args { state, bench, open, glass, gallery, screen, capture, record, trace })
 }
 
 /// The result JSON: frame times are milliseconds from the start of the scroll. `timed` are the switches after the
@@ -154,7 +185,15 @@ mod tests {
         assert_eq!(args.state, Some(PathBuf::from("/s/state.json")));
         assert_eq!(
             args.bench,
-            Some(Bench { out: "/o.json".into(), thread: "long".into(), switch: vec!["a".into(), "b".into(), "c".into()], terminal: None })
+            Some(Bench {
+                out: "/o.json".into(),
+                thread: "long".into(),
+                switch: vec!["a".into(), "b".into(), "c".into()],
+                terminal: None,
+                replay: None,
+                pointer: None,
+                unfold: false
+            })
         );
         let typed =
             parse(["--bench", "/o.json", "--bench-thread", "short", "--bench-terminal", "seq 1 100000"].map(str::to_owned).into_iter())
@@ -178,6 +217,19 @@ mod tests {
         let shot = parse(words("--open t --theme graphite --unfold --now 5 --reveal turn@189")).unwrap().capture;
         assert_eq!(shot, Capture { theme: Some("graphite".into()), unfold: true, now: Some(5.), reveal: Some(("turn".into(), 189.)) });
         assert!(parse(words("--theme graphite")).is_err());
+        let replay = parse(words("--bench /t.json --bench-thread real --bench-replay /e.jsonl")).unwrap().bench.unwrap();
+        assert_eq!(replay.replay, Some(PathBuf::from("/e.jsonl")));
+        assert!(parse(words("--bench /t.json --bench-thread real --bench-replay /e.jsonl --bench-switch a")).is_err());
+        assert!(parse(words("--bench-replay /e.jsonl")).is_err());
+        let over =
+            parse(words("--bench /t.json --bench-thread real --bench-replay /e.jsonl --bench-pointer 380,240.5 --bench-unfold")).unwrap();
+        assert_eq!(over.bench.map(|b| (b.pointer, b.unfold)), Some((Some((380., 240.5)), true)));
+        assert!(parse(words("--bench /t.json --bench-thread real --bench-pointer 1,2")).is_err());
+        assert!(parse(words("--bench /t.json --bench-thread real --bench-replay /e.jsonl --bench-pointer 12")).is_err());
+        let recorded = parse(words("--open t --record-scroll /e.jsonl --trace /t.json")).unwrap();
+        assert_eq!((recorded.record, recorded.trace), (Some(PathBuf::from("/e.jsonl")), Some(PathBuf::from("/t.json"))));
+        assert!(parse(words("--record-scroll /e.jsonl")).is_err());
+        assert!(parse(words("--trace /t.json")).is_err());
     }
 
     #[test]

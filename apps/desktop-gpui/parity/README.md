@@ -143,6 +143,42 @@ thread on that project shares: give it a project of its own or clean the files u
 A target starting with `[`, `.`, `#` or `css:` is a CSS selector; anything else is the words on the element (its label,
 title or text), and the control around them is used. A target is waited for up to 5 s.
 
+## Whole-window pairs: the surface check and the sweep
+
+A fuzz score cannot see a surface one shade off: at 3% fuzz a header band a level away from the area under it scores
+as identical. `surface.mjs` samples the flat ground of each region of a whole-window pair (sidebar, its header, thread
+pane, its header, right panel, its header, composer) as the rounded mean of a 9 px patch, which the web's grain does not
+move, and fails on any difference. Text keeps its fuzz; a surface gets none.
+
+```sh
+node surface.mjs <electron.png> <gpui.png> [--regions '{"composer":{"x":498,"y":420},"panel":null}'] [--scale 2]
+```
+
+It exits 1 naming each region and both colours. It reads 8-bit RGB or RGBA only, so a GPUI shot is saved as
+`PNG24:`. `wave-2/gpui-shots.mjs` runs it on every row without a clip and fails its run on a difference.
+
+`sweep.mjs` reads today's right panel panes (`panes.ts`), address and link forms (`app-address.ts`) and centre screens
+(`App.tsx` WorkspaceCenter) and holds a row for each, with the empty and first-run states, the GPUI launch that reaches
+it, or why there is none. A kind added to today's source with no row fails its test and its run. Each row is shot whole
+window at 1280x800, scale 2, in both themes: today's app by `baseline.mjs --wave sweep` (`wave-sweep/states.mjs`),
+desktop-gpui under its own Xvfb. A row fails on a launch the app refuses (exit 64), a centre or panel that draws only a
+line or two where today's draws a screen (Nothing open here, Pick a thread), a kind with no launch, or a surface.
+
+```sh
+bench/fixture.sh /tmp/fx.json
+node parity/sweep.mjs --fixture /tmp/fx.json --app <desktop-gpui> --electron-app <Electron wsp> --out <dir> [--only 'pane:*'] [--theme paper] [--electron-from <earlier dir>/electron] [--starting <out.json>] [--stood <out.json>]
+bench/stop.sh /tmp/fx.json
+```
+
+Each row writes `<state>-<theme>-electron.png`, `-gpui.png`, `-diff.png` and `-pair.png`; `summary.json` holds the
+shares at 0%, 3% and 10% fuzz, the surface rows and each failure. `--electron-from` scores a new GPUI build against
+an earlier run's Electron shots. The fixture's real host shape (`fixture.realHost`) is what the sweep drives on: this
+computer named "zingzy's MacBook Pro" apart from its hostname, as a Mac is (`bench/real-host.mjs` gives the fixture's
+host the label a Mac's `scutil` would), a project `quiet` with no thread, a thread every pane opens on. The `pair:` rows are whole-window pairs beyond today's kinds; `pair:starting` and
+`pair:started` run on hosts `starting-host.mjs` seeds (plain, and with `--stood`), whose `.wsp-starting-fixture` mark
+`baseline.mjs` also takes; `pair:long-message` runs on a thread `baseline.mjs` makes, whose folded first message
+stands whole above the composer.
+
 ## What a pixel diff must mask
 
 These move from run to run on the same build: the New thread background field (a canvas redrawn every 120 ms), the
