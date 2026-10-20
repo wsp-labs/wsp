@@ -410,7 +410,12 @@ const recheck = earlierHostCheck();
 
 function hostOptions(): OpenHostOptions {
   const { home, statePath } = where();
-  return { statePath, home, shim: shimPath(wspHome()), io, service: systemService(), ask: async prompt => (app.focus({ steal: true }), (await dialog.showMessageBox({ type: "question", ...prompt })).response === 0) };
+  const staleShim = (): boolean => {
+    const stale = shimRewritten;
+    shimRewritten = false;
+    return stale;
+  };
+  return { statePath, home, shim: shimPath(wspHome()), io, service: systemService(), ask: async prompt => (app.focus({ steal: true }), (await dialog.showMessageBox({ type: "question", ...prompt })).response === 0), staleShim };
 }
 
 /** The window, on the host it was handed. */
@@ -785,13 +790,18 @@ function sayWhileClosed(e: FeedEvent): void {
 // The smoke reads the menu and picks its rows through this, since a menu bar menu is not a window it can drive.
 if (process.env["WSP_DESKTOP_SMOKE"] === "1") Object.assign(globalThis, { wspTray: { model: () => drawn, pick: (what: TrayAct) => act(what)(), awake: () => awake !== undefined } });
 
+/** Whether this launch rewrote the shim, until the first open reads it. */
+let shimRewritten = false;
+
 /** The wsp command on this computer, rewritten whenever this app is not the one it names: an update or a move
  * changes the path inside the bundle, and the shim is what every agent's config and the service run. A home that
  * cannot be written is the launch's refusal, since the service would start nothing. */
 function installCommand(): void {
   const shim = shimPath(wspHome());
   try {
-    io.log(`wsp command ${installShim(shim, shimText(commandTarget()))} at ${shim}`);
+    const done = installShim(shim, shimText(commandTarget()));
+    shimRewritten = done === "written";
+    io.log(`wsp command ${done} at ${shim}`);
   } catch (e) {
     throw new Error(`the wsp command could not be written at ${shim}: ${e instanceof Error ? e.message : String(e)}`);
   }
