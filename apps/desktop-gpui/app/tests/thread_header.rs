@@ -1035,6 +1035,9 @@ fn a_refused_git_act_says_the_hosts_sentence_beside_the_workspace_in_the_windows
     let act = |cx: &mut VisualTestContext| git.read_with(cx, |g, _| g.state().and_then(|s| quick_action(&s).act));
     // A folder with no remote: bring back has nowhere to push, and the host says why.
     wait(cx, "a git act to press", |cx| act(cx) == Some(GitAct::CreatePr));
+    // Open holds its slot right of the split until the host lists its editors, then stands down and the split moves.
+    let listed = |cx: &mut VisualTestContext| cx.update(|_, cx| cx.try_global::<open_split::Editors>().is_some_and(|e| e.list.is_some()));
+    wait(cx, "the host's editors", listed);
     let toasts = cx.update(|window, cx| desktop_gpui::ui::toast::of(window, cx).expect("the window's toasts"));
     let standing =
         |cx: &mut VisualTestContext| toasts.read_with(cx, |t, _| t.standing().iter().map(|n| n.text.to_string()).collect::<Vec<_>>());
@@ -1051,20 +1054,11 @@ fn a_refused_git_act_says_the_hosts_sentence_beside_the_workspace_in_the_windows
         })
     };
     assert!(refused(cx).is_none(), "a refusal stood before the press: {:?}", standing(cx));
-    // The host can answer before the click's own wait ends, so the act may already be over; a press that lands while
-    // a status push redraws the split is pressed again.
-    let mut presses = 0;
-    while !(git.read_with(cx, |g, _| g.busy()) || refused(cx).is_some()) {
-        assert!(presses < 3, "three presses started no act; the toasts standing: {:?}", standing(cx));
-        let quick = bounds(cx, "git-quick").center();
-        cx.simulate_click(quick, Modifiers::none());
-        presses += 1;
-        let until = Instant::now() + Duration::from_secs(2);
-        while Instant::now() < until && !(git.read_with(cx, |g, _| g.busy()) || refused(cx).is_some()) {
-            std::thread::sleep(Duration::from_millis(20));
-            cx.run_until_parked();
-        }
-    }
+    let quick = bounds(cx, "git-quick").center();
+    cx.simulate_click(quick, Modifiers::none());
+    // The host can answer before the click's own wait ends, so the act may already be over.
+    let started = git.read_with(cx, |g, _| g.busy()) || refused(cx).is_some();
+    assert!(started, "the press started no act; the toasts standing: {:?}", standing(cx));
     let until = Instant::now() + Duration::from_secs(40);
     while refused(cx).is_none() {
         assert!(

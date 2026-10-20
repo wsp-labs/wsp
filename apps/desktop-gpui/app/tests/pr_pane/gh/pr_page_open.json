@@ -66,7 +66,7 @@
   "logs": {
     "11/22": [
       "lint\tSet up job\t2026-10-18T09:52:01.1000000Z Current runner version: '2.320.0'",
-      "lint\tRun cargo clippy -- -D warnings\t2026-10-18T09:55:40.2000000Z    Checking repo v0.1.0 (/home/runner/work/repo/repo)",
+      "lint\tRun cargo clippy -- -D warnings\t2026-10-18T09:55:40.2000000Z    Checking repo v0.1.0 (/home/dev/work/repo/repo)",
       "lint\tRun cargo clippy -- -D warnings\t2026-10-18T09:55:47.3000000Z error: unused variable: `failed`",
       "lint\tRun cargo clippy -- -D warnings\t2026-10-18T09:55:47.3100000Z   --> src/pane.rs:12:13",
       "lint\tRun cargo clippy -- -D warnings\t2026-10-18T09:55:47.3200000Z error: could not compile `repo` (lib) due to 1 previous error",

@@ -24,11 +24,22 @@ done
 
 git rev-parse -q --verify MERGE_HEAD >/dev/null && exit 0
 
+# A folder with an UPSTREAM file is a byte-for-byte copy of another repository, whose lines are not ours to judge.
+vendored() {
+  d=$(dirname "$1")
+  while [ "$d" != . ]; do
+    git cat-file -e ":$d/UPSTREAM" 2>/dev/null && return 0
+    d=$(dirname "$d")
+  done
+  return 1
+}
+
 # A fixture is content under test: it says what it says, and no rule here reads it.
 prose=""
 labelled=""
 for f in $staged; do
   case "$f" in */fixtures/*|fixtures/*) continue ;; esac
+  vendored "$f" && continue
   case "$f" in
     *.ts|*.tsx|*.js|*.mjs|*.cjs|*.rs|*.md|*.mdx|*.yml|*.yaml|*.toml|*.sh|*.css|*.html|*.txt|*.json) prose="$prose$nl$f" ;;
   esac

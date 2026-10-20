@@ -251,3 +251,35 @@ async fn a_refusal_reaches_every_ask_that_joined() {
         assert_eq!(answered(joined).await, Err("not on this socket".to_owned()));
     }
 }
+
+/// Catches: a screen asking `status.subscribe` itself, which holds one more status watcher on the host for the socket's
+/// life; every caller goes through `HostClient::statuses()`, which asks once a socket.
+#[test]
+fn status_subscribe_is_asked_only_through_statuses() {
+    fn sources(dir: &Path, into: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                sources(&path, into);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                into.push(path);
+            }
+        }
+    }
+    let top = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let mut files = Vec::new();
+    for dir in ["app/src", "host-client/src"] {
+        sources(&top.join(dir), &mut files);
+    }
+    let mut asking: Vec<String> = files
+        .iter()
+        .filter(|f| {
+            let text = std::fs::read_to_string(f).unwrap();
+            let code = text.lines().filter(|l| !l.trim_start().starts_with("//"));
+            code.clone().any(|l| l.contains("StatusSubscribeRequest")) || code.clone().any(|l| l.contains("request(\"status.subscribe\""))
+        })
+        .map(|f| f.strip_prefix(top).unwrap().to_string_lossy().into_owned())
+        .collect();
+    asking.sort();
+    assert_eq!(asking, ["host-client/src/lib.rs", "host-client/src/ops/sidebar.rs"], "the statuses() ask and the op table alone");
+}
