@@ -3,7 +3,7 @@
 // machine run printed a 425 MB base64 tar as one line, its reader held it whole twice, and the wsp exec that read it
 // left the reader at its last line, so the host kept 850 MB until it restarted.
 import { execFile } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setFlagsFromString } from "node:v8";
@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExecResult, Machine } from "@wsp/engine";
 import { EXEC_CHUNK_BYTES, EXEC_LINE_MAX_BYTES, subOpening, type TurnResult } from "@wsp/protocol";
 import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
+import { localExecStream } from "../src/local-exec.js";
 import { machineExecStream } from "../src/machine-exec.js";
 import type { HarnessAdapterFactory } from "../src/runtime.js";
 import { scriptGuest } from "./script-guest.js";
@@ -28,6 +29,12 @@ const externalAfterGc = async (): Promise<number> => {
   }
   return process.memoryUsage().external;
 };
+/** What this process still holds in V8's heap and outside it once everything it can let go of is gone: a line the
+ * local road joins is a string, which the heap holds. */
+const heldAfterGc = async (): Promise<number> => {
+  const external = await externalAfterGc();
+  return external + process.memoryUsage().heapUsed;
+};
 const MB = 1024 * 1024;
 /** A base64 tarball as a run prints it: one line with no newline, under the cap so the reader holds it whole. */
 const TARBALL = "H4sI".repeat(3 * MB);
@@ -37,6 +44,14 @@ afterEach(() => {
   vi.restoreAllMocks();
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
+
+/** The road a workspace on this computer runs its commands on, into a folder of its own. */
+function localRoad(reading?: Set<() => void>): ReturnType<typeof localExecStream> {
+  const root = mkdtempSync(join(tmpdir(), "wsp-long-line-"));
+  dirs.push(root);
+  return localExecStream({ root, runDir: join(root, "runs"), pollMs: 5, ...(reading !== undefined ? { reading } : {}) });
+}
+const PATH = { PATH: process.env["PATH"] ?? "/usr/bin:/bin" };
 
 /** This computer's bash as the guest, given what a Linux machine has. */
 function bashGuest(): { machine: Machine; runDir: string } {
@@ -152,4 +167,73 @@ describe("a reader its consumer let go of", () => {
       await f.rt.close();
     }
   }, 120_000);
+});
+
+describe("a run on this computer", () => {
+  it("hands a line longer than the cap on in pieces of it, and the reader never holds more than the cap and one chunk", async () => {
+    let held = 0;
+    const concat = Buffer.concat.bind(Buffer);
+    vi.spyOn(Buffer, "concat").mockImplementation((list, total) => {
+      const joined = concat(list, total);
+      held = Math.max(held, joined.length);
+      return joined;
+    });
+    const stream = localRoad()(`head -c ${50 * MB} /dev/zero | tr '\\0' a`, { env: PATH });
+    const pieces: number[] = [];
+    let total = 0;
+    let other = 0;
+    for await (const line of stream.lines) {
+      pieces.push(Buffer.byteLength(line));
+      total += line.length;
+      other += line.replaceAll("a", "").length;
+    }
+    expect(await stream.exited).toBe(0);
+    expect(total).toBe(50 * MB);
+    expect(other).toBe(0);
+    expect(Math.max(...pieces)).toBeLessThanOrEqual(EXEC_LINE_MAX_BYTES);
+    expect(held).toBeLessThanOrEqual(EXEC_LINE_MAX_BYTES + EXEC_CHUNK_BYTES);
+  }, 120_000);
+
+  it("lets go of what it read once its consumer stops mid-run, and the run still ends and is reaped on its own", async () => {
+    const reading = new Set<() => void>();
+    const before = await heldAfterGc();
+    // The stream stays held, as the exec that started it holds it while it waits on the exit.
+    const stream = localRoad(reading)(`echo first; head -c ${50 * MB} /dev/zero | tr '\\0' a`, { env: PATH });
+    for await (const line of stream.lines) {
+      expect(line).toBe("first");
+      break;
+    }
+    expect(await stream.lines[Symbol.asyncIterator]().next()).toEqual({ done: true, value: undefined });
+    expect(await stream.exited).toBe(0);
+    expect(reading.size).toBe(0);
+    expect(existsSync(`${stream.run}.d`)).toBe(false);
+    expect(((await heldAfterGc()) - before) / MB).toBeLessThan(4);
+  }, 120_000);
+
+  it("lets go of what it read when its consumer hands it back before reading a line", async () => {
+    const before = await heldAfterGc();
+    const stream = localRoad()(`head -c ${50 * MB} /dev/zero | tr '\\0' a`, { env: PATH });
+    await stream.lines[Symbol.asyncIterator]().return!(undefined);
+    expect(await stream.exited).toBe(0);
+    expect(((await heldAfterGc()) - before) / MB).toBeLessThan(4);
+  }, 120_000);
+});
+
+describe("a reader waiting on a quiet run", () => {
+  it("keeps no part of the buffer a long line was joined in once it has handed the line on", async () => {
+    const backend = stubBackend();
+    await backend.create({ kind: "sandbox" });
+    // The guest's log is a Buffer of this process too, so it is full before the measure starts.
+    const guest = scriptGuest(backend, []);
+    guest.append(`${"a".repeat(10 * MB)}\n`);
+    const before = await externalAfterGc();
+    const stream = machineExecStream(backend.machines[0]!, { pollMs: 5 })("true", { env: {} });
+    const it = stream.lines[Symbol.asyncIterator]();
+    expect((await it.next()).value?.length).toBe(10 * MB);
+    const waiting = it.next();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(((await externalAfterGc()) - before) / MB).toBeLessThan(4);
+    stream.kill();
+    await waiting;
+  }, 30_000);
 });
