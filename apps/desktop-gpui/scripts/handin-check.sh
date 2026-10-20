@@ -56,18 +56,29 @@ else
 fi
 
 mb=$(git merge-base "$base" HEAD 2>/dev/null) || mb=
-count=$(git rev-list --count "$base..HEAD")
+# The branch's own commits, first parents only, where a merge of origin/main brings main's commits and counts for none.
+git fetch -q origin +refs/heads/main:refs/remotes/origin/main || echo "could not fetch main from origin, so every merge counts as a commit" >&2
+line=$(git rev-list --first-parent "$base..HEAD")
+count=0
+merged_main=0
+for sha in $line; do
+  others=$(git rev-list --no-walk --parents "$sha" | cut -s -d' ' -f3-)
+  from_main=1
+  [ -n "$others" ] || from_main=0
+  for p in $others; do git merge-base --is-ancestor "$p" origin/main 2>/dev/null || from_main=0; done
+  if [ "$from_main" -eq 1 ]; then merged_main=1; else count=$((count + 1)); fi
+done
 if [ "$commits" -eq 1 ]; then
   wanted="one commit"
 else
   wanted="$commits commits, as the coordinator ruled (--commits $commits),"
 fi
-parent=$(git rev-parse -q --verify "HEAD~$commits") || parent=
+parent=$(git rev-parse -q --verify "$(printf '%s\n' "$line" | tail -n 1)^") || parent=
 if [ -z "$parent" ] && [ "$shallow" = true ]; then
   skip "the commit's history: the shallow clone hides the oldest commit's parent; unshallow and run this again"
 elif [ "$count" -ne "$commits" ]; then
-  fail "commits on $base: $count, not $commits" \
-    "git reset --soft ${mb:-$base} && git commit, with one message for the whole change, unless the coordinator ruled otherwise (--commits N)"
+  fail "commits on $base, a merge of origin/main not counted: $count, not $commits" \
+    "git reset --soft ${mb:-$base} && git commit, with one message for the whole change (then merge origin/main again if the branch held it), unless the coordinator ruled otherwise (--commits N)"
 elif [ -z "$parent" ]; then
   fail "the oldest commit has no parent line, so GitHub sees no history in common with gpui/main and closes the PR" \
     "put the tree back on the commit it was built on (the parent of the commit before the amend, in git reflog): git reset --soft <that commit> && git commit -C ORIG_HEAD && git rebase $base"
@@ -80,7 +91,7 @@ fi
 em=$(printf '\342\200\224')
 message=$(mktemp)
 refusals=
-for sha in $(git rev-list -n "$commits" HEAD); do
+for sha in $line; do
   git log -1 --format=%B "$sha" > "$message"
   refused=$(sh .githooks/commit-msg "$message" 2>&1) || refusals="$refusals ${sha:0:9}: ${refused#refused: }"
 done
@@ -92,6 +103,8 @@ else
 fi
 
 if [ -n "$mb" ]; then range=("$mb" HEAD); else range=("$base" HEAD); fi
+# Lines a merge of origin/main brought are main's, so the branch's own are read against gpui/main merged with main.
+if [ "$merged_main" -eq 1 ] && both=$(git merge-tree --write-tree "$base" origin/main 2>/dev/null); then range=("$both" HEAD); fi
 # A folder with an UPSTREAM file is a byte-for-byte copy of another repo, so its lines are not ours to judge.
 vendored=()
 for upstream in .claude/skills/*/UPSTREAM; do
@@ -116,12 +129,12 @@ else
   ok "no added line has an em dash"
 fi
 
-hits=$(added "${code[@]}" | grep -E '(^|[^[:alnum:]_-])(pkill|killall|pgrep)([^[:alnum:]_-]|$)')
+hits=$(added "${code[@]}" | grep -E '(^|[^[:alnum:]_-])(pkill|kill[a]ll|pgrep)([^[:alnum:]_-]|$)')
 if [ -n "$hits" ]; then
   fail "added lines find or stop processes by pattern:
 $(indent "$hits")" "record the pid of each process you start and stop that pid, only while it is still your child"
 else
-  ok "no added line finds or stops processes by pattern (pkill, killall, pgrep)"
+  ok "no added line finds or stops processes by pattern (pkill, kill""all, pgrep)"
 fi
 
 # In a shell file, the command alone, or into a pipe or a file, where a command starts: each prints every value.
@@ -276,6 +289,18 @@ else
     fi
   fi
   stop_sentinel
+fi
+
+# main's laws and size check, on this branch merged with origin/main; their contract test runs a staged wsp-daemon.
+staged=packages/wspx/daemon/$(uname -m)-unknown-linux-musl/wsp-daemon
+if [ "$rust" -eq 1 ] && [ "$(uname -s)" = Linux ] && [ ! -f "$staged" ] && [ -x apps/desktop-gpui/scripts/stage-daemon.sh ]; then
+  apps/desktop-gpui/scripts/stage-daemon.sh || fail "apps/desktop-gpui/scripts/stage-daemon.sh, for the laws' contract test" "read the error above"
+fi
+if scripts/pre-review.sh --laws; then
+  ok "scripts/pre-review.sh --laws: the repo's laws and scripts/file-size-check.mjs"
+else
+  fail "scripts/pre-review.sh --laws: the repo's laws or scripts/file-size-check.mjs" \
+    "fix each FAIL printed above (a file over 1500 lines is split, never added to scripts/file-size-known.json); the log folder it names holds each failing test's output"
 fi
 
 if CI=true pnpm exec vitest run --minWorkers=1 --maxWorkers=2 packages/host/test/gpui-skills.test.ts packages/host/test/gpui-package.test.ts; then

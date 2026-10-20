@@ -11,13 +11,16 @@ pub mod page;
 pub mod pages;
 pub mod words;
 
+mod acts;
+mod parts;
+mod reads;
+
 #[cfg(test)]
 pub(crate) mod door;
 #[cfg(test)]
 mod tests;
 
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -28,29 +31,30 @@ use futures::StreamExt;
 use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::component::{h_flex, v_flex};
 use gpui_kit::{
-    prelude::*, px, AnyWindowHandle, App, Bounds, Context, Entity, FocusHandle, Focusable as _, Global, Pixels, ScrollHandle, SharedString,
-    Subscription, Task, WeakEntity, Window,
+    prelude::*, px, AnyWindowHandle, App, Bounds, Context, Entity, Focusable as _, Pixels, ScrollHandle, SharedString, Subscription, Task,
+    Window,
 };
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
-use wsp_host_client::ops::settings::{
-    Account, CapabilitiesReply, Devices, Editors, Image, Places, PreferencesReply, Recipes, Release, SshInclude,
-};
-use wsp_host_client::ops::sidebar::{ProjectImages, Projects, Sessions, Workspaces};
+use wsp_host_client::ops::settings::{Image, Recipes};
+use wsp_host_client::ops::sidebar::{ProjectImages, Sessions, Workspaces};
 use wsp_host_client::ops::thread::Harnesses;
 use wsp_host_client::protocol::{
-    AccountGetRequest, CapabilitiesGetRequest, DevicesListRequest, EditorListRequest, HarnessesListRequest, ImageGetRequest,
-    InitGetRequest, PlacesListRequest, Preferences, PreferencesGetRequest, ProjectsIconsRequest, ProjectsListRequest, RecipesListRequest,
-    ReleaseCheckRequest, ReleaseGetRequest, SessionsListRequest, SshIncludeRequest, WorkspacesListRequest,
+    HarnessesListRequest, ImageGetRequest, Preferences, ProjectsIconsRequest, RecipesListRequest, ReleaseCheckRequest, SessionsListRequest,
+    WorkspacesListRequest,
 };
 use wsp_host_client::{Env, Event, Failure, HostClient, Op};
 
-use crate::screens::app_shell::{keys, Host, Opened, Parts, Place, Screen};
+use crate::screens::app_shell::{Host, Opened, Parts, Place, Screen};
 use crate::screens::dialogs::layer::{self, Closes};
 use crate::ui::theme;
 use crate::ui::ActivePalette;
+pub use acts::Acts;
 use model::{req, At, Data, GroupId, Push, Read, Reread};
 pub use page::{CardData, Ctx, Item};
+use parts::SettingsDialog;
+pub use parts::{Part, SettingsPart, DIALOG};
+use reads::{devices, held_of, hold_into, places, read_all, refusal, Held, HOLD};
 
 /// How Settings is opened: the host it reads and the page it stands on first.
 pub struct Opening {
@@ -64,44 +68,6 @@ pub struct Opening {
 
 /// How long a capture's scroll waits for the page to grow once its records landed.
 const SCROLL_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
-
-/// `SETTINGS_HOLD_MS`: Settings opened again inside it of its last reads asks the host for none of the held ones.
-const HOLD: std::time::Duration = std::time::Duration::from_secs(60);
-
-/// The reads `settingsReads.ts` holds past the page (the setup, the editors, the ssh config's word, the account, the
-/// devices and the image), as the last Settings on each host left them, and when they were asked. Settings goes with
-/// its closing, so they are kept here, by the host's client, as the Agents pages' store is.
-#[derive(Default)]
-struct Held(HashMap<usize, (std::time::Instant, Data)>);
-
-impl Global for Held {}
-
-/// The held reads taken out of `data`, the rest left.
-fn held_of(data: &mut Data) -> Data {
-    Data {
-        setup: data.setup.take(),
-        editors: data.editors.take(),
-        ssh_include: data.ssh_include.take(),
-        account: data.account.take(),
-        devices: data.devices.take(),
-        devices_refused: data.devices_refused,
-        image: data.image.take(),
-        product_usage_off: data.product_usage_off.take(),
-        ..Data::default()
-    }
-}
-
-/// The held reads laid back onto `data`.
-fn hold_into(data: &mut Data, held: Data) {
-    data.setup = held.setup;
-    data.editors = held.editors;
-    data.ssh_include = held.ssh_include;
-    data.account = held.account;
-    data.devices = held.devices;
-    data.devices_refused = held.devices_refused;
-    data.image = held.image;
-    data.product_usage_off = held.product_usage_off;
-}
 
 /// What a notice says: an act that failed, one that went through, or a plain fact.
 #[derive(Clone, Copy)]
@@ -775,25 +741,6 @@ impl Op for PatchPreferences {
     type Reply = PatchAnswer;
 }
 
-/// What a refused read says, as `notRead` says it. The lists, whose pages say a refusal in place, and the release as
-/// Settings opens, which the web app reads quietly, say nothing here; a refused release.check says so where it is asked.
-fn refusal(read: &Read) -> Option<String> {
-    let (what, said) = match read {
-        Read::Preferences(Err(said)) => ("Preferences", said),
-        Read::Harnesses(Err(said)) => ("Agents", said),
-        Read::Setup(Err(said)) => ("Setup", said),
-        Read::Account(Err(said)) => ("Account", said),
-        Read::Editors(Err(said)) => ("Editors", said),
-        Read::SshInclude(Err(said)) => ("ssh config", said),
-        Read::Image(Err(said)) => ("Image", said),
-        Read::Workspaces(Err(said)) | Read::Sessions(Err(said)) => ("Threads", said),
-        Read::Devices(Err((said, false))) => ("Devices", said),
-        Read::Capabilities(Err(said)) => return Some(format!("What the host can do was not read: {said}")),
-        _ => return None,
-    };
-    Some(format!("{what} not read: {said}"))
-}
-
 /// The window's theme as the preferences pick it: the side asked for, or the system's.
 fn show_theme(p: Option<&Preferences>, cx: &mut App) {
     let Some(p) = p else { return };
@@ -845,114 +792,6 @@ fn merge(into: &mut Value, patch: &Value) {
         }
         (into, patch) => *into = patch.clone(),
     }
-}
-
-async fn places(host: &HostClient) -> Read {
-    Read::Places(host.call(req::<PlacesListRequest>(json!({}))).await.map(|r: Places| (r.places, r.pending)).map_err(said))
-}
-
-async fn devices(host: &HostClient) -> Read {
-    Read::Devices(host.call(req::<DevicesListRequest>(json!({}))).await.map(|r: Devices| r.devices).map_err(|f| {
-        let ticket = f.kind.as_deref() == Some("ticket");
-        (f.message, ticket)
-    }))
-}
-
-/// Every read Settings makes as it opens, each sent as it lands (`settingsReads.ts` and the store's `pull`); `held`
-/// leaves out the ones an opening inside `HOLD` draws from what the last Settings read.
-async fn read_all(host: &HostClient, tx: &mpsc::UnboundedSender<Arrival>, held: bool) {
-    let send = |read: Read| {
-        _ = tx.unbounded_send(Arrival::Read(Box::new(read)));
-    };
-    let preferences = async {
-        send(Read::Preferences(
-            host.call(req::<PreferencesGetRequest>(json!({}))).await.map(|r: PreferencesReply| r.preferences).map_err(said),
-        ))
-    };
-    let places = async { send(places(host).await) };
-    let projects = async {
-        send(Read::Projects(host.call(req::<ProjectsListRequest>(json!({}))).await.map(|r: Projects| r.projects).map_err(said_and_fix)))
-    };
-    let harnesses = async {
-        send(Read::Harnesses(host.call(req::<HarnessesListRequest>(json!({}))).await.map(|r: Harnesses| r.harnesses).map_err(said)))
-    };
-    let recipes =
-        async { send(Read::Recipes(host.call(req::<RecipesListRequest>(json!({}))).await.map(|r: Recipes| r.recipes).map_err(said))) };
-    let release =
-        async { send(Read::Release(host.call(req::<ReleaseGetRequest>(json!({}))).await.map(|r: Release| r.release).map_err(said))) };
-    let capabilities = async {
-        send(Read::Capabilities(
-            host.call(req::<CapabilitiesGetRequest>(json!({}))).await.map(|r: CapabilitiesReply| r.capabilities).map_err(said),
-        ))
-    };
-    let setup = async {
-        if !held {
-            send(Read::Setup(host.call(req::<InitGetRequest>(json!({}))).await.map(|r| r.setup).map_err(said)))
-        }
-    };
-    let account = async {
-        if !held {
-            send(Read::Account(host.call(req::<AccountGetRequest>(json!({}))).await.map(|r: Account| r.account).map_err(said)))
-        }
-    };
-    let devices = async {
-        if !held {
-            send(devices(host).await)
-        }
-    };
-    let image = async {
-        if !held {
-            send(Read::Image(host.call(req::<ImageGetRequest>(json!({}))).await.map(|r: Image| r.view).map_err(said)))
-        }
-    };
-    let editors = async {
-        if !held {
-            send(Read::Editors(host.call(req::<EditorListRequest>(json!({}))).await.map(|r: Editors| r.editors).map_err(said)))
-        }
-    };
-    let ssh = async {
-        if !held {
-            send(Read::SshInclude(host.call(req::<SshIncludeRequest>(json!({}))).await.map(|r: SshInclude| r.ssh_include).map_err(said)))
-        }
-    };
-    let usage_off = async {
-        if !held {
-            send(Read::UsageOff(usage_off(host).await))
-        }
-    };
-    let statuses = async {
-        if let Ok(statuses) = host.statuses().await {
-            send(Read::Statuses(statuses));
-        }
-        // The release is the one named as the socket that read the statuses was let in.
-        send(Read::Version(host.host_release()));
-        send(Read::Elsewhere(!host.here()));
-    };
-    futures::join!(
-        preferences,
-        places,
-        projects,
-        harnesses,
-        recipes,
-        release,
-        capabilities,
-        setup,
-        account,
-        devices,
-        image,
-        editors,
-        ssh,
-        usage_off,
-        statuses
-    );
-}
-
-/// `bootPayload()?.productUsageOff`: why the host sends no usage counts, off the boot line of the page the host here
-/// serves; none from a host elsewhere, whose page this app does not load, and none where the page did not answer.
-async fn usage_off(host: &HostClient) -> Option<String> {
-    let page = crate::screens::sidebar::host_page(host.state()).filter(|_| host.here())?;
-    let read = tokio::task::spawn_blocking(move || crate::screens::terminal::boot::read_boot_key(&page, "productUsageOff"));
-    read.await.ok()?.ok().flatten().and_then(|off| off.as_str().map(str::to_owned))
 }
 
 impl Render for SettingsScreen {
@@ -1198,104 +1037,6 @@ struct Drawn {
     trail: Vec<(SharedString, usize, bool)>,
 }
 
-/// A piece of Settings the app's frame lays in its own place: the page list in its sidebar column under its frame row,
-/// the crumbs in its header row, and Restore defaults or a group's tabs between them and the panel toggles.
-#[derive(Clone, Copy, PartialEq)]
-pub enum Part {
-    Sidebar,
-    Crumbs,
-    Actions,
-}
-
-/// One of a framed screen's parts as a view of its own, drawn from the screen and again whenever the screen moves.
-pub struct SettingsPart {
-    screen: Entity<SettingsScreen>,
-    part: Part,
-    _moved: Subscription,
-}
-
-impl SettingsPart {
-    pub fn new(screen: &Entity<SettingsScreen>, part: Part, cx: &mut Context<Self>) -> Self {
-        SettingsPart { screen: screen.clone(), part, _moved: cx.observe(screen, |_, _, cx| cx.notify()) }
-    }
-}
-
-impl Render for SettingsPart {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let part = self.part;
-        let weak = self.screen.downgrade();
-        self.screen.update(cx, |s, cx| {
-            let at = s.resolved();
-            let acts = Acts::new(weak.clone(), s.host.clone(), s.runtime.clone());
-            let ctx = Ctx::new(&s.data, &at, s.level.as_ref(), acts, s.activity.clone(), s.agents.clone(), s.computers_menu.clone());
-            match part {
-                Part::Sidebar => {
-                    let (hits, results) = (s.drawn.hits.as_deref(), s.drawn.results.as_deref());
-                    let height = window.viewport_size().height;
-                    frame::sidebar(&ctx, &s.search_field, hits, results, &s.drawn.trail, false, height, window, cx).into_any_element()
-                }
-                Part::Crumbs => frame::crumbs(&ctx, !s.search.is_empty() && !crate::ui::narrow::width(window).md, cx).into_any_element(),
-                Part::Actions => match s.usage.as_ref().filter(|_| s.search.is_empty() && at == At::Group(GroupId::Usage)) {
-                    Some((page, _)) => page.update(cx, |page, cx| page.tabs(cx).into_any_element()),
-                    None => frame::actions(&ctx, window, cx).unwrap_or_else(|| gpui_kit::div().into_any_element()),
-                },
-            }
-        })
-    }
-}
-
-/// The layer's name for the dialog a Settings page or Usage stands on the window, one at a time.
-pub const DIALOG: &str = "settings-dialog";
-
-/// A page's dialog as a view on the dialogs layer, built each frame from the screen's records and drawn again whenever
-/// the screen moves.
-struct SettingsDialog {
-    screen: WeakEntity<SettingsScreen>,
-    build: page::Build,
-    /// Held around what it builds, so focus can be moved to its first tab stop as Base UI's popups take it.
-    focus: FocusHandle,
-    focused: bool,
-    _moved: Subscription,
-}
-
-impl SettingsDialog {
-    fn new(screen: &Entity<SettingsScreen>, build: page::Build, cx: &mut Context<Self>) -> Self {
-        let _moved = cx.observe(screen, |_, _, cx| cx.notify());
-        SettingsDialog { screen: screen.downgrade(), build, focus: cx.focus_handle(), focused: false, _moved }
-    }
-}
-
-impl Render for SettingsDialog {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let Some(screen) = self.screen.upgrade() else {
-            window.defer(cx, |window, cx| layer::close(DIALOG, window, cx));
-            return gpui_kit::div().into_any_element();
-        };
-        if !std::mem::replace(&mut self.focused, true) {
-            let focus = self.focus.clone();
-            // Its tab stops are known once a frame has drawn it; a field it focused itself keeps the focus.
-            window.on_next_frame(move |window, cx| {
-                if focus.contains_focused(window, cx) {
-                    return;
-                }
-                focus.focus(window, cx);
-                window.focus_next(cx);
-                if !focus.contains_focused(window, cx) {
-                    focus.focus(window, cx);
-                }
-            });
-        }
-        let (build, weak) = (self.build.clone(), self.screen.clone());
-        let built = screen.update(cx, |s, cx| {
-            let at = s.resolved();
-            let acts = Acts::new(weak, s.host.clone(), s.runtime.clone());
-            let ctx = Ctx::new(&s.data, &at, s.level.as_ref(), acts, s.activity.clone(), s.agents.clone(), s.computers_menu.clone());
-            build(&ctx, window, cx)
-        });
-        gpui_kit::div().track_focus(&self.focus).child(built).into_any_element()
-    }
-}
-
 /// The trail's heads, each with whether its card is on screen now; a card is the page column's child at its index, and
 /// the handle keeps where it lies with the page unscrolled.
 fn in_view(trail: &[(SharedString, usize)], scroll: &ScrollHandle) -> Vec<(SharedString, usize, bool)> {
@@ -1379,167 +1120,5 @@ impl Screen for SettingsScreen {
             actions: Some(part(Part::Actions, cx)),
             title: None,
         }
-    }
-}
-
-/// The acts a page's row raises, held past the frame that drew it. Each is laid onto the screen once whatever is
-/// running is over, so an act raised while the screen draws or takes an answer never re-enters it.
-#[derive(Clone)]
-pub struct Acts {
-    screen: WeakEntity<SettingsScreen>,
-    host: Option<Arc<HostClient>>,
-    runtime: Arc<Runtime>,
-}
-
-impl Acts {
-    pub fn new(screen: WeakEntity<SettingsScreen>, host: Option<Arc<HostClient>>, runtime: Arc<Runtime>) -> Self {
-        Acts { screen, host, runtime }
-    }
-
-    fn with(&self, cx: &mut App, f: impl FnOnce(&mut SettingsScreen, &mut Context<SettingsScreen>) + 'static) {
-        let screen = self.screen.clone();
-        cx.defer(move |cx| {
-            if let Some(screen) = screen.upgrade() {
-                screen.update(cx, f);
-            }
-        });
-    }
-
-    pub fn go(&self, at: At, window: &mut Window, cx: &mut App) {
-        let screen = self.screen.clone();
-        window.defer(cx, move |window, cx| {
-            if let Some(screen) = screen.upgrade() {
-                screen.update(cx, |s, cx| s.go(at, window, cx));
-            }
-        });
-    }
-
-    pub fn go_later(&self, at: At, cx: &mut App) {
-        self.with(cx, |s, cx| s.go_later(at, cx));
-    }
-
-    pub fn set_preferences(&self, patch: Value, cx: &mut App) {
-        self.with(cx, |s, cx| s.set_preferences(patch, cx));
-    }
-
-    /// One op on the host; `then` runs on the app's thread, outside the screen, with the answer or the host's words.
-    pub fn call<O>(&self, op: O, cx: &mut App, then: impl FnOnce(Result<O::Reply, String>, &mut App) + 'static)
-    where
-        O: Op + Send + 'static,
-        O::Reply: Send + 'static,
-    {
-        let Some(host) = self.host.clone() else {
-            cx.defer(move |cx| then(Err("No host answered.".to_owned()), cx));
-            return;
-        };
-        let (tx, rx) = oneshot::channel();
-        self.runtime.spawn(async move {
-            _ = tx.send(host.call(op).await.map_err(said));
-        });
-        cx.spawn(async move |cx| {
-            let Ok(answer) = rx.await else { return };
-            cx.update(|cx| then(answer, cx));
-        })
-        .detach();
-    }
-
-    pub fn failed(&self, said: impl Into<String>, cx: &mut App) {
-        let said = said.into();
-        self.with(cx, |s, cx| s.failed(said, cx));
-    }
-
-    pub fn done(&self, line: impl Into<String>, cx: &mut App) {
-        let line = line.into();
-        self.with(cx, |s, cx| s.done(line, cx));
-    }
-
-    /// A plain fact about an act, neither a failure nor a success: an add whose dialog this app does not draw.
-    pub fn note(&self, line: impl Into<String>, cx: &mut App) {
-        let line = line.into();
-        self.with(cx, |s, cx| s.note(line, cx));
-    }
-
-    pub fn reread(&self, what: Reread, cx: &mut App) {
-        self.with(cx, move |s, cx| s.reread(what, cx));
-    }
-
-    /// Lays an act's answer onto the records as the read it stands for would land, so it outlives the page that asked.
-    pub fn take(&self, read: Read, cx: &mut App) {
-        self.with(cx, move |s, cx| s.arrive(Arrival::Read(Box::new(read)), cx));
-    }
-
-    pub fn open_dialog(&self, dialog: page::DialogBuild, cx: &mut App) {
-        self.with(cx, |s, cx| s.open_dialog(dialog, cx));
-    }
-
-    pub fn close_dialog(&self, cx: &mut App) {
-        self.with(cx, |s, cx| s.close_dialog(cx));
-    }
-
-    /// Keeps a computer's page on screen while its remove dialog has something to say, or lets it go with `None`.
-    pub fn hold_parting(&self, id: Option<String>, cx: &mut App) {
-        self.with(cx, move |s, cx| {
-            s.parting = id;
-            cx.notify();
-        });
-    }
-
-    /// Stands a page in place of the open group's list, or puts the list back with `None`.
-    pub fn open_level(&self, level: Option<page::Level>, cx: &mut App) {
-        self.with(cx, move |s, cx| {
-            s.level = level;
-            s.page_scroll.set_offset(gpui_kit::point(px(0.), px(0.)));
-            cx.notify();
-        });
-    }
-
-    /// Asks the screen to draw again, after a page's own state moved.
-    pub fn notify(&self, cx: &mut App) {
-        self.with(cx, |_, cx| cx.notify());
-    }
-
-    /// Scrolls the page to its `ix`th card, as a press on the sidebar's trail does: smoothly, or at once under reduced
-    /// motion.
-    pub fn reveal_section(&self, ix: usize, cx: &mut App) {
-        self.with(cx, move |s, cx| {
-            // To the card's top, as far as the page goes (`scrollIntoView({ block: "start" })`).
-            let scroll = &s.page_scroll;
-            if let Some(card) = scroll.bounds_for_item(ix) {
-                let to = (scroll.bounds().top() - card.top()).clamp(-scroll.max_offset().y, px(0.));
-                let from = scroll.offset().y;
-                if crate::ui::motion::reduced(cx) || (to - from).abs() < px(0.5) {
-                    scroll.set_offset(gpui_kit::point(scroll.offset().x, to));
-                    s.glide = None;
-                } else {
-                    s.started += 1;
-                    let (duration, curve) = crate::ui::motion::smooth_scroll(to - from);
-                    s.glide = Some(Glide { from, to, set: from, duration, curve, started: s.started });
-                }
-            }
-            cx.notify();
-        });
-    }
-
-    /// Scrolls the open page to the row `id` once it is drawn and flashes the row once (`revealItem`).
-    pub fn reveal_item(&self, id: SharedString, cx: &mut App) {
-        self.with(cx, move |s, cx| {
-            s.started += 1;
-            s.reveal = Some(Reveal { id, seen: Rc::default(), last: None, tries: 0, scrolled: false, started: s.started });
-            cx.notify();
-        });
-    }
-
-    /// Back: the frame closes Settings, as Escape with nothing open does; a window with no frame hears `Closed`.
-    pub fn close(&self, window: &mut Window, cx: &mut App) {
-        self.with(cx, |s, cx| {
-            s.apply_theme(cx);
-            cx.emit(Closed);
-        });
-        window.dispatch_action(Box::new(keys::CloseSettings), cx);
-    }
-
-    /// The runtime and the host, for a page that follows something of its own (Activity's processes).
-    pub fn host(&self, _cx: &App) -> Option<(Arc<HostClient>, Arc<Runtime>)> {
-        Some((self.host.clone()?, self.runtime.clone()))
     }
 }
