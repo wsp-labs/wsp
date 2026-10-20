@@ -72,7 +72,7 @@ impl Sidebar {
         }
         self.around.workspaces.get(workspace_id)?;
         let top = || {
-            let walk = crate::screens::palette::switcher::walk::in_workspace(&self.threads, &self.around.workspaces, workspace_id);
+            let walk = super::walk::in_workspace(&self.threads, &self.around.workspaces, workspace_id);
             walk.into_iter().next().map(|t| t.thread_id)
         };
         let open = open.filter(|key| self.thread(key).is_some()).map(str::to_owned).or_else(top)?;

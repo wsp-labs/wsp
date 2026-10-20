@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use desktop_gpui::screens::app_shell::keys::{self, DEFAULTS};
+use desktop_gpui::screens::palette::frame;
 use desktop_gpui::screens::palette::palette::{self as pal, Palette};
-use desktop_gpui::screens::palette::{frame, overlays};
 use desktop_gpui::screens::Route;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::sidebar::ThreadItem;
@@ -224,18 +224,6 @@ fn enter_runs_the_lit_row_after_the_palette_shuts(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("enter");
     cx.run_until_parked();
     assert_eq!(route(&shell, cx), Route::Screen("settings".into()), "and keeps it open where it stands open");
-}
-
-#[gpui_kit::test]
-fn the_next_task_row_steps_at_once_and_leaves_the_switcher_shut(cx: &mut TestAppContext) {
-    let (_home, shell, cx) = hostless(cx);
-    let switcher_open = |cx: &mut VisualTestContext| cx.update(|window, cx| overlays::of(window, cx).unwrap().read(cx).switcher.is_some());
-    mod_k(cx);
-    typed(cx, "next task");
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-    assert_eq!(route(&shell, cx), Route::Thread { workspace_id: "w2".into(), thread_id: "c".into() }, "Next task lands on the next task");
-    assert!(!switcher_open(cx), "and no switcher waits for a key to come up");
 }
 
 #[gpui_kit::test]

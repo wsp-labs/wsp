@@ -25,6 +25,7 @@ use model::Item;
 use rows::Drawn;
 
 mod hover;
+mod steps;
 
 fn workspace(id: &str) -> Value {
     json!({ "id": id, "name": id, "kind": "local", "project": { "id": "p1" } })

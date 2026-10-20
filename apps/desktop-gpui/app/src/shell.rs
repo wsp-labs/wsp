@@ -25,10 +25,7 @@ use crate::screens::app_shell::material::{self, Look};
 use crate::screens::app_shell::panel::{At, RightPanel};
 use crate::screens::app_shell::vibrancy::Vibrancy;
 use crate::screens::composer::screen::ComposerScreen;
-use crate::screens::palette::{
-    self,
-    switcher::{self, Level},
-};
+use crate::screens::palette;
 use crate::screens::thread_view::ThreadScreen;
 use crate::screens::{self, app_shell, dialogs, Entry, Host, Mounted, Opened, Pane, Place, Route, Screen, THREAD};
 use crate::sidebar::{Asked, Link, Selected, Sidebar, ThreadItem};
@@ -36,6 +33,7 @@ use crate::thread_view::ThreadView;
 use crate::ui::{self, ActivePalette};
 
 mod actions;
+mod bench_hold;
 mod bench_run;
 mod preferences;
 
@@ -1061,16 +1059,12 @@ impl Render for Shell {
                 }
             }))
             .on_action(cx.listener(|this, _: &keys::NewThread, window, cx| this.new_thread(window, cx)))
-            .on_action(cx.listener(|_, _: &keys::NextWorkspace, window, cx| switcher::step(Level::Workspace, 1, window, cx)))
-            .on_action(cx.listener(|_, _: &keys::PreviousWorkspace, window, cx| switcher::step(Level::Workspace, -1, window, cx)))
-            .on_action(cx.listener(|_, _: &keys::NextThread, window, cx| switcher::step(Level::Thread, 1, window, cx)))
-            .on_action(cx.listener(|_, _: &keys::PreviousThread, window, cx| switcher::step(Level::Thread, -1, window, cx)))
-            .on_action(cx.listener(|this, step: &keys::StepWorkspace, window, cx| {
-                this.step_thread(this.workspaces(cx), step.0 as isize, window, cx)
-            }))
-            .on_action(cx.listener(|this, step: &keys::StepThread, window, cx| {
-                this.step_thread(this.workspace_threads(cx), step.0 as isize, window, cx)
-            }))
+            .on_action(cx.listener(|this, _: &keys::NextWorkspace, _, cx| this.step_level(1, cx)))
+            .on_action(cx.listener(|this, _: &keys::PreviousWorkspace, _, cx| this.step_level(-1, cx)))
+            .on_action(cx.listener(|this, _: &keys::NextThread, window, cx| this.step_thread(this.workspace_threads(cx), 1, window, cx)))
+            .on_action(
+                cx.listener(|this, _: &keys::PreviousThread, window, cx| this.step_thread(this.workspace_threads(cx), -1, window, cx)),
+            )
             .on_drag_move(cx.listener(|this, e: &DragMoveEvent<Side>, window, cx| {
                 let side = *e.drag(cx);
                 let x = e.event.position.x - this.grab;

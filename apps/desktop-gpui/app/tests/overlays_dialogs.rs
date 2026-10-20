@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The palette, the switcher, the toasts and the shell's chords with a dialog standing on the layer: the window main.rs
+//! The palette, the toasts and the shell's chords with a dialog standing on the layer: the window main.rs
 //! builds, the shell inside gpui-kit's Root with the default key table bound as at launch.
 
 #[path = "../../host-client/tests/common/mod.rs"]
@@ -11,16 +11,12 @@ use std::time::{Duration, Instant};
 use desktop_gpui::screens::app_shell::keys::{self, DEFAULTS};
 use desktop_gpui::screens::dialogs::{self, layer, layer::Closes};
 use desktop_gpui::screens::palette::palette::{self as pal};
-use desktop_gpui::screens::palette::switcher::{self, PAINT_DELAY};
 use desktop_gpui::screens::Route;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::sidebar::host::{Change, Snapshot};
 use desktop_gpui::ui::{toast, Notice};
 use gpui_kit::component::Root;
-use gpui_kit::{
-    div, point, prelude::*, px, size, AppContext, Context, Entity, Keystroke, Modifiers, MouseButton, TestAppContext, VisualTestContext,
-    Window,
-};
+use gpui_kit::{div, prelude::*, px, size, AppContext, Context, Entity, Modifiers, TestAppContext, VisualTestContext, Window};
 use serde_json::json;
 use wsp_host_client::Env;
 
@@ -73,7 +69,6 @@ fn hostless(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext, 
     };
     let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
     sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snapshot)), cx));
-    cx.update(|window, cx| switcher::follow(window, cx));
     let route = Route::Thread { workspace_id: "w1".into(), thread_id: "a".into() };
     shell.update_in(cx, |s, window, cx| s.go(route, window, cx));
     cx.run_until_parked();
@@ -146,28 +141,6 @@ fn the_palette_opens_over_a_dialog_and_takes_its_keys_and_presses(cx: &mut TestA
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
     assert_eq!(top(cx), None, "the next closes the dialog");
-}
-
-/// Catches: the switcher painted under the dialog's scrim, where a press reaches the scrim and closes the dialog.
-#[gpui_kit::test]
-fn the_switcher_paints_over_a_dialog(cx: &mut TestAppContext) {
-    let (_, cx, _home) = hostless(cx);
-    stand(cx);
-    let typed = keys::keystroke("ctrl+tab", MAC).unwrap();
-    assert!(DEFAULTS.iter().any(|r| r.command == "workspace.next" && r.chord == "ctrl+tab"));
-    let held = Keystroke::parse(&typed).unwrap().modifiers;
-    cx.simulate_modifiers_change(held);
-    cx.simulate_keystrokes(&typed);
-    cx.executor().advance_clock(PAINT_DELAY);
-    cx.run_until_parked();
-    let switcher = cx.debug_bounds("switcher").expect("the switcher is painted");
-    // Beside the probe, which stands centred under the switcher and takes presses of its own.
-    let card = point(switcher.left() + px(8.), switcher.center().y);
-    assert!(switcher.size.width > px(216.), "the switcher reaches past the probe");
-    cx.simulate_mouse_down(card, MouseButton::Left, held);
-    cx.simulate_mouse_up(card, MouseButton::Left, held);
-    cx.run_until_parked();
-    assert_eq!(top(cx), Some("probe"), "the press stops at the switcher over the dialog");
 }
 
 /// Catches: Escape on a dialog over a page also dismissing a toast the dialog's scrim hides.
