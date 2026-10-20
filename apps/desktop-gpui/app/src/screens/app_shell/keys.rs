@@ -9,7 +9,8 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use gpui_kit::{actions, Action, DummyKeyboardMapper, KeyBinding, KeyBindingContextPredicate, Keystroke, Unbind};
+use gpui_kit::base::input::{AddCursorAbove, AddCursorBelow};
+use gpui_kit::{actions, Action, App, DummyKeyboardMapper, KeyBinding, KeyBindingContextPredicate, Keystroke, Unbind};
 
 use crate::ui::Glyph;
 
@@ -67,17 +68,6 @@ actions!(
 #[derive(Clone, Debug, PartialEq, Eq, Action)]
 #[action(namespace = shell, no_json)]
 pub struct SelectWorkspace(pub u8);
-
-/// One step along the sidebar's tasks, or back with a negative count, at once: what the palette's Next task runs,
-/// where the chord's own action opens the switcher and waits for the key to come up.
-#[derive(Clone, Debug, PartialEq, Eq, Action)]
-#[action(namespace = shell, no_json)]
-pub struct StepWorkspace(pub i8);
-
-/// [`StepWorkspace`] over the threads of the task on screen.
-#[derive(Clone, Debug, PartialEq, Eq, Action)]
-#[action(namespace = shell, no_json)]
-pub struct StepThread(pub i8);
 
 /// One row of the chord table, spelled as the web writes it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -404,6 +394,18 @@ pub fn bindings(mac: bool, overrides: &BTreeMap<String, Option<String>>) -> Vec<
     bindings_of(mac, &bound(mac, overrides))
 }
 
+/// Takes gpui-kit's add-a-cursor chords off a field where the thread chords lie (mod+alt+up and down on a Mac and on
+/// Windows), so a thread step runs with the composer focused, as the web's does; once, after `gpui_kit::init`.
+pub fn free_thread_chords(cx: &mut App) {
+    let mac = cfg!(target_os = "macos");
+    let unbind = [("thread.previous", AddCursorAbove.name()), ("thread.next", AddCursorBelow.name())];
+    let bindings = DEFAULTS.iter().flat_map(|rule| {
+        let (_, action) = unbind.iter().find(|(command, _)| *command == rule.command)?;
+        Some(KeyBinding::new(&keystroke(rule.chord, mac)?, Unbind((*action).into()), Some("Input")))
+    });
+    cx.bind_keys(bindings.collect::<Vec<_>>());
+}
+
 /// The web's label for a chord (`formatShortcutLabel` in keybindings.ts): ⌃⌥⇧⌘ glued before the key on a Mac, the
 /// modifiers' names joined by `+` elsewhere.
 pub fn label(chord: &str, mac: bool) -> Option<String> {
@@ -451,7 +453,8 @@ pub enum Held {
     NoProject,
     /// The page of projects with none to pick, or no host to make a thread on.
     NoPick,
-    OneTask,
+    /// The open thread's level of the sidebar holds no other thread.
+    LevelAlone,
     OneThread,
     /// No task on screen, so no threads to walk.
     NoThreads,
@@ -467,7 +470,7 @@ impl Held {
             Held::NotConnected => "Not connected to the runtime".to_owned(),
             Held::NoProject => "Add a project first".to_owned(),
             Held::NoPick => "Pick the project first".to_owned(),
-            Held::OneTask => "Only one task".to_owned(),
+            Held::LevelAlone => "No other thread at this level".to_owned(),
             Held::OneThread => "Only one thread".to_owned(),
             Held::NoThreads => "No threads to walk".to_owned(),
             Held::NothingToStep(task) => format!("Nothing to step to on {task}; a walk stays inside one task"),
@@ -485,8 +488,8 @@ pub enum Need {
     Create,
     /// The same, said as the page's own line: [`Held::NoPick`].
     Pick,
-    /// Two tasks to step between: [`Held::OneTask`].
-    Tasks,
+    /// Another thread at the open thread's level of the sidebar: [`Held::LevelAlone`].
+    Level,
     /// Two threads in the task on screen: [`Held::OneThread`], [`Held::NoThreads`] or [`Held::NothingToStep`].
     Walk,
     /// A task on screen: [`Held::NoTask`].
@@ -513,10 +516,6 @@ pub enum Says {
 pub enum Run {
     /// The chord command's own action, dispatched to the shell.
     Command(&'static str),
-    /// One step along the tasks at once; never the chord's own action, which opens the switcher and waits for the
-    /// key to come up.
-    StepWorkspace(i8),
-    StepThread(i8),
     /// A screen by its route.
     Screen(&'static str),
     /// An address, opened in the system's browser.
@@ -642,26 +641,26 @@ pub const COMMANDS: &[Command] = &[
     chord(
         needs(
             command(
-                "action:next-workspace",
-                "Next task",
-                &["next task", "switch task", "cycle tasks"],
+                "action:next-at-level",
+                "Next thread at this level",
+                &["next thread", "switch thread", "ctrl tab"],
                 Glyph::ArrowDown,
-                Run::StepWorkspace(1),
+                Run::Command("workspace.next"),
             ),
-            Need::Tasks,
+            Need::Level,
         ),
         "workspace.next",
     ),
     chord(
         needs(
             command(
-                "action:previous-workspace",
-                "Previous task",
-                &["previous task", "switch task", "cycle tasks"],
+                "action:previous-at-level",
+                "Previous thread at this level",
+                &["previous thread", "switch thread", "ctrl shift tab"],
                 Glyph::ArrowUp,
-                Run::StepWorkspace(-1),
+                Run::Command("workspace.previous"),
             ),
-            Need::Tasks,
+            Need::Level,
         ),
         "workspace.previous",
     ),
@@ -672,7 +671,7 @@ pub const COMMANDS: &[Command] = &[
                 "Next thread",
                 &["next thread", "switch thread", "cycle threads"],
                 Glyph::ChevronDown,
-                Run::StepThread(1),
+                Run::Command("thread.next"),
             ),
             Need::Walk,
         ),
@@ -685,7 +684,7 @@ pub const COMMANDS: &[Command] = &[
                 "Previous thread",
                 &["previous thread", "switch thread", "cycle threads"],
                 Glyph::ChevronUp,
-                Run::StepThread(-1),
+                Run::Command("thread.previous"),
             ),
             Need::Walk,
         ),
@@ -816,8 +815,6 @@ pub fn command_of(id: &str) -> Option<&'static Command> {
 pub fn run_action(run: Run) -> Option<Box<dyn Action>> {
     match run {
         Run::Command(command) => action(command),
-        Run::StepWorkspace(by) => Some(Box::new(StepWorkspace(by))),
-        Run::StepThread(by) => Some(Box::new(StepThread(by))),
         Run::NewThread => Some(Box::new(NewThread)),
         _ => None,
     }
@@ -929,6 +926,9 @@ mod tests {
     fn resolves_chords_in_the_focus_they_name() {
         let other = Keymap::new(bindings(false, &BTreeMap::new()));
         assert_eq!(fired(&other, "ctrl-tab", &["Shell"]).as_deref(), Some("NextWorkspace"));
+        assert_eq!(fired(&other, "ctrl-shift-tab", &["Shell", "Input"]).as_deref(), Some("PreviousWorkspace"));
+        assert_eq!(fired(&other, "ctrl-shift-tab", &["Shell", "PanelTabs"]).as_deref(), Some("PreviousPanelTab"));
+        assert_eq!(fired(&other, "ctrl-shift-tab", &["Shell", "Terminal"]), None);
         assert_eq!(fired(&other, "ctrl-tab", &["Shell", "PanelTabs"]).as_deref(), Some("NextPanelTab"));
         assert_eq!(fired(&other, "ctrl-tab", &["Shell", "PanelTabs", "Terminal"]).as_deref(), Some("NextPanelTab"));
         assert_eq!(fired(&other, "ctrl-tab", &["Shell", "Terminal"]), None);
@@ -1028,6 +1028,7 @@ mod tests {
         let mac_rules = bound(true, &BTreeMap::new());
         let cases = [
             ("workspace.next", "Ctrl+Tab", "⌃Tab"),
+            ("workspace.previous", "Ctrl+Shift+Tab", "⌃⇧Tab"),
             ("thread.next", "Ctrl+Alt+Down", "⌥⌘Down"),
             ("sidebar.toggle", "Ctrl+B", "⌘B"),
             ("rightPanel.toggle", "Ctrl+Alt+B", "⌥⌘B"),
@@ -1047,20 +1048,17 @@ mod tests {
     }
 
     #[test]
-    fn the_palettes_steps_go_at_once_and_never_open_the_switcher() {
-        for (id, step, chord) in [
-            ("action:next-workspace", Run::StepWorkspace(1), "workspace.next"),
-            ("action:previous-workspace", Run::StepWorkspace(-1), "workspace.previous"),
-            ("action:next-thread", Run::StepThread(1), "thread.next"),
-            ("action:previous-thread", Run::StepThread(-1), "thread.previous"),
+    fn the_palettes_steps_run_their_chords_own_action() {
+        for (id, chord) in [
+            ("action:next-at-level", "workspace.next"),
+            ("action:previous-at-level", "workspace.previous"),
+            ("action:next-thread", "thread.next"),
+            ("action:previous-thread", "thread.previous"),
         ] {
             let command = command_of(id).unwrap();
-            assert_eq!((command.run, command.chord), (step, Some(chord)), "{id}");
-            let dispatched = run_action(command.run).unwrap();
-            assert!(!dispatched.partial_eq(action(chord).unwrap().as_ref()), "{id} dispatches the step, not the chord's own action");
+            assert_eq!((command.run, command.chord), (Run::Command(chord), Some(chord)), "{id}");
+            assert!(run_action(command.run).unwrap().partial_eq(action(chord).unwrap().as_ref()), "{id}");
         }
-        assert!(run_action(Run::StepWorkspace(1)).unwrap().partial_eq(&StepWorkspace(1)));
-        assert!(run_action(Run::StepThread(-1)).unwrap().partial_eq(&StepThread(-1)));
         let ids: Vec<&str> = COMMANDS.iter().map(|c| c.id).collect();
         let unique: std::collections::BTreeSet<&str> = ids.iter().copied().collect();
         assert_eq!(unique.len(), ids.len(), "one row per id");

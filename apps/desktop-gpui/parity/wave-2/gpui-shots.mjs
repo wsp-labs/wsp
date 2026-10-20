@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Wave 2's palette, switcher, notice and Computer pane states on both sides: per state and theme, baseline.mjs shoots
+// Wave 2's palette, notice and Computer pane states on both sides: per state and theme, baseline.mjs shoots
 // the Electron side into --electron, then desktop-gpui is driven under Xvfb with xdotool to the same state, the Electron
 // entry's clip is cut out of its window and diffed against the Electron shot. Some states make threads on the fixture,
 // so each GPUI shot follows its own Electron shot and both see the same host.
@@ -126,8 +126,6 @@ export async function deadline(ms, run, stop) {
 }
 
 const key = chord => ({ say: chord, do: x => x("key", "--clearmodifiers", chord) });
-const down = k => ({ say: `${k} down`, do: x => x("keydown", k) });
-const up = k => ({ say: `${k} up`, do: x => x("keyup", k) });
 const type = text => ({ say: `type "${text}"`, do: x => x("type", "--delay", "40", text) });
 /** Grabs until two grabs a beat apart are the same, or `within` ms pass: whether the clip held still. */
 export async function untilStill(grab, same, within, pause = ms => new Promise(done => setTimeout(done, ms)), beat = 700) {
@@ -168,7 +166,6 @@ export const STATES = [
   { id: "W2-PAL-018", open: "short-1", steps: [key("ctrl+k"), type("LegendList")], settle: 1500, moves: [AGES] },
   { id: "W2-PAL-019", open: "short-1", steps: [key("ctrl+k"), type("zzqx")], settle: 800 },
   { id: "W2-PAL-020", open: "short-1", steps: [key("ctrl+k"), type("new thread in"), key("Return")], settle: 800 },
-  { id: "W2-PAL-022", open: "short-1", steps: [down("ctrl"), { say: "Tab", do: x => x("key", "Tab") }], settle: 800, after: [up("ctrl")], moves: [AGES] },
   {
     id: "W2-PAL-034",
     open: "short-1",

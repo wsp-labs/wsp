@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::{prelude::*, App, Context, Entity, PlatformInput, Subscription, Task, Window};
 
+use super::bench_hold::Held;
 use super::Shell;
 use crate::bench::{self, PX_PER_S};
 use crate::screens::{self, Route};
@@ -75,6 +76,12 @@ pub(super) enum Phase {
         done: Rc<Cell<bool>>,
         _play: Task<()>,
     },
+    /// The Ctrl+Tab bench: the key held down through its steps from the thread, then let go.
+    Stepping {
+        held: Rc<Held>,
+        done: Rc<Cell<bool>>,
+        _play: Task<()>,
+    },
     Timing {
         n: usize,
         start: Instant,
@@ -106,7 +113,12 @@ impl Shell {
         let Some(mut run) = self.bench.take() else { return };
         let measuring = matches!(
             run.phase,
-            Phase::Scrolling { .. } | Phase::Switching { .. } | Phase::Streaming { .. } | Phase::Timing { .. } | Phase::Replaying { .. }
+            Phase::Scrolling { .. }
+                | Phase::Switching { .. }
+                | Phase::Streaming { .. }
+                | Phase::Timing { .. }
+                | Phase::Replaying { .. }
+                | Phase::Stepping { .. }
         );
         if !window.is_window_active() && (measuring || run.began.elapsed() > FOCUS_WAIT) {
             eprintln!("desktop-gpui: the bench window has no focus, and GPUI caps a window without focus at 30 fps");
@@ -186,7 +198,7 @@ impl Shell {
                     return;
                 }
             }
-            Phase::Loading(presented) if run.args.replay.is_some() => {
+            Phase::Loading(presented) if run.args.replay.is_some() || run.args.hold.is_some() => {
                 if presented.borrow().is_some() && window.is_window_active() {
                     eprintln!("bench: thread drawn");
                     if run.args.unfold {
@@ -197,6 +209,31 @@ impl Shell {
                         _ = this.update(cx, |_, cx| cx.notify());
                     });
                     run.phase = Phase::Settling { until: Instant::now() + REPLAY_SETTLE, _wake: wake };
+                }
+            }
+            Phase::Settling { until, .. } if run.args.hold.is_some() => {
+                if Instant::now() >= *until {
+                    let hold = run.args.hold.unwrap_or_default();
+                    eprintln!(
+                        "bench: holding ctrl-tab for {} steps, the first repeat at {} ms, then every {} ms",
+                        hold.steps, hold.delay_ms, hold.every_ms
+                    );
+                    let (held, done) = (Rc::new(Held::default()), Rc::new(Cell::new(false)));
+                    let play = self.hold_ctrl_tab(hold, held.clone(), done.clone(), window, cx);
+                    run.phase = Phase::Stepping { held, done, _play: play };
+                }
+            }
+            Phase::Stepping { held, done, .. } => {
+                if done.get() {
+                    let json = held.result(&run.args.hold.unwrap_or_default());
+                    let summary = json["summary"].to_string();
+                    if let Err(e) = std::fs::write(&run.args.out, format!("{json}\n")) {
+                        eprintln!("desktop-gpui: {}: {e}", run.args.out.display());
+                        std::process::exit(1);
+                    }
+                    eprintln!("bench: ctrl-tab {summary}");
+                    cx.quit();
+                    return;
                 }
             }
             Phase::Settling { until, .. } => {
@@ -310,6 +347,7 @@ impl Shell {
                 | Phase::Resting { .. }
                 | Phase::Settling { .. }
                 | Phase::Replaying { .. }
+                | Phase::Stepping { .. }
         );
         self.bench = Some(run);
         if !holding {
@@ -343,6 +381,7 @@ impl Shell {
             Some(Phase::Timing { n, .. }) => format!("waiting for timed switch {} to draw", n + 1),
             Some(Phase::Settling { .. }) => "waiting to start the replay".to_owned(),
             Some(Phase::Replaying { .. }) => "replaying wheel events".to_owned(),
+            Some(Phase::Stepping { held, .. }) => format!("holding ctrl-tab, {} steps sent", held.steps()),
             None => "past its last step".to_owned(),
         }
     }
@@ -428,7 +467,7 @@ impl Shell {
     }
 
     /// The thread view the bench drives: the registered thread screen's, else the frame's own.
-    fn bench_view(&self, cx: &App) -> Entity<ThreadView> {
+    pub(super) fn bench_view(&self, cx: &App) -> Entity<ThreadView> {
         self.thread_screen().map_or_else(|| self.thread_view.clone(), |s| s.read(cx).view().clone())
     }
 }

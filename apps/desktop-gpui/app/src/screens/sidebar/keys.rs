@@ -38,11 +38,7 @@ pub fn walk(at: Option<usize>, n: usize, to: Walk) -> Option<usize> {
 impl Sidebar {
     /// A row pressed with the pointer becomes the row the keys walk from, with no ring until a key moves it.
     pub(crate) fn point_at(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let at = self.drawn_rows.iter().position(|d| match d {
-            Drawn::Line(ix) => matches!(&self.lines[*ix].item, Item::Tile(t) if self.threads[t.thread].key == key && !t.inbox),
-            _ => false,
-        });
-        self.key_row = at;
+        self.key_row = self.tree_row(key);
         self.keyboard = false;
         window.focus(&self.focus, cx);
     }

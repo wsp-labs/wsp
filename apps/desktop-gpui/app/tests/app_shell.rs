@@ -297,54 +297,15 @@ fn each_slot_chord_opens_that_workspace(cx: &mut TestAppContext) {
     }
 }
 
-/// The palette's Next and Previous task: a step at once along the sidebar's tasks, wrapping.
-#[gpui_kit::test]
-fn a_task_step_walks_the_workspaces(cx: &mut TestAppContext) {
-    let (shell, cx) = hostless(cx);
-    with_threads(&shell, cx);
-    for (step, want) in [(1, "c"), (1, "a"), (-1, "c"), (1, "a"), (-1, "c")] {
-        cx.dispatch_action(keys::StepWorkspace(step));
-        cx.run_until_parked();
-        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "a step of {step}");
-    }
-}
-
-/// The palette's Next and Previous thread: a step at once along the open task's threads, as the thread chords walk them.
+/// Next and Previous thread: a step at once along the open task's threads.
 #[gpui_kit::test]
 fn a_thread_step_walks_the_open_tasks_threads(cx: &mut TestAppContext) {
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
     seeded(&shell, cx);
-    for (step, want) in [(1, "b"), (1, "a"), (-1, "b")] {
-        cx.dispatch_action(keys::StepThread(step));
-        cx.run_until_parked();
-        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "a step of {step}");
-    }
-}
-
-/// Each switch chord, held, puts the switcher up over the window, and letting its modifiers go opens the thread it
-/// stands on.
-#[gpui_kit::test]
-fn the_switch_chords_open_the_switcher_and_letting_go_lands_on_its_card(cx: &mut TestAppContext) {
-    let (shell, cx) = hostless(cx);
-    with_threads(&shell, cx);
-    seeded(&shell, cx);
-    let switcher = |cx: &mut VisualTestContext| {
-        cx.update(|window, cx| desktop_gpui::screens::palette::overlays::of(window, cx).and_then(|o| o.read(cx).switcher.clone()))
-    };
-    let commands = ["workspace.next", "workspace.previous", "thread.next", "thread.previous"];
-    for rule in DEFAULTS.iter().filter(|r| commands.contains(&r.command)) {
-        let typed = keys::keystroke(rule.chord, MAC).unwrap();
-        cx.simulate_modifiers_change(gpui_kit::Keystroke::parse(&typed).unwrap().modifiers);
-        cx.simulate_keystrokes(&typed);
-        cx.run_until_parked();
-        let open = switcher(cx).unwrap_or_else(|| panic!("{} puts the switcher up", rule.chord));
-        let lands = open.read_with(cx, |s, _| s.highlighted().cloned()).expect("a card is highlighted");
-        assert_ne!(Some(lands.thread_id.clone()), thread(&shell, cx), "{} steps off the open thread", rule.chord);
-        cx.simulate_modifiers_change(Modifiers::none());
-        cx.run_until_parked();
-        assert!(switcher(cx).is_none(), "letting {} go takes it down", rule.chord);
-        assert_eq!(thread(&shell, cx), Some(lands.thread_id), "letting {} go opens its card", rule.chord);
+    for (command, want) in [("thread.next", "b"), ("thread.next", "a"), ("thread.previous", "b")] {
+        press(cx, command);
+        assert_eq!(thread(&shell, cx).as_deref(), Some(want), "{command}");
     }
 }
 

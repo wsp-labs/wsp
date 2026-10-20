@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Called by fixture.sh as `node fixture.mjs <empty temp folder> <out.json>`, with the environment already cleared and
+// Called by fixture.sh as `node fixture.mjs <empty temp folder> <out.json> <n more>`, with the environment already cleared and
 // HOME that folder: starts a throwaway host on a fresh state file there, records the bench's threads on it through the
 // wsp command run in this process, and leaves the host serving until `stop.sh <out.json>`.
 import { spawn, spawnSync } from "node:child_process";
@@ -14,7 +14,7 @@ const MARK = ".wsp-bench-fixture";
 const here = dirname(fileURLToPath(import.meta.url));
 const HOST = join(here, "../../../packages/host/dist");
 
-const [dir, out] = process.argv.slice(2);
+const [dir, out, more = "0"] = process.argv.slice(2);
 if (out === undefined || process.env.HOME !== dir) {
   console.error("run fixture.sh <out.json>, which clears the environment first");
   process.exit(2);
@@ -143,6 +143,15 @@ const realHost = { label: LABEL };
   console.log(`fixture: real host shape: ${LABEL} on ${realHost.hostname}, project quiet with no thread, panes thread ${realHost.panesThread}`);
 }
 
-writeFileSync(out, `${JSON.stringify({ state, pid: host.pid, threads, realHost }, null, 2)}\n`);
+// Top-level threads of one turn each, newest at the top of the sidebar, for the Ctrl+Tab bench to step through.
+const extra = [];
+for (let i = 0; i < Number(more); i++) {
+  writeFileSync(join(dir, "bench-turn.json"), JSON.stringify({ thread: "short-1", turn: 0 }));
+  const said = await wsp("run", "bench", "--agent", "claude", `Step thread ${i + 1}.`);
+  extra.push(/\bthread ([0-9a-f-]{36})\b/.exec(said)?.[1] ?? fail(`reading step thread ${i + 1}'s id`, said));
+}
+if (extra.length > 0) console.log(`fixture: ${extra.length} more threads, the newest ${extra.at(-1)}`);
+
+writeFileSync(out, `${JSON.stringify({ state, pid: host.pid, threads, realHost, extra }, null, 2)}\n`);
 console.log(`fixture: host pid ${host.pid} serves ${state}, made in ${((Date.now() - began) / 1000).toFixed(1)} s`);
 process.exit(0);

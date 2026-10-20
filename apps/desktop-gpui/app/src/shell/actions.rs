@@ -8,9 +8,10 @@ use gpui_kit::{App, Context, Window};
 use super::{Shell, Side, SETTINGS, SIDEBAR_SLIDE};
 use crate::screens::app_shell::panel::At;
 use crate::screens::app_shell::{frame, keys};
-use crate::screens::palette::switcher;
+use crate::screens::sidebar::walk;
 use crate::screens::{self, app_shell, dialogs, Pane, Route};
 use crate::sidebar::ThreadItem;
+use crate::thread_view::ThreadViewEvent;
 use crate::ui;
 
 impl Shell {
@@ -155,6 +156,20 @@ impl Shell {
         self.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
     }
 
+    /// The step along the open thread's level of the sidebar (`stepThreadLevel`): the sidebar opens the thread it lands
+    /// on, and the caret goes to that thread's composer once the frame has moved the thread screen onto it.
+    pub(super) fn step_level(&mut self, by: isize, cx: &mut Context<Self>) {
+        if !self.sidebar.update(cx, |s, cx| s.step_level(by, cx)) {
+            return;
+        }
+        let shell = cx.entity().downgrade();
+        cx.defer(move |cx| {
+            let Some(screen) = shell.upgrade().and_then(|s| s.read(cx).thread_screen()) else { return };
+            let view = screen.read(cx).view().clone();
+            view.update(cx, |_, cx| cx.emit(ThreadViewEvent::FocusComposer));
+        });
+    }
+
     /// Moves `step` threads along `list` from the open one, wrapping.
     pub(super) fn step_thread(&mut self, list: Vec<ThreadItem>, step: isize, window: &mut Window, cx: &mut Context<Self>) {
         if list.is_empty() {
@@ -173,12 +188,12 @@ impl Shell {
     pub(super) fn workspace_threads(&self, cx: &App) -> Vec<ThreadItem> {
         let Route::Thread { workspace_id, .. } = &self.route else { return Vec::new() };
         let sidebar = self.sidebar.read(cx);
-        let item = |t: switcher::Target| ThreadItem {
+        let item = |t: walk::Target| ThreadItem {
             title: sidebar.title_of(&t.thread_id).unwrap_or_default(),
             project: String::new(),
             workspace_id: t.workspace_id,
             thread_id: t.thread_id,
         };
-        switcher::walk::thread_walk(sidebar, workspace_id).into_iter().map(item).collect()
+        walk::thread_walk(sidebar, workspace_id).into_iter().map(item).collect()
     }
 }

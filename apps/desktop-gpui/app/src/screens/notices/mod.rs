@@ -214,8 +214,8 @@ pub fn open_copy_in_editor(workspace_id: String, pick: Option<String>, editor: O
     });
 }
 
-/// Something of the app's that reads no key context holds Escape: a dialog on the layer, the palette or the switcher,
-/// the sidebar's dialog, menu or switcher.
+/// Something of the app's that reads no key context holds Escape: a dialog on the layer, the palette, the sidebar's
+/// dialog, menu or switcher.
 fn holds_escape(window: &Window, cx: &App) -> bool {
     if crate::screens::dialogs::layer::top(cx).is_some() {
         return true;
@@ -223,7 +223,6 @@ fn holds_escape(window: &Window, cx: &App) -> bool {
     let Some(overlays) = overlays::of(window, cx) else { return false };
     let o = overlays.read(cx);
     o.palette.is_some()
-        || o.switcher.is_some()
         || o.sidebar.as_ref().and_then(WeakEntity::upgrade).is_some_and(|s| {
             let s = s.read(cx);
             s.dialog.is_some() || s.switcher.is_some() || s.menu.is_open()
