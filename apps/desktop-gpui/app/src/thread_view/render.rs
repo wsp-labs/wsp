@@ -4,7 +4,7 @@
 use std::time::Instant;
 
 use gpui_kit::component::{v_flex, ActiveTheme};
-use gpui_kit::{canvas, div, prelude::*, px, Context, FollowMode, StyleRefinement, Window};
+use gpui_kit::{canvas, div, prelude::*, px, Context, DispatchPhase, FollowMode, ScrollWheelEvent, StyleRefinement, Window};
 
 use super::{Glide, Link, Reveal, ThreadView, REVEAL_TRIES};
 use crate::screens::app_shell::keys;
@@ -20,6 +20,7 @@ use crate::ui::ActivePalette;
 
 impl Render for ThreadView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let began = Instant::now();
         self.renders += 1;
         self.frame += 1;
         if self._activation.is_none() {
@@ -37,12 +38,7 @@ impl Render for ThreadView {
             self.focus.focus(window, cx);
         }
         self.trim();
-        for image in std::mem::take(&mut self.released) {
-            if let Some(decoded) = image.clone().get_render_image(window, cx) {
-                cx.drop_image(decoded, Some(window));
-            }
-            image.remove_asset(cx);
-        }
+        cards::let_go(std::mem::take(&mut self.released), window, cx);
         if let Some(Reveal { ix, y, tries, from }) = self.revealing.take() {
             let top = self.list.viewport_bounds().origin.y;
             let off = self.list.bounds_for_item(ix).map(|b| b.origin.y - top - y);
@@ -200,6 +196,9 @@ impl Render for ThreadView {
         let pill = toolbar::scroll_to_end(self, shown, cx);
         let quote = toolbar::toolbar(self, cx);
         let me = cx.entity().downgrade();
+        let heard = crate::scroll_trace::recording().then(|| (self.list.clone(), me.clone()));
+        let top_key = self.transcript.rows().get(top).map(|r| r.key.clone());
+        crate::scroll_trace::note(|w| (w.view_ms, w.top) = (w.view_ms + began.elapsed().as_secs_f64() * 1000., top_key));
         v_flex()
             .size_full()
             .relative()
@@ -248,6 +247,24 @@ impl Render for ThreadView {
             .children(self.row_menu.overlay())
             .child(canvas(|_, _, _| {}, move |_, _, window, _| toolbar::listen(me.clone(), window)).absolute().size_0())
             .children(status.map(|s| div().absolute().top_4().left_4().text_sm().text_color(muted).child(s)))
+            .children(heard.map(|(list, me)| {
+                canvas(
+                    |_, _, _| {},
+                    move |_, _, window, _| {
+                        let list = list.clone();
+                        let me = me.clone();
+                        window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
+                            let bounds = list.viewport_bounds();
+                            if phase == DispatchPhase::Capture && bounds.contains(&event.position) {
+                                let spot = me.upgrade().map(|view| view.read(cx).spot(event.position.y));
+                                crate::scroll_trace::heard(event, bounds.origin, spot, window, cx);
+                            }
+                        });
+                    },
+                )
+                .absolute()
+                .size_0()
+            }))
             .children(lost)
             .when(frames.is_some() || presented.is_some() || drawn.is_some(), |this| {
                 this.child(

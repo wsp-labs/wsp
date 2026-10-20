@@ -5,6 +5,7 @@ pub mod gallery;
 pub mod glass;
 pub mod local_store;
 pub mod screens;
+pub mod scroll_trace;
 pub mod shell;
 pub mod sidebar;
 pub mod thread_view;

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Bench mode's run: its phases, one step a frame, and the result it writes.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use gpui_kit::{prelude::*, App, Context, Entity, Subscription, Task, Window};
+use gpui_kit::{prelude::*, App, Context, Entity, PlatformInput, Subscription, Task, Window};
 
 use super::Shell;
 use crate::bench::{self, PX_PER_S};
 use crate::screens::{self, Route};
+use crate::scroll_trace::{self, Wheel};
 use crate::thread_view::ThreadView;
 
 /// A bench that has not finished by then is stuck, and says so rather than hang the run.
@@ -23,6 +24,9 @@ const HOLD: Duration = Duration::from_secs(10);
 /// keeps between its switches.
 const TIMED_SWITCHES: usize = 30;
 const SWITCH_REST: Duration = Duration::from_secs(1);
+/// A replay starts this long after the thread's first frame, as a person looks before they scroll, and ends this long
+/// after its last event, so the momentum's last frames are traced.
+const REPLAY_SETTLE: Duration = Duration::from_secs(1);
 
 type Presented = Rc<RefCell<Option<Instant>>>;
 
@@ -62,6 +66,15 @@ pub(super) enum Phase {
         until: Instant,
         _wake: Task<()>,
     },
+    /// A replay waits after the thread's first frame, then plays its wheel events, each at its time.
+    Settling {
+        until: Instant,
+        _wake: Task<()>,
+    },
+    Replaying {
+        done: Rc<Cell<bool>>,
+        _play: Task<()>,
+    },
     Timing {
         n: usize,
         start: Instant,
@@ -91,8 +104,10 @@ impl Shell {
     /// One step of bench mode, run on every frame until it writes its result and quits.
     pub(super) fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(mut run) = self.bench.take() else { return };
-        let measuring =
-            matches!(run.phase, Phase::Scrolling { .. } | Phase::Switching { .. } | Phase::Streaming { .. } | Phase::Timing { .. });
+        let measuring = matches!(
+            run.phase,
+            Phase::Scrolling { .. } | Phase::Switching { .. } | Phase::Streaming { .. } | Phase::Timing { .. } | Phase::Replaying { .. }
+        );
         if !window.is_window_active() && (measuring || run.began.elapsed() > FOCUS_WAIT) {
             eprintln!("desktop-gpui: the bench window has no focus, and GPUI caps a window without focus at 30 fps");
             std::process::exit(UNFOCUSED);
@@ -171,6 +186,54 @@ impl Shell {
                     return;
                 }
             }
+            Phase::Loading(presented) if run.args.replay.is_some() => {
+                if presented.borrow().is_some() && window.is_window_active() {
+                    eprintln!("bench: thread drawn");
+                    if run.args.unfold {
+                        self.bench_view(cx).update(cx, unfold_all);
+                    }
+                    let wake = cx.spawn(async move |this, cx| {
+                        cx.background_executor().timer(REPLAY_SETTLE).await;
+                        _ = this.update(cx, |_, cx| cx.notify());
+                    });
+                    run.phase = Phase::Settling { until: Instant::now() + REPLAY_SETTLE, _wake: wake };
+                }
+            }
+            Phase::Settling { until, .. } => {
+                if Instant::now() >= *until {
+                    let path = run.args.replay.clone().unwrap_or_default();
+                    let events = std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|text| Wheel::parse_all(&text));
+                    let events = events.unwrap_or_else(|e| {
+                        eprintln!("desktop-gpui: {}: {e}", path.display());
+                        std::process::exit(1);
+                    });
+                    let list = self.bench_view(cx).read(cx).list().viewport_bounds();
+                    eprintln!(
+                        "bench: replaying {} wheel events over {:.1} s on a list {:?} x {:?}",
+                        events.len(),
+                        events.last().map_or(0., |w| w.t / 1000.),
+                        list.size.width,
+                        list.size.height
+                    );
+                    scroll_trace::begin(window);
+                    let done = Rc::new(Cell::new(false));
+                    run.phase = Phase::Replaying { done: done.clone(), _play: self.replay(events, run.args.pointer, done, window, cx) };
+                }
+            }
+            Phase::Replaying { done, .. } => {
+                if done.get() {
+                    let rows = self.bench_view(cx).read(cx).rows().iter().map(traced).collect();
+                    match scroll_trace::finish(rows) {
+                        Ok(said) => eprintln!("bench: {said}"),
+                        Err(e) => {
+                            eprintln!("desktop-gpui: {e}");
+                            std::process::exit(1);
+                        }
+                    }
+                    cx.quit();
+                    return;
+                }
+            }
             Phase::Loading(presented) => {
                 if presented.borrow().is_some() {
                     self.bench_view(cx).update(cx, |v, cx| v.read_whole(cx));
@@ -239,8 +302,15 @@ impl Shell {
             cx.quit();
             return;
         }
-        let holding =
-            matches!(run.phase, Phase::Holding { .. } | Phase::Prompting { .. } | Phase::Streaming { .. } | Phase::Resting { .. });
+        let holding = matches!(
+            run.phase,
+            Phase::Holding { .. }
+                | Phase::Prompting { .. }
+                | Phase::Streaming { .. }
+                | Phase::Resting { .. }
+                | Phase::Settling { .. }
+                | Phase::Replaying { .. }
+        );
         self.bench = Some(run);
         if !holding {
             window.request_animation_frame();
@@ -271,8 +341,48 @@ impl Shell {
             }
             Some(Phase::Resting { n, .. }) => format!("resting before timed switch {}", n + 1),
             Some(Phase::Timing { n, .. }) => format!("waiting for timed switch {} to draw", n + 1),
+            Some(Phase::Settling { .. }) => "waiting to start the replay".to_owned(),
+            Some(Phase::Replaying { .. }) => "replaying wheel events".to_owned(),
             None => "past its last step".to_owned(),
         }
+    }
+
+    /// Plays `events` over the thread list from now, each through the window as the platform hands one over, and sets
+    /// `done` once the last has had its settle.
+    fn replay(
+        &self,
+        events: Vec<Wheel>,
+        pointer: Option<(f32, f32)>,
+        done: Rc<Cell<bool>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<()> {
+        let view = self.bench_view(cx);
+        cx.spawn_in(window, async move |this, cx| {
+            let start = Instant::now();
+            for wheel in events {
+                let due = start + Duration::from_secs_f64(wheel.t / 1000.);
+                if let Some(wait) = due.checked_duration_since(Instant::now()) {
+                    cx.background_executor().timer(wait).await;
+                }
+                let wheel = match pointer {
+                    Some((x, y)) => Wheel { x, y, ..wheel },
+                    None => wheel,
+                };
+                let origin = view.read_with(cx, |v, _| v.list().viewport_bounds().origin);
+                let event = wheel.event(origin);
+                let spot = view.read_with(cx, |v, _| v.spot(event.position.y));
+                // Through the window, not the shell, so a handler may update the shell as it would for a real event.
+                _ = cx.update(|window, cx| {
+                    scroll_trace::input(due, &event, Some(spot));
+                    scroll_trace::timed(|w, ms| w.input_ms += ms, || window.dispatch_event(PlatformInput::ScrollWheel(event), cx));
+                });
+                scroll_trace::handled(view.read_with(cx, |v, _| -f32::from(v.list().scroll_px_offset_for_scrollbar().y)));
+            }
+            cx.background_executor().timer(REPLAY_SETTLE).await;
+            done.set(true);
+            _ = this.update(cx, |_, cx| cx.notify());
+        })
     }
 
     /// The wait before timed switch `n`, which wakes the window when it is over.
@@ -321,6 +431,35 @@ impl Shell {
     fn bench_view(&self, cx: &App) -> Entity<ThreadView> {
         self.thread_screen().map_or_else(|| self.thread_view.clone(), |s| s.read(cx).view().clone())
     }
+}
+
+/// Opens every turn's fold, every tool group and every call, so each call's output block stands in the transcript, and
+/// stands the transcript at its end again.
+fn unfold_all(view: &mut ThreadView, cx: &mut Context<ThreadView>) {
+    use crate::transcript::RowKind;
+    let shut = |view: &ThreadView| -> Vec<String> {
+        view.rows()
+            .iter()
+            .flat_map(|r| match &r.kind {
+                RowKind::Fold { open: false } => r.turn.clone().into_iter().collect(),
+                RowKind::Group { group, open: false, .. } => vec![group.clone()],
+                RowKind::Calls { calls, .. } => calls.iter().filter(|c| !c.open).map(|c| c.key.clone()).collect(),
+                _ => Vec::new(),
+            })
+            .collect()
+    };
+    // A fold opened shows its groups shut, and a group opened its calls shut, so each pass opens the next level.
+    for _ in 0..3 {
+        for id in shut(view) {
+            view.toggle(&id, cx);
+        }
+    }
+    view.scroll_to_end(cx);
+}
+
+/// What a trace says of a row: its kind and the size of its text.
+fn traced(row: &crate::transcript::Row) -> serde_json::Value {
+    serde_json::json!({ "key": row.key, "kind": row.kind.name(), "chars": row.text.len(), "lines": row.text.lines().count() })
 }
 
 /// The active shell of the drawer on screen, which a terminal bench types into; the drawer may also hold shells an

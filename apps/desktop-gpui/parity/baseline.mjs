@@ -5,12 +5,12 @@
 // same home route in each theme, writes <id>-<theme>.png and index.json to --out, and stops the app by its pid tree.
 // The fixture's claude is pointed at ./claude-stub.mjs for the run, so a state can script the agent's replies.
 import { execFile, spawn, spawnSync } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { lastWords as lastMarkdown } from "../bench/content.mjs";
 import { crop, withPhys } from "./png.mjs";
+import { EMPTY_SYSTEM, spawnEmptyHost } from "./wave-2/gpui-shots.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const USAGE = "usage: node baseline.mjs --wave <n> --fixture <fixture.json> --app <executable> --out <dir> [--only <id glob>] [--theme paper|graphite] [--scale <n>]";
@@ -50,7 +50,8 @@ if (scaleFlag !== undefined && !(Number(scaleFlag) > 0)) refuse(`--scale takes a
 const fixture = JSON.parse(readFileSync(flag("fixture"), "utf8"));
 const stateDir = dirname(fixture.state);
 const home = dirname(stateDir);
-if (!existsSync(join(home, ".wsp-bench-fixture"))) refuse(`${home} has no .wsp-bench-fixture mark, so fixture.sh did not make it, and this driver runs on nothing else`);
+// fixture.sh marks its home, and starting-host.mjs the one it seeds with a sub-thread still starting on Boat.
+if (![".wsp-bench-fixture", ".wsp-starting-fixture"].some(mark => existsSync(join(home, mark)))) refuse(`${home} has no .wsp-bench-fixture or .wsp-starting-fixture mark, so neither fixture.sh nor starting-host.mjs made it, and this driver runs on nothing else`);
 /** A process's arguments: exact off /proc where there is one, else as ps joins them. */
 const argsOf = pid => {
   if (existsSync(`/proc/${pid}/cmdline`)) return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").filter(Boolean);
@@ -308,7 +309,14 @@ const hostHelpers = { wsp, op: host.op, once, pref: (name, value) => setPrefs({ 
 // The fixture's claude plays the parity stub for the run; the link it had is kept in the ledger and put back at the end.
 const claudeLink = join(home, "bin", "claude");
 const parityStub = join(here, "claude-stub.mjs");
-if (readlinkSync(claudeLink) !== parityStub) {
+const hasClaude = (() => {
+  try {
+    return lstatSync(claudeLink).isSymbolicLink();
+  } catch {
+    return false;
+  }
+})();
+if (hasClaude && readlinkSync(claudeLink) !== parityStub) {
   ledger["claude:fixture"] = readlinkSync(claudeLink);
   keep();
   rmSync(claudeLink);
@@ -868,21 +876,10 @@ function driveOf(current, moveTo) {
   return drive;
 }
 
-const EMPTY_SYSTEM = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"];
-/** A throwaway host on a fresh, empty, marked home, started with the fixture host's own command line and the clean
- * environment; the claude on its PATH is the parity stub unless `agents` is false. `stop()` ends it by its pid. */
+/** A throwaway host on the empty home `spawnEmptyHost` makes; the claude on its PATH is the parity stub unless `agents` is
+ * false. `stop()` ends it by its pid. */
 async function emptyHost({ agents = true } = {}) {
-  const dir = realpathSync(mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "wsp-parity-empty-")));
-  writeFileSync(join(dir, ".wsp-bench-fixture"), "");
-  mkdirSync(join(dir, "bin"));
-  mkdirSync(join(dir, "state"));
-  // The agents its scan finds are the ones in its bin alone: the system folders below hold no agent, and node is linked.
-  symlinkSync(hostNode, join(dir, "bin", "node"));
-  if (agents) symlinkSync(parityStub, join(dir, "bin", "claude"));
-  const state = join(dir, "state", "state.json");
-  const log = openSync(join(dir, "up.log"), "a");
-  const child = spawn(hostNode, [hostBin, "up", "--port", "0", "--no-relay", "--state", state], { cwd: dir, env: { HOME: dir, PATH: [join(dir, "bin"), ...EMPTY_SYSTEM].join(":"), LANG: "en_US.UTF-8", WSP_UPDATE_CHECK: "0" }, stdio: ["ignore", log, log], detached: true });
-  closeSync(log);
+  const { dir, state, child } = spawnEmptyHost({ hostNode, hostBin, stub: agents ? parityStub : undefined, detached: true });
   const h = {
     dir,
     state,

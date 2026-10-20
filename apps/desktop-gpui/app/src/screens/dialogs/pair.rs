@@ -13,6 +13,7 @@ use gpui_kit::{div, prelude::*, px, App, Context, Entity, FontWeight, Global, Su
 use tokio::runtime::Runtime;
 use wsp_host_client::{Env, Failure, HostClient};
 
+use crate::screens::app_shell::vibrancy;
 use crate::shell::{Launch, Shell};
 use crate::ui::theme::{self, Palette};
 use crate::ui::{text, Button, Field, Refusal};
@@ -103,7 +104,7 @@ impl Road {
             let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
             window.replace_root(cx, |window, cx| {
                 let shell = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
-                Root::new(shell, window, cx)
+                vibrancy::clear_root(shell, window, cx)
             });
         };
         Road { redeem: Rc::new(redeem), ask: Rc::new(dial), paired: Rc::new(paired) }

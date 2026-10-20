@@ -7,6 +7,8 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, symlinkSync, 
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { THREADS, turnsOf } from "./content.mjs";
+import { shot } from "./real.mjs";
+import { encode } from "../parity/png.mjs";
 
 const MARK = ".wsp-bench-fixture";
 const here = dirname(fileURLToPath(import.meta.url));
@@ -33,7 +35,10 @@ const state = join(dir, "state", "state.json");
 const began = Date.now();
 
 const log = openSync(join(dir, "up.log"), "a");
-const host = spawn(process.execPath, [join(HOST, "bin.js"), "up", "--port", "0", "--no-relay", "--state", state], { cwd: dir, stdio: ["ignore", log, log], detached: true });
+// The real host's shape: this computer carries a display name apart from its hostname, as a Mac's does (real-host.mjs).
+const LABEL = "zingzy's MacBook Pro";
+const labelled = { ...process.env, NODE_OPTIONS: `--import=${pathToFileURL(join(here, "real-host.mjs")).href}`, WSP_FIXTURE_LABEL: LABEL };
+const host = spawn(process.execPath, [join(HOST, "bin.js"), "up", "--port", "0", "--no-relay", "--state", state], { cwd: dir, env: labelled, stdio: ["ignore", log, log], detached: true });
 host.unref();
 closeSync(log);
 // Written again with the threads at the end; written now so the caller can stop the host if this process is interrupted.
@@ -78,7 +83,20 @@ git("init", "-q", "-b", "main");
 git("commit", "-q", "--allow-empty", "-m", "bench");
 await wsp("add", folder, "--name", "bench");
 
+/** Waits until the host has recorded what `n` turns of the thread changed: it reads a turn's changes after the turn
+ * ends, and a turn sent before that read lands can leave the card out. */
+async function changesRecorded(thread, n) {
+  const until = Date.now() + 60_000;
+  for (;;) {
+    const read = JSON.parse(await wsp("thread", "read", thread, "--json")).messages;
+    if (read.filter(r => r.who === "tool" && /^Changed \d+ files?/.test(r.text)).length >= n) return;
+    if (Date.now() > until) fail(`waiting for what turn ${n} of ${thread} changed`);
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+}
+
 const threads = {};
+let changing = 0;
 for (const name of Object.keys(THREADS)) {
   const started = Date.now();
   for (const [i, turn] of turnsOf(name).entries()) {
@@ -87,13 +105,44 @@ for (const name of Object.keys(THREADS)) {
       const said = await wsp("run", "bench", "--agent", "claude", turn.prompt);
       threads[name] = /\bthread ([0-9a-f-]{36})\b/.exec(said)?.[1] ?? fail(`reading ${name}'s thread id`, said);
     } else {
-      await wsp("send", threads[name], turn.prompt);
+      const files = (turn.images ?? []).map(image => {
+        const path = join(dir, "shots", image.name);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, encode(shot(image), 2));
+        return ["--file", path];
+      });
+      await wsp("send", threads[name], ...files.flat(), turn.prompt);
     }
+    if ((turn.files ?? []).length > 0) await changesRecorded(threads[name], ++changing);
     if ((i + 1) % 100 === 0) console.log(`fixture: ${name}, ${i + 1} turns`);
   }
   console.log(`fixture: ${name} ${threads[name]}, ${THREADS[name].turns} turns in ${((Date.now() - started) / 1000).toFixed(1)} s`);
 }
 
-writeFileSync(out, `${JSON.stringify({ state, pid: host.pid, threads }, null, 2)}\n`);
+// The real host's shape, kept apart from the bench's threads and their timing: a project with no thread, and one thread
+// every right panel pane can open on, a slate included. The first run is an empty home, which baseline.mjs makes.
+const realHost = { label: LABEL };
+{
+  const self = JSON.parse(await wsp("computers", "--json")).computers.find(c => c.id === "here");
+  if (self?.label !== LABEL) fail("the display name", `this computer reads ${JSON.stringify(self)}, with no label ${LABEL}`);
+  realHost.hostname = self.name;
+  const quiet = join(dir, "quiet");
+  mkdirSync(quiet);
+  const quietGit = (...args) => spawnSync("git", ["-c", "user.name=bench", "-c", "user.email=bench@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: quiet, stdio: "ignore" });
+  quietGit("init", "-q", "-b", "main");
+  quietGit("commit", "-q", "--allow-empty", "-m", "quiet");
+  await wsp("add", quiet, "--name", "quiet");
+  realHost.quietProject = { name: "quiet", path: quiet };
+  writeFileSync(join(dir, "bench-turn.json"), JSON.stringify({ thread: "short-1", turn: 0 }));
+  const said = await wsp("run", "bench", "--agent", "claude", "Every pane opens on this thread.");
+  realHost.panesThread = /\bthread ([0-9a-f-]{36})\b/.exec(said)?.[1] ?? fail("reading the panes thread's id", said);
+  const slate = join(dir, "real-host.slate");
+  writeFileSync(slate, '<slate title="Real host">\n  <column>\n    <text value="Every pane opens once." />\n  </column>\n</slate>\n');
+  await wsp("slate", "write", realHost.panesThread, slate);
+  realHost.slate = slate;
+  console.log(`fixture: real host shape: ${LABEL} on ${realHost.hostname}, project quiet with no thread, panes thread ${realHost.panesThread}`);
+}
+
+writeFileSync(out, `${JSON.stringify({ state, pid: host.pid, threads, realHost }, null, 2)}\n`);
 console.log(`fixture: host pid ${host.pid} serves ${state}, made in ${((Date.now() - began) / 1000).toFixed(1)} s`);
 process.exit(0);

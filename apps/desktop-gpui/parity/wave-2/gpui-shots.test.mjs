@@ -2,8 +2,11 @@
 // node --test apps/desktop-gpui/parity/wave-2/gpui-shots.test.mjs: the parts of gpui-shots.mjs that need no app.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { STATES, baselineArgs, untilStill, caveatOf, deadline, geometry, inner, launchEnv, order, parseAE, parseArgs, picked, scaleClip, share } from "./gpui-shots.mjs";
+import { STATES, baselineArgs, untilStill, caveatOf, deadline, geometry, inner, launchEnv, order, pairCompare, parseAE, parseArgs, picked, scaleClip, share, surfaceWords, xTools } from "./gpui-shots.mjs";
 
 const base = ["--fixture", "/f/fx.json", "--app", "/a/desktop-gpui", "--electron-app", "/x/wsp", "--electron", "/e", "--out", "/o"];
 
@@ -154,4 +157,26 @@ test("waits for the clip to hold still, past a loading sweep", async () => {
   assert.equal(still, true);
   assert.equal(at, 5, "grabbed until two grabs matched");
   assert.equal(await untilStill(() => `sweep-${at++}`, (a, b) => a === b, 30, async () => new Promise(done => setTimeout(done, 20))), false, "a sweep that never stops is never still");
+});
+
+test("a whole-window pair carries the surface check and a clip does not", { skip: spawnSync("convert", ["-version"]).status !== 0 && "no ImageMagick" }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "gpui-shots-test-"));
+  try {
+    const tools = xTools({ PATH: "/usr/bin:/bin" });
+    const draw = (file, header) => tools.magick("convert", "-size", "1280x800", "xc:#f4f4f5", "-fill", header, "-draw", "rectangle 256,0 739,51", `PNG24:${join(dir, file)}`);
+    draw("e.png", "#f4f4f5");
+    draw("g.png", "#f9f9f9");
+    const opts = { out: dir, scratch: dir, stem: "W" };
+    const whole = pairCompare(tools, join(dir, "e.png"), join(dir, "g.png"), { ...opts, whole: true });
+    assert.equal(whole.surface.ok, false);
+    assert.equal(surfaceWords(whole.surface), "DIFFERS thread header at 730,8: Electron #f4f4f5, GPUI #f9f9f9");
+    assert.equal(whole.inside, undefined);
+    assert.ok(whole.shares["10%"] === 0 && whole.shares["0%"] > 2, "the fuzz scores a one-shade header as identical at 10%, which is why the surface check exists");
+    const clipped = pairCompare(tools, join(dir, "e.png"), join(dir, "g.png"), opts);
+    assert.equal(clipped.surface, undefined);
+    assert.ok(clipped.inside !== undefined);
+    assert.equal(pairCompare(tools, join(dir, "e.png"), join(dir, "e.png"), { ...opts, whole: true, regions: { panel: null } }).surface.ok, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -486,7 +486,7 @@ fn diff(key: &str, at: usize, file: &FilePatch, p: &Palette, window: &mut Window
     let shown = if whole { &lines[..] } else { &lines[..lines.len() - hidden] };
     let code: String = shown.iter().map(|l| l.text).collect::<Vec<_>>().join("\n");
     let path = file.path.as_str();
-    let lang = path.rsplit('.').next().filter(|ext| *ext != path).unwrap_or("");
+    let lang = markdown::path_lang(path);
     let styles = if lang.is_empty() { Vec::new() } else { markdown::highlight_code(lang, &code, &cx.theme().highlight_theme) };
     let digits = shown.iter().map(|l| l.number).max().unwrap_or(1).to_string().len();
     let mut start = 0;

@@ -9,13 +9,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use gpui_kit::component::Root;
 use gpui_kit::{Action, AnyWindowHandle, App, AppContext as _, AsyncApp, Global};
 use tokio::runtime::Runtime;
 use wsp_host_client::{Env, Failure, HostClient};
 
 use super::{feed, links, log};
-use crate::screens::app_shell::menu;
+use crate::screens::app_shell::{menu, vibrancy};
 use crate::shell::{Launch, Shell};
 
 /// `HostsView`: what this computer is called, the alias of the host the window is on (none for here), and the
@@ -180,7 +179,7 @@ fn moved(alias: Option<String>, cx: &mut App) {
             window.replace_root(cx, |window, cx| {
                 let shell = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
                 links::attach(window, &shell, cx);
-                Root::new(shell, window, cx)
+                vibrancy::clear_root(shell, window, cx)
             })
         });
         built.is_ok()
