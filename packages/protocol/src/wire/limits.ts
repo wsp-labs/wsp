@@ -25,6 +25,10 @@ export const GUEST_CWD_MAX = 4096;
 export const USAGE_STORES_MAX = 32;
 /** How much of a detached command's output one poll exec reads; a full read is followed by another at once. */
 export const EXEC_CHUNK_BYTES = 262_144;
+/** The longest line a detached command's reader holds while it waits for the newline; a longer one is handed on in
+ * pieces of this size. Claude Code prints a message carrying a person's images as one line: 7.4 MB the longest found
+ * in one computer's sessions on 2026-10-20. */
+export const EXEC_LINE_MAX_BYTES = 16 * 1024 * 1024;
 /** How long a turn may do nothing at all before the runtime cuts it: no byte on its stream, no message from the
  * person, and no work in the process tree it started, meaning every process whose parent chain reaches the turn's
  * command or a member of the command's group. It is the one rule that ends a turn the harness left hanging:
