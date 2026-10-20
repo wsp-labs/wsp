@@ -144,7 +144,7 @@ describe("app shell", () => {
     // place: the chord behind the page does not move the panel's record.
     expect(screen.queryByRole("button", { name: "Toggle right panel" })).toBeNull();
     expect(document.querySelector("[data-settings-groups]")).not.toBeNull();
-    runShellCommand("rightPanel.toggle", { workspaceId: "ws_a", toggleSidebar: () => {} }, []);
+    runShellCommand("rightPanel.toggle", { workspaceId: "ws_a", toggleSidebar: () => {} });
     expect(useRightPanelStore.getState().byWorkspaceId["ws_a"]).toEqual(before);
     act(() => useStore.setState({ settingsOpen: false }));
     await settle();

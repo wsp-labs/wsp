@@ -715,9 +715,9 @@ describe("the chords behind the page", () => {
     const panelBefore = useRightPanelStore.getState().byWorkspaceId["ws_a"];
     const drawerBefore = useTerminalDrawerStore.getState().byWorkspaceId["ws_a"];
     const target = { workspaceId: "ws_a", toggleSidebar: () => {} };
-    runShellCommand("rightPanel.toggle", target, []);
-    runShellCommand("preview.toggle", target, []);
-    runShellCommand("terminal.toggle", target, []);
+    runShellCommand("rightPanel.toggle", target);
+    runShellCommand("preview.toggle", target);
+    runShellCommand("terminal.toggle", target);
     expect(useRightPanelStore.getState().byWorkspaceId["ws_a"]).toEqual(panelBefore);
     expect(useTerminalDrawerStore.getState().byWorkspaceId["ws_a"]).toEqual(drawerBefore);
     expect(document.querySelector("[data-panel-layout-controls]")).toBeNull();
@@ -726,7 +726,7 @@ describe("the chords behind the page", () => {
     await settle();
     expect(useRightPanelStore.getState().byWorkspaceId["ws_a"]).toEqual(panelBefore);
     expect(document.querySelector("[data-panel-layout-controls]")).not.toBeNull();
-    runShellCommand("terminal.toggle", target, []);
+    runShellCommand("terminal.toggle", target);
     expect(useTerminalDrawerStore.getState().byWorkspaceId["ws_a"]).not.toEqual(drawerBefore);
   });
 });
