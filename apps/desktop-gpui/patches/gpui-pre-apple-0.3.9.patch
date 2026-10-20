@@ -37,7 +37,7 @@ index a635bc4..3a7967f 100644
          texture_descriptor.set_width(size.width.into());
          texture_descriptor.set_height(size.height.into());
 diff --git a/src/metal_renderer.rs b/src/metal_renderer.rs
-index e466205..b5a9d1f 100644
+index e466205..879aaf3 100644
 --- a/src/metal_renderer.rs
 +++ b/src/metal_renderer.rs
 @@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
@@ -544,8 +544,95 @@ index e466205..b5a9d1f 100644
  #[repr(C)]
  enum PathRasterizationInputIndex {
      Vertices = 0,
+@@ -1707,6 +2052,86 @@ mod tests {
+         CVPixelBufferUnlockBaseAddress, kCVPixelBufferIOSurfacePropertiesKey,
+     };
+ 
++    fn quad(x: f32, y: f32, width: f32, height: f32, color: gpui::Hsla) -> gpui::Quad {
++        let bounds = Bounds {
++            origin: point(ScaledPixels(x), ScaledPixels(y)),
++            size: size(ScaledPixels(width), ScaledPixels(height)),
++        };
++        gpui::Quad {
++            bounds,
++            content_mask: ContentMask { bounds },
++            background: color.into(),
++            ..Default::default()
++        }
++    }
++
++    #[test]
++    fn a_rounded_clips_ramp_fades_what_it_clips() {
++        let mut scene = Scene::default();
++        let mut red = quad(0., 0., 32., 32., gpui::red());
++        red.rounded_clip = scene.push_rounded_clip(
++            gpui::RoundedClip {
++                bounds: red.bounds,
++                fade_top: ScaledPixels(8.),
++                fade_bottom: ScaledPixels(24.),
++                ..Default::default()
++            },
++            0,
++        );
++        scene.insert_primitive(red);
++        scene.finish();
++
++        let mut renderer = MetalRenderer::new_headless(Arc::new(Mutex::new(Default::default())));
++        let image = renderer
++            .render_scene_to_image(&scene, size(DevicePixels(32), DevicePixels(32)))
++            .unwrap();
++        assert_eq!(image.get_pixel(16, 4).0[0], 255, "whole above the ramp");
++        assert_eq!(image.get_pixel(16, 28).0[0], 0, "gone below it");
++        // Row 16's center lies 7.5 px above the ramp's foot, which is 16 px long.
++        let middle = image.get_pixel(16, 16).0[0];
++        assert!((110..=130).contains(&middle), "pixel (16, 16) was {middle}, expected about 47% red");
++    }
++
++    #[test]
++    fn a_blur_over_a_see_through_page_covers_it_on_its_ground() {
++        let page = gpui::Hsla { a: 0.5, ..gpui::white() };
++        let blur = |ground: u32| {
++            let mut scene = Scene::default();
++            scene.insert_primitive(quad(0., 0., 64., 32., page));
++            scene.insert_primitive(quad(30., 0., 4., 32., gpui::black()));
++            let area = quad(8., 4., 48., 24., page);
++            scene.insert_primitive(BackdropBlur {
++                bounds: area.bounds,
++                content_mask: area.content_mask,
++                blur_radius: ScaledPixels(3.),
++                saturation: 1.,
++                opacity: 1.,
++                ground,
++                ..Default::default()
++            });
++            scene.finish();
++            let mut renderer = MetalRenderer::new_headless(Arc::new(Mutex::new(Default::default())));
++            renderer.update_transparency(true);
++            renderer
++                .render_scene_to_image(&scene, size(DevicePixels(64), DevicePixels(32)))
++                .unwrap()
++        };
++        let bare = blur(0);
++        assert!(bare.get_pixel(16, 16).0[3] < 255, "the page under the blur is see-through");
++        let grounded = blur(gpui::pack_ground(gpui::rgb(0x232929).into()));
++        for (x, y) in [(10, 6), (16, 16), (32, 16), (54, 26)] {
++            assert_eq!(grounded.get_pixel(x, y).0[3], 255, "({x}, {y}): the ground under the copy covers the page");
++        }
++        // The page's half-white copy, premultiplied, over half of rgb(35 41 41).
++        let [r, g, b, _] = grounded.get_pixel(10, 6).0;
++        assert!(
++            r.abs_diff(145) <= 3 && g.abs_diff(148) <= 3 && b.abs_diff(148) <= 3,
++            "(10, 6) was {:?}, expected about (145, 148, 148)",
++            (r, g, b)
++        );
++        assert_eq!(grounded.get_pixel(2, 16).0[3], bare.get_pixel(2, 16).0[3], "outside the blur nothing changes");
++    }
++
+     #[test]
+     fn render_core_video_surface() {
+         let attributes = CFDictionary::from_slices(
 diff --git a/src/shaders.metal b/src/shaders.metal
-index 2b52bb9..1959c7d 100644
+index 2b52bb9..9c37424 100644
 --- a/src/shaders.metal
 +++ b/src/shaders.metal
 @@ -28,6 +28,10 @@ float pick_corner_radius(float2 center_to_point, Corners_ScaledPixels corner_rad
@@ -853,7 +940,7 @@ index 2b52bb9..1959c7d 100644
  
    GradientColor gradient_color = prepare_fill_color(
      background.tag,
-@@ -899,6 +944,104 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
+@@ -899,6 +944,108 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
    return ycbcrToRGBTransform * ycbcr;
  }
  
@@ -949,6 +1036,10 @@ index 2b52bb9..1959c7d 100644
 +  color.rgb = clamp(luminance + (color.rgb - luminance) * blur.saturation,
 +                    float3(0.), float3(color.a));
 +
++  // The ground under the copy, which a see-through page's copy needs to cover the page it sampled.
++  float4 ground = unpack_unorm4x8_to_float(blur.ground);
++  color += float4(ground.rgb * ground.a, ground.a) * (1. - color.a);
++
 +  float coverage =
 +      saturate(0.5 - quad_sdf(input.position.xy, blur.bounds, blur.corner_radii)) *
 +      rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips) * blur.opacity;
@@ -958,7 +1049,7 @@ index 2b52bb9..1959c7d 100644
  float4 hsla_to_rgba(Hsla hsla) {
    float h = hsla.h * 6.0; // Now, it's an angle but scaled in [0, 6) range
    float s = hsla.s;
-@@ -1089,6 +1232,49 @@ float quad_sdf_impl(float2 corner_center_to_point, float corner_radius) {
+@@ -1089,6 +1236,52 @@ float quad_sdf_impl(float2 corner_center_to_point, float corner_radius) {
      }
  }
  
@@ -968,6 +1059,9 @@ index 2b52bb9..1959c7d 100644
 +  while (clip_id != 0) {
 +    constant SceneRoundedClip &clip = clips[clip_id];
 +    alpha *= saturate(0.5 - quad_sdf(position, clip.bounds, clip.corner_radii));
++    if (clip.fade_bottom > clip.fade_top) {
++      alpha *= saturate((clip.fade_bottom - position.y) / (clip.fade_bottom - clip.fade_top));
++    }
 +    clip_id = clip.parent;
 +  }
 +  return alpha;

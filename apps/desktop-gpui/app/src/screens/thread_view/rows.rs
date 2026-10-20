@@ -270,37 +270,8 @@ pub fn clamps(text: &str) -> bool {
 /// `max-h-44`: a clamped message's height.
 const CLAMP_HEIGHT: Pixels = px(176.);
 
-/// The fade's foot: the last 1.5rem, where the web's mask is wholly transparent.
-const CLAMP_FADE_FOOT: Pixels = px(24.);
-
-/// `CLAMP_FADE_MASK`: whole until 5rem above the bottom, gone 1.5rem above it; drawn as the bubble's own fill over the
-/// text, since this base has no masks.
-fn clamp_fade(fill: Hsla) -> impl IntoElement {
-    div()
-        .debug_selector(|| "clamp-fade".into())
-        .absolute()
-        .left_0()
-        .right_0()
-        .bottom_0()
-        .h(px(80.))
-        .child(div().h(px(56.)).bg(gpui_kit::linear_gradient(
-            180.,
-            gpui_kit::linear_color_stop(fill.opacity(0.), 0.),
-            gpui_kit::linear_color_stop(fill, 1.),
-        )))
-        .child(div().h(CLAMP_FADE_FOOT).bg(fill))
-}
-
-/// The bubble as it shows over the centre's ground, solid: a see-through fade would let the text it covers show.
-fn clamp_fade_fill(centre: Hsla, accent: Hsla) -> Hsla {
-    centre.blend(accent)
-}
-
-/// The ground the shell lays under the thread view in the look the windows stand in.
-fn centre_ground(p: &Palette, cx: &App) -> Hsla {
-    cx.try_global::<crate::ui::theme::WspTheme>()
-        .map_or(p.background, |t| crate::screens::app_shell::material::fills(t.look, t.entry.id, p).centre)
-}
+/// `CLAMP_FADE_MASK`: whole until 5rem above the bottom, gone 1.5rem above it.
+const CLAMP_FADE: (Pixels, Pixels) = (px(80.), px(24.));
 
 /// `PERSON_BUBBLE`: right-aligned, at most 80% wide, 18 px round on `--message-surface`, then its hover meta line; a
 /// long message clamps under a fade with "Show full message" (`CollapsibleUserMessageBody`).
@@ -335,14 +306,11 @@ fn person(view: &mut ThreadView, row: &Row, p: &Palette, window: &mut Window, cx
                 this.toggle(&id, cx);
             }))
     });
-    // On glass the bubble is see-through, so a solid fade would lay the theme's ground over the material.
-    let glass = crate::ui::theme::glass(cx);
     let text = div()
         .relative()
         .debug_selector(|| "message-body".into())
-        .when(collapsed, |el| el.max_h(if glass { CLAMP_HEIGHT - CLAMP_FADE_FOOT } else { CLAMP_HEIGHT }).overflow_hidden())
-        .child(markdown::reply(&body, true, None, cwd.as_deref(), Some(p.accent), cx))
-        .when(collapsed && !glass, |el| el.child(clamp_fade(clamp_fade_fill(centre_ground(p, cx), p.accent))));
+        .when(collapsed, |el| el.max_h(CLAMP_HEIGHT).overflow_hidden().mask_fade_bottom(CLAMP_FADE.0, CLAMP_FADE.1))
+        .child(markdown::reply(&body, true, None, cwd.as_deref(), Some(p.accent), cx));
     let hover = message_hover(row, window, cx);
     let thread = view.thread().unwrap_or_default().to_owned();
     let meta = meta_line(row, &thread, true, *hover.read(cx), p, window, cx);
@@ -769,6 +737,31 @@ pub fn timer(ms: f64) -> String {
             }
         }
     }
+}
+
+/// The fading clips the last frame painted, in device pixels: each one's bounds, then where its ramp starts and ends.
+#[cfg(test)]
+pub(super) fn painted_fades(
+    window: &Window,
+) -> Vec<(gpui_kit::Bounds<gpui_kit::ScaledPixels>, gpui_kit::ScaledPixels, gpui_kit::ScaledPixels)> {
+    window.painted_rounded_clips().iter().filter(|c| c.fade_bottom > c.fade_top).map(|c| (c.bounds, c.fade_top, c.fade_bottom)).collect()
+}
+
+/// Asserts the last frame faded `element` alone, whole above `whole` and gone below `gone`, both up from its bottom.
+#[cfg(test)]
+pub(super) fn assert_fades(
+    cx: &mut gpui_kit::VisualTestContext,
+    element: gpui_kit::Bounds<Pixels>,
+    whole: Pixels,
+    gone: Pixels,
+    what: &str,
+) {
+    let (scale, fades) = cx.update(|window, _| (window.scale_factor(), painted_fades(window)));
+    let [(bounds, top, bottom)] = fades[..] else { panic!("{what}: fades {fades:?}, not one") };
+    let want = element.scale(scale);
+    let near = |a: gpui_kit::ScaledPixels, b: gpui_kit::ScaledPixels| (a.0 - b.0).abs() <= 1.;
+    assert!(near(bounds.top(), want.top()) && near(bounds.bottom(), want.bottom()), "{what}: the fade clips {bounds:?}, not {want:?}");
+    assert_eq!((top, bottom), ((element.bottom() - whole).scale(scale), (element.bottom() - gone).scale(scale)), "{what}");
 }
 
 #[cfg(test)]

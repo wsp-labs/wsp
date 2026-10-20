@@ -418,3 +418,47 @@ fn a_rows_kind_name_is_its_variant_as_debug_writes_it(cx: &mut TestAppContext) {
         assert_eq!(debug.split([' ', '{', '(']).next(), Some(name));
     }
 }
+
+/// Catches: the composer's compact rule read off the events held alone. A newest page from the middle of a long thread
+/// holds no turn's start though its turn runs, and its messages stand on older pages; a thread whose older events the
+/// host dropped holds its message only in the page.
+#[gpui_kit::test]
+fn the_composer_reads_a_running_turn_and_older_messages_off_a_page_holding_neither(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    let event = |kind: &str, pos: u64, extra: serde_json::Value| {
+        let mut v = serde_json::json!({"workspaceId": "w", "sessionId": "s9", "threadId": "t", "turnId": "u9", "type": kind, "pos": pos});
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        serde_json::from_value::<SessionEvent>(v).unwrap()
+    };
+    let calls = |from: u64| -> Vec<SessionEvent> {
+        (from..from + 200)
+            .map(|pos| {
+                event(
+                    "session.delta",
+                    pos,
+                    serde_json::json!({"kind": "tool_use", "toolName": "Bash", "toolUseId": format!("c{pos}"), "text": "{}"}),
+                )
+            })
+            .collect()
+    };
+    let ended = |mut events: Vec<SessionEvent>, pos: u64| {
+        events.push(event("session.done", pos, serde_json::json!({"result": {"status": "completed"}})));
+        events.push(event("session.end", pos + 1, serde_json::json!({"exitCode": 0, "sawResult": true})));
+        events
+    };
+    let seen = |events: Vec<SessionEvent>, total: u64, cx: &mut VisualTestContext| {
+        view.update(cx, |v, cx| {
+            v.show("t", cx);
+            let (drawn, _) = oneshot::channel();
+            v.arrive(Arrival::History { events, total, trimmed: false, drawn }, cx);
+        });
+        view.read_with(cx, |v, _| {
+            let seen = crate::screens::thread_view::seen(v);
+            (seen.compact(), seen.running().map(str::to_owned))
+        })
+    };
+    assert_eq!(seen(calls(7_001), 7_200, cx), (true, Some("s9".to_owned())), "a page of a running turn's calls");
+    assert_eq!(seen(ended(calls(7_001), 7_201), 7_202, cx), (true, None), "a page of calls under older pages");
+    let said = vec![event("session.delta", 7_001, serde_json::json!({"kind": "text", "text": "Done."}))];
+    assert_eq!(seen(ended(said, 7_002), 3, cx), (true, None), "a page holding the agent's words, its turn's start trimmed");
+}

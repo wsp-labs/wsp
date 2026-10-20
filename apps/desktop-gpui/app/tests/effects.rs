@@ -26,7 +26,9 @@ use scene::{Scene, H, W};
 fn tolerance(scene: Scene) -> (u8, usize) {
     match scene {
         Scene::PlainLight | Scene::Clip | Scene::ClipNested => (2, 0),
-        Scene::BlurLight | Scene::BlurDark | Scene::BlurTwo | Scene::BlurRadii | Scene::BlurTintDark | Scene::BlurShadow => (4, 0),
+        Scene::BlurLight | Scene::BlurDark | Scene::BlurTwo | Scene::BlurRadii | Scene::BlurTintDark | Scene::BlurShadow | Scene::Fade => {
+            (4, 0)
+        }
     }
 }
 
@@ -203,6 +205,14 @@ fn rgb_at(shot: &image::RgbaImage, x: f32, y: f32) -> [u8; 3] {
     [p[0], p[1], p[2]]
 }
 
+/// `over` at `alpha` laid on `under`.
+fn mix(over: u32, under: u32, alpha: f32) -> u32 {
+    [16, 8, 0].into_iter().fold(0, |color, shift| {
+        let (o, u) = (((over >> shift) & 0xff) as f32, ((under >> shift) & 0xff) as f32);
+        color | (((u + (o - u) * alpha).round() as u32) << shift)
+    })
+}
+
 fn near(a: [u8; 3], b: u32, tolerance: u8) -> bool {
     a.iter().zip([(b >> 16) as u8, (b >> 8) as u8, b as u8]).all(|(a, b)| a.abs_diff(b) <= tolerance)
 }
@@ -232,6 +242,21 @@ fn samples(scene: Scene, name: &str, actual: &image::RgbaImage, expected: &image
                 let (seen, chromium) = (rgb_at(actual, x, y), rgb_at(expected, x, y));
                 let ok = seen.iter().zip(chromium).all(|(a, b)| a.abs_diff(b) <= tolerance);
                 check(format!("shadow below the pane's top at ({x}, {y})"), ok, format!("{seen:?}, Chromium {chromium:?}"));
+            }
+        }
+        // Whole above each ramp, half way down it, and only what lies under the element below it.
+        Scene::Fade => {
+            let (bubble, page, violet) = (scene::BUBBLE, scene::PEEK_PAGE, 0x8b5cf6);
+            for (what, x, y, color) in [
+                ("folded body above the ramp", 96., 70., 0xe11d48),
+                ("folded body mid ramp", 96., 176., mix(0x3b82f6, bubble, 0.5)),
+                ("folded body last 24 px", 96., 216., bubble),
+                ("peek row top", 408., 76., violet),
+                ("peek row middle", 408., 100., mix(violet, page, 0.5)),
+                ("peek row bottom", 408., 123.5, page),
+            ] {
+                let seen = rgb_at(actual, x, y);
+                check(format!("{what} at ({x}, {y})"), near(seen, color, tolerance), format!("{seen:?}, expected #{color:06x}"));
             }
         }
         _ => {}
