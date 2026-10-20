@@ -243,6 +243,37 @@ pub enum RowKind {
     Slate,
 }
 
+impl RowKind {
+    /// The variant's name, as a trace says it.
+    pub fn name(&self) -> &'static str {
+        match self {
+            RowKind::Person { .. } => "Person",
+            RowKind::Agent { .. } => "Agent",
+            RowKind::Fold { .. } => "Fold",
+            RowKind::Stopped => "Stopped",
+            RowKind::Group { .. } => "Group",
+            RowKind::Live { .. } => "Live",
+            RowKind::Calls { .. } => "Calls",
+            RowKind::Work { .. } => "Work",
+            RowKind::Error => "Error",
+            RowKind::Working { .. } => "Working",
+            RowKind::Thinking => "Thinking",
+            RowKind::Footer { .. } => "Footer",
+            RowKind::Permission { .. } => "Permission",
+            RowKind::Question { .. } => "Question",
+            RowKind::Plan { .. } => "Plan",
+            RowKind::Subagent { .. } => "Subagent",
+            RowKind::Spawn { .. } => "Spawn",
+            RowKind::ChangedFiles { .. } => "ChangedFiles",
+            RowKind::Fork { .. } => "Fork",
+            RowKind::StartFailed { .. } => "StartFailed",
+            RowKind::Threads { .. } => "Threads",
+            RowKind::Rule => "Rule",
+            RowKind::Slate => "Slate",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FileTile {
     pub name: String,

@@ -8,7 +8,7 @@ pub(crate) use chrome::ghost_button;
 pub use file_chips::{inline_file, path_text, FileChips, FileMeta};
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::{Arc, OnceLock};
 
@@ -456,16 +456,69 @@ pub fn open_file(path: &str, line: Option<u64>, window: &Window, cx: &mut App) {
 /// The fence highlighter for a theme, built once: a code block keeps its highlights only while this `Arc` is the same.
 type Highlighter = dyn Fn(&CodeBlock) -> Vec<(Range<usize>, HighlightStyle)> + Send + Sync;
 
+/// A highlighter built for a theme once a number of grammars had landed.
+type Built = (Arc<HighlightTheme>, u64, Arc<Highlighter>);
+
+/// A new one for each grammar that lands, so a block drawn plain while its grammar compiled is highlighted again.
 fn highlighter(theme: &Arc<HighlightTheme>) -> Arc<Highlighter> {
-    static BUILT: std::sync::Mutex<Vec<(Arc<HighlightTheme>, Arc<Highlighter>)>> = std::sync::Mutex::new(Vec::new());
-    let mut built = BUILT.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((_, held)) = built.iter().find(|(held, _)| Arc::ptr_eq(held, theme) || **held == **theme) {
-        return held.clone();
+    let landed = LANDED.with(|l| l.get());
+    BUILT.with(|built| {
+        let mut built = built.borrow_mut();
+        let same = |held: &Arc<HighlightTheme>| Arc::ptr_eq(held, theme) || **held == **theme;
+        if let Some((_, _, held)) = built.iter().find(|(held, at, _)| *at == landed && same(held)) {
+            return held.clone();
+        }
+        built.retain(|(held, _, _)| !same(held));
+        let colors = theme.clone();
+        let made: Arc<Highlighter> = Arc::new(move |block: &CodeBlock| highlight(block, &colors));
+        built.push((theme.clone(), landed, made.clone()));
+        made
+    })
+}
+
+/// The languages of the fenced blocks in `text`, as their fences name them.
+pub fn fence_langs(text: &str) -> impl Iterator<Item = &str> {
+    text.lines().filter_map(|line| {
+        let line = line.trim_start();
+        let rest = line.strip_prefix("```").or_else(|| line.strip_prefix("~~~"))?;
+        rest.split_whitespace().next().map(|lang| lang.trim_matches('`')).filter(|lang| !lang.is_empty())
+    })
+}
+
+/// The language a file's extension names for its diff's colors; empty for a path with none.
+pub fn path_lang(path: &str) -> &str {
+    path.rsplit('.').next().filter(|ext| *ext != path).unwrap_or("")
+}
+
+/// Builds the highlighters of `langs` this thread has not built off the UI thread, since compiling a grammar's queries
+/// takes tens of ms; a block in one draws plain until it lands, and `landed` runs on the UI thread as each does.
+pub fn warm<'a>(langs: impl IntoIterator<Item = &'a str>, landed: impl Fn(&mut App) + Clone + 'static, cx: &mut App) {
+    for lang in langs {
+        let Some(name) = LanguageRegistry::singleton().language(lang).map(|known| known.name) else { continue };
+        if PARSERS.with(|p| p.borrow().contains_key(&name)) || !WARMING.with(|w| w.borrow_mut().insert(name.clone())) {
+            continue;
+        }
+        let built = cx.background_spawn({
+            let name = name.clone();
+            async move { SyntaxHighlighter::new(&name) }
+        });
+        let landed = landed.clone();
+        cx.spawn(async move |cx| {
+            let parser = built.await;
+            cx.update(|cx| {
+                WARMING.with(|w| w.borrow_mut().remove(&name));
+                PARSERS.with(|p| p.borrow_mut().insert(name, parser));
+                LANDED.with(|l| l.set(l.get() + 1));
+                landed(cx);
+            });
+        })
+        .detach();
     }
-    let colors = theme.clone();
-    let made: Arc<Highlighter> = Arc::new(move |block: &CodeBlock| highlight(block, &colors));
-    built.push((theme.clone(), made.clone()));
-    made
+}
+
+/// Whether `lang`'s grammar is compiling off the UI thread now.
+pub fn warming(lang: &str) -> bool {
+    LanguageRegistry::singleton().language(lang).is_some_and(|known| WARMING.with(|w| w.borrow().contains(&known.name)))
 }
 
 fn highlight(block: &CodeBlock, theme: &HighlightTheme) -> Vec<(Range<usize>, HighlightStyle)> {
@@ -485,6 +538,9 @@ pub fn highlight_code(lang: &str, code: &str, theme: &HighlightTheme) -> Vec<(Ra
         return held.to_vec();
     }
     let found = styles(&SharedString::from(lang.to_owned()), code, theme);
+    if warming(lang) {
+        return found;
+    }
     HIGHLIGHTS.with(|held| {
         let mut held = held.borrow_mut();
         if held.len() >= HIGHLIGHTS_HELD {
@@ -505,18 +561,30 @@ thread_local! {
     static HIGHLIGHTS: RefCell<HashMap<(String, usize, u64), Highlights>> = RefCell::new(HashMap::new());
     /// How many times a parser ran, for the tests.
     static PARSED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static WARMING: RefCell<HashSet<SharedString>> = RefCell::new(HashSet::new());
+    /// How many grammars have landed from `warm` on this thread, whose `PARSERS` they joined.
+    static LANDED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static BUILT: RefCell<Vec<Built>> = const { RefCell::new(Vec::new()) };
 }
 
 fn styles(lang: &SharedString, code: &str, theme: &HighlightTheme) -> Vec<(Range<usize>, HighlightStyle)> {
     let lang = LanguageRegistry::singleton().language(lang).map_or_else(|| SharedString::from("text"), |known| known.name);
+    if WARMING.with(|w| w.borrow().contains(&lang)) {
+        return Vec::new();
+    }
     let code = code.to_owned();
     PARSED.with(|parsed| parsed.set(parsed.get() + 1));
-    PARSERS.with(|parsers| {
-        let mut parsers = parsers.borrow_mut();
-        let parser = parsers.entry(lang.clone()).or_insert_with(|| SyntaxHighlighter::new(&lang));
-        parser.update(None, &Rope::from_str(&code), None);
-        parser.styles(&(0..code.len()), theme)
-    })
+    crate::scroll_trace::timed(
+        |w, ms| (w.highlighted, w.highlight_ms) = (w.highlighted + 1, w.highlight_ms + ms),
+        || {
+            PARSERS.with(|parsers| {
+                let mut parsers = parsers.borrow_mut();
+                let parser = parsers.entry(lang.clone()).or_insert_with(|| SyntaxHighlighter::new(&lang));
+                parser.update(None, &Rope::from_str(&code), None);
+                parser.styles(&(0..code.len()), theme)
+            })
+        },
+    )
 }
 
 /// `<hr>`: preflight's 1 px rule with no margin of its own, so the blocks around it set its gaps.

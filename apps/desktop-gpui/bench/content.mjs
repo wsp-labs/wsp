@@ -2,7 +2,9 @@
 // The transcripts the bench's threads hold, the same on every run. Each turn is the person's short message, the
 // agent's tool calls with their output where it made any, and the agent's final reply: markdown prose, a quarter of
 // them with a fenced code block under it. Both apps fold a finished turn's calls behind one "Worked for" line and show
-// the message and the reply, so a thread of n turns shows 2n messages.
+// the message and the reply, so a thread of n turns shows 2n messages. `real` is shaped like a person's long thread
+// instead (real.mjs): screenshots, long pastes, long tool output, subagents, code in many languages, tables.
+import { realTurns, rng } from "./real.mjs";
 
 /** The host keeps 5,000 events of a thread and drops the oldest past that (TRANSCRIPT_CAP); a turn is 5 events and a
  * tool call 2 more, so `long` is the most turns that fit whole with some calls among them: 900 * 5 + 200 * 2 = 4,900. */
@@ -11,23 +13,16 @@ export const THREADS = {
   "short-1": { turns: 10, calls: 15, seed: 2 },
   "short-2": { turns: 10, calls: 15, seed: 3 },
   "short-3": { turns: 10, calls: 15, seed: 4 },
+  /** Shares of turns: `pastes` and `shots` of person messages, `writeUps`, `tables` and `code` of replies; `calls` is
+   * the mean tool calls a turn, `tasks` the turns that also launch a subagent, `changes` the turns that change 100 to
+   * 140 files of the folder. */
+  real: { shape: "real", turns: 220, calls: 3, tasks: 16, changes: 6, pastes: 0.06, shots: 0.08, writeUps: 0.02, tables: 0.08, code: 0.3, seed: 5 },
 };
 export const EVENTS_PER_TURN = 5;
 export const EVENTS_PER_CALL = 2;
 
 /** The share of final replies that carry a fenced code block under their prose. */
 export const CODE_SHARE = 0.25;
-
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const IDENTS = ["HostClient", "threadMessages", "LegendList", "scrollTop", "useChatThread", "session.delta", "toolUseId", "HISTORY_PAGE_EVENTS", "Throwaway", "state.json", "host.lock", "openHost", "Window::refresh", "uniform_list", "px_per_s", "ThreadView", "sessions.history", "messageId", "Live::Event", "flattenContent"];
 const FILES = ["apps/web/src/components/chat/timeline/list.tsx", "packages/protocol/src/thread-read.ts", "apps/desktop/src/host-lifecycle.ts", "apps/desktop-gpui/host-client/src/lib.rs", "packages/host/src/verbs/turns-help.ts", "packages/adapter-claude/src/adapter.ts", "apps/desktop-gpui/app/src/main.rs", "packages/runtime/src/session.ts"];
@@ -91,6 +86,7 @@ function tool(r) {
 export function turnsOf(name) {
   const plan = THREADS[name];
   if (plan === undefined) throw new Error(`no bench thread ${name}`);
+  if (plan.shape === "real") return realTurns(plan);
   const r = rng(plan.seed);
   const coded = Array.from({ length: plan.turns }, (_, i) => i < Math.round(plan.turns * CODE_SHARE));
   for (let i = coded.length - 1; i > 0; i--) {
@@ -113,4 +109,17 @@ export function lastWords(name) {
 
 export function firstPrompt(name) {
   return turnsOf(name)[0].prompt;
+}
+
+/** The events a thread's turns record on the host: each turn's 5, each call's 2, a thinking block's 1, and a
+ * subagent's launch, start, lines, calls, notification and answer. */
+export function eventsOf(turns) {
+  const callEvents = c => (c.children === undefined ? EVENTS_PER_CALL : 4 + c.children.reduce((n, k) => n + (k.text !== undefined ? 1 : EVENTS_PER_CALL), 0));
+  return turns.reduce((n, t) => n + EVENTS_PER_TURN + (t.thinking !== undefined ? 1 : 0) + t.tools.reduce((m, c) => m + callEvents(c), 0), 0);
+}
+
+/** The transcript's lines as markdown source with every turn folded: each person message's and each reply's. Wrapping
+ * draws more lines than this on a narrow window, and tool output opened by hand adds its own. */
+export function renderedLines(turns) {
+  return turns.reduce((n, t) => n + t.prompt.split("\n").length + t.reply.split("\n").length, 0);
 }

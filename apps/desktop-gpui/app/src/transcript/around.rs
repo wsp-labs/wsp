@@ -2,7 +2,8 @@
 //! What the transcript lays over its rows from outside its own events.
 
 use super::{
-    prompt::prompt_row, waiting_asker_line, Glyph, Listing, Prompt, Row, RowKind, Splice, StepState, Tone, Transcript, PAUSED_KEY,
+    prompt::prompt_row, waiting_asker_line, Body, Entry, Glyph, Listing, Prompt, Row, RowKind, Splice, StepState, Tone, Transcript,
+    PAUSED_KEY,
 };
 
 impl Transcript {
@@ -29,6 +30,23 @@ pub(super) struct Around {
     pub(super) page: Option<String>,
 }
 
+/// `START_SLACK_MS`: how far a message's own clock may run ahead of the host's start for the start to be that message's.
+const START_SLACK_MS: f64 = 10_000.;
+
+/// `machineStartAt`'s rule for the person's message that asked for a start begun at `since`: sent at or after it, less
+/// the slack; a message with no time asked for none.
+fn asked(at: Option<f64>, since: f64) -> bool {
+    at.is_some_and(|at| at >= since - START_SLACK_MS)
+}
+
+/// `machineStartAt`'s answer: when the first entry after the message that [`asked`] began, of any kind but a person's
+/// message; None while there is none.
+pub(super) fn start_answered(entries: &[Entry], since: f64) -> Option<f64> {
+    let person = |e: &Entry| matches!(e.body, Body::Person { .. });
+    let asking = entries.iter().position(|e| person(e) && asked(e.at, since))?;
+    entries[asking + 1..].iter().find(|e| !person(e))?.at
+}
+
 /// The rule line's own words: `forkedFromLine` in packages/protocol/src/words/thread.ts.
 pub fn forked_from_line(title: &str) -> String {
     format!("Forked from {title}")
@@ -37,8 +55,16 @@ pub fn forked_from_line(title: &str) -> String {
 impl Around {
     /// Lays what the listing and the window know over the rows the events folded into: the fork rule's title and Open,
     /// no Rewind on a capped turn, each child's state, the borrowed question, the start that failed, and the foot.
-    /// `split` counts the rows before the latest turn and moves with any row taken out before it.
-    pub(super) fn dress(&self, mut rows: Vec<Row>, mut split: Option<usize>, whole: bool, shut: bool) -> (Vec<Row>, Option<usize>) {
+    /// `split` counts the rows before the latest turn and moves with any row taken out before it; `entries` are the
+    /// fold's, which the start line reads its answer off before any turn folds.
+    pub(super) fn dress(
+        &self,
+        mut rows: Vec<Row>,
+        mut split: Option<usize>,
+        whole: bool,
+        shut: bool,
+        entries: &[Entry],
+    ) -> (Vec<Row>, Option<usize>) {
         let listing = self.listing.as_ref();
         let mut ix = 0;
         while ix < rows.len() {
@@ -71,14 +97,8 @@ impl Around {
         if let Some(start) = &listing.start_failed {
             // `machineStartAt`: after the person's first message at or after the start began, with some slack; a start
             // still under way or failed with no such message stands last, a finished one is not drawn.
-            let person =
-                rows.iter().position(|r| matches!(r.kind, RowKind::Person { at, .. } if at.is_none_or(|at| at >= start.since - 10_000.)));
-            let answered = person.and_then(|p| {
-                rows[p + 1..].iter().find_map(|r| match r.kind {
-                    RowKind::Agent { at, .. } => at,
-                    _ => None,
-                })
-            });
+            let person = rows.iter().position(|r| matches!(r.kind, RowKind::Person { at, .. } if asked(at, start.since)));
+            let answered = start_answered(entries, start.since);
             let mut start = start.clone();
             if let (Some(ready), Some(answered)) = (start.ready, answered) {
                 start.took = Some((answered - start.since).max(0.));

@@ -10,7 +10,6 @@ mod render;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures::channel::{mpsc, oneshot};
@@ -147,7 +146,7 @@ pub struct ThreadView {
     /// Each person's message's attachments by row key, one slot per file, kept while the row is near like `bodies`.
     pub(crate) images: HashMap<String, Vec<cards::Shot>>,
     /// Images rows drew and no longer hold, which the next draw takes out of GPUI's cache and the window's atlas.
-    released: Vec<Arc<gpui_kit::Image>>,
+    released: Vec<cards::Released>,
     /// What the host said about a pick it would not take, by the prompt's ask id, so it outlives the row's rebuilds.
     pub(crate) refusals: HashMap<String, cards::Refusal>,
     list: ListState,
@@ -515,7 +514,35 @@ impl ThreadView {
         self.clocks.clear();
         self.built_span = None;
         self.list.reset_with_uniform_height(self.transcript.rows().len(), ROW_ESTIMATE);
+        self.warm(0..self.transcript.rows().len(), cx);
         cx.notify();
+    }
+
+    /// Compiles the grammars the code in `rows` is written in off the UI thread, before a row of them scrolls in: its
+    /// fences, its commands' bash and its edits' files.
+    fn warm(&mut self, rows: std::ops::Range<usize>, cx: &mut Context<Self>) {
+        let all = self.transcript.rows();
+        let langs: HashSet<&str> = all
+            .get(rows)
+            .unwrap_or_default()
+            .iter()
+            .flat_map(|r| {
+                let calls = match &r.kind {
+                    RowKind::Calls { calls, .. } => calls.as_slice(),
+                    _ => &[],
+                };
+                let tools = calls.iter().flat_map(|c| {
+                    c.command.as_ref().map(|_| "bash").into_iter().chain(c.files.iter().map(|f| markdown::path_lang(&f.path)))
+                });
+                markdown::fence_langs(&r.text).chain(tools)
+            })
+            .filter(|lang| !lang.is_empty())
+            .collect();
+        if langs.is_empty() {
+            return;
+        }
+        let me = cx.weak_entity();
+        markdown::warm(langs, move |cx| _ = me.update(cx, |_, cx| cx.notify()), cx);
     }
 
     /// An event the host pushed after the transcript was read; a view at its end stays at the end.
@@ -586,6 +613,7 @@ impl ThreadView {
     /// Lays an older page under the events held: the transcript folds the page and the turn it meets, and only the
     /// head of the list that changed is spliced, so every row below keeps its height and the reader stays on their row.
     fn land(&mut self, before: u64, page: Result<Page, Failure>, cx: &mut Context<Self>) {
+        let began = Instant::now();
         let page = match page {
             Ok(page) => page,
             Err(failure) => {
@@ -608,6 +636,7 @@ impl ThreadView {
             return;
         }
         let taken: Vec<SessionEvent> = page.events.into_iter().filter(|e| wsp_host_client::pos(e).is_some_and(|p| p < before)).collect();
+        let landed = taken.len();
         let held = (recorded(&taken) + recorded(self.transcript.event_list())) as u64;
         self.complete = taken.is_empty() || held >= page.total;
         self.trimmed |= page.trimmed == Some(true);
@@ -640,13 +669,14 @@ impl ThreadView {
         if !following {
             self.list.scroll_to(ListOffset { item_ix: place, offset_in_item: top.offset_in_item });
         }
+        crate::scroll_trace::note(|w| w.pages.push((landed, began.elapsed().as_secs_f64() * 1000.)));
         cx.notify();
     }
 
     /// Stamps the thread read on the host while the window is active, as the web stamps only a visible page; a stamp
     /// due while it is not waits for it to be.
     fn stamp(&mut self, cx: &mut Context<Self>) {
-        if !self.stamp_due || !self.active {
+        if !self.stamp_due || !self.active || crate::scroll_trace::read_only() {
             return;
         }
         let Some(following) = &self.following else { return };
@@ -895,6 +925,28 @@ impl ThreadView {
         cx.notify();
     }
 
+    /// Where the list stands for a trace: from its top, how far it can, and the kind of the row at window height `y`.
+    pub fn spot(&self, y: Pixels) -> crate::scroll_trace::Spot {
+        let first = self.list.logical_scroll_top().item_ix;
+        let under = (first..self.transcript.rows().len())
+            .take(64)
+            .find(|&ix| self.list.bounds_for_item(ix).is_some_and(|b| b.top() <= y && y < b.bottom()))
+            .map(|ix| {
+                let row = &self.transcript.rows()[ix];
+                let kind = row.kind.name();
+                match &row.kind {
+                    RowKind::Agent { .. } if row.text.contains("```") => format!("{kind} with code"),
+                    RowKind::Agent { .. } if row.text.contains("| --- |") => format!("{kind} with a table"),
+                    _ => kind.to_owned(),
+                }
+            });
+        crate::scroll_trace::Spot {
+            top: (-self.list.scroll_px_offset_for_scrollbar().y).into(),
+            max: self.list.max_offset_for_scrollbar().y.into(),
+            under,
+        }
+    }
+
     pub fn driven_to_end(&self) -> bool {
         self.drive.as_ref().is_some_and(|d| d.done)
     }
@@ -929,6 +981,7 @@ impl ThreadView {
             }
         }
         let reaches_end = start + inserted == rows.len();
+        self.warm(start..start + inserted, cx);
         if removed == inserted {
             // A splice would move a view whose top sits inside one of these rows to that row's top.
             self.list.remeasure_items(start..start + inserted);
@@ -948,10 +1001,15 @@ impl ThreadView {
         let body = self.bodies.entry(row.key.clone()).or_insert_with(|| {
             *parsed += 1;
             let text = rows::body_text(row);
-            cx.new(|cx| {
-                let extensions = markdown::extensions(cwd.as_deref(), cx);
-                TextViewState::markdown_with_extensions(&text, extensions, cx)
-            })
+            crate::scroll_trace::timed(
+                |w, ms| (w.parsed, w.parse_ms) = (w.parsed + 1, w.parse_ms + ms),
+                || {
+                    cx.new(|cx| {
+                        let extensions = markdown::extensions(cwd.as_deref(), cx);
+                        TextViewState::markdown_with_extensions(&text, extensions, cx)
+                    })
+                },
+            )
         });
         body.clone()
     }
@@ -994,7 +1052,7 @@ impl ThreadView {
         if let RowKind::Agent { rewind, .. } = &mut row.kind {
             rewind.take_if(|_| self.transcript.working());
         }
-        rows::row(self, ix, &row, window, cx)
+        crate::scroll_trace::timed(|w, ms| (w.rows, w.row_ms) = (w.rows + 1, w.row_ms + ms), || rows::row(self, ix, &row, window, cx))
     }
 }
 

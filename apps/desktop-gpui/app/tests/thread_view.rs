@@ -80,6 +80,9 @@ fn push_turn(view: &Entity<ThreadView>, n: usize, cx: &mut VisualTestContext) {
 #[gpui_kit::test]
 fn the_list_builds_only_the_rows_on_screen(cx: &mut TestAppContext) {
     let (view, cx) = window(cx);
+    // A grammar landing after the first frame draws the rows on screen again to highlight them, with no new parse.
+    cx.update(|_, cx| desktop_gpui::screens::thread_view::markdown::warm(["rust"], |_| {}, cx));
+    cx.run_until_parked();
     view.update(cx, |v, cx| {
         v.show("t", cx);
         v.load(transcript(TURNS), cx);
