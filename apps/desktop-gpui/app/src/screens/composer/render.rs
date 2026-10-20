@@ -71,8 +71,9 @@ impl Composer {
         let shut = self.hold.as_ref().is_some_and(Hold::shuts);
         let width = self.line_width.clone();
         let editor_width = width.get();
-        // The slash hint stands while `/` opens a menu: the announced commands, or the skills it lists under them.
-        let slash_lists = !self.commands_offered().is_empty() || (self.ran.agent.is_some() && !self.skills.is_empty());
+        // The slash hint stands while `/` opens a menu: the announced commands, `/btw` where it asks a side question
+        // (`catalogFromHarness`), or the skills it lists under them.
+        let slash_lists = !self.commands_offered().is_empty() || self.asides() || (self.ran.agent.is_some() && !self.skills.is_empty());
         let placeholder = model::placeholder(slash_lists, if editor_width > px(0.) { f32::from(editor_width) } else { 600. });
         if self.placeholder != placeholder {
             self.placeholder = placeholder;

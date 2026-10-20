@@ -34,7 +34,7 @@ struct Column {
 impl Render for Column {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let fresh = self.composer.read(cx).fresh();
-        column(fresh, cx.palette().background, self.composer.clone())
+        column(fresh, self.composer.clone()).bg(cx.palette().background)
     }
 }
 

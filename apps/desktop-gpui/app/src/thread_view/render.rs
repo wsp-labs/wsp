@@ -111,11 +111,8 @@ impl Render for ThreadView {
         };
         let drawn = self.drawn.take_if(|_| self.loaded);
         let muted = cx.theme().muted_foreground;
-        let status = match (&self.failure, &self.thread) {
-            (Some(failure), _) => Some(failure.clone()),
-            (None, None) => Some("Pick a thread".to_owned()),
-            _ => None,
-        };
+        // With no thread `WorkspaceCenter` draws nothing; a host holding a project shows its New thread page instead.
+        let status = self.failure.clone();
         // `TRANSCRIPT_LOADING` over the composer's room, and list.tsx's empty line in the placeholder ink, each centred.
         let words = match self.placeholder() {
             Some(_) if !self.loaded => Some(cards::loading(self.composer_inset, cx).into_any_element()),
@@ -234,7 +231,6 @@ impl Render for ThreadView {
                     }
                 }),
             )
-            .bg(cx.theme().background)
             .child(
                 div()
                     .relative()

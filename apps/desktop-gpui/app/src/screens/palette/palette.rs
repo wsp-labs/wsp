@@ -469,7 +469,7 @@ fn read(s: &Sidebar, route: Option<&Route>, connected: bool, rules: &[Bound], ma
     let around = s.around();
     let place_name = |id: &str| around.places.iter().find(|p| p["id"].as_str() == Some(id)).map(looks::place_name);
     let workspace_name = |id: &str| around.workspaces.get(id).and_then(|w| w["name"].as_str()).map(str::to_owned);
-    let computer_of = |workspace: &str| s.place_of(workspace).and_then(|p| place_name(&p)).filter(|n| !n.is_empty());
+    let computer_of = |workspace: &str| s.computer_name(workspace).filter(|n| !n.is_empty());
     let now = js_now();
     let threads: Vec<items::Thread> = s
         .threads()
@@ -483,7 +483,7 @@ fn read(s: &Sidebar, route: Option<&Route>, connected: bool, rules: &[Bound], ma
                 title: t.title.clone(),
                 harness: t.harness.clone(),
                 task: workspace_name(&t.workspace_id).or_else(|| t.project_name.clone()).unwrap_or_default(),
-                computer: t.computer.clone().filter(|c| !c.is_empty()),
+                computer: computer_of(&t.workspace_id),
                 started_at: t.started_at,
                 kind,
                 slot: slot.text,
@@ -527,7 +527,7 @@ fn read(s: &Sidebar, route: Option<&Route>, connected: bool, rules: &[Bound], ma
             let here = at.is_some_and(|c| c == "here");
             // `projectWhere`: this computer by its name and no glyph, another by its name or else its id.
             let computer = at.and_then(|c| place_name(c).or_else(|| (!here).then(|| c.clone()))).filter(|n| !n.is_empty());
-            let workspace = folder_of(&around.workspaces, &id);
+            let workspace = s.home_of(&id);
             items::Project { path: around.project_paths.get(&id).cloned().unwrap_or_default(), id, name, computer, here, workspace }
         })
         .collect();
@@ -545,15 +545,6 @@ fn read(s: &Sidebar, route: Option<&Route>, connected: bool, rules: &[Bound], ma
 fn asks(s: &Sidebar) -> bool {
     let prefs = s.around().preferences.as_deref().unwrap_or(&Value::Null);
     prefs["newThreadIn"].as_str() == Some("ask") && s.around().projects.len() > 1
-}
-
-/// The workspace a project's New thread page opens on: the project's own folder, else any of its tasks.
-fn folder_of(workspaces: &std::collections::HashMap<String, Value>, project: &str) -> Option<String> {
-    let of = || workspaces.values().filter(|w| w.pointer("/project/id").and_then(Value::as_str) == Some(project));
-    of().find(|w| matches!(w["kind"].as_str(), Some("local" | "place")) && w.get("worktree").is_none())
-        .or_else(|| of().next())
-        .and_then(|w| w["id"].as_str())
-        .map(str::to_owned)
 }
 
 /// The open thread tree's moves and the open task's own acts, as `openRootMoves` and the registry's `actionItem` list

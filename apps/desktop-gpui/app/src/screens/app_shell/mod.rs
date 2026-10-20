@@ -151,6 +151,8 @@ pub struct Parts {
     pub actions: Option<AnyView>,
     /// For a screen in the right panel, its tab's name, read on every draw; the pane's label without one.
     pub title: Option<Title>,
+    /// Drawn behind a main column screen's view, filling it: a view of its own, so a frame of it builds nothing else.
+    pub backdrop: Option<AnyView>,
 }
 
 /// What a screen is opened on: the thread the window shows and its workspace, a pane's own tab, and a page's argument.

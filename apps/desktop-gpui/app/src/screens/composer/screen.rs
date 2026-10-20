@@ -4,13 +4,16 @@
 //! opens it on a new thread there, as New thread does, and holds a fork's draft there when Fork from here opened it.
 
 use gpui_kit::component::v_flex;
-use gpui_kit::{prelude::*, Context, Entity, FocusHandle, KeyDownEvent, Task, Window};
+use gpui_kit::{div, prelude::*, px, App, Context, Entity, FocusHandle, KeyDownEvent, SharedString, Subscription, Task, Window};
+use serde_json::Value;
+use wsp_host_client::protocol::ProjectsBranchRequest;
 use wsp_host_client::Failure;
 
+use super::hero::{self, HeroField};
 use super::link::{Link, Target};
 use super::model::Hold;
 use super::Composer;
-use crate::screens::{Host, Opened, Place, Screen};
+use crate::screens::{Host, Opened, Parts, Place, Screen};
 use crate::ui::ActivePalette;
 
 pub struct ComposerScreen {
@@ -20,16 +23,53 @@ pub struct ComposerScreen {
     host: Host,
     link: Option<Entity<Link>>,
     note: Option<String>,
+    /// The workspace a new thread is written on, which names the headline's project.
+    workspace: Option<String>,
+    /// The page is a project's home (`ProjectHome.tsx`), not a workspace's New thread here (ChatView's fresh thread).
+    home: bool,
+    hero: Entity<HeroField>,
+    _branch: Task<()>,
     _connect: Task<()>,
+    /// The headline draws the project's name and mark from the sidebar, which the frame's cache of this page does not see.
+    _names: Option<Subscription>,
 }
+
+/// `BRANCH_REREAD_MS`: how often a project home reads its branch again, so a checkout made in a terminal reaches the
+/// tray without a send.
+const BRANCH_REREAD: std::time::Duration = std::time::Duration::from_secs(5);
 
 impl Screen for ComposerScreen {
     const NAME: &'static str = "composer";
     const PLACE: Place = Place::Main;
 
+    /// The field behind the page is the frame's to draw, so its frames do not build the page and its composer again.
+    fn parts(this: &Entity<Self>, _: &mut Window, cx: &mut App) -> Parts {
+        Parts { backdrop: Some(this.read(cx).hero.clone().into()), ..Parts::default() }
+    }
+
     fn new(host: Host, opened: Opened, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let composer = cx.new(|cx| Composer::new(window, cx));
-        let mut screen = ComposerScreen { composer, focus: cx.focus_handle(), host, link: None, note: None, _connect: Task::ready(()) };
+        let hero = cx.new(|_| HeroField::new());
+        let names = crate::screens::terminal::workspaces_sidebar(cx).map(|sidebar| {
+            cx.observe(&sidebar, |this: &mut Self, _, cx| {
+                if this.composer.read(cx).fresh() {
+                    cx.notify()
+                }
+            })
+        });
+        let mut screen = ComposerScreen {
+            composer,
+            focus: cx.focus_handle(),
+            host,
+            link: None,
+            note: None,
+            workspace: None,
+            home: false,
+            hero,
+            _branch: Task::ready(()),
+            _connect: Task::ready(()),
+            _names: names,
+        };
         screen.connect(opened, window, cx);
         screen
     }
@@ -50,6 +90,9 @@ impl ComposerScreen {
         let host = self.host.clone();
         let wanted = opened.thread_id;
         let new_on = opened.arg.map(String::from);
+        self.workspace = new_on.clone();
+        let (hero, composer) = (self.hero.clone(), self.composer.clone());
+        hero.update(cx, |h, cx| h.follow(new_on.is_some().then_some(composer), cx));
         if let Some(workspace_id) = &new_on {
             crate::screens::terminal::page_starts_over(workspace_id, cx);
         }
@@ -98,12 +141,77 @@ impl ComposerScreen {
     pub fn composer(&self) -> &Entity<Composer> {
         &self.composer
     }
+
+    /// Whether the page stands as a project's home, which the shell says as it opens the page.
+    pub fn set_home(&mut self, home: bool, cx: &mut Context<Self>) {
+        self.home = home;
+        self.read_branch(cx);
+        cx.notify();
+    }
+
+    /// `HomeCheckoutRow`'s branch: the project's folder's, read now and every 5 s while the page stands as its home.
+    fn read_branch(&mut self, cx: &mut Context<Self>) {
+        let sidebar = crate::screens::terminal::workspaces_sidebar(cx);
+        let project = self
+            .workspace
+            .as_deref()
+            .and_then(|w| sidebar.as_ref()?.read(cx).workspace(w).0?.pointer("/project/id")?.as_str().map(str::to_owned))
+            .filter(|_| self.home);
+        let Some(project) = project else {
+            self._branch = Task::ready(());
+            return;
+        };
+        let host = self.host.clone();
+        self._branch = cx.spawn(async move |this, cx| loop {
+            let id = project.clone();
+            let read = host
+                .run(move |client| async move {
+                    let ask: ProjectsBranchRequest =
+                        serde_json::from_value(serde_json::json!({ "projectId": id })).map_err(|e| Failure::new(e.to_string()))?;
+                    client.call(ask).await
+                })
+                .await;
+            // A read that failed knows no branch, so the chip goes empty rather than keep one the folder may have left.
+            let branch = read.ok().and_then(|b| b.branch).filter(|b| !b.is_empty() && b != "(detached)");
+            let told = this.update(cx, |this, cx| this.composer.update(cx, |c, cx| c.set_project_branch(branch, cx)));
+            if told.is_err() {
+                return;
+            }
+            cx.background_executor().timer(BRANCH_REREAD).await;
+        });
+    }
+
+    pub fn hero(&self) -> &Entity<HeroField> {
+        &self.hero
+    }
+
+    /// The headline over a new thread: the workspace's project by its mark and name, the name the workspace's id where
+    /// its record has not come (`workspace?.project.name ?? workspaceId`).
+    fn heading(&self, window: &Window, cx: &App) -> Option<gpui_kit::AnyElement> {
+        let workspace = self.workspace.as_deref()?;
+        let p = cx.palette();
+        let sidebar = crate::screens::terminal::workspaces_sidebar(cx);
+        let sidebar = sidebar.as_ref().map(|s| s.read(cx));
+        let record = sidebar.and_then(|s| s.workspace(workspace).0);
+        let project = record.and_then(|w| w.pointer("/project/id")).and_then(Value::as_str);
+        let name = record.and_then(|w| w.pointer("/project/name")).and_then(Value::as_str).unwrap_or(workspace);
+        let ink = p.foreground.opacity(0.7);
+        let mark = match sidebar {
+            Some(s) => {
+                let around = s.around();
+                let prefs = around.preferences.clone().unwrap_or_default();
+                crate::sidebar::looks::project_glyph(project, &prefs, &around.images, px(40.), ink, true, p)
+            }
+            None => gpui_kit::component::Icon::new(crate::ui::Glyph::Folder).size(px(40.)).text_color(ink).into_any_element(),
+        };
+        Some(hero::heading(SharedString::from(name.to_owned()), mark, self.home, window, cx).into_any_element())
+    }
 }
 
 /// The thread column the composer sits in, as ChatView.tsx docks it: at the foot, or on a thread with no message
 /// yet centred in the view under the thread's 52 px header, over the 88 px its heading takes.
-pub fn column(fresh: bool, ground: gpui_kit::Hsla, composer: impl IntoElement) -> gpui_kit::Div {
-    let column = v_flex().size_full().bg(ground);
+pub fn column(fresh: bool, composer: impl IntoElement) -> gpui_kit::Div {
+    let column = v_flex().size_full();
     if fresh {
         column
             .child(gpui_kit::div().h(gpui_kit::px(52.)))
@@ -128,10 +236,34 @@ impl Render for ComposerScreen {
         if window.focused(cx).is_none() {
             self.focus.focus(window, cx);
         }
-        let p = cx.palette();
+        let p = cx.palette().clone();
         let fresh = self.composer.read(cx).fresh();
         let focus = self.focus.clone();
-        column(fresh, p.background, self.composer.clone())
+        let composer = self.composer.clone();
+        let heading = fresh.then(|| self.heading(window, cx)).flatten();
+        let page = match heading {
+            // `ProjectHome`: the headline and the composer one stack, 40 px apart, centred over 8vh of room below.
+            Some(heading) if self.home => v_flex()
+                .debug_selector(|| "project-home".into())
+                .size_full()
+                .justify_center()
+                .gap_10()
+                .pb(window.viewport_size().height * 0.08)
+                .child(heading)
+                .child(composer),
+            // ChatView's fresh thread: the composer centred over the 88 px its headline takes, the headline's foot 40 px
+            // over the composer.
+            Some(heading) => v_flex()
+                .size_full()
+                .justify_center()
+                .child(div().relative().h(px(88.)).child(div().absolute().left_0().right_0().bottom(px(40.)).child(heading)))
+                .child(composer),
+            None => column(fresh, composer),
+        };
+        div()
+            .relative()
+            .size_full()
+            .child(page)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 if !focus.is_focused(window) {
@@ -144,6 +276,8 @@ impl Render for ComposerScreen {
                 }
             }))
             .text_color(p.foreground)
-            .children(self.note.clone().map(|note| gpui_kit::div().p_4().text_sm().text_color(p.muted_foreground).child(note)))
+            .children(
+                self.note.clone().map(|note| div().absolute().top_0().left_0().p_4().text_sm().text_color(p.muted_foreground).child(note)),
+            )
     }
 }

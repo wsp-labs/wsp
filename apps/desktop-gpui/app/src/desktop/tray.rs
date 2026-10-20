@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use super::notify::{outside_line, Choices, Moment, OutsideLine};
 use crate::screens::notices::words::asking_line;
-use crate::screens::sidebar::looks::{place_name, provider_key_name};
+use crate::screens::sidebar::menu::workspace_computer_name;
 use crate::screens::sidebar::model::{fold_threads, Row, Status, Thread};
 
 /// `TRAY_WORDS`.
@@ -207,39 +207,6 @@ fn actions(t: &Thread, asks: &HashMap<String, OpenAsk>) -> Vec<(String, TrayAct)
     }
     acts.push((STOP.to_owned(), TrayAct::Stop { session_id: t.session_id.clone() }));
     acts
-}
-
-fn id_of(place: &Value) -> Option<&str> {
-    place.get("id").and_then(Value::as_str)
-}
-
-/// `workspaceComputerName`: the computer or provider a workspace runs on, by its row's name; one no row holds goes
-/// by its provider's name, else by where its kind is.
-pub fn workspace_computer_name(places: &[Value], workspace: &Value) -> String {
-    let field = |k: &str| workspace.get(k).and_then(Value::as_str);
-    let local = field("kind") == Some("local");
-    let row = if let Some(named) = field("place") {
-        places.iter().find(|p| id_of(p) == Some(named))
-    } else if local {
-        places.iter().find(|p| id_of(p) == Some("here")).or_else(|| places.first())
-    } else {
-        let mut providers = places.iter().filter(|p| p.get("kind").and_then(Value::as_str) == Some("provider"));
-        match field("provider") {
-            None => providers.next(),
-            Some(named) => providers.find(|p| id_of(p) == Some(named)),
-        }
-    };
-    if let Some(row) = row {
-        return place_name(row);
-    }
-    if local {
-        return places.iter().find(|p| id_of(p) == Some("here")).map(place_name).unwrap_or_default();
-    }
-    match (field("provider"), field("kind")) {
-        (Some(provider), _) => provider_key_name(provider),
-        (None, Some("place")) => field("machineId").unwrap_or_default().to_owned(),
-        (None, _) => "a provider".to_owned(),
-    }
 }
 
 fn computer_of(workspaces: &[Value], places: &[Value], workspace_id: &str) -> String {

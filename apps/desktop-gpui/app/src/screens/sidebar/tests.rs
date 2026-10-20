@@ -24,6 +24,8 @@ use gpui_kit::{size, TestAppContext, VisualTestContext};
 use model::Item;
 use rows::Drawn;
 
+mod hover;
+
 fn workspace(id: &str) -> Value {
     json!({ "id": id, "name": id, "kind": "local", "project": { "id": "p1" } })
 }
@@ -345,4 +347,143 @@ fn a_right_click_on_a_tile_opens_its_menu_and_a_pick_runs_the_item(cx: &mut Test
     cx.run_until_parked();
     assert_eq!(sidebar.read_with(cx, |s, cx| s.rename_box(cx)).as_deref(), Some("thread 1"), "Rename opened the box on the thread");
     assert!(sidebar.read_with(cx, |s, _| !s.menu.is_open()));
+}
+
+/// The sidebar and a composer side by side, as the window holds them.
+struct Both {
+    sidebar: Entity<Sidebar>,
+    composer: Entity<crate::screens::composer::Composer>,
+}
+
+impl Render for Both {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        gpui_kit::component::h_flex()
+            .size_full()
+            .items_start()
+            .child(div().w(px(256.)).h_full().child(self.sidebar.clone()))
+            .child(div().flex_1().child(self.composer.clone()))
+    }
+}
+
+const HOST_NAME: &str = "zingzys-macbook-pro.local";
+const LABEL: &str = "zingzy's MacBook Pro";
+
+/// A thread on a computer whose owner gave it a label, its rows carrying the host name the host stamps as
+/// `computerName`; `read` says whether a window has shown its end.
+fn labelled(read: bool, last_line: Option<&str>) -> Snapshot {
+    let mut snap = snapshot(1, now_ms());
+    snap.places = vec![json!({ "id": "here", "kind": "computer", "name": HOST_NAME, "label": LABEL })];
+    for row in &mut snap.sessions {
+        row["computerName"] = json!(HOST_NAME);
+        row["lastLine"] = json!(last_line);
+        row["model"] = json!("claude-sonnet-5[1m]");
+        if !read {
+            row.as_object_mut().unwrap().remove("readAt");
+        }
+    }
+    snap
+}
+
+/// The sidebar holding `snap` beside a composer writing into its workspace, with the tile's card open.
+fn carded(snap: Snapshot, cx: &mut TestAppContext) -> (Entity<Sidebar>, &mut VisualTestContext) {
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        ui::init(Side::Light, cx);
+        crate::screens::composer::init(cx);
+    });
+    let sidebar = cx.new(Sidebar::new);
+    cx.update(|cx| crate::screens::terminal::read_workspaces_from(&sidebar, cx));
+    let held = sidebar.clone();
+    let (_, cx) = cx.add_window_view(move |window, cx| {
+        let composer = cx.new(|cx| crate::screens::composer::Composer::new(window, cx));
+        let both = cx.new(|_| Both { sidebar: held, composer });
+        Root::new(both, window, cx)
+    });
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snap)), cx));
+    let composer = cx.update(|window, cx| {
+        let root = window.root::<Root>().flatten().unwrap();
+        root.read(cx).view().clone().downcast::<Both>().unwrap().read(cx).composer.clone()
+    });
+    composer.update(cx, |c, cx| c.set_workspace("w0".into(), cx));
+    // The thread's model is one the catalog keeps among its legacy models, as Claude Code's catalog lists Sonnet 5.
+    let claude = json!({
+        "harness": "claude", "label": "Claude Code", "source": "harness", "version": null, "efforts": [], "contextWindows": [],
+        "permissionModes": [], "steers": false, "renames": false, "images": false,
+        "models": [{ "value": "claude-opus-5-5", "label": "Opus 5.5" }], "legacyModels": [{ "value": "claude-sonnet-5", "label": "Sonnet 5" }]
+    });
+    sidebar.update(cx, |s, cx| {
+        s.around.listed.insert("w0".into(), std::rc::Rc::new(vec![claude]));
+        s.card = Some("t:t0:false".into());
+        cx.notify();
+    });
+    for _ in 0..3 {
+        cx.run_until_parked();
+        cx.update(|window, _| window.refresh());
+    }
+    cx.run_until_parked();
+    (sidebar, cx)
+}
+
+/// Catches: a computer named by the host name its session rows carry (`computerName`, the name typed after --on)
+/// rather than by its label (`placeName`), on the tile's first row, on its card or in the composer's tray.
+#[gpui_kit::test]
+fn a_computer_is_named_by_its_label_on_the_tile_its_card_and_the_composer(cx: &mut TestAppContext) {
+    let (_, cx) = carded(labelled(true, None), cx);
+    assert!(cx.debug_bounds("tile-where:repo @ zingzy's MacBook Pro").is_some(), "the tile names the computer by its label");
+    assert!(cx.debug_bounds("tile-card-line:zingzy's MacBook Pro").is_some(), "the card names the computer by its label");
+    assert!(cx.debug_bounds("tray-computer:zingzy's MacBook Pro").is_some(), "the composer names the computer by its label");
+}
+
+/// Catches: a read thread's card with no status line word or mark (`StatusLine.tsx` reads Resting as Finished's
+/// "Done" and check), an unread one losing Done's, and the age standing on a line of its own.
+#[gpui_kit::test]
+fn the_card_leads_with_the_status_line_done_and_its_check_and_the_age_beside_them(cx: &mut TestAppContext) {
+    let (sidebar, cx) = carded(labelled(true, None), cx);
+    for read in [true, false] {
+        if !read {
+            sidebar.update(cx, |s, cx| {
+                s.apply(Change::Whole(Box::new(labelled(false, None))), cx);
+                s.card = Some("t:t0:false".into());
+                cx.notify();
+            });
+            cx.run_until_parked();
+        }
+        let word = cx.debug_bounds("card-status:Done").unwrap_or_else(|| panic!("the status line says Done (read: {read})"));
+        let mark = cx.debug_bounds("card-status-mark").expect("the status line keeps its mark's slot");
+        let time = cx.debug_bounds("card-status-time").expect("the status line holds the age");
+        assert_eq!(f32::from(mark.size.height), 12., "the check stands in the slot (read: {read})");
+        assert_eq!(word.center().y, time.center().y, "the age sits on the status line, at its right");
+        assert!(time.left() > word.right());
+    }
+}
+
+/// Catches: a preview that runs past three lines (`line-clamp-3`), and a card whose leading, title, status line,
+/// glyph column or text column stand off `TileCard`'s numbers: 1 px border and `px-2` `py-1` around a `py-1` column,
+/// 13 px at 1.5, 6 px under the title, 4 px between lines, a 12 px glyph column 8 px before the words.
+#[gpui_kit::test]
+fn the_card_clamps_the_preview_to_three_lines_and_keeps_the_webs_columns(cx: &mut TestAppContext) {
+    let long = "When he or you say go, I can start right away. The scripts are ready, and I'll post one line before each step \
+                that needs him, then the next one, and the one after that, until every step has been said.";
+    let (_, cx) = carded(labelled(true, Some(long)), cx);
+    let card = cx.debug_bounds("tile-card").expect("the card is open");
+    let mut at = |selector: &'static str| cx.debug_bounds(selector).unwrap_or_else(|| panic!("{selector} is drawn"));
+    let (left, top) = (f32::from(card.left()), f32::from(card.top()));
+    let x = |b: gpui_kit::Bounds<Pixels>| f32::from(b.left()) - left;
+    let y = |b: gpui_kit::Bounds<Pixels>| f32::from(b.top()) - top;
+    let title = at("tile-card-title");
+    assert_eq!((x(title), y(title), f32::from(title.size.height)), (9., 9., 19.5), "the title's place and its 19.5 px line");
+    let mark = at("card-status-mark");
+    assert_eq!((x(mark), f32::from(mark.size.width)), (9., 12.), "the status mark's 12 px column");
+    // Layout snaps the mark's 3.75 px drop to the half pixel.
+    assert!((y(mark) - (9. + 19.5 + 6. + 3.75)).abs() <= 0.25, "the status line 6 px under the title, its mark centred on it: {}", y(mark));
+    assert_eq!(x(at("card-status:Done")), 29., "the word 8 px past the column");
+    let reason = at("tile-card-reason");
+    assert_eq!((x(reason), f32::from(reason.size.height)), (9., 58.5), "the preview's box under the status line, three lines at most");
+    assert_eq!(y(reason), 9. + 19.5 + 6. + 19.5 + 2., "2 px under the status line");
+    let (glyph, line) = (at("tile-card-glyph:repo"), at("tile-card-line:repo"));
+    assert_eq!((x(glyph), x(line)), (9., 29.), "a fact's glyph in the status mark's column, its words in the word's");
+    assert_eq!(y(glyph), y(reason) + 58.5 + 4. + 3., "4 px under the preview, the glyph 3 px down its first line");
+    assert_eq!(f32::from(line.size.height), 19.5);
+    assert!(cx.debug_bounds("tile-card-line:Sonnet 5").is_some(), "the agent line names the model by its catalog label");
 }
