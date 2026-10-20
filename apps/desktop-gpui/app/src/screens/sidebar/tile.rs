@@ -145,9 +145,10 @@ fn frame(ix: usize, line: &Line, height: f32, p: &Palette) -> gpui_kit::Stateful
         .children(rails(line, height, p))
 }
 
-/// The one-line row's grammar: 36 px, 10 px between, 8 px in, the rest ink, the row hover.
-fn one_line(id: SharedString, p: &Palette) -> gpui_kit::Stateful<gpui_kit::Div> {
+/// The one-line row's grammar: 36 px, 10 px between, 8 px in, the rest ink, the row hover; a lit row keeps its fill under it.
+fn one_line(id: SharedString, lit: bool, p: &Palette) -> gpui_kit::Stateful<gpui_kit::Div> {
     let (hover, active, ink) = (p.sidebar_row_hover, p.sidebar_row_active, p.sidebar_foreground);
+    let (hover, active) = if lit { (p.sidebar_row_selected, p.sidebar_row_selected) } else { (hover, active) };
     h_flex()
         .id(id)
         .h(ONE_LINE)
@@ -199,7 +200,7 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
             let icon = p.sidebar_icon_color;
             frame(ix, line, 36., &p)
                 .child(
-                    one_line(SharedString::from(format!("group-{attempt}")), &p)
+                    one_line(SharedString::from(format!("group-{attempt}")), false, &p)
                         .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.toggle_group(&attempt, cx)))
                         .child(Icon::new(Glyph::Copy).with_size(px(16.)).text_color(icon))
                         .child(div().flex_1().min_w_0().truncate().child(title))
@@ -226,7 +227,7 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
             });
             frame(ix, line, 36., &p)
                 .child(
-                    one_line(SharedString::from(key.clone()), &p)
+                    one_line(SharedString::from(key.clone()), lit, &p)
                         .debug_selector({
                             let key = key.clone();
                             move || key.clone()
@@ -252,7 +253,7 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
             let lead = s.threads[*lead].key.clone();
             frame(ix, line, 36., &p)
                 .child(
-                    one_line(SharedString::from(format!("finished-{lead}")), &p)
+                    one_line(SharedString::from(format!("finished-{lead}")), false, &p)
                         .gap(px(6.))
                         .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.toggle_finished(&lead, cx)))
                         .child(Icon::new(Glyph::CircleCheck).with_size(px(12.)).text_color(p.sidebar_icon_color))
@@ -270,7 +271,7 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
             let lead = lead.map(|l| s.threads[l].key.clone());
             frame(ix, line, 36., &p)
                 .child(
-                    one_line(SharedString::from(format!("more-{ix}")), &p)
+                    one_line(SharedString::from(format!("more-{ix}")), false, &p)
                         .gap(px(6.))
                         .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.more(lead.as_deref(), cx)))
                         .child(div().flex_1().min_w_0().truncate().text_color(p.sidebar_muted_foreground).child(format!("{n} more"))),
@@ -319,11 +320,11 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
     let group = SharedString::from(format!("tile-{key}"));
     let works = s.tree_works(&key);
     let stops = works && !settled && renaming.is_none();
-    // `settlesOnHover`: nothing in the tree works or asks.
-    let quiet_root = tile.moves && !works && !s.tree_keys(&key).iter().any(|k| s.thread(k).is_some_and(|t| t.asks));
+    // `settlesOnHover`: a live tile, a root's or a child's (`childActs`), whose tree nothing works or asks in.
+    let quiet = !settled && !works && !s.tree_keys(&key).iter().any(|k| s.thread(k).is_some_and(|t| t.asks));
     // `group-focus-within`: the row the keys are on shows its act as a hovered one does.
     let focused = s.key_row == Some(ix) && s.focus.is_focused(window);
-    let settles = !stops && quiet_root && renaming.is_none();
+    let settles = !stops && quiet && renaming.is_none();
     let armed = s.armed.as_ref().is_some_and(|(k, at)| *k == key && at.elapsed() < ARMED);
     let height = if slim { 36. } else { TILE.as_f32() };
     let (hover, active_fill, ink) = (p.sidebar_row_hover, p.sidebar_row_active, p.sidebar_foreground);
@@ -379,7 +380,7 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
         .when(stops || settles, |el| el.group_hover(group.clone(), |st| st.invisible()).when(focused, |el| el.invisible()))
         .child(status);
 
-    let place = [t.project_name.clone().unwrap_or_default(), t.computer.clone().unwrap_or_default()]
+    let place = [t.project_name.clone().unwrap_or_default(), s.computer_name(&t.workspace_id).unwrap_or_default()]
         .into_iter()
         .filter(|w| !w.is_empty())
         .collect::<Vec<_>>()
@@ -411,7 +412,10 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
                 Some(_) => started_by_glyph(project_glyph, p.sidebar_muted_foreground),
                 None => glyph,
             })
-            .child(div().flex_1().min_w_0().truncate().child(started_by.unwrap_or(place)))
+            .child({
+                let said = started_by.unwrap_or(place);
+                div().debug_selector(|| format!("tile-where:{said}")).flex_1().min_w_0().truncate().child(said)
+            })
             .child(status);
         let fold = match tile.under {
             Under::None => None,
@@ -466,9 +470,9 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
         .w_full()
         .rounded(ROW_RADIUS)
         .cursor_pointer()
+        // `data-[active=true]:bg-sidebar-row-selected` comes after `hover:` and `active:`: the open row keeps its fill.
         .when(active, |el| el.bg(p.sidebar_row_selected))
-        .hover(move |st| st.bg(hover).text_color(ink))
-        .active(move |st| st.bg(active_fill))
+        .when(!active, |el| el.hover(move |st| st.bg(hover).text_color(ink)).active(move |st| st.bg(active_fill)))
         .on_click(move |_, window, cx| {
             _ = me_click.update(cx, |this, cx| {
                 this.point_at(&key_click, window, cx);
@@ -523,6 +527,7 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
         Some(
             div()
                 .id(SharedString::from(format!("settle-{key}")))
+                .debug_selector(|| format!("settle-{}{key}", if tile.inbox { "inbox-" } else { "" }))
                 .absolute()
                 .right(px(4.))
                 .top(px(if slim { 8. } else { 5. }))

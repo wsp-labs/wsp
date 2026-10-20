@@ -450,7 +450,8 @@ pub fn init(side: Side, cx: &mut App) {
 
 /// Draws every window in the theme `id` names, in the look the windows stand in now.
 pub fn set_theme(id: &str, cx: &mut App) {
-    let look = cx.try_global::<WspTheme>().map_or(Look { mac: false, glass: false }, |t| t.look);
+    // Before the host answers, the person's Transparency stands at its default, on.
+    let look = cx.try_global::<WspTheme>().map_or(Look { mac: false, glass: true }, |t| t.look);
     set_theme_in(id, look, cx);
 }
 

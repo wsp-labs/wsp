@@ -647,6 +647,11 @@ pub fn every_model(catalog: &HarnessCatalog) -> Vec<Model> {
     all
 }
 
+/// A model's slug without the context window Claude Code writes after it, as in `claude-opus-5[1m]`.
+pub fn base_model(model: &str) -> &str {
+    model.strip_suffix("[1m]").unwrap_or(model)
+}
+
 /// `modelOf`: a slug the catalog does not list still counts, named by itself.
 pub fn model_of(catalog: &HarnessCatalog, value: &str) -> Model {
     every_model(catalog).into_iter().find(|m| m.value == value).unwrap_or_else(|| bare_model(value, None))

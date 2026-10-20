@@ -294,9 +294,10 @@ pub struct Sidebar {
     /// Where each switcher's head was drawn, so a press on it is not read as a press outside its popup.
     switcher_heads: Rc<Cell<[Bounds<Pixels>; 2]>>,
     pub(crate) menu: ContextMenu,
-    /// The tile the pointer rests on, the one whose card stands, and the wait before it opens.
+    /// The tile the pointer rests on, the one whose card stands, when a card last closed, and the wait before it opens.
     hovered: Option<String>,
     card: Option<String>,
+    card_closed: Option<Instant>,
     /// The sidebar's keyboard focus, the row the keys walk from, and whether a key put it there.
     focus: gpui_kit::FocusHandle,
     key_row: Option<usize>,
@@ -367,6 +368,7 @@ impl Sidebar {
             menu: ContextMenu::default(),
             hovered: None,
             card: None,
+            card_closed: None,
             focus: cx.focus_handle(),
             key_row: None,
             keyboard: false,
@@ -522,6 +524,33 @@ impl Sidebar {
     /// A workspace's record and its live status as this connection last read them.
     pub fn workspace(&self, id: &str) -> (Option<&Value>, Option<&Value>) {
         (self.around.workspaces.get(id), self.around.statuses.get(id))
+    }
+
+    /// The branch a workspace's folder is on (`ComposerCheckoutRow`'s head): its checkout as the host last read it,
+    /// else the branch its worktree was made on; none on a detached head.
+    pub(crate) fn branch_of(&self, workspace: &str) -> Option<String> {
+        let checkout = self.around.statuses.get(workspace).and_then(|s| s.get("checkout")).filter(|c| !c.is_null());
+        let branch = match checkout {
+            Some(c) => c.get("branch").and_then(Value::as_str),
+            None => self.around.workspaces.get(workspace)?.pointer("/worktree/branch").and_then(Value::as_str),
+        }?;
+        // `DETACHED_HEAD`, the word the checkout carries for a head on no branch.
+        (!branch.is_empty() && branch != "(detached)").then(|| branch.to_owned())
+    }
+
+    /// The workspace a project's New thread page opens on: the project's own folder, else any of its tasks.
+    pub(crate) fn home_of(&self, project: &str) -> Option<String> {
+        let of = || self.around.workspaces.values().filter(|w| w.pointer("/project/id").and_then(Value::as_str) == Some(project));
+        of().find(|w| matches!(w["kind"].as_str(), Some("local" | "place")) && w.get("worktree").is_none())
+            .or_else(|| of().next())
+            .and_then(|w| w["id"].as_str())
+            .map(str::to_owned)
+    }
+
+    /// `useHomeProject`'s page with nothing picked: the New thread page of the first project the host lists that has
+    /// a workspace to open it on.
+    pub(crate) fn home_workspace(&self) -> Option<String> {
+        self.around.projects.iter().find_map(|(id, _)| self.home_of(id))
     }
 
     /// Where a root stands among the roots that move in its section, for the menu's moves.

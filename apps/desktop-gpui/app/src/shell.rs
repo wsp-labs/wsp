@@ -73,6 +73,9 @@ pub struct Shell {
     home: bool,
     /// Where closing Settings goes back to.
     behind: Route,
+    /// `projectHome`: the project whose home was last opened, where the window lands with nothing open, until a
+    /// workspace is picked.
+    home_project: Option<String>,
     /// The open page, while the route names a registered one.
     screen: Option<Mounted>,
     /// The registered thread view, built for the first thread route and kept, told of each switch after it.
@@ -164,7 +167,10 @@ impl Shell {
             this.go(route, window, cx);
         });
         screens::terminal::read_workspaces_from(&sidebar, cx);
-        let followed = cx.observe(&sidebar, |this, _, cx| this.follow_panel(cx));
+        let followed = cx.observe_in(&sidebar, window, |this, _, window, cx| {
+            this.follow_panel(cx);
+            this.land(window, cx);
+        });
         let asked = cx.subscribe_in(&sidebar, window, |this, _, asked: &Asked, window, cx| match asked {
             Asked::Settings => this.go(Route::Screen(SETTINGS.into()), window, cx),
             Asked::Usage => this.go(Route::Screen(format!("{SETTINGS}:usage").into()), window, cx),
@@ -308,6 +314,7 @@ impl Shell {
             route: Route::Empty,
             home: false,
             behind: Route::Empty,
+            home_project: None,
             screen: None,
             thread: None,
             running: HashMap::new(),
@@ -516,7 +523,9 @@ impl Shell {
                 }
             }
             Route::Screen(name) => {
-                if !matches!(self.route, Route::Screen(_)) {
+                if self.home {
+                    self.behind = Route::Empty;
+                } else if !matches!(self.route, Route::Screen(_)) {
                     self.behind = self.route.clone();
                 }
                 let open = match (&self.route, &self.screen) {
@@ -537,14 +546,40 @@ impl Shell {
                 }
             }
         }
+        match &route {
+            Route::Screen(r) if home => {
+                let workspace = app_shell::split(r).1.unwrap_or_default();
+                self.home_project =
+                    self.sidebar.read(cx).workspace(workspace).0.and_then(|w| w.pointer("/project/id")?.as_str().map(str::to_owned));
+            }
+            Route::Thread { .. } => self.home_project = None,
+            Route::Screen(r) if app_shell::split(r).0 == ComposerScreen::NAME => self.home_project = None,
+            _ => {}
+        }
         self.route = route;
         self.home = home;
+        if let Some(page) = self.screen.as_ref().and_then(|m| m.view.clone().downcast::<ComposerScreen>().ok()) {
+            page.update(cx, |page, cx| page.set_home(home, cx));
+        }
         if let Some(at) = self.panel_at(cx) {
             self.panel.update(cx, |p, cx| p.show_for(at, window, cx));
         }
         let hidden = self.settings_open();
         self.panel.update(cx, |p, cx| p.set_hidden(hidden, window, cx));
         cx.notify();
+        self.land(window, cx);
+    }
+
+    /// `WorkspaceCenter`: with nothing open the centre is a project's New thread page, never one that asks to pick.
+    fn land(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.route != Route::Empty {
+            return;
+        }
+        let sidebar = self.sidebar.read(cx);
+        let home = self.home_project.as_deref().and_then(|p| sidebar.home_of(p)).or_else(|| sidebar.home_workspace());
+        if let Some(workspace) = home {
+            self.open_home(&workspace, window, cx);
+        }
     }
 
     /// `openNewThread`: the page of projects where New thread asks for one, else the composer on the task on screen.
@@ -819,6 +854,7 @@ impl Render for Shell {
             (Route::Empty, None) => frame::crumbs(None, None, window, cx),
         };
         let actions = parts.and_then(|p| p.actions.clone());
+        let backdrop = parts.and_then(|p| p.backdrop.clone());
         let controls = |cx: &mut Context<Self>| {
             let (on_drawer, on_panel) = (cx.entity().downgrade(), cx.entity().downgrade());
             frame::layout_controls(
@@ -878,6 +914,7 @@ impl Render for Shell {
                     .relative()
                     .flex_1()
                     .min_h_0()
+                    .children(backdrop.map(|view| div().absolute().inset_0().child(view)))
                     .map(|el| match failed {
                         Some(failed) => {
                             let me = cx.entity().downgrade();
@@ -885,6 +922,9 @@ impl Render for Shell {
                                 let route = Route::Thread { workspace_id: lead.workspace_id.clone(), thread_id: lead.thread_id.clone() };
                                 _ = me.update(cx, |this, cx| this.go(route, window, cx));
                             }))
+                        }
+                        None if settings_page => {
+                            el.child(ui::theme::scoped(fills.panel_scope(&p), main.cached(StyleRefinement::default().size_full())))
                         }
                         None => el.child(main.cached(StyleRefinement::default().size_full())),
                     })
@@ -905,8 +945,9 @@ impl Render for Shell {
 
         let panel = panel_open.then(|| {
             let controls = if inline { controls(cx).into_any_element() } else { div().into_any_element() };
+            let scope = if sheet { p.clone() } else { fills.panel_scope(&p) };
             let content =
-                self.panel.update(cx, |panel, cx| panel.draw(controls, (fills.panel_card, fills.panel_line), cx).into_any_element());
+                ui::theme::within(scope.clone(), cx, |cx| self.panel.update(cx, |panel, cx| panel.draw(controls, cx).into_any_element()));
             let column = div()
                 .id("right-panel")
                 .debug_selector(|| "right-panel".into())
@@ -917,7 +958,7 @@ impl Render for Shell {
                 .border_l_1()
                 .border_color(fills.panel_line)
                 .bg(fills.panel)
-                .child(content);
+                .child(ui::theme::scoped(scope, content));
             if sheet {
                 // Comes in and goes out as the sidebar's sheet does, holding its panes until it has gone.
                 let t = panel_in.unwrap_or(1.);
@@ -951,7 +992,7 @@ impl Render for Shell {
                             .right(-frame::SHEET_SLIDE * (1. - t))
                             .opacity(t)
                             .when(!fading, |el| el.occlude())
-                            .child(column.bg(p.popover).shadow_lg()),
+                            .child(column.bg(p.background).shadow_lg()),
                     )
                     .into_any_element()
             } else {

@@ -1192,3 +1192,36 @@ fn settings_opened_straight_on_activity_lists_a_running_thread(cx: &mut TestAppC
     }
     assert_eq!(screen.read_with(cx, |s, _| s.at().clone()), At::Group(GroupId::Activity));
 }
+
+/// Catches: opening a group moving anything but the rows under it, as a row that changes size, padding or place as it
+/// is lifted, or a list under it that pushes before it has its height (`SettingsSidebar`'s group row and `OPENS`):
+/// the rows above and the group's own keep their bounds on every frame of the opening, the list its indent, and the
+/// row under it ends moved by the list's height alone.
+#[gpui_kit::test]
+fn opening_a_group_moves_only_the_rows_under_it_and_by_its_list(cx: &mut TestAppContext) {
+    let host = Throwaway::start();
+    let (shell, cx) = in_frame(&host, "settings:computer:here", cx);
+    let above = ["settings-general", "settings-appearance", "settings-agents"];
+    let at = |cx: &mut VisualTestContext, row: &str| bounds(cx, row.to_owned());
+    settle(cx, "Settings on this computer's page", |cx| {
+        mounted(&shell, cx).is_some_and(|s| s.read_with(cx, |s, _| s.data().places_read)) && at(cx, "settings-row-computer:here").is_some()
+    });
+    let before: Vec<_> = above.iter().map(|row| at(cx, row).unwrap()).collect();
+    let under = at(cx, "settings-computers").unwrap();
+    cx.simulate_click(before[2].center(), gpui_kit::Modifiers::none());
+    for frame in 0..12 {
+        cx.executor().advance_clock(Duration::from_millis(16));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        let now: Vec<_> = above.iter().map(|row| at(cx, row).unwrap()).collect();
+        assert_eq!(now, before, "frame {frame}: the rows above and Agents' own stand where they stood");
+        if let Some(sub) = at(cx, "settings-row-agent:claude") {
+            assert_eq!(sub.left() - before[2].left(), px(14.), "frame {frame}: the list keeps its 14 px indent as it opens");
+        }
+    }
+    settle(cx, "Agents' list open", |cx| at(cx, "settings-row-agent:codex").is_some());
+    let subs = ["claude", "codex", "opencode", "cursor"].map(|id| at(cx, &format!("settings-row-agent:{id}")).expect("each agent's row"));
+    let list = subs[3].bottom() - subs[0].top();
+    assert_eq!(subs[0].top(), before[2].bottom(), "the list opens right under its group's row");
+    assert_eq!(at(cx, "settings-computers").unwrap().top() - under.top(), list, "the row under moves by the list's height alone");
+}

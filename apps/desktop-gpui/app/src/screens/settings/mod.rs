@@ -1118,7 +1118,7 @@ impl Screen for SettingsScreen {
             sidebar: Some(part(Part::Sidebar, cx)),
             crumbs: Some(part(Part::Crumbs, cx)),
             actions: Some(part(Part::Actions, cx)),
-            title: None,
+            ..Parts::default()
         }
     }
 }

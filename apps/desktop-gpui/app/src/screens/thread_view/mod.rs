@@ -449,7 +449,7 @@ impl Render for ThreadScreen {
             }))
             .child(self.view.clone())
             .child(if fresh {
-                super::composer::screen::column(true, gpui_kit::transparent_black(), dock).absolute().inset_0()
+                super::composer::screen::column(true, dock).absolute().inset_0()
             } else {
                 div().absolute().bottom_0().left_0().right_0().child(dock)
             })

@@ -1087,7 +1087,7 @@ fn body(
                 let models = &page.models;
                 let status = |id: &str| looks.get(id).cloned();
                 let model = |harness: &str, m: &str| {
-                    let bare = m.strip_suffix("[1m]").unwrap_or(m);
+                    let bare = crate::screens::settings::pages::agents::model::base_model(m);
                     Some(
                         models
                             .iter()

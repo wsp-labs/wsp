@@ -178,12 +178,18 @@ pub fn has_hue(project: Option<&str>, preferences: &Value) -> bool {
 /// A computer's glyph through `ui::computer_glyph`: the person's pick, else what the computer is, a cloud as its
 /// provider's mark.
 pub fn computer_glyph(place: &Value, preferences: &Value, size: Pixels, ink: Hsla) -> AnyElement {
-    let Ok(view) = serde_json::from_value::<PlaceView>(place.clone()) else {
-        return Icon::new(Glyph::Server).with_size(size).text_color(ink).into_any_element();
-    };
+    match computer_icon(place, preferences) {
+        Some(icon) => icon.draw(ink, size),
+        None => Icon::new(Glyph::Server).with_size(size).text_color(ink).into_any_element(),
+    }
+}
+
+/// What `computer_glyph` draws a places row as; none for a row that does not read.
+pub fn computer_icon(place: &Value, preferences: &Value) -> Option<ComputerIcon> {
+    let view = serde_json::from_value::<PlaceView>(place.clone()).ok()?;
     let look = preferences.get("computerLook").and_then(|l| l.get(&view.id)).cloned();
     let picked = look.and_then(|look| serde_json::from_value::<Preferences>(json!({ "computerLook": { view.id.clone(): look } })).ok());
-    ComputerIcon::of(&view, picked.as_ref()).draw(ink, size)
+    Some(ComputerIcon::of(&view, picked.as_ref()))
 }
 
 /// A computer's name as the app says it (`place-name.ts` placeName): its label, else its name.
