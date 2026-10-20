@@ -125,7 +125,7 @@ async function mount(projects: ProjectView[] = [WSP, SPOO], preferences: Prefere
   act(() => useStore.getState().select(PLANNER.id));
 }
 
-const cmdT = () => act(() => runShellCommand("chat.new", { workspaceId: useStore.getState().selectedId, toggleSidebar: () => {} }, []));
+const cmdT = () => act(() => runShellCommand("chat.new", { workspaceId: useStore.getState().selectedId, toggleSidebar: () => {} }));
 const crumb = () => document.querySelector("[data-thread-breadcrumb]")!.textContent;
 const heading = () => screen.getByRole("heading", { level: 1 });
 const where = () => document.querySelector<HTMLElement>("[data-new-thread-where]");

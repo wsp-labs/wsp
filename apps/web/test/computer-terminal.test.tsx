@@ -83,21 +83,21 @@ afterEach(() => {
 
 describe("the terminal chord", () => {
   it("with no workspace selected opens the drawer on this computer's terminal, and a second press closes it", () => {
-    runShellCommand("terminal.toggle", target(null), []);
+    runShellCommand("terminal.toggle", target(null));
     expect(drawerOpen(HERE_KEY)).toBe(true);
-    runShellCommand("terminal.toggle", target(null), []);
+    runShellCommand("terminal.toggle", target(null));
     expect(drawerOpen(HERE_KEY)).toBe(false);
   });
 
   it("with a workspace selected moves that workspace's drawer and never this computer's", () => {
-    runShellCommand("terminal.toggle", target(WS), []);
+    runShellCommand("terminal.toggle", target(WS));
     expect(drawerOpen(WS)).toBe(true);
     expect(drawerOpen(HERE_KEY)).toBe(false);
   });
 
   it("does nothing behind Settings", () => {
     useStore.setState({ settingsOpen: true });
-    runShellCommand("terminal.toggle", target(null), []);
+    runShellCommand("terminal.toggle", target(null));
     expect(drawerOpen(HERE_KEY)).toBe(false);
   });
 });
@@ -109,14 +109,14 @@ describe("the right panel chord with no workspace", () => {
     await waitFor(() => expect(useStore.getState().ready).toBe(true));
     expect(document.querySelector("[data-right-panel-tabbar]")).toBeNull();
 
-    act(() => runShellCommand("rightPanel.toggle", target(null), []));
+    act(() => runShellCommand("rightPanel.toggle", target(null)));
     await waitFor(() => expect(document.querySelector("[data-right-panel-tabbar]")).not.toBeNull());
     const cards = [...document.querySelectorAll("[data-surface-launch]")];
     expect(cards.map(c => c.getAttribute("data-surface-launch"))).toEqual(["preview", "terminal", "diff", "files", "machine", "processes", "agents", "slate"]);
     expect(cards.map(c => c.tagName)).toEqual(["BUTTON", "BUTTON", "DIV", "DIV", "BUTTON", "BUTTON", "DIV", "DIV"]);
     screen.getByText("Pick a project to review its changes.");
 
-    act(() => runShellCommand("rightPanel.toggle", target(null), []));
+    act(() => runShellCommand("rightPanel.toggle", target(null)));
     await waitFor(() => expect(document.querySelector("[data-right-panel-tabbar]")).toBeNull());
   });
 });
@@ -156,7 +156,7 @@ describe("this computer's drawer", () => {
     render(<Shell />);
     await waitFor(() => expect(document.querySelector(centre)).not.toBeNull());
     expect(document.querySelector(".thread-terminal-drawer")).toBeNull();
-    act(() => runShellCommand("terminal.toggle", target(null), []));
+    act(() => runShellCommand("terminal.toggle", target(null)));
     await waitFor(() => expect(document.querySelector(".thread-terminal-drawer")).not.toBeNull());
   });
 });

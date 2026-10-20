@@ -4,7 +4,7 @@
 // dispatches; the jump, model-picker, diff, stash, settings and editor rules
 // are left out with the features they drive. The zoom is here but it is the
 // terminal's own, reaching a focused pane and never the app around it. The
-// workspace switch is ours, and so is the new thread's one chord, mod+t; a
+// step through the sidebar's threads is ours, and so is the new thread's one chord, mod+t; a
 // browser tab keeps it for its own new tab, so a tab opens New thread from
 // the sidebar or the palette, and mod+n is the terminal's alone. A Control
 // chord is the terminal's while it has focus, short of the commands
@@ -12,13 +12,13 @@
 // there, as mod+b's ctrl+b is readline's and tmux's. Tab and the digits with
 // mod are the browser's inside a tab, where keybindings.ts drops them. The Tab pair is
 // bound twice: inside a right panel of several tabs, a terminal there included, it steps the panel's
-// tabs and the switcher stands down, and everywhere else it opens the
-// switcher, which the mod arrows open there too. They hold mod on purpose: an Option arrow alone is the word move in
-// every text field on macOS, and a switch that lands the caret in a composer
+// tabs, and everywhere else it steps through the sidebar's threads at the open
+// thread's level, as the mod arrows do too. They hold mod on purpose: an Option arrow alone is the word move in
+// every text field on macOS, and a step that lands the caret in a composer
 // would then work once. On macOS that same chord is a browser's own tab
 // switch, so keybindings.ts drops it in a tab as it drops the Tab pair. The
 // arrows come first so a lookup walking the table from the end still labels
-// the switch with its Tab chord where that chord reaches.
+// the step with its Tab chord where that chord reaches.
 import {
   MAX_KEYBINDINGS_COUNT,
   MAX_WHEN_EXPRESSION_DEPTH,
@@ -59,9 +59,8 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+t", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+alt+arrowleft", command: "workspace.previous", when: "!terminalFocus" },
   { key: "mod+alt+arrowright", command: "workspace.next", when: "!terminalFocus" },
-  // The arrows read as the list does: left and right walk the workspaces, up and down the threads inside the one
-  // on screen. The walk holds its overlay while the chord is held, as the workspace walk does, and lands on the
-  // key coming up.
+  // Left and right step through the threads at the open thread's level, up and down through the threads of the
+  // workspace on screen.
   { key: "mod+alt+arrowup", command: "thread.previous", when: "!terminalFocus" },
   { key: "mod+alt+arrowdown", command: "thread.next", when: "!terminalFocus" },
   { key: "mod+shift+e", command: "thread.settle", when: "!terminalFocus" },
