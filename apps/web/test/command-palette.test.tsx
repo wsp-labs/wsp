@@ -18,7 +18,7 @@ import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { useRightPanelStore } from "../src/rightPanelStore.js";
 import { AppShell } from "../src/shell/AppShell.js";
 import { KeybindingDispatcher } from "../src/shell/KeybindingDispatcher.js";
-import { cancelWorkspaceSwitch, openRootMoves, stepInOrder } from "../src/shell/shellCommands.js";
+import { openRootMoves, stepInOrder } from "../src/shell/shellCommands.js";
 import { onComposerFocusRequest, onNewThreadRequest } from "../src/shell/shellRequests.js";
 import { NEW_WORKSPACE, PROJECT_WORDS } from "../src/sidebar/words.js";
 import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
@@ -105,9 +105,9 @@ const ctrlTab = (mods: { shiftKey?: boolean } = {}) => fireEvent.keyDown(window,
 /** The switch between spaces, as macOS spells it here; the platform is mocked to MacIntel for the file. */
 const spaceArrow = (name: "ArrowLeft" | "ArrowRight", target: Element | Window = window) =>
   fireEvent.keyDown(target, { key: name, code: name, metaKey: true, altKey: true });
-/** One of that chord's hold keys let go, which is what commits a walk the arrows opened. */
+/** One of that chord's hold keys let go, which commits nothing: each press opens its thread. */
 const spaceArrowUp = () => fireEvent.keyUp(window, { key: "Alt" });
-/** The hold let go, which is what commits the switch; the walk itself only moves the overlay's highlight. */
+/** The hold let go, which commits nothing: each press opens its thread. */
 const ctrlUp = () => fireEvent.keyUp(window, { key: "Control" });
 const digit = (n: number) => fireEvent.keyDown(window, { key: String(n), code: `Digit${n}`, metaKey: true });
 /** The desktop shell, told apart by the bridge its preload puts on the page. */
@@ -155,7 +155,7 @@ configure({ asyncUtilTimeout: 10_000 });
 beforeEach(() => {
   window.localStorage.clear();
   vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-  useStore.setState({ api: null, conn: "live", capabilities: null, workspaces: [], statuses: {}, costs: {}, spending: {}, selectedId: null, creations: [], sessions: {}, ready: false, preferences: { ...DEFAULT_PREFERENCES, labs: true }, settingsOpen: false, projects: [], projectHome: null });
+  useStore.setState({ api: null, conn: "live", capabilities: null, workspaces: [], statuses: {}, costs: {}, spending: {}, selectedId: null, selectedThreadId: null, creations: [], sessions: {}, ready: false, preferences: { ...DEFAULT_PREFERENCES, labs: true }, settingsOpen: false, projects: [], projectHome: null });
   clearNotices();
   useRightPanelStore.setState({ byWorkspaceId: {} });
   useTerminalDrawerStore.setState({ byWorkspaceId: {} });
@@ -165,11 +165,9 @@ afterEach(() => {
   vi.restoreAllMocks();
   provideTerminals("ws_a", null);
   provideTerminals("ws_b", null);
-  // The switcher's hold outlives a render: a test that left the overlay up ate the next one's chord.
-  cancelWorkspaceSwitch();
 });
 
-/** A thread on each workspace, which is what the switch chord walks between. */
+/** A thread on each workspace, both top-level, which is what the Tab pair steps between. */
 const ONE_THREAD_EACH = [session("s_a", "ws_a", "fix the port list", { threadId: "thr_a" }), session("s_b", "ws_b", "bump the lockfile", { threadId: "thr_b" })];
 
 async function mountShell(sessions: SessionView[] = []) {
@@ -587,14 +585,14 @@ describe("command palette", () => {
     expect(useStore.getState().selectedThreadId).toBe("t_buried");
   });
 
-  it("lists the switch with its chord and each workspace row with its slot chord, and in a browser tab only what one leaves the page", async () => {
-    await mountShell();
+  it("lists the level step with its chord and each workspace row with its slot chord, and in a browser tab only what one leaves the page", async () => {
+    await mountShell(ONE_THREAD_EACH);
     const restore = asDesktopShell();
     try {
       mod("k");
       await waitFor(() => expect(palette()).not.toBeNull());
-      expect(chordOn("Next task")).toBe("⌃Tab");
-      expect(chordOn("Previous task")).toBe("⌃⇧Tab");
+      expect(chordOn("Next thread at this level")).toBe("⌃Tab");
+      expect(chordOn("Previous thread at this level")).toBe("⌃⇧Tab");
       expect(chordOn("api")).toBe("⌘1");
       expect(chordOn("worker")).toBe("⌘2");
     } finally {
@@ -606,18 +604,20 @@ describe("command palette", () => {
     await waitFor(() => expect(palette()).not.toBeNull());
     // A browser tab on macOS keeps Tab, the digits and the mod arrows for its own tabs, so the switch has no
     // chord to show there at all and the row is a click alone.
-    expect(chordOn("Next task")).toBeNull();
-    expect(chordOn("Previous task")).toBeNull();
+    expect(chordOn("Next thread at this level")).toBeNull();
+    expect(chordOn("Previous thread at this level")).toBeNull();
     expect(chordOn("api")).toBeNull();
   });
 
-  it("switches workspace from the Next workspace row and lands in that composer", async () => {
-    await mountShell();
+  it("opens the next thread at the open one's level from its row and lands in that composer, as the chord does", async () => {
+    await mountShell(ONE_THREAD_EACH);
+    act(() => useStore.getState().select("ws_a", "thr_a"));
     mod("k");
     await waitFor(() => expect(palette()).not.toBeNull());
     const { asks, off } = watchComposerFocus("ws_b");
-    fireEvent.click(inPalette().getByText("Next task"));
-    await waitFor(() => expect(useStore.getState().selectedId).toBe("ws_b"));
+    fireEvent.click(inPalette().getByText("Next thread at this level"));
+    await waitFor(() => expect(useStore.getState().selectedThreadId).toBe("thr_b"));
+    expect(useStore.getState().selectedId).toBe("ws_b");
     expect(asks).toEqual(["ws_b"]);
     off();
   });
@@ -880,7 +880,7 @@ describe("default shortcuts", () => {
     }
   });
 
-  it("lists the workspace walk with the Tab pair and the thread walk with the arrows under it", async () => {
+  it("lists the level step with the Tab pair and the thread walk with the arrows under it", async () => {
     const sessions = [session("s1", "ws_a", "fix the port list", { threadId: "thr_1" }), session("s2", "ws_a", "bump the lockfile", { threadId: "thr_2" })];
     await mountShell(sessions);
     const restore = asDesktopShell();
@@ -890,8 +890,8 @@ describe("default shortcuts", () => {
       await waitFor(() => expect(palette()).not.toBeNull());
       expect(chordOn("Next thread")).toBe("⌥⌘Down");
       expect(chordOn("Previous thread")).toBe("⌥⌘Up");
-      expect(chordOn("Next task")).toBe("⌃Tab");
-      expect(chordOn("Previous task")).toBe("⌃⇧Tab");
+      expect(chordOn("Next thread at this level")).toBe("⌃Tab");
+      expect(chordOn("Previous thread at this level")).toBe("⌃⇧Tab");
     } finally {
       restore();
     }

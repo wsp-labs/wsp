@@ -11,7 +11,7 @@
 // surface needs both.
 import { bareFolder, DEFAULT_PREFERENCES, SETTLE_MS, ThreadSection, type ProjectView, type ThreadMarks, type ThreadPlacement } from "@wsp/protocol";
 import type { SidebarProjectSnapshot, SidebarThreadSnapshot } from "../adapt/index.js";
-import { leadNodes, partOf, settleTake, type Tree } from "../components/threads/leadTree.js";
+import { childParts, leadNodes, partOf, settleTake, type LeadNode, type Tree } from "../components/threads/leadTree.js";
 import { workspaceRowId } from "./rowGrammar.js";
 import { bySectionKey, pinKey } from "./treeOrder.js";
 import { isThreadSettleable, isThreadSettled, isThreadWorking, nestSpawnedThreads, settledMomentMs, sortSettledThreadsForSidebar, sortThreadsForSidebar, threadForest, threadSection, type ThreadNode } from "./Sidebar.logic.js";
@@ -356,7 +356,7 @@ function isSnoozed(node: TileNode): boolean {
 }
 
 /** Every tile of the live list in the order it draws them, each tree's children under its root. */
-export function drawnTiles(live: ReadonlyArray<TileNode>): TileItem[] {
+function drawnTiles(live: ReadonlyArray<TileNode>): TileItem[] {
   return live.flatMap(({ thread, children }) => [thread, ...drawnTiles(children)]);
 }
 
@@ -366,6 +366,40 @@ export function nextNeedsYou(live: ReadonlyArray<TileNode>, fromId: string | nul
   const drawn = drawnTiles(live);
   const at = drawn.findIndex(item => item.id === fromId);
   return [...drawn.slice(at + 1), ...drawn.slice(0, at + 1)].find(item => item.thread?.needsYou === true);
+}
+
+/** The roots of a list as levels read them: a send to several models draws its threads under a head that is no thread,
+ * and each of them is still a top-level thread. */
+const levelRoots = (roots: ReadonlyArray<TileNode>): TileNode[] => roots.flatMap(node => (node.thread.groupTitle === undefined ? [node] : node.children));
+
+/** The tile whose children hold the one named, at any depth under the roots given. */
+function parentTile(roots: ReadonlyArray<TileNode>, id: string): TileNode | undefined {
+  for (const node of roots) {
+    if (node.children.some(child => child.thread.id === id)) return node;
+    const found = parentTile(node.children, id);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/** The tiles at the level of the one named, in the order the sidebar draws them: the live top-level tiles, the
+ * settled ones, or the tiles one thread started. A live lead draws its live sub-threads apart from its Finished fold,
+ * so each is a level of its own and a step never lands in a shut fold; a settled tree draws its tiles as they hang. A
+ * tile the Needs you inbox also draws is read where its tree holds it. A tile none of them holds, or none named, reads
+ * the live top-level tiles. */
+export function levelTiles(drawn: { readonly live: ReadonlyArray<TileNode>; readonly settled: ReadonlyArray<TileNode> }, id: string | null, tree: Tree<TileNode>): TileItem[] {
+  const live = levelRoots(drawn.live);
+  const settled = levelRoots(drawn.settled);
+  if (id === null) return live.map(node => node.thread);
+  for (const roots of [live, settled]) if (roots.some(node => node.thread.id === id)) return roots.map(node => node.thread);
+  const lead = parentTile(live, id);
+  if (lead !== undefined) {
+    const parts = childParts(leadNodes(lead.thread.thread, lead.children, tree), tree);
+    const tiles = (nodes: ReadonlyArray<LeadNode<TileNode>>): TileItem[] => nodes.flatMap(node => ("subagent" in node ? [] : [node.node.thread]));
+    const shown = tiles(parts.live);
+    return shown.some(item => item.id === id) ? shown : tiles([...parts.finished, ...parts.settled]);
+  }
+  return (parentTile(settled, id)?.children ?? live).map(node => node.thread);
 }
 
 /** Every tile of the tree is a thread, and each passes the test; a workspace tile with no thread passes none. A group's

@@ -16,7 +16,6 @@ import { FileFinder } from "../files/FileFinder.js";
 import { OpenSplit } from "../files/OpenSplit.js";
 import { GitSplit } from "../pull-request/GitSplit.js";
 import { ContextRing } from "../components/chat/ContextMeter.js";
-import { WorkspaceSwitcher } from "../components/switcher/WorkspaceSwitcher.js";
 import { PanelLayoutControls } from "../components/chat/PanelLayoutControls.js";
 import { PortalHostContext, usePlacedPortalHost } from "../components/ui/portal-host.js";
 import { Sidebar, SidebarInset, SidebarProvider, SidebarRail, type SidebarWidthStore } from "../components/ui/sidebar.js";
@@ -29,7 +28,6 @@ import { Notices } from "../notices/Notice.js";
 import { useSelectedWorkspaceId, useSettingsOpen, useStore } from "../protocol/store.js";
 import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY, sidebarMaxWidthBeside } from "../rightPanelLayout.js";
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "./sidebarWidth.js";
-import { trackThreadHistory } from "./threadHistory.js";
 import { useShortcutLabel } from "./useKeybindings.js";
 import { followThreadPanels, keepListedPanels, selectPanelState, useRightPanelStore } from "../rightPanelStore.js";
 import { SettingsHeaderActions } from "../settings/SettingsHeaderActions.js";
@@ -79,7 +77,6 @@ const HOSTS = (
     <RewindDialogHost />
     <ForkDialogHost />
     <AddComputerDialog />
-    <WorkspaceSwitcher />
     <BrowserGuests />
   </>
 );
@@ -109,8 +106,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const viewportWidth = useViewportWidth();
   const rightPanelOpen = panel.isOpen && !settingsOpen;
   const panelInline = rightPanelOpen && !useSheet;
-  // The switch chord walks the threads last opened, so every selection is remembered from here on.
-  useEffect(() => trackThreadHistory(), []);
   useEffect(() => keepListedPanels(), []);
   useEffect(() => followThreadPanels(), []);
   const terminalShortcutLabel = useShortcutLabel("terminal.toggle");
