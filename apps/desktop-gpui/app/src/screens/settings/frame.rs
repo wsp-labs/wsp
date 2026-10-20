@@ -183,7 +183,9 @@ fn opening(id: SharedString, list: gpui_kit::Div, window: &mut Window, cx: &mut 
     if progress >= 1. {
         return shell.child(list).into_any_element();
     }
-    shell.child(MotionReveal::new(id, progress, list.opacity(progress).into_any_element())).into_any_element()
+    // `MotionReveal` lays its child out as a root, which drops the root's margin, so the indented list goes in a box.
+    let list = div().w_full().opacity(progress).child(list);
+    shell.child(MotionReveal::new(id, progress, list.into_any_element())).into_any_element()
 }
 
 /// The settings sidebar in the app sidebar's place. `results` stands in place of the groups in a narrow window while the

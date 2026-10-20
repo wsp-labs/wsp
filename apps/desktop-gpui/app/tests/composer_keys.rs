@@ -770,12 +770,11 @@ struct WithStop {
 
 impl gpui_kit::Render for WithStop {
     fn render(&mut self, _: &mut gpui_kit::Window, cx: &mut gpui_kit::Context<Self>) -> impl gpui_kit::IntoElement {
-        use desktop_gpui::ui::ActivePalette as _;
         use gpui_kit::{InteractiveElement as _, ParentElement as _, Styled as _};
         let fresh = self.composer.read(cx).fresh();
         gpui_kit::div()
             .size_full()
-            .child(desktop_gpui::screens::composer::screen::column(fresh, cx.palette().background, self.composer.clone()))
+            .child(desktop_gpui::screens::composer::screen::column(fresh, self.composer.clone()))
             .child(gpui_kit::div().track_focus(&self.stop).size(gpui_kit::px(10.)))
     }
 }

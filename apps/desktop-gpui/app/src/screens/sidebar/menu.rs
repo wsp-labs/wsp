@@ -234,6 +234,23 @@ pub(crate) fn place_of(w: &Value, places: &[Value]) -> Option<String> {
     }
 }
 
+/// `workspaceComputerName`: the computer or provider a workspace runs on, by the name its row carries; one no row
+/// holds goes by its provider's name, else by where its kind is. Never the row's `computerName`, the host name typed
+/// after --on.
+pub(crate) fn workspace_computer_name(places: &[Value], w: &Value) -> String {
+    let field = |k: &str| w.get(k).and_then(Value::as_str);
+    let id = place_of(w, places);
+    if let Some(row) = places.iter().find(|p| id.is_some() && p.get("id").and_then(Value::as_str) == id.as_deref()) {
+        return super::looks::place_name(row);
+    }
+    match (field("kind"), field("provider")) {
+        (Some("local"), _) => here_name(places),
+        (_, Some(provider)) => super::looks::provider_key_name(provider),
+        (Some("place"), None) => field("machineId").unwrap_or_default().to_owned(),
+        _ => "a provider".to_owned(),
+    }
+}
+
 /// The computer the host runs on, by its own name (`hereName`); empty until the places list holds that row.
 pub(crate) fn here_name(places: &[Value]) -> String {
     places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some("here")).map(super::looks::place_name).unwrap_or_default()
@@ -287,6 +304,12 @@ impl Sidebar {
     /// none for a machine a cloud lends.
     pub(crate) fn own_computer_name(&self, workspace_id: &str) -> Option<String> {
         own_computer_name(self.around.workspaces.get(workspace_id)?, &self.around.places)
+    }
+
+    /// The computer a workspace runs on, by the name a person reads it as (`useComputerName`); none until its record
+    /// has arrived.
+    pub(crate) fn computer_name(&self, workspace_id: &str) -> Option<String> {
+        Some(workspace_computer_name(&self.around.places, self.around.workspaces.get(workspace_id)?))
     }
 
     /// A task's one state word as its rows read it: its absent computer's word (`absenceOf`), else `workspaceWord` in
