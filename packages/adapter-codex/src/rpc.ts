@@ -51,8 +51,10 @@ export function threadStartLine(o: ThreadOptions): string {
   return line({ id: REQUEST.thread, method: "thread/start", params: { ...named({ cwd: o.cwd, model: o.model, serviceTier: o.serviceTier }), ...o.access, ...configOf(o) } });
 }
 
+/** excludeTurns leaves the history out of the reply, which otherwise carries every turn of the thread on one line: 8.3 MiB
+ * for a 21-turn thread on 0.155.1, past what a machine run's reader holds whole once the thread grows. */
 export function threadResumeLine(o: ThreadOptions & { threadId: string }): string {
-  return line({ id: REQUEST.thread, method: "thread/resume", params: { threadId: o.threadId, ...named({ cwd: o.cwd, model: o.model, serviceTier: o.serviceTier }), ...o.access, ...configOf(o) } });
+  return line({ id: REQUEST.thread, method: "thread/resume", params: { threadId: o.threadId, excludeTurns: true, ...named({ cwd: o.cwd, model: o.model, serviceTier: o.serviceTier }), ...o.access, ...configOf(o) } });
 }
 
 /** A copy of the thread that is never written to disk, in a read-only sandbox that asks nobody: what a side question

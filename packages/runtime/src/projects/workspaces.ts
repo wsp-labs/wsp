@@ -735,6 +735,8 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
           }
         } finally {
           execs.delete(running);
+          // Lets go of the reader too: left at the line it last handed out, it keeps that line and its buffer.
+          void it.return?.(undefined).catch(() => undefined);
         }
       };
       return { ...inner, lines: lines(), exited: Promise.race([inner.exited, ended.then(() => null)]), ...(ranIn !== undefined ? { ranIn } : {}) };
