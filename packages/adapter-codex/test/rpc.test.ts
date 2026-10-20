@@ -50,7 +50,7 @@ describe("the lines wsp writes to codex app-server", () => {
 
   it("resumes a thread by the id the server announced, with the same picks", () => {
     const line = threadResumeLine({ threadId: THREAD, access: { sandbox: "read-only", approvalPolicy: "on-request" } });
-    expect(parsed(line)).toEqual({ id: REQUEST.thread, method: "thread/resume", params: { threadId: THREAD, sandbox: "read-only", approvalPolicy: "on-request" } });
+    expect(parsed(line)).toEqual({ id: REQUEST.thread, method: "thread/resume", params: { threadId: THREAD, excludeTurns: true, sandbox: "read-only", approvalPolicy: "on-request" } });
   });
 
   it("forks a thread ephemeral and read-only, asking nobody, with the instructions a side question runs under", () => {
