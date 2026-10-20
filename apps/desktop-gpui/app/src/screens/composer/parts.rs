@@ -45,7 +45,7 @@ impl Glass {
 
 pub fn glass(cx: &App) -> Glass {
     let p = cx.palette();
-    if cx.theme().is_dark() {
+    let mut glass = if cx.theme().is_dark() {
         Glass {
             tint: p.foreground.opacity(0.03),
             outline: p.composer_outline,
@@ -55,7 +55,12 @@ pub fn glass(cx: &App) -> Glass {
         }
     } else {
         Glass { tint: p.card.opacity(0.55), outline: p.composer_outline, highlight: p.composer_highlight, blur: px(12.), saturation: 1.14 }
+    };
+    // `:root:root.solid [data-slot="composer-shell"]`: a page drawing no glass gives the composer the theme's card, whole.
+    if !cx.global::<crate::ui::theme::WspTheme>().look.glass {
+        glass.tint = p.card;
     }
+    glass
 }
 
 /// The box: radius 22, its hairline standing in for the web's 1 px padding under its outline, the frosted tint and the
@@ -443,8 +448,8 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
     if let Some(computer) = &c.computer {
         items = items.child(
             tray_item("tray-computer", c.narrow, &p)
-                .child(Icon::new(Glyph::Monitor).with_size(px(12.)))
-                .child(div().max_w(px(240.)).truncate().child(computer.clone())),
+                .children(c.computer_icon.map(|icon| icon.draw(p.muted_foreground, px(12.))))
+                .child(div().debug_selector(|| format!("tray-computer:{computer}")).max_w(px(240.)).truncate().child(computer.clone())),
         );
     }
     if !in_bar && r.agent.as_ref().is_some_and(|a| !a.permission_modes.is_empty()) {
@@ -474,11 +479,12 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
                 .on_click(cx.listener(|this, _, _, cx| this.toggle_popup(Popup::Stash, cx))),
         );
     }
-    items = match &c.branch {
+    // A fork's draft names the new branch its send opens the thread on (`starts`), which no folder holds yet.
+    items = match c.forking.as_ref().and_then(|f| f.branch.clone()).or_else(|| c.project_branch.clone()).or_else(|| c.branch.clone()) {
         Some(branch) => items.child(
             tray_item("tray-branch", c.narrow, &p)
                 .child(Icon::new(Glyph::GitBranch).with_size(px(12.)))
-                .child(div().max_w(px(240.)).truncate().child(branch.clone())),
+                .child(div().debug_selector(|| format!("tray-branch:{branch}")).max_w(px(240.)).truncate().child(branch)),
         ),
         None => items,
     };
@@ -1042,4 +1048,29 @@ pub fn drop_overlay(cx: &App) -> AnyElement {
                 ),
         )
         .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui_kit::TestAppContext;
+
+    use crate::screens::app_shell::material::Look;
+    use crate::ui::{self, theme, ActivePalette, Side};
+
+    /// `ComposerSurface`'s tint on the glass, and `:root:root.solid`'s card, whole, where the page draws none.
+    #[gpui_kit::test]
+    fn the_composer_takes_the_card_whole_where_the_page_draws_no_glass(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            ui::init(Side::Dark, cx);
+            for id in ["graphite", "paper"] {
+                theme::set_theme_in(id, Look { mac: false, glass: false }, cx);
+                assert_eq!(super::glass(cx).tint, cx.palette().card, "{id} with no glass");
+                theme::set_theme_in(id, Look { mac: false, glass: true }, cx);
+                let p = cx.palette();
+                let tint = if id == "graphite" { p.foreground.opacity(0.03) } else { p.card.opacity(0.55) };
+                assert_eq!(super::glass(cx).tint, tint, "{id} on the glass");
+            }
+        });
+    }
 }

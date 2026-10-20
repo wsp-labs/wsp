@@ -275,13 +275,7 @@ impl Card {
     fn of(target: &Target, sidebar: &Sidebar, now: f64) -> Option<Card> {
         let t = sidebar.threads().iter().find(|t| t.key == target.thread_id)?;
         let kind = model::kind_of(t, now);
-        let around = sidebar.around();
-        let place = sidebar
-            .place_of(&t.workspace_id)
-            .and_then(|id| around.places.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(id.as_str())))
-            .map(looks::place_name)
-            .or_else(|| t.computer.clone())
-            .unwrap_or_default();
+        let place = sidebar.computer_name(&t.workspace_id).unwrap_or_default();
         Some(Card {
             thread_id: t.key.clone(),
             title: t.title.clone(),

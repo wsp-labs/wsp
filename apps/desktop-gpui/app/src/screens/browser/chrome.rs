@@ -306,7 +306,6 @@ impl RenderOnce for ChromeRow {
             .items_center()
             .gap_1()
             .px_2()
-            .bg(p.background)
             .border_b_1()
             .map(|el| {
                 if self.inline {

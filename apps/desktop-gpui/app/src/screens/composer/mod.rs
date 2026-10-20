@@ -7,6 +7,7 @@
 mod attach;
 pub mod dock;
 pub mod fork;
+pub mod hero;
 mod keys;
 pub mod link;
 mod menus;
@@ -308,6 +309,10 @@ pub struct Composer {
     stash: Stash,
     banner: Option<Banner>,
     computer: Option<String>,
+    /// The computer's mark in the tray, as the places list draws it (`RowComputer`'s `ComputerGlyph`).
+    computer_icon: Option<crate::ui::computer_glyph::ComputerIcon>,
+    /// The branch a project home's new thread starts on, as the host reads the project's folder (`useProjectBranch`).
+    project_branch: Option<String>,
     /// The workspace the composer writes into, once a link stands, and its computer while it is not answering.
     workspace: Option<String>,
     absent: Option<String>,
@@ -523,6 +528,8 @@ impl Composer {
             stash: Stash::default(),
             banner: None,
             computer: None,
+            computer_icon: None,
+            project_branch: None,
             workspace: None,
             absent: None,
             places: None,
@@ -693,6 +700,8 @@ impl Composer {
         self.stopping = false;
         self.running = false;
         self.computer = None;
+        self.computer_icon = None;
+        self.branch = None;
         self.agents.clear();
         self.absent = None;
         self.workspace = None;
@@ -830,27 +839,60 @@ impl Composer {
 
     /// The workspace the composer writes into now.
     pub fn set_workspace(&mut self, workspace: String, cx: &mut Context<Self>) {
+        // The tray's branch comes back on the workspace's pushed status once asked for.
+        if let Some(sidebar) = self.places.as_ref().and_then(WeakEntity::upgrade) {
+            sidebar.update(cx, |s, cx| s.want_checkout(&workspace, cx));
+        }
         self.workspace = Some(workspace);
         self.read_absent(cx);
     }
 
-    /// Whether the workspace's computer is not answering (`absenceOf`), as the sidebar's listing says.
+    /// The workspace's computer by name and mark, its branch, and whether it is not answering (`absenceOf`), as the
+    /// sidebar's listing says.
     fn read_absent(&mut self, cx: &mut Context<Self>) {
         let sidebar = self.places.as_ref().and_then(WeakEntity::upgrade);
-        let absent = match (sidebar, &self.workspace) {
-            // A daemon this host started is not the road a turn takes, so its absence leaves the box open
-            // (ChatComposer.tsx `daemonOnly`); another computer not answering holds the send in its name.
+        let (mut icon, mut branch) = (self.computer_icon, self.branch.clone());
+        let (computer, absent) = match (sidebar, &self.workspace) {
             (Some(sidebar), Some(workspace)) => {
                 let sidebar = sidebar.read(cx);
-                sidebar
-                    .absence(workspace)
-                    .filter(|a| a.start.is_none())
-                    .map(|_| sidebar.own_computer_name(workspace).unwrap_or_else(|| workspace.clone()))
+                let computer = sidebar.computer_name(workspace);
+                let prefs = sidebar.around().preferences.clone().unwrap_or_default();
+                icon = sidebar
+                    .place_of(workspace)
+                    .and_then(|id| sidebar.place(&id))
+                    .and_then(|row| crate::sidebar::looks::computer_icon(row, &prefs));
+                branch = sidebar.branch_of(workspace);
+                // A daemon this host started is not the road a turn takes, so its absence leaves the box open
+                // (ChatComposer.tsx `daemonOnly`); another computer not answering holds the send in its name.
+                let absent =
+                    sidebar.absence(workspace).filter(|a| a.start.is_none()).map(|_| computer.clone().unwrap_or_else(|| workspace.clone()));
+                (computer.or_else(|| self.computer.clone()), absent)
             }
-            _ => None,
+            _ => (self.computer.clone(), None),
         };
-        if absent != self.absent {
+        if computer != self.computer || absent != self.absent || icon != self.computer_icon || branch != self.branch {
+            self.computer = computer;
+            self.computer_icon = icon;
+            self.branch = branch;
             self.absent = absent;
+            cx.notify();
+        }
+    }
+
+    /// The mark the tray draws its computer by.
+    pub fn computer_icon(&self) -> Option<crate::ui::computer_glyph::ComputerIcon> {
+        self.computer_icon
+    }
+
+    /// The words the empty box shows, as last drawn.
+    pub fn placeholder(&self) -> &'static str {
+        self.placeholder
+    }
+
+    /// The branch the project home's send starts its thread on, which the tray names over the workspace's own.
+    pub fn set_project_branch(&mut self, branch: Option<String>, cx: &mut Context<Self>) {
+        if self.project_branch != branch {
+            self.project_branch = branch;
             cx.notify();
         }
     }
@@ -946,6 +988,12 @@ impl Composer {
             return Vec::new();
         }
         model::commands(&self.commands)
+    }
+
+    /// Whether `/btw` asks a side question here (catalog.ts `asides`): the thread's agent takes one and the thread has a
+    /// row to name it by.
+    fn asides(&self) -> bool {
+        self.ran.agent.is_some() && self.resolved().agent.is_some_and(|a| a.asides)
     }
 
     pub fn resolved(&self) -> Resolved {

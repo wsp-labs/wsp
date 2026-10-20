@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use desktop_gpui::screens::composer::screen::column;
 use desktop_gpui::screens::composer::{self, Composer, ComposerEvent};
-use desktop_gpui::ui::{self, ActivePalette, Side};
+use desktop_gpui::ui::{self, Side};
 use gpui_kit::component::Root;
 use gpui_kit::{prelude::*, px, size, Context, Entity, TestAppContext, VisualTestContext, Window};
 
@@ -22,7 +22,7 @@ pub struct Column {
 impl Render for Column {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let fresh = self.composer.read(cx).fresh();
-        column(fresh, cx.palette().background, self.composer.clone())
+        column(fresh, self.composer.clone())
     }
 }
 

@@ -424,7 +424,7 @@ impl Link {
         let seen = Seen::of(&opened.history);
         let drawer = drawer_of(&opened.rows, seen.plan.as_ref(), seen.running.is_some(), &opened.agents);
         let picks = ran(&opened.rows);
-        let computer = opened.rows.last().and_then(|r| r.computer_name.clone());
+        let computer = crate::screens::terminal::workspaces_sidebar(cx).and_then(|s| s.read(cx).computer_name(&target.workspace_id));
         let no_agents = opened.agents.is_empty();
         let ws = target.workspace_id.clone();
         composer.update(cx, |c, cx| {
@@ -1009,7 +1009,7 @@ impl Link {
             },
             ComposerEvent::Items => {
                 let cwd = self.rows.last().and_then(|r| r.cwd.clone());
-                let computer = self.rows.last().and_then(|r| r.computer_name.clone()).unwrap_or_else(|| "this computer".to_owned());
+                let computer = composer.read(cx).computer.clone().unwrap_or_else(|| "this computer".to_owned());
                 cx.spawn_in(window, async move |_, cx| {
                     let (items, note) = match pull_requests(&host, &target.workspace_id, cwd).await {
                         Ok((items, note, no_cli)) => {

@@ -578,20 +578,11 @@ fn clock(iso: &str) -> String {
 /// `useComputerName`: the computer a workspace runs on as the places list names it (`workspaceComputerName`), this
 /// computer's own name for a workspace here, the workspace's id until its record arrives; this computer for none.
 fn computer_name(workspace: Option<&str>, cx: &App) -> String {
-    use crate::screens::sidebar::{looks, menu};
     let sidebar = crate::screens::terminal::workspaces_sidebar(cx);
     let Some(sidebar) = sidebar.as_ref().map(|s| s.read(cx)) else { return workspace.unwrap_or("this computer").to_owned() };
-    let places = &sidebar.around().places;
-    let Some(workspace) = workspace else {
-        return Some(menu::here_name(places)).filter(|n| !n.is_empty()).unwrap_or_else(|| "this computer".into());
-    };
-    let Some(record) = sidebar.workspace(workspace).0 else { return workspace.to_owned() };
-    let row =
-        menu::place_of(record, places).and_then(|id| places.iter().find(|p| p.get("id").and_then(Value::as_str) == Some(id.as_str())));
-    match row {
-        Some(place) => looks::place_name(place),
-        None if record.get("kind").and_then(Value::as_str) == Some("local") => menu::here_name(places),
-        None => record.get("provider").and_then(Value::as_str).map(looks::provider_key_name).unwrap_or_else(|| workspace.to_owned()),
+    match workspace {
+        None => Some(sidebar.here_name()).filter(|n| !n.is_empty()).unwrap_or_else(|| "this computer".into()),
+        Some(workspace) => sidebar.computer_name(workspace).unwrap_or_else(|| workspace.to_owned()),
     }
 }
 

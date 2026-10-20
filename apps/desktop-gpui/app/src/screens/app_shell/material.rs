@@ -53,8 +53,12 @@ pub struct Fills {
     pub sidebar: Hsla,
     pub centre: Hsla,
     pub panel: Hsla,
-    pub panel_line: Hsla,
+    /// The page's ground, cards, tints, edges and fields inside the panel and on the settings page.
+    pub panel_ground: Hsla,
     pub panel_card: Hsla,
+    pub panel_muted: Hsla,
+    pub panel_line: Hsla,
+    pub panel_input: Hsla,
     /// The noise the web app lays on its surfaces, which every Mac dark rule's background shorthand clears.
     pub grain: bool,
     /// The sidebar's quiet ink and the page's muted one, where the glass moves them.
@@ -74,8 +78,11 @@ pub fn fills(look: Look, theme: &str, p: &Palette) -> Fills {
         sidebar: p.sidebar,
         centre: p.background,
         panel: p.background,
-        panel_line: p.border,
+        panel_ground: p.background,
         panel_card: p.card,
+        panel_muted: p.muted,
+        panel_line: p.border,
+        panel_input: p.input,
         grain: true,
         sidebar_ink: None,
         muted_foreground: None,
@@ -95,12 +102,30 @@ pub fn fills(look: Look, theme: &str, p: &Palette) -> Fills {
         sidebar: share(material.ground, shares.2),
         centre: share(material.ground, shares.0),
         panel: share(material.ground, shares.1),
-        panel_line: share(white, LINE),
+        panel_ground: gpui_kit::transparent_black(),
         panel_card: share(white, CARD),
+        panel_muted: share(white, CARD + 0.01),
+        panel_line: share(white, LINE),
+        panel_input: share(white, LINE + 0.06),
         grain: false,
         sidebar_ink: look.glass.then_some(material.ink),
         muted_foreground: look.glass.then(|| oklab_mix(material.ink, material.ground, MUTED)),
         vibrancy: look.glass,
+    }
+}
+
+impl Fills {
+    /// `.desktop-mac.dark :is([data-preview-panel-mode="inline"], [data-settings-page])`: the page's palette with the
+    /// region's own tokens, so a pane's ground is the panel's fill whatever the look.
+    pub fn panel_scope(&self, p: &Palette) -> Palette {
+        Palette {
+            background: self.panel_ground,
+            card: self.panel_card,
+            muted: self.panel_muted,
+            border: self.panel_line,
+            input: self.panel_input,
+            ..p.clone()
+        }
     }
 }
 
@@ -227,5 +252,31 @@ mod tests {
         let light = fills(Look { mac: true, glass: true }, "paper", &paper);
         assert_eq!((light.sidebar, light.centre, light.window), (paper.sidebar, paper.background, None));
         assert!(light.vibrancy && light.grain);
+    }
+
+    /// A pane paints the page's `background` under its bar and its body; inside the panel on a dark theme's material
+    /// that ground is clear, so the panel's own share is the one fill under its tab strip and its panes alike.
+    #[test]
+    fn the_panels_scope_clears_the_ground_only_on_a_dark_material() {
+        let tokens = |p: &Palette| [p.background, p.card, p.muted, p.border, p.input];
+        let white = |share: f32| hsla(0., 0., 1., share);
+        for theme in ["graphite", "moss", "paper"] {
+            let page = crate::ui::theme::theme_by_id(theme).unwrap().palette();
+            for look in [
+                Look { mac: false, glass: false },
+                Look { mac: false, glass: true },
+                Look { mac: true, glass: true },
+                Look { mac: true, glass: false },
+            ] {
+                let scope = fills(look, theme, &page).panel_scope(&page);
+                if look.mac && theme != "paper" {
+                    assert_eq!(scope.background.a, 0., "{theme} {look:?}: a pane's ground is clear over the panel's share");
+                    assert_eq!(tokens(&scope)[1..], [white(0.02), white(0.03), white(0.10), white(0.16)], "{theme} {look:?}");
+                } else {
+                    assert_eq!(tokens(&scope), tokens(&page), "{theme} {look:?}: the page's own tokens");
+                }
+                assert_eq!(scope.foreground, page.foreground, "{theme} {look:?}: the scope moves only the five tokens");
+            }
+        }
     }
 }

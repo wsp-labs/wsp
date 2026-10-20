@@ -227,7 +227,7 @@ impl Composer {
             crate::ui::notify(cx, crate::ui::Notice::note(why));
             return;
         }
-        let asides = self.ran.agent.is_some() && self.resolved().agent.is_some_and(|a| a.asides);
+        let asides = self.asides();
         if let Some(question) = crate::screens::aside::question(&self.text(cx)).filter(|_| asides) {
             cx.emit(ComposerEvent::Aside(question));
             return;

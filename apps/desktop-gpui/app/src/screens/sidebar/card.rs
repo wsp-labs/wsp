@@ -2,10 +2,10 @@
 //! The card a tile opens to its right after the pointer rests on it 450 ms (`ThreadTile.tsx` TileCard,
 //! `tileCard.ts`, `tileCheckout.ts`): the full title, the status line, then a line per fact with its glyph, then notes.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
-use gpui_kit::{anchored, deferred, div, point, prelude::*, px, AnyElement, Context, FontWeight, Pixels};
+use gpui_kit::{anchored, deferred, div, point, prelude::*, px, relative, AnyElement, Context, FontWeight, Pixels};
 use serde_json::{json, Value};
 use wsp_host_client::protocol::WorkspacesCheckoutRequest;
 
@@ -15,8 +15,12 @@ use crate::ui::{Crab, Glyph, Palette};
 
 /// `CARD_DELAY_MS`: a pass of the pointer down the list opens no card.
 const DELAY: Duration = Duration::from_millis(450);
+/// Base UI's `TooltipProvider` `timeout`: a card that closed this recently lets the next one open at once.
+const NEXT_AT_ONCE: Duration = Duration::from_millis(400);
 /// `max-w-72`.
 const MAX_WIDTH: f32 = 288.;
+/// `text-[13px]` sets no leading, so the card keeps the page's 1.5 (`html` in Tailwind's preflight).
+const LEADING: f32 = 1.5;
 
 /// `PULL_REQUEST_WORDS` in `pull-request.ts`.
 fn pr_word(state: &str) -> &str {
@@ -29,19 +33,28 @@ fn pr_word(state: &str) -> &str {
 }
 
 impl Sidebar {
-    /// The pointer came onto a tile or left it: a card opens once it has rested `DELAY` on one.
+    /// The pointer came onto a tile or left it, or the list scrolled one under it: a card opens once it has rested
+    /// `DELAY` on one, and at once while another card stands or has just closed.
     pub(crate) fn hover_tile(&mut self, id: &str, hovered: bool, cx: &mut Context<Self>) {
         if !hovered {
             if self.hovered.as_deref() == Some(id) {
                 self.hovered = None;
                 self._card_wait = None;
                 if self.card.take().is_some() {
+                    self.card_closed = Some(Instant::now());
                     cx.notify();
                 }
             }
             return;
         }
         self.hovered = Some(id.to_owned());
+        let next = self.card.is_some() || self.card_closed.is_some_and(|at| at.elapsed() < NEXT_AT_ONCE);
+        if next && self.renaming.is_none() && !self.menu.is_open() {
+            self._card_wait = None;
+            self.card = Some(id.to_owned());
+            cx.notify();
+            return;
+        }
         let id = id.to_owned();
         self._card_wait = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(DELAY).await;
@@ -89,14 +102,9 @@ impl Sidebar {
             let g = looks::project_glyph(t.project_id.as_deref(), &prefs, &self.around.images, px(12.), p.muted_foreground, true, &p);
             lines.push((Some(g), name.clone()));
         }
-        if let Some(place) = self
-            .place_of(&t.workspace_id)
-            .and_then(|id| self.around.places.iter().find(|pl| pl.get("id").and_then(Value::as_str) == Some(id.as_str())).cloned())
-        {
-            lines.push((
-                Some(looks::computer_glyph(&place, &prefs, px(12.), p.muted_foreground)),
-                t.computer.clone().unwrap_or_else(|| looks::place_name(&place)),
-            ));
+        if let Some(name) = self.computer_name(&t.workspace_id).filter(|n| !n.is_empty()) {
+            let place = self.place_of(&t.workspace_id).and_then(|id| self.place(&id).cloned());
+            lines.push((place.map(|place| looks::computer_glyph(&place, &prefs, px(12.), p.muted_foreground)), name));
         }
         let project_path = t.project_id.as_ref().and_then(|id| self.around.project_paths.get(id).cloned());
         if let Some(folder) = workspace.get("folder").and_then(Value::as_str).map(str::to_owned).or(project_path).filter(|f| !f.is_empty())
@@ -111,17 +119,20 @@ impl Sidebar {
             lines.push((Some(glyph(Glyph::GitBranch)), branch));
         }
         if !t.harness.is_empty() {
-            // The model by its catalog label, else the agent's own name (`agentName`).
-            let catalog = self.around.catalogs.get(&t.workspace_id).and_then(|c| c.iter().find(|c| c.harness == t.harness));
-            let model = t.model.as_deref().map(|m| m.split(':').next().unwrap_or(m));
-            let label = model.and_then(|m| catalog.and_then(|c| c.models.iter().find(|(v, _)| v == m)).map(|(_, l)| l.clone()));
-            let name = label.or_else(|| t.model.clone().filter(|_| catalog.is_none())).unwrap_or_else(|| {
-                if t.harness == "claude" {
-                    "Claude Code".to_owned()
-                } else {
-                    t.harness.clone()
-                }
+            // `WorkspaceSidebar.tsx`'s `model`: its catalog label (`modelOf` over `modelPicks`), the slug itself while no
+            // catalog is read, the agent's own name (`agentName`) where the thread names no model.
+            let catalog = self.around.listed.get(&t.workspace_id).and_then(|listed| {
+                let row = listed.iter().find(|h| h.get("harness").and_then(Value::as_str) == Some(t.harness.as_str()))?;
+                serde_json::from_value::<wsp_host_client::protocol::HarnessCatalog>(row.clone()).ok()
             });
+            let name = match (&t.model, catalog) {
+                (None, _) => crate::ui::catalog::name(&t.harness),
+                (Some(model), None) => model.clone(),
+                (Some(model), Some(catalog)) => {
+                    use crate::screens::settings::pages::agents::model::{base_model, model_of};
+                    model_of(&catalog, base_model(model)).label
+                }
+            };
             lines.push((Some(tile::agent(&t.harness, cx)), name));
         }
         if let Some(pr) = status.as_ref().and_then(|s| s.get("pr")).filter(|pr| pr.get("number").is_some()) {
@@ -156,9 +167,13 @@ impl Sidebar {
                     .or_else(|| (!running).then(|| t.last_line.clone()).flatten())
             })
             .flatten()
-            .map(|r| div().pl(px(20.)).mt(px(2.)).line_clamp(3).child(r));
+            .map(|r| div().debug_selector(|| "tile-card-reason".into()).pl(px(20.)).mt(px(2.)).line_clamp(3).child(r));
         let fact = |(g, text): (Option<AnyElement>, String)| {
-            h_flex().items_start().gap(px(8.)).children(g.map(|g| div().flex_none().mt(px(3.)).child(g))).child(div().min_w_0().child(text))
+            h_flex()
+                .items_start()
+                .gap(px(8.))
+                .children(g.map(|g| div().debug_selector(|| format!("tile-card-glyph:{text}")).flex_none().mt(px(3.)).child(g)))
+                .child(div().debug_selector(|| format!("tile-card-line:{text}")).min_w_0().child(text))
         };
         let card = div()
             .debug_selector(|| "tile-card".into())
@@ -171,12 +186,19 @@ impl Sidebar {
             .bg(p.popover)
             .shadow(p.tooltip_shadow.clone())
             .text_size(px(13.))
+            .line_height(relative(LEADING))
             .text_color(p.foreground)
             .child(
                 v_flex()
                     .py(px(4.))
                     .gap(px(6.))
-                    .child(div().font_weight(FontWeight::MEDIUM).text_color(p.foreground).child(t.title.clone()))
+                    .child(
+                        div()
+                            .debug_selector(|| "tile-card-title".into())
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(p.foreground)
+                            .child(t.title.clone()),
+                    )
                     .child(
                         v_flex()
                             .gap(px(4.))
@@ -208,6 +230,7 @@ impl Sidebar {
                 .border_color(p.border)
                 .bg(p.popover)
                 .text_size(px(13.))
+                .line_height(relative(LEADING))
                 .text_color(p.foreground)
                 .child(
                     v_flex().py(px(4.)).gap(px(6.)).child(div().font_weight(FontWeight::MEDIUM).child(c.name.clone())).child(
@@ -227,17 +250,20 @@ impl Sidebar {
         let kind = model::tile_kind(t, tile, self.now);
         let slot = model::tile_slot(t, tile, self.now);
         let word = model::word(t, kind, self.now, super::utc_offset_ms() as f64);
-        let time = if kind == Kind::Working {
-            Some(model::running_time(self.now - t.started_at.unwrap_or(self.now)))
-        } else {
-            tile.age_at.map(|at| model::resting_age(at, self.now))
+        // `timed` on Working, `aged` on the kinds that end a turn; the rest say no time.
+        let time = match kind {
+            Kind::Working => Some(model::running_time(self.now - t.started_at.unwrap_or(self.now))),
+            Kind::Resting | Kind::Finished | Kind::Done | Kind::Failed | Kind::Expired | Kind::Released | Kind::Stopped => {
+                tile.age_at.map(|at| model::resting_age(at, self.now))
+            }
+            _ => None,
         };
         status_row(kind, slot.glyph, slot.tone, format!("card-crab-{}", t.key), word.to_string(), time, p)
     }
 }
 
 /// A card's status row (`StatusLine.tsx`): the kind's glyph or the crab, its word in the foreground, or medium in the
-/// kind's tone, then the time at the right.
+/// kind's tone, then the time at the right. A resting thread says how it ended, as Finished's muted check and word.
 pub(crate) fn status_row(
     kind: Kind,
     glyph: Option<&str>,
@@ -247,6 +273,10 @@ pub(crate) fn status_row(
     time: Option<String>,
     p: &Palette,
 ) -> AnyElement {
+    let (kind, glyph, tone, word) = match kind {
+        Kind::Resting => (Kind::Finished, model::kind_slot(Kind::Finished).0, None, model::kind_word(Kind::Finished).to_owned()),
+        _ => (kind, glyph, tone, word),
+    };
     let tone = match tone {
         Some(model::Tone::Input) => Some(p.status_input),
         Some(model::Tone::Working) => Some(p.status_working),
@@ -276,14 +306,16 @@ pub(crate) fn status_row(
     };
     h_flex()
         .gap(px(8.))
-        .child(div().flex_none().w(px(12.)).flex().justify_center().children(mark))
+        .child(div().debug_selector(|| "card-status-mark".into()).flex_none().w(px(12.)).flex().justify_center().children(mark))
         .child(
             div()
+                .debug_selector(|| format!("card-status:{word}"))
+                .flex_none()
                 .when_some(tone, |el, ink| el.font_weight(FontWeight::MEDIUM).text_color(ink))
                 .when(tone.is_none(), |el| el.text_color(p.foreground))
                 .child(word),
         )
         .child(div().flex_1())
-        .children(time.map(|t| div().flex_none().child(t)))
+        .children(time.map(|t| div().debug_selector(|| "card-status-time".into()).flex_none().child(t)))
         .into_any_element()
 }

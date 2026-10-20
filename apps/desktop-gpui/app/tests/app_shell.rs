@@ -892,6 +892,7 @@ macro_rules! probe {
                     crumbs: part(concat!($selector, "-crumbs"), cx),
                     actions: part(concat!($selector, "-actions"), cx),
                     title: Some(std::rc::Rc::new(|_: &App| SharedString::from(concat!($selector, " tab")))),
+                    ..Parts::default()
                 }
             }
         }
@@ -1080,6 +1081,27 @@ fn each_browser_the_add_menu_opens_is_a_page_of_its_own_and_the_toggle_goes_to_t
         (3, Some(0)),
         "the toggle opens the first page, as openedSurface does"
     );
+}
+
+/// The plus's menu as `MenuPopup` draws it at `sm`: 6 px under the plus at its left edge, its rows 28 px and 4 px inside
+/// its 1 px edge, each under the last.
+#[gpui_kit::test]
+fn the_add_menu_holds_its_rows_as_the_web_menu_does(cx: &mut TestAppContext) {
+    let (shell, cx) = hostless(cx);
+    with_threads(&shell, cx);
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    panel.update_in(cx, |p, window, cx| p.add(Pane::Changes, None, window, cx));
+    cx.run_until_parked();
+    let plus = cx.debug_bounds("panel-add").expect("the plus is drawn");
+    cx.simulate_click(plus.center(), Modifiers::none());
+    cx.run_until_parked();
+    let menu = cx.debug_bounds("panel-add-menu").expect("the plus opens its menu");
+    let (first, second) = (cx.debug_bounds("panel-add-browser").unwrap(), cx.debug_bounds("panel-add-terminal").unwrap());
+    assert_eq!((menu.top() - plus.bottom(), menu.left()), (px(6.), plus.left()), "`sideOffset={{6}}`, `align=\"start\"`");
+    assert_eq!(first.origin - menu.origin, point(px(5.), px(5.)), "the edge and `p-1`");
+    assert_eq!((first.size.width, first.size.height), (menu.size.width - px(10.), px(28.)), "`sm:min-h-7`, as wide as the list");
+    assert_eq!(second.top(), first.bottom(), "no gap between rows");
+    assert!(menu.size.width >= px(176.), "`min-w-44`: {menu:?}");
 }
 
 /// `openBrowser`: the first place typed in the placeholder opens a tab of its own, which takes the placeholder's place.

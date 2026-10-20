@@ -771,12 +771,14 @@ impl RightPanel {
                 .child(
                     div()
                         .id("panel-add")
+                        .debug_selector(|| "panel-add".into())
                         .flex()
                         .size(px(28.))
                         .items_center()
                         .justify_center()
                         .rounded(px(8.))
                         .cursor_pointer()
+                        .when(self.adding, |el| el.bg(p.accent))
                         .hover(|s| s.bg(p.accent))
                         .child(Icon::new(IconName::Plus).with_size(px(14.)).text_color(p.muted_foreground))
                         .on_click(cx.listener(|this, _, window, cx| {
@@ -791,7 +793,8 @@ impl RightPanel {
                 )
                 .when(self.adding, |el| {
                     el.child(deferred(
-                        anchored().position_mode(AnchoredPositionMode::Local).position(point(px(0.), px(34.))).child(self.add_menu(cx)),
+                        // Laid out under the plus, so its offset is `sideOffset={6}` alone.
+                        anchored().position_mode(AnchoredPositionMode::Local).position(point(px(0.), px(6.))).child(self.add_menu(cx)),
                     ))
                 })
         });
@@ -821,14 +824,17 @@ impl RightPanel {
             .child(controls)
     }
 
-    /// The plus's menu: each pane the launcher lists, with its glyph and letter, 176 px at the least.
+    /// The plus's menu: each pane the launcher lists, with its glyph and letter, 176 px at the least, as `MenuPopup`
+    /// and `MenuItem` draw it at `sm`: 28 px rows inside its 4 px, each 8 px in, the letter in mono.
     fn add_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = cx.palette().clone();
+        let mono = gpui_kit::component::ActiveTheme::theme(&**cx).mono_font_family.clone();
         let rows = Pane::ALL.into_iter().filter(|pane| !(pane.only_when_available() && pane.availability(&self.at).is_err())).map(|pane| {
             let open = pane.availability(&self.at).is_ok();
             h_flex()
                 .id(SharedString::from(format!("add-{}", pane.name())))
-                .h(px(32.))
+                .debug_selector(move || format!("panel-add-{}", pane.name()))
+                .h(px(28.))
                 .px_2()
                 .gap_2()
                 .rounded(px(8.))
@@ -840,31 +846,29 @@ impl RightPanel {
                         .hover(|s| s.bg(p.accent))
                         .on_click(cx.listener(move |this, _, window, cx| this.add(pane, None, window, cx)))
                 })
-                .child(Icon::new(pane.glyph()).with_size(px(16.)).text_color(p.muted_foreground))
+                .child(Icon::new(pane.glyph()).with_size(px(16.)).text_color(p.muted_foreground.opacity(0.8)))
                 .child(div().flex_1().child(SharedString::new_static(pane.label())))
-                .children(
-                    pane.key().map(|k| div().text_size(px(12.)).text_color(p.muted_foreground).child(SharedString::from(k.to_string()))),
-                )
+                .children(pane.key().map(|k| {
+                    div()
+                        .font_family(mono.clone())
+                        .text_size(px(12.))
+                        .text_color(p.muted_foreground)
+                        .child(SharedString::from(k.to_string()))
+                }))
         });
-        v_flex()
-            .id("panel-add-menu")
-            .occlude()
-            .min_w(px(176.))
-            .p_1()
-            .rounded(px(12.))
-            .border_1()
-            .border_color(p.popover_edge)
-            .bg(p.popover)
-            .shadow(p.popover_shadow.clone())
-            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                this.adding = false;
-                this.closed_at = Some(Instant::now());
-                cx.notify();
-            }))
-            .children(rows)
+        crate::ui::menu::glass(
+            v_flex().id("panel-add-menu").debug_selector(|| "panel-add-menu".into()).occlude().min_w(px(176.)).p_1().rounded(px(12.)),
+            &p,
+        )
+        .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+            this.adding = false;
+            this.closed_at = Some(Instant::now());
+            cx.notify();
+        }))
+        .children(rows)
     }
 
-    fn launcher(&self, (card, edge): (Hsla, Hsla), cx: &mut Context<Self>) -> impl IntoElement {
+    fn launcher(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = cx.palette().clone();
         let mut opens = 0;
         let tiles = Pane::ALL.into_iter().filter_map(|pane| {
@@ -891,7 +895,7 @@ impl RightPanel {
                 .py_2()
                 .rounded(px(10.))
                 .border_1()
-                .border_color(edge)
+                .border_color(p.border)
                 .when_some(row, |el, row| {
                     el.cursor_pointer().on_click(cx.listener(move |this, _, window, cx| this.add(pane, None, window, cx))).on_hover(
                         cx.listener(move |this, over: &bool, _, cx| {
@@ -917,7 +921,7 @@ impl RightPanel {
                 )
                 .children(key.map(|k| div().opacity(dim).child(keycap(k, cx))));
             let lit = row.is_some() && row == self.lit;
-            Some(Tile { name: pane.name(), rest: card, fill: lit.then_some(p.card_hover), tile })
+            Some(Tile { name: pane.name(), rest: p.card, fill: lit.then_some(p.card_hover), tile })
         });
         div().flex().flex_1().min_h_0().items_center().justify_center().px_6().pt_6().pb(BAR_HEIGHT + px(24.)).child(
             div()
@@ -958,8 +962,7 @@ impl RightPanel {
     }
 
     /// The panel's bar and content, with `controls` at the bar's right end.
-    /// `ink` is the card fill and the line the panel's surface takes, which the Mac's glass moves.
-    pub fn draw(&mut self, controls: impl IntoElement, ink: (Hsla, Hsla), cx: &mut Context<Self>) -> impl IntoElement {
+    pub fn draw(&mut self, controls: impl IntoElement, cx: &mut Context<Self>) -> impl IntoElement {
         let content = match self.active.and_then(|ix| self.tabs.get(ix)) {
             Some(Tab { view: Some(view), .. }) => {
                 div().flex_1().min_h_0().child(view.clone().cached(StyleRefinement::default().size_full())).into_any_element()
@@ -981,7 +984,7 @@ impl RightPanel {
                         .child("Pick a panel from the tab strip above."),
                 )
                 .into_any_element(),
-            None => self.launcher(ink, cx).into_any_element(),
+            None => self.launcher(cx).into_any_element(),
         };
         // `previewFocus` holds for focus anywhere in the panel, as `data-preview-panel-mode` on its root says today.
         let mut context = gpui_kit::KeyContext::default();
