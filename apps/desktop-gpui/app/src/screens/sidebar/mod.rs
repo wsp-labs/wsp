@@ -19,6 +19,7 @@ mod rename;
 pub mod rows;
 mod switcher;
 pub(crate) mod tile;
+pub(crate) mod walk;
 mod writes;
 
 use std::cell::{Cell, RefCell};

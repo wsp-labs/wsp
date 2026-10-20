@@ -347,7 +347,7 @@ impl Palette {
             Run::AddProject => self.ask(Asked::AddProject, cx),
             Run::AddComputer => self.ask(Asked::AddComputer, cx),
             Run::ResumeConversation | Run::PickProject => {}
-            Run::Command(_) | Run::StepWorkspace(_) | Run::StepThread(_) | Run::NewThread => {}
+            Run::Command(_) | Run::NewThread => {}
         }
     }
 
@@ -514,7 +514,7 @@ fn read(s: &Sidebar, route: Option<&Route>, connected: bool, rules: &[Bound], ma
         }),
         _ => None,
     };
-    let walk = open.as_ref().map_or(0, |o| super::switcher::walk::thread_walk(s, &o.workspace).len());
+    let walk = open.as_ref().map_or(0, |o| crate::screens::sidebar::walk::thread_walk(s, &o.workspace).len());
     let newest = |project: &str| {
         s.threads().iter().filter(|t| t.project_id.as_deref() == Some(project)).filter_map(|t| t.started_at).reduce(f64::max)
     };
@@ -537,7 +537,8 @@ fn read(s: &Sidebar, route: Option<&Route>, connected: bool, rules: &[Bound], ma
         Some(o) => acts_of(s, o),
         None => (Vec::new(), Vec::new()),
     };
-    let seen = Seen { connected, asks, projects, tasks, threads, open, walk, acts, labels: labels(rules, mac) };
+    let level = s.level_len();
+    let seen = Seen { connected, asks, projects, tasks, threads, open, walk, level, acts, labels: labels(rules, mac) };
     (seen, runs)
 }
 

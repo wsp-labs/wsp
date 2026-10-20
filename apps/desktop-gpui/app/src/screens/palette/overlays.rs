@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The layers drawn over the whole window, as one of gpui-kit's `Root` plugins: the command palette and the thread
-//! switcher, over the toasts `ui::init` registers before them, as the web keeps its toasts under its dialogs. Each layer
-//! is built when it opens and dropped when it closes, so a shut palette holds nothing. The host's notices follow the
-//! host here once the shell is connected.
+//! The layers drawn over the whole window, as one of gpui-kit's `Root` plugins: the command palette, over the toasts
+//! `ui::init` registers before them, as the web keeps its toasts under its dialogs. Each layer is built when it opens
+//! and dropped when it closes, so a shut palette holds nothing. The host's notices follow the host here once the shell
+//! is connected.
 
 use gpui_kit::base::{Root, RootPlugin};
 use gpui_kit::{deferred, div, prelude::*, App, Context, Entity, FocusHandle, Subscription, WeakEntity, Window};
 
 use super::palette::Palette;
-use super::switcher::Switcher;
 use crate::screens::notices::Notices;
 use crate::screens::Host;
 use crate::sidebar::Sidebar;
@@ -19,7 +18,6 @@ pub struct Overlays {
     /// The sidebar, whose projects and threads the palette lists and whose acts its rows run.
     pub sidebar: Option<WeakEntity<Sidebar>>,
     pub palette: Option<Entity<Palette>>,
-    pub switcher: Option<Entity<Switcher>>,
     /// The host's notices, which raise their toasts in the window's stack.
     pub notices: Entity<Notices>,
     /// What held focus before a layer took it, given back when the layer closes.
@@ -29,7 +27,7 @@ pub struct Overlays {
 /// Registers the layers for every window opened after it; call once after `gpui_kit::init`, before the first window.
 pub fn init(cx: &mut App) {
     Root::register_plugin::<Overlays>(cx, Overlays::new);
-    super::switcher::init(cx);
+    crate::screens::app_shell::keys::free_thread_chords(cx);
     super::palette::bind(cx);
     crate::screens::notices::init(cx);
 }
@@ -72,18 +70,17 @@ pub fn attach(host: Host, sidebar: &Entity<Sidebar>, window: &mut Window, cx: &m
         o.notices.update(cx, |n, cx| n.attach(host, window, cx));
         cx.notify();
     });
-    super::switcher::follow(window, cx);
 }
 
 impl Overlays {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let notices = cx.new(|cx| Notices::new(window, cx));
-        Overlays { host: None, sidebar: None, palette: None, switcher: None, notices, behind: None }
+        Overlays { host: None, sidebar: None, palette: None, notices, behind: None }
     }
 
     /// Notes what holds focus now, for [`Overlays::give_back`]; a layer opening over another keeps the first one's.
     pub fn take_focus(&mut self, window: &Window, cx: &App) {
-        if self.palette.is_none() && self.switcher.is_none() {
+        if self.palette.is_none() {
             self.behind = window.focused(cx);
         }
     }
@@ -100,8 +97,8 @@ impl RootPlugin for Overlays {}
 
 impl Render for Overlays {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let layers = div().absolute().top_0().left_0().size_full().children(self.palette.clone()).children(self.switcher.clone());
-        // Above the dialog layer's priority 4: the web opens the palette and the switcher over a dialog.
+        let layers = div().absolute().top_0().left_0().size_full().children(self.palette.clone());
+        // Above the dialog layer's priority 4: the web opens the palette over a dialog.
         deferred(layers).with_priority(5)
     }
 }
