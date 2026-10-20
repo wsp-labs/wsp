@@ -237,51 +237,43 @@ input). gpui-kit's `Input` already handles the field
 on Windows are still an open issue
 ([zed#41138](https://github.com/zed-industries/zed/issues/41138)).
 
+## Traps in this app
+
+What the screens (#2391, #2402) and the owner's Mac runs taught.
+
+- **A view's `cx.notify()` re-renders its ancestors**, so an entity that ticks repaints its whole page (#2391).
+- **Rows inside gpui-kit's `MotionReveal` never get clicks**, so draw an open list plainly (#2391).
+- **A capture under Xvfb with no window manager** never has an active window: the capture focuses it itself, pins
+  `TZ`, and waits for its target to change rather than for a fixed time (#2391).
+- **Under the test clock a press right after a tooltip shows misses its element** (#2391).
+- **In the app, `status.subscribe` goes only through `HostClient::statuses()`**, which asks once a socket; each ask holds a
+  watcher on the host for the socket's life. `status_subscribe_is_asked_only_through_statuses` in
+  [shared_reads.rs](../../../apps/desktop-gpui/host-client/tests/shared_reads.rs) fails on a direct
+  `StatusSubscribeRequest` (#2391).
+- **Test hosts go through the shared `Throwaway`** in
+  [host-client/tests/common](../../../apps/desktop-gpui/host-client/tests/common/mod.rs), never a host of their own (#2391).
+- **Idle CPU on Boat is software repaint**, so measure idle on a Mac (#2391).
+- **A systemd unit stopped with `systemctl --user stop` stays enabled**, so host start
+  ([start.rs](../../../apps/desktop-gpui/host-client/src/start.rs)) also loads a unit that is enabled but not running
+  while nothing serves the state file (#2402).
+- **A Mac test run guards the owner's computer** with `sandbox-exec` denying `/bin/launchctl`, `/usr/bin/open` and
+  editor command lines (`~/wsp-work/gpui-2366-mac-logs/guard.sb` on the owner's Mac), and runs vitest outside it,
+  since its setup runs `ps`, which the sandbox refuses.
+- **A Mac's `/var` is `/private/var`**, so tests canonicalize their temp folders.
+- **The native context menu cannot be driven**, so tests assert `ContextMenu::asked()`.
+- **A locked screen stops a window drawing**, so a window check on the Mac reads `CGSSessionScreenIsLocked` first and
+  runs a gpui/main control before calling a failure real.
+
 ## Where to read working code
 
-1. gpui-kit's examples at our pin, `hello_world` among them:
-   [examples](https://github.com/longbridge/gpui-kit/tree/14f59330a4aa0cb5becf140e067d64a616328612/examples). gpui-ce's teaching examples:
-   [gpui-ce examples](https://github.com/gpui-ce/gpui-ce/tree/main/crates/gpui/examples).
-2. Skills in real repos: Zed's
-   [gpui-bench](https://github.com/zed-industries/zed/tree/main/.agents/skills/gpui-bench)
-   (benchmarks that follow the production path) and
-   [gpui-test](https://github.com/zed-industries/zed/tree/main/.agents/skills/gpui-test);
-   herdr-gpui's
-   [gpui-mockup](https://github.com/penso/herdr-gpui/blob/main/.claude/skills/gpui-mockup/SKILL.md);
-   jayjay's
-   [gpui-parity-audit](https://github.com/hewigovens/jayjay/blob/main/.agents/skills/gpui-parity-audit/SKILL.md);
-   OpenLogi's
-   [testing-openlogi-ui](https://github.com/AprilNEA/OpenLogi/blob/master/.agents/skills/testing-openlogi-ui/SKILL.md);
-   zqlz's GPUI skills on entities, async, focus and layout
-   ([zqlz/.claude/skills](https://github.com/samurmaykrr/zqlz/tree/main/.claude/skills)).
-3. Zed's own docs and examples:
-   [crates/gpui/docs](https://github.com/zed-industries/zed/tree/main/crates/gpui/docs)
-   (contexts, key dispatch) and
-   [crates/gpui/examples](https://github.com/zed-industries/zed/tree/main/crates/gpui/examples)
-   (46 entries at 56934ec: 42 files and 4 folders).
-4. Apps on GPUI, agent tools among them (Arbor, Hadron, Reviu, Runner):
-   [awesome-gpui](https://github.com/zed-industries/awesome-gpui).
-5. Whole ports: Cap's
-   [desktop-gpui README](https://github.com/CapSoftware/Cap/blob/main/apps/desktop-gpui/README.md)
-   and [PR #2442](https://github.com/CapSoftware/Cap/pull/2442);
-   syncplay-gpui's [PR #65](https://github.com/everpcpc/syncplay-gpui/pull/65);
-   Frame's [write-up](https://www.madebyhex.com/blog/frame-rewriting-a-tauri-app-in-gpui-ce).
-6. Zed's blog on GPUI ownership:
-   [gpui-ownership](https://zed.dev/blog/gpui-ownership).
-7. Tools: [gpui-devtools](https://github.com/joris-gallot/gpui-devtools),
-   [gpui-storybook](https://github.com/stayhydated/gpui-storybook),
-   [gpui-kit-canvas](https://github.com/JetSquirrel/gpui-kit-canvas).
-
-Stale, read only to know they are stale:
-[gpui-book](https://github.com/MatinAniss/gpui-book),
-[create-gpui-app](https://github.com/zed-industries/create-gpui-app)
-(map #2364, Resources).
+gpui-kit's examples at our pin, skills from other GPUI repos, Zed's docs, whole ports and tools:
+[references/reading.md](references/reading.md).
 
 ## The parity audit
 
 Run it on a ported screen before its ticket reports done, and whenever the
 coordinator asks where a screen stands. Adapted from jayjay's gpui-parity-audit
-(linked above), which audits a GPUI shell against a SwiftUI one.
+(linked in [references/reading.md](references/reading.md)), which audits a GPUI shell against a SwiftUI one.
 
 1. **Gather the three references.** The locked design for the screen
    ([wsp-design](../wsp-design/SKILL.md) and its mockup), the protocol messages
@@ -306,7 +298,7 @@ coordinator asks where a screen stands. Adapted from jayjay's gpui-parity-audit
 
 ## The mockup and screenshot loop
 
-Adapted from herdr-gpui's gpui-mockup (linked above), which writes design
+Adapted from herdr-gpui's gpui-mockup (linked in [references/reading.md](references/reading.md)), which writes design
 variants as real GPUI code, shows them side by side and captures the window to
 check its own work. Its capture works on macOS only (its SKILL.md, Limits), so
 on Boat use Xvfb or the headless road below.
@@ -326,7 +318,7 @@ wait $pid; kill $xpid
 
 Stop only the pids you started (wsp-review, Process laws). A window takes
 focus only with a window manager on the display: start `openbox` on `:99`
-first, or the bench exits 3 (`FOCUS_WAIT` in [shell.rs](../../../apps/desktop-gpui/app/src/shell.rs)).
+first, or the bench exits 3 (`FOCUS_WAIT` in [bench_run.rs](../../../apps/desktop-gpui/app/src/shell/bench_run.rs)).
 Boat has no GPU (no `/dev/dri`; Mesa printed a DRI3 warning) and Linux fonts,
 so a Boat shot checks layout, clipping, overflow, alignment and states; type,
 vibrancy and color are judged on the owner's Mac every few days (map #2364). Shoot the web side in Chrome at `--force-device-scale-factor=2`, never Playwright's `deviceScaleFactor`, under which Blink rounds font metrics in CSS px (#2405).
@@ -396,4 +388,4 @@ Measured on our pin: a rebuild after editing three files of `app/src` took 4.4 s
 Keep cargo's output on screen (`| tee`, never a bare redirect) and every wait over a minute printing, or the turn can be cut or the machine paused. Never share `CARGO_TARGET_DIR` across worktrees: cargo knows `vendor/`'s path crates by their path in the workspace and judges freshness by file times, so one worktree's patched crates build in another as Fresh.
 Once `apps/desktop-gpui/scripts/ghostty.sh` exists, install Zig 0.16.0 and run it before cargo. Run tests with `cargo test`, `#[gpui_kit::test]` at our pin (The fork).
 Benchmarks follow Zed's gpui-bench rules: no `test-support` feature, a hard
-timeout, never two measured runs at once (linked above).
+timeout, never two measured runs at once (linked in [references/reading.md](references/reading.md)).

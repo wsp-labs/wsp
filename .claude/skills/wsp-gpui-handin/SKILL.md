@@ -13,8 +13,7 @@ reviewer would check by hand.
 
 ## Before hand-in
 
-1. On Boat, from the branch's worktree, after the last amend, run
-   [handin-check.sh](../../../apps/desktop-gpui/scripts/handin-check.sh) with no flags.
+1. On Boat, from the branch's worktree, after the last amend, run [handin-check.sh](../../../apps/desktop-gpui/scripts/handin-check.sh) with no flags.
 2. Paste its whole output into the report. Its first line names the commit; it must be the sha you pushed.
 3. Go through the sections below for what no script can see, and say in the report what you ran for each.
 4. Say in the report that the self-review ran and what it caught (wsp-review, Process laws).
@@ -26,8 +25,8 @@ would have run cargo. `--commits N` is only for a hand-in the coordinator ruled 
 
 - the clone is not shallow, and the worktree is clean so every check ran on the commit (an untracked
   `.cargo/config.toml` counts; `.wsp-files/`, where `wsp send --file` drops attachments, does not);
-- one commit (or the `--commits` count) on a fresh fetch of `origin/gpui/main`, with a parent line, whose message
-  passes `.githooks/commit-msg`: no em or en dash, no co-author trailer, no ticket number;
+- one commit (or the `--commits` count; a merge of `origin/main` is not counted) on a fresh fetch of `origin/gpui/main`,
+  with a parent line, each message passing `.githooks/commit-msg`: no em or en dash, no co-author trailer, no ticket number;
 - added lines, each hit named by file and line, `UPSTREAM` folders skipped as vendored: no em dash; outside
   Markdown, no `pkill`, `killall`, `pgrep`, `printenv` or `/proc/*/environ`, and no bare `env`, `set` or `export` in
   a shell file; under `app/tests/` and `parity/`, no Playwright `deviceScaleFactor`; under `app/tests/`, no child
@@ -41,7 +40,9 @@ would have run cargo. `--commits N` is only for a hand-in the coordinator ruled 
   wsp-daemon with `scripts/stage-daemon.sh` once that exists, else names the one the tests find or says "skipped:
   no daemon staged";
 - `pnpm install --frozen-lockfile` and the build with `CI=true`, so pnpm never waits on a terminal, then the
-  gpui-skills test, which also fails when a file a skill links to is gone.
+  gpui-skills test, which also fails when a file a skill links to is gone;
+- `scripts/pre-review.sh --laws`: main's laws and size check on the branch merged with `origin/main`, a wsp-daemon
+  staged first on Linux. A file over 1,500 lines is split, never added to `scripts/file-size-known.json`.
 
 A reviewer handed this output, every line `ok` or `skip`, for the PR's head sha does not rerun any of it. Output
 for another sha, or run with `--no-rust` on a Rust change, is not a pass. Everything below stays the reviewer's.
@@ -93,8 +94,7 @@ Before hand-in:
 - For each test you add or change, list the breaks it claims to catch. Make each break in the source, run the
   test, paste the red line, restore with `git checkout HEAD -- <file>` once everything is committed, since it drops
   uncommitted edits. One red per claim, not one per test. Never `git stash` (wsp-review, red-proofs).
-- A break that stays green is a finding against your own test: add the assertion, or say in the report what the
-  test does not catch.
+- A break that stays green is a finding against your own test: add the assertion, or say what the test misses.
 - Test through the path the app takes: the same init, the same wrapping view, the same environment.
 - A new script has a test, or a line in the report saying why not and how you ran it by hand.
 

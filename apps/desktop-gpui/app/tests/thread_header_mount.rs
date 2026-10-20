@@ -10,6 +10,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use desktop_gpui::screens::pr_pane::files::open_split::{self, Editor, OpenSplit};
+use desktop_gpui::screens::sidebar::model::Status;
+use desktop_gpui::screens::sidebar::Sidebar;
 use desktop_gpui::screens::thread_view::header;
 use desktop_gpui::screens::Route;
 use desktop_gpui::shell::{Launch, Shell};
@@ -214,6 +216,22 @@ fn a_pick_in_opens_menu_becomes_the_default_on_the_host_and_opens_there(cx: &mut
     assert_eq!(kept.as_deref(), Some("vscode"), "the host does not keep the pick");
 }
 
+/// `thread`'s row once the host's listing has landed in the sidebar and its turn has ended, so no push replaces it.
+fn listed_row(shell: &Entity<Shell>, thread: &str, cx: &mut VisualTestContext) -> (Entity<Sidebar>, String, serde_json::Value) {
+    let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
+    let row = |cx: &mut VisualTestContext| {
+        sidebar.read_with(cx, |s, _| {
+            s.rows()
+                .iter()
+                .find(|r| r.thread_id.as_deref() == Some(thread) && r.status != Status::Running)
+                .map(|r| (r.id.clone(), r.as_sent()))
+        })
+    };
+    until(cx, "the thread's row in the sidebar", |cx| row(cx).is_some());
+    let (id, sent) = row(cx).unwrap();
+    (sidebar, id, sent)
+}
+
 /// The thread `prompt` names, by its workspace and id.
 fn ids(threads: &Listed, prompt: &str) -> (String, String) {
     let (_, workspace, thread) = threads.iter().find(|(p, _, _)| p == prompt).unwrap_or_else(|| panic!("no thread {prompt}"));
@@ -232,11 +250,7 @@ fn a_press_on_the_opener_crumb_selects_the_thread_that_opened_this_one(cx: &mut 
     let (workspace, first) = ids(&threads, "first");
     let (_, second) = open(&shell, &threads, "second", cx);
     // The second thread as an agent on the first would have opened it.
-    let sidebar = shell.read_with(cx, |s, _| s.sidebar().clone());
-    let (id, mut opened) = sidebar.read_with(cx, |s, _| {
-        let row = s.rows().iter().find(|r| r.thread_id.as_deref() == Some(second.as_str())).expect("the second thread's row");
-        (row.id.clone(), row.as_sent())
-    });
+    let (sidebar, id, mut opened) = listed_row(&shell, &second, cx);
     opened["parentThreadId"] = first.clone().into();
     sidebar.update(cx, |s, cx| s.apply(Change::Row { id, row: Some(opened) }, cx));
     until(cx, "the opener crumb", |cx| cx.debug_bounds("crumbs-opener").is_some());
@@ -248,6 +262,7 @@ fn a_press_on_the_opener_crumb_selects_the_thread_that_opened_this_one(cx: &mut 
 
 #[gpui_kit::test]
 fn back_to_lead_selects_the_lead_and_puts_the_caret_in_its_composer(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::sidebar::host::Change;
     use desktop_gpui::screens::thread_view::cards::SUBAGENT;
     let host = common::Throwaway::start();
     let folder = host.repo("repo");
@@ -256,24 +271,13 @@ fn back_to_lead_selects_the_lead_and_puts_the_caret_in_its_composer(cx: &mut Tes
     let (shell, threads, cx) = shell_on(&host, cx);
     let (workspace, thread) = open(&shell, &threads, "first", cx);
     let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen");
-    let (view, composer) = screen.read_with(cx, |s, _| (s.view().clone(), s.composer().clone()));
-    let survey = desktop_gpui::transcript::ListedSubagent {
-        call: "toolu-survey".to_owned(),
-        title: "Survey".to_owned(),
-        state: "done".to_owned(),
-        model: None,
-        asked: None,
-        started: 1_000.,
-        ended: Some(9_000.),
-        failure: None,
-    };
-    let listing = desktop_gpui::transcript::Listing {
-        thread: thread.clone(),
-        title: Some("first".to_owned()),
-        subagents: vec![survey],
-        ..Default::default()
-    };
-    view.update(cx, |v, cx| v.set_listing(listing, cx));
+    let composer = screen.read_with(cx, |s, _| s.composer().clone());
+    // On the row, as the host sends it: each move of the sidebar reads the thread's listing again off its rows.
+    let (sidebar, id, mut row) = listed_row(&shell, &thread, cx);
+    row["subagents"] = serde_json::json!([
+        { "id": "survey", "title": "Survey", "state": "done", "startedAt": 1_000., "endedAt": 9_000., "parentToolUseId": "toolu-survey" }
+    ]);
+    sidebar.update(cx, |s, cx| s.apply(Change::Row { id, row: Some(row) }, cx));
     let page = Route::Screen(format!("{SUBAGENT}:{workspace}/{thread}/toolu-survey").into());
     shell.update_in(cx, |s, window, cx| s.go(page.clone(), window, cx));
     until(cx, "the subagent's bar", |cx| cx.debug_bounds("subagent-bar").is_some());

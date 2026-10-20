@@ -507,28 +507,24 @@ fn a_commit_draft_answers_only_the_thread_it_was_pressed_on(cx: &mut TestAppCont
     }
     let folder = host.repo("repo");
     host.wsp(&["add", &folder.to_string_lossy()]);
-    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
-    host.wsp(&["run", "repo", "second", "--agent", "claude"]);
     let git = |args: &[&str]| {
         let ok = std::process::Command::new("git").args(args).current_dir(&folder).env_clear().envs(host.env()).status().unwrap().success();
         assert!(ok, "git {args:?}");
     };
+    // Edited before the turns: a fresh read asked while a turn's end read runs is answered by that older read.
     git(&["checkout", "-q", "-b", "fix/cart"]);
     std::fs::write(folder.join("cart.txt"), "fixed\n").unwrap();
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    host.wsp(&["run", "repo", "second", "--agent", "claude"]);
     desktop_gpui::screens::add(Pane::Changes.name(), entry::<ChangesPane>());
     let (shell, threads, cx) = shell_on(&host, cx);
-    let (workspace_id, first) = ids(&threads, "first");
-    open(&shell, cx, (workspace_id.clone(), first.clone()), "first");
-    let reader = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    reader.block_on(async {
-        let ask: protocol::WorkspacesCheckoutRequest =
-            serde_json::from_value(serde_json::json!({ "workspaceId": workspace_id, "fresh": true })).unwrap();
-        host.client().await.call(ask).await.unwrap_or_else(|f| panic!("workspaces.checkout: {}", f.message));
-    });
+    open(&shell, cx, ids(&threads, "first"), "first");
     let git = shell.read_with(cx, |s, cx| s.thread_screen().map(|t| t.read(cx).git_split().clone())).expect("the thread screen");
     until(cx, "the quick act to commit", |cx| {
         git.read_with(cx, |g, _| g.state().is_some_and(|s| quick_action(&s).act == Some(GitAct::CommitPushPr)))
     });
+    // Open holds its slot right of the split until the host lists its editors, and the split moves when it stands down.
+    until(cx, "the host's editors", |cx| cx.update(|_, cx| cx.try_global::<open_split::Editors>().is_some_and(|e| e.list.is_some())));
     let active = |cx: &mut VisualTestContext| shell.read_with(cx, |s, cx| s.panel().read(cx).active());
 
     // With no draft the Changes pane opens on the thread pressed on.

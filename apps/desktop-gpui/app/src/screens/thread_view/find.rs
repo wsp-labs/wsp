@@ -1096,6 +1096,7 @@ pub fn bar(view: &mut ThreadView, window: &Window, cx: &mut Context<ThreadView>)
             .id(SharedString::from(format!("find-toggle-{i}")))
             .debug_selector(move || format!("find-toggle-{i}"))
             .tooltip(tip(label, key.map(toggle_chord)))
+            .tooltip_side(gpui_kit::TooltipSide::Bottom)
             .flex_none()
             .size(px(24.))
             .flex()
@@ -1156,17 +1157,23 @@ pub fn bar(view: &mut ThreadView, window: &Window, cx: &mut Context<ThreadView>)
                 .children(status),
         )
         .child(
-            div().id("find-older-tip").debug_selector(|| "find-older".into()).tooltip(tip(OLDER, Some(chord_label(MAC, "enter")))).child(
-                Button::icon_xs("find-older", Glyph::ChevronUp)
-                    .held(!can_step)
-                    .on_click(cx.listener(|view, _, window, cx| step(view, -1, window, cx))),
-            ),
+            div()
+                .id("find-older-tip")
+                .debug_selector(|| "find-older".into())
+                .tooltip(tip(OLDER, Some(chord_label(MAC, "enter"))))
+                .tooltip_side(gpui_kit::TooltipSide::Bottom)
+                .child(
+                    Button::icon_xs("find-older", Glyph::ChevronUp)
+                        .held(!can_step)
+                        .on_click(cx.listener(|view, _, window, cx| step(view, -1, window, cx))),
+                ),
         )
         .child(
             div()
                 .id("find-newer-tip")
                 .debug_selector(|| "find-newer".into())
                 .tooltip(tip(NEWER, Some(chord_label(MAC, "shift-enter"))))
+                .tooltip_side(gpui_kit::TooltipSide::Bottom)
                 .child(
                     Button::icon_xs("find-newer", Glyph::ChevronDown)
                         .held(!can_step)
@@ -1178,6 +1185,7 @@ pub fn bar(view: &mut ThreadView, window: &Window, cx: &mut Context<ThreadView>)
                 .id("find-close-tip")
                 .debug_selector(|| "find-close".into())
                 .tooltip(tip(CLOSE, Some(chord_label(MAC, "escape"))))
+                .tooltip_side(gpui_kit::TooltipSide::Bottom)
                 .child(Button::icon_xs("find-close", Glyph::Close).on_click(cx.listener(|view, _, window, cx| close(view, window, cx)))),
         );
     // `FIND_WORDS.slow` has no counterpart: Rust's regex runs in time linear in the text, so no pattern runs long.

@@ -335,29 +335,32 @@ fn the_tab_chords_walk_the_panel_tabs_while_it_has_focus(cx: &mut TestAppContext
     assert_eq!(thread(&shell, cx).as_deref(), Some("a"), "ctrl+tab in the panel walks its tabs, not the workspaces");
 }
 
+/// A page no screen is registered under, as a route a screen has not landed on yet names one.
+const NO_SCREEN: &str = "no-screen";
+
+/// About is AppKit's own panel on a Mac (`role: "about"`) and no row elsewhere, so it opens no page in the window.
 #[gpui_kit::test]
-fn the_about_row_opens_its_route(cx: &mut TestAppContext) {
+fn the_about_row_opens_no_page(cx: &mut TestAppContext) {
     use desktop_gpui::screens::app_shell::menu;
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
     cx.update(|window, cx| window.dispatch_action(Box::new(menu::About), cx));
     cx.run_until_parked();
-    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(menu::ABOUT_SCREEN.into()));
+    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Thread { workspace_id: "w1".into(), thread_id: "a".into() });
 }
 
 #[gpui_kit::test]
 fn a_page_with_no_screen_yet_hides_the_panel_and_escape_does_not_leave_it(cx: &mut TestAppContext) {
-    use desktop_gpui::screens::app_shell::menu;
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
     press(cx, "rightPanel.toggle");
     assert!(cx.debug_bounds("right-panel").is_some());
-    cx.update(|window, cx| window.dispatch_action(Box::new(menu::About), cx));
+    shell.update_in(cx, |s, window, cx| s.go(Route::Screen(NO_SCREEN.into()), window, cx));
     cx.run_until_parked();
     assert!(cx.debug_bounds("right-panel").is_none(), "a page hides the panel, as Settings does");
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
-    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(menu::ABOUT_SCREEN.into()), "Escape leaves Settings alone");
+    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(NO_SCREEN.into()), "Escape leaves the page alone");
     shell.update_in(cx, |s, window, cx| s.go(Route::Thread { workspace_id: "w1".into(), thread_id: "a".into() }, window, cx));
     cx.run_until_parked();
     assert!(cx.debug_bounds("right-panel").is_some(), "back on the thread, its panel");
@@ -657,6 +660,60 @@ fn the_sheets_slide_in_and_out_over_200_ms_and_stand_still_under_reduced_motion(
     assert_eq!(right(cx), Some(900.), "under reduced motion it stands in on its first frame");
 }
 
+/// The panel's sheet fades out over 200 ms still holding its pane, and only once it has gone does the panel shut and
+/// let the pane's screen go, so a shut sheet holds nothing; asked again or handed a pane on its way out it comes back,
+/// and under reduced motion it goes at once.
+#[gpui_kit::test]
+fn the_panels_sheet_fades_out_holding_its_panes_then_lets_them_go(cx: &mut TestAppContext) {
+    screens::add("terminal", entry::<ShellProbe>());
+    let host = common::Throwaway::start();
+    let (shell, cx) = open(cx, host.state(), host.env());
+    until(cx, "the host", |cx| shell.read_with(cx, |s, _| s.connected()));
+    cx.update(|_, cx| cx.set_reduce_motion(false));
+    with_threads(&shell, cx);
+    cx.simulate_resize(size(px(900.), px(800.)));
+    cx.run_until_parked();
+    let panel = shell.read_with(cx, |s, _| s.panel().clone());
+    panel.update_in(cx, |p, window, cx| p.add(Pane::Terminal, Some("terminal:7".into()), window, cx));
+    tick(cx, 250);
+    let right = |cx: &mut VisualTestContext| cx.debug_bounds("panel-sheet").map(|b| f32::from(b.right()));
+    assert_eq!(right(cx), Some(900.));
+    let pane = panel.read_with(cx, |p, _| p.view()).expect("the tab's screen is built").downgrade();
+
+    press(cx, "rightPanel.toggle");
+    tick(cx, 100);
+    let midway = right(cx).expect("still drawn on its way out");
+    assert!(midway > 900. && midway < 932., "on its way out at 100 ms: {midway}");
+    assert!(cx.debug_bounds("probe-shell").is_some(), "its pane is drawn while it fades");
+    assert!(pane.upgrade().is_some(), "and still built");
+    tick(cx, 150);
+    assert_eq!(right(cx), None, "gone by 200 ms");
+    assert!(cx.debug_bounds("probe-shell").is_none());
+    assert!(!panel.read_with(cx, |p, _| p.is_open()), "the panel shuts once the sheet has gone");
+    assert!(pane.upgrade().is_none(), "and lets its pane's screen go");
+
+    press(cx, "rightPanel.toggle");
+    tick(cx, 250);
+    press(cx, "rightPanel.toggle");
+    tick(cx, 100);
+    press(cx, "rightPanel.toggle");
+    tick(cx, 250);
+    assert_eq!(right(cx), Some(900.), "asked again on its way out, it comes back");
+    assert!(panel.read_with(cx, |p, _| p.is_open()) && cx.debug_bounds("probe-shell").is_some());
+
+    press(cx, "rightPanel.toggle");
+    tick(cx, 100);
+    panel.update_in(cx, |p, window, cx| p.add(Pane::Terminal, Some("terminal:8".into()), window, cx));
+    tick(cx, 250);
+    assert_eq!(right(cx), Some(900.), "a pane opened on its way out keeps it open");
+    assert!(panel.read_with(cx, |p, _| p.is_open()));
+
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    press(cx, "rightPanel.toggle");
+    assert_eq!(right(cx), None, "under reduced motion it goes at once");
+    assert!(!panel.read_with(cx, |p, _| p.is_open()));
+}
+
 /// Polls `done` while the host answers on its own threads.
 fn until(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(30);
@@ -784,7 +841,7 @@ fn a_press_inside_the_sheet_stays_in_the_sheet(cx: &mut TestAppContext) {
     cx.simulate_click(toggle, Modifiers::none());
     assert!(panel.read_with(cx, |p, _| p.is_open()), "nor the header's toggle under it");
     cx.simulate_keystrokes("escape");
-    cx.run_until_parked();
+    tick(cx, 250);
     assert!(!panel.read_with(cx, |p, _| p.is_open()), "Escape closes the sheet");
 }
 
@@ -1542,10 +1599,9 @@ fn the_sidebar_is_shut_from_767_px_and_comes_back_as_left_at_768(cx: &mut TestAp
 /// AppShell.tsx puts `SettingsSidebar` in the sidebar's place for Settings alone; every other page keeps the threads.
 #[gpui_kit::test]
 fn only_settings_takes_the_sidebars_place(cx: &mut TestAppContext) {
-    use desktop_gpui::screens::app_shell::menu;
     let (shell, cx) = hostless(cx);
     with_threads(&shell, cx);
-    for (route, threads) in [(menu::ABOUT_SCREEN, true), ("subagent:w1/a/c", true), (SETTINGS, false)] {
+    for (route, threads) in [(NO_SCREEN, true), ("subagent:w1/a/c", true), (SETTINGS, false)] {
         shell.update_in(cx, |s, window, cx| s.go(Route::Screen(route.into()), window, cx));
         cx.run_until_parked();
         assert_eq!(cx.debug_bounds("sidebar").is_some(), threads, "{route}");

@@ -2,18 +2,21 @@
 //! What Add a computer draws on each step (`AddComputerDialog.tsx`, `PickLists.tsx`): its head, its body and its
 //! foot.
 
+mod projects;
+mod ways;
+
 use std::rc::Rc;
 
-use gpui_kit::component::input::{InputEvent, InputState};
-use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
-use gpui_kit::{div, prelude::*, px, AnyElement, App, ClickEvent, Context, Focusable as _, Hsla, PathPromptOptions, SharedString, Window};
+use gpui_kit::component::input::InputState;
+use gpui_kit::component::{h_flex, v_flex};
+use gpui_kit::{div, prelude::*, px, AnyElement, App, ClickEvent, Context, Focusable as _, SharedString, Window};
 use serde_json::{json, Value};
 
 use super::choices;
 use super::model::{self, github_pick, str_of, AddStep, Standing, StepLine};
 use super::rows::RowAct;
 use super::words;
-use super::{AddComputer, Folder, FolderFields, List, HUES, ICONS};
+use super::{AddComputer, List};
 use crate::screens::dialogs::layer;
 use crate::screens::dialogs::picks::{pick_line, Changes, PickItem, PickList, Tick, RANGE_HOVER};
 use crate::screens::dialogs::sign_in::{self, Flow, SignInView};
@@ -24,15 +27,11 @@ use crate::ui::{
     catalog, fmt_bytes, size, size_ink, spinner, text, ActivePalette, Button, Card, Choice, CopyRow, Dialog, Field, Glyph, GridHead,
     HeadCell, Line, PickRow, Refusal, Select, SelectItem, SelectState, Step, StepRow,
 };
+use ways::{sign_in_word, way_label, way_note, ways_fix};
 
 /// An icon's or a hue's name as its select says it.
 pub fn icon_word(id: &str) -> String {
     words::capitalised(id)
-}
-
-/// A project hue's ink, the muted one for none (`PROJECT_HUES`).
-fn hue_ink(hue: &str, cx: &App) -> Hsla {
-    looks::hue(hue, cx.palette()).unwrap_or(cx.palette().muted_foreground)
 }
 
 /// `Size`: a size in the weight table's ink (`sizeTone`), drawn only where the host measured the row.
@@ -547,260 +546,6 @@ impl AddComputer {
         vec![dialog_card("github").items(rows).into_any_element()]
     }
 
-    /// The folders a person may import: ones added by hand, ones the picks hold that are no project here, then every
-    /// project here.
-    fn folders(&self, cx: &App) -> Vec<Folder> {
-        let picks = self.picks_now(cx);
-        let facts = self.options.as_ref().map(|o| list(o, "folders").to_vec()).unwrap_or_default();
-        let fact_of = |path: &str| facts.iter().find(|f| str_of(f, "path") == Some(path)).cloned().unwrap_or(json!({}));
-        let here = self.here_projects();
-        let looks = self.preferences.get("projectLook").cloned().unwrap_or(json!({}));
-        let with_facts = |mut f: Folder| {
-            let fact = fact_of(&f.path);
-            f.bytes = fact.get("bytes").and_then(Value::as_u64);
-            f.private = fact.get("private") == Some(&json!(true));
-            f.unpushed = fact.get("unpushed").and_then(Value::as_u64);
-            f
-        };
-        let mut out: Vec<Folder> = self.added.iter().cloned().map(with_facts).collect();
-        if let Some(table) = picks.get("folders").and_then(Value::as_object) {
-            for (key, row) in table {
-                if here.iter().any(|p| choices::folder_key(str_of(p, "name").unwrap_or_default()) == *key)
-                    || out.iter().any(|f| &f.key == key)
-                {
-                    continue;
-                }
-                out.push(with_facts(Folder {
-                    key: key.clone(),
-                    name: str_of(row, "name").unwrap_or(key).to_owned(),
-                    path: str_of(row, "from").unwrap_or_default().to_owned(),
-                    remote: None,
-                    icon: str_of(row, "icon").unwrap_or("folder").to_owned(),
-                    hue: str_of(row, "hue").unwrap_or("neutral").to_owned(),
-                    bytes: None,
-                    private: false,
-                    unpushed: None,
-                }));
-            }
-        }
-        for p in here {
-            let id = str_of(&p, "id").unwrap_or_default();
-            out.push(with_facts(Folder {
-                key: choices::folder_key(str_of(&p, "name").unwrap_or_default()),
-                name: str_of(&p, "name").unwrap_or_default().to_owned(),
-                path: str_of(&p, "path").unwrap_or_default().to_owned(),
-                remote: Some(str_of(&p, "remote").unwrap_or_default().to_owned()),
-                icon: looks.pointer(&format!("/{id}/icon")).and_then(Value::as_str).unwrap_or("folder").to_owned(),
-                hue: looks.pointer(&format!("/{id}/hue")).and_then(Value::as_str).unwrap_or("neutral").to_owned(),
-                bytes: None,
-                private: false,
-                unpushed: None,
-            }));
-        }
-        out
-    }
-
-    /// The fields a ticked folder opens, made on first draw and kept by its key.
-    fn folder_fields(&mut self, key: &str, name: &str, icon: &str, hue: &str, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.folders.contains_key(key) {
-            let field = cx.new(|cx| InputState::new(window, cx).default_value(name.to_owned()));
-            let icons = ICONS.iter().map(|i| SelectItem::new(i.to_string(), icon_word(i)).glyph(looks::project_icon(i))).collect();
-            let icon_state = cx.new(|_| SelectState::new(icons, Some(&icon.to_owned())));
-            let hues = HUES
-                .iter()
-                .map(|h| {
-                    let h2 = h.to_string();
-                    SelectItem::new(h.to_string(), icon_word(h))
-                        .mark(move |cx| div().size(px(12.)).rounded_full().bg(hue_ink(&h2, cx)).into_any_element())
-                })
-                .collect();
-            let hue_state = cx.new(|_| SelectState::new(hues, Some(&hue.to_owned())));
-            let k = key.to_owned();
-            let sub = cx.subscribe(&field, move |this, field, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Change) {
-                    let name = field.read(cx).value().to_string();
-                    this.put_folder(&k, |row| row["name"] = json!(name), cx);
-                }
-            });
-            self.folders.insert(key.to_owned(), FolderFields { name: field, icon: icon_state, hue: hue_state, _subs: vec![sub] });
-        }
-    }
-
-    /// One field of a ticked folder's row changed.
-    fn put_folder(&mut self, key: &str, change: impl FnOnce(&mut Value), cx: &mut Context<Self>) {
-        let Some(picks) = self.picks.clone() else { return };
-        let Some(mut row) = picks.pointer(&format!("/folders/{key}")).cloned() else { return };
-        change(&mut row);
-        self.set_picks(choices::tick_folder(&picks, key, Some(row)), None, cx);
-    }
-
-    fn projects_body(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let picks = self.picks_now(cx);
-        let name = self.box_name(cx);
-        let no_github = github_pick(&picks) == "skip";
-        let folders = self.folders(cx);
-        let on_box: Vec<String> = self
-            .projects
-            .iter()
-            .filter(|p| str_of(p, "computer") == self.place_id.as_deref())
-            .filter_map(|p| str_of(p, "name").map(str::to_owned))
-            .collect();
-        let row_of = |f: &Folder| -> Value {
-            let held = picks.pointer(&format!("/folders/{}", f.key));
-            let mut row = json!({
-                "from": f.path,
-                "name": held.and_then(|h| str_of(h, "name")).unwrap_or(&f.name),
-                "icon": held.and_then(|h| str_of(h, "icon")).unwrap_or(&f.icon),
-                "hue": held.and_then(|h| str_of(h, "hue")).unwrap_or(&f.hue),
-                "keep": held.and_then(|h| h.get("keep")).cloned().unwrap_or(json!([])),
-            });
-            if let Some(image) = held.and_then(|h| h.get("image")).filter(|i| !i.is_null()) {
-                row["image"] = image.clone();
-            }
-            row
-        };
-        let rows: Vec<(Folder, Value, bool)> =
-            folders.iter().map(|f| (f.clone(), row_of(f), choices::has(&picks, "folders", &f.key))).collect();
-        for (f, row, on) in &rows {
-            if *on {
-                self.folder_fields(
-                    &f.key,
-                    str_of(row, "name").unwrap_or_default(),
-                    str_of(row, "icon").unwrap_or("folder"),
-                    str_of(row, "hue").unwrap_or("neutral"),
-                    window,
-                    cx,
-                );
-            }
-        }
-        let items: Vec<PickItem> =
-            rows.iter().map(|(f, row, on)| PickItem::new(f.key.clone(), str_of(row, "name").unwrap_or_default().to_owned(), *on)).collect();
-        let fields: std::collections::HashMap<String, Fields> =
-            self.folders.iter().map(|(k, f)| (k.clone(), (f.name.clone(), f.icon.clone(), f.hue.clone()))).collect();
-        let weak = cx.entity().downgrade();
-        let row = {
-            let rows = rows.clone();
-            move |item: &PickItem, tick: Tick| -> Vec<CardItem> {
-                let Some((f, row, on)) = rows.iter().find(|(f, _, _)| f.key.as_str() == item.key().as_ref()).cloned() else {
-                    return Vec::new();
-                };
-                let shown = str_of(&row, "name").unwrap_or_default().to_owned();
-                let clash = on && on_box.contains(&shown);
-                let note = if on && no_github && f.private {
-                    Some(words::NEEDS_GITHUB.to_owned())
-                } else {
-                    f.remote.as_deref().map(|r| if r.is_empty() { words::NO_REMOTE.to_owned() } else { words::remote_line(r, f.unpushed) })
-                };
-                let icon = str_of(&row, "icon").unwrap_or("folder").to_owned();
-                let hue = str_of(&row, "hue").unwrap_or("neutral").to_owned();
-                let mut pick = PickRow::new(SharedString::from(format!("folder-{}", f.key)), shown.clone(), on)
-                    .framed(HuedGlyph { icon: icon.clone(), hue: hue.clone() })
-                    .tag(f.path.clone())
-                    .on_click(tick.press())
-                    .hover(RANGE_HOVER)
-                    .locked(item.is_locked());
-                if let Some(note) = note {
-                    pick = pick.note(note);
-                }
-                if let Some(size) = f.bytes {
-                    pick = pick.slot(SizeCell(size));
-                }
-                let mut out: Vec<CardItem> = vec![pick.into()];
-                if let (true, Some((field, icon_state, hue_state))) = (on, fields.get(&f.key)) {
-                    let taken = clash.then(|| format!("{name} already has a project called {shown}."));
-                    out.push(pick_line(
-                        format!("{}-name", f.key),
-                        "Name",
-                        v_flex().items_end().gap_1().child(Field::new(field).invalid(clash)).children(taken.map(TakenLine)),
-                    ));
-                    let (k1, k2, w1, w2) = (f.key.clone(), f.key.clone(), weak.clone(), weak.clone());
-                    out.push(pick_line(
-                        format!("{}-icon", f.key),
-                        "Icon",
-                        Select::new(icon_state).on_change(move |next: &String, _, cx| {
-                            let next = next.clone();
-                            let k = k1.clone();
-                            let _ = w1.update(cx, |this, cx| {
-                                this.put_folder(
-                                    &k,
-                                    |row| {
-                                        row["icon"] = json!(next);
-                                        if let Some(o) = row.as_object_mut() {
-                                            o.remove("image");
-                                        }
-                                    },
-                                    cx,
-                                )
-                            });
-                        }),
-                    ));
-                    out.push(pick_line(
-                        format!("{}-hue", f.key),
-                        "Colour",
-                        Select::new(hue_state).on_change(move |next: &String, _, cx| {
-                            let next = next.clone();
-                            let k = k2.clone();
-                            let _ = w2.update(cx, |this, cx| this.put_folder(&k, |row| row["hue"] = json!(next), cx));
-                        }),
-                    ));
-                }
-                out
-            }
-        };
-        let put = {
-            let rows = rows.clone();
-            move |picks: &Value, _: &Value, changes: &Changes| -> Value {
-                changes.iter().fold(picks.clone(), |next, (key, on)| match rows.iter().find(|(f, _, _)| f.key.as_str() == key.as_ref()) {
-                    Some((f, row, _)) => choices::tick_folder(&next, &f.key, on.then(|| row.clone())),
-                    None => next,
-                })
-            }
-        };
-        let state = self.lists[&List::Projects].clone();
-        let weak = cx.entity().downgrade();
-        let set = move |changes: Changes, _: &mut Window, cx: &mut App| {
-            let _ = weak.update(cx, |this, cx| {
-                let picks = this.picks_now(cx);
-                this.set_picks(put(&picks, &Value::Null, &changes), None, cx);
-            });
-        };
-        vec![
-            PickList::new("projects", &state, items, set, row).into_any_element(),
-            h_flex()
-                .child(Button::add("add-folder", "Add a folder…").on_click(cx.listener(|_, _: &ClickEvent, _, cx| {
-                    let picked = cx.prompt_for_paths(PathPromptOptions { files: false, directories: true, multiple: false, prompt: None });
-                    cx.spawn(async move |this, cx| {
-                        let Ok(Ok(Some(paths))) = picked.await else { return };
-                        let Some(path) = paths.into_iter().next() else { return };
-                        let _ = this.update(cx, |this, cx| this.add_folder(&path.to_string_lossy(), cx));
-                    })
-                    .detach();
-                })))
-                .into_any_element(),
-        ]
-    }
-
-    /// A folder picked by hand: it stands at the top, ticked.
-    pub fn add_folder(&mut self, path: &str, cx: &mut Context<Self>) {
-        let name = path.split('/').rfind(|s| !s.is_empty()).unwrap_or(path).to_owned();
-        let folder = Folder {
-            key: choices::folder_key(&name),
-            name: name.clone(),
-            path: path.to_owned(),
-            remote: None,
-            icon: "folder".into(),
-            hue: "neutral".into(),
-            bytes: None,
-            private: false,
-            unpushed: None,
-        };
-        self.added.retain(|f| f.key != folder.key);
-        self.added.insert(0, folder.clone());
-        let picks = self.picks_now(cx);
-        let row = json!({ "from": path, "name": name, "icon": "folder", "hue": "neutral", "keep": [] });
-        self.set_picks(choices::tick_folder(&picks, &folder.key, Some(row)), None, cx);
-    }
-
     fn other_body(&mut self, options: Value, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let picks = self.picks_now(cx);
         let configs = list(&options, "configs").to_vec();
@@ -1155,69 +900,6 @@ fn row_listener(cx: &mut Context<AddComputer>, id: String, act: RowAct) -> impl 
     }
 }
 
-/// A ticked folder's name field and its icon and colour selects.
-type Fields = (gpui_kit::Entity<InputState>, gpui_kit::Entity<SelectState<String>>, gpui_kit::Entity<SelectState<String>>);
-
-/// `signInWayDoes`: what one way of signing in does, `field` where the key is pasted under the row.
-pub fn way_does(agent: &str, name: &str, way: &str, here: &str, field: bool) -> String {
-    match way {
-        "token" => {
-            let mint = catalog::sign_in(agent).and_then(|s| s.mint).map_or_else(|| format!("{name}'s own command"), str::to_owned);
-            format!("{mint} runs on {here} and asks your browser once")
-        }
-        "key" if field => {
-            format!("paste your {}; wsp saves it to ~/.wsp/.env without showing it", catalog::key_env(agent).unwrap_or("key"))
-        }
-        "key" => format!(
-            "put {} in ~/.wsp/.env on {here} first, and wsp reads it from there without showing it",
-            catalog::key_env(agent).unwrap_or("the key")
-        ),
-        _ => format!("{name}'s own sign-in runs there"),
-    }
-}
-
-/// `wayNote`: what a row picked to take a token or a key says it does, as its failed row's fix opens each way with.
-fn way_note(agent: &str, name: &str, way: &str, here: &str) -> String {
-    let does = way_does(agent, name, way, here, false);
-    // The token's sentence opens with the command that makes it, which keeps its own case.
-    if way == "token" {
-        format!("{does}.")
-    } else {
-        format!("{}.", words::capitalised(&does))
-    }
-}
-
-/// `signInWaysFix`: a sentence per way, each opening with its button's name and saying what pressing it does.
-fn ways_fix(agent: &str, name: &str, ways: &[&str], here: &str, place: &str) -> String {
-    ways.iter().map(|w| format!("{}: {}.", way_label(w, place), way_does(agent, name, w, here, true))).collect::<Vec<_>>().join(" ")
-}
-
-/// `signInWayLabel`: each way's name, on its button and at the head of its sentence.
-fn way_label(way: &str, place: &str) -> String {
-    match way {
-        "token" => "Make a token".into(),
-        "key" => "Use an API key".into(),
-        _ => words::sign_in_on(place),
-    }
-}
-
-/// `signInWords`: each way of signing in as the picker says it.
-fn sign_in_word(way: &str, name: &str, kind: Option<&str>) -> String {
-    match way {
-        "vault" => "Copy the key".into(),
-        "token" => "Make a token".into(),
-        "key" => "Use an API key".into(),
-        _ => {
-            let on = if name.is_empty() { "Sign in there".to_owned() } else { format!("Sign in on {name}") };
-            if kind == Some("device") {
-                format!("{on} with a code")
-            } else {
-                on
-            }
-        }
-    }
-}
-
 /// One row of a list of steps as `StepLine` holds it.
 fn step_row(r: &StepLine) -> StepRow {
     let mut row = StepRow::new(SharedString::from(format!("step-{}", r.id)), r.state, r.name.clone()).nested(r.sub);
@@ -1287,35 +969,6 @@ struct FactCell(String);
 impl RenderOnce for FactCell {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         div().child(fact(self.0, cx))
-    }
-}
-
-/// "X already has a project called Y." under the name field, in the refusal's ink.
-#[derive(IntoElement)]
-struct TakenLine(String);
-
-impl RenderOnce for TakenLine {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        div()
-            .debug_selector(|| "name-taken".into())
-            .text_size(text::FACT.0)
-            .line_height(px(18.))
-            .text_color(cx.palette().error_foreground)
-            .child(self.0)
-    }
-}
-
-/// A folder's glyph in its hue, at 16 px.
-#[derive(IntoElement)]
-struct HuedGlyph {
-    icon: String,
-    hue: String,
-}
-
-impl RenderOnce for HuedGlyph {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let ink = if self.hue == "neutral" { cx.palette().foreground.opacity(0.8) } else { hue_ink(&self.hue, cx) };
-        Icon::new(looks::project_icon(&self.icon)).with_size(size::GLYPH).text_color(ink)
     }
 }
 
@@ -1538,23 +1191,5 @@ impl Render for AddComputer {
             dialog = dialog.act(act);
         }
         dialog
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{way_note, ways_fix};
-
-    #[test]
-    fn each_way_says_what_it_does_in_the_catalogs_words() {
-        assert_eq!(way_note("claude", "Claude Code", "token", "Studio"), "claude setup-token runs on Studio and asks your browser once.");
-        assert_eq!(
-            way_note("claude", "Claude Code", "key", "Studio"),
-            "Put ANTHROPIC_API_KEY in ~/.wsp/.env on Studio first, and wsp reads it from there without showing it."
-        );
-        assert_eq!(
-            ways_fix("claude", "Claude Code", &["key", "machine"], "Studio", "lab-box"),
-            "Use an API key: paste your ANTHROPIC_API_KEY; wsp saves it to ~/.wsp/.env without showing it. Sign in on lab-box: Claude Code's own sign-in runs there."
-        );
     }
 }

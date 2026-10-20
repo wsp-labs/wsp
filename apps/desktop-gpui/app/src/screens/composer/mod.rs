@@ -4,35 +4,34 @@
 //! stops while a turn runs. Drawn after the web app's ChatComposer.tsx and the files beside it; the host is reached
 //! only by `link::Link`, which turns this view's events into `wsp-host-client` calls.
 
+mod attach;
 pub mod dock;
 pub mod fork;
+mod keys;
 pub mod link;
 mod menus;
 pub mod model;
 pub(crate) mod parts;
+mod render;
 pub mod screen;
+mod send;
 pub mod store;
 
 use std::cell::Cell;
 use std::ops::Range;
 use std::rc::Rc;
-use std::sync::Arc;
 
-use gpui_kit::component::input::{
-    Enter, Escape, IndentInline, InlineToken, InputEvent, InputState, MoveDown, MoveUp, Textarea, TextareaState,
-};
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Sizable as _};
+use gpui_kit::component::input::{InputEvent, InputState, TextareaState};
 use gpui_kit::{
-    actions, canvas, div, prelude::*, px, App, Bounds, ClipboardEntry, Context, Entity, EventEmitter, ExternalPaths, FocusHandle,
-    Focusable, Global, KeyBinding, KeyDownEvent, Pixels, SharedString, Subscription, Unbind, WeakEntity, Window,
+    actions, prelude::*, px, App, Context, Entity, EventEmitter, FocusHandle, Focusable, Global, KeyBinding, Pixels, Subscription, Unbind,
+    WeakEntity, Window,
 };
 use std::collections::HashMap;
 
 use crate::local_store::LocalStore;
-use crate::ui::ActivePalette;
 use model::{
-    Agent, Command, Drawer, File, Hold, HostItem, ItemKind, Layout, MenuItem, Picks, Queued, Recall, Recalled, Resolved, Skill, Sources,
-    Stash, Stashed, Submit, Trigger,
+    Agent, Command, Drawer, File, Hold, HostItem, Layout, MenuItem, Picks, Queued, Recall, Recalled, Resolved, Skill, Stash, Stashed,
+    Trigger,
 };
 
 pub use model::Choice;
@@ -46,6 +45,17 @@ pub struct PickRow(pub usize);
 
 /// The composer's column, `max-w-3xl`.
 pub const COLUMN: Pixels = px(768.);
+/// The surface's width past which the access stands in the box's bar, else in the tray (`ACCESS_IN_BAR_PX`).
+pub const ACCESS_IN_BAR: Pixels = px(640.);
+
+/// Whether a box this wide holds the access in its bar; the web measures the surface inside the box's 1 px ring.
+pub(super) fn wide(box_width: Pixels) -> bool {
+    box_width - px(2.) > ACCESS_IN_BAR
+}
+
+/// The last box's width, so a new composer's first frame puts the access where the last one stood.
+pub(super) struct BoxWidth(pub(super) Pixels);
+impl Global for BoxWidth {}
 /// `leading-relaxed` at the prompt's 14 px.
 pub const LINE: Pixels = px(22.75);
 const TEXT: Pixels = px(14.);
@@ -322,6 +332,8 @@ pub struct Composer {
     search_lit: bool,
     /// The width the draft has beside the pickers, measured while the box is one line.
     line_width: Rc<Cell<Pixels>>,
+    /// The box's width as last drawn, or the last composer's before its first draw (`useWiderThan` on the surface).
+    box_width: Rc<Cell<Pixels>>,
     /// The composer's height as last drawn, and how many times it was built, for a parent that draws it cached.
     drawn: Rc<Cell<Pixels>>,
     /// The height a parent lays the composer out at while it draws it cached, none while it draws it whole.
@@ -415,16 +427,6 @@ pub fn take_draft(thread: &str, joined: impl FnOnce(&str) -> String + 'static, c
         });
     });
     true
-}
-
-/// A typed send the host refused where no box holds its thread: its words go ahead of the draft the store keeps for it.
-fn refused_into_store(key: &str, prompt: &str, cx: &mut App) {
-    let Some(s) = cx.try_global::<LocalStore>() else { return };
-    let draft = store::draft(s, key).map(|(d, _)| d).unwrap_or_default();
-    let text = if draft.trim().is_empty() { prompt.to_owned() } else { format!("{prompt}\n{draft}") };
-    if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_draft(s, key, &text, text.len())) {
-        eprintln!("desktop-gpui: store: {e}");
-    }
 }
 
 /// `insertComposerBlock`: `text` with `block` at byte `at` on lines of its own, and the caret after it.
@@ -536,6 +538,7 @@ impl Composer {
             focus_search: false,
             search_lit: false,
             line_width: Rc::new(Cell::new(px(0.))),
+            box_width: Rc::new(Cell::new(cx.try_global::<BoxWidth>().map_or(px(0.), |w| w.0))),
             drawn: Rc::new(Cell::new(px(0.))),
             laid: Rc::new(Cell::new(None)),
             stale: Rc::new(Cell::new(0)),
@@ -784,181 +787,6 @@ impl Composer {
         self.refresh_menu(cx);
     }
 
-    /// Whether the thread has a message or a running turn, and whether a turn runs now. A turn that ends sends the
-    /// queue's head.
-    pub fn set_turn(&mut self, compact: bool, running: bool, cx: &mut Context<Self>) {
-        self.compact = compact || running;
-        self.running = running;
-        if running && self.hold == Some(Hold::InFlight) {
-            self.hold = None;
-        }
-        if running {
-            self.answered();
-        }
-        if !running {
-            self.stopping = false;
-        }
-        if !running {
-            self.drain(cx);
-        }
-        cx.notify();
-    }
-
-    /// Sends the queue's head as the next turn, once no turn runs, nothing holds the send and no steer is out.
-    fn drain(&mut self, cx: &mut Context<Self>) {
-        let out = self.thread_key.as_ref().is_some_and(|k| self.sending.contains(k));
-        if self.running
-            || self.hold.is_some()
-            || self.absent.is_some()
-            || self.steering.is_some()
-            || self.queue_held
-            || self.queue.is_empty()
-            || out
-        {
-            return;
-        }
-        let next = self.queue.remove(0);
-        self.hold = Some(Hold::InFlight);
-        self.sending.extend(self.thread_key.clone());
-        let mut out = self.outgoing(next.prompt, next.files);
-        out.from_queue = true;
-        cx.emit(ComposerEvent::Start(out));
-        self.keep(cx);
-    }
-
-    /// The thread on screen has no send out any more.
-    fn answered(&mut self) {
-        if let Some(key) = &self.thread_key {
-            self.sending.remove(key);
-        }
-    }
-
-    /// The host answered a send on the thread `key`; answered after a switch, it lets that thread send again.
-    pub fn sent_on(&mut self, key: &str, cx: &mut Context<Self>) {
-        if self.holds(key) {
-            return self.sent(cx);
-        }
-        self.sending.remove(key);
-    }
-
-    /// The host took a send: a turn starts on it, so nothing waits on the reply any more.
-    pub fn sent(&mut self, cx: &mut Context<Self>) {
-        self.answered();
-        if self.hold == Some(Hold::InFlight) {
-            self.hold = None;
-        }
-        // The conversation is continued once the host took the send; a refused one keeps the banner for the retry.
-        if self.banner.as_ref().is_some_and(|b| b.resume.is_some()) {
-            self.banner = None;
-        }
-        self.compact = true;
-        cx.notify();
-    }
-
-    pub fn set_hold(&mut self, hold: Option<Hold>, cx: &mut Context<Self>) {
-        self.hold = hold;
-        cx.notify();
-    }
-
-    /// Whether a message sent mid-turn goes into the turn (the person's `midTurn`).
-    pub fn steer_preferred(&self) -> bool {
-        self.steer_preferred
-    }
-
-    pub fn set_steer_preferred(&mut self, steer: bool, cx: &mut Context<Self>) {
-        self.steer_preferred = steer;
-        cx.notify();
-    }
-
-    /// A steer the host has answered: taken by the turn, or left to wait for its end.
-    pub fn steered(&mut self, taken: bool, cx: &mut Context<Self>) {
-        if let Some(id) = self.steering.take() {
-            if taken {
-                self.queue.retain(|q| q.id != id);
-                self.keep(cx);
-            }
-        }
-        self.drain(cx);
-        cx.notify();
-    }
-
-    /// A steer on the thread `key` the host has answered. Answered after a switch, it settles that thread's parked queue,
-    /// and nothing of the thread on screen.
-    pub fn steered_on(&mut self, key: &str, taken: bool, cx: &mut Context<Self>) {
-        if self.holds(key) {
-            return self.steered(taken, cx);
-        }
-        if let Some(parked) = self.parked.get_mut(key) {
-            if let Some(id) = parked.steering.take().filter(|_| taken) {
-                parked.queue.retain(|q| q.id != id);
-                let (queue, here) = (parked.queue.clone(), self.thread_key.clone());
-                if cx.has_global::<LocalStore>() {
-                    if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_queue(s, key, &queue, here.as_deref())) {
-                        eprintln!("desktop-gpui: store: {e}");
-                    }
-                }
-            }
-        }
-    }
-
-    /// A send on the thread `key` the host refused. Refused after a switch, a queued send goes back to the head of that
-    /// thread's parked queue, held, and a typed one ahead of the draft kept for it.
-    pub fn refused_on(&mut self, key: &str, sent: Outgoing, window: &mut Window, cx: &mut Context<Self>) {
-        if self.holds(key) {
-            return self.refused_send(sent, window, cx);
-        }
-        self.sending.remove(key);
-        if sent.from_queue {
-            self.next_id += 1;
-            let parked = self.parked.entry(key.to_owned()).or_default();
-            parked.queue.insert(0, Queued { id: self.next_id, prompt: sent.prompt, files: sent.files });
-            parked.held = true;
-            let (queue, here) = (parked.queue.clone(), self.thread_key.clone());
-            if cx.has_global::<LocalStore>() {
-                if let Err(e) = cx.update_global(|s: &mut LocalStore, _| store::set_queue(s, key, &queue, here.as_deref())) {
-                    eprintln!("desktop-gpui: store: {e}");
-                }
-            }
-            return;
-        }
-        if !sent.files.is_empty() {
-            self.refused_files.entry(key.to_owned()).or_default().extend(sent.files);
-        }
-        refused_into_store(key, &sent.prompt, cx);
-    }
-
-    /// `prompt` went to the thread `key` another way, as the start line's Try again sends it: the draft that is those
-    /// words goes, so it is not sent twice (SpawnLine.tsx).
-    pub fn sent_elsewhere(&mut self, key: &str, prompt: &str, window: &mut Window, cx: &mut Context<Self>) {
-        if self.holds(key) && self.text(cx) == prompt {
-            self.set_text("", window, cx);
-        }
-    }
-
-    /// A send the host refused: its words go back in the box ahead of any draft written since, and its files with them.
-    pub fn refused_send(&mut self, sent: Outgoing, window: &mut Window, cx: &mut Context<Self>) {
-        self.answered();
-        self.hold = None;
-        if sent.from_queue {
-            self.next_id += 1;
-            self.queue.insert(0, Queued { id: self.next_id, prompt: sent.prompt, files: sent.files });
-            self.queue_held = true;
-            self.keep(cx);
-            cx.notify();
-            return;
-        }
-        let draft = self.text(cx);
-        let text = if draft.trim().is_empty() { sent.prompt } else { format!("{}\n{draft}", sent.prompt) };
-        self.set_text(&text, window, cx);
-        self.files.extend(sent.files);
-        cx.notify();
-    }
-
-    pub fn stopped(&mut self, cx: &mut Context<Self>) {
-        self.stopping = false;
-        cx.notify();
-    }
-
     pub fn set_banner(&mut self, banner: Option<Banner>, cx: &mut Context<Self>) {
         if !banner.as_ref().is_some_and(|b| b.fork) {
             self.forking = None;
@@ -1090,6 +918,11 @@ impl Composer {
         model::layout(self.compact, "", self.lines)
     }
 
+    /// Whether the access picker stands in the box's bar: the full layout, in a box `wide` enough.
+    pub fn access_in_bar(&self) -> bool {
+        self.layout() == Layout::Full && wide(self.box_width.get())
+    }
+
     /// Why the send is held where the box is open, in `composerSendBlock`'s order: no road to wsp, then a computer not
     /// answering, which leaves the box open (`composerHeldLine`), then the other holds, else a slash draft that names
     /// no command.
@@ -1211,167 +1044,6 @@ impl Composer {
             _ => self.rail = Some(harness),
         }
         cx.notify();
-    }
-
-    /// Takes files as a pick, a drop or a paste does: each refused one is kept with its reason.
-    pub fn attach(&mut self, files: Vec<File>, cx: &mut Context<Self>) {
-        let no_images = self.resolved().agent.filter(|a| !a.images).map(|a| a.label);
-        for file in files {
-            match model::refuse(&file.name, &file.media_type, file.bytes.len(), self.files.len(), no_images.as_deref()) {
-                Some(why) => self.refused.push((file.name, why)),
-                None => self.files.push(file),
-            }
-        }
-        cx.notify();
-    }
-
-    pub fn remove_file(&mut self, ix: usize, cx: &mut Context<Self>) {
-        if ix < self.files.len() {
-            self.files.remove(ix);
-        }
-        cx.notify();
-    }
-
-    /// Files from paths: one past the size cap is refused by its length, unread; the rest are read off the window's
-    /// thread.
-    fn attach_paths(&mut self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
-        let mut reads = Vec::new();
-        for path in paths {
-            let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else { continue };
-            let len = std::fs::metadata(path).map(|m| m.len() as usize).unwrap_or(0);
-            if len > model::FILE_MAX_BYTES {
-                if let Some(why) = model::refuse(&name, model::media_type(&name), len, self.files.len(), None) {
-                    self.refused.push((name, why));
-                }
-                continue;
-            }
-            reads.push((name, path.clone()));
-        }
-        cx.notify();
-        if reads.is_empty() {
-            return;
-        }
-        let read = cx.background_spawn(async move {
-            reads
-                .into_iter()
-                .filter_map(|(name, path)| {
-                    let bytes = std::fs::read(path).ok()?;
-                    Some(File { media_type: model::media_type(&name).to_owned(), name, bytes: Arc::new(bytes) })
-                })
-                .collect::<Vec<_>>()
-        });
-        cx.spawn(async move |this, cx| {
-            let files = read.await;
-            _ = this.update(cx, |this, cx| this.attach(files, cx));
-        })
-        .detach();
-    }
-
-    fn pick_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let paths = cx.prompt_for_paths(gpui_kit::PathPromptOptions { files: true, directories: false, multiple: true, prompt: None });
-        cx.spawn_in(window, async move |this, cx| {
-            if let Ok(Ok(Some(paths))) = paths.await {
-                _ = this.update(cx, |this, cx| this.attach_paths(&paths, cx));
-            }
-        })
-        .detach();
-    }
-
-    fn outgoing(&mut self, prompt: String, files: Vec<File>) -> Outgoing {
-        let picks = self.resolved();
-        let fast = self.fast() && picks.model.as_ref().is_some_and(|m| m.fast == Some(true));
-        let resume = self.banner.as_ref().and_then(|b| b.resume.clone());
-        Outgoing { prompt, files, picks, fast, resume, from_queue: false, fork: self.forking.clone() }
-    }
-
-    /// The draft as it goes: each pull request's or issue's chip opened back into its quoted text.
-    fn prompt(&self, cx: &App) -> String {
-        let editor = self.editor.read(cx);
-        let mut text = editor.value().to_string();
-        let mut spans: Vec<_> = editor.tokens().iter().map(|t| (t.range(), t.token().text().to_string())).collect();
-        spans.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
-        for (range, head) in spans {
-            if let Some(whole) = self.expansions.get(&head) {
-                text.replace_range(range, whole);
-            }
-        }
-        text
-    }
-
-    /// Enter: a new turn, a steer, or a message onto the queue.
-    pub fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // Enter holds what the send button holds (ChatComposer.tsx `send`): the draft stays in the box and a note says
-        // why in the button's hover words. A turn in flight is the button's word alone, not a hold on Enter.
-        let in_flight = self.hold == Some(Hold::InFlight);
-        let held = self
-            .send_held(cx)
-            .filter(|why| !in_flight || why != Hold::InFlight.words())
-            .or_else(|| model::slash_hold(&self.text(cx), &self.commands_offered()));
-        if let Some(why) = held {
-            crate::ui::notify(cx, crate::ui::Notice::note(why));
-            return;
-        }
-        let asides = self.ran.agent.is_some() && self.resolved().agent.is_some_and(|a| a.asides);
-        if let Some(question) = crate::screens::aside::question(&self.text(cx)).filter(|_| asides) {
-            cx.emit(ComposerEvent::Aside(question));
-            return;
-        }
-        let prompt = self.prompt(cx);
-        let empty = prompt.trim().is_empty();
-        let resolved = self.resolved();
-        // One steer is out at a time: the steer's answer names the row it carried (ChatComposer.tsx `canSteer`).
-        let steers = self.steer_preferred && self.steering.is_none();
-        // A fork's draft starts a thread of its own, whatever this one is doing.
-        let running = self.running && self.forking.is_none();
-        let how = model::submit(empty, self.hold.as_ref(), running, steers, resolved.agent.as_ref(), &self.files);
-        if how == Submit::Nothing {
-            return;
-        }
-        let files = std::mem::take(&mut self.files);
-        self.refused.clear();
-        self.menu = None;
-        self.clear_box(window, cx);
-        self.saving = None;
-        self.save_draft(cx);
-        let out = self.outgoing(prompt.trim_end().to_owned(), files);
-        self.expansions.clear();
-        self.recalled = None;
-        let held = std::mem::take(&mut self.queue_held);
-        match how {
-            Submit::Start => {
-                self.hold = Some(Hold::InFlight);
-                self.sending.extend(self.thread_key.clone());
-                self.compact = true;
-                cx.emit(ComposerEvent::Start(out));
-            }
-            Submit::Steer => {
-                self.next_id += 1;
-                self.queue.insert(0, Queued { id: self.next_id, prompt: out.prompt.clone(), files: out.files.clone() });
-                self.steering = Some(self.next_id);
-                cx.emit(ComposerEvent::Steer(out));
-            }
-            Submit::Queue => {
-                self.next_id += 1;
-                let row = Queued { id: self.next_id, prompt: out.prompt, files: out.files };
-                // Over a queue read back from the store, the new message goes first (composerDraftStore.ts).
-                if held {
-                    self.queue.insert(0, row);
-                } else {
-                    self.queue.push(row);
-                }
-            }
-            Submit::Nothing => {}
-        }
-        self.keep(cx);
-        cx.notify();
-    }
-
-    pub fn stop(&mut self, cx: &mut Context<Self>) {
-        if self.running && !self.stopping {
-            self.stopping = true;
-            cx.emit(ComposerEvent::Stop);
-            cx.notify();
-        }
     }
 
     /// Cmd or Ctrl and S: the draft onto the stash; from an empty box, the only entry back, or the stash menu.
@@ -1585,482 +1257,5 @@ impl Composer {
     /// The agent the thread ran on, which no later send can change.
     fn pinned(&self) -> Option<&str> {
         self.ran.agent.as_deref()
-    }
-
-    fn on_input(&mut self, _: &Entity<TextareaState>, event: &InputEvent, window: &mut Window, cx: &mut Context<Self>) {
-        match event {
-            InputEvent::Change => {
-                self.notice = None;
-                if matches!(self.popup, Some(Popup::Reasoning | Popup::Access | Popup::Stash)) {
-                    self.popup = None;
-                }
-                self.edited_in(window, cx)
-            }
-            InputEvent::PressEnter { shift: false, secondary: false } => self.submit(window, cx),
-            // A click back into the text puts away the model picker, whose search had the keys.
-            InputEvent::Focus if self.popup == Some(Popup::Model) => {
-                self.popup = None;
-                cx.notify();
-            }
-            _ => {}
-        }
-    }
-
-    fn edited(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.measure(window, cx);
-        self.keep_draft(cx);
-        cx.notify();
-    }
-
-    fn edited_in(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.edited(window, cx);
-        self.refresh_menu(cx);
-    }
-
-    /// How many lines the draft takes at the width it has beside the pickers.
-    fn measure(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let text = self.text(cx);
-        let width = self.line_width.get();
-        self.lines = if text.contains('\n') {
-            2
-        } else if width <= px(0.) || text.is_empty() {
-            1
-        } else {
-            let font = gpui_kit::font(cx.theme().font_family.clone());
-            let run = gpui_kit::TextRun {
-                len: text.len(),
-                font,
-                color: gpui_kit::Hsla::default(),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            };
-            window
-                .text_system()
-                .shape_text(text.into(), TEXT, &[run], Some(width), None)
-                .map(|lines| lines.iter().map(|l| l.wrap_boundaries().len() + 1).sum())
-                .unwrap_or(1)
-        };
-    }
-
-    fn refresh_menu(&mut self, cx: &mut Context<Self>) {
-        let (text, cursor) = self.editor.read_with(cx, |e, _| (e.value().to_string(), e.cursor()));
-        let found = model::trigger(&text, cursor);
-        let Some((trigger, range)) = found else {
-            self.menu = None;
-            self.dismissed = None;
-            cx.notify();
-            return;
-        };
-        if self.dismissed.as_ref() == Some(&range) || self.hold.as_ref().is_some_and(Hold::shuts) {
-            self.menu = None;
-            return;
-        }
-        self.dismissed = None;
-        if matches!(trigger, Trigger::Mention(_)) && self.folder_files.is_none() {
-            self.folder_files = Some(Vec::new());
-            cx.emit(ComposerEvent::Files);
-        }
-        if matches!(trigger, Trigger::Hash(_)) && self.host_items.is_none() {
-            self.host_items = Some(Vec::new());
-            self.items_note = Some("Loading pull requests and issues".to_owned());
-            cx.emit(ComposerEvent::Items);
-        }
-        let commands = self.commands_offered();
-        let from = Sources {
-            commands: &commands,
-            skills: &self.skills,
-            files: self.folder_files.as_deref().unwrap_or_default(),
-            items: self.host_items.as_deref().unwrap_or_default(),
-        };
-        let items = model::menu_items(&trigger, from, MENU_CAP);
-        let active = self.menu.as_ref().filter(|m| m.trigger == trigger).map_or(0, |m| m.active.min(items.len().saturating_sub(1)));
-        self.menu = Some(Menu { trigger, range, items, active });
-        cx.notify();
-    }
-
-    /// Puts the menu's active row in place of its token: a command as words, a file as a chip.
-    fn take_menu(&mut self, ix: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(menu) = self.menu.take() else { return };
-        let Some(item) = menu.items.get(ix.unwrap_or(menu.active)).cloned() else { return };
-        let range = menu.range.clone();
-        let chip = match &item.kind {
-            ItemKind::Command => None,
-            ItemKind::File => Some((format!("file:{}", item.insert), item.label.clone())),
-            ItemKind::Skill => Some((format!("skill:{}", item.insert), item.label.trim_start_matches('$').to_owned())),
-            ItemKind::Reference { pull } => Some((format!("{}:{}", if *pull { "pr" } else { "issue" }, item.label), item.label.clone())),
-        };
-        // A chip holds one line, so an item's chip carries its head and the send puts its quoted body back.
-        let insert = match &item.kind {
-            ItemKind::Reference { .. } => {
-                let head = item.insert.lines().next().unwrap_or_default().to_owned();
-                self.expansions.insert(head.clone(), item.insert.clone());
-                head
-            }
-            _ => item.insert.clone(),
-        };
-        self.editor.update(cx, |e, cx| match chip {
-            Some((id, label)) => {
-                let token = InlineToken::new(SharedString::from(id), insert.clone()).with_label(label);
-                if e.replace_range_with_token(range, token, window, cx).is_ok() {
-                    e.replace(" ", window, cx);
-                }
-            }
-            None => {
-                e.set_selected_range(range, cx);
-                e.replace(insert.clone(), window, cx);
-            }
-        });
-        self.menu = None;
-        self.edited(window, cx);
-    }
-
-    fn menu_step(&mut self, by: isize, cx: &mut Context<Self>) -> bool {
-        if let Some(menu) = &mut self.menu {
-            let n = menu.items.len() as isize;
-            if n > 0 {
-                menu.active = (menu.active as isize + by).rem_euclid(n) as usize;
-            }
-            cx.notify();
-            return true;
-        }
-        if let Some(popup) = self.popup {
-            let n = menus::popup_rows(self, popup, cx).len() as isize;
-            if n > 0 {
-                let from = self.popup_active.map_or(if by > 0 { -1 } else { n }, |a| a as isize);
-                self.popup_active = Some((from + by).rem_euclid(n) as usize);
-            }
-            cx.notify();
-            return true;
-        }
-        false
-    }
-
-    fn on_up(&mut self, _: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
-        if self.menu_step(-1, cx) || self.recall(true, window, cx) {
-            cx.stop_propagation();
-        }
-    }
-
-    fn on_down(&mut self, _: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
-        if self.menu_step(1, cx) || self.recall(false, window, cx) {
-            cx.stop_propagation();
-        }
-    }
-
-    /// Up on the first line or Down on the last walks the thread's sent prompts (composerPromptHistory.ts); the caret
-    /// lands at the start going back and at the end going forward.
-    fn recall(&mut self, back: bool, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let (text, cursor) = self.editor.read_with(cx, |e, _| (e.value().to_string(), e.cursor()));
-        let edge = if back { !text[..cursor.min(text.len())].contains('\n') } else { !text[cursor.min(text.len())..].contains('\n') };
-        if !edge {
-            return false;
-        }
-        let Some((at, prompt)) = model::recall_step(&self.recalls, self.recalled.as_ref(), &text, back) else { return false };
-        self.recalled = at;
-        self.set_text(&prompt, window, cx);
-        if back {
-            self.editor.update(cx, |e, cx| e.set_selected_range(0..0, cx));
-        }
-        true
-    }
-
-    fn on_pick_row(&mut self, action: &PickRow, window: &mut Window, cx: &mut Context<Self>) {
-        if self.popup != Some(Popup::Model) {
-            return;
-        }
-        cx.stop_propagation();
-        if let Some(value) = menus::popup_rows(self, Popup::Model, cx).get(action.0 - 1).cloned() {
-            self.pick(Popup::Model, value, window, cx);
-        }
-    }
-
-    /// Enter sends, or picks the menu's row; taken here before the text field's own Enter, which would otherwise let
-    /// the key through to the platform and leave a newline in the emptied box. While an IME composes, the platform
-    /// routes Enter to the input method before any binding, so nothing here sees that Enter.
-    fn on_enter(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
-        if action.shift || action.secondary {
-            return;
-        }
-        cx.stop_propagation();
-        if self.menu.as_ref().is_some_and(|m| !m.items.is_empty()) {
-            self.take_menu(None, window, cx);
-        } else if let Some(popup) = self.popup.filter(|_| self.popup_active.is_some()) {
-            if let Some(value) = self.popup_active.and_then(|ix| menus::popup_rows(self, popup, cx).get(ix).cloned()) {
-                self.pick(popup, value, window, cx);
-            }
-        } else {
-            self.submit(window, cx);
-        }
-    }
-
-    fn on_tab(&mut self, _: &IndentInline, window: &mut Window, cx: &mut Context<Self>) {
-        if self.menu.as_ref().is_some_and(|m| !m.items.is_empty()) {
-            self.take_menu(None, window, cx);
-            cx.stop_propagation();
-        }
-    }
-
-    fn on_escape(&mut self, _: &Escape, window: &mut Window, cx: &mut Context<Self>) {
-        if self.bar.is_some() {
-            self.fold_bar(window, cx);
-            cx.stop_propagation();
-        } else if let Some(menu) = self.menu.take() {
-            self.dismissed = Some(menu.range);
-            cx.stop_propagation();
-        } else if self.popup.take().is_some() {
-            self.editor.focus_handle(cx).focus(window, cx);
-            cx.stop_propagation();
-        }
-        cx.notify();
-    }
-
-    fn on_stash(&mut self, _: &StashDraft, window: &mut Window, cx: &mut Context<Self>) {
-        self.stash_draft(window, cx);
-    }
-
-    fn on_paste(&mut self, entries: Vec<ClipboardEntry>, cx: &mut Context<Self>) -> bool {
-        let mut files = Vec::new();
-        let mut paths = Vec::new();
-        for entry in entries {
-            match entry {
-                ClipboardEntry::String(text) => {
-                    let taken: Vec<&str> = self.files.iter().chain(&files).map(|f| f.name.as_str()).collect();
-                    if let Some(file) = model::pasted_file(text.text(), &taken) {
-                        files.push(file);
-                    }
-                }
-                ClipboardEntry::Image(image) => {
-                    let n = self.files.len() + files.len() + 1;
-                    let media = image.format().mime_type().to_owned();
-                    let ext = media.rsplit('/').next().unwrap_or("png").to_owned();
-                    files.push(File {
-                        name: format!("pasted-image-{n}.{ext}"),
-                        media_type: media,
-                        bytes: Arc::new(image.bytes().to_vec()),
-                    });
-                }
-                ClipboardEntry::ExternalPaths(p) => paths.extend(p.paths().iter().cloned()),
-            }
-        }
-        if files.is_empty() && paths.is_empty() {
-            return false;
-        }
-        self.attach(files, cx);
-        self.attach_paths(&paths, cx);
-        true
-    }
-}
-
-impl Render for Composer {
-    /// The composer, and its height as drawn, which a parent that draws it cached lays it out at.
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.built += 1;
-        let (drawn, laid, stale, me) = (self.drawn.clone(), self.laid.clone(), self.stale.clone(), cx.entity().downgrade());
-        // Laid out cached at a height it no longer has, the composer asks to be drawn whole in the next frame.
-        let measure = canvas(
-            move |bounds: Bounds<Pixels>, _, cx| {
-                let height = bounds.size.height;
-                drawn.set(height);
-                if laid.get().is_some_and(|at| at != height) {
-                    stale.set(stale.get() + 1);
-                    let me = me.clone();
-                    cx.defer(move |cx| _ = me.update(cx, |_, cx| cx.notify()));
-                }
-            },
-            |_, _, _, _| {},
-        )
-        .absolute()
-        .top_0()
-        .left_0()
-        .size_full();
-        div().relative().w_full().child(self.body(window, cx)).child(measure)
-    }
-}
-
-impl Composer {
-    /// The height the composer last drew at, none before its first draw.
-    pub fn drawn_height(&self) -> Option<Pixels> {
-        Some(self.drawn.get()).filter(|h| *h > px(0.))
-    }
-
-    /// Draws the composer cached at `height` from the next frame, or whole where none.
-    pub fn lay_at(&self, height: Option<Pixels>) {
-        self.laid.set(height);
-    }
-
-    /// How many times the composer was built; a frame that reuses its cached drawing builds nothing.
-    pub fn built(&self) -> u64 {
-        self.built
-    }
-
-    /// How many frames laid the composer out cached at a height it no longer had.
-    pub fn stale_layouts(&self) -> u64 {
-        self.stale.get()
-    }
-
-    fn body(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui_kit::AnyElement {
-        if std::mem::take(&mut self.focus_search) {
-            self.search.update(cx, |s, cx| s.set_value("", window, cx));
-            self.search.focus_handle(cx).focus(window, cx);
-        }
-        if self.dragging && !cx.has_active_drag() {
-            self.dragging = false;
-        }
-        self.narrow = crate::ui::narrow(window);
-        let narrow = self.narrow;
-        let p = cx.palette().clone();
-        let layout = self.layout();
-        let shut = self.hold.as_ref().is_some_and(Hold::shuts);
-        let width = self.line_width.clone();
-        let editor_width = width.get();
-        // The slash hint stands while `/` opens a menu: the announced commands, or the skills it lists under them.
-        let slash_lists = !self.commands_offered().is_empty() || (self.ran.agent.is_some() && !self.skills.is_empty());
-        let placeholder = model::placeholder(slash_lists, if editor_width > px(0.) { f32::from(editor_width) } else { 600. });
-        if self.placeholder != placeholder {
-            self.placeholder = placeholder;
-            self.editor.update(cx, |e, cx| e.set_placeholder(placeholder, window, cx));
-        }
-        let this = cx.entity();
-        let paste = this.downgrade();
-        let editor = div()
-            .id("composer-editor")
-            .debug_selector(|| "composer-editor".into())
-            .relative()
-            .flex_1()
-            .min_w_0()
-            .text_size(TEXT)
-            .line_height(LINE)
-            .text_color(p.foreground)
-            .when(layout == Layout::Full, |el| el.min_h(px(74.)).pb_1())
-            .child(
-                // gpui-kit pads the field 4 px a side and wraps its text 10 px short of its right edge for the caret;
-                // the web's text runs edge to edge of its column. The field is w_full, so the margins go on a wrapper.
-                div().ml(px(-4.)).mr(px(-14.)).child(
-                    Textarea::new(&self.editor)
-                        .appearance(false)
-                        .xsmall()
-                        .disabled(shut)
-                        .text_size(TEXT)
-                        .line_height(LINE)
-                        .token(|ctx, _, cx| parts::chip(ctx, cx))
-                        .on_paste(move |item, _, cx| {
-                            let entries = item.entries().to_vec();
-                            paste.update(cx, |this, cx| this.on_paste(entries, cx)).unwrap_or(false)
-                        }),
-                ),
-            )
-            .when(layout == Layout::Line, |el| {
-                el.child(canvas(move |bounds: Bounds<Pixels>, _, _| width.set(bounds.size.width), |_, _, _, _| {}).absolute().size_full())
-            });
-
-        // A bar goes with what it says, as the drawer's row does.
-        let gone = match self.bar {
-            Some(Bar::Queue) => self.queue.is_empty(),
-            Some(Bar::Tasks) => self.drawer.tasks.is_none(),
-            Some(Bar::Usage) => self.drawer.limit.is_none(),
-            Some(Bar::Capped) => self.drawer.slot.is_none(),
-            None => false,
-        };
-        if gone {
-            self.drop_bar(window, cx);
-        }
-        if let Some(dock) = self.dock.as_ref().filter(|d| !d.folded) {
-            return dock::view(self, dock, cx);
-        }
-        if let Some(bar) = self.bar {
-            if std::mem::take(&mut self.focus_bar) {
-                self.bar_focus.focus(window, cx);
-            }
-            let shown = match bar {
-                Bar::Queue => parts::queue_bar(self, cx),
-                Bar::Tasks => parts::tasks_bar(self, cx),
-                Bar::Usage => parts::usage_bar(self, cx),
-                Bar::Capped => parts::cap_bar(self, cx),
-            };
-            return div()
-                .id("composer")
-                .key_context("Composer")
-                .debug_selector(|| "composer".into())
-                .track_focus(&self.bar_focus)
-                .w_full()
-                .map(|el| if narrow { el.px_3().pb_3() } else { el.px_4().pb_4() })
-                .capture_action(cx.listener(Self::on_escape))
-                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                    if event.keystroke.key == "escape" && this.bar.is_some() {
-                        this.fold_bar(window, cx);
-                        cx.stop_propagation();
-                    }
-                }))
-                .child(shown)
-                .into_any_element();
-        }
-        let pickers = parts::pickers(self, layout, cx);
-        let actions = parts::actions(self, shut, cx);
-        let grid = match layout {
-            Layout::Full => v_flex()
-                .map(|el| if narrow { el.px_3().pt(px(14.)).pb_3() } else { el.px_4().pt_4().pb_4() })
-                .gap_2()
-                .child(editor)
-                .child(h_flex().items_center().justify_between().gap_2().child(pickers).child(actions)),
-            Layout::Line => h_flex()
-                .items_center()
-                .gap_1()
-                .map(|el| if narrow { el.pl_4() } else { el.pl_5() })
-                .pr_2()
-                .py_2()
-                .child(editor)
-                .child(pickers)
-                .child(actions),
-            Layout::Tall => v_flex()
-                .gap_1()
-                .map(|el| if narrow { el.pl_4() } else { el.pl_5() })
-                .pr_2()
-                .pt(px(14.))
-                .pb_2()
-                .child(editor)
-                .child(h_flex().items_center().justify_end().gap_1().child(pickers).child(actions)),
-        };
-        let body = v_flex().rounded(px(20.)).overflow_hidden().children(parts::files_row(self, cx)).child(grid);
-        let shell = v_flex()
-            .relative()
-            .mx_auto()
-            .w_full()
-            .max_w(COLUMN)
-            .children(self.banner.as_ref().map(|b| parts::banner(b, cx)))
-            .children(parts::drawer(self, cx))
-            .child(parts::glass_box(cx).child(body))
-            .child(parts::tray(self, cx))
-            .children(self.notice.clone().map(|n| parts::under(n, cx)))
-            .children(menus::menu_layer(self, cx));
-        div()
-            .id("composer")
-            .key_context("Composer")
-            .debug_selector(|| "composer".into())
-            .relative()
-            .w_full()
-            .map(|el| if narrow { el.px_3().pt(px(6.)).pb_4() } else { el.px_5().pt_2().pb_5() })
-            .capture_action(cx.listener(Self::on_up))
-            .capture_action(cx.listener(Self::on_down))
-            .capture_action(cx.listener(Self::on_enter))
-            .capture_action(cx.listener(Self::on_tab))
-            .capture_action(cx.listener(Self::on_escape))
-            .on_action(cx.listener(Self::on_stash))
-            .capture_action(cx.listener(Self::on_pick_row))
-            .on_drag_move::<ExternalPaths>(cx.listener(|this, _, _, cx| {
-                if !this.dragging {
-                    this.dragging = true;
-                    cx.notify();
-                }
-            }))
-            .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
-                this.dragging = false;
-                if !this.hold.as_ref().is_some_and(Hold::shuts) {
-                    this.attach_paths(paths.paths(), cx);
-                }
-            }))
-            .child(shell)
-            .when(self.dragging && !shut, |el| el.child(parts::drop_overlay(cx)))
-            .into_any_element()
     }
 }
