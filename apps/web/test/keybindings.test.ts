@@ -13,7 +13,7 @@ import { runShellCommand } from "../src/shell/shellCommands.js";
 import { chordRefusal, keybindingFromKeyboardEvent, keybindingsFor, rulesWith } from "../src/keybindingOverrides.js";
 import type { KeybindingCommand } from "../src/keybindingTypes.js";
 import { KEYBINDING_WORDS } from "../src/settings/keybindingWords.js";
-import { browserTabClaimsShortcut, eventHoldKeys, formatShortcutLabel, resolveShortcutCommand, shortcutLabelForCommand, type ShortcutEventLike } from "../src/keybindings.js";
+import { browserTabClaimsShortcut, formatShortcutLabel, resolveShortcutCommand, shortcutLabelForCommand, type ShortcutEventLike } from "../src/keybindings.js";
 
 const MAC = "MacIntel";
 const LINUX = "Linux x86_64";
@@ -176,11 +176,11 @@ describe("default shortcuts", () => {
     const listen = (e: Event) => opened.push((e as CustomEvent<string>).detail);
     window.addEventListener("wsp:open-file-finder", listen);
     const target = { workspaceId: "ws_a", toggleSidebar: () => {} };
-    runShellCommand("files.quickOpen", target, []);
-    runShellCommand("files.search", target, []);
-    runShellCommand("files.search", { ...target, workspaceId: null }, []);
+    runShellCommand("files.quickOpen", target);
+    runShellCommand("files.search", target);
+    runShellCommand("files.search", { ...target, workspaceId: null });
     useStore.setState({ settingsOpen: true });
-    runShellCommand("files.quickOpen", target, []);
+    runShellCommand("files.quickOpen", target);
     useStore.setState({ settingsOpen: false });
     window.removeEventListener("wsp:open-file-finder", listen);
     expect(opened).toEqual(["files", "text"]);
@@ -259,14 +259,14 @@ describe("chords a browser tab cannot take", () => {
   });
 });
 
-describe("workspace switch", () => {
+describe("the level step and the slot jumps", () => {
   const resolve = (event: ShortcutEventLike, platform: string, context: Record<string, boolean> = {}) =>
     resolveShortcutCommand(event, DEFAULT_RESOLVED_KEYBINDINGS, { platform, context });
   const DESKTOP = { desktopShell: true };
   const tab = (mods: Partial<ShortcutEventLike> = {}) => key("Tab", { ctrlKey: true, code: "Tab", ...mods });
   const digit = (n: number, mods: Partial<ShortcutEventLike> = {}) => key(String(n), { code: `Digit${n}`, ...mods });
 
-  it("walks the workspaces on ctrl+tab in the desktop shell, both platforms", () => {
+  it("steps the open thread's level on ctrl+tab in the desktop shell, both platforms", () => {
     expect(resolve(tab(), MAC, DESKTOP)).toBe("workspace.next");
     expect(resolve(tab(), LINUX, DESKTOP)).toBe("workspace.next");
     expect(resolve(tab({ shiftKey: true }), MAC, DESKTOP)).toBe("workspace.previous");
@@ -308,22 +308,22 @@ describe("workspace switch", () => {
   });
 });
 
-describe("the switch chords over the sidebar's one body", () => {
+describe("the step chords over the sidebar's one body", () => {
   const resolve = (event: ShortcutEventLike, platform: string, context: Record<string, boolean> = {}) =>
     resolveShortcutCommand(event, DEFAULT_RESOLVED_KEYBINDINGS, { platform, context });
   const DESKTOP = { desktopShell: true };
   const tab = (mods: Partial<ShortcutEventLike> = {}) => key("Tab", { ctrlKey: true, code: "Tab", ...mods });
-  /** The switch between workspaces as each platform's mod spells it: Command with Option on macOS, Control with Alt elsewhere. */
+  /** The mod arrows as each platform's mod spells it: Command with Option on macOS, Control with Alt elsewhere. */
   const arrow = (name: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown", platform: string, mods: Partial<ShortcutEventLike> = {}) =>
     key(name, { altKey: true, code: name, ...(platform === MAC ? { metaKey: true } : { ctrlKey: true }), ...mods });
 
-  it("gives the Tab pair the workspaces, whatever the sidebar is drawing: it draws one body", () => {
+  it("gives the Tab pair the step at the open thread's level, whatever the sidebar is drawing: it draws one body", () => {
     expect(resolve(tab(), MAC, DESKTOP)).toBe("workspace.next");
     expect(resolve(tab({ shiftKey: true }), MAC, DESKTOP)).toBe("workspace.previous");
     expect(resolve(tab(), LINUX, DESKTOP)).toBe("workspace.next");
   });
 
-  it("walks the threads of the workspace on screen on the mod arrows up and down, as left and right walk the workspaces", () => {
+  it("walks the threads of the workspace on screen on the mod arrows up and down, as left and right step the open thread's level", () => {
     expect(resolve(arrow("ArrowDown", MAC), MAC, DESKTOP)).toBe("thread.next");
     expect(resolve(arrow("ArrowUp", MAC), MAC, DESKTOP)).toBe("thread.previous");
     expect(resolve(arrow("ArrowDown", LINUX), LINUX, DESKTOP)).toBe("thread.next");
@@ -364,7 +364,7 @@ describe("the switch chords over the sidebar's one body", () => {
     expect(resolve(arrow("ArrowRight", MAC), LINUX, DESKTOP)).toBeNull();
   });
 
-  it("labels the workspace walk with the Tab pair and the mod arrows both", () => {
+  it("labels the level step with the Tab pair and the mod arrows both", () => {
     const label = (command: "workspace.next" | "workspace.previous") => shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, command, { platform: MAC, context: DESKTOP });
     expect(label("workspace.next")).toBe("⌃Tab");
     expect(label("workspace.previous")).toBe("⌃⇧Tab");
@@ -386,22 +386,12 @@ describe("the Tab pair inside the right panel", () => {
     }
   });
 
-  it("leaves the pair the switcher's everywhere else, and the browser's in a tab", () => {
+  it("leaves the pair the level step's everywhere else, and the browser's in a tab", () => {
     expect(resolve(tab(), MAC, DESKTOP)).toBe("workspace.next");
     expect(resolve(tab({ shiftKey: true }), LINUX, DESKTOP)).toBe("workspace.previous");
     expect(resolve(tab(), MAC, { panelTabsFocus: true })).toBeNull();
     expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "rightPanel.nextTab", { platform: MAC, context: { ...DESKTOP, panelTabsFocus: true } })).toBe("⌃Tab");
     expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "workspace.next", { platform: MAC, context: DESKTOP })).toBe("⌃Tab");
-  });
-});
-
-describe("the hold a chord carries", () => {
-  it("is the modifiers the event really holds, without Shift, which only picks the direction", () => {
-    expect(eventHoldKeys({ metaKey: false, ctrlKey: true, shiftKey: false, altKey: false })).toEqual(["Control"]);
-    expect(eventHoldKeys({ metaKey: false, ctrlKey: true, shiftKey: true, altKey: false })).toEqual(["Control"]);
-    expect(eventHoldKeys({ metaKey: false, ctrlKey: false, shiftKey: true, altKey: true })).toEqual(["Alt"]);
-    expect(eventHoldKeys({ metaKey: true, ctrlKey: true, shiftKey: false, altKey: true })).toEqual(["Control", "Alt", "Meta"]);
-    expect(eventHoldKeys({ metaKey: false, ctrlKey: false, shiftKey: false, altKey: false })).toEqual([]);
   });
 });
 
@@ -414,12 +404,12 @@ describe("the settle chord's command", () => {
     const put = (builder: Record<string, unknown>) =>
       useStore.setState({ workspaces: [workspace], statuses: {}, selectedId: "ws_a", selectedThreadId: "th_builder", settleThreads, sessions: { ws_a: [row("th_lead"), row("th_builder", { parentThreadId: "th_lead", ...builder })] } } as never);
     put({});
-    runShellCommand("thread.settle", { workspaceId: "ws_a", toggleSidebar: () => {} } as never, []);
+    runShellCommand("thread.settle", { workspaceId: "ws_a", toggleSidebar: () => {} } as never);
     expect(settleThreads).toHaveBeenCalledWith(["th_lead"]);
     await vi.waitFor(() => expect(useNotices.getState().notices[0]).toMatchObject({ kind: "done", text: "Settled 1 thread. Left 1 thread: already settled" }));
     settleThreads.mockClear();
     put({ status: "running", endedAt: undefined });
-    runShellCommand("thread.settle", { workspaceId: "ws_a", toggleSidebar: () => {} } as never, []);
+    runShellCommand("thread.settle", { workspaceId: "ws_a", toggleSidebar: () => {} } as never);
     expect(settleThreads).not.toHaveBeenCalled();
   });
 });
@@ -431,7 +421,7 @@ describe("the jump to the next thread that needs the person", () => {
     const workspace = { id: "ws_a", name: "a", machineId: "m", phase: "running", golden: "", createdAt: "2026-09-27T00:00:00Z", project: { id: "pr", name: "pr", path: "/root", computer: "here" } };
     const rows = [row("th_asks", { status: "running", endedAt: undefined, asking: "Permission for Bash: ls", startedAt: now - 10_000 }), row("th_unseen", { readAt: now - 40_000, startedAt: now - 20_000 }), row("th_read")];
     useStore.setState({ workspaces: [workspace], statuses: {}, selectedId: "ws_a", selectedThreadId: "th_asks", sessions: { ws_a: rows } } as never);
-    const jump = () => runShellCommand("thread.nextNeedsYou", { workspaceId: "ws_a", toggleSidebar: () => {} } as never, []);
+    const jump = () => runShellCommand("thread.nextNeedsYou", { workspaceId: "ws_a", toggleSidebar: () => {} } as never);
     jump();
     expect(useStore.getState().selectedThreadId).toBe("th_unseen");
     jump();
@@ -458,7 +448,7 @@ describe("the jump to the next thread that needs the person", () => {
       selectedThreadId: "th_a",
       sessions: { ws_a: [row("th_a", "ws_a", { readAt: now })], ws_b: [row("th_b", "ws_b", { startedAt: now - 10_000 })], ws_c: [row("th_c", "ws_c", { startedAt: now - 20_000 })] },
     } as never);
-    const jump = () => runShellCommand("thread.nextNeedsYou", { workspaceId: "ws_a", toggleSidebar: () => {} } as never, []);
+    const jump = () => runShellCommand("thread.nextNeedsYou", { workspaceId: "ws_a", toggleSidebar: () => {} } as never);
     try {
       // Every project and computer: the next one waiting is on the other project.
       jump();
@@ -519,7 +509,7 @@ describe("a person's own chords over the defaults", () => {
     const switchMoved = rulesWith(DEFAULT_KEYBINDINGS, { "workspace.next": "mod+alt+n" }, MAC);
     expect(chordRefusal(switchMoved, "workspace.next", "ctrl+tab", read)).toBeNull();
     // A third command still finds the chord held, by both.
-    expect(chordRefusal(DEFAULT_KEYBINDINGS, "sidebar.toggle", "ctrl+tab", read)).toBe("Taken by Next task and Next panel tab");
+    expect(chordRefusal(DEFAULT_KEYBINDINGS, "sidebar.toggle", "ctrl+tab", read)).toBe("Taken by Next thread at this level and Next panel tab");
   });
 
   it("drops an override for a command it does not know or a chord that does not parse, and no override is the defaults", () => {
@@ -560,7 +550,7 @@ describe("a person's own chords over the defaults", () => {
     expect(chordRefusal(DEFAULT_KEYBINDINGS, "sidebar.toggle", "mod+shift+t", read)).toBeNull();
     expect(chordRefusal(DEFAULT_KEYBINDINGS, "sidebar.toggle", "mod+t", read)).toBe("Taken by New thread");
     expect(chordRefusal(rulesWith(DEFAULT_KEYBINDINGS, { "chat.new": "mod+alt+n" }), "sidebar.toggle", "mod+t", read)).toBe("A browser tab keeps ⌘T for itself");
-    expect(chordRefusal(DEFAULT_KEYBINDINGS, "preview.toggle", "ctrl+tab", { ...read, platform: LINUX })).toBe("Taken by Next task and Next panel tab");
+    expect(chordRefusal(DEFAULT_KEYBINDINGS, "preview.toggle", "ctrl+tab", { ...read, platform: LINUX })).toBe("Taken by Next thread at this level and Next panel tab");
     const moved = rulesWith(DEFAULT_KEYBINDINGS, { "workspace.next": "mod+alt+n", "rightPanel.nextTab": "mod+alt+m" });
     expect(chordRefusal(moved, "preview.toggle", "ctrl+tab", { ...read, platform: LINUX })).toBe("A browser tab keeps Ctrl+Tab for itself");
   });

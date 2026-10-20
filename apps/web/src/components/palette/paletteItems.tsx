@@ -20,6 +20,7 @@ import { isDesktopShell } from "../../lib/desktopShell.js";
 import { WORKSPACE_SELECT_SLOTS, workspaceSelectCommand, type KeybindingShortcut } from "../../keybindingTypes.js";
 import { ProjectGlyph } from "../../projects/look.js";
 import { ACTIVITY_WORDS, SETTINGS_WORDS, onName } from "../../settings/format.js";
+import { KEYBINDING_WORDS } from "../../settings/keybindingWords.js";
 import { groupNames } from "../../settings/groups.js";
 import { openSettingsGroup } from "../../settings/openAt.js";
 import { absenceOf } from "../../settings/places.js";
@@ -48,10 +49,10 @@ export interface PaletteHandlers {
   readonly resumeConversation: (projectId: string) => void;
   readonly toggleSidebar: () => void;
   readonly toggleRightPanel: (workspaceId: string) => void;
-  /** One step down the sidebar's workspaces, and back up; both wrap. */
-  readonly nextWorkspace: () => void;
-  readonly previousWorkspace: () => void;
-  /** The same step one level down, over the threads of the workspace on screen. */
+  /** One step down the threads at the open thread's level of the sidebar, and back up; both wrap. */
+  readonly nextAtLevel: () => void;
+  readonly previousAtLevel: () => void;
+  /** One step through the threads of the workspace on screen. */
   readonly nextThread: () => void;
   readonly previousThread: () => void;
   readonly openSettings: () => void;
@@ -65,6 +66,8 @@ export interface PaletteItemsInput {
   readonly projects: ReadonlyArray<SidebarProjectSnapshot>;
   /** The moves of the open thread's root tree, as its tile's menu offers them; none while no thread is open. */
   readonly threadMoves?: ReadonlyArray<ResolvedAction>;
+  /** How many threads stand at the open thread's level of the sidebar, the open one among them. */
+  readonly levelThreads?: number;
   readonly selectedId: string | null;
   /** What the person typed; the thread search runs over it, the at-rest list ignores it. */
   readonly query: string;
@@ -102,6 +105,9 @@ const LINKS = [
   { value: "action:docs", title: "wsp docs", terms: ["docs", "documentation", "help", "manual"], Icon: BookOpenIcon, url: "https://usewsp.com/docs" },
   { value: "action:report-bug", title: "Report a bug", terms: ["bug", "issue", "report", "feedback", "help"], Icon: BugIcon, url: `${REPO}/issues/new` },
 ];
+
+/** Why the step along the open thread's level is no step. */
+const LEVEL_ALONE = "No other thread at this level";
 
 const sync = (fn: () => void) => async (): Promise<void> => {
   fn();
@@ -243,7 +249,7 @@ function actionItems(input: PaletteItemsInput): Array<CommandPaletteActionItem |
     );
   }
 
-  const oneWorkspace = input.projects.length < 2;
+  const oneAtLevel = (input.levelThreads ?? 0) < 2;
   const walk = threadWalk(input.projects, selectedId);
   const oneThread = walk.length < 2;
   // A walk steps inside the workspace on screen, and the thread lists under these rows hold every workspace's, so a
@@ -256,23 +262,23 @@ function actionItems(input: PaletteItemsInput): Array<CommandPaletteActionItem |
   items.push(
     {
       kind: "action",
-      value: "action:next-workspace",
-      searchTerms: ["next task", "switch task", "cycle tasks"],
+      value: "action:next-at-level",
+      searchTerms: ["next thread", "switch thread", "ctrl tab"],
       icon: <ArrowDownIcon className={ITEM_ICON_CLASS} />,
-      title: "Next task",
+      title: KEYBINDING_WORDS["workspace.next"],
       shortcutCommand: "workspace.next",
-      ...(oneWorkspace ? { disabled: true, description: "Only one task" } : {}),
-      run: sync(handlers.nextWorkspace),
+      ...(oneAtLevel ? { disabled: true, description: LEVEL_ALONE } : {}),
+      run: sync(handlers.nextAtLevel),
     },
     {
       kind: "action",
-      value: "action:previous-workspace",
-      searchTerms: ["previous task", "switch task", "cycle tasks"],
+      value: "action:previous-at-level",
+      searchTerms: ["previous thread", "switch thread", "ctrl shift tab"],
       icon: <ArrowUpIcon className={ITEM_ICON_CLASS} />,
-      title: "Previous task",
+      title: KEYBINDING_WORDS["workspace.previous"],
       shortcutCommand: "workspace.previous",
-      ...(oneWorkspace ? { disabled: true, description: "Only one task" } : {}),
-      run: sync(handlers.previousWorkspace),
+      ...(oneAtLevel ? { disabled: true, description: LEVEL_ALONE } : {}),
+      run: sync(handlers.previousAtLevel),
     },
     {
       kind: "action",

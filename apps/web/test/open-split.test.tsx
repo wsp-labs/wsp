@@ -93,7 +93,7 @@ describe("the Open split button", () => {
     expect(main.querySelector("svg.animate-spin")).not.toBeNull();
     expect(main.querySelector("[data-editor-mark]")).toBeNull();
     await act(async () => void fireEvent.click(main));
-    await act(async () => runShellCommand("editor.open", { workspaceId: WS, toggleSidebar: () => {} }, []));
+    await act(async () => runShellCommand("editor.open", { workspaceId: WS, toggleSidebar: () => {} }));
     expect(openInEditor).toHaveBeenCalledTimes(1);
     await act(async () => answer());
     expect(main.hasAttribute("aria-busy")).toBe(false);
@@ -217,7 +217,7 @@ describe("the Open split button", () => {
     const { container } = render(<OpenSplit workspaceId={WS} />);
     await waitFor(() => expect(editorList).toHaveBeenCalled());
     expect(container.innerHTML).toBe("");
-    await act(async () => runShellCommand("editor.open", { workspaceId: WS, toggleSidebar: () => {} }, []));
+    await act(async () => runShellCommand("editor.open", { workspaceId: WS, toggleSidebar: () => {} }));
     expect(openInEditor).not.toHaveBeenCalled();
   });
 
@@ -254,7 +254,7 @@ describe("the Open split button", () => {
   it("opens the copy in the default on mod+o", async () => {
     const { openInEditor } = setUp({ editor: "zed" });
     expect(DEFAULT_KEYBINDINGS).toContainEqual(expect.objectContaining({ key: "mod+o", command: "editor.open" }));
-    await act(async () => runShellCommand("editor.open", { workspaceId: WS, toggleSidebar: () => {} }, []));
+    await act(async () => runShellCommand("editor.open", { workspaceId: WS, toggleSidebar: () => {} }));
     expect(openInEditor).toHaveBeenCalledWith(WS, "/root");
   });
 });

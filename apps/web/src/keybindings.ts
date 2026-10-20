@@ -372,20 +372,6 @@ export function formatShortcutLabel(
   return parts.join("+");
 }
 
-/**
- * The modifier keys an event is holding down, as KeyboardEvent.key spells them. A chord that puts a hold-to-walk
- * overlay up reads its hold here, off the event that opened it, so a command bound to two chords ends on whichever
- * one was pressed. Shift is left out: the two directions of such a chord differ by Shift alone, so a step back
- * would otherwise commit the walk it is still stepping through.
- */
-export function eventHoldKeys(event: ShortcutModifierStateLike): string[] {
-  const names: string[] = [];
-  if (event.ctrlKey) names.push("Control");
-  if (event.altKey) names.push("Alt");
-  if (event.metaKey) names.push("Meta");
-  return names;
-}
-
 export function shortcutLabelForCommand(
   keybindings: ResolvedKeybindingsConfig,
   command: KeybindingCommand,
