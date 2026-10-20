@@ -380,3 +380,31 @@ fn under_640_px_a_dock_rows_field_stands_under_its_words_full_width(cx: &mut Tes
     assert_eq!(field.left() - dock.left(), px(20. + 1. + 20. + 28.), "under the words, past the radio");
     assert_eq!(dock.right() - field.right(), px(41.), "to the row's right edge");
 }
+
+/// The full box's bar holds the access beside the model and the effort while the surface inside the box's 1 px ring is
+/// wider than 640 px (ChatComposer.tsx `useWiderThan(surfaceRef, ACCESS_IN_BAR_PX)`), so a box 642 px wide or narrower,
+/// as the right panel leaves the centre column, puts it in the tray under the box.
+#[gpui_kit::test]
+fn the_access_picker_waits_under_a_box_642_px_wide_or_narrower(cx: &mut TestAppContext) {
+    let cx = open("new-thread", cx);
+    // The window's width, the box it draws, and whether the picker stands in the box's bar.
+    for (window, boxed, in_bar) in
+        [(1024., 768., true), (700., 660., true), (683., 643., true), (682., 642., false), (681., 641., false), (600., 576., false)]
+    {
+        at_width(cx, window);
+        let b = rect(cx, "composer-box");
+        assert_eq!(f32::from(b.size.width), boxed, "the box in a {window} px window");
+        if in_bar {
+            let picker = rect(cx, "picker-access");
+            assert!(
+                picker.left() >= b.left() && picker.right() <= b.right() && picker.top() >= b.top() && picker.bottom() <= b.bottom(),
+                "a {boxed} px box holds the access {picker:?} inside {b:?}"
+            );
+            assert!(cx.debug_bounds("tray-access").is_none(), "a {boxed} px box draws no access in the tray");
+        } else {
+            let tray = rect(cx, "tray-access");
+            assert!(tray.top() >= b.bottom(), "a {boxed} px box puts the access {tray:?} under its foot at {:?}", b.bottom());
+            assert!(cx.debug_bounds("picker-access").is_none(), "a {boxed} px box draws no access in its bar");
+        }
+    }
+}

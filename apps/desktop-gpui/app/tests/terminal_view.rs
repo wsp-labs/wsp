@@ -313,14 +313,14 @@ fn a_path_resolves_against_the_folder_the_shell_reported_and_else_goes_as_writte
     });
     feed(&view, b"see ../lib/x.rs:3:9 now", cx);
     let at = centre(&view, 6, 0, cx);
-    for folder in [None, Some("file://myhost/home/ana/w%20x/src")] {
+    for folder in [None, Some("file://myhost/home/ada/w%20x/src")] {
         if let Some(folder) = folder {
             feed(&view, format!("\x1b]7;{folder}\x07").as_bytes(), cx);
         }
         cx.simulate_mouse_down(at, MouseButton::Left, gesture());
         cx.simulate_mouse_up(at, MouseButton::Left, gesture());
     }
-    assert_eq!(*opened.borrow(), ["../lib/x.rs:3:9", "/home/ana/w x/lib/x.rs:3:9"]);
+    assert_eq!(*opened.borrow(), ["../lib/x.rs:3:9", "/home/ada/w x/lib/x.rs:3:9"]);
 }
 
 #[gpui_kit::test]

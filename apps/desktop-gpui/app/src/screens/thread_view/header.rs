@@ -1080,6 +1080,7 @@ pub fn crumbs(view: &mut ThreadView, on_menu: OnMenu, window: &mut Window, cx: &
             .items_center()
             .child(Icon::new(Glyph::MessageCircleQuestionMark).with_size(px(14.)).text_color(p.status_input))
             .tooltip(tip(line))
+            .tooltip_side(gpui_kit::TooltipSide::Bottom)
     });
     line.children(project)
         .children(opener)

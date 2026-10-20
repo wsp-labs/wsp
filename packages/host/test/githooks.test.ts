@@ -178,6 +178,17 @@ describe("what the pre-commit hook refuses", () => {
     );
   });
 
+  it("leaves a folder with an UPSTREAM file alone, since it is a copy of another repository, and reads the one beside it", () => {
+    const dir = repo();
+    stage(dir, ".claude/skills/kit/UPSTREAM", "repo=https://example.invalid/kit\n");
+    stage(dir, ".claude/skills/kit/references/a.md", `the token ${EM_DASH} the one written\n`);
+    expect(commit(dir, "host: the deploy writes the token")).toBe("");
+    stage(dir, ".claude/skills/ours/SKILL.md", `the token ${EM_DASH} the one written\n`);
+    expect(commit(dir, "host: the deploy writes the token")).toBe(
+      "refused: a line staged in .claude/skills/ours/SKILL.md has an em dash; write it with a comma, a colon or two sentences",
+    );
+  });
+
   it("leaves a fixture alone, since a fixture says what it says", () => {
     const dir = repo();
     stage(dir, "daemon/fixtures/contract/words.json", `{ "line": "the token ${EM_DASH} the one written" }\n`);

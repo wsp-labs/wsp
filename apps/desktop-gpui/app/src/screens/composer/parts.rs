@@ -184,7 +184,7 @@ pub fn pickers(c: &Composer, layout: Layout, cx: &mut Context<Composer>) -> AnyE
                 .children(menus::picker(c, Popup::Reasoning, cx)),
         );
     }
-    if !compact && !agent.permission_modes.is_empty() {
+    if c.access_in_bar() && !agent.permission_modes.is_empty() {
         let glyph = access_glyph(r.access.as_ref().map_or("", |a| a.value.as_str()));
         row = row.child(rule()).child(
             div()
@@ -437,7 +437,7 @@ pub fn tray(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
     let p = cx.palette().clone();
     let g = glass(cx);
     let r = c.resolved();
-    let in_bar = c.layout() == Layout::Full;
+    let in_bar = c.access_in_bar();
     let tray = if c.narrow { TRAY_NARROW } else { TRAY };
     let mut items = h_flex().relative().h(tray).items_center().gap_1().pl(px(6.)).pr_2();
     if let Some(computer) = &c.computer {

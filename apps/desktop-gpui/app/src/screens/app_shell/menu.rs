@@ -37,8 +37,6 @@ impl Os {
 
 /// `HOST_WORDS.hosts` in `packages/protocol/src/words/places.ts`.
 pub const HOSTS: &str = "Hosts";
-/// The route the About row opens; its screen draws the sheet.
-pub const ABOUT_SCREEN: &str = "about";
 
 /// `QUIT_WORD` in `apps/desktop/src/quit.ts`.
 pub const QUIT: &str = "Quit wsp";
@@ -146,7 +144,8 @@ pub fn init(cx: &mut App) {
     zoom::init(os, cx);
     cx.on_action(|_: &GoBack, cx| switch::back(cx));
     cx.on_action(|_: &Quit, cx| crate::desktop::quit::ask(cx));
-    cx.on_action(|_: &About, cx| super::navigate(super::Route::Screen(ABOUT_SCREEN.into()), cx));
+    #[cfg(target_os = "macos")]
+    cx.on_action(|_: &About, _| about_panel());
     cx.on_action(|_: &Hide, cx| cx.hide());
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
     cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
@@ -163,6 +162,13 @@ pub fn init(cx: &mut App) {
 pub fn refresh(cx: &mut App) {
     let menus = menus(Os::current(), cx.has_global::<switch::Back>(), hosts::view(cx).as_ref());
     cx.set_menus(menus);
+}
+
+/// `role: "about"`: AppKit's standard About panel, which reads the app's name, version and icon from its bundle.
+#[cfg(target_os = "macos")]
+fn about_panel() {
+    let Some(mtm) = objc2::MainThreadMarker::new() else { return };
+    objc2_app_kit::NSApp(mtm).orderFrontStandardAboutPanel(None);
 }
 
 fn on_active_window(cx: &mut App, f: impl FnOnce(&mut gpui_kit::Window, &mut App)) {

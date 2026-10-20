@@ -751,6 +751,54 @@ fn finds_tooltips_name_their_keys_as_todays_bar_does(cx: &mut TestAppContext) {
     }
 }
 
+/// The frame with room above the thread, as the shell's header row leaves, so a tooltip over Find's bar fits either way.
+struct Lowered(Entity<ThreadView>);
+
+impl Render for Lowered {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().pt(px(120.)).key_context(format!("{} {}", keys::SHELL, keys::THREAD_OPEN).as_str()).child(self.0.clone())
+    }
+}
+
+/// Each of Find's tooltips opens under its button, as today's bar puts them all (`side="bottom"` in `FindBar.tsx`),
+/// though there is room above; each is found by the chord it names.
+#[gpui_kit::test]
+fn finds_tooltips_open_below_their_buttons(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+        cx.bind_keys(keys::bindings(cfg!(target_os = "macos"), &BTreeMap::new()));
+    });
+    let view = cx.new(ThreadView::new);
+    let frame = cx.new(|_| Lowered(view.clone()));
+    let (_, cx) = cx.add_window_view(|window, cx| Root::new(frame, window, cx));
+    cx.simulate_resize(size(px(900.), px(600.)));
+    load(&view, apples(3), cx);
+    focus(&view, cx);
+    cx.simulate_keystrokes(FIND);
+    frames(cx, 2);
+    let mac = cfg!(target_os = "macos");
+    let tips = [
+        ("find-toggle-0", if mac { "find-chord:⌥⌘C" } else { "find-chord:Alt+C" }),
+        ("find-toggle-1", if mac { "find-chord:⌥⌘W" } else { "find-chord:Alt+W" }),
+        ("find-toggle-2", if mac { "find-chord:⌥⌘R" } else { "find-chord:Alt+R" }),
+        ("find-older", "find-chord:Enter"),
+        ("find-newer", if mac { "find-chord:⇧Enter" } else { "find-chord:Shift+Enter" }),
+        ("find-close", "find-chord:Esc"),
+    ];
+    for (button, chord) in tips {
+        let at = cx.debug_bounds(button).unwrap_or_else(|| panic!("no {button}"));
+        assert!(at.top() > px(120.), "{button} has room above it: {at:?}");
+        cx.simulate_mouse_move(at.center(), None, Modifiers::none());
+        cx.executor().advance_clock(Duration::from_millis(600));
+        frames(cx, 2);
+        let tip = cx.debug_bounds(chord).unwrap_or_else(|| panic!("{button}'s tooltip did not show"));
+        assert!(tip.top() > at.bottom(), "{button}'s tooltip opens below it: {at:?} {tip:?}");
+        cx.simulate_mouse_move(point(px(2.), px(590.)), None, Modifiers::none());
+        frames(cx, 2);
+    }
+}
+
 /// The thread view beside a field standing for the composer, which can hold focus as Find opens.
 struct WithField(Entity<ThreadView>, FocusHandle);
 
