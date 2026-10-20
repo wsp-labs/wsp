@@ -13,6 +13,7 @@ import { MOMENTUM_FLOOR, SPACING, momentum } from "./momentum.mjs";
 import { OUTPUT_MAX, shot } from "./real.mjs";
 import { fps, median, row } from "./table.mjs";
 import { describe, slowFrames, unfit } from "./trace.mjs";
+import * as ctrlTab from "./ctrl-tab.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const lines = text => text.split("\n").length;
@@ -150,6 +151,38 @@ test("the trace reader finds every frame over the limit and refuses a trace that
     const quick = run([frame(0, 10, 5, 20)]);
     assert.equal(quick.status, 0, quick.stdout);
     assert.match(quick.stdout, /no frame over 50 ms/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("the ctrl-tab reader names every step that opened nothing or missed the first frame, and refuses a debug trace", () => {
+  const step = (n, from, to, frames, within) => ({ n, held: n > 0, sent_ms: n * 30, from, to, presented_ms: n * 30 + 9, rows_ms: n * 30 + 9 + frames * 16, latency_ms: 9, rows_latency_ms: 9 + frames * 16, frames_before_rows: frames, within_frame: within });
+  const spread = { median_ms: 9, p90_ms: 25, max_ms: 25 };
+  const trace = {
+    release: true,
+    frame_ms: 16.7,
+    repeat: { delay_ms: 225, every_ms: 30 },
+    steps: [step(0, "a", "b", 0, true), step(1, "b", "c", 1, false), step(2, "c", "c", 0, false)],
+    summary: { steps: 3, opened: 2, threads: 2, within_frame: 1, key_to_frame: spread, key_to_rows: spread },
+  };
+  assert.deepEqual(ctrlTab.lateSteps(trace).map(s => s.n), [1, 2]);
+  assert.match(ctrlTab.describe(trace.steps[1]), /repeat .*key to next frame +9\.0 ms, rows +25\.0 ms  LATE by 1 frame$/);
+  assert.equal(ctrlTab.unfit(trace), null);
+  assert.match(ctrlTab.unfit({ ...trace, release: false }), /debug build/);
+  assert.match(ctrlTab.unfit({ ...trace, steps: [] }), /no steps/);
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-ctrl-tab-test-"));
+  try {
+    const run = steps => {
+      writeFileSync(join(tmp, "t.json"), JSON.stringify({ ...trace, steps }));
+      return spawnSync(process.execPath, [join(here, "ctrl-tab.mjs"), join(tmp, "t.json")], { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } });
+    };
+    const late = run(trace.steps);
+    assert.equal(late.status, 1, late.stdout);
+    assert.match(late.stdout, /2 steps late or opening nothing/);
+    const quick = run([trace.steps[0]]);
+    assert.equal(quick.status, 0, quick.stdout);
+    assert.match(quick.stdout, /every step opened its thread within one frame/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

@@ -104,6 +104,8 @@ pub struct Seen {
     pub open: Option<Open>,
     /// The threads a thread step walks: those of the task on screen.
     pub walk: usize,
+    /// The threads at the open thread's level of the sidebar, the open one among them.
+    pub level: usize,
     pub acts: Vec<Act>,
     /// Each chord command's label as bound now.
     pub labels: Vec<(String, String)>,
@@ -227,7 +229,7 @@ pub fn held(command: &Command, seen: &Seen) -> Option<Held> {
         Need::Create if seen.projects.is_empty() => Some(Held::NoProject),
         Need::Create => None,
         Need::Pick => (!seen.connected || seen.projects.is_empty()).then_some(Held::NoPick),
-        Need::Tasks => (seen.tasks.len() < 2).then_some(Held::OneTask),
+        Need::Level => (seen.level < 2).then_some(Held::LevelAlone),
         Need::Walk if seen.walk >= 2 => None,
         Need::Walk if seen.walk > 0 => Some(Held::OneThread),
         Need::Walk => Some(seen.open.as_ref().map_or(Held::NoThreads, |open| Held::NothingToStep(open.task.clone()))),
@@ -266,11 +268,12 @@ fn command_item(command: &Command, seen: &Seen) -> Option<Item> {
     Some(item)
 }
 
-/// The Actions list: the commands in their table's order, the open thread's moves and task's acts before Next task.
+/// The Actions list: the commands in their table's order, the open thread's moves and task's acts before the step
+/// along the open thread's level.
 pub fn actions(seen: &Seen) -> Vec<Item> {
     let mut out = Vec::new();
     for command in keys::COMMANDS.iter().filter(|c| c.group == Home::Actions) {
-        if command.id == "action:next-workspace" {
+        if command.id == "action:next-at-level" {
             out.extend(seen.acts.iter().map(|act| act_item(act, seen)));
         }
         out.extend(command_item(command, seen));
@@ -603,6 +606,7 @@ mod tests {
             threads,
             open: Some(Open { workspace: "w1".into(), thread: Some("t1".into()), task: "w1".into(), project: Some("p1".into()) }),
             walk: 2,
+            level: 2,
             ..Seen::default()
         }
     }
@@ -686,7 +690,7 @@ mod tests {
         };
         assert_eq!(held(&rows, "action:new-thread"), "Not connected to the runtime");
         assert_eq!(held(&rows, "page:new-thread"), "Pick the project first");
-        assert_eq!(held(&rows, "action:next-workspace"), "Only one task");
+        assert_eq!(held(&rows, "action:next-at-level"), "No other thread at this level");
         assert_eq!(held(&rows, "action:previous-thread"), "No threads to walk");
         assert_eq!(held(&rows, "action:toggle-right-panel"), "Select a task first");
         assert_eq!(held(&rows, "action:resume-conversation"), "Open a project first");
@@ -700,7 +704,7 @@ mod tests {
         assert_eq!(held(&actions(&one), "action:next-thread"), "Nothing to step to on w1; a walk stays inside one task");
         let open = actions(&busy());
         for value in
-            ["action:new-thread", "action:next-workspace", "action:next-thread", "action:toggle-right-panel", "action:copy-markdown"]
+            ["action:new-thread", "action:next-at-level", "action:next-thread", "action:toggle-right-panel", "action:copy-markdown"]
         {
             assert!(!open.iter().find(|i| i.value == value).unwrap().held, "{value} runs");
         }
