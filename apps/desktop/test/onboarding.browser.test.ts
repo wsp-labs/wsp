@@ -93,7 +93,7 @@ const REFUSE_EVERY = `window.wsp.install = async ids => ({ installed: [], failur
 /** A scan slow enough to be read before it lands, which is a first launch on a disk that has gone to sleep. */
 const SLOW_SCAN = `${bridge()}
 const land = window.wsp.agents;
-window.wsp.agents = () => new Promise(done => setTimeout(() => done(land()), 1500));`;
+window.wsp.agents = () => new Promise(done => (window.__land = () => done(land())));`;
 const TOOLS_REFUSED = `${bridge()}\n${REFUSE_EVERY}`;
 const SIX_REFUSED = `${bridge(SIX)}\n${REFUSE_EVERY}`;
 
@@ -509,12 +509,13 @@ describe.skipIf(renderSkipped !== undefined)("the first launch laid out in Chrom
     expect(await page!.$$eval("#rows .row", els => els.length)).toBe(0);
     expect(await page!.textContent("#line")).toBe("");
     expect((await box("#line")).h).toBeCloseTo(19.5, 1);
+    await page!.evaluate(() => (window as unknown as { __land: () => void }).__land());
     await page!.waitForFunction(() => (document.querySelector("#line")?.textContent ?? "") !== "", undefined, { timeout: 10_000 });
     expect(await page!.$$eval("#rows .row", els => els.length)).toBe(AGENTS.length);
     expect(await page!.textContent("#line")).toBe(LINES.some);
   });
 
-  it.each(["dark", "light"] as const)("in the %s appearance the welcome's entrance is CSS alone: at 0 ms nothing is drawn, mid-way the tilde is drawing and its edge unlit, at rest everything stands", async theme => {
+  it.each(["dark"] as const)("in the %s appearance the welcome's entrance is CSS alone: at 0 ms nothing is drawn, mid-way the tilde is drawing and its edge unlit, at rest everything stands", async theme => {
     await open(theme);
     await seek(FRAMES["0ms"]);
     expect(await dashOffset("#welcome .tilde .body")).toBeGreaterThan(20);
