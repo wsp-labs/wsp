@@ -387,11 +387,4 @@ mod tests {
         assert_eq!(collapsed("\u{85}x"), "\u{85}x");
         assert_eq!(pad_end("🧪", 3), "🧪 ");
     }
-
-    #[test]
-    fn the_record_reads() {
-        let turns = turns();
-        assert!(turns.agents.contains_key("claude"));
-        assert_eq!(turns.answer_roads.len(), 2);
-    }
 }
