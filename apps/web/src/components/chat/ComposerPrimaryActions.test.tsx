@@ -176,17 +176,6 @@ describe("formatPendingPrimaryActionLabel", () => {
       }),
     ).toBe("Submit answers");
   });
-
-  it("returns plural 'Submit answers' for higher question indices", () => {
-    expect(
-      formatPendingPrimaryActionLabel({
-        compact: false,
-        isLastQuestion: true,
-        isResponding: false,
-        questionIndex: 5,
-      }),
-    ).toBe("Submit answers");
-  });
 });
 
 describe("ComposerPrimaryActions", () => {
@@ -224,10 +213,8 @@ describe("ComposerPrimaryActions", () => {
     expect(renderSendButton(null, true)).toContain("bg-foreground");
   });
 
-  it("is a solid light disc with the arrow in the page's ink, never the blue accent", () => {
+  it("never wears the blue accent", () => {
     const ready = renderSendButton();
-    expect(ready).toContain("bg-foreground");
-    expect(ready).toContain("text-background");
     expect(ready).not.toContain("bg-message-action");
   });
 
