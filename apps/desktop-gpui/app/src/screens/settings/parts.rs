@@ -31,6 +31,7 @@ impl SettingsPart {
 
 impl Render for SettingsPart {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("SettingsPart");
         let part = self.part;
         let weak = self.screen.downgrade();
         self.screen.update(cx, |s, cx| {

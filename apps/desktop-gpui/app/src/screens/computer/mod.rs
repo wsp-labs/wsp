@@ -32,9 +32,6 @@ const INSET: f32 = 20.;
 const PLOT_GAP: f32 = 32.;
 /// The path's and the plot's ends' `text-[11px]`, at the page's 1.5.
 const SMALL: (f32, f32) = (11., 16.5);
-/// How often a pane checks it was drawn: one the window did not draw across two checks, a shut panel or a tab behind
-/// another, lets its readings go until it is drawn again (`live.ts`: a figure nobody draws is not sampled or sent).
-pub const PROBE: Duration = Duration::from_secs(1);
 
 /// What the pane holds of the readings while it is drawn: a share of the host's ask, or a daemon channel of its own.
 enum Watching {
@@ -54,18 +51,22 @@ pub struct Computer {
     host: Host,
     target: Target,
     live: Entity<Live>,
+    /// This computer's readings as the live store last said them, kept here so drawing the pane never reads the store,
+    /// whose every sample would then draw the whole window.
+    readings: live::Readings,
     sidebar: Option<Entity<Sidebar>>,
     watching: Option<Watching>,
     sub: Option<(SubFacts, Task<()>)>,
     scroll: ScrollHandle,
     /// Ticks each minute while a sub-machine's delete timer is drawn.
     clock: Option<Task<()>>,
-    /// Whether the window draws the pane, which holds the readings; drawn since the last [`PROBE`], and asked to be.
+    /// Whether the window draws the pane, which holds the readings: a shut panel's pane, or a tab behind another, lets
+    /// them go until it is drawn again (`live.ts`: a figure nobody draws is not sampled or sent).
     on_screen: bool,
-    drawn: bool,
-    probing: bool,
-    /// The check, which runs only while the pane is on screen: a shut panel's pane wakes nothing.
-    probe: Option<Task<()>>,
+    /// The token the window's frame keeps while it draws the pane, and the watch on its release.
+    drawn: Option<(gpui_kit::EntityId, Subscription)>,
+    /// What the pane last drew, so a change that moves none of it draws nothing.
+    shown: Option<Shown>,
     _observed: Vec<Subscription>,
     _release: Subscription,
 }
@@ -109,7 +110,7 @@ impl Computer {
         let waiting = overlays::find_sidebar(self, window, cx, |this, sidebar, window, cx| {
             this._observed.push(cx.observe_in(&sidebar, window, |this, _, window, cx| {
                 this.sync(window, cx);
-                cx.notify();
+                this.redraw(cx);
             }));
             this.sidebar = Some(sidebar);
             this.sync(window, cx);
@@ -224,7 +225,7 @@ impl Computer {
                             facts.row = Some(row);
                         }
                     }
-                    cx.notify();
+                    this.redraw(cx);
                 });
                 if taken.is_err() {
                     return;
@@ -243,29 +244,29 @@ impl Computer {
         notify_in(window, cx, Notice::error(live::refused_line(&name, &words)));
     }
 
-    /// A pane drawn since the last check stays on screen; one that was not is asked to draw once, and lets its
-    /// readings go if it still was not by the next.
-    fn probe(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.on_screen || std::mem::take(&mut self.drawn) {
-            self.probing = false;
+    /// Keeps a token in the frame the pane draws in; the first frame that leaves the pane out, a shut panel or a tab
+    /// behind another, drops it, and the pane lets its readings go.
+    fn keep_drawn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let token = window.use_keyed_state("computer-drawn", cx, |_, _| ());
+        let id = token.entity_id();
+        if self.drawn.as_ref().is_some_and(|(held, _)| *held == id) {
             return;
         }
-        if !std::mem::replace(&mut self.probing, true) {
-            return cx.notify();
-        }
-        self.probing = false;
-        self.on_screen = false;
-        self.probe = None;
-        self.sync(window, cx);
+        let gone = cx.observe_release(&token, move |this, _, cx| {
+            if this.drawn.as_ref().is_some_and(|(held, _)| *held == id) {
+                this.drawn = None;
+                this.on_screen = false;
+                this.stop_watch(cx);
+            }
+        });
+        self.drawn = Some((id, gone));
     }
 
-    fn start_probe(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.probe = Some(cx.spawn_in(window, async move |this, cx| loop {
-            cx.background_executor().timer(PROBE).await;
-            if this.update_in(cx, |this, window, cx| this.probe(window, cx)).is_err() {
-                return;
-            }
-        }));
+    /// Draws the pane again where it stands when what it shows moved.
+    fn redraw(&mut self, cx: &mut Context<Self>) {
+        if self.shown.as_ref() != Some(&self.shown(cx)) {
+            cx.notify_in_place();
+        }
     }
 
     fn keep_clock(&mut self, ticking: bool, cx: &mut Context<Self>) {
@@ -274,7 +275,7 @@ impl Computer {
         } else if self.clock.is_none() {
             self.clock = Some(cx.spawn(async move |this, cx| loop {
                 cx.background_executor().timer(Duration::from_secs(60)).await;
-                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                if this.update(cx, |this, cx| this.redraw(cx)).is_err() {
                     return;
                 }
             }));
@@ -290,7 +291,7 @@ impl Computer {
     pub fn shown(&self, cx: &App) -> Shown {
         let sidebar = self.sidebar.as_ref().map(|s| s.read(cx));
         let ws = sidebar.and_then(|s| self.workspace(s));
-        let readings = self.live.read(cx).readings(&self.target.key());
+        let readings = &self.readings;
         // A local workspace's figures are read by the host, so its daemon being down says nothing about them.
         let daemon_read = ws.is_none_or(|(ws, _)| metrics_road(ws["kind"].as_str()) == Road::Daemon);
         let stale: Option<Stale> = sidebar.zip(ws).and_then(|(s, (ws, status))| {
@@ -370,13 +371,15 @@ impl Screen for Computer {
     fn new(host: Host, opened: Opened, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let target = opened.workspace_id.map_or(Target::Here, Target::Workspace);
         let live = live::live(cx);
-        let observed = vec![cx.observe_in(&live, window, |this, _, window, cx| {
+        let observed = vec![cx.observe_in(&live, window, |this, live, window, cx| {
+            this.readings = live.read(cx).readings(&this.target.key());
             this.say_refusal(window, cx);
-            cx.notify();
+            this.redraw(cx);
         })];
         let release = cx.on_release(|this, cx| this.stop_watch(cx));
         let mut pane = Computer {
             host,
+            readings: live.read(cx).readings(&target.key()),
             target,
             live,
             sidebar: None,
@@ -385,9 +388,8 @@ impl Screen for Computer {
             scroll: ScrollHandle::new(),
             clock: None,
             on_screen: false,
-            drawn: false,
-            probing: false,
-            probe: None,
+            drawn: None,
+            shown: None,
             _observed: observed,
             _release: release,
         };
@@ -470,15 +472,17 @@ fn plot_view(shown: PlotShown, p: &Palette, mono: SharedString) -> impl IntoElem
 
 impl Render for Computer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.drawn = true;
+        crate::frames::count("Computer");
+        self.keep_drawn(window, cx);
         if !self.on_screen {
             self.on_screen = true;
-            self.start_probe(window, cx);
             self.sync(window, cx);
         }
         let p = cx.palette().clone();
         let mono = cx.theme().mono_font_family.clone();
-        let Shown { plots, chips: facts, path, footer } = self.shown(cx);
+        let shown = self.shown(cx);
+        self.shown = Some(shown.clone());
+        let Shown { plots, chips: facts, path, footer } = shown;
         self.keep_clock(self.sub.is_some(), cx);
         let facts = (!facts.is_empty()).then(|| {
             v_flex()

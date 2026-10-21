@@ -7,7 +7,9 @@
 use std::time::{Duration, Instant};
 
 use gpui_kit::component::scroll::ScrollbarHandle;
-use gpui_kit::{div, prelude::*, px, App, Div, ElementId, Empty, MouseButton, Pixels, Point, ScrollHandle, SharedString, Stateful, Window};
+use gpui_kit::{
+    canvas, div, prelude::*, px, App, Div, ElementId, Empty, MouseButton, Pixels, Point, ScrollHandle, SharedString, Stateful, Window,
+};
 
 use super::{motion, ActivePalette};
 
@@ -31,8 +33,9 @@ struct Thumb {
     most: Pixels,
 }
 
-fn thumb(handle: &ScrollHandle) -> Option<Thumb> {
-    let (view, most) = (handle.bounds().size.height, handle.max_offset().y);
+fn thumb(handle: &impl ScrollbarHandle) -> Option<Thumb> {
+    let view = handle.viewport_bounds().size.height;
+    let most = handle.content_size().height - view;
     let lane = view - ENDS * 2.;
     if most <= px(0.) || lane <= px(0.) {
         return None;
@@ -43,7 +46,7 @@ fn thumb(handle: &ScrollHandle) -> Option<Thumb> {
 }
 
 /// Scrolls `handle` so the thumb's top stands `top` down its lane.
-fn scroll_to(handle: &ScrollHandle, thumb: &Thumb, top: Pixels) {
+fn scroll_to(handle: &impl ScrollbarHandle, thumb: &Thumb, top: Pixels) {
     if thumb.travel > px(0.) {
         let offset = handle.offset();
         handle.set_offset(Point::new(offset.x, -thumb.most * (top / thumb.travel).clamp(0., 1.)));
@@ -74,6 +77,19 @@ pub fn scroll_area(
 /// sizes the area.
 pub fn scroll_view(id: impl Into<ElementId>, handle: &ScrollHandle, viewport: Div, window: &mut Window, cx: &mut App) -> Stateful<Div> {
     let id: ElementId = id.into();
+    let viewport = viewport.id(ElementId::from((id.clone(), "viewport"))).size_full().overflow_y_scroll().track_scroll(handle);
+    with_bar(id, handle, viewport, window, cx)
+}
+
+/// `content` that scrolls itself on `handle`, a list, with the scroll area's bar over its right edge.
+pub fn with_bar<H: ScrollbarHandle + Clone>(
+    id: impl Into<ElementId>,
+    handle: &H,
+    content: impl IntoElement,
+    window: &mut Window,
+    cx: &mut App,
+) -> Stateful<Div> {
+    let id: ElementId = id.into();
     let hovered = motion::hovered(id.clone(), window, cx);
     let now = cx.background_executor().now();
     let offset = handle.offset();
@@ -86,13 +102,14 @@ pub fn scroll_view(id: impl Into<ElementId>, handle: &ScrollHandle, viewport: Di
         s.until.is_some_and(|u| now < u)
     });
     if scrolling {
-        window.request_animation_frame();
+        window.request_animation_frame_in_place();
     }
     let opacity = motion::bar_opacity(id.clone(), *hovered.read(cx) || scrolling, window, cx);
-    // A viewport not laid out yet says nothing of its overflow; the next frame reads it.
-    if handle.bounds().size.height <= px(0.) {
-        window.request_animation_frame();
-    }
+    let laid_out = handle.clone();
+    let relaid = relaid(move || {
+        let view = laid_out.viewport_bounds().size.height;
+        (view, laid_out.content_size().height - view)
+    });
     let grab = window.use_keyed_state(ElementId::from((id.clone(), "grab")), cx, |_, _| px(0.));
     let lane = thumb(handle).map(|at| {
         let thumb_id = ElementId::from((id.clone(), "thumb"));
@@ -113,7 +130,7 @@ pub fn scroll_view(id: impl Into<ElementId>, handle: &ScrollHandle, viewport: Di
             .on_mouse_down(MouseButton::Left, move |e, window, cx| {
                 cx.stop_propagation();
                 let Some(at) = thumb(&jump) else { return };
-                let y = e.position.y - jump.bounds().origin.y - ENDS;
+                let y = e.position.y - jump.viewport_bounds().origin.y - ENDS;
                 if y < at.top || y > at.top + at.length {
                     scroll_to(&jump, &at, y - at.length / 2.);
                     window.refresh();
@@ -149,11 +166,29 @@ pub fn scroll_view(id: impl Into<ElementId>, handle: &ScrollHandle, viewport: Di
                 return;
             }
             let Some(at) = thumb(&dragged) else { return };
-            scroll_to(&dragged, &at, e.event.position.y - dragged.bounds().origin.y - ENDS - *grab.read(cx));
+            scroll_to(&dragged, &at, e.event.position.y - dragged.viewport_bounds().origin.y - ENDS - *grab.read(cx));
             window.refresh();
         })
-        .child(viewport.id(ElementId::from((id, "viewport"))).size_full().overflow_y_scroll().track_scroll(handle))
+        .child(content)
         .children(lane)
+        .child(relaid)
+}
+
+/// The bar is built from the viewport as the last frame laid it out, which `read` reads: where this frame lays it out
+/// otherwise, a viewport drawn for the first time among them, the view draws again where it stands. A viewport laid
+/// out the same, at no height too, asks for nothing.
+fn relaid(read: impl Fn() -> (Pixels, Pixels) + 'static) -> impl IntoElement {
+    let built = read();
+    canvas(
+        move |_, window, _| {
+            if read() != built {
+                window.request_animation_frame_in_place();
+            }
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .size_0()
 }
 
 /// Today's native bar on a list that owns its scroll (`::-webkit-scrollbar` in `index.css`): the shortest thumb its
@@ -181,7 +216,7 @@ fn list_thumb(handle: &impl ScrollbarHandle) -> Option<Thumb> {
 
 /// The vertical bar of a list that scrolls itself (`uniform_list`, `list`), as today's native one draws it: [`WIDTH`]
 /// wide over the parent's right edge, full height, shown at rest wherever the content overflows, its thumb easing to
-/// the hover ink. The thumb drags; a press on the lane beside it pages there. Nothing while the content fits. The
+/// the hover ink. The thumb drags; a press on the lane beside it pages there. No lane while the content fits. The
 /// parent is `relative` and as tall as the viewport; the list keeps the lane free with `pr(WIDTH)` while
 /// [`overflows`]. `id` names the bar and tags it for tests, the thumb as `<id>-thumb`.
 pub fn list_bar<H: ScrollbarHandle + Clone>(
@@ -223,13 +258,12 @@ fn bar<H: ScrollbarHandle + Clone>(
     window: &mut Window,
     cx: &mut App,
 ) -> Option<Stateful<Div>> {
-    // A viewport not laid out yet says nothing of its overflow; the next frame reads it.
-    if handle.viewport_bounds().size.height <= px(0.) {
-        window.request_animation_frame();
-    }
-    let at = list_thumb(handle)?;
-    let thumb_tag: SharedString = format!("{tag}-thumb").into();
+    let laid_out = handle.clone();
+    // Not the content's height: the lane a caller keeps while the content overflows changes it, and could again and again.
+    let relaid = relaid(move || (laid_out.viewport_bounds().size.height, px(0.)));
     let id = ElementId::from(tag.clone());
+    let Some(at) = list_thumb(handle) else { return Some(div().id(id).absolute().top_0().right_0().size_0().child(relaid)) };
+    let thumb_tag: SharedString = format!("{tag}-thumb").into();
     let thumb_id = ElementId::from((id.clone(), "thumb"));
     let ink = motion::ease_ink(thumb_id.clone(), "ink", ink, motion::COLORS, window, cx);
     let grab = window.use_keyed_state(ElementId::from((id.clone(), "grab")), cx, |_, _| px(0.));
@@ -286,6 +320,81 @@ fn bar<H: ScrollbarHandle + Clone>(
                     .bg(ink)
                     .on_hover(motion::track_hover(over))
                     .on_drag(Grab(id), |_, _, _, cx| cx.new(|_| Empty)),
-            ),
+            )
+            .child(relaid),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui_kit::{div, prelude::*, px, Context, ScrollHandle, TestAppContext, VisualTestContext, Window};
+
+    use super::scroll_area;
+    use crate::ui::Side;
+
+    /// A scroll area over 400 px of content, in a box `height` high.
+    struct Area {
+        handle: ScrollHandle,
+        height: f32,
+    }
+
+    impl Render for Area {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let area = scroll_area("area", &self.handle, div().h(px(400.)), window, cx).size_full();
+            div().size_full().child(div().h(px(self.height)).child(area))
+        }
+    }
+
+    /// The area drawn, and the frames it asked for while first laid out drawn too.
+    fn drawn(height: f32, cx: &mut TestAppContext) -> (gpui_kit::Entity<Area>, &mut VisualTestContext) {
+        cx.update(gpui_kit::init);
+        cx.update(|cx| crate::ui::init(Side::Light, cx));
+        let mut made = None;
+        let (_, cx) = cx.add_window_view(|_, cx| {
+            let area = cx.new(|_| Area { handle: ScrollHandle::new(), height });
+            made = Some(area.clone());
+            Holder(area)
+        });
+        cx.run_until_parked();
+        next_frame(cx);
+        (made.unwrap(), cx)
+    }
+
+    struct Holder(gpui_kit::Entity<Area>);
+
+    impl Render for Holder {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().size_full().child(self.0.clone())
+        }
+    }
+
+    /// Delivers the next frame 16 ms on, as the platform would, and draws what it asked for: how many asked for it.
+    fn next_frame(cx: &mut VisualTestContext) -> usize {
+        cx.executor().advance_clock(std::time::Duration::from_millis(16));
+        let asked = cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        asked
+    }
+
+    /// Catches: an area laid out at no height asking for a frame on every frame, forever, to wait for a height.
+    #[gpui_kit::test]
+    fn a_scroll_area_at_no_height_asks_for_no_frame(cx: &mut TestAppContext) {
+        let (_, cx) = drawn(0., cx);
+        let asked: usize = (0..10).map(|_| next_frame(cx)).sum();
+        assert_eq!(asked, 0, "frames asked for by an area at rest at no height");
+    }
+
+    /// Catches: a bar not drawn once its area takes a height, or an area that keeps asking for frames after.
+    #[gpui_kit::test]
+    fn a_scroll_area_that_takes_a_height_draws_its_bar_and_then_rests(cx: &mut TestAppContext) {
+        let (area, cx) = drawn(0., cx);
+        area.update(cx, |a, cx| {
+            a.height = 100.;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        let frames = (0..60).take_while(|_| next_frame(cx) > 0).count();
+        assert!(frames < 60, "the area keeps asking for frames once it has its height");
+        assert!(cx.debug_bounds("scrollbar").is_some(), "the bar of content that overflows its area");
+    }
 }

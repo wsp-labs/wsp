@@ -57,6 +57,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`draw and present: median ${ms(draws[Math.floor(draws.length / 2)] ?? 0)}, slowest ${ms(draws.at(-1) ?? 0)}; longest input wait ${ms(Math.max(0, ...trace.frames.map(f => f.late)))}`);
   console.log(`app (draw and traced work): median ${ms(apps[Math.floor(apps.length / 2)] ?? 0)}, slowest ${ms(apps.at(-1) ?? 0)}; frames over ${trace.limit_ms} ms by app ${slowFrames(trace, { app: true }).length}, by draw, present and input wait ${slowFrames(trace).length}`);
   for (const f of slow) console.log(describe(f));
+  const cost = f => (app ? f.app : Math.max(f.draw + f.present, f.late));
+  console.log("slowest five:");
+  for (const f of [...trace.frames].sort((a, b) => cost(b) - cost(a)).slice(0, 5)) console.log(`  ${describe(f)}`);
   const stuck = trace.stuck ?? [];
   for (const s of stuck) console.log(`stuck: ${s.events} wheel events from ${(s.from / 1000).toFixed(2)} s to ${(s.to / 1000).toFixed(2)} s left the list where it stood, the pointer over ${s.under ?? "nothing traced"}`);
   if (trace.under !== undefined) console.log(`under the pointer: ${Object.entries(trace.under).map(([kind, u]) => `${kind} ${u.moved}/${u.events} moved`).join(", ")}`);

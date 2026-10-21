@@ -236,6 +236,23 @@ pub(super) fn surface(items: Vec<CardItem>, inset: Pixels, radius: Pixels, cx: &
     )
 }
 
+/// Item `ix` of a locked card's `count` drawn alone, as a list that draws only the items on screen draws each: the
+/// surface's edge and fill round it, its corners where the whole surface puts them, and the rule over it if `ruled`.
+pub fn surface_item(item: CardItem, ix: usize, count: usize, ruled: bool, cx: &App) -> AnyElement {
+    let p = cx.palette();
+    let (rule, edge, fill) = (p.border.opacity(0.5), p.border.opacity(0.6), p.card.opacity(0.4));
+    let (top, bottom, radius) = (ix == 0, ix + 1 == count, size::DIALOG_RADIUS);
+    let el = (item.0)(Corners { top, bottom, inset: size::CARD_INSET, rule: ruled.then_some(rule), radius });
+    div()
+        .border_x_1()
+        .border_color(edge)
+        .bg(fill)
+        .when(top, |el| el.border_t_1().rounded_t(radius))
+        .when(bottom, |el| el.border_b_1().rounded_b(radius))
+        .child(el)
+        .into_any_element()
+}
+
 /// One card: an optional head and lede, a body too large for a row, the soft surface with a rule between its
 /// children, and an act under it.
 #[derive(IntoElement)]

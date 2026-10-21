@@ -7,7 +7,7 @@ use gpui_kit::base::{MotionReveal, Presence, Transition};
 use gpui_kit::component::input::{Input, InputState, MoveDown};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
 use gpui_kit::{
-    div, prelude::*, px, relative, svg, AnyElement, App, Entity, FocusHandle, Focusable as _, FontWeight, Hsla, KeyDownEvent, Pixels,
+    div, prelude::*, px, relative, svg, AnyElement, App, Div, Entity, FocusHandle, Focusable as _, FontWeight, Hsla, KeyDownEvent, Pixels,
     ScrollHandle, SharedString, Window,
 };
 
@@ -585,6 +585,18 @@ pub fn page_of(view: AnyElement, scroll: &ScrollHandle, narrow: bool, window: &m
         .child(div().w_full().max_w(LOCKED_COLUMN - sides * 2.).mx_auto().child(view))
         .child(div().flex_none().h(px(48.)));
     scroll_view("settings-page", scroll, column, window, cx).flex_1().min_h_0()
+}
+
+/// One entry of a page that lists its own, in the locked column as `page_of` stands a page in it: the column's top over
+/// the `first`, and its foot under the `last`.
+pub fn locked_entry(el: AnyElement, first: bool, last: bool, narrow: bool) -> Div {
+    let (sides, top) = column_pad(true, narrow);
+    div()
+        .w_full()
+        .px(sides)
+        .when(first, |el| el.pt(top))
+        .when(last, |el| el.pb(px(48.)))
+        .child(div().w_full().max_w(LOCKED_COLUMN - sides * 2.).mx_auto().child(el))
 }
 
 #[cfg(test)]

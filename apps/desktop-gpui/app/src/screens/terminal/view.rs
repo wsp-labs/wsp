@@ -334,9 +334,10 @@ impl TerminalView {
             cx.background_executor().timer(BLINK).await;
             let alive = this.update(cx, |this, cx| {
                 let blinks = !cx.reduce_motion() && this.frame.cursor.is_some_and(|c| c.blinking) && this.last_output.elapsed() >= BLINK;
+                let was = this.blink_on;
                 this.blink_on = !this.blink_on || !blinks;
-                if blinks {
-                    cx.notify();
+                if this.blink_on != was {
+                    cx.notify_in_place();
                 }
             });
             if alive.is_err() {

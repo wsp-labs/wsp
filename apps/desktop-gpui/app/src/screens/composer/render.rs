@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The composer drawn: the box with its editor, pickers and actions, or the bar or the docked prompt in its place.
 
-use gpui_kit::component::input::Textarea;
-use gpui_kit::component::{h_flex, v_flex, Sizable as _};
-use gpui_kit::{canvas, div, prelude::*, px, Bounds, Context, Focusable as _, KeyDownEvent, MouseButton, Pixels, Window};
+use gpui_kit::component::{h_flex, v_flex};
+use gpui_kit::{canvas, div, prelude::*, px, Bounds, Context, Focusable as _, KeyDownEvent, Pixels, Window};
 
 use super::model::{self, Hold, Layout};
-use super::{dock, menus, parts, wide, Bar, BoxWidth, Composer, COLUMN, LINE, TEXT};
-use crate::ui::ActivePalette;
+use super::{dock, menus, parts, wide, Bar, BoxWidth, Composer, COLUMN};
 
 impl Render for Composer {
     /// The composer, and its height as drawn, which a parent that draws it cached lays it out at.
@@ -63,7 +61,6 @@ impl Composer {
         }
         self.narrow = crate::ui::narrow(window);
         let narrow = self.narrow;
-        let p = cx.palette().clone();
         let layout = self.layout();
         let shut = self.hold.as_ref().is_some_and(Hold::shuts);
         let width = self.line_width.clone();
@@ -76,48 +73,7 @@ impl Composer {
             self.placeholder = placeholder;
             self.editor.update(cx, |e, cx| e.set_placeholder(placeholder, window, cx));
         }
-        let this = cx.entity();
-        let paste = this.downgrade();
-        let editor = div()
-            .id("composer-editor")
-            .debug_selector(|| "composer-editor".into())
-            .relative()
-            .flex_1()
-            .min_w_0()
-            .text_size(TEXT)
-            .line_height(LINE)
-            .text_color(p.foreground)
-            .when(layout == Layout::Full, |el| el.min_h(px(74.)).pb_1())
-            // A press anywhere in the box puts the caret in the field, as the web's editor fills its whole box.
-            .when(!shut, |el| {
-                el.on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _, window, cx| {
-                        this.editor.update(cx, |e, cx| e.focus(window, cx));
-                        window.prevent_default();
-                    }),
-                )
-            })
-            .child(
-                // gpui-kit pads the field 4 px a side and wraps its text 10 px short of its right edge for the caret;
-                // the web's text runs edge to edge of its column. The field is w_full, so the margins go on a wrapper.
-                div().ml(px(-4.)).mr(px(-14.)).child(
-                    Textarea::new(&self.editor)
-                        .appearance(false)
-                        .xsmall()
-                        .disabled(shut)
-                        .text_size(TEXT)
-                        .line_height(LINE)
-                        .token(|ctx, _, cx| parts::chip(ctx, cx))
-                        .on_paste(move |item, _, cx| {
-                            let entries = item.entries().to_vec();
-                            paste.update(cx, |this, cx| this.on_paste(entries, cx)).unwrap_or(false)
-                        }),
-                ),
-            )
-            .when(layout == Layout::Line, |el| {
-                el.child(canvas(move |bounds: Bounds<Pixels>, _, _| width.set(bounds.size.width), |_, _, _, _| {}).absolute().size_full())
-            });
+        let editor = super::field::drawn(&self.field, layout, shut, cx);
 
         // A bar goes with what it says, as the drawer's row does.
         let gone = match self.bar {

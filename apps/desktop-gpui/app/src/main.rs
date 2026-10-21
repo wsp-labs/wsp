@@ -153,6 +153,7 @@ fn main() {
             trace: args.trace.clone().or_else(|| replay.map(|b| b.out.clone())),
             thread: replay.map(|b| b.thread.clone()).or_else(|| args.open.clone()),
             replay: replay.is_some(),
+            limit: replay.filter(|b| b.screen).map(|_| desktop_gpui::scroll_trace::FRAME_MS),
         });
     }
     let launch = Launch { bench: args.bench, open: args.open, glass: args.glass, screen: args.screen };
@@ -261,6 +262,7 @@ fn open_main(
     let options = WindowOptions { window_decorations: frame::decorations(), ..startup::window_options(cx) };
     cx.open_window(options, |window, cx| {
         let shell = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
+        desktop_gpui::frames::watch(window, cx);
         links::attach(window, &shell, cx);
         if let Some(pane) = pane {
             let mut pane = Some(pane);
