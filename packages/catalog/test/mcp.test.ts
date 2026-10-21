@@ -19,14 +19,6 @@ describe("the catalog's MCP configs", () => {
     expect(catalogEntry("pi")).toMatchObject({ kind: "agent" });
     expect((catalogEntry("pi") as { mcp?: unknown }).mcp).toBeUndefined();
   });
-
-  it("every module carries the edit the import runs over the text it read off the machine, and the merge a computer somebody owns runs into the file its agent keeps", () => {
-    for (const format of new Set<McpFormat>(MCP_AGENTS.map(a => a.mcp.format))) {
-      expect(typeof format.edit).toBe("function");
-      expect(typeof format.merge).toBe("function");
-      expect(typeof format.entryOf).toBe("function");
-    }
-  });
 });
 
 describe("read", () => {

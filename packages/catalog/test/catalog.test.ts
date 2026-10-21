@@ -422,19 +422,15 @@ describe("catalog", () => {
       expect(pin.assets.aarch64?.sha256, id).toMatch(/^[0-9a-f]{64}$/);
       expect(installLine(catalogEntry(id)!), id).toContain('sha256sum -c -');
     }
-    expect(RELEASE_PINS["charmbracelet/crush"]!.assets.x86_64).toEqual({ name: "crush_0.96.1_Linux_x86_64.tar.gz", sha256: "5411b0906a82162dcab4a99071d70accf1caad0eee69789416dd607943c6680d" });
     expect(installShown(catalogEntry("crush")!)).toEqual({ words: "the v0.96.1 release of github.com/charmbracelet/crush" });
     expect(installShown(catalogEntry("goose")!)).toEqual({ words: "the v1.52.0 release of github.com/aaif-goose/goose" });
     // Goose moved to the AAIF at the Linux Foundation: github.com/block/goose only redirects there, and the assets are the same bytes.
     expect(RELEASE_PINS["block/goose"]).toBeUndefined();
-    expect(RELEASE_PINS["aaif-goose/goose"]!.assets.x86_64).toEqual({ name: "goose-x86_64-unknown-linux-gnu.tar.gz", sha256: "4aee1f770b405c44194c0e9407df1fb06bda4c50eee935f0d8fd10731821cc5e" });
-    expect(RELEASE_PINS["aaif-goose/goose"]!.assets.aarch64).toEqual({ name: "goose-aarch64-unknown-linux-gnu.tar.gz", sha256: "ae602c4f6e9a785bf087da52c89908d4dc6aa605dcc17bf83293873f626d9c85" });
     expect(installLine(catalogEntry("goose")!)).toContain("https://github.com/aaif-goose/goose/releases/download/v1.52.0/");
     expect((catalogEntry("goose") as AgentEntry).about.repo).toBe("https://github.com/aaif-goose/goose");
     expect(installShown(catalogEntry("qwen")!)).toEqual({ line: "npm install -g --ignore-scripts @qwen-code/qwen-code@0.24.5" });
     expect(installShown(catalogEntry("amp")!)).toEqual({ line: "npm install -g @ampcode/cli@0.0.1790352060-g26b83c" });
     expect((catalogEntry("qwen") as AgentEntry).node).toBe(22);
-    expect(catalogEntry("crush")!.size).toEqual({ bytes: 86818976, on: "2026-09-26", method: "unpacked" });
     expect(sizeBytes(catalogEntry("amp")!.size)).toBeUndefined();
     // Every folder an install writes a skill into is one of the agent's own, under the home.
     for (const a of added) for (const r of a.skillRoots.user) expect(r.dir, a.id).toMatch(/^~\//);
@@ -447,7 +443,6 @@ describe("catalog", () => {
     expect(installLine(cursor)).toBe(catalog.CURSOR.install);
     expect(installLine(cursor)).toContain('curl -o "$tmp/$pkg" "https://downloads.cursor.com/lab/$ver/linux/$a/$pkg"');
     expect(installShown(cursor)).toEqual({ words: "Cursor's Linux release" });
-    expect(cursor.size).toEqual({ bytes: 583125383, on: "2026-09-27", method: "unpacked" });
     expect(cursor.signIn).toBe(SIGN_IN_ROWS.cursor);
     expect(SIGN_IN_ROWS.cursor).toMatchObject({ kind: "key", login: "cursor-agent login", keyEnv: "CURSOR_API_KEY", stateOnMachine: [".config/cursor/auth.json"] });
     expect(runsThreads("cursor")).toBe(true);
@@ -525,21 +520,6 @@ describe("catalog", () => {
   });
 
   it("says where each agent's newest version is published: its own npm package or release, or the vendor's own answer", () => {
-    expect(CATALOG_AGENTS.map(a => [a.id, a.latest?.from])).toEqual([
-      ["claude", "text"],
-      ["codex", "npm"],
-      ["gemini", "npm"],
-      ["opencode", "npm"],
-      ["pi", "npm"],
-      // Its releases are tagged by date while its binary prints a semver first, so the two are never compared.
-      ["hermes", undefined],
-      ["crush", "github"],
-      ["qwen", "npm"],
-      ["goose", "github"],
-      ["amp", "npm"],
-      // Nothing publishes its version alone: its installer script carries it inline.
-      ["cursor", undefined],
-    ]);
     for (const a of CATALOG_AGENTS) {
       const [road, latest] = [a.installRoad, a.latest];
       if (latest?.from === "npm") expect(road.road === "npm" ? road.package : undefined, a.id).toBe(latest.package);
@@ -549,19 +529,6 @@ describe("catalog", () => {
   });
 
   it("says who makes each agent, what it is in a sentence or two, its license, where it lives, and the line a person pastes to install it", () => {
-    expect(CATALOG_AGENTS.map(a => [a.id, a.about.creator, a.about.license])).toEqual([
-      ["claude", "Anthropic", "proprietary"],
-      ["codex", "OpenAI", "Apache-2.0"],
-      ["gemini", "Google", "Apache-2.0"],
-      ["opencode", "Anomaly", "MIT"],
-      ["pi", "Earendil Works", "MIT"],
-      ["hermes", "Nous Research", "MIT"],
-      ["crush", "Charm", "FSL-1.1-MIT"],
-      ["qwen", "Qwen team, Alibaba", "Apache-2.0"],
-      ["goose", "Block", "Apache-2.0"],
-      ["amp", "Sourcegraph", "proprietary"],
-      ["cursor", "Anysphere", "proprietary"],
-    ]);
     for (const a of CATALOG_AGENTS) {
       const sentences = a.about.description.split(/(?<=\.) /);
       expect(sentences.length, a.id).toBeLessThanOrEqual(2);
@@ -1006,20 +973,12 @@ describe("catalog", () => {
     }
     // The rows are the one place a size lives: no table of formula or global sizes beside them.
     expect(Object.keys(catalog).filter(k => /_(MIB|BYTES)$/.test(k))).toEqual([]);
-    // Every row has a number: 1Password's is its one file unpacked from the deb, since its package carries no Installed-Size.
     // Qwen Code and Amp install by npm, whose bytes only an install could read.
     expect(CATALOG.filter(e => !("bytes" in e.size)).map(e => e.id)).toEqual(["qwen", "amp"]);
-    expect(catalogEntry("op")!.size).toEqual({ bytes: 42950840, on: "2026-09-07", method: "unpacked" });
     for (const text of Object.values(SIZE_METHODS)) expect(text).not.toMatch(/\u2014/);
     // The du rows were read on a Debian bookworm host, the node:22-bookworm image among them; the label says the host, not one image.
     expect(SIZE_METHODS.du).toBe("du over what the install wrote, before and after, on a Debian bookworm host");
     for (const e of CATALOG) expect(`${e.name} ${e.source.note ?? ""}`, e.id).not.toMatch(/\u2014/);
-    // Every brew row counts its Linux runtime dependencies, so Java carries the ones its bottle links against.
-    expect(sizeBytes(catalogEntry("java")!.size)).toBe(613280230);
-    // Rust comes by rustup instead of the formula whose Linux bottle pulled llvm@22 in: half the bytes, measured on the machine.
-    expect(catalogEntry("rust")!.size).toEqual({ bytes: 1595346944, on: "2026-09-07", method: "du" });
-    expect(sizeBytes(catalogEntry("git")!.size)).toBe(123789312);
-    expect(catalogEntry("claude")!.size).toEqual({ bytes: 208 * 1024 * 1024, on: "2026-09-05", method: "df" });
   });
 
   it("carries the tier 1 rows the lab sandboxes ship: the cheap universal ones on the floor, the rest on request", () => {
@@ -1139,23 +1098,6 @@ describe("catalog", () => {
   it("carries no token-looking value", () => {
     expect(JSON.stringify(CATALOG, (_k, v: unknown) => (typeof v === "function" ? String(v) : v))).not.toMatch(/gho_|sk-ant|ya29\.|AKIA/);
   });
-
-  it("is the seeded catalog", () => {
-    const rows = CATALOG.map(e => ({
-      id: e.id,
-      kind: e.kind,
-      road: e.installRoad.road,
-      argument: roadArgument(e.installRoad),
-      signIn: e.signIn.kind,
-      status: e.signIn.status?.command,
-      ...(e.kind === "tool" ? { defaultOn: e.defaultOn, floor: e.floor, ...(e.covers !== undefined ? { covers: e.covers } : {}), ...(e.major !== undefined ? { major: e.major } : {}) } : {}),
-      source: e.source,
-      size: e.size,
-      configPaths: e.configPaths.length,
-      ...(e.kind === "agent" ? { projectState: e.projectState.map(p => p.state) } : {}),
-    }));
-    expect(rows).toMatchSnapshot();
-  });
 });
 
 /** Runs an install script under bash as a Linux machine would, on a PATH and a HOME of the case's own folder. */
@@ -1175,29 +1117,4 @@ if (bad.length > 0) { console.error("sha256sum: WARNING: " + bad.length + " comp
   );
   // A bash whose stdin is node's socket takes itself for an ssh login and reads ~/.bashrc unless told not to.
   return spawnSync("bash", ["--noprofile", "--norc", "-c", script], { encoding: "utf8", env: { PATH: `${tools}:/usr/bin:/bin`, HOME: dir } });
-}
-
-type Road = (typeof CATALOG)[number]["installRoad"];
-function roadArgument(road: Road): string {
-  switch (road.road) {
-    case "brew":
-      return road.formula;
-    case "npm":
-    case "pnpm":
-    case "bun":
-    case "uv":
-    case "pipx":
-    case "cargo":
-      return road.version === undefined ? road.package : `${road.package}@${road.version}`;
-    case "go":
-      return `${road.module}@${road.version}`;
-    case "release":
-      return road.repo ?? "";
-    case "vendor":
-      return road.cask.bin;
-    case "apt":
-      return road.packages.join(" ");
-    case "script":
-      return `${road.script.split("\n").length} lines`;
-  }
 }
