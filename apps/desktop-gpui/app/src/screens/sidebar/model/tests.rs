@@ -13,6 +13,16 @@ fn done(id: &str, started: f64) -> Row {
     Row { ended_at: Some(started + MIN), read_at: Some(started + MIN), ..row(id, Status::Completed, started) }
 }
 
+/// Finished and not yet seen: live in the list, working nowhere.
+fn fresh(id: &str, started: f64) -> Row {
+    Row { ended_at: Some(started + MIN), ..row(id, Status::Completed, started) }
+}
+
+/// The rows under the heads, for a test of the trees alone.
+fn under_heads(lines: Vec<Line>) -> Vec<Line> {
+    lines.into_iter().filter(|l| !matches!(l.item, Item::Head { .. })).collect()
+}
+
 fn child(mut r: Row, parent: &str) -> Row {
     r.parent_thread_id = Some(parent.into());
     r
@@ -163,23 +173,24 @@ fn sections_split_pinned_inbox_list_and_settled_newest_first() {
         Row { asking: true, ..row("ask", Status::Running, NOW - 2.0 * HOUR) },
         done("quiet", NOW - 9.0 * HOUR),
     ]);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     assert_eq!(keys(&all, &v.pinned), ["pin"]);
     assert_eq!(keys(&all, &v.needs_you), ["ask"], "a lone root that asks stands in the inbox alone");
-    assert_eq!(keys(&all, &v.threads), ["new", "old"]);
+    assert_eq!(keys(&all, &v.working), ["new", "old"], "running roots stand in Working, the pinned one in Pinned");
+    assert!(v.threads.is_empty());
     assert_eq!(keys(&all, &v.settled), ["quiet"]);
 }
 
 #[test]
 fn a_moved_key_reorders_the_list() {
-    let all = view(&[row("a", Status::Running, NOW - 3.0 * HOUR), Row { order: Some(NOW), ..row("b", Status::Running, NOW - 5.0 * HOUR) }]);
-    assert_eq!(keys(&all, &sidebar(&all, &Prefs::default(), NOW, None).threads), ["b", "a"]);
+    let all = view(&[fresh("a", NOW - 3.0 * HOUR), Row { order: Some(NOW), ..fresh("b", NOW - 5.0 * HOUR) }]);
+    assert_eq!(keys(&all, &sidebar(&all, &Prefs::default(), NOW, None, Vec::new()).threads), ["b", "a"]);
 }
 
 #[test]
 fn a_tree_with_an_asking_child_shows_in_both_inbox_and_list() {
-    let all = view(&[row("lead", Status::Running, NOW - HOUR), Row { asking: true, ..child(row("kid", Status::Running, NOW), "lead") }]);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let all = view(&[fresh("lead", NOW - HOUR), Row { asking: true, ..child(row("kid", Status::Running, NOW), "lead") }]);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     assert_eq!(keys(&all, &v.threads), ["lead"]);
     assert_eq!(keys(&all, &v.needs_you), ["kid"]);
     assert_eq!(v.needs_you[0].inbox.as_deref(), Some(&[0usize][..]));
@@ -192,28 +203,28 @@ fn a_tree_with_an_asking_child_shows_in_both_inbox_and_list() {
 fn placement_holds_while_the_state_holds() {
     let mut ask = Row { asking: true, ..row("ask", Status::Running, NOW - 2.0 * HOUR) };
     let all = view(std::slice::from_ref(&ask));
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     let marks = v.drop_marks("ask", Section::Threads).unwrap().marks;
     assert_eq!(marks, json!({ "section": { "name": "idle", "whileState": "needs-you:ask" } }));
     ask.section = Some(Placement { name: ThreadSection::Idle, while_state: "needs-you:ask".into() });
     let all = view(std::slice::from_ref(&ask));
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     assert!(v.needs_you.is_empty());
     assert_eq!(keys(&all, &v.threads), ["ask"]);
     ask.section.as_mut().unwrap().while_state = "needs-you:older-turn".into();
     let all = view(&[ask]);
-    assert_eq!(keys(&all, &sidebar(&all, &Prefs::default(), NOW, None).needs_you), ["ask"], "a new turn lapses it");
+    assert_eq!(keys(&all, &sidebar(&all, &Prefs::default(), NOW, None, Vec::new()).needs_you), ["ask"], "a new turn lapses it");
     assert_eq!(
-        sidebar(&all, &Prefs::default(), NOW, None).drop_marks("ask", Section::Pinned).map(|m| m.marks),
+        sidebar(&all, &Prefs::default(), NOW, None, Vec::new()).drop_marks("ask", Section::Pinned).map(|m| m.marks),
         Some(json!({ "pinned": true }))
     );
 }
 
 #[test]
 fn attempts_group_under_one_head_oldest_first() {
-    let a = |id: &str, at: f64| Row { attempt: Some("x".into()), prompt: Some(format!("{id} task")), ..row(id, Status::Running, at) };
-    let all = view(&[a("m2", NOW - MIN), a("m1", NOW - 2.0 * MIN), row("solo", Status::Running, NOW)]);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let a = |id: &str, at: f64| Row { attempt: Some("x".into()), prompt: Some(format!("{id} task")), ..fresh(id, at) };
+    let all = view(&[a("m2", NOW - MIN), a("m1", NOW - 2.0 * MIN), fresh("solo", NOW)]);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     assert_eq!(keys(&all, &v.threads), ["solo", "attempt:x"]);
     assert_eq!(keys(&all, &v.threads[1].children), ["m1", "m2"]);
     let pin = v.drop_marks("attempt:x", Section::Pinned).unwrap();
@@ -227,12 +238,8 @@ fn attempts_group_under_one_head_oldest_first() {
 #[test]
 fn a_snoozed_tree_hides_unless_it_works() {
     let snooze = |r: Row| Row { snoozed_until: Some(NOW + HOUR), ..r };
-    let all = view(&[
-        snooze(row("busy", Status::Running, NOW - HOUR)),
-        snooze(done("idle", NOW - HOUR)),
-        row("plain", Status::Running, NOW - 2.0 * HOUR),
-    ]);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let all = view(&[snooze(row("busy", Status::Running, NOW - HOUR)), snooze(done("idle", NOW - HOUR)), fresh("plain", NOW - 2.0 * HOUR)]);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     assert_eq!(keys(&all, &v.threads), ["plain", "busy"]);
     assert_eq!(v.threads[1].snoozed_working, Some(1));
     assert!(v.settled.is_empty());
@@ -247,7 +254,7 @@ fn lines_head_counts_and_settled_paging() {
     let mut rows: Vec<Row> = (0..30).map(|i| done(&format!("s{i:02}"), NOW - 10.0 * HOUR - f64::from(i) * MIN)).collect();
     rows.push(Row { pinned_at: Some(NOW), ..row("pin", Status::Running, NOW) });
     let all = view(&rows);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     let lines = v.lines(&Folds::default());
     let heads: Vec<_> = lines
         .iter()
@@ -274,7 +281,7 @@ fn lines_nest_two_levels_then_stand_flat_with_rails() {
         child(row("d", Status::Running, NOW - 2.0 * HOUR), "c"),
         child(row("e", Status::Running, NOW - HOUR), "a"),
     ]);
-    let lines = sidebar(&all, &Prefs::default(), NOW, None).lines(&Folds::default());
+    let lines = under_heads(sidebar(&all, &Prefs::default(), NOW, None, Vec::new()).lines(&Folds::default()));
     let drawn = tiles(&lines, &all);
     let expect: Vec<(String, u8)> = [("a", 0), ("e", 1), ("b", 1), ("c", 2), ("d", 2)].iter().map(|&(k, d)| (k.into(), d)).collect();
     assert_eq!(drawn, expect, "live children newest first, then flat at the second level");
@@ -290,11 +297,11 @@ fn a_folded_tile_counts_its_rows_and_finished_children_fold() {
     let fin = child(Row { read_at: None, ..done("fin", NOW - HOUR) }, "lead");
     let live = child(row("live", Status::Running, NOW - HOUR), "lead");
     let all = view(&[lead.clone(), fin.clone(), live.clone()]);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
-    let first = v.lines(&Folds::default()).remove(0);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
+    let first = under_heads(v.lines(&Folds::default())).remove(0);
     assert!(matches!(first.item, Item::Tile(Tile { under: Under::Folded(2), .. })), "one live child and the Finished row");
     let all = view(&[Row { folded_at: None, ..lead }, fin, live]);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     let shut = v.lines(&Folds::default());
     assert_eq!(tiles(&shut, &all).len(), 2);
     assert!(shut.iter().any(|l| l.item == Item::Finished { lead: 0, count: 1, open: false } && l.depth == 1 && l.last));
@@ -321,12 +328,12 @@ fn key_at_lands_above_below_between_and_rekeys() {
 #[test]
 fn moves_write_order_keys_and_cross_out_of_pinned() {
     let all = view(&[
-        row("a", Status::Running, NOW - HOUR),
-        row("b", Status::Running, NOW - 2.0 * HOUR),
-        row("c", Status::Running, NOW - 3.0 * HOUR),
-        Row { pinned_at: Some(NOW), ..row("p", Status::Running, NOW - 4.0 * HOUR) },
+        fresh("a", NOW - HOUR),
+        fresh("b", NOW - 2.0 * HOUR),
+        fresh("c", NOW - 3.0 * HOUR),
+        Row { pinned_at: Some(NOW), ..fresh("p", NOW - 4.0 * HOUR) },
     ]);
-    let v = sidebar(&all, &Prefs::default(), NOW, None);
+    let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
     assert_eq!(v.root_place("c"), Some(RootPlace { section: Section::Threads, index: 2, count: 3 }));
     let top = v.move_root("c", Move::Top).unwrap();
     assert_eq!(top, [MoveMark { thread_ids: vec!["c".into()], marks: json!({ "order": NOW - HOUR + ABOVE_TOP_MS }) }]);
@@ -361,7 +368,7 @@ fn subagents_stand_under_their_lead_and_count() {
         ..row("lead", Status::Running, NOW - HOUR)
     };
     let all = view(&[lead]);
-    let lines = sidebar(&all, &Prefs::default(), NOW, None).lines(&Folds::default());
+    let lines = under_heads(sidebar(&all, &Prefs::default(), NOW, None, Vec::new()).lines(&Folds::default()));
     assert!(matches!(lines[0].item, Item::Tile(Tile { under: Under::Open, .. })));
     assert_eq!(lines[1].item, Item::Subagent { lead: 0, index: 0, part: Part::Live });
     assert_eq!(lines[2].item, Item::Finished { lead: 0, count: 1, open: false });
@@ -376,7 +383,7 @@ fn project_pick_keeps_children_wherever_they_run() {
         mine(child(row("k", Status::Running, NOW), "a"), "p2"),
         mine(row("b", Status::Running, NOW), "p2"),
     ]);
-    let v = sidebar(&all, &Prefs { project: Some("p1".into()), ..Prefs::default() }, NOW, None);
-    assert_eq!(keys(&all, &v.threads), ["a"]);
-    assert_eq!(keys(&all, &v.threads[0].children), ["k"]);
+    let v = sidebar(&all, &Prefs { project: Some("p1".into()), ..Prefs::default() }, NOW, None, Vec::new());
+    assert_eq!(keys(&all, &v.working), ["a"]);
+    assert_eq!(keys(&all, &v.working[0].children), ["k"]);
 }
