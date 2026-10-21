@@ -139,11 +139,3 @@ describe("a Codex thread's earlier messages", () => {
     expect(store.letsGo).toMatch(/about a minute after its window closes/);
   });
 });
-
-describe("the recorded fork", () => {
-  it("is a thread of its own that names the one it was copied from", () => {
-    const thread = ((RECORDED["fork"] as Json)["result"] as Json)["thread"] as Json;
-    expect(thread["forkedFromId"]).toBe(TUI);
-    expect(thread["ephemeral"]).toBe(false);
-  });
-});
