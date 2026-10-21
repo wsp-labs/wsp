@@ -260,8 +260,7 @@ describe("wsp status on a computer joined as a place", () => {
       expect(daemon.watches).toEqual(["sys.watch", "proc.watch"]);
       // The link dropped and came back: the reach re-authenticates, and the watches are this caller's to ask again.
       daemon.turn(true);
-      await new Promise(r => setTimeout(r, 5));
-      expect(daemon.watches).toEqual(["sys.watch", "proc.watch", "sys.watch", "proc.watch"]);
+      await vi.waitFor(() => expect(daemon.watches).toEqual(["sys.watch", "proc.watch", "sys.watch", "proc.watch"]));
     } finally {
       held.close();
     }
@@ -307,9 +306,10 @@ describe("wsp status on a computer joined as a place", () => {
 
       // It comes back: the hook re-asks for the watches and the row answers again on the next sample.
       daemon.turn(true);
-      await new Promise(r => setTimeout(r, 5));
-      expect(daemon.watches).toEqual(["sys.watch", "proc.watch", "sys.watch", "proc.watch"]);
-      expect(hereAnswering(held.reading())).toBe(true);
+      await vi.waitFor(() => {
+        expect(daemon.watches).toEqual(["sys.watch", "proc.watch", "sys.watch", "proc.watch"]);
+        expect(hereAnswering(held.reading())).toBe(true);
+      });
     } finally {
       held.close();
     }
@@ -475,7 +475,7 @@ describe("wsp status on a computer joined as a place", () => {
       off: (_s, l) => held.delete(l),
     };
     const watching = statusCommand(io, at, { ...deps(daemon.deps), signals });
-    await new Promise(r => setTimeout(r, 30));
+    await vi.waitFor(() => expect(frames.some(f => f.includes("place       spoo, joined to zingzy-mac"))).toBe(true));
     for (const stop of [...held]) stop();
     expect(await watching).toBe(0);
     expect(frames[0]).toBe("\x1b[?25l");

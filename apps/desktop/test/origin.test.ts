@@ -47,7 +47,7 @@ describe("what a page may ask the shell for", () => {
   const REMOTE = ["hosts:token", "hosts:list", "hosts:switch", "menu:context", "terminal:focus", "theme:set", "glass:set", "titlebar:set", "outside:say", "badge:set", "log:renderer", "logs:open"];
   /** This computer's files, its pictures, its picker, the download of a new app, its service's login switch and the
    * switch that hands this app over to the Experimental one. */
-  const HERE_ONLY = ["fonts:local", "fonts:families", "folder:pick", "preview:capture", "preview:read", "drop:allowed", "bundle:get", "bundle:open", "service:login", "service:login-set", "experimental:get", "experimental:set"];
+  const HERE_ONLY = ["fonts:local", "fonts:families", "folder:pick", "drop:allowed", "bundle:get", "bundle:open", "service:login", "service:login-set", "experimental:get", "experimental:set"];
 
   it("a page served by a host somewhere else reaches the narrow set and nothing of this computer", () => {
     for (const channel of REMOTE) expect(allowed(`${away.url}/`, away, channel)).toBe(true);

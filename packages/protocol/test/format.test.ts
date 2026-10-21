@@ -50,7 +50,6 @@ import {
   stillWorkingLine,
   stopFailedLine,
   sendNowFailedLine,
-  TURN_IN_FLIGHT,
   foreignFlagLine,
   refusalLine,
   runForTheList,
@@ -197,10 +196,7 @@ import {
   importProgress,
   exportProgress,
   exportFromLine,
-  EXPORT_SESSIONS_NOTE,
-  NO_THREADS_NOTE,
   NOT_GONE,
-  NOT_LANDED_WORD,
   repoLine,
   secretsNote,
   secretSignalsLine,
@@ -410,12 +406,6 @@ describe("where the composer's model lists came from, in one line", () => {
   it("an empty model list reads as the source that gave it: what the binary reported, or what the table holds", () => {
     expect(noModelsLine({ ...TABLE, source: "harness", models: [] })).toBe("Codex reported no models");
     expect(noModelsLine({ ...TABLE, models: [] })).toBe("No model in the Codex table");
-  });
-
-  it("the foot names the agent, its version and where the turn runs, and nothing else", () => {
-    const claude: HarnessCatalog = { ...TABLE, harness: "claude", label: "Claude Code", source: "harness", version: "2.1.257" };
-    expect(catalogSourceLine(claude, THIS_COMPUTER)).toBe("Claude Code 2.1.257 on this computer");
-    expect(catalogSourceLine(claude, "hetzner")).toBe("Claude Code 2.1.257 on hetzner");
   });
 
   it("neither foot says machine, the word the app never uses to a person", () => {
@@ -723,12 +713,6 @@ describe("plural, fmtThreads and forgetNotice", () => {
     expect([0, 1, 2].map(n => plural(n, "row"))).toEqual(["0 rows", "1 row", "2 rows"]);
     expect(plural(1, "tool call")).toBe("1 tool call");
     expect([1, 2].map(fmtThreads)).toEqual([plural(1, "thread"), plural(2, "thread")]);
-  });
-
-  it("counts anything with its noun, plural by an s", () => {
-    expect(plural(1, "file")).toBe("1 file");
-    expect(plural(0, "file")).toBe("0 files");
-    expect(plural(2, "secret-shaped file")).toBe("2 secret-shaped files");
   });
 
   it("counts threads with the noun, and names what a forget takes off this computer", () => {
@@ -1228,10 +1212,6 @@ describe("stopFailedLine and sendNowFailedLine", () => {
     expect(stopFailedLine("the runtime does not know this session")).toBe("Could not stop: the runtime does not know this session");
     expect(sendNowFailedLine("Workspace is pausing; wake it to send")).toBe("Could not send now: Workspace is pausing; wake it to send");
   });
-
-  it("the send key's label while a turn runs is one constant", () => {
-    expect(TURN_IN_FLIGHT).toBe("Turn in flight");
-  });
 });
 
 describe("the shape a refusal takes on a terminal", () => {
@@ -1650,12 +1630,6 @@ describe("the import dialog's words", () => {
 describe("the export dialog's words", () => {
   it("names the workspace the folder comes from and the computer it lands on by its own name", () => {
     expect(exportFromLine("dev2", "zingzy's MacBook Pro")).toBe("From dev2, to zingzy's MacBook Pro.");
-  });
-
-  it("tells a stranger what the ticks on the agent rows do, what happens when the workspace has no threads, and why a row is empty before the export", () => {
-    expect(EXPORT_SESSIONS_NOTE).toBe("Ticked agents' sessions come home with the folder. The rest stay in the task.");
-    expect(NO_THREADS_NOTE).toBe("No threads here. Every agent's sessions for the folder come home with it.");
-    expect(NOT_LANDED_WORD).toBe("when it lands");
   });
 
   const ev = (over: { stage: string; message?: string; bytes?: number; total?: number }) => ({ message: "", ...over }) as Parameters<typeof exportProgress>[0][number];

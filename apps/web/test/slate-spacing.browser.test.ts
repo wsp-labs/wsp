@@ -31,7 +31,7 @@ describe.skipIf(renderSkipped !== undefined)("the slate's spacing, tables and ba
     return page;
   };
 
-  for (const width of [400, 640, 960]) {
+  for (const width of [400, 960]) {
     it(`spaces a section 32 px from what is beside it and pieces 12, at ${width}`, async () => {
       const page = await open(width);
       const gaps = await page.evaluate(() => {

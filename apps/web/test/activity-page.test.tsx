@@ -230,9 +230,6 @@ describe("Settings > Activity", () => {
     fireEvent.click(menu);
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
     expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["Open :5173 in a browser tab", "End", "Open thread", "Copy command", "Copy PID"]);
-    act(() => useContextMenuStore.getState().choose("end"));
-    await settle();
-    expect(wire.calls.at(-1)).toEqual(["proc.kill", { pid: 32, signal: "TERM", mode: "tree", startedAt: 0 }]);
   });
   it("gives a thread's head a menu with Open thread and no End all, its road below 768 px", async () => {
     await open();

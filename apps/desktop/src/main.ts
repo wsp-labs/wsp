@@ -24,7 +24,6 @@ import { allowed, fromAppPage, fromOnboardingPage, hostsViewFor, notForThisPage 
 import { hostFeed, type FeedEvent, type FeedState, type HostFeed } from "./host-feed.js";
 import { guardWorkers, loadHostPage } from "./page-session.js";
 import { shellMenu } from "./menu.js";
-import { pagePreviews } from "./previews.js";
 import { QUIT_WORD, quitAnswer, quitChoice, quitPrompt } from "./quit.js";
 import { RELOADS_PER_MINUTE, reloadAfter, reloadPacer } from "./revive.js";
 import { bundleOf, discardStage, inPlaceRefusal, settleStage, stageOf, stageUpdate, startSwap } from "./self-update.js";
@@ -142,11 +141,6 @@ const fonts = (): Promise<FontFile[]> => (fontIndex ??= indexFonts(fontDirs(proc
 // The font files are this computer's, so only the app's own host's page may read them.
 answer("fonts:local", (_event, family) => localFontFaces(typeof family === "string" ? family : "", fonts));
 answer("fonts:families", () => fontFamilies(fonts));
-
-const previews = pagePreviews();
-// A picture of the page can hold anything the page shows, so only the app's own host's page may take one or read one.
-answer("preview:capture", (event, workspaceId, bounded) => previews.capture(typeof workspaceId === "string" ? workspaceId : "", event.sender, bounded === true));
-answer("preview:read", (_event, workspaceId) => previews.get(typeof workspaceId === "string" ? workspaceId : ""));
 
 // The picker returns a path on this computer, so only the app's own host's page may open it.
 answer("folder:pick", async event => {
@@ -448,7 +442,12 @@ const recheck = earlierHostCheck();
 
 function hostOptions(): OpenHostOptions {
   const { home, statePath } = where();
-  return { statePath, home, shim: shimPath(wspHome()), io, service: systemService(), ask: async prompt => (app.focus({ steal: true }), (await dialog.showMessageBox({ type: "question", ...prompt })).response === 0) };
+  const staleShim = (): boolean => {
+    const stale = shimRewritten;
+    shimRewritten = false;
+    return stale;
+  };
+  return { statePath, home, shim: shimPath(wspHome()), io, service: systemService(), ask: async prompt => (app.focus({ steal: true }), (await dialog.showMessageBox({ type: "question", ...prompt })).response === 0), staleShim };
 }
 
 /** The window, on the host it was handed. */
@@ -823,13 +822,18 @@ function sayWhileClosed(e: FeedEvent): void {
 // The smoke reads the menu and picks its rows through this, since a menu bar menu is not a window it can drive.
 if (process.env["WSP_DESKTOP_SMOKE"] === "1") Object.assign(globalThis, { wspTray: { model: () => drawn, pick: (what: TrayAct) => act(what)(), awake: () => awake !== undefined } });
 
+/** Whether this launch rewrote the shim, until the first open reads it. */
+let shimRewritten = false;
+
 /** The wsp command on this computer, rewritten whenever this app is not the one it names: an update or a move
  * changes the path inside the bundle, and the shim is what every agent's config and the service run. A home that
  * cannot be written is the launch's refusal, since the service would start nothing. */
 function installCommand(): void {
   const shim = shimPath(wspHome());
   try {
-    io.log(`wsp command ${installShim(shim, shimText(commandTarget()))} at ${shim}`);
+    const done = installShim(shim, shimText(commandTarget()));
+    shimRewritten = done === "written";
+    io.log(`wsp command ${done} at ${shim}`);
   } catch (e) {
     throw new Error(`the wsp command could not be written at ${shim}: ${e instanceof Error ? e.message : String(e)}`);
   }

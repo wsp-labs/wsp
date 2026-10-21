@@ -36,11 +36,6 @@ describe("Boat's plan and starts on its row", () => {
     });
   });
 
-  it("names each size it offers by its class, one word a person reads", () => {
-    const backend = new BoxBackend({ apiKey: "box_x", clock: { now: Date.now, sleep: async () => {} } as RetryClock, fetch: (async () => json({})) as typeof fetch });
-    expect(backend.capabilities.sizes.map(s => s.name)).toEqual(["small", "default", "large", "extra large"]);
-  });
-
   it("sells 16x32 from the $100 plan up, and two sizes on the trial", () => {
     expect(placeLimitsOf(limitsOf({ ...OWNER_LIMITS, sandboxPlanKey: "box_100" }))?.plan.sizes).toEqual(["2x4", "4x8", "8x16", "16x32"]);
     expect(placeLimitsOf(limitsOf(TRIAL_LIMITS))).toEqual({

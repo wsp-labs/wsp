@@ -443,7 +443,7 @@ describe("CodexAdapter over codex app-server", () => {
     await session.finished;
     expect(session.localId).toBe(RECORDED_THREAD);
     expect(adapter.sessions.get(RECORDED_THREAD)).toBe(session);
-    expect(parse(launch.calls[0]!.input![4]!)).toEqual({ id: "wsp-thread", method: "thread/resume", params: { threadId: RECORDED_THREAD, cwd: "/root/app", sandbox: "read-only", approvalPolicy: "on-request" } });
+    expect(parse(launch.calls[0]!.input![4]!)).toEqual({ id: "wsp-thread", method: "thread/resume", params: { threadId: RECORDED_THREAD, excludeTurns: true, cwd: "/root/app", sandbox: "read-only", approvalPolicy: "on-request" } });
     expect(new Set(events.map(e => e.sessionId))).toEqual(new Set([RECORDED_THREAD]));
   });
 

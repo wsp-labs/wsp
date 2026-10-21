@@ -11,6 +11,8 @@
 // tree through source-files.ts, which is how a law check over all packages is written.
 // --files prints too every test file a picked folder holds that the change reaches, which the default leaves to its
 // folder, so a run that cannot afford the folders still runs the files the imports reach.
+// --packages prints instead the folder of every package a changed file sits in and of every package that declares
+// one, however indirectly: what a typecheck of the change covers. A change this file does not map names them all.
 // Committed changes only, so CI and a gate on a checkout of the same commit pick the same files.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -47,9 +49,10 @@ const args = process.argv.slice(2);
 const changedTests = args.includes("--changed-tests");
 const always = args.includes("--always");
 const everyFile = args.includes("--files");
+const packagesOnly = args.includes("--packages");
 const base = args.find(arg => !arg.startsWith("--"));
 if (base === undefined && !always) {
-  process.stderr.write("usage: node scripts/affected-tests.mjs <base> [--changed-tests | --files] | --always\n");
+  process.stderr.write("usage: node scripts/affected-tests.mjs <base> [--changed-tests | --files | --packages] | --always\n");
   process.exit(3);
 }
 
@@ -75,6 +78,19 @@ function packageOf(file) {
   const parts = file.split("/");
   const dir = `${parts[0]}/${parts[1]}`;
   return parts.length > 2 && packages.has(dir) ? dir : undefined;
+}
+
+/** A file outside the packages and the folders mapped above, which any test may read. */
+function unmapped(file) {
+  const top = file.includes("/") ? file.split("/")[0] : "";
+  return packageOf(file) === undefined && !(top === "" && file.endsWith(".md")) && top !== "scripts" && !Object.hasOwn(OUTSIDE, top);
+}
+
+if (packagesOnly) {
+  const changed = diff([]);
+  const dirs = changed.some(unmapped) ? [...packages.keys()] : changed.map(packageOf).filter(Boolean);
+  for (const dir of [...declaredDependents(new Map(dirs.map(dir => [dir, "changed"]))).keys()].sort()) process.stdout.write(`${dir}\n`);
+  process.exit(0);
 }
 
 if (changedTests) {
@@ -160,7 +176,10 @@ const changedFiles = diff([]);
 for (const file of changedFiles) {
   const top = file.includes("/") ? file.split("/")[0] : "";
   const dir = packageOf(file);
-  if (dir !== undefined) {
+  if (unmapped(file)) {
+    why("everything", `${file} is outside the packages and the folders mapped above, so any test may read it`);
+    process.exit(0);
+  } else if (dir !== undefined) {
     if (!TEST.test(file)) changedPackages.has(dir) || changedPackages.set(dir, `${file} changed`);
     else if (existsSync(join(root, file))) pick(file, "changed");
   } else if (top === "" && file.endsWith(".md")) {
@@ -168,11 +187,7 @@ for (const file of changedFiles) {
   } else if (top === "scripts") {
     const name = file.split("/").pop().replace(/\.[^.]+$/, "");
     for (const test of tracked.filter(t => t.endsWith(`/test/${name}.test.ts`))) pick(test, `tests ${file}`);
-  } else if (Object.hasOwn(OUTSIDE, top)) for (const target of OUTSIDE[top]) pick(target, `reads ${file}`);
-  else {
-    why("everything", `${file} is outside the packages and the folders mapped above, so any test may read it`);
-    process.exit(0);
-  }
+  } else for (const target of OUTSIDE[top]) pick(target, `reads ${file}`);
 }
 
 for (const [dir, reason] of declaredDependents(changedPackages)) if (withTests.has(dir)) pick(`${dir}/`, reason);

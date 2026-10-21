@@ -71,7 +71,6 @@ const ALLOWED: readonly Allowed[] = [
   { text: "unclaimed[workspaceId]", count: 1, why: "a draft an earlier build kept per workspace, handed to the first thread opened there" },
   { text: "viewed[workspaceId]", count: 1, why: "viewed marks on the folder's changed files" },
   { text: "zoom[workspaceId]", count: 1, why: "the terminal's text size for the project" },
-  { text: "byId.get(workspaceId)", count: 1, why: "projects by id, read for a switcher card" },
   { text: "forks.get(workspaceId)", count: 1, why: "the workspaces a thread forked out, which draw under that thread" },
   { text: "held.get(workspaceId)", count: 1, why: "how many surfaces read a folder's daemon, which keeps its link dialled" },
   { text: "hellos.get(workspaceId)", count: 1, why: "the daemon's hello for a workspace's machine" },

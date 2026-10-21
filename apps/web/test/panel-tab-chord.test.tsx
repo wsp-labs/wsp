@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The Tab pair inside the right panel: with focus there and more than one tab
 // open it steps the panel's tabs, wrapping, the focus landing in the tab it
-// opens, and the switcher stays down. Anywhere else, and in a panel of one
-// tab, the same chords open the switcher. A terminal in the panel hands the
-// pair on rather than typing it.
+// opens, and the open thread stays. Anywhere else, and in a panel of one
+// tab, the same chords step to the next thread at the open thread's level. A
+// terminal in the panel hands the pair on rather than typing it.
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_PREFERENCES, type SessionView, type WorkspaceView } from "@wsp/protocol";
@@ -13,8 +13,6 @@ import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { selectWorkspaceRightPanelState, useRightPanelStore } from "../src/rightPanelStore.js";
 import { AppShell } from "../src/shell/AppShell.js";
-import { useThreadHistory } from "../src/shell/threadHistory.js";
-import { useWorkspaceSwitcher } from "../src/shell/workspaceSwitcher.js";
 import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
 import { caps } from "./caps.js";
 import { noDaemonApi } from "./fake-daemon-api.js";
@@ -62,8 +60,6 @@ beforeEach(() => {
   clearNotices();
   useRightPanelStore.setState({ byWorkspaceId: {} });
   useTerminalDrawerStore.setState({ byWorkspaceId: {} });
-  useThreadHistory.setState({ recent: [] });
-  useWorkspaceSwitcher.getState().close();
 });
 
 afterEach(() => {
@@ -89,7 +85,7 @@ async function mountWithTabs(kinds: ReadonlyArray<"machine" | "processes" | "pr"
 }
 
 describe("the Tab pair inside the right panel", () => {
-  it("steps to the next tab and back, wrapping, lands the focus in the tab it opened and leaves the switcher down", async () => {
+  it("steps to the next tab and back, wrapping, lands the focus in the tab it opened and leaves the open thread", async () => {
     const ids = await mountWithTabs(["machine", "processes", "pr"]);
     expect(panel().activeSurfaceId).toBe(ids[2]);
     // A tab's own button holds the focus, as a click on the strip leaves it.
@@ -105,23 +101,23 @@ describe("the Tab pair inside the right panel", () => {
     await waitFor(() => expect(panel().activeSurfaceId).toBe(ids[0]));
     ctrlTab(document.activeElement!, { shiftKey: true });
     await waitFor(() => expect(panel().activeSurfaceId).toBe(ids[2]));
-    expect(useWorkspaceSwitcher.getState().open).toBe(false);
     expect(useStore.getState().selectedThreadId).toBe("thr_1");
   });
 
-  it("opens the switcher as before with the focus outside the panel", async () => {
+  it("steps to the next thread with the focus outside the panel, leaving the panel's tab", async () => {
     const ids = await mountWithTabs(["machine", "processes"]);
     act(() => (document.activeElement as HTMLElement | null)?.blur());
     ctrlTab(window);
-    await waitFor(() => expect(useWorkspaceSwitcher.getState().open).toBe(true));
+    await waitFor(() => expect(useStore.getState().selectedThreadId).toBe("thr_2"));
+    act(() => useStore.getState().select("ws_a", "thr_1"));
     expect(panel().activeSurfaceId).toBe(ids[1]);
   });
 
-  it("opens the switcher from a panel of one tab, which has nowhere to step", async () => {
+  it("steps to the next thread from a panel of one tab, which has nowhere to step", async () => {
     await mountWithTabs(["machine"]);
     act(() => content()!.focus());
     ctrlTab(document.activeElement!);
-    await waitFor(() => expect(useWorkspaceSwitcher.getState().open).toBe(true));
+    await waitFor(() => expect(useStore.getState().selectedThreadId).toBe("thr_2"));
   });
 });
 

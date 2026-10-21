@@ -279,10 +279,17 @@ describe("vault import in parts", () => {
       if (a !== 200) return new Response(JSON.stringify({ error: "Bad Gateway" }), { status: a as number });
       return fetchStub(url, init);
     };
-    const out = await importInto(machine, Buffer.alloc(UPLOAD_PART_BYTES + 7), "/root", { fetch: flaky });
-    expect(out.parts).toBe(2);
-    expect(sent).toEqual([UPLOAD_PART_BYTES, 7, 7, 7]);
-  }, 20_000);
+    vi.useFakeTimers();
+    try {
+      const pending = importInto(machine, Buffer.alloc(UPLOAD_PART_BYTES + 7), "/root", { fetch: flaky });
+      await vi.runAllTimersAsync();
+      const out = await pending;
+      expect(out.parts).toBe(2);
+      expect(sent).toEqual([UPLOAD_PART_BYTES, 7, 7, 7]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("a part that keeps failing gives up after three attempts, naming the part, the status, the body and the attempts, and removes every part path", async () => {
     const { machine, execCmds } = vaultStub();
@@ -291,10 +298,17 @@ describe("vault import in parts", () => {
       n++;
       return new Response(JSON.stringify({ error: "Service Unavailable" }), { status: 503 });
     };
-    await expect(importInto(machine, Buffer.alloc(UPLOAD_PART_BYTES + 7), "/root", { fetch: down })).rejects.toThrow(/part 1 of 2: HTTP 503 Service Unavailable after 3 attempts/);
+    vi.useFakeTimers();
+    try {
+      const refused = expect(importInto(machine, Buffer.alloc(UPLOAD_PART_BYTES + 7), "/root", { fetch: down })).rejects.toThrow(/part 1 of 2: HTTP 503 Service Unavailable after 3 attempts/);
+      await vi.runAllTimersAsync();
+      await refused;
+    } finally {
+      vi.useRealTimers();
+    }
     expect(n).toBe(3);
     expect(execCmds.some(c => c.startsWith("rm -f") && c.includes(".part0") && c.includes(".part1"))).toBe(true);
-  }, 20_000);
+  });
 
   it("a 40 MB archive goes up in two parts under the measured cap and lands byte-identical", async () => {
     const blob = randomBytes(40 * MIB);

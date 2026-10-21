@@ -41,7 +41,7 @@
 
 import { randomBytes } from "node:crypto";
 import { ENV_FROM_INPUT, HANDSHAKE, INLINE_EXEC_MS, envInput, farEndAnswered, MachineUnreachableError, MachineUnreached, RUN_DIR, execFits, isPlaceAbsent, machineAnswer, neverSent, putFiles, realRetryClock, untilReached, type ExecResult, type GuestWrite, type Machine } from "@wsp/engine";
-import { AGENT_PID_FILE_ENV, EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_MS, RUN_STOP_MS, TURN_IDLE_MS, TURN_WALL_MS, TURN_WORK_TICKS_PER_S, shellQuote, turnCutLine, workScoreLine } from "@wsp/protocol";
+import { AGENT_PID_FILE_ENV, EXEC_CHUNK_BYTES, EXEC_LINE_MAX_BYTES, LINK_RETRY_WINDOW_MS, RUN_STOP_MS, TURN_IDLE_MS, TURN_WALL_MS, TURN_WORK_TICKS_PER_S, shellQuote, turnCutLine, workScoreLine } from "@wsp/protocol";
 import type { ExecStream, ExecStreamFactory, TurnCutRule } from "@wsp/protocol";
 
 export interface MachineExecOptions {
@@ -263,6 +263,40 @@ function pollNap(sleep?: (ms: number) => Promise<void>): { nap: (ms: number) => 
   };
 }
 
+/** A run's log as the lines it ends, both roads' reader: a line past EXEC_LINE_MAX_BYTES is handed on in pieces of
+ * it, so what waits for a newline is at most the cap between chunks. A piece ends where a character starts. */
+export class LineCut {
+  private pending: Buffer = Buffer.alloc(0);
+
+  *take(chunk: Buffer): Generator<string> {
+    let seen = this.pending.length;
+    this.pending = seen === 0 ? chunk : Buffer.concat([this.pending, chunk]);
+    while (true) {
+      const nl = this.pending.indexOf(0x0a, seen);
+      const line = this.pending;
+      if ((nl === -1 ? line.length : nl) > EXEC_LINE_MAX_BYTES) {
+        let at = EXEC_LINE_MAX_BYTES;
+        for (let back = 0; back < 3 && (line[at]! & 0xc0) === 0x80; back++) at--;
+        seen = (nl === -1 ? line.length : nl) - at;
+        this.pending = line.subarray(at);
+        yield line.subarray(0, at).toString("utf8");
+      } else if (nl !== -1) {
+        // An empty view would keep the whole buffer the line was joined in while the run is quiet.
+        this.pending = nl + 1 === line.length ? Buffer.alloc(0) : line.subarray(nl + 1);
+        seen = 0;
+        yield line.subarray(0, nl).toString("utf8");
+      } else return;
+    }
+  }
+
+  /** The tail no newline ended, let go of as it is handed over. */
+  rest(): string | undefined {
+    const last = this.pending;
+    this.pending = Buffer.alloc(0);
+    return last.length > 0 ? last.toString("utf8") : undefined;
+  }
+}
+
 export function machineExecStream(machine: Machine, opts: MachineExecOptions = {}, isWaiting?: TurnWaiting): ExecStreamFactory {
   const pollMs = opts.pollMs ?? 1500;
   const idleMs = opts.idleMs ?? TURN_IDLE_MS;
@@ -459,7 +493,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
 
     async function* lines(): AsyncGenerator<string> {
       let downs = 0;
-      let pending = Buffer.alloc(0);
+      const split = new LineCut();
       /** Every line the log held past the last poll once the KILL went out, read by the reap, and the one it ended on
        * without a newline; the run's files go whatever the reads answered. */
       async function* reaped(): AsyncGenerator<string> {
@@ -467,16 +501,12 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         for (let read = await reap(offset); read !== undefined; read = await reap(offset, end)) {
           end = read.end;
           offset += read.chunk.length;
-          pending = Buffer.concat([pending, read.chunk]);
-          let nl: number;
-          while ((nl = pending.indexOf(0x0a)) !== -1) {
-            yield pending.subarray(0, nl).toString("utf8");
-            pending = pending.subarray(nl + 1);
-          }
+          yield* split.take(read.chunk);
           if (read.chunk.length === 0 || offset >= end) break;
         }
         if (end === undefined || offset < end) await remove();
-        if (pending.length > 0) yield pending.toString("utf8");
+        const last = split.rest();
+        if (last !== undefined) yield last;
       }
 
       try {
@@ -548,12 +578,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         if (chunk.length > 0) {
           activity.touch(now());
           if (posting !== undefined && now() - posting.since < OPENING_HURRY_MS) hurriedUntil = now() + HURRIED_FOR_MS;
-          pending = Buffer.concat([pending, chunk]);
-          let nl: number;
-          while ((nl = pending.indexOf(0x0a)) !== -1) {
-            yield pending.subarray(0, nl).toString("utf8");
-            pending = pending.subarray(nl + 1);
-          }
+          yield* split.take(chunk);
           if (chunk.length < EXEC_CHUNK_BYTES) caughtUp = true;
           exitSeen = exitStr !== "";
           continue; // there may be more than one chunk buffered up
@@ -576,6 +601,16 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
           return;
         }
         await nap(gap());
+      }
+    }
+
+    /** The lines as the stream hands them out: a reader its consumer let go of is done, since nothing reads the run's
+     * end any more, and the set of runs this process reads would otherwise keep the stream with its last line. */
+    async function* lettingGo(): AsyncGenerator<string> {
+      try {
+        yield* lines();
+      } finally {
+        finish(null);
       }
     }
 
@@ -613,7 +648,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     };
 
     const stream: ExecStream = {
-      lines: lines(),
+      lines: lettingGo(),
       run: base,
       teardown: () => signal("TERM"),
       kill: () => {

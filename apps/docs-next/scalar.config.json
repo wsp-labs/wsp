@@ -318,7 +318,7 @@
               },
               "/switcher": {
                 "type": "page",
-                "title": "The switcher and the palette",
+                "title": "Moving between threads and the palette",
                 "filepath": "content/features/switcher.mdx"
               },
               "/desktop-app": {

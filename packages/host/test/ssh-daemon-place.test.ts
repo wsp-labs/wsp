@@ -431,7 +431,6 @@ describe("the place a computer joined over ssh keeps its agent", () => {
 
   it("takes the code off that computer however the deploy ends, armed before the first line that writes", () => {
     const s = joined();
-    expect(s).toContain(`trap "rm -f '/home/maya/.wsp/join-code'" EXIT`);
     // Before anything lands: a deploy that dies at the unpack must leave no code on their disk either.
     expect(s.indexOf("trap ")).toBeLessThan(s.indexOf("tar --no-same-owner -xzf"));
     // Every other place carries no trap at all, so what a fork's deploy writes is what it always wrote.

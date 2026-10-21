@@ -40,7 +40,7 @@ import { DeleteThreadDialog, type ThreadToDelete } from "../components/DeleteThr
 import { ForgetWorkspaceDialog } from "../components/ForgetWorkspaceDialog.js";
 import { SidebarContent, SidebarMenuButton } from "../components/ui/sidebar.js";
 import { useWarmTiles } from "../components/chat/warmTiles.js";
-import { useLocalStorage, type Codec } from "../hooks/useLocalStorage.js";
+import { useLocalStorage } from "../hooks/useLocalStorage.js";
 import { useNowMinute } from "../hooks/useNowMinute.js";
 import { cn } from "../lib/utils.js";
 import { addNotice } from "../notices/store.js";
@@ -52,7 +52,7 @@ import { ForwardsList } from "./ForwardsList.js";
 import { AddProjectDialog } from "./AddProjectDialog.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import { ComputerSwitcher } from "./ComputerSwitcher.js";
-import { COMPUTER_PICK_KEY, PROJECT_PICK_KEY, pickCodec, underPicks } from "./picks.js";
+import { COMPUTER_PICK_KEY, DEFAULT_FOLDS, FOLDED_KEY, PROJECT_PICK_KEY, foldedCodec, pickCodec, underPicks, type Fold } from "./picks.js";
 import { CHILD_LIST_CLASS, ONE_LINE_ROW_CLASS, RAIL_ITEM_CLASS, ROW_META_CLASS, ROW_PROSE_CLASS, SETTLED_ROW_ID, sectionRowId, threadRowId, workspaceRowId } from "./rowGrammar.js";
 import { NewThreadRow } from "./NewThreadRow.js";
 import { SearchRow } from "./SearchRow.js";
@@ -74,23 +74,6 @@ import { restingAge } from "../components/status/restingAge.js";
 import { PROJECT_WORDS, SECTION_WORDS } from "./words.js";
 import { SectionRow } from "./SectionRow.js";
 import { SettingUpSection } from "./SettingUpSection.js";
-
-type Fold = SidebarSection | "settled" | "setting-up";
-/** The folds a head can make: the one list has no head, so it never folds. */
-const FOLDS: readonly Fold[] = ["pinned", "needs-you", "settled", "setting-up"];
-/** The sections a person has folded by their heads. Settled starts folded, since it holds the tiles a person has
- * stopped looking at; every live section starts open. */
-const FOLDED_KEY = "wsp:sidebar-folded";
-const foldedCodec: Codec<readonly Fold[]> = {
-  // A section the sidebar no longer has is dropped, not a refusal of the list: a refusal pins every fold at its
-  // default and no click can store another (the cut to three sections stranded Settled folded on 2026-10-01).
-  decode: raw => {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) throw new Error(`Expected a list of section ids, got ${raw}.`);
-    return parsed.filter((id): id is Fold => (FOLDS as readonly unknown[]).includes(id));
-  },
-  encode: value => JSON.stringify(value),
-};
 
 /** A double-click on the name opens the box the menu's Rename opens, and only where that action can run: a refused
  * rename leaves the name as text, so nothing opens a field the runtime would turn away. */
@@ -235,7 +218,7 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
   // What a workspace is made of. Named apart from the sidebar's own `projects`, which are its workspace snapshots.
   const recorded = useStore(s => s.projects);
 
-  const [folded, setFolded] = useLocalStorage<readonly Fold[]>(FOLDED_KEY, ["settled"], foldedCodec);
+  const [folded, setFolded] = useLocalStorage<readonly Fold[]>(FOLDED_KEY, DEFAULT_FOLDS, foldedCodec);
   const toggleFold = (id: Fold): void => setFolded(ids => (ids.includes(id) ? ids.filter(at => at !== id) : [...ids, id]));
   const unfold = (id: Fold): void => setFolded(ids => ids.filter(at => at !== id));
   const settledOpen = !folded.includes("settled");

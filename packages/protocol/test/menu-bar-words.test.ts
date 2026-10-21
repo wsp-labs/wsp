@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { HERE_PLACE_ID, hereName, needsYouCount, placeName, placeOf, threadFinishedLine, workspaceComputerName, type PlaceView, type SessionView, type WorkspaceView } from "../src/index.js";
+import { HERE_PLACE_ID, hereName, needsYouCount, placeName, placeOf, workspaceComputerName, type PlaceView, type SessionView, type WorkspaceView } from "../src/index.js";
 
 const row = (over: Partial<SessionView> & Pick<SessionView, "id">): SessionView => ({ workspaceId: "ws_mac", harness: "claude", status: "running", ...over });
 
@@ -42,11 +42,5 @@ describe("the computer a workspace runs on, by the name its own row carries", ()
     expect(workspaceComputerName(places, local)).toBe("zingzy's MacBook Pro");
     expect(workspaceComputerName(places, onBox)).toBe("spoo");
     expect(workspaceComputerName([], onBox)).not.toBe("");
-  });
-});
-
-describe("the line a finished thread is said in", () => {
-  it("names the thread", () => {
-    expect(threadFinishedLine("fix the login")).toBe("fix the login finished");
   });
 });

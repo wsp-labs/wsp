@@ -424,12 +424,17 @@ describe("the pipe pool and a machine that takes every pipe", () => {
   it("dials no more than 4 pipes a second for a workspace whose machine takes each one at once", async () => {
     expect(PIPE_DIAL_RATE).toBe(4);
     const d = await fakeDaemon("grab");
-    const { pool, handed } = poolOn(d);
+    const { clock, advance } = fakeClock();
+    const { pool, handed } = poolOn(d, { clock });
     pool.up("ws-a");
-    await sleep(1600);
     // 4 at once, then 4 more each second.
-    expect(d.firstFrames.length).toBeGreaterThanOrEqual(8);
-    expect(d.firstFrames.length).toBeLessThanOrEqual(12);
+    await until(() => d.firstFrames.length >= 4);
+    await sleep(100);
+    expect(d.firstFrames).toHaveLength(4);
+    advance(1000);
+    await until(() => d.firstFrames.length >= 8);
+    await sleep(100);
+    expect(d.firstFrames).toHaveLength(8);
     expect(handed.length).toBe(d.firstFrames.length);
   });
 

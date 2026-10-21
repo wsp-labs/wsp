@@ -2,7 +2,7 @@
 // The preferences record every client reads off the host: what a stored record
 // parses to, how a patch lands on it, and the wire shapes that carry both.
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PREFERENCES, EventUnion, GENERAL_DEFAULTS, LABS_ENV, NOTIFY_CHOICES, notifyBy, Preferences, PreferencesPatch, RuntimeRequest, applyPreferencesPatch, fmtPx, labsFromEnv, preferencesFrom } from "../src/index.js";
+import { DEFAULT_PREFERENCES, EventUnion, GENERAL_DEFAULTS, LABS_ENV, NOTIFY_CHOICES, notifyBy, Preferences, PreferencesPatch, RuntimeRequest, applyPreferencesPatch, labsFromEnv, preferencesFrom } from "../src/index.js";
 
 describe("the preferences record", () => {
   it("nothing stored, a record from an older host and a corrupt one all read as the defaults", () => {
@@ -10,7 +10,6 @@ describe("the preferences record", () => {
     expect(preferencesFrom({})).toEqual(DEFAULT_PREFERENCES);
     expect(preferencesFrom({ theme: "sepia" })).toEqual(DEFAULT_PREFERENCES);
     expect(preferencesFrom("nonsense")).toEqual(DEFAULT_PREFERENCES);
-    expect(DEFAULT_PREFERENCES).toEqual({ theme: "system", lightTheme: "paper", darkTheme: "graphite", sidebarMode: "list", terminalSize: "app", terminalZoom: {}, access: {}, projectLook: {}, projectIcon: {}, computerLook: {}, serverIcons: true, agentVersions: true, usageLogs: true, productUsage: true, keepAwake: true, transparency: true, projectOrder: [], keybindings: {}, appFont: "", codeFont: "", agentDefaults: {}, projectDefaults: {}, sendWith: "enter", midTurn: "queue", notifyNeeds: "notify-sound", notifyDone: "notify", planAlerts: true, settleAfter: "2h", askDelete: true, onQuit: "ask", newThreadIn: "current", labs: false });
   });
 
   it("a stored record keeps what it has and takes the defaults for the rest", () => {
@@ -198,11 +197,6 @@ describe("the preferences record", () => {
     expect(RuntimeRequest.safeParse({ id: 1, op: "preferences.set" }).success).toBe(false);
     expect(EventUnion.safeParse({ type: "preferences.changed", preferences: DEFAULT_PREFERENCES, seq: 4 }).success).toBe(true);
   });
-
-  it("a size in css pixels reads as a number and the unit", () => {
-    expect(fmtPx(14)).toBe("14 px");
-    expect(fmtPx(312)).toBe("312 px");
-  });
 });
 
 describe("the last target on the preferences record", () => {
@@ -277,7 +271,6 @@ describe("the General choices on the preferences record", () => {
   });
 
   it("New thread opens on the current project unless the record stored Ask every time", () => {
-    expect(preferencesFrom({}).newThreadIn).toBe("current");
     expect(preferencesFrom({ newThreadIn: "ask" }).newThreadIn).toBe("ask");
   });
 

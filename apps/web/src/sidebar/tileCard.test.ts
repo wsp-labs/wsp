@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { tileCardLines, tilePrIcon } from "./tileCard";
+import { tileCardLines } from "./tileCard";
 
 const place = { projectId: "pr_1", project: "spoo-landing", computer: "zingzy's MacBook Pro" };
 
@@ -33,11 +33,5 @@ describe("the card a tile opens to its right", () => {
   it("ends with what holds the thread, each its own line: the question it waits on, why the pull request is not read", () => {
     const card = tileCardLines({ title: "t", place, branch: "b", harness: "claude", model: null, notes: ["Permission for Bash: pnpm install", "", "no signed-in command line for github.com"] });
     expect(card.lines.filter(line => line.kind === "note").map(line => line.text)).toEqual(["Permission for Bash: pnpm install", "no signed-in command line for github.com"]);
-  });
-});
-
-describe("the pull request's icon at the end of a tile's second row", () => {
-  it("stands for an open pull request alone: a merged or closed one, or none, draws nothing", () => {
-    expect([tilePrIcon({ state: "open" }), tilePrIcon({ state: "merged" }), tilePrIcon({ state: "closed" }), tilePrIcon(undefined)]).toEqual([true, false, false, false]);
   });
 });
