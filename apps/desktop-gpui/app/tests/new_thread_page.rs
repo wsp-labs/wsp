@@ -90,7 +90,8 @@ fn launched_on(
     let (_, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
         shell = Some(view.clone());
-        Root::new(view, window, cx)
+        desktop_gpui::frames::watch(window, cx);
+        Root::new(view, window, cx).cache_view()
     });
     cx.simulate_resize(size(px(1280.), px(800.)));
     let shell = shell.unwrap();
@@ -146,10 +147,13 @@ fn the_field_moves_on_its_own_without_building_the_composer(cx: &mut TestAppCont
     // The host's answers to the page land before the count starts: the agents it lists and the folder's branch.
     let chip: &'static str = Box::leak(format!("tray-branch:{branch}").into_boxed_str());
     until(cx, "the page settled", |cx| composer.read_with(cx, |c, _| c.hold().is_none()) && cx.debug_bounds(chip).is_some());
-    // The new thread's box takes the keys, and its caret's blink draws the composer again; only the field moves here.
+    // Focused in an active window, as a New thread page opens it, so its caret blinks through the steps.
     cx.update(|window, _| window.activate_window());
     cx.run_until_parked();
-    cx.update(|window, cx| window.blur(cx));
+    cx.update(|window, cx| {
+        let editor = composer.read(cx).editor().clone();
+        editor.update(cx, |e, cx| e.focus(window, cx));
+    });
     std::thread::sleep(Duration::from_millis(300));
     cx.run_until_parked();
     let (frames, built) = cx.read(|cx| (hero.read(cx).frames(), composer.read(cx).built()));
@@ -160,6 +164,101 @@ fn the_field_moves_on_its_own_without_building_the_composer(cx: &mut TestAppCont
     let (frames_after, built_after) = cx.read(|cx| (hero.read(cx).frames(), composer.read(cx).built()));
     assert!(frames_after >= frames + 4, "a frame each 120 ms: {frames} then {frames_after}");
     assert_eq!(built_after, built, "the composer is not built again while the field moves");
+}
+
+/// One step of the field renders the field alone: not the shell, the sidebar, the right panel or the page.
+#[gpui_kit::test]
+fn a_step_of_the_field_renders_nothing_around_it(cx: &mut TestAppContext) {
+    let (_host, branch, shell, cx) = launched(cx, false);
+    until(cx, "the field", |cx| cx.debug_bounds("hero-field").is_some());
+    let page = page(&shell, cx);
+    let (hero, composer) = cx.read(|cx| (page.read(cx).hero().clone(), page.read(cx).composer().clone()));
+    let chip: &'static str = Box::leak(format!("tray-branch:{branch}").into_boxed_str());
+    until(cx, "the page settled", |cx| composer.read_with(cx, |c, _| c.hold().is_none()) && cx.debug_bounds(chip).is_some());
+    cx.update(|window, cx| {
+        let panel = shell.read(cx).panel().clone();
+        panel.update(cx, |p, cx| p.toggle(window, cx));
+    });
+    cx.run_until_parked();
+    assert!(desktop_gpui::frames::take().contains_key("RightPanel"), "the right panel is open");
+    // The panel's own frames and the composer laid out again beside it land before the count starts.
+    std::thread::sleep(Duration::from_millis(300));
+    cx.executor().advance_clock(Duration::from_millis(1000));
+    cx.run_until_parked();
+    desktop_gpui::frames::take();
+    for step in 0..4 {
+        let frames = cx.read(|cx| hero.read(cx).frames());
+        cx.executor().advance_clock(Duration::from_millis(120));
+        cx.run_until_parked();
+        let counts = desktop_gpui::frames::take();
+        assert_eq!(cx.read(|cx| hero.read(cx).frames()), frames + 1, "step {step}: one step of the field");
+        assert_eq!(counts.get("HeroField"), Some(&1), "step {step}: the field rendered once: {counts:?}");
+        for view in ["Shell", "Sidebar", "RightPanel", "ComposerScreen"] {
+            assert!(!counts.contains_key(view), "step {step}: {view} rendered for a step of the field: {counts:?}");
+        }
+    }
+}
+
+/// A blink of the composer's caret draws its field alone: not the composer around it, the shell, the sidebar, the right
+/// panel or the page.
+#[gpui_kit::test]
+fn a_blink_of_the_caret_renders_the_field_alone(cx: &mut TestAppContext) {
+    let (_host, branch, shell, cx) = launched(cx, true);
+    let page = page(&shell, cx);
+    let composer = cx.read(|cx| page.read(cx).composer().clone());
+    let chip: &'static str = Box::leak(format!("tray-branch:{branch}").into_boxed_str());
+    until(cx, "the page settled", |cx| composer.read_with(cx, |c, _| c.hold().is_none()) && cx.debug_bounds(chip).is_some());
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        let panel = shell.read(cx).panel().clone();
+        panel.update(cx, |p, cx| p.toggle(window, cx));
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        let editor = composer.read(cx).editor().clone();
+        editor.update(cx, |e, cx| e.focus(window, cx));
+    });
+    // The host's last answers and the focus's own frames land before the count starts.
+    std::thread::sleep(Duration::from_millis(300));
+    cx.executor().advance_clock(Duration::from_millis(1000));
+    cx.run_until_parked();
+    desktop_gpui::frames::take();
+    for blink in 0..4 {
+        let built = cx.read(|cx| composer.read(cx).built());
+        cx.executor().advance_clock(Duration::from_millis(500));
+        cx.run_until_parked();
+        let counts = desktop_gpui::frames::take();
+        assert_eq!(cx.read(|cx| composer.read(cx).built()), built, "blink {blink}: the composer drew: {counts:?}");
+        assert_eq!(counts.get("ComposerField"), Some(&1), "blink {blink}: the field drew once: {counts:?}");
+        for view in ["Shell", "Sidebar", "RightPanel", "ComposerScreen"] {
+            assert!(!counts.contains_key(view), "blink {blink}: {view} rendered for a blink of the caret: {counts:?}");
+        }
+    }
+}
+
+/// The page draws its composer cached at its height, and whole in the frame after any change, so a change of height is
+/// never laid out at the height it had.
+#[gpui_kit::test]
+fn a_change_of_the_composers_height_is_never_drawn_at_its_old_height(cx: &mut TestAppContext) {
+    let (_host, branch, shell, cx) = launched(cx, true);
+    let page = page(&shell, cx);
+    let composer = cx.read(|cx| page.read(cx).composer().clone());
+    let chip: &'static str = Box::leak(format!("tray-branch:{branch}").into_boxed_str());
+    until(cx, "the page settled", |cx| composer.read_with(cx, |c, _| c.hold().is_none()) && cx.debug_bounds(chip).is_some());
+    let tall = |cx: &mut VisualTestContext| cx.debug_bounds("composer").expect("the composer").size.height;
+    let before = tall(cx);
+    let tall_text = "1\n2\n3\n4\n5\n6\n7\n8";
+    for text in [tall_text, "x", "1\n2\n3\n4\n5\n6", ""] {
+        composer.update_in(cx, |c, window, cx| c.set_text(text, window, cx));
+        cx.run_until_parked();
+        page.update(cx, |_, cx| cx.notify());
+        cx.run_until_parked();
+    }
+    composer.update_in(cx, |c, window, cx| c.set_text(tall_text, window, cx));
+    cx.run_until_parked();
+    assert!(tall(cx) > before, "eight lines stand taller than none");
+    assert_eq!(composer.read_with(cx, |c, _| c.stale_layouts()), 0, "a frame laid the composer out at a height it no longer had");
 }
 
 /// Under reduced motion the field draws one still frame and asks for no other.

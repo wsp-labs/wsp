@@ -141,6 +141,9 @@ test("the trace reader finds every frame over the limit and refuses a trace that
   assert.match(unfit({ ...trace, release: false }), /debug build/);
   assert.match(unfit({ ...trace, frames: [{ ...trace.frames[0], focused: false }] }), /lost focus/);
   assert.match(unfit({ ...trace, frames: [] }), /no frames/);
+  assert.deepEqual(slowFrames(trace, { latency: true }).map(f => f.at), [32], "late on screen after its input, as the person sees it");
+  assert.match(unfit({ ...trace, summary: { shown: 0 }, inputs: [{}] }), /no wheel event moved the list/);
+  assert.match(describe({ ...trace.frames[1], delivered: 12, renders: { ActivityList: 1 } }), /\(12\.0 ms of it before the app had it\);.*drew ActivityList 1/);
   const tmp = mkdtempSync(join(tmpdir(), "wsp-trace-test-"));
   try {
     const run = frames => {
@@ -150,6 +153,7 @@ test("the trace reader finds every frame over the limit and refuses a trace that
     const slow = run(trace.frames);
     assert.equal(slow.status, 1, slow.stdout);
     assert.match(slow.stdout, /2 frames over 50 ms/);
+    assert.match(slow.stdout, /over 50 ms by app time:\n  frame 0 at 0\.05 s: draw 45\.0 ms/, "the frames over the limit by the app's own time, each with what it did");
     const quick = run([frame(0, 10, 5, 20)]);
     assert.equal(quick.status, 0, quick.stdout);
     assert.match(quick.stdout, /no frame over 50 ms/);
@@ -408,6 +412,37 @@ test("a bare fixture holds its short top-level threads and nothing else, as the 
     assert.equal(spawnSync(join(here, "fixture.sh"), [out, "3", "long"], { encoding: "utf8" }).status, 2, "only bare is a mode");
   } finally {
     if (existsSync(out)) assert.equal(spawnSync(join(here, "stop.sh"), [out]).status, 0);
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("a bench refuses a locked screen, and a page whose screen locks mid-run reads NO READING, never a verdict", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-lock-test-"));
+  try {
+    const env = { PATH: "/usr/bin:/bin", HOME: tmp, BENCH_OUT: join(tmp, "out"), BENCH_GPUI_APP: join(tmp, "no-app") };
+    for (const script of ["rest.sh", "activity-scroll.sh", "session.sh", "ctrl-tab.sh"]) {
+      const run = spawnSync("sh", [join(here, script)], { encoding: "utf8", env: { ...env, BENCH_LOCKED: "true" }, timeout: 20_000 });
+      assert.equal(run.status, 3, `${script}: ${run.stderr}`);
+      assert.match(run.stderr, /the screen is locked/, script);
+    }
+    // A host's fixture record, an app that writes an empty frames line a second, and a screen that locks 12 s in, while
+    // the page is measured.
+    mkdirSync(join(tmp, "state"));
+    const fixture = join(tmp, "fixture.json");
+    writeFileSync(fixture, JSON.stringify({ state: join(tmp, "state", "state.json"), threads: { long: "long", "short-1": "short" } }));
+    const app = join(tmp, "app");
+    writeFileSync(app, '#!/bin/sh\ni=0\nwhile :; do i=$((i + 1)); echo "t=$i" >> "$DESKTOP_GPUI_FRAMES"; sleep 1; done\n', { mode: 0o755 });
+    const lock = join(tmp, "locked");
+    writeFileSync(lock, `#!/bin/sh\n[ "$(date +%s)" -ge ${Math.floor(Date.now() / 1000) + 12} ]\n`, { mode: 0o755 });
+    const run = spawnSync("sh", [join(here, "rest.sh")], {
+      encoding: "utf8",
+      env: { ...env, BENCH_GPUI_APP: app, BENCH_FIXTURE: fixture, BENCH_LOCKED: lock, ONLY: "settings-general" },
+      timeout: 120_000,
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /settings-general\t.*\tNO READING \(the screen locked\)/, run.stdout);
+    assert.match(run.stderr, /the screen locked mid-run/);
+  } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
 });

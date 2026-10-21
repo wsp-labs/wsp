@@ -1,3 +1,66 @@
+diff --git a/src/app/context.rs b/src/app/context.rs
+index 7840c9f..21c1f23 100644
+--- a/src/app/context.rs
++++ b/src/app/context.rs
+@@ -222,6 +222,11 @@ impl<'a, T: 'static> Context<'a, T> {
+         self.app.notify(self.entity_state.entity_id);
+     }
+ 
++    /// Tell GPUI that only this view's own drawing changed: see [`App::notify_in_place`].
++    pub fn notify_in_place(&mut self) {
++        self.app.notify_in_place(self.entity_state.entity_id);
++    }
++
+     /// Spawn the future returned by the given function.
+     /// The function is provided a weak handle to the entity owned by this context and a context that can be held across await points.
+     /// The returned task must be held or detached.
+diff --git a/src/app/entity_map.rs b/src/app/entity_map.rs
+index 38ba760..8cf2d25 100644
+--- a/src/app/entity_map.rs
++++ b/src/app/entity_map.rs
+@@ -56,6 +56,8 @@ impl Display for EntityId {
+ pub(crate) struct EntityMap {
+     entities: SecondaryMap<EntityId, Box<dyn Any>>,
+     pub accessed_entities: RefCell<FxHashSet<EntityId>>,
++    /// What the cached views drawn inside the one drawing now read, apart from what it read itself.
++    pub accessed_below: FxHashSet<EntityId>,
+     ref_counts: Arc<RwLock<EntityRefCounts>>,
+ }
+ 
+@@ -76,6 +78,7 @@ impl EntityMap {
+         Self {
+             entities: SecondaryMap::new(),
+             accessed_entities: RefCell::new(FxHashSet::default()),
++            accessed_below: FxHashSet::default(),
+             ref_counts: Arc::new(RwLock::new(EntityRefCounts {
+                 counts: SlotMap::with_key(),
+                 dropped_entity_ids: Vec::new(),
+@@ -177,14 +180,14 @@ impl EntityMap {
+         );
+     }
+ 
++    /// Counts what a cached view reused here read as read by a cached view inside the one drawing now.
+     pub fn extend_accessed(&mut self, entities: &FxHashSet<EntityId>) {
+-        self.accessed_entities
+-            .get_mut()
+-            .extend(entities.iter().copied());
++        self.accessed_below.extend(entities.iter().copied());
+     }
+ 
+     pub fn clear_accessed(&mut self) {
+         self.accessed_entities.get_mut().clear();
++        self.accessed_below.clear();
+     }
+ 
+     pub fn take_dropped(&mut self) -> Vec<(EntityId, Box<dyn Any>)> {
+@@ -201,6 +204,7 @@ impl EntityMap {
+                     "dropped an entity that was referenced"
+                 );
+                 accessed_entities.remove(&entity_id);
++                self.accessed_below.remove(&entity_id);
+                 // If the EntityId was allocated with `Context::reserve`,
+                 // the entity may not have been inserted.
+                 Some((entity_id, self.entities.remove(entity_id)?))
 diff --git a/src/app/test_context.rs b/src/app/test_context.rs
 index 1632843..6d7233e 100644
 --- a/src/app/test_context.rs
@@ -49,10 +112,81 @@ index 1632843..6d7233e 100644
      /// Make sure you've called [VisualTestContext::draw] first!
      pub fn simulate_event<E: InputEvent>(&mut self, event: E) {
 diff --git a/src/app.rs b/src/app.rs
-index cdbd559..3134e06 100644
+index cdbd559..b4c1a51 100644
 --- a/src/app.rs
 +++ b/src/app.rs
-@@ -3452,6 +3452,10 @@ pub struct AnyTooltip {
+@@ -1344,20 +1344,20 @@ impl App {
+         })
+     }
+ 
++    /// Runs `callback`, returning the entities it read outside the cached views drawn in it, then all it read,
++    /// each whether or not anything earlier in the frame read it too.
+     pub(crate) fn detect_accessed_entities<R>(
+         &mut self,
+         callback: impl FnOnce(&mut App) -> R,
+-    ) -> (R, FxHashSet<EntityId>) {
+-        let accessed_entities_start = self.entities.accessed_entities.get_mut().clone();
++    ) -> (R, FxHashSet<EntityId>, FxHashSet<EntityId>) {
++        let outer = mem::take(self.entities.accessed_entities.get_mut());
++        let outer_below = mem::take(&mut self.entities.accessed_below);
+         let result = callback(self);
+-        let entities_accessed_in_callback = self
+-            .entities
+-            .accessed_entities
+-            .get_mut()
+-            .difference(&accessed_entities_start)
+-            .copied()
+-            .collect::<FxHashSet<EntityId>>();
+-        (result, entities_accessed_in_callback)
++        let own = mem::replace(self.entities.accessed_entities.get_mut(), outer);
++        let mut all = mem::replace(&mut self.entities.accessed_below, outer_below);
++        all.extend(own.iter().copied());
++        self.entities.accessed_below.extend(all.iter().copied());
++        (result, own, all)
+     }
+ 
+     pub(crate) fn record_entities_accessed(
+@@ -3050,6 +3050,18 @@ impl App {
+ 
+     /// Tell GPUI that an entity has changed and observers of it should be notified.
+     pub fn notify(&mut self, entity_id: EntityId) {
++        self.notify_view(entity_id, false);
++    }
++
++    /// Like [`App::notify`], but a view drawn cached draws again where it stands and nothing above it draws: for a
++    /// change only the view shows, such as a clock's text or an animation's next step. A view not drawn cached
++    /// draws again with the nearest cached view it sits in. No observer is told, so an entity that is not drawn as a
++    /// view, whose changes reach the screen through its observers, should notify as usual.
++    pub fn notify_in_place(&mut self, entity_id: EntityId) {
++        self.notify_view(entity_id, true);
++    }
++
++    fn notify_view(&mut self, entity_id: EntityId, in_place: bool) {
+         let window_invalidators = mem::take(
+             self.window_invalidators_by_entity
+                 .entry(entity_id)
+@@ -3071,13 +3083,18 @@ impl App {
+             .collect();
+ 
+         if live_invalidators.is_empty() {
+-            if self.pending_notifications.insert(entity_id) {
++            // A view not drawn has nothing to draw again in place.
++            if !in_place && self.pending_notifications.insert(entity_id) {
+                 self.pending_effects
+                     .push_back(Effect::Notify { emitter: entity_id });
+             }
+         } else {
+             for invalidator in &live_invalidators {
+-                invalidator.invalidate_view(entity_id, self);
++                if in_place {
++                    invalidator.invalidate_view_in_place(entity_id, self);
++                } else {
++                    invalidator.invalidate_view(entity_id, self);
++                }
+             }
+         }
+ 
+@@ -3452,6 +3469,10 @@ pub struct AnyTooltip {
      /// The absolute position of the mouse when the tooltip was deployed.
      pub mouse_position: Point<Pixels>,
  
@@ -75,6 +209,34 @@ index 0cca543..d8aab99 100644
 +        pad: [0; 3],
      }
  }
+ 
+diff --git a/src/elements/animation.rs b/src/elements/animation.rs
+index e076893..b91c124 100644
+--- a/src/elements/animation.rs
++++ b/src/elements/animation.rs
+@@ -346,7 +346,7 @@ impl<E: IntoElement + 'static> Element for SpringAnimationElement<E> {
+             let mut element = animator(element, state.spring.position).into_any_element();
+ 
+             if !done {
+-                window.request_animation_frame();
++                window.request_animation_frame_in_place();
+             }
+ 
+             ((element.request_layout(window, cx), element), state)
+@@ -460,12 +460,12 @@ impl<E: IntoElement + 'static> Element for AnimationElement<E> {
+                                 .spawn(cx, async move |cx| {
+                                     cx.background_executor().timer(interval).await;
+                                     delayed_frame_pending.set(false);
+-                                    cx.update(move |_, cx| cx.notify(view)).ok();
++                                    cx.update(move |_, cx| cx.notify_in_place(view)).ok();
+                                 })
+                                 .detach();
+                         }
+                     }
+-                    _ => window.request_animation_frame(),
++                    _ => window.request_animation_frame_in_place(),
+                 }
+             }
  
 diff --git a/src/elements/div.rs b/src/elements/div.rs
 index fc292f2..cec8846 100644
@@ -345,28 +507,43 @@ index fc292f2..cec8846 100644
                      if long_press_tooltip_active
                          .as_ref()
 diff --git a/src/elements/list.rs b/src/elements/list.rs
-index fa21d10..4fc197d 100644
+index fa21d10..4116c64 100644
 --- a/src/elements/list.rs
 +++ b/src/elements/list.rs
-@@ -73,6 +73,9 @@ struct StateInner {
+@@ -73,6 +73,11 @@ struct StateInner {
      measuring_behavior: ListMeasuringBehavior,
      pending_scroll: Option<PendingScroll>,
      follow_state: FollowState,
 +    /// The height `with_uniform_item_height` or `reset_with_uniform_height` gave unmeasured items, which items spliced
 +    /// in later take too: as 0 px rows, rows put in above the view never move the offset and the list loses its length.
 +    uniform_hint: Option<Size<Pixels>>,
++    /// A scroll draws the view holding the list again in place: see [`ListState::scrolls_in_place`].
++    in_place: bool,
  }
  
  /// Deferred scroll adjustment applied after the scroll-top item has been remeasured.
-@@ -325,6 +328,7 @@ impl ListState {
+@@ -325,11 +330,20 @@ impl ListState {
              measuring_behavior: ListMeasuringBehavior::default(),
              pending_scroll: None,
              follow_state: FollowState::default(),
 +            uniform_hint: None,
++            in_place: false,
          })));
          this.splice(0..0, item_count);
          this
-@@ -380,6 +384,7 @@ impl ListState {
+     }
+ 
++    /// A scroll of the list draws the view holding it again where it stands and nothing above it, as a scroll moves
++    /// nothing outside the list: for a list that is all its view draws, or whose view reads nothing else of it.
++    pub fn scrolls_in_place(self) -> Self {
++        self.0.borrow_mut().in_place = true;
++        self
++    }
++
+     /// Set the list to measure all items in the list in the first layout phase.
+     ///
+     /// This is useful for ensuring that the scrollbar size is correct instead of based on only rendered elements.
+@@ -380,6 +394,7 @@ impl ListState {
              height,
          };
          let mut state = self.0.borrow_mut();
@@ -374,7 +551,7 @@ index fa21d10..4fc197d 100644
          let new_items = state
              .items
              .iter()
-@@ -514,6 +519,7 @@ impl ListState {
+@@ -514,6 +529,7 @@ impl ListState {
          focus_handles: impl IntoIterator<Item = Option<FocusHandle>>,
      ) {
          let state = &mut *self.0.borrow_mut();
@@ -382,7 +559,7 @@ index fa21d10..4fc197d 100644
  
          let mut old_items = state.items.cursor::<Count>(());
          let mut new_items = old_items.slice(&Count(old_range.start), Bias::Right);
-@@ -524,7 +530,7 @@ impl ListState {
+@@ -524,7 +540,7 @@ impl ListState {
              focus_handles.into_iter().map(|focus_handle| {
                  spliced_count += 1;
                  ListItem::Unmeasured {
@@ -391,7 +568,20 @@ index fa21d10..4fc197d 100644
                      focus_handle,
                  }
              }),
-@@ -1545,9 +1551,10 @@ impl Element for List {
+@@ -956,7 +972,11 @@ impl StateInner {
+             );
+         }
+ 
+-        cx.notify(current_view);
++        if self.in_place {
++            cx.notify_in_place(current_view);
++        } else {
++            cx.notify(current_view);
++        }
+     }
+ 
+     fn logical_scroll_top(&self) -> ListOffset {
+@@ -1545,9 +1565,10 @@ impl Element for List {
              .last_layout_bounds
              .is_none_or(|last_bounds| last_bounds.size.width != bounds.size.width)
          {
@@ -431,6 +621,132 @@ index d1896ad..031bcf7 100644
                      } else {
                          // If there is no longer a tooltip builder, remove the active tooltip.
                          interactive_state.long_press_tooltip_active.set(false);
+diff --git a/src/key_dispatch.rs b/src/key_dispatch.rs
+index 2f755b1..9f808c1 100644
+--- a/src/key_dispatch.rs
++++ b/src/key_dispatch.rs
+@@ -87,6 +87,8 @@ pub(crate) struct DispatchNode {
+     pub context: Option<KeyContext>,
+     pub focus_id: Option<FocusId>,
+     view_id: Option<EntityId>,
++    /// Whether the view at this node was drawn cached, so it can be drawn again where it stands.
++    view_cached: bool,
+     parent: Option<DispatchNodeId>,
+ }
+ 
+@@ -96,6 +98,26 @@ pub(crate) struct ReusedSubtree {
+     contains_focus: bool,
+ }
+ 
++/// A reuse of a cached view's nodes in parts, with views drawn again in place between them.
++#[derive(Default)]
++pub(crate) struct SplicedReuse {
++    source_stack: Vec<DispatchNodeId>,
++    parts: Vec<(Range<usize>, usize)>,
++    contains_focus: bool,
++}
++
++impl SplicedReuse {
++    pub fn refresh_node_id(&self, node_id: DispatchNodeId) -> DispatchNodeId {
++        let part = self.parts.iter().find(|(old, _)| old.contains(&node_id.0));
++        debug_assert!(part.is_some(), "node {} was not part of the reused parts", node_id.0);
++        part.map_or(node_id, |(old, new_start)| DispatchNodeId(new_start + node_id.0 - old.start))
++    }
++
++    pub fn contains_focus(&self) -> bool {
++        self.contains_focus
++    }
++}
++
+ impl ReusedSubtree {
+     pub fn refresh_node_id(&self, node_id: DispatchNodeId) -> DispatchNodeId {
+         debug_assert!(
+@@ -254,6 +276,9 @@ impl DispatchTree {
+         if let Some(view_id) = source.view_id {
+             self.set_view_id(view_id);
+         }
++        if source.view_cached {
++            self.set_view_cached();
++        }
+ 
+         let target = self.active_node();
+         target.key_listeners = mem::take(&mut source.key_listeners);
+@@ -307,6 +332,75 @@ impl DispatchTree {
+         }
+     }
+ 
++    /// Moves `old_range` of `source` here like `reuse_subtree`, leaving its open nodes open for the next part.
++    pub fn reuse_part(
++        &mut self,
++        old_range: Range<usize>,
++        source: &mut Self,
++        focus: Option<FocusId>,
++        reuse: &mut SplicedReuse,
++    ) {
++        let new_start = self.nodes.len();
++        for (source_node_id, source_node) in source
++            .nodes
++            .iter_mut()
++            .enumerate()
++            .skip(old_range.start)
++            .take(old_range.len())
++        {
++            while let Some(source_ancestor) = reuse.source_stack.last() {
++                if source_node.parent == Some(*source_ancestor) {
++                    break;
++                }
++                reuse.source_stack.pop();
++                self.pop_node();
++            }
++            reuse.source_stack.push(DispatchNodeId(source_node_id));
++            if source_node.focus_id.is_some() && source_node.focus_id == focus {
++                reuse.contains_focus = true;
++            }
++            self.move_node(source_node);
++        }
++        reuse.parts.push((old_range, new_start));
++    }
++
++    /// Closes the reused nodes opened after the source's node `old_node`, so what is drawn next goes under it.
++    pub fn reuse_open_at(&mut self, old_node: usize, reuse: &mut SplicedReuse) {
++        while let Some(top) = reuse.source_stack.last() {
++            if top.0 == old_node {
++                break;
++            }
++            reuse.source_stack.pop();
++            self.pop_node();
++        }
++    }
++
++    pub fn reuse_close(&mut self, reuse: &mut SplicedReuse) {
++        while reuse.source_stack.pop().is_some() {
++            self.pop_node();
++        }
++    }
++
++    /// The view drawn at node `index`, if one was.
++    pub fn view_at(&self, index: usize) -> Option<EntityId> {
++        self.nodes.get(index).and_then(|node| node.view_id)
++    }
++
++    pub fn set_view_cached(&mut self) {
++        let node_id = *self.node_stack.last().unwrap();
++        self.nodes[node_id.0].view_cached = true;
++    }
++
++    /// The views from `view_id` up to the root that were drawn cached, nearest first.
++    pub fn cached_view_path(&self, view_id: EntityId) -> impl Iterator<Item = EntityId> + '_ {
++        let node_id = self.view_node_ids.get(&view_id).copied();
++        std::iter::successors(node_id.map(|node_id| self.node(node_id)), |node| {
++            Some(self.node(node.parent?))
++        })
++        .filter(|node| node.view_cached)
++        .filter_map(|node| node.view_id)
++    }
++
+     pub fn truncate(&mut self, index: usize) {
+         for node in &self.nodes[index..] {
+             if let Some(focus_id) = node.focus_id {
 diff --git a/src/platform/test/window.rs b/src/platform/test/window.rs
 index 5692b1e..8000249 100644
 --- a/src/platform/test/window.rs
@@ -1545,20 +1861,688 @@ index 13ee752..14432ba 100644
      #[gpui::test]
      async fn test_with_timeout(cx: &mut TestAppContext) {
          Task::ready(())
+diff --git a/src/view.rs b/src/view.rs
+index 081edd9..0de4a93 100644
+--- a/src/view.rs
++++ b/src/view.rs
+@@ -1,13 +1,14 @@
+ use crate::{
+-    AnyElement, AnyEntity, AnyWeakEntity, App, AvailableSpace, Bounds, ContentMask, Context,
+-    Element, ElementId, Entity, EntityId, GlobalElementId, InspectorElementId, IntoElement,
+-    LayoutId, PaintIndex, Pixels, PrepaintStateIndex, Render, RenderOnce, Size, Style,
+-    StyleRefinement, TextStyle, WeakEntity,
++    AnyElement, AnyEntity, AnyWeakEntity, App, AvailableSpace, Bounds, CachedChild, ContentMask,
++    Context, DrawContext, Element, ElementId, Entity, EntityId, GlobalElementId,
++    InspectorElementId, IntoElement, LayoutId, PaintIndex, Pixels, PrepaintStateIndex, Render,
++    RenderOnce, Size, Style, StyleRefinement, TextStyle, WeakEntity,
+ };
+ use crate::{Empty, Window};
+ use anyhow::Result;
+-use collections::FxHashSet;
++use collections::{FxHashMap, FxHashSet};
+ use refineable::Refineable;
++use smallvec::SmallVec;
+ use std::mem;
+ use std::{
+     any::{TypeId, type_name},
+@@ -47,6 +48,15 @@ impl AnyView {
+         self.into_element().cached(style)
+     }
+ 
++    /// Like [`AnyView::cached`], but drawn as if not cached on every frame where anything changed other than views
++    /// notified in place, for a view that reads more than it observes. On a frame where only those views changed
++    /// it keeps its output and draws only them again.
++    pub fn cached_for_in_place(self, style: StyleRefinement) -> ViewElement<AnyView> {
++        let mut element = self.into_element().cached(style);
++        element.between_in_place = true;
++        element
++    }
++
+     /// Convert this to a weak handle.
+     pub fn downgrade(&self) -> AnyWeakView {
+         AnyWeakView {
+@@ -96,6 +106,10 @@ impl View for AnyView {
+         Some(self.entity.entity_id())
+     }
+ 
++    fn weak_view(&self) -> Option<AnyWeakView> {
++        Some(self.downgrade())
++    }
++
+     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+         (self.render)(&self, window, cx)
+     }
+@@ -131,6 +145,11 @@ pub struct AnyWeakView {
+ }
+ 
+ impl AnyWeakView {
++    /// The view's entity id, alive or not.
++    pub fn entity_id(&self) -> EntityId {
++        self.entity.entity_id
++    }
++
+     /// Upgrade to a strong `AnyView` handle, if the view is still alive.
+     pub fn upgrade(&self) -> Option<AnyView> {
+         let entity = self.entity.upgrade()?;
+@@ -182,6 +201,8 @@ mod any_view {
+             .a11y
+             .view_type_names
+             .insert(view.entity_id(), std::any::type_name::<V>());
++        #[cfg(any(test, feature = "test-support"))]
++        window.count_render(view.entity_id());
+         view.update(cx, |view, cx| view.render(window, cx).into_any_element())
+     }
+ }
+@@ -210,6 +231,11 @@ pub trait View: 'static + Sized {
+ 
+     /// Render this view into an element tree, consuming `self`.
+     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement;
++
++    /// The view to draw again where it stands, for a view drawn cached.
++    fn weak_view(&self) -> Option<AnyWeakView> {
++        None
++    }
+ }
+ 
+ /// A stateless component (`RenderOnce`) is a `View` with no identity.
+@@ -230,8 +256,14 @@ impl<T: Render> View for Entity<T> {
+         Some(Entity::entity_id(self))
+     }
+ 
++    fn weak_view(&self) -> Option<AnyWeakView> {
++        Some(self.downgrade().into())
++    }
++
+     #[inline]
+     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
++        #[cfg(any(test, feature = "test-support"))]
++        window.count_render(Entity::entity_id(&self));
+         self.update(cx, |this, cx| {
+             Render::render(this, window, cx).into_any_element()
+         })
+@@ -259,6 +291,7 @@ pub struct ViewElement<V: View> {
+     view: Option<V>,
+     entity_id: Option<EntityId>,
+     cached_style: Option<StyleRefinement>,
++    between_in_place: bool,
+     #[cfg(feature = "profiler")]
+     view_type_name: &'static str,
+     #[cfg(debug_assertions)]
+@@ -281,6 +314,7 @@ impl<V: View> ViewElement<V> {
+         ViewElement {
+             entity_id,
+             cached_style: None,
++            between_in_place: false,
+             #[cfg(feature = "profiler")]
+             view_type_name,
+             view: Some(view),
+@@ -317,6 +351,21 @@ struct ViewElementState {
+     paint_range: Range<PaintIndex>,
+     cache_key: ViewElementCacheKey,
+     accessed_entities: FxHashSet<EntityId>,
++    /// What its own render, layout, prepaint and paint read, apart from the cached views drawn inside it.
++    read_entities: FxHashSet<EntityId>,
++    /// The cached views drawn inside this one, in order, for drawing one again in place.
++    children: Vec<CachedChild>,
++    prepaint_context: DrawContext,
++    paint_context: Option<DrawContext>,
++    /// Whether this frame's prepaint drew views inside this one again in place, for its paint to do the same.
++    spliced: bool,
++    /// Drawn as if uncached between in-place frames, so its children reuse their output by their own records.
++    between_in_place: bool,
++    /// Prepainted and not yet painted: a parent that skips painting it (a hidden one) leaves its paint record stale.
++    paint_pending: bool,
++    /// The frame its ranges were last placed in: reused by them only the frame after, as a view drawn cached in one
++    /// frame and inside another view's reused output the next is not placed.
++    placed: u64,
+ }
+ 
+ struct ViewElementCacheKey {
+@@ -392,8 +441,15 @@ impl<V: View> Element for ViewElement<V> {
+             // Stateful path.
+             #[cfg(feature = "profiler")]
+             let start = window.window_profiler.begin_view();
++            let weak_view = self
++                .cached_style
++                .is_some()
++                .then(|| self.view.as_ref().and_then(View::weak_view))
++                .flatten();
+             let prepainted = prepaint_view(
+                 entity_id,
++                weak_view,
++                self.between_in_place,
+                 global_id,
+                 bounds,
+                 element,
+@@ -505,8 +561,11 @@ fn request_layout_component(
+ }
+ 
+ #[inline(never)]
++#[allow(clippy::too_many_arguments)]
+ fn prepaint_view(
+     entity_id: EntityId,
++    weak_view: Option<AnyWeakView>,
++    between_in_place: bool,
+     global_id: Option<&GlobalElementId>,
+     bounds: Bounds<Pixels>,
+     element: &mut Option<AnyElement>,
+@@ -521,57 +580,283 @@ fn prepaint_view(
+             return Some(element);
+         }
+ 
+-        window.with_element_state::<ViewElementState, _>(
+-            global_id.unwrap(),
+-            |element_state, window| {
+-                let content_mask = window.content_mask();
+-                let text_style = window.text_style();
+-
+-                if let Some(mut element_state) = element_state
+-                    && element_state.cache_key.bounds == bounds
+-                    && element_state.cache_key.content_mask == content_mask
+-                    && element_state.cache_key.text_style == text_style
+-                    && !window.dirty_views.contains(&entity_id)
+-                    && !window.refreshing
+-                {
+-                    let prepaint_start = window.prepaint_index();
+-                    window.reuse_prepaint(element_state.prepaint_range.clone());
+-                    cx.entities
+-                        .extend_accessed(&element_state.accessed_entities);
+-                    let prepaint_end = window.prepaint_index();
+-                    element_state.prepaint_range = prepaint_start..prepaint_end;
+-
+-                    return (None, element_state);
+-                }
++        window.next_frame.dispatch_tree.set_view_cached();
++        let global_id = global_id.unwrap();
++        let (element, range) =
++            window.with_element_state::<ViewElementState, _>(global_id, |element_state, window| {
++                prepaint_cached(
++                    entity_id,
++                    bounds,
++                    element_state,
++                    None,
++                    between_in_place,
++                    window,
++                    cx,
++                    render,
++                )
++            });
++        if let Some(view) = weak_view
++            && let Some(siblings) = window.cached_children.last_mut()
++        {
++            siblings.push(CachedChild {
++                view,
++                global_id: global_id.clone(),
++                prepaint: range,
++                paint: None,
++            });
++        }
++        element
++    })
++}
+ 
+-                let refreshing = mem::replace(&mut window.refreshing, true);
+-                let prepaint_start = window.prepaint_index();
+-                let (element, accessed_entities) = cx.detect_accessed_entities(|cx| {
+-                    let mut element = render(window, cx);
+-                    element.layout_as_root(Size::<AvailableSpace>::from(bounds.size), window, cx);
+-                    element.prepaint_at(bounds.origin, window, cx);
+-                    element
+-                });
++/// The cached views whose last draw read `entity` themselves, not only in a cached view drawn inside them.
++pub(crate) fn readers_of(window: &Window, entity: EntityId) -> SmallVec<[EntityId; 2]> {
++    window
++        .rendered_frame
++        .element_states
++        .iter()
++        .filter(|((_, ty), _)| *ty == TypeId::of::<ViewElementState>())
++        .filter_map(|((id, _), state)| {
++            let state = state.inner.downcast_ref::<Option<ViewElementState>>()?.as_ref()?;
++            match id.last() {
++                Some(ElementId::View(view)) if state.read_entities.contains(&entity) => Some(*view),
++                _ => None,
++            }
++        })
++        .collect()
++}
++
++/// The innermost cached views whose record holds `entity` though none of them read it last, as a record drawn again
++/// in place only grows: drawn again, each records what it reads now.
++pub(crate) fn holders_of(window: &Window, entity: EntityId) -> SmallVec<[EntityId; 2]> {
++    let frame = &window.rendered_frame;
++    let held: SmallVec<[EntityId; 2]> = frame
++        .element_states
++        .iter()
++        .filter(|((_, ty), _)| *ty == TypeId::of::<ViewElementState>())
++        .filter_map(|((id, _), state)| {
++            let state = state.inner.downcast_ref::<Option<ViewElementState>>()?.as_ref()?;
++            match id.last() {
++                Some(ElementId::View(view)) if state.accessed_entities.contains(&entity) => Some(*view),
++                _ => None,
++            }
++        })
++        .collect();
++    let around = |outer: EntityId| {
++        held.iter()
++            .any(|&inner| inner != outer && frame.dispatch_tree.cached_view_path(inner).any(|v| v == outer))
++    };
++    held.iter().copied().filter(|&view| !around(view)).collect()
++}
+ 
+-                let prepaint_end = window.prepaint_index();
+-                window.refreshing = refreshing;
++/// What a cached view and the cached views drawn in it read, from its own reads and its children's records, or
++/// none when a child's record is gone.
++fn reads_within(window: &Window, element_state: &ViewElementState) -> Option<FxHashSet<EntityId>> {
++    let mut reads = element_state.read_entities.clone();
++    for child in &element_state.children {
++        let key = (child.global_id.clone(), TypeId::of::<ViewElementState>());
++        let state = window
++            .next_frame
++            .element_states
++            .get(&key)
++            .or_else(|| window.rendered_frame.element_states.get(&key))?;
++        let state = state.inner.downcast_ref::<Option<ViewElementState>>()?.as_ref()?;
++        reads.extend(state.accessed_entities.iter().copied());
++    }
++    Some(reads)
++}
+ 
+-                (
+-                    Some(element),
+-                    ViewElementState {
++/// Prepaints a cached view: reuses last frame's output, drawing again in place any views inside it notified in
++/// place, or renders it. `old` is where its output sat last frame when a parent draws it in place.
++#[allow(clippy::too_many_arguments)]
++fn prepaint_cached(
++    entity_id: EntityId,
++    bounds: Bounds<Pixels>,
++    element_state: Option<ViewElementState>,
++    old: Option<Range<PrepaintStateIndex>>,
++    between_in_place: bool,
++    window: &mut Window,
++    cx: &mut App,
++    render: &mut dyn FnMut(&mut Window, &mut App) -> AnyElement,
++) -> (
++    (Option<AnyElement>, Range<PrepaintStateIndex>),
++    ViewElementState,
++) {
++    let content_mask = window.content_mask();
++    let text_style = window.text_style();
++
++    let mut element_state = element_state;
++    let mut reused = None;
++    if let Some(element_state) = &mut element_state
++        && (old.is_some()
++            || element_state.cache_key.bounds == bounds
++                && element_state.cache_key.content_mask == content_mask
++                && element_state.cache_key.text_style == text_style)
++        && !window.dirty_views.contains(&entity_id)
++        && !window.refreshing
++        && (!between_in_place || window.in_place_frame)
++        && !element_state.paint_pending
++        && (old.is_some() || element_state.placed + 1 == window.frame_index)
++    {
++        let in_place = old.is_some();
++        let old = old.unwrap_or_else(|| element_state.prepaint_range.clone());
++        let plan = match window.in_place_routes.get(&entity_id) {
++            None => Some(None),
++            Some(route) => window
++                .splice_plan(route, &element_state.children, &old, std::any::TypeId::of::<ViewElementState>())
++                .map(Some),
++        };
++        if let Some(plan) = plan {
++            if !in_place {
++                element_state.prepaint_context = window.draw_context();
++            }
++            element_state.between_in_place = between_in_place;
++            let range = match plan {
++                None => {
++                    let start = window.prepaint_index();
++                    let fonts_kept = old.start.same_fonts(&start);
++                    window.reuse_prepaint(old);
++                    if !fonts_kept {
++                        element_state.children.clear();
++                    }
++                    start..window.prepaint_index()
++                }
++                Some(plan) => {
++                    let ViewElementState {
++                        children,
+                         accessed_entities,
+-                        prepaint_range: prepaint_start..prepaint_end,
+-                        paint_range: PaintIndex::default()..PaintIndex::default(),
+-                        cache_key: ViewElementCacheKey {
+-                            bounds,
+-                            content_mask,
+-                            text_style,
+-                        },
+-                    },
+-                )
++                        ..
++                    } = element_state;
++                    let range =
++                        window.splice_prepaint(children, &old, &plan, |child, child_old, window| {
++                            accessed_entities.extend(prepaint_in_place(child, child_old, window, cx));
++                        });
++                    element_state.spliced = true;
++                    // A child drawn again may read less than it did: what nothing reads now is no longer heard.
++                    if let Some(reads) = reads_within(window, element_state) {
++                        element_state.accessed_entities = reads;
++                    }
++                    // A font a child loaded while drawn again emptied the line layouts its siblings' records count.
++                    if !range.start.same_fonts(&range.end) {
++                        element_state.children.clear();
++                    }
++                    range
++                }
++            };
++            cx.entities
++                .extend_accessed(&element_state.accessed_entities);
++            element_state.prepaint_range = range.clone();
++            element_state.paint_pending = true;
++            element_state.placed = window.frame_index;
++            reused = Some(range);
++        }
++    }
++    if let Some(range) = reused
++        && let Some(element_state) = element_state
++    {
++        return ((None, range), element_state);
++    }
++    // Painted before, so a parent can still place it by last frame's paint once it is drawn in place.
++    let paint_context = element_state.and_then(|element_state| element_state.paint_context);
++
++    // A view drawn between in-place frames draws as if not cached, its cached children reused as they would be.
++    let refreshing = window.refreshing;
++    window.refreshing = refreshing || !between_in_place;
++    let prepaint_context = window.draw_context();
++    let prepaint_start = window.prepaint_index();
++    window.cached_children.push(Vec::new());
++    let (element, read_entities, accessed_entities) = cx.detect_accessed_entities(|cx| {
++        let mut element = render(window, cx);
++        element.layout_as_root(Size::<AvailableSpace>::from(bounds.size), window, cx);
++        element.prepaint_at(bounds.origin, window, cx);
++        element
++    });
++    let children = window
++        .cached_children
++        .pop()
++        .unwrap_or_default()
++        .into_iter()
++        .map(|mut child| {
++            child.prepaint = child.prepaint.start.offset_from(&prepaint_start)
++                ..child.prepaint.end.offset_from(&prepaint_start);
++            child
++        })
++        .collect();
++    let prepaint_end = window.prepaint_index();
++    window.refreshing = refreshing;
++    let children = if prepaint_start.same_fonts(&prepaint_end) {
++        children
++    } else {
++        Vec::new()
++    };
++
++    (
++        (Some(element), prepaint_start.clone()..prepaint_end.clone()),
++        ViewElementState {
++            accessed_entities,
++            read_entities,
++            prepaint_range: prepaint_start..prepaint_end,
++            paint_range: PaintIndex::default()..PaintIndex::default(),
++            cache_key: ViewElementCacheKey {
++                bounds,
++                content_mask,
++                text_style,
+             },
+-        )
+-    })
++            children,
++            prepaint_context,
++            paint_context,
++            spliced: false,
++            between_in_place,
++            paint_pending: true,
++            placed: window.frame_index,
++        },
++    )
++}
++
++/// Prepaints a cached view inside one being reused, where it stood last frame and under what it was drawn under
++/// then, returning the entities it read.
++fn prepaint_in_place(
++    child: &CachedChild,
++    old: Range<PrepaintStateIndex>,
++    window: &mut Window,
++    cx: &mut App,
++) -> FxHashSet<EntityId> {
++    let Some(view) = child.view.upgrade() else {
++        return FxHashSet::default();
++    };
++    let entity_id = view.entity_id();
++    let (element, accessed) = window.with_element_state_in_place::<ViewElementState, _>(
++        &child.global_id,
++        |element_state, window| {
++            let element_state =
++                element_state.expect("a cached view drawn last frame keeps its state");
++            let bounds = element_state.cache_key.bounds;
++            let context = element_state.prepaint_context.clone();
++            let ((element, _), element_state) =
++                window.with_draw_context(&child.global_id, &context, cx, |window, cx| {
++                    window.with_rendered_view(entity_id, |window| {
++                        prepaint_cached(
++                            entity_id,
++                            bounds,
++                            Some(element_state),
++                            Some(old),
++                            false,
++                            window,
++                            cx,
++                            &mut |window, cx| (view.render)(&view, window, cx),
++                        )
++                    })
++                });
++            (
++                (element, element_state.accessed_entities.clone()),
++                element_state,
++            )
++        },
++    );
++    window
++        .spliced_elements
++        .insert(child.global_id.clone(), element);
++    accessed
+ }
+ 
+ #[inline(never)]
+@@ -599,33 +884,123 @@ fn paint_view(
+     window.with_rendered_view(entity_id, |window| {
+         let caching_disabled = window.is_inspector_picking(cx);
+         if cached && !caching_disabled {
+-            window.with_element_state::<ViewElementState, _>(
+-                global_id.unwrap(),
++            let global_id = global_id.unwrap();
++            let range = window.with_element_state::<ViewElementState, _>(
++                global_id,
+                 |element_state, window| {
+                     let mut element_state = element_state.unwrap();
+-
+-                    let paint_start = window.paint_index();
+-
+-                    if let Some(element) = element {
+-                        let refreshing = mem::replace(&mut window.refreshing, true);
+-                        element.paint(window, cx);
+-                        window.refreshing = refreshing;
+-                    } else {
+-                        window.reuse_paint(element_state.paint_range.clone());
+-                    }
+-
+-                    let paint_end = window.paint_index();
+-                    element_state.paint_range = paint_start..paint_end;
+-
+-                    ((), element_state)
++                    element_state.paint_context = Some(window.draw_context());
++                    let old = element_state.paint_range.clone();
++                    let range = paint_cached(&mut element_state, element.take(), old, window, cx);
++                    (range, element_state)
+                 },
+-            )
++            );
++            if let Some(siblings) = window.cached_paints.last_mut() {
++                siblings.push((global_id.clone(), range));
++            }
+         } else {
+             element.as_mut().unwrap().paint(window, cx);
+         }
+     });
+ }
+ 
++/// Paints a cached view: the element its prepaint rendered, or last frame's paint at `old` with the views inside it
++/// drawn again in place painted again.
++fn paint_cached(
++    element_state: &mut ViewElementState,
++    element: Option<AnyElement>,
++    old: Range<PaintIndex>,
++    window: &mut Window,
++    cx: &mut App,
++) -> Range<PaintIndex> {
++    let paint_start = window.paint_index();
++    let moved = if let Some(mut element) = element {
++        let refreshing = mem::replace(&mut window.refreshing, true);
++        window.cached_paints.push(Vec::new());
++        let ((), read, accessed) = cx.detect_accessed_entities(|cx| element.paint(window, cx));
++        element_state.read_entities.extend(read);
++        element_state.accessed_entities.extend(accessed);
++        let painted: FxHashMap<GlobalElementId, Range<PaintIndex>> = window
++            .cached_paints
++            .pop()
++            .unwrap_or_default()
++            .into_iter()
++            .collect();
++        for child in &mut element_state.children {
++            child.paint = painted.get(&child.global_id).map(|range| {
++                range.start.offset_from(&paint_start)..range.end.offset_from(&paint_start)
++            });
++        }
++        window.refreshing = refreshing;
++        false
++    } else if mem::take(&mut element_state.spliced) {
++        let ViewElementState {
++            children,
++            accessed_entities,
++            ..
++        } = element_state;
++        window.splice_paint(children, &old, |child, child_old, window| {
++            accessed_entities.extend(paint_in_place(child, child_old, window, cx));
++        });
++        true
++    } else {
++        let fonts_kept = old.start.same_fonts(&paint_start);
++        window.reuse_paint(old);
++        if !fonts_kept {
++            element_state.children.iter_mut().for_each(|child| child.paint = None);
++        }
++        element_state.between_in_place
++    };
++    let paint_end = window.paint_index();
++    if !paint_start.same_fonts(&paint_end) {
++        element_state.children.iter_mut().for_each(|child| child.paint = None);
++    } else if moved {
++        // Each child's output moved, and a parent drawing it next may reuse it by its own record.
++        let frame_index = window.frame_index;
++        for child in &element_state.children {
++            let Some(paint) = &child.paint else { continue };
++            let prepaint_range = element_state.prepaint_range.start.offset_by(&child.prepaint.start)
++                ..element_state.prepaint_range.start.offset_by(&child.prepaint.end);
++            let paint_range = paint_start.offset_by(&paint.start)..paint_start.offset_by(&paint.end);
++            window.update_element_state::<ViewElementState>(&child.global_id, |state| {
++                state.prepaint_range = prepaint_range;
++                state.paint_range = paint_range;
++                state.paint_pending = false;
++                state.placed = frame_index;
++            });
++        }
++    }
++    element_state.paint_range = paint_start.clone()..paint_end.clone();
++    element_state.paint_pending = false;
++    paint_start..paint_end
++}
++
++/// Paints a cached view its parent drew again in place, under what it was painted under last frame, returning the
++/// entities it read.
++fn paint_in_place(
++    child: &CachedChild,
++    old: Range<PaintIndex>,
++    window: &mut Window,
++    cx: &mut App,
++) -> FxHashSet<EntityId> {
++    let element = window.spliced_elements.remove(&child.global_id).flatten();
++    let entity_id = child.view.entity_id();
++    window.with_element_state_in_place::<ViewElementState, _>(&child.global_id, |element_state, window| {
++        let mut element_state =
++            element_state.expect("a cached view prepainted this frame keeps its state");
++        let context = element_state
++            .paint_context
++            .clone()
++            .expect("a cached view its parent placed was painted");
++        window.with_draw_context(&child.global_id, &context, cx, |window, cx| {
++            window.with_rendered_view(entity_id, |window| {
++                paint_cached(&mut element_state, element, old, window, cx);
++            })
++        });
++        (element_state.accessed_entities.clone(), element_state)
++    })
++}
++
+ #[inline(never)]
+ fn paint_component(
+     name: &'static str,
+diff --git a/src/window/a11y.rs b/src/window/a11y.rs
+index 5b63821..7b481ae 100644
+--- a/src/window/a11y.rs
++++ b/src/window/a11y.rs
+@@ -213,6 +213,21 @@ impl A11y {
+         self.active_this_frame = self.is_enabled() && self.active_flag.load(Ordering::SeqCst);
+     }
+ 
++    /// Builds and sends no tree this frame, leaving the platform's as it is.
++    pub(crate) fn hold_frame(&mut self) {
++        self.active_this_frame = false;
++    }
++
++    /// Whether a screen reader is reading, as the next frame will find it, whatever this frame did.
++    pub(crate) fn wanted(&self) -> bool {
++        self.is_enabled() && self.active_flag.load(Ordering::SeqCst)
++    }
++
++    #[cfg(any(test, feature = "test-support"))]
++    pub(crate) fn simulate_active(&self, active: bool) {
++        self.active_flag.store(active, Ordering::SeqCst);
++    }
++
+     pub(crate) fn is_enabled(&self) -> bool {
+         !self.force_disabled
+     }
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..ec82f86 100644
+index 1214b03..fc5bf53 100644
 --- a/src/window.rs
 +++ b/src/window.rs
-@@ -6,7 +6,8 @@ use crate::Inspector;
+@@ -5,10 +5,11 @@ use crate::Inspector;
+ #[cfg(feature = "profiler")]
  use crate::profiler;
  use crate::{
-     Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
+-    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
 -    AsyncWindowContext, AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow,
++    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, AnyWeakView, App, AppContext, Arena, Asset,
 +    AsyncWindowContext, AtlasTile, AtlasUsage, AvailableSpace, BackdropBlur, Background, BorderStyle, Bounds,
 +    BoxShadow, Primitive, RoundedClipId,
      Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
-     DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
+-    DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
++    DispatchActionListener, DispatchNodeId, DispatchTree, SplicedReuse, DisplayId, Edges, Effect, Entity,
      EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs,
+     Hsla, InputHandler, InputPreference, IsZero, KeyBinding, KeyContext, KeyDownEvent, KeyEvent,
+     Keystroke, KeystrokeEvent, LayoutId, LineLayoutIndex, Modifiers, ModifiersChangedEvent,
 @@ -74,8 +75,8 @@ use self::a11y::A11y;
  #[cfg(not(target_family = "wasm"))]
  use self::a11y::ROOT_NODE_ID;
@@ -1570,7 +2554,70 @@ index 1214b03..ec82f86 100644
  };
  pub use prompts::*;
  
-@@ -961,6 +962,44 @@ impl TooltipId {
+@@ -126,6 +127,8 @@ struct WindowInvalidatorInner {
+     pub dirty: bool,
+     pub draw_phase: DrawPhase,
+     pub dirty_views: FxHashSet<EntityId>,
++    /// Views notified to draw again where they stand, their ancestors' output kept.
++    pub in_place_views: FxHashSet<EntityId>,
+     pub update_count: usize,
+     #[cfg(feature = "profiler")]
+     pub frame_dirty: FrameDirtyAccumulator,
+@@ -167,6 +170,7 @@ impl WindowInvalidator {
+                 dirty: true,
+                 draw_phase: DrawPhase::None,
+                 dirty_views: FxHashSet::default(),
++                in_place_views: FxHashSet::default(),
+                 update_count: 0,
+                 #[cfg(feature = "profiler")]
+                 frame_dirty: FrameDirtyAccumulator::default(),
+@@ -176,9 +180,21 @@ impl WindowInvalidator {
+     }
+ 
+     pub fn invalidate_view(&self, entity: EntityId, cx: &mut App) -> bool {
++        self.invalidate(entity, false, cx)
++    }
++
++    pub fn invalidate_view_in_place(&self, entity: EntityId, cx: &mut App) -> bool {
++        self.invalidate(entity, true, cx)
++    }
++
++    fn invalidate(&self, entity: EntityId, in_place: bool, cx: &mut App) -> bool {
+         let mut inner = self.inner.borrow_mut();
+         inner.update_count += 1;
+-        inner.dirty_views.insert(entity);
++        if in_place {
++            inner.in_place_views.insert(entity);
++        } else {
++            inner.dirty_views.insert(entity);
++        }
+         if inner.draw_phase == DrawPhase::None {
+             #[cfg(feature = "profiler")]
+             let dirty_at = Self::record_frame_dirty(&mut inner);
+@@ -192,7 +208,10 @@ impl WindowInvalidator {
+             if became_dirty {
+                 profiler::journal::record_frame_pending(window_id, dirty_at);
+             }
+-            cx.push_effect(Effect::Notify { emitter: entity });
++            // Drawing again in place changes nothing an observer reads.
++            if !in_place {
++                cx.push_effect(Effect::Notify { emitter: entity });
++            }
+             if let Some(waker) = waker {
+                 waker();
+             }
+@@ -276,6 +295,10 @@ impl WindowInvalidator {
+         self.inner.borrow_mut().dirty_views = views;
+     }
+ 
++    pub fn take_in_place_views(&self) -> FxHashSet<EntityId> {
++        mem::take(&mut self.inner.borrow_mut().in_place_views)
++    }
++
+     pub fn not_drawing(&self) -> bool {
+         self.inner.borrow().draw_phase == DrawPhase::None
+     }
+@@ -961,6 +984,44 @@ impl TooltipId {
      }
  }
  
@@ -1615,7 +2662,148 @@ index 1214b03..ec82f86 100644
  pub(crate) struct TooltipBounds {
      id: TooltipId,
      bounds: Bounds<Pixels>,
-@@ -1240,6 +1279,7 @@ pub struct Window {
+@@ -1032,6 +1093,10 @@ pub(crate) struct DeferredDraw {
+     absolute_offset: Point<Pixels>,
+     prepaint_range: Range<PrepaintStateIndex>,
+     paint_range: Range<PaintIndex>,
++    /// What its element read while prepainted and painted, kept while its owner's output is reused.
++    reads: FxHashSet<EntityId>,
++    /// That and what the cached views drawn in it read, which the window keeps hearing while it is reused.
++    heard: FxHashSet<EntityId>,
+ }
+ 
+ pub(crate) struct Frame {
+@@ -1082,6 +1147,129 @@ pub(crate) struct PaintIndex {
+     line_layout_index: LineLayoutIndex,
+ }
+ 
++impl PrepaintStateIndex {
++    /// This index as a count of entries past `base`, an index at or before it.
++    pub(crate) fn offset_from(&self, base: &Self) -> Self {
++        Self {
++            hitboxes_index: self.hitboxes_index - base.hitboxes_index,
++            tooltips_index: self.tooltips_index - base.tooltips_index,
++            deferred_draws_index: self.deferred_draws_index - base.deferred_draws_index,
++            dispatch_tree_index: self.dispatch_tree_index - base.dispatch_tree_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                - base.accessed_element_states_index,
++            line_layout_index: line_layouts_from(&self.line_layout_index, &base.line_layout_index),
++        }
++    }
++
++    /// Whether both indices count line layouts made with the same fonts: a font loaded between them emptied the
++    /// layouts, so no count of layouts between them holds.
++    pub(crate) fn same_fonts(&self, other: &Self) -> bool {
++        self.line_layout_index
++            .same_generation(&other.line_layout_index)
++    }
++
++    /// The index `offset` entries past this one.
++    pub(crate) fn offset_by(&self, offset: &Self) -> Self {
++        Self {
++            hitboxes_index: self.hitboxes_index + offset.hitboxes_index,
++            tooltips_index: self.tooltips_index + offset.tooltips_index,
++            deferred_draws_index: self.deferred_draws_index + offset.deferred_draws_index,
++            dispatch_tree_index: self.dispatch_tree_index + offset.dispatch_tree_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                + offset.accessed_element_states_index,
++            line_layout_index: self.line_layout_index.offset_by(&offset.line_layout_index),
++        }
++    }
++
++    fn at_or_before(&self, other: &Self) -> bool {
++        self.hitboxes_index <= other.hitboxes_index
++            && self.tooltips_index <= other.tooltips_index
++            && self.deferred_draws_index <= other.deferred_draws_index
++            && self.dispatch_tree_index <= other.dispatch_tree_index
++            && self.accessed_element_states_index <= other.accessed_element_states_index
++    }
++}
++
++impl PaintIndex {
++    /// This index as a count of entries past `base`, an index at or before it.
++    pub(crate) fn offset_from(&self, base: &Self) -> Self {
++        Self {
++            scene_index: self.scene_index - base.scene_index,
++            #[cfg(any(test, feature = "test-support"))]
++            debug_bounds_index: self.debug_bounds_index - base.debug_bounds_index,
++            mouse_listeners_index: self.mouse_listeners_index - base.mouse_listeners_index,
++            input_handlers_index: self.input_handlers_index - base.input_handlers_index,
++            cursor_styles_index: self.cursor_styles_index - base.cursor_styles_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                - base.accessed_element_states_index,
++            tab_handle_index: self.tab_handle_index - base.tab_handle_index,
++            line_layout_index: line_layouts_from(&self.line_layout_index, &base.line_layout_index),
++        }
++    }
++
++    pub(crate) fn same_fonts(&self, other: &Self) -> bool {
++        self.line_layout_index
++            .same_generation(&other.line_layout_index)
++    }
++
++    /// The index `offset` entries past this one.
++    pub(crate) fn offset_by(&self, offset: &Self) -> Self {
++        Self {
++            scene_index: self.scene_index + offset.scene_index,
++            #[cfg(any(test, feature = "test-support"))]
++            debug_bounds_index: self.debug_bounds_index + offset.debug_bounds_index,
++            mouse_listeners_index: self.mouse_listeners_index + offset.mouse_listeners_index,
++            input_handlers_index: self.input_handlers_index + offset.input_handlers_index,
++            cursor_styles_index: self.cursor_styles_index + offset.cursor_styles_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                + offset.accessed_element_states_index,
++            tab_handle_index: self.tab_handle_index + offset.tab_handle_index,
++            line_layout_index: self.line_layout_index.offset_by(&offset.line_layout_index),
++        }
++    }
++
++    fn at_or_before(&self, other: &Self) -> bool {
++        self.scene_index <= other.scene_index
++            && self.mouse_listeners_index <= other.mouse_listeners_index
++            && self.input_handlers_index <= other.input_handlers_index
++            && self.cursor_styles_index <= other.cursor_styles_index
++            && self.accessed_element_states_index <= other.accessed_element_states_index
++            && self.tab_handle_index <= other.tab_handle_index
++    }
++}
++
++/// The line layouts from `base` to `index`, none across a font change, which empties them.
++fn line_layouts_from(index: &LineLayoutIndex, base: &LineLayoutIndex) -> LineLayoutIndex {
++    if index.same_generation(base) {
++        index.offset_from(base)
++    } else {
++        LineLayoutIndex::default()
++    }
++}
++
++/// A cached view drawn inside another, with where its output sits in that view's, counted from the start of it.
++pub(crate) struct CachedChild {
++    pub(crate) view: AnyWeakView,
++    pub(crate) global_id: GlobalElementId,
++    pub(crate) prepaint: Range<PrepaintStateIndex>,
++    pub(crate) paint: Option<Range<PaintIndex>>,
++}
++
++/// Runs what an element draws inside the app state it sets for it, a palette or a theme in a global: `body` draws.
++pub type DrawScope = Rc<dyn Fn(&mut Window, &mut App, &mut dyn FnMut(&mut Window, &mut App))>;
++
++/// What a view was drawn under, to draw it again where it stands with nothing above it drawn.
++#[derive(Clone)]
++pub(crate) struct DrawContext {
++    draw_scopes: Vec<DrawScope>,
++    text_style_stack: Vec<TextStyleRefinement>,
++    rem_size: Pixels,
++    content_mask: ContentMask<Pixels>,
++    rounded_clip_stack: Vec<RoundedClip<ScaledPixels>>,
++    opacity: f32,
++    image_cache_stack: Vec<AnyImageCache>,
++}
++
+ impl Frame {
+     #[cfg(any(test, feature = "test-support"))]
+     pub(crate) fn record_debug_bounds(&mut self, selector: String, bounds: Bounds<Pixels>) {
+@@ -1240,6 +1428,7 @@ pub struct Window {
      pub(crate) element_offset_stack: Vec<Point<Pixels>>,
      pub(crate) element_opacity: f32,
      pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
@@ -1623,15 +2811,33 @@ index 1214b03..ec82f86 100644
      pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
      /// The [`TextInputConfiguration`] most recently forwarded to the platform
      /// window, so that only actual changes are forwarded (reconfiguring a live
-@@ -1255,6 +1295,7 @@ pub struct Window {
+@@ -1254,7 +1443,25 @@ pub struct Window {
+     pub(crate) tooltip_bounds: Option<TooltipBounds>,
      pub(crate) next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
      pub(crate) dirty_views: FxHashSet<EntityId>,
++    /// Each cached view with a view notified in place inside it, and its cached views on the way there.
++    pub(crate) in_place_routes: FxHashMap<EntityId, SmallVec<[EntityId; 2]>>,
++    /// Whether this frame draws only because views were notified in place.
++    pub(crate) in_place_frame: bool,
++    /// The entities the last frame read outside every cached view and deferred draw: content every frame draws
++    /// again, in place or whole, or none at all (a focus listener's).
++    uncached_reads: FxHashSet<EntityId>,
++    pub(crate) draw_scopes: Vec<DrawScope>,
++    #[cfg(any(test, feature = "test-support"))]
++    renders: FxHashMap<EntityId, usize>,
++    /// The frames drawn so far, by which a cached view knows whether its record of last frame's output is last frame's.
++    pub(crate) frame_index: u64,
++    /// The cached views met while a cached view draws, one list per view drawing.
++    pub(crate) cached_children: Vec<Vec<CachedChild>>,
++    pub(crate) cached_paints: Vec<Vec<(GlobalElementId, Range<PaintIndex>)>>,
++    /// What each view drawn again in place prepainted, none when only views inside it were, until its paint.
++    pub(crate) spliced_elements: FxHashMap<GlobalElementId, Option<AnyElement>>,
      focus_listeners: SubscriberSet<(), AnyWindowFocusListener>,
 +    drawn_listeners: SubscriberSet<(), AnyObserver>,
      pub(crate) focus_lost_listeners: SubscriberSet<(), AnyObserver>,
      focus_lost_path: SmallVec<[FocusId; 8]>,
      default_prevented: bool,
-@@ -1263,6 +1304,7 @@ pub struct Window {
+@@ -1263,6 +1470,7 @@ pub struct Window {
      modifiers: Modifiers,
      capslock: Capslock,
      scale_factor: f32,
@@ -1639,7 +2845,7 @@ index 1214b03..ec82f86 100644
      pub(crate) bounds_observers: SubscriberSet<(), AnyObserver>,
      appearance: WindowAppearance,
      pub(crate) appearance_observers: SubscriberSet<(), AnyObserver>,
-@@ -1505,6 +1547,108 @@ pub(crate) struct ElementStateBox {
+@@ -1505,6 +1713,108 @@ pub(crate) struct ElementStateBox {
      pub(crate) type_name: &'static str,
  }
  
@@ -1748,7 +2954,7 @@ index 1214b03..ec82f86 100644
  fn default_bounds(display_id: Option<DisplayId>, cx: &mut App) -> WindowBounds {
      // TODO, BUG: if you open a window with the currently active window
      // on the stack, this will erroneously fallback to `None`
-@@ -1635,11 +1779,12 @@ impl Window {
+@@ -1635,11 +1945,12 @@ impl Window {
  
          let display_id = platform_window.display().map(|display| display.id());
          let sprite_atlas = platform_window.sprite_atlas();
@@ -1764,7 +2970,7 @@ index 1214b03..ec82f86 100644
          let appearance = platform_window.appearance();
          let text_system = Arc::new(WindowTextSystem::new(cx.text_system().clone()));
          let invalidator = WindowInvalidator::new(handle.window_id());
-@@ -2042,7 +2187,10 @@ impl Window {
+@@ -2042,7 +2353,10 @@ impl Window {
              let mut cx = cx.to_async();
              Box::new(move |event| {
                  handle
@@ -1776,7 +2982,7 @@ index 1214b03..ec82f86 100644
                      .log_err()
                      .unwrap_or(DispatchEventResult::default())
              })
-@@ -2143,6 +2291,7 @@ impl Window {
+@@ -2143,6 +2457,7 @@ impl Window {
              rendered_entity_stack: Vec::new(),
              element_offset_stack: Vec::new(),
              content_mask_stack: Vec::new(),
@@ -1784,15 +2990,26 @@ index 1214b03..ec82f86 100644
              element_opacity: 1.0,
              requested_autoscroll: None,
              last_text_input_configuration: None,
-@@ -2155,6 +2304,7 @@ impl Window {
+@@ -2154,7 +2469,18 @@ impl Window {
+             next_tooltip_id: TooltipId::default(),
              tooltip_bounds: None,
              dirty_views: FxHashSet::default(),
++            in_place_routes: FxHashMap::default(),
++            in_place_frame: false,
++            uncached_reads: FxHashSet::default(),
++            draw_scopes: Vec::new(),
++            #[cfg(any(test, feature = "test-support"))]
++            renders: FxHashMap::default(),
++            frame_index: 0,
++            cached_children: Vec::new(),
++            cached_paints: Vec::new(),
++            spliced_elements: FxHashMap::default(),
              focus_listeners: SubscriberSet::new(),
 +            drawn_listeners: SubscriberSet::new(),
              focus_lost_listeners: SubscriberSet::new(),
              focus_lost_path: SmallVec::new(),
              default_prevented: true,
-@@ -2163,6 +2313,7 @@ impl Window {
+@@ -2163,6 +2489,7 @@ impl Window {
              modifiers,
              capslock,
              scale_factor,
@@ -1800,7 +3017,7 @@ index 1214b03..ec82f86 100644
              bounds_observers: SubscriberSet::new(),
              appearance,
              appearance_observers: SubscriberSet::new(),
-@@ -2248,6 +2399,68 @@ impl ContentMask<Pixels> {
+@@ -2248,6 +2575,68 @@ impl ContentMask<Pixels> {
      }
  }
  
@@ -1869,7 +3086,7 @@ index 1214b03..ec82f86 100644
  impl Window {
      fn mark_view_dirty(&mut self, view_id: EntityId) {
          // Mark ancestor views as dirty. If already in the `dirty_views` set, then all its ancestors
-@@ -2490,7 +2703,7 @@ impl Window {
+@@ -2490,7 +2879,7 @@ impl Window {
      /// surface be moved out of others' exclusive zones, and -1 ignores reserved
      /// space and may extend under other surfaces. (Wayland layer-shell windows only)
      pub fn set_exclusive_zone(&self, zone: Pixels) {
@@ -1878,7 +3095,7 @@ index 1214b03..ec82f86 100644
      }
  
      /// Set which anchored edge a layer-shell surface's exclusive zone applies to.
-@@ -2516,7 +2729,13 @@ impl Window {
+@@ -2516,7 +2905,13 @@ impl Window {
      /// - `Some(&[])` is an empty region, so the window receives no pointer or touch input.
      /// - `None` resets the region to the default, so the whole window receives input again.
      pub fn set_input_region(&self, region: Option<&[Bounds<Pixels>]>) {
@@ -1893,7 +3110,21 @@ index 1214b03..ec82f86 100644
      }
  
      /// Return the `WindowBounds` to indicate that how a window should be opened
-@@ -2789,9 +3008,10 @@ impl Window {
+@@ -2732,6 +3127,13 @@ impl Window {
+         self.on_next_frame(move |_, cx| cx.notify(entity));
+     }
+ 
++    /// Like [`Window::request_animation_frame`], but the current view draws again in place, as
++    /// [`App::notify_in_place`] does: for an animation, whose steps change nothing above the view.
++    pub fn request_animation_frame_in_place(&self) {
++        let entity = self.current_view();
++        self.on_next_frame(move |_, cx| cx.notify_in_place(entity));
++    }
++
+     /// Runs all callbacks scheduled via [`Self::on_next_frame`], returning how many ran.
+     ///
+     /// Tests have no platform frame loop, so this simulates the delivery of the
+@@ -2789,9 +3191,10 @@ impl Window {
      /// the platform window, then notifies observers. Normally called automatically
      /// by the platform's resize callback, but exposed publicly for test infrastructure.
      pub fn bounds_changed(&mut self, cx: &mut App) {
@@ -1907,7 +3138,7 @@ index 1214b03..ec82f86 100644
  
          self.refresh();
  
-@@ -2860,8 +3080,10 @@ impl Window {
+@@ -2860,8 +3263,10 @@ impl Window {
      }
  
      /// Returns the bounds of the current window in the global coordinate space, which could span across multiple displays.
@@ -1919,7 +3150,7 @@ index 1214b03..ec82f86 100644
      }
  
      /// Renders the current frame's scene to a texture and returns the pixel data as an RGBA image.
-@@ -2882,6 +3104,18 @@ impl Window {
+@@ -2882,6 +3287,18 @@ impl Window {
          self.rendered_frame.scene.quads.clone()
      }
  
@@ -1938,7 +3169,7 @@ index 1214b03..ec82f86 100644
      /// Returns the underlines in the most recently rendered frame's scene.
      #[cfg(any(test, feature = "test-support"))]
      pub fn painted_underlines(&self) -> Vec<Underline> {
-@@ -2935,7 +3169,7 @@ impl Window {
+@@ -2935,7 +3352,7 @@ impl Window {
      /// During drawing this is a consistent frame snapshot. Outside drawing it
      /// reflects the latest platform sample, not a synchronous geometry query.
      pub fn visual_viewport_bounds(&self) -> Bounds<Pixels> {
@@ -1947,7 +3178,7 @@ index 1214b03..ec82f86 100644
      }
  
      /// Returns a conservative rectangle avoiding platform-known obscured content.
-@@ -2943,7 +3177,7 @@ impl Window {
+@@ -2943,7 +3360,7 @@ impl Window {
      /// Intersects the visual viewport with the full layout area inset by system
      /// safe areas and keyboard occlusion. Unknown overlays cannot be excluded.
      pub fn fully_visible_bounds(&self) -> Bounds<Pixels> {
@@ -1956,7 +3187,7 @@ index 1214b03..ec82f86 100644
          let viewport = self.viewport_size();
          let left = insets.left.max(Pixels::ZERO).min(viewport.width);
          let top = insets.top.max(Pixels::ZERO).min(viewport.height);
-@@ -2996,7 +3230,7 @@ impl Window {
+@@ -2996,7 +3413,7 @@ impl Window {
  
      /// Opens the native title bar context menu, useful when implementing client side decorations (Wayland and X11)
      pub fn show_window_menu(&self, position: Point<Pixels>) {
@@ -1965,7 +3196,7 @@ index 1214b03..ec82f86 100644
      }
  
      /// Handle window movement for Linux and macOS.
-@@ -3010,7 +3244,7 @@ impl Window {
+@@ -3010,7 +3427,7 @@ impl Window {
      /// When using client side decorations, set this to the width of the invisible decorations (Wayland and X11)
      pub fn set_client_inset(&mut self, inset: Pixels) {
          self.client_inset = Some(inset);
@@ -1974,7 +3205,7 @@ index 1214b03..ec82f86 100644
      }
  
      /// Returns the client_inset value by [`Self::set_client_inset`].
-@@ -3085,6 +3319,21 @@ impl Window {
+@@ -3085,6 +3502,21 @@ impl Window {
          self.platform_window.show_character_palette();
      }
  
@@ -1996,7 +3227,7 @@ index 1214b03..ec82f86 100644
      /// The scale factor of the display associated with the window. For example, it could
      /// return 2.0 for a "retina" display, indicating that each logical pixel should actually
      /// be rendered as two pixels on screen.
-@@ -3174,13 +3423,6 @@ impl Window {
+@@ -3174,13 +3606,6 @@ impl Window {
          px(round_to_device_pixel(value.0, self.scale_factor()) / self.scale_factor())
      }
  
@@ -2010,7 +3241,7 @@ index 1214b03..ec82f86 100644
      /// Snaps a bounds' origin and size to the nearest device pixel.
      #[inline]
      pub fn pixel_snap_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
-@@ -3224,7 +3466,7 @@ impl Window {
+@@ -3224,7 +3649,7 @@ impl Window {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
          if exclusions.is_empty() {
@@ -2019,7 +3250,7 @@ index 1214b03..ec82f86 100644
              return;
          }
  
-@@ -3242,13 +3484,13 @@ impl Window {
+@@ -3242,13 +3667,13 @@ impl Window {
              })
              .collect::<SmallVec<[_; 4]>>();
          if exclusions.is_empty() {
@@ -2035,7 +3266,7 @@ index 1214b03..ec82f86 100644
                  content_mask: ContentMask {
                      bounds: Bounds::from_corners(
                          point(start, bounds.top()),
-@@ -3273,9 +3515,9 @@ impl Window {
+@@ -3273,9 +3698,9 @@ impl Window {
      fn underline(&self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) -> Underline {
          Underline {
              order: 0,
@@ -2046,7 +3277,7 @@ index 1214b03..ec82f86 100644
              color: style
                  .color
                  .unwrap_or_default()
-@@ -3323,6 +3565,44 @@ impl Window {
+@@ -3323,6 +3748,44 @@ impl Window {
          )
      }
  
@@ -2091,7 +3322,16 @@ index 1214b03..ec82f86 100644
      #[inline]
      fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
          ContentMask {
-@@ -3562,6 +3842,7 @@ impl Window {
+@@ -3472,6 +3935,8 @@ impl Window {
+             }
+         }
+         self.dirty_views.clear();
++        self.in_place_routes.clear();
++        self.spliced_elements.clear();
+         self.next_frame.window_active = self.active.get();
+ 
+         // Register requested input handler with the platform window.
+@@ -3562,6 +4027,7 @@ impl Window {
              self.refresh();
          }
          self.needs_present.set(true);
@@ -2099,7 +3339,388 @@ index 1214b03..ec82f86 100644
  
          #[cfg(feature = "profiler")]
          {
-@@ -3820,7 +4101,9 @@ impl Window {
+@@ -3579,8 +4045,13 @@ impl Window {
+     }
+ 
+     fn record_entities_accessed(&mut self, cx: &mut App) {
+-        let mut entities_ref = cx.entities.accessed_entities.get_mut();
+-        let mut entities = mem::take(entities_ref.deref_mut());
++        let uncached = mem::take(cx.entities.accessed_entities.get_mut());
++        let mut entities = mem::take(&mut cx.entities.accessed_below);
++        entities.extend(uncached.iter().copied());
++        for deferred_draw in &self.rendered_frame.deferred_draws {
++            entities.extend(deferred_draw.heard.iter().copied());
++        }
++        self.uncached_reads = uncached;
+         let handle = self.handle;
+         cx.record_entities_accessed(
+             handle,
+@@ -3594,10 +4065,352 @@ impl Window {
+ 
+     fn invalidate_entities(&mut self) {
+         let mut views = self.invalidator.take_views();
++        let in_place = self.invalidator.take_in_place_views();
++        // An entity that is no view draws again, where they stand, every cached view whose last draw read it and the
++        // owner of every deferred draw that read it. Content outside them draws again on every frame, so one only it
++        // read needs no whole frame; one only a record kept from before reads draws that record's view again; one
++        // nothing recorded draws the frame whole.
++        let mut readers = SmallVec::<[EntityId; 4]>::new();
++        let mut outside = false;
++        views.retain(|entity| {
++            if self.rendered_frame.dispatch_tree.view_path_reversed(*entity).next().is_some() {
++                return true;
++            }
++            let mut read = crate::view::readers_of(self, *entity);
++            read.extend(
++                self.rendered_frame
++                    .deferred_draws
++                    .iter()
++                    .filter(|deferred_draw| deferred_draw.reads.contains(entity))
++                    .map(|deferred_draw| deferred_draw.current_view),
++            );
++            if read.is_empty() && self.uncached_reads.contains(entity) {
++                outside = true;
++                return false;
++            }
++            if read.is_empty() {
++                read = crate::view::holders_of(self, *entity);
++            }
++            let whole = read.is_empty();
++            readers.extend(read);
++            whole
++        });
++        // A screen reader's tree is built only on a frame that draws whole, so with one reading, a frame for content
++        // outside every cached view draws whole as it did.
++        let spliced = !(in_place.is_empty() && readers.is_empty());
++        self.in_place_frame =
++            views.is_empty() && (spliced || outside && !self.a11y.wanted()) && !self.refreshing;
++        self.frame_index += 1;
+         for entity in views.drain() {
+             self.mark_view_dirty(entity);
+         }
+         self.invalidator.replace_views(views);
++        for entity in in_place.into_iter().chain(readers) {
++            self.mark_view_dirty_in_place(entity);
++        }
++    }
++
++    /// Marks the nearest cached view at or above `view_id` to draw again, where it stands: its box is its cached
++    /// style's, so nothing above it lays out again, and each cached view above it keeps its output around it.
++    fn mark_view_dirty_in_place(&mut self, view_id: EntityId) {
++        let cached: SmallVec<[EntityId; 8]> = self
++            .rendered_frame
++            .dispatch_tree
++            .cached_view_path(view_id)
++            .collect();
++        let Some((&nearest, above)) = cached.split_first() else {
++            self.mark_view_dirty(view_id);
++            return;
++        };
++        if !self.dirty_views.insert(nearest) {
++            return;
++        }
++        let mut below = nearest;
++        for &view in above {
++            let route = self.in_place_routes.entry(view).or_default();
++            if !route.contains(&below) {
++                route.push(below);
++            }
++            below = view;
++        }
++    }
++
++    pub(crate) fn draw_context(&self) -> DrawContext {
++        DrawContext {
++            draw_scopes: self.draw_scopes.clone(),
++            text_style_stack: self.text_style_stack.clone(),
++            rem_size: self.rem_size(),
++            content_mask: self.content_mask(),
++            rounded_clip_stack: self.rounded_clip_stack.clone(),
++            opacity: self.element_opacity,
++            image_cache_stack: self.image_cache_stack.clone(),
++        }
++    }
++
++    /// Runs `f` inside `scope`; a view drawn in `f` and drawn again in place later, with nothing above it drawn,
++    /// runs inside it again.
++    pub fn with_draw_scope<R>(
++        &mut self,
++        scope: &DrawScope,
++        cx: &mut App,
++        f: impl FnOnce(&mut Self, &mut App) -> R,
++    ) -> R {
++        self.draw_scopes.push(scope.clone());
++        let out = self.within_scopes(std::slice::from_ref(scope), cx, f);
++        self.draw_scopes.pop();
++        out
++    }
++
++    fn within_scopes<R>(
++        &mut self,
++        scopes: &[DrawScope],
++        cx: &mut App,
++        f: impl FnOnce(&mut Self, &mut App) -> R,
++    ) -> R {
++        let Some((outer, inner)) = scopes.split_first() else {
++            return f(self, cx);
++        };
++        let (mut f, mut out) = (Some(f), None);
++        outer(self, cx, &mut |window, cx| {
++            if let Some(f) = f.take() {
++                out = Some(window.within_scopes(inner, cx, f));
++            }
++        });
++        out.expect("a draw scope runs its body")
++    }
++
++    /// Runs `f` as the element at `global_id` ran under `context`, with nothing above it on the stacks.
++    pub(crate) fn with_draw_context<R>(
++        &mut self,
++        global_id: &GlobalElementId,
++        context: &DrawContext,
++        cx: &mut App,
++        f: impl FnOnce(&mut Self, &mut App) -> R,
++    ) -> R {
++        let mut element_id_stack = ElementIdStack::default();
++        for id in global_id.iter() {
++            element_id_stack.push(id.clone());
++        }
++        let element_id_stack = mem::replace(&mut self.element_id_stack, element_id_stack);
++        let text_style_stack =
++            mem::replace(&mut self.text_style_stack, context.text_style_stack.clone());
++        let rem_size_override_stack = mem::replace(
++            &mut self.rem_size_override_stack,
++            SmallVec::from_slice(&[context.rem_size]),
++        );
++        let content_mask_stack = mem::replace(&mut self.content_mask_stack, vec![context.content_mask]);
++        let rounded_clip_stack =
++            mem::replace(&mut self.rounded_clip_stack, context.rounded_clip_stack.clone());
++        let opacity = mem::replace(&mut self.element_opacity, context.opacity);
++        let image_cache_stack =
++            mem::replace(&mut self.image_cache_stack, context.image_cache_stack.clone());
++        let element_offset_stack = mem::take(&mut self.element_offset_stack);
++        // A scope this one's parent drawn in place already entered stays entered: entering it again would undo it.
++        let entered = self
++            .draw_scopes
++            .iter()
++            .zip(&context.draw_scopes)
++            .take_while(|(active, saved)| Rc::ptr_eq(active, saved))
++            .count();
++        let draw_scopes = mem::replace(&mut self.draw_scopes, context.draw_scopes.clone());
++        let result = self.within_scopes(&context.draw_scopes[entered..], cx, f);
++        self.draw_scopes = draw_scopes;
++        self.element_id_stack = element_id_stack;
++        self.text_style_stack = text_style_stack;
++        self.rem_size_override_stack = rem_size_override_stack;
++        self.content_mask_stack = content_mask_stack;
++        self.rounded_clip_stack = rounded_clip_stack;
++        self.element_opacity = opacity;
++        self.image_cache_stack = image_cache_stack;
++        self.element_offset_stack = element_offset_stack;
++        result
++    }
++
++    /// Which of a cached view's `children` to draw again in place for `route`, or none when one is not among
++    /// them (drawn deferred, or not cached) or its output cannot be placed, and the view must draw whole.
++    pub(crate) fn splice_plan(
++        &self,
++        route: &[EntityId],
++        children: &[CachedChild],
++        old: &Range<PrepaintStateIndex>,
++        state_type: TypeId,
++    ) -> Option<SmallVec<[usize; 2]>> {
++        if !old
++            .start
++            .line_layout_index
++            .same_generation(&self.text_system.layout_index())
++        {
++            return None;
++        }
++        let mut plan = SmallVec::<[usize; 2]>::new();
++        for wanted in route {
++            let ix = children
++                .iter()
++                .position(|child| child.view.entity_id() == *wanted)?;
++            let child = &children[ix];
++            child.paint.as_ref()?;
++            child.view.upgrade()?;
++            plan.push(ix);
++        }
++        plan.sort_unstable();
++        plan.dedup();
++        let mut cursor = PrepaintStateIndex::default();
++        for child in children {
++            if !cursor.at_or_before(&child.prepaint.start)
++                || !child.prepaint.start.at_or_before(&child.prepaint.end)
++                || child.prepaint.start.dispatch_tree_index == 0
++                || !old.start.offset_by(&child.prepaint.end).at_or_before(&old.end)
++            {
++                return None;
++            }
++            cursor = child.prepaint.end.clone();
++        }
++        // Each child's record must still point at its own output last frame: its view's node just before it, and
++        // its state's key just before it or first in it.
++        for &ix in &plan {
++            let child = &children[ix];
++            let start = old.start.offset_by(&child.prepaint.start);
++            if self.rendered_frame.dispatch_tree.view_at(start.dispatch_tree_index - 1) != Some(child.view.entity_id()) {
++                return None;
++            }
++            let keys = &self.rendered_frame.accessed_element_states;
++            let at = start.accessed_element_states_index;
++            let own = |ix: usize| keys.get(ix).is_some_and(|(id, ty)| *ty == state_type && *id == child.global_id);
++            if !(at > 0 && own(at - 1) || own(at)) {
++                return None;
++            }
++        }
++        // A parent that paints its children in another order than it prepainted them cannot be painted in parts.
++        let mut painted = PaintIndex::default();
++        for paint in children.iter().filter_map(|child| child.paint.as_ref()) {
++            if !painted.at_or_before(&paint.start) || !paint.start.at_or_before(&paint.end) {
++                return None;
++            }
++            painted = paint.end.clone();
++        }
++        Some(plan)
++    }
++
++    /// Reuses a cached view's prepaint from last frame at `old`, drawing the planned children again in place with
++    /// `prepaint_child`, given each one's own output last frame.
++    pub(crate) fn splice_prepaint(
++        &mut self,
++        children: &mut [CachedChild],
++        old: &Range<PrepaintStateIndex>,
++        plan: &[usize],
++        mut prepaint_child: impl FnMut(&CachedChild, Range<PrepaintStateIndex>, &mut Self),
++    ) -> Range<PrepaintStateIndex> {
++        let start = self.prepaint_index();
++        let mut reuse = SplicedReuse::default();
++        let mut cursor = old.start.clone();
++        let (mut part_old, mut part_new) = (old.start.clone(), start.clone());
++        for (ix, child) in children.iter_mut().enumerate() {
++            let child_old =
++                old.start.offset_by(&child.prepaint.start)..old.start.offset_by(&child.prepaint.end);
++            if !plan.contains(&ix) {
++                child.prepaint = child_old.start.offset_from(&part_old).offset_by(&part_new.offset_from(&start))
++                    ..child_old.end.offset_from(&part_old).offset_by(&part_new.offset_from(&start));
++                continue;
++            }
++            self.reuse_prepaint_part(cursor..child_old.start.clone(), &mut reuse);
++            // The view's own node is the last one before its output, pushed for it by its parent.
++            self.next_frame
++                .dispatch_tree
++                .reuse_open_at(child_old.start.dispatch_tree_index - 1, &mut reuse);
++            let child_start = self.prepaint_index();
++            prepaint_child(child, child_old.clone(), self);
++            let child_end = self.prepaint_index();
++            child.prepaint = child_start.offset_from(&start)..child_end.offset_from(&start);
++            cursor = child_old.end;
++            part_old = cursor.clone();
++            part_new = child_end;
++        }
++        self.reuse_prepaint_part(cursor..old.end.clone(), &mut reuse);
++        self.next_frame.dispatch_tree.reuse_close(&mut reuse);
++        if reuse.contains_focus() {
++            self.next_frame.focus = self.focus;
++        }
++        start..self.prepaint_index()
++    }
++
++    /// Reuses a cached view's paint from last frame at `old`, painting again in place each child prepainted again.
++    pub(crate) fn splice_paint(
++        &mut self,
++        children: &mut [CachedChild],
++        old: &Range<PaintIndex>,
++        mut paint_child: impl FnMut(&CachedChild, Range<PaintIndex>, &mut Self),
++    ) {
++        let start = self.paint_index();
++        let mut cursor = old.start.clone();
++        let (mut part_old, mut part_new) = (old.start.clone(), start.clone());
++        for child in children.iter_mut() {
++            let Some(paint) = &child.paint else { continue };
++            let child_old = old.start.offset_by(&paint.start)..old.start.offset_by(&paint.end);
++            if !self.spliced_elements.contains_key(&child.global_id) {
++                child.paint = Some(
++                    child_old.start.offset_from(&part_old).offset_by(&part_new.offset_from(&start))
++                        ..child_old.end.offset_from(&part_old).offset_by(&part_new.offset_from(&start)),
++                );
++                continue;
++            }
++            self.reuse_paint(cursor..child_old.start.clone());
++            let child_start = self.paint_index();
++            paint_child(child, child_old.clone(), self);
++            let child_end = self.paint_index();
++            child.paint = Some(child_start.offset_from(&start)..child_end.offset_from(&start));
++            cursor = child_old.end;
++            part_old = cursor.clone();
++            part_new = child_end;
++        }
++        self.reuse_paint(cursor..old.end.clone());
++    }
++
++    fn reuse_prepaint_part(&mut self, range: Range<PrepaintStateIndex>, reuse: &mut SplicedReuse) {
++        self.next_frame.hitboxes.extend(
++            self.rendered_frame.hitboxes[range.start.hitboxes_index..range.end.hitboxes_index]
++                .iter()
++                .cloned(),
++        );
++        self.next_frame.tooltip_requests.extend(
++            self.rendered_frame.tooltip_requests
++                [range.start.tooltips_index..range.end.tooltips_index]
++                .iter_mut()
++                .map(|request| request.take()),
++        );
++        self.next_frame.accessed_element_states.extend(
++            self.rendered_frame.accessed_element_states[range.start.accessed_element_states_index
++                ..range.end.accessed_element_states_index]
++                .iter()
++                .map(|(id, type_id)| (id.clone(), *type_id)),
++        );
++        self.text_system
++            .reuse_layouts(range.start.line_layout_index..range.end.line_layout_index);
++        self.next_frame.dispatch_tree.reuse_part(
++            range.start.dispatch_tree_index..range.end.dispatch_tree_index,
++            &mut self.rendered_frame.dispatch_tree,
++            self.focus,
++            reuse,
++        );
++        self.next_frame.deferred_draws.extend(
++            self.rendered_frame.deferred_draws
++                [range.start.deferred_draws_index..range.end.deferred_draws_index]
++                .iter()
++                .map(|deferred_draw| DeferredDraw {
++                    current_view: deferred_draw.current_view,
++                    parent_node: reuse.refresh_node_id(deferred_draw.parent_node),
++                    element_id_stack: deferred_draw.element_id_stack.clone(),
++                    text_style_stack: deferred_draw.text_style_stack.clone(),
++                    content_mask: deferred_draw.content_mask,
++                    rem_size: deferred_draw.rem_size,
++                    priority: deferred_draw.priority,
++                    element: None,
++                    absolute_offset: deferred_draw.absolute_offset,
++                    prepaint_range: deferred_draw.prepaint_range.clone(),
++                    paint_range: deferred_draw.paint_range.clone(),
++                    reads: deferred_draw.reads.clone(),
++                    heard: deferred_draw.heard.clone(),
++                }),
++        );
+     }
+ 
+     #[profiling::function]
+@@ -3671,7 +4484,10 @@ impl Window {
+         self.tooltip_bounds.take();
+ 
+         self.a11y.sync_active_flag();
+-        if self.a11y.is_active() {
++        if self.in_place_frame {
++            // Output reused in place pushes no nodes, so the tree the last whole frame sent stands.
++            self.a11y.hold_frame();
++        } else if self.a11y.is_active() {
+             self.a11y.begin_frame();
+         }
+ 
+@@ -3820,7 +4636,9 @@ impl Window {
                  size: self.viewport_size(),
              };
  
@@ -2110,7 +3731,7 @@ index 1214b03..ec82f86 100644
                  let new_x = mouse_position.x - tooltip_bounds.size.width - px(1.);
                  if new_x >= Pixels::ZERO {
                      tooltip_bounds.origin.x = new_x;
-@@ -3832,7 +4115,9 @@ impl Window {
+@@ -3832,7 +4650,9 @@ impl Window {
                  }
              }
  
@@ -2121,7 +3742,67 @@ index 1214b03..ec82f86 100644
                  let new_y = mouse_position.y - tooltip_bounds.size.height - px(1.);
                  if new_y >= Pixels::ZERO {
                      tooltip_bounds.origin.y = new_y;
-@@ -4177,6 +4462,34 @@ impl Window {
+@@ -3914,14 +4734,19 @@ impl Window {
+ 
+                 let prepaint_start = self.prepaint_index();
+                 if let Some(mut element) = element {
+-                    self.with_rendered_view(current_view, |window| {
+-                        window.with_rem_size(Some(rem_size), |window| {
+-                            window.with_absolute_element_offset(absolute_offset, |window| {
+-                                element.prepaint(window, cx);
++                    let ((), reads, heard) = cx.detect_accessed_entities(|cx| {
++                        self.with_rendered_view(current_view, |window| {
++                            window.with_rem_size(Some(rem_size), |window| {
++                                window.with_absolute_element_offset(absolute_offset, |window| {
++                                    element.prepaint(window, cx);
++                                });
+                             });
+-                        });
++                        })
+                     });
+-                    self.next_frame.deferred_draws[deferred_draw_ix].element = Some(element);
++                    let deferred_draw = &mut self.next_frame.deferred_draws[deferred_draw_ix];
++                    deferred_draw.element = Some(element);
++                    deferred_draw.reads = reads;
++                    deferred_draw.heard = heard;
+                 } else {
+                     self.reuse_prepaint(prepaint_range);
+                 }
+@@ -3958,13 +4783,18 @@ impl Window {
+             let paint_start = self.paint_index();
+             let content_mask = deferred_draw.content_mask;
+             if let Some(element) = deferred_draw.element.as_mut() {
+-                self.with_rendered_view(deferred_draw.current_view, |window| {
+-                    window.with_content_mask(content_mask, |window| {
+-                        window.with_rem_size(Some(deferred_draw.rem_size), |window| {
+-                            element.paint(window, cx);
+-                        });
++                let rem_size = deferred_draw.rem_size;
++                let ((), reads, heard) = cx.detect_accessed_entities(|cx| {
++                    self.with_rendered_view(deferred_draw.current_view, |window| {
++                        window.with_content_mask(content_mask, |window| {
++                            window.with_rem_size(Some(rem_size), |window| {
++                                element.paint(window, cx);
++                            });
++                        })
+                     })
+-                })
++                });
++                deferred_draw.reads.extend(reads);
++                deferred_draw.heard.extend(heard);
+             } else {
+                 self.reuse_paint(deferred_draw.paint_range.clone());
+             }
+@@ -4040,6 +4870,8 @@ impl Window {
+                     absolute_offset: deferred_draw.absolute_offset,
+                     prepaint_range: deferred_draw.prepaint_range.clone(),
+                     paint_range: deferred_draw.paint_range.clone(),
++                    reads: deferred_draw.reads.clone(),
++                    heard: deferred_draw.heard.clone(),
+                 }),
+         );
+     }
+@@ -4177,6 +5009,34 @@ impl Window {
          }
      }
  
@@ -2156,7 +3837,95 @@ index 1214b03..ec82f86 100644
      /// Updates the global element offset relative to the current offset. This is used to implement
      /// scrolling. This method should only be called during the prepaint phase of element drawing.
      pub fn with_element_offset<R>(
-@@ -4566,24 +4879,42 @@ impl Window {
+@@ -4235,8 +5095,12 @@ impl Window {
+     pub fn transact<T, U>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, U>) -> Result<T, U> {
+         self.invalidator.debug_assert_prepaint();
+         let index = self.prepaint_index();
++        let children = self.cached_children.last().map(Vec::len);
+         let result = f(self);
+         if result.is_err() {
++            if let (Some(len), Some(siblings)) = (children, self.cached_children.last_mut()) {
++                siblings.truncate(len);
++            }
+             self.next_frame.hitboxes.truncate(index.hitboxes_index);
+             self.next_frame
+                 .tooltip_requests
+@@ -4447,6 +5311,65 @@ impl Window {
+         }
+     }
+ 
++    /// Like `with_element_state`, recording no access: for a cached view drawn again in place, whose key its parent's
++    /// reused output already carries just before its own.
++    pub(crate) fn with_element_state_in_place<S: 'static, R>(
++        &mut self,
++        global_id: &GlobalElementId,
++        f: impl FnOnce(Option<S>, &mut Self) -> (R, S),
++    ) -> R {
++        let key = (global_id.clone(), TypeId::of::<S>());
++        let state = self
++            .next_frame
++            .element_states
++            .remove(&key)
++            .or_else(|| self.rendered_frame.element_states.remove(&key));
++        let state = state.and_then(|state| {
++            #[cfg(debug_assertions)]
++            let type_name = state.type_name;
++            let inner = state.inner.downcast::<Option<S>>().ok()?;
++            Some((
++                *inner,
++                #[cfg(debug_assertions)]
++                type_name,
++            ))
++        });
++        #[cfg(debug_assertions)]
++        let (state, type_name) = match state {
++            Some((state, type_name)) => (state, type_name),
++            None => (None, std::any::type_name::<S>()),
++        };
++        #[cfg(not(debug_assertions))]
++        let state = state.and_then(|(state,)| state);
++        let (result, state) = f(state, self);
++        self.insert_element_state(
++            key,
++            ElementStateBox {
++                inner: Box::new(Some(state)),
++                #[cfg(debug_assertions)]
++                type_name,
++            },
++        );
++        result
++    }
++
++    /// Updates the state of type `S` an element keeps under `global_id`, if it keeps one, recording no access: the
++    /// element's own output already carries its access into the next frame.
++    pub(crate) fn update_element_state<S: 'static>(
++        &mut self,
++        global_id: &GlobalElementId,
++        f: impl FnOnce(&mut S),
++    ) {
++        let key = (global_id.clone(), TypeId::of::<S>());
++        let state = match self.next_frame.element_states.get_mut(&key) {
++            Some(state) => Some(state),
++            None => self.rendered_frame.element_states.get_mut(&key),
++        };
++        if let Some(Some(inner)) = state.and_then(|state| state.inner.downcast_mut::<Option<S>>()).map(Option::as_mut) {
++            f(inner);
++        }
++    }
++
+     /// A variant of `with_element_state` that allows the element's id to be optional. This is a convenience
+     /// method for elements where the element id may or may not be assigned. Prefer using `with_element_state`
+     /// when the element is guaranteed to have an id.
+@@ -4522,6 +5445,8 @@ impl Window {
+             absolute_offset,
+             prepaint_range: PrepaintStateIndex::default()..PrepaintStateIndex::default(),
+             paint_range: PaintIndex::default()..PaintIndex::default(),
++            reads: FxHashSet::default(),
++            heard: FxHashSet::default(),
+         });
+     }
+ 
+@@ -4566,24 +5491,42 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -2203,7 +3972,7 @@ index 1214b03..ec82f86 100644
              });
          }
      }
-@@ -4602,7 +4933,7 @@ impl Window {
+@@ -4602,7 +5545,7 @@ impl Window {
          let scale_factor = self.scale_factor();
          let content_mask = self.snapped_content_mask();
          let opacity = self.element_opacity();
@@ -2212,7 +3981,7 @@ index 1214b03..ec82f86 100644
          let element_corner_radii = corner_radii.scale(scale_factor);
          for shadow in shadows {
              if !shadow.inset {
-@@ -4618,17 +4949,17 @@ impl Window {
+@@ -4618,17 +5561,17 @@ impl Window {
                  bottom_right: (corner_radii.bottom_right - shadow.spread_radius).max(zero),
                  bottom_left: (corner_radii.bottom_left - shadow.spread_radius).max(zero),
              };
@@ -2232,7 +4001,7 @@ index 1214b03..ec82f86 100644
              });
          }
      }
-@@ -4691,6 +5022,8 @@ impl Window {
+@@ -4691,6 +5634,8 @@ impl Window {
              order: 0,
              bounds: snapped_bounds,
              content_mask: self.snapped_content_mask(),
@@ -2241,7 +4010,7 @@ index 1214b03..ec82f86 100644
              background: quad.background.opacity(opacity),
              border_color: quad.border_color.opacity(opacity),
              corner_radii: quad.corner_radii.scale(self.scale_factor()),
-@@ -4699,7 +5032,7 @@ impl Window {
+@@ -4699,7 +5644,7 @@ impl Window {
          };
  
          if !quad.background.is_transparent() {
@@ -2250,7 +4019,7 @@ index 1214b03..ec82f86 100644
              return;
          }
  
-@@ -4709,7 +5042,7 @@ impl Window {
+@@ -4709,7 +5654,7 @@ impl Window {
          let inner_bounds = Self::largest_border_interior(&quad);
  
          if inner_bounds.is_empty() {
@@ -2259,7 +4028,7 @@ index 1214b03..ec82f86 100644
              return;
          }
  
-@@ -4739,7 +5072,7 @@ impl Window {
+@@ -4739,7 +5684,7 @@ impl Window {
          for strip in strips {
              let content_mask_bounds = quad.content_mask.bounds.intersect(&strip);
              if !content_mask_bounds.is_empty() {
@@ -2268,7 +4037,7 @@ index 1214b03..ec82f86 100644
                      content_mask: ContentMask {
                          bounds: content_mask_bounds,
                      },
-@@ -4749,6 +5082,41 @@ impl Window {
+@@ -4749,6 +5694,41 @@ impl Window {
          }
      }
  
@@ -2310,7 +4079,7 @@ index 1214b03..ec82f86 100644
      /// Paint the given `Path` into the scene for the next frame at the current z-index.
      ///
      /// This method should only be called as part of the paint phase of element drawing.
-@@ -4761,9 +5129,10 @@ impl Window {
+@@ -4761,9 +5741,10 @@ impl Window {
          path.content_mask = content_mask;
          let color: Background = color.into();
          path.color = color.opacity(opacity);
@@ -2324,7 +4093,7 @@ index 1214b03..ec82f86 100644
      }
  
      /// Paint an underline into the scene for the next frame at the current z-index.
-@@ -4777,7 +5146,7 @@ impl Window {
+@@ -4777,7 +5758,7 @@ impl Window {
      ) {
          self.invalidator.debug_assert_paint();
          let underline = self.underline(origin, width, style);
@@ -2333,7 +4102,7 @@ index 1214b03..ec82f86 100644
      }
  
      /// Paint a strikethrough into the scene for the next frame at the current z-index.
-@@ -4799,11 +5168,11 @@ impl Window {
+@@ -4799,11 +5780,11 @@ impl Window {
          };
          let opacity = self.element_opacity();
  
@@ -2347,7 +4116,7 @@ index 1214b03..ec82f86 100644
              thickness: self.snap_stroke(style.thickness),
              color: style.color.unwrap_or_default().opacity(opacity),
              wavy: false.into(),
-@@ -4835,8 +5204,8 @@ impl Window {
+@@ -4835,8 +5816,8 @@ impl Window {
          let quantized_origin = Point::new(
              round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
                  / SUBPIXEL_VARIANTS_X as f32,
@@ -2358,7 +4127,7 @@ index 1214b03..ec82f86 100644
          );
          let subpixel_variant = Point::new(
              (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
-@@ -4872,21 +5241,21 @@ impl Window {
+@@ -4872,21 +5853,21 @@ impl Window {
              let content_mask = self.snapped_content_mask();
  
              if subpixel_rendering {
@@ -2384,7 +4153,7 @@ index 1214b03..ec82f86 100644
                      color: color.opacity(element_opacity),
                      tile,
                      transformation: TransformationMatrix::unit(),
-@@ -4934,7 +5303,11 @@ impl Window {
+@@ -4934,7 +5915,11 @@ impl Window {
  
          let scale_factor = self.scale_factor();
          let glyph_origin = origin.scale(scale_factor);
@@ -2397,7 +4166,7 @@ index 1214b03..ec82f86 100644
          let params = RenderGlyphParams {
              font_id,
              glyph_id,
-@@ -4963,13 +5336,13 @@ impl Window {
+@@ -4963,13 +5948,13 @@ impl Window {
              let content_mask = self.snapped_content_mask();
              let opacity = self.element_opacity();
  
@@ -2413,7 +4182,7 @@ index 1214b03..ec82f86 100644
                  tile,
                  opacity,
              });
-@@ -5029,11 +5402,11 @@ impl Window {
+@@ -5029,11 +6014,11 @@ impl Window {
              .map_origin(|value| ScaledPixels(round_half_toward_zero(value.0)))
              .map_size(|size| size.ceil());
  
@@ -2427,7 +4196,7 @@ index 1214b03..ec82f86 100644
              color: color.opacity(element_opacity),
              tile,
              transformation,
-@@ -5135,12 +5508,12 @@ impl Window {
+@@ -5135,12 +6120,12 @@ impl Window {
              .scale(self.scale_factor());
          let opacity = self.element_opacity();
  
@@ -2442,7 +4211,7 @@ index 1214b03..ec82f86 100644
              corner_radii,
              tile: sub_tile,
              opacity,
-@@ -5163,7 +5536,7 @@ impl Window {
+@@ -5163,7 +6148,7 @@ impl Window {
  
          let bounds = self.snap_bounds(bounds);
          let content_mask = self.snapped_content_mask();
@@ -2451,7 +4220,7 @@ index 1214b03..ec82f86 100644
              order: 0,
              bounds,
              content_mask,
-@@ -5171,6 +5544,22 @@ impl Window {
+@@ -5171,6 +6156,22 @@ impl Window {
          });
      }
  
@@ -2474,7 +4243,7 @@ index 1214b03..ec82f86 100644
      /// Removes an image from the sprite atlas.
      pub fn drop_image(&mut self, data: Arc<RenderImage>) -> Result<()> {
          for frame_index in 0..data.frame_count() {
-@@ -5287,6 +5676,31 @@ impl Window {
+@@ -5287,6 +6288,31 @@ impl Window {
          bounds
      }
  
@@ -2506,7 +4275,7 @@ index 1214b03..ec82f86 100644
      /// This method should be called during `prepaint`. You can use
      /// the returned [Hitbox] during `paint` or in an event handler
      /// to determine whether the inserted hitbox was the topmost.
-@@ -6654,7 +7068,7 @@ impl Window {
+@@ -6654,7 +7680,7 @@ impl Window {
          self.on_next_frame(|window, cx| {
              if let Some(mut input_handler) = window.platform_window.take_input_handler() {
                  if let Some(bounds) = input_handler.selected_bounds(window, cx) {
@@ -2515,3 +4284,39 @@ index 1214b03..ec82f86 100644
                  }
                  window.platform_window.set_input_handler(input_handler);
              }
+@@ -7007,6 +8033,24 @@ impl Window {
+         self.a11y.is_active()
+     }
+ 
++    #[cfg(any(test, feature = "test-support"))]
++    pub(crate) fn count_render(&mut self, view: EntityId) {
++        *self.renders.entry(view).or_default() += 1;
++    }
++
++    /// How many times each view rendered since the last take.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn take_renders(&mut self) -> FxHashMap<EntityId, usize> {
++        mem::take(&mut self.renders)
++    }
++
++    /// Turns accessibility on or off as a screen reader connecting or leaving does.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn simulate_a11y_active(&mut self, active: bool) {
++        self.a11y.simulate_active(active);
++        self.refresh();
++    }
++
+     /// Debug representation of the last frame's accessibility information.
+     pub fn debug_a11y_tree_json(&self) -> Option<String> {
+         self.a11y.debug_tree_json()
+@@ -7337,8 +8381,9 @@ impl Window {
+ 
+     #[inline(never)]
+     fn observe_keyed_state<S: 'static>(state: &Entity<S>, current_view: EntityId, cx: &mut App) {
++        // A keyed state is an element's own, which only the view drawing it draws from.
+         cx.observe(state, move |_, cx| {
+-            cx.notify(current_view);
++            cx.notify_in_place(current_view);
+         })
+         .detach();
+     }

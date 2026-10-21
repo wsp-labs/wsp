@@ -243,7 +243,8 @@ fn in_settings<'a>(cx: &'a mut TestAppContext, host: &Throwaway) -> (Entity<Sett
     let (_, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
         shell = Some(view.clone());
-        Root::new(view, window, cx)
+        desktop_gpui::frames::watch(window, cx);
+        Root::new(view, window, cx).cache_view()
     });
     let shell = shell.unwrap();
     let mounted = |cx: &mut VisualTestContext| {
@@ -496,4 +497,60 @@ fn the_figures_roll_in_and_a_tab_switch_replays_them(cx: &mut TestAppContext) {
     assert!(!rolling(cx));
     cx.update(|_, cx| page.update(cx, |p, cx| p.pick_tab(Tab::Used, cx)));
     assert!(rolling(cx), "back on Usage the page replays from zeros");
+}
+
+/// A held read whose answers bring the figures the page already shows draws nothing: not the page, not its header.
+#[gpui_kit::test]
+fn a_held_read_that_brings_the_same_figures_draws_nothing(cx: &mut TestAppContext) {
+    let host = seeded();
+    let (page, _, cx) = open(cx, &host);
+    until(cx, &page, "the first read", |p| landed(p, Range::Week, Split::Agent));
+    // The figures' roll-in plays out and ends.
+    for _ in 0..4 {
+        cx.executor().advance_clock(Duration::from_millis(300));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+    let first = cx.read(|cx| page.read(cx).read_at().unwrap());
+    desktop_gpui::frames::take();
+    cx.executor().advance_clock(HOLD);
+    until(cx, &page, "the held read's answers", |p| p.read_at().is_some_and(|at| at > first) && !p.reading());
+    cx.run_until_parked();
+    let counts = desktop_gpui::frames::take();
+    assert!(!counts.contains_key("UsagePage"), "the same figures read again draw nothing: {counts:?}");
+}
+
+/// Catches: a figure's roll and the chart's tween drawing Settings and the Usage page again on each of their frames,
+/// as each asked for a frame of the view it stood in.
+#[gpui_kit::test]
+fn a_roll_step_draws_the_rolling_figures_alone(cx: &mut TestAppContext) {
+    let host = seeded();
+    let (_, page, cx) = in_settings(cx, &host);
+    until(cx, &page, "the first read", |p| landed(p, Range::Week, Split::Agent) && p.models.value.is_some());
+    // The roll-in and the waits the loading skeletons left play out, and nothing more is on its way.
+    for _ in 0..12 {
+        cx.executor().advance_clock(Duration::from_millis(250));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+    assert!(cx.debug_bounds("digit-column").is_none(), "the roll-in has ended");
+    // The Limits tab rolls its figures in from zeros, over 500 ms; the header's tabs slide to it over the first 200.
+    cx.update(|_, cx| page.update(cx, |p, cx| p.pick_tab(Tab::Limits, cx)));
+    cx.run_until_parked();
+    for _ in 0..16 {
+        cx.executor().advance_clock(Duration::from_millis(16));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+    assert!(cx.debug_bounds("digit-column").is_some(), "the Limits tab's figures roll");
+    for step in 0..6 {
+        desktop_gpui::frames::take();
+        cx.executor().advance_clock(Duration::from_millis(16));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        let counts = desktop_gpui::frames::take();
+        let around: Vec<_> = counts.keys().filter(|view| !["DigitRoll", "ChartTween", "frame"].contains(view)).collect();
+        assert!(around.is_empty(), "step {step} drew {around:?} around the figures: {counts:?}");
+        assert!(counts.contains_key("DigitRoll"), "step {step} rolled the figures: {counts:?}");
+    }
 }

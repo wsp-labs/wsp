@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use futures::StreamExt as _;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
-use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, Global, Hsla, Pixels, SharedString, Task, Window};
+use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, Entity, Global, Hsla, Pixels, SharedString, StyleRefinement, Task, Window};
 use serde_json::{json, Value};
 use wsp_host_client::protocol::{PlaceView, PlacesReadingsRequest, SysSubscribeRequest, SysUnsubscribeRequest};
 use wsp_host_client::{Event, HostClient};
@@ -168,6 +168,8 @@ struct Band {
     abort: Option<tokio::task::AbortHandle>,
     unwatch: Option<Box<dyn FnOnce()>>,
     present: bool,
+    /// The plot and the figures, each a view of its own once the band stands, which a new step draws again in place.
+    drawn: Option<(Entity<BandPart>, Entity<BandPart>)>,
     _hear: Option<Task<()>>,
 }
 
@@ -210,21 +212,63 @@ impl Band {
                         Arrival::Sample(reading) => feed_sample(steps, reading),
                     }
                 });
-                if moved && me.update(cx, |_, cx| cx.notify()).is_err() {
+                if moved && me.update(cx, |band, cx| band.moved(cx)).is_err() {
                     return;
                 }
             }
         }));
     }
+
+    /// New steps: the plot and the figures draw again where they stand, or the row lays the band out once it has none.
+    fn moved(&mut self, cx: &mut Context<Band>) {
+        match &self.drawn {
+            Some((plot, figures)) => {
+                plot.update(cx, |_, cx| cx.notify_in_place());
+                figures.update(cx, |_, cx| cx.notify_in_place());
+            }
+            None => cx.notify(),
+        }
+    }
+
+    /// The band's two parts, made the first time it is drawn, laid on `place` as the row reads it now.
+    fn parts(&mut self, place: &PlaceView, away: bool, cx: &mut App) -> (Entity<BandPart>, Entity<BandPart>) {
+        let part = |plot: bool, cx: &mut App| cx.new(|_| BandPart { plot, place: place.clone(), away });
+        let (plot, figures) = self.drawn.get_or_insert_with(|| (part(true, cx), part(false, cx))).clone();
+        for part in [&plot, &figures] {
+            part.update(cx, |p, _| (p.place, p.away) = (place.clone(), away));
+        }
+        (plot, figures)
+    }
+}
+
+/// One of a band's two parts: the plot under the name, or the figures under the threads.
+struct BandPart {
+    plot: bool,
+    place: PlaceView,
+    away: bool,
+}
+
+impl Render for BandPart {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("ComputerBand");
+        let steps = cx.try_global::<Readings>().and_then(|r| r.0.get(&self.place.id)).cloned().unwrap_or_default();
+        let (plot, figures) = band_parts(&self.place, &steps, self.away, cx);
+        if self.plot {
+            plot.into_any_element()
+        } else {
+            figures.into_any_element()
+        }
+    }
 }
 
 /// Keeps the row's following while the row is drawn, and fills its window again when the computer comes back.
-fn keep(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) {
+fn keep(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) -> Entity<Band> {
     let present = !is_offline(place);
     let band = window.use_keyed_state(SharedString::from(format!("computer-{}-live", place.id)), cx, move |_, _| Band {
         abort: None,
         unwatch: None,
         present,
+        drawn: None,
         _hear: None,
     });
     if band.read(cx).abort.is_none() && ctx.acts.host(cx).is_some() {
@@ -239,10 +283,11 @@ fn keep(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) {
                 .and_then(|v| v.as_array().map(|a| a.iter().filter_map(reading_of).collect()))
                 .unwrap_or_default();
             feed_window(cx.default_global::<Readings>().0.entry(id).or_default(), &points);
-            _ = me.update(cx, |_, cx| cx.notify());
+            _ = me.update(cx, |band, cx| band.moved(cx));
         });
     }
     band.update(cx, |b, _| b.present = present);
+    band
 }
 
 /// `ChartPlot` at a lane's size: no rules, a fill from 40% of its ink.
@@ -276,11 +321,18 @@ fn away_figure(at: f64, sans: SharedString, ink: gpui_kit::Hsla) -> gpui_kit::Di
 /// threads, the state and the chevron, each over two columns of the narrow template; none until the computer has read
 /// once.
 pub fn band(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) -> Option<Vec<GridCell>> {
-    keep(ctx, place, window, cx);
-    let steps = cx.try_global::<Readings>().and_then(|r| r.0.get(&place.id)).filter(|s| !s.is_empty())?.clone();
-    let last = *steps.last()?;
-    let (to, from) = (last.at, last.at - WINDOW_MS);
+    let band = keep(ctx, place, window, cx);
+    cx.try_global::<Readings>().and_then(|r| r.0.get(&place.id)).filter(|s| !s.is_empty())?;
     let away = is_offline(place) || ctx.acts.host(cx).is_none();
+    let (plot, figures) = band.update(cx, |band, cx| band.parts(place, away, cx));
+    let part = || StyleRefinement::default().w_full().h(LANE * 2. + LANE_GAP);
+    Some(vec![GridCell::new(plot.cached(part()), 3, 2), GridCell::new(figures.cached(part()), 3, 2)])
+}
+
+/// The band's plot and its figures off the computer's steps.
+fn band_parts(place: &PlaceView, steps: &[Step], away: bool, cx: &App) -> (impl IntoElement, impl IntoElement) {
+    let last = steps.last().copied().unwrap_or(Step { at: 0., cpu: 0., used: 0., total: 0., n: 0, cpu_now: 0. });
+    let (to, from) = (last.at, last.at - WINDOW_MS);
     let full = last.total > 0. && last.used / last.total >= MEMORY_NEAR_FULL;
     let p = cx.palette().clone();
     let away_ink = p.muted_foreground.opacity(0.45);
@@ -292,8 +344,8 @@ pub fn band(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) -> 
     } else {
         p.hue_violet
     };
-    let cpu = span_points(&steps, from, to, |s| s.cpu / 100.);
-    let mem = span_points(&steps, from, to, |s| if s.total > 0. { s.used / s.total } else { 0. });
+    let cpu = span_points(steps, from, to, |s| s.cpu / 100.);
+    let mem = span_points(steps, from, to, |s| if s.total > 0. { s.used / s.total } else { 0. });
     let plot = v_flex()
         .id(SharedString::from(format!("live-band-{}", place.id)))
         .debug_selector(|| "live-band".into())
@@ -323,8 +375,8 @@ pub fn band(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) -> 
         let ink = if full { p.warning_foreground } else { p.foreground };
         figure(Some("Memory"), div().text_color(ink).child(fmt_mem_gb(last.used / 1024. / 1024.)).into_any_element())
     };
-    let figures = v_flex().debug_selector(|| "live-figures".into()).gap(LANE_GAP).child(cpu_figure).child(mem_figure);
-    Some(vec![GridCell::new(plot, 3, 2), GridCell::new(figures, 3, 2)])
+    let figures = v_flex().debug_selector(|| "live-figures".into()).w_full().gap(LANE_GAP).child(cpu_figure).child(mem_figure);
+    (plot, figures)
 }
 
 #[cfg(test)]

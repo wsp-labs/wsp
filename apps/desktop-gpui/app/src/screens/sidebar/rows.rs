@@ -6,6 +6,7 @@ use gpui_kit::component::{h_flex, v_flex};
 use gpui_kit::{div, prelude::*, px, AnyElement, Context, Hsla, SharedString};
 use serde_json::Value;
 
+use super::age::{self, Count, Room};
 use super::chrome::ROW_RADIUS;
 use super::menu::On;
 use super::model::{Item, Section};
@@ -163,11 +164,11 @@ impl Sidebar {
                 Some(l) => tile::line(self, ix, &l, window, cx),
                 None => div().into_any_element(),
             },
-            Some(Drawn::Launch(i)) => self.launch_tile(i, cx),
+            Some(Drawn::Launch(i)) => self.launch_tile(i, window, cx),
             Some(Drawn::Creation(i)) => self.creation_tile(i, cx),
             Some(Drawn::Workspace(id)) => self.workspace_tile(&id, cx),
             Some(Drawn::ForwardsHead) => self.forwards_head(cx),
-            Some(Drawn::Forward(i)) => self.forward_row(i, cx),
+            Some(Drawn::Forward(i)) => self.forward_row(i, window, cx),
             None => div().into_any_element(),
         }
     }
@@ -210,13 +211,14 @@ impl Sidebar {
         v_flex().id(id).h(tile::TILE).gap(px(4.)).p(px(8.)).rounded(ROW_RADIUS).child(row_one).child(row_two)
     }
 
-    fn launch_tile(&mut self, i: usize, cx: &mut Context<Self>) -> AnyElement {
+    fn launch_tile(&mut self, i: usize, window: &mut gpui_kit::Window, cx: &mut Context<Self>) -> AnyElement {
         let Some(l) = self.around.launches.get(i).cloned() else { return div().into_any_element() };
         let p = cx.palette().clone();
         let project = self.workspace_project(&l.workspace_id);
         let place = self.where_words(project.as_deref(), Some(&l.workspace_id));
-        let ran = model::running_time(l.started.elapsed().as_secs_f64() * 1000.);
-        let slot = StatusMark::new(Status::Working(ran.into())).crab(false).text(px(11.), px(14.)).into_any_element();
+        let ran = l.started.elapsed().as_secs_f64() * 1000.;
+        let time = age::age(format!("launch-time-{}", l.request_id), Count::Running, ran, Room::Fitted, window, cx);
+        let slot = age::timed_mark(&time, true, p.status_working, None, (px(11.), px(14.)), window, cx);
         let mark = tile::agent(&l.harness, cx);
         let crab = Crab::new(p.status_working).key(SharedString::from(format!("launch-crab-{}", l.request_id))).into_any_element();
         let tile = self.plain_tile(

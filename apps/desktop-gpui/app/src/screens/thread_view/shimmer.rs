@@ -6,8 +6,8 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gpui_kit::{
-    canvas, div, prelude::*, px, size, AnyElement, App, AvailableSpace, Bounds, ContentMask, Context, Element, ElementId, Entity,
-    GlobalElementId, Hsla, InspectorElementId, LayoutId, ListState, Pixels, SharedString, Style, Window,
+    canvas, div, prelude::*, px, AnyElement, App, AvailableSpace, Bounds, ContentMask, Context, Element, ElementId, Entity,
+    GlobalElementId, Hsla, InspectorElementId, LayoutId, ListState, Pixels, SharedString, Style, StyleRefinement, Window,
 };
 
 use super::rows::activity;
@@ -72,6 +72,7 @@ impl Shimmer {
 
 impl Render for Shimmer {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Shimmer");
         self.frames += 1;
         let p = cx.palette().clone();
         let s = &self.spec;
@@ -116,7 +117,7 @@ impl Render for Shimmer {
                     |_, _, _| {},
                     move |bounds, _, window, _| {
                         if !still && bounds.intersects(&window.content_mask().bounds) {
-                            window.request_animation_frame();
+                            window.request_animation_frame_in_place();
                         }
                     },
                 )
@@ -169,9 +170,9 @@ pub fn line(view: &mut ThreadView, row: &Row, spec: Spec, cx: &mut Context<Threa
         .into_any_element()
 }
 
-/// The shimmer's band of the line whose mark it reads.
+/// The shimmer's band of the line whose mark it reads, drawn cached at the mark's box so a frame draws the band alone.
 pub fn band(entity: &Entity<Shimmer>, cx: &App) -> (Spot, AnyElement) {
-    (entity.read(cx).spot.clone(), entity.clone().into_any_element())
+    (entity.read(cx).spot.clone(), entity.clone().cached(StyleRefinement::default().size_full()).into_any_element())
 }
 
 /// How a row's clock reads: its text size and line height, and the height of the line it stands in.
@@ -194,7 +195,8 @@ pub fn clock_slot(view: &mut ThreadView, row: &Row, look: ClockLook, cx: &mut Co
     div().debug_selector(|| "clock-slot".into()).flex_none().relative().w(px(0.)).h(look.height).child(mark(spot)).into_any_element()
 }
 
-/// Draws `child` at `spot` while row `row` is on screen; it reads the spot after the rows prepaint, so a scroll keeps up.
+/// Draws `child` at `spot` and as large while row `row` is on screen; it reads the spot after the rows prepaint, so a
+/// scroll keeps up.
 pub struct Follow {
     spot: Spot,
     list: ListState,
@@ -252,7 +254,7 @@ impl Element for Follow {
         let mut child = self.child.take()?;
         let mask = ContentMask { bounds: self.list.viewport_bounds() };
         window.with_content_mask(Some(mask), |window| {
-            child.layout_as_root(size(AvailableSpace::MaxContent, AvailableSpace::MaxContent), window, cx);
+            child.layout_as_root(at.size.map(AvailableSpace::Definite), window, cx);
             child.prepaint_at(at.origin, window, cx);
         });
         Some((child, mask))

@@ -1,34 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The totals' tiles over their lines of the last minutes, and the skeletons that stand for the tiles and rows.
 
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
-use gpui_kit::{div, prelude::*, px, AnyElement, App, FontWeight};
+use gpui_kit::component::{h_flex, v_flex};
+use gpui_kit::{div, prelude::*, px, AnyElement, App};
 
-use super::model::{
-    cpu_tint, energy_tint, energy_word, memory_share_tint, total_spent, words as w, HistoryPoint, Scope, Tint, HISTORY_POINTS,
-};
-use super::tables::tint_ink;
+use super::model::{cpu_tint, energy_tint, energy_word, memory_share_tint, total_spent, words as w, HistoryPoint, Scope, HISTORY_POINTS};
+use super::tables::Hand;
+use super::views::{Ink, Look};
 use super::{model, note, FIRST_INTERVAL_MS};
 use crate::ui::fmt_bytes;
-use crate::ui::{text, ActivePalette, Card, CardItem, Skeleton, Sparkline};
+use crate::ui::{text, ActivePalette, Card, CardItem, Skeleton};
 
-/// The figure's mark: warn and danger in their inks.
-fn inked(tint: Option<Tint>, cx: &App) -> gpui_kit::Hsla {
-    tint_ink(tint, cx)
-}
-
-/// One total: its label, the figure inked past its mark, a quiet note, and where it has a history, its line.
-#[allow(clippy::too_many_arguments)]
-fn tile(
-    id: &'static str,
-    label: &'static str,
-    value: String,
-    note_word: String,
-    tint: Option<Tint>,
-    line: Option<(Vec<(f32, f32)>, gpui_kit::Hsla)>,
-    ruled: bool,
-    cx: &App,
-) -> AnyElement {
+/// One total: its label, its figure and note in their piece, and where it has a history, its line in its own.
+fn tile(id: &'static str, label: &'static str, figure: AnyElement, line: Option<AnyElement>, ruled: bool, cx: &App) -> AnyElement {
     let p = cx.palette();
     v_flex()
         .id(id)
@@ -40,24 +24,9 @@ fn tile(
         .py_5()
         .when(ruled, |el| el.border_l_1().border_color(p.border.opacity(0.5)))
         .child(div().text_size(text::FACT.0).line_height(px(19.5)).text_color(p.muted_foreground).child(label))
-        .child(
-            div()
-                .font_family(cx.theme().mono_font_family.clone())
-                .text_size(px(26.))
-                .line_height(px(32.))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(inked(tint, cx))
-                .child(value),
-        )
-        .child(div().truncate().text_size(text::XS.0).line_height(text::XS.1).text_color(p.muted_foreground).child(note_word))
-        .children(line.map(|(points, ink)| div().mt_2().child(Sparkline::new(points, ink).height(px(40.)))))
+        .child(figure)
+        .children(line.map(|line| div().mt_2().child(line)))
         .into_any_element()
-}
-
-/// The tile lines' inks, CPU sky, memory violet and power teal (`LINE_INKS`, `activity/page.tsx`), which these hues hold.
-fn line_inks(cx: &App) -> (gpui_kit::Hsla, gpui_kit::Hsla, gpui_kit::Hsla) {
-    let p = cx.palette();
-    (p.hue_blue, p.hue_violet, p.hue_teal)
 }
 
 /// The last minutes as a line, scaled to the highest point in the window and never below the floor.
@@ -85,47 +54,40 @@ fn tile_grid(id: &'static str, tiles: Vec<AnyElement>, narrow: bool) -> gpui_kit
     grid
 }
 
-/// wsp's totals on this computer, each figure over a line of the last minutes; the process count stands alone.
-pub(super) fn tiles(scope: &Scope, history: &[HistoryPoint], mem: Option<(f64, f64)>, narrow: bool, cx: &App) -> AnyElement {
+/// Each tile's figure and note and each line, by the key its piece stands under: memory, CPU, power where the computer
+/// counts it, then the process count, which has no line.
+pub(super) fn tile_looks(scope: &Scope, history: &[HistoryPoint], mem: Option<(f64, f64)>) -> Vec<(&'static str, Look)> {
     let t = total_spent(&scope.groups);
     let threads = scope.groups.iter().filter(|g| g.kind == model::GroupKind::Thread).count();
     let mem_note = mem.map_or_else(|| w::PROCESSES.to_owned(), |(used, _)| w::of(&fmt_bytes(used as u64)));
-    let (cpu_ink, mem_ink, energy_ink) = line_inks(cx);
-    let mut row = vec![
-        tile(
-            "activity-mem",
-            w::WSP,
-            fmt_bytes(t.mem as u64),
-            mem_note,
-            memory_share_tint(t.mem, mem.map(|m| m.1)),
-            Some((line_points(history, |h| h.mem, 1024f64.powi(3)), mem_ink)),
-            false,
-            cx,
-        ),
-        tile(
-            "activity-cpu",
-            w::CPU,
-            format!("{}%", t.cpu.round()),
-            w::ONE_CORE.into(),
-            cpu_tint(t.cpu),
-            Some((line_points(history, |h| h.cpu, 100.), cpu_ink)),
-            !narrow,
-            cx,
-        ),
+    let line = |y: fn(&HistoryPoint) -> f64, floor: f64, ink: Ink| Look::Line { points: line_points(history, y, floor), ink };
+    let mut looks = vec![
+        ("tile:mem", Look::Tile { value: fmt_bytes(t.mem as u64), note: mem_note, tint: memory_share_tint(t.mem, mem.map(|m| m.1)) }),
+        ("line:mem", line(|h| h.mem, 1024f64.powi(3), Ink::Memory)),
+        ("tile:cpu", Look::Tile { value: format!("{}%", t.cpu.round()), note: w::ONE_CORE.into(), tint: cpu_tint(t.cpu) }),
+        ("line:cpu", line(|h| h.cpu, 100., Ink::Cpu)),
     ];
     if scope.energy {
-        row.push(tile(
-            "activity-energy",
-            w::ENERGY,
-            energy_word(t.energy),
-            w::ENERGY_NOTE.into(),
-            energy_tint(t.energy),
-            Some((line_points(history, |h| h.energy.unwrap_or(0.), 1000.), energy_ink)),
-            !narrow,
-            cx,
-        ));
+        looks.push(("tile:energy", Look::Tile { value: energy_word(t.energy), note: w::ENERGY_NOTE.into(), tint: energy_tint(t.energy) }));
+        looks.push(("line:energy", line(|h| h.energy.unwrap_or(0.), 1000., Ink::Power)));
     }
-    row.push(tile("activity-procs", w::PROCESSES, t.count.to_string(), w::threads(threads), None, None, !narrow, cx));
+    looks.push(("tile:procs", Look::Tile { value: t.count.to_string(), note: w::threads(threads), tint: None }));
+    looks
+}
+
+/// wsp's totals on this computer, each figure over a line of the last minutes; the process count stands alone.
+pub(super) fn tiles(scope: &Scope, history: &[HistoryPoint], mem: Option<(f64, f64)>, narrow: bool, hand: &Hand, cx: &App) -> AnyElement {
+    let mut looks: std::collections::HashMap<&str, Look> = tile_looks(scope, history, mem).into_iter().collect();
+    let mut piece = |key: &str| looks.remove(key).map(|look| super::views::piece(&hand.pieces, key, look, &hand.scoped, cx));
+    let mut row = vec![
+        tile("activity-mem", w::WSP, piece("tile:mem").unwrap_or_else(|| div().into_any_element()), piece("line:mem"), false, cx),
+        tile("activity-cpu", w::CPU, piece("tile:cpu").unwrap_or_else(|| div().into_any_element()), piece("line:cpu"), !narrow, cx),
+    ];
+    if let Some(figure) = piece("tile:energy") {
+        row.push(tile("activity-energy", w::ENERGY, figure, piece("line:energy"), !narrow, cx));
+    }
+    let procs = piece("tile:procs").unwrap_or_else(|| div().into_any_element());
+    row.push(tile("activity-procs", w::PROCESSES, procs, None, !narrow, cx));
     Card::new("activity-totals").locked(true).item(CardItem::any(tile_grid("activity-totals", row, narrow))).into_any_element()
 }
 
