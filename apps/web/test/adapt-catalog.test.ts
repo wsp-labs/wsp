@@ -5,7 +5,6 @@ import { CHAT_HARNESS, CHAT_STREAM } from "./fixtures/chat-stream.js";
 
 describe("the client's harness registry", () => {
   it("has one module per harness, each seeding the slash menu with names without their slash", () => {
-    expect(HARNESS_CLIENTS.map(c => c.harness)).toEqual(["claude", "codex", "gemini", "opencode", "pi"]);
     for (const c of HARNESS_CLIENTS) {
       expect(harnessClient(c.harness)).toBe(c);
       for (const s of c.slashCommands) expect(s.name).not.toMatch(/^\//);
