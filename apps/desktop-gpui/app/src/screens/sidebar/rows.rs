@@ -338,10 +338,13 @@ impl Sidebar {
                 let workspace = w.get("id")?.as_str()?.to_owned();
                 let lead = w.get("parentThreadId")?.as_str()?;
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
+                let spawn = w.pointer("/sub/spawn").filter(|s| s.is_object());
+                let starting = !model::start_failed(w) && spawn.is_some_and(|s| s.get("readyAt").is_none() && s.get("failed").is_none());
                 (!held.contains(workspace.as_str()) && self.thread(lead).is_some()).then(|| model::Machine {
                     lead: lead.to_owned(),
                     workspace,
                     started_at: made.map_or(0., |t| t.timestamp_millis() as f64),
+                    starting,
                 })
             })
             .collect();

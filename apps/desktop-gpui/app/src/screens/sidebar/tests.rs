@@ -28,6 +28,7 @@ mod boat;
 mod drag;
 mod hover;
 mod steps;
+mod working;
 
 fn workspace(id: &str) -> Value {
     json!({ "id": id, "name": id, "kind": "local", "project": { "id": "p1" } })

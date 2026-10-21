@@ -577,9 +577,7 @@ impl Sidebar {
 
     /// The sections and trees as they stand now.
     fn view(&self) -> model::View<'_> {
-        let mut view = model::sidebar(&self.threads, &self.prefs, self.now, self.held.as_deref());
-        view.machines = self.machines();
-        view
+        model::sidebar(&self.threads, &self.prefs, self.now, self.held.as_deref(), self.machines())
     }
 
     /// A workspace's record and its live status as this connection last read them.
