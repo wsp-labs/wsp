@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // node --test apps/desktop-gpui/bench/bench.test.mjs: the parts of the bench that need no screen. The fixture case
 // starts a real throwaway host, so it needs the packages built (pnpm build).
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -277,6 +277,45 @@ test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the 
     assert.equal(cards.length, THREADS.real.changes, "every turn that wrote files ends with what it changed");
   } finally {
     if (existsSync(out)) assert.equal(spawnSync(join(here, "stop.sh"), [out]).status, 0);
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("on a busy machine the fixture sends a turn again when its snapshot was missed, and a line the host did not answer", { skip: !existsSync(join(here, "../../../packages/host/dist/bin.js")) && "packages not built" }, async () => {
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-bench-test-"));
+  const out = join(tmp, "fixture.json");
+  const fixture = spawn(join(here, "fixture.sh"), [out], { stdio: ["ignore", "pipe", "pipe"] });
+  let said = "";
+  fixture.stdout.on("data", d => void (said += d));
+  fixture.stderr.on("data", d => void (said += d));
+  const exited = new Promise(resolve => fixture.on("exit", resolve));
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  try {
+    while (!existsSync(out)) await sleep(50);
+    const { state, pid } = JSON.parse(readFileSync(out, "utf8"));
+    const home = dirname(dirname(state));
+    // The daemon finds git on the PATH fixture.sh gives the host, its bin first: the first snapshot taken while real's
+    // second turn is the one being played outlasts the host's 3 s window, as a busy machine's daemon does.
+    const git = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+    writeFileSync(join(home, "bin", "git"), `#!/bin/sh\ncase "$*" in *"add -A"*) grep -q '"thread":"real","turn":1}' ${home}/bench-turn.json && mkdir ${home}/slept 2>/dev/null && sleep 4 ;; esac\nexec ${git} "$@"\n`, { mode: 0o755 });
+    // A host frozen through the pause before that turn answers the next line's dial in no window, as a busy one does.
+    const turn = () => (existsSync(join(home, "bench-turn.json")) ? readFileSync(join(home, "bench-turn.json"), "utf8") : "");
+    while (turn() !== JSON.stringify({ thread: "real", turn: 0 })) await sleep(20);
+    await sleep(2_500);
+    process.kill(pid, "SIGSTOP");
+    await sleep(9_000);
+    process.kill(pid, "SIGCONT");
+    assert.equal(await exited, 0, said);
+    assert.match(said, /^fixture: retry 1: wsp [a-z ]+: the host at \S+ did not answer/m);
+    assert.deepEqual(said.match(/^fixture: resend .*$/gm), ["fixture: resend 1 of turn 2 of real, whose snapshot the host missed"]);
+    const read = spawnSync(process.execPath, [join(here, "../../../packages/host/dist/bin.js"), "thread", "read", JSON.parse(readFileSync(out, "utf8")).threads.real, "--json", "--state", state], { encoding: "utf8", cwd: home, env: { HOME: home, PATH: process.env.PATH }, timeout: 60_000, maxBuffer: 64 << 20 });
+    assert.equal(read.status, 0, read.stderr);
+    const rows = JSON.parse(read.stdout).messages;
+    assert.equal(rows.filter(r => r.who === "tool" && /^Changed \d+ files/.test(r.text)).length, THREADS.real.changes, "the resent turn records what it changed");
+    assert.equal(rows.filter(r => r.who === "person").length, turnsOf("real").length + 1, "the turn sent again is one more message");
+  } finally {
+    fixture.kill();
+    if (existsSync(out)) spawnSync(join(here, "stop.sh"), [out]);
     rmSync(tmp, { recursive: true, force: true });
   }
 });
