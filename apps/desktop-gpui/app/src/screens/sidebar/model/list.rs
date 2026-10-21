@@ -293,23 +293,24 @@ impl<'a> View<'a> {
         match section {
             Section::Pinned => &self.pinned,
             Section::NeedsYou => &self.needs_you,
+            Section::Working => &self.working,
             Section::Threads => &self.threads,
             Section::Settled => &self.settled,
         }
     }
 
-    /// The rows the sidebar draws top to bottom: Pinned and Needs you under their heads, the list with none, then
-    /// the Settled head and its page of trees.
+    /// The rows the sidebar draws top to bottom: Pinned, Needs you and Working under their heads, the list with none,
+    /// then the Settled head and its page of trees.
     pub fn lines(&self, folds: &Folds) -> Vec<Line> {
         let draw = Draw { view: self, folds };
         let mut top = Vec::new();
         let mut gaps = Vec::new();
         let mut sections: Vec<(usize, Section)> = Vec::new();
-        // While a tree is dragged every section with a head stands to take it (`data-drop-only`).
+        // While a tree is dragged every section that takes a drop stands to take it (`data-drop-only`); Working takes none.
         let dragging = folds.dragging.is_some();
-        for section in [Section::Pinned, Section::NeedsYou, Section::Threads] {
+        for section in [Section::Pinned, Section::NeedsYou, Section::Working, Section::Threads] {
             let roots = self.section(section);
-            if roots.is_empty() && !(dragging && section != Section::Threads) {
+            if roots.is_empty() && !(dragging && matches!(section, Section::Pinned | Section::NeedsYou)) {
                 continue;
             }
             if !top.is_empty() {
@@ -376,7 +377,7 @@ impl<'a> View<'a> {
 
     fn root(&self, key: &str) -> Option<&Tree> {
         let top = |n: &&Tree| n.key == key && n.inbox.as_ref().is_none_or(Vec::is_empty);
-        self.pinned.iter().chain(&self.threads).chain(&self.needs_you).find(top)
+        self.pinned.iter().chain(&self.working).chain(&self.threads).chain(&self.needs_you).find(top)
     }
 
     /// Every finished thread under a tree's tiles and every thread under those, which "Settle n finished" takes
@@ -406,7 +407,7 @@ impl<'a> View<'a> {
                 }
             }
         }
-        let tops = [&self.pinned, &self.threads, &self.needs_you];
+        let tops = [&self.pinned, &self.working, &self.threads, &self.needs_you];
         let Some(node) = tops.into_iter().find_map(|t| find(t, key)) else { return Vec::new() };
         let mut out = Vec::new();
         walk(&self.cx, node, &mut out);

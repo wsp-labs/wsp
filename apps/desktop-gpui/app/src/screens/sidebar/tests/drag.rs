@@ -229,7 +229,8 @@ fn a_root_dropped_on_settled_is_settled_and_a_working_one_is_refused(cx: &mut Te
 }
 
 /// Catches: the dragged tile drawn as it rests, its tree still drawn under it, or only the heads of sections that
-/// hold something standing; today's dims the tile, folds its tree and shows every head, and puts all back after.
+/// hold something standing; today's dims the tile, folds its tree and shows every head that takes a drop, and puts
+/// all back after. t0's running child stands it in Working, whose head shows only while it holds a row.
 #[gpui_kit::test]
 fn while_dragged_the_tile_dims_its_tree_folds_and_every_head_stands(cx: &mut TestAppContext) {
     let snap = edited(4, now_ms(), |key, row| {
@@ -242,15 +243,15 @@ fn while_dragged_the_tile_dims_its_tree_folds_and_every_head_stands(cx: &mut Tes
     });
     let (sidebar, cx) = listed(snap, cx);
     assert!(cx.debug_bounds("tile-t3").is_some(), "the child is drawn under t0");
-    assert_eq!(heads(&sidebar, cx), Vec::<Section>::new());
+    assert_eq!(heads(&sidebar, cx), [Section::Working]);
     lift("t0", cx);
     assert!(cx.debug_bounds("drag-source-t0").is_some(), "the carried tile is dimmed");
     assert!(cx.debug_bounds("tile-t3").is_none(), "its tree is folded");
-    assert_eq!(heads(&sidebar, cx), [Section::Pinned, Section::NeedsYou, Section::Settled]);
+    assert_eq!(heads(&sidebar, cx), [Section::Pinned, Section::NeedsYou, Section::Working, Section::Settled]);
     drop_at(tile("t0", cx).center(), cx);
     assert_eq!(sidebar.read_with(cx, |s, _| s.dragging().map(str::to_owned)), None);
     assert!(cx.debug_bounds("drag-source-t0").is_none() && cx.debug_bounds("tile-t3").is_some(), "the tree stands again");
-    assert_eq!(heads(&sidebar, cx), Vec::<Section>::new());
+    assert_eq!(heads(&sidebar, cx), [Section::Working]);
     assert_eq!(marks(&written()), Vec::new());
 }
 
@@ -267,4 +268,46 @@ fn a_group_head_drags_its_members_as_one(cx: &mut TestAppContext) {
     hover(to, cx);
     drop_at(to, cx);
     assert_eq!(marks(&written()), vec![(vec!["t5".to_owned(), "t4".to_owned()], serde_json::json!({ "pinned": true }))]);
+}
+
+/// Catches: a drop taken by Working, which is drawn from what runs; an empty Working head standing to take one; or
+/// a root dragged out of Working that writes other marks than the same drop from the list, or leaves Working while
+/// its tree still runs.
+#[gpui_kit::test]
+fn working_takes_no_drop_and_a_root_dragged_out_writes_the_lists_marks(cx: &mut TestAppContext) {
+    let now = now_ms();
+    let (sidebar, cx) = listed(snapshot(4, now), cx);
+    lift("t0", cx);
+    assert_eq!(heads(&sidebar, cx), [Section::Pinned, Section::NeedsYou, Section::Settled], "no Working head while none runs");
+    drop_at(tile("t0", cx).center(), cx);
+    let mut kid = row(3, "w0", now);
+    kid["parentThreadId"] = serde_json::json!("t2");
+    kid["status"] = serde_json::json!("running");
+    kid.as_object_mut().unwrap().remove("endedAt");
+    sidebar.update(cx, |s, cx| s.apply(Change::Row { id: "r3".into(), row: Some(kid) }, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        (roots(&sidebar, Section::Working, cx), roots(&sidebar, Section::Threads, cx)),
+        (vec!["t2".into()], vec!["t0".into(), "t1".into()])
+    );
+
+    lift("t0", cx);
+    for at in [upper_half(tile("t2", cx)), lower_half(tile("t2", cx)), row_bounds(&sidebar, head(Section::Working), cx).center()] {
+        hover(at, cx);
+        assert_eq!(sidebar.read_with(cx, |s, _| s.drag.at.clone()), None, "Working takes no drop at {at:?}");
+        assert!(cx.debug_bounds("drop-over-working").is_none());
+    }
+    drop_at(lower_half(tile("t2", cx)), cx);
+    assert_eq!(marks(&written()), Vec::new());
+
+    lift("t2", cx);
+    hover(lower_half(tile("t0", cx)), cx);
+    let want = expected(&sidebar, "t2", Section::Threads, 1, cx);
+    drop_at(lower_half(tile("t0", cx)), cx);
+    let got = marks(&written());
+    assert_eq!(got, want);
+    let key = got[0].1["order"].as_f64().unwrap();
+    assert_eq!(got[0].1, serde_json::json!({ "order": key }), "only the list's order key, as a drop from the list writes");
+    assert!(key < now - 60_000. && key > now - 60_001., "between t0 and t1: {key}");
+    assert_eq!(roots(&sidebar, Section::Working, cx), ["t2"], "it stays in Working while its tree runs");
 }

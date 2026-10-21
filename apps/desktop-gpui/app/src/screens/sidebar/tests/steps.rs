@@ -5,7 +5,7 @@ use super::*;
 
 /// Roots r1 to r4 in the list, r2 leading k1, k2 (which leads g1 and g2), a failed k3 and finished d1 and d2; r3
 /// folded over f1 and f2; r4 failed over r4k, so it stands in Needs you too; n1 failed alone in Needs you; s1 to s3
-/// settled, s2 over s2k.
+/// settled, s2 over s2k. r2, r3 and r4 run threads, so they stand in Working above r1.
 fn family(now: f64) -> Snapshot {
     let row = |id: &str, status: &str, parent: Option<&str>, ago: f64| {
         let mut r = json!({
@@ -94,17 +94,17 @@ fn seq(keys: &[&str]) -> Vec<String> {
 }
 
 /// Catches: a step landing on a sub-thread (k1 under r2), or from a Needs you copy (r4's, at the top of the list); a
-/// walk that stops at either end; and none open going nowhere.
+/// walk that stops at either end, or that steps in an order the list does not draw; and none open going nowhere.
 #[gpui_kit::test]
 fn a_top_level_thread_steps_through_the_top_level_threads_as_drawn(cx: &mut TestAppContext) {
     let (sidebar, cx) = listed(cx);
-    assert_eq!(order(&sidebar, cx), ["k3*", "r4*", "n1", "r1", "r2", "k3", "k1", "k2", "g1", "g2", "r3", "r4", "r4k"]);
-    assert_eq!(walk(&sidebar, "r1", 1, 5, cx), seq(&["r2", "r3", "r4", "n1", "r1"]), "down, wrapping at the end");
-    assert_eq!(walk(&sidebar, "r1", -1, 5, cx), seq(&["n1", "r4", "r3", "r2", "r1"]), "up, wrapping at the top");
+    assert_eq!(order(&sidebar, cx), ["k3*", "r4*", "n1", "r2", "k3", "k1", "k2", "g1", "g2", "r3", "r4", "r4k", "r1"]);
+    assert_eq!(walk(&sidebar, "r1", 1, 5, cx), seq(&["n1", "r2", "r3", "r4", "r1"]), "down, wrapping at the end");
+    assert_eq!(walk(&sidebar, "r1", -1, 5, cx), seq(&["r4", "r3", "r2", "n1", "r1"]), "up, wrapping at the top");
     sidebar.update(cx, |s, cx| s.unmark(cx));
     assert_eq!(walk(&sidebar, "", 1, 1, cx), seq(&["n1"]), "with no thread open, down starts at the first");
     sidebar.update(cx, |s, cx| s.unmark(cx));
-    assert_eq!(walk(&sidebar, "", -1, 1, cx), seq(&["r4"]), "and up at the last");
+    assert_eq!(walk(&sidebar, "", -1, 1, cx), seq(&["r1"]), "and up at the last");
 }
 
 /// Catches: a settled root stepping into the live list, or onto a settled tree's sub-thread (s2k); and a step out of
@@ -116,7 +116,7 @@ fn a_settled_thread_steps_through_the_settled_top_level_threads(cx: &mut TestApp
     sidebar.update(cx, |s, cx| s.toggle_section(Section::Settled, cx));
     assert_eq!(walk(&sidebar, "s1", 1, 3, cx), seq(&["s2", "s3", "s1"]));
     assert_eq!(walk(&sidebar, "s1", -1, 3, cx), seq(&["s3", "s2", "s1"]));
-    assert_eq!(walk(&sidebar, "r4", 1, 1, cx), seq(&["n1"]), "a live root still skips Settled when it is open");
+    assert_eq!(walk(&sidebar, "r4", 1, 1, cx), seq(&["r1"]), "a live root still skips Settled when it is open");
 }
 
 /// Catches: a sub-thread stepping onto a thread of another level (a grandchild g1 from k1, or its cousin), or between
@@ -129,7 +129,7 @@ fn a_sub_thread_steps_through_its_leads_threads_as_drawn(cx: &mut TestAppContext
     assert_eq!(walk(&sidebar, "g1", 1, 2, cx), seq(&["g2", "g1"]), "a lead's threads at any depth");
     assert_eq!(walk(&sidebar, "d1", 1, 1, cx), seq(&["d1"]), "a shut fold draws no sibling to step to");
     sidebar.update(cx, |s, cx| s.toggle_finished("r2", cx));
-    assert_eq!(order(&sidebar, cx)[5..10], ["k3", "k1", "k2", "g1", "g2"]);
+    assert_eq!(order(&sidebar, cx)[4..9], ["k3", "k1", "k2", "g1", "g2"]);
     assert_eq!(walk(&sidebar, "k1", 1, 4, cx), seq(&["k2", "k3", "k1", "k2"]), "the open fold stays out of the live walk");
     assert_eq!(walk(&sidebar, "d1", 1, 2, cx), seq(&["d2", "d1"]), "and steps on its own");
 }

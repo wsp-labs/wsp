@@ -446,6 +446,11 @@ impl Thread {
     fn held(&self) -> bool {
         self.sub.as_ref().is_some_and(|s| s.held)
     }
+
+    /// It runs and asks nothing: what puts its tree in Working. A thread starting on its own machine already runs.
+    fn works(&self) -> bool {
+        self.running() && !self.asks
+    }
 }
 
 /// Folds the session rows into threads, in the order each thread's first row appears (session.ts foldThreads).
@@ -610,6 +615,7 @@ pub fn thread_settled(t: &Thread, now_ms: f64, settle_ms: Option<f64>, held: boo
 pub enum Section {
     Pinned,
     NeedsYou,
+    Working,
     Threads,
     Settled,
 }
@@ -620,6 +626,7 @@ impl Section {
         match self {
             Self::Pinned => "pinned",
             Self::NeedsYou => "needs-you",
+            Self::Working => "working",
             Self::Threads => "threads",
             Self::Settled => "settled",
         }
@@ -874,6 +881,11 @@ impl<'a> Ctx<'a> {
         node.thread.is_some_and(|i| test(&self.all[i])) || node.children.iter().any(|c| self.any_tile(c, test))
     }
 
+    /// A thread of the tree works, or a machine one of its threads started is still coming up with no thread on it.
+    fn works(&self, node: &Tree, machines: &[Machine]) -> bool {
+        self.any_tile(node, &|t| t.works() || machines.iter().any(|m| m.starting && m.lead == t.key))
+    }
+
     fn working_in(&self, node: &Tree) -> usize {
         usize::from(node.thread.is_some_and(|i| self.all[i].running())) + node.children.iter().map(|c| self.working_in(c)).sum::<usize>()
     }
@@ -906,6 +918,8 @@ pub struct Machine {
     pub workspace: String,
     /// When its record was made, in ms since the epoch.
     pub started_at: f64,
+    /// Its start has begun and has neither stood nor failed.
+    pub starting: bool,
 }
 
 /// The sidebar's sections and the Settled fold, each a list of root trees in the order drawn.
@@ -913,6 +927,8 @@ pub struct View<'a> {
     cx: Ctx<'a>,
     pub pinned: Vec<Tree>,
     pub needs_you: Vec<Tree>,
+    /// The list's roots whose trees work, in the list's own order.
+    pub working: Vec<Tree>,
     pub threads: Vec<Tree>,
     pub settled: Vec<Tree>,
     /// The machines drawn under the threads that started them, newest first.
@@ -921,7 +937,7 @@ pub struct View<'a> {
 
 /// threadTree.ts sidebarTiles. `held` is the thread open in the centre that the time fold leaves alone: the web
 /// passes it only while that thread was opened from the live list.
-pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&str>) -> View<'a> {
+pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&str>, machines: Vec<Machine>) -> View<'a> {
     let cx = Ctx { all, now: now_ms, settle: prefs.settle_ms };
     let mut order: Vec<usize> = (0..all.len()).collect();
     let start = |i: usize| all[i].started_at.unwrap_or(0.0);
@@ -962,10 +978,12 @@ pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&
     let tops: HashSet<&str> = inbox.iter().filter(|t| t.inbox.as_ref().is_some_and(Vec::is_empty)).map(|t| t.key.as_str()).collect();
     let alone: Vec<bool> = listed.iter().map(|n| tops.contains(n.key.as_str()) && !cx.draws_under(n)).collect();
     let mut inbox_only: HashMap<String, Tree> = HashMap::new();
-    let mut threads = Vec::with_capacity(listed.len() + snoozed.len());
+    let (mut working, mut threads) = (Vec::new(), Vec::with_capacity(listed.len() + snoozed.len()));
     for (node, alone) in listed.into_iter().zip(alone) {
         if alone {
             inbox_only.insert(node.key.clone(), node);
+        } else if cx.works(&node, &machines) {
+            working.push(node);
         } else {
             threads.push(node);
         }
@@ -978,7 +996,7 @@ pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&
     settled.sort_by(|a, b| settled_at(b).total_cmp(&settled_at(a)).then_with(|| a.key.cmp(&b.key)));
     let mut keyed: Vec<(f64, Tree)> = settled.into_iter().map(|n| (cx.tree_settled_ms(&n), n)).collect();
     keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
-    View { cx, pinned, needs_you, threads, settled: keyed.into_iter().map(|(_, n)| n).collect(), machines: Vec::new() }
+    View { cx, pinned, needs_you, working, threads, settled: keyed.into_iter().map(|(_, n)| n).collect(), machines }
 }
 
 /// Sidebar.logic.ts threadForest over the sorted threads: each thread under its opener where the opener is listed,

@@ -190,6 +190,7 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
             let word = match section {
                 Section::Pinned => "Pinned",
                 Section::NeedsYou => "Needs you",
+                Section::Working => "Working",
                 Section::Threads => "Threads",
                 Section::Settled => "Settled",
             };

@@ -85,8 +85,9 @@ impl Sidebar {
         };
         let open = open.filter(|key| self.thread(key).is_some()).map(str::to_owned).or_else(top)?;
         let prefs = Prefs { project: None, ..self.prefs.clone() };
-        let view = model::sidebar(&self.threads, &prefs, self.now, Some(&open));
-        let mut live = view.pinned.iter().chain(view.needs_you.iter().filter(|n| n.inbox.is_none())).chain(&view.threads);
+        let view = model::sidebar(&self.threads, &prefs, self.now, Some(&open), self.machines());
+        let mut live =
+            view.pinned.iter().chain(view.needs_you.iter().filter(|n| n.inbox.is_none())).chain(&view.working).chain(&view.threads);
         let root = live.find(|n| holds(n, &self.threads, &open)).filter(|n| n.thread.is_some())?.key.clone();
         (!self.tree_works(&root)).then_some(root)
     }
