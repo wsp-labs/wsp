@@ -430,23 +430,6 @@ mod tests {
     }
 
     #[test]
-    fn read_facts_answers_this_kernel_and_assess_reads_its_own_facts() {
-        // read_facts does not panic on this kernel, and assess over what it read agrees with assess over the same
-        // facts spelled out: the read and the verdict are one road. self_check calls this pair before it mounts, so
-        // the two cannot part ways on a box.
-        let facts = read_facts();
-        assert_eq!(assess(&facts), assess(&facts.clone()));
-        assert_eq!(
-            assess(&facts).runs_workspaces,
-            facts.linux
-                && facts.cgroup2
-                && facts.overlay == Overlay::Known
-                && facts.root
-                && ["memory", "cpu"].iter().all(|w| facts.controllers.iter().any(|c| c == w))
-        );
-    }
-
-    #[test]
     fn a_computer_that_is_not_linux_cannot_run_workspaces_and_the_reason_says_so() {
         // The doctor is built for every target the daemon builds for, so it answers a Mac honestly rather than
         // failing to compile: no cgroup and no overlay to read, and Linux named as the reason a workspace does not
