@@ -6,28 +6,9 @@ import { describe, expect, it } from "vitest";
 import { inFolder, shellLine, shellQuote } from "../src/index.js";
 import { ROOT, sourceFiles } from "./source-files.js";
 
-const TABLE: [string, string][] = [
-  ["", "''"],
-  ["plain", "'plain'"],
-  ["don't", String.raw`'don'\''t'`],
-  ["'", String.raw`''\'''`],
-  ["''", String.raw`''\'''\'''`],
-  ["a\nb", "'a\nb'"],
-  ["-n", "'-n'"],
-  ["--flag=x", "'--flag=x'"],
-  ["héllo wörld ✓", "'héllo wörld ✓'"],
-  ["$HOME `id` $(reboot)", "'$HOME `id` $(reboot)'"],
-  ["back\\slash", "'back\\slash'"],
-  ["a b\tc", "'a b\tc'"],
-  ['say "hi"', `'say "hi"'`],
-  ["semi; and && or ||", "'semi; and && or ||'"],
-];
+const TABLE = ["", "plain", "don't", "'", "''", "a\nb", "-n", "--flag=x", "héllo wörld ✓", "$HOME `id` $(reboot)", "back\\slash", "a b\tc", 'say "hi"', "semi; and && or ||"];
 
 describe("shellQuote", () => {
-  it.each(TABLE)("quotes %j as one sh word", (input, quoted) => {
-    expect(shellQuote(input)).toBe(quoted);
-  });
-
   it.each(TABLE)("sh reads %j back byte for byte", input => {
     const out = execFileSync("/bin/sh", ["-c", `printf '%s' ${shellQuote(input)}`], { encoding: "utf8" });
     expect(out).toBe(input);

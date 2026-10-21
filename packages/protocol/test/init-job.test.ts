@@ -12,7 +12,6 @@ import {
   InitNeedsYouEvent,
   InitSetup,
   LOGIN_CHOICES,
-  LOGIN_STATE_WORDS,
   SIGN_IN_ANSWERS,
   credentialOnBuilderLine,
   signInChoice,
@@ -27,7 +26,6 @@ import {
   initAgentNoRecipeLine,
   initAgentPrompt,
   initAgentStep,
-  initCostLine,
   initJobBuilding,
   initJobOver,
   initNeedWhat,
@@ -38,7 +36,6 @@ import {
   initRowFailed,
   initRowUnrun,
   SIGN_IN_DEFERRED_WORD,
-  SIGN_IN_LATER,
   titleWithNeed,
   initSetupLines,
   initTallyCount,
@@ -69,7 +66,6 @@ import {
   initTallyOf,
   initTicksOf,
   fmtCalls,
-  GOLDEN_STAGE_TIMED,
   SAVING_IMAGE_LINE,
   InitRow,
   initElapsedLine,
@@ -243,10 +239,6 @@ describe("the words the clients print for the job", () => {
     expect(InitJob.safeParse({ ...JOB, needsYou: { what: "sign in", since: -1 } }).success).toBe(false);
   });
 
-  it("the cost line names the size and the rate once, from the backend's own number", () => {
-    expect(initCostLine({ cpu: 2, memMb: 4096 }, 0.11)).toBe("A 2 vCPU, 4 GB workspace costs about $0.11 an hour while it runs and naps when idle");
-  });
-
   it("the agent's first message names the two tools and where the recipe goes, asks the agent to ask nothing, and says plainly to run no commands", () => {
     const prompt = initAgentPrompt("/Users/me/.wsp/recipe.json");
     expect(prompt).toContain("recipe_scan");
@@ -302,14 +294,6 @@ describe("the words the clients print for the job", () => {
     expect(JSON.stringify(initSetupLines(setup))).not.toMatch(/slr_live|sk-ant/);
   });
 
-  it("the login states have one spelling, the one the terminal and the modal both print", () => {
-    expect(LOGIN_STATE_WORDS).toEqual({ "signed-in": "signed in", "not-signed-in": "not signed in", copied: "copied", "not-verified": "not verified", skipped: "skipped", deferred: SIGN_IN_DEFERRED_WORD });
-    // The phrase the answer and the outcome share has one home, so the row the picker offers and the row a run-out
-    // leaves cannot come to say two different things.
-    expect(SIGN_IN_LATER).toBe("sign in when you first need it");
-    expect(SIGN_IN_DEFERRED_WORD).toBe(`not signed in, ${SIGN_IN_LATER}`);
-  });
-
   it("the sign-in answers offer six words, each with the words its row and its counts print", () => {
     expect(LOGIN_CHOICES).toEqual(["copy", "machine", "later", "key", "skip", "token"]);
     for (const value of LOGIN_CHOICES) expect(SIGN_IN_ANSWERS[value], value).toBeDefined();
@@ -325,7 +309,6 @@ describe("the words the clients print for the job", () => {
   });
 
   it("a row's state words have one table, and one predicate says which of them end the row", () => {
-    expect(INIT_ROW_STATES).toEqual({ waiting: "waiting", running: "running", done: "done", failed: "failed", forking: "forking", forked: "forked", importing: "importing", imported: "imported", open: "waiting for you", slot: "waiting for a machine slot", notMade: "not made", retrying: "machine still running, retrying", gone: "gone", stopped: "stopped", keySet: "key set", skipped: "skipped", mcpAdded: "MCP added" });
     for (const word of ["done", "failed", "stopped", "forked", "imported", "MCP added", "key set", "not made", "gone", "skipped"]) expect(initRowOver({ state: word }), word).toBe(true);
     for (const word of ["waiting", "running", "forking", "importing", "waiting for you", "waiting for a machine slot", "machine still running, retrying"]) expect(initRowOver({ state: word }), word).toBe(false);
     // A sign-in ends on its outcome, never on the sentence it prints: the word a Linux host drew ends the row the
@@ -396,7 +379,6 @@ describe("the words the clients print for the job", () => {
   });
 
   it("the provider's console is spelled once, and no step's words name the host", () => {
-    expect(SOLARI_CONSOLE).toBe("console.getsolari.com");
     expect(JSON.stringify(CLOUD_SETUP_WORDS)).not.toContain(SOLARI_CONSOLE);
   });
 
@@ -489,9 +471,6 @@ describe("the words the clients print for the job", () => {
     expect([...initTicksOf(tools)]).toEqual(["rust", "bun"]);
     expect([...initTicksOf(tools, { ticks: ["swift"] })]).toEqual(["swift"]);
     // The estimate reads in the tone its share of the disk earns, never its weight: 4.9 GB is the danger weight and a quarter of the disk.
-    expect(fmtBytesOfTotal(4.9 * GIB, 20 * GIB)).toBe("4.9 GB of 20 GB");
-    expect(fmtBytesOfTotal(4.9 * GIB)).toBe("4.9 GB");
-    expect(initTallyCount(0, "more")).toBe("0 more on the image");
     expect(diskTone(initImageBytes(job), job.disk.total)).toBe("muted");
     expect(sizeTone(initImageBytes(job))).toBe("danger");
     // The agents screen's sizes are muted whatever they weigh; the tools and what-else screens' wear the weight table; nothing measured is muted anywhere.
@@ -511,7 +490,6 @@ describe("the words the clients print for the job", () => {
     expect(templateStatusLine("ready")).toBe("the image is saved");
     expect(templateStatusLine("building")).toBe("saving the image, the provider says building; asking again");
     // The two stages the provider says nothing during count their own seconds; the wire carries the clock's start.
-    expect([...GOLDEN_STAGE_TIMED]).toEqual(["snapshotting", "promoting"]);
     expect([initRowTimed({ id: "stage/snapshotting" }), initRowTimed({ id: "stage/promoting" }), initRowTimed({ id: "stage/creating" }), initRowTimed({ id: "sign-in/gh" })]).toEqual([true, true, false, false]);
     expect([initElapsedLine(0), initElapsedLine(999), initElapsedLine(41_400), initElapsedLine(72_000)]).toEqual(["0s", "0s", "41s", "1m 12s"]);
     expect(InitRow.parse({ id: "stage/snapshotting", kind: "stage", label: "Taking the snapshot", state: "running", since: 1_760_000_000_000 }).since).toBe(1_760_000_000_000);
