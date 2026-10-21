@@ -14,14 +14,14 @@ use std::time::{Duration, Instant};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme};
 use gpui_kit::{
     anchored, canvas, deferred, div, font, point, prelude::*, px, quad, relative, size, transparent_black, Anchor, AnchoredPositionMode,
-    App, BorderStyle, Bounds, DispatchPhase, ElementId, Entity, Hitbox, HitboxBehavior, Hsla, MouseExitEvent, MouseMoveEvent, PathBuilder,
+    App, BorderStyle, Bounds, DispatchPhase, ElementId, Entity, EntityId, Hitbox, HitboxBehavior, Hsla, MouseMoveEvent, PathBuilder,
     PathStyle, Pixels, Point, RenderImage, Rgba, SharedString, StrokeOptions, TextRun, Window,
 };
 use image::{Frame as ImageFrame, ImageBuffer};
 use lyon::tessellation::{LineCap, LineJoin};
 
 use super::status::still;
-use super::{size as ui_size, text, ActivePalette, DigitRoll};
+use super::{hover_card, size as ui_size, text, ActivePalette, DigitRoll};
 
 pub const CHART_HEIGHT: Pixels = px(300.);
 const PAD: f64 = 6.;
@@ -45,6 +45,8 @@ const END_DOT: f32 = 6.;
 const TOOLTIP_OFFSET: Pixels = px(6.);
 /// Base UI's `collisionPadding`: the tooltip shifts to stay this far inside the window.
 const TOOLTIP_MARGIN: Pixels = px(5.);
+/// The tooltip's key among its chart's hover cards.
+const CARD: &str = "chart-tip";
 /// The small chart's hover opens beside its step this far off, as the web's `sideOffset: 8`.
 const SIDE_OFFSET: f32 = 8.;
 const TWEEN: Duration = Duration::from_millis(520);
@@ -475,15 +477,10 @@ impl Plot {
         }
 
         let (state, n) = (self.state, self.n);
-        let left = state.clone();
         window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
-            if phase == DispatchPhase::Bubble {
-                hover(&state, hitbox.is_hovered(window).then(|| hover_index(f32::from(e.position.x - origin.x), w, n)).flatten(), cx);
-            }
-        });
-        window.on_mouse_event(move |_: &MouseExitEvent, phase, _, cx| {
-            if phase == DispatchPhase::Bubble {
-                hover(&left, None, cx);
+            let step = hitbox.is_hovered(window).then(|| hover_index(f32::from(e.position.x - origin.x), w, n)).flatten();
+            if let Some(step) = step.filter(|_| phase == DispatchPhase::Bubble) {
+                hover(&state, step, cx);
             }
         });
     }
@@ -508,21 +505,25 @@ pub(super) fn stroke_line(window: &mut Window, points: &[Point<Pixels>], width: 
     }
 }
 
-fn hover(state: &Entity<ChartState>, next: Option<usize>, cx: &mut App) {
+/// The pointer on `step`: its tooltip opens, and closes as every hover card does.
+fn hover(state: &Entity<ChartState>, step: usize, cx: &mut App) {
+    hover_card::open(state.entity_id(), CARD, hover_card::POINTER, cx);
     state.update(cx, |state, cx| {
-        if state.hovered != next {
-            state.hovered = next;
+        if state.hovered != Some(step) {
+            state.hovered = Some(step);
             cx.notify();
         }
     })
 }
 
 /// The tooltip over the hovered step: the step's word, then each line with a figure there.
-fn tooltip(word: String, rows: Vec<(Hsla, SharedString, String)>, mono: SharedString, cx: &App) -> impl IntoElement {
+fn tooltip(word: String, rows: Vec<(Hsla, SharedString, String)>, mono: SharedString, owner: EntityId, cx: &App) -> impl IntoElement {
     let p = cx.palette();
     let (xs, xs_line) = text::XS;
     v_flex()
         .debug_selector(|| "chart-tip".into())
+        .relative()
+        .child(hover_card::card(owner, CARD))
         .flex_none()
         .rounded(ui_size::BUTTON_RADIUS)
         .border_1()
@@ -608,7 +609,8 @@ impl RenderOnce for Chart {
         });
         let n = self.steps.len();
         let height = f64::from(f32::from(self.height));
-        let hovered = state.read(cx).hovered.filter(|&i| i < n);
+        let owner = state.entity_id();
+        let hovered = state.read(cx).hovered.filter(|&i| i < n && hover_card::shows(owner, CARD, cx));
         let from = self.axis.map_or(0., |a| a.from);
         let parts = self.axis.map_or(PARTS, |a| a.parts.max(1));
         let top = match self.axis {
@@ -692,7 +694,7 @@ impl RenderOnce for Chart {
                     .read(cx)
                     .plot
                     .is_some_and(|b| f32::from(b.origin.x) + f32::from(b.size.width) * r + SIDE_OFFSET + width > f32::from(room));
-                let tip = deferred(tooltip(word, rows, mono.clone(), cx));
+                let tip = deferred(tooltip(word, rows, mono.clone(), owner, cx));
                 if flip {
                     div().absolute().top_0().left(relative(l)).w_0().h_0().flex().justify_end().child(div().mr(px(SIDE_OFFSET)).child(tip))
                 } else {
@@ -714,7 +716,7 @@ impl RenderOnce for Chart {
                         .position_mode(AnchoredPositionMode::Local)
                         .anchor(Anchor::BottomCenter)
                         .snap_to_window_with_margin(TOOLTIP_MARGIN)
-                        .child(tooltip(word, rows, mono.clone(), cx)),
+                        .child(tooltip(word, rows, mono.clone(), owner, cx)),
                 ))
             }
         });
@@ -745,6 +747,7 @@ impl RenderOnce for Chart {
                 .absolute()
                 .size_full(),
             )
+            .when(hovered.is_some(), |el| el.child(hover_card::opener(owner, CARD)))
             .children(tip);
 
         let ticks = div()

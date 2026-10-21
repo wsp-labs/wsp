@@ -5,6 +5,7 @@
 //! documents than a short one. A live event refolds only the turn it lands in, and a streaming reply's document takes
 //! each delta as an append.
 
+pub mod ahead;
 mod render;
 
 use std::cell::RefCell;
@@ -86,6 +87,20 @@ struct Following {
     thread: String,
 }
 
+/// How long a switch keeps the last thread's rows drawn while the next thread's page is read, and how long a view with
+/// nothing to draw waits before it says it is loading: a page read in less shows with no loading line between.
+pub const HOLD: Duration = Duration::from_millis(150);
+
+/// A switch whose thread's page has not landed: whether the last thread's rows still stand in its place, whether
+/// `HOLD` has passed, the listing the new thread's rows will fold with, and the wait for `HOLD`. A second switch
+/// within it keeps the wait it started.
+struct Waiting {
+    held: bool,
+    late: bool,
+    listing: Option<crate::transcript::Listing>,
+    _wait: Task<()>,
+}
+
 /// Whether the view is in step with the host.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Link {
@@ -153,6 +168,9 @@ pub struct ThreadView {
     pub(crate) refusals: HashMap<String, cards::Refusal>,
     list: ListState,
     loaded: bool,
+    waiting: Option<Waiting>,
+    /// The newest pages of the threads a switch is likely to land on next.
+    ahead: ahead::Ahead,
     failure: Option<String>,
     /// Why the host would not read the thread, said where the transcript would be.
     refused: Option<String>,
@@ -191,6 +209,8 @@ pub struct ThreadView {
     now: Option<f64>,
     /// A thread, and the cell that takes the time of the first presented frame showing its rows once it is loaded.
     presented: Option<(String, Rc<RefCell<Option<Instant>>>)>,
+    /// Takes the time of every presented frame that draws the loading line, as the Ctrl+Tab bench asks.
+    loading_seen: Option<Rc<RefCell<Vec<Instant>>>>,
     /// The overlays': the transcript's focus, find, the Quote button, the rail's hover, the scroll-to-end pill's last
     /// state (None until it first shows), each live line's shimmer, and how many times the view has drawn.
     focus: gpui_kit::FocusHandle,
@@ -268,6 +288,8 @@ impl ThreadView {
             refusals: HashMap::new(),
             list,
             loaded: false,
+            waiting: None,
+            ahead: ahead::Ahead::default(),
             failure: None,
             refused: None,
             oldest: None,
@@ -295,6 +317,7 @@ impl ThreadView {
             revealing: None,
             now: None,
             presented: None,
+            loading_seen: None,
             focus: cx.focus_handle(),
             composer_inset: rows::COMPOSER_INSET,
             find: Find::default(),
@@ -309,18 +332,29 @@ impl ThreadView {
         }
     }
 
-    /// Empties the view for another thread, which shows once its transcript arrives.
+    /// Moves the view to another thread, which shows once its transcript arrives. The last thread's rows stay drawn,
+    /// and take no input, until then or until `HOLD` after the first switch away from them; past that with nothing to
+    /// draw, the loading line shows.
     pub fn show(&mut self, thread: &str, cx: &mut Context<Self>) {
+        let held = match &self.waiting {
+            Some(waiting) => waiting.held,
+            None => self.loaded && !self.transcript.rows().is_empty(),
+        };
+        if !held {
+            self.clear_rows();
+        }
+        match &mut self.waiting {
+            Some(waiting) => waiting.listing = None,
+            None => {
+                let wait = cx.spawn(async move |this, cx| {
+                    cx.background_executor().timer(HOLD).await;
+                    _ = this.update(cx, |this, cx| this.waited(cx));
+                });
+                self.waiting = Some(Waiting { held, late: false, listing: None, _wait: wait });
+            }
+        }
         self.following = None;
         self.thread = Some(thread.to_owned());
-        self.transcript = Transcript::new();
-        self.bodies.clear();
-        self.clocks.clear();
-        self.left = None;
-        cards::drop_images(&mut self.images, &mut self.released, |_| false);
-        self.refusals.clear();
-        self.built_span = None;
-        self.list.reset(0);
         self.loaded = false;
         self.failure = None;
         self.refused = None;
@@ -336,13 +370,62 @@ impl ThreadView {
         self.link = Link::Live;
         self.find.switch();
         self.rail.active = None;
+        crate::ui::hover_card::close(cx.entity_id(), Some(crate::screens::thread_view::minimap::CARD), cx);
         self.quote = None;
         self.pill = None;
         self.glide = None;
         self.revealing = None;
+        cx.notify();
+    }
+
+    /// Drops every row drawn and what the rows keep: the next thread's rows fold into a transcript of their own.
+    fn clear_rows(&mut self) {
+        self.transcript = Transcript::new();
+        self.bodies.clear();
+        self.clocks.clear();
+        self.left = None;
+        cards::drop_images(&mut self.images, &mut self.released, |_| false);
+        self.refusals.clear();
+        self.built_span = None;
+        self.list.reset(0);
         self.shimmers.clear();
         self.clock_spots.clear();
+    }
+
+    /// Ends the wait for the open thread's page: rows still held from the last thread go, and the listing read for
+    /// the open one meanwhile stands on its own transcript.
+    fn release(&mut self) {
+        let Some(waiting) = self.waiting.take() else { return };
+        if waiting.held {
+            self.clear_rows();
+            if let Some(listing) = waiting.listing {
+                self.transcript.listing(listing);
+            }
+        }
+    }
+
+    /// `HOLD` passed with the open thread's page still unread: the last thread's rows go and the loading line shows.
+    fn waited(&mut self, cx: &mut Context<Self>) {
+        if self.waiting.is_none() {
+            return;
+        }
+        self.release();
+        self.waiting = Some(Waiting { held: false, late: true, listing: None, _wait: Task::ready(()) });
         cx.notify();
+    }
+
+    /// Whether the last thread's rows stand drawn while the open thread's page is read.
+    pub fn holding(&self) -> bool {
+        self.waiting.as_ref().is_some_and(|w| w.held)
+    }
+
+    /// What the listing says of the open thread: while the last thread's rows are held, the one its own rows will fold
+    /// with, which the transcript drawn does not hold yet.
+    pub(crate) fn next_listing(&self) -> Option<&crate::transcript::Listing> {
+        match &self.waiting {
+            Some(Waiting { held: true, listing, .. }) => listing.as_ref(),
+            _ => self.transcript.listed(),
+        }
     }
 
     /// Stops following the open thread; what it shows stays until the next `show`.
@@ -355,7 +438,10 @@ impl ThreadView {
     /// Shows the thread from its newest page, then follows it live and reads older pages as the reader nears the top;
     /// when the host's socket closes it reads the newest page again and goes on following. A refusal to read the
     /// thread is said and not retried. With `strict`, as the bench runs, a failure ends the process instead.
+    /// A newest page read ahead for the thread draws in the frame right after the switch; the host's page that follows
+    /// folds again only where it differs.
     pub fn follow(&mut self, host: &Host, item: &ThreadItem, strict: bool, cx: &mut Context<Self>) {
+        let ahead = self.ahead.take(&(item.workspace_id.clone(), item.thread_id.clone()));
         self.show(&item.thread_id, cx);
         self.feed.facts = FactsStep::Undrawn;
         self.feed.revision = None;
@@ -424,6 +510,43 @@ impl ThreadView {
         });
         // The listing stands before the newest page lands, so the page folds once with it.
         self.relist(cx);
+        if let Some(page) = ahead {
+            self.newest(page.events, page.total, page.trimmed, cx);
+        }
+        self.look_ahead(cx);
+    }
+
+    /// Reads ahead the newest pages of the threads two Ctrl+Tab steps either way from the open one at its level in the
+    /// sidebar, and of the threads opened last, and lets go of every other.
+    fn look_ahead(&mut self, cx: &mut Context<Self>) {
+        let Some(following) = &self.following else { return };
+        let (host, open) = (following.host.clone(), (following.workspace.clone(), following.thread.clone()));
+        let around = self.feed.sidebar.as_ref().and_then(|s| s.upgrade()).map(|s| around(s.read(cx))).unwrap_or_default();
+        // A step lands back on the open thread only once the sidebar marks another, whose switch is on its way.
+        if around.contains(&open) {
+            return;
+        }
+        let warm = crate::screens::warm::surround(open.clone(), around, cx);
+        for key in self.ahead.keep(&open, &warm) {
+            let (workspace, thread) = key.clone();
+            let read = host.run(move |host| async move { host.newest_page(&workspace, &thread).await });
+            let at = key.clone();
+            let task = cx.spawn(async move |this, cx| {
+                let page = read.await.ok().map(ahead::Newest::of);
+                _ = this.update(cx, |this, _| this.ahead.landed(&at, page));
+            });
+            self.ahead.reading(key, task);
+        }
+    }
+
+    /// The threads whose newest pages are read ahead, by workspace and thread.
+    pub fn read_ahead_of(&self) -> Vec<(String, String)> {
+        self.ahead.held().cloned().collect()
+    }
+
+    /// The rows holding images, by key, and how many images left them still wait to leave the window's atlas.
+    pub fn images_held(&self) -> (Vec<&str>, usize) {
+        (self.images.keys().map(String::as_str).collect(), self.released.len())
     }
 
     fn arrive(&mut self, arrival: Arrival, cx: &mut Context<Self>) {
@@ -431,40 +554,12 @@ impl ThreadView {
             Arrival::History { events, total, trimmed, drawn } => {
                 self.feed.facts = FactsStep::Undrawn;
                 self.drawn = Some(drawn);
-                let following = self.list.is_following_tail() || !self.loaded;
-                // A reader scrolled up stays on the row they read when the thread is read again after a lost socket.
-                let top = self.list.logical_scroll_top();
-                let kept =
-                    (!following).then(|| self.transcript.rows().get(top.item_ix).map(|r| (r.key.clone(), top.offset_in_item))).flatten();
-                self.link = Link::Live;
-                // Pages read before the socket closed stay under the newest one read now, where the two meet: past more
-                // events than a page holds, the events between are in neither, and the older pages are read again.
-                let lo = events.iter().find_map(wsp_host_client::pos);
-                let newest = self.transcript.event_list().iter().rev().find_map(wsp_host_client::pos);
-                let held: Vec<SessionEvent> = match lo {
-                    Some(lo) if self.loaded && newest.is_some_and(|n| n >= lo) => self
-                        .transcript
-                        .event_list()
-                        .iter()
-                        .take_while(|e| wsp_host_client::pos(e).is_some_and(|p| p < lo))
-                        .cloned()
-                        .collect(),
-                    _ => Vec::new(),
-                };
-                let (was_trimmed, was_settled) = (self.loaded && self.trimmed, self.loaded && self.settled);
-                let events: Vec<SessionEvent> = held.into_iter().chain(events).collect();
-                self.load(events, cx);
-                self.settled = was_settled;
-                self.complete = recorded(self.transcript.event_list()) as u64 >= total;
-                self.trimmed = trimmed || was_trimmed;
-                if following {
-                    self.scroll_to_end(cx);
-                } else if let Some((key, offset)) = kept {
-                    if let Some(ix) = self.transcript.rows().iter().position(|r| r.key == key) {
-                        self.list.scroll_to(ListOffset { item_ix: ix, offset_in_item: offset });
-                    }
+                // The page read ahead and drawn at the switch is the one the host read now, with any older page read since.
+                if self.loaded && self.link == Link::Live && ends_with(self.transcript.event_list(), &events) {
+                    cx.notify();
+                    return;
                 }
-                cx.emit(ThreadViewEvent::Loaded);
+                self.newest(events, total, trimmed, cx);
             }
             Arrival::Event(event) => {
                 self.push(*event, cx);
@@ -481,6 +576,7 @@ impl ThreadView {
                 }
             }
             Arrival::Refused(why) => {
+                self.release();
                 self.refused = Some(format!("history unavailable: {why}"));
                 self.loaded = true;
                 cx.notify();
@@ -505,6 +601,39 @@ impl ThreadView {
         }
     }
 
+    /// The thread's newest page, how many events of it the host keeps and whether its caps dropped older ones.
+    fn newest(&mut self, events: Vec<SessionEvent>, total: u64, trimmed: bool, cx: &mut Context<Self>) {
+        let following = self.list.is_following_tail() || !self.loaded;
+        // A reader scrolled up stays on the row they read when the thread is read again after a lost socket.
+        let top = self.list.logical_scroll_top();
+        let kept = (!following).then(|| self.transcript.rows().get(top.item_ix).map(|r| (r.key.clone(), top.offset_in_item))).flatten();
+        self.link = Link::Live;
+        // Pages read before the socket closed stay under the newest one read now, where the two meet: past more
+        // events than a page holds, the events between are in neither, and the older pages are read again.
+        let lo = events.iter().find_map(wsp_host_client::pos);
+        let newest = self.transcript.event_list().iter().rev().find_map(wsp_host_client::pos);
+        let held: Vec<SessionEvent> = match lo {
+            Some(lo) if self.loaded && newest.is_some_and(|n| n >= lo) => {
+                self.transcript.event_list().iter().take_while(|e| wsp_host_client::pos(e).is_some_and(|p| p < lo)).cloned().collect()
+            }
+            _ => Vec::new(),
+        };
+        let (was_trimmed, was_settled) = (self.loaded && self.trimmed, self.loaded && self.settled);
+        let events: Vec<SessionEvent> = held.into_iter().chain(events).collect();
+        self.load(events, cx);
+        self.settled = was_settled;
+        self.complete = recorded(self.transcript.event_list()) as u64 >= total;
+        self.trimmed = trimmed || was_trimmed;
+        if following {
+            self.scroll_to_end(cx);
+        } else if let Some((key, offset)) = kept {
+            if let Some(ix) = self.transcript.rows().iter().position(|r| r.key == key) {
+                self.list.scroll_to(ListOffset { item_ix: ix, offset_in_item: offset });
+            }
+        }
+        cx.emit(ThreadViewEvent::Loaded);
+    }
+
     pub fn thread(&self) -> Option<&str> {
         self.thread.as_deref()
     }
@@ -515,6 +644,7 @@ impl ThreadView {
 
     /// The whole transcript as it stands, which replaces anything shown before.
     pub fn load(&mut self, events: Vec<SessionEvent>, cx: &mut Context<Self>) {
+        self.release();
         self.transcript.load(events);
         self.revision += 1;
         self.oldest = self.transcript.event_list().iter().find_map(wsp_host_client::pos);
@@ -575,10 +705,12 @@ impl ThreadView {
         self.list.max_offset_for_scrollbar().y + self.list.scroll_px_offset_for_scrollbar().y <= FOLLOW_BAND
     }
 
-    /// What the view says in place of rows: "Loading transcript" until the thread is read, and the empty thread's line.
+    /// What the view says in place of rows: "Loading transcript" once the thread has gone `HOLD` unread with nothing
+    /// to draw, and the empty thread's line.
     pub fn placeholder(&self) -> Option<&'static str> {
         match (&self.thread, self.loaded, &self.refused) {
-            (Some(_), false, _) => Some("Loading transcript"),
+            (Some(_), false, _) if self.waiting.as_ref().is_none_or(|w| w.late) => Some("Loading transcript"),
+            (Some(_), false, _) => None,
             (Some(_), true, None) if self.transcript.rows().is_empty() => Some("Send a message to start the conversation."),
             _ => None,
         }
@@ -806,7 +938,7 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         use crate::transcript::{FileTile, Listing, Sent};
-        let listed = self.transcript.listed().filter(|l| l.thread == thread).cloned();
+        let listed = self.next_listing().filter(|l| l.thread == thread).cloned();
         let listing = listed.unwrap_or_else(|| Listing { thread, ..Default::default() });
         let tiles = files
             .iter()
@@ -827,6 +959,10 @@ impl ThreadView {
 
     /// Stands what the thread listing says, as the host's listing would, also for a test or a capture.
     pub fn set_listing(&mut self, listing: crate::transcript::Listing, cx: &mut Context<Self>) {
+        if let Some(waiting) = self.waiting.as_mut().filter(|w| w.held) {
+            waiting.listing = Some(listing);
+            return;
+        }
         let splice = self.transcript.listing(listing);
         if self.loaded {
             self.apply(splice, cx);
@@ -838,7 +974,10 @@ impl ThreadView {
     pub(crate) fn relist(&mut self, cx: &mut Context<Self>) {
         if self.feed.sidebar.is_none() {
             let Some(sidebar) = crate::screens::terminal::workspaces_sidebar(cx) else { return };
-            self.feed._observed = Some(cx.observe(&sidebar, |view, _, cx| view.relist(cx)));
+            self.feed._observed = Some(cx.observe(&sidebar, |view, _, cx| {
+                view.relist(cx);
+                view.look_ahead(cx);
+            }));
             self.feed.sidebar = Some(sidebar.downgrade());
         }
         let Some(sidebar) = self.feed.sidebar.as_ref().and_then(|s| s.upgrade()) else { return };
@@ -856,7 +995,7 @@ impl ThreadView {
         let listing = crate::transcript::Listing::listed(s.rows(), &thread, at, s.settle_ms(), s.preferences(), &s.here_name())
             .with_workspace(s, memory);
         // The sidebar's rows never know the send in flight; the composer's link sets and clears that.
-        let held = self.transcript.listed().filter(|l| l.thread == thread);
+        let held = self.next_listing().filter(|l| l.thread == thread);
         let (starting, sent) = (held.and_then(|l| l.starting.clone()), held.and_then(|l| l.sent.clone()));
         self.set_listing(crate::transcript::Listing { starting, sent, ..listing }, cx);
         self.ask_facts(cx);
@@ -997,6 +1136,12 @@ impl ThreadView {
 
     pub fn watch_presented(&mut self, thread: &str, cell: Rc<RefCell<Option<Instant>>>, cx: &mut Context<Self>) {
         self.presented = Some((thread.to_owned(), cell));
+        cx.notify();
+    }
+
+    /// Pushes the time of every presented frame that draws the loading line into `frames`.
+    pub fn watch_loading(&mut self, frames: Rc<RefCell<Vec<Instant>>>, cx: &mut Context<Self>) {
+        self.loading_seen = Some(frames);
         cx.notify();
     }
 
@@ -1289,6 +1434,19 @@ fn can_of<C: serde::Serialize>(harnesses: &[C], harness: &str) -> Can {
 /// The wall clock in ms since the epoch, which the listing's states are read at.
 fn now_ms() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0., |d| d.as_millis() as f64)
+}
+
+/// The threads a Ctrl+Tab or Ctrl+Shift+Tab from the open one lands on within two presses, each by its workspace.
+fn around(sidebar: &crate::sidebar::Sidebar) -> Vec<(String, String)> {
+    let at = |key: String| sidebar.threads().iter().find(|t| t.key == key).map(|t| (t.workspace_id.clone(), key));
+    [1, -1, 2, -2].into_iter().filter_map(|by| sidebar.level_step(by)).filter_map(at).collect()
+}
+
+/// Whether the events held end with the events read, by their positions in the host's transcript.
+fn ends_with(held: &[SessionEvent], read: &[SessionEvent]) -> bool {
+    let at = |events: &[SessionEvent]| events.iter().map(wsp_host_client::pos).collect::<Option<Vec<u64>>>();
+    let tail = &held[held.len().saturating_sub(read.len())..];
+    !read.is_empty() && tail.len() == read.len() && at(tail).is_some_and(|tail| at(read) == Some(tail))
 }
 
 /// How many of `events` the host's transcript recorded, which a page's `total` counts.

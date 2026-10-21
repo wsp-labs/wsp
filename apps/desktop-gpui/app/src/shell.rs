@@ -510,7 +510,7 @@ impl Shell {
             }
             Route::Thread { workspace_id, thread_id } => {
                 self.screen = None;
-                screens::warm::switched(thread_id, window, cx);
+                screens::warm::switched(workspace_id, thread_id, window, cx);
                 self.sidebar.update(cx, |s, cx| s.mark(thread_id, cx));
                 if let Some(item) = self.sidebar.read(cx).items().iter().find(|i| i.thread_id == *thread_id).cloned() {
                     crate::screens::thread_view::header::seed(thread_id, &item.project, &item.title, cx);

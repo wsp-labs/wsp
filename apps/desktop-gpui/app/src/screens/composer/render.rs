@@ -3,7 +3,7 @@
 
 use gpui_kit::component::input::Textarea;
 use gpui_kit::component::{h_flex, v_flex, Sizable as _};
-use gpui_kit::{canvas, div, prelude::*, px, Bounds, Context, ExternalPaths, Focusable as _, KeyDownEvent, MouseButton, Pixels, Window};
+use gpui_kit::{canvas, div, prelude::*, px, Bounds, Context, Focusable as _, KeyDownEvent, MouseButton, Pixels, Window};
 
 use super::model::{self, Hold, Layout};
 use super::{dock, menus, parts, wide, Bar, BoxWidth, Composer, COLUMN, LINE, TEXT};
@@ -60,9 +60,6 @@ impl Composer {
         if std::mem::take(&mut self.focus_search) {
             self.search.update(cx, |s, cx| s.set_value("", window, cx));
             self.search.focus_handle(cx).focus(window, cx);
-        }
-        if self.dragging && !cx.has_active_drag() {
-            self.dragging = false;
         }
         self.narrow = crate::ui::narrow(window);
         let narrow = self.narrow;
@@ -232,20 +229,7 @@ impl Composer {
             .capture_action(cx.listener(Self::on_escape))
             .on_action(cx.listener(Self::on_stash))
             .capture_action(cx.listener(Self::on_pick_row))
-            .on_drag_move::<ExternalPaths>(cx.listener(|this, _, _, cx| {
-                if !this.dragging {
-                    this.dragging = true;
-                    cx.notify();
-                }
-            }))
-            .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
-                this.dragging = false;
-                if !this.hold.as_ref().is_some_and(Hold::shuts) {
-                    this.attach_paths(paths.paths(), cx);
-                }
-            }))
             .child(shell)
-            .when(self.dragging && !shut, |el| el.child(parts::drop_overlay(cx)))
             .into_any_element()
     }
 }

@@ -527,7 +527,7 @@ impl Sidebar {
     }
 
     fn show_menu(&mut self, on: On, items: Vec<Item>, at: Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
-        self.card = None;
+        crate::ui::hover_card::close(cx.entity_id(), None, cx);
         let rows = items
             .iter()
             .map(|it| MenuItem {

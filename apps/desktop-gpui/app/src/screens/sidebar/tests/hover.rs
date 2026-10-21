@@ -68,7 +68,7 @@ fn a_failed_sub_thread_offers_settle_in_needs_you_and_under_its_lead(cx: &mut Te
 }
 
 fn card(sidebar: &Entity<Sidebar>, cx: &mut VisualTestContext) -> Option<String> {
-    sidebar.read_with(cx, |s, _| s.card.clone())
+    sidebar.read_with(cx, |_, cx| crate::ui::hover_card::open_key(sidebar.entity_id(), cx).map(String::from))
 }
 
 /// The thread whose tile is under `at`.

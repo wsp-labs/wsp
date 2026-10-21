@@ -382,6 +382,12 @@ impl HostClient {
         })
     }
 
+    /// One thread's newest page alone, oldest first, with nothing followed after it: what a switch draws before
+    /// `open_page` answers.
+    pub async fn newest_page(&self, workspace_id: &str, thread_id: &str) -> Result<Page, Failure> {
+        read_page(&*self.host.client().await?, workspace_id, thread_id, None).await
+    }
+
     /// The page of one thread's events just older than the event at `before`, oldest first.
     pub async fn page(&self, workspace_id: &str, thread_id: &str, before: u64) -> Result<Page, Failure> {
         read_page(&*self.host.client().await?, workspace_id, thread_id, Some(before)).await

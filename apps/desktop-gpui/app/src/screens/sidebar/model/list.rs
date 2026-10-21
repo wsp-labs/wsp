@@ -5,7 +5,8 @@ use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
 
 use super::{
-    thread_section, Ctx, Lead, Part, Section, Thread, ThreadSection, Tree, View, ABOVE_TOP_MS, BELOW_LAST_MS, REKEY_GAP_MS, SETTLED_PAGE,
+    thread_section, Ctx, Lead, Machine, Part, Section, Thread, ThreadSection, Tree, View, ABOVE_TOP_MS, BELOW_LAST_MS, REKEY_GAP_MS,
+    SETTLED_PAGE,
 };
 
 #[derive(Clone, Debug)]
@@ -20,6 +21,8 @@ pub struct Folds {
     pub groups_shut: HashSet<String>,
     /// The thread open in the centre: a settled tree holding it stays on the drawn page.
     pub open: Option<String>,
+    /// The root carried by the pointer (`data-drag-source`): its tree is not drawn, and every section stands.
+    pub dragging: Option<String>,
 }
 
 impl Default for Folds {
@@ -30,6 +33,7 @@ impl Default for Folds {
             finished_open: HashMap::new(),
             groups_shut: HashSet::new(),
             open: None,
+            dragging: None,
         }
     }
 }
@@ -97,6 +101,10 @@ pub enum Item {
         n: usize,
         lead: Option<usize>,
     },
+    /// A machine its lead started that holds no thread yet, by its workspace id.
+    Machine {
+        workspace: String,
+    },
 }
 
 /// One drawn row. `depth` is how many child lists in it stands; `last` that it ends its list, so its rail stops at
@@ -133,11 +141,12 @@ impl Draw<'_, '_> {
     /// second level's x, as siblings in the list it stands in.
     fn tile(&self, node: &Tree, depth: usize, settled: bool, part: Part, root: bool, out: &mut Vec<Entry>) {
         let cx = &self.view.cx;
+        let carried = root && self.folds.dragging.as_deref() == Some(node.key.as_str());
         let Some(i) = node.thread else {
             let attempt = node.key.trim_start_matches("attempt:").to_owned();
             let open = !self.folds.groups_shut.contains(&attempt);
             let mut kids = Vec::new();
-            for child in node.children.iter().filter(|_| open) {
+            for child in node.children.iter().filter(|_| open && !carried) {
                 self.tile(child, depth + 1, settled, Part::Live, false, &mut kids);
             }
             let title_of = node.children.first().and_then(|c| c.thread).unwrap_or(0);
@@ -145,10 +154,15 @@ impl Draw<'_, '_> {
             return;
         };
         let t = &cx.all[i];
-        let draws = !settled && part == Part::Live && node.inbox.is_none() && node.snoozed_working.is_none() && cx.draws_under(node);
+        let machines = self.view.machines.iter().filter(|m| m.lead == t.key).count();
+        let draws = !settled
+            && part == Part::Live
+            && node.inbox.is_none()
+            && node.snoozed_working.is_none()
+            && (cx.draws_under(node) || machines > 0);
         let under = match (draws, t.folded_at.is_some()) {
             (false, _) => Under::None,
-            (true, true) => Under::Folded(cx.rows_under(node)),
+            (true, true) => Under::Folded(cx.rows_under(node) + machines),
             (true, false) => Under::Open,
         };
         let tile = Tile {
@@ -167,7 +181,7 @@ impl Draw<'_, '_> {
             snoozed_working: node.snoozed_working,
             age_at: if settled && part == Part::Live { Some(cx.tree_settled_ms(node)) } else { t.ended_at.or(t.started_at) },
         };
-        let lead = if under == Under::Open { self.lead_tree(node, depth + 1) } else { Vec::new() };
+        let lead = if under == Under::Open && !carried { self.lead_tree(node, depth + 1) } else { Vec::new() };
         let mut kids = Vec::new();
         if settled {
             for child in &node.children {
@@ -190,12 +204,20 @@ impl Draw<'_, '_> {
         let lead = node.thread.unwrap_or(0);
         let [live, finished, settled] = cx.child_parts(cx.lead_nodes(node));
         let mut out = Vec::new();
+        // leadTree.ts ranks a machine with no thread as a quiet live child (2), newest first within its rank.
+        let mut machines = self.view.machines.iter().filter(|m| m.lead == cx.all[lead].key).peekable();
+        let machine = |m: &Machine| leaf(Item::Machine { workspace: m.workspace.clone() });
         for l in live {
+            let (rank, start) = (cx.tree_rank(l), cx.start_of(l));
+            while let Some(m) = machines.next_if(|m| rank > 2 || (rank == 2 && start < m.started_at)) {
+                out.push(machine(m));
+            }
             match l {
                 Lead::Thread(child) => self.tile(child, depth, false, Part::Live, false, &mut out),
                 Lead::Sub(of, index) => out.push(leaf(Item::Subagent { lead: of, index, part: Part::Live })),
             }
         }
+        out.extend(machines.map(machine));
         let folded: Vec<(Lead, Part)> = finished
             .into_iter()
             .map(|l| (l, Part::Finished))
@@ -283,9 +305,11 @@ impl<'a> View<'a> {
         let mut top = Vec::new();
         let mut gaps = Vec::new();
         let mut sections: Vec<(usize, Section)> = Vec::new();
+        // While a tree is dragged every section with a head stands to take it (`data-drop-only`).
+        let dragging = folds.dragging.is_some();
         for section in [Section::Pinned, Section::NeedsYou, Section::Threads] {
             let roots = self.section(section);
-            if roots.is_empty() {
+            if roots.is_empty() && !(dragging && section != Section::Threads) {
                 continue;
             }
             if !top.is_empty() {
@@ -301,7 +325,7 @@ impl<'a> View<'a> {
                 draw.tile(node, 0, false, Part::Live, true, &mut top);
             }
         }
-        if !self.settled.is_empty() {
+        if !self.settled.is_empty() || dragging {
             gaps.push(top.len());
             sections.push((top.len(), Section::Settled));
             let count: usize = self.settled.iter().map(tile_count).sum();

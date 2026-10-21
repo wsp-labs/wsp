@@ -20,8 +20,8 @@ use desktop_gpui::transcript::RowKind;
 use gpui_kit::component::Root;
 use gpui_kit::test::TestWindowExt as _;
 use gpui_kit::{
-    point, prelude::*, px, size, AppContext, Entity, Focusable as _, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, Pixels,
-    PlatformInput, Point, TestAppContext, VisualTestContext, Window,
+    point, prelude::*, px, size, AppContext, Entity, ExternalPaths, FileDropEvent, Focusable as _, Modifiers, MouseButton, MouseDownEvent,
+    MouseUpEvent, Pixels, PlatformInput, Point, TestAppContext, VisualTestContext, Window,
 };
 use wsp_host_client::{protocol, HostClient};
 
@@ -582,4 +582,116 @@ fn mod_o_on_settings_leaves_the_thread_behind_it_alone(cx: &mut TestAppContext) 
     cx.update(|window, cx| composer.read(cx).focus_handle(cx).focus(window, cx));
     cx.simulate_keystrokes("secondary-o");
     until(cx, "the refusal back on the thread", |cx| refusals(cx).len() == 1);
+}
+
+/// Catches: the drop frame drawn over the composer's box alone, drawn while a file is over the sidebar, and a file let
+/// go over the transcript, away from the box, not attached (`ChatDropZone.tsx` takes it anywhere on the chat).
+#[gpui_kit::test]
+fn a_file_dropped_anywhere_on_the_chat_attaches_under_a_frame_over_the_whole_chat(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    let (shell, threads, cx) = shell_on(&host, cx);
+    open(&shell, cx, ids(&threads, "first"), "first");
+    let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen");
+    let composer = screen.read_with(cx, |s, _| s.composer().clone());
+    until(cx, "the composer to take files", |cx| composer.read_with(cx, |c, _| !c.hold().is_some_and(Hold::shuts)));
+    let file = folder.join("dropped.txt");
+    std::fs::write(&file, "dropped").unwrap();
+    let center = cx.debug_bounds("center").expect("the main column");
+    let header = cx.debug_bounds("header-row").expect("the header");
+    let sidebar = cx.debug_bounds("sidebar-column").expect("the sidebar");
+    let transcript = point(center.left() + px(120.), header.bottom() + px(60.));
+
+    cx.simulate_event(FileDropEvent::Entered { position: transcript, paths: ExternalPaths(vec![file].into()) });
+    cx.run_until_parked();
+    let frame = cx.debug_bounds("chat-drop").expect("no drop frame with a file over the transcript");
+    assert_eq!(
+        (frame.left(), frame.top(), frame.size.width, frame.bottom()),
+        (center.left(), header.bottom(), center.size.width, center.bottom()),
+        "the drop frame covers {frame:?}, not the chat under the header in {center:?}"
+    );
+
+    cx.simulate_event(FileDropEvent::Pending { position: sidebar.center() });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("chat-drop").is_none(), "the drop frame stands with the file over the sidebar");
+
+    cx.simulate_event(FileDropEvent::Pending { position: transcript });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("chat-drop").is_some(), "the drop frame did not come back over the transcript");
+    cx.simulate_event(FileDropEvent::Submit { position: transcript });
+    until(cx, "the dropped file in the composer", |cx| composer.read_with(cx, |c, _| c.files().len() == 1));
+    cx.simulate_event(FileDropEvent::Exited);
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("chat-drop").is_none(), "the drop frame outlived the drop");
+
+    // A file carried over the chat and out of the window, never dropped, takes the frame with it.
+    cx.simulate_event(FileDropEvent::Entered { position: transcript, paths: ExternalPaths(vec![folder.join("left.txt")].into()) });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("chat-drop").is_some(), "no drop frame with a second file over the transcript");
+    cx.simulate_event(FileDropEvent::Exited);
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("chat-drop").is_none(), "the drop frame stands after the file left the window");
+
+    // A piece over the transcript that keeps the pointer to itself, the find bar here, still lets the chat take a drop.
+    let view = screen.read_with(cx, |s, _| s.view().clone());
+    view.update_in(cx, desktop_gpui::screens::thread_view::find::open);
+    cx.run_until_parked();
+    let bar = cx.debug_bounds("find-bar").expect("the find bar").center();
+    let again = folder.join("again.txt");
+    std::fs::write(&again, "again").unwrap();
+    cx.simulate_event(FileDropEvent::Entered { position: bar, paths: ExternalPaths(vec![again].into()) });
+    cx.run_until_parked();
+    cx.simulate_event(FileDropEvent::Pending { position: bar });
+    cx.run_until_parked();
+    cx.simulate_event(FileDropEvent::Submit { position: bar });
+    until(cx, "the file dropped over the find bar in the composer", |cx| composer.read_with(cx, |c, _| c.files().len() == 2));
+    cx.simulate_event(FileDropEvent::Exited);
+}
+
+/// Catches: the New thread page taking a file only over the composer's box (`ChatDropZone.tsx` takes it anywhere on
+/// the page, `[data-chat-view]`).
+#[gpui_kit::test]
+fn a_file_dropped_anywhere_on_the_new_thread_page_attaches(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    let (shell, threads, cx) = shell_on(&host, cx);
+    let (workspace, _) = ids(&threads, "first");
+    shell.update_in(cx, |s, window, cx| s.go(Route::Screen(format!("composer:{workspace}").into()), window, cx));
+    until(cx, "the New thread page", |cx| cx.debug_bounds("composer-box").is_some());
+    let file = folder.join("dropped.txt");
+    std::fs::write(&file, "dropped").unwrap();
+    let center = cx.debug_bounds("center").expect("the main column");
+    let header = cx.debug_bounds("header-row").expect("the header");
+    let high = point(center.left() + px(120.), header.bottom() + px(60.));
+    cx.simulate_event(FileDropEvent::Entered { position: high, paths: ExternalPaths(vec![file].into()) });
+    // The page's composer takes no file until it is tied to its workspace.
+    until(cx, "the drop frame over the page", |cx| {
+        cx.simulate_event(FileDropEvent::Pending { position: high });
+        cx.debug_bounds("chat-drop").is_some()
+    });
+    let frame = cx.debug_bounds("chat-drop").unwrap();
+    assert_eq!((frame.left(), frame.top(), frame.size.width), (center.left(), header.bottom(), center.size.width), "{frame:?}");
+    cx.simulate_event(FileDropEvent::Submit { position: high });
+    until(cx, "the dropped file in the composer", |cx| cx.debug_bounds("composer-files").is_some());
+    assert!(cx.debug_bounds("chat-drop").is_none(), "the drop frame outlived the drop");
+}
+
+/// Catches: `--drop <x>,<y>` opening the thread with no file held over it, so the capture shoots no drop frame.
+#[gpui_kit::test]
+fn a_capture_holds_a_file_over_the_chat_where_drop_says(cx: &mut TestAppContext) {
+    let host = common::Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    let (shell, threads, cx) = shell_on(&host, cx);
+    let capture = desktop_gpui::screens::thread_view::Capture { drop: Some((760., 300.)), ..Default::default() };
+    cx.update(|_, cx| cx.set_global(capture));
+    open(&shell, cx, ids(&threads, "first"), "first");
+    until(cx, "the held drop frame", |cx| cx.debug_bounds("chat-drop").is_some());
+    let (frame, center) = (cx.debug_bounds("chat-drop").unwrap(), cx.debug_bounds("center").unwrap());
+    assert_eq!((frame.left(), frame.size.width), (center.left(), center.size.width), "{frame:?}");
 }

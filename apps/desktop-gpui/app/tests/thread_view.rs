@@ -392,6 +392,7 @@ fn a_scroll_through_a_long_thread_keeps_only_the_parsed_rows_near_the_view(cx: &
 fn an_empty_thread_says_to_send_a_message_and_a_loading_one_says_so_centred(cx: &mut TestAppContext) {
     let (view, cx) = window(cx);
     view.update(cx, |v, cx| v.show("t", cx));
+    cx.executor().advance_clock(desktop_gpui::thread_view::HOLD);
     cx.run_until_parked();
     assert_eq!(view.read_with(cx, |v, _| v.placeholder()), Some("Loading transcript"));
     assert!(cx.debug_bounds("transcript-loading").is_some(), "Loading transcript is not drawn");
@@ -401,6 +402,91 @@ fn an_empty_thread_says_to_send_a_message_and_a_loading_one_says_so_centred(cx: 
     let words = cx.debug_bounds("transcript-words").expect("the empty thread's line is not drawn");
     assert_eq!((words.origin.y, words.size.height), (px(0.), px(600.)), "the line is centred in the whole view: {words:?}");
     assert!(cx.debug_bounds("transcript-loading").is_none());
+}
+
+fn keys(view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> Vec<String> {
+    view.read_with(cx, |v, _| v.rows().iter().map(|r| r.key.clone()).collect())
+}
+
+fn reply_key(view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> String {
+    view.read_with(cx, |v, _| v.rows().iter().find(|r| matches!(r.kind, RowKind::Agent { .. })).unwrap().key.clone())
+}
+
+#[gpui_kit::test]
+fn a_switch_keeps_the_last_threads_rows_drawn_until_the_next_ones_land_then_swaps_them_in_one_frame(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    view.update(cx, |v, cx| {
+        v.show("t", cx);
+        v.load(transcript(3), cx);
+    });
+    cx.run_until_parked();
+    let (old, old_reply) = (keys(&view, cx), reply_key(&view, cx));
+
+    view.update(cx, |v, cx| v.show("u", cx));
+    for _ in 0..3 {
+        cx.executor().advance_clock(Duration::from_millis(40));
+        cx.run_until_parked();
+        assert_eq!(keys(&view, cx), old, "the last thread's rows went before the next thread's landed");
+        assert!(cx.debug_bounds("row-0").is_some(), "the last thread's rows are not drawn through the switch");
+        assert!(view.read_with(cx, |v, _| v.body_of(&old_reply).is_some()), "the held rows were parsed again or dropped");
+        assert!(cx.debug_bounds("transcript-loading").is_none(), "the loading line flashed");
+        assert!(cx.debug_bounds("transcript-held").is_some(), "the held rows take input for the thread they were not drawn for");
+        assert_eq!(view.read_with(cx, |v, _| (v.thread().map(str::to_owned), v.placeholder())), (Some("u".to_owned()), None));
+    }
+
+    view.update(cx, |v, cx| v.load((100..103).flat_map(turn).collect(), cx));
+    cx.run_until_parked();
+    let (new, new_reply) = (keys(&view, cx), reply_key(&view, cx));
+    assert!(new.iter().all(|k| !old.contains(k)), "the new thread's rows share keys with the last thread's: {new:?}");
+    assert!(view.read_with(cx, |v, _| v.body_of(&new_reply).is_some()), "the first frame after the page did not draw its rows");
+    assert!(view.read_with(cx, |v, _| v.body_of(&old_reply).is_none()), "the last thread's rows outlived the swap");
+    assert!(cx.debug_bounds("row-0").is_some());
+    assert!(cx.debug_bounds("transcript-held").is_none() && cx.debug_bounds("transcript-loading").is_none());
+}
+
+#[gpui_kit::test]
+fn the_loading_line_waits_150ms_with_nothing_to_draw_and_a_second_switch_keeps_the_first_ones_wait(cx: &mut TestAppContext) {
+    let (view, cx) = window(cx);
+    let loading = |view: &Entity<ThreadView>, cx: &mut VisualTestContext| {
+        let said = view.read_with(cx, |v, _| v.placeholder()) == Some("Loading transcript");
+        assert_eq!(said, cx.debug_bounds("transcript-loading").is_some(), "the placeholder and the drawn line disagree");
+        said
+    };
+    // A first open, with no rows before it, says nothing for 150 ms.
+    view.update(cx, |v, cx| v.show("t", cx));
+    cx.run_until_parked();
+    assert!(!loading(&view, cx), "the loading line showed at once");
+    cx.executor().advance_clock(Duration::from_millis(149));
+    cx.run_until_parked();
+    assert!(!loading(&view, cx), "the loading line showed under 150 ms");
+    cx.executor().advance_clock(Duration::from_millis(1));
+    cx.run_until_parked();
+    assert!(loading(&view, cx), "nothing to draw at 150 ms and no loading line");
+    view.update(cx, |v, cx| v.load(transcript(3), cx));
+    cx.run_until_parked();
+    assert!(!loading(&view, cx));
+
+    // A switch holds the rows; a second one 100 ms in keeps the 150 ms the first one started.
+    view.update(cx, |v, cx| v.show("u", cx));
+    cx.executor().advance_clock(Duration::from_millis(100));
+    cx.run_until_parked();
+    view.update(cx, |v, cx| v.show("v", cx));
+    cx.executor().advance_clock(Duration::from_millis(49));
+    cx.run_until_parked();
+    assert!(!loading(&view, cx) && cx.debug_bounds("row-0").is_some(), "the rows went under 150 ms from the first switch");
+    cx.executor().advance_clock(Duration::from_millis(1));
+    cx.run_until_parked();
+    assert!(loading(&view, cx), "the second switch started the wait again");
+    assert!(view.read_with(cx, |v, _| v.rows().is_empty()) && cx.debug_bounds("row-0").is_none(), "the held rows outlived 150 ms");
+    assert!(cx.debug_bounds("transcript-held").is_none());
+
+    // Past the wait, a further switch still has nothing to draw and says so at once.
+    view.update(cx, |v, cx| v.show("w", cx));
+    cx.run_until_parked();
+    assert!(loading(&view, cx), "a switch past the wait hid the loading line");
+    view.update(cx, |v, cx| v.load((100..103).flat_map(turn).collect(), cx));
+    cx.run_until_parked();
+    assert!(!loading(&view, cx) && cx.debug_bounds("row-0").is_some());
 }
 
 #[gpui_kit::test]

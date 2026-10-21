@@ -1,21 +1,21 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
-# The Ctrl+Tab bench: starts the fixture's throwaway host with 20 more top-level threads, so the sidebar lists 26, opens
+# The Ctrl+Tab bench: starts the fixture's throwaway host with 26 top-level threads and nothing else, opens
 # desktop-gpui on the topmost, holds Ctrl+Tab down through the window's own key dispatch for one step a thread and one
 # more, which wraps to the start, at this machine's key repeat, and prints each step's key-to-screen time from the
 # trace. It stops only what it started, by pid, and never touches the live host: the app reads the fixture's state.
 #   apps/desktop-gpui/bench/ctrl-tab.sh
-# BENCH_OUT=<dir> keeps the trace there (default: a new temp folder); BENCH_GPUI_APP=<path> runs that build instead of
-# building one; BENCH_REPEAT=<delay ms>,<every ms> sets the key repeat, else a Mac's own from `defaults read -g`
-# (InitialKeyRepeat and KeyRepeat, in 15 ms ticks) and elsewhere a Mac's fastest, 225,30. On Linux it runs under Xvfb
-# with DISPLAY set and a window manager on that display (openbox will do), or the window never takes focus and the
-# bench exits 3.
+# BENCH_MORE=<n> lists n threads instead of 26; BENCH_OUT=<dir> keeps the trace there (default: a new temp folder);
+# BENCH_GPUI_APP=<path> runs that build instead of building one; BENCH_REPEAT=<delay ms>,<every ms> sets the key
+# repeat, else a Mac's own from `defaults read -g` (InitialKeyRepeat and KeyRepeat, in 15 ms ticks) and elsewhere a
+# Mac's fastest, 225,30. On Linux it runs under Xvfb with DISPLAY set and a window manager on that display (openbox will
+# do), or the window never takes focus and the bench exits 3. It prints the app's memory through the walk from mem.sh.
 set -eu
 bench=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$bench/../../.." && pwd)
 out=${BENCH_OUT:-$(mktemp -d "${TMPDIR:-/tmp}/wsp-ctrl-tab-XXXXXX")}
 mkdir -p "$out"
-MORE=20
+MORE=${BENCH_MORE:-26}
 gpui_app=${BENCH_GPUI_APP:-$repo/apps/desktop-gpui/target/release/desktop-gpui}
 gpui_pid=""
 
@@ -44,12 +44,12 @@ if [ -z "${BENCH_GPUI_APP:-}" ]; then
   (cd "$repo/apps/desktop-gpui" && cargo build --release --locked -j 3 -p desktop-gpui)
 fi
 
-echo "== starting the fixture's host with $MORE more threads"
-"$bench/fixture.sh" "$out/fixture.json" $MORE
+echo "== starting the fixture's host with $MORE threads"
+"$bench/fixture.sh" "$out/fixture.json" "$MORE" bare
 # The state, the newest thread, which the sidebar lists first, and how many top-level threads it lists.
 read_out() {
   node -e 'const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    console.log([o.state, o.extra.at(-1), Object.keys(o.threads).length + 1 + o.extra.length][process.argv[2]])' "$out/fixture.json" "$1"
+    console.log([o.state, o.extra.at(-1), Object.keys(o.threads).length + (o.realHost.panesThread ? 1 : 0) + o.extra.length][process.argv[2]])' "$out/fixture.json" "$1"
 }
 state=$(read_out 0)
 top=$(read_out 1)
@@ -63,6 +63,12 @@ env -i HOME="$home/gpui-home" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-
   "$gpui_app" --state "$state" --bench "$out/ctrl-tab.json" --bench-thread "$top" --bench-ctrl-tab $((listed + 1)) --bench-repeat "$repeat" \
   > "$out/ctrl-tab.log" 2>&1 &
 gpui_pid=$!
+# The app's memory through the walk, sampled twice a second: its first sample, its peak and its last, in MB.
+: > "$out/mem.mb"
+while [ "$(ps -o stat= -p "$gpui_pid" 2>/dev/null | cut -c1)" != Z ] && kill -0 "$gpui_pid" 2>/dev/null; do
+  "$bench/mem.sh" "$gpui_pid" 2>/dev/null >> "$out/mem.mb" || break
+  sleep 0.5
+done
 code=0
 wait "$gpui_pid" || code=$?
 gpui_pid=""
@@ -72,5 +78,6 @@ gpui_pid=""
 judged=0
 node "$bench/ctrl-tab.mjs" "$out/ctrl-tab.json" > "$out/ctrl-tab.txt" || judged=$?
 cat "$out/ctrl-tab.txt"
+awk 'NR == 1 { first = $1 } $1 > peak { peak = $1 } { last = $1 } END { if (NR) printf "memory: first %s MB, peak %s MB, last %s MB over %d samples\n", first, peak, last, NR }' "$out/mem.mb"
 echo "trace: $out/ctrl-tab.json"
 exit $judged

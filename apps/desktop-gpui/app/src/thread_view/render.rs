@@ -111,8 +111,10 @@ impl Render for ThreadView {
         // With no thread `WorkspaceCenter` draws nothing; a host holding a project shows its New thread page instead.
         let status = self.failure.clone();
         // `TRANSCRIPT_LOADING` over the composer's room, and list.tsx's empty line in the placeholder ink, each centred.
+        let loading = self.placeholder().is_some() && !self.loaded;
+        let loading_seen = self.loading_seen.clone().filter(|_| loading);
         let words = match self.placeholder() {
-            Some(_) if !self.loaded => Some(cards::loading(self.composer_inset, cx).into_any_element()),
+            Some(_) if loading => Some(cards::loading(self.composer_inset, cx).into_any_element()),
             Some(said) => Some(
                 div()
                     .debug_selector(|| "transcript-words".into())
@@ -196,6 +198,8 @@ impl Render for ThreadView {
         let find_bar = find::bar(self, window, cx);
         let pill = toolbar::scroll_to_end(self, shown, cx);
         let quote = toolbar::toolbar(self, cx);
+        // The last thread's rows held through a switch act for the thread they were drawn for, so they take no input.
+        let held = self.holding().then(|| div().debug_selector(|| "transcript-held".into()).absolute().inset_0().occlude());
         let me = cx.entity().downgrade();
         let heard = crate::scroll_trace::recording().then(|| (self.list.clone(), me.clone()));
         let top_key = self.transcript.rows().get(top).map(|r| r.key.clone());
@@ -241,8 +245,10 @@ impl Render for ThreadView {
                     .child(div().absolute().top_0().left_0().size_0().children(over))
                     .children(words)
                     .children(refused)
-                    .children(rail)
+                    // `z-40` in minimap.tsx: the ruler stands over the chat's drop frame.
+                    .children(rail.map(gpui_kit::deferred))
                     .children(pill)
+                    .children(held)
                     .children(find_bar),
             )
             .children(quote)
@@ -268,7 +274,7 @@ impl Render for ThreadView {
                 .size_0()
             }))
             .children(lost)
-            .when(frames.is_some() || presented.is_some() || drawn.is_some(), |this| {
+            .when(frames.is_some() || presented.is_some() || drawn.is_some() || loading_seen.is_some(), |this| {
                 this.child(
                     canvas(
                         |_, _, _| {},
@@ -284,6 +290,9 @@ impl Render for ThreadView {
                             }
                             if let Some(drawn) = drawn {
                                 cx.defer(move |_| _ = drawn.send(()));
+                            }
+                            if let Some(seen) = loading_seen.clone() {
+                                cx.defer(move |_| seen.borrow_mut().push(Instant::now()));
                             }
                         },
                     )

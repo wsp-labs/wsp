@@ -114,6 +114,29 @@ pub fn fills(look: Look, theme: &str, p: &Palette) -> Fills {
     }
 }
 
+/// `.desktop-mac:not(.solid) [data-app-sidebar]` on a dark theme: the sidebar's quiet inks take the glass ink whole
+/// and its counts the ink at 90%, never a grey mixed for a solid ground, which reads dull over the glass.
+pub fn sidebar_inks(p: &mut Palette, ink: Hsla) {
+    for token in [
+        &mut p.sidebar_muted_foreground,
+        &mut p.sidebar_quiet,
+        &mut p.sidebar_icon_color,
+        &mut p.sidebar_whisper,
+        &mut p.sidebar_row_rest,
+        &mut p.sidebar_prose,
+    ] {
+        *token = ink;
+    }
+    p.top_row_meta = Hsla { a: 0.9, ..ink };
+}
+
+/// The same rule's state marks, a tint lighter; only the sidebar takes them, the page keeps its own.
+pub fn sidebar_states(p: &mut Palette) {
+    p.status_working = rgb(0xfbcfe8).into();
+    p.status_failed = rgb(0xffc9c9).into();
+    p.status_input = rgb(0xc6d2ff).into();
+}
+
 impl Fills {
     /// `.desktop-mac.dark :is([data-preview-panel-mode="inline"], [data-settings-page])`: the page's palette with the
     /// region's own tokens, so a pane's ground is the panel's fill whatever the look.
