@@ -56,9 +56,10 @@ impl<T> Default for Read<T> {
 }
 
 impl<T> Read<T> {
-    fn ask(&mut self) -> u64 {
+    /// A new ask, the refresh's button waiting on it unless it is the hold's quiet one.
+    fn ask(&mut self, quiet: bool) -> u64 {
         self.asked += 1;
-        self.reading = true;
+        self.reading |= !quiet;
         self.asked
     }
 
@@ -103,6 +104,11 @@ fn used_key(range: Range, split: Split) -> String {
     format!("usage:used:{range:?}:{split:?}")
 }
 
+/// A read's answer as the page draws it, or its refusal, to tell whether a new one moved anything.
+fn shown<T: serde::Serialize>(read: &Read<T>) -> (Option<serde_json::Value>, Option<String>) {
+    (read.value.as_ref().and_then(|v| serde_json::to_value(&**v).ok()), read.refused.clone())
+}
+
 pub fn now_ms() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0., |d| d.as_millis() as f64)
 }
@@ -138,6 +144,8 @@ pub struct UsagePage {
     pub resetting: Vec<String>,
     /// The refresh button's place in the tab order.
     pub refresh: FocusHandle,
+    /// What the header last said of the reads' age, which a quiet read that moves nothing else leaves alone if it can.
+    checked: std::cell::RefCell<Option<String>>,
     hold: Duration,
     _every: Task<()>,
     _back: Option<Subscription>,
@@ -152,7 +160,7 @@ impl UsagePage {
     pub fn with_hold(host: Host, hold: Duration, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let every = cx.spawn(async move |this, cx| loop {
             cx.background_executor().timer(hold).await;
-            if this.update(cx, |this, cx| this.read_again(cx)).is_err() {
+            if this.update(cx, |this, cx| this.read_quietly(cx)).is_err() {
                 break;
             }
         });
@@ -181,14 +189,15 @@ impl UsagePage {
             said: None,
             resetting: Vec::new(),
             refresh: cx.focus_handle().tab_stop(true),
+            checked: std::cell::RefCell::new(None),
             hold,
             _every: every,
             _back: Some(back),
         };
         page.read_projects(cx);
         page.read_looks(cx);
-        page.read_accounts(false, cx);
-        page.read_used(false, cx);
+        page.read_accounts(false, false, cx);
+        page.read_used(false, false, cx);
         page
     }
 
@@ -203,8 +212,24 @@ impl UsagePage {
 
     /// Reads both tabs again at once, as the refresh asks.
     pub fn read_again(&mut self, cx: &mut Context<Self>) {
-        self.read_accounts(true, cx);
-        self.read_used(true, cx);
+        self.read_accounts(true, false, cx);
+        self.read_used(true, false, cx);
+    }
+
+    /// The hold's read: the refresh's button does not wait on it, and an answer draws the page only where it moved
+    /// what the page shows.
+    fn read_quietly(&mut self, cx: &mut Context<Self>) {
+        self.read_accounts(true, true, cx);
+        self.read_used(true, true, cx);
+    }
+
+    /// A quiet read answered as it was asked: the page draws again only where the answer moved its figures or the
+    /// header's age of the reads, or for the accounts on the limits tab, whose resets and windows count down from now.
+    fn answered_quietly(&mut self, moved: bool, accounts: bool, cx: &mut Context<Self>) {
+        let checked = self.read_at().map(|at| words::checked(&words::read_when((now_ms() - at).max(0.))));
+        if moved || (accounts && self.tab == Tab::Limits) || *self.checked.borrow() != checked {
+            cx.notify();
+        }
     }
 
     pub fn pick_tab(&mut self, tab: Tab, cx: &mut Context<Self>) {
@@ -216,14 +241,14 @@ impl UsagePage {
     pub fn pick_range(&mut self, range: Range, cx: &mut Context<Self>) {
         if self.range != range {
             self.range = range;
-            self.read_used(false, cx);
+            self.read_used(false, false, cx);
         }
     }
 
     pub fn pick_split(&mut self, split: Split, cx: &mut Context<Self>) {
         if self.split != split {
             self.split = split;
-            self.read_used(false, cx);
+            self.read_used(false, false, cx);
         }
     }
 
@@ -261,8 +286,9 @@ impl UsagePage {
         .detach();
     }
 
-    /// The accounts the window kept while they are inside the hold, else a read; `force` reads regardless.
-    fn read_accounts(&mut self, force: bool, cx: &mut Context<Self>) {
+    /// The accounts the window kept while they are inside the hold, else a read; `force` reads regardless, and a
+    /// `quiet` read draws the page only for an answer that moves it.
+    fn read_accounts(&mut self, force: bool, quiet: bool, cx: &mut Context<Self>) {
         let (window, hold) = (self.window, self.hold);
         if let Some((value, at, fresh)) = held::get::<AccountsAnswer>(window, ACCOUNTS, hold, cx) {
             self.accounts.kept(value, at);
@@ -270,7 +296,7 @@ impl UsagePage {
                 return cx.notify();
             }
         }
-        let asked = self.accounts.ask();
+        let asked = self.accounts.ask(quiet);
         // Each read asks the agents that can say for their limits now: a turn is otherwise the only thing that reads them.
         let asking = self.host.run(|host| async move { host.call(protocol::UsageAccountsRequest { fresh: Some(true) }).await });
         cx.spawn(async move |this, cx| {
@@ -279,18 +305,27 @@ impl UsagePage {
                 if let Ok(value) = &answer {
                     held::put(window, ACCOUNTS.to_owned(), value.clone(), now_ms(), cx);
                 }
+                let (was, waiting) = (shown(&this.accounts), this.reading());
                 if this.accounts.answer(asked, answer) {
-                    cx.notify();
+                    if quiet {
+                        // A read the refresh's button waits on may end in a quiet answer, which then stops the button too.
+                        let moved = shown(&this.accounts) != was || this.reading() != waiting;
+                        this.answered_quietly(moved, true, cx);
+                    } else {
+                        cx.notify();
+                    }
                 }
             });
         })
         .detach();
-        cx.notify();
+        if !quiet {
+            cx.notify();
+        }
     }
 
     /// The range's split as the window kept it while inside the hold, else a read; `force` reads regardless. Until an
     /// answer lands the last range's figures stand.
-    fn read_used(&mut self, force: bool, cx: &mut Context<Self>) {
+    fn read_used(&mut self, force: bool, quiet: bool, cx: &mut Context<Self>) {
         let (range, split, window, hold) = (self.range, self.split, self.window, self.hold);
         let fresh = |key: &str, read: &mut Read<UsedAnswer>, cx: &mut Context<Self>| match held::get::<UsedAnswer>(window, key, hold, cx) {
             Some((value, at, fresh)) => {
@@ -307,7 +342,7 @@ impl UsagePage {
         if used_fresh && models_fresh {
             return cx.notify();
         }
-        let asked = self.used.ask();
+        let asked = self.used.ask(quiet);
         let asking = self.host.run(move |host| async move { host.call(split.request(range)).await.map(|u| u.used) });
         cx.spawn(async move |this, cx| {
             let answer = asking.await.map(Rc::new);
@@ -320,14 +355,20 @@ impl UsagePage {
                 if answer.is_err() && other && asked == this.used.asked {
                     this.used.value = None;
                 }
+                let (was, waiting) = (shown(&this.used), this.reading());
                 if this.used.answer(asked, answer) {
-                    cx.notify();
+                    if quiet {
+                        let moved = shown(&this.used) != was || this.reading() != waiting;
+                        this.answered_quietly(moved, false, cx);
+                    } else {
+                        cx.notify();
+                    }
                 }
             });
         })
         .detach();
         if split == Split::Agent {
-            let asked = self.models.ask();
+            let asked = self.models.ask(quiet);
             let asking = self.host.run(move |host| async move { host.call(Split::Model.request(range)).await.map(|u| u.used) });
             cx.spawn(async move |this, cx| {
                 let answer = asking.await.map(Rc::new);
@@ -335,14 +376,22 @@ impl UsagePage {
                     if let Ok(value) = &answer {
                         held::put(window, used_key(range, Split::Model), value.clone(), now_ms(), cx);
                     }
+                    let (was, waiting) = (shown(&this.models), this.reading());
                     if this.models.answer(asked, answer) {
-                        cx.notify();
+                        if quiet {
+                            let moved = shown(&this.models) != was || this.reading() != waiting;
+                            this.answered_quietly(moved, false, cx);
+                        } else {
+                            cx.notify();
+                        }
                     }
                 });
             })
             .detach();
         }
-        cx.notify();
+        if !quiet {
+            cx.notify();
+        }
     }
 
     /// Asks the one question the command line asks before spending one banked reset of `row`, in Settings' alert
@@ -437,6 +486,7 @@ impl UsagePage {
     pub fn tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = cx.palette().clone();
         let checked = self.read_at().map(|at| words::checked(&words::read_when((now_ms() - at).max(0.))));
+        self.checked.replace(checked.clone());
         let picked = match self.tab {
             Tab::Used => 0,
             Tab::Limits => 1,
@@ -470,6 +520,7 @@ impl UsagePage {
 
 impl Render for UsagePage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("UsagePage");
         let now = now_ms();
         let tab = match self.tab {
             Tab::Used => used::render(self, now, window, cx),

@@ -12,7 +12,8 @@ use std::time::{Duration, Instant};
 use gpui_kit::component::{h_flex, Icon, Sizable as _};
 use gpui_kit::{
     canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, size as gsize, AnyElement, App, Bounds, ClickEvent,
-    Context, ElementId, EntityId, FontWeight, Global, HighlightStyle, Hsla, Pixels, SharedString, StyledText, Task, Transformation, Window,
+    Context, ElementId, EntityId, FontWeight, Global, HighlightStyle, Hsla, Pixels, SharedString, StyleRefinement, StyledText, Task,
+    Transformation, Window,
 };
 
 use super::card::{CardItem, Corners};
@@ -43,8 +44,8 @@ fn captured(cx: &App) -> bool {
     cx.try_global::<Still>().is_some_and(|s| s.0)
 }
 
-/// The most often a spinner or a skeleton asks for a frame: each frame draws again the whole view it stands in, and
-/// every view above that one.
+/// The most often a spinner or a skeleton asks for a frame: a spinner's draws it alone, a skeleton's the nearest view
+/// drawn cached around it.
 const LOADING_FRAME: Duration = Duration::from_millis(33);
 
 /// When the first spinner or skeleton was drawn, so they all turn and sweep in step and ask for the same frames.
@@ -59,7 +60,7 @@ struct Wakes(HashMap<EntityId, Instant>);
 
 impl Global for Wakes {}
 
-/// Draws the view being drawn again after `wait`, unless a frame at or before then is already on its way to it.
+/// Draws the view being drawn again in place after `wait`, unless a frame at or before then is already on its way to it.
 fn wake_after(wait: Duration, window: &Window, cx: &mut App) {
     let view = window.current_view();
     let due = cx.background_executor().now() + wait;
@@ -75,21 +76,24 @@ fn wake_after(wait: Duration, window: &Window, cx: &mut App) {
             if wakes.0.get(&view) == Some(&due) {
                 wakes.0.remove(&view);
             }
-            cx.notify(view);
+            cx.notify_in_place(view);
         });
     })
     .detach();
 }
 
 /// The plain spinner: lucide's loader-circle at 14 px in the muted ink, one turn a second.
+#[track_caller]
 pub fn spinner(_: &App) -> Spinner {
-    Spinner { size: px(14.), endless: false }
+    Spinner { size: px(14.), endless: false, key: ElementId::CodeLocation(*std::panic::Location::caller()) }
 }
 
+/// A spinner's own view, kept under the place it was made at and drawn cached at its size, so a step draws it alone.
 #[derive(IntoElement)]
 pub struct Spinner {
     size: Pixels,
     endless: bool,
+    key: ElementId,
 }
 
 impl Spinner {
@@ -105,10 +109,30 @@ impl Spinner {
         self.endless = true;
         self
     }
+    /// The spinner's own key, where one place draws several, as the pieces of a slate do.
+    pub fn key(mut self, key: impl Into<ElementId>) -> Self {
+        self.key = key.into();
+        self
+    }
 }
 
 impl RenderOnce for Spinner {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let (size, endless) = (self.size, self.endless);
+        let view = window.use_keyed_state(self.key, cx, |_, _| SpinnerView { size, endless });
+        view.update(cx, |t, _| (t.size, t.endless) = (size, endless));
+        view.cached(StyleRefinement::default().flex_shrink_0().size(size))
+    }
+}
+
+struct SpinnerView {
+    size: Pixels,
+    endless: bool,
+}
+
+impl Render for SpinnerView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Spinner");
         let icon = Icon::new(Glyph::LoaderCircle).with_size(self.size).text_color(cx.palette().muted_foreground);
         let held = if self.endless { captured(cx) } else { still(cx) };
         if held {
@@ -676,10 +700,15 @@ impl RenderOnce for StepRow {
             Time::None => None,
             Time::Took(ms) => Some(div().child(fmt_duration(ms as f64)).into_any_element()),
             Time::Since(at) => {
-                let ticking =
-                    window.use_keyed_state(SharedString::from(format!("{}-time", self.id)), cx, |_, _| Ticking { since: at, next: None });
-                ticking.update(cx, |t, _| t.since = at);
-                Some(ticking.into_any_element())
+                let key = SharedString::from(format!("{}-time-{at}", self.id));
+                let ticking = window.use_keyed_state(key, cx, |_, _| Ticking { since: at, shown: String::new(), next: None });
+                // Drawn cached at its text's width, which only a text of another length changes.
+                let shown = SharedString::from(fmt_elapsed(now_ms(cx) - at));
+                let mut style = window.text_style();
+                style.font_family = gpui_kit::component::ActiveTheme::theme(cx).mono_font_family.clone();
+                style.font_size = text::FACT.0.into();
+                let width = window.text_system().shape_line(shown.clone(), text::FACT.0, &[style.to_run(shown.len())], None).width.ceil();
+                Some(ticking.cached(StyleRefinement::default().w(width).h(text::FACT.1)).into_any_element())
             }
         };
         let chevron = self.toggle.as_ref().map(|(open, on)| match on {
@@ -770,26 +799,48 @@ impl RenderOnce for StepRow {
     }
 }
 
-/// A running step's time, written again each second in an entity of its own so nothing else draws for the clock.
+/// The wall clock in ms since the epoch, or a capture's fixed now.
+pub(crate) fn now_ms(cx: &App) -> f64 {
+    let wall = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64() * 1000.).unwrap_or(0.);
+    cx.try_global::<FrozenNow>().map_or_else(wall, |f| f.0)
+}
+
+/// A running step's time, read each second in an entity of its own: it draws again in place when its text changed, and
+/// asks its row to measure it again when the text's length did.
 struct Ticking {
     since: f64,
+    shown: String,
     next: Option<Task<()>>,
+}
+
+impl Ticking {
+    fn ask_next(&mut self, cx: &mut Context<Self>) {
+        if self.next.is_some() || still(cx) {
+            return;
+        }
+        self.next = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_secs(1)).await;
+            _ = this.update(cx, |t, cx| {
+                t.next = None;
+                let text = fmt_elapsed(now_ms(cx) - t.since);
+                if text.len() != t.shown.len() {
+                    cx.notify();
+                } else if text != t.shown {
+                    cx.notify_in_place();
+                } else {
+                    t.ask_next(cx);
+                }
+            });
+        }));
+    }
 }
 
 impl Render for Ticking {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !still(cx) && self.next.is_none() {
-            self.next = Some(cx.spawn(async move |this, cx| {
-                cx.background_executor().timer(Duration::from_secs(1)).await;
-                let _ = this.update(cx, |t, cx| {
-                    t.next = None;
-                    cx.notify();
-                });
-            }));
-        }
-        let wall = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64() * 1000.).unwrap_or(0.);
-        let now = cx.try_global::<FrozenNow>().map_or_else(wall, |f| f.0);
-        div().child(fmt_elapsed(now - self.since))
+        crate::frames::count("Ticking");
+        self.shown = fmt_elapsed(now_ms(cx) - self.since);
+        self.ask_next(cx);
+        div().whitespace_nowrap().child(self.shown.clone())
     }
 }
 
@@ -933,15 +984,17 @@ pub fn next_pose(t: f64) -> f64 {
     ahead
 }
 
-/// When the first crab was drawn, so every crab walks in step.
-fn started() -> Instant {
+/// The walk's time in ms, on the executor's clock from when the first crab was drawn, so every crab walks in step and
+/// a test's clock moves them.
+fn walked(cx: &App) -> f64 {
     static STARTED: OnceLock<Instant> = OnceLock::new();
-    *STARTED.get_or_init(Instant::now)
+    let now = cx.background_executor().now();
+    now.saturating_duration_since(*STARTED.get_or_init(|| now)).as_secs_f64() * 1000.
 }
 
 /// The most frames a second a walking crab draws. The web's draws on every animation frame, but there a frame is one
-/// canvas copy; here each one draws the crab's view and the views above it again, so it draws only when a pixel of
-/// the crab moves (`next_pose`), never more often than this.
+/// canvas copy; here each one is a frame of the window, so it draws only when a pixel of the crab moves (`next_pose`),
+/// never more often than this.
 pub const CRAB_FPS: u32 = 30;
 /// How finely `next_pose` looks ahead for the crab's next move.
 const POSE_STEP_MS: f64 = 4.;
@@ -975,7 +1028,7 @@ pub struct CrabView {
 
 impl CrabView {
     pub fn new(ink: Hsla) -> Self {
-        CrabView { ink, t: started().elapsed().as_secs_f64() * 1000., next: None }
+        CrabView { ink, t: 0., next: None }
     }
 
     /// Whether a next frame is asked for, which a test reads.
@@ -987,13 +1040,17 @@ impl CrabView {
         if self.next.is_some() || still(cx) {
             return;
         }
-        let t = started().elapsed().as_secs_f64() * 1000.;
-        let wait = held_for(cx).unwrap_or_else(|| Duration::from_secs_f64(next_pose(t) / 1000.).max(Duration::from_secs(1) / CRAB_FPS));
+        let t = walked(cx);
+        // Read on a grid every crab shares, so all the crabs drawn take a pose in one frame.
+        let on_grid = (t / POSE_STEP_MS).floor() * POSE_STEP_MS;
+        let soonest = ((t + 1000. / f64::from(CRAB_FPS)) / POSE_STEP_MS).ceil() * POSE_STEP_MS;
+        let at = (on_grid + next_pose(on_grid)).max(soonest);
+        let wait = held_for(cx).unwrap_or_else(|| Duration::from_secs_f64((at - t) / 1000.));
         self.next = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(wait).await;
             _ = this.update(cx, |this, cx| {
                 this.next = None;
-                cx.notify();
+                cx.notify_in_place();
             });
         }));
     }
@@ -1001,11 +1058,12 @@ impl CrabView {
 
 impl Render for CrabView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Crab");
         if still(cx) {
             // Held still, the crab draws its frame at t = 0, as the web's does under reduced motion.
             self.t = 0.;
         } else if held_for(cx).is_none() {
-            self.t = started().elapsed().as_secs_f64() * 1000.;
+            self.t = walked(cx);
         }
         let (ink, t, me) = (self.ink, self.t, cx.weak_entity());
         let pixels = canvas(
@@ -1026,7 +1084,8 @@ impl Render for CrabView {
 }
 
 /// The crab, in the ink it is given: an agent working. Never a loading spinner. Each one is a `CrabView` kept for as
-/// long as the element is drawn, under the key it is given, or the place it was made at.
+/// long as the element is drawn, under the key it is given, or the place it was made at, drawn cached at its box so a
+/// pose draws the crab alone.
 #[derive(IntoElement)]
 pub struct Crab {
     ink: Hsla,
@@ -1051,7 +1110,7 @@ impl RenderOnce for Crab {
         let ink = self.ink;
         let view = window.use_keyed_state(self.key, cx, |_, _| CrabView::new(ink));
         view.update(cx, |v, _| v.ink = ink);
-        view
+        view.cached(StyleRefinement::default().flex_none().w(px(CRAB.0)).h(px(CRAB.1)))
     }
 }
 

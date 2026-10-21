@@ -5,6 +5,7 @@
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
 use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, FontWeight, Hsla, MouseButton, Pixels, SharedString, WeakEntity, Window};
 
+use super::age::{self, Count, Room};
 use super::chrome::{self, ONE_LINE, ROW_RADIUS};
 use super::model::{self, Item, Kind, Line, Section, Shape, Tile, Under};
 use super::{looks, Sidebar, ARMED};
@@ -230,12 +231,25 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
         Item::Subagent { lead, index, part } => {
             let Some(sub) = s.threads.get(*lead).and_then(|t| t.subagents.get(*index)) else { return div().into_any_element() };
             let kind = model::subagent_kind(sub, *part);
-            let text = match kind {
-                Kind::Working => Some(model::running_time(s.now - sub.started_at)),
-                Kind::Resting => Some(model::resting_age(sub.ended_at.unwrap_or(sub.started_at), s.now)),
+            let since = match kind {
+                Kind::Working => Some((Count::Running, sub.started_at)),
+                Kind::Resting => Some((Count::Age, sub.ended_at.unwrap_or(sub.started_at))),
                 _ => None,
             };
             let key = format!("sub-{}-{}", s.threads[*lead].key, sub.id);
+            let mark = match since {
+                Some((count, since)) => {
+                    let time = age::age(format!("time-{key}:{count:?}:{since}"), count, super::now_ms() - since, Room::Fitted, window, cx);
+                    let working = kind == Kind::Working;
+                    let ink = if working { p.status_working } else { p.muted_foreground };
+                    let crab = working.then(|| SharedString::from(format!("crab-{key}")));
+                    age::timed_mark(&time, working, ink, crab, crate::ui::text::XS, window, cx)
+                }
+                None => StatusMark::new(status_of(kind, None))
+                    .rest_ink(p.muted_foreground)
+                    .key(SharedString::from(format!("crab-{key}")))
+                    .into_any_element(),
+            };
             // `SubagentRow`: lit while its page is open, and a press opens that page.
             let lit = sub_lit(s, *lead, sub);
             let page = sub.call.as_ref().map(|call| {
@@ -259,11 +273,7 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
                             p.sidebar_icon_color
                         }))
                         .child(div().flex_1().min_w_0().truncate().text_color(p.sidebar_muted_foreground).child(sub.title.clone()))
-                        .child(
-                            StatusMark::new(status_of(kind, text))
-                                .rest_ink(p.muted_foreground)
-                                .key(SharedString::from(format!("crab-{key}"))),
-                        ),
+                        .child(mark),
                 )
                 .into_any_element()
         }
@@ -300,6 +310,19 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
                 )
                 .into_any_element()
         }
+    }
+}
+
+/// What a tile's slot counts where its text is a time, and from when: Working's run (from `now`, the list's build,
+/// while its start has not landed), a resting row's age.
+pub(super) fn slot_time(t: &model::Thread, tile: &Tile, kind: Kind, now: f64) -> Option<(Count, f64)> {
+    if tile.snoozed_working.is_some() || (tile.shape == Shape::Full && t.setup_refusal.is_some() && kind == Kind::Resting) {
+        return None;
+    }
+    match kind {
+        Kind::Working => Some((Count::Running, t.started_at.unwrap_or(now))),
+        Kind::Resting => Some((Count::Age, tile.age_at?)),
+        _ => None,
     }
 }
 
@@ -388,6 +411,12 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
             .into_any_element()
     } else if slot.glyph.is_none() && !slot.crab && slot.tone.is_none() && kind != Kind::Resting {
         div().flex_none().child(slot.text.clone().unwrap_or_default()).into_any_element()
+    } else if let Some((count, since)) = slot_time(t, tile, kind, s.now) {
+        let time =
+            age::age(format!("time-{key}:{}:{count:?}:{since}", tile.inbox), count, super::now_ms() - since, Room::Fitted, window, cx);
+        let working = kind == Kind::Working;
+        let ink = if working { p.status_working } else { p.sidebar_muted_foreground };
+        age::timed_mark(&time, working, ink, None, (px(if slim { 12. } else { 11. }), px(if slim { 16. } else { 14. })), window, cx)
     } else {
         StatusMark::new(status_of(kind, slot.text.clone()))
             .crab(false)
@@ -572,7 +601,7 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
             .absolute()
             .inset_0()
             .child(crate::ui::hover_card::opener(cx.entity_id(), card_key))
-            .child(div().absolute().top_0().right_0().child(s.tile_card(tile, px(0.), cx)))
+            .child(div().absolute().top_0().right_0().child(s.tile_card(tile, px(0.), window, cx)))
     });
     frame(ix, line, height, &p).child(div().group(group).relative().child(button).children(act).children(card)).into_any_element()
 }

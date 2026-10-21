@@ -66,7 +66,7 @@ index a635bc4..0e64df6 100644
          texture_descriptor.set_width(size.width.into());
          texture_descriptor.set_height(size.height.into());
 diff --git a/src/metal_renderer.rs b/src/metal_renderer.rs
-index e466205..879aaf3 100644
+index e466205..2821685 100644
 --- a/src/metal_renderer.rs
 +++ b/src/metal_renderer.rs
 @@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
@@ -192,7 +192,50 @@ index e466205..879aaf3 100644
              #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
              headless_render_target: None,
          }
-@@ -720,6 +768,9 @@ impl MetalRenderer {
+@@ -504,7 +552,12 @@ impl MetalRenderer {
+             (viewport_size.width.ceil() as i32).into(),
+             (viewport_size.height.ceil() as i32).into(),
+         );
+-        let drawable = if let Some(drawable) = layer.next_drawable() {
++        let traced = gpui::frame_timing::recording().then(|| (gpui::frame_timing::present_began(), std::time::Instant::now()));
++        let next = layer.next_drawable();
++        if let Some((index, asked)) = traced {
++            gpui::frame_timing::drawable_waited(index, asked.elapsed().as_secs_f64() * 1000.);
++        }
++        let drawable = if let Some(drawable) = next {
+             drawable
+         } else {
+             log::error!(
+@@ -522,9 +575,28 @@ impl MetalRenderer {
+             }
+         };
+ 
++        if let Some((index, _)) = traced {
++            // The GPU's own time, read once its commands have run, for a trace to lay beside the frame.
++            let block = RcBlock::new(move |buffer: ptr::NonNull<AnyObject>| {
++                // SAFETY: the handler is handed the command buffer it was added to, which answers both.
++                let (began, ended): (f64, f64) = unsafe {
++                    let buffer = buffer.as_ref();
++                    (objc2::msg_send![buffer, GPUStartTime], objc2::msg_send![buffer, GPUEndTime])
++                };
++                gpui::frame_timing::gpu_ran(index, (ended - began) * 1000.);
++            });
++            // SAFETY: Both pointee types are opaque views of the same Objective-C block pointer ABI.
++            unsafe {
++                command_buffer.add_completed_handler(&*RcBlock::as_ptr(&block).cast());
++            }
++        }
+         if self.presents_with_transaction {
+             command_buffer.commit();
++            let asked = std::time::Instant::now();
+             command_buffer.wait_until_scheduled();
++            if let Some((index, _)) = traced {
++                gpui::frame_timing::scheduled_waited(index, asked.elapsed().as_secs_f64() * 1000.);
++            }
+             drawable.present();
+         } else {
+             command_buffer.present_drawable(drawable);
+@@ -720,6 +792,9 @@ impl MetalRenderer {
          let command_queue = self.command_queue.clone();
          let command_buffer = command_queue.new_command_buffer();
          let alpha = if self.opaque { 1. } else { 0. };
@@ -202,7 +245,7 @@ index e466205..879aaf3 100644
  
          let mut command_encoder = new_command_encoder_for_texture(
              command_buffer,
-@@ -727,6 +778,7 @@ impl MetalRenderer {
+@@ -727,6 +802,7 @@ impl MetalRenderer {
              viewport_size,
              Some(metal::MTLClearColor::new(0., 0., 0., alpha)),
          );
@@ -210,7 +253,7 @@ index e466205..879aaf3 100644
  
          for batch in scene.batches() {
              match batch {
-@@ -742,6 +794,7 @@ impl MetalRenderer {
+@@ -742,6 +818,7 @@ impl MetalRenderer {
  
                      let did_draw = self.draw_paths_to_intermediate(
                          paths,
@@ -218,7 +261,7 @@ index e466205..879aaf3 100644
                          writer,
                          viewport_size,
                          command_buffer,
-@@ -753,6 +806,7 @@ impl MetalRenderer {
+@@ -753,6 +830,7 @@ impl MetalRenderer {
                          viewport_size,
                          None,
                      );
@@ -226,7 +269,7 @@ index e466205..879aaf3 100644
  
                      if did_draw {
                          if let Err(error) = self.draw_paths_from_intermediate(
-@@ -792,6 +846,32 @@ impl MetalRenderer {
+@@ -792,6 +870,32 @@ impl MetalRenderer {
                      viewport_size,
                      command_encoder,
                  ),
@@ -259,7 +302,7 @@ index e466205..879aaf3 100644
                  PrimitiveBatch::SubpixelSprites { .. } => unreachable!(),
              }
          }
-@@ -804,6 +884,7 @@ impl MetalRenderer {
+@@ -804,6 +908,7 @@ impl MetalRenderer {
      fn draw_paths_to_intermediate(
          &self,
          paths: &[Path<ScaledPixels>],
@@ -267,7 +310,7 @@ index e466205..879aaf3 100644
          writer: &mut InstanceBufferWriter,
          viewport_size: Size<DevicePixels>,
          command_buffer: &metal::CommandBufferRef,
-@@ -823,6 +904,7 @@ impl MetalRenderer {
+@@ -823,6 +928,7 @@ impl MetalRenderer {
                  st_position: v.st_position,
                  color: path.color,
                  bounds: path.bounds.intersect(&path.content_mask.bounds),
@@ -275,7 +318,7 @@ index e466205..879aaf3 100644
              }));
          }
          let vertex_instance_bindings = writer.write(&vertices)?;
-@@ -861,6 +943,7 @@ impl MetalRenderer {
+@@ -861,6 +967,7 @@ impl MetalRenderer {
              Some(&vertex_instance_bindings.buffer),
              vertex_instance_bindings.offset as u64,
          );
@@ -283,7 +326,7 @@ index e466205..879aaf3 100644
          command_encoder.draw_primitives(
              metal::MTLPrimitiveType::Triangle,
              0,
-@@ -1274,6 +1357,234 @@ impl MetalRenderer {
+@@ -1274,6 +1381,234 @@ impl MetalRenderer {
              );
          }
      }
@@ -518,7 +561,7 @@ index e466205..879aaf3 100644
  }
  
  fn new_command_encoder_for_texture<'a>(
-@@ -1458,6 +1769,7 @@ struct InstanceBindings {
+@@ -1458,6 +1793,7 @@ struct InstanceBindings {
      monochrome_sprites: InstanceBinding,
      polychrome_sprites: InstanceBinding,
      surfaces: InstanceBinding,
@@ -526,7 +569,7 @@ index e466205..879aaf3 100644
  }
  
  fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<InstanceBindings> {
-@@ -1471,6 +1783,12 @@ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<I
+@@ -1471,6 +1807,12 @@ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<I
              bounds: surface.bounds,
              content_mask: surface.content_mask,
          }))?,
@@ -539,7 +582,7 @@ index e466205..879aaf3 100644
      })
  }
  
-@@ -1645,6 +1963,33 @@ enum SurfaceInputIndex {
+@@ -1645,6 +1987,33 @@ enum SurfaceInputIndex {
      CbCrTexture = 5,
  }
  
@@ -573,7 +616,7 @@ index e466205..879aaf3 100644
  #[repr(C)]
  enum PathRasterizationInputIndex {
      Vertices = 0,
-@@ -1707,6 +2052,86 @@ mod tests {
+@@ -1707,6 +2076,86 @@ mod tests {
          CVPixelBufferUnlockBaseAddress, kCVPixelBufferIOSurfacePropertiesKey,
      };
  

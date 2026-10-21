@@ -12,7 +12,7 @@ use crate::ui::select::{Select, SelectItem, SelectState};
 use crate::ui::{text, ActivePalette, ComputerIcon, Glyph, Switch};
 
 /// A select's state kept in step with what the page holds: its items and its value laid on again only when they move.
-struct Synced<T: Clone + PartialEq + 'static> {
+pub(super) struct Synced<T: Clone + PartialEq + 'static> {
     state: Entity<SelectState<T>>,
     sig: Vec<(T, SharedString)>,
     value: T,
@@ -41,13 +41,20 @@ pub(super) fn synced<T: Clone + PartialEq + 'static>(
     window: &mut Window,
     cx: &mut App,
 ) -> Entity<SelectState<T>> {
+    let (first, v0) = (items.clone(), value.clone());
+    let held = window.use_keyed_state(SharedString::from(key), cx, move |_, cx| held(first, v0, cx));
+    lay(&held, items, value, cx)
+}
+
+/// Lays `items` and `value` on a select's state where they moved. Laid while the page draws, the state's own notice
+/// would land on the next frame, so a frame drawing only pieces in place would draw the shell besides.
+pub(super) fn lay<T: Clone + PartialEq + 'static>(
+    held: &Entity<Synced<T>>,
+    items: Items<T>,
+    value: T,
+    cx: &mut App,
+) -> Entity<SelectState<T>> {
     let sig: Vec<(T, SharedString)> = items.iter().map(|(v, l, _)| (v.clone(), l.clone())).collect();
-    let (first, v0, sig0) = (select_items(&items), value.clone(), sig.clone());
-    let held = window.use_keyed_state(SharedString::from(key), cx, move |_, cx| {
-        let state = cx.new(|_| SelectState::new(first, Some(&v0)));
-        let watch = cx.observe(&state, |_, _, cx| cx.notify());
-        Synced { state, sig: sig0, value: v0, _watch: watch }
-    });
     let (state, stale_items, stale_value) = {
         let h = held.read(cx);
         (h.state.clone(), h.sig != sig, h.value != value)
@@ -68,31 +75,51 @@ pub(super) fn synced<T: Clone + PartialEq + 'static>(
 }
 
 /// The bar's three selects: the computer, the kind and the thread.
+#[derive(Clone)]
 pub(super) struct Selects {
     computer: Entity<SelectState<String>>,
     kind: Entity<SelectState<Option<Kind>>>,
     thread: Entity<SelectState<Option<String>>>,
 }
 
-pub(super) fn selects(computers: &[Computer], computer: &Computer, scoped: &Entity<Scoped>, window: &mut Window, cx: &mut App) -> Selects {
-    let (kinds, threads, picks) = {
-        let s = scoped.read(cx);
-        let (kinds, threads) = match (&s.scope, absent(computer)) {
-            (Some(sc), None) => pick_choices(&sc.groups, &s.picks),
-            _ => (Vec::new(), Vec::new()),
-        };
-        (kinds, threads, s.picks.clone())
+/// The kind and thread selects' states, which the computer's state lays its choices on as they arrive.
+pub(crate) type Picked = (Entity<Synced<Option<Kind>>>, Entity<Synced<Option<String>>>);
+
+/// The kind and thread selects' items: every kind and thread the groups hold, after the one that picks them all.
+pub(super) fn pick_items(s: &Scoped) -> (Items<Option<Kind>>, Items<Option<String>>) {
+    let (kinds, threads) = match (&s.scope, absent(&s.computer)) {
+        (Some(sc), None) => pick_choices(&sc.groups, &s.picks),
+        _ => (Vec::new(), Vec::new()),
     };
-    let places: Items<String> = computers.iter().map(|c| (c.place.id.clone(), SharedString::from(c.name()), Some(c.glyph))).collect();
     let mut kind_items: Items<Option<Kind>> = vec![(None, w::ALL_KINDS.into(), None)];
     kind_items.extend(kinds.into_iter().map(|k| (Some(k), SharedString::from(k.word()), None)));
     let mut thread_items: Items<Option<String>> = vec![(None, w::ALL_THREADS.into(), None)];
     thread_items.extend(threads.into_iter().map(|(id, title)| (Some(id), SharedString::from(title), None)));
+    (kind_items, thread_items)
+}
+
+pub(super) fn selects(computers: &[Computer], computer: &Computer, scoped: &Entity<Scoped>, window: &mut Window, cx: &mut App) -> Selects {
+    let ((kind_items, thread_items), picks) = {
+        let s = scoped.read(cx);
+        (pick_items(s), s.picks.clone())
+    };
+    let places: Items<String> = computers.iter().map(|c| (c.place.id.clone(), SharedString::from(c.name()), Some(c.glyph))).collect();
+    let keyed = |name: &str| SharedString::from(format!("activity-{name}-{}", computer.key));
+    let kind = window.use_keyed_state(keyed("kind"), cx, |_, cx| held(kind_items.clone(), picks.kind, cx));
+    let thread = window.use_keyed_state(keyed("thread"), cx, |_, cx| held(thread_items.clone(), picks.thread.clone(), cx));
+    scoped.update(cx, |s, _| s.picked = Some((kind.clone(), thread.clone())));
     Selects {
         computer: synced("activity-computer".into(), places, computer.place.id.clone(), window, cx),
-        kind: synced(format!("activity-kind-{}", computer.key), kind_items, picks.kind, window, cx),
-        thread: synced(format!("activity-thread-{}", computer.key), thread_items, picks.thread, window, cx),
+        kind: lay(&kind, kind_items, picks.kind, cx),
+        thread: lay(&thread, thread_items, picks.thread, cx),
     }
+}
+
+fn held<T: Clone + PartialEq + 'static>(items: Items<T>, value: T, cx: &mut gpui_kit::Context<Synced<T>>) -> Synced<T> {
+    let sig: Vec<(T, SharedString)> = items.iter().map(|(v, l, _)| (v.clone(), l.clone())).collect();
+    let state = cx.new(|_| SelectState::new(select_items(&items), Some(&value)));
+    let watch = cx.observe(&state, |_, _, cx| cx.notify());
+    Synced { state, sig, value, _watch: watch }
 }
 
 /// `BAR_SELECT`'s `h-8`, the filter's height too.
@@ -153,11 +180,7 @@ pub(super) fn controls(
             .text_color(p.muted_foreground)
             .child(Switch::new("activity-every", s.every).on_change(move |on, _, cx| {
                 let on = *on;
-                _ = scoped.update(cx, |s, cx| {
-                    s.every = on;
-                    s.set_reads(View::Processes, cx);
-                    cx.notify();
-                });
+                _ = scoped.update(cx, |s, cx| s.set_every(on, cx));
             }))
             .child(w::EVERY)
     });

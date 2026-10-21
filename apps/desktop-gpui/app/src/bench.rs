@@ -47,7 +47,10 @@ pub struct Capture {
 #[derive(Debug, PartialEq)]
 pub struct Bench {
     pub out: PathBuf,
+    /// The thread the bench opens, or with `screen` the screen's route.
     pub thread: String,
+    /// The bench scrolls a screen, Settings > Activity, in place of a thread.
+    pub screen: bool,
     pub switch: Vec<String>,
     /// A line typed into the thread's terminal drawer, in place of the scroll: the frames its output draws are timed.
     pub terminal: Option<String>,
@@ -89,13 +92,14 @@ impl Hold {
 /// `desktop-gpui [--state <state.json>] [--glass] [--open <id>] [--screen <name>]`, `desktop-gpui [--state <state.json>] [--glass]
 /// --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line> | --bench-replay <events.jsonl>
 /// [--bench-pointer <x>,<y>] [--bench-unfold] | --bench-ctrl-tab <steps> [--bench-repeat <delay ms>,<every ms>] | --bench-session <id,id,...>]`,
+/// `desktop-gpui [--state <state.json>] --bench <out.json> --bench-screen settings:activity --bench-replay <events.jsonl>`,
 /// `desktop-gpui --open <id> [--theme <id>] [--unfold] [--now <ms>] [--reveal <text>@<y>]` for a capture,
 /// `desktop-gpui --open <id> [--record-scroll <events.jsonl>] [--trace <trace.json>]`, or `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen, mut terminal) =
         (None, None, None, Vec::new(), None, false, false, None, None);
     let (mut replay, mut record, mut trace, mut session) = (None, None, None, Vec::new());
-    let (mut pointer, mut unfold) = (None, false);
+    let (mut pointer, mut unfold, mut on_screen) = (None, false, false);
     let (mut steps, mut repeat) = (None, None);
     let mut capture = Capture::default();
     while let Some(flag) = words.next() {
@@ -106,6 +110,10 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--screen" => screen = Some(value()?),
             "--bench" => out = Some(PathBuf::from(value()?)),
             "--bench-thread" => thread = Some(value()?),
+            "--bench-screen" => {
+                thread = Some(value()?);
+                on_screen = true;
+            }
             "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--bench-terminal" => terminal = Some(value()?),
@@ -153,7 +161,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let modes = [!switch.is_empty(), terminal.is_some(), replay.is_some(), hold.is_some(), !session.is_empty()];
     let bench = match (out, thread) {
         (Some(out), Some(thread)) if modes.iter().filter(|x| **x).count() <= 1 => {
-            Some(Bench { out, thread, switch, terminal, replay, pointer, unfold, hold, session })
+            Some(Bench { out, thread, screen: on_screen, switch, terminal, replay, pointer, unfold, hold, session })
         }
         (Some(_), Some(_)) => {
             return Err("--bench-switch, --bench-terminal, --bench-replay, --bench-ctrl-tab and --bench-session go one at a time".to_owned())
@@ -161,6 +169,9 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
         (None, None) if !modes.contains(&true) => None,
         _ => return Err("--bench and --bench-thread go together".to_owned()),
     };
+    if on_screen && bench.as_ref().is_none_or(|b| b.replay.is_none() || b.unfold || !b.switch.is_empty()) {
+        return Err("--bench-screen goes with --bench and --bench-replay".to_owned());
+    }
     if bench.is_some() && open.is_some() {
         return Err("--open and --bench do not go together".to_owned());
     }
@@ -309,6 +320,7 @@ mod tests {
             Some(Bench {
                 out: "/o.json".into(),
                 thread: "long".into(),
+                screen: false,
                 switch: vec!["a".into(), "b".into(), "c".into()],
                 terminal: None,
                 replay: None,

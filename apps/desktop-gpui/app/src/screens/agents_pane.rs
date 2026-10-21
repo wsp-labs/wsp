@@ -38,8 +38,13 @@ pub struct AgentsPane {
     back: FocusHandle,
     focus_back: bool,
     scroll: ScrollHandle,
+    sidebar_read: SidebarRead,
     _observed: Vec<Subscription>,
 }
+
+/// What the pane last read off the sidebar, which a sidebar change must move before the pane draws again.
+#[derive(Default, PartialEq)]
+struct SidebarRead(Option<String>, Option<Value>, Option<std::rc::Rc<Value>>, bool);
 
 impl AgentsPane {
     pub fn store(&self) -> &Entity<Store> {
@@ -95,11 +100,29 @@ impl AgentsPane {
 
     fn find_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let waiting = overlays::find_sidebar(self, window, cx, |this, sidebar, _, cx| {
-            this._observed.push(cx.observe(&sidebar, |_, _, cx| cx.notify()));
+            this._observed.push(cx.observe(&sidebar, |this, _, cx| {
+                let read = this.sidebar_read(cx);
+                if read != this.sidebar_read {
+                    this.sidebar_read = read;
+                    cx.notify();
+                }
+            }));
             this.sidebar = Some(sidebar);
+            this.sidebar_read = this.sidebar_read(cx);
             cx.notify();
         });
         self._observed.extend(waiting);
+    }
+
+    /// What the pane reads off the sidebar: the computer's id and row, the preferences, and whether a provider is set.
+    fn sidebar_read(&self, cx: &App) -> SidebarRead {
+        let Some(s) = self.sidebar.as_ref().map(|s| s.read(cx)) else { return SidebarRead::default() };
+        let id = match &self.opened.workspace_id {
+            None => Some(HERE.to_owned()),
+            Some(ws) => s.place_of(ws),
+        };
+        let row = id.as_deref().and_then(|id| s.place(id).cloned());
+        SidebarRead(id, row, s.around().preferences.clone(), self.providers(cx))
     }
 
     /// The computer the rows are on: this one with no thread, else the one the thread's workspace runs on; none while
@@ -224,6 +247,7 @@ impl Screen for AgentsPane {
             back: cx.focus_handle(),
             focus_back: false,
             scroll: ScrollHandle::new(),
+            sidebar_read: SidebarRead::default(),
             _observed: observed,
         };
         pane.find_sidebar(window, cx);

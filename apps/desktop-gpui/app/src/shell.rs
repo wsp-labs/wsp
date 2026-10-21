@@ -34,6 +34,8 @@ use crate::ui::{self, ActivePalette};
 
 mod actions;
 mod bench_hold;
+#[cfg(target_os = "macos")]
+mod bench_post;
 mod bench_run;
 mod bench_session;
 mod preferences;
@@ -277,6 +279,10 @@ impl Shell {
                 std::process::exit(2);
             })
             .detach();
+        }
+        // A measured window stands in front; a bench stops on one covered or not key, which draws what no one sees.
+        if bench.is_some() || std::env::var_os("DESKTOP_GPUI_FRAMES").is_some_and(|path| !path.is_empty()) {
+            crate::in_front::watch(bench.is_some(), window, cx);
         }
         let bench = bench.map(|args| BenchRun {
             args,
@@ -664,6 +670,7 @@ impl Shell {
 
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Shell");
         self.tick(window, cx);
         let narrow = ui::narrow::width(window).md;
         let shown = if narrow { 0. } else { self.sidebar_shown(window) };
@@ -916,7 +923,7 @@ impl Render for Shell {
                     .relative()
                     .flex_1()
                     .min_h_0()
-                    .children(backdrop.map(|view| div().absolute().inset_0().child(view)))
+                    .children(backdrop.map(|view| div().absolute().inset_0().child(view.cached(StyleRefinement::default().size_full()))))
                     .map(|el| match failed {
                         Some(failed) => {
                             let me = cx.entity().downgrade();
@@ -1108,6 +1115,7 @@ impl Render for Shell {
             .children(sheet_panel)
             .children(sidebar_sheet)
             .children(dialogs::layer::draw(window, cx))
+            .children(bench_run::listener())
     }
 }
 

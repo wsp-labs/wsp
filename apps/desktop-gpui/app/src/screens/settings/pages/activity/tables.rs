@@ -15,10 +15,12 @@ use super::model::{
     total_spent, words as w, ContainerRow, Group, GroupKind, Placed, Port, Proc, Sort, Spent, Subagent, Tint,
 };
 use super::pieces::{cells, COLUMN_GAP};
+use super::views::{piece, Drawn, Look};
 use super::wire::{Kind, Pid, PlacedBy};
 use super::Scoped;
 use crate::screens::app_shell::{navigate, Route};
 use crate::screens::settings::words::{fmt_duration, fmt_tokens};
+use crate::ui::card::surface_item;
 use crate::ui::catalog;
 use crate::ui::context_menu::MenuItem;
 use crate::ui::fmt_bytes;
@@ -26,9 +28,7 @@ use crate::ui::grid::{
     ACTIVITY_COLUMNS, ACTIVITY_COLUMNS_NARROW as NARROW, ACTIVITY_FLAT_COLUMNS as FLAT, ACTIVITY_PORT_COLUMNS as PORTS,
     ACTIVITY_PORT_COLUMNS_NARROW as PORTS_NARROW,
 };
-use crate::ui::{
-    framed, glyph, spinner, text, ActivePalette, Button, Card, CardItem, Col, Glyph, GridRow, Line, MenuAct, Run, Status, StatusMark, Width,
-};
+use crate::ui::{framed, glyph, spinner, text, ActivePalette, Button, CardItem, Col, Glyph, GridRow, Line, MenuAct, Run, Status, Width};
 
 const TREE: &[Col] = ACTIVITY_COLUMNS;
 
@@ -46,6 +46,8 @@ pub struct Hand {
     pub width: Width,
     /// Where a port of a row with no thread opens: the box's folder the page reads it over, none on this computer.
     pub workspace: Option<String>,
+    /// The live pieces the rows draw their figures and their titles in; a look with none is drawn plainly.
+    pub pieces: Drawn,
 }
 
 /// The menu's groups by a `MenuAct`'s number: the row's acts, where it goes, and its copies.
@@ -119,17 +121,14 @@ impl Hand {
         tag.filter(|_| !self.width.sm)
     }
 
-    /// `openContextMenu`: the row's acts at `at`, the native menu on the Mac and the page's own elsewhere; a pick runs
-    /// once the menu has let go of the page.
+    /// The row's acts at `at`, as [`open_menu`] opens them.
     pub fn open_menu(&self, at: Point<Pixels>, acts: Rc<Vec<MenuAct>>, window: &mut Window, cx: &mut App) {
-        let Some(scoped) = self.scoped.upgrade() else { return };
-        let items = menu_items(&acts);
-        scoped.update(cx, |s, cx| {
-            s.menu.open(at, items, window, cx, move |_, pick, window, cx| {
-                let Some(run) = pick.and_then(|ix| acts.get(ix)).filter(|a| !a.held).map(|a| a.run.clone()) else { return };
-                window.defer(cx, move |window, cx| run(window, cx));
-            })
-        });
+        open_menu(&self.scoped, at, acts, window, cx);
+    }
+
+    /// `look` in the piece standing under `key`.
+    fn piece(&self, key: &str, look: Look, cx: &App) -> AnyElement {
+        piece(&self.pieces, key, look, &self.scoped, cx)
     }
 
     /// The workspace a browser tab at a port of this group's opens in, where one is known.
@@ -162,6 +161,47 @@ pub fn tint_ink(tint: Option<Tint>, cx: &App) -> Hsla {
         Some(Tint::Danger) => p.error_foreground,
         None => p.foreground,
     }
+}
+
+/// `openContextMenu`: the row's acts at `at`, the native menu on the Mac and the page's own elsewhere; a pick runs once
+/// the menu has let go of the page.
+pub(crate) fn open_menu(scoped: &WeakEntity<Scoped>, at: Point<Pixels>, acts: Rc<Vec<MenuAct>>, window: &mut Window, cx: &mut App) {
+    let Some(scoped) = scoped.upgrade() else { return };
+    let items = menu_items(&acts);
+    scoped.update(cx, |s, cx| {
+        s.menu.open(at, items, window, cx, move |_, pick, window, cx| {
+            let Some(run) = pick.and_then(|ix| acts.get(ix)).filter(|a| !a.held).map(|a| a.run.clone()) else { return };
+            window.defer(cx, move |window, cx| run(window, cx));
+        })
+    });
+}
+
+/// The key a process row's figures stand under: its pid, or for a slate's heading its group's heading of its kind.
+pub(crate) fn proc_key(group: &str, p: &Proc) -> String {
+    if p.heading {
+        format!("p:{group}:{}-heading", p.kind.id())
+    } else {
+        format!("p:{}", p.pid)
+    }
+}
+
+/// A row's memory, CPU and energy as their figures read; untinted for a sum across threads, which says nothing past one
+/// thread's marks.
+pub(crate) fn figure_looks(mem: f64, cpu: f64, energy: Option<f64>, energy_on: bool, tinted: bool) -> [Look; 3] {
+    let tint = |t: Option<Tint>| if tinted { t } else { None };
+    [
+        Look::Figure { text: fmt_bytes(mem as u64), tint: tint(memory_tint(mem)) },
+        Look::Figure { text: cpu_word(cpu), tint: tint(cpu_tint(cpu)) },
+        Look::Figure { text: if energy_on { energy_word(energy) } else { String::new() }, tint: tint(energy_tint(energy)) },
+    ]
+}
+
+/// A container's memory and CPU, each blank where its engine read none.
+pub(crate) fn container_looks(c: &ContainerRow) -> [Look; 2] {
+    [
+        Look::Figure { text: c.mem.map(|m| fmt_bytes(m as u64)).unwrap_or_default(), tint: c.mem.and_then(memory_tint) },
+        Look::Figure { text: c.cpu.map(cpu_word).unwrap_or_default(), tint: c.cpu.and_then(cpu_tint) },
+    ]
 }
 
 fn copy(text: String) -> crate::ui::Run {
@@ -313,6 +353,7 @@ fn sub_row(
     let hover = cx.palette().accent.opacity(0.6);
     let hand = hand.clone();
     CardItem::placed(move |corners| {
+        crate::frames::count("ActivityRow");
         let row = corners
             .apply(h_flex())
             .id(id)
@@ -336,33 +377,15 @@ fn sub_row(
     })
 }
 
-fn num_cell(value: String, ink: Hsla) -> AnyElement {
-    div()
-        .w_full()
-        .min_w_0()
-        .truncate()
-        .text_right()
-        .text_size(text::VALUE.0)
-        .line_height(px(20.))
-        .text_color(ink)
-        .font_features(text::tabular())
-        .child(value)
-        .into_any_element()
-}
-
-/// A row's memory, CPU and energy; untinted for a sum across threads, which says nothing past one thread's marks.
-fn figure_cells(mem: f64, cpu: f64, energy: Option<f64>, hand: &Hand, tinted: bool, cx: &App) -> [AnyElement; 3] {
-    let ink = |t: Option<Tint>| tint_ink(if tinted { t } else { None }, cx);
-    [
-        num_cell(fmt_bytes(mem as u64), ink(memory_tint(mem))),
-        num_cell(cpu_word(cpu), ink(cpu_tint(cpu))),
-        num_cell(if hand.energy { energy_word(energy) } else { String::new() }, ink(energy_tint(energy))),
-    ]
+/// A row's memory, CPU and energy, each in its piece under `key`.
+fn figure_cells(key: &str, mem: f64, cpu: f64, energy: Option<f64>, hand: &Hand, tinted: bool, cx: &App) -> [AnyElement; 3] {
+    let [m, c, e] = figure_looks(mem, cpu, energy, hand.energy, tinted);
+    [hand.piece(&format!("{key}:0"), m, cx), hand.piece(&format!("{key}:1"), c, cx), hand.piece(&format!("{key}:2"), e, cx)]
 }
 
 /// The figures a row stands with at this width: memory alone under 768 px.
-fn figures(mem: f64, cpu: f64, energy: Option<f64>, hand: &Hand, tinted: bool, cx: &App) -> Vec<AnyElement> {
-    let mut cells = Vec::from(figure_cells(mem, cpu, energy, hand, tinted, cx));
+fn figures(key: &str, mem: f64, cpu: f64, energy: Option<f64>, hand: &Hand, tinted: bool, cx: &App) -> Vec<AnyElement> {
+    let mut cells = Vec::from(figure_cells(key, mem, cpu, energy, hand, tinted, cx));
     if hand.width.md {
         cells.truncate(1);
     }
@@ -439,7 +462,7 @@ fn proc_row(p: &Proc, depth: usize, group: &Group, hand: &Hand, cx: &App) -> Car
     let acts = Rc::new(proc_acts(p, Some(group), None, hand));
     let key = if p.heading { format!("{}-heading", p.kind.id()) } else { p.pid.to_string() };
     let mut parts = vec![lead_cell(hand.lead_pad(depth), proc_glyph(p, cx), row_name(name, false, cx), tags)];
-    parts.extend(figures(p.mem, p.cpu, p.energy, hand, true, cx));
+    parts.extend(figures(&proc_key(&group.id, p), p.mem, p.cpu, p.energy, hand, true, cx));
     parts.push(menu_cell(format!("activity-menu-{}-{key}", group.id).into(), &acts, ending, hand, cx));
     let tip = if p.heading {
         None
@@ -451,6 +474,7 @@ fn proc_row(p: &Proc, depth: usize, group: &Group, hand: &Hand, cx: &App) -> Car
     sub_row(format!("activity-proc-{}-{key}", group.id).into(), hand.tree(), parts, tip, Some(acts), hand, cx)
 }
 
+#[allow(dead_code)]
 fn proc_rows(procs: &[Proc], depth: usize, group: &Group, hand: &Hand, cx: &App, out: &mut Vec<CardItem>) {
     for p in procs {
         out.push(proc_row(p, depth, group, hand, cx));
@@ -516,21 +540,25 @@ fn container_row(c: &ContainerRow, nest: usize, loose: bool, hand: &Hand, cx: &A
     let glyph = Icon::new(Glyph::Container).with_size(px(16.)).flex_none().text_color(cx.palette().muted_foreground).into_any_element();
     let acts = Rc::new(container_acts(c, hand));
     let mut parts = vec![lead_cell(hand.lead_pad(nest), glyph, row_name(c.name.clone(), false, cx), tags)];
-    parts.push(c.mem.map_or_else(|| div().into_any_element(), |m| num_cell(fmt_bytes(m as u64), tint_ink(memory_tint(m), cx))));
+    let [mem, cpu] = container_looks(c);
+    parts.push(hand.piece(&format!("c:{}:0", c.id), mem, cx));
     if !hand.width.md {
-        parts.push(c.cpu.map_or_else(|| div().into_any_element(), |u| num_cell(cpu_word(u), tint_ink(cpu_tint(u), cx))));
+        parts.push(hand.piece(&format!("c:{}:1", c.id), cpu, cx));
         parts.push(div().into_any_element());
     }
     parts.push(menu_cell(format!("activity-container-menu-{}", c.id).into(), &acts, stopping, hand, cx));
     sub_row(format!("activity-container-{}", c.id).into(), hand.tree(), parts, Some(note.into()), Some(acts), hand, cx)
 }
 
+/// The key the sampler's figures stand under.
+pub(crate) const SAMPLER: &str = "sampler";
+
 /// The sampler's own row, last under wsp: what reading this page costs the daemon.
 fn sampler_row(cpu: f64, held: f64, hand: &Hand, cx: &App) -> CardItem {
     let glyph = Icon::new(Glyph::Gauge).with_size(px(16.)).flex_none().text_color(cx.palette().muted_foreground).into_any_element();
     let note = hand.tag(Some(small(w::SAMPLER_NOTE, true, cx))).into_iter().collect();
     let mut parts = vec![lead_cell(hand.lead_pad(0), glyph, row_name(w::SAMPLER, false, cx), note)];
-    parts.extend(figures(held, cpu, None, hand, true, cx));
+    parts.extend(figures(SAMPLER, held, cpu, None, hand, true, cx));
     parts.push(div().into_any_element());
     sub_row("activity-sampler".into(), hand.tree(), parts, Some(w::SAMPLER_NOTE.into()), None, hand, cx)
 }
@@ -540,6 +568,7 @@ fn sampler_row(cpu: f64, held: f64, hand: &Hand, cx: &App) -> CardItem {
 #[allow(clippy::too_many_arguments)]
 fn group_head(
     id: &str,
+    key: &str,
     mark: AnyElement,
     name: String,
     status: Option<Status>,
@@ -553,36 +582,11 @@ fn group_head(
     cx: &App,
 ) -> CardItem {
     let p = cx.palette();
-    let head_menu = menu.clone().filter(|acts| hand.width.md && !acts.is_empty()).map(|acts| {
-        let hand = hand.clone();
-        let button = Button::icon_xs(SharedString::from(format!("activity-head-menu-{id}")), Glyph::Ellipsis)
-            .side(px(20.))
-            .corners(Corners::all(px(4.)))
-            .on_click(move |event, window, cx| hand.open_menu(event.position(), acts.clone(), window, cx));
-        div()
-            .debug_selector(|| "activity-head-menu".into())
-            .flex_none()
-            .on_mouse_down(gpui_kit::MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(button)
-    });
-    let title = h_flex()
-        .min_w_0()
-        .gap_2()
-        .child(
-            div()
-                .debug_selector(|| "grid-name".into())
-                .min_w_0()
-                .truncate()
-                .text_size(text::LIST_TITLE.0)
-                .line_height(text::LIST_TITLE.1)
-                .font_weight(gpui_kit::FontWeight::MEDIUM)
-                .text_color(p.foreground)
-                .child(name),
-        )
-        .children(status.map(StatusMark::new))
-        .children(head_menu);
+    let title = hand.piece(&format!("t:{id}"), title_look(id, name, status, menu.as_ref(), hand.width), cx);
+    // Filling the row's rest leaves every pixel where the content's own width put it, and gives the title a box.
     let name_cell = h_flex().w_full().min_w_0().gap_3().pl(px(hand.nest_pad(nest))).child(framed(mark, cx)).child(
         v_flex()
+            .flex_1()
             .min_w_0()
             .child(title)
             .child(div().truncate().text_size(text::NOTE.0).line_height(text::NOTE.1).text_color(p.muted_foreground).child(note)),
@@ -597,7 +601,7 @@ fn group_head(
         let (hand, id) = (hand.clone(), id.to_owned());
         move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| hand.with(cx, |s, cx| s.toggle(&id, cx))
     };
-    let [mem, cpu, energy] = figure_cells(total.mem, total.cpu, total.energy, hand, tinted, cx);
+    let [mem, cpu, energy] = figure_cells(key, total.mem, total.cpu, total.energy, hand, tinted, cx);
     // The page's width or the pane's, as `Hand` reads it, never the window's alone.
     let mut row = GridRow::new(format!("activity-group-{id}"), hand.tree()).on_open(toggle).cell(name_cell);
     if let Some(acts) = menu {
@@ -614,76 +618,46 @@ fn group_head(
     row.cell(chevron).into()
 }
 
-/// What a page tells the Threads view about each thread: its mark and how its subagents' models read.
-pub struct ThreadLooks<'a> {
-    pub status: &'a dyn Fn(&str) -> Option<Status>,
-    pub model: &'a dyn Fn(&str, &str) -> Option<String>,
+/// A head's title: its name, its status mark, and under 768 px the button its menu opens from.
+pub(crate) fn title_look(id: &str, name: String, status: Option<Status>, menu: Option<&Rc<Vec<MenuAct>>>, width: Width) -> Look {
+    let menu =
+        menu.filter(|acts| width.md && !acts.is_empty()).map(|acts| (SharedString::from(format!("activity-head-menu-{id}")), acts.clone()));
+    Look::Title { name, status, menu }
 }
 
-/// One group's head and, folded open, its rows.
+/// A thread's status mark, by its id.
+pub type StatusOf = Rc<dyn Fn(&str) -> Option<Status>>;
+/// How a subagent's model reads, by its harness and the model's id.
+pub type ModelOf = Rc<dyn Fn(&str, &str) -> Option<String>>;
+
+/// What a page tells the Threads view about each thread: its mark and how its subagents' models read.
+#[derive(Clone)]
+pub struct ThreadLooks {
+    pub status: StatusOf,
+    pub model: ModelOf,
+}
+
+/// A group's head, as its kind draws it: wsp's own parts, No thread, or a thread with the threads `under` it counted.
 #[allow(clippy::too_many_arguments)]
-fn group_block(
-    g: &Group,
-    under: &[&Group],
-    nest: usize,
-    open: bool,
-    looks: &ThreadLooks,
-    box_: bool,
-    cost: Option<(f64, f64)>,
-    hand: &Hand,
-    cx: &App,
-    out: &mut Vec<CardItem>,
-) {
+fn group_head_of(g: &Group, under: &[&Group], nest: usize, open: bool, looks: &ThreadLooks, box_: bool, hand: &Hand, cx: &App) -> CardItem {
     match g.kind {
         GroupKind::Wsp => {
             let note = if box_ { w::WSP_NOTE_BOX } else { w::WSP_NOTE };
-            out.push(group_head(
-                &g.id,
-                glyph(Glyph::Activity, cx).into_any_element(),
-                w::WSP.into(),
-                None,
-                note.into(),
-                group_spent(g),
-                0,
-                open,
-                None,
-                hand,
-                true,
-                cx,
-            ));
-            if open {
-                proc_rows(&g.procs, 0, g, hand, cx, out);
-                if let (Some((cpu, held)), false) = (cost, hand.filtering) {
-                    out.push(sampler_row(cpu, held, hand, cx));
-                }
-            }
+            let mark = glyph(Glyph::Activity, cx).into_any_element();
+            group_head(&g.id, &format!("g:{}", g.id), mark, w::WSP.into(), None, note.into(), group_spent(g), 0, open, None, hand, true, cx)
         }
         GroupKind::Loose => {
-            out.push(group_head(
-                &g.id,
-                glyph(Glyph::CircleDashed, cx).into_any_element(),
-                w::LOOSE.into(),
-                None,
-                w::LOOSE_NOTE.into(),
-                group_spent(g),
-                0,
-                open,
-                None,
-                hand,
-                true,
-                cx,
-            ));
-            if open {
-                proc_rows(&g.procs, 0, g, hand, cx, out);
-                out.extend(g.containers.iter().map(|c| container_row(c, 0, true, hand, cx)));
-            }
+            let mark = glyph(Glyph::CircleDashed, cx).into_any_element();
+            let note = w::LOOSE_NOTE.into();
+            group_head(&g.id, &format!("g:{}", g.id), mark, w::LOOSE.into(), None, note, group_spent(g), 0, open, None, hand, true, cx)
         }
         GroupKind::Thread => {
             let t = g.thread.as_ref().unwrap();
             let total = total_spent(std::iter::once(g).chain(under.iter().copied()));
             let mark = catalog::mark(&t.harness, &catalog::name(&t.harness), px(16.), cx.palette().foreground, cx);
-            let head = group_head(
+            group_head(
                 &g.id,
+                &format!("g:{}", g.id),
                 mark,
                 t.title.clone(),
                 (looks.status)(&t.id),
@@ -695,18 +669,88 @@ fn group_block(
                 hand,
                 true,
                 cx,
-            );
-            out.push(head);
-            if open {
-                proc_rows(&g.procs, nest, g, hand, cx, out);
-                out.extend(
-                    g.subagents
-                        .iter()
-                        .map(|s| subagent_row(s, nest, g, s.model.as_deref().and_then(|m| (looks.model)(&t.harness, m)), hand, cx)),
-                );
-                out.extend(g.containers.iter().map(|c| container_row(c, nest, false, hand, cx)));
+            )
+        }
+    }
+}
+
+/// One row of the Threads view, by the group it stands in, its place among the groups.
+enum ThreadRow {
+    Head { at: usize, under: Vec<usize>, nest: usize, open: bool },
+    Proc { at: usize, p: Proc, depth: usize },
+    Sampler { cpu: f64, held: f64 },
+    Container { at: usize, c: usize, nest: usize },
+    Subagent { at: usize, s: usize, nest: usize },
+}
+
+impl ThreadRow {
+    fn make(&self, groups: &[Group], looks: &ThreadLooks, box_: bool, hand: &Hand, cx: &App) -> CardItem {
+        match self {
+            ThreadRow::Head { at, under, nest, open } => {
+                let under: Vec<&Group> = under.iter().map(|u| &groups[*u]).collect();
+                group_head_of(&groups[*at], &under, *nest, *open, looks, box_, hand, cx)
+            }
+            ThreadRow::Proc { at, p, depth } => proc_row(p, *depth, &groups[*at], hand, cx),
+            ThreadRow::Sampler { cpu, held } => sampler_row(*cpu, *held, hand, cx),
+            ThreadRow::Container { at, c, nest } => {
+                let g = &groups[*at];
+                container_row(&g.containers[*c], *nest, g.kind == GroupKind::Loose, hand, cx)
+            }
+            ThreadRow::Subagent { at, s, nest } => {
+                let g = &groups[*at];
+                let s = &g.subagents[*s];
+                let model = g.thread.as_ref().and_then(|t| s.model.as_deref().and_then(|m| (looks.model)(&t.harness, m)));
+                subagent_row(s, *nest, g, model, hand, cx)
             }
         }
+    }
+}
+
+/// A group's head and, folded open, its rows and the threads it started, each nested a step further: as `at` each
+/// group's place among the groups.
+#[allow(clippy::too_many_arguments)]
+fn thread_rows(
+    g: &Group,
+    nest: usize,
+    kids: &std::collections::HashMap<String, Vec<&Group>>,
+    at: &dyn Fn(&Group) -> usize,
+    cost: Option<(f64, f64)>,
+    hand: &Hand,
+    out: &mut Vec<ThreadRow>,
+) {
+    fn procs(list: &[Proc], at: usize, depth: usize, out: &mut Vec<ThreadRow>) {
+        for p in list {
+            out.push(ThreadRow::Proc { at, p: p.clone(), depth });
+            procs(&p.children, at, depth + 1, out);
+        }
+    }
+    let open = hand.filtering || hand.open.contains(&g.id);
+    let (here, under) = (at(g), groups_under(kids, &g.id).into_iter().map(at).collect());
+    out.push(ThreadRow::Head { at: here, under, nest, open });
+    if !open {
+        return;
+    }
+    let containers =
+        |nest: usize, out: &mut Vec<ThreadRow>| out.extend((0..g.containers.len()).map(|c| ThreadRow::Container { at: here, c, nest }));
+    match g.kind {
+        GroupKind::Wsp => {
+            procs(&g.procs, here, 0, out);
+            if let (Some((cpu, held)), false) = (cost, hand.filtering) {
+                out.push(ThreadRow::Sampler { cpu, held });
+            }
+        }
+        GroupKind::Loose => {
+            procs(&g.procs, here, 0, out);
+            containers(0, out);
+        }
+        GroupKind::Thread => {
+            procs(&g.procs, here, nest, out);
+            out.extend((0..g.subagents.len()).map(|s| ThreadRow::Subagent { at: here, s, nest }));
+            containers(nest, out);
+        }
+    }
+    for k in kids.get(&g.id).into_iter().flatten() {
+        thread_rows(k, nest + 1, kids, at, cost, hand, out);
     }
 }
 
@@ -773,70 +817,66 @@ fn sorts(hand: &Hand, cx: &App) -> Vec<AnyElement> {
     ]
 }
 
-/// Rows drawn as one child of a card, each rounding the card's corners it stands at and none ruled off the one above.
-fn as_one(items: Vec<CardItem>) -> CardItem {
-    CardItem::placed(move |corners| {
-        let last = items.len().saturating_sub(1);
-        let placed = items.into_iter().enumerate().map(|(ix, item)| {
-            item.place(crate::ui::card::Corners {
-                top: corners.top && ix == 0,
-                bottom: corners.bottom && ix == last,
-                rule: None,
-                ..corners
-            })
-        });
-        corners.apply(v_flex()).children(placed.collect::<Vec<_>>()).into_any_element()
-    })
+/// A row of a table, made again each time the page's list draws it.
+pub(crate) type MakeRow = Rc<dyn Fn(&App) -> CardItem>;
+
+/// A table as the page's list draws it: its head, then its rows, each made only where it shows, and whether each is
+/// ruled off the one above, as a lead's rows are not.
+pub(crate) struct Table {
+    pub id: &'static str,
+    pub head: Rc<dyn Fn(&App) -> AnyElement>,
+    pub rows: Vec<(MakeRow, bool)>,
 }
 
-fn list(id: &'static str, head: AnyElement, mut rows: Vec<CardItem>, empty: bool, hand: &Hand) -> AnyElement {
-    if empty {
-        rows.push(Line::new(format!("{id}-empty"), if hand.filtering { w::NOTHING_MATCHES } else { w::NOTHING }).empty().into());
+impl Table {
+    /// The table drawn whole, on one card.
+    pub fn whole(self, cx: &App) -> AnyElement {
+        let count = self.rows.len();
+        let rows = self.rows.iter().enumerate().map(|(ix, (row, ruled))| surface_item(row(cx), ix, count, *ruled, cx));
+        v_flex().id(self.id).child((self.head)(cx)).child(v_flex().children(rows.collect::<Vec<_>>())).into_any_element()
     }
-    v_flex().id(id).child(head).child(Card::new(format!("{id}-list")).locked(true).items(rows)).into_any_element()
+}
+
+/// A process of a flat view and its group's place among the groups.
+pub(crate) type Held = (Proc, Option<usize>);
+
+/// Placed rows held apart from the groups they point into: each process, and its group's place among `groups`.
+pub(crate) fn held(groups: &[Group], rows: Vec<Placed>) -> Vec<Held> {
+    rows.into_iter().map(|r| (r.p.clone(), r.group.and_then(|g| groups.iter().position(|x| std::ptr::eq(x, g))))).collect()
+}
+
+/// A table whose rows are each ruled off the one above.
+fn table(id: &'static str, head: impl Fn(&App) -> AnyElement + 'static, rows: Vec<MakeRow>, empty: bool, hand: &Hand) -> Table {
+    let mut table = Table { id, head: Rc::new(head), rows: rows.into_iter().enumerate().map(|(ix, row)| (row, ix > 0)).collect() };
+    if empty {
+        let word = if hand.filtering { w::NOTHING_MATCHES } else { w::NOTHING };
+        table.rows.push((Rc::new(move |_| Line::new(format!("{id}-empty"), word).empty().into()), false));
+    }
+    table
 }
 
 /// The Threads view: wsp's own parts, each thread heaviest first with the threads it started folded under it, then No
 /// thread. A filter opens every group it left.
-pub fn threads_table(
-    name: String,
-    groups: &[Group],
-    looks: &ThreadLooks,
-    box_: bool,
-    cost: Option<(f64, f64)>,
-    hand: &Hand,
-    cx: &App,
-) -> AnyElement {
-    let (tops, kids) = nest_groups(groups);
+pub fn threads_table(name: String, groups: Rc<Vec<Group>>, looks: ThreadLooks, box_: bool, cost: Option<(f64, f64)>, hand: &Hand) -> Table {
+    let (tops, kids) = nest_groups(&groups);
+    let at = |g: &Group| groups.iter().position(|x| std::ptr::eq(x, g)).expect("a group among the groups");
     let mut rows = Vec::new();
-    #[allow(clippy::too_many_arguments)]
-    fn block(
-        g: &Group,
-        nest: usize,
-        kids: &std::collections::HashMap<String, Vec<&Group>>,
-        looks: &ThreadLooks,
-        box_: bool,
-        cost: Option<(f64, f64)>,
-        hand: &Hand,
-        cx: &App,
-        rows: &mut Vec<CardItem>,
-    ) {
-        let under = groups_under(kids, &g.id);
-        let open = hand.filtering || hand.open.contains(&g.id);
-        group_block(g, &under, nest, open, looks, box_, cost, hand, cx, rows);
-        if open {
-            for k in kids.get(&g.id).into_iter().flatten() {
-                block(k, nest + 1, kids, looks, box_, cost, hand, cx, rows);
-            }
+    // A lead with all it folds open is ruled off the lead above, with no rule inside it.
+    for (lead, g) in tops.into_iter().enumerate() {
+        let mut block = Vec::new();
+        thread_rows(g, 0, &kids, &at, cost, hand, &mut block);
+        for (ix, row) in block.into_iter().enumerate() {
+            let (groups, looks, hand) = (groups.clone(), looks.clone(), hand.clone());
+            let make: MakeRow = Rc::new(move |cx: &App| row.make(&groups, &looks, box_, &hand, cx));
+            rows.push((make, lead > 0 && ix == 0));
         }
     }
-    // Each lead with all it folds open is one child of the list, ruled off the next and with no rule inside it.
-    for g in tops {
-        let mut lead = Vec::new();
-        block(g, 0, &kids, looks, box_, cost, hand, cx, &mut lead);
-        rows.push(as_one(lead));
-    }
-    list("activity-threads", head_row(hand.tree(), name, sorts(hand, cx), cx), rows, groups.is_empty(), hand)
+    let at = hand.clone();
+    let head = move |cx: &App| head_row(at.tree(), name.clone(), sorts(&at, cx), cx);
+    let mut table = table("activity-threads", head, Vec::new(), groups.is_empty(), hand);
+    rows.append(&mut table.rows);
+    table.rows = rows;
+    table
 }
 
 /// Where a flat row came from, in the note under its name.
@@ -852,187 +892,213 @@ fn where_of(group: Option<&Group>) -> String {
 }
 
 /// The Processes view: every process wsp owns flat, and with Every process the rest of the computer in the muted ink.
-pub fn processes_table(name: String, rows: &[Placed], hand: &Hand, cx: &App) -> AnyElement {
-    let p = cx.palette();
+pub fn processes_table(name: String, groups: Rc<Vec<Group>>, rows: Vec<Held>, hand: &Hand) -> Table {
+    let empty = rows.is_empty();
     let items = rows
-        .iter()
-        .map(|row| {
-            let q = row.p;
-            let outside = row.group.is_none();
-            let ending = hand.ending.contains(&q.pid);
-            let bare = outside || hand.width.sm || (q.kind.untagged() && q.note.is_none());
-            let tag = (!bare).then(|| if ending { w::ENDING.to_owned() } else { q.note.map_or(q.kind.word().to_owned(), str::to_owned) });
-            let line = h_flex()
-                .min_w_0()
-                .items_baseline()
-                .gap_2()
-                .child(row_name(q.name.clone(), outside, cx))
-                .children(tag.map(|t| small(t, true, cx)))
-                .children(ports_tag(&q.ports, cx));
-            let lead = h_flex()
-                .w_full()
-                .min_w_0()
-                .gap_2()
-                .child(proc_glyph(q, cx))
-                .child(
-                    v_flex().min_w_0().child(line).when(!outside, |el| el.child(small(where_of(row.group), true, cx).line_height(px(16.)))),
-                )
-                .into_any_element();
-            let acts = Rc::new(proc_acts(q, row.group, None, hand));
-            let mut parts = vec![lead];
-            if !hand.width.md {
-                parts.push(
-                    div()
-                        .w_full()
-                        .text_right()
-                        .text_size(text::FACT.0)
-                        .text_color(p.muted_foreground)
-                        .font_features(text::tabular())
-                        .child(q.pid.to_string())
-                        .into_any_element(),
-                );
-            }
-            parts.extend(figures(q.mem, q.cpu, q.energy, hand, true, cx));
-            parts.push(menu_cell(format!("activity-flat-menu-{}", q.pid).into(), &acts, ending, hand, cx));
-            sub_row(format!("activity-flat-{}", q.pid).into(), hand.flat(), parts, Some(q.command.clone().into()), Some(acts), hand, cx)
+        .into_iter()
+        .map(|(q, at)| {
+            let (groups, hand) = (groups.clone(), hand.clone());
+            Rc::new(move |cx: &App| {
+                let (q, group, hand) = (&q, at.map(|at| &groups[at]), &hand);
+                let p = cx.palette();
+                let outside = group.is_none();
+                let ending = hand.ending.contains(&q.pid);
+                let bare = outside || hand.width.sm || (q.kind.untagged() && q.note.is_none());
+                let tag =
+                    (!bare).then(|| if ending { w::ENDING.to_owned() } else { q.note.map_or(q.kind.word().to_owned(), str::to_owned) });
+                let line = h_flex()
+                    .min_w_0()
+                    .items_baseline()
+                    .gap_2()
+                    .child(row_name(q.name.clone(), outside, cx))
+                    .children(tag.map(|t| small(t, true, cx)))
+                    .children(ports_tag(&q.ports, cx));
+                let lead = h_flex()
+                    .w_full()
+                    .min_w_0()
+                    .gap_2()
+                    .child(proc_glyph(q, cx))
+                    .child(
+                        v_flex().min_w_0().child(line).when(!outside, |el| el.child(small(where_of(group), true, cx).line_height(px(16.)))),
+                    )
+                    .into_any_element();
+                let acts = Rc::new(proc_acts(q, group, None, hand));
+                let mut parts = vec![lead];
+                if !hand.width.md {
+                    parts.push(
+                        div()
+                            .w_full()
+                            .text_right()
+                            .text_size(text::FACT.0)
+                            .text_color(p.muted_foreground)
+                            .font_features(text::tabular())
+                            .child(q.pid.to_string())
+                            .into_any_element(),
+                    );
+                }
+                parts.extend(figures(&proc_key("", q), q.mem, q.cpu, q.energy, hand, true, cx));
+                parts.push(menu_cell(format!("activity-flat-menu-{}", q.pid).into(), &acts, ending, hand, cx));
+                sub_row(format!("activity-flat-{}", q.pid).into(), hand.flat(), parts, Some(q.command.clone().into()), Some(acts), hand, cx)
+            }) as MakeRow
         })
         .collect();
-    let mut head = if hand.width.md { Vec::new() } else { vec![head_word(w::PID, true, cx)] };
-    head.extend(sorts(hand, cx));
-    list("activity-processes", head_row(hand.flat(), name, head, cx), items, rows.is_empty(), hand)
+    let at = hand.clone();
+    let head = move |cx: &App| {
+        let mut head = if at.width.md { Vec::new() } else { vec![head_word(w::PID, true, cx)] };
+        head.extend(sorts(&at, cx));
+        head_row(at.flat(), name.clone(), head, cx)
+    };
+    table("activity-processes", head, items, empty, hand)
 }
 
 /// The Kinds view: a group per kind, its processes flat under it, each naming the thread it belongs to.
-pub fn kinds_table(name: String, kinds: &[(Kind, Vec<Placed>)], hand: &Hand, cx: &App) -> AnyElement {
-    let mut rows = Vec::new();
+pub fn kinds_table(name: String, groups: Rc<Vec<Group>>, kinds: Vec<(Kind, Vec<Held>)>, hand: &Hand) -> Table {
+    let empty = kinds.is_empty();
+    let mut rows: Vec<MakeRow> = Vec::new();
     for (kind, placed) in kinds {
         let open = hand.filtering || hand.open.contains(kind.id());
-        let procs: Vec<Proc> = placed.iter().map(|r| r.p.clone()).collect();
-        let total = spent(&procs);
-        rows.push(group_head(
-            kind.id(),
-            glyph(kind_glyph(*kind), cx).into_any_element(),
-            kind.head().into(),
-            None,
-            w::process_count(placed.len()),
-            total,
-            0,
-            open,
-            None,
-            hand,
-            false,
-            cx,
-        ));
+        let procs: Vec<Proc> = placed.iter().map(|(q, _)| q.clone()).collect();
+        let (total, count, at) = (spent(&procs), placed.len(), hand.clone());
+        rows.push(Rc::new(move |cx: &App| {
+            group_head(
+                kind.id(),
+                &format!("k:{}", kind.id()),
+                glyph(kind_glyph(kind), cx).into_any_element(),
+                kind.head().into(),
+                None,
+                w::process_count(count),
+                total,
+                0,
+                open,
+                None,
+                &at,
+                false,
+                cx,
+            )
+        }));
         if !open {
             continue;
         }
-        for row in placed {
-            let q = row.p;
-            let ending = hand.ending.contains(&q.pid);
-            let tags: Vec<gpui_kit::Div> = hand
-                .tag(Some(small(if ending { w::ENDING.to_owned() } else { where_of(row.group) }, true, cx)))
-                .into_iter()
-                .chain(ports_tag(&q.ports, cx))
-                .collect();
-            let acts = Rc::new(proc_acts(q, row.group, None, hand));
-            let mut parts = vec![lead_cell(hand.lead_pad(0), proc_glyph(q, cx), row_name(q.name.clone(), false, cx), tags)];
-            parts.extend(figures(q.mem, q.cpu, q.energy, hand, true, cx));
-            parts.push(menu_cell(format!("activity-kind-menu-{}", q.pid).into(), &acts, ending, hand, cx));
-            rows.push(sub_row(
-                format!("activity-kind-{}-{}", kind.id(), q.pid).into(),
-                hand.tree(),
-                parts,
-                Some(q.command.clone().into()),
-                Some(acts),
-                hand,
-                cx,
-            ));
+        for (q, at) in placed {
+            let (groups, hand) = (groups.clone(), hand.clone());
+            rows.push(Rc::new(move |cx: &App| {
+                let (q, group, hand) = (&q, at.map(|at| &groups[at]), &hand);
+                let ending = hand.ending.contains(&q.pid);
+                let tags: Vec<gpui_kit::Div> = hand
+                    .tag(Some(small(if ending { w::ENDING.to_owned() } else { where_of(group) }, true, cx)))
+                    .into_iter()
+                    .chain(ports_tag(&q.ports, cx))
+                    .collect();
+                let acts = Rc::new(proc_acts(q, group, None, hand));
+                let mut parts = vec![lead_cell(hand.lead_pad(0), proc_glyph(q, cx), row_name(q.name.clone(), false, cx), tags)];
+                parts.extend(figures(&proc_key("", q), q.mem, q.cpu, q.energy, hand, true, cx));
+                parts.push(menu_cell(format!("activity-kind-menu-{}", q.pid).into(), &acts, ending, hand, cx));
+                sub_row(
+                    format!("activity-kind-{}-{}", kind.id(), q.pid).into(),
+                    hand.tree(),
+                    parts,
+                    Some(q.command.clone().into()),
+                    Some(acts),
+                    hand,
+                    cx,
+                )
+            }));
         }
     }
-    list("activity-kinds", head_row(hand.tree(), name, sorts(hand, cx), cx), rows, kinds.is_empty(), hand)
+    let at = hand.clone();
+    table("activity-kinds", move |cx| head_row(at.tree(), name.clone(), sorts(&at, cx), cx), rows, empty, hand)
 }
 
 /// The Ports view: every port a process wsp owns listens on, its thread, and who can reach it.
-pub fn ports_table(rows: &[(Port, &Proc, &Group)], hand: &Hand, cx: &App) -> AnyElement {
-    let p = cx.palette();
-    let note = |word: String| {
-        div().min_w_0().truncate().text_size(text::NOTE.0).line_height(text::NOTE.1).text_color(p.muted_foreground).child(word)
-    };
+pub fn ports_table(groups: Rc<Vec<Group>>, rows: Vec<(Port, Proc, usize)>, hand: &Hand) -> Table {
+    let empty = rows.is_empty();
     let items = rows
-        .iter()
-        .map(|(port, q, group)| {
-            let thread = match &group.thread {
-                None => note(where_of(Some(group))).into_any_element(),
-                Some(t) => h_flex()
-                    .min_w_0()
-                    .gap_2()
-                    .child(catalog::mark(&t.harness, &catalog::name(&t.harness), px(14.), cx.palette().foreground, cx))
-                    .child(
-                        div()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(text::SETTING_TITLE.0)
-                            .text_color(p.foreground.opacity(0.8))
-                            .child(t.title.clone()),
-                    )
-                    .into_any_element(),
-            };
-            let reach = match port.loopback {
-                None => String::new(),
-                Some(true) => w::LOOPBACK.into(),
-                Some(false) => w::EVERY_ADDRESS.into(),
-            };
-            let acts = Rc::new(proc_acts(q, Some(group), Some(*port), hand));
-            let ending = hand.ending.contains(&q.pid);
-            let open = open_port(q, Some(group), Some(*port), hand).filter(|_| !ending).map(|(_, run)| {
-                let open = Button::outline(format!("activity-port-open-{}-{}", q.pid, port.port), w::OPEN)
-                    .xs()
-                    .on_click(move |_, window, cx| run(window, cx));
-                h_flex().opacity(0.).group_hover("activity-row", |s| s.opacity(1.)).child(open)
-            });
-            let mut parts = vec![
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .text_size(text::VALUE.0)
-                    .line_height(px(20.))
-                    .text_color(p.foreground)
-                    .font_features(text::tabular())
-                    .child(port.port.to_string())
-                    .into_any_element(),
-                h_flex().min_w_0().gap_2().child(proc_glyph(q, cx)).child(row_name(q.name.clone(), false, cx)).into_any_element(),
-            ];
-            if !hand.width.md {
-                parts.extend([
-                    thread,
-                    note(reach).into_any_element(),
-                    h_flex().w_full().justify_end().gap(px(6.)).children(open).into_any_element(),
-                ]);
-            }
-            parts.push(menu_cell(format!("activity-port-menu-{}-{}", q.pid, port.port).into(), &acts, ending, hand, cx));
-            sub_row(
-                format!("activity-port-{}-{}", q.pid, port.port).into(),
-                hand.ports(),
-                parts,
-                Some(q.command.clone().into()),
-                Some(acts),
-                hand,
-                cx,
-            )
+        .into_iter()
+        .map(|(port, q, at)| {
+            let (groups, hand) = (groups.clone(), hand.clone());
+            Rc::new(move |cx: &App| {
+                let (q, group, hand) = (&q, &groups[at], &hand);
+                let p = cx.palette();
+                let note = |word: String| {
+                    div().min_w_0().truncate().text_size(text::NOTE.0).line_height(text::NOTE.1).text_color(p.muted_foreground).child(word)
+                };
+                let thread = match &group.thread {
+                    None => note(where_of(Some(group))).into_any_element(),
+                    Some(t) => h_flex()
+                        .min_w_0()
+                        .gap_2()
+                        .child(catalog::mark(&t.harness, &catalog::name(&t.harness), px(14.), cx.palette().foreground, cx))
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_size(text::SETTING_TITLE.0)
+                                .text_color(p.foreground.opacity(0.8))
+                                .child(t.title.clone()),
+                        )
+                        .into_any_element(),
+                };
+                let reach = match port.loopback {
+                    None => String::new(),
+                    Some(true) => w::LOOPBACK.into(),
+                    Some(false) => w::EVERY_ADDRESS.into(),
+                };
+                let acts = Rc::new(proc_acts(q, Some(group), Some(port), hand));
+                let ending = hand.ending.contains(&q.pid);
+                let open = open_port(q, Some(group), Some(port), hand).filter(|_| !ending).map(|(_, run)| {
+                    let open = Button::outline(format!("activity-port-open-{}-{}", q.pid, port.port), w::OPEN)
+                        .xs()
+                        .on_click(move |_, window, cx| run(window, cx));
+                    h_flex().opacity(0.).group_hover("activity-row", |s| s.opacity(1.)).child(open)
+                });
+                let mut parts = vec![
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(text::VALUE.0)
+                        .line_height(px(20.))
+                        .text_color(p.foreground)
+                        .font_features(text::tabular())
+                        .child(port.port.to_string())
+                        .into_any_element(),
+                    h_flex().min_w_0().gap_2().child(proc_glyph(q, cx)).child(row_name(q.name.clone(), false, cx)).into_any_element(),
+                ];
+                if !hand.width.md {
+                    parts.extend([
+                        thread,
+                        note(reach).into_any_element(),
+                        h_flex().w_full().justify_end().gap(px(6.)).children(open).into_any_element(),
+                    ]);
+                }
+                parts.push(menu_cell(format!("activity-port-menu-{}-{}", q.pid, port.port).into(), &acts, ending, hand, cx));
+                sub_row(
+                    format!("activity-port-{}-{}", q.pid, port.port).into(),
+                    hand.ports(),
+                    parts,
+                    Some(q.command.clone().into()),
+                    Some(acts),
+                    hand,
+                    cx,
+                )
+            }) as MakeRow
         })
         .collect();
-    let head = if hand.width.md {
-        vec![head_word(w::PROCESS, false, cx), div().into_any_element()]
-    } else {
-        vec![
-            head_word(w::PROCESS, false, cx),
-            head_word(w::THREAD, false, cx),
-            head_word(w::REACH, false, cx),
-            div().into_any_element(),
-            div().into_any_element(),
-        ]
+    let at = hand.clone();
+    let head = move |cx: &App| {
+        let head = if at.width.md {
+            vec![head_word(w::PROCESS, false, cx), div().into_any_element()]
+        } else {
+            vec![
+                head_word(w::PROCESS, false, cx),
+                head_word(w::THREAD, false, cx),
+                head_word(w::REACH, false, cx),
+                div().into_any_element(),
+                div().into_any_element(),
+            ]
+        };
+        head_row(at.ports(), w::PORT.into(), head, cx)
     };
-    list("activity-ports", head_row(hand.ports(), w::PORT.into(), head, cx), items, rows.is_empty(), hand)
+    table("activity-ports", head, items, empty, hand)
 }
 
 /// Every process a heading holds that End reaches, which End all signals.
@@ -1065,6 +1131,7 @@ mod tests {
             filtering: false,
             workspace: workspace.map(str::to_owned),
             width: Width { sm: false, md: false },
+            pieces: Rc::default(),
         }
     }
 

@@ -190,7 +190,7 @@ impl Render for ThreadView {
                     .text_size(look.size)
                     .when_some(look.line_height, |el, lh| el.line_height(lh))
                     .text_color(cx.theme().muted_foreground)
-                    .child(clock.clone());
+                    .child(clock.clone().cached(StyleRefinement::default().h(look.height)));
                 over.push(Follow::new(spot.clone(), self.list.clone(), ix, text.into_any_element()));
             }
         }

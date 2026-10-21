@@ -3,11 +3,15 @@
 //! head that sorts by cpu or memory, the rows in mono 22 px apiece nested by parent with the harness pieces named, and
 //! the lit row's inspect fields over its one act and what that act said.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use gpui_kit::component::input::Input;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
-use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, Pixels, SharedString, Window};
+use gpui_kit::{
+    div, prelude::*, px, AnyElement, App, Context, Entity, FocusHandle, Pixels, SharedString, StyleRefinement, WeakEntity, Window,
+};
 use serde_json::Value;
 
 use super::tree::{self, words as w, AgentOf, Send, Sort};
@@ -70,6 +74,68 @@ pub struct Shown {
     pub sort: Sort,
     pub rows: Vec<RowShown>,
     pub lit: Option<LitShown>,
+}
+
+impl Shown {
+    /// Whether `other` lays the pane out as this does: everything but what its rows say, which their slots draw.
+    fn lays_as(&self, other: &Shown) -> bool {
+        let lit_at = |s: &Shown| s.lit.as_ref().and_then(|l| s.rows.iter().position(|r| r.pid == l.pid));
+        (&self.count, self.stale, &self.absent, &self.unavailable, self.sort, self.rows.len(), &self.lit, lit_at(self))
+            == (&other.count, other.stale, &other.absent, &other.unavailable, other.sort, other.rows.len(), &other.lit, lit_at(other))
+    }
+}
+
+/// Each row's focus, kept by its process wherever the sort puts it.
+pub(super) type Focuses = Rc<RefCell<HashMap<Pid, FocusHandle>>>;
+
+/// The table's rows by their places: a frame that moves only what rows say draws again, in place, the slots it moved.
+#[derive(Default)]
+pub(super) struct Slots {
+    rows: Vec<Entity<RowSlot>>,
+    focuses: Focuses,
+    drawn: Option<Shown>,
+}
+
+impl Slots {
+    /// Lays the rows on their slots as the pane draws them all, making or letting go of slots for the rows' count.
+    fn lay(&mut self, shown: &Shown, pane: WeakEntity<Processes>, cx: &mut App) {
+        let lit = shown.lit.as_ref().map(|l| l.pid);
+        self.rows.truncate(shown.rows.len());
+        for (ix, row) in shown.rows.iter().enumerate() {
+            let at = (row.clone(), lit == Some(row.pid));
+            match self.rows.get(ix) {
+                Some(slot) => slot.update(cx, |slot, _| slot.row = at),
+                None => {
+                    let focuses = self.focuses.clone();
+                    let pane = pane.clone();
+                    self.rows.push(cx.new(|_| RowSlot { row: at, pane, focuses }));
+                }
+            }
+        }
+        self.focuses.borrow_mut().retain(|pid, _| shown.rows.iter().any(|r| r.pid == *pid));
+        self.drawn = Some(shown.clone());
+    }
+}
+
+impl Processes {
+    /// A frame came: rows that only say something new draw again in their slots; anything else lays the pane out again.
+    pub(super) fn relay_rows(&mut self, cx: &mut Context<Self>) {
+        let Some(shown) = self.table(cx) else { return };
+        if !self.slots.drawn.as_ref().is_some_and(|drawn| drawn.lays_as(&shown)) {
+            return cx.notify();
+        }
+        let lit = shown.lit.as_ref().map(|l| l.pid);
+        for (slot, row) in self.slots.rows.iter().zip(&shown.rows) {
+            let at = (row.clone(), lit == Some(row.pid));
+            slot.update(cx, |slot, cx| {
+                if slot.row != at {
+                    slot.row = at;
+                    cx.notify_in_place();
+                }
+            });
+        }
+        self.slots.drawn = Some(shown);
+    }
 }
 
 /// `terminalLabels`: each shell the computer's terminal holds by its pty, as its tab names it.
@@ -191,13 +257,28 @@ fn sort_head(word: &'static str, sort: Sort, on: bool, cx: &mut Context<Processe
         .into_any_element()
 }
 
-fn row(r: RowShown, lit: bool, window: &mut Window, cx: &mut Context<Processes>) -> AnyElement {
+/// One place in the table, drawing whichever row stands there now.
+pub struct RowSlot {
+    row: (RowShown, bool),
+    pane: WeakEntity<Processes>,
+    focuses: Focuses,
+}
+
+impl Render for RowSlot {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("ProcRow");
+        let (r, lit) = self.row.clone();
+        // Each row is a tab stop, as the web's `tabIndex={0}`, kept for as long as the row is drawn.
+        let focus = self.focuses.borrow_mut().entry(r.pid).or_insert_with(|| cx.focus_handle().tab_stop(true)).clone();
+        row(r, lit, focus, self.pane.clone(), window, cx)
+    }
+}
+
+fn row(r: RowShown, lit: bool, focus: FocusHandle, pane: WeakEntity<Processes>, window: &mut Window, cx: &App) -> AnyElement {
     let p = cx.palette().clone();
     let pid = r.pid;
-    // Each row is a tab stop, as the web's `tabIndex={0}`, kept for as long as the row is drawn.
-    let focus = window.use_keyed_state(SharedString::from(format!("proc-focus-{pid}")), cx, |_, cx| cx.focus_handle().tab_stop(true));
-    let focus = focus.read(cx).clone();
     let ringed = !lit && focus.is_focused(window) && window.last_input_was_keyboard();
+    let keyed = pane.clone();
     h_flex()
         .id(SharedString::from(format!("proc-{pid}")))
         .debug_selector(move || format!("proc-row-{pid}"))
@@ -209,13 +290,13 @@ fn row(r: RowShown, lit: bool, window: &mut Window, cx: &mut Context<Processes>)
         .when(lit, |el| el.bg(p.accent).text_color(p.foreground))
         .when(ringed, |el| el.bg(p.accent.opacity(0.4)))
         .when(!lit, |el| el.hover(|s| s.bg(p.accent.opacity(0.4))))
-        .on_click(cx.listener(move |this, _, _, cx| this.toggle(pid, cx)))
-        .on_key_down(cx.listener(move |this, e: &gpui_kit::KeyDownEvent, _, cx| {
+        .on_click(move |_, _, cx| _ = pane.update(cx, |this, cx| this.toggle(pid, cx)))
+        .on_key_down(move |e: &gpui_kit::KeyDownEvent, _, cx| {
             if matches!(e.keystroke.key.as_str(), "enter" | "space") {
                 cx.stop_propagation();
-                this.toggle(pid, cx);
+                _ = keyed.update(cx, |this, cx| this.toggle(pid, cx));
             }
-        }))
+        })
         .child(div().w(PID_W).flex_none().text_right().when(!lit, |el| el.text_color(p.muted_foreground)).child(r.pid.to_string()))
         .child(div().w(CPU_W).flex_none().text_right().child(r.cpu))
         .child(div().w(MEM_W).flex_none().text_right().child(r.mem))
@@ -311,6 +392,7 @@ fn absent_lines(pane: &Processes, absent: Absent, cx: &App) -> AnyElement {
 pub fn view(pane: &mut Processes, window: &mut Window, cx: &mut Context<Processes>) -> impl IntoElement {
     let Some(shown) = pane.table(cx) else { return div().into_any_element() };
     pane.keep_clock(cx);
+    pane.slots.lay(&shown, cx.weak_entity(), cx);
     let p = cx.palette().clone();
     let mono = cx.theme().mono_font_family.clone();
     let lit = shown.lit.as_ref().map(|l| l.pid);
@@ -332,9 +414,9 @@ pub fn view(pane: &mut Processes, window: &mut Window, cx: &mut Context<Processe
         (None, None) => {}
     }
     let mut details_of = shown.lit.clone();
-    for r in shown.rows.clone() {
+    for (slot, r) in pane.slots.rows.iter().zip(&shown.rows) {
         let pid = r.pid;
-        body.push(row(r, lit == Some(pid), window, cx));
+        body.push(slot.clone().cached(StyleRefinement::default().w_full().h(ROW).flex_none()).into_any_element());
         if lit == Some(pid) {
             if let Some(l) = details_of.take() {
                 body.push(details(l, shown.stale, cx));
