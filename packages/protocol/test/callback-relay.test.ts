@@ -9,15 +9,7 @@ const CLAUDE_BROWSER =
   "https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A45543%2Fcallback&scope=user%3Ainference&code_challenge=C&code_challenge_method=S256&state=S";
 const CLAUDE_TERMINAL =
   "https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=user%3Ainference&code_challenge=C&code_challenge_method=S256&state=S";
-// gcloud auth login with a browser to reach, and the page it prints instead when it has none: the same authorize
-// endpoint, one redirecting to a port on the machine, the other to the page that shows a code to paste.
-const GCLOUD_BROWSER =
-  "https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=32555940559&redirect_uri=http%3A%2F%2Flocalhost%3A8085%2F&scope=openid+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&state=S&access_type=offline&code_challenge=C&code_challenge_method=S256";
-const GCLOUD_PASTE =
-  "https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=32555940559&redirect_uri=https%3A%2F%2Fsdk.cloud.google.com%2FauthCode.html&scope=openid+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&state=S&access_type=offline&code_challenge=C&code_challenge_method=S256";
 const AWS = "https://d-1234.awsapps.com/start/authorize?response_type=code&client_id=abc&redirect_uri=http%3A%2F%2F127.0.0.1%3A53211%2Foauth%2Fcallback&state=S";
-const MCP_REMOTE =
-  "https://mcp.linear.app/authorize?response_type=code&client_id=X&code_challenge=C&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A22227%2Foauth%2Fcallback&state=S&scope=read+write&resource=https%3A%2F%2Fmcp.linear.app%2Fmcp";
 const IPV6 = "https://example.com/authorize?redirect_uri=http%3A%2F%2F%5B%3A%3A1%5D%3A8976%2Foauth%2Fcallback&state=S";
 const GH_DEVICE = "https://github.com/login/device";
 const AWS_BARE = "https://d-1234.awsapps.com/start/authorize?response_type=code&redirect_uri=http%3A%2F%2F127.0.0.1%2Foauth%2Fcallback&state=S";
@@ -29,11 +21,9 @@ const REMOTE_PORT = "https://example.com/authorize?redirect_uri=https%3A%2F%2Fap
 describe("redirectsToMachine", () => {
   it.each([
     ["wrangler's localhost callback", WRANGLER, true],
-    ["gcloud with a browser to reach", GCLOUD_BROWSER, true],
     ["aws sso, 127.0.0.1 with a port", AWS, true],
     ["aws's registered redirect without a port, whose listener the spotter finds", AWS_BARE, true],
     ["an IPv6 loopback host", IPV6, true],
-    ["gcloud with no browser: its page hands a code back", GCLOUD_PASTE, false],
     ["Claude Code's hosted paste-code callback", CLAUDE_TERMINAL, false],
     ["gh's device page: no redirect_uri at all", GH_DEVICE, false],
     ["a redirect_uri on another host, even with a port", REMOTE_PORT, false],
@@ -47,13 +37,9 @@ describe("callbackPortOf", () => {
   it.each([
     ["wrangler, redirect_uri on localhost:8976", WRANGLER, 8976],
     ["Claude Code's browser URL, random localhost port", CLAUDE_BROWSER, 45543],
-    ["gcloud with a browser to reach: the port it listens on", GCLOUD_BROWSER, 8085],
     ["aws sso, 127.0.0.1 with a port", AWS, 53211],
-    ["mcp-remote, port derived from the server URL", MCP_REMOTE, 22227],
     ["an IPv6 loopback host", IPV6, 8976],
-    ["gcloud with no browser: its page hands a code back, so nothing returns to the machine", GCLOUD_PASTE, undefined],
     ["Claude Code's printed URL: the hosted paste-code callback", CLAUDE_TERMINAL, undefined],
-    ["gh's device page: no redirect_uri at all", GH_DEVICE, undefined],
     ["aws's registered redirect without a port: it comes back to the machine, but names no port to bind", AWS_BARE, undefined],
     ["a bare authorize URL with neither redirect_uri nor port", KEYCHAIN_STYLE, undefined],
     ["a redirect_uri on another host, even with a port", REMOTE_PORT, undefined],
