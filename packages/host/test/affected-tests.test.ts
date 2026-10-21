@@ -135,6 +135,12 @@ describe("the tests a change runs", () => {
     expect(run.stdout.split("\n").filter(Boolean)).toEqual([...NAMED, "packages/protocol/test/law.test.ts"]);
   });
 
+  it("names with --packages the packages a change touches, a test file's own included, and every package declaring them", () => {
+    expect(affected(workspace(), { "packages/proto/src/index.ts": "export const proto = 2;\n" }, "--packages").out).toEqual(["apps/ui", "packages/proto", "packages/run"]);
+    expect(affected(workspace(), { "packages/lone/test/lone.test.ts": "\n", "scripts/tidy.mjs": "//\n" }, "--packages").out).toEqual(["packages/lone"]);
+    expect(affected(workspace(), { "package.json": '{"private":true}\n' }, "--packages").out).toEqual(["apps/ui", "packages/lone", "packages/proto", "packages/protocol", "packages/run"]);
+  });
+
   it("lists the test files a change added or modified, and none it deleted", () => {
     const dir = workspace();
     rmSync(join(dir, "packages/lone/test/lone.test.ts"));
