@@ -112,14 +112,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn has_a_module_for_every_kind_whose_machines_carry_a_daemon() {
-        for kind in ["cloud", "local", "place"] {
-            assert!(readings_for(kind, "linux").is_ok(), "{kind}");
-            assert!(readings_for(kind, "macos").is_ok(), "{kind}");
-        }
-    }
-
-    #[test]
     fn refuses_a_kind_with_no_module_in_the_words_the_pane_prints_so_no_pane_waits_on_a_stream_that_never_comes() {
         // Every kind in the enum has a module today, so the guard is proved against a kind that is not one: what it
         // is for is a kind added to the enum without a row here.

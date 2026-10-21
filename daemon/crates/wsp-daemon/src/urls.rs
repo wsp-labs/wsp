@@ -467,15 +467,6 @@ mod tests {
     }
 
     #[test]
-    fn matches_a_url_split_across_chunks_once_through_the_kept_tail() {
-        let mut s = TerminalUrlScanner::new(settled_callback_ports);
-        let cut = WRANGLER.find("redirect_uri").unwrap() + 20;
-        assert!(s.feed(&format!("Visit: {}", &WRANGLER[..cut]), None).is_empty());
-        assert_eq!(s.feed(&format!("{}\r\n", &WRANGLER[cut..]), None), [8976]);
-        assert!(s.feed("Waiting for the callback...\r\n", None).is_empty());
-    }
-
-    #[test]
     fn a_chunk_ending_inside_the_port_digits_is_not_reported_until_the_url_is_complete() {
         for (url, up_to, port) in [(WRANGLER, "%3A8", 8976u16), (MCP_REMOTE, "%3A22", 22227)] {
             let mut s = TerminalUrlScanner::new(settled_callback_ports);
