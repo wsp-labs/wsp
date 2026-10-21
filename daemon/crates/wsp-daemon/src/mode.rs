@@ -251,7 +251,7 @@ mod tests {
         assert_eq!(drain(&mut rb), [json!({"type": "pty.mode", "ptyId": "p1", "mode": "line", "echo": true, "foreground": "bash"})]);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn emits_only_on_change_across_a_probe_sequence() {
         let seq = [LINE, LINE, RAW, RAW, LINE];
         let i = Arc::new(AtomicUsize::new(0));
