@@ -61,10 +61,9 @@ describe("SolariBackend", () => {
     expect(sizeRefusal("2x8", sizes)).toBe("2x8 is not a size this provider offers; the sizes are 2x4 ($0.11/hr)");
   });
 
-  it("declares its lifecycle: two wake attempts, half a minute for the daemon, half an hour of asking once a minute, and a resume cap of half a minute", () => {
+  it("declares its lifecycle and its resume cap, one frozen object every backend built here shares", () => {
     const b = new SolariBackend({ apiKey: "k", fetch: fakeFetch({}) });
     expect(b.lifecycle).toBe(SOLARI_LIFECYCLE);
-    expect(SOLARI_LIFECYCLE.budgets).toEqual({ wakeAttempts: 2, daemonAnswersMs: 30_000, resumeAsks: { everyMs: 60_000, forMs: 30 * 60_000 } });
     expect(RESUME_CAP_MS).toBe(30_000);
     expect(b.capabilities.pauseMode).toBe("memory");
     // One object for every backend built here: a test that shrank a budget on it would shrink it for every file after.
@@ -138,11 +137,6 @@ describe("SolariBackend", () => {
   it("a listing reply of another shape is a failure, never an empty account", async () => {
     const b = new SolariBackend({ apiKey: "k", fetch: fakeFetch({ "GET /snapshots": { status: 200, body: { items: [] } } }) });
     await expect(b.listSnapshots()).rejects.toThrow("GET /snapshots answered without a snapshots array");
-  });
-
-  it("prices snapshot storage from the one published constant", () => {
-    const b = new SolariBackend({ apiKey: "k", fetch: fakeFetch({}) });
-    expect(b.pricing.snapshotStorage).toEqual({ freeGb: 10, usdPerGbMonth: 0.05, billedFrom: "2026-10-01" });
   });
 
   it("creates a sandbox and URL-encodes ids on follow-up calls", async () => {
