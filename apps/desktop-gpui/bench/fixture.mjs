@@ -3,7 +3,7 @@
 // HOME that folder: starts a throwaway host on a fresh state file there, records the bench's threads on it through the
 // wsp command run in this process, and leaves the host serving until `stop.sh <out.json>`.
 import { spawn, spawnSync } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { THREADS, turnsOf } from "./content.mjs";
@@ -63,15 +63,27 @@ function fail(step, said) {
   process.exit(1);
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/** How many times a line the host did not answer is run again, and the pause before each. */
+const RETRIES = 4;
+const RETRY_MS = 3_000;
+
 /** One wsp line against the fixture's host, run in this process; `false` for a host start means a line that would
  * start one is refused instead. */
 async function wsp(...args) {
-  const said = [];
-  const asked = question => Promise.reject(new Error(`wsp ${args[0]} asked: ${question}`));
-  const io = { log: line => void said.push(line), error: line => void said.push(line), ask: asked, askSecret: asked };
-  const code = await cli([...args, "--state", state], io, undefined, process.env, false, { cwd: dir });
-  if (code !== 0) fail(`wsp ${args.slice(0, 2).join(" ")}`, said.join("\n"));
-  return said.join("\n");
+  for (let retry = 1; ; retry++) {
+    const said = [];
+    const asked = question => Promise.reject(new Error(`wsp ${args[0]} asked: ${question}`));
+    const io = { log: line => void said.push(line), error: line => void said.push(line), ask: asked, askSecret: asked };
+    const code = await cli([...args, "--state", state], io, undefined, process.env, false, { cwd: dir });
+    if (code === 0) return said.join("\n");
+    // The dial's window covers the socket and the auth alone, so a line refused in it never reached the host.
+    const unanswered = said.find(line => /\bthe host at \S+ did not answer\b/.test(line));
+    if (unanswered === undefined || retry > RETRIES) fail(`wsp ${args.slice(0, 2).join(" ")}`, said.join("\n"));
+    console.log(`fixture: retry ${retry}: ${unanswered}`);
+    await sleep(RETRY_MS);
+  }
 }
 
 const until = Date.now() + 30_000;
@@ -85,7 +97,7 @@ const lockedPort = () => {
 };
 while (!existsSync(join(dir, "state", "host-token")) || lockedPort() === 0) {
   if (host.exitCode !== null || Date.now() > until) fail("wsp up");
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await sleep(100);
 }
 
 const folder = join(dir, "bench");
@@ -95,23 +107,41 @@ git("init", "-q", "-b", "main");
 git("commit", "-q", "--allow-empty", "-m", "bench");
 await wsp("add", folder, "--name", "bench");
 
+/** The host log's length in bytes, so a wait reads only what the host logged after it. */
+const logged = () => statSync(join(dir, "up.log")).size;
+
 /** Waits until the host has recorded what `n` turns of the thread changed: it reads a turn's changes after the turn
- * ends, and a turn sent before that read lands can leave the card out. */
-async function changesRecorded(thread, n) {
-  const until = Date.now() + 60_000;
+ * ends, a minute or more later on a busy machine, and a turn sent before that read lands can leave the card out. False
+ * once the host logs after byte `from` that it took no snapshot of the folder in time, and the turn records nothing. */
+async function changesRecorded(thread, n, from) {
+  const until = Date.now() + 1_800_000;
   for (;;) {
     const read = JSON.parse(await wsp("thread", "read", thread, "--json")).messages;
-    if (read.filter(r => r.who === "tool" && /^Changed \d+ files?/.test(r.text)).length >= n) return;
+    if (read.filter(r => r.who === "tool" && /^Changed \d+ files?/.test(r.text)).length >= n) return true;
+    if (readFileSync(join(dir, "up.log")).subarray(from).toString().includes("no snapshot of ")) return false;
     if (Date.now() > until) fail(`waiting for what turn ${n} of ${thread} changed`);
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await sleep(250);
   }
 }
 
+/** How many times a turn whose snapshot the host missed is sent again before the fixture gives up. */
+const RESENDS = 3;
+/** The host's window for a turn's snapshot (`turnSnapshotMs`), whose timer it starts before a turn's end reaches a line. */
+const SNAPSHOT_MS = 3_000;
+
 const threads = {};
 const changing = {};
+let answered = 0;
 for (const name of bare ? [] : [...Object.keys(THREADS), ...sessionNames(process.env.BENCH_SESSION)]) {
   const started = Date.now();
   for (const [i, turn] of turnsOf(name).entries()) {
+    const writes = (turn.files ?? []).length > 0;
+    if (writes) {
+      // The last turn's closing snapshot is due by now, and a host that answers a line after that has logged any miss
+      // of it, however late it runs, so a miss logged from here on is this turn's.
+      await sleep(answered + SNAPSHOT_MS - Date.now());
+      await wsp("thread", "head", threads[name]);
+    }
     writeFileSync(join(dir, "bench-turn.json"), JSON.stringify({ thread: name, turn: i }));
     if (i === 0) {
       const said = await wsp("run", "bench", "--agent", "claude", turn.prompt);
@@ -123,9 +153,20 @@ for (const name of bare ? [] : [...Object.keys(THREADS), ...sessionNames(process
         writeFileSync(path, encode(shot(image), 2));
         return ["--file", path];
       });
+      // What the turn's files held before it, put back before a resend so the stub's same bytes change them again.
+      const before = (turn.files ?? []).map(f => join(folder, f.path)).map(path => [path, existsSync(path) ? readFileSync(path) : undefined]);
+      let from = logged();
       await wsp("send", threads[name], ...files.flat(), turn.prompt);
+      if (writes) changing[name] = (changing[name] ?? 0) + 1;
+      for (let resend = 1; writes && !(await changesRecorded(threads[name], changing[name], from)); resend++) {
+        if (resend > RESENDS) fail(`turn ${i + 1} of ${name}, sent ${resend} times with no snapshot taken`);
+        for (const [path, was] of before) was === undefined ? rmSync(path, { force: true }) : writeFileSync(path, was);
+        console.log(`fixture: resend ${resend} of turn ${i + 1} of ${name}, whose snapshot the host missed`);
+        from = logged();
+        await wsp("send", threads[name], ...files.flat(), turn.prompt);
+      }
     }
-    if ((turn.files ?? []).length > 0) await changesRecorded(threads[name], (changing[name] = (changing[name] ?? 0) + 1));
+    answered = Date.now();
     if ((i + 1) % 100 === 0) console.log(`fixture: ${name}, ${i + 1} turns`);
   }
   console.log(`fixture: ${name} ${threads[name]}, ${turnsOf(name).length} turns in ${((Date.now() - started) / 1000).toFixed(1)} s`);
