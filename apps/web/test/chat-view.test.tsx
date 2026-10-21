@@ -32,7 +32,6 @@ import { WorkspaceSidebar } from "../src/sidebar/WorkspaceSidebar.js";
 import type { ChatThreadHandle } from "../src/components/chat/useChatThread.js";
 import { CHAT_STREAM, CHAT_T0, CHAT_TURN, CHAT_WS } from "./fixtures/chat-stream.js";
 import { requestNewThread } from "../src/shell/shellRequests.js";
-import { useWorkspacePreviews } from "../src/shell/workspacePreviews.js";
 import { getSyntaxHighlighterPromise } from "../src/lib/syntaxHighlighting.js";
 import { caps } from "./caps.js";
 import { noDaemonApi } from "./fake-daemon-api.js";
@@ -125,7 +124,7 @@ const settledTurn = (ws: string, prompt: string, text: string, n = 1): SessionEv
 const THREAD = "thr_lastline";
 const THREADED_SCOPE = { workspaceId: WS, sessionId: "sess_lastline", turnId: "turn_lastline", threadId: THREAD };
 
-/** One settled turn stamped with a runtime thread id, which is what a switcher card matches a recorded line on. */
+/** One settled turn stamped with a runtime thread id. */
 const threaded = (text: string): SessionEvent[] => [
   { type: "session.start", ...THREADED_SCOPE, at: T0, model: "claude-sonnet-4-5", prompt: "add a health route" },
   { type: "session.delta", ...THREADED_SCOPE, at: T0 + 300, kind: "text", text },
@@ -553,18 +552,6 @@ describe("ChatView", () => {
     emit({ type: "session.end", ...beta, at: T0 + 950, exitCode: 0, sawResult: true });
     expect(screen.getByTestId("busy").textContent).toBe("false");
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
-  });
-
-  it("records nothing as it draws: the previews store is the shell's pictures alone", async () => {
-    const held = useWorkspacePreviews.getState();
-    expect(Object.keys(held)).toEqual(["images", "setImages"]);
-    const { api, emit } = fixtureApi([workspace], { [WS]: threaded("Ran the gate.\n\nAll 12 tests green.\n") });
-    await setup(api);
-    await screen.findByText(/All 12 tests green\./);
-    // A whole transcript drawn and a turn streaming over it: the store the switcher reads is not written to once.
-    emit({ type: "session.delta", ...THREADED_SCOPE, at: T0 + 120_000, kind: "text", text: "\nBumped the lockfile.\n" });
-    await waitFor(() => expect(screen.getAllByText(/Bumped the lockfile\./).length).toBeGreaterThan(0));
-    expect(useWorkspacePreviews.getState()).toBe(held);
   });
 
   it("virtualizes a long transcript instead of mounting every row", async () => {

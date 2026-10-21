@@ -39,10 +39,9 @@ import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { StringDecoder } from "node:string_decoder";
 import { AGENT_PID_FILE_ENV, EXEC_CHUNK_BYTES, psCpuSeconds, RUN_STOP_MS, shellQuote, TURN_IDLE_MS, TURN_WALL_MS } from "@wsp/protocol";
 import type { ExecStream, ExecStreamFactory } from "@wsp/protocol";
-import { readsWork, turnActivity, turnCut, type MachineExecOptions, type TurnWaiting } from "./machine-exec.js";
+import { LineCut, readsWork, turnActivity, turnCut, type MachineExecOptions, type TurnWaiting } from "./machine-exec.js";
 
 /** One reading of the work a turn's process tree has done, in the ticks the activity clock counts, or undefined
  * when this computer cannot answer for the tree. */
@@ -368,21 +367,19 @@ function releaseLate(base: string): void {
 
 /** One complete line at a time out of a growing byte stream: what precedes each newline is yielded, the tail waits
  * for more, and the final tail with no newline is yielded when the stream closes. The queue fills whether or not
- * anybody is iterating, so a turn's ending is the run's own and not its reader's. */
+ * anybody is iterating yet, so a turn's ending is the run's own and not its reader's; a consumer that lets go takes
+ * the queue with it, since nothing would read it again. */
 class Lines {
-  private readonly queue: string[] = [];
-  private pending = "";
+  private queue: string[] = [];
+  private split = new LineCut();
   private wake: (() => void) | undefined;
   private done = false;
+  private letGo = false;
   private error: Error | undefined;
 
-  feed(chunk: string): void {
-    this.pending += chunk;
-    let nl: number;
-    while ((nl = this.pending.indexOf("\n")) !== -1) {
-      this.queue.push(this.pending.slice(0, nl));
-      this.pending = this.pending.slice(nl + 1);
-    }
+  feed(chunk: Buffer): void {
+    if (this.letGo) return;
+    for (const line of this.split.take(chunk)) this.queue.push(line);
     this.wake?.();
     this.wake = undefined;
   }
@@ -394,25 +391,45 @@ class Lines {
   }
 
   end(): void {
-    if (this.pending !== "") {
-      this.queue.push(this.pending);
-      this.pending = "";
-    }
+    const last = this.split.rest();
+    if (last !== undefined && !this.letGo) this.queue.push(last);
     this.done = true;
     this.wake?.();
     this.wake = undefined;
   }
 
-  async *iterate(): AsyncGenerator<string> {
-    while (true) {
-      while (this.queue.length > 0) yield this.queue.shift()!;
-      if (this.done) {
-        if (this.error !== undefined) throw this.error;
-        return;
+  /** The stream's one reader. A return() before its first next() never starts a generator, so its finally never runs:
+   * the reader lets go on return() too. */
+  iterate(): AsyncGenerator<string> {
+    const read = this.read();
+    const close = read.return.bind(read);
+    read.return = value => {
+      this.release();
+      return close(value);
+    };
+    return read;
+  }
+
+  private release(): void {
+    this.letGo = true;
+    this.queue = [];
+    this.split = new LineCut();
+  }
+
+  private async *read(): AsyncGenerator<string> {
+    try {
+      while (true) {
+        while (this.queue.length > 0) yield this.queue.shift()!;
+        if (this.done) {
+          if (this.error !== undefined) throw this.error;
+          return;
+        }
+        await new Promise<void>(resolve => {
+          this.wake = resolve;
+        });
       }
-      await new Promise<void>(resolve => {
-        this.wake = resolve;
-      });
+    } finally {
+      this.release();
     }
   }
 }
@@ -481,8 +498,6 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     /** The poll runs whether or not anybody is reading yet: the run is on this computer either way, so its limits,
      * its ending and its reap cannot wait on a consumer. What it reads is queued for whoever iterates. */
     const lines = new Lines();
-    /** One decoder for the whole log, so a character split across two chunks comes back whole. */
-    const decoder = new StringDecoder("utf8");
     let offset = o.from ?? 0;
     let downs = 0;
     let reading = false;
@@ -536,11 +551,10 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       opts.reading?.delete(drop);
       await reapRun(base, async end => {
         for (let chunk = readLog(end); chunk.length > 0; chunk = readLog(end)) {
-          lines.feed(decoder.write(chunk));
+          lines.feed(chunk);
           await new Promise(resolve => setImmediate(resolve));
         }
       });
-      lines.feed(decoder.end());
       if (cut === undefined) lines.end();
       else lines.fail(cut);
       finish(code);
@@ -572,7 +586,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
         const chunk = readLog();
         if (chunk.length > 0) {
           activity.touch(now());
-          lines.feed(decoder.write(chunk));
+          lines.feed(chunk);
           if (chunk.length < EXEC_CHUNK_BYTES) caughtUp = true;
           exitSeen = ended !== undefined && ended !== "";
           // There may be more than one chunk waiting, and a log read from its first byte can be hundreds of them: the

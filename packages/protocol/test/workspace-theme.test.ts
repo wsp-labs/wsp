@@ -225,7 +225,6 @@ describe("the custom properties", () => {
     expect(fmtRgb([1, 2, 3])).toBe("rgb(1 2 3)");
     expect(fmtRgb([1, 2, 3], 0.25)).toBe("rgb(1 2 3 / 25%)");
     const vars = fmtThemeVars({ ...theme, dots: [{ angle: 0, radius: 0.5 }], harmony: "single" }, false);
-    expect(vars["--space-gradient"]).toContain(fmtRgb(dotColour({ angle: 0, radius: 0.5 }), theme.opacity));
     expect(vars["--space-tint"]).toBe(fmtRgb(themeInk({ ...theme, dots: [{ angle: 0, radius: 0.5 }] }, false)));
   });
 

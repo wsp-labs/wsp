@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { parseArgs } from "node:util";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { ANALYTICS_ENV, CLOUD_ENV, EXIT_CODES, LABS_ENV, LOOPBACK, UPDATE_CHECK_ENV } from "@wsp/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SERVE_FLAGS, SHARED_OPTIONS, claudeKeyOnlyInThisShell, cli, downCommand, keyOnlyInThisShell, optsFor, statusCommand, upServiceCommand, hostStoppedLine, type CliIO, type ServeAsked, type ServiceDeps } from "../src/cli.js";
@@ -699,8 +699,8 @@ describe("wsp up --service, wsp down and wsp status", () => {
     expect(await upServiceCommand(quietIO(lines, errors), opts, fake.deps)).toBe(0);
     expect(errors).toEqual([]);
     const plan = fake.plans[0]!;
-    expect(plan.argv[0]).toBe(process.execPath);
-    expect(plan.argv.slice(2)).toEqual(["up", "--state", statePath, "--port", "4400", "--listen", "127.0.0.1"]);
+    // Node and its script alone: a V8 flag the app's shim passes stops the start on Node 22 and 24.
+    expect(plan.argv).toEqual([process.execPath, resolve(process.argv[1]!), "up", "--state", statePath, "--port", "4400", "--listen", "127.0.0.1"]);
     // The host reads the person's login shell at its start; a PATH copied from this process could name a folder
     // that is gone by then.
     expect(plan.env["PATH"]).toBeUndefined();

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The sidebar's two picks, the project and the computer its list is filtered
-// to: where this window keeps them, and what the list holds under them. The
-// sidebar draws that list and the jump to the next thread that needs the
-// person walks it, so both read it here and neither reaches a thread the picks
-// hide.
+// to: where this window keeps them, and what the list holds under them, and
+// the sections it folds. The sidebar draws that list and the jumps along it
+// walk it, so both read it here and neither reaches a thread the picks or a
+// fold hide.
 import type { PlaceView, ProjectView } from "@wsp/protocol";
 import type { SidebarProjectSnapshot } from "../adapt/index.js";
 import { getLocalStorageItem, type Codec } from "../hooks/useLocalStorage.js";
 import { workspacesOn } from "./computerPick.js";
-import { projectGroups, type ProjectGroup } from "./threadTree.js";
+import { projectGroups, type ProjectGroup, type SidebarSection } from "./threadTree.js";
 
 /** The project the list is filtered to. A view of this window alone, so it never follows a person to another one. */
 export const PROJECT_PICK_KEY = "wsp:sidebar-project";
@@ -23,6 +23,27 @@ export const pickCodec: Codec<string | null> = {
   },
   encode: value => JSON.stringify(value),
 };
+
+export type Fold = SidebarSection | "settled" | "setting-up";
+/** The folds a head can make: the one list has no head, so it never folds. */
+const FOLDS: readonly Fold[] = ["pinned", "needs-you", "settled", "setting-up"];
+/** The sections a person has folded by their heads. Settled starts folded, since it holds the tiles a person has
+ * stopped looking at; every live section starts open. */
+export const FOLDED_KEY = "wsp:sidebar-folded";
+export const DEFAULT_FOLDS: readonly Fold[] = ["settled"];
+export const foldedCodec: Codec<readonly Fold[]> = {
+  // A section the sidebar no longer has is dropped, not a refusal of the list: a refusal pins every fold at its
+  // default and no click can store another (the cut to three sections stranded Settled folded on 2026-10-01).
+  decode: raw => {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error(`Expected a list of section ids, got ${raw}.`);
+    return parsed.filter((id): id is Fold => (FOLDS as readonly unknown[]).includes(id));
+  },
+  encode: value => JSON.stringify(value),
+};
+
+/** The sections folded as this window stored them, read outside the sidebar. */
+export const storedFolds = (): readonly Fold[] => getLocalStorageItem(FOLDED_KEY, foldedCodec) ?? DEFAULT_FOLDS;
 
 /** The picks as this window stored them, read outside the sidebar. */
 export const storedPicks = (): { project: string | null; computer: string | null } => ({

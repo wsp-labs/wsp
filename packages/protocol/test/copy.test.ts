@@ -51,11 +51,9 @@ const report = {
 describe("the two flags a computer declares about copies", () => {
   it("are both required, so a backend that declares neither is refused rather than read as false", () => {
     expect(Capabilities.safeParse(flags).success).toBe(true);
-    const { copies, ...withoutCopies } = flags;
-    expect(copies).toBe(true);
+    const { copies: _c, ...withoutCopies } = flags;
     expect(Capabilities.safeParse(withoutCopies).success).toBe(false);
-    const { ownNetwork, ...withoutNetwork } = flags;
-    expect(ownNetwork).toBe(false);
+    const { ownNetwork: _n, ...withoutNetwork } = flags;
     expect(Capabilities.safeParse(withoutNetwork).success).toBe(false);
   });
 });

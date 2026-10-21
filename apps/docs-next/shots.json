@@ -388,15 +388,6 @@
       "clip": "ring and popover"
     },
     {
-      "name": "switcher",
-      "pages": [
-        "/features/switcher"
-      ],
-      "fixture": "site",
-      "kind": "still",
-      "exists": true
-    },
-    {
       "name": "docs-palette",
       "pages": [
         "/features/switcher"

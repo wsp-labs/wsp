@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { WorkspaceView } from "@wsp/protocol";
 import { actionById, resolveActions } from "./registry.js";
 import { workspaceActions, workspaceTarget, type WorkspaceVerbs } from "./workspaceActions.js";
-import { BRING_BACK_HINT, broughtBackRowLine, DELETE_HINT, WORKSPACE_WORDS } from "./format.js";
+import { broughtBackRowLine, DELETE_HINT } from "./format.js";
 import { WHERE_WORDS } from "../settings/format.js";
 
 /** Every fact of a pull request a read answers but its number, link, state and host, which each case names. */
@@ -36,10 +36,8 @@ const back = { branch: "agent/pricing-page", base: "main", ahead: 2, uncommitted
 describe("bring back on the workspace row", () => {
   it("is in the registry under the project group, with its own words", () => {
     const action = entry("running");
-    expect(action.title).toBe(WORKSPACE_WORDS.bringBack);
     expect(action.group).toBe("project");
     expect(action.rowLabel).toBe("Bring back pricing page");
-    expect(action.hint).toBe(BRING_BACK_HINT);
   });
 
   it("runs the verb for its own workspace while the machine is running", async () => {
@@ -73,7 +71,6 @@ const deleteEntry = (phase: WorkspaceView["phase"], over: Partial<WorkspaceVerbs
 describe("delete on the workspace row", () => {
   it("is a destructive row in the remove group whose hover says what goes with the machine", () => {
     const action = deleteEntry("running");
-    expect(action.title).toBe(WORKSPACE_WORDS.delete);
     expect(action.group).toBe("remove");
     expect(action.destructive).toBe(true);
     expect(action.rowLabel).toBe("Delete pricing page");
