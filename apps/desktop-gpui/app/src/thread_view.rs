@@ -18,7 +18,7 @@ use gpui_kit::component::text::TextViewState;
 use gpui_kit::{
     div, list, prelude::*, px, AnyElement, Context, Entity, FollowMode, ListAlignment, ListOffset, ListState, Pixels, Task, Window,
 };
-use gpui_kit::{App, Subscription, WeakEntity};
+use gpui_kit::{AnyWindowHandle, App, Subscription, WeakEntity};
 use wsp_host_client::protocol::{SessionEvent, SessionsReadRequest, SessionsStartRequest};
 use wsp_host_client::{Failure, HostClient, Live, Op, Page, Unopened};
 
@@ -146,7 +146,9 @@ pub struct ThreadView {
     /// Each person's message's attachments by row key, one slot per file, kept while the row is near like `bodies`.
     pub(crate) images: HashMap<String, Vec<cards::Shot>>,
     /// Images rows drew and no longer hold, which the next draw takes out of GPUI's cache and the window's atlas.
-    released: Vec<cards::Released>,
+    pub(crate) released: Vec<cards::Released>,
+    /// The window it last drew in, whose atlas holds its images.
+    window: Option<AnyWindowHandle>,
     /// What the host said about a pick it would not take, by the prompt's ask id, so it outlives the row's rebuilds.
     pub(crate) refusals: HashMap<String, cards::Refusal>,
     list: ListState,
@@ -242,6 +244,17 @@ impl ThreadView {
             cx.notify();
         })
         .detach();
+        // A view that goes (a subagent's page) never draws again, so the images it held leave its window's atlas here.
+        cx.on_release(|this, cx| {
+            let mut released = std::mem::take(&mut this.released);
+            cards::drop_images(&mut this.images, &mut released, |_| false);
+            if let Some(window) = this.window.filter(|_| !released.is_empty()) {
+                cx.defer(move |cx| {
+                    _ = window.update(cx, |_, window, cx| cards::let_go(released, window, cx));
+                });
+            }
+        })
+        .detach();
         ThreadView {
             rows_view,
             thread: None,
@@ -251,6 +264,7 @@ impl ThreadView {
             left: None,
             images: HashMap::new(),
             released: Vec::new(),
+            window: None,
             refusals: HashMap::new(),
             list,
             loaded: false,

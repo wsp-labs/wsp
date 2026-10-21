@@ -62,8 +62,8 @@ fn tree_rows() -> Vec<serde_json::Value> {
 }
 
 fn tree_listing(settle: Option<f64>, preferences: serde_json::Value) -> Listing {
-    let rows: Vec<crate::screens::sidebar::model::Row> =
-        tree_rows().into_iter().filter_map(crate::screens::sidebar::model::Row::owned).collect();
+    let rows: Vec<std::sync::Arc<crate::screens::sidebar::model::Row>> =
+        tree_rows().into_iter().filter_map(crate::screens::sidebar::model::Row::owned).map(std::sync::Arc::new).collect();
     Listing::listed(&rows, "t", NOW, settle, &preferences, "here")
 }
 
@@ -231,8 +231,11 @@ fn a_quiet_thread_whose_child_works_offers_stop_and_holds_settle(cx: &mut TestAp
         json!({"id": "s-t", "workspaceId": "w", "harness": "claude", "status": "completed", "threadId": "t", "startedAt": NOW - HOUR});
     let mut kid = row("th5a", "th5", "running");
     kid.as_object_mut().unwrap().remove("endedAt");
-    let rows: Vec<crate::screens::sidebar::model::Row> =
-        [lead, row("th5", "t", "completed"), kid].into_iter().filter_map(crate::screens::sidebar::model::Row::owned).collect();
+    let rows: Vec<std::sync::Arc<crate::screens::sidebar::model::Row>> = [lead, row("th5", "t", "completed"), kid]
+        .into_iter()
+        .filter_map(crate::screens::sidebar::model::Row::owned)
+        .map(std::sync::Arc::new)
+        .collect();
     let listing = Listing::listed(&rows, "t", NOW, Some(2. * HOUR), &json!({}), "");
     let th5 = &listing.children[0];
     assert_eq!((th5.running, th5.working), (false, true), "a working child left its quiet parent not working");
@@ -303,7 +306,11 @@ fn the_listing_follows_the_sidebars_rows_and_the_persons_preferences(cx: &mut Te
     });
     let sidebar = cx.new(crate::sidebar::Sidebar::new);
     cx.update(|cx| crate::screens::terminal::read_workspaces_from(&sidebar, cx));
-    let snapshot = Snapshot { sessions: tree_rows(), preferences: json!({"settleAfter": "never"}), ..Snapshot::default() };
+    let snapshot = Snapshot {
+        sessions: crate::screens::sidebar::shared::rows_of(tree_rows()),
+        preferences: json!({"settleAfter": "never"}),
+        ..Snapshot::default()
+    };
     sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snapshot)), cx));
     let view = cx.new(ThreadView::new);
     let (_, cx) = cx.add_window_view(|window, cx| Root::new(view.clone(), window, cx));
@@ -347,7 +354,8 @@ fn an_open_fold_pages_twenty_rows_and_n_more_adds_twenty(cx: &mut TestAppContext
             "parentThreadId": "t", "startedAt": NOW - 600_000. + f64::from(i), "endedAt": NOW - 300_000. + f64::from(i), "readAt": NOW}),
         );
     }
-    let rows: Vec<crate::screens::sidebar::model::Row> = rows.into_iter().filter_map(crate::screens::sidebar::model::Row::owned).collect();
+    let rows: Vec<std::sync::Arc<crate::screens::sidebar::model::Row>> =
+        rows.into_iter().filter_map(crate::screens::sidebar::model::Row::owned).map(std::sync::Arc::new).collect();
     let (view, cx) = tree_window(Listing::listed(&rows, "t", NOW, Some(2. * HOUR), &json!({}), ""), cx);
     let at = bounds(cx, "threads-fold-Finished").center();
     cx.simulate_click(at, Modifiers::none());
@@ -438,8 +446,13 @@ fn the_workspaces_state_reaches_the_listing_off_the_sidebar(cx: &mut TestAppCont
         |status: &str| json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": status, "threadId": "t", "startedAt": 1.0});
     let read = |cx: &mut TestAppContext, w: serde_json::Value, status: Option<serde_json::Value>, row: serde_json::Value, memory| {
         let places = vec![json!({"id": "here", "kind": "computer", "name": "Mac mini"})];
-        let snapshot =
-            Snapshot { sessions: vec![row], workspaces: vec![w], statuses: status.into_iter().collect(), places, ..Snapshot::default() };
+        let snapshot = Snapshot {
+            sessions: crate::screens::sidebar::shared::rows_of(vec![row]),
+            workspaces: vec![w],
+            statuses: status.into_iter().collect(),
+            places,
+            ..Snapshot::default()
+        };
         sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snapshot)), cx));
         sidebar.read_with(cx, |s, _| {
             let l = Listing::listed(s.rows(), "t", 10.0, None, &json!({}), "").with_workspace(s, memory);

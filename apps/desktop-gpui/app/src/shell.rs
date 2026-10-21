@@ -14,7 +14,7 @@ use gpui_kit::{
 };
 use tokio::runtime::Runtime;
 use wsp_host_client::ops::settings::PreferencesReply;
-use wsp_host_client::protocol::{PreferencesGetRequest, WorkspacesListRequest};
+use wsp_host_client::protocol::{PreferencesGetRequest, WorkspaceOutPhase, WorkspacesListRequest};
 use wsp_host_client::{Env, Failure, HostClient};
 
 use crate::bench;
@@ -35,6 +35,7 @@ use crate::ui::{self, ActivePalette};
 mod actions;
 mod bench_hold;
 mod bench_run;
+mod bench_session;
 mod preferences;
 
 use bench_run::{BenchRun, Phase, BENCH_LIMIT};
@@ -219,10 +220,7 @@ impl Shell {
             _ = this.update_in(cx, |this, window, cx| match connected {
                 Ok((host, threads, workspaces, preferences)) => {
                     for workspace in &workspaces {
-                        let value = serde_json::to_value(workspace).unwrap_or_default();
-                        if let (Some(id), Some(phase)) = (value["id"].as_str(), value["phase"].as_str()) {
-                            this.running.insert(id.to_owned(), phase == "running");
-                        }
+                        this.running.insert(workspace.id.clone(), matches!(workspace.phase, WorkspaceOutPhase::Running));
                     }
                     let host = Arc::new(host);
                     this.host = Some(host.clone());
@@ -265,12 +263,17 @@ impl Shell {
                 }
             });
         });
-        if bench.is_some() {
+        if let Some(args) = &bench {
+            let limit = if args.session.is_empty() {
+                BENCH_LIMIT
+            } else {
+                BENCH_LIMIT + bench_session::RESTING + bench_session::WALKING + bench_session::PER_THREAD * args.session.len() as u32
+            };
             // A window that stops drawing (covered, minimized) never ticks, so the limit runs on a timer of its own.
             cx.spawn(async move |this, cx| {
-                cx.background_executor().timer(BENCH_LIMIT).await;
+                cx.background_executor().timer(limit).await;
                 let stuck = this.read_with(cx, |this, cx| this.bench_stuck(cx)).unwrap_or_else(|_| "its window gone".to_owned());
-                eprintln!("desktop-gpui: the bench did not finish in {} s, {stuck}", BENCH_LIMIT.as_secs());
+                eprintln!("desktop-gpui: the bench did not finish in {} s, {stuck}", limit.as_secs());
                 std::process::exit(2);
             })
             .detach();
@@ -507,6 +510,7 @@ impl Shell {
             }
             Route::Thread { workspace_id, thread_id } => {
                 self.screen = None;
+                screens::warm::switched(thread_id, window, cx);
                 self.sidebar.update(cx, |s, cx| s.mark(thread_id, cx));
                 if let Some(item) = self.sidebar.read(cx).items().iter().find(|i| i.thread_id == *thread_id).cloned() {
                     crate::screens::thread_view::header::seed(thread_id, &item.project, &item.title, cx);

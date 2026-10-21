@@ -31,14 +31,14 @@ fn family(now: f64) -> Snapshot {
         r
     };
     let mut snap = snapshot(0, now);
-    snap.sessions = vec![
+    snap.sessions = crate::screens::sidebar::shared::rows_of(vec![
         row("lead", "completed", None, true, false),
         row("sub", "failed", Some("lead"), false, false),
         row("run", "running", None, false, false),
         row("busy", "completed", None, true, false),
         row("kid", "running", Some("busy"), false, false),
         row("done", "completed", None, true, true),
-    ];
+    ]);
     snap
 }
 

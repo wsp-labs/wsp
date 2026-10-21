@@ -14,6 +14,7 @@ use common::Throwaway;
 use desktop_gpui::desktop::feed::{self, Ask, Fed, FeedState, OnQuit};
 use desktop_gpui::desktop::notify::{self, OutsideLine, NEEDS_YOU, OUTSIDE_HELD};
 use desktop_gpui::desktop::{awake, quit, tray};
+use desktop_gpui::screens::sidebar::model::Status;
 use futures::channel::mpsc;
 use futures::StreamExt;
 use gpui_kit::{div, IntoElement, Render, SystemNotificationResponse, TestAppContext};
@@ -64,7 +65,7 @@ fn the_feed_follows_a_real_host_and_reads_lost_when_it_goes() {
     host.wsp(&["run", "repo", "first", "--agent", "claude"]);
     // The rows are read again after the turn ends, and the end was handed on before that read.
     let ran =
-        state_where(&runtime, &mut rx, &mut events, |s| !s.sessions.is_empty() && s.sessions.iter().all(|r| r["status"] != "running"));
+        state_where(&runtime, &mut rx, &mut events, |s| !s.sessions.is_empty() && s.sessions.iter().all(|r| r.status != Status::Running));
     let model = ran.tray();
     assert!(!model.rows.is_empty());
     let done =

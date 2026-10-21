@@ -217,6 +217,11 @@ pub(crate) fn gone_refusal(action: &str) -> String {
     )
 }
 
+/// Typed records as JSON, for a page that hands a typed list to the readers here.
+pub(crate) fn values<T: serde::Serialize>(items: &[T]) -> Vec<Value> {
+    items.iter().filter_map(|i| serde_json::to_value(i).ok()).collect()
+}
+
 /// The id of the place a workspace stands on: the place it names, this computer for a local one, else its provider's
 /// row.
 pub(crate) fn place_of(w: &Value, places: &[Value]) -> Option<String> {

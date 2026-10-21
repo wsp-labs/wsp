@@ -214,12 +214,13 @@ fn activity_reads_this_computer_and_each_box_a_folder_stands_on() {
 
 #[test]
 fn a_thread_titles_as_the_sidebar_does() {
-    let turn = |prompt: &str| serde_json::json!({ "id": "s1", "prompt": prompt });
+    let row = |key: &str, text: &str| Row::of(&serde_json::json!({ "id": "s1", "workspaceId": "w1", key: text })).unwrap();
+    let turn = |prompt: &str| row("prompt", prompt);
     assert_eq!(title_of(&turn("Fix the login bug. Then add tests."), &turn("")), "Fix the login bug.");
     // 30 faces are 60 UTF-16 units, which JavaScript's length counts: past 48, so cut.
     let faces = "\u{1f600}".repeat(30);
     assert_eq!(title_of(&turn(&faces), &turn("")), format!("{}\u{2026}", "\u{1f600}".repeat(23)));
-    assert_eq!(title_of(&serde_json::json!({ "id": "s1" }), &serde_json::json!({ "harnessTitle": "Named\nmore" })), "Named");
+    assert_eq!(title_of(&row("cwd", "/w"), &row("harnessTitle", "Named\nmore")), "Named");
 }
 
 #[test]

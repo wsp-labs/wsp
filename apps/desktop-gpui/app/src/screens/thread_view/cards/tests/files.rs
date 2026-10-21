@@ -142,6 +142,29 @@ fn a_screenshot_is_decoded_off_the_ui_thread_into_a_thumbnail_the_size_of_its_ti
     assert!(cx.debug_bounds("thumb").is_some(), "the held screenshot was not drawn");
 }
 
+/// An answer asked before its row was dropped and drawn anew can land over the screenshot the row already drew; the
+/// one it replaces leaves the window's atlas.
+#[gpui_kit::test]
+fn a_screenshot_answered_twice_lets_the_first_go(cx: &mut TestAppContext) {
+    let (view, cx) = window(attachments(), cx);
+    let key = view.read_with(cx, |v, _| v.rows()[0].key.clone());
+    view.update(cx, |v, cx| {
+        v.images.insert(key.clone(), vec![Shot::Asking, Shot::File]);
+        super::super::files::take(key.clone(), 0, Some(("image/png".into(), png(400, 300))), cx);
+    });
+    cx.run_until_parked();
+    let first = view.read_with(cx, |v, _| match &v.images[&key][0] {
+        Shot::Held(_, _, Some(thumb)) => thumb.clone(),
+        _ => panic!("the first answer was not held with a thumbnail"),
+    });
+    assert!(cx.update(|window, _| window.has_image_atlas_entry(&first)), "the first thumbnail was not drawn");
+    view.update(cx, |_, cx| super::super::files::take(key.clone(), 0, Some(("image/png".into(), png(300, 400))), cx));
+    cx.run_until_parked();
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    cx.run_until_parked();
+    assert!(!cx.update(|window, _| window.has_image_atlas_entry(&first)), "the thumbnail an answer replaced stayed in the window's atlas");
+}
+
 #[test]
 fn an_unheld_attachment_reads_as_the_command_line_prints_it() {
     let tile = |mime: &str, bytes| FileTile {

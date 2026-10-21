@@ -10,19 +10,17 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use futures::channel::mpsc::UnboundedSender;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use tokio::runtime::Runtime;
 use wsp_host_client::ops::activity::AppProcs;
-use wsp_host_client::ops::sidebar::{Sessions, Workspaces};
 use wsp_host_client::ops::terminal::DaemonSent;
-use wsp_host_client::protocol::{
-    AppProcsUnwatchRequest, AppProcsWatchRequest, DaemonCloseRequest, DaemonOpenRequest, DaemonSendRequest, SessionsListRequest,
-    WorkspacesListRequest,
-};
+use wsp_host_client::protocol::{AppProcsUnwatchRequest, AppProcsWatchRequest, DaemonCloseRequest, DaemonOpenRequest, DaemonSendRequest};
 use wsp_host_client::{Event, HostClient};
 
 use super::wire::{app_parts, ports_of_reply, AppPart, KnownPort};
 use crate::screens::settings::model::req;
+use crate::screens::sidebar::model::Row;
+use crate::screens::sidebar::shared;
 
 /// A task on the runtime, aborted with its holder, which then runs `close` once.
 pub struct Held {
@@ -55,11 +53,13 @@ pub(crate) async fn wait(attempt: u32) {
     tokio::time::sleep(backoff(attempt, jitter())).await;
 }
 
-/// The host's workspaces and sessions as JSON, the page reading the few fields it needs.
+/// The host's workspaces as JSON, the page reading the few fields it needs, and the session rows every reader shares.
+/// Shared between the task that follows the host and the page that draws them: a change copies the lists of pointers
+/// once, and the page lets the old ones go.
 #[derive(Clone, Default)]
 pub struct Listing {
-    pub workspaces: Vec<Value>,
-    pub sessions: Vec<Value>,
+    pub workspaces: Arc<Vec<Value>>,
+    pub sessions: Arc<Vec<Arc<Row>>>,
 }
 
 fn field<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
@@ -71,10 +71,10 @@ impl Listing {
     /// with no row takes that row out, and one that leaves out the opening prompt keeps the one the thread holds.
     fn push_row(&mut self, e: &Value) {
         let Some(id) = field(e, "id") else { return };
-        let at = self.sessions.iter().position(|r| field(r, "id") == Some(id));
+        let at = self.sessions.iter().position(|r| r.id == id);
         let Some(row) = e.get("row").filter(|r| r.is_object()) else {
             if let Some(at) = at {
-                self.sessions.remove(at);
+                Arc::make_mut(&mut self.sessions).remove(at);
             }
             return;
         };
@@ -84,50 +84,51 @@ impl Listing {
                 row["workspaceId"] = w.clone();
             }
         }
-        if row.get("prompt").is_none() {
-            let thread = field(&row, "threadId");
-            let held = at.and_then(|at| self.sessions[at].get("prompt")).or_else(|| {
+        let Some(mut row) = Row::owned(row) else { return };
+        if row.prompt.is_none() {
+            let thread = row.thread_id.as_deref();
+            row.prompt = at.and_then(|at| self.sessions[at].prompt.clone()).or_else(|| {
                 let thread = thread?;
-                self.sessions.iter().find(|r| field(r, "threadId") == Some(thread)).and_then(|r| r.get("prompt"))
+                self.sessions.iter().find(|r| r.thread_id.as_deref() == Some(thread)).and_then(|r| r.prompt.clone())
             });
-            if let Some(prompt) = held.cloned() {
-                row["prompt"] = prompt;
-            }
         }
+        let row = shared::share(row.kept());
+        let sessions = Arc::make_mut(&mut self.sessions);
         match at {
-            Some(at) => self.sessions[at] = row,
-            None => self.sessions.push(row),
+            Some(at) => sessions[at] = row,
+            None => sessions.push(row),
         }
     }
 
     fn set_workspace(&mut self, workspace: &Value) {
         let Some(id) = field(workspace, "id") else { return };
-        self.workspaces.retain(|w| field(w, "id") != Some(id));
-        self.workspaces.push(workspace.clone());
+        let workspaces = Arc::make_mut(&mut self.workspaces);
+        workspaces.retain(|w| field(w, "id") != Some(id));
+        workspaces.push(workspace.clone());
     }
 
     fn drop_workspace(&mut self, id: &str) {
-        self.workspaces.retain(|w| field(w, "id") != Some(id));
-        self.sessions.retain(|s| field(s, "workspaceId") != Some(id));
+        Arc::make_mut(&mut self.workspaces).retain(|w| field(w, "id") != Some(id));
+        Arc::make_mut(&mut self.sessions).retain(|s| s.workspace_id != id);
     }
 
-    fn set_sessions_of(&mut self, id: &str, rows: Vec<Value>) {
-        self.sessions.retain(|s| field(s, "workspaceId") != Some(id));
-        self.sessions.extend(rows);
+    fn set_sessions_of(&mut self, id: &str, rows: Vec<Arc<Row>>) {
+        let sessions = Arc::make_mut(&mut self.sessions);
+        sessions.retain(|s| s.workspace_id != id);
+        sessions.extend(rows);
     }
 }
 
 /// The least time between two listings handed to the page, however fast the rows move.
 const LIST_EVERY: Duration = Duration::from_millis(1500);
 
-fn to_values<T: serde::Serialize>(rows: &[T]) -> Vec<Value> {
-    rows.iter().filter_map(|r| serde_json::to_value(r).ok()).collect()
-}
-
+/// Both lists as the host sent them, so no reply is typed and then turned back into JSON.
 async fn listing(host: &HostClient) -> Option<Listing> {
-    let Workspaces { workspaces } = host.call(req::<WorkspacesListRequest>(json!({}))).await.ok()?;
-    let Sessions { sessions } = host.call(req::<SessionsListRequest>(json!({}))).await.ok()?;
-    Some(Listing { workspaces: to_values(&workspaces), sessions: to_values(&sessions) })
+    let Some(Value::Array(workspaces)) = host.call_raw("workspaces.list", Map::new()).await.ok()?.remove("workspaces") else {
+        return None;
+    };
+    let sessions = shared::sessions(host, Map::new()).await.ok()?;
+    Some(Listing { workspaces: Arc::new(workspaces), sessions: Arc::new(sessions) })
 }
 
 /// What one host event does to the listing, as the web's store applies it: whether the listing moved.
@@ -144,8 +145,9 @@ async fn apply(host: &HostClient, listing: &mut Listing, e: &Value) -> bool {
         },
         Some("thread.rewound") => {
             let Some(id) = field(e, "workspaceId") else { return false };
-            let Ok(Sessions { sessions }) = host.call(req::<SessionsListRequest>(json!({ "workspaceId": id }))).await else { return false };
-            listing.set_sessions_of(id, to_values(&sessions));
+            let params = Map::from_iter([("workspaceId".to_owned(), Value::from(id))]);
+            let Ok(sessions) = shared::sessions(host, params).await else { return false };
+            listing.set_sessions_of(id, sessions);
         }
         _ => return false,
     }
@@ -475,6 +477,7 @@ async fn link_once(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::screens::sidebar::model::Status;
 
     #[test]
     fn the_backoff_doubles_from_half_a_second_to_ten_with_a_quarter_second_of_jitter() {
@@ -518,22 +521,20 @@ mod tests {
 
     #[test]
     fn a_pushed_row_lands_as_the_web_store_lays_it() {
-        let mut l = Listing {
-            workspaces: vec![json!({ "id": "w1" })],
-            sessions: vec![json!({ "id": "a", "workspaceId": "w1", "threadId": "t", "prompt": "fix it", "status": "completed" })],
-        };
+        let held = json!({ "id": "a", "workspaceId": "w1", "threadId": "t", "prompt": "fix it", "status": "completed" });
+        let mut l = Listing { workspaces: Arc::new(vec![json!({ "id": "w1" })]), sessions: Arc::new(shared::rows_of(vec![held])) };
         l.push_row(&json!({ "type": "session.row", "workspaceId": "w1", "threadId": "t", "id": "b",
             "row": { "id": "b", "threadId": "t", "status": "running" } }));
         assert_eq!(l.sessions.len(), 2);
-        assert_eq!(l.sessions[1]["prompt"], "fix it");
-        assert_eq!(l.sessions[1]["workspaceId"], "w1");
+        assert_eq!(l.sessions[1].prompt.as_deref(), Some("fix it"));
+        assert_eq!(l.sessions[1].workspace_id, "w1");
         l.push_row(
             &json!({ "type": "session.row", "workspaceId": "w1", "id": "b", "row": { "id": "b", "threadId": "t", "status": "completed" } }),
         );
         assert_eq!(l.sessions.len(), 2);
-        assert_eq!(l.sessions[1]["status"], "completed");
+        assert_eq!(l.sessions[1].status, Status::Completed);
         l.push_row(&json!({ "type": "session.row", "workspaceId": "w1", "id": "a" }));
-        assert_eq!(l.sessions.iter().map(|s| s["id"].as_str().unwrap()).collect::<Vec<_>>(), vec!["b"]);
+        assert_eq!(l.sessions.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), vec!["b"]);
         l.drop_workspace("w1");
         assert!(l.workspaces.is_empty() && l.sessions.is_empty());
     }

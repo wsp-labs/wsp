@@ -20,6 +20,7 @@ pub mod slate;
 pub mod terminal;
 pub mod thread_view;
 pub mod usage;
+pub mod warm;
 
 use std::cell::RefCell;
 
