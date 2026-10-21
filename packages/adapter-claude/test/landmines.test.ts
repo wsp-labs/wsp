@@ -4,11 +4,9 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { BROKER_DOOR_URL, FIRST_BYTE_ENV, OFF_SERVERS_FILE, buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
+import { BROKER_DOOR_URL, FIRST_BYTE_ENV, OFF_SERVERS_FILE, buildCommand, buildEnv, forwardsSubagentText, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
 import { agentWord, PLUGIN_SEED_ENV, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe("buildEnv", () => {
   const base = {
@@ -186,16 +184,6 @@ describe("a brokered launch", () => {
     }
     expect(vaulted.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-VAULT");
     expect(inherited.CLAUDE_CODE_OAUTH_TOKEN).toBe(real.CLAUDE_CODE_OAUTH_TOKEN);
-  });
-});
-
-describe("newSessionId", () => {
-  it("returns unique v4-shaped UUIDs", () => {
-    const a = newSessionId();
-    const b = newSessionId();
-    expect(a).toMatch(UUID_RE);
-    expect(b).toMatch(UUID_RE);
-    expect(a).not.toBe(b);
   });
 });
 
