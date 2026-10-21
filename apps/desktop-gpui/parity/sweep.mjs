@@ -126,6 +126,9 @@ export const TABLE = [
  * lists each one's sub-thread under its lead. */
 export const PAIRS = [
   { kind: "pair:long-message", electron: "SWP-long-message", gpui: { args: ["--open", "{thread:long-message}"] } },
+  // A file held over the transcript: the frame covers the chat, so the composer's ground is under the card, and the
+  // card's own ground is read below its words, where the short thread leaves the page empty.
+  { kind: "pair:drop", electron: "SWP-drop", gpui: { args: ["--open", "{thread:short-1}", "--drop", "760,300"] }, regions: { composer: null, "drop card": { x: 768, y: 560 } } },
   { kind: "pair:agents", same: "pane:agents" },
   // The stood sub-thread waits on its unpushed work, so Needs you stands above the tree and its row sits lower.
   { kind: "pair:started", fixture: "stood", electron: "SWP-started", gpui: { args: ["--open", "{thread:lead}"], steps: [{ click: [140, 386] }, { wait: 1500 }, { move: [1000, 600] }], wait: 5000 }, regions: { panel: null } },

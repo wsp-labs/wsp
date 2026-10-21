@@ -308,6 +308,17 @@ impl Palette {
     }
 }
 
+/// [`Palette::sidebar_scope`] of the active palette in the look the window stands in, where the glass lightens the
+/// state marks.
+pub fn sidebar_scope(cx: &App) -> Palette {
+    let theme = cx.global::<WspTheme>();
+    let mut scope = theme.palette.sidebar_scope();
+    if theme.look.mac && theme.look.glass && material::material(theme.entry.id).is_some() {
+        material::sidebar_states(&mut scope);
+    }
+    scope
+}
+
 /// Runs `f` with `palette` as the active one: a view's render that builds a scope's elements reads the scope's tokens.
 pub fn within<C: std::ops::DerefMut<Target = App>, R>(palette: Palette, cx: &mut C, f: impl FnOnce(&mut C) -> R) -> R {
     let page = std::mem::replace(&mut (**cx).global_mut::<WspTheme>().palette, palette);
@@ -460,9 +471,13 @@ pub fn set_theme_in(id: &str, look: Look, cx: &mut App) {
     let entry = theme_by_id(id).unwrap_or_else(|| panic!("wsp has no theme {id}"));
     let config = config_of(entry, cx);
     let mut palette = entry.palette();
-    let muted = material::fills(look, entry.id, &palette).muted_foreground;
+    let fills = material::fills(look, entry.id, &palette);
+    let muted = fills.muted_foreground;
     if let Some(muted) = muted {
         palette.muted_foreground = muted;
+    }
+    if let Some(ink) = fills.sidebar_ink {
+        material::sidebar_inks(&mut palette, ink);
     }
     cx.set_global(WspTheme { entry, palette, look });
     Theme::update(cx, |theme| {
@@ -632,5 +647,60 @@ mod tests {
         assert_eq!(first_installed(&MONO, &mac, true).as_deref(), Some("Menlo"));
         let sf = installed(&["Menlo", "SF Mono"]);
         assert_eq!(first_installed(&MONO, &sf, true).as_deref(), Some("SF Mono"));
+    }
+
+    /// `.desktop-mac:not(.solid) [data-app-sidebar]`: over the glass every quiet ink of a dark sidebar is the glass ink
+    /// or an ink with alpha, never a solid grey mixed for an opaque ground, and the state marks are the rule's.
+    #[gpui_kit::test]
+    fn the_sidebars_inks_on_glass_are_the_glass_ink_or_an_ink_with_alpha(cx: &mut gpui_kit::TestAppContext) {
+        use super::Palette;
+        use crate::screens::app_shell::material::{material, Look};
+        use crate::ui::ActivePalette;
+        use gpui_kit::Hsla;
+        let index = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../web/src/index.css")).unwrap();
+        let rule = &index[index.find(".desktop-mac:not(.solid) [data-app-sidebar] {").expect("the sidebar's glass rule")..];
+        let rule = &rule[..rule.find("\n}\n").unwrap()];
+        let set = |name: &str| rule.lines().find_map(|l| l.trim().strip_prefix(&format!("--{name}: "))).map(|v| v.trim_end_matches(';'));
+        let tokens = |p: &Palette| {
+            [
+                ("sidebar-muted-foreground", p.sidebar_muted_foreground),
+                ("muted-foreground", p.sidebar_quiet),
+                ("sidebar-icon-color", p.sidebar_icon_color),
+                ("sidebar-whisper", p.sidebar_whisper),
+                ("sidebar-row-rest", p.sidebar_row_rest),
+                ("sidebar-prose", p.sidebar_prose),
+            ]
+        };
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            crate::ui::init(Side::Dark, cx);
+            for entry in THEMES.iter().filter(|t| t.side == Side::Dark) {
+                let own = entry.palette();
+                super::set_theme_in(entry.id, Look { mac: true, glass: true }, cx);
+                let (glass, scope) = (cx.palette().clone(), super::sidebar_scope(cx));
+                let Some(m) = material(entry.id) else { continue };
+                for (name, ink) in tokens(&glass) {
+                    assert_eq!(set(name), Some("var(--glass-ink)"), "{name} takes the glass ink in today's rule");
+                    assert_eq!(ink, m.ink, "{}: {name} over the glass", entry.id);
+                }
+                assert_eq!(set("top-row-meta-alpha"), Some("90%"));
+                assert_eq!(glass.top_row_meta, Hsla { a: 0.9, ..m.ink }, "{}: the counts", entry.id);
+                for ink in [glass.sidebar_foreground, glass.sidebar_rail, scope.muted_foreground] {
+                    let solid_grey = ink.a == 1. && ink != m.ink && ink != own.sidebar_foreground;
+                    assert!(!solid_grey, "{}: {ink:?} is a solid grey mixed for an opaque ground", entry.id);
+                }
+                for (name, mark) in
+                    [("status-working", scope.status_working), ("status-failed", scope.status_failed), ("status-input", scope.status_input)]
+                {
+                    assert_eq!(Some(super::color(set(name).unwrap())), Some(mark), "{}: {name} in the sidebar", entry.id);
+                }
+                assert_eq!(glass.status_working, own.status_working, "{}: the page keeps its own state marks", entry.id);
+
+                super::set_theme_in(entry.id, Look { mac: true, glass: false }, cx);
+                let solid = cx.palette().clone();
+                assert_eq!(tokens(&solid), tokens(&own), "{}: with transparency off the theme's own inks stand", entry.id);
+                assert_eq!(super::sidebar_scope(cx).status_working, own.status_working);
+            }
+        });
     }
 }

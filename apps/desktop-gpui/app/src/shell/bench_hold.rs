@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The Ctrl+Tab bench: a held Ctrl+Tab played through the window as the platform hands the keys over, at the key
-//! repeat's delay and rate, noting for each key the thread it opened and the first frame presented after it.
+//! repeat's delay and rate, noting for each key the thread it opened, the first frame presented after it, and whether a
+//! frame presented before the next key drew the loading line.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -32,6 +33,8 @@ pub(super) struct Held {
     start: Cell<Option<Instant>>,
     steps: RefCell<Vec<Taken>>,
     frames: RefCell<Vec<Instant>>,
+    /// Every frame presented with the transcript's loading line drawn.
+    loading: Rc<RefCell<Vec<Instant>>>,
 }
 
 fn open_thread(shell: &Shell) -> Option<String> {
@@ -53,6 +56,7 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> Task<()> {
         let view = self.bench_view(cx);
+        view.update(cx, |v, cx| v.watch_loading(held.loading.clone(), cx));
         let keystroke = Keystroke::parse("ctrl-tab").expect("ctrl-tab reads");
         let frames = held.clone();
         let tracing = Rc::new(Cell::new(true));
@@ -129,9 +133,11 @@ impl Held {
         let taken = self.steps.borrow();
         // Rows drawn inside a later key's dispatch were never presented: that key switched the thread before a frame.
         let presented = |at: Instant| !taken.iter().any(|k| k.sent <= at && at <= k.handled);
+        let loading = self.loading.borrow();
         let steps: Vec<bench::Step> = taken
             .iter()
-            .map(|s| bench::Step {
+            .enumerate()
+            .map(|(n, s)| bench::Step {
                 due_ms: ms(s.due),
                 sent_ms: ms(s.sent),
                 handled_ms: ms(s.handled),
@@ -139,6 +145,7 @@ impl Held {
                 to: s.to.clone(),
                 presented_ms: s.presented.get().map(ms),
                 rows_ms: s.rows.borrow().filter(|&at| presented(at)).map(ms),
+                loading: loading.iter().any(|&at| s.sent <= at && taken.get(n + 1).is_none_or(|next| at < next.sent) && presented(at)),
             })
             .collect();
         let frames: Vec<f64> = self.frames.borrow().iter().copied().map(ms).collect();

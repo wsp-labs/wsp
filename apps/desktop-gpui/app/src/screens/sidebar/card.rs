@@ -2,7 +2,7 @@
 //! The card a tile opens to its right after the pointer rests on it 450 ms (`ThreadTile.tsx` TileCard,
 //! `tileCard.ts`, `tileCheckout.ts`): the full title, the status line, then a line per fact with its glyph, then notes.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
 use gpui_kit::{anchored, deferred, div, point, prelude::*, px, relative, AnyElement, Context, FontWeight, Pixels};
@@ -11,12 +11,10 @@ use wsp_host_client::protocol::WorkspacesCheckoutRequest;
 
 use super::model::{self, Kind, Shape, Tile};
 use super::{host, looks, tile, Sidebar};
-use crate::ui::{Crab, Glyph, Palette};
+use crate::ui::{hover_card, Crab, Glyph, Palette};
 
 /// `CARD_DELAY_MS`: a pass of the pointer down the list opens no card.
 const DELAY: Duration = Duration::from_millis(450);
-/// Base UI's `TooltipProvider` `timeout`: a card that closed this recently lets the next one open at once.
-const NEXT_AT_ONCE: Duration = Duration::from_millis(400);
 /// `max-w-72`.
 const MAX_WIDTH: f32 = 288.;
 /// `text-[13px]` sets no leading, so the card keeps the page's 1.5 (`html` in Tailwind's preflight).
@@ -34,25 +32,19 @@ fn pr_word(state: &str) -> &str {
 
 impl Sidebar {
     /// The pointer came onto a tile or left it, or the list scrolled one under it: a card opens once it has rested
-    /// `DELAY` on one, and at once while another card stands or has just closed.
+    /// `DELAY` on one, and at once while another card stands or has just closed. It closes as every hover card does.
     pub(crate) fn hover_tile(&mut self, id: &str, hovered: bool, cx: &mut Context<Self>) {
         if !hovered {
             if self.hovered.as_deref() == Some(id) {
                 self.hovered = None;
                 self._card_wait = None;
-                if self.card.take().is_some() {
-                    self.card_closed = Some(Instant::now());
-                    cx.notify();
-                }
             }
             return;
         }
         self.hovered = Some(id.to_owned());
-        let next = self.card.is_some() || self.card_closed.is_some_and(|at| at.elapsed() < NEXT_AT_ONCE);
-        if next && self.renaming.is_none() && !self.menu.is_open() {
+        if hover_card::at_once(cx) && self.renaming.is_none() && !self.menu.is_open() {
             self._card_wait = None;
-            self.card = Some(id.to_owned());
-            cx.notify();
+            hover_card::open(cx.entity_id(), id.to_owned(), hover_card::POINTER, cx);
             return;
         }
         let id = id.to_owned();
@@ -60,8 +52,7 @@ impl Sidebar {
             cx.background_executor().timer(DELAY).await;
             _ = this.update(cx, |this, cx| {
                 if this.hovered.as_deref() == Some(id.as_str()) && this.renaming.is_none() && !this.menu.is_open() {
-                    this.card = Some(id);
-                    cx.notify();
+                    hover_card::open(cx.entity_id(), id, hover_card::POINTER, cx);
                 }
             });
         }));
@@ -177,6 +168,8 @@ impl Sidebar {
         };
         let card = div()
             .debug_selector(|| "tile-card".into())
+            .relative()
+            .child(hover_card::card(cx.entity_id(), format!("t:{}:{}", t.key, tile.inbox)))
             .max_w(px(MAX_WIDTH))
             .px(px(8.))
             .py(px(4.))
@@ -217,11 +210,13 @@ impl Sidebar {
     }
 
     /// A creation's card: its name, its project and computer, the step it waits on.
-    pub(crate) fn creation_card(&mut self, c: &super::Creation, place: String) -> AnyElement {
+    pub(crate) fn creation_card(&mut self, c: &super::Creation, place: String, cx: &mut Context<Self>) -> AnyElement {
         let p = self.page.clone();
         let line = |text: String| div().min_w_0().child(text);
         let card =
             div()
+                .relative()
+                .child(hover_card::card(cx.entity_id(), format!("c:{}", c.key)))
                 .max_w(px(MAX_WIDTH))
                 .px(px(8.))
                 .py(px(4.))

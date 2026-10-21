@@ -271,7 +271,7 @@ impl Render for ComposerScreen {
                 .child(composer),
             None => column(fresh, composer),
         };
-        div()
+        let chat = div()
             .relative()
             .size_full()
             .child(page)
@@ -289,6 +289,7 @@ impl Render for ComposerScreen {
             .text_color(p.foreground)
             .children(
                 self.note.clone().map(|note| div().absolute().top_0().left_0().p_4().text_sm().text_color(p.muted_foreground).child(note)),
-            )
+            );
+        super::drop::chat(chat, &self.composer, window, cx)
     }
 }

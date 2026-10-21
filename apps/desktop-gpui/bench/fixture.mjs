@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Called by fixture.sh as `node fixture.mjs <empty temp folder> <out.json> <n more>`, with the environment already cleared and
+// Called by fixture.sh as `node fixture.mjs <empty temp folder> <out.json> <n more> [bare]`, with the environment already cleared and
 // HOME that folder: starts a throwaway host on a fresh state file there, records the bench's threads on it through the
 // wsp command run in this process, and leaves the host serving until `stop.sh <out.json>`.
 import { spawn, spawnSync } from "node:child_process";
@@ -16,7 +16,10 @@ const MARK = ".wsp-bench-fixture";
 const here = dirname(fileURLToPath(import.meta.url));
 const HOST = join(here, "../../../packages/host/dist");
 
-const [dir, out, more = "0"] = process.argv.slice(2);
+const [dir, out, more = "0", only] = process.argv.slice(2);
+// The n short threads alone: the long and real-shaped threads take minutes on a busy machine and a turn's snapshot can
+// time out there, and a bench that steps through top-level threads never opens them.
+const bare = only === "bare";
 if (out === undefined || process.env.HOME !== dir) {
   console.error("run fixture.sh <out.json>, which clears the environment first");
   process.exit(2);
@@ -106,7 +109,7 @@ async function changesRecorded(thread, n) {
 
 const threads = {};
 const changing = {};
-for (const name of [...Object.keys(THREADS), ...sessionNames(process.env.BENCH_SESSION)]) {
+for (const name of bare ? [] : [...Object.keys(THREADS), ...sessionNames(process.env.BENCH_SESSION)]) {
   const started = Date.now();
   for (const [i, turn] of turnsOf(name).entries()) {
     writeFileSync(join(dir, "bench-turn.json"), JSON.stringify({ thread: name, turn: i }));
@@ -131,7 +134,7 @@ for (const name of [...Object.keys(THREADS), ...sessionNames(process.env.BENCH_S
 // The real host's shape, kept apart from the bench's threads and their timing: a project with no thread, and one thread
 // every right panel pane can open on, a slate included. The first run is an empty home, which baseline.mjs makes.
 const realHost = { label: LABEL };
-{
+if (!bare) {
   const self = JSON.parse(await wsp("computers", "--json")).computers.find(c => c.id === "here");
   if (self?.label !== LABEL) fail("the display name", `this computer reads ${JSON.stringify(self)}, with no label ${LABEL}`);
   realHost.hostname = self.name;

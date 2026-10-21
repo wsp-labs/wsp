@@ -319,19 +319,19 @@ impl Store {
     }
 
     fn route_shown(&mut self, route: &crate::screens::Route, cx: &mut Context<Self>) {
-        if let crate::screens::Route::Thread { thread_id, .. } = route {
+        if let crate::screens::Route::Thread { workspace_id, thread_id } = route {
             if self.shown.first().map(SharedString::as_ref) != Some(thread_id.as_str()) {
-                self.thread_shown(&thread_id.clone().into(), cx);
+                self.thread_shown(workspace_id, thread_id, cx);
             }
         }
     }
 
-    /// A thread was shown: the pages of threads past the last few shown go.
-    fn thread_shown(&mut self, thread: &SharedString, cx: &mut Context<Self>) {
+    /// A thread was shown: the pages of threads other than it and the ones shown before it go.
+    fn thread_shown(&mut self, workspace: &str, thread: &str, cx: &mut Context<Self>) {
         if thread.is_empty() {
             return;
         }
-        self.shown = warm::shown(thread, cx);
+        self.shown = warm::shown(workspace, thread, cx);
         let held: Vec<&Key> = self.entries.iter().filter(|(_, e)| e.page.is_some()).map(|(k, _)| k).collect();
         self.unload(past(&held, &self.shown));
         cx.notify();
@@ -713,15 +713,45 @@ mod tests {
     }
 
     #[gpui_kit::test]
-    fn the_last_three_rule_counts_every_thread_shown(cx: &mut gpui_kit::TestAppContext) {
+    fn the_warm_rule_counts_every_thread_shown(cx: &mut gpui_kit::TestAppContext) {
         use crate::screens::Route as Shown;
         let store = cx.update(Store::get);
         store.update(cx, |s, cx| {
-            for thread in ["t1", "t2", "t3", "t4"] {
+            for thread in ["t1", "t2", "t3", "t4", "t5"] {
                 s.route_shown(&Shown::Thread { workspace_id: "w1".into(), thread_id: thread.into() }, cx);
             }
             s.route_shown(&Shown::Screen("settings".into()), cx);
-            assert_eq!(s.shown, ["t4", "t3", "t2"], "a thread shown on its terminal tab counts, and Settings counts none");
+            assert_eq!(s.shown, ["t5", "t4", "t3", "t2"], "a thread shown on its terminal tab counts, and Settings counts none");
+        });
+    }
+
+    /// Catches: the browser keeping web views for the threads read ahead around the open one, which are for
+    /// transcript pages alone.
+    #[gpui_kit::test]
+    fn on_a_ctrl_tab_walk_pages_stay_for_the_open_thread_and_the_three_shown_last_alone(cx: &mut gpui_kit::TestAppContext) {
+        use crate::screens::warm;
+        use crate::screens::Route as Shown;
+        let store = cx.update(Store::get);
+        let t = |i: usize| format!("t{:02}", i % 20);
+        let keys: Vec<Key> = (0..20).map(|i| key(&t(i), "browser:1")).collect();
+        store.update(cx, |s, cx| {
+            for step in 0..30 {
+                let open = t(step);
+                // The shell moves first and the thread view fills the threads around it before the pane hears the route.
+                let around = [1, 19, 2, 18].map(|by| ("w1".to_owned(), t(step + by))).to_vec();
+                warm::surround(("w1".to_owned(), open.clone()), around, cx);
+                s.route_shown(&Shown::Thread { workspace_id: "w1".into(), thread_id: open.clone() }, cx);
+                let last: Vec<String> = (1..=3).filter(|&b| step >= b).map(|b| t(step - b)).collect();
+                assert!(s.shown.len() <= 4, "step {step}: pages kept for {} threads", s.shown.len());
+                assert!(
+                    s.shown.iter().all(|k| *k == open || last.contains(&k.to_string())),
+                    "step {step}: a page is kept for a thread outside the open one and the three shown last: {:?}",
+                    s.shown
+                );
+                let held: Vec<&Key> = keys.iter().collect();
+                let kept: Vec<Key> = keys.iter().filter(|k| !past(&held, &s.shown).contains(k)).cloned().collect();
+                assert!(kept.iter().all(|k| k.thread == open || last.contains(&k.thread.to_string())), "step {step}: {kept:?}");
+            }
         });
     }
 
