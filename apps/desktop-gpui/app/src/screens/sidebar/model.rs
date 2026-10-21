@@ -741,7 +741,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    fn tree_rank(&self, l: Lead) -> u8 {
+    pub(crate) fn tree_rank(&self, l: Lead) -> u8 {
         let mut best = self.own_rank(l, self.own_part(l));
         if let Lead::Thread(node) = l {
             for kid in self.lead_nodes(node) {
@@ -762,7 +762,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    fn start_of(&self, l: Lead) -> f64 {
+    pub(crate) fn start_of(&self, l: Lead) -> f64 {
         match l {
             Lead::Sub(i, s) => self.all[i].subagents[s].started_at,
             Lead::Thread(n) => n.thread.and_then(|i| self.all[i].started_at).unwrap_or(0.0),
@@ -898,6 +898,16 @@ impl<'a> Ctx<'a> {
     }
 }
 
+/// A machine a thread started that holds no thread of its own yet (threadTree.ts `forkedBy`): drawn under that thread.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Machine {
+    /// The fold key of the thread that started it.
+    pub lead: String,
+    pub workspace: String,
+    /// When its record was made, in ms since the epoch.
+    pub started_at: f64,
+}
+
 /// The sidebar's sections and the Settled fold, each a list of root trees in the order drawn.
 pub struct View<'a> {
     cx: Ctx<'a>,
@@ -905,6 +915,8 @@ pub struct View<'a> {
     pub needs_you: Vec<Tree>,
     pub threads: Vec<Tree>,
     pub settled: Vec<Tree>,
+    /// The machines drawn under the threads that started them, newest first.
+    pub machines: Vec<Machine>,
 }
 
 /// threadTree.ts sidebarTiles. `held` is the thread open in the centre that the time fold leaves alone: the web
@@ -966,7 +978,7 @@ pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&
     settled.sort_by(|a, b| settled_at(b).total_cmp(&settled_at(a)).then_with(|| a.key.cmp(&b.key)));
     let mut keyed: Vec<(f64, Tree)> = settled.into_iter().map(|n| (cx.tree_settled_ms(&n), n)).collect();
     keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
-    View { cx, pinned, needs_you, threads, settled: keyed.into_iter().map(|(_, n)| n).collect() }
+    View { cx, pinned, needs_you, threads, settled: keyed.into_iter().map(|(_, n)| n).collect(), machines: Vec::new() }
 }
 
 /// Sidebar.logic.ts threadForest over the sorted threads: each thread under its opener where the opener is listed,

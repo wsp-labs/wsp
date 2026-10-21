@@ -6,6 +6,7 @@
 
 mod attach;
 pub mod dock;
+pub mod drop;
 pub mod fork;
 pub mod hero;
 mod keys;
@@ -347,6 +348,7 @@ pub struct Composer {
     stale: Rc<Cell<u64>>,
     built: u64,
     lines: usize,
+    /// A dragged file is over the chat the composer stands in (`drop::chat`).
     dragging: bool,
     /// The window is under 640 px wide (`max-sm`), as of the last draw.
     narrow: bool,

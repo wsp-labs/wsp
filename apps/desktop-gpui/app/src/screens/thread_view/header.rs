@@ -10,7 +10,7 @@ use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
     anchored, deferred, div, point, prelude::*, px, svg, Anchor, AnyElement, App, BoxShadow, Context, Entity, FontWeight, Global, Hsla,
-    KeyDownEvent, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Subscription, Task, WeakEntity, Window,
+    KeyDownEvent, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Subscription, WeakEntity, Window,
 };
 use serde_json::{json, Value};
 use wsp_host_client::protocol::{
@@ -24,7 +24,7 @@ use crate::screens::pr_pane::files::open_split::{self, OpenSplit};
 use crate::screens::pr_pane::pull_request::git_split::GitSplit;
 use crate::thread_view::ThreadView;
 use crate::transcript::TurnContext;
-use crate::ui::{tip, ActivePalette, Glyph, Notice, Palette};
+use crate::ui::{hover_card, tip, ActivePalette, Glyph, Notice, Palette};
 use crate::words::fmt_tokens;
 
 // The context window meter, contextMeter.logic.ts.
@@ -161,18 +161,11 @@ pub struct Bar {
     /// Each project's base branch by project id.
     pub bases: HashMap<String, String>,
     pub catalogs: Vec<Catalog>,
-    ring_hover: bool,
-    card_hover: bool,
-    closing: Option<Task<()>>,
     turns: Option<(usize, std::rc::Rc<Vec<TurnContext>>, String)>,
     renaming: Option<Renaming>,
 }
 
 impl Bar {
-    pub fn ring_open(&self) -> bool {
-        self.ring_hover || self.card_hover || self.closing.is_some()
-    }
-
     /// The name in the open rename box, none while no box is open.
     pub fn rename_box(&self, cx: &App) -> Option<String> {
         self.renaming.as_ref().map(|r| r.input.read(cx).value().to_string())
@@ -627,7 +620,9 @@ pub fn actions(
     load(view, &bar, cx);
     let seen = view.events_seen();
     let (turns, harness) = match &bar.read(cx).turns {
-        Some((at, turns, harness)) if *at == seen => (turns.clone(), harness.clone()),
+        // The rows held through a switch are the last thread's: the bar keeps what it last read of this one.
+        Some((at, turns, harness)) if *at == seen || view.holding() => (turns.clone(), harness.clone()),
+        _ if view.holding() => Default::default(),
         _ => {
             let turns = std::rc::Rc::new(view.transcript().turn_contexts());
             let harness = view.transcript().harness().unwrap_or_else(|| "claude".to_owned());
@@ -751,27 +746,8 @@ fn ring_canvas(share: f64, ink: Hsla) -> impl IntoElement {
         })
 }
 
-fn hover_ring(bar: &Entity<Bar>, on_ring: bool, hovered: bool, delay: bool, cx: &mut App) {
-    let shut = !hovered && delay;
-    bar.update(cx, |b, cx| {
-        if on_ring {
-            b.ring_hover = hovered;
-        } else {
-            b.card_hover = hovered;
-        }
-        b.closing = None;
-        if shut {
-            b.closing = Some(cx.spawn(async move |b, cx| {
-                cx.background_executor().timer(Duration::from_millis(150)).await;
-                _ = b.update(cx, |b, cx| {
-                    b.closing = None;
-                    cx.notify();
-                });
-            }));
-        }
-        cx.notify();
-    });
-}
+/// The ring's card among its bar's hover cards.
+const RING_CARD: &str = "context-ring";
 
 /// ContextRing: the 28 px round button with its 20 px ring, and on hover the card under it, right edges together.
 fn ring(
@@ -783,10 +759,11 @@ fn ring(
     cx: &mut Context<ThreadView>,
 ) -> AnyElement {
     let p = cx.palette().clone();
-    let open = bar.read(cx).ring_open();
+    let owner = bar.entity_id();
+    let open = hover_card::shows(owner, RING_CARD, cx);
     let share = reading.snapshot.and_then(|s| s.share).unwrap_or(0.);
-    let delay = reading.compact.is_some();
-    let (on_ring, on_card) = (bar.clone(), bar.clone());
+    // The pointer has 150 ms to cross to the card while it holds Compact.
+    let by = hover_card::By::Pointer(if reading.compact.is_some() { Duration::from_millis(150) } else { Duration::ZERO });
     let accent = p.accent;
     let button = div()
         .id("context-ring")
@@ -800,15 +777,20 @@ fn ring(
         .text_color(p.muted_foreground)
         .hover(move |s| s.bg(accent))
         .when(open, |el| el.bg(accent))
-        .on_hover(move |hovered, _, cx| hover_ring(&on_ring, true, *hovered, delay, cx))
-        .child(ring_canvas(share, p.foreground));
+        .on_hover(move |hovered, _, cx| {
+            if *hovered {
+                hover_card::open(owner, RING_CARD, by, cx);
+            }
+        })
+        .child(ring_canvas(share, p.foreground))
+        .when(open, |el| el.child(hover_card::opener(owner, RING_CARD)));
     let card = open.then(|| {
         div().absolute().right_0().top(px(28. + 6.)).child(
             deferred(
-                anchored().anchor(Anchor::TopRight).snap_to_window().child(
-                    context_card(reading, compacts, view, &p, window, cx)
-                        .on_hover(move |hovered, _, cx| hover_ring(&on_card, false, *hovered, delay, cx)),
-                ),
+                anchored()
+                    .anchor(Anchor::TopRight)
+                    .snap_to_window()
+                    .child(context_card(reading, compacts, view, &p, window, cx).relative().child(hover_card::card(owner, RING_CARD))),
             )
             .with_priority(1),
         )

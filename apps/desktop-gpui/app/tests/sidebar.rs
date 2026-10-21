@@ -309,3 +309,48 @@ fn settle_on_a_failed_sub_threads_needs_you_row_reaches_the_host(cx: &mut TestAp
         s.note().is_some_and(|n| n.starts_with("Not settled")) || shape_of(s, "Sub").is_none()
     });
 }
+
+/// Catches: a root dragged onto the lower half of the root under it that writes nothing to the host, where today's
+/// moves it past that root with a `sessions.mark` of its new key, which the host keeps and pushes back.
+#[gpui_kit::test]
+fn a_dragged_root_lands_after_the_next_on_the_host(cx: &mut TestAppContext) {
+    use gpui_kit::{point, Modifiers, MouseButton};
+    let host = common::Throwaway::start();
+    host.wsp(&["add", &host.repo("repo").to_string_lossy()]);
+    host.wsp(&["run", "repo", "lower", "--agent", "claude", "--title", "lower"]);
+    host.wsp(&["run", "repo", "upper", "--agent", "claude", "--title", "upper"]);
+    let (sidebar, cx) = attached_to(&host, cx);
+    let order = |s: &Sidebar| -> Vec<String> {
+        s.lines()
+            .iter()
+            .filter(|l| l.depth == 0 && l.section == Section::Threads)
+            .filter_map(|l| if let Item::Tile(t) = &l.item { Some(s.threads()[t.thread].title.clone()) } else { None })
+            .collect()
+    };
+    wait_for(cx, &sidebar, "both threads, the newer on top", |s| order(s) == ["upper", "lower"]);
+    cx.run_until_parked();
+    let (upper, lower) = sidebar.read_with(cx, |s, _| (key_of(s, "upper").unwrap(), key_of(s, "lower").unwrap()));
+    let bounds = |key: &str, cx: &mut VisualTestContext| cx.debug_bounds(Box::leak(format!("tile-{key}").into_boxed_str())).unwrap();
+    let from = bounds(&upper, cx).center();
+    cx.simulate_mouse_move(from, None, Modifiers::none());
+    cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(from + point(px(0.), px(10.)), MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    let below = bounds(&lower, cx);
+    let to = point(below.center().x, below.top() + below.size.height * 0.75);
+    cx.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    cx.simulate_mouse_up(to, MouseButton::Left, Modifiers::none());
+    wait_for(cx, &sidebar, "the host's row with its new key", |_| host_row_on(&host, &upper).is_some_and(|r| r["order"].is_number()));
+    wait_for(cx, &sidebar, "the dragged thread under the other", |s| order(s) == ["lower", "upper"]);
+}
+
+/// `host`'s own row for a thread, read on a client of its own.
+fn host_row_on(host: &common::Throwaway, thread: &str) -> Option<Value> {
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    rt.block_on(async {
+        let request: SessionsListRequest = serde_json::from_value(serde_json::json!({})).unwrap();
+        let rows = host.client().await.call(request).await.unwrap().sessions;
+        rows.iter().map(|r| serde_json::to_value(r).unwrap()).find(|r| r["threadId"] == thread)
+    })
+}

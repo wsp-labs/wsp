@@ -8,6 +8,7 @@ pub mod alone;
 pub(crate) mod card;
 pub mod chrome;
 mod dialogs;
+mod drag;
 mod foot;
 pub mod host;
 mod keys;
@@ -131,13 +132,6 @@ impl Processes {
             Processes::Keep => "keep",
         }
     }
-}
-
-/// Where a dragged root is let go.
-#[derive(Clone, Debug, PartialEq)]
-enum DropTarget {
-    Head(Section),
-    Root(String),
 }
 
 /// A scroll driven by the clock, as the bench runs it: the offset is set from elapsed time on every frame.
@@ -308,10 +302,8 @@ pub struct Sidebar {
     /// Where each switcher's head was drawn, so a press on it is not read as a press outside its popup.
     switcher_heads: Rc<Cell<[Bounds<Pixels>; 2]>>,
     pub(crate) menu: ContextMenu,
-    /// The tile the pointer rests on, the one whose card stands, when a card last closed, and the wait before it opens.
+    /// The tile the pointer rests on, and the wait before its card opens.
     hovered: Option<String>,
-    card: Option<String>,
-    card_closed: Option<Instant>,
     /// The sidebar's keyboard focus, the row the keys walk from, and whether a key put it there.
     focus: gpui_kit::FocusHandle,
     key_row: Option<usize>,
@@ -325,6 +317,7 @@ pub struct Sidebar {
     /// The computer the list is narrowed to (`wsp:sidebar-computer`), none for all.
     computer: Option<String>,
     drive: Option<Drive>,
+    drag: drag::Drag,
     /// The clock the list was last read at, in ms since the epoch.
     now: f64,
     revision: u64,
@@ -381,8 +374,6 @@ impl Sidebar {
             switcher_heads: Rc::default(),
             menu: ContextMenu::default(),
             hovered: None,
-            card: None,
-            card_closed: None,
             focus: cx.focus_handle(),
             key_row: None,
             keyboard: false,
@@ -392,6 +383,7 @@ impl Sidebar {
             dialog: None,
             computer: None,
             drive: None,
+            drag: drag::Drag::default(),
             now: now_ms(),
             revision: 0,
             _clock: clock,
@@ -585,7 +577,9 @@ impl Sidebar {
 
     /// The sections and trees as they stand now.
     fn view(&self) -> model::View<'_> {
-        model::sidebar(&self.threads, &self.prefs, self.now, self.held.as_deref())
+        let mut view = model::sidebar(&self.threads, &self.prefs, self.now, self.held.as_deref());
+        view.machines = self.machines();
+        view
     }
 
     /// A workspace's record and its live status as this connection last read them.
@@ -768,6 +762,15 @@ impl Sidebar {
                 model::fold_threads(&rows)
             }
         };
+        // threadTree.ts `thread.parentThreadId ?? forkedBy`: a thread with no opener on its rows hangs under the
+        // thread that started the machine it runs on.
+        for t in self.threads.iter_mut().filter(|t| t.parent.is_none()) {
+            let forked = |k: &str| self.around.workspaces.get(&t.workspace_id).and_then(|w| w.get(k)?.as_str().map(str::to_owned));
+            if let Some(lead) = forked("parentThreadId").filter(|lead| *lead != t.key) {
+                t.root = t.root.take().or_else(|| forked("rootThreadId"));
+                t.parent = Some(lead);
+            }
+        }
         // What the person opened on a thread or a group goes with it, as the web's row state goes when it is not drawn.
         let keys: HashSet<&str> = self.threads.iter().map(|t| t.key.as_str()).collect();
         self.folds.finished_open.retain(|lead, _| keys.contains(lead.as_str()));
@@ -1037,6 +1040,7 @@ impl Sidebar {
             Item::Finished { lead, .. } => format!("f:{}", self.threads[*lead].key),
             Item::Subagent { lead, index, .. } => format!("s:{}:{index}", self.threads[*lead].key),
             Item::More { lead, .. } => format!("m:{}", lead.map_or("", |l| self.threads[l].key.as_str())),
+            Item::Machine { workspace } => format!("w:{workspace}"),
         }
     }
 
@@ -1162,35 +1166,12 @@ impl Sidebar {
 
     /// Moves a root up, down or to the top of its section, as the menu's moves and a drop do.
     pub fn move_root(&mut self, key: &str, to: model::Move, cx: &mut Context<Self>) {
-        let marks = self.view().move_root(key, to);
-        for m in marks.unwrap_or_default() {
+        let Some(marks) = self.view().move_root(key, to) else { return };
+        for m in marks {
+            self.hold_marks(&m.thread_ids, &m.marks);
             self.mark_threads(m.thread_ids, m.marks, cx);
         }
-    }
-
-    /// A dragged root dropped on a section's head, or on a root, before which it then stands in that root's section.
-    fn drop_on(&mut self, dragged: &str, target: &DropTarget, cx: &mut Context<Self>) {
-        if *target == DropTarget::Head(Section::Settled) {
-            if self.tree_works(dragged) {
-                return self.refuse(menu::settle_refusal(true).unwrap_or_default(), cx);
-            }
-            return self.settle(dragged, cx);
-        }
-        let view = self.view();
-        let marks = match target {
-            DropTarget::Head(section) => view.drop_marks(dragged, *section).map(|m| vec![m]),
-            DropTarget::Root(target) => view.root_place(target).and_then(|place| {
-                let from = view.root_place(dragged);
-                let at = match from {
-                    Some(f) if f.section == place.section && f.index < place.index => place.index - 1,
-                    _ => place.index,
-                };
-                view.move_root(dragged, model::Move::To { section: place.section, at })
-            }),
-        };
-        for m in marks.unwrap_or_default() {
-            self.mark_threads(m.thread_ids, m.marks, cx);
-        }
+        self.refold(cx);
     }
 
     pub fn dismiss_cloud_card(&mut self, cx: &mut Context<Self>) {
@@ -1219,7 +1200,7 @@ impl Render for Sidebar {
         let frames = self.drive.as_ref().filter(|d| !d.done).map(|d| d.frames.clone());
         let page = cx.palette().clone();
         self.page = page.clone();
-        let scope = page.sidebar_scope();
+        let scope = theme::sidebar_scope(cx);
         let column = theme::within(scope.clone(), cx, |cx| self.column(frames, cx));
         // The menu and the dialogs stand outside the sidebar in the page's own palette, as the web portals them.
         let menu = self.menu.overlay();
@@ -1281,6 +1262,11 @@ impl Sidebar {
             .key_context("Sidebar")
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, e: &gpui_kit::KeyDownEvent, window, cx| this.key_down(e, window, cx)))
+            // Each row reads the place under the pointer in the same move; this takes it once they all have.
+            .on_drag_move(cx.listener(|_, _: &gpui_kit::DragMoveEvent<tile::DraggedTile>, window, cx| {
+                cx.defer_in(window, |this, _, cx| this.commit_place(cx))
+            }))
+            .on_drop(cx.listener(|this, d: &tile::DraggedTile, _, cx| this.drop_tree(&d.key.clone(), cx)))
             .size_full()
             .text_color(p.sidebar_foreground)
             .child(rows)
@@ -1308,6 +1294,7 @@ impl Sidebar {
 impl Sidebar {
     fn render_line(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) -> gpui_kit::AnyElement {
         let row = self.render_drawn(ix, window, cx);
+        let row = if self.folds.dragging.is_some() { self.drag_row(ix, row, cx) } else { row };
         let ring = self.ring(ix, &cx.palette().clone(), window);
         match ring {
             Some(ring) => div().relative().child(row).child(ring).into_any_element(),

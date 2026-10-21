@@ -3,11 +3,11 @@
 //! tree's rail (`rowGrammar.ts`), its hover act, its context menu and its drag; and the project switcher.
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
-use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, FontWeight, Hsla, MouseButton, Pixels, SharedString, Window};
+use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, FontWeight, Hsla, MouseButton, Pixels, SharedString, WeakEntity, Window};
 
 use super::chrome::{self, ONE_LINE, ROW_RADIUS};
 use super::model::{self, Item, Kind, Line, Section, Shape, Tile, Under};
-use super::{looks, DropTarget, Sidebar, ARMED};
+use super::{looks, Sidebar, ARMED};
 use crate::ui::catalog;
 use crate::ui::{ActivePalette, Crab, Glyph, Palette, Status, StatusMark};
 
@@ -47,6 +47,19 @@ impl Render for DragPreview {
             .text_color(p.foreground)
             .child(self.title.clone())
     }
+}
+
+/// A root that moves, carried by the pointer (`draggable` on the tile): the sidebar folds its tree once the drag starts
+/// and stands as it was once the drag ends, dropped or not.
+fn carried<E: StatefulInteractiveElement>(el: E, me: WeakEntity<Sidebar>, key: String, title: SharedString) -> E {
+    el.on_drag(DraggedTile { key, title }, move |d, _, _, cx| {
+        _ = me.update(cx, |this, cx| this.start_drag(&d.key, cx));
+        let me = me.clone();
+        cx.new(|cx| {
+            cx.on_release(move |_, cx| _ = me.update(cx, |this, cx| this.end_drag(cx))).detach();
+            DragPreview { title: d.title.clone() }
+        })
+    })
 }
 
 pub(crate) fn status_of(kind: Kind, text: Option<String>) -> Status {
@@ -181,27 +194,27 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
                 Section::Settled => "Settled",
             };
             let section = *section;
-            let me2 = me.clone();
             frame(ix, line, 28., &p)
                 .child(
                     chrome::section_head(SharedString::from(format!("head-{}", section.id())), word, *count, *folded, cx)
-                        .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.toggle_section(section, cx)))
-                        .drag_over::<DraggedTile>(move |st, _, _, _| st.bg(p.sidebar_row_hover))
-                        .on_drop(move |d: &DraggedTile, _, cx| {
-                            _ = me2.update(cx, |this, cx| this.drop_on(&d.key, &DropTarget::Head(section), cx))
-                        }),
+                        .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.toggle_section(section, cx))),
                 )
                 .into_any_element()
         }
         Item::Tile(tile) => tile_row(s, ix, line, tile, window, cx),
-        Item::Group { attempt, title_of, copies, open, .. } => {
+        Item::Group { attempt, title_of, copies, open, moves } => {
             let title = s.threads.get(*title_of).map(|t| t.title.clone()).unwrap_or_default();
             let attempt = attempt.clone();
             let icon = p.sidebar_icon_color;
+            let head = one_line(SharedString::from(format!("group-{attempt}")), false, &p).debug_selector({
+                let attempt = attempt.clone();
+                move || format!("group-{attempt}")
+            });
+            let head =
+                if *moves { carried(head, me.clone(), format!("attempt:{attempt}"), SharedString::from(title.clone())) } else { head };
             frame(ix, line, 36., &p)
                 .child(
-                    one_line(SharedString::from(format!("group-{attempt}")), false, &p)
-                        .on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.toggle_group(&attempt, cx)))
+                    head.on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.toggle_group(&attempt, cx)))
                         .child(Icon::new(Glyph::Copy).with_size(px(16.)).text_color(icon))
                         .child(div().flex_1().min_w_0().truncate().child(title))
                         .child(meta(copies.to_string(), &p, cx))
@@ -266,6 +279,10 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
                         ),
                 )
                 .into_any_element()
+        }
+        Item::Machine { workspace } => {
+            let card = s.workspace_card(workspace, cx);
+            frame(ix, line, TILE.as_f32(), &p).child(card).into_any_element()
         }
         Item::More { n, lead } => {
             let lead = lead.map(|l| s.threads[l].key.clone());
@@ -490,12 +507,7 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
         .child(body)
         .when(active, |el| el.child(div().absolute().inset_0().rounded(ROW_RADIUS).border_1().border_color(p.sidebar_row_edge)));
     if tile.moves {
-        let (title, dragged) = (SharedString::from(t.title.clone()), key.clone());
-        let (me_drop, target) = (me.clone(), DropTarget::Root(key.clone()));
-        button = button
-            .on_drag(DraggedTile { key: dragged, title }, |d, _, _, cx| cx.new(|_| DragPreview { title: d.title.clone() }))
-            .drag_over::<DraggedTile>(move |st, _, _, _| st.bg(hover))
-            .on_drop(move |d: &DraggedTile, _, cx| _ = me_drop.update(cx, |this, cx| this.drop_on(&d.key, &target, cx)));
+        button = carried(button, me.clone(), key.clone(), SharedString::from(t.title.clone()));
     }
     let act: Option<AnyElement> = if stops {
         let (me, key) = (me.clone(), key.clone());
@@ -548,9 +560,14 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
     };
     let workspace = t.workspace_id.clone();
     s.want_checkout(&workspace, cx);
-    let card = (s.card.as_deref() == Some(format!("t:{key}:{}", tile.inbox).as_str()) && s.renaming.is_none()).then(|| {
+    let card_key = format!("t:{key}:{}", tile.inbox);
+    let card = (crate::ui::hover_card::shows(cx.entity_id(), &card_key, cx) && s.renaming.is_none()).then(|| {
         // The card stands beside the tile's right edge.
-        div().absolute().top_0().right_0().child(s.tile_card(tile, px(0.), cx))
+        div()
+            .absolute()
+            .inset_0()
+            .child(crate::ui::hover_card::opener(cx.entity_id(), card_key))
+            .child(div().absolute().top_0().right_0().child(s.tile_card(tile, px(0.), cx)))
     });
     frame(ix, line, height, &p).child(div().group(group).relative().child(button).children(act).children(card)).into_any_element()
 }
