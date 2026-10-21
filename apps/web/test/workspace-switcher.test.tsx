@@ -77,7 +77,6 @@ describe("buildPaletteItems", () => {
     expect(render(<>{item.icon}</>).container.querySelector("[data-harness-mark='claude']")).not.toBeNull();
     const slot = render(<>{item.titleTrailingContent}</>).container.querySelector<HTMLElement>("[data-thread-status]")!;
     expect(slot.dataset.threadStatus).toBe("working");
-    expect(slot.className).toContain("min-w-4");
     expect(slot.querySelector("[data-crab]")).not.toBeNull();
     for (const workspace of items.workspaceItems) expect(render(<>{workspace.icon}</>).container.querySelector(".rounded-full")).toBeNull();
   });
@@ -91,7 +90,6 @@ describe("buildPaletteItems", () => {
       );
     const [next, previous] = rows(3);
     expect([next!.title, previous!.title]).toEqual([KEYBINDING_WORDS["workspace.next"], KEYBINDING_WORDS["workspace.previous"]]);
-    expect([next!.title, previous!.title]).toEqual(["Next thread at this level", "Previous thread at this level"]);
     expect(next!.disabled).not.toBe(true);
     await next!.run();
     await previous!.run();

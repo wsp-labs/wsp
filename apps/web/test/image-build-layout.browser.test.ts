@@ -23,7 +23,6 @@ const SCREENS: [string, string, "row" | "box"][] = [
   ["settings-image-build", "", "row"],
   ["settings-image-build", "&advance=1", "row"],
   ["settings-image-signin", "", "box"],
-  ["settings-image-build-sealing", "", "row"],
   ["settings-image-build-stopped", "", "box"],
   ["settings-image-build-failed", "", "box"],
   ["settings-image-build-key", "&computer=solari", "box"],

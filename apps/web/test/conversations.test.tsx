@@ -345,15 +345,20 @@ describe("the picker", () => {
   });
 
   it("asks for no preview of a row the highlight only passes over", async () => {
-    const { reads } = await picker();
-    await waitFor(() => expect(rowsShown()).toHaveLength(4));
-    for (let i = 0; i < 3; i++) {
-      fireEvent.keyDown(input(), { key: "ArrowDown" });
-      await new Promise(r => setTimeout(r, PREVIEW_REST_MS / 3));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { reads } = await picker();
+      await waitFor(() => expect(rowsShown()).toHaveLength(4));
+      for (let i = 0; i < 3; i++) {
+        fireEvent.keyDown(input(), { key: "ArrowDown" });
+        await act(async () => void vi.advanceTimersByTime(PREVIEW_REST_MS / 3));
+      }
+      await act(async () => void vi.advanceTimersByTime(PREVIEW_REST_MS + 50));
+      expect(reads).toHaveLength(1);
+      expect(reads[0]!.id).not.toBe(OPEN.id);
+    } finally {
+      vi.useRealTimers();
     }
-    await new Promise(r => setTimeout(r, PREVIEW_REST_MS + 50));
-    expect(reads).toHaveLength(1);
-    expect(reads[0]!.id).not.toBe(OPEN.id);
   });
 
   it("draws the newest rows of a long list first and more as the highlight nears the end, searching every row", async () => {

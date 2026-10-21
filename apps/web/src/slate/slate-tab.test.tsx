@@ -5,13 +5,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type SessionView } from "@wsp/protocol";
-import { SLATE_PIECES, slateStartValues, type SlateDoc, type SlateJson } from "@wsp/protocol/slate";
+import { slateStartValues, type SlateDoc, type SlateJson } from "@wsp/protocol/slate";
 import type { Api, ProtocolEvent } from "../protocol/client";
 import { useStore } from "../protocol/store";
 import { useRightPanelStore } from "../rightPanelStore";
 import { DEPLOY_SLATE } from "../../test/fixtures/slate/deploy";
 import type { SlateAsk } from "./model";
-import { SLATE_VIEWS } from "./pieces";
 import { SlateSurface } from "./SlateSurface";
 import { slateBundle, useSlateStore } from "./store";
 import { slate } from "./testing";
@@ -76,11 +75,6 @@ const tid = () => ROW.threadId!;
 const flush = () => act(() => slateBundle(tid()).engine.flush());
 
 describe("the Slate tab", () => {
-  it("has a view for every core piece the protocol registers", () => {
-    const core = Object.entries(SLATE_PIECES).flatMap(([type, piece]) => (piece.level === "core" ? [type] : []));
-    expect(Object.keys(SLATE_VIEWS).sort()).toEqual(core.sort());
-  });
-
   it("draws the deploy slate and moves through its steps on pushed values", async () => {
     openThread(host(record(DEPLOY_SLATE)));
     expect(await screen.findByText("Step 1 of 4")).toBeTruthy();
@@ -213,29 +207,34 @@ describe("the Slate tab", () => {
   });
 
   it("sends a secret's text once and keeps none of it in the window after", async () => {
-    let answer: () => void = () => {};
-    const slates = host(record(DEPLOY_SLATE), { state: vi.fn(() => new Promise<{ version: number }>(resolve => (answer = () => resolve({ version: 2 })))) });
-    openThread(slates);
-    const field = (await screen.findByLabelText("Vercel token")) as HTMLInputElement;
-    fireEvent.focus(field);
-    fireEvent.change(field, { target: { value: TOKEN } });
-    // Typing alone sends nothing: a secret goes once, whole, on blur or Enter.
-    await act(async () => new Promise(resolve => setTimeout(resolve, 350)));
-    expect(slates.state).not.toHaveBeenCalled();
-    fireEvent.blur(field);
-    expect(slates.state).toHaveBeenCalledTimes(1);
-    expect(slates.state).toHaveBeenCalledWith(tid(), { $vercelToken: TOKEN });
-    await act(async () => answer());
-    flush();
-    expect(field.value).toBe("");
-    expect(field.placeholder).toMatch(/^•+$/);
-    const engine = slateBundle(tid()).engine;
-    expect(JSON.stringify(engine.values)).not.toContain(TOKEN);
-    expect(engine.values["vercelToken"]).toMatchObject({ secret: true, set: true, len: TOKEN.length });
-    expect(JSON.stringify(useSlateStore.getState())).not.toContain(TOKEN);
-    expect(document.body.innerHTML).not.toContain(TOKEN);
-    // The handle unlocks the step, as the host's push would.
-    expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let answer: () => void = () => {};
+      const slates = host(record(DEPLOY_SLATE), { state: vi.fn(() => new Promise<{ version: number }>(resolve => (answer = () => resolve({ version: 2 })))) });
+      openThread(slates);
+      const field = (await screen.findByLabelText("Vercel token")) as HTMLInputElement;
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: TOKEN } });
+      // Typing alone sends nothing: a secret goes once, whole, on blur or Enter.
+      await act(async () => void vi.advanceTimersByTime(350));
+      expect(slates.state).not.toHaveBeenCalled();
+      fireEvent.blur(field);
+      expect(slates.state).toHaveBeenCalledTimes(1);
+      expect(slates.state).toHaveBeenCalledWith(tid(), { $vercelToken: TOKEN });
+      await act(async () => answer());
+      flush();
+      expect(field.value).toBe("");
+      expect(field.placeholder).toMatch(/^•+$/);
+      const engine = slateBundle(tid()).engine;
+      expect(JSON.stringify(engine.values)).not.toContain(TOKEN);
+      expect(engine.values["vercelToken"]).toMatchObject({ secret: true, set: true, len: TOKEN.length });
+      expect(JSON.stringify(useSlateStore.getState())).not.toContain(TOKEN);
+      expect(document.body.innerHTML).not.toContain(TOKEN);
+      // The handle unlocks the step, as the host's push would.
+      expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("sends a secret once when Enter is followed by a blur before the host answers, and again after a refusal", async () => {

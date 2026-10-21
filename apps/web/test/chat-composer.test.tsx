@@ -1732,7 +1732,6 @@ describe("a file dragged over the chat", () => {
     await setup(api);
     const transcript = await screen.findByText(/Server is live at :3000\./);
     fireEvent.dragEnter(transcript, { dataTransfer: { files: [], items: [], types: ["text/plain"], getData: () => "words" } });
-    await new Promise(r => setTimeout(r, 20));
     expect(zone()).toBeNull();
   });
 });

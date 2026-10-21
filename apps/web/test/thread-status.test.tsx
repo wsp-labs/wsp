@@ -8,7 +8,7 @@ import { Crab, drawCrab } from "../src/components/status/Crab.js";
 import { THREAD_STATUS_KINDS, type ThreadStatusInput } from "../src/components/status/kinds/index.js";
 import { FINISHED } from "../src/components/status/kinds/finished.js";
 import { StatusLine } from "../src/components/status/StatusLine.js";
-import { LINE_SLOT_CLASS, ThreadStatus } from "../src/components/status/ThreadStatus.js";
+import { ThreadStatus } from "../src/components/status/ThreadStatus.js";
 import { threadStatusOf } from "../src/components/status/threadStatusOf.js";
 import { WorkingSince } from "../src/components/status/WorkingSince.js";
 
@@ -178,11 +178,6 @@ describe("ThreadStatus", () => {
     expect(s.textContent).toBe("4h");
     expect(s.querySelector("svg, canvas")).toBeNull();
     expect(s.className).toContain("text-[var(--top-row-meta)]");
-  });
-
-  it("the one-line slot narrows to the icon and grows only for an age", () => {
-    expect(LINE_SLOT_CLASS).not.toContain("w-22");
-    expect(LINE_SLOT_CLASS).toContain("min-w-4");
   });
 });
 

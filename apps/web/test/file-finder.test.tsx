@@ -4,7 +4,7 @@
 // it runs in one), ranks a file by its name first, lists a line with its place,
 // opens the pick as a Files tab at its line, and says why it lists nothing.
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileFinder, FINDER_WORDS } from "../src/files/FileFinder.js";
 import { rankFilePaths } from "../src/files/fileFinder.logic.js";
 import { openFileFinder } from "../src/files/finderBus.js";
@@ -72,14 +72,19 @@ describe("the file finder", () => {
   });
 
   it("asks nothing and says so while the open thread's machine is not running", async () => {
-    const wire = fakeWire({ "fs.search": { hits: [], truncated: false } });
-    provideDaemonWire(WS, wire);
-    act(() => useStore.setState({ workspaces: [{ ...view, phase: "napping" }] }));
-    render(<FileFinder />);
-    act(() => openFileFinder("files"));
-    type("rea");
-    await act(() => new Promise(resolve => setTimeout(resolve, 200)));
-    expect(screen.getByText(FINDER_WORDS.notRunning)).toBeTruthy();
-    expect(wire.calls).toEqual([]);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const wire = fakeWire({ "fs.search": { hits: [], truncated: false } });
+      provideDaemonWire(WS, wire);
+      act(() => useStore.setState({ workspaces: [{ ...view, phase: "napping" }] }));
+      render(<FileFinder />);
+      act(() => openFileFinder("files"));
+      type("rea");
+      await act(async () => void vi.advanceTimersByTime(120));
+      expect(screen.getByText(FINDER_WORDS.notRunning)).toBeTruthy();
+      expect(wire.calls).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
