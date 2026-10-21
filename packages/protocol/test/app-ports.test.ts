@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_PORT,
   LOOPBACK,
   PORT_TAKEN_REFUSAL,
   WS_PATH,
@@ -41,7 +40,6 @@ describe("an address where an alias could go", () => {
 
 describe("the port the app is served on", () => {
   it("names 4400 as the port nobody named", () => {
-    expect(DEFAULT_PORT).toBe(4400);
     expect(portsAsked({})).toEqual({ port: 4400, named: false, address: LOOPBACK });
   });
 

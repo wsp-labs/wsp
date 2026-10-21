@@ -2,8 +2,6 @@
 import { describe, expect, it } from "vitest";
 import {
   setupWidth,
-  DEFAULT_PLACE_PORT,
-  DEFAULT_PORT,
   EventUnion,
   GUEST_DAEMON_DIR,
   GUEST_WSP_BIN,
@@ -33,7 +31,6 @@ import {
   placeProvisioningLine,
   provisionCountWord,
   MCP_ID_PREFIX,
-  PLACE_PORT_OFFSET,
   PlaceAddStep,
   PlaceAuthRequest,
   PlaceJoinReply,
@@ -261,13 +258,6 @@ describe("the address a person types on the join screen", () => {
     expect(joinAddressOf("box")).toBeUndefined();
     expect(joinAddressOf("")).toBeUndefined();
     expect(joinAddressOf("ws://x")).toBeUndefined();
-  });
-});
-
-describe("the port the door for computers you own answers on", () => {
-  it("sits the offset above the app port", () => {
-    expect(DEFAULT_PLACE_PORT).toBe(DEFAULT_PORT + 20);
-    expect(PLACE_PORT_OFFSET).toBe(20);
   });
 });
 
