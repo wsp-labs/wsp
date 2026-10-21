@@ -760,7 +760,8 @@ describe("a lead's child", () => {
 
 describe("a root tree's moves", () => {
   const WS: WorkspaceView = { id: "ws_a", name: "api", machineId: "m_a", kind: "local", project: { id: "pr_1", name: "api", path: "/root/api", computer: "here" }, phase: "running", golden: "", createdAt: "2026-10-01T00:00:00.000Z" };
-  const row = (n: number, over: Record<string, unknown> = {}) => ({ id: `s${n}`, workspaceId: "ws_a", harness: "claude", status: "running" as const, threadId: `thr_${n}`, prompt: `tree ${n}`, startedAt: 1_800_000_000_000 - n * 60_000, ...over });
+  // Finished and unseen, so the trees stand in the list a person orders and not in Working.
+  const row = (n: number, over: Record<string, unknown> = {}) => ({ id: `s${n}`, workspaceId: "ws_a", harness: "claude", status: "completed" as const, threadId: `thr_${n}`, prompt: `tree ${n}`, startedAt: 1_800_000_000_000 - n * 60_000, endedAt: 1_800_000_000_000 - n * 60_000 + 30_000, ...over });
 
   it("the palette carries Move up, Move down and Move to top for the open thread's root, held as its menu holds them, writing a drag's marks", async () => {
     const markThreads = vi.fn(async () => {});
