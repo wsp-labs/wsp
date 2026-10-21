@@ -678,7 +678,6 @@ describe("open on laptop", () => {
 
     // A sign-in callback on the framed port is not a page to open here.
     emit({ type: "forward.open", forward: { workspaceId: WS, port: 5173, startedAt: "2026-09-04T10:00:00.000Z", name: "api", kind: "callback" } });
-    await new Promise(r => setTimeout(r, 20));
     expect(screen.queryByRole("button", { name: "Open on laptop" })).toBeNull();
     emit({ type: "forward.open", forward: { workspaceId: WS, port: 5173, startedAt: "2026-09-04T10:00:00.000Z", name: "api", kind: "url" } });
     fireEvent.click(await screen.findByRole("button", { name: "Open on laptop" }));

@@ -293,28 +293,33 @@ describe("Add a computer, from the address to Set up", () => {
   });
 
   it("starts the picks from everything here, keeps each change on the pending add once, and says it is saved", async () => {
-    const fake = host();
-    useStore.setState({ places: [here, studio] });
-    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
-    act(() => useAddFlow.setState({ open: true, step: "agents", placeId: studio.id, pendingId: "a_1", address: "studio" }));
-    await settle();
-    expect([step(), title(), progress()]).toEqual(["agents", "Agents", "3 of 11"]);
-    await waitFor(() => expect(ticked("claude") && ticked("codex")).toBe(true));
-    expect(dialog()!.querySelector("[data-k=saved]")?.textContent).toBe("Saved, you can finish later");
-    fireEvent.click(dialog()!.querySelector("[data-pick-row='codex'] [role=checkbox]")!);
-    fireEvent.click(dialog()!.querySelector("[data-pick-row='codex'] [role=checkbox]")!);
-    fireEvent.click(dialog()!.querySelector("[data-pick-row='codex'] [role=checkbox]")!);
-    await rest(450);
-    // A burst of changes is one write, the last.
-    expect(fake.asked.chosen).toHaveLength(1);
-    expect(fake.asked.chosen[0]).toMatchObject({ ref: studio.id, recipe: undefined });
-    expect(Object.keys(fake.asked.chosen[0]!.choices.agents)).toEqual(["claude"]);
-    expect(Object.keys(fake.asked.chosen[0]!.choices.folders)).toEqual(["wsp"]);
-    await press(primary());
-    expect(step()).toBe("mcp");
-    await press(dialog()!.querySelector("[data-k=back]"));
-    expect(step()).toBe("agents");
-    expect(ticked("codex")).toBe(false);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const fake = host();
+      useStore.setState({ places: [here, studio] });
+      mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+      act(() => useAddFlow.setState({ open: true, step: "agents", placeId: studio.id, pendingId: "a_1", address: "studio" }));
+      await settle();
+      expect([step(), title(), progress()]).toEqual(["agents", "Agents", "3 of 11"]);
+      await waitFor(() => expect(ticked("claude") && ticked("codex")).toBe(true));
+      expect(dialog()!.querySelector("[data-k=saved]")?.textContent).toBe("Saved, you can finish later");
+      fireEvent.click(dialog()!.querySelector("[data-pick-row='codex'] [role=checkbox]")!);
+      fireEvent.click(dialog()!.querySelector("[data-pick-row='codex'] [role=checkbox]")!);
+      fireEvent.click(dialog()!.querySelector("[data-pick-row='codex'] [role=checkbox]")!);
+      await act(async () => void vi.advanceTimersByTime(400));
+      // A burst of changes is one write, the last.
+      expect(fake.asked.chosen).toHaveLength(1);
+      expect(fake.asked.chosen[0]).toMatchObject({ ref: studio.id, recipe: undefined });
+      expect(Object.keys(fake.asked.chosen[0]!.choices.agents)).toEqual(["claude"]);
+      expect(Object.keys(fake.asked.chosen[0]!.choices.folders)).toEqual(["wsp"]);
+      await press(primary());
+      expect(step()).toBe("mcp");
+      await press(dialog()!.querySelector("[data-k=back]"));
+      expect(step()).toBe("agents");
+      expect(ticked("codex")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("holds Continue on Import projects while a project's name is one the computer already has", async () => {
@@ -388,20 +393,25 @@ describe("Add a computer, from the address to Set up", () => {
   });
 
   it("offers Start from where a recipe is saved, and a pick there takes the recipe's rows", async () => {
-    const builders: RecipeView = { name: "Builders", slug: "builders", summary: "1 agent", machines: ["spoo"], savedAt: "2026-10-05T09:00:00.000Z", file: RecipeFile.parse({ name: "Builders", agents: { codex: { signin: "machine" } } }) };
-    const fake = host({}, [builders]);
-    useStore.setState({ places: [here, studio] });
-    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
-    act(() => useAddFlow.setState({ open: true, step: "startfrom", placeId: studio.id, pendingId: "a_1", address: "studio" }));
-    await settle();
-    expect([title(), progress()]).toEqual(["Start from", "3 of 12"]);
-    expect([...dialog()!.querySelectorAll("[data-choice]")].map(c => c.getAttribute("data-choice"))).toEqual(["here", "builders", "none"]);
-    // A saved recipe says it is one and the day it was saved, beside the computers that follow it.
-    expect(dialog()!.querySelector("[data-choice='builders']")?.textContent).toBe("BuildersA recipe you saved on Oct 5, 2026. 1 agent.on spoo");
-    await press(dialog()!.querySelector("[data-choice='builders'] [role=radio]"));
-    await rest(450);
-    expect(fake.asked.chosen.at(-1)).toMatchObject({ recipe: "builders" });
-    expect(Object.keys(useAddFlow.getState().picks!.agents)).toEqual(["codex"]);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const builders: RecipeView = { name: "Builders", slug: "builders", summary: "1 agent", machines: ["spoo"], savedAt: "2026-10-05T09:00:00.000Z", file: RecipeFile.parse({ name: "Builders", agents: { codex: { signin: "machine" } } }) };
+      const fake = host({}, [builders]);
+      useStore.setState({ places: [here, studio] });
+      mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+      act(() => useAddFlow.setState({ open: true, step: "startfrom", placeId: studio.id, pendingId: "a_1", address: "studio" }));
+      await settle();
+      expect([title(), progress()]).toEqual(["Start from", "3 of 12"]);
+      expect([...dialog()!.querySelectorAll("[data-choice]")].map(c => c.getAttribute("data-choice"))).toEqual(["here", "builders", "none"]);
+      // A saved recipe says it is one and the day it was saved, beside the computers that follow it.
+      expect(dialog()!.querySelector("[data-choice='builders']")?.textContent).toBe("BuildersA recipe you saved on Oct 5, 2026. 1 agent.on spoo");
+      await press(dialog()!.querySelector("[data-choice='builders'] [role=radio]"));
+      await act(async () => void vi.advanceTimersByTime(400));
+      expect(fake.asked.chosen.at(-1)).toMatchObject({ recipe: "builders" });
+      expect(Object.keys(useAddFlow.getState().picks!.agents)).toEqual(["codex"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -924,38 +934,43 @@ describe("Add a computer while the setup runs", () => {
   });
 
   it("opens a step that ran on a click to its last lines of output, read on a timer while it runs and never on a render", async () => {
-    const reads: { placeId: string; step: string | undefined }[] = [];
-    const fake = host({
-      placesSetupLog: async (placeId: string, step?: string) => {
-        reads.push({ placeId, step });
-        return ["2026-10-04T10:00:00Z [floor] apt-get install curl", "2026-10-04T10:00:01Z [agents] the agents: running", "2026-10-04T10:00:02Z [agents] npm install -g @anthropic-ai/claude-code", "2026-10-04T10:00:03Z [agents] added 3 packages in 4s"];
-      },
-    } as Partial<Api>);
-    useStore.setState({ places: [here, placed(RUNNING)] });
-    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
-    act(() => openSetup(studio.id));
-    await settle();
-    const row = (id: string): HTMLElement => dialog()!.querySelector<HTMLElement>(`[data-step-row='${id}']`)!;
-    // Nothing is open, so nothing is read.
-    expect(reads).toEqual([]);
-    expect(row("agents").querySelector("[data-k=step-log]")).toBeNull();
-    // A step not started has no output to open on; Install wsp is no step of the box's log.
-    expect(row("mcp").querySelector("[data-k=step-toggle]")).toBeNull();
-    expect(row("wsp").querySelector("[data-k=step-toggle]")).toBeNull();
-    await press(row("agents").querySelector("[data-k=step-toggle]"));
-    await waitFor(() => expect(row("agents").querySelector("[data-k=step-log]")?.textContent).toBe("npm install -g @anthropic-ai/claude-code\nadded 3 packages in 4s"));
-    expect(row("agents").querySelector("[data-k=step-toggle]")?.getAttribute("aria-expanded")).toBe("true");
-    expect(row("floor").querySelector("[data-k=step-log]")).toBeNull();
-    expect(reads).toEqual([{ placeId: studio.id, step: undefined }]);
-    for (let i = 0; i < 3; i++) {
-      act(() => useStore.setState({ places: [here, placed({ ...RUNNING, steps: [...RUNNING.steps] })] }));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const reads: { placeId: string; step: string | undefined }[] = [];
+      const fake = host({
+        placesSetupLog: async (placeId: string, step?: string) => {
+          reads.push({ placeId, step });
+          return ["2026-10-04T10:00:00Z [floor] apt-get install curl", "2026-10-04T10:00:01Z [agents] the agents: running", "2026-10-04T10:00:02Z [agents] npm install -g @anthropic-ai/claude-code", "2026-10-04T10:00:03Z [agents] added 3 packages in 4s"];
+        },
+      } as Partial<Api>);
+      useStore.setState({ places: [here, placed(RUNNING)] });
+      mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+      act(() => openSetup(studio.id));
       await settle();
+      const row = (id: string): HTMLElement => dialog()!.querySelector<HTMLElement>(`[data-step-row='${id}']`)!;
+      // Nothing is open, so nothing is read.
+      expect(reads).toEqual([]);
+      expect(row("agents").querySelector("[data-k=step-log]")).toBeNull();
+      // A step not started has no output to open on; Install wsp is no step of the box's log.
+      expect(row("mcp").querySelector("[data-k=step-toggle]")).toBeNull();
+      expect(row("wsp").querySelector("[data-k=step-toggle]")).toBeNull();
+      await press(row("agents").querySelector("[data-k=step-toggle]"));
+      await waitFor(() => expect(row("agents").querySelector("[data-k=step-log]")?.textContent).toBe("npm install -g @anthropic-ai/claude-code\nadded 3 packages in 4s"));
+      expect(row("agents").querySelector("[data-k=step-toggle]")?.getAttribute("aria-expanded")).toBe("true");
+      expect(row("floor").querySelector("[data-k=step-log]")).toBeNull();
+      expect(reads).toEqual([{ placeId: studio.id, step: undefined }]);
+      for (let i = 0; i < 3; i++) {
+        act(() => useStore.setState({ places: [here, placed({ ...RUNNING, steps: [...RUNNING.steps] })] }));
+        await settle();
+      }
+      expect(reads).toHaveLength(1);
+      await act(async () => void vi.advanceTimersByTime(3000));
+      expect(reads).toHaveLength(2);
+      await press(row("agents").querySelector("[data-k=step-toggle]"));
+      expect(row("agents").querySelector("[data-k=step-log]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
     }
-    expect(reads).toHaveLength(1);
-    await rest(3100);
-    expect(reads).toHaveLength(2);
-    await press(row("agents").querySelector("[data-k=step-toggle]"));
-    expect(row("agents").querySelector("[data-k=step-log]")).toBeNull();
   });
 
   it("stands a failed step open on its output, until it is closed", async () => {

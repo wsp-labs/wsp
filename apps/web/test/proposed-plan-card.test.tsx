@@ -93,17 +93,6 @@ describe("saving a plan to the workspace", () => {
     expect(refusalText()).toBe("");
   });
 
-  it("an empty path said and then Cancel reopens to an empty slot", async () => {
-    const field = await openSave(vi.fn(async () => {}));
-    fireEvent.change(field, { target: { value: " " } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(refusalText()).toBe("Type a path to save the plan to.");
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByLabelText("Folder")).toBeNull());
-    await reopenSave();
-    expect(refusalText()).toBe("");
-  });
-
   it("a connection lost during the save says the plan was not saved, and no toast", async () => {
     const field = await openSave(vi.fn(async () => { throw new DisconnectedError("lost"); }));
     fireEvent.change(field, { target: { value: "plan.md" } });

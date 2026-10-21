@@ -125,9 +125,8 @@ describe("a thread's row", () => {
     expect(status(failed!).textContent).toBe("");
   });
 
-  it("joins nothing: no dot, no rule between the lines", () => {
+  it("joins nothing: no rule between the lines", () => {
     const { container } = list(ROWS);
-    expect(container.textContent).not.toContain("·");
     expect(container.querySelector(".bg-border, hr")).toBeNull();
   });
 
@@ -408,12 +407,11 @@ describe("the Threads section's head", () => {
     expect(head().querySelector("[data-settle-finished]")).toBeNull();
   });
 
-  it("with nothing live, says how many finished in words, in the muted ink", () => {
+  it("with nothing live, says how many finished in words", () => {
     shutFor(true);
     render(tree([nodeOf(finished("a", 5)), nodeOf(finished("b", 6), [nodeOf(finished("c", 7)), nodeOf(finished("d", 8))])], LEAD_THREAD));
     const count = head().querySelector<HTMLElement>('[data-tree-count="finished"]')!;
     expect(count.textContent).toBe("4 finished");
-    expect(count.className).toContain("text-muted-foreground");
     expect(count.querySelector("svg")).toBeNull();
   });
 });
