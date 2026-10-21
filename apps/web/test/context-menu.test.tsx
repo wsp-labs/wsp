@@ -298,7 +298,8 @@ describe("a tile's menu for the copy it runs on", () => {
     await mountSidebar(fakeApi([API], [statusOf(API)], [{ ...RUNNING }, child]), "fix the port list");
     rightClick(rowOf("fix the port list"));
     await screen.findByRole("menu");
-    expect(labels()).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.moveUp, THREAD_WORDS.moveDown, THREAD_WORDS.moveTop, THREAD_WORDS.copyLink, THREAD_WORDS.forget, ...[
+    // A running tree stands in Working by its start, so its menu offers no move.
+    expect(labels()).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.copyLink, THREAD_WORDS.forget, ...[
       "Pause api",
       WORKSPACE_WORDS.newThread,
       WORKSPACE_WORDS.openTerminal,
@@ -440,7 +441,7 @@ describe("a thread row's menu", () => {
     const row = rowOf("fix the port list");
     rightClick(row);
     await screen.findByRole("menu");
-    expect(labels().slice(0, 11)).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.moveUp, THREAD_WORDS.moveDown, THREAD_WORDS.moveTop, THREAD_WORDS.copyLink, THREAD_WORDS.forget]);
+    expect(labels().slice(0, 8)).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.copyLink, THREAD_WORDS.forget]);
     // The agent's own store keeps a name, and the row is the box: the rename runs.
     expect(item(THREAD_WORDS.rename).getAttribute("aria-disabled")).toBeNull();
     expect(refusalOf(THREAD_WORDS.rename)).toBeNull();

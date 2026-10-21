@@ -59,6 +59,8 @@ function placeAt(target: EventTarget | null, y: number, drag: Dragging): DropPla
   const section = target.closest<HTMLElement>("[data-section]");
   const id = section?.dataset["section"] as SidebarSection | undefined;
   if (section == null || id === undefined) return null;
+  // Working holds a tree by its state alone: only a tree leaving Pinned has anything to drop there.
+  if (id === "working" && drag.item.closest<HTMLElement>("[data-section]")?.dataset["section"] !== "pinned") return null;
   const item = target.closest<HTMLElement>("[data-root]");
   if (!ORDERED.has(id) || target.closest("[data-section-head]") !== null || item === null || !section.contains(item)) return { kind: "head", place: id };
   if (item === drag.item) return null;
