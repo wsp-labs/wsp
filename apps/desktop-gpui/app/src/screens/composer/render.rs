@@ -3,7 +3,7 @@
 
 use gpui_kit::component::input::Textarea;
 use gpui_kit::component::{h_flex, v_flex, Sizable as _};
-use gpui_kit::{canvas, div, prelude::*, px, Bounds, Context, ExternalPaths, Focusable as _, KeyDownEvent, Pixels, Window};
+use gpui_kit::{canvas, div, prelude::*, px, Bounds, Context, ExternalPaths, Focusable as _, KeyDownEvent, MouseButton, Pixels, Window};
 
 use super::model::{self, Hold, Layout};
 use super::{dock, menus, parts, wide, Bar, BoxWidth, Composer, COLUMN, LINE, TEXT};
@@ -91,6 +91,16 @@ impl Composer {
             .line_height(LINE)
             .text_color(p.foreground)
             .when(layout == Layout::Full, |el| el.min_h(px(74.)).pb_1())
+            // A press anywhere in the box puts the caret in the field, as the web's editor fills its whole box.
+            .when(!shut, |el| {
+                el.on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|this, _, window, cx| {
+                        this.editor.update(cx, |e, cx| e.focus(window, cx));
+                        window.prevent_default();
+                    }),
+                )
+            })
             .child(
                 // gpui-kit pads the field 4 px a side and wraps its text 10 px short of its right edge for the caret;
                 // the web's text runs edge to edge of its column. The field is w_full, so the margins go on a wrapper.

@@ -3,7 +3,8 @@
 // The claude the parity driver points the fixture's host at. A message the driver scripted in $HOME/parity-turns.json
 // (its prompt mapped to a reply) plays that reply in stream-json as the claude adapter reads it; any other message plays
 // what the bench's stub plays. A reply is one part or a list of parts, each a kind or { kind, ...options }:
-// markdown, code, table, long, tools, error, thinking, question, permission, plan, rate-limit, retry, files, hold.
+// markdown, code, table, long, tools, error, thinking, question, permission, plan, rate-limit, retry, files, hold, and
+// unstarted first of all.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { turnsOf } from "../bench/content.mjs";
@@ -279,8 +280,18 @@ const promptOf = m => {
 let queue = Promise.resolve();
 function turn(m) {
   queue = queue.then(async () => {
+    let spec = scripted(promptOf(m));
+    // The init line is what starts the turn on the host, so holding it keeps the send standing before its start.
+    const [first, ...rest] = spec === undefined ? [] : [spec].flat().map(p => (typeof p === "string" ? { kind: p } : p));
+    if (first?.kind === "unstarted") {
+      try {
+        await held(first.ms === undefined ? new Promise(() => {}) : new Promise(done => setTimeout(done, first.ms)));
+      } catch {
+        process.exit(0);
+      }
+      spec = rest;
+    }
     say({ type: "system", subtype: "init", cwd: process.cwd(), session_id: sid, tools: [], mcp_servers: [], model: MODEL, permissionMode: mode, slash_commands: [], apiKeySource: "none", uuid: `init_${next()}` });
-    const spec = scripted(promptOf(m));
     if (spec !== undefined) await playScripted(spec);
     else playBench();
   });

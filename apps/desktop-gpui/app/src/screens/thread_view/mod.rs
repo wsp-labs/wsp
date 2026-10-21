@@ -66,6 +66,27 @@ pub(crate) fn kept_view(thread: &str, cx: &App) -> Option<Entity<ThreadView>> {
     (view.read(cx).followed() == Some(thread)).then_some(view)
 }
 
+/// A send the New thread page made, which the thread screen takes up once it opens the thread the send made, as
+/// useChatThread carries a fresh view's state to its thread: its words and files, its request id, whose turn runs until
+/// the transcript shows it begun, and the watch for the line its agent's start says.
+pub struct Carried {
+    pub thread: String,
+    pub text: String,
+    pub files: Vec<super::composer::model::File>,
+    pub request: String,
+    pub watch: Option<link::StartWatch>,
+}
+
+/// The one send waiting for its thread to open; the next thread opened takes it, or drops it if it is another's.
+struct Carry(Option<Carried>);
+
+impl Global for Carry {}
+
+/// Hands the thread screen the send the New thread page made on `carried.thread`, for when it opens that thread.
+pub fn carry(carried: Carried, cx: &mut App) {
+    cx.set_global(Carry(Some(carried)));
+}
+
 /// The thread view in the frame's main column, kept across thread switches, with the composer docked under its
 /// transcript: one composer for the kept screen, told each thread's key as the screen moves to it.
 pub struct ThreadScreen {
@@ -76,6 +97,8 @@ pub struct ThreadScreen {
     open: Entity<OpenSplit>,
     /// The composer's tie to the open thread, built again for each thread once the host has read it.
     link: Option<Entity<Link>>,
+    /// The New thread page's send on the open thread, its request id and its starting watch, for its link to take up.
+    carried: Option<(String, Option<link::StartWatch>)>,
     host: Host,
     capture: Capture,
     thread: Option<String>,
@@ -114,6 +137,7 @@ impl ThreadScreen {
             // No thread shows: stop following the last one rather than keep reading a thread nobody looks at.
             if self.thread.take().is_some() {
                 self.link = None;
+                self.carried = None;
                 self._linking = None;
                 self.view.update(cx, |v, cx| v.stop(cx));
                 self.composer.update(cx, |c, cx| c.set_prompt(None, window, cx));
@@ -123,11 +147,17 @@ impl ThreadScreen {
         if self.thread.as_deref() == Some(thread_id.as_str()) {
             return;
         }
+        let carried = cx.try_global::<Carry>().is_some().then(|| cx.global_mut::<Carry>().0.take()).flatten();
+        let carried = carried.filter(|c| c.thread == thread_id);
         self.thread = Some(thread_id.clone());
         let item =
             ThreadItem { workspace_id: workspace_id.clone(), thread_id: thread_id.clone(), project: String::new(), title: String::new() };
         let (host, strict) = (self.host.clone(), self.capture.strict);
         self.view.update(cx, |v, cx| v.follow(&host, &item, strict, cx));
+        self.carried = carried.map(|c| {
+            self.view.update(cx, |v, cx| v.show_sent(c.thread, c.text, &c.files, Some(c.request.clone()), cx));
+            (c.request, c.watch)
+        });
         // A send typed before the new thread's link stands waits on it rather than go to no one.
         self.composer.update(cx, |c, cx| {
             c.set_prompt(None, window, cx);
@@ -153,6 +183,11 @@ impl ThreadScreen {
                     Ok(opened) => {
                         let (host, composer) = (this.host.clone(), this.composer.clone());
                         let link = cx.new(|cx| Link::fed(host, target, opened, composer, window, cx));
+                        if let Some((request, watch)) = this.carried.take() {
+                            link.update(cx, |l, cx| l.carry(request, watch, cx));
+                            // The page's box had the keys, and the thread it opened in place keeps them in its own.
+                            super::composer::screen::give_keys(&this.composer, window, cx);
+                        }
                         if this.view.read(cx).loaded() {
                             let seen = seen(this.view.read(cx));
                             link.update(cx, |l, cx| l.take_history(seen, window, cx));
@@ -357,14 +392,10 @@ impl Screen for ThreadScreen {
                         v.set_listing(crate::transcript::Listing { starting: line.clone(), sent, ..listing }, cx);
                     });
                 }
-                // A send stands as the person's message at once, before the host answers.
+                // A send stands as the person's message at once, its files with it, before the host answers.
                 ComposerEvent::Start(out) if out.fork.is_none() => {
                     let thread = this.thread.clone().unwrap_or_default();
-                    this.view.update(cx, |v, cx| {
-                        let listed = v.transcript().listed().cloned();
-                        let listing = listed.unwrap_or_else(|| crate::transcript::Listing { thread, ..Default::default() });
-                        v.set_listing(crate::transcript::Listing { sent: Some(out.prompt.clone()), ..listing }, cx);
-                    });
+                    this.view.update(cx, |v, cx| v.show_sent(thread, out.prompt.clone(), &out.files, None, cx));
                 }
                 _ => {}
             }
@@ -378,6 +409,7 @@ impl Screen for ThreadScreen {
             git,
             open,
             link: None,
+            carried: None,
             host,
             capture,
             thread: None,

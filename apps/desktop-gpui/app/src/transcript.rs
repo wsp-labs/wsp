@@ -30,8 +30,8 @@ use page::slate_lines;
 pub use around::forked_from_line;
 pub(crate) use fences::{block_at, fence_openings};
 pub use listing::{
-    agent_starting_line, push_again_prompt, waiting_asker_line, ChildPart, ForkSource, Listed, ListedSubagent, Listing, SpawnStep,
-    StartFailed, StepState, Strip, StripAct, ThreadAt, TreeCounts, Wait, PAUSED_KEY,
+    agent_starting_line, push_again_prompt, waiting_asker_line, ChildPart, ForkSource, Listed, ListedSubagent, Listing, Sent, SpawnStep,
+    StartFailed, StepState, Strip, StripAct, ThreadAt, TreeCounts, Wait, PAUSED_KEY, SENT_KEY,
 };
 pub use page::{Page, SLATE_UPDATED};
 pub use plan::{plan_folds, plan_shown};
@@ -329,6 +329,14 @@ impl Transcript {
         self.model.cwd.as_deref()
     }
 
+    /// The request id of the newest turn's start.
+    fn begun(&self) -> Option<&str> {
+        self.event_list().iter().rev().find_map(|e| match e {
+            SessionEvent::SessionStart { request_id, .. } => Some(request_id.as_deref()),
+            _ => None,
+        })?
+    }
+
     /// The rows with every turn fold, tool group, plan and subagent open, keyed as rows() would key them; changes nothing.
     pub fn unfolded(&self) -> Vec<Row> {
         if let Some(call) = &self.around.page {
@@ -338,7 +346,7 @@ impl Transcript {
         derive(&self.model, 0, 0, self.opened(true))
             .map(|(rows, _)| {
                 let (rows, split) = slate_lines(rows, None, &slated);
-                self.around.dress(rows, split, true, false, &self.model.entries).0
+                self.around.dress(rows, split, true, false, &self.model.entries, self.begun()).0
             })
             .unwrap_or_default()
     }
@@ -402,7 +410,7 @@ impl Transcript {
         let slated = self.slated();
         derive(&self.model, from, turns_from, self.opened(false)).map(|(rows, split)| {
             let (rows, split) = slate_lines(rows, split, &slated);
-            self.around.dress(rows, split, from == 0, shut, &self.model.entries)
+            self.around.dress(rows, split, from == 0, shut, &self.model.entries, self.begun())
         })
     }
 
