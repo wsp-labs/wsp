@@ -40,6 +40,7 @@ export default [
   state("SWP-drawer-computer", drives.drawer("home")),
   state("SWP-drawer-thread", drives.drawer("thread")),
   state("SWP-hover", drives.hover),
+  state("SWP-drop", drives.drop),
   { id: "SWP-long-message", data: longThread, go: async (app, id) => (await app.route.thread(id), await app.park()) },
   { id: "SWP-starting", data: host => ({ thread: host.fixture.threads.starting, workspace: host.fixture.workspaces.starting }), go: drives.starting },
   { id: "SWP-started", data: host => ({ thread: host.fixture.threads.sub, workspace: host.fixture.workspaces.starting }), go: drives.starting },

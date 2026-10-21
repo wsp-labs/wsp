@@ -144,8 +144,8 @@ fn main() {
     }
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let gallery = args.gallery;
-    let bench::Capture { theme, unfold, now, reveal } = args.capture;
-    let capture = desktop_gpui::screens::thread_view::Capture { theme, unfold, now, reveal, strict: args.bench.is_some() };
+    let bench::Capture { theme, unfold, now, reveal, drop } = args.capture;
+    let capture = desktop_gpui::screens::thread_view::Capture { theme, unfold, now, reveal, drop, strict: args.bench.is_some() };
     let replay = args.bench.as_ref().filter(|b| b.replay.is_some());
     if replay.is_some() || args.record.is_some() || args.trace.is_some() {
         desktop_gpui::scroll_trace::plan(desktop_gpui::scroll_trace::Plan {

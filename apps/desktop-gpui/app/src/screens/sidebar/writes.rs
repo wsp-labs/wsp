@@ -14,9 +14,17 @@ use wsp_host_client::Op;
 use super::model::{self, Prefs, Thread};
 use super::{host, Processes, Sidebar, ARMED};
 
+#[cfg(test)]
+thread_local! {
+    /// Every write the sidebar asked for on this thread, by op name, linked to a host or not.
+    pub(super) static WRITTEN: std::cell::RefCell<Vec<(&'static str, Value)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 impl Sidebar {
     /// One write; a refusal is said where the note stands, and the host's push redraws what changed.
     pub(super) fn write<O: Op + serde::de::DeserializeOwned + Send + 'static>(&mut self, params: Value, cx: &mut Context<Self>) {
+        #[cfg(test)]
+        WRITTEN.with(|w| w.borrow_mut().push((O::NAME, params.clone())));
         let Some(link) = self.link.clone() else { return };
         self.refusal = None;
         let task = link.runtime.spawn(host::write::<O>(link.host.clone(), params));
@@ -85,6 +93,8 @@ impl Sidebar {
 
     /// Settles threads; where the host leaves them for processes still running, asks as the web does.
     pub(crate) fn settle_ids(&mut self, ids: Vec<String>, processes: Processes, cx: &mut Context<Self>) {
+        #[cfg(test)]
+        WRITTEN.with(|w| w.borrow_mut().push((SessionsSettleRequest::NAME, json!({ "threadIds": ids, "processes": processes.word() }))));
         let Some(link) = self.link.clone() else { return };
         self.refusal = None;
         let params = json!({ "threadIds": ids, "processes": processes.word() });

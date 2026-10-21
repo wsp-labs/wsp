@@ -93,6 +93,17 @@ export const drives = {
     await app.hover(css(`[data-row-id='thread:${data.panes}']`), { wait: 1200 });
   },
   aside: async (app, data) => (await askAside(app, data.panes), await app.park()),
+  /** A file held over the thread and never let go: a dragenter carrying one on the chat, which ChatDropZone.tsx hears. */
+  drop: async (app, data) => {
+    await app.route.thread(data.thread);
+    await app.park();
+    await app.page(() => {
+      const held = new DataTransfer();
+      held.items.add(new File(["held"], "held.png", { type: "image/png" }));
+      document.querySelector("[data-chat-view]").dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: held }));
+    });
+    await seen(app, "[data-chat-drop-zone]", 5_000);
+  },
 };
 
 export const withIds = (thread = "short-1") => async host => ({ ...(await ids(host)), thread: host.fixture.threads[thread] ?? thread });

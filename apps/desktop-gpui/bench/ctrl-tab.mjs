@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-only
 // Reads the trace `desktop-gpui --bench-ctrl-tab` wrote: prints each step of the held Ctrl+Tab, the thread it opened,
-// how long its key took to reach the first frame presented after it and to the first frame holding the thread's rows;
-// exits 1 when a step opened no other thread or its rows missed the first frame after its key, 2 when the trace
-// cannot stand as a measurement (a debug build, no steps).
+// how long its key took to reach the first frame presented after it and to the first frame holding the thread's rows,
+// and whether a frame presented before the next key drew "Loading transcript"; exits 1 when a step opened no other
+// thread, its rows missed the first frame after its key or it drew the loading line, 2 when the trace cannot stand as
+// a measurement (a debug build, no steps).
 //   node ctrl-tab.mjs <trace.json>
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -13,10 +14,16 @@ export function lateSteps(trace) {
   return trace.steps.filter(s => s.to === null || s.to === s.from || !s.within_frame);
 }
 
+/** The steps after whose key a presented frame drew the loading line before the next key. */
+export function loadingSteps(trace) {
+  return trace.steps.filter(s => s.drew_loading === true);
+}
+
 /** Why the trace cannot stand as a measurement, or null when it can. */
 export function unfit(trace) {
   if (trace.release !== true) return "the trace comes from a debug build";
   if (!Array.isArray(trace.steps) || trace.steps.length === 0) return "the trace holds no steps";
+  if (trace.steps.some(s => typeof s.drew_loading !== "boolean")) return "the trace does not say which steps drew the loading line";
   if (trace.frame_ms === null) return "the trace holds too few frames to read the frame interval";
   return null;
 }
@@ -28,7 +35,8 @@ export function describe(s) {
   const to = s.to === null ? "nothing" : s.to.slice(0, 8);
   const rows = s.rows_ms === null ? "rows not drawn before the next key" : `rows ${ms(s.rows_latency_ms).padStart(8)}`;
   const late = s.within_frame ? "" : s.frames_before_rows === null ? "  LATE" : `  LATE by ${s.frames_before_rows} frame${s.frames_before_rows === 1 ? "" : "s"}`;
-  return `${String(s.n).padStart(3)} ${s.held ? "repeat" : "press "} sent ${ms(s.sent_ms).padStart(9)}  opened ${to}  key to next frame ${ms(s.latency_ms).padStart(8)}, ${rows}${late}`;
+  const loading = s.drew_loading ? "  LOADING" : "";
+  return `${String(s.n).padStart(3)} ${s.held ? "repeat" : "press "} sent ${ms(s.sent_ms).padStart(9)}  opened ${to}  key to next frame ${ms(s.latency_ms).padStart(8)}, ${rows}${late}${loading}`;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -51,5 +59,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   const late = lateSteps(trace);
   console.log(late.length === 0 ? "every step opened its thread within one frame" : `${late.length} steps late or opening nothing`);
-  process.exit(late.length === 0 ? 0 : 1);
+  const loading = loadingSteps(trace);
+  console.log(loading.length === 0 ? "no step drew the loading line" : `${loading.length} steps drew the loading line: ${loading.map(s => s.n).join(", ")}`);
+  process.exit(late.length === 0 && loading.length === 0 ? 0 : 1);
 }

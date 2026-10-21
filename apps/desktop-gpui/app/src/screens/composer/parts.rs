@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The composer's drawn parts: the glass box, the pickers' triggers, the attach, send and stop buttons, the files row,
-//! the tray under the box, the banner and the queue's drawer over it, a mention chip, and the drop overlay. Sizes are
+//! the tray under the box, the banner and the queue's drawer over it, and a mention chip. Sizes are
 //! ComposerSurface.tsx's, ComposerOptionPickers.tsx's, ComposerPrimaryActions.tsx's and ComposerCheckoutRow.tsx's.
 
 use gpui_kit::component::input::InlineTokenContext;
@@ -1006,65 +1006,6 @@ pub fn cap_bar(c: &Composer, cx: &mut Context<Composer>) -> AnyElement {
         },
         cx,
     )
-}
-
-/// Files dragged over the composer: the ground at 80% under the glass, and a card saying what a drop takes.
-pub fn drop_overlay(cx: &App) -> AnyElement {
-    let p = cx.palette();
-    let g = glass(cx);
-    div()
-        .debug_selector(|| "composer-drop".into())
-        .absolute()
-        .inset_0()
-        .flex()
-        .p_5()
-        .bg(p.background.opacity(0.8))
-        .when(crate::glass::composer_blurs(), |el| el.backdrop_blur(g.blur))
-        .child(
-            v_flex()
-                .flex_1()
-                .items_center()
-                .justify_center()
-                .gap_3()
-                .px_6()
-                .rounded(px(11.))
-                .border_1()
-                .border_color(p.border.opacity(0.6))
-                .bg(p.foreground.opacity(0.03))
-                .child(
-                    h_flex()
-                        .size(px(32.))
-                        .justify_center()
-                        .rounded(px(8.))
-                        .border_1()
-                        .border_color(p.border)
-                        .bg(p.foreground.opacity(0.04))
-                        .child(Icon::new(Glyph::Paperclip).with_size(px(16.)).text_color(p.foreground.opacity(0.8))),
-                )
-                .child(
-                    v_flex()
-                        .max_w(px(320.))
-                        .gap_1()
-                        .items_center()
-                        .child(
-                            div()
-                                .text_size(px(14.))
-                                .line_height(px(20.))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(p.foreground)
-                                .child("Drop files to attach"),
-                        )
-                        .child(
-                            div()
-                                .text_size(px(13.))
-                                .line_height(px(20.))
-                                .text_color(p.muted_foreground)
-                                .text_center()
-                                .child("At most 5: an image (PNG, JPEG, GIF or WebP) up to 10 MB, any other file up to 10 MB."),
-                        ),
-                ),
-        )
-        .into_any_element()
 }
 
 #[cfg(test)]

@@ -20,8 +20,8 @@ use std::rc::Rc;
 use futures::channel::mpsc;
 use futures::StreamExt as _;
 use gpui_kit::{
-    canvas, div, prelude::*, px, App, Context, Entity, Global, KeyDownEvent, Pixels, Point, StyleRefinement, Subscription, Task,
-    WeakEntity, Window,
+    canvas, div, point, prelude::*, px, App, Context, Entity, ExternalPaths, FileDropEvent, Global, KeyDownEvent, Pixels, PlatformInput,
+    Point, StyleRefinement, Subscription, Task, WeakEntity, Window,
 };
 use serde_json::{json, Value};
 use wsp_host_client::Failure;
@@ -48,6 +48,8 @@ pub struct Capture {
     pub unfold: bool,
     pub now: Option<f64>,
     pub reveal: Option<(String, f32)>,
+    /// Where in the window a file is held dragged once the transcript has rows, so the drop frame stands for the shot.
+    pub drop: Option<(f32, f32)>,
     /// A failure to follow the thread ends the process, as the bench needs.
     pub strict: bool,
 }
@@ -386,7 +388,7 @@ impl Screen for ThreadScreen {
                 ComposerEvent::Starting(line) => {
                     let thread = this.thread.clone().unwrap_or_default();
                     this.view.update(cx, |v, cx| {
-                        let listed = v.transcript().listed().cloned();
+                        let listed = v.next_listing().cloned();
                         let listing = listed.unwrap_or_else(|| crate::transcript::Listing { thread, ..Default::default() });
                         let sent = listing.sent.clone().filter(|_| line.is_some());
                         v.set_listing(crate::transcript::Listing { starting: line.clone(), sent, ..listing }, cx);
@@ -440,7 +442,12 @@ impl Screen for ThreadScreen {
 }
 
 impl Render for ThreadScreen {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some((x, y)) = self.capture.drop.filter(|_| !self.view.read(cx).rows().is_empty()) {
+            self.capture.drop = None;
+            let held = FileDropEvent::Entered { position: point(px(x), px(y)), paths: ExternalPaths(vec!["held.png".into()].into()) };
+            window.defer(cx, move |window, cx| _ = window.dispatch_event(PlatformInput::FileDrop(held), cx));
+        }
         let inset = self.docked.get();
         if self.view.read(cx).composer_inset() != inset {
             self.view.update(cx, |v, cx| v.set_composer_inset(inset, cx));
@@ -461,7 +468,7 @@ impl Render for ThreadScreen {
         .absolute()
         .inset_0();
         // A sub-thread's machine that holds or blocks it says so in one strip over the composer, inside the dock.
-        let strip = self.view.read(cx).transcript().listed().and_then(|l| l.strip.as_ref()).map(|s| cards::strip(&self.view, s, cx));
+        let strip = self.view.read(cx).next_listing().and_then(|l| l.strip.as_ref()).map(|s| cards::strip(&self.view, s, cx));
         let height = self.composer.read(cx).drawn_height().filter(|_| !self.composer_moved.replace(false));
         self.composer.read(cx).lay_at(height);
         let composer = match height {
@@ -469,7 +476,7 @@ impl Render for ThreadScreen {
             None => self.composer.clone().into_any_element(),
         };
         let dock = div().debug_selector(|| "thread-dock".into()).relative().w_full().children(strip).child(composer).child(measure);
-        div()
+        let chat = div()
             .relative()
             .size_full()
             .when(self.view.read(cx).find_state().is_open(), |el| el.key_context(keys::THREAD_FIND))
@@ -491,7 +498,8 @@ impl Render for ThreadScreen {
                 super::composer::screen::column(true, dock).absolute().inset_0()
             } else {
                 div().absolute().bottom_0().left_0().right_0().child(dock)
-            })
+            });
+        super::composer::drop::chat(chat, &self.composer, window, cx)
     }
 }
 

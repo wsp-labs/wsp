@@ -159,7 +159,7 @@ test("the trace reader finds every frame over the limit and refuses a trace that
 });
 
 test("the ctrl-tab reader names every step that opened nothing or missed the first frame, and refuses a debug trace", () => {
-  const step = (n, from, to, frames, within) => ({ n, held: n > 0, sent_ms: n * 30, from, to, presented_ms: n * 30 + 9, rows_ms: n * 30 + 9 + frames * 16, latency_ms: 9, rows_latency_ms: 9 + frames * 16, frames_before_rows: frames, within_frame: within });
+  const step = (n, from, to, frames, within) => ({ n, held: n > 0, sent_ms: n * 30, from, to, presented_ms: n * 30 + 9, rows_ms: n * 30 + 9 + frames * 16, latency_ms: 9, rows_latency_ms: 9 + frames * 16, frames_before_rows: frames, within_frame: within, drew_loading: false });
   const spread = { median_ms: 9, p90_ms: 25, max_ms: 25 };
   const trace = {
     release: true,
@@ -185,6 +185,34 @@ test("the ctrl-tab reader names every step that opened nothing or missed the fir
     const quick = run([trace.steps[0]]);
     assert.equal(quick.status, 0, quick.stdout);
     assert.match(quick.stdout, /every step opened its thread within one frame/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("the ctrl-tab reader fails a hold in which any step drew the loading line, and refuses a trace that does not say", () => {
+  const step = (n, from, to, drew) => ({ n, held: n > 0, sent_ms: n * 30, from, to, presented_ms: n * 30 + 9, rows_ms: n * 30 + 9, latency_ms: 9, rows_latency_ms: 9, frames_before_rows: 0, within_frame: true, drew_loading: drew });
+  const spread = { median_ms: 9, p90_ms: 9, max_ms: 9 };
+  const steps = [step(0, "a", "b", false), step(1, "b", "c", true), step(2, "c", "d", false)];
+  const trace = { release: true, frame_ms: 16.7, repeat: { delay_ms: 225, every_ms: 30 }, steps, summary: { steps: 3, opened: 3, threads: 3, within_frame: 3, drew_loading: 1, key_to_frame: spread, key_to_rows: spread } };
+  assert.deepEqual(ctrlTab.loadingSteps(trace).map(s => s.n), [1]);
+  assert.deepEqual(ctrlTab.lateSteps(trace), [], "a step that drew the loading line can still have its rows in the first frame");
+  assert.match(ctrlTab.describe(steps[1]), /  LOADING$/);
+  assert.doesNotMatch(ctrlTab.describe(steps[0]), /LOADING/);
+  assert.match(ctrlTab.unfit({ ...trace, steps: [{ ...steps[0], drew_loading: undefined }] }), /loading line/);
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-ctrl-tab-test-"));
+  try {
+    const run = steps => {
+      writeFileSync(join(tmp, "t.json"), JSON.stringify({ ...trace, steps }));
+      return spawnSync(process.execPath, [join(here, "ctrl-tab.mjs"), join(tmp, "t.json")], { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } });
+    };
+    const drew = run(steps);
+    assert.equal(drew.status, 1, drew.stdout);
+    assert.match(drew.stdout, /1 steps drew the loading line: 1$/m);
+    assert.match(drew.stdout, /every step opened its thread within one frame/);
+    const clean = run([steps[0], steps[2]]);
+    assert.equal(clean.status, 0, clean.stdout);
+    assert.match(clean.stdout, /no step drew the loading line/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -247,6 +275,26 @@ test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the 
     assert.ok(held >= eventsOf(real) && held < 5000, `${held} events held of the real thread`);
     const cards = read("real").filter(r => r.who === "tool" && /^Changed \d+ files/.test(r.text));
     assert.equal(cards.length, THREADS.real.changes, "every turn that wrote files ends with what it changed");
+  } finally {
+    if (existsSync(out)) assert.equal(spawnSync(join(here, "stop.sh"), [out]).status, 0);
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("a bare fixture holds its short top-level threads and nothing else, as the Ctrl+Tab bench starts it", { skip: !existsSync(join(here, "../../../packages/host/dist/bin.js")) && "packages not built" }, () => {
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-bench-test-"));
+  const out = join(tmp, "fixture.json");
+  try {
+    const up = spawnSync(join(here, "fixture.sh"), [out, "3", "bare"], { encoding: "utf8", timeout: 120_000 });
+    assert.equal(up.status, 0, `${up.stdout}${up.stderr}`);
+    const fixture = JSON.parse(readFileSync(out, "utf8"));
+    assert.deepEqual(fixture.threads, {});
+    assert.equal(fixture.realHost.panesThread, undefined);
+    assert.equal(fixture.extra.length, 3);
+    const listed = spawnSync(process.execPath, [join(here, "../../../packages/host/dist/bin.js"), "threads", "--json", "--state", fixture.state], { encoding: "utf8", cwd: tmp, env: { HOME: dirname(dirname(fixture.state)), PATH: process.env.PATH }, timeout: 60_000 });
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.equal(listed.stdout.match(/"threadId"/g)?.length, 3, listed.stdout);
+    assert.equal(spawnSync(join(here, "fixture.sh"), [out, "3", "long"], { encoding: "utf8" }).status, 2, "only bare is a mode");
   } finally {
     if (existsSync(out)) assert.equal(spawnSync(join(here, "stop.sh"), [out]).status, 0);
     rmSync(tmp, { recursive: true, force: true });

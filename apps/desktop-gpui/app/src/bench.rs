@@ -32,13 +32,16 @@ pub struct Args {
     pub trace: Option<PathBuf>,
 }
 
-/// A capture's flags, each beside `--open`: `--theme <id>`, `--unfold`, `--now <ms>`, `--reveal <text>@<y>`.
+/// A capture's flags, each beside `--open`: `--theme <id>`, `--unfold`, `--now <ms>`, `--reveal <text>@<y>`,
+/// `--drop <x>,<y>`.
 #[derive(Debug, Default, PartialEq)]
 pub struct Capture {
     pub theme: Option<String>,
     pub unfold: bool,
     pub now: Option<f64>,
     pub reveal: Option<(String, f32)>,
+    /// Where in the window a file is held dragged, never let go, so the chat's drop frame stands for the shot.
+    pub drop: Option<(f32, f32)>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -133,6 +136,12 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
                 let (text, y) = said.rsplit_once('@').ok_or("--reveal takes <text>@<y>")?;
                 capture.reveal = Some((text.to_owned(), y.parse::<f32>().map_err(|e| format!("--reveal: {e}"))?));
             }
+            "--drop" => {
+                let said = value()?;
+                let (x, y) = said.split_once(',').ok_or("--drop takes <x>,<y>")?;
+                let num = |n: &str| n.trim().parse::<f32>().map_err(|e| format!("--drop: {e}"));
+                capture.drop = Some((num(x)?, num(y)?));
+            }
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -162,7 +171,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
         return Err("--screen goes without --bench and --gallery".to_owned());
     }
     if capture != Capture::default() && open.is_none() {
-        return Err("--theme, --unfold, --now and --reveal go with --open".to_owned());
+        return Err("--theme, --unfold, --now, --reveal and --drop go with --open".to_owned());
     }
     if (pointer.is_some() || unfold) && bench.as_ref().is_none_or(|b| b.replay.is_none()) {
         return Err("--bench-pointer and --bench-unfold go with --bench-replay".to_owned());
@@ -214,6 +223,8 @@ pub struct Step {
     pub to: Option<String>,
     pub presented_ms: Option<f64>,
     pub rows_ms: Option<f64>,
+    /// A frame presented between this key and the next drew the transcript's loading line.
+    pub loading: bool,
 }
 
 /// The Ctrl+Tab bench's trace: each step with how long its key took to reach the screen, and whether the opened
@@ -244,6 +255,7 @@ pub fn hold_result(hold: &Hold, steps: &[Step], frames_ms: &[f64]) -> serde_json
                 "n": n, "held": n > 0, "due_ms": s.due_ms, "sent_ms": s.sent_ms, "handled_ms": s.handled_ms, "from": s.from,
                 "to": s.to, "presented_ms": s.presented_ms, "rows_ms": s.rows_ms, "latency_ms": after(s, s.presented_ms),
                 "rows_latency_ms": after(s, s.rows_ms), "frames_before_rows": frames_before(s), "within_frame": within(s),
+                "drew_loading": s.loading,
             })
         })
         .collect();
@@ -258,6 +270,7 @@ pub fn hold_result(hold: &Hold, steps: &[Step], frames_ms: &[f64]) -> serde_json
             "opened": steps.iter().filter(|s| opened(s)).count(),
             "threads": distinct.len(),
             "within_frame": steps.iter().filter(|s| within(s)).count(),
+            "drew_loading": steps.iter().filter(|s| s.loading).count(),
             "key_to_frame": spread(&|s| after(s, s.presented_ms)),
             "key_to_rows": spread(&|s| after(s, s.rows_ms)),
         },
@@ -325,8 +338,14 @@ mod tests {
         assert_eq!(parse(words("--screen changes --open long")).unwrap().open, Some("long".to_owned()));
         assert!(parse(words("--screen settings --gallery")).is_err());
         let shot = parse(words("--open t --theme graphite --unfold --now 5 --reveal turn@189")).unwrap().capture;
-        assert_eq!(shot, Capture { theme: Some("graphite".into()), unfold: true, now: Some(5.), reveal: Some(("turn".into(), 189.)) });
+        assert_eq!(
+            shot,
+            Capture { theme: Some("graphite".into()), unfold: true, now: Some(5.), reveal: Some(("turn".into(), 189.)), drop: None }
+        );
         assert!(parse(words("--theme graphite")).is_err());
+        assert_eq!(parse(words("--open t --drop 700,300.5")).unwrap().capture.drop, Some((700., 300.5)));
+        assert!(parse(words("--drop 700,300")).is_err());
+        assert!(parse(words("--open t --drop 700")).is_err());
         let replay = parse(words("--bench /t.json --bench-thread real --bench-replay /e.jsonl")).unwrap().bench.unwrap();
         assert_eq!(replay.replay, Some(PathBuf::from("/e.jsonl")));
         assert!(parse(words("--bench /t.json --bench-thread real --bench-replay /e.jsonl --bench-switch a")).is_err());
@@ -391,6 +410,7 @@ mod tests {
             to: Some(to.into()),
             presented_ms: presented,
             rows_ms: rows,
+            loading: to == "t02",
         };
         let frames = [9., 25., 241., 258., 275.];
         let steps =
@@ -407,5 +427,6 @@ mod tests {
             (Some(2), Some(2), Some(1))
         );
         assert_eq!(summary["key_to_rows"]["max_ms"], 32.5);
+        assert_eq!((json["steps"][1]["drew_loading"].as_bool(), summary["drew_loading"].as_u64()), (Some(true), Some(1)));
     }
 }

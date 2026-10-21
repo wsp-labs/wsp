@@ -95,6 +95,8 @@ impl Sidebar {
             .workspaces
             .values()
             .filter(|w| w.get("kind").and_then(Value::as_str) == Some("cloud"))
+            // A machine whose record names a listed thread as the one that started it is drawn under that thread.
+            .filter(|w| !w.get("parentThreadId").and_then(Value::as_str).is_some_and(|lead| self.thread(lead).is_some()))
             .filter_map(|w| {
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
                 Some((made.map_or(0., |t| t.timestamp_millis() as f64), w.get("id")?.as_str()?.to_owned()))
@@ -260,7 +262,10 @@ impl Sidebar {
         };
         let hover = p.sidebar_row_hover;
         let hover_id = format!("c:{}", c.key);
-        let card = (self.card.as_deref() == Some(hover_id.as_str())).then(|| self.creation_card(&c, place.clone()));
+        let card = crate::ui::hover_card::shows(cx.entity_id(), &hover_id, cx).then(|| {
+            let opener = crate::ui::hover_card::opener(cx.entity_id(), hover_id.clone());
+            div().absolute().inset_0().child(opener).child(self.creation_card(&c, place.clone(), cx))
+        });
         let tile = self
             .plain_tile(
                 format!("creation-{}", c.key).into(),
@@ -288,7 +293,8 @@ impl Sidebar {
         div().px(px(8.)).child(div().relative().child(tile).children(card)).into_any_element()
     }
 
-    fn workspace_tile(&mut self, id: &str, cx: &mut Context<Self>) -> AnyElement {
+    /// A workspace's tile with no thread behind it: a press opens New thread on it.
+    pub(super) fn workspace_card(&mut self, id: &str, cx: &mut Context<Self>) -> AnyElement {
         let Some(w) = self.around.workspaces.get(id).cloned() else { return div().into_any_element() };
         let p = cx.palette().clone();
         let project = self.workspace_project(id);
@@ -312,6 +318,34 @@ impl Sidebar {
                 }),
             );
         let field = renaming.map(|input| self.rename_field(&input, cx).absolute().left(px(8.)).right(px(8.)).bottom(px(8.)).h(px(18.)));
-        div().px(px(8.)).child(div().relative().child(tile).children(field)).into_any_element()
+        div().relative().child(tile).children(field).into_any_element()
+    }
+
+    /// A workspace with no thread at the root of the list, 8 px in as every row is.
+    fn workspace_tile(&mut self, id: &str, cx: &mut Context<Self>) -> AnyElement {
+        div().px(px(8.)).child(self.workspace_card(id, cx)).into_any_element()
+    }
+
+    /// The cloud machines a listed thread started that hold no thread yet, newest first (threadTree.ts `forkedBy`).
+    pub(super) fn machines(&self) -> Vec<model::Machine> {
+        let held: std::collections::HashSet<&str> = self.threads.iter().map(|t| t.workspace_id.as_str()).collect();
+        let mut out: Vec<model::Machine> = self
+            .around
+            .workspaces
+            .values()
+            .filter(|w| w.get("kind").and_then(Value::as_str) == Some("cloud"))
+            .filter_map(|w| {
+                let workspace = w.get("id")?.as_str()?.to_owned();
+                let lead = w.get("parentThreadId")?.as_str()?;
+                let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
+                (!held.contains(workspace.as_str()) && self.thread(lead).is_some()).then(|| model::Machine {
+                    lead: lead.to_owned(),
+                    workspace,
+                    started_at: made.map_or(0., |t| t.timestamp_millis() as f64),
+                })
+            })
+            .collect();
+        out.sort_by(|a, b| b.started_at.total_cmp(&a.started_at).then_with(|| a.workspace.cmp(&b.workspace)));
+        out
     }
 }

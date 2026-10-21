@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use super::model::{self, Item, Under};
 use super::rows::Drawn;
-use super::Sidebar;
+use super::{Asked, Sidebar};
 use crate::ui::Palette;
 
 /// What a key does to the list.
@@ -129,6 +129,7 @@ impl Sidebar {
                     self.more(key.as_deref(), cx);
                 }
                 Item::Subagent { .. } => {}
+                Item::Machine { workspace } => cx.emit(Asked::NewThreadIn(workspace)),
             },
             Drawn::ForwardsHead => {
                 if !self.foot_folds.remove("forwards") {

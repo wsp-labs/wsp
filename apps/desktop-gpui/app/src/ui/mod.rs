@@ -15,6 +15,7 @@ pub mod digit_roll;
 pub mod focus;
 pub mod grain;
 pub mod grid;
+pub mod hover_card;
 pub mod icons;
 pub mod link;
 pub mod menu;

@@ -9,7 +9,7 @@ use gpui_kit::{deferred, div, prelude::*, px, relative, AnyElement, App, Context
 use super::model::{self, Account, AccountLine, Pool, PoolWindow, Tone};
 use super::parts::{agent_glyph, identity, quiet, rule, sized, surface, tip_skin, BLOCK_GAP, CARD_PAD};
 use super::{words, UsagePage};
-use crate::ui::{motion, ActivePalette, Button, Card, CardItem, DigitRoll, Skeleton};
+use crate::ui::{hover_card, ActivePalette, Button, Card, CardItem, DigitRoll, Skeleton};
 
 /// The window's figure column at its `14rem`.
 const WINDOW_COLUMN: f32 = 224.;
@@ -161,8 +161,9 @@ fn pool_window(agent: &str, window: PoolWindow, now: f64, win: &mut Window, cx: 
             let label: SharedString = s.account.label.clone().into();
             let said: SharedString = words::segment_tip(s.used, s.stale_at, s.resets_at, now, &tz).into();
             let id = SharedString::from(format!("segment-{agent}-{kind}-{ix}"));
-            let hovered = motion::hovered(id.clone(), win, cx);
-            let tip = (*hovered.read(cx)).then(|| {
+            let owner = win.current_view();
+            let shown = hover_card::shows(owner, &id, cx);
+            let tip = shown.then(|| {
                 let mono = cx.theme().mono_font_family.clone();
                 let body = tip_skin(cx)
                     .debug_selector(|| "segment-tip".into())
@@ -170,7 +171,9 @@ fn pool_window(agent: &str, window: PoolWindow, now: f64, win: &mut Window, cx: 
                     .text_xs()
                     .line_height(px(16.))
                     .child(div().text_color(p.foreground).child(label))
-                    .child(div().font_family(mono).text_color(p.muted_foreground).child(said));
+                    .child(div().font_family(mono).text_color(p.muted_foreground).child(said))
+                    .relative()
+                    .child(hover_card::card(owner, id.clone()));
                 div()
                     .absolute()
                     .top(px(-TIP_OFFSET))
@@ -182,15 +185,21 @@ fn pool_window(agent: &str, window: PoolWindow, now: f64, win: &mut Window, cx: 
                     .items_end()
                     .child(deferred(body))
             });
+            let opened = id.clone();
             div()
-                .id(id)
+                .id(id.clone())
                 .debug_selector(|| "usage-segment".into())
                 .relative()
                 .flex_1()
                 .h_full()
                 .rounded(px(SEGMENT_RADIUS))
                 .bg(p.foreground.opacity(0.09))
-                .on_hover(motion::track_hover(hovered))
+                .on_hover(move |hovered, _, cx| {
+                    if *hovered {
+                        hover_card::open(owner, opened.clone(), hover_card::POINTER, cx);
+                    }
+                })
+                .when(shown, |el| el.child(hover_card::opener(owner, id)))
                 .child(
                     div()
                         .absolute()

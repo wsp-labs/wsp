@@ -12,6 +12,7 @@ use gpui_kit::{
 
 use crate::thread_view::ThreadView;
 use crate::transcript::RowKind;
+use crate::ui::hover_card::{self, By, POINTER};
 use crate::ui::ActivePalette;
 
 /// `w-18`: the strip the rail stands in.
@@ -31,6 +32,8 @@ const ANCHOR: Pixels = px(24.);
 /// The card: `left-8 w-80`.
 const CARD_LEFT: Pixels = px(32.);
 pub const CARD_WIDTH: Pixels = px(320.);
+/// The ruler card's key among its view's hover cards.
+pub const CARD: &str = "minimap";
 /// `duration-150` on the rail's fade.
 const FADE: Duration = Duration::from_millis(150);
 
@@ -112,13 +115,18 @@ pub fn minimap(
     let count = marks.len();
     let focus = view.rail().focus.get_or_insert_with(|| cx.focus_handle().tab_stop(true)).clone();
     let focused = focus.is_focused(window);
+    let owner = cx.entity_id();
     let rail = view.rail();
     if focused && !rail.focused {
         rail.active = rail.active.or(Some(0));
+        hover_card::open(owner, CARD, By::Focus, cx);
     } else if !focused && rail.focused {
-        rail.active = None;
+        hover_card::close(owner, Some(CARD), cx);
     }
     rail.focused = focused;
+    if !hover_card::shows(owner, CARD, cx) {
+        rail.active = None;
+    }
     let active = rail.active.filter(|&a| a < count);
     let shown = persistent || rail.hovered || focused;
     let drawn = rail.drawn.clone();
@@ -190,17 +198,14 @@ pub fn minimap(
         .when(hit > px(0.), |el| {
             el.cursor_pointer()
                 .on_hover(cx.listener(|view, hovered: &bool, _, cx| {
-                    let rail = view.rail();
-                    rail.hovered = *hovered;
-                    if !*hovered {
-                        rail.active = None;
-                    }
+                    view.rail().hovered = *hovered;
                     cx.notify();
                 }))
                 .on_mouse_move(cx.listener(move |view, event: &MouseMoveEvent, _, cx| {
                     let rail = view.rail();
                     let Some(bounds) = rail.drawn.get() else { return };
                     let next = Some(index_at(event.position.y, bounds, count));
+                    hover_card::open(cx.entity_id(), CARD, POINTER, cx);
                     if rail.active != next {
                         rail.active = next;
                         cx.notify();
@@ -237,11 +242,13 @@ pub fn minimap(
                     _ => return,
                 };
                 rail.active = next;
+                hover_card::open(cx.entity_id(), CARD, By::Focus, cx);
                 cx.stop_propagation();
                 cx.notify();
             })
         })
         .when(focused, |el| el.child(div().absolute().inset(px(-2.)).rounded(px(4.)).border_2().border_color(p.ring.opacity(0.7))))
+        .when(active.is_some(), |el| el.child(hover_card::opener(owner, CARD)))
         .child(
             canvas(
                 move |bounds, _, _| drawn.set(Some(bounds)),
@@ -262,6 +269,7 @@ pub fn minimap(
                 .top(top + card_height.get() * shift)
                 .cursor_text()
                 .child(glass)
+                .child(hover_card::card(owner, CARD))
                 .child(
                     canvas(
                         move |bounds, window, _| {

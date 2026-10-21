@@ -24,6 +24,8 @@ use gpui_kit::{size, TestAppContext, VisualTestContext};
 use model::Item;
 use rows::Drawn;
 
+mod boat;
+mod drag;
 mod hover;
 mod steps;
 
@@ -416,7 +418,7 @@ fn carded(snap: Snapshot, cx: &mut TestAppContext) -> (Entity<Sidebar>, &mut Vis
     });
     sidebar.update(cx, |s, cx| {
         s.around.listed.insert("w0".into(), std::rc::Rc::new(vec![claude]));
-        s.card = Some("t:t0:false".into());
+        ui::hover_card::open(cx.entity_id(), "t:t0:false", ui::hover_card::By::Focus, cx);
         cx.notify();
     });
     for _ in 0..3 {
@@ -446,7 +448,7 @@ fn the_card_leads_with_the_status_line_done_and_its_check_and_the_age_beside_the
         if !read {
             sidebar.update(cx, |s, cx| {
                 s.apply(Change::Whole(Box::new(labelled(false, None))), cx);
-                s.card = Some("t:t0:false".into());
+                ui::hover_card::open(cx.entity_id(), "t:t0:false", ui::hover_card::By::Focus, cx);
                 cx.notify();
             });
             cx.run_until_parked();
