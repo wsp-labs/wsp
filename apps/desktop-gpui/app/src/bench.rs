@@ -56,6 +56,8 @@ pub struct Bench {
     pub unfold: bool,
     /// A held Ctrl+Tab played from the thread, in place of the scroll; `out` takes each step's trace.
     pub hold: Option<Hold>,
+    /// Threads opened one after another, as a person moves down the sidebar, in place of the scroll: memory after each.
+    pub session: Vec<String>,
 }
 
 /// A held Ctrl+Tab: its press and `steps - 1` repeats, the first `delay_ms` after the press and each next `every_ms`
@@ -83,13 +85,13 @@ impl Hold {
 
 /// `desktop-gpui [--state <state.json>] [--glass] [--open <id>] [--screen <name>]`, `desktop-gpui [--state <state.json>] [--glass]
 /// --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line> | --bench-replay <events.jsonl>
-/// [--bench-pointer <x>,<y>] [--bench-unfold] | --bench-ctrl-tab <steps> [--bench-repeat <delay ms>,<every ms>]]`,
+/// [--bench-pointer <x>,<y>] [--bench-unfold] | --bench-ctrl-tab <steps> [--bench-repeat <delay ms>,<every ms>] | --bench-session <id,id,...>]`,
 /// `desktop-gpui --open <id> [--theme <id>] [--unfold] [--now <ms>] [--reveal <text>@<y>]` for a capture,
 /// `desktop-gpui --open <id> [--record-scroll <events.jsonl>] [--trace <trace.json>]`, or `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen, mut terminal) =
         (None, None, None, Vec::new(), None, false, false, None, None);
-    let (mut replay, mut record, mut trace) = (None, None, None);
+    let (mut replay, mut record, mut trace, mut session) = (None, None, None, Vec::new());
     let (mut pointer, mut unfold) = (None, false);
     let (mut steps, mut repeat) = (None, None);
     let mut capture = Capture::default();
@@ -104,6 +106,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--gallery" => gallery = true,
             "--bench-switch" => switch = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--bench-terminal" => terminal = Some(value()?),
+            "--bench-session" => session = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--bench-replay" => replay = Some(PathBuf::from(value()?)),
             "--bench-pointer" => {
                 let said = value()?;
@@ -138,13 +141,13 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     }
     let (delay_ms, every_ms) = repeat.unwrap_or(MAC_REPEAT);
     let hold = steps.map(|steps| Hold { steps, delay_ms, every_ms });
-    let modes = [!switch.is_empty(), terminal.is_some(), replay.is_some(), hold.is_some()];
+    let modes = [!switch.is_empty(), terminal.is_some(), replay.is_some(), hold.is_some(), !session.is_empty()];
     let bench = match (out, thread) {
         (Some(out), Some(thread)) if modes.iter().filter(|x| **x).count() <= 1 => {
-            Some(Bench { out, thread, switch, terminal, replay, pointer, unfold, hold })
+            Some(Bench { out, thread, switch, terminal, replay, pointer, unfold, hold, session })
         }
         (Some(_), Some(_)) => {
-            return Err("--bench-switch, --bench-terminal, --bench-replay and --bench-ctrl-tab go one at a time".to_owned())
+            return Err("--bench-switch, --bench-terminal, --bench-replay, --bench-ctrl-tab and --bench-session go one at a time".to_owned())
         }
         (None, None) if !modes.contains(&true) => None,
         _ => return Err("--bench and --bench-thread go together".to_owned()),
@@ -298,7 +301,8 @@ mod tests {
                 replay: None,
                 pointer: None,
                 unfold: false,
-                hold: None
+                hold: None,
+                session: Vec::new()
             })
         );
         let typed =
@@ -332,6 +336,10 @@ mod tests {
         assert_eq!(over.bench.map(|b| (b.pointer, b.unfold)), Some((Some((380., 240.5)), true)));
         assert!(parse(words("--bench /t.json --bench-thread real --bench-pointer 1,2")).is_err());
         assert!(parse(words("--bench /t.json --bench-thread real --bench-replay /e.jsonl --bench-pointer 12")).is_err());
+        let session = parse(words("--bench /s.json --bench-thread a --bench-session a,b,c")).unwrap().bench.unwrap();
+        assert_eq!(session.session, vec!["a".to_owned(), "b".into(), "c".into()]);
+        assert!(parse(words("--bench /s.json --bench-thread a --bench-session a,b --bench-switch a")).is_err());
+        assert!(parse(words("--bench-session a,b")).is_err());
         let recorded = parse(words("--open t --record-scroll /e.jsonl --trace /t.json")).unwrap();
         assert_eq!((recorded.record, recorded.trace), (Some(PathBuf::from("/e.jsonl")), Some(PathBuf::from("/t.json"))));
         let held = parse(words("--bench /h.json --bench-thread t00 --bench-ctrl-tab 24")).unwrap().bench.unwrap();

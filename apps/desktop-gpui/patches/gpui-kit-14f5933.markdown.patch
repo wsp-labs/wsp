@@ -314,9 +314,17 @@ index 99c0a54..11e1bfa 100644
          }
          Node::List(list) => {
 diff --git a/crates/base/src/text/inline.rs b/crates/base/src/text/inline.rs
-index 1ccc24d..562764b 100644
+index 1ccc24d..9c1c6f5 100644
 --- a/crates/base/src/text/inline.rs
 +++ b/crates/base/src/text/inline.rs
+@@ -1,6 +1,6 @@
+ use gpui::Corners;
+ use std::{
+-    cell::RefCell,
++    cell::{Cell, RefCell},
+     collections::HashMap,
+     mem,
+     ops::Range,
 @@ -9,11 +9,12 @@ use std::{
  };
  
@@ -409,7 +417,35 @@ index 1ccc24d..562764b 100644
      /// What this frame's layout was shaped with, to hand the shaped text to
      /// the next frame (see [`RetainedLayout`]).
      retained_key: Option<(Vec<TextRun>, TextStyle)>,
-@@ -379,17 +412,26 @@ impl Inline {
+@@ -269,11 +302,14 @@ struct RetainedLayout {
+ 
+ thread_local! {
+     static RETAINED_LAYOUTS: RefCell<HashMap<usize, RetainedLayout>> = RefCell::new(HashMap::new());
++    /// The table's size at which dead entries are swept next: twice what was
++    /// live after the last sweep, and never below [`RETAINED_SWEEP_FLOOR`].
++    static RETAINED_SWEEP_AT: Cell<usize> = const { Cell::new(RETAINED_SWEEP_FLOOR) };
+ }
+ 
+ /// Dead entries (states that were dropped without a final paint, e.g. a
+-/// replaced document) are swept once the table grows past this many.
+-const RETAINED_SWEEP_AT: usize = 4096;
++/// closed document) are swept once the table holds this many at least.
++const RETAINED_SWEEP_FLOOR: usize = 64;
+ 
+ fn state_key(state: &Arc<Mutex<InlineState>>) -> usize {
+     Arc::as_ptr(state) as usize
+@@ -302,8 +338,9 @@ fn has_retained_layout(state: &Arc<Mutex<InlineState>>) -> bool {
+ fn retain_layout(state: &Arc<Mutex<InlineState>>, retained: RetainedLayout) {
+     RETAINED_LAYOUTS.with(|layouts| {
+         let mut layouts = layouts.borrow_mut();
+-        if layouts.len() >= RETAINED_SWEEP_AT {
++        if layouts.len() >= RETAINED_SWEEP_AT.get() {
+             layouts.retain(|_, retained| retained.state.strong_count() > 0);
++            RETAINED_SWEEP_AT.set((layouts.len() * 2).max(RETAINED_SWEEP_FLOOR));
+         }
+         layouts.insert(state_key(state), retained);
+     });
+@@ -379,17 +416,26 @@ impl Inline {
              styled_text: StyledText::new(text),
              text_style: None,
              paint_origin: None,
@@ -436,7 +472,7 @@ index 1ccc24d..562764b 100644
      /// Use the resolved style captured by a deferred parent layout.
      pub(super) fn text_style(mut self, text_style: TextStyle) -> Self {
          self.text_style = Some(text_style);
-@@ -402,6 +444,11 @@ impl Inline {
+@@ -402,6 +448,11 @@ impl Inline {
          self
      }
  
@@ -448,7 +484,7 @@ index 1ccc24d..562764b 100644
      pub(super) fn selection_bounds(mut self, bounds: Bounds<Pixels>) -> Self {
          self.selection_bounds = Some(bounds);
          self
-@@ -468,13 +515,18 @@ impl Inline {
+@@ -468,13 +519,18 @@ impl Inline {
                  bounds.top() + line_height * (row + 1) as f32,
              ),
          );
@@ -469,7 +505,7 @@ index 1ccc24d..562764b 100644
          );
      }
  
-@@ -830,6 +882,105 @@ impl Inline {
+@@ -830,6 +886,105 @@ impl Inline {
          }
      }
  
@@ -575,7 +611,7 @@ index 1ccc24d..562764b 100644
      /// Paint each range highlight behind the text of its range.
      fn paint_range_highlights(&self, text_layout: &TextLayout, window: &mut Window) {
          let glyphs = glyph_boxes(
-@@ -937,6 +1088,7 @@ impl Element for Inline {
+@@ -937,6 +1092,7 @@ impl Element for Inline {
          self.request_reveal(window);
  
          let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
@@ -583,7 +619,7 @@ index 1ccc24d..562764b 100644
          self.retain_styled_text();
          hitbox
      }
-@@ -1023,6 +1175,13 @@ impl Element for Inline {
+@@ -1023,6 +1179,13 @@ impl Element for Inline {
          }
  
          _ = text_layout.paint_foreground(window, cx);
@@ -597,7 +633,7 @@ index 1ccc24d..562764b 100644
  
          if is_selectable {
              if let Some(text_view_state) = GlobalState::global(cx).text_view_state() {
-@@ -1183,6 +1342,9 @@ impl Element for Inline {
+@@ -1183,6 +1346,9 @@ impl Element for Inline {
          }
  
          drop(state);
@@ -607,7 +643,7 @@ index 1ccc24d..562764b 100644
          self.retain_styled_text();
      }
  }
-@@ -1997,6 +2159,10 @@ mod tests {
+@@ -1997,6 +2163,10 @@ mod tests {
              style,
              font_family: Some(SharedString::from("Mono")),
              font_size_scale: None,
@@ -618,6 +654,45 @@ index 1ccc24d..562764b 100644
          }
      }
  
+@@ -2354,7 +2524,7 @@ mod retained_layout_tests {
+         TestAppContext, Window, div, px,
+     };
+ 
+-    use super::RETAINED_LAYOUTS;
++    use super::{RETAINED_LAYOUTS, RETAINED_SWEEP_FLOOR};
+     use crate::text::{TextView, TextViewState};
+ 
+     /// The same document shown twice in one window, as a preview beside the
+@@ -2472,4 +2642,29 @@ mod retained_layout_tests {
+         });
+         assert_eq!(alive, 3, "one live layout per remaining fragment");
+     }
++
++    /// Each document closed for the next one (a thread left for another)
++    /// leaves its layouts behind; they are swept as the table grows, not
++    /// kept until it holds thousands.
++    #[gpui::test]
++    fn the_layouts_of_closed_documents_are_swept(cx: &mut TestAppContext) {
++        cx.update(crate::init);
++        let (view, cx) = cx.add_window_view(|_, cx| Once {
++            state: cx.new(|cx| TextViewState::markdown("First.", cx)),
++        });
++        for n in 0..300 {
++            view.update(cx, |view, cx| {
++                let text = format!("Paragraph {n}.\n\nCall `foo` {n} now.");
++                view.state = cx.new(|cx| TextViewState::markdown(&text, cx));
++            });
++            cx.run_until_parked();
++            cx.update(|window, cx| window.draw(cx).clear(cx));
++        }
++
++        let held = RETAINED_LAYOUTS.with(|layouts| layouts.borrow().len());
++        assert!(
++            held <= 2 * RETAINED_SWEEP_FLOOR,
++            "300 closed documents left {held} layouts"
++        );
++    }
+ }
 diff --git a/crates/base/src/text/inline_flow.rs b/crates/base/src/text/inline_flow.rs
 index 7e06a42..a021120 100644
 --- a/crates/base/src/text/inline_flow.rs

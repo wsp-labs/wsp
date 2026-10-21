@@ -25,6 +25,8 @@ use super::tray::{self, OpenAsk, TrayAct, TrayHost, TrayInput, TrayModel};
 use super::{awake, quit};
 use crate::screens::sidebar::host::{ask as call, kind_of};
 use crate::screens::sidebar::looks::place_name;
+use crate::screens::sidebar::model::Row;
+use crate::screens::sidebar::shared;
 use crate::screens::Route;
 use crate::shell::Shell;
 
@@ -80,12 +82,14 @@ impl Prefs {
     }
 }
 
-/// `FeedState`: what the feed holds of the host the window is on.
+/// `FeedState`: what the feed holds of the host the window is on. The lists are shared, so the state the shell keeps
+/// and the one the feed's task folds pushes into are one copy until a read replaces them.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FeedState {
-    pub sessions: Vec<Value>,
-    pub workspaces: Vec<Value>,
-    pub places: Vec<Value>,
+    /// The rows the sidebar and Activity hold too ([`shared`]).
+    pub sessions: Arc<[Arc<Row>]>,
+    pub workspaces: Arc<[Value]>,
+    pub places: Arc<[Value]>,
     /// The prompts seen open, by the turn that asks each.
     pub asks: HashMap<String, OpenAsk>,
     /// A pick the host would not take, in its words, by the prompt it was made on, kept until a prompt closes.
@@ -301,13 +305,13 @@ async fn reread(client: &Arc<HostClient>, fed: &mut FeedState) -> Result<(), Fai
         listed(client, "workspaces.list", "workspaces"),
         listed(client, "places.list", "places"),
     );
-    fed.sessions = sessions?;
-    fed.workspaces = workspaces?;
+    fed.sessions = shared::rows_of(sessions?).into();
+    fed.workspaces = workspaces?.into();
     fed.places = match places {
-        Ok(places) => places,
+        Ok(places) => places.into(),
         Err(failure) => {
             super::log::error(&format!("menu bar: {}", failure.message));
-            Vec::new()
+            Arc::default()
         }
     };
     Ok(())
@@ -394,10 +398,7 @@ async fn listen(
                 Some(Ask::Answer { session_id, ask_id, option_id }) => {
                     let params = json!({ "sessionId": session_id, "askId": ask_id, "optionId": option_id });
                     let said = match call::<SessionsAnswerRequest>(client.clone(), params).await {
-                        Ok(reply) => {
-                            let reply = serde_json::to_value(&reply).unwrap_or_default();
-                            answer_words(reply.get("outcome").and_then(Value::as_str).unwrap_or("answered"))
-                        }
+                        Ok(reply) => answer_words(&reply.outcome.to_string()),
                         Err(failure) => Some(failure.message),
                     };
                     answered(fed, &ask_id, said);
@@ -726,12 +727,8 @@ mod tests {
     /// `host-feed.test.ts:123`: a socket gone drops the prompts, so rows lose Allow and Deny until the next read.
     #[test]
     fn a_lost_host_reads_as_lost_with_no_open_prompts() {
-        let mut fed = FeedState {
-            sessions: vec![
-                json!({ "id": "s1", "workspaceId": "ws_mac", "harness": "claude", "status": "running", "threadId": "t1", "asking": "Bash: ls" }),
-            ],
-            ..FeedState::default()
-        };
+        let row = json!({ "id": "s1", "workspaceId": "ws_mac", "harness": "claude", "status": "running", "threadId": "t1", "asking": "Bash: ls" });
+        let mut fed = FeedState { sessions: shared::rows_of(vec![row]).into(), ..FeedState::default() };
         heard(&mut fed, "session.permission", &permission());
         let allows = |fed: &FeedState| {
             fed.tray()
@@ -755,9 +752,10 @@ mod tests {
 
     #[test]
     fn awake_only_here_and_answering() {
+        let row = json!({ "id": "s1", "workspaceId": "ws_mac", "harness": "claude", "status": "running", "threadId": "t1" });
         let mut fed = FeedState {
-            sessions: vec![json!({ "id": "s1", "workspaceId": "ws_mac", "harness": "claude", "status": "running", "threadId": "t1" })],
-            workspaces: vec![json!({ "id": "ws_mac", "kind": "local" })],
+            sessions: shared::rows_of(vec![row]).into(),
+            workspaces: [json!({ "id": "ws_mac", "kind": "local" })].into(),
             ..FeedState::default()
         };
         assert!(fed.awake());

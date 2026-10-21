@@ -5,6 +5,7 @@
 // the message and the reply, so a thread of n turns shows 2n messages. `real` is shaped like a person's long thread
 // instead (real.mjs): screenshots, long pastes, long tool output, subagents, code in many languages, tables.
 import { realTurns, rng } from "./real.mjs";
+import { sessionPlan } from "./session.mjs";
 
 /** The host keeps 5,000 events of a thread and drops the oldest past that (TRANSCRIPT_CAP); a turn is 5 events and a
  * tool call 2 more, so `long` is the most turns that fit whole with some calls among them: 900 * 5 + 200 * 2 = 4,900. */
@@ -84,7 +85,7 @@ function tool(r) {
 /** A thread's turns, `{ prompt, tools: [{ name, input, output }], reply }`: exactly CODE_SHARE of the replies carry
  * code, and the thread's calls fall on turns at random. */
 export function turnsOf(name) {
-  const plan = THREADS[name];
+  const plan = THREADS[name] ?? sessionPlan(name);
   if (plan === undefined) throw new Error(`no bench thread ${name}`);
   if (plan.shape === "real") return realTurns(plan);
   const r = rng(plan.seed);

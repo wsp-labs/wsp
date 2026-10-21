@@ -16,7 +16,7 @@ use super::words::{
 };
 use crate::screens::settings::model::{req, At, Data, Reread};
 use crate::screens::settings::page::{CardData, Ctx, Item};
-use crate::screens::sidebar::{host::values, menu};
+use crate::screens::sidebar::menu::{self, values};
 use crate::ui::computer_glyph::{computer_glyph, default_icon};
 use crate::ui::context_menu::{ContextMenu, MenuItem};
 use crate::ui::grid::{LIST_COLUMNS, LIST_COLUMNS_NARROW};

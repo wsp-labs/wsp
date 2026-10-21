@@ -353,9 +353,11 @@ fn subagents_stand_under_their_lead_and_count() {
         asked: None,
         failure: None,
         last_line: None,
+        tokens: None,
+        duration_ms: None,
     };
     let lead = Row {
-        subagents: vec![sub("s1", SubagentState::Running), sub("s2", SubagentState::Done)],
+        subagents: vec![sub("s1", SubagentState::Running), sub("s2", SubagentState::Done)].into(),
         ..row("lead", Status::Running, NOW - HOUR)
     };
     let all = view(&[lead]);

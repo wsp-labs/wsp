@@ -31,7 +31,7 @@ fn family(now: f64) -> Snapshot {
     let mut folded = row("r3", "completed", None, 30.);
     folded["foldedAt"] = json!(now - 3_000.);
     let mut snap = snapshot(0, now);
-    snap.sessions = vec![
+    snap.sessions = crate::screens::sidebar::shared::rows_of(vec![
         row("r1", "completed", None, 10.),
         row("r2", "completed", None, 20.),
         row("k1", "running", Some("r2"), 21.),
@@ -51,7 +51,7 @@ fn family(now: f64) -> Snapshot {
         settled(row("s2", "completed", None, 70.)),
         settled(row("s2k", "completed", Some("s2"), 71.)),
         settled(row("s3", "completed", None, 80.)),
-    ];
+    ]);
     snap
 }
 

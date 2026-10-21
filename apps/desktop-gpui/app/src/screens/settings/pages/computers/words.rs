@@ -14,7 +14,7 @@ use wsp_host_client::protocol::{
 
 use crate::screens::settings::pages::agents::catalog::AGENTS;
 pub use crate::screens::settings::words::{built_when, capitalised, here_name, is_here, HERE};
-use crate::screens::sidebar::{host::values, menu};
+use crate::screens::sidebar::menu::{self, values};
 pub use crate::screens::terminal::state::Absent;
 pub use crate::ui::fmt_bytes;
 

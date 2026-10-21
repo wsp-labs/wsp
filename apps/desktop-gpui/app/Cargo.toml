@@ -30,6 +30,12 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"] }
 # A link's domain read as a browser reads the address, as the web's slateLinkDomain does with URL.
 url = "2"
+# The heap-profile feature's sampled call stacks (src/heap.rs); off in every build the app ships.
+backtrace = { version = "0.3", optional = true }
+
+[features]
+# A counting, sampling allocator for memory readings (src/heap.rs, bench/session.sh), off by default.
+heap-profile = ["dep:backtrace"]
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 # The browser pane's page: WKWebView on the Mac, WebKitGTK on Linux, as a child of GPUI's window. 0.53 is the last
@@ -116,6 +122,10 @@ harness = false
 
 [[test]]
 name = "text"
+harness = false
+
+[[test]]
+name = "atlas_trim"
 harness = false
 
 [[test]]

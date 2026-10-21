@@ -7,18 +7,18 @@ use std::time::Duration;
 
 use futures::channel::mpsc;
 use serde::de::DeserializeOwned;
-use serde_json::{json, Value};
+use serde_json::{Map, Value};
 use tokio::runtime::Runtime;
-use wsp_host_client::protocol::{
-    ForwardsListRequest, InitGetRequest, PlacesListRequest, PreferencesGetRequest, ProjectsListRequest, ReleaseGetRequest,
-    SessionsListRequest, WorkspacesListRequest,
-};
 use wsp_host_client::{Event, Failure, HostClient, Op};
 
-/// What the host holds that the sidebar draws, as the JSON it sent, which the model reads by the protocol's names.
+use super::model::Row;
+use super::shared;
+
+/// What the host holds that the sidebar draws: the rows every reader shares, and the rest as the JSON the host sent,
+/// which the model reads by the protocol's names.
 #[derive(Clone, Debug, Default)]
 pub struct Snapshot {
-    pub sessions: Vec<Value>,
+    pub sessions: Vec<Arc<Row>>,
     pub workspaces: Vec<Value>,
     pub projects: Vec<Value>,
     pub places: Vec<Value>,
@@ -99,31 +99,40 @@ async fn call<O: Op + DeserializeOwned>(host: &HostClient, params: Value) -> Res
     host.call(op).await
 }
 
-pub(crate) fn values<T: serde::Serialize>(items: &[T]) -> Vec<Value> {
-    items.iter().filter_map(|i| serde_json::to_value(i).ok()).collect()
+/// One read op's answer under `key` as the host sent it, which the sidebar reads by the protocol's names, so no reply is
+/// typed and then turned back into JSON.
+async fn sent(host: &HostClient, op: &str, key: &str) -> Result<Value, Failure> {
+    host.call_raw(op, Map::new()).await?.remove(key).ok_or_else(|| Failure::new(format!("{op} answered no {key}")))
+}
+
+async fn listed(host: &HostClient, op: &str, key: &str) -> Result<Vec<Value>, Failure> {
+    match sent(host, op, key).await? {
+        Value::Array(items) => Ok(items),
+        _ => Err(Failure::new(format!("{op} answered no list of {key}"))),
+    }
 }
 
 /// Reads everything the sidebar draws; with `subscribe`, also the workspace statuses, through the socket's one
 /// `status.subscribe` the panes share.
 pub async fn read(host: &HostClient, subscribe: bool) -> Result<Snapshot, Failure> {
     let statuses = if subscribe { host.statuses().await.unwrap_or_default() } else { Vec::new() };
-    let release = call::<ReleaseGetRequest>(host, json!({})).await.ok().and_then(|r| serde_json::to_value(&r.release).ok());
-    let forwards = call::<ForwardsListRequest>(host, json!({})).await.map(|f| values(&f.forwards)).unwrap_or_default();
-    let (sessions, workspaces, projects, places, preferences, setup) = futures::try_join!(
-        call::<SessionsListRequest>(host, json!({})),
-        call::<WorkspacesListRequest>(host, json!({})),
-        call::<ProjectsListRequest>(host, json!({})),
-        call::<PlacesListRequest>(host, json!({})),
-        call::<PreferencesGetRequest>(host, json!({})),
-        call::<InitGetRequest>(host, json!({})),
+    let release = sent(host, "release.get", "release").await.ok();
+    let forwards = listed(host, "forwards.list", "forwards").await.unwrap_or_default();
+    let (sessions, workspaces, projects, places, preferences, mut setup) = futures::try_join!(
+        shared::sessions(host, Map::new()),
+        listed(host, "workspaces.list", "workspaces"),
+        listed(host, "projects.list", "projects"),
+        listed(host, "places.list", "places"),
+        sent(host, "preferences.get", "preferences"),
+        sent(host, "init.get", "setup"),
     )?;
     Ok(Snapshot {
-        sessions: values(&sessions.sessions),
-        workspaces: values(&workspaces.workspaces),
-        projects: values(&projects.projects),
-        places: values(&places.places),
-        preferences: serde_json::to_value(&preferences.preferences).unwrap_or_default(),
-        job: setup.setup.job.as_ref().and_then(|j| serde_json::to_value(j).ok()),
+        sessions,
+        workspaces,
+        projects,
+        places,
+        preferences,
+        job: setup.get_mut("job").map(Value::take).filter(|j| !j.is_null()),
         statuses,
         release,
         forwards,
@@ -133,9 +142,9 @@ pub async fn read(host: &HostClient, subscribe: bool) -> Result<Snapshot, Failur
 async fn again(host: &HostClient, what: Again) -> Result<Change, Failure> {
     Ok(match what {
         Again::Sessions => Change::Whole(Box::new(read(host, false).await?)),
-        Again::Places => Change::Places(values(&call::<PlacesListRequest>(host, json!({})).await?.places)),
-        Again::Workspaces => Change::Workspaces(values(&call::<WorkspacesListRequest>(host, json!({})).await?.workspaces)),
-        Again::Projects => Change::Projects(values(&call::<ProjectsListRequest>(host, json!({})).await?.projects)),
+        Again::Places => Change::Places(listed(host, "places.list", "places").await?),
+        Again::Workspaces => Change::Workspaces(listed(host, "workspaces.list", "workspaces").await?),
+        Again::Projects => Change::Projects(listed(host, "projects.list", "projects").await?),
     })
 }
 

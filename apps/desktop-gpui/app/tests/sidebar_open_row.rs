@@ -37,7 +37,10 @@ fn snapshot(now: f64) -> Snapshot {
         r
     };
     Snapshot {
-        sessions: vec![row("lead", "Coordinator", "completed", None, true), row("sub", "Review the panes", "failed", Some("lead"), false)],
+        sessions: desktop_gpui::sidebar::shared::rows_of(vec![
+            row("lead", "Coordinator", "completed", None, true),
+            row("sub", "Review the panes", "failed", Some("lead"), false),
+        ]),
         workspaces: vec![json!({ "id": "w0", "name": "w0", "kind": "local", "project": { "id": "p1" } })],
         projects: vec![json!({ "id": "p1", "name": "repo", "path": "/repo", "computer": "here" })],
         places: vec![json!({ "id": "here", "kind": "computer", "name": "boat" })],

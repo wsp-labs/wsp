@@ -5,6 +5,7 @@
 //! on macOS, the desktop portal's inhibitor on Linux.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use gpui_kit::{ActivityGuard, App, AsyncApp, Global};
 use serde_json::Value;
@@ -15,7 +16,7 @@ use crate::screens::sidebar::model::{fold_threads, Row, Status};
 const REASON: &str = "wsp threads are working on this computer";
 
 /// `awakeWanted`.
-pub fn awake_wanted(sessions: &[Value], workspaces: &[Value], keep_awake: bool) -> bool {
+pub fn awake_wanted(sessions: &[Arc<Row>], workspaces: &[Value], keep_awake: bool) -> bool {
     if !keep_awake {
         return false;
     }
@@ -24,8 +25,7 @@ pub fn awake_wanted(sessions: &[Value], workspaces: &[Value], keep_awake: bool) 
         .filter(|w| w.get("kind").and_then(Value::as_str) == Some("local"))
         .filter_map(|w| w.get("id").and_then(Value::as_str))
         .collect();
-    let rows: Vec<Row> = sessions.iter().filter_map(Row::of).collect();
-    fold_threads(&rows).iter().any(|t| here.contains(t.workspace_id.as_str()) && !t.asks && t.status == Status::Running)
+    fold_threads(sessions).iter().any(|t| here.contains(t.workspace_id.as_str()) && !t.asks && t.status == Status::Running)
 }
 
 /// The hold while one stands, and which ask it answers, so a hold that lands after it was let go is dropped.
@@ -84,10 +84,10 @@ mod tests {
         vec![json!({ "id": "ws_mac", "kind": "local" }), json!({ "id": "ws_box", "kind": "cloud", "place": "pl_box" })]
     }
 
-    fn row(over: Value) -> Value {
+    fn row(over: Value) -> Arc<Row> {
         let mut row = json!({ "workspaceId": "ws_mac", "harness": "claude", "status": "running" });
         row.as_object_mut().unwrap().extend(over.as_object().unwrap().clone());
-        row
+        Arc::new(Row::of(&row).unwrap())
     }
 
     /// `awake.test.ts:18`.

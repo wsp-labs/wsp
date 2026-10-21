@@ -16,10 +16,39 @@ index b8dda5e..23990b0 100644
          config.no_includes = true;
          config.enumeration.prefix_with_name = true;
 diff --git a/src/metal_atlas.rs b/src/metal_atlas.rs
-index a635bc4..3a7967f 100644
+index a635bc4..0e64df6 100644
 --- a/src/metal_atlas.rs
 +++ b/src/metal_atlas.rs
-@@ -135,7 +135,15 @@ impl MetalAtlasTextures {
+@@ -3,7 +3,7 @@ use derive_more::{Deref, DerefMut};
+ use etagere::BucketedAtlasAllocator;
+ use gpui::{
+     AtlasBackend, AtlasKey, AtlasState, AtlasTextureId, AtlasTextureKind, AtlasTextureList,
+-    AtlasTile, Bounds, DevicePixels, PlatformAtlas, Point, Size,
++    AtlasTile, AtlasUsage, Bounds, DevicePixels, PlatformAtlas, Point, Size,
+ };
+ use metal::Device;
+ use parking_lot::Mutex;
+@@ -49,6 +49,19 @@ impl PlatformAtlas for MetalAtlas {
+     fn remove(&self, key: &AtlasKey) {
+         self.0.lock().remove(key);
+     }
++
++    fn usage(&self) -> AtlasUsage {
++        let lock = self.0.lock();
++        let bytes = |textures: &AtlasTextureList<MetalAtlasTexture>| -> u64 {
++            let textures = textures.textures.iter().flatten();
++            textures.map(|t| t.metal_texture.width() * t.metal_texture.height() * t.bytes_per_pixel() as u64).sum()
++        };
++        AtlasUsage { glyphs: bytes(&lock.backend.monochrome_textures), images: bytes(&lock.backend.polychrome_textures) }
++    }
++
++    fn sweep_glyphs(&self) {
++        self.0.lock().remove_glyphs();
++    }
+ }
+ 
+ impl AtlasBackend for MetalAtlasTextures {
+@@ -135,7 +148,15 @@ impl MetalAtlasTextures {
              width: DevicePixels(16384),
              height: DevicePixels(16384),
          };

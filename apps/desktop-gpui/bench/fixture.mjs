@@ -7,6 +7,8 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, symlinkSync, 
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { THREADS, turnsOf } from "./content.mjs";
+import { sessionNames } from "./session.mjs";
+import { seededState } from "./seed.mjs";
 import { shot } from "./real.mjs";
 import { encode } from "../parity/png.mjs";
 
@@ -33,6 +35,13 @@ mkdirSync(join(dir, "state"));
 symlinkSync(join(here, "claude-stub.mjs"), join(dir, "bin", "claude"));
 const state = join(dir, "state", "state.json");
 const began = Date.now();
+if (process.env.BENCH_SEED) {
+  const { STATE_SHAPE, DAEMON_VERSION } = await import(pathToFileURL(join(here, "../../../packages/protocol/dist/index.js")).href);
+  const seeded = seededState({ threads: Number(process.env.BENCH_SEED), workspaces: Math.ceil(Number(process.env.BENCH_SEED) / 10), dir });
+  for (const project of Object.values(seeded.projects)) mkdirSync(project.path, { recursive: true });
+  const shape = { shape: STATE_SHAPE, wsp: "fixture", daemon: DAEMON_VERSION, bin: "fixture.mjs", at: new Date().toISOString() };
+  writeFileSync(state, `${JSON.stringify({ $shape: shape, ...seeded })}\n`);
+}
 
 const log = openSync(join(dir, "up.log"), "a");
 // The real host's shape: this computer carries a display name apart from its hostname, as a Mac's does (real-host.mjs).
@@ -96,8 +105,8 @@ async function changesRecorded(thread, n) {
 }
 
 const threads = {};
-let changing = 0;
-for (const name of Object.keys(THREADS)) {
+const changing = {};
+for (const name of [...Object.keys(THREADS), ...sessionNames(process.env.BENCH_SESSION)]) {
   const started = Date.now();
   for (const [i, turn] of turnsOf(name).entries()) {
     writeFileSync(join(dir, "bench-turn.json"), JSON.stringify({ thread: name, turn: i }));
@@ -113,10 +122,10 @@ for (const name of Object.keys(THREADS)) {
       });
       await wsp("send", threads[name], ...files.flat(), turn.prompt);
     }
-    if ((turn.files ?? []).length > 0) await changesRecorded(threads[name], ++changing);
+    if ((turn.files ?? []).length > 0) await changesRecorded(threads[name], (changing[name] = (changing[name] ?? 0) + 1));
     if ((i + 1) % 100 === 0) console.log(`fixture: ${name}, ${i + 1} turns`);
   }
-  console.log(`fixture: ${name} ${threads[name]}, ${THREADS[name].turns} turns in ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  console.log(`fixture: ${name} ${threads[name]}, ${turnsOf(name).length} turns in ${((Date.now() - started) / 1000).toFixed(1)} s`);
 }
 
 // The real host's shape, kept apart from the bench's threads and their timing: a project with no thread, and one thread

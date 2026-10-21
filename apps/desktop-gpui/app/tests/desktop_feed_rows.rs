@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use desktop_gpui::desktop::feed::{self, Fed, FeedState};
+use desktop_gpui::screens::sidebar::model::Status;
 use futures::channel::mpsc;
 use futures::StreamExt;
 use futures_util::SinkExt;
@@ -149,8 +150,9 @@ fn a_row_the_record_cannot_read_is_read_as_sent_and_the_feed_stays() {
     let counts = [&asked.sockets, &asked.auths, &asked.subscribes].map(|n| n.load(Ordering::SeqCst));
     assert_eq!(counts, [1, 1, 1], "sockets, auths and subscriptions over 3 s");
     let read = states.iter().find(|s| !s.lost).expect("the feed read the host");
-    assert_eq!((read.sessions.len(), ids(&read.sessions)), (2, vec!["s1", "s2"]), "the rows with no id are skipped, the others read");
-    assert_eq!(read.sessions[1]["status"], "dreaming", "a row the record cannot read is read as sent");
+    let rows: Vec<&str> = read.sessions.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(rows, ["s1", "s2"], "the rows with no id are skipped, the others read");
+    assert_eq!(read.sessions[1].status, Status::Other("dreaming".to_owned()), "a row the record cannot read is read as sent");
     assert_eq!(ids(&read.workspaces), ["ws_mac"]);
     assert_eq!(read.label(), "boat");
     assert!(states.iter().all(|s| !s.lost), "the host never read as lost: {:?}", states.iter().map(|s| s.lost).collect::<Vec<_>>());

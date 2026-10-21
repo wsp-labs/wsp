@@ -7,10 +7,11 @@ mod kinds;
 mod list;
 
 use serde_json::{json, Value};
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-use crate::screens::app_shell::title::thread_title;
+use crate::screens::app_shell::title::{opening_title, thread_title};
 
 pub use kinds::{
     kind_of, kind_slot, kind_word, recedes, resets_word, resting_age, running_time, slot, subagent_kind, tile_kind, tile_slot, word, Kind,
@@ -143,6 +144,9 @@ pub struct Subagent {
     pub asked: Option<String>,
     pub failure: Option<String>,
     pub last_line: Option<String>,
+    /// Its usage: tokens in and out together, and how long it ran, which Activity draws.
+    pub tokens: Option<f64>,
+    pub duration_ms: Option<f64>,
 }
 
 /// The sections a thread's own state files it under; a placement names one of these.
@@ -177,13 +181,15 @@ pub struct Placement {
 }
 
 /// One row of the host's `sessions.list`, holding only what the sidebar reads.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Row {
     pub id: String,
     pub workspace_id: String,
     pub harness: String,
     pub status: Status,
     pub claude_session_id: Option<String>,
+    /// `startedBy` is an agent: its thread reports to that agent, not the person.
+    pub started_by_agent: bool,
     /// The agent refused the turn (`refusal`), so it did none of the work asked of it.
     pub refused: bool,
     pub thread_id: Option<String>,
@@ -212,7 +218,8 @@ pub struct Row {
     pub project_id: Option<String>,
     pub project_name: Option<String>,
     pub computer_name: Option<String>,
-    pub subagents: Vec<Subagent>,
+    /// Shared with the thread folded from the row, which draws them.
+    pub subagents: std::sync::Arc<[Subagent]>,
     pub read_at: Option<f64>,
     pub settled_at: Option<f64>,
     pub pinned_at: Option<f64>,
@@ -232,6 +239,9 @@ pub struct Row {
     pub model: Option<String>,
     /// The thread it was forked from, by its id.
     pub forked_from_thread: Option<String>,
+    /// The turn's process and its agent's, which Activity names.
+    pub pid: Option<i64>,
+    pub agent_pid: Option<i64>,
     /// The records the thread view reads whole, kept only where the host sent one: the open question this thread waits
     /// behind (`waitingOn`), the threads at once that hold it (`capped`), and a sub-thread's machine (`sub`).
     pub waiting_on_record: Option<Value>,
@@ -245,6 +255,25 @@ impl Row {
         let row = Row::of(&v)?;
         let mut take = |k: &str| v.get_mut(k).map(Value::take).filter(|x| !x.is_null());
         Some(Row { waiting_on_record: take("waitingOn"), capped_record: take("capped"), sub_record: take("sub"), ..row })
+    }
+
+    /// The row as the sidebar keeps it. A settled thread keeps what the sidebar draws of it: its opening words cut to
+    /// the title they make, and of each subagent the title, state and times, not what it was asked or said. The open
+    /// thread's rows are read whole again ([`super::shared::whole`]).
+    pub fn kept(mut self) -> Row {
+        if self.settled_at.is_some() {
+            self.prompt = self.prompt.as_deref().map(opening_title);
+            if self.subagents.iter().any(|s| s.asked.is_some() || s.last_line.is_some() || s.failure.is_some()) {
+                self.subagents =
+                    self.subagents.iter().map(|s| Subagent { asked: None, last_line: None, failure: None, ..s.clone() }).collect();
+            }
+        }
+        self
+    }
+
+    /// Whether [`Row::kept`] cuts this row.
+    pub fn cuts(&self) -> bool {
+        self.settled_at.is_some()
     }
 
     /// The row as the host would send it, for the fields the thread header reads.
@@ -271,6 +300,7 @@ impl Row {
             harness: s(v, "harness").unwrap_or_default(),
             status: Status::parse(v.get("status").and_then(Value::as_str).unwrap_or("completed")),
             claude_session_id: s(v, "claudeSessionId"),
+            started_by_agent: s(v, "startedBy").as_deref() == Some("agent"),
             refused: present("refusal"),
             thread_id: s(v, "threadId"),
             parent_thread_id: s(v, "parentThreadId"),
@@ -297,7 +327,7 @@ impl Row {
             project_id: v.get("project").and_then(|p| s(p, "id")),
             project_name: v.get("project").and_then(|p| s(p, "name")),
             computer_name: s(v, "computerName"),
-            subagents: v.get("subagents").and_then(Value::as_array).map_or_else(Vec::new, |subs| {
+            subagents: v.get("subagents").and_then(Value::as_array).map_or_else(Default::default, |subs| {
                 subs.iter()
                     .filter_map(|x| {
                         Some(Subagent {
@@ -316,6 +346,8 @@ impl Row {
                             asked: s(x, "asked"),
                             failure: s(x, "failure"),
                             last_line: s(x, "lastLine"),
+                            tokens: x.pointer("/usage/tokens").map(|t| n(t, "input").unwrap_or(0.) + n(t, "output").unwrap_or(0.)),
+                            duration_ms: x.pointer("/usage/durationMs").and_then(Value::as_f64),
                         })
                     })
                     .collect()
@@ -341,6 +373,8 @@ impl Row {
             asking_text: s(v, "asking"),
             model: s(v, "model"),
             forked_from_thread: v.get("forkedFrom").and_then(|f| s(f, "threadId")),
+            pid: v.get("pid").and_then(Value::as_i64),
+            agent_pid: v.get("agentPid").and_then(Value::as_i64),
             waiting_on_record: None,
             capped_record: None,
             sub_record: None,
@@ -392,7 +426,7 @@ pub struct Thread {
     pub section: Option<Placement>,
     pub replaces: Option<String>,
     pub replaced_by: Option<String>,
-    pub subagents: Vec<Subagent>,
+    pub subagents: std::sync::Arc<[Subagent]>,
     pub unread: bool,
     pub needs_you: bool,
     /// The latest turn's folder and the harness's own session id, which the terminal resumes.
@@ -415,10 +449,10 @@ impl Thread {
 }
 
 /// Folds the session rows into threads, in the order each thread's first row appears (session.ts foldThreads).
-pub fn fold_threads(rows: &[Row]) -> Vec<Thread> {
+pub fn fold_threads<R: Borrow<Row>>(rows: &[R]) -> Vec<Thread> {
     let mut at: HashMap<&str, usize> = HashMap::with_capacity(rows.len());
     let mut groups: Vec<(usize, usize, Option<f64>)> = Vec::new();
-    for (i, row) in rows.iter().enumerate() {
+    for (i, row) in rows.iter().map(R::borrow).enumerate() {
         let key = row.thread_id.as_deref().unwrap_or(&row.id);
         if let Some(&g) = at.get(key) {
             let group = &mut groups[g];
@@ -432,14 +466,14 @@ pub fn fold_threads(rows: &[Row]) -> Vec<Thread> {
         }
     }
     let ran = |row: &Row| row.status == Status::Running || (row.claude_session_id.is_some() && !row.refused);
-    let ran_in: HashMap<&str, bool> = rows.iter().fold(HashMap::new(), |mut m, row| {
+    let ran_in: HashMap<&str, bool> = rows.iter().map(R::borrow).fold(HashMap::new(), |mut m, row| {
         *m.entry(row.thread_id.as_deref().unwrap_or(&row.id)).or_default() |= ran(row);
         m
     });
     groups
         .into_iter()
         .map(|(first, latest, cost)| {
-            let mut thread = thread_of(&rows[first], &rows[latest], cost);
+            let mut thread = thread_of(rows[first].borrow(), rows[latest].borrow(), cost);
             thread.ran = ran_in.get(thread.key.as_str()).copied().unwrap_or(false);
             thread
         })

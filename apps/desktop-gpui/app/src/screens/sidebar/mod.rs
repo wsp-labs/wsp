@@ -17,6 +17,7 @@ pub(crate) mod menu;
 pub mod model;
 mod rename;
 pub mod rows;
+pub mod shared;
 mod switcher;
 pub(crate) mod tile;
 pub(crate) mod walk;
@@ -227,6 +228,17 @@ pub(crate) struct Around {
     catalog_waiters: HashMap<String, Vec<CatalogWaiter>>,
 }
 
+/// Whether `row` stands in the tree of `thread`: the thread itself, or a thread under it.
+fn in_tree(row: &Row, thread: &str) -> bool {
+    [row.thread_id.as_deref(), row.root_thread_id.as_deref(), row.parent_thread_id.as_deref()].contains(&Some(thread))
+}
+
+/// A workspace's agents as one copy shared with every workspace that listed the same ones: the workspaces of one
+/// computer list one catalog, and a host with hundreds of them held it hundreds of times.
+fn shared_catalog(held: &HashMap<String, Rc<Vec<Value>>>, listed: Vec<Value>) -> Rc<Vec<Value>> {
+    held.values().find(|kept| ***kept == listed).cloned().unwrap_or_else(|| Rc::new(listed))
+}
+
 /// What waits on a workspace's agents being read, told whether they came.
 type CatalogWaiter = Box<dyn FnOnce(bool, &mut App)>;
 
@@ -273,7 +285,8 @@ pub struct Sidebar {
     working: HashSet<String>,
     note: Option<String>,
     refusal: Option<String>,
-    rows: Vec<Row>,
+    /// Shared with the feed and Activity ([`shared`]).
+    rows: Vec<Arc<Row>>,
     threads: Vec<Thread>,
     lines: Vec<Line>,
     /// Every row the list draws, and what each stands for, read off what it was drawn from.
@@ -485,11 +498,64 @@ impl Sidebar {
             .iter()
             .any(|l| matches!(&l.item, Item::Tile(t) if t.shape == Shape::Settled && self.threads[t.thread].key == item.thread_id));
         self.held = (!settled).then(|| item.thread_id.clone());
-        self.selected = Some(item.thread_id.clone());
+        let left = self.selected.replace(item.thread_id.clone()).filter(|left| *left != item.thread_id);
         self.opened = None;
         self.folds.open = self.selected.clone();
+        if let Some(left) = left {
+            for row in self.rows.iter_mut().filter(|r| r.cuts() && in_tree(r, &left)) {
+                *row = shared::share((**row).clone().kept());
+            }
+        }
         self.rebuild(cx);
+        self.read_whole(cx);
         Some(item)
+    }
+
+    /// A row as the sidebar keeps it: whole in the open thread's tree, whose view draws what a settled row leaves out,
+    /// else cut and shared with the other readers ([`Row::kept`]).
+    fn keep(&self, row: Row) -> Arc<Row> {
+        match &self.selected {
+            Some(open) if row.cuts() && in_tree(&row, open) => Arc::new(row),
+            _ => shared::share(row.kept()),
+        }
+    }
+
+    /// Reads whole the open thread's rows that are kept cut, on each workspace they stand on; the thread left has its
+    /// rows cut again ([`Sidebar::mark`]).
+    fn read_whole(&mut self, cx: &mut Context<Self>) {
+        let Some(open) = self.selected.clone() else { return };
+        let workspaces: HashSet<String> =
+            self.rows.iter().filter(|r| r.cuts() && in_tree(r, &open) && shared::holds(r)).map(|r| r.workspace_id.clone()).collect();
+        let Some(link) = self.link.clone().filter(|_| !workspaces.is_empty()) else { return };
+        let task = link.runtime.spawn(async move {
+            let mut whole = Vec::new();
+            for workspace in workspaces {
+                whole.extend(shared::whole(&link.host, &workspace).await?);
+            }
+            Ok::<_, wsp_host_client::Failure>(whole)
+        });
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(whole)) = task.await else { return };
+            _ = this.update(cx, |this, cx| {
+                if this.selected.as_deref() != Some(open.as_str()) {
+                    return;
+                }
+                let whole: HashMap<String, Row> = whole.into_iter().filter(|r| in_tree(r, &open)).map(|r| (r.id.clone(), r)).collect();
+                let mut moved = false;
+                for row in &mut this.rows {
+                    // Only a row still as it was read: a push or a full read that landed since is newer than the answer.
+                    if let Some(read) = whole.get(&row.id).filter(|read| (*read).clone().kept() == **row) {
+                        *row = Arc::new(read.clone());
+                        moved = true;
+                    }
+                }
+                if moved {
+                    this.revision += 1;
+                    this.refold(cx);
+                }
+            });
+        })
+        .detach();
     }
 
     /// Marks no thread as the open one, as a page with none selected (the New thread page, the computer's own) shows.
@@ -577,16 +643,22 @@ impl Sidebar {
     /// One change the host pushed, or its first read.
     pub fn apply(&mut self, change: Change, cx: &mut Context<Self>) {
         match change {
-            Change::Whole(snapshot) => self.take(*snapshot),
+            Change::Whole(snapshot) => {
+                self.take(*snapshot);
+                self.read_whole(cx);
+            }
             Change::Row { id, row } => {
                 let at = self.rows.iter().position(|r| r.id == id);
                 match (at, row.and_then(Row::owned)) {
                     (Some(at), Some(row)) => {
                         // A pushed row may leave out the prompt the row it replaces carried.
-                        let prompt = self.rows[at].prompt.take();
-                        self.rows[at] = Row { prompt: row.prompt.clone().or(prompt), ..row };
+                        let prompt = row.prompt.clone().or_else(|| self.rows[at].prompt.clone());
+                        self.rows[at] = self.keep(Row { prompt, ..row });
                     }
-                    (None, Some(row)) => self.rows.push(row),
+                    (None, Some(row)) => {
+                        let row = self.keep(row);
+                        self.rows.push(row);
+                    }
                     (Some(at), None) => {
                         self.rows.remove(at);
                     }
@@ -665,7 +737,7 @@ impl Sidebar {
     }
 
     /// Every session row the host listed, on every computer whatever the list is narrowed to.
-    pub fn rows(&self) -> &[Row] {
+    pub fn rows(&self) -> &[Arc<Row>] {
         &self.rows
     }
 
@@ -691,7 +763,7 @@ impl Sidebar {
         self.threads = match &self.computer {
             None => model::fold_threads(&self.rows),
             Some(on) => {
-                let rows: Vec<Row> =
+                let rows: Vec<Arc<Row>> =
                     self.rows.iter().filter(|r| self.place_of(&r.workspace_id).as_deref() == Some(on.as_str())).cloned().collect();
                 model::fold_threads(&rows)
             }
@@ -776,7 +848,8 @@ impl Sidebar {
                 let landed = listed.is_some();
                 if let Some(listed) = listed {
                     *slot = catalog;
-                    this.around.listed.insert(workspace.clone(), Rc::new(listed));
+                    let shared = shared_catalog(&this.around.listed, listed);
+                    this.around.listed.insert(workspace.clone(), shared);
                 }
                 cx.notify();
                 let waiters = this.around.catalog_waiters.remove(&workspace).unwrap_or_default();
@@ -812,7 +885,7 @@ impl Sidebar {
     }
 
     fn take(&mut self, s: Snapshot) {
-        self.rows = s.sessions.into_iter().filter_map(Row::owned).collect();
+        self.rows = s.sessions;
         self.around.places = s.places;
         self.around.job = s.job.map(Rc::new);
         if !s.statuses.is_empty() {
