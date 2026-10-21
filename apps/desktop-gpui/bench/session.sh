@@ -45,7 +45,7 @@ fi
 [ -x "$gpui_app" ] || { echo "no app at $gpui_app" >&2; exit 1; }
 
 if [ -z "${BENCH_FIXTURE:-}" ]; then
-  echo "== starting the fixture's host with 30 bench threads (about 20 minutes)"
+  echo "== starting the fixture's host with 30 bench threads (5 to 15 minutes)"
   started_fixture=1
   BENCH_SESSION=25 "$bench/fixture.sh" "$fixture"
 fi
