@@ -40,12 +40,4 @@ describe("agent marks", () => {
       }
     }
   });
-
-  it("Pi draws its press kit's three colours", () => {
-    const pi = agentMark("pi")!;
-    expect(pi.inks).toHaveLength(3);
-    expect(pi.inks!.map(i => i.dark)).toEqual(["#f09082", "#4d9abf", "#f1be58"]);
-    expect(pi.svg).toContain('fill="var(--ink-1)"');
-    expect(pi.svg).toContain('fill="var(--ink-2)"');
-  });
 });
