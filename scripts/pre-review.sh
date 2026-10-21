@@ -4,13 +4,13 @@
 # ready. Each check prints PASS, FAIL, WARN or SKIP with its reason, every
 # check runs even after one fails, and any FAIL exits 1. The test files the
 # branch changes run, then the ones its change reaches through imports. --laws
-# runs only the laws and the size check, on the branch merged with
-# origin/main, and --build builds the packages they load first. --changed,
-# a builder's gate, adds a typecheck of the packages the change reaches and
-# runs the laws with the other tests in one run; the full suite is CI's.
-# --review runs only the branch's changed test files, on the branch and on the
-# merge-base's sources. A ticket number prints the lines a report on it has to
-# answer.
+# runs only the laws, the size check and the test budget, on the branch
+# merged with origin/main, and --build builds the packages they load first.
+# --changed, a builder's gate, adds a typecheck of the packages the change
+# reaches and runs the laws with the other tests in one run; the full suite is
+# CI's. --review runs only the branch's changed test files, on the branch and
+# on the merge-base's sources. A ticket number prints the lines a report on it
+# has to answer.
 set -u
 
 usage='usage: scripts/pre-review.sh [--laws | --changed | --review] [--build] [<ticket number>]'
@@ -53,6 +53,7 @@ LAWS=(
   packages/protocol/test/repo-names.test.ts
   packages/protocol/test/fixture-privacy.test.ts
   packages/host/test/file-size-check.test.ts
+  packages/host/test/test-budget.test.ts
   apps/web/test/design-literals.test.ts
   apps/web/test/design-pieces.test.ts
   apps/web/test/has-selectors.test.ts
@@ -322,6 +323,18 @@ elif [ -f "$laws_at/scripts/file-size-check.mjs" ]; then
   fi
 else
   skip "the size check" "scripts/file-size-check.mjs is not on this branch"
+fi
+
+if [ -z "$laws_at" ]; then
+  :
+elif [ -f "$laws_at/scripts/test-budget.mjs" ]; then
+  if said=$(cd "$laws_at" && node scripts/test-budget.mjs 2>&1); then
+    pass "the test budget: $said"
+  else
+    fail "the test budget" "$(printf '%s' "$said" | tail -n 5 | joined)"
+  fi
+else
+  skip "the test budget" "scripts/test-budget.mjs is not on this branch"
 fi
 
 if [ $mode = review ]; then
