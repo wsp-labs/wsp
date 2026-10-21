@@ -72,6 +72,10 @@ fn take_link(words: Vec<String>) -> (Vec<String>, Option<String>) {
     (words.into_iter().filter(|word| Some(word) != link.as_ref()).collect(), link)
 }
 
+#[cfg(feature = "heap-profile")]
+#[global_allocator]
+static HEAP: desktop_gpui::heap::Counting = desktop_gpui::heap::Counting;
+
 fn main() {
     let (words, link) = take_link(std::env::args().skip(1).collect());
     let (words, pane) = take_pane(words.into_iter()).unwrap_or_else(|e| {
@@ -84,9 +88,10 @@ fn main() {
     });
     // `--screen browser` with no state runs the pane's own checks on a page it serves, with no host.
     let browser_check = args.screen.as_deref() == Some(screens::browser::NAME) && args.state.is_none();
+    let session = args.bench.as_ref().is_some_and(|b| !b.session.is_empty());
     if let Some(name) = &pane {
-        if args.open.is_none() {
-            eprintln!("desktop-gpui: --pane goes with --open");
+        if args.open.is_none() && !session {
+            eprintln!("desktop-gpui: --pane goes with --open or --bench-session");
             std::process::exit(64);
         }
         if name != LAUNCHER && !screens::screen(name).is_some_and(|e| matches!(e.place, Place::Panel(_))) {
@@ -164,7 +169,7 @@ fn main() {
             let (state, env, runtime) = reopen.clone();
             let main = reopen.clone();
             let window =
-                Rc::new(move |cx: &mut App| open_main(main.0.clone(), main.1.clone(), main.2.clone(), Launch::default(), None, cx));
+                Rc::new(move |cx: &mut App| open_main(main.0.clone(), main.1.clone(), main.2.clone(), Launch::default(), None, false, cx));
             startup::open_later(state, env, runtime, window, cx);
         }
     });
@@ -223,7 +228,7 @@ fn main() {
         }
         let reopen = {
             let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
-            Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), None, cx))
+            Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), None, false, cx))
         };
         #[cfg(target_os = "macos")]
         desktop::mac::offer_move(cx);
@@ -237,13 +242,22 @@ fn main() {
         if plain {
             startup::open(state, env, runtime, reopen, cx);
         } else {
-            open_main(state, env, runtime, launch, pane.clone(), cx);
+            open_main(state, env, runtime, launch, pane.clone(), session, cx);
         }
     });
 }
 
-/// The app's window, the shell in it, with `pane` opened in the right panel once the shell first shows a thread.
-fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, launch: Launch, pane: Option<String>, cx: &mut App) {
+/// The app's window, the shell in it, with `pane` opened in the right panel once the shell first shows a thread, or for
+/// a bench `session` once the host answers, so the pane stands through the reading at rest.
+fn open_main(
+    state: PathBuf,
+    env: Env,
+    runtime: Arc<tokio::runtime::Runtime>,
+    launch: Launch,
+    pane: Option<String>,
+    session: bool,
+    cx: &mut App,
+) {
     let options = WindowOptions { window_decorations: frame::decorations(), ..startup::window_options(cx) };
     cx.open_window(options, |window, cx| {
         let shell = cx.new(|cx| Shell::new(state, env, runtime, launch, window, cx));
@@ -252,7 +266,7 @@ fn open_main(state: PathBuf, env: Env, runtime: Arc<tokio::runtime::Runtime>, la
             let mut pane = Some(pane);
             window
                 .observe(&shell, cx, move |shell, window, cx| {
-                    if matches!(shell.read(cx).route(), Route::Thread { .. }) {
+                    if matches!(shell.read(cx).route(), Route::Thread { .. }) || (session && shell.read(cx).connected()) {
                         match pane.take() {
                             Some(pane) if pane == LAUNCHER => {
                                 let panel = shell.read(cx).panel().clone();

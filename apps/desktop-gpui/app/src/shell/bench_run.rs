@@ -87,6 +87,7 @@ pub(super) enum Phase {
         start: Instant,
         presented: Presented,
     },
+    Session(super::bench_session::Session),
 }
 
 /// When the terminal bench's frames were painted, or its shell's output batches arrived.
@@ -123,6 +124,9 @@ impl Shell {
         if !window.is_window_active() && (measuring || run.began.elapsed() > FOCUS_WAIT) {
             eprintln!("desktop-gpui: the bench window has no focus, and GPUI caps a window without focus at 30 fps");
             std::process::exit(UNFOCUSED);
+        }
+        if !run.args.session.is_empty() {
+            return self.session_tick(run, window, cx);
         }
         match &run.phase {
             Phase::Opening => {
@@ -328,6 +332,7 @@ impl Shell {
                     run.phase = Self::rest(n + 1, cx);
                 }
             }
+            Phase::Session(_) => {}
         }
         let timed = matches!(run.phase, Phase::Resting { n, .. } if n >= TIMED_SWITCHES);
         if timed || (run.args.switch.is_empty() && matches!(run.phase, Phase::Switching { .. })) {
@@ -382,6 +387,7 @@ impl Shell {
             Some(Phase::Settling { .. }) => "waiting to start the replay".to_owned(),
             Some(Phase::Replaying { .. }) => "replaying wheel events".to_owned(),
             Some(Phase::Stepping { held, .. }) => format!("holding ctrl-tab, {} steps sent", held.steps()),
+            Some(Phase::Session(_)) => "opening the session's threads".to_owned(),
             None => "past its last step".to_owned(),
         }
     }
@@ -455,7 +461,7 @@ impl Shell {
     }
 
     /// Opens a thread as a click does and watches for the first presented frame that shows it.
-    fn bench_open(&mut self, thread: &str, window: &mut Window, cx: &mut Context<Self>) -> Presented {
+    pub(super) fn bench_open(&mut self, thread: &str, window: &mut Window, cx: &mut Context<Self>) -> Presented {
         let Some(item) = self.sidebar.read(cx).items().iter().find(|i| i.thread_id == thread).cloned() else {
             eprintln!("desktop-gpui: the host lists no thread {thread}");
             std::process::exit(1);

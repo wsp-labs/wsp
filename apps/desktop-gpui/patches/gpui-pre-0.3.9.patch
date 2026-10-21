@@ -514,10 +514,111 @@ index 5692b1e..8000249 100644
      fn gpu_specs(&self) -> Option<GpuSpecs> {
          None
 diff --git a/src/platform.rs b/src/platform.rs
-index c08d964..5b4a927 100644
+index c08d964..9be22cb 100644
 --- a/src/platform.rs
 +++ b/src/platform.rs
-@@ -2077,7 +2077,10 @@ impl PlatformInputHandler {
+@@ -1749,12 +1749,29 @@ pub trait PlatformAtlas {
+     ) -> Result<Option<AtlasTile>>;
+     fn remove(&self, key: &AtlasKey);
+ 
++    /// The bytes the atlas's textures hold now.
++    fn usage(&self) -> AtlasUsage {
++        AtlasUsage::default()
++    }
++
++    /// Lets go of every glyph and SVG tile; the next paint rasterizes again the ones it draws.
++    fn sweep_glyphs(&self) {}
++
+     #[cfg(any(test, feature = "test-support", feature = "bench-support"))]
+     fn contains(&self, _key: &AtlasKey) -> bool {
+         false
+     }
+ }
+ 
++/// What a sprite atlas's textures hold, in bytes.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct AtlasUsage {
++    /// The pages of glyphs and SVGs.
++    pub glyphs: u64,
++    /// The pages of images and emoji.
++    pub images: u64,
++}
++
+ #[doc(hidden)]
+ pub trait AtlasBackend {
+     fn insert(
+@@ -1824,6 +1841,18 @@ impl<Backend: AtlasBackend> AtlasState<Backend> {
+             self.backend.remove(tile);
+         }
+     }
++
++    /// Removes every tile but those of images, which their owners drop themselves.
++    pub fn remove_glyphs(&mut self) {
++        let backend = &mut self.backend;
++        self.tiles_by_key.retain(|key, tile| {
++            let image = matches!(key, AtlasKey::Image(_));
++            if !image {
++                backend.remove(*tile);
++            }
++            image
++        });
++    }
+ }
+ 
+ /// A sprite atlas for windows without a GPU. It hands out uniquely identified
+@@ -1836,6 +1865,17 @@ pub struct HeadlessAtlas(parking_lot::Mutex<AtlasState<HeadlessAtlasBackend>>);
+ #[derive(Default)]
+ pub struct HeadlessAtlasBackend {
+     next_id: u32,
++    /// The bytes its tiles would take; a real atlas counts its whole pages instead.
++    usage: AtlasUsage,
++}
++
++impl HeadlessAtlasBackend {
++    fn count(&mut self, kind: AtlasTextureKind, size: Size<DevicePixels>, more: bool) {
++        let texel = if kind == AtlasTextureKind::Monochrome { 1 } else { 4 };
++        let bytes = size.width.0.max(0) as u64 * size.height.0.max(0) as u64 * texel;
++        let held = if kind == AtlasTextureKind::Polychrome { &mut self.usage.images } else { &mut self.usage.glyphs };
++        *held = if more { *held + bytes } else { held.saturating_sub(bytes) };
++    }
+ }
+ 
+ impl AtlasBackend for HeadlessAtlasBackend {
+@@ -1845,6 +1885,7 @@ impl AtlasBackend for HeadlessAtlasBackend {
+         size: Size<DevicePixels>,
+         _bytes: &[u8],
+     ) -> Result<AtlasTile> {
++        self.count(kind, size, true);
+         self.next_id += 1;
+         let texture_id = self.next_id;
+         self.next_id += 1;
+@@ -1863,7 +1904,9 @@ impl AtlasBackend for HeadlessAtlasBackend {
+         })
+     }
+ 
+-    fn remove(&mut self, _tile: AtlasTile) {}
++    fn remove(&mut self, tile: AtlasTile) {
++        self.count(tile.texture_id.kind, tile.bounds.size, false);
++    }
+ }
+ 
+ impl PlatformAtlas for HeadlessAtlas {
+@@ -1879,6 +1922,14 @@ impl PlatformAtlas for HeadlessAtlas {
+         self.0.lock().remove(key);
+     }
+ 
++    fn usage(&self) -> AtlasUsage {
++        self.0.lock().backend.usage
++    }
++
++    fn sweep_glyphs(&self) {
++        self.0.lock().remove_glyphs();
++    }
++
+     #[cfg(any(test, feature = "test-support", feature = "bench-support"))]
+     fn contains(&self, key: &AtlasKey) -> bool {
+         self.0.lock().contains(key)
+@@ -2077,7 +2128,10 @@ impl PlatformInputHandler {
  
      pub fn bounds_for_range(&mut self, range_utf16: Range<usize>) -> Option<Bounds<Pixels>> {
          self.cx
@@ -529,7 +630,7 @@ index c08d964..5b4a927 100644
              .ok()
              .flatten()
      }
-@@ -2145,7 +2148,10 @@ impl PlatformInputHandler {
+@@ -2145,7 +2199,10 @@ impl PlatformInputHandler {
      #[allow(unused)]
      pub fn character_index_for_point(&mut self, point: Point<Pixels>) -> Option<usize> {
          self.cx
@@ -541,7 +642,7 @@ index c08d964..5b4a927 100644
              .ok()
              .flatten()
      }
-@@ -2163,7 +2169,10 @@ impl PlatformInputHandler {
+@@ -2163,7 +2220,10 @@ impl PlatformInputHandler {
      /// See [`InputHandler::element_bounds`].
      pub fn element_bounds(&mut self) -> Option<Bounds<Pixels>> {
          self.cx
@@ -1445,7 +1546,7 @@ index 13ee752..14432ba 100644
      async fn test_with_timeout(cx: &mut TestAppContext) {
          Task::ready(())
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..6e720a2 100644
+index 1214b03..ec82f86 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -6,7 +6,8 @@ use crate::Inspector;
@@ -1453,7 +1554,7 @@ index 1214b03..6e720a2 100644
  use crate::{
      Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
 -    AsyncWindowContext, AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow,
-+    AsyncWindowContext, AtlasTile, AvailableSpace, BackdropBlur, Background, BorderStyle, Bounds,
++    AsyncWindowContext, AtlasTile, AtlasUsage, AvailableSpace, BackdropBlur, Background, BorderStyle, Bounds,
 +    BoxShadow, Primitive, RoundedClipId,
      Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
      DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
@@ -2350,7 +2451,30 @@ index 1214b03..6e720a2 100644
              order: 0,
              bounds,
              content_mask,
-@@ -5287,6 +5660,31 @@ impl Window {
+@@ -5171,6 +5544,22 @@ impl Window {
+         });
+     }
+ 
++    /// What this window's sprite atlas holds.
++    pub fn atlas_usage(&self) -> AtlasUsage {
++        self.sprite_atlas.usage()
++    }
++
++    /// Lets go of the glyph and SVG tiles of this window's sprite atlas and draws every view again, so no cached view
++    /// paints a tile that is gone; true where it did, since nothing changes while the window draws.
++    pub fn sweep_glyph_atlas(&mut self) -> bool {
++        let idle = self.invalidator.not_drawing();
++        if idle {
++            self.sprite_atlas.sweep_glyphs();
++            self.refresh();
++        }
++        idle
++    }
++
+     /// Removes an image from the sprite atlas.
+     pub fn drop_image(&mut self, data: Arc<RenderImage>) -> Result<()> {
+         for frame_index in 0..data.frame_count() {
+@@ -5287,6 +5676,31 @@ impl Window {
          bounds
      }
  
@@ -2382,7 +2506,7 @@ index 1214b03..6e720a2 100644
      /// This method should be called during `prepaint`. You can use
      /// the returned [Hitbox] during `paint` or in an event handler
      /// to determine whether the inserted hitbox was the topmost.
-@@ -6654,7 +7052,7 @@ impl Window {
+@@ -6654,7 +7068,7 @@ impl Window {
          self.on_next_frame(|window, cx| {
              if let Some(mut input_handler) = window.platform_window.take_input_handler() {
                  if let Some(bounds) = input_handler.selected_bounds(window, cx) {

@@ -30,7 +30,8 @@ fn the_strips_copy_exports_the_work_and_push_again_asks_the_thread(cx: &mut Test
     RAN.with(|r| r.borrow_mut().clear());
     let row = json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": "completed", "threadId": "t", "startedAt": 1.0,
         "sub": {"state": "running", "on": "box", "branch": "wsp/fix", "held": {"files": 2, "commits": 1}}});
-    let rows: Vec<crate::screens::sidebar::model::Row> = [row].into_iter().filter_map(crate::screens::sidebar::model::Row::owned).collect();
+    let rows: Vec<std::sync::Arc<crate::screens::sidebar::model::Row>> =
+        [row].into_iter().filter_map(crate::screens::sidebar::model::Row::owned).map(std::sync::Arc::new).collect();
     let strip_of = Listing::listed(&rows, "t", 10.0, None, &json!({}), "Mac mini").strip.expect("no strip for work not pushed");
     assert_eq!(strip_of.acts, [transcript::StripAct::CopyHome("Mac mini".into()), transcript::StripAct::PushAgain("wsp/fix".into())]);
     let view = cx.new(ThreadView::new);
@@ -98,8 +99,8 @@ fn a_sub_thread_whose_cloud_left_or_whose_machine_goes_says_so_over_its_composer
         let mut row =
             json!({"id": "s1", "workspaceId": "w", "harness": "claude", "status": status, "threadId": "t", "startedAt": 1.0, "sub": sub});
         row.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
-        let rows: Vec<crate::screens::sidebar::model::Row> =
-            [row].into_iter().filter_map(crate::screens::sidebar::model::Row::owned).collect();
+        let rows: Vec<std::sync::Arc<crate::screens::sidebar::model::Row>> =
+            [row].into_iter().filter_map(crate::screens::sidebar::model::Row::owned).map(std::sync::Arc::new).collect();
         Listing::listed(&rows, "t", 0.0, None, &json!({}), "Mac mini").strip
     };
     let deleting = rows(json!({"state": "running", "on": "box", "branch": "wsp/fix", "deleteAt": 90.0 * 60_000.}), "completed", json!({}));
@@ -148,7 +149,7 @@ fn a_sub_thread_killed_for_memory_asks_its_lead_to_start_again_at_the_next_size(
     let cloud = json!({"id": "p", "kind": "provider", "name": "box", "plan": {"sizes": ["2x4", "4x8", "8x16"]},
         "sizes": [{"cpu": 2, "memMb": 4096}, {"cpu": 8, "memMb": 16384}, {"cpu": 4, "memMb": 8192}, {"cpu": 4, "memMb": 6144}]});
     let snapshot = Snapshot {
-        sessions: vec![lead, sub],
+        sessions: crate::screens::sidebar::shared::rows_of(vec![lead, sub]),
         workspaces: vec![json!({"id": "w", "name": "fix-docs", "kind": "cloud", "phase": "running"})],
         places: vec![cloud],
         ..Snapshot::default()

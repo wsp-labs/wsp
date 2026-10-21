@@ -634,10 +634,42 @@ index bf5f629..73c59cb 100644
 +    );
 +}
 diff --git a/src/wgpu_atlas.rs b/src/wgpu_atlas.rs
-index b541607..ed04fd3 100644
+index b541607..03b9a4c 100644
 --- a/src/wgpu_atlas.rs
 +++ b/src/wgpu_atlas.rs
-@@ -195,7 +195,15 @@ impl WgpuAtlasTextures {
+@@ -2,7 +2,7 @@ use anyhow::{Context as _, Result};
+ use etagere::{BucketedAtlasAllocator, size2};
+ use gpui::{
+     AtlasBackend, AtlasKey, AtlasState, AtlasTextureId, AtlasTextureKind, AtlasTextureList,
+-    AtlasTile, Bounds, DevicePixels, PlatformAtlas, Point, Size,
++    AtlasTile, AtlasUsage, Bounds, DevicePixels, PlatformAtlas, Point, Size,
+ };
+ use parking_lot::Mutex;
+ use std::{borrow::Cow, ops, sync::Arc};
+@@ -122,6 +122,22 @@ impl PlatformAtlas for WgpuAtlas {
+     fn remove(&self, key: &AtlasKey) {
+         self.0.lock().remove(key);
+     }
++
++    fn usage(&self) -> AtlasUsage {
++        let lock = self.0.lock();
++        let bytes = |kind: AtlasTextureKind| -> u64 {
++            let textures = lock.backend.storage[kind].textures.iter().flatten();
++            textures.map(|t| t.texture.width() as u64 * t.texture.height() as u64 * t.bytes_per_pixel() as u64).sum()
++        };
++        AtlasUsage {
++            glyphs: bytes(AtlasTextureKind::Monochrome) + bytes(AtlasTextureKind::Subpixel),
++            images: bytes(AtlasTextureKind::Polychrome),
++        }
++    }
++
++    fn sweep_glyphs(&self) {
++        self.0.lock().remove_glyphs();
++    }
+ }
+ 
+ impl AtlasBackend for WgpuAtlasTextures {
+@@ -195,7 +211,15 @@ impl WgpuAtlasTextures {
              height: DevicePixels(max_texture_size),
          };
  

@@ -4,7 +4,7 @@
 //! which closes the link, so nothing samples while it is closed. The totals carry a line of the last minutes, kept for
 //! as long as the page stands and dropped with it.
 
-pub(crate) mod live;
+pub mod live;
 pub mod model;
 mod pickers;
 mod pieces;
@@ -34,6 +34,7 @@ use crate::screens::settings::page::{CardData, Ctx, DialogBuild};
 use crate::screens::settings::words::HERE;
 use crate::screens::settings::Acts;
 use crate::screens::sidebar::menu::{absent_of, place_of};
+use crate::screens::sidebar::model::{Row, Status as RowStatus, Subagent, SubagentState};
 use crate::screens::Host;
 use crate::ui::catalog;
 use crate::ui::context_menu::ContextMenu;
@@ -234,9 +235,9 @@ fn computers(places: &[(PlaceView, ComputerIcon)], workspaces: &[Value]) -> Vec<
 }
 
 /// The thread's title as the sidebar gives it, else the id its first turn goes by.
-fn title_of(first: &Value, latest: &Value) -> String {
-    thread_title(field(latest, "harnessTitle"), field(first, "prompt"))
-        .unwrap_or_else(|| field(first, "claudeSessionId").or(field(first, "id")).unwrap_or_default().to_owned())
+fn title_of(first: &Row, latest: &Row) -> String {
+    thread_title(latest.harness_title.as_deref(), first.prompt.as_deref())
+        .unwrap_or_else(|| first.claude_session_id.clone().unwrap_or_else(|| first.id.clone()))
 }
 
 fn now_ms() -> f64 {
@@ -254,16 +255,16 @@ pub(crate) fn threads_on(
     let mut threads = Vec::new();
     let mut latests = Vec::new();
     let listed = listed(places);
-    for w in &listing.workspaces {
+    for w in listing.workspaces.iter() {
         if place_of(w, &listed).as_deref() != Some(computer.place.id.as_str()) {
             continue;
         }
         let Some(wid) = field(w, "id") else { continue };
         let project = w.pointer("/project/name").and_then(Value::as_str).unwrap_or_default().to_owned();
         let mut order: Vec<String> = Vec::new();
-        let mut turns: HashMap<String, Vec<&Value>> = HashMap::new();
-        for s in listing.sessions.iter().filter(|s| field(s, "workspaceId") == Some(wid)) {
-            let key = field(s, "threadId").or(field(s, "id")).unwrap_or_default().to_owned();
+        let mut turns: HashMap<String, Vec<&Arc<Row>>> = HashMap::new();
+        for s in listing.sessions.iter().filter(|s| s.workspace_id == wid) {
+            let key = s.thread_id.clone().unwrap_or_else(|| s.id.clone());
             if !turns.contains_key(&key) {
                 order.push(key.clone());
             }
@@ -272,29 +273,26 @@ pub(crate) fn threads_on(
         for id in order {
             let mut rows = turns.remove(&id).unwrap_or_default();
             rows.sort_by(|a, b| {
-                let at = |s: &Value| s.get("startedAt").and_then(Value::as_f64).unwrap_or(0.);
+                let at = |s: &Row| s.started_at.unwrap_or(0.);
                 at(a).partial_cmp(&at(b)).unwrap_or(std::cmp::Ordering::Equal)
             });
             let (first, latest) = (rows[0], rows[rows.len() - 1]);
             let title = title_of(first, latest);
-            let status = field(latest, "status").unwrap_or_default();
-            let pid = latest.get("pid").and_then(Value::as_i64);
-            let agent_pid = latest.get("agentPid").and_then(Value::as_i64);
-            let subagents =
-                latest.get("subagents").and_then(Value::as_array).map(|a| a.iter().filter_map(subagent_in).collect()).unwrap_or_default();
+            let (pid, agent_pid) = (latest.pid, latest.agent_pid);
+            let subagents = latest.subagents.iter().map(subagent_in).collect();
             let here = computer.here();
             threads.push(Thread {
                 id: id.clone(),
                 title,
-                harness: field(first, "harness").unwrap_or_default().to_owned(),
+                harness: first.harness.clone(),
                 project: project.clone(),
                 workspace_id: wid.to_owned(),
-                session_id: field(latest, "id").unwrap_or_default().to_owned(),
-                working: status == "running",
+                session_id: latest.id.clone(),
+                working: latest.status == RowStatus::Running,
                 pid: pid.filter(|_| pids),
                 agent_pid: agent_pid.filter(|_| pids),
                 cgroup: (!here).then(|| thread_cgroup(&id)),
-                parent: field(first, "parentThreadId").map(str::to_owned),
+                parent: first.parent_thread_id.clone(),
                 slate: None,
                 subagents,
             });
@@ -304,51 +302,46 @@ pub(crate) fn threads_on(
     (threads, latests)
 }
 
-fn subagent_in(s: &Value) -> Option<SubagentIn> {
-    let state = match field(s, "state")? {
-        "running" => SubState::Running,
-        "done" => SubState::Done,
-        "failed" => SubState::Failed,
-        _ => SubState::Stopped,
+fn subagent_in(s: &Subagent) -> SubagentIn {
+    let state = match s.state {
+        SubagentState::Running => SubState::Running,
+        SubagentState::Done => SubState::Done,
+        SubagentState::Failed => SubState::Failed,
+        SubagentState::Stopped => SubState::Stopped,
     };
-    let tokens = s
-        .pointer("/usage/tokens")
-        .map(|t| t.get("input").and_then(Value::as_f64).unwrap_or(0.) + t.get("output").and_then(Value::as_f64).unwrap_or(0.));
-    Some(SubagentIn {
-        id: field(s, "id")?.to_owned(),
-        title: field(s, "title").unwrap_or_default().to_owned(),
+    SubagentIn {
+        id: s.id.clone(),
+        title: s.title.clone(),
         state,
-        started_at: s.get("startedAt").and_then(Value::as_f64).unwrap_or(0.),
-        ended_at: s.get("endedAt").and_then(Value::as_f64),
-        tokens,
-        duration_ms: s.pointer("/usage/durationMs").and_then(Value::as_f64),
-        model: field(s, "model").map(str::to_owned),
-    })
+        started_at: s.started_at,
+        ended_at: s.ended_at,
+        tokens: s.tokens,
+        duration_ms: s.duration_ms,
+        model: s.model.clone(),
+    }
 }
 
 /// A thread head's status mark: what it asks, its running clock, its failure or unread finish, else its age.
-pub(crate) fn status_of(latest: &Value, now: f64) -> Status {
-    let started = latest.get("startedAt").and_then(Value::as_f64);
-    let ended = latest.get("endedAt").and_then(Value::as_f64);
-    let status = field(latest, "status").unwrap_or_default();
-    if latest.get("asking").is_some_and(|a| !a.is_null()) {
+pub(crate) fn status_of(latest: &Row, now: f64) -> Status {
+    let (started, ended) = (latest.started_at, latest.ended_at);
+    if latest.asking {
         return Status::NeedsYou;
     }
-    if status == "running" {
+    if latest.status == RowStatus::Running {
         return Status::Working(fmt_elapsed(now - started.unwrap_or(now)).into());
     }
-    if status == "failed" {
+    if latest.status == RowStatus::Failed {
         return Status::Failed;
     }
-    let read = latest.get("readAt").and_then(Value::as_f64);
-    if status == "completed" && ended.is_some_and(|e| read.is_none_or(|r| r < e)) {
+    let read = latest.read_at;
+    if latest.status == RowStatus::Completed && ended.is_some_and(|e| read.is_none_or(|r| r < e)) {
         return Status::Done;
     }
     Status::Read(ended.or(started).map_or_else(String::new, |at| age_word(at, now)).into())
 }
 
 /// Each thread's newest turn, which its status mark reads.
-pub(crate) type Latest = Vec<(String, Value)>;
+pub(crate) type Latest = Vec<(String, Arc<Row>)>;
 
 /// The threads and the computer a page reads, kept while the page is drawn.
 pub(crate) struct Lists {

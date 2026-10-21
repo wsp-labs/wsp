@@ -80,7 +80,7 @@ fn seeded(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
             "prompt": t, "startedAt": now - 120_000. - i * 1_000., "endedAt": now - 60_000., "readAt": now - 60_000. })
     };
     let snapshot = desktop_gpui::sidebar::host::Snapshot {
-        sessions: vec![row(0., "w1", "a"), row(1., "w1", "b"), row(2., "w2", "c")],
+        sessions: desktop_gpui::sidebar::shared::rows_of(vec![row(0., "w1", "a"), row(1., "w1", "b"), row(2., "w2", "c")]),
         workspaces: ["w1", "w2"].map(|w| json!({ "id": w, "name": w, "kind": "local" })).to_vec(),
         ..Default::default()
     };
@@ -1640,7 +1640,7 @@ fn a_subagents_page_marks_its_row_not_its_leads_tile(cx: &mut TestAppContext) {
         "subagents": [{ "id": "s1", "title": "Read the tests", "state": "running", "startedAt": now - 60_000., "parentToolUseId": "call-1" },
             { "id": "s2", "title": "Trace the scroll writes", "state": "done", "startedAt": now - 90_000., "endedAt": now - 80_000., "parentToolUseId": "call-2" }] });
     let snapshot = desktop_gpui::sidebar::host::Snapshot {
-        sessions: vec![lead],
+        sessions: desktop_gpui::sidebar::shared::rows_of(vec![lead]),
         workspaces: vec![json!({ "id": "w1", "name": "w1", "kind": "local" })],
         ..Default::default()
     };
@@ -1745,14 +1745,14 @@ fn trees(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
             "startedAt": now - 120_000. + i * 1_000., "endedAt": ended, "readAt": now - 30_000. })
     };
     let snapshot = desktop_gpui::sidebar::host::Snapshot {
-        sessions: vec![
+        sessions: desktop_gpui::sidebar::shared::rows_of(vec![
             row(0., "w1", "r", None, false),
             row(1., "w1", "k", Some("r"), false),
             row(2., "w1", "x", None, false),
             row(3., "w1", "y", Some("x"), true),
             row(4., "w2", "c", None, false),
             row(5., "w2", "d", None, false),
-        ],
+        ]),
         workspaces: ["w1", "w2"].map(|w| json!({ "id": w, "name": w, "kind": "local" })).to_vec(),
         ..Default::default()
     };

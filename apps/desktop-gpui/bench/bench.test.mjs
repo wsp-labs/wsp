@@ -14,6 +14,8 @@ import { OUTPUT_MAX, shot } from "./real.mjs";
 import { fps, median, row } from "./table.mjs";
 import { describe, slowFrames, unfit } from "./trace.mjs";
 import * as ctrlTab from "./ctrl-tab.mjs";
+import { seededState } from "./seed.mjs";
+import { sessionNames, sessionPlan } from "./session.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const lines = text => text.split("\n").length;
@@ -186,6 +188,31 @@ test("the ctrl-tab reader names every step that opened nothing or missed the fir
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test("the seeded host is shaped like a long-used one, and the same on every call", () => {
+  const asked = { threads: 200, workspaces: 20, dir: "/seed", now: 1_800_000_000_000 };
+  const state = seededState(asked);
+  const entries = Object.values(state.sessions);
+  const rows = entries.flatMap(e => e.sessions);
+  assert.equal(rows.length, 200);
+  assert.equal(Object.keys(state.workspaces).length, 20);
+  assert.ok(rows.every(r => r.prompt.length <= 600 && state.workspaces[r.workspaceId]), "each row's opening words fit OPENING_KEPT, on a workspace that exists");
+  const settled = entries.flatMap(e => Object.values(e.threads)).filter(t => t.settledAt).length;
+  assert.ok(settled > 150 && settled < 190, `${settled} of 200 threads settled`);
+  const leads = new Set(Object.values(state.transcripts).flatMap(t => t.events).filter(e => e.type === "session.subagent").map(e => e.threadId));
+  assert.ok(leads.size > 40 && leads.size < 100, `${leads.size} of 200 threads ran subagents`);
+  assert.deepEqual(seededState(asked), state);
+});
+
+test("the session threads come only when asked, 1 to 200 of them, 12 to 40 turns each", () => {
+  assert.deepEqual(sessionNames(undefined), []);
+  assert.deepEqual(sessionNames("3"), ["session-1", "session-2", "session-3"]);
+  assert.throws(() => sessionNames("201"));
+  assert.throws(() => sessionNames("two"));
+  assert.equal(sessionPlan("session-0"), undefined);
+  assert.equal(sessionPlan("long"), undefined);
+  assert.ok(sessionNames("25").every(name => sessionPlan(name).turns >= 12 && sessionPlan(name).turns <= 40));
 });
 
 test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the host", { skip: !existsSync(join(here, "../../../packages/host/dist/bin.js")) && "packages not built" }, () => {

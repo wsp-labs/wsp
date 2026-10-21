@@ -2,6 +2,7 @@
 //! What the thread listing says about the open thread and the threads around it.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::screens::sidebar::model as side;
 #[cfg(test)]
@@ -282,7 +283,7 @@ impl Listing {
     /// The listing off the rows the sidebar holds, read for `thread` at `now_ms`: a child settles after `settle_ms` of
     /// quiet, the person's `settleAfter`, and the section is shut where the preferences say so.
     pub fn listed(
-        rows: &[side::Row],
+        rows: &[Arc<side::Row>],
         thread: &str,
         now_ms: f64,
         settle_ms: Option<f64>,
@@ -344,14 +345,14 @@ impl Listing {
                 }
             }
         }
-        let rows: Vec<side::Row> = rows.iter().filter(|r| tree.contains(r.thread_id.as_deref().unwrap_or(&r.id))).cloned().collect();
+        let rows: Vec<Arc<side::Row>> = rows.iter().filter(|r| tree.contains(r.thread_id.as_deref().unwrap_or(&r.id))).cloned().collect();
         let rows = rows.as_slice();
         let threads = side::fold_threads(rows);
         let mut order: Vec<usize> = (0..threads.len()).collect();
         let start = |i: usize| threads[i].started_at.unwrap_or(0.);
         order.sort_by(|&a, &b| start(b).total_cmp(&start(a)).then_with(|| threads[a].key.cmp(&threads[b].key)));
         let forest = side::forest(&threads, &order);
-        let by_id: HashMap<&str, &side::Row> = rows.iter().map(|r| (r.id.as_str(), r)).collect();
+        let by_id: HashMap<&str, &side::Row> = rows.iter().map(|r| (r.id.as_str(), &**r)).collect();
         let tree = Reading { cx: side::Ctx { all: &threads, now: now_ms, settle: settle_ms }, rows: by_id, lead_computer: computer };
         let children = find_node(&forest, thread).map(|node| tree.children(node)).unwrap_or_default();
         let (strip, start_failed) = own.map(|own| sub_of(own, here, now_ms)).unwrap_or_default();
@@ -386,7 +387,7 @@ impl Listing {
     /// The same off the rows as JSON, at the record's default settle and with nothing shut, for a test.
     #[cfg(test)]
     pub fn of(rows: &[serde_json::Value], thread: &str, now_ms: f64) -> Listing {
-        let rows: Vec<side::Row> = rows.iter().cloned().filter_map(side::Row::owned).collect();
+        let rows: Vec<Arc<side::Row>> = rows.iter().cloned().filter_map(side::Row::owned).map(Arc::new).collect();
         Listing::listed(&rows, thread, now_ms, Some(side::SETTLE_MS_DEFAULT), &serde_json::Value::Null, "")
     }
 

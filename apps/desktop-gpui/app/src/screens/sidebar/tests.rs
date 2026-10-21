@@ -43,7 +43,7 @@ fn row(i: usize, workspace: &str, now: f64) -> Value {
 
 fn snapshot(n: usize, now: f64) -> Snapshot {
     Snapshot {
-        sessions: (0..n).map(|i| row(i, "w0", now)).collect(),
+        sessions: crate::screens::sidebar::shared::rows_of((0..n).map(|i| row(i, "w0", now)).collect()),
         workspaces: vec![workspace("w0")],
         projects: vec![json!({ "id": "p1", "name": "repo", "path": "/repo", "computer": "here" })],
         places: vec![json!({ "id": "here", "kind": "computer", "name": "boat" })],
@@ -375,11 +375,12 @@ fn labelled(read: bool, last_line: Option<&str>) -> Snapshot {
     let mut snap = snapshot(1, now_ms());
     snap.places = vec![json!({ "id": "here", "kind": "computer", "name": HOST_NAME, "label": LABEL })];
     for row in &mut snap.sessions {
-        row["computerName"] = json!(HOST_NAME);
-        row["lastLine"] = json!(last_line);
-        row["model"] = json!("claude-sonnet-5[1m]");
+        let row = std::sync::Arc::make_mut(row);
+        row.computer_name = Some(HOST_NAME.to_owned());
+        row.last_line = last_line.map(str::to_owned);
+        row.model = Some("claude-sonnet-5[1m]".to_owned());
         if !read {
-            row.as_object_mut().unwrap().remove("readAt");
+            row.read_at = None;
         }
     }
     snap
