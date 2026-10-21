@@ -7,7 +7,7 @@
 // tool_use, step_start, step_finish and error lines; ToolPart, StepFinishPart,
 // ProviderAuthError).
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { agentWord, type AdapterEvent, type ExecStream, type ExecStreamFactory } from "@wsp/protocol";
 import { createOpenCodeAdapter } from "../src/adapter.js";
 
@@ -152,7 +152,7 @@ describe("OpenCodeAdapter over an opencode run --format json turn", () => {
     const exec = scriptedExec([line("step_start", { part: { id: "p", sessionID: SESSION, messageID: "m", type: "step-start" } })], { hang: true });
     const { events, onEvent } = collect();
     const session = adapterOver(exec, { interruptGraceMs: 5 }).start({ prompt: "go", onEvent });
-    await new Promise(resolve => setTimeout(resolve, 5));
+    await vi.waitFor(() => expect(events[0]?.type).toBe("session.start"));
     await session.interrupt();
     expect(await session.finished).toEqual({ status: "interrupted" });
     expect(exec.order[0]).toBe("teardown");
