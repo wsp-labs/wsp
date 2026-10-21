@@ -428,7 +428,7 @@ describe("the body before the first list has arrived, and on a wsp with no proje
 
 describe("keyboard navigation", () => {
   it("arrows walk every tile of the bare list in order from the search row, and a press on a tile selects it", async () => {
-    await mount(fakeApi([API, WEB], [status(API), status(WEB)], [session("s1", "ws_a", { prompt: "hello", startedAt: iso(-60_000) })]), "hello");
+    await mount(fakeApi([API, WEB], [status(API), status(WEB)], [session("s1", "ws_a", { prompt: "hello", status: "completed", startedAt: iso(-60_000), endedAt: iso(-30_000) })]), "hello");
     const search = screen.getByRole("button", { name: "Search" });
     const at = (): string | undefined => (document.activeElement as HTMLElement | null)?.dataset["rowId"];
     act(() => search.focus());
@@ -1041,13 +1041,13 @@ describe("the creation tile", () => {
     );
     const beta = rowOf("beta");
     const gamma = rowOf("gamma");
-    // Each files where a thread in its state does, newest on top: the bare list while it is made, Needs you once
-    // refused, counted under its head.
+    // Each files where a thread in its state does, newest on top: Working while it is made, Needs you once refused,
+    // counted under its head.
     expect(rowIds()).toEqual(["creating:2", "creating:3", "creating:1", "ws:ws_a"]);
     const sectionOf = (row: HTMLElement) => row.closest<HTMLElement>("[data-section]")!;
-    expect(sectionOf(beta).dataset["section"]).toBe("threads");
+    expect(sectionOf(beta).dataset["section"]).toBe("working");
     expect(sectionOf(gamma).dataset["section"]).toBe("needs-you");
-    expect(sectionOf(beta).querySelector("[data-section-head]")).toBeNull();
+    expect(sectionOf(beta).querySelector("[data-group-count]")!.textContent).toBe("(1)");
     expect(sectionOf(gamma).querySelector("[data-group-count]")!.textContent).toBe("(2)");
     for (const row of [beta, gamma]) {
       expect(row.className).toBe(rowOf("api").className);

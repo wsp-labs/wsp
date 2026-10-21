@@ -572,8 +572,8 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
     ];
   });
   const made = creations.filter(creation => picked === null || creation.project === picked.project.id);
-  /** A workspace being made files where a thread in its state does: the list while it is made, Needs you once refused. */
-  const madeIn = (id: SidebarSection): Creation[] => made.filter(creation => (creation.failed === null ? "threads" : "needs-you") === id);
+  /** A workspace being made files where a thread in its state does: Working while it is made, Needs you once refused. */
+  const madeIn = (id: SidebarSection): Creation[] => made.filter(creation => (creation.failed === null ? "working" : "needs-you") === id);
   /** A root dropped on a section's head or on the fold: the marks the drop writes, or the settle of its tree. A group
    * one send to several models opened goes as one: pinned or unpinned together, each of its trees settled. */
   const dropOnHead = (node: TileNode, place: SidebarSection | "settled"): void => {
@@ -601,9 +601,10 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
     if (next >= 0) moveTree(rootId, { section: at.section, at: next + (at.after ? 1 : 0) });
   };
   useTreeDrag(rootRef, dropTree);
-  // Every section is drawn: one with nothing in it stands only while a tree is dragged, as a place to drop it.
-  const sections = SIDEBAR_SECTIONS.map(id => tiles.sections.find(section => section.id === id) ?? { id, roots: [] });
   const standsBare = (section: { id: SidebarSection; roots: ReadonlyArray<TileNode> }): boolean => section.roots.length === 0 && madeIn(section.id).length === 0;
+  // Every section is drawn: one with nothing in it stands only while a tree is dragged, as a place to drop it. Working
+  // takes no tree a drop sends, so it stands only while something in it runs.
+  const sections = SIDEBAR_SECTIONS.map(id => tiles.sections.find(section => section.id === id) ?? { id, roots: [] }).filter(section => section.id !== "working" || !standsBare(section));
   /** Whether a section keeps the sections' own gap over it at rest: one stands above it, or it is a bare head itself.
    * Where neither, the gap stands only while a drag shows the bare heads above, so the list starts where it did. */
   const gapsAtRest = (index: number): boolean => standsBare(sections[index]!) || sections.slice(0, index).some(above => !standsBare(above));

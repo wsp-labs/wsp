@@ -920,16 +920,16 @@ describe("the sidebar's list of thread tiles", () => {
       { ws: "ws_a", id: "th_away", prompt: "snoozed away", status: "completed", startedAgo: 40 * 60_000, endedAgo: 39 * 60_000, snoozed: true },
     ];
 
-    it("draws Pinned and Needs you under their heads, then one bare list newest first whose rows say their time or Done, and leaves a snoozed tree out", async () => {
+    it("draws Pinned, Needs you and Working under their heads, then one bare list newest first whose rows say their time or Done, and leaves a snoozed tree out", async () => {
       mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
       await act(async () => useStore.setState({ sessions: sessions(all) } as never));
       await waitFor(() => expect(screen.getByText("kept on top")).toBeDefined());
-      expect(heads()).toEqual(["pinned", "needs-you"]);
+      expect(heads()).toEqual(["pinned", "needs-you", "working"]);
       // Every head names its section in words, Needs you as Pinned and Settled do; the state glyph is the tiles' alone.
-      expect([...document.querySelectorAll("[data-section-head]")].map(head => head.textContent)).toEqual(["Pinned (1)", "Needs you (1)"]);
+      expect([...document.querySelectorAll("[data-section-head]")].map(head => head.textContent)).toEqual(["Pinned (1)", "Needs you (1)", "Working (1)"]);
       expect(document.querySelector("[data-section-head=needs-you] svg.lucide-message-circle-question")).toBeNull();
       expect(rowIds()).toEqual(["thread:th_pinned", "thread:th_asks", "thread:th_works", "thread:th_done", "thread:th_idle"]);
-      expect(walkIds()).toEqual(["section:pinned", "thread:th_pinned", "section:needs-you", "thread:th_asks", "thread:th_works", "thread:th_done", "thread:th_idle"]);
+      expect(walkIds()).toEqual(["section:pinned", "thread:th_pinned", "section:needs-you", "thread:th_asks", "section:working", "thread:th_works", "thread:th_done", "thread:th_idle"]);
       expect(screen.queryByText("snoozed away")).toBeNull();
       const slot = (title: string): HTMLElement => rowOf(title).querySelector<HTMLElement>("[data-thread-status]")!;
       // A working tile says how long its turn has run, its crab at its title's end; every other state is its icon
@@ -947,7 +947,7 @@ describe("the sidebar's list of thread tiles", () => {
       mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
       const working = { ws: "ws_a", id: "th_one", prompt: "one thread", startedAgo: 5 * 60_000 };
       await act(async () => useStore.setState({ sessions: sessions([working]) } as never));
-      await waitFor(() => expect(document.querySelector("[data-section=threads] [data-row-id='thread:th_one']")).not.toBeNull());
+      await waitFor(() => expect(document.querySelector("[data-section=working] [data-row-id='thread:th_one']")).not.toBeNull());
       await act(async () => useStore.setState({ sessions: sessions([{ ...working, asking: "Permission for Bash: ls" }]) } as never));
       await waitFor(() => expect(heads()).toEqual(["needs-you"]));
       const row = document.querySelector("[data-row-id='thread:th_one']");
@@ -956,6 +956,31 @@ describe("the sidebar's list of thread tiles", () => {
       await act(async () => useStore.setState({ sessions: sessions([{ ...working, asking: "Permission for Bash: ls" }]) } as never));
       await act(async () => useStore.setState({ sessions: sessions([{ ...working, asking: "Permission for Bash: ls" }]) } as never));
       expect(document.querySelector("[data-row-id='thread:th_one']")).toBe(row);
+    });
+
+    it("stands a root started days ago under Working while its builder runs, the same row through every update, and puts it back at its start place when the builder ends", async () => {
+      mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
+      const morning = [1, 2, 3].map(n => ({ ws: "ws_a", id: `th_m${n}`, prompt: `morning ${n}`, status: "completed", startedAgo: n * 10 * 60_000, endedAgo: n * 10 * 60_000 - 60_000 }));
+      const lead = { ws: "ws_a", id: "th_lead", prompt: "the coordinator", status: "completed", startedAgo: 96 * HOUR, endedAgo: 5 * 60_000 };
+      const builder = { ws: "ws_a", id: "th_build", prompt: "its builder", parent: "th_lead", startedAgo: 2 * 60_000 };
+      await act(async () => useStore.setState({ sessions: sessions([...morning, lead]) } as never));
+      await waitFor(() => expect(screen.getByText("the coordinator")).toBeDefined());
+      expect(rowIds()).toEqual(["thread:th_m1", "thread:th_m2", "thread:th_m3", "thread:th_lead"]);
+      await act(async () => useStore.setState({ sessions: sessions([...morning, lead, builder]) } as never));
+      await waitFor(() => expect(heads()).toEqual(["working"]));
+      expect(walkIds()).toEqual(["section:working", "thread:th_lead", "thread:th_build", "thread:th_m1", "thread:th_m2", "thread:th_m3"]);
+      expect(rowOf("the coordinator").closest("[data-section]")!.getAttribute("data-section")).toBe("working");
+      const row = rowOf("the coordinator");
+      // The builder streams: its title moves on with each listing read again.
+      const streamed = (title: string) => Object.fromEntries(Object.entries(sessions([...morning, lead, builder])).map(([ws, rows]) => [ws, rows.map(r => ((r as { threadId: string }).threadId === "th_build" ? { ...(r as object), harnessTitle: title } : r))]));
+      await act(async () => useStore.setState({ sessions: streamed("builder step 1") } as never));
+      await act(async () => useStore.setState({ sessions: streamed("builder step 2") } as never));
+      await waitFor(() => expect(screen.getByText("builder step 2")).toBeDefined());
+      expect(walkIds()).toEqual(["section:working", "thread:th_lead", "thread:th_build", "thread:th_m1", "thread:th_m2", "thread:th_m3"]);
+      expect(rowOf("the coordinator")).toBe(row);
+      await act(async () => useStore.setState({ sessions: sessions([...morning, lead, { ...builder, status: "completed", endedAgo: 0 }]) } as never));
+      await waitFor(() => expect(heads()).toEqual([]));
+      expect(rowIds()).toEqual(["thread:th_m1", "thread:th_m2", "thread:th_m3", "thread:th_lead", "finished:thread:th_lead"]);
     });
 
     it("keeps the rows that call for the person bright and lets working and read rows recede, as T3 Code's shouldRecede", async () => {
@@ -973,7 +998,7 @@ describe("the sidebar's list of thread tiles", () => {
       await act(async () => useStore.setState({ sessions: sessions(all) } as never));
       await waitFor(() => expect(screen.getByText("kept on top")).toBeDefined());
       const head = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-section-head=${id}]`)!;
-      for (const id of ["pinned", "needs-you"]) {
+      for (const id of ["pinned", "needs-you", "working"]) {
         const at = head(id);
         expect(at.tagName, id).toBe("BUTTON");
         expect(at.className, id).toContain("h-7");
@@ -1082,10 +1107,11 @@ describe("the sidebar's list of thread tiles", () => {
     const head = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-section-head=${id}]`)!;
     const line = (): HTMLElement => document.querySelector<HTMLElement>("[data-drop-line]")!;
     const startedMs = (id: string): number => Date.parse((Object.values(useStore.getState().sessions).flat().find(row => row.threadId === id)!.startedAt as unknown as string));
+    // Read and quiet, so the three stand in the list a person orders and not in Working.
     const three = [
-      { ws: "ws_a", id: "th_a", prompt: "first tree", startedAgo: 60_000 },
-      { ws: "ws_a", id: "th_b", prompt: "second tree", startedAgo: 2 * 60_000 },
-      { ws: "ws_a", id: "th_c", prompt: "third tree", startedAgo: 3 * 60_000 },
+      { ws: "ws_a", id: "th_a", prompt: "first tree", status: "completed", startedAgo: 60_000, endedAgo: 30_000 },
+      { ws: "ws_a", id: "th_b", prompt: "second tree", status: "completed", startedAgo: 2 * 60_000, endedAgo: 90_000 },
+      { ws: "ws_a", id: "th_c", prompt: "third tree", status: "completed", startedAgo: 3 * 60_000, endedAgo: 150_000 },
     ];
     /** The list's three trees one tile tall each, in a list whose top is at 0. */
     const laidOut = (): void => {
@@ -1105,14 +1131,18 @@ describe("the sidebar's list of thread tiles", () => {
         expect(bare.hasAttribute("data-drop-only")).toBe(true);
         expect(bare.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "data-[drop-shown]:block"]));
       }
-      // The list starts where it did before any drag: its gap stands only while the bare heads above it show.
-      const list = document.querySelector<HTMLElement>("[data-section=threads]")!;
+      // The first section with rows, Working here, starts where it did before any drag: its gap stands only while the
+      // bare heads above it show.
+      const list = document.querySelector<HTMLElement>("[data-section=working]")!;
       expect(list.className.split(" ")).not.toContain("mt-3");
       expect(list.className.split(" ")).toContain("data-[drop-shown]:mt-3");
       expect(list.hasAttribute("data-drop-gap")).toBe(true);
       rowOf("the lead").focus();
       fireEvent.keyDown(rowOf("the lead"), { key: "ArrowUp" });
-      expect(document.activeElement).toBe(rowOf("the lead"));
+      expect(document.activeElement).toBe(head("working"));
+      // The bare heads above take no key, so Working's head is the top.
+      fireEvent.keyDown(head("working"), { key: "ArrowUp" });
+      expect(document.activeElement).toBe(head("working"));
       fireEvent.keyDown(rowOf("the lead"), { key: "End" });
       expect(document.activeElement).toBe(rowOf("another one"));
       const tree = document.querySelector("[data-sidebar-tree]")!;
@@ -1287,8 +1317,8 @@ describe("the sidebar's list of thread tiles", () => {
           creations: [{ key: "creating:1", name: "beta", askedAt: Date.now(), project: "pr_1", workspaceId: null, lines: [], failed: null }],
           sessions: sessions([
             ...three,
-            { ws: "ws_a", id: "th_g1", prompt: "the task", startedAgo: 30_000, attempt: "att" },
-            { ws: "ws_b", id: "th_g2", prompt: "the task", startedAgo: 29_000, attempt: "att" },
+            { ws: "ws_a", id: "th_g1", prompt: "the task", status: "completed", startedAgo: 30_000, endedAgo: 20_000, attempt: "att" },
+            { ws: "ws_b", id: "th_g2", prompt: "the task", status: "completed", startedAgo: 29_000, endedAgo: 19_000, attempt: "att" },
             { ws: "ws_a", id: "th_kid", prompt: "a builder", parent: "th_a", startedAgo: 50_000 },
             { ws: "ws_a", id: "th_away", prompt: "snoozed but busy", startedAgo: 40 * 60_000, snoozed: true },
             { ws: "ws_a", id: "th_old", prompt: "settled one", status: "completed", startedAgo: 30 * HOUR, endedAgo: 29 * HOUR, settledAgo: HOUR },
@@ -1302,16 +1332,17 @@ describe("the sidebar's list of thread tiles", () => {
       expect(draggable.sort()).toEqual(["group", "thread:th_a", "thread:th_b", "thread:th_c"]);
       box(document.querySelector("[data-sidebar-tree]")!, 0, 600);
       const group = document.querySelector<HTMLElement>("[data-attempt-head]")!;
-      box(itemOf("first tree"), 100, 52);
-      box(itemOf("first tree").firstElementChild!, 100, 52);
+      // The first tree stands in Working while its builder runs, so the drop lands between the two in the list.
+      box(itemOf("second tree"), 100, 52);
+      box(itemOf("second tree").firstElementChild!, 100, 52);
       fireEvent.dragStart(group, { dataTransfer: transfer() });
       await frame();
-      dragAt("drop", rowOf("first tree"), 140);
+      dragAt("drop", rowOf("second tree"), 140);
       fireEvent.dragEnd(group);
       expect(markThreads).toHaveBeenCalledTimes(1);
       const [ids, marks] = markThreads.mock.calls[0]!;
       expect([...ids].sort()).toEqual(["th_g1", "th_g2"]);
-      expect(marks).toEqual({ order: (startedMs("th_a") + startedMs("th_b")) / 2 });
+      expect(marks).toEqual({ order: (startedMs("th_b") + startedMs("th_c")) / 2 });
     });
 
     it("moves a tree up, down and to the top from its menu after Pin and Snooze, held at either end, and says where it went", async () => {
@@ -1417,7 +1448,7 @@ describe("a lead's tree in the sidebar", () => {
     }
   };
 
-  it("Needs you is an inbox: each thread that needs the person stands alone, one under a tree marked with its starter, the head counting them, and the trees stay in the list; picking one marks it in both", async () => {
+  it("Needs you is an inbox: each thread that needs the person stands alone, one under a tree marked with its starter, the head counting them, and the trees stay in Working; picking one marks it in both", async () => {
     mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
     await act(async () => useStore.setState({ sessions: sessions(marathon) } as never));
     await waitFor(() => expect(screen.getAllByText("build the box thread")).toHaveLength(2));
@@ -1437,10 +1468,11 @@ describe("a lead's tree in the sidebar", () => {
     // Its card says the whole path down to it.
     fireEvent.mouseEnter(probe);
     expect(document.querySelector("[data-tile-card-line=started-by]")!.textContent).toBe("Started by coordinator / review the carry");
-    // The tree stays in the list, whatever under it asks; the relay, alone, stands in the inbox only, as its own tile.
-    expect(document.querySelector("[data-section=threads] [data-row-id='thread:lead']")).not.toBeNull();
-    expect(document.querySelector("[data-section=threads] [data-row-id='thread:c-ask']")).not.toBeNull();
-    expect(document.querySelector("[data-section=threads] [data-row-id='thread:relay']")).toBeNull();
+    // The tree stays in Working while threads of it run, whatever under it asks; the relay, alone, stands in the inbox
+    // only, as its own tile.
+    expect(document.querySelector("[data-section=working] [data-row-id='thread:lead']")).not.toBeNull();
+    expect(document.querySelector("[data-section=working] [data-row-id='thread:c-ask']")).not.toBeNull();
+    expect(document.querySelector("[data-row-id='thread:relay']")!.closest("[data-section]")!.getAttribute("data-section")).toBe("needs-you");
     fireEvent.click(inbox[1]!);
     expect(useStore.getState().selectedThreadId).toBe("c-ask");
     await waitFor(() => expect(document.querySelector("[data-row-id='inbox:thread:c-ask']")!.getAttribute("data-active")).toBe("true"));
@@ -1654,7 +1686,7 @@ describe("a lead's tree in the sidebar", () => {
     expect(document.querySelector("[data-child-fold=finished]")!.textContent).toBe("Finished1");
   });
 
-  it("a snoozed root that runs a subagent stands alone at the foot of the list: no subagent row under it and no fold", async () => {
+  it("a snoozed root that runs a subagent stands alone in Working: no subagent row under it and no fold", async () => {
     const at = Date.now();
     mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
     const subagents = [{ id: "sa1", title: "Read the open tickets", state: "running", startedAt: at - MIN }];
@@ -1662,7 +1694,7 @@ describe("a lead's tree in the sidebar", () => {
       useStore.setState({ sessions: sessions([{ ws: "ws_a", id: "here", prompt: "still here", status: "completed", startedAgo: 9 * MIN, endedAgo: 8 * MIN }, { ws: "ws_a", id: "away", prompt: "snoozed away", startedAgo: 5 * MIN, snoozed: true, subagents }]) } as never),
     );
     await waitFor(() => expect(screen.getByText("snoozed away")).toBeDefined());
-    expect(rowIds()).toEqual(["thread:here", "thread:away"]);
+    expect(rowIds()).toEqual(["thread:away", "thread:here"]);
     expect(rowOf("snoozed away").querySelector("[data-tile-fold]")).toBeNull();
     expect(rowOf("snoozed away").getAttribute("aria-expanded")).toBeNull();
     expect(rowOf("snoozed away").closest("li")!.querySelector("ul")).toBeNull();
