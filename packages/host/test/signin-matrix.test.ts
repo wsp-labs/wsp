@@ -264,7 +264,9 @@ describe("the sign-in matrix covers every tool and source", () => {
 });
 
 describe("the sign-in matrix, cell by cell", () => {
-  it.each(MATRIX.map(c => ({ name: cellName(c.tool, c.source), c })))("$name", async ({ c }) => {
+  const empty = (c: Cell): boolean => reachable(c) && Object.keys(c.laptop).length === 0;
+  const cells = MATRIX.filter(c => !empty(c) && (reachable(c) || c.laptop !== undefined));
+  it.each(cells.map(c => ({ name: cellName(c.tool, c.source), c })))("$name", async ({ c }) => {
     if (!reachable(c)) {
       if (c.laptop === undefined) return;
       const rows = await detectLogins(fakeHost(c.laptop));
@@ -282,5 +284,10 @@ describe("the sign-in matrix, cell by cell", () => {
       expect(initialChoice(own[0]!), `${cellName(c.tool, c.source)} starts`).toBe(starts);
     }
     for (const v of FAKE_VALUES) expect(JSON.stringify(rows)).not.toContain(v);
+  });
+
+  it("a laptop with no source on it makes no row for any tool", async () => {
+    const rows = await detectLogins(fakeHost({}));
+    for (const c of MATRIX.filter(empty)) expect(rows.filter(r => r.id === `logins/${c.tool}`), cellName(c.tool, c.source)).toEqual([]);
   });
 });
