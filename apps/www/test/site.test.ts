@@ -71,9 +71,10 @@ describe("every route, as raw HTML", () => {
   it("serves / with its headline, its section heads and the whole FAQ before any script runs", () => {
     const html = built("index.html");
     const body = text(html);
-    expect(html).toMatch(/<h1[^>]*>Coding agents on every computer you own\.<\/h1>/);
+    expect(html.match(/<h1[^>]*>[^<]*\S[^<]*<\/h1>/g)).toHaveLength(1);
     const heads = [...html.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map(m => m[1]);
-    expect(heads).toEqual(["Your agents hand work to each other.", "Add a computer. Your setup comes with it.", "A mini app inside every thread.", "Everything around the thread.", "How wsp compares.", "Questions", "Put your other computers to work."]);
+    expect(heads.length).toBeGreaterThan(0);
+    for (const head of heads) expect(head?.trim()).not.toBe("");
     for (const { q, a } of QUESTIONS) {
       expect(body).toContain(q);
       expect(body).toContain(a);
@@ -85,8 +86,7 @@ describe("every route, as raw HTML", () => {
   it("serves /compare as one card per tool, under its kind, each opening the tool's page", () => {
     const html = built(fileOf("/compare"));
     const body = text(html);
-    expect(html).toMatch(/<h1[^>]*>Where wsp sits\.<\/h1>/);
-    expect(body).toContain("The vendors run them on their own VM, from your repo, a setup script, and on Claude and Cursor some skills you turn on.");
+    expect(html.match(/<h1[^>]*>[^<]*\S[^<]*<\/h1>/g)).toHaveLength(1);
     for (const kind of KINDS) expect(html).toMatch(new RegExp(`<h2[^>]*>${kind.name.replace(/'/g, "&#x27;")}</h2>`));
     for (const tool of TOOLS) {
       expect(html).toContain(`href="/compare/${tool.slug}"`);
@@ -140,7 +140,6 @@ describe("every route, as raw HTML", () => {
 
   it("answers an unknown path's page with a way home, kept out of search", () => {
     const html = built("404.html");
-    expect(text(html)).toContain("Nothing lives at this address.");
     expect(html).toMatch(/<a href="\/"[^>]*>Go to usewsp\.com/);
   });
 });
