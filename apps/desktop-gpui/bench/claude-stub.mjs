@@ -5,6 +5,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { turnsOf } from "./content.mjs";
+import { fileText } from "./real.mjs";
 
 const argv = process.argv.slice(2);
 const at = flag => (argv.indexOf(flag) >= 0 ? argv[argv.indexOf(flag) + 1] : undefined);
@@ -32,7 +33,7 @@ function play() {
   if (thinking !== undefined) assistant(`${at}-think`, [{ type: "thinking", thinking, signature: "s" }]);
   for (const file of files) {
     mkdirSync(dirname(join(process.cwd(), file.path)), { recursive: true });
-    writeFileSync(join(process.cwd(), file.path), Array.from({ length: file.lines }, (_, i) => `export const line${i} = ${file.turn * 1000 + i};`).join("\n") + "\n");
+    writeFileSync(join(process.cwd(), file.path), fileText(file));
   }
   tools.forEach((call, i) => {
     const id = `${at}-${i}`;

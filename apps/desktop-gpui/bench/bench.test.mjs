@@ -2,7 +2,7 @@
 // node --test apps/desktop-gpui/bench/bench.test.mjs: the parts of the bench that need no screen. The fixture case
 // starts a real throwaway host, so it needs the packages built (pnpm build).
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,7 +15,7 @@ import { fps, median, row } from "./table.mjs";
 import { describe, slowFrames, unfit } from "./trace.mjs";
 import * as ctrlTab from "./ctrl-tab.mjs";
 import { seededState } from "./seed.mjs";
-import { sessionNames, sessionPlan } from "./session.mjs";
+import { sessionFolder, sessionNames, sessionPlan, sessionState } from "./session.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const lines = text => text.split("\n").length;
@@ -243,11 +243,69 @@ test("the session threads come only when asked, 1 to 200 of them, 12 to 40 turns
   assert.ok(sessionNames("25").every(name => sessionPlan(name).turns >= 12 && sessionPlan(name).turns <= 40));
 });
 
-test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the host", { skip: !existsSync(join(here, "../../../packages/host/dist/bin.js")) && "packages not built" }, () => {
+test("the session threads are written into the state as the host records the stub's turns, their cards' commits in the folder", { skip: !["protocol", "engine"].every(p => existsSync(join(here, `../../../packages/${p}/dist/index.js`))) && "packages not built" }, async () => {
+  const { subagentAsked } = await import(join(here, "../../../packages/protocol/dist/index.js"));
+  const tmp = mkdtempSync(join(tmpdir(), "wsp-bench-test-"));
+  try {
+    const folder = join(tmp, "bench");
+    const env = { PATH: process.env.PATH, HOME: tmp };
+    const git = (args, input) => spawnSync("git", ["-c", "user.name=bench", "-c", "user.email=bench@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: folder, env, input, encoding: "utf8" });
+    mkdirSync(folder);
+    git(["init", "-q", "-b", "main"]);
+    git(["commit", "-q", "--allow-empty", "-m", "bench"]);
+    const names = ["session-1", "session-2", "session-3"];
+    const made = sessionFolder(folder, names, join(tmp, "scratch"));
+    assert.equal(git(["status", "--porcelain"]).stdout, "", "the checkout is left as it was");
+    const { records, blobs, refs, threads } = await sessionState({ names, home: tmp, folder, made, now: 1_800_000_000_000 });
+    const [workspaceId] = Object.keys(records.workspaces);
+    const events = records.transcripts[workspaceId].events;
+    assert.deepEqual(Object.keys(threads), names);
+    for (const name of names) {
+      const turns = turnsOf(name);
+      const mine = events.filter(e => e.threadId === threads[name]);
+      const of = type => mine.filter(e => e.type === type);
+      for (const type of ["session.start", "session.done", "session.end", "session.checkpoint"]) assert.equal(of(type).length, turns.length, `${name}: one ${type} a turn`);
+      assert.equal(of("session.start")[0].opensThread, true);
+      const calls = turns.flatMap(t => t.tools);
+      assert.equal(mine.filter(e => e.kind === "tool_use").length, calls.length + calls.flatMap(c => c.children ?? []).filter(c => c.text === undefined).length);
+      assert.deepEqual(mine.filter(e => e.kind === "text" && e.parentToolUseId === undefined).map(e => e.text), turns.map(t => t.reply));
+      const tasks = calls.filter(c => c.children !== undefined);
+      assert.deepEqual(of("session.subagent").filter(e => e.asked !== undefined).map(e => e.asked), tasks.map(c => subagentAsked(c.input.prompt)));
+      // The card's range is two snapshots of the folder, each file in it listed against HEAD, which holds none of them.
+      const [card] = of("session.changes");
+      const wrote = new Map(turns[made[name].at].files.map(f => [f.path, f.lines]));
+      assert.equal(of("session.changes").length, 1);
+      assert.equal(card.turnId, of("session.start")[made[name].at].turnId);
+      for (const commit of [card.from, card.to]) assert.match(git(["show", "-s", "--format=%B", commit]).stdout, /^wsp snapshot\n\nreflog 1\nhead refs\/heads\/main/);
+      assert.deepEqual(card.files.map(f => f.path), git(["diff-tree", "-r", "--name-only", card.from, card.to]).stdout.trim().split("\n").sort());
+      assert.deepEqual(card.files.map(f => [f.path, f.kind, f.additions, f.deletions]), [...wrote].sort().map(([path, lines]) => [path, "added", lines, 0]));
+      const sent = of("session.start").flatMap(e => (e.attachments ?? []).map((a, i) => [`${threads[name]}.${e.requestId}.${i}`, a.bytes]));
+      assert.equal(sent.length, turns.flatMap(t => t.images).length);
+      assert.deepEqual(sent, blobs.filter(b => b.id.startsWith(threads[name])).map(b => [b.id, b.bytes.length]));
+      assert.deepEqual((records["attachment-keys"][workspaceId].threads[threads[name]] ?? []).map(k => k.key), sent.map(([key]) => key));
+      const row = records.sessions[workspaceId].sessions.find(r => r.threadId === threads[name]);
+      assert.equal(row.turnId, mine.at(-1).turnId);
+      assert.equal(row.prompt, turns[0].prompt);
+    }
+    // Each turn's checkpoint holds the folder as the turn left it: the card's first snapshot before the changing turn, its second from there on.
+    assert.equal(refs.length, events.filter(e => e.type === "session.checkpoint").length);
+    assert.equal(git(["update-ref", "--stdin"], refs.map(([ref, commit]) => `create ${ref} ${commit}\n`).join("")).status, 0);
+    const tree = rev => git(["rev-parse", `${rev}^{tree}`]).stdout.trim();
+    for (const name of names) {
+      const mine = events.filter(e => e.threadId === threads[name]);
+      const card = mine.find(e => e.type === "session.changes");
+      assert.deepEqual(mine.filter(e => e.type === "session.checkpoint").map(e => tree(e.ref)), turnsOf(name).map((_, t) => tree(t < made[name].at ? card.from : card.to)));
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the host, with session threads written in before it starts", { skip: !existsSync(join(here, "../../../packages/host/dist/bin.js")) && "packages not built" }, () => {
   const tmp = mkdtempSync(join(tmpdir(), "wsp-bench-test-"));
   const out = join(tmp, "fixture.json");
   try {
-    const up = spawnSync(join(here, "fixture.sh"), [out], { encoding: "utf8", timeout: 600_000 });
+    const up = spawnSync(join(here, "fixture.sh"), [out], { encoding: "utf8", timeout: 600_000, env: { ...process.env, BENCH_SESSION: "2" } });
     assert.equal(up.status, 0, `${up.stdout}${up.stderr}`);
     const fixture = JSON.parse(readFileSync(out, "utf8"));
     const home = dirname(dirname(fixture.state));
@@ -275,6 +333,20 @@ test("the fixture's long thread is 900 turns, 1,800 messages, held whole by the 
     assert.ok(held >= eventsOf(real) && held < 5000, `${held} events held of the real thread`);
     const cards = read("real").filter(r => r.who === "tool" && /^Changed \d+ files/.test(r.text));
     assert.equal(cards.length, THREADS.real.changes, "every turn that wrote files ends with what it changed");
+    // The session threads the host never ran read through it whole, in the workspace its own threads run in.
+    assert.match(up.stdout, /^fixture: session-1 to session-2, \d+ turns written into the state in /m);
+    assert.doesNotMatch(up.stdout, /^fixture: session-\d+ \S+, \d+ turns in/m);
+    const listed = JSON.parse(wsp("threads", "--json")).threads;
+    assert.equal(new Set(listed.filter(t => t.cwd === join(home, "bench")).map(t => t.workspaceId)).size, 1);
+    for (const name of ["session-1", "session-2"]) {
+      const turns = turnsOf(name);
+      const rows = read(name);
+      assert.deepEqual(rows.filter(r => r.who === "person").map(r => r.text), turns.map(t => t.prompt), name);
+      const said = turns.flatMap(t => [...t.tools.flatMap(c => (c.children ?? []).flatMap(k => k.text ?? [])), t.reply]);
+      assert.deepEqual(rows.filter(r => r.who === "agent").map(r => r.text), said, `${name}: each reply, a subagent's lines before it`);
+      assert.equal(rows.filter(r => r.who === "tool" && /^Changed \d+ files/.test(r.text)).length, 1, `${name} ends its changing turn with what it changed`);
+      assert.equal(listed.find(t => t.threadId === fixture.threads[name])?.subagents?.length, sessionPlan(name).tasks, `${name} lists its subagents`);
+    }
   } finally {
     if (existsSync(out)) assert.equal(spawnSync(join(here, "stop.sh"), [out]).status, 0);
     rmSync(tmp, { recursive: true, force: true });
