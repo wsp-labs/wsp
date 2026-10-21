@@ -447,16 +447,20 @@ const refusedBy = (p: Promise<unknown>): Promise<Error | undefined> => p.then(
 );
 
 describe("a delete in the seconds a follow-up turn's done still reads", () => {
-  /** Done once over work not pushed, then a follow-up turn ended with the machine's session read slowed to 800 ms. */
+  /** Done once over work not pushed, then a follow-up turn ended with the machine's session read held until release. */
   async function followedUp() {
     const held = await doneOnce({ answers: { read: UNPUSHED } });
     await settled(held);
     const read = held.machine.readBytes!.bind(held.machine);
-    held.machine.readBytes = async (path, o) => (await sleep(800), read(path, o));
+    let release!: () => void;
+    const gate = new Promise<void>(res => (release = res));
+    let entered!: () => void;
+    const reading = new Promise<void>(res => (entered = res));
+    held.machine.readBytes = async (path, o) => (entered(), await gate, read(path, o));
     await held.rt.workspaces.wake(held.made.id);
     const next = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "push it", harness: "claude" });
     await next.finished;
-    return held;
+    return { ...held, release, reading };
   }
 
   it("refuses a lead's token at once, the turn not read yet", async () => {
@@ -464,12 +468,15 @@ describe("a delete in the seconds a follow-up turn's done still reads", () => {
     const e = await refusedBy(held.rt.sessions.delete(held.threadId, held.lead));
     expect(e?.message).toBe(subHeldDeleteRefusal(held.threadId, { files: 0, commits: 0, unread: true }, BRANCH).message);
     expect(held.machine.killed).toBe(false);
+    held.release();
   });
 
   it("waits for the done in flight, then refuses a lead's token over the work it found, and the person's question names it", async () => {
     const held = await followedUp();
-    await sleep(50);
-    const e = await refusedBy(held.rt.sessions.delete(held.threadId, held.lead));
+    await held.reading;
+    const refused = refusedBy(held.rt.sessions.delete(held.threadId, held.lead));
+    held.release();
+    const e = await refused;
     expect(e?.message).toBe(subHeldDeleteRefusal(held.threadId, { files: 3, commits: 2 }, BRANCH).message);
     expect((await held.rt.sessions.delete(held.threadId, undefined, { check: true })).question).toContain(`2 commits and 3 changed files on ${BRANCH} are not pushed`);
     expect(held.machine.killed).toBe(false);
