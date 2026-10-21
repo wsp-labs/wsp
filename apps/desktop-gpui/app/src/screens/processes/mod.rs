@@ -27,7 +27,7 @@ use crate::screens::palette::overlays;
 use crate::screens::settings::model::req;
 use crate::screens::settings::pages::activity::model::{Group, GroupKind, Thread};
 use crate::screens::settings::pages::activity::wire::Pid;
-use crate::screens::settings::pages::activity::{kill_of, reached_alone, status_of, threads_on, Computer, Latest, Lists, Scoped};
+use crate::screens::settings::pages::activity::{kill_of, reached_alone, status_of, threads_on, Computer, Latest, Lists, Moved, Scoped};
 use crate::screens::settings::words::HERE;
 use crate::screens::terminal::state::Absent;
 use crate::screens::{Host, Opened, Pane, Place, Screen};
@@ -89,6 +89,8 @@ pub struct Processes {
     restart: Entity<Restart>,
     /// The pane's width as last drawn, which the thread table's columns read as the web's container query does.
     width: Rc<std::cell::Cell<Pixels>>,
+    /// The computer table's rows in their places.
+    slots: table::Slots,
     _observed: Vec<Subscription>,
 }
 
@@ -204,6 +206,13 @@ impl Processes {
             this.follow_frame(cx);
             cx.notify();
         }));
+        // What only moves figures reaches the computer table here, as the thread table's own pieces take it there.
+        self._observed.push(cx.subscribe(&scoped, |this, _, _: &Moved, cx| {
+            this.follow_frame(cx);
+            if matches!(this.form, Some(Form::Computer(_))) {
+                this.relay_rows(cx);
+            }
+        }));
         self.form = Some(if thread { Form::Thread(scoped) } else { Form::Computer(scoped) });
         self.lay_threads(cx);
     }
@@ -225,9 +234,10 @@ impl Processes {
     fn lay_threads(&mut self, cx: &mut Context<Self>) {
         let Some(Form::Thread(scoped)) = &self.form else { return };
         let scoped = scoped.clone();
-        let (threads, _) = self.threads(cx);
+        let (threads, latests) = self.threads(cx);
         scoped.update(cx, |s, cx| {
             s.set_threads(threads);
+            s.latests = latests;
             s.ask_slates(cx);
         });
     }
@@ -555,6 +565,7 @@ impl Screen for Processes {
             clock: None,
             restart: cx.new(|_| Restart::default()),
             width: Rc::new(std::cell::Cell::new(crate::screens::app_shell::panel::DEFAULT_WIDTH)),
+            slots: table::Slots::default(),
             _observed: observed,
         };
         pane.find_sidebar(window, cx);
@@ -575,6 +586,7 @@ impl Screen for Processes {
 
 impl Render for Processes {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Processes");
         match &self.form {
             Some(Form::Thread(_)) => thread::view(self, window, cx).into_any_element(),
             Some(Form::Computer(_)) => table::view(self, window, cx).into_any_element(),

@@ -7,6 +7,7 @@ use gpui_kit::{div, prelude::*, px, relative, svg, AnyElement, App, Context, Sha
 use serde_json::{json, Value};
 use wsp_host_client::protocol::{ForwardsStopRequest, HostRestartRequest, PreferencesSetRequest};
 
+use super::age::{Count, Room};
 use super::chrome::{self, ROW_RADIUS};
 use super::{looks, model, Asked, Sidebar};
 use crate::screens::notices::words::wait_line;
@@ -337,7 +338,7 @@ impl Sidebar {
     }
 
     /// One forwarded port: `localhost:{port}` over its name and age, a link for a url, with the always-there X.
-    pub(crate) fn forward_row(&mut self, at: usize, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn forward_row(&mut self, at: usize, window: &mut gpui_kit::Window, cx: &mut Context<Self>) -> AnyElement {
         let Some(f) = self.forwards_shown().nth(at).cloned() else { return div().into_any_element() };
         let p = cx.palette().clone();
         let mono = cx.theme().mono_font_family.clone();
@@ -349,7 +350,9 @@ impl Sidebar {
             .and_then(Value::as_str)
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
             .map(|t| t.timestamp_millis() as f64);
-        let age = model::resting_age(started.unwrap_or(self.now), self.now);
+        let since = started.unwrap_or(self.now);
+        let age = super::age::age(format!("forward-age-{port}:{since}"), Count::Age, super::now_ms() - since, Room::Start, window, cx);
+        let age = super::age::rest(&age);
         let callback = f.get("kind").and_then(Value::as_str) == Some("callback");
         let url = format!("http://localhost:{port}/");
         let (first, second): (AnyElement, AnyElement) = if callback {

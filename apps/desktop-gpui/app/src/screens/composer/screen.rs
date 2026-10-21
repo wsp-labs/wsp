@@ -3,8 +3,13 @@
 //! thread column on the page's ground, on the thread the route opens, else the host's newest. `composer:<workspace>`
 //! opens it on a new thread there, as New thread does, and holds a fork's draft there when Fork from here opened it.
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use gpui_kit::component::v_flex;
-use gpui_kit::{div, prelude::*, px, App, Context, Entity, FocusHandle, KeyDownEvent, SharedString, Subscription, Task, Window};
+use gpui_kit::{
+    div, prelude::*, px, App, Context, Entity, FocusHandle, KeyDownEvent, SharedString, StyleRefinement, Subscription, Task, Window,
+};
 use serde_json::Value;
 use wsp_host_client::protocol::ProjectsBranchRequest;
 use wsp_host_client::Failure;
@@ -30,9 +35,19 @@ pub struct ComposerScreen {
     hero: Entity<HeroField>,
     _branch: Task<()>,
     _connect: Task<()>,
+    /// What the headline last read off the sidebar.
+    names_read: Names,
     /// The headline draws the project's name and mark from the sidebar, which the frame's cache of this page does not see.
     _names: Option<Subscription>,
+    /// Set by any change of the composer, which may change its height: its next frame draws it whole, not cached at the
+    /// height it had.
+    composer_moved: Rc<Cell<bool>>,
+    _moved: Subscription,
 }
+
+/// What the headline reads off the sidebar: the project's id and name, its look and its image.
+#[derive(Default, PartialEq)]
+struct Names(Option<String>, Option<String>, Option<Value>, Option<usize>);
 
 /// `BRANCH_REREAD_MS`: how often a project home reads its branch again, so a checkout made in a terminal reaches the
 /// tray without a send.
@@ -52,11 +67,15 @@ impl Screen for ComposerScreen {
         let hero = cx.new(|_| HeroField::new());
         let names = crate::screens::terminal::workspaces_sidebar(cx).map(|sidebar| {
             cx.observe(&sidebar, |this: &mut Self, _, cx| {
-                if this.composer.read(cx).fresh() {
-                    cx.notify()
+                let names = this.names(cx);
+                if names != this.names_read && this.composer.read(cx).fresh() {
+                    cx.notify();
                 }
+                this.names_read = names;
             })
         });
+        let composer_moved = Rc::new(Cell::new(true));
+        let moved = moves(&composer, &composer_moved, cx);
         let mut screen = ComposerScreen {
             composer,
             focus: cx.focus_handle(),
@@ -68,7 +87,10 @@ impl Screen for ComposerScreen {
             hero,
             _branch: Task::ready(()),
             _connect: Task::ready(()),
+            names_read: Names::default(),
             _names: names,
+            composer_moved,
+            _moved: moved,
         };
         screen.connect(opened, window, cx);
         screen
@@ -77,6 +99,7 @@ impl Screen for ComposerScreen {
     /// Another `composer:<workspace>` while this one is open is another new thread, on a composer of its own.
     fn show(&mut self, opened: Opened, window: &mut Window, cx: &mut Context<Self>) {
         self.composer = cx.new(|cx| Composer::new(window, cx));
+        self._moved = moves(&self.composer, &self.composer_moved, cx);
         self.link = None;
         self.note = None;
         self.connect(opened, window, cx);
@@ -187,6 +210,21 @@ impl ComposerScreen {
         &self.hero
     }
 
+    fn names(&self, cx: &App) -> Names {
+        let Some((sidebar, workspace)) = crate::screens::terminal::workspaces_sidebar(cx).zip(self.workspace.as_deref()) else {
+            return Names::default();
+        };
+        let s = sidebar.read(cx);
+        let record = s.workspace(workspace).0;
+        let read = |at: &str| record.and_then(|w| w.pointer(at)).and_then(Value::as_str).map(str::to_owned);
+        let (project, name) = (read("/project/id"), read("/project/name"));
+        let prefs = s.around().preferences.as_deref();
+        let look = project.as_deref().zip(prefs).and_then(|(id, p)| p.get("projectLook")?.get(id).cloned());
+        let image =
+            project.as_deref().zip(prefs).and_then(|(id, p)| s.around().images.of(p, id)).map(|i| std::sync::Arc::as_ptr(&i) as usize);
+        Names(project, name, look, image)
+    }
+
     /// The headline over a new thread: the workspace's project by its mark and name, the name the workspace's id where
     /// its record has not come (`workspace?.project.name ?? workspaceId`).
     fn heading(&self, window: &Window, cx: &App) -> Option<gpui_kit::AnyElement> {
@@ -232,6 +270,13 @@ pub fn column(fresh: bool, composer: impl IntoElement) -> gpui_kit::Div {
     }
 }
 
+/// Marks `moved` now and at every change of `composer`.
+fn moves(composer: &Entity<Composer>, moved: &Rc<Cell<bool>>, cx: &mut Context<ComposerScreen>) -> Subscription {
+    moved.set(true);
+    let moved = moved.clone();
+    cx.observe(composer, move |_, _, _| moved.set(true))
+}
+
 /// A key that types into the composer from outside any field (composerTypeToFocus.ts `typesIntoComposer`): one
 /// printable character with no command, control or option key held.
 pub fn types_into_composer(event: &KeyDownEvent) -> Option<&str> {
@@ -244,13 +289,20 @@ pub fn types_into_composer(event: &KeyDownEvent) -> Option<&str> {
 
 impl Render for ComposerScreen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("ComposerScreen");
         if window.focused(cx).is_none() {
             self.focus.focus(window, cx);
         }
         let p = cx.palette().clone();
         let fresh = self.composer.read(cx).fresh();
         let focus = self.focus.clone();
-        let composer = self.composer.clone();
+        // Cached at its height as drawn, so its caret's blink draws the composer alone, as the thread's dock does.
+        let height = self.composer.read(cx).drawn_height().filter(|_| !self.composer_moved.replace(false));
+        self.composer.read(cx).lay_at(height);
+        let composer = match height {
+            Some(height) => self.composer.clone().cached(StyleRefinement::default().w_full().h(height)).into_any_element(),
+            None => self.composer.clone().into_any_element(),
+        };
         let heading = fresh.then(|| self.heading(window, cx)).flatten();
         let page = match heading {
             // `ProjectHome`: the headline and the composer one stack, 40 px apart, centred over 8vh of room below.

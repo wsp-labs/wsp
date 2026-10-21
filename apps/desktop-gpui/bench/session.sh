@@ -15,17 +15,26 @@
 # fixture.sh already started with BENCH_SESSION=25 and leaves it running; BENCH_GPUI_APP=<path> runs that build
 # instead of building one; BENCH_HEAP=1 builds with the heap-profile feature, so the app also reads its live heap and
 # writes the heap's biggest holders beside its result. The script runs on Linux too, under Xvfb with a window manager.
+# It exits 3, measuring nothing, when the app's window is covered or not key (the app raises it at launch), and on a
+# locked screen, which draws no window: it refuses to start on one and stops the app if the screen locks mid-run.
 set -eu
+# A Mac whose display sleeps covers the window; caffeinate holds it awake for the whole run.
+if [ "$(uname -s)" = Darwin ] && [ -z "${SESSION_AWAKE:-}" ]; then SESSION_AWAKE=1 exec caffeinate -dims "$0" "$@"; fi
 bench=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=lock.sh
+. "$bench/lock.sh"
+refuse_locked
 repo=$(cd "$bench/../../.." && pwd)
 out=${BENCH_OUT:-$(mktemp -d "${TMPDIR:-/tmp}/wsp-session-out-XXXXXX")}
 mkdir -p "$out"
 fixture=${BENCH_FIXTURE:-$out/fixture.json}
 started_fixture=""
 app_pid=""
+watcher=""
 
 finish() {
   code=$?
+  if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; fi
   if [ -n "$app_pid" ] && [ "$(ps -o ppid= -p "$app_pid" 2>/dev/null | tr -d ' ')" = "$$" ]; then kill "$app_pid"; fi
   if [ -n "$started_fixture" ] && [ -f "$fixture" ]; then "$bench/stop.sh" "$fixture" || true; fi
   [ $code -eq 0 ] || echo "session: stopped (exit $code); results so far in $out" >&2
@@ -69,6 +78,8 @@ echo "== opening 30 threads one after another"
 env -i HOME="$home" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8 ${DISPLAY:+DISPLAY=$DISPLAY} \
   "$gpui_app" --state "$state" --bench "$out/session.json" --bench-thread "$first" --bench-session "$list" > "$log" 2>&1 &
 app_pid=$!
+watch_lock "$app_pid" "$out/locked" &
+watcher=$!
 
 darwin=""
 [ "$(uname -s)" = Darwin ] && darwin=1
@@ -106,8 +117,11 @@ done
 code=0
 wait "$app_pid" || code=$?
 app_pid=""
+kill "$watcher" 2>/dev/null || true
+watcher=""
+[ ! -f "$out/locked" ] || { echo "the screen locked mid-run, so nothing the app drew was measured; keep it unlocked and run again" >&2; exit 3; }
 grep "^bench: session return" "$log" || true
-[ $code -ne 3 ] || { echo "the app's window lost focus; keep it in front and run again" >&2; exit 1; }
+[ $code -ne 3 ] || { echo "the app's window was covered or lost focus, so nothing it drew was measured; keep it in front and run again" >&2; tail -5 "$log" >&2; exit 3; }
 [ $code -eq 0 ] || { echo "desktop-gpui --bench-session failed (exit $code):" >&2; tail -20 "$log" >&2; exit 1; }
 [ "$seen" -eq 91 ] || { echo "read $seen readings, not the rest, 30 threads and 60 steps of the walk" >&2; exit 1; }
 rm -rf "$home"

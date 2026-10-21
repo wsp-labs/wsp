@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pub mod bench;
 pub mod desktop;
+pub mod frames;
 pub mod gallery;
 pub mod glass;
 pub mod heap;
+pub mod in_front;
 pub mod local_store;
 pub mod screens;
 pub mod scroll_trace;

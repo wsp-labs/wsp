@@ -31,8 +31,8 @@ use futures::StreamExt;
 use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::component::{h_flex, v_flex};
 use gpui_kit::{
-    prelude::*, px, AnyWindowHandle, App, Bounds, Context, Entity, Focusable as _, Pixels, ScrollHandle, SharedString, Subscription, Task,
-    Window,
+    div, prelude::*, px, AnyElement, AnyWindowHandle, App, Bounds, Context, Entity, Focusable as _, Pixels, ScrollHandle, SharedString,
+    StyleRefinement, Subscription, Task, Window,
 };
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
@@ -146,6 +146,8 @@ pub struct SettingsScreen {
     started: usize,
     /// The Usage page while its group is open, built on the way in and dropped on the way out as the web mounts it.
     usage: Option<(Entity<crate::screens::usage::UsagePage>, Subscription)>,
+    /// The Activity page while Settings stands on it.
+    activity_page: Option<Entity<pages::activity::ActivityPage>>,
     /// The host task, stopped with the screen.
     _follow: Option<tokio::task::AbortHandle>,
     _receive: Task<()>,
@@ -299,6 +301,7 @@ impl SettingsScreen {
             reveal: None,
             started: 0,
             usage: None,
+            activity_page: None,
             _follow: Some(follow.abort_handle()),
             _receive: receive,
             _search: search,
@@ -346,6 +349,7 @@ impl SettingsScreen {
             reveal: None,
             started: 0,
             usage: None,
+            activity_page: None,
             _follow: None,
             _receive: Task::ready(()),
             _search: search,
@@ -704,6 +708,11 @@ impl SettingsScreen {
         self.usage.as_ref().map(|(page, _)| page.clone())
     }
 
+    /// The Activity page while Settings stands on it.
+    pub fn activity_page(&self) -> Option<&Entity<pages::activity::ActivityPage>> {
+        self.activity_page.as_ref()
+    }
+
     /// The Usage page while Settings stands on it.
     pub fn usage(&self) -> Option<&Entity<crate::screens::usage::UsagePage>> {
         self.usage.as_ref().map(|(page, _)| page)
@@ -797,6 +806,7 @@ fn merge(into: &mut Value, patch: &Value) {
 
 impl Render for SettingsScreen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("SettingsScreen");
         let screen = cx.entity().downgrade();
         let room = self.page_scroll.max_offset().y;
         if self.start_scroll > 0. {
@@ -844,6 +854,7 @@ impl Render for SettingsScreen {
         let ctx =
             Ctx::new(&self.data, &at, self.level.as_ref(), acts, self.activity.clone(), self.agents.clone(), self.computers_menu.clone());
         let locked = !searching && matches!(at, At::Group(GroupId::Usage | GroupId::Activity));
+        let activity = activity_page(&mut self.activity_page, (!searching && at == At::Group(GroupId::Activity)).then_some(&ctx), cx);
         let mut body = frame::Body::build(&ctx, if searching { &self.search } else { "" }, self.unreachable.as_deref(), window, cx);
         let found = (narrow && !self.search.is_empty()).then(|| frame::Body::build(&ctx, &self.search, None, window, cx));
         let results = found.as_ref().map(|f| f.results.clone());
@@ -883,28 +894,47 @@ impl Render for SettingsScreen {
                 self.drawn = drawn;
                 cx.on_next_frame(window, |_, _, cx| cx.notify());
             }
-            let page = match usage {
-                Some(usage) => frame::page_of(usage.into_any_element(), &self.page_scroll, width.sm, window, cx).into_any_element(),
-                None => frame::page(body, &self.page_scroll, locked, width.sm, window, cx).into_any_element(),
+            let page = match (usage, activity) {
+                (Some(usage), _) => frame::page_of(usage.into_any_element(), &self.page_scroll, width.sm, window, cx).into_any_element(),
+                (None, Some(activity)) => own_page(activity),
+                (None, None) => frame::page(body, &self.page_scroll, locked, width.sm, window, cx).into_any_element(),
             };
             root.child(v_flex().flex_1().min_w_0().h_full().child(page))
         } else {
             let height = window.viewport_size().height;
             let sidebar = frame::sidebar(&ctx, &self.search_field, hits.as_deref(), results.as_deref(), &trail, true, height, window, cx);
             let top_bar = frame::top_bar(&ctx, searching, window, cx);
-            root.child(sidebar).child(v_flex().flex_1().min_w_0().h_full().child(top_bar).child(frame::page(
-                body,
-                &self.page_scroll,
-                locked,
-                width.sm,
-                window,
-                cx,
-            )))
+            let page = match activity {
+                Some(activity) => own_page(activity),
+                None => frame::page(body, &self.page_scroll, locked, width.sm, window, cx).into_any_element(),
+            };
+            root.child(sidebar).child(v_flex().flex_1().min_w_0().h_full().child(top_bar).child(page))
         };
         cx.defer_in(window, |this, window, cx| this.settle_images(window, cx));
         // In the frame the shell draws the dialogs layer over the whole window.
         root.children(if self.framed { None } else { layer::draw(window, cx) })
     }
+}
+
+/// The Activity page while Settings stands on it, `ctx` its records: made as Settings comes to it, let go as it leaves.
+fn activity_page(
+    held: &mut Option<Entity<pages::activity::ActivityPage>>,
+    ctx: Option<&Ctx>,
+    cx: &mut App,
+) -> Option<Entity<pages::activity::ActivityPage>> {
+    let Some(ctx) = ctx else {
+        *held = None;
+        return None;
+    };
+    let page = held.get_or_insert_with(|| cx.new(|cx| pages::activity::ActivityPage::new(cx))).clone();
+    let of = pages::activity::page_of(ctx);
+    page.update(cx, |page, _| page.set(of));
+    Some(page)
+}
+
+/// A page that scrolls itself, drawn cached in the centre: a scroll step draws it alone.
+fn own_page(view: Entity<impl Render>) -> AnyElement {
+    div().flex_1().min_h_0().child(view.cached(StyleRefinement::default().size_full())).into_any_element()
 }
 
 /// The page's scroll on its way to a card, eased as the web's smooth `scrollIntoView` eases it.

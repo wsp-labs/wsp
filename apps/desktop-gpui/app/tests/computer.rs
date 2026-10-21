@@ -10,16 +10,19 @@ use std::cell::RefCell;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use desktop_gpui::screens::app_shell::material::{self, Look};
 use desktop_gpui::screens::app_shell::panel::RightPanel;
 use desktop_gpui::screens::computer::daemon_down::{DaemonDown, Restart};
 use desktop_gpui::screens::computer::live::{self, Target};
 use desktop_gpui::screens::computer::model::{Sample, Usage, LIVE_WINDOW};
-use desktop_gpui::screens::computer::{Computer, Shown, PROBE};
+use desktop_gpui::screens::computer::{Computer, Shown};
 use desktop_gpui::screens::{self, entry, Entry, Host, Mounted, Opened, Pane, Place, Route};
 use desktop_gpui::shell::{Launch, Shell};
-use desktop_gpui::ui::{self, Side};
+use desktop_gpui::ui::{self, ActivePalette as _, Palette, Side};
 use gpui_kit::component::Root;
-use gpui_kit::{div, prelude::*, px, size, App, Context, Entity, Modifiers, TestAppContext, VisualTestContext, Window};
+use gpui_kit::{
+    div, prelude::*, px, size, AnyView, App, Context, Entity, Modifiers, StyleRefinement, TestAppContext, VisualTestContext, Window,
+};
 use serde_json::json;
 use wsp_host_client::protocol::WorkspacesRestartDaemonRequest;
 use wsp_host_client::HostClient;
@@ -70,7 +73,8 @@ fn open<'a>(
     let (_, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
         shell = Some(view.clone());
-        Root::new(view, window, cx)
+        desktop_gpui::frames::watch(window, cx);
+        Root::new(view, window, cx).cache_view()
     });
     let shell = shell.unwrap();
     cx.simulate_resize(size(px(1280.), px(800.)));
@@ -97,6 +101,30 @@ fn until(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut Visua
         assert!(start.elapsed() < WAIT, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(50));
         cx.run_until_parked();
+    }
+}
+
+/// A host of the test's own holding what the shared one holds, a project and its finished thread: another test's
+/// thread on the shared host draws every window on it, into the frames a test counts.
+fn own_host() -> common::Throwaway {
+    let host = common::Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    host
+}
+
+/// Draws until the window has drawn nothing for a second, the host's answers to its opening all landed, so a frame
+/// counted after it is one the test asked for.
+fn settled(cx: &mut VisualTestContext) {
+    let (start, mut still) = (Instant::now(), Instant::now());
+    while still.elapsed() < Duration::from_secs(1) {
+        assert!(start.elapsed() < WAIT, "the window never came to rest: {:?}", desktop_gpui::frames::take());
+        std::thread::sleep(Duration::from_millis(50));
+        cx.run_until_parked();
+        if !desktop_gpui::frames::take().is_empty() {
+            still = Instant::now();
+        }
     }
 }
 
@@ -241,11 +269,10 @@ fn stop_thread_view(shell: &Entity<Shell>, cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
-/// Moves the test clock across three of the pane's checks: past the frame drawn before, a check that asks for a frame,
-/// and the one that lets go of a pane the window did not draw.
+/// Draws what the last change asked for: a frame that leaves the pane out lets its readings go.
 fn probed(cx: &mut VisualTestContext) {
     for _ in 0..3 {
-        cx.executor().advance_clock(PROBE);
+        cx.executor().advance_clock(Duration::from_secs(1));
         cx.run_until_parked();
     }
 }
@@ -254,6 +281,172 @@ fn probed(cx: &mut VisualTestContext) {
 fn panel(shell: &Entity<Shell>, cx: &mut VisualTestContext, change: impl FnOnce(&mut RightPanel, &mut Window, &mut Context<RightPanel>)) {
     shell.update_in(cx, |s, window, cx| s.panel().update(cx, |p, cx| change(p, window, cx)));
     cx.run_until_parked();
+}
+
+/// Catches: a pane at rest asking for a frame every other second to learn whether the window still draws it.
+#[gpui_kit::test]
+fn this_computers_pane_at_rest_draws_no_frame(cx: &mut TestAppContext) {
+    let host = own_host();
+    cx.update(|cx| cx.set_global(desktop_gpui::ui::status::Still(true)));
+    let (_shell, pane, cx) = open(cx, &host, None);
+    until(cx, "this computer's facts", |cx| !shown(&pane, cx).chips.is_empty());
+    // The window lets go of the keys, so the composer's caret does not blink through the count; its going lands first.
+    cx.update(|window, cx| window.blur(cx));
+    settled(cx);
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+    desktop_gpui::frames::take();
+    for _ in 0..10 {
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
+    }
+    let counts = desktop_gpui::frames::take();
+    assert_eq!(counts.get("frame"), None, "frames drawn over 10 s with the pane at rest: {counts:?}");
+}
+
+/// Catches: a sample read off the live store while the pane draws, which made every sample a frame of the whole window.
+#[gpui_kit::test]
+fn a_new_reading_draws_the_pane_alone(cx: &mut TestAppContext) {
+    let host = own_host();
+    cx.update(|cx| cx.set_global(desktop_gpui::ui::status::Still(true)));
+    let (_shell, pane, cx) = open(cx, &host, None);
+    until(cx, "this computer's facts", |cx| !shown(&pane, cx).chips.is_empty());
+    settled(cx);
+    let live = cx.update(|_, cx| live::live(cx));
+    for n in 0..3 {
+        desktop_gpui::frames::take();
+        live.update(cx, |l, cx| l.hear(&Target::Here.key(), sample(n), cx));
+        cx.run_until_parked();
+        let counts = desktop_gpui::frames::take();
+        assert_eq!(counts.get("Computer"), Some(&1), "reading {n}: the pane drew once: {counts:?}");
+        for view in ["Shell", "RightPanel", "Sidebar"] {
+            assert!(!counts.contains_key(view), "reading {n}: {view} rendered for a reading: {counts:?}");
+        }
+    }
+}
+
+/// A sample for this computer `n` seconds into the test.
+fn sample(n: usize) -> live::Heard {
+    let (used, total) = (Usage { used: 1e9 * (n + 1) as f64, total: 8e9 }, Usage { used: 1e10, total: 1e11 });
+    live::Heard::Sample(Sample { cpu: 10. + 7. * n as f64, load1: 1., mem: used, disk: total, at: 1_000. + n as f64 })
+}
+
+/// The pane cached inside the panel's scope, as the shell draws a right panel's pane.
+struct InPanel {
+    pane: AnyView,
+    scope: Palette,
+}
+
+impl Render for InPanel {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        desktop_gpui::frames::count("InPanel");
+        div().size_full().child(ui::theme::scoped(self.scope.clone(), self.pane.clone().cached(StyleRefinement::default().size_full())))
+    }
+}
+
+/// The quads painted over the pane, in the order painted.
+fn pane_quads(cx: &mut VisualTestContext) -> Vec<String> {
+    let pane = cx.debug_bounds("computer-pane").expect("the pane is drawn");
+    cx.update(|window, _| {
+        let pane = pane.scale(window.scale_factor());
+        let quads = window.painted_quads().into_iter().filter(|q| q.bounds.intersects(&pane));
+        quads.map(|q| format!("{:?} {:?} {:?}", q.bounds, q.background, q.border_color)).collect()
+    })
+}
+
+/// Catches: a pane drawn again in place outside the scope the panel set around it, which drew a reading in the
+/// page's colours where the Mac's dark material gives the panel its own.
+#[gpui_kit::test]
+fn a_reading_drawn_in_place_keeps_the_panels_colours(cx: &mut TestAppContext) {
+    let throwaway = own_host();
+    let host = host_of(&throwaway);
+    init(cx);
+    let look = Look { mac: true, glass: true };
+    cx.update(|cx| {
+        cx.set_global(desktop_gpui::ui::status::Still(true));
+        ui::theme::set_theme_in("graphite", look, cx);
+    });
+    let (_, cx) = cx.add_window_view(|window, cx| {
+        let page = cx.palette().clone();
+        let scope = material::fills(look, "graphite", &page).panel_scope(&page);
+        assert_ne!(scope.background, page.background, "the panel's ground is its own");
+        let opened = Opened { workspace_id: None, thread_id: None, tab: None, arg: None };
+        let view = (entry::<Computer>().mount)(&host, opened, window, cx).view;
+        let view = cx.new(|_| InPanel { pane: view, scope });
+        desktop_gpui::frames::watch(window, cx);
+        Root::new(view, window, cx).cache_view()
+    });
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    until(cx, "the pane", |cx| cx.debug_bounds("computer-pane").is_some());
+    settled(cx);
+    let live = cx.update(|_, cx| live::live(cx));
+    desktop_gpui::frames::take();
+    live.update(cx, |l, cx| l.hear(&Target::Here.key(), sample(0), cx));
+    cx.run_until_parked();
+    let counts = desktop_gpui::frames::take();
+    assert_eq!((counts.get("Computer"), counts.get("InPanel")), (Some(&1), None), "the reading drew the pane alone: {counts:?}");
+    let in_place = pane_quads(cx);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let whole = pane_quads(cx);
+    assert_eq!(in_place.len(), whole.len());
+    let differ: Vec<_> = in_place.iter().zip(&whole).filter(|(a, b)| a != b).collect();
+    assert!(differ.is_empty(), "drawn in place, then whole, the pane painted: {differ:#?}");
+}
+
+/// Catches: a frame that drew only a pane in place sending a screen reader a tree with nothing but the pane's nodes,
+/// the shell's own gone, as the output it reused builds none.
+#[gpui_kit::test]
+fn a_reading_drawn_in_place_leaves_the_shell_in_the_screen_readers_tree(cx: &mut TestAppContext) {
+    let host = own_host();
+    cx.update(|cx| cx.set_global(desktop_gpui::ui::status::Still(true)));
+    let (_shell, pane, cx) = open(cx, &host, None);
+    until(cx, "this computer's facts", |cx| !shown(&pane, cx).chips.is_empty());
+    cx.update(|window, _| window.simulate_a11y_active(true));
+    settled(cx);
+    // Each node the last tree sent, by its role and label.
+    let tree = |cx: &mut VisualTestContext| -> Vec<String> {
+        let json = cx.update(|window, _| window.debug_a11y_tree_json()).expect("a tree was sent");
+        let tree: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let nodes = tree["nodes"].as_object().unwrap().values();
+        let mut nodes: Vec<String> = nodes.map(|node| format!("{} {}", node["aria"]["role"], node["aria"]["label"])).collect();
+        nodes.sort();
+        nodes
+    };
+    let whole = tree(cx);
+    assert!(whole.contains(&r#""MultilineTextInput" "Ask anything""#.to_owned()), "the whole frame sent the composer's field: {whole:?}");
+    let live = cx.update(|_, cx| live::live(cx));
+    desktop_gpui::frames::take();
+    live.update(cx, |l, cx| l.hear(&Target::Here.key(), sample(0), cx));
+    cx.run_until_parked();
+    let counts = desktop_gpui::frames::take();
+    assert_eq!((counts.get("Computer"), counts.get("Shell")), (Some(&1), None), "the reading drew the pane alone: {counts:?}");
+    let after = tree(cx);
+    let lost: Vec<&String> = whole.iter().filter(|node| !after.contains(node)).collect();
+    assert!(lost.is_empty(), "the shell's nodes that left the tree: {lost:?}");
+}
+
+/// Catches: a pane that keeps the host's ask while the window no longer draws it, which no frame at rest tells it now.
+#[gpui_kit::test]
+fn a_local_threads_pane_lets_its_ask_go_with_the_first_frame_that_leaves_it_out(cx: &mut TestAppContext) {
+    let shared = common::shared();
+    let host = host_of(&shared.host);
+    let (workspace, thread) = first(&host);
+    let (shell, pane, cx) = open(cx, &shared.host, Some((workspace.clone(), thread)));
+    // The pane asks once the sidebar's list, which the host sends on its own thread, names the workspace.
+    until(cx, "the workspace's facts", |cx| shown(&pane, cx).path.is_some());
+    stop_thread_view(&shell, cx);
+    let live = cx.update(|_, cx| live::live(cx));
+    let holders = |cx: &mut VisualTestContext| live.read_with(cx, |l, _| l.holders(&workspace));
+    assert_eq!(holders(cx), 1, "a drawn pane holds the host's ask");
+    panel(&shell, cx, |p, window, cx| p.toggle(window, cx));
+    assert_eq!(holders(cx), 0, "a shut panel's pane lets go");
+    panel(&shell, cx, |p, window, cx| p.toggle(window, cx));
+    assert_eq!(holders(cx), 1, "drawn again, it asks again");
+    panel(&shell, cx, |p, window, cx| p.add(Pane::Files, None, window, cx));
+    assert_eq!(holders(cx), 0, "a tab behind another lets go");
+    panel(&shell, cx, |p, window, cx| p.activate(0, window, cx));
+    assert_eq!(holders(cx), 1, "and asks again once it is the tab in front");
 }
 
 #[gpui_kit::test]

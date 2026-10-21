@@ -6,11 +6,13 @@
 
 pub mod live;
 pub mod model;
+mod page;
 mod pickers;
 mod pieces;
 pub(crate) mod place;
 pub(crate) mod tables;
 mod totals;
+pub(crate) mod views;
 pub(crate) mod wire;
 
 use std::collections::{HashMap, HashSet};
@@ -21,7 +23,10 @@ use futures::channel::{mpsc, oneshot};
 use futures::StreamExt as _;
 use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::component::v_flex;
-use gpui_kit::{div, prelude::*, px, AnyElement, AnyWindowHandle, App, Context, Entity, SharedString, Subscription, Task, Window};
+use gpui_kit::{
+    div, prelude::*, px, AnyElement, AnyWindowHandle, App, Context, Entity, EventEmitter, SharedString, Subscription, Task, WeakEntity,
+    Window,
+};
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
 use wsp_host_client::protocol::{ActivityEndRequest, PlaceView, SessionsInterruptRequest, SlatesGetRequest};
@@ -31,7 +36,7 @@ use crate::screens::app_shell::title::thread_title;
 use crate::screens::dialogs::layer;
 use crate::screens::settings::model::req;
 use crate::screens::settings::page::{CardData, Ctx, DialogBuild};
-use crate::screens::settings::words::HERE;
+use crate::screens::settings::words::{fmt_duration, HERE};
 use crate::screens::settings::Acts;
 use crate::screens::sidebar::menu::{absent_of, place_of};
 use crate::screens::sidebar::model::{Row, Status as RowStatus, Subagent, SubagentState};
@@ -44,20 +49,38 @@ use crate::ui::{narrow, text, ActivePalette, AlertDialog, Button, ComputerIcon, 
 pub(crate) use live::wait as redial;
 use live::{Arrival, Held, Listing, Reads, Target};
 use model::{
-    age_word, filter_groups, flat_rows, fmt_elapsed, kind_groups, port_rows, ports_by_pid, push_history, scope_of, sort_groups,
-    total_spent, words as w, Group, HistoryPoint, Picks, Proc, Scope, ScopeInput, Sort, SubState, SubagentIn, Thread, View,
+    age_word, filter_groups, flat_rows, fmt_elapsed, group_spent, groups_under, kind_groups, nest_groups, port_rows, ports_by_pid,
+    push_history, scope_of, sort_groups, spent, total_spent, words as w, ContainerRow, Group, HistoryPoint, Picks, Proc, Scope, ScopeInput,
+    Sort, SubState, SubagentIn, Thread, View,
 };
-use pickers::{controls, selects, synced, Items, Selects};
+pub use page::ActivityPage;
+use pickers::{controls, lay, pick_items, selects, synced, Items, Picked, Selects};
 use place::{thread_cgroup, THREAD_CGROUPS};
-use tables::{Hand, ThreadLooks};
-use totals::{rows_skeleton, skeletons_move, tiles, tiles_skeleton};
-use wire::{apply_changes, apply_port_event, memory_of, AppPart, Frame, KnownPort, Pid, Snapshot};
+use tables::{container_looks, figure_looks, proc_key, thread_head_acts, title_look, Hand, ThreadLooks, SAMPLER};
+use totals::{rows_skeleton, skeletons_move, tile_looks, tiles, tiles_skeleton};
+use views::{Look, Pieces};
+use wire::{apply_changes, apply_port_event, memory_of, AppPart, Frame, Kind, KnownPort, Pid, Snapshot};
 
 /// The page's view and the computer it reads (`activityView`, `activityPlace`).
-#[derive(Default)]
 pub struct Pick {
     pub view: View,
     pub place: Option<String>,
+    /// The computer's state the page last drew.
+    drawn: WeakEntity<Scoped>,
+}
+
+impl Default for Pick {
+    fn default() -> Self {
+        Pick { view: View::default(), place: None, drawn: WeakEntity::new_invalid() }
+    }
+}
+
+impl Pick {
+    /// The computer's state the page draws now, for a test that brings its own frames.
+    #[doc(hidden)]
+    pub fn drawn(&self) -> Option<Entity<Scoped>> {
+        self.drawn.upgrade()
+    }
 }
 
 /// Each window's pick, kept across Settings closing for as long as the window stands, as the web's store keeps it.
@@ -84,7 +107,13 @@ pub fn kept(window: &Window, cx: &mut App) -> Entity<Pick> {
     pick
 }
 
-pub fn cards(ctx: &Ctx, _window: &mut Window, _cx: &mut App) -> Vec<CardData> {
+pub fn cards(_ctx: &Ctx, _window: &mut Window, _cx: &mut App) -> Vec<CardData> {
+    vec![CardData::new("activity")]
+}
+
+/// What the page draws from Settings' records: the computer and view picked, the computers, the agents' models and
+/// the acts.
+pub fn page_of(ctx: &Ctx) -> Page {
     let pick = ctx.activity.clone();
     let places: Vec<(PlaceView, ComputerIcon)> =
         ctx.data.places.iter().map(|p| (p.clone(), ComputerIcon::of(p, ctx.data.preferences()))).collect();
@@ -94,7 +123,7 @@ pub fn cards(ctx: &Ctx, _window: &mut Window, _cx: &mut App) -> Vec<CardData> {
         .iter()
         .flat_map(|h| h.models.iter().map(move |m| (h.harness.to_string(), m.value.clone(), m.label.clone())))
         .collect();
-    vec![CardData::new("activity").body(Page { pick, places, models, acts: ctx.acts.clone() })]
+    Page { pick, places, models, acts: ctx.acts.clone() }
 }
 
 /// The page's views at the top bar's right end; under 640 px, where four segments would cover the crumbs, the same views
@@ -348,8 +377,18 @@ pub(crate) struct Lists {
     pub(crate) listing: Option<Listing>,
     /// The threads of the computer last asked for, read again only when the lists or the computer move.
     cache: Option<(String, Vec<Thread>, Latest)>,
+    /// What the page last drew off the lists, which a listing that leaves the computers as they were is handed to.
+    drawn: Option<ListsDrawn>,
     _follow: Option<Held>,
     _receive: Task<()>,
+}
+
+/// The computers a page drew and the state of the one it read.
+struct ListsDrawn {
+    places: Vec<(PlaceView, ComputerIcon)>,
+    computers: Vec<String>,
+    computer: Computer,
+    scoped: WeakEntity<Scoped>,
 }
 
 impl Lists {
@@ -363,14 +402,27 @@ impl Lists {
                 }
             }
         });
-        Lists { listing: None, cache: None, _follow: follow, _receive: receive }
+        Lists { listing: None, cache: None, drawn: None, _follow: follow, _receive: receive }
     }
 }
 
+/// A listing lays its threads and their marks on the page's computer, which draws again only what they moved; the
+/// page draws again for a computer that came or went.
 fn take_listing(lists: &mut Lists, listing: Listing, cx: &mut Context<Lists>) {
     lists.listing = Some(listing);
     lists.cache = None;
-    cx.notify();
+    let Some(drawn) = lists.drawn.take() else { return cx.notify() };
+    let workspaces = lists.listing.as_ref().map_or(&[][..], |l| l.workspaces.as_slice());
+    let same: Vec<String> = computers(&drawn.places, workspaces).into_iter().map(|c| c.place.id).collect();
+    let scoped = drawn.scoped.upgrade().filter(|_| same == drawn.computers);
+    let Some(scoped) = scoped else { return cx.notify() };
+    let (threads, latests) = lists.threads(&drawn.places, &drawn.computer);
+    lists.drawn = Some(drawn);
+    scoped.update(cx, |s, cx| {
+        s.set_threads(threads);
+        s.latests = latests;
+        s.moved(cx);
+    });
 }
 
 impl Lists {
@@ -435,6 +487,65 @@ impl Voice {
     }
 }
 
+/// What a state's groups lay out, the pieces' looks aside: an arrival that leaves it as it was draws only the pieces
+/// whose look moved.
+#[derive(PartialEq)]
+struct Shape {
+    view: View,
+    width: Width,
+    /// Whether there is a scope, whether it counts power, a frame, the sampler's cost, and a dial waiting.
+    flags: [bool; 5],
+    unavailable: Option<String>,
+    groups: Vec<Group>,
+    rest: Vec<Proc>,
+    /// The flat views' rows in their order.
+    order: Vec<Pid>,
+    /// How long each subagent drawn has run, as its row says it.
+    durations: Vec<String>,
+    /// The kind and thread selects' items.
+    choices: (Sig<Option<Kind>>, Sig<Option<String>>),
+    ending: HashSet<Pid>,
+    stopping: HashSet<String>,
+}
+
+/// A select's items by their values and their words.
+type Sig<T> = Vec<(T, SharedString)>;
+
+/// Every row a forest of processes draws, slate headings among them, each over the processes under it.
+fn rows_of(procs: &[Proc]) -> Vec<&Proc> {
+    procs.iter().flat_map(|p| std::iter::once(p).chain(rows_of(&p.children))).collect()
+}
+
+/// A process with its figures taken off, which its pieces draw.
+fn bare(p: &Proc) -> Proc {
+    Proc { mem: 0., cpu: 0., energy: p.energy.map(|_| 0.), children: p.children.iter().map(bare).collect(), ..p.clone() }
+}
+
+/// A group as it lays out: its figures off, and shut, nothing of what it holds.
+fn shape_of(g: &Group, shut: bool) -> Group {
+    let container = |c: &ContainerRow| ContainerRow {
+        mem: c.mem.map(|_| 0.),
+        cpu: c.cpu.map(|_| 0.),
+        // Its row says how long it has run in whole minutes.
+        up_ms: c.up_ms.map(|ms| (ms / 60_000.).floor()),
+        ..c.clone()
+    };
+    Group {
+        id: g.id.clone(),
+        kind: g.kind,
+        thread: g.thread.as_ref().map(|t| Thread { subagents: Vec::new(), ..t.clone() }),
+        procs: if shut { Vec::new() } else { g.procs.iter().map(bare).collect() },
+        subagents: if shut { Vec::new() } else { g.subagents.iter().map(|s| model::Subagent { ms: 0., ..s.clone() }).collect() },
+        containers: if shut { Vec::new() } else { g.containers.iter().map(container).collect() },
+        memory: None,
+    }
+}
+
+/// Something arrived on a state's link.
+pub struct Moved;
+
+impl EventEmitter<Moved> for Scoped {}
+
 /// One computer's page: its link, its frame read into groups, the page's picks and folds, and what is ending.
 pub struct Scoped {
     pub(crate) computer: Computer,
@@ -475,6 +586,19 @@ pub struct Scoped {
     asked: Reads,
     /// A dial failed or the channel went, with no frame come since: the skeletons hold still while the link dials.
     waiting: bool,
+    /// Each thread's newest turn, which its head's mark reads.
+    pub(crate) latests: Latest,
+    /// The figures, titles and lines the rows and tiles draw in, laid again on each arrival.
+    pieces: Pieces,
+    /// Whether this state's groups are drawn as Activity's tables, which only the computer table of the Processes pane
+    /// does not: it hears of each arrival through [`Moved`] and draws its own rows.
+    tables: bool,
+    /// The view and the width the groups were last drawn at, and what that drawing laid out.
+    view: View,
+    width: Width,
+    shape: Option<Shape>,
+    /// The kind and thread selects the page drew, whose choices are laid as they arrive rather than while it draws.
+    picked: Option<Picked>,
     _link: Option<Held>,
     _receive: Task<()>,
     _filter: Subscription,
@@ -530,7 +654,7 @@ fn reads(here: bool, view: View, every: bool) -> Option<Vec<String>> {
 impl Scoped {
     fn new(computer: Computer, acts: Acts, view: View, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let reads = reads(computer.here(), view, false);
-        Scoped::build(computer, Voice { acts, pane: None }, reads, window, cx)
+        Scoped::build(computer, Voice { acts, pane: None }, reads, true, window, cx)
     }
 
     /// One computer's state for a pane of the right panel: its every process, or on a box only its threads', with the
@@ -538,10 +662,17 @@ impl Scoped {
     pub(crate) fn pane(computer: Computer, host: &Host, every: bool, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let acts = Acts::new(gpui_kit::WeakEntity::new_invalid(), Some(host.client().clone()), host.runtime().clone());
         let reads = (!every && !computer.here()).then(|| vec![THREAD_CGROUPS.to_owned()]);
-        Scoped::build(computer, Voice { acts, pane: Some(window.window_handle()) }, reads, window, cx)
+        Scoped::build(computer, Voice { acts, pane: Some(window.window_handle()) }, reads, !every, window, cx)
     }
 
-    fn build(computer: Computer, voice: Voice, reads: Option<Vec<String>>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn build(
+        computer: Computer,
+        voice: Voice,
+        reads: Option<Vec<String>>,
+        tables: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let filter = cx.new(|cx| InputState::new(window, cx).placeholder(w::FILTER));
         let sub = cx.subscribe(&filter, |this: &mut Scoped, field, event: &InputEvent, cx| {
             if let InputEvent::Change = event {
@@ -598,6 +729,13 @@ impl Scoped {
             window: window_handle,
             asked,
             waiting: false,
+            latests: Vec::new(),
+            pieces: Pieces::default(),
+            tables,
+            view: View::Threads,
+            width: Width::default(),
+            shape: None,
+            picked: None,
             _link: link,
             _receive: receive,
             _filter: sub,
@@ -642,18 +780,158 @@ impl Scoped {
                 }
                 Some("sys.sample") => {
                     let Some(mem) = memory_of(&event) else { return };
-                    // The tile draws the used memory's words and tints by the total, so a sample that moves neither draws nothing.
-                    let drawn = |(used, total): (f64, f64)| (fmt_bytes(used as u64), total);
-                    let same = self.mem.is_some_and(|held| drawn(held) == drawn(mem));
                     self.mem = Some(mem);
-                    if same {
-                        return;
-                    }
                 }
                 _ => return,
             },
         }
-        cx.notify();
+        self.moved(cx);
+    }
+
+    /// A daemon event as the link hands one over, for a test that brings its own.
+    #[doc(hidden)]
+    pub fn hear(&mut self, event: Value, cx: &mut Context<Self>) {
+        self.arrive(Arrival::Event(event), cx);
+    }
+
+    /// What arrived is laid on the pieces, each drawing again in place where its look moved; the page draws again only
+    /// where what it lays out moved. Whoever draws its own rows off this state hears of it either way.
+    pub(crate) fn moved(&mut self, cx: &mut Context<Self>) {
+        if self.relay(true, cx) {
+            cx.notify();
+        }
+        cx.emit(Moved);
+    }
+
+    /// The view and width the groups are drawn at now, the pieces laid for them, as the page draws them all again.
+    pub(crate) fn drawing(&mut self, view: View, width: Width, cx: &mut Context<Self>) {
+        (self.view, self.width) = (view, width);
+        self.relay(false, cx);
+    }
+
+    /// The pieces each laid with their look now, `loud` drawing again those that moved; true where what the groups lay
+    /// out moved too.
+    fn relay(&mut self, loud: bool, cx: &mut Context<Self>) -> bool {
+        if !self.tables {
+            return false;
+        }
+        self.refresh_shown();
+        let shape = self.shape();
+        let moved = self.shape.as_ref() != Some(&shape);
+        let chose = self.shape.as_ref().is_none_or(|was| was.choices != shape.choices);
+        self.shape = Some(shape);
+        if let (true, true, Some((kind, thread))) = (loud, chose, self.picked.clone()) {
+            let (kinds, threads) = pick_items(self);
+            let (pick_kind, pick_thread) = (self.picks.kind, self.picks.thread.clone());
+            lay(&kind, kinds, pick_kind, cx);
+            lay(&thread, threads, pick_thread, cx);
+        }
+        // The page drawn again draws every piece with it.
+        let looks = self.looks(now_ms());
+        let me = cx.entity().downgrade();
+        self.pieces.lay(looks, &me, loud && !moved, cx);
+        moved
+    }
+
+    /// The pieces drawn now, for a page's rows to stand in.
+    pub(crate) fn pieces(&self) -> views::Drawn {
+        self.pieces.drawn()
+    }
+
+    /// Every piece's look: the tiles and their lines, each group head's figures and its title, each process's, each
+    /// container's and the sampler's, and in the Kinds view each kind's.
+    fn looks(&self, now: f64) -> Vec<(SharedString, Look)> {
+        let mut out: Vec<(SharedString, Look)> = Vec::new();
+        let Some(scope) = &self.scope else { return out };
+        out.extend(tile_looks(scope, &self.history, self.mem).into_iter().map(|(k, look)| (SharedString::new_static(k), look)));
+        let energy = scope.energy;
+        let figures = |key: String, mem: f64, cpu: f64, energy_of: Option<f64>, tinted: bool, out: &mut Vec<(SharedString, Look)>| {
+            for (ix, look) in figure_looks(mem, cpu, energy_of, energy, tinted).into_iter().enumerate() {
+                out.push((format!("{key}:{ix}").into(), look));
+            }
+        };
+        let groups = self.shown.as_ref().map_or(scope.groups.as_slice(), |(_, g)| g.as_slice());
+        let (_, kids) = nest_groups(groups);
+        for g in groups {
+            let total = match g.kind {
+                model::GroupKind::Thread => total_spent(std::iter::once(g).chain(groups_under(&kids, &g.id))),
+                _ => group_spent(g),
+            };
+            figures(format!("g:{}", g.id), total.mem, total.cpu, total.energy, true, &mut out);
+            for p in rows_of(&g.procs) {
+                figures(proc_key(&g.id, p), p.mem, p.cpu, p.energy, true, &mut out);
+            }
+            for c in &g.containers {
+                for (ix, look) in container_looks(c).into_iter().enumerate() {
+                    out.push((format!("c:{}:{ix}", c.id).into(), look));
+                }
+            }
+            if let Some(t) = &g.thread {
+                let status = self.latests.iter().find(|(id, _)| *id == t.id).map(|(_, latest)| status_of(latest, now));
+                let look = title_look(&g.id, t.title.clone(), status, Some(&thread_head_acts(t)), self.width);
+                out.push((format!("t:{}", g.id).into(), look));
+            }
+        }
+        if self.view == View::Kinds {
+            for (kind, placed) in kind_groups(groups, self.sort) {
+                let procs: Vec<Proc> = placed.iter().map(|r| r.p.clone()).collect();
+                let total = spent(&procs);
+                figures(format!("k:{}", kind.id()), total.mem, total.cpu, total.energy, false, &mut out);
+            }
+        }
+        if self.view == View::Processes && self.every {
+            for p in &scope.rest {
+                figures(proc_key("", p), p.mem, p.cpu, p.energy, true, &mut out);
+            }
+        }
+        if let Some(cost) = self.snapshot.as_ref().and_then(|snap| snap.cost) {
+            figures(SAMPLER.into(), cost.held, cost.cpu_ms / self.interval * 100., None, true, &mut out);
+        }
+        out
+    }
+
+    /// What the groups lay out now, the pieces' looks aside.
+    fn shape(&self) -> Shape {
+        let scope = self.scope.as_ref();
+        let groups = self.shown.as_ref().map_or_else(|| scope.map_or(&[][..], |sc| sc.groups.as_slice()), |(_, g)| g.as_slice());
+        let filtering = !self.filter_text.trim().is_empty() || self.picks.thread.is_some() || self.picks.kind.is_some();
+        // A folded thread draws nothing of what it holds; a kind's head counts its processes.
+        let shut = |g: &Group| self.view == View::Threads && !filtering && !self.open.contains(&g.id);
+        let order: Vec<Pid> = match self.view {
+            View::Processes => {
+                let rest = scope.map_or(&[][..], |sc| sc.rest.as_slice());
+                flat_rows(groups, rest, self.every, self.sort, &self.filter_text).iter().map(|r| r.p.pid).collect()
+            }
+            View::Kinds => kind_groups(groups, self.sort).iter().flat_map(|(_, placed)| placed.iter().map(|r| r.p.pid)).collect(),
+            View::Threads | View::Ports => Vec::new(),
+        };
+        let rest = match (self.view, scope) {
+            (View::Processes, Some(sc)) if self.every => sc.rest.iter().map(bare).collect(),
+            _ => Vec::new(),
+        };
+        let durations = groups.iter().filter(|g| !shut(g)).flat_map(|g| g.subagents.iter().map(|s| fmt_duration(s.ms))).collect();
+        Shape {
+            view: self.view,
+            width: self.width,
+            flags: [
+                scope.is_some(),
+                scope.is_some_and(|sc| sc.energy),
+                self.snapshot.is_some(),
+                self.snapshot.as_ref().is_some_and(|snap| snap.cost.is_some()),
+                self.waiting,
+            ],
+            unavailable: self.unavailable.clone(),
+            groups: groups.iter().map(|g| shape_of(g, shut(g))).collect(),
+            rest,
+            order,
+            durations,
+            choices: {
+                let (kinds, threads) = pick_items(self);
+                (kinds.into_iter().map(|(k, l, _)| (k, l)).collect(), threads.into_iter().map(|(t, l, _)| (t, l)).collect())
+            },
+            ending: self.ending.clone(),
+            stopping: self.stopping.clone(),
+        }
     }
 
     /// A whole snapshot replaces what is held; changes apply only on the frame they name, and a lost frame asks the
@@ -807,6 +1085,17 @@ impl Scoped {
         cx.notify();
     }
 
+    pub fn every(&self) -> bool {
+        self.every
+    }
+
+    /// Every process: the Processes view lists the rest of the computer after wsp's own.
+    pub fn set_every(&mut self, on: bool, cx: &mut Context<Self>) {
+        self.every = on;
+        self.set_reads(View::Processes, cx);
+        cx.notify();
+    }
+
     pub fn set_sort(&mut self, sort: Sort, cx: &mut Context<Self>) {
         self.sort = sort;
         cx.notify();
@@ -940,7 +1229,14 @@ impl Scoped {
     }
 
     /// End all asks, naming how many processes it ends and what they hold.
-    pub fn ask_end_all(&mut self, heading: &Proc, _group: &Group, cx: &mut Context<Self>) {
+    pub fn ask_end_all(&mut self, heading: &Proc, group: &Group, cx: &mut Context<Self>) {
+        // The row's menu was laid with the rows; what its runs hold now is the frame's last word.
+        let fresh = self
+            .scope
+            .as_ref()
+            .and_then(|sc| sc.groups.iter().find(|g| g.id == group.id))
+            .and_then(|g| g.procs.iter().find(|p| p.heading && p.kind == heading.kind && p.name == heading.name).cloned());
+        let heading = fresh.as_ref().unwrap_or(heading);
         let ends: Vec<Proc> = tables::ends_of(heading).into_iter().cloned().collect();
         let title = w::end_all_title(&heading.name);
         let line = w::end_all_sentence(ends.len(), &fmt_bytes(tables::held_by(heading) as u64));
@@ -968,20 +1264,21 @@ impl Scoped {
     }
 }
 
-/// The page's one card body: the totals, the bar of pickers and the filter, then the open view.
-#[derive(IntoElement)]
-struct Page {
+/// The page: the totals, the bar of pickers and the filter, then the open view.
+#[derive(Clone)]
+pub struct Page {
     pick: Entity<Pick>,
     places: Vec<(PlaceView, ComputerIcon)>,
     models: Vec<(String, String, String)>,
     acts: Acts,
 }
 
-impl RenderOnce for Page {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+impl Page {
+    /// The page's entries as its list draws them, and its rows' menu where one is open.
+    fn entries(&self, window: &mut Window, cx: &mut App) -> (Vec<Entry>, Option<AnyElement>) {
         // Lists and Scoped take the host once, when they are made, so neither is made before it answers.
         if self.acts.host(cx).is_none() {
-            return div().into_any_element();
+            return (Vec::new(), None);
         }
         let acts = self.acts.clone();
         let lists = window.use_keyed_state("activity-lists", cx, move |_, cx| Lists::new(&acts, cx));
@@ -994,7 +1291,7 @@ impl RenderOnce for Page {
         };
         let Some(computer) = computers.iter().find(|c| c.place.id == picked.as_deref().unwrap_or(HERE)).or(computers.first()).cloned()
         else {
-            return div().into_any_element();
+            return (Vec::new(), None);
         };
         let now = now_ms();
         let (threads, latests) = lists.update(cx, |l, _| l.threads(&self.places, &computer));
@@ -1003,18 +1300,28 @@ impl RenderOnce for Page {
         let scoped = window.use_keyed_state(SharedString::from(format!("activity-scoped-{}", computer.key)), cx, move |window, cx| {
             Scoped::new(start, acts, view, window, cx)
         });
+        let width = narrow::width(window);
         scoped.update(cx, |s, cx| {
             s.set_threads(threads);
+            s.latests = latests;
             s.ask_slates(cx);
             s.set_reads(view, cx);
             let gone = s.picks.thread.as_ref().is_some_and(|t| s.scope.as_ref().is_some_and(|sc| !sc.groups.iter().any(|g| g.id == *t)));
             if gone {
                 s.picks.thread = None;
             }
-            s.refresh_shown();
+            s.drawing(view, width, cx);
         });
+        let drawn = ListsDrawn {
+            places: self.places.clone(),
+            computers: computers.iter().map(|c| c.place.id.clone()).collect(),
+            computer: computer.clone(),
+            scoped: scoped.downgrade(),
+        };
+        lists.update(cx, |l, _| l.drawn = Some(drawn));
+        self.pick.update(cx, |p, _| p.drawn = scoped.downgrade());
         let selects = selects(&computers, &computer, &scoped, window, cx);
-        body(&self, selects, &computer, view, &scoped, &looks, narrow::width(window), cx).into_any_element()
+        entries(self, selects, &computer, view, &scoped, looks, width, cx)
     }
 }
 
@@ -1032,17 +1339,22 @@ fn note(word: impl Into<SharedString>, cx: &App) -> gpui_kit::Div {
     div().text_size(text::NOTE.0).line_height(text::NOTE.1).text_color(cx.palette().muted_foreground).child(word.into())
 }
 
+/// One entry of the page's list, made again each time the list draws it.
+pub(crate) type Entry = Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>;
+
+/// The page's entries: the totals and the bar, then the open view's head and each of its rows on the list's card, or
+/// what stands in for them.
 #[allow(clippy::too_many_arguments)]
-fn body(
+fn entries(
     page: &Page,
     selects: Selects,
     computer: &Computer,
     view: View,
     scoped: &Entity<Scoped>,
-    looks: &HashMap<String, Status>,
+    looks: HashMap<String, Status>,
     width: Width,
     cx: &mut App,
-) -> impl IntoElement {
+) -> (Vec<Entry>, Option<AnyElement>) {
     let s = scoped.read(cx);
     let away = absent(computer);
     let scope = s.scope.as_ref();
@@ -1058,47 +1370,82 @@ fn body(
         filtering,
         width,
         workspace: computer.workspace_id.clone(),
+        pieces: s.pieces(),
     };
     let unavailable = s.unavailable.clone().filter(|_| s.snapshot.is_none() && away.is_none());
     let moving = skeletons_move(s.waiting, unavailable.is_some());
-    let tiles = match (&away, scope) {
-        (Some(_), _) => None,
-        (None, None) => Some(tiles_skeleton(moving, width.sm, cx)),
-        (None, Some(sc)) => Some(tiles(sc, &s.history, s.mem, width.sm, cx)),
+    let head: Entry = {
+        let (page, scoped, hand, absent) = (page.clone(), scoped.clone(), hand.clone(), away.is_some());
+        Rc::new(move |_, cx| {
+            let s = scoped.read(cx);
+            let tiles = match (absent, s.scope.as_ref()) {
+                (true, _) => None,
+                (false, None) => Some(tiles_skeleton(moving, width.sm, cx)),
+                (false, Some(sc)) => Some(tiles(sc, &s.history, s.mem, width.sm, &hand, cx)),
+            };
+            let bar = controls(&page, selects.clone(), view, &scoped, s, width.sm, cx);
+            let head = v_flex().id("activity").debug_selector(|| "activity".into()).w_full().pb(px(40.)).gap(px(40.));
+            head.children(tiles).child(bar).into_any_element()
+        })
     };
-    let bar = controls(page, selects, view, scoped, s, width.sm, cx);
     let name = computer.name();
-    let main: AnyElement = if let Some((said, will)) = away {
-        v_flex().gap_1().py_2().child(note(said, cx)).child(note(will, cx)).into_any_element()
+    let alone = |make: Rc<dyn Fn(&App) -> AnyElement>| -> Vec<Entry> { vec![Rc::new(move |_, cx| make(cx))] };
+    let main: Vec<Entry> = if let Some((said, will)) = away {
+        alone(Rc::new(move |cx| v_flex().gap_1().py_2().child(note(said.clone(), cx)).child(note(will.clone(), cx)).into_any_element()))
     } else if let Some(said) = unavailable {
-        note(said, cx).into_any_element()
+        alone(Rc::new(move |cx| note(said.clone(), cx).into_any_element()))
     } else if let (Some(sc), Some((_, groups))) = (scope, &s.shown) {
         let groups = groups.clone();
-        match view {
+        let table = match view {
             View::Threads => {
                 let cost = s.snapshot.as_ref().and_then(|snap| snap.cost).map(|c| (c.cpu_ms / s.interval * 100., c.held));
-                let models = &page.models;
-                let status = |id: &str| looks.get(id).cloned();
-                let model = |harness: &str, m: &str| {
-                    let bare = crate::screens::settings::pages::agents::model::base_model(m);
-                    Some(
-                        models
-                            .iter()
-                            .find(|(h, v, _)| h == harness && v == bare)
-                            .map_or_else(|| m.to_owned(), |(_, _, label)| label.clone()),
-                    )
+                let models = Rc::new(page.models.clone());
+                let looks = ThreadLooks {
+                    status: Rc::new(move |id: &str| looks.get(id).cloned()),
+                    model: Rc::new(move |harness: &str, m: &str| {
+                        let bare = crate::screens::settings::pages::agents::model::base_model(m);
+                        Some(
+                            models
+                                .iter()
+                                .find(|(h, v, _)| h == harness && v == bare)
+                                .map_or_else(|| m.to_owned(), |(_, _, label)| label.clone()),
+                        )
+                    }),
                 };
-                tables::threads_table(name, &groups, &ThreadLooks { status: &status, model: &model }, !computer.here(), cost, &hand, cx)
+                tables::threads_table(name, groups, looks, !computer.here(), cost, &hand)
             }
-            View::Processes => tables::processes_table(name, &flat_rows(&groups, &sc.rest, s.every, s.sort, &s.filter_text), &hand, cx),
-            View::Kinds => tables::kinds_table(name, &kind_groups(&groups, s.sort), &hand, cx),
-            View::Ports => tables::ports_table(&port_rows(&groups), &hand, cx),
-        }
+            View::Processes => {
+                let rows = tables::held(&groups, flat_rows(&groups, &sc.rest, s.every, s.sort, &s.filter_text));
+                tables::processes_table(name, groups.clone(), rows, &hand)
+            }
+            View::Kinds => {
+                let kinds = kind_groups(&groups, s.sort).into_iter().map(|(kind, placed)| (kind, tables::held(&groups, placed))).collect();
+                tables::kinds_table(name, groups.clone(), kinds, &hand)
+            }
+            View::Ports => {
+                let ports = port_rows(&groups)
+                    .into_iter()
+                    .filter_map(|(port, q, g)| Some((port, q.clone(), groups.iter().position(|x| std::ptr::eq(x, g))?)))
+                    .collect();
+                tables::ports_table(groups.clone(), ports, &hand)
+            }
+        };
+        let mut main: Vec<Entry> = vec![{
+            let head = table.head.clone();
+            Rc::new(move |_, cx| head(cx))
+        }];
+        let count = table.rows.len();
+        main.extend(table.rows.into_iter().enumerate().map(|(ix, (row, ruled))| {
+            Rc::new(move |_: &mut Window, cx: &mut App| crate::ui::card::surface_item(row(cx), ix, count, ruled, cx)) as Entry
+        }));
+        main
     } else {
-        rows_skeleton(moving, cx).into_any_element()
+        alone(Rc::new(move |cx| rows_skeleton(moving, cx).into_any_element()))
     };
-    let menu = s.menu.overlay().map(|open| div().absolute().debug_selector(|| "activity-row-menu".into()).child(open));
-    v_flex().id("activity").debug_selector(|| "activity".into()).w_full().gap(px(40.)).children(tiles).child(bar).child(main).children(menu)
+    let menu = s.menu.overlay().map(|open| div().absolute().debug_selector(|| "activity-row-menu".into()).child(open).into_any_element());
+    let mut entries = vec![head];
+    entries.extend(main);
+    (entries, menu)
 }
 
 #[cfg(test)]

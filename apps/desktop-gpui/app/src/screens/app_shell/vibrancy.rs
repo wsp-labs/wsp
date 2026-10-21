@@ -7,9 +7,10 @@ use gpui_kit::component::Root;
 use gpui_kit::{AnyView, Context, Styled as _, Window, WindowBackgroundAppearance};
 
 /// The root of a window the shell fills: gpui-kit's Root paints the theme's ground over the whole window, which would
-/// hide the glass, so it paints none and the shell lays the window's ground itself while it draws no glass.
+/// hide the glass, so it paints none and the shell lays the window's ground itself while it draws no glass. It draws the
+/// shell cached, so a frame that only draws live pieces again in place leaves the shell alone.
 pub fn clear_root(view: impl Into<AnyView>, window: &mut Window, cx: &mut Context<Root>) -> Root {
-    Root::new(view, window, cx).bg(gpui_kit::transparent_black())
+    Root::new(view, window, cx).cache_view().bg(gpui_kit::transparent_black())
 }
 
 /// The window's own background: clear while macOS's material stands behind it, opaque otherwise.

@@ -9,9 +9,16 @@
 # BENCH_GPUI_APP=<path> runs that build instead of building one; BENCH_REPEAT=<delay ms>,<every ms> sets the key
 # repeat, else a Mac's own from `defaults read -g` (InitialKeyRepeat and KeyRepeat, in 15 ms ticks) and elsewhere a
 # Mac's fastest, 225,30. On Linux it runs under Xvfb with DISPLAY set and a window manager on that display (openbox will
-# do), or the window never takes focus and the bench exits 3. It prints the app's memory through the walk from mem.sh.
+# do), or the window never takes focus and the bench exits 3, as it does for a window covered or not key on a Mac and
+# on a locked screen, which draws no window: it refuses to start on one and stops the app if the screen locks mid-run.
+# It prints the app's memory through the walk from mem.sh.
 set -eu
+# A Mac whose display sleeps covers the window; caffeinate holds it awake for the whole run.
+if [ "$(uname -s)" = Darwin ] && [ -z "${CTRL_TAB_AWAKE:-}" ]; then CTRL_TAB_AWAKE=1 exec caffeinate -dims "$0" "$@"; fi
 bench=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=lock.sh
+. "$bench/lock.sh"
+refuse_locked
 repo=$(cd "$bench/../../.." && pwd)
 out=${BENCH_OUT:-$(mktemp -d "${TMPDIR:-/tmp}/wsp-ctrl-tab-XXXXXX")}
 mkdir -p "$out"
@@ -19,8 +26,10 @@ MORE=${BENCH_MORE:-26}
 gpui_app=${BENCH_GPUI_APP:-$repo/apps/desktop-gpui/target/release/desktop-gpui}
 gpui_pid=""
 
+watcher=""
 finish() {
   code=$?
+  if [ -n "$watcher" ]; then kill "$watcher" 2>/dev/null || true; fi
   if [ -n "$gpui_pid" ] && [ "$(ps -o ppid= -p "$gpui_pid" 2>/dev/null | tr -d ' ')" = "$$" ]; then kill "$gpui_pid"; fi
   if [ -f "$out/fixture.json" ]; then "$bench/stop.sh" "$out/fixture.json" || true; fi
   [ "$code" -eq 0 ] || echo "ctrl-tab: stopped (exit $code); what it wrote is in $out" >&2
@@ -63,6 +72,8 @@ env -i HOME="$home/gpui-home" PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-
   "$gpui_app" --state "$state" --bench "$out/ctrl-tab.json" --bench-thread "$top" --bench-ctrl-tab $((listed + 1)) --bench-repeat "$repeat" \
   > "$out/ctrl-tab.log" 2>&1 &
 gpui_pid=$!
+watch_lock "$gpui_pid" "$out/locked" &
+watcher=$!
 # The app's memory through the walk, sampled twice a second: its first sample, its peak and its last, in MB.
 : > "$out/mem.mb"
 while [ "$(ps -o stat= -p "$gpui_pid" 2>/dev/null | cut -c1)" != Z ] && kill -0 "$gpui_pid" 2>/dev/null; do
@@ -72,7 +83,10 @@ done
 code=0
 wait "$gpui_pid" || code=$?
 gpui_pid=""
-[ $code -ne 3 ] || { echo "the bench window lost focus, so its frames are not the app's; keep the window in front and run again" >&2; tail -20 "$out/ctrl-tab.log" >&2; exit 1; }
+kill "$watcher" 2>/dev/null || true
+watcher=""
+[ ! -f "$out/locked" ] || { echo "the screen locked mid-run, so nothing the app drew was measured; keep it unlocked and run again" >&2; exit 3; }
+[ $code -ne 3 ] || { echo "the bench window was covered or lost focus, so its frames are not the app's; keep the window in front and run again" >&2; tail -20 "$out/ctrl-tab.log" >&2; exit 3; }
 [ $code -eq 0 ] || { echo "desktop-gpui --bench-ctrl-tab failed (exit $code):" >&2; tail -40 "$out/ctrl-tab.log" >&2; exit 1; }
 
 judged=0

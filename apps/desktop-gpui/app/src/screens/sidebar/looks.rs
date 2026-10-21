@@ -137,7 +137,7 @@ impl Images {
         self.asked.clear();
     }
 
-    fn of(&self, preferences: &Value, project: &str) -> Option<Arc<Image>> {
+    pub(crate) fn of(&self, preferences: &Value, project: &str) -> Option<Arc<Image>> {
         let hash = preferences.get("projectIcon")?.get(project)?.as_str()?;
         self.loaded.get(hash).cloned()
     }

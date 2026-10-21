@@ -129,7 +129,7 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
                 })
                 .when(running, |el| el.child(Crab::new(pal.status_working).key(p.el("crab"))))
                 .child(if refreshing {
-                    spinner(cx).size(px(12.)).into_any_element()
+                    spinner(cx).size(px(12.)).key(p.el("spinner")).into_any_element()
                 } else {
                     div().child(run_word(state)).into_any_element()
                 }),
