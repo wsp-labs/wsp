@@ -5,21 +5,27 @@
 # check runs even after one fails, and any FAIL exits 1. The test files the
 # branch changes run, then the ones its change reaches through imports. --laws
 # runs only the laws and the size check, on the branch merged with
-# origin/main, and --build builds the packages they load first. A ticket
-# number prints the lines a report on it has to answer.
+# origin/main, and --build builds the packages they load first. --changed,
+# a builder's gate, adds a typecheck of the packages the change reaches and
+# runs the laws with the other tests in one run; the full suite is CI's.
+# --review runs only the branch's changed test files, on the branch and on the
+# merge-base's sources. A ticket number prints the lines a report on it has to
+# answer.
 set -u
 
-usage='usage: scripts/pre-review.sh [--laws] [--build] [<ticket number>]'
+usage='usage: scripts/pre-review.sh [--laws | --changed | --review] [--build] [<ticket number>]'
 tickets=wsp-labs/wsp-map
 root=$(git rev-parse --show-toplevel) || exit 2
 cd "$root" || exit 2
 
-laws_only=0
+mode=all
 build=0
 ticket=""
 for arg in "$@"; do
   case "$arg" in
-    --laws) laws_only=1 ;;
+    --laws|--changed|--review)
+      if [ $mode != all ] && [ "--$mode" != "$arg" ]; then echo "refused: --$mode and $arg are two runs; pick one; $usage" >&2; exit 2; fi
+      mode=${arg#--} ;;
     --build) build=1 ;;
     -h|--help) echo "$usage"; exit 0 ;;
     *[!0-9]*|"") echo "refused: $arg is neither a flag this script takes nor a ticket number; $usage" >&2; exit 2 ;;
@@ -53,6 +59,11 @@ LAWS=(
   apps/web/test/workspace-keyed-state.test.ts
   packages/protocol/test/ts-parse.test.ts
   packages/protocol/test/law-list.test.ts
+  packages/protocol/test/license.test.ts
+  packages/wspx/test/release-notes.test.ts
+  packages/host/test/pages.test.ts
+  packages/host/test/verb-words.test.ts
+  apps/docs-next/test/generated.test.ts
 )
 
 failed=0
@@ -100,11 +111,11 @@ added_lines() {
 fetched=1
 git fetch -q origin main 2>/dev/null || fetched=0
 main=$(git rev-parse -q --verify origin/main)
-if [ -z "$main" ] && [ $laws_only -eq 0 ]; then echo "refused: this checkout has no origin/main" >&2; exit 2; fi
+if [ -z "$main" ] && [ $mode != laws ]; then echo "refused: this checkout has no origin/main" >&2; exit 2; fi
 head=$(git rev-parse HEAD)
 base=${main:+$(git merge-base "$main" "$head")}
 
-if [ $laws_only -eq 0 ]; then
+if [ $mode = all ] || [ $mode = changed ]; then
   if [ "$base" = "$main" ] && [ $fetched -eq 0 ]; then
     warn "the branch contains origin/main" "origin main could not be fetched, so this is the origin/main last fetched"
   elif [ "$base" = "$main" ]; then
@@ -201,12 +212,42 @@ if [ $build -eq 1 ]; then
   fi
 fi
 
+# Each package the change reaches, as affected-tests.mjs names them, checked from its own cache under node_modules,
+# so a second run rereads only what changed. tsc -b is no shortcut here: no tsconfig is composite. tsc checks on one
+# core, which the two test workers leave free, so it runs beside the tests and reports after them.
+typed=()
+typecheck=""
+if [ $mode = changed ]; then
+  if ! node scripts/affected-tests.mjs "$base" --packages >"$work/packages.txt" 2>"$work/packages.why"; then
+    fail "the typecheck" "scripts/affected-tests.mjs --packages failed, so no package was checked: $(tail -n 1 "$work/packages.why")"
+  else
+    while IFS= read -r dir; do
+      [ -f "$dir/tsconfig.json" ] && typed+=("$dir")
+    done <"$work/packages.txt"
+    cache=$root/node_modules/.cache/pre-review-tsc
+    mkdir -p "$cache"
+    if [ ${#typed[@]} -eq 0 ]; then
+      skip "the typecheck" "the change reaches no package with a tsconfig.json"
+    else
+      for dir in "${typed[@]}"; do
+        scripts/heavy.sh "$root/node_modules/.bin/tsc" --noEmit -p "$dir" --incremental --tsBuildInfoFile "$cache/${dir//\//-}.tsbuildinfo" >>"$work/tsc.log" 2>&1 || echo "$dir"
+      done >"$work/tsc.refused" &
+      typecheck=$!
+      # tsc peaks at 2.2 GB on apps/web and the tests at 1.5 GB, so with under 6 GB free it finishes before they start.
+      free_kb=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo 2>/dev/null)
+      if [ -n "$free_kb" ] && [ "$free_kb" -lt 6000000 ]; then wait "$typecheck"; fi
+    fi
+  fi
+fi
+
 # The laws judge the tree that lands: this folder as it stands merged with origin/main, which a branch holding
 # origin/main already is. Any other branch gets a throwaway merge commit in a worktree of its own, with what this
 # checkout ignores (its installs and builds) linked in, and pnpm told not to reinstall into those links.
 laws_at=$root
 laws_env=()
-if [ -z "$main" ]; then
+if [ $mode = review ]; then
+  laws_at=""
+elif [ -z "$main" ]; then
   echo "the laws run on this folder alone: this checkout has no origin/main"
 elif [ "$base" = "$main" ]; then
   echo "the laws run on this folder, which holds origin/main $(git rev-parse --short "$main")"
@@ -246,16 +287,29 @@ else
 fi
 
 law_log=$work/laws.log
+# test-files.sh on the laws and the files named, in the folder the laws judge, reported as the check named.
+run_laws() {
+  local check=$1 reason missing failing
+  shift
+  if (cd "$laws_at" && env ${laws_env[@]+"${laws_env[@]}"} scripts/test-files.sh "$@") >"$law_log" 2>&1; then
+    pass "$check: $(grep -E '^ *Test Files' "$law_log" | sed 's/^ *Test Files *//')"
+  else
+    reason=$(grep -o 'daemon/crates/wsp-mcp is behind this package.*commit them' "$law_log" | head -n 1)
+    missing=$(build_cause "$law_log")
+    [ -n "$missing" ] && reason="${reason:+$reason; }$missing"
+    failing=$(grep -E '^ *FAIL ' "$law_log" | sed 's/^ *FAIL *//' | sort -u | head -n 5 | joined)
+    fail "$check" "${reason:-${failing:-see $law_log}}"
+  fi
+}
+# Under --changed on a branch that holds origin/main the laws judge this folder, so they run below in one run with
+# the tests the change reaches: each run carries memory.test.ts and stub-script.test.ts, 50 s of a worker's time.
+together=0
 if [ -z "$laws_at" ]; then
   :
-elif (cd "$laws_at" && env ${laws_env[@]+"${laws_env[@]}"} scripts/test-files.sh --tools "${LAWS[@]}") >"$law_log" 2>&1; then
-  pass "the laws: $(grep -E '^ *Test Files' "$law_log" | sed 's/^ *Test Files *//')"
+elif [ $mode = changed ] && [ "$laws_at" = "$root" ]; then
+  together=1
 else
-  reason=$(grep -o 'daemon/crates/wsp-mcp is behind this package.*commit them' "$law_log" | head -n 1)
-  missing=$(build_cause "$law_log")
-  [ -n "$missing" ] && reason="${reason:+$reason; }$missing"
-  failing=$(grep -E '^ *FAIL ' "$law_log" | sed 's/^ *FAIL *//' | sort -u | head -n 5 | joined)
-  fail "the laws" "${reason:-${failing:-see $law_log}}"
+  run_laws "the laws" --tools "${LAWS[@]}"
 fi
 
 if [ -z "$laws_at" ]; then
@@ -270,7 +324,9 @@ else
   skip "the size check" "scripts/file-size-check.mjs is not on this branch"
 fi
 
-if [ -z "$base" ] || [ -n "$(git diff --name-only "$base" -- daemon)" ]; then
+if [ $mode = review ]; then
+  :
+elif [ -z "$base" ] || [ -n "$(git diff --name-only "$base" -- daemon)" ]; then
   if ! command -v cargo >/dev/null 2>&1; then
     fail "cargo fmt --check" "daemon/ changed and cargo is not on PATH"
   elif said=$(cd daemon && ../scripts/heavy.sh cargo fmt --check 2>&1); then
@@ -282,7 +338,7 @@ else
   skip "cargo fmt --check" "nothing under daemon/ changed"
 fi
 
-[ $laws_only -eq 1 ] && exit $failed
+[ $mode = laws ] && exit $failed
 
 changed=()
 while IFS= read -r f; do
@@ -295,7 +351,20 @@ for f in ${changed[@]+"${changed[@]}"}; do
     *) touched+=("$f") ;;
   esac
 done
-if [ ${#touched[@]} -eq 0 ]; then
+# Vitest colors its output whenever CI is set, even into a file, and NO_COLOR does not stop it; --no-color does.
+if [ $mode = review ]; then
+  if [ ${#changed[@]} -eq 0 ]; then
+    skip "the changed tests" "the branch changes no test file"
+  elif scripts/heavy.sh "$root/node_modules/.bin/vitest" run --no-color --minWorkers=1 --maxWorkers=2 "${changed[@]}" >"$work/tests.log" 2>&1; then
+    pass "the changed tests: $(grep -E '^ *Test Files' "$work/tests.log" | sed 's/^ *Test Files *//')"
+  else
+    failing=$(build_cause "$work/tests.log")
+    [ -n "$failing" ] || failing=$(grep -E '^ *FAIL ' "$work/tests.log" | sed 's/^ *FAIL *//' | sort -u | head -n 5 | joined)
+    fail "the changed tests" "${failing:-see $work/tests.log}"
+  fi
+elif [ $together -eq 1 ]; then
+  :
+elif [ ${#touched[@]} -eq 0 ]; then
   skip "the touched tests" "the branch changes no test file outside the laws"
 elif scripts/test-files.sh "${touched[@]}" >"$work/tests.log" 2>&1; then
   pass "the touched tests: $(grep -E '^ *Test Files' "$work/tests.log" | sed 's/^ *Test Files *//')"
@@ -311,14 +380,16 @@ reached=()
 folders=()
 whole=""
 broken=""
-if [ ! -f scripts/affected-tests.mjs ]; then
+if [ $mode = review ]; then
+  :
+elif [ ! -f scripts/affected-tests.mjs ]; then
   whole="scripts/affected-tests.mjs is not on this branch"
 elif ! node scripts/affected-tests.mjs "$base" --files >"$work/affected.txt" 2>"$work/affected.why"; then
   broken=$(tail -n 1 "$work/affected.why")
 elif [ ! -s "$work/affected.txt" ]; then
   whole="the change reaches the whole suite ($(grep '^everything ' "$work/affected.why" | head -n 1 | sed 's/^everything *//'))"
 fi
-if [ -z "$whole$broken" ]; then
+if [ $mode != review ] && [ -z "$whole$broken" ]; then
   while IFS= read -r f; do
     case "$f" in
       */) folders+=("$f") ;;
@@ -331,10 +402,14 @@ if [ -z "$whole$broken" ]; then
     esac
   done <"$work/affected.txt"
 fi
-if [ -n "$broken" ]; then
+if [ $mode = review ]; then
+  :
+elif [ -n "$broken" ]; then
   fail "the affected tests" "scripts/affected-tests.mjs failed, so no affected file ran: $broken"
 elif [ -n "$whole" ]; then
   warn "the affected tests" "$whole, so only the touched files ran; the rest waits on CI"
+elif [ $together -eq 1 ]; then
+  :
 elif [ ${#reached[@]} -eq 0 ]; then
   skip "the affected tests" "every test file affected-tests.mjs names ran above"
 elif scripts/test-files.sh "${reached[@]}" >"$work/affected.log" 2>&1; then
@@ -344,8 +419,35 @@ else
   [ -n "$failing" ] || failing=$(grep -E '^ *FAIL ' "$work/affected.log" | sed 's/^ *FAIL *//' | sort -u | head -n 5 | joined)
   fail "the affected tests, files affected-tests.mjs names: ${#reached[@]}" "${failing:-see $work/affected.log}"
 fi
+# The contract between the command line, the tools and the skill, and the record of what the tools answer, move only
+# with a change that reaches the host's tests, so --changed skips them for one that reaches no test of packages/host.
+if [ $together -eq 1 ]; then
+  laws=(--tools "${LAWS[@]}")
+  host_law=0
+  for f in ${changed[@]+"${changed[@]}"}; do
+    case "$f" in packages/host/test/parity.test.ts|packages/host/test/skill.test.ts|packages/host/test/contract.test.ts|packages/host/test/mcp-record.test.ts) host_law=1 ;; esac
+  done
+  if [ -z "$whole$broken" ] && [ $host_law -eq 0 ] && [[ " ${folders[*]-} " != *" packages/host/ "* ]]; then
+    laws=()
+    for f in "${LAWS[@]}"; do
+      case "$f" in packages/host/test/parity.test.ts|packages/host/test/skill.test.ts|packages/host/test/contract.test.ts) ;; *) laws+=("$f") ;; esac
+    done
+    skip "the parity, skill, contract and tool record tests" "the change reaches no test of packages/host"
+  fi
+  run_laws "the laws, the touched tests (${#touched[@]}) and the affected tests (${#reached[@]}), in one run" "${laws[@]}" ${touched[@]+"${touched[@]}"} ${reached[@]+"${reached[@]}"}
+fi
 if [ ${#folders[@]} -gt 0 ]; then
   warn "the affected tests" "CI runs every test of ${folders[*]}; of those, only the files the change reaches through imports ran here"
+fi
+
+if [ -n "$typecheck" ]; then
+  wait "$typecheck" 2>/dev/null
+  refused=$(paste -sd ' ' - <"$work/tsc.refused")
+  if [ -z "$refused" ]; then
+    pass "the typecheck of ${typed[*]}"
+  else
+    fail "the typecheck of $refused" "$(grep -E 'error TS' "$work/tsc.log" | head -n 3 | joined)"
+  fi
 fi
 
 # The red proof: the branch's test files, with every test helper and fixture it changed, run on the merge-base's
@@ -362,7 +464,7 @@ else
     done
     while IFS= read -r f; do
       mkdir -p "$red/$(dirname "$f")" && git show "$head:$f" >"$red/$f"
-    done < <(git diff --name-only --diff-filter=AMR "$base" "$head" -- '*/test/*' '*/fixtures/*')
+    done < <(git diff --name-only --diff-filter=AMR "$base" "$head" -- '*/test/*' '*/fixtures/*' '*.test.ts' '*.test.tsx')
     (cd "$red" && "$root/scripts/heavy.sh" "$root/node_modules/.bin/vitest" run --minWorkers=1 --maxWorkers=2 --reporter=json --outputFile="$work/red.json" "${changed[@]}" >"$work/red.log" 2>&1)
     if [ ! -f "$work/red.json" ]; then
       fail "the red proof" "vitest gave no result on the merge-base; see $work/red.log"

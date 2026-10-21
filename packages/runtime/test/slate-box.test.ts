@@ -295,10 +295,18 @@ describe("the road to a thread's machine", () => {
     const thread = `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     made.push(boxSlateDir(thread));
     const road = boxRoad(machine, thread, () => ({}));
+    // The kill lands once the command has reached the machine, and the reshape after it runs unwrapped.
+    let started: { kill: () => void } | undefined;
+    const run = machine.run.bind(machine);
+    machine.run = (script, opts) => {
+      machine.run = run;
+      const res = run(script, opts);
+      queueMicrotask(() => started!.kill());
+      return res;
+    };
     const t0 = Date.now();
     const end = await ended(done => {
-      const started = road.start({ cmd: "sleep 30", args: [], cwd: temp(), env: {}, timeoutS: 60, stream: false }, { line: () => {}, end: done });
-      setTimeout(() => started.kill(), 500);
+      started = road.start({ cmd: "sleep 30", args: [], cwd: temp(), env: {}, timeoutS: 60, stream: false }, { line: () => {}, end: done });
     });
     expect(Date.now() - t0).toBeLessThan(10_000);
     expect(machine.killed()).toBe(true);

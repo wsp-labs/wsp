@@ -15,9 +15,9 @@
 // one row of square thumbnails above the text inside the box, each with its
 // own remove, a right-click on a tile opens the in-app menu at the pointer in
 // the tooltip skin, inside the viewport, Rename turns a thread tile's title
-// into a field in the same row at the same tile height, and the switch chord
-// held down puts the switcher up, one card per thread of three parts each in
-// one row, without moving the shell under it. Vite serves test/shell to Playwright's
+// into a field in the same row at the same tile height, and the Tab pair held
+// down opens one top-level thread after the next with nothing drawn over the
+// shell. Vite serves test/shell to Playwright's
 // browser, so like the glyph test it runs only when asked for (WSP_RENDER=1)
 // and skips without Playwright's Chromium on the machine.
 import { mkdirSync } from "node:fs";
@@ -187,64 +187,33 @@ describe.skipIf(renderSkipped !== undefined)("the shell's chrome laid out in Chr
     expect(fromFile.cellHeight - fromApp.cellHeight).toBeGreaterThanOrEqual(2);
   }, 60_000);
 
-  it("holding the switch chord puts the switcher up over the shell, one card per thread of three parts in one row, and the highlight moves nothing", async () => {
+  it("the Tab pair held down opens one top-level thread after the next down the sidebar, wrapping, with nothing drawn over the shell", async () => {
     for (const theme of ["dark", "light"] as const) {
       await page!.goto(`${base}?theme=${theme}&shell=desktop`);
       await page!.waitForSelector("[data-sidebar-row]");
+      const rows = page!.locator("[data-sidebar-tree] [data-row-id^='thread:']");
+      const ids = await rows.evaluateAll(els => els.map(el => el.getAttribute("data-row-id")!));
+      // The harness's four threads, each a top-level one.
+      expect(ids).toHaveLength(4);
+      await page!.click(`[data-row-id='${ids[0]}']`);
+      await page!.waitForSelector(`[data-row-id='${ids[0]}'][data-active='true']`);
       const sidebar = await box("[data-slot=sidebar]");
+      const opened: string[] = [];
       await page!.keyboard.down("Control");
-      await page!.keyboard.press("Tab");
-      await page!.waitForSelector("[data-workspace-switcher]");
-      const cards = page!.locator("[data-thread-card]");
-      // The harness's four threads, the gone workspace holding none.
-      expect(await cards.count()).toBe(4);
-      const boxes = await cards.evaluateAll(els => els.map(el => JSON.stringify(el.getBoundingClientRect().toJSON())));
-      const sizes = await cards.evaluateAll(els => els.map(el => `${el.getBoundingClientRect().width}x${el.getBoundingClientRect().height}`));
-      expect(new Set(sizes).size).toBe(1);
-      expect(new Set(await cards.evaluateAll(els => els.map(el => el.getBoundingClientRect().top))).size).toBe(1);
-      // Three parts, in one order, on every card: the well, the thread's title and the line under it, both in sans.
-      const parts = await cards.evaluateAll(els =>
-        els.map(el =>
-          [...el.children].map(child => child.getAttributeNames().find(name => name.startsWith("data-card-"))?.slice("data-card-".length) ?? "?").join(","),
-        ),
-      );
-      expect(parts).toEqual([...Array(4)].map(() => "preview,name,thread"));
-      const fonts = await cards.evaluateAll(els =>
-        els.map(el => {
-          const mono = (part: string): boolean => /mono/i.test(getComputedStyle(el.querySelector(`[data-card-${part}]`)!).fontFamily);
-          return { name: mono("name"), thread: mono("thread") };
-        }),
-      );
-      expect(fonts).toEqual([...Array(4)].map(() => ({ name: false, thread: false })));
-      // No cost, no state word and no open word on any card: the state is read off the preview and the sidebar.
-      for (const text of await cards.evaluateAll(els => els.map(el => el.textContent ?? ""))) expect(text).not.toMatch(/\$|Running|Paused|Gone|open|No capture yet/);
-      const ids = await cards.evaluateAll(els => els.map(el => el.getAttribute("data-thread-card")));
-      const highlighted = await page!.locator("[data-thread-card][aria-selected=true]").getAttribute("data-thread-card");
-      const next = ids[(ids.indexOf(highlighted) + 1) % ids.length];
-      // No card here has a picture yet, so every well is the empty one. Its fill cannot hold an edge on a
-      // light card (1.02 against the white under it), so the hairline is what says where the box is, and
-      // it has to be there on both surfaces.
-      const wells = await page!.locator("[data-card-preview]").evaluateAll(els =>
-        els.map(el => {
-          const shadows = getComputedStyle(el).boxShadow.match(/((?:rgba?|color|oklch|oklab)\([^)]*\))/g) ?? [];
-          return { empty: el.hasAttribute("data-card-preview-empty"), rings: shadows.filter(c => !/[,/]\s*0\)$/.test(c)).length };
-        }),
-      );
-      expect(wells).toHaveLength(4);
-      // An empty well holds the project's glyph, centred in the same box.
-      expect(await page!.locator("[data-card-preview] svg").count()).toBe(4);
-      for (const well of wells) {
-        expect(well.empty, `a card's well is not the empty one in ${theme}`).toBe(true);
-        expect(well.rings, `the empty well carries no hairline in ${theme}`).toBeGreaterThan(0);
+      for (let i = 0; i < ids.length; i++) {
+        await page!.keyboard.press("Tab");
+        const want = ids[(i + 1) % ids.length]!;
+        await page!.waitForSelector(`[data-row-id='${want}'][data-active='true']`);
+        opened.push(want);
+        expect(await page!.locator(".dialog-backdrop, [role=listbox]").count()).toBe(0);
+        if (i === 1) {
+          await page!.screenshot({ path: join(SHOTS_DIR, `thread-step-${theme}.png`) });
+          console.info(`thread step screenshot: ${join(SHOTS_DIR, `thread-step-${theme}.png`)}`);
+        }
       }
-      await page!.screenshot({ path: join(SHOTS_DIR, `workspace-switcher-${theme}.png`) });
-      console.info(`workspace switcher screenshot: ${join(SHOTS_DIR, `workspace-switcher-${theme}.png`)}`);
-      await page!.keyboard.press("Tab");
-      await page!.waitForFunction(id => document.querySelector("[data-thread-card][aria-selected=true]")?.getAttribute("data-thread-card") === id, next);
-      expect(await cards.evaluateAll(els => els.map(el => JSON.stringify(el.getBoundingClientRect().toJSON())))).toEqual(boxes);
-      expect(await box("[data-slot=sidebar]")).toEqual(sidebar);
       await page!.keyboard.up("Control");
-      await page!.waitForSelector("[data-workspace-switcher]", { state: "detached" });
+      expect(opened).toEqual([...ids.slice(1), ids[0]]);
+      expect(await box("[data-slot=sidebar]")).toEqual(sidebar);
     }
   }, 60_000);
 

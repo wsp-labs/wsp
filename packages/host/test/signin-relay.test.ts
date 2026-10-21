@@ -8,7 +8,7 @@ import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "vitest";
 import type { Question } from "@wsp/catalog";
 import { HERE_PLACE_ID, ptyBareOn } from "@wsp/protocol";
-import { BARE_BASH, OFFER_MS, QuestionScanner, UrlScanner, hyperlink, relayPty, runQuiet, shellLine, stripOsc8, urlsIn, watchPty, type Asked, type RelayTerminal } from "../src/signin-relay.js";
+import { BARE_BASH, OFFER_MS, QuestionScanner, UrlScanner, hyperlink, relayPty, runQuiet, stripOsc8, urlsIn, watchPty, type Asked, type RelayTerminal } from "../src/signin-relay.js";
 import { fakePtyLink, type FakePty } from "./fake-pty-link.js";
 import { ASKED } from "./signin-questions.js";
 
@@ -93,10 +93,6 @@ describe("URL detection", () => {
 
   it("renders a terminal hyperlink", () => {
     expect(hyperlink("https://a.b/c")).toBe("\x1b]8;;https://a.b/c\x1b\\https://a.b/c\x1b]8;;\x1b\\");
-  });
-
-  it("types a short line that reads the staged command, removes its folder, then marks the tool starting and exec's it", () => {
-    expect(shellLine({ dir: "/tmp/wsp-line.ab12", file: "'/tmp/wsp-line.ab12/line'" })).toBe(`c=$(< '/tmp/wsp-line.ab12/line'); rm -rf -- '/tmp/wsp-line.ab12'; printf '\\036'; exec bash -c "$c"\r`);
   });
 });
 

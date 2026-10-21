@@ -25,7 +25,7 @@ afterEach(async () => {
   sweepStrays();
 });
 
-const execHere = (o: { reading?: Set<() => void>; idleMs?: number; deadlineMs?: number } = {}): ExecStreamFactory => localExecStream({ root, runDir: join(root, "runs"), pollMs: 20, ...o });
+const execHere = (o: { reading?: Set<() => void>; idleMs?: number; deadlineMs?: number; now?: () => number } = {}): ExecStreamFactory => localExecStream({ root, runDir: join(root, "runs"), pollMs: 20, ...o });
 
 /** The stubs' switches, beside a PATH the stubs' own commands run on. */
 const stubEnv = (env: Record<string, string>) => ({ baseEnv: { PATH: process.env["PATH"] ?? "/usr/bin:/bin", ...env } });
@@ -119,11 +119,13 @@ describe("a Claude process kept between turns", () => {
 
   it("is not cut by the idle limit between turns, and the next turn's wall counts from its own start", async () => {
     // Budgets a loaded computer's turn fits inside, since a turn cut before it rests is not what this case reads.
-    const exec = execHere({ idleMs: 2_000, deadlineMs: 4_000 });
+    let t = Date.now();
+    const exec = execHere({ idleMs: 2_000, deadlineMs: 4_000, now: () => t });
     const first = claude({ exec }).start({ prompt: "one", cwd: root, keep: true, onEvent: () => {} });
     const pid = pidOf((await first.finished).text);
-    // Past both the idle limit and the wall from the launch, with no turn open.
-    await new Promise(resolve => setTimeout(resolve, 4_300));
+    // Past both the idle limit and the wall from the launch, with no turn open, read over two resting polls.
+    t += 4_300;
+    await new Promise(resolve => setTimeout(resolve, 2_100));
     expect(alive(pid)).toBe(true);
     const r2 = await first.kept!()!.next({ prompt: "two", onEvent: () => {} }).finished;
     expect(r2).toMatchObject({ status: "completed" });

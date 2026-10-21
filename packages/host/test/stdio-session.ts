@@ -18,15 +18,15 @@ const VERSION_READ_MS = 3_000;
 /** The binary a tool server suite drives, off the path given (WSP_MCP_BIN, from the repository's top), or nothing where
  * none is named. One built from another version of this tree is refused here: it lacks what this tree's cases ask of
  * it, and every case would otherwise wait out its budget on a server that exited at its first flag. */
-export function mcpBinNamed(named: string | undefined): string | undefined {
+export function mcpBinNamed(named: string | undefined, budget = VERSION_READ_MS): string | undefined {
   if (named === undefined || named === "") return undefined;
   const bin = resolve(REPO, named);
   const refused = (said: string): Error => new Error(`WSP_MCP_BIN names ${bin}, ${said}, and this tree cuts ${DAEMON_VERSION}: build this tree's with cargo build -p wsp-daemon-bin --features mcp and name that one`);
   let version: string;
   try {
-    version = execFileSync(bin, ["version"], { encoding: "utf8", timeout: VERSION_READ_MS, killSignal: "SIGKILL" }).trim();
+    version = execFileSync(bin, ["version"], { encoding: "utf8", timeout: budget, killSignal: "SIGKILL" }).trim();
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ETIMEDOUT") throw refused(`which did not say its version within ${VERSION_READ_MS / 1000} s`);
+    if ((e as NodeJS.ErrnoException).code === "ETIMEDOUT") throw refused(`which did not say its version within ${budget / 1000} s`);
     throw e;
   }
   if (version !== String(DAEMON_VERSION)) throw refused(`a wsp-daemon of version ${version}`);

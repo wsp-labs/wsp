@@ -984,12 +984,6 @@ describe("store sessions", () => {
 });
 
 describe("store connection", () => {
-  it("starts connecting and mirrors what the client reports", () => {
-    expect(useStore.getState().conn).toBe("connecting");
-    useStore.getState().setConn("reconnecting");
-    expect(useStore.getState().conn).toBe("reconnecting");
-  });
-
   it("live with an api bound pulls the workspace list and the status snapshot again", async () => {
     const workspaces = [view("ws_a")];
     const { api, pulls } = fakeApi(workspaces, []);

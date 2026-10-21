@@ -47,7 +47,7 @@ const carriedEntry = (version: string): string =>
 /** An AppImage whose runtime unpacks a tree with the app's binary and its command, the binary answering --version as
  * the app run as node does, and the AppRun, entry and icon a release carries beside them. */
 function appImage(version: string, opts: { command?: boolean } = {}): Buffer {
-  const binary = `#!/bin/sh\ncase "$1" in */resources/app/main/cli.mjs) ;; *) exit 3 ;; esac\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] || exit 4\n[ "$2" = --version ] && echo "wsp ${version}"\n`;
+  const binary = `#!/bin/sh\n[ "$1" = --no-memory-pool ] || exit 5\ncase "$2" in */resources/app/main/cli.mjs) ;; *) exit 3 ;; esac\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] || exit 4\n[ "$3" = --version ] && echo "wsp ${version}"\n`;
   return Buffer.from(
     [
       "#!/bin/sh",
@@ -530,7 +530,7 @@ while :; do [ -f AppRun ] || echo "its files went while it ran" >> "$0"; sleep 0
     const tools = (): string => (existsSync(join(root, "tools.log")) ? readFileSync(join(root, "tools.log"), "utf8") : "");
 
     /** The release's zip as a tar of one wsp.app, whose binary answers --version as the app run as node does. */
-    async function macZip(version: string, binary = `#!/bin/sh\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] && [ "$2" = --version ] && echo "wsp ${version}"\n`): Promise<Buffer> {
+    async function macZip(version: string, binary = `#!/bin/sh\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] && [ "$1" = --no-memory-pool ] && [ "$3" = --version ] && echo "wsp ${version}"\n`): Promise<Buffer> {
       const tree = mkdtempSync(join(root, "zip-"));
       const contents = join(tree, "wsp.app", "Contents");
       mkdirSync(join(contents, "MacOS"), { recursive: true });
