@@ -282,11 +282,12 @@ fn a_relist_keeps_the_send_in_flight(cx: &mut TestAppContext) {
         v.show("t", cx);
         v.relist(cx);
         let listing = v.listing().cloned().expect("the sidebar's listing");
-        v.set_listing(crate::transcript::Listing { sent: Some("look again".into()), ..listing }, cx);
+        let sent = crate::transcript::Sent { text: "look again".into(), files: Vec::new(), request: None };
+        v.set_listing(crate::transcript::Listing { sent: Some(sent), ..listing }, cx);
     });
     sidebar.update(cx, |s, cx| s.apply(Change::Row { id: "s1".into(), row: Some(row("running")) }, cx));
     cx.run_until_parked();
-    let sent = view.read_with(cx, |v, _| v.listing().and_then(|l| l.sent.clone()));
+    let sent = view.read_with(cx, |v, _| v.listing().and_then(|l| l.sent.as_ref().map(|s| s.text.clone())));
     assert_eq!(sent.as_deref(), Some("look again"), "the sidebar's next read dropped the send in flight");
 }
 

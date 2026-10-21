@@ -75,8 +75,13 @@ pub fn let_go(released: Vec<Released>, window: &mut Window, cx: &mut App) {
 /// A message's image as the host sent it, made ready off the UI thread: its bytes for the dialog, its size, and the
 /// thumbnail the bubble draws in place of the whole image GPUI would decode and upload for a 56 px tile.
 pub fn held(media: &str, base64: &str) -> Option<Shot> {
+    image_format(media)?;
+    decoded(media, unbase64(base64)?)
+}
+
+/// An image's bytes made ready as [`held`] makes the host's.
+fn decoded(media: &str, bytes: Vec<u8>) -> Option<Shot> {
     let format = image_format(media)?;
-    let bytes = unbase64(base64)?;
     let size = image_size(&bytes);
     let thumb = if format == ImageFormat::Gif { None } else { thumbnail(&bytes, media) };
     Some(Shot::Held(Arc::new(Image::from_bytes(format, bytes)), size, thumb))
@@ -226,7 +231,24 @@ fn recall(view: &mut ThreadView, row: &Row, files: &[FileTile], cx: &mut Context
 /// Lays the host's answer for slot `slot` of row `key`, a media type and base64, into the row once it is decoded off
 /// the UI thread: a screenshot's base64 and pixels take tens of ms, which the UI thread would spend inside a scroll.
 pub(super) fn take(key: String, slot: usize, kept: Option<(String, String)>, cx: &mut Context<ThreadView>) {
-    let shot = cx.background_spawn(async move { kept.and_then(|(media, bytes)| held(&media, &bytes)) });
+    lay(key, slot, move || kept.and_then(|(media, bytes)| held(&media, &bytes)), cx);
+}
+
+/// A send's files as its bubble holds them before the host keeps them: each image made ready off the bytes the composer
+/// had (`ChatFileRow` with the tab's own `files`), so the bubble draws its thumbnails without asking the host.
+pub fn hold_sent(view: &mut ThreadView, files: &[(String, Arc<Vec<u8>>)], cx: &mut Context<ThreadView>) {
+    let key = crate::transcript::SENT_KEY;
+    drop_images(&mut view.images, &mut view.released, |k| k != key);
+    let image = |media: &str| image_format(media).is_some();
+    view.images.insert(key.to_owned(), files.iter().map(|(media, _)| if image(media) { Shot::Asking } else { Shot::File }).collect());
+    for (slot, (media, bytes)) in files.iter().enumerate().filter(|(_, (media, _))| image(media)) {
+        let (media, bytes) = (media.clone(), bytes.clone());
+        lay(key.to_owned(), slot, move || decoded(&media, bytes.to_vec()), cx);
+    }
+}
+
+fn lay(key: String, slot: usize, shot: impl FnOnce() -> Option<Shot> + Send + 'static, cx: &mut Context<ThreadView>) {
+    let shot = cx.background_spawn(async move { shot() });
     cx.spawn(async move |view, cx| {
         let shot = shot.await.unwrap_or(Shot::Missing);
         _ = view.update(cx, |view, cx| {

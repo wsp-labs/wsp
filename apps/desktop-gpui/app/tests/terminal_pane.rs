@@ -720,8 +720,9 @@ fn the_new_thread_pages_drawer_becomes_the_started_threads_and_a_fresh_page_gets
     until(cx, "the page showing the drawer of the thread it started", |cx| {
         shown(cx) == Some(Mode::Drawer(carried.clone())) && shells(cx) == std::slice::from_ref(&pty)
     });
-    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(format!("composer:{workspace}").into()));
-    assert!(shell.read_with(cx, |s, _| s.drawer_open()), "still open on the page, as it was before the send");
+    let opened = Route::Thread { workspace_id: workspace.clone(), thread_id: thread.clone() };
+    assert_eq!(shell.read_with(cx, |s, _| s.route().clone()), opened, "the send opened its thread in place");
+    assert!(shell.read_with(cx, |s, _| s.drawer_open()), "still open on the thread, as it was on the page before the send");
 
     shell.update_in(cx, |s, window, cx| s.go(Route::Thread { workspace_id: workspace.clone(), thread_id: thread.clone() }, window, cx));
     cx.run_until_parked();

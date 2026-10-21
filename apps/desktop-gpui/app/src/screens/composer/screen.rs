@@ -95,6 +95,8 @@ impl ComposerScreen {
         hero.update(cx, |h, cx| h.follow(new_on.is_some().then_some(composer), cx));
         if let Some(workspace_id) = &new_on {
             crate::screens::terminal::page_starts_over(workspace_id, cx);
+            // ChatComposer's `if (thread.fresh) editorRef.current?.focus()`: a new thread's box takes the keys.
+            give_keys(&self.composer, window, cx);
         }
         // A fork's draft waits for this page's box, which takes it once the page's link stands.
         let forked = new_on.as_deref().and_then(|w| super::fork::take(w, cx));
@@ -206,6 +208,15 @@ impl ComposerScreen {
         };
         Some(hero::heading(SharedString::from(name.to_owned()), mark, self.home, window, cx).into_any_element())
     }
+}
+
+/// Puts the keys in `composer`'s box, unless the palette or a dialog stands over the window and holds them.
+pub fn give_keys(composer: &Entity<Composer>, window: &mut Window, cx: &mut App) {
+    if crate::screens::palette::palette::is_open(window, cx) || crate::screens::dialogs::layer::top(cx).is_some() {
+        return;
+    }
+    let editor = composer.read(cx).editor().clone();
+    editor.update(cx, |e, cx| e.focus(window, cx));
 }
 
 /// The thread column the composer sits in, as ChatView.tsx docks it: at the foot, or on a thread with no message

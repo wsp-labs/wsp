@@ -22,7 +22,9 @@ use crate::transcript::{self, Row, RowKind};
 use crate::ui::{ActivePalette, Glyph, Palette};
 
 use changed_files::changed_files;
-pub use files::{attachment_line, drop_images, files, held, image_size, let_go, thumbnail, unbase64, Released, Shot, IMAGE_PREVIEW};
+pub use files::{
+    attachment_line, drop_images, files, held, hold_sent, image_size, let_go, thumbnail, unbase64, Released, Shot, IMAGE_PREVIEW,
+};
 use plan::plan;
 pub use plan::{plan_filename, plan_text};
 use prompt::prompt;
