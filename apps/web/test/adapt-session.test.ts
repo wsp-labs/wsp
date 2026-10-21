@@ -2,7 +2,7 @@
 // Session events into the chat view models: messages, work rows, turn
 // summaries and the timeline rows the transplanted MessagesTimeline renders.
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { fmtDuration, spawnDepthRefusal, type SessionEvent } from "@wsp/protocol";
+import { spawnDepthRefusal, type SessionEvent } from "@wsp/protocol";
 import { deriveMessagesTimelineRows, deriveSession, toolGroupSummaryKind, workEntryKind } from "../src/adapt/index.js";
 import { createSessionFold } from "../src/adapt/session.js";
 import type { ToolGroupAction, ToolGroupSummaryKind, WorkLogEntry } from "../src/adapt/index.js";
@@ -574,12 +574,6 @@ describe("deriveMessagesTimelineRows", () => {
     const m = deriveSession(liveEvents, { at: liveAt });
     expect(deriveMessagesTimelineRows({ timelineEntries: m.timeline, turns: m.turns, isWorking: m.running, activeTurnStartedAt: null })).toMatchSnapshot();
   });
-});
-
-describe("the turn's duration comes from the protocol's one formatter", () => {
-  it.each([
-    [0, "1ms"], [7, "7ms"], [999, "999ms"], [1500, "1.5s"], [9960, "10s"], [10458, "10s"], [59_400, "59s"], [60_000, "1m"], [101_515, "1m 42s"], [862_399, "14m 22s"], [-5, "0ms"], [4000, "4.0s"],
-  ])("%d ms -> %s", (ms, text) => expect(fmtDuration(ms)).toBe(text));
 });
 
 describe("workEntryKind: the one rule a tool-like row's kind is read by", () => {

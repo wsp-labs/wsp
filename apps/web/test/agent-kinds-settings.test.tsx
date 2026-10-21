@@ -5,7 +5,7 @@
 // it, with the page drawing the report the host answers. An item's own page
 // and the tab's add open in place of the list, and the crumb goes back.
 import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentsTarget, PlaceView, PluginAsk, ServerAdd, ServerAsk } from "@wsp/protocol";
 import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
@@ -325,37 +325,42 @@ describe("the Skills tab", () => {
   });
 
   it("adds a skill off skills.sh: the search asked once the person pauses, a result's own page, Install through the host, and the crumb back to what was found", async () => {
-    const { api, asked } = toolsApi();
-    await mountTab(api, "skills");
-    await act(async () => void fireEvent.click(page().querySelector("[data-k=kind-add]")!));
-    await settle();
-    expect(crumbPage()).toBe("Add a skill");
-    expect(page().querySelector("[data-settings-line='add-none'] [data-settings-label]")?.textContent).toBe("Type a name or a topic to find a skill.");
-    fireEvent.change(page().querySelector("input[data-k=add-search]")!, { target: { value: "pdf" } });
-    await act(async () => void (await new Promise(r => setTimeout(r, 300))));
-    await settle();
-    expect(asked.skills).toEqual([["search", "pdf"]]);
-    const found = rowOf("anthropics/skills/pdf")!;
-    expect(descriptionOf("anthropics/skills/pdf")).toBe("anthropics/skills");
-    expect(found.querySelector("[data-settings-word]")?.textContent).toBe("3.6M");
-    expect(rowOf("acme/kit/frontend-design")!.querySelector("[data-settings-word]")?.textContent).toBe("installed");
-    await act(async () => void fireEvent.click(found.querySelector("[data-settings-title]")!));
-    await settle();
-    expect(crumbPage()).toBe("pdf");
-    expect(asked.skills).toContainEqual(["get", "anthropics/skills/pdf"]);
-    expect(page().querySelector("[data-k=kind-head] [data-k=kind-status]")).toBeNull();
-    const install = page().querySelector<HTMLElement>("[data-k=kind-head] [data-k=act-install]")!;
-    expect(install.textContent).toBe("Install pdf");
-    await act(async () => void fireEvent.click(install));
-    await settle();
-    expect(asked.skills.find(a => a[0] === "add")?.slice(0, 3)).toEqual(["add", HERE, "anthropics/skills/pdf"]);
-    expect(asked.skills.find(a => a[0] === "add")?.[4]).toBe(false);
-    const back = document.querySelector<HTMLElement>("[data-k=settings-up]")!;
-    expect(back.getAttribute("aria-label")).toBe("Back to Add a skill");
-    await act(async () => void fireEvent.click(back));
-    await settle();
-    expect(crumbPage()).toBe("Add a skill");
-    expect(page().querySelector<HTMLInputElement>("input[data-k=add-search]")!.value).toBe("pdf");
-    expect(rowOf("anthropics/skills/pdf")).not.toBeNull();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { api, asked } = toolsApi();
+      await mountTab(api, "skills");
+      await act(async () => void fireEvent.click(page().querySelector("[data-k=kind-add]")!));
+      await settle();
+      expect(crumbPage()).toBe("Add a skill");
+      expect(page().querySelector("[data-settings-line='add-none'] [data-settings-label]")?.textContent).toBe("Type a name or a topic to find a skill.");
+      fireEvent.change(page().querySelector("input[data-k=add-search]")!, { target: { value: "pdf" } });
+      await act(async () => void vi.advanceTimersByTime(250));
+      await settle();
+      expect(asked.skills).toEqual([["search", "pdf"]]);
+      const found = rowOf("anthropics/skills/pdf")!;
+      expect(descriptionOf("anthropics/skills/pdf")).toBe("anthropics/skills");
+      expect(found.querySelector("[data-settings-word]")?.textContent).toBe("3.6M");
+      expect(rowOf("acme/kit/frontend-design")!.querySelector("[data-settings-word]")?.textContent).toBe("installed");
+      await act(async () => void fireEvent.click(found.querySelector("[data-settings-title]")!));
+      await settle();
+      expect(crumbPage()).toBe("pdf");
+      expect(asked.skills).toContainEqual(["get", "anthropics/skills/pdf"]);
+      expect(page().querySelector("[data-k=kind-head] [data-k=kind-status]")).toBeNull();
+      const install = page().querySelector<HTMLElement>("[data-k=kind-head] [data-k=act-install]")!;
+      expect(install.textContent).toBe("Install pdf");
+      await act(async () => void fireEvent.click(install));
+      await settle();
+      expect(asked.skills.find(a => a[0] === "add")?.slice(0, 3)).toEqual(["add", HERE, "anthropics/skills/pdf"]);
+      expect(asked.skills.find(a => a[0] === "add")?.[4]).toBe(false);
+      const back = document.querySelector<HTMLElement>("[data-k=settings-up]")!;
+      expect(back.getAttribute("aria-label")).toBe("Back to Add a skill");
+      await act(async () => void fireEvent.click(back));
+      await settle();
+      expect(crumbPage()).toBe("Add a skill");
+      expect(page().querySelector<HTMLInputElement>("input[data-k=add-search]")!.value).toBe("pdf");
+      expect(rowOf("anthropics/skills/pdf")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

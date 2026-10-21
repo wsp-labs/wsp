@@ -489,14 +489,6 @@ describe("terminal font resolution", () => {
     }
   });
 
-  it("ignores proportional families the cell grid cannot lay out", () => {
-    // jsdom has no canvas metrics, so the probe answers "monospace" and the
-    // family is kept; the guard is exercised in the browser instead. Assert the
-    // shape stays intact so a rejected face still yields a usable stack.
-    const stack = terminalFontFamily("Helvetica Neue");
-    expect(stack.endsWith("monospace")).toBe(true);
-  });
-
   it("quotes families the canvas font shorthand would otherwise reject", () => {
     expect(terminalFontFamily("3270 Nerd Font").startsWith('"3270 Nerd Font", ')).toBe(true);
     expect(terminalFontFamily("M+ 1m").startsWith('"M+ 1m", ')).toBe(true);

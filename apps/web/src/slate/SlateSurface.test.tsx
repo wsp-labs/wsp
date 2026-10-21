@@ -218,8 +218,10 @@ describe("a link a press opens", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(opened).not.toHaveBeenCalled();
     // A second press inside the double-press window is the same press, so the next one waits it out.
-    await act(async () => new Promise(r => setTimeout(r, COALESCE_MS + 50)));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + COALESCE_MS + 1);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    vi.useRealTimers();
     fireEvent.click(await screen.findByRole("button", { name: "Open once" }));
     expect(opened).toHaveBeenCalledWith("https://example.com/x?d=1", "_blank", "noopener,noreferrer");
     expect(api.approve).not.toHaveBeenCalled();

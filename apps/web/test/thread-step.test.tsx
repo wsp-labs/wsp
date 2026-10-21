@@ -121,7 +121,7 @@ async function walk(from: string, presses: number, mods: { shiftKey?: boolean; r
     press(i === 0 ? { shiftKey: mods.shiftKey ?? false } : mods);
     landed.push(openThread()!);
   }
-  await settle();
+  await act(async () => {});
   return landed;
 }
 
@@ -189,10 +189,6 @@ describe("the Ctrl+Tab step through the sidebar's threads", () => {
     const from = siblings[0]!;
     expect(await walk(from, 4)).toEqual([...siblings.slice(1), from]);
     expect(await walk(from, 4, { shiftKey: true })).toEqual([...siblings.slice(1).reverse(), from]);
-  });
-
-  it("steps a sub-thread at any depth through its own siblings", async () => {
-    await mountShell();
     const deep = inOrderDrawn(["deep_1", "deep_2"]);
     expect(deep).toHaveLength(2);
     expect(await walk(deep[0]!, 2)).toEqual([deep[1], deep[0]]);

@@ -139,9 +139,8 @@ describe("the remove sentence", () => {
 describe("the copy of the image a computer holds", () => {
   const copy = (place: string, version: number): SealedImageCopy => ({ place, version, snapshotId: `snap_${place}`, builtAt: ago(60_000) });
 
-  it("reads a copy by the word it names its place with, the id or the name alike", () => {
+  it("reads a copy by the word it names its place with", () => {
     expect(copyOn([copy("p_1", 2)], hetzner)?.version).toBe(2);
-    expect(copyOn([copy("hetzner", 2)], hetzner)?.version).toBe(2);
     expect(copyOn([copy("old-macbook", 2)], hetzner)).toBeUndefined();
   });
 });

@@ -75,7 +75,6 @@ describe.skipIf(renderSkipped !== undefined)("the agents settings pages in Chrom
           const box = (await dialog.boundingBox())!;
           expect(box.x).toBeGreaterThanOrEqual(0);
           expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5);
-          await page.waitForTimeout(250);
           await page.screenshot({ path: join(SHOTS_DIR, `settings-agent-${sheet}-${width}-${theme}.png`), animations: "disabled" });
         } finally {
           await page.close();
