@@ -14,7 +14,7 @@ use super::reach::{self, Reach, Route};
 use super::tabs::Tab;
 use super::url::{self, Place};
 use super::words;
-use crate::screens::Host;
+use crate::screens::{warm, Host};
 use crate::ui::{notify, Notice, NoticeKind};
 use wsp_host_client::protocol::{WorkspacesPortProbeRequest, WorkspacesPortReachRequest};
 
@@ -22,8 +22,6 @@ use wsp_host_client::protocol::{WorkspacesPortProbeRequest, WorkspacesPortReachR
 pub const IDLE: Duration = Duration::from_secs(5 * 60);
 /// `GUEST_CAP`: pages held at once, each a web process of its own.
 pub const CAP: usize = 10;
-/// `LOADED_PANELS`: the threads shown last whose tabs keep their pages, beside the one on screen.
-pub const LOADED_THREADS: usize = 3;
 
 /// A tab by the panel it is in (its thread, or "" for this computer's own panel) and its id there.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -87,7 +85,7 @@ pub struct Store {
     entries: HashMap<Key, Entry>,
     directories: HashMap<String, Directory>,
     routes: HashMap<(String, u16), Route>,
-    /// The threads shown last, newest first.
+    /// The threads warm now ([`warm`]), newest first.
     shown: Vec<SharedString>,
     minted: u64,
     /// The window whose shell's thread the store follows.
@@ -333,9 +331,7 @@ impl Store {
         if thread.is_empty() {
             return;
         }
-        self.shown.retain(|t| t != thread);
-        self.shown.insert(0, thread.clone());
-        self.shown.truncate(LOADED_THREADS);
+        self.shown = warm::shown(thread, cx);
         let held: Vec<&Key> = self.entries.iter().filter(|(_, e)| e.page.is_some()).map(|(k, _)| k).collect();
         self.unload(past(&held, &self.shown));
         cx.notify();

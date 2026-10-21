@@ -18,7 +18,7 @@ pub fn is_here(place: &PlaceView) -> bool {
 
 /// `hereName`, the sidebar's one reading, off the typed rows.
 pub fn here_name(places: &[PlaceView]) -> String {
-    crate::screens::sidebar::menu::here_name(&crate::screens::sidebar::host::values(places))
+    crate::screens::sidebar::menu::here_name(&crate::screens::sidebar::menu::values(places))
 }
 
 /// `capitalised`: a word as it stands alone at the head of a slot.

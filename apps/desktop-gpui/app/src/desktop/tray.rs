@@ -4,6 +4,7 @@
 //! `tray-icon` and `muda`; muda has no sublabel, so a row's state rides in its label after a middle dot.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde_json::Value;
 
@@ -85,7 +86,7 @@ pub struct TrayHost {
 /// `TrayInput`.
 #[derive(Clone, Copy)]
 pub struct TrayInput<'a> {
-    pub sessions: &'a [Value],
+    pub sessions: &'a [Arc<Row>],
     pub asks: &'a HashMap<String, OpenAsk>,
     /// A pick the host would not take, by the prompt it was made on.
     pub refused: &'a HashMap<String, String>,
@@ -217,9 +218,8 @@ fn computer_of(workspaces: &[Value], places: &[Value], workspace_id: &str) -> St
         .unwrap_or_default()
 }
 
-fn threads(sessions: &[Value]) -> Vec<Thread> {
-    let rows: Vec<Row> = sessions.iter().filter_map(Row::of).collect();
-    fold_threads(&rows)
+fn threads(sessions: &[Arc<Row>]) -> Vec<Thread> {
+    fold_threads(sessions)
 }
 
 /// `trayModel`.
@@ -272,18 +272,13 @@ pub fn tray_model(input: TrayInput) -> TrayModel {
 }
 
 /// Whether a thread was started by an agent, read off its first row as `foldThreads` reads it.
-fn started_by_agent(sessions: &[Value], key: &str) -> bool {
-    sessions
-        .iter()
-        .find(|s| s.get("threadId").or_else(|| s.get("id")).and_then(Value::as_str) == Some(key))
-        .and_then(|s| s.get("startedBy"))
-        .and_then(Value::as_str)
-        == Some("agent")
+fn started_by_agent(sessions: &[Arc<Row>], key: &str) -> bool {
+    sessions.iter().find(|s| s.thread_id.as_deref().unwrap_or(&s.id) == key).is_some_and(|s| s.started_by_agent)
 }
 
 /// `trayNotice`: what is said over the system while no window says it: a prompt, a thread a person or a line started
 /// that finished or failed, and a plan alert. An agent's own thread reports to that agent; nothing else is said.
-pub fn tray_notice(event: &Value, sessions: &[Value], workspaces: &[Value], places: &[Value], choices: &Choices) -> Option<OutsideLine> {
+pub fn tray_notice(event: &Value, sessions: &[Arc<Row>], workspaces: &[Value], places: &[Value], choices: &Choices) -> Option<OutsideLine> {
     let field = |k: &str| event.get(k).and_then(Value::as_str);
     match field("type")? {
         "usage.alert" => outside_line(&Moment::Plan { label: field("label").unwrap_or_default(), alert: event.get("alert")? }, choices),
@@ -505,8 +500,9 @@ mod tests {
 
     impl Case {
         fn model(&self) -> TrayModel {
+            let rows: Vec<Arc<Row>> = self.sessions.iter().filter_map(Row::of).map(Arc::new).collect();
             tray_model(TrayInput {
-                sessions: &self.sessions,
+                sessions: &rows,
                 asks: &self.asks,
                 refused: &self.refused,
                 workspaces: &self.workspaces,
@@ -740,6 +736,7 @@ mod tests {
             row(json!({ "id": "s1", "threadId": "t1", "prompt": "fix login" })),
             row(json!({ "id": "s2", "threadId": "t_agent", "prompt": "sub task", "startedBy": "agent" })),
         ];
+        let sessions: Vec<Arc<Row>> = sessions.iter().filter_map(Row::of).map(Arc::new).collect();
         tray_notice(&event, &sessions, &workspaces(), &places(), choices)
     }
 

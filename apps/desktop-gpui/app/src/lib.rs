@@ -3,6 +3,7 @@ pub mod bench;
 pub mod desktop;
 pub mod gallery;
 pub mod glass;
+pub mod heap;
 pub mod local_store;
 pub mod screens;
 pub mod scroll_trace;

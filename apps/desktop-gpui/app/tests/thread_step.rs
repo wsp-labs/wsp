@@ -75,7 +75,7 @@ fn seed(shell: &Entity<Shell>, n: usize, cx: &mut VisualTestContext) {
         })
         .collect();
     let snapshot = Snapshot {
-        sessions,
+        sessions: desktop_gpui::sidebar::shared::rows_of(sessions),
         workspaces: vec![json!({ "id": "w1", "name": "w1", "kind": "local", "project": { "id": "p1" } })],
         projects: vec![json!({ "id": "p1", "name": "repo", "path": "/repo", "computer": "here" })],
         places: vec![json!({ "id": "here", "kind": "computer", "name": "boat" })],

@@ -59,6 +59,7 @@ fn hostless(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext, 
             })
         })
         .collect();
+    let sessions = desktop_gpui::sidebar::shared::rows_of(sessions);
     let snapshot = Snapshot {
         sessions,
         workspaces: vec![json!({ "id": "w1", "name": "w1", "kind": "local", "project": { "id": "p1" } })],

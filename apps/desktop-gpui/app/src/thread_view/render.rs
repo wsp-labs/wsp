@@ -38,6 +38,7 @@ impl Render for ThreadView {
             self.focus.focus(window, cx);
         }
         self.trim();
+        self.window = Some(window.window_handle());
         cards::let_go(std::mem::take(&mut self.released), window, cx);
         if let Some(Reveal { ix, y, tries, from }) = self.revealing.take() {
             let top = self.list.viewport_bounds().origin.y;

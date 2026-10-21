@@ -232,7 +232,10 @@ pub(super) fn take(key: String, slot: usize, kept: Option<(String, String)>, cx:
         _ = view.update(cx, |view, cx| {
             crate::scroll_trace::note(|w| w.images += 1);
             if let Some(slot) = view.images.get_mut(&key).and_then(|shots| shots.get_mut(slot)) {
-                *slot = shot;
+                // An answer asked before the row was dropped and drawn anew can land over one already drawn.
+                if let Shot::Held(image, _, thumb) = std::mem::replace(slot, shot) {
+                    view.released.push(Released { image, thumb });
+                }
             }
             cx.notify();
         });
