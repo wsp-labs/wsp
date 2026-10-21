@@ -45,7 +45,7 @@ describe("the binary WSP_MCP_BIN names", () => {
   it("is refused, naming it, where it does not say its version within a few seconds, so the suites' collection never hangs", () => {
     const silent = daemonOf();
     const started = Date.now();
-    expect(() => mcpBinNamed(silent)).toThrow(`WSP_MCP_BIN names ${silent}, which did not say its version within 3 s, and this tree cuts ${DAEMON_VERSION}`);
+    expect(() => mcpBinNamed(silent, 200)).toThrow(`WSP_MCP_BIN names ${silent}, which did not say its version within 0.2 s, and this tree cuts ${DAEMON_VERSION}`);
     expect(Date.now() - started).toBeLessThan(6_000);
   }, 10_000);
 });
