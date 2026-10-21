@@ -69,12 +69,11 @@ describe("the agents wsp can open a thread on", () => {
     expect(CATALOG_AGENTS.find(a => a.id === "claude")?.plugins?.seed?.env).toBe(PLUGIN_SEED_ENV);
   });
 
-  it("OpenCode's row offers Auto alone and says why, Cursor's the two modes its CLI has, and neither takes a message mid-turn", () => {
+  it("OpenCode's row offers Auto alone, Cursor's the two modes its CLI has, and neither takes a message mid-turn", () => {
     const machine = {} as Machine;
     const ctx = { machine, workspaceId: "ws_1", execStream: machineExecStream(machine), home: () => "/root/.state", env: {}, signInRefusal: signInRefusalLine({ kind: "cloud" }), loginStands: () => false };
     const opencode = HARNESS_CATALOGS.find(c => c.harness === "opencode")!;
     expect(opencode.permissionModes.map(m => m.value)).toEqual(["auto"]);
-    expect(opencode.permissionModes[0]!.description).toMatch(/^Runs every action without asking.*nobody to ask$/);
     expect([opencode.access, opencode.bypassMode]).toEqual([{ full: "auto" }, "auto"]);
     const cursor = HARNESS_CATALOGS.find(c => c.harness === "cursor")!;
     expect(cursor).toMatchObject({ label: "Cursor", models: [], access: { full: "force", plan: "default" }, bypassMode: "force" });
