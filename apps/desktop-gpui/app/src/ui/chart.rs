@@ -41,6 +41,8 @@ const BAYER: [f64; 16] = {
 /// The gridlines over the floor when the axis names no parts of its own.
 const PARTS: usize = 4;
 const TICK_ROW: Pixels = px(16.);
+/// Between the plot and its ticks, and the axis and the plot.
+const GAP: Pixels = px(12.);
 const END_DOT: f32 = 6.;
 const TOOLTIP_OFFSET: Pixels = px(6.);
 /// Base UI's `collisionPadding`: the tooltip shifts to stay this far inside the window.
@@ -126,7 +128,7 @@ struct ChartState {
     tween: Option<Tween>,
 }
 
-#[derive(IntoElement)]
+#[derive(IntoElement, Clone)]
 pub struct Chart {
     id: ElementId,
     steps: Vec<f64>,
@@ -588,14 +590,37 @@ fn tweened(state: &Entity<ChartState>, target: Shape, window: &mut Window, cx: &
         }
         state.tween.as_ref().map(sample).expect("set above")
     });
+    // A tween's step moves only the chart, which draws again where it stands.
     if k < 1. {
-        window.request_animation_frame();
+        window.request_animation_frame_in_place();
     }
     shape
 }
 
+/// A tweened chart as a view of its own in its box, so each frame of its tween draws again only the chart.
+struct Tweening(Chart);
+
+impl Render for Tweening {
+    fn render(&mut self, window: &mut Window, cx: &mut gpui_kit::Context<Self>) -> impl IntoElement {
+        crate::frames::count("ChartTween");
+        self.0.clone().draw(window, cx)
+    }
+}
+
 impl RenderOnce for Chart {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        if !self.tween {
+            return self.draw(window, cx).into_any_element();
+        }
+        let height = self.height + GAP + TICK_ROW;
+        let piece = window.use_keyed_state(ElementId::from((self.id.clone(), "tween")), cx, |_, _| Tweening(self.clone()));
+        piece.update(cx, |piece, _| piece.0 = self);
+        piece.cached(gpui_kit::StyleRefinement::default().w_full().h(height)).into_any_element()
+    }
+}
+
+impl Chart {
+    fn draw(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let p = cx.palette().clone();
         let mono = cx.theme().mono_font_family.clone();
         let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| {
@@ -769,12 +794,11 @@ impl RenderOnce for Chart {
                 }
             }));
 
-        let gap = px(12.);
         h_flex()
             .items_start()
-            .gap(if self.small { px(8.) } else { gap })
+            .gap(if self.small { px(8.) } else { GAP })
             .child(gutter)
-            .child(v_flex().flex_1().min_w_0().gap(gap).child(plot).child(ticks))
+            .child(v_flex().flex_1().min_w_0().gap(GAP).child(plot).child(ticks))
     }
 }
 

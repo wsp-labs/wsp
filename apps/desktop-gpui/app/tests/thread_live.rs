@@ -246,7 +246,8 @@ fn a_subagents_page_reads_and_follows_nothing_the_thread_screen_follows() {
     assert_eq!(page_view, view, "the page drew a view of its own");
 
     // A running subagent's bar counts its time once a second.
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as f64;
+    let mut now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as f64;
+    cx.update(|cx| cx.set_global(desktop_gpui::ui::FrozenNow(now)));
     let running = desktop_gpui::transcript::ListedSubagent {
         call: "toolu-survey".to_owned(),
         title: "Survey".to_owned(),
@@ -268,18 +269,19 @@ fn a_subagents_page_reads_and_follows_nothing_the_thread_screen_follows() {
     let shown: AnyWindowHandle =
         cx.open_window(size(px(1100.), px(800.)), |window, cx| cx.new(|cx| Root::new(sub.view.clone(), window, cx))).unwrap().into();
     settle(&mut cx, shown, 300);
-    let clock = cx.update(|cx| screen.read(cx).ticking()).expect("the running subagent's bar counts on no clock");
-    let ticks = std::rc::Rc::new(std::cell::Cell::new(0));
-    let counted = ticks.clone();
-    cx.update(|cx| cx.observe(&clock, move |_, _| counted.set(counted.get() + 1)).detach());
+    assert!(cx.update(|cx| screen.read(cx).ticking()).is_some(), "the running subagent's bar counts on no clock");
+    desktop_gpui::frames::take();
     for _ in 0..3 {
+        now += 1_000.;
+        cx.update(|cx| cx.set_global(desktop_gpui::ui::FrozenNow(now)));
         cx.advance_clock(Duration::from_secs(1));
         cx.run_until_parked();
         draw(&mut cx, shown);
     }
-    assert!(ticks.get() >= 3, "the bar's time moved {} times in 3 s", ticks.get());
+    let ticks = desktop_gpui::frames::take().get("Clock").copied().unwrap_or(0);
+    assert!(ticks >= 3, "the bar's time moved {ticks} times in 3 s");
     cx.update_window(shown, |_, window, _| window.remove_window()).unwrap();
-    drop((sub, screen, clock));
+    drop((sub, screen));
     settle(&mut cx, handle, 300);
     let back: Vec<String> = cx.update(|cx| view.read(cx).rows().iter().map(|r| r.key.clone()).collect());
     assert_eq!(back, lead, "leaving the page left the lead's rows cut to it");

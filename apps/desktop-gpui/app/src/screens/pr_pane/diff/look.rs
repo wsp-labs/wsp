@@ -4,10 +4,9 @@
 
 use gpui_kit::component::diff::DiffLook;
 use gpui_kit::component::{ActiveTheme as _, Theme};
-use gpui_kit::{
-    px, AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Pixels, Rgba, Window,
-};
+use gpui_kit::{px, App, Hsla, IntoElement, Rgba};
 
+use crate::ui::theme::Scoped;
 use crate::ui::ActivePalette as _;
 
 /// `color-mix(in srgb, a p%, b)`.
@@ -191,76 +190,6 @@ pub(super) fn code_theme(cx: &App) -> Theme {
 
 /// Lays out, prepaints and paints `child` with `theme` as gpui-kit's global theme, so the `Diff` inside, its rows
 /// rendered lazily during prepaint among them, reads the code surface's tokens.
-pub(super) fn with_theme(theme: Theme, child: impl IntoElement) -> Themed {
-    Themed { theme, child: child.into_any_element() }
-}
-
-pub(super) struct Themed {
-    theme: Theme,
-    child: AnyElement,
-}
-
-impl Themed {
-    fn within<R>(&mut self, cx: &mut App, f: impl FnOnce(&mut AnyElement, &mut App) -> R) -> R {
-        std::mem::swap(Theme::global_mut(cx), &mut self.theme);
-        let out = f(&mut self.child, cx);
-        std::mem::swap(Theme::global_mut(cx), &mut self.theme);
-        out
-    }
-}
-
-impl IntoElement for Themed {
-    type Element = Self;
-
-    fn into_element(self) -> Self {
-        self
-    }
-}
-
-impl Element for Themed {
-    type RequestLayoutState = ();
-    type PrepaintState = ();
-
-    fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        None
-    }
-
-    fn request_layout(
-        &mut self,
-        _: Option<&GlobalElementId>,
-        _: Option<&InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (LayoutId, ()) {
-        (self.within(cx, |child, cx| child.request_layout(window, cx)), ())
-    }
-
-    fn prepaint(
-        &mut self,
-        _: Option<&GlobalElementId>,
-        _: Option<&InspectorElementId>,
-        _: Bounds<Pixels>,
-        _: &mut (),
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        self.within(cx, |child, cx| child.prepaint(window, cx));
-    }
-
-    fn paint(
-        &mut self,
-        _: Option<&GlobalElementId>,
-        _: Option<&InspectorElementId>,
-        _: Bounds<Pixels>,
-        _: &mut (),
-        _: &mut (),
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        self.within(cx, |child, cx| child.paint(window, cx));
-    }
+pub(super) fn with_theme(theme: Theme, child: impl IntoElement) -> Scoped {
+    Scoped::new(None, Some(theme), child)
 }

@@ -147,6 +147,14 @@ impl Sidebar {
             Some((armed, at)) if armed == key && at.elapsed() < ARMED => self.stop(key, cx),
             _ => {
                 self.armed = Some((key.to_owned(), Instant::now()));
+                self._disarm = cx.spawn(async move |this, cx| {
+                    cx.background_executor().timer(ARMED).await;
+                    _ = this.update(cx, |this, cx| {
+                        if this.armed.take().is_some() {
+                            cx.notify();
+                        }
+                    });
+                });
                 cx.notify();
             }
         }

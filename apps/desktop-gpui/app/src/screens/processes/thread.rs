@@ -11,7 +11,7 @@ use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, SharedString, Wind
 use super::tree::words as w;
 use super::{measure, width_of, Form, Processes, ThreadState};
 use crate::screens::computer::daemon_down::DaemonDown;
-use crate::screens::settings::pages::activity::model::words as activity_words;
+use crate::screens::settings::pages::activity::model::{words as activity_words, View};
 use crate::screens::settings::pages::activity::tables::{threads_table, Hand, ThreadLooks};
 use crate::ui::{scroll_area, text, ActivePalette, Button};
 
@@ -43,6 +43,8 @@ pub fn view(pane: &mut Processes, window: &mut Window, cx: &mut Context<Processe
         ThreadState::Nothing => note(w::NOTHING, cx).debug_selector(|| "procs-nothing".into()).m_auto().text_center().into_any_element(),
         ThreadState::Groups(groups) => {
             let looks = pane.looks(cx);
+            let width = width_of(pane, window);
+            scoped.update(cx, |s, cx| s.drawing(View::Threads, width, cx));
             let s = scoped.read(cx);
             let hand = Hand {
                 scoped: scoped.downgrade(),
@@ -52,14 +54,17 @@ pub fn view(pane: &mut Processes, window: &mut Window, cx: &mut Context<Processe
                 sort: s.sort,
                 energy: s.scope.as_ref().is_some_and(|sc| sc.energy),
                 filtering: false,
-                width: width_of(pane, window),
+                width,
                 workspace: pane.opened.workspace_id.clone(),
+                pieces: s.pieces(),
             };
-            let status = |id: &str| looks.get(id).cloned();
-            let model = |_: &str, m: &str| Some(m.to_owned());
+            let looks = ThreadLooks {
+                status: Rc::new(move |id: &str| looks.get(id).cloned()),
+                model: Rc::new(|_: &str, m: &str| Some(m.to_owned())),
+            };
             let name = s.computer.name();
             let boxed = !s.computer.here();
-            threads_table(name, &groups, &ThreadLooks { status: &status, model: &model }, boxed, None, &hand, cx)
+            threads_table(name, Rc::new(groups), looks, boxed, None, &hand).whole(cx)
         }
     };
     let menu = scoped.read(cx).menu.overlay().map(|open| div().absolute().debug_selector(|| "procs-row-menu".into()).child(open));

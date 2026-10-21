@@ -7,8 +7,8 @@ use std::rc::Rc;
 
 use gpui_kit::component::{Theme, ThemeConfig, ThemeMode, ThemeRegistry};
 use gpui_kit::{
-    point, px, AnyElement, App, Bounds, BoxShadow, Element, ElementId, Global, GlobalElementId, Hsla, InspectorElementId, IntoElement,
-    LayoutId, Pixels, Rgba, SharedString, Window, WindowAppearance,
+    point, px, AnyElement, App, Bounds, BoxShadow, DrawScope, Element, ElementId, Global, GlobalElementId, Hsla, InspectorElementId,
+    IntoElement, LayoutId, Pixels, Rgba, SharedString, Window, WindowAppearance,
 };
 use serde::Deserialize;
 
@@ -330,7 +330,7 @@ pub fn within<C: std::ops::DerefMut<Target = App>, R>(palette: Palette, cx: &mut
 /// Lays out, prepaints and paints `child` with `palette` as the active one, so a shared piece drawn inside reads the
 /// scope's tokens, as a CSS scope's custom properties reach every element under it.
 pub fn scoped(palette: Palette, child: impl IntoElement) -> Scoped {
-    Scoped { palette, kit: None, child: child.into_any_element() }
+    Scoped::new(Some(palette), None, child)
 }
 
 /// [`scoped`] in the whole theme `id` names, gpui-kit's own tokens too (a field's caret, selection and ring): a window
@@ -339,27 +339,33 @@ pub fn scoped_theme(id: &str, child: impl IntoElement, cx: &App) -> Scoped {
     let entry = theme_by_id(id).unwrap_or_else(|| panic!("wsp has no theme {id}"));
     let mut kit = Theme::global(cx).clone();
     take(&mut kit, &config_of(entry, cx));
-    Scoped { palette: entry.palette(), kit: Some(kit), child: child.into_any_element() }
+    Scoped::new(Some(entry.palette()), Some(kit), child)
 }
 
 pub struct Scoped {
-    palette: Palette,
-    kit: Option<Theme>,
+    scope: DrawScope,
     child: AnyElement,
 }
 
 impl Scoped {
-    fn within<R>(&mut self, cx: &mut App, f: impl FnOnce(&mut AnyElement, &mut App) -> R) -> R {
-        std::mem::swap(&mut cx.global_mut::<WspTheme>().palette, &mut self.palette);
-        if let Some(kit) = self.kit.as_mut() {
-            std::mem::swap(Theme::global_mut(cx), kit);
-        }
-        let out = f(&mut self.child, cx);
-        if let Some(kit) = self.kit.as_mut() {
-            std::mem::swap(Theme::global_mut(cx), kit);
-        }
-        std::mem::swap(&mut cx.global_mut::<WspTheme>().palette, &mut self.palette);
-        out
+    /// Draws `child` with `palette` as the active palette and `kit` as gpui-kit's theme, each where given.
+    pub fn new(palette: Option<Palette>, kit: Option<Theme>, child: impl IntoElement) -> Self {
+        let held = std::cell::RefCell::new((palette, kit));
+        let swap = move |cx: &mut App| {
+            let (palette, kit) = &mut *held.borrow_mut();
+            if let Some(palette) = palette {
+                std::mem::swap(&mut cx.global_mut::<WspTheme>().palette, palette);
+            }
+            if let Some(kit) = kit {
+                std::mem::swap(Theme::global_mut(cx), kit);
+            }
+        };
+        let scope: DrawScope = Rc::new(move |window, cx, body| {
+            swap(cx);
+            body(window, cx);
+            swap(cx);
+        });
+        Scoped { scope, child: child.into_any_element() }
     }
 }
 
@@ -390,7 +396,7 @@ impl Element for Scoped {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, ()) {
-        (self.within(cx, |child, cx| child.request_layout(window, cx)), ())
+        (window.with_draw_scope(&self.scope, cx, |window, cx| self.child.request_layout(window, cx)), ())
     }
 
     fn prepaint(
@@ -402,7 +408,7 @@ impl Element for Scoped {
         window: &mut Window,
         cx: &mut App,
     ) {
-        self.within(cx, |child, cx| child.prepaint(window, cx));
+        window.with_draw_scope(&self.scope, cx, |window, cx| self.child.prepaint(window, cx));
     }
 
     fn paint(
@@ -415,7 +421,7 @@ impl Element for Scoped {
         window: &mut Window,
         cx: &mut App,
     ) {
-        self.within(cx, |child, cx| child.paint(window, cx));
+        window.with_draw_scope(&self.scope, cx, |window, cx| self.child.paint(window, cx));
     }
 }
 

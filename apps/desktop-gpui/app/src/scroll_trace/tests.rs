@@ -2,11 +2,24 @@
 use super::*;
 
 fn frame(at: f64, draw: f64, present: f64) -> Frame {
-    Frame { at, draw, draw_cpu: draw, switches: None, present, since: 0., late: 0., inputs: 0, focused: true, work: Work::default() }
+    Frame {
+        at,
+        draw,
+        draw_cpu: draw,
+        switches: None,
+        present,
+        since: 0.,
+        late: 0.,
+        delivered: 0.,
+        inputs: 0,
+        focused: true,
+        work: Work::default(),
+        below: Below::default(),
+    }
 }
 
 fn input(due: f64, at: f64, phase: TouchPhase) -> Input {
-    Input { due, at, phase, moving: true, dy: 10., spot: None, after: None }
+    Input { due, at, phase, moving: true, dy: 10., spot: None, after: None, shown: None, posted: None }
 }
 
 #[test]
@@ -31,8 +44,8 @@ fn a_wheel_line_reads_back_as_written_and_as_the_event_a_platform_sends() {
 fn an_input_waits_from_when_it_was_due_to_the_present_of_the_first_frame_after_it() {
     let mut frames = vec![frame(0., 5., 5.), frame(20., 5., 5.), frame(100., 5., 5.)];
     // Handled at 12 and 18, before the frame at 20: that frame shows both, presented at 30.
-    let inputs = [input(10., 12., TouchPhase::Started), input(18., 18., TouchPhase::Moved), input(30., 95., TouchPhase::Moved)];
-    settle(&mut frames, &inputs);
+    let mut inputs = [input(10., 12., TouchPhase::Started), input(18., 18., TouchPhase::Moved), input(30., 95., TouchPhase::Moved)];
+    settle(&mut frames, &mut inputs);
     assert_eq!((frames[0].inputs, frames[1].inputs, frames[2].inputs), (0, 2, 1));
     assert_eq!(frames[1].late, 20.);
     // Due at 30 by the replay's clock, handled at 95 behind a busy UI thread, presented at 110.
@@ -44,16 +57,16 @@ fn an_input_waits_from_when_it_was_due_to_the_present_of_the_first_frame_after_i
 fn a_moved_event_that_came_late_in_its_stream_waited_from_one_interval_after_the_one_before() {
     // A recording knows only when an event was handled; a Moved one 60 ms after the last waited behind the UI thread.
     let mut frames = vec![frame(0., 2., 2.), frame(70., 2., 2.)];
-    let inputs = [input(0., 0., TouchPhase::Moved), input(60., 60., TouchPhase::Moved)];
-    settle(&mut frames, &inputs);
+    let mut inputs = [input(0., 0., TouchPhase::Moved), input(60., 60., TouchPhase::Moved)];
+    settle(&mut frames, &mut inputs);
     assert!((frames[1].late - (74. - STREAM_MS)).abs() < 1e-9, "{}", frames[1].late);
     // A Started event opens a new gesture, so the pause before it was the person's.
     let mut frames = vec![frame(0., 2., 2.), frame(70., 2., 2.)];
-    settle(&mut frames, &[input(0., 0., TouchPhase::Moved), input(60., 60., TouchPhase::Started)]);
+    settle(&mut frames, &mut [input(0., 0., TouchPhase::Moved), input(60., 60., TouchPhase::Started)]);
     assert_eq!(frames[1].late, 14.);
     // So was the pause after fingers came to rest, or between a mouse wheel's clicks.
     let mut frames = vec![frame(0., 2., 2.), frame(70., 2., 2.)];
-    settle(&mut frames, &[Input { moving: false, ..input(0., 0., TouchPhase::Moved) }, input(60., 60., TouchPhase::Moved)]);
+    settle(&mut frames, &mut [Input { moving: false, ..input(0., 0., TouchPhase::Moved) }, input(60., 60., TouchPhase::Moved)]);
     assert_eq!(frames[1].late, 14.);
 }
 
@@ -95,4 +108,28 @@ fn wheel_events_that_find_room_and_move_nothing_make_a_stuck_run_named_by_what_w
     assert_eq!(runs.len(), 2, "{runs:?}");
     assert_eq!((runs[0].events, runs[0].under.as_deref()), (5, Some("ChangedFiles")));
     assert_eq!((runs[1].events, runs[1].under.as_deref()), (3, Some("Agent with code")));
+}
+
+#[test]
+fn an_event_that_moved_nothing_lends_no_frame_its_wait() {
+    // A gesture's Ended event moves nothing; the frame after the pause shows only the next gesture's first event.
+    let mut frames = vec![frame(0., 2., 2.), frame(500., 2., 2.)];
+    let still = Input { spot: Some(Spot { top: 0., max: 100., under: None }), after: Some(0.), ..input(10., 10., TouchPhase::Ended) };
+    let moved = Input { spot: Some(Spot { top: 0., max: 100., under: None }), after: Some(10.), ..input(480., 495., TouchPhase::Started) };
+    let mut inputs = [still, moved];
+    settle(&mut frames, &mut inputs);
+    assert_eq!(frames[1].inputs, 1);
+    assert_eq!((frames[1].late, frames[1].delivered), (24., 15.), "due at 480, handled at 495, presented at 504");
+    assert_eq!((inputs[0].shown, inputs[1].shown), (None, Some((1, 24.))));
+}
+
+#[test]
+fn a_replayed_event_waits_from_when_it_was_posted_not_from_its_replays_clock() {
+    // Due at 100 by the replay's clock, handed to the platform at 112, taken by the app at 113, shown by the frame at 115.
+    let mut frames = vec![frame(0., 2., 2.), frame(115., 2., 2.)];
+    let mut inputs = [Input { posted: Some(112.), ..input(100., 113., TouchPhase::Started) }];
+    settle(&mut frames, &mut inputs);
+    assert_eq!((frames[1].late, frames[1].delivered), (7., 1.), "the 12 ms before it was posted are the replay's");
+    let out = json(&Plan::default(), &frames, &inputs, true, 2.);
+    assert_eq!(out["summary"]["handover_median_ms"], json!(12.));
 }

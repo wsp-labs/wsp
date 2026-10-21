@@ -5,10 +5,11 @@
 use std::time::Duration;
 
 use gpui_kit::component::{h_flex, v_flex, Icon, Sizable as _};
-use gpui_kit::{anchored, deferred, div, point, prelude::*, px, relative, AnyElement, Context, FontWeight, Pixels};
+use gpui_kit::{anchored, deferred, div, point, prelude::*, px, relative, AnyElement, App, Context, FontWeight, Pixels, Window};
 use serde_json::{json, Value};
 use wsp_host_client::protocol::WorkspacesCheckoutRequest;
 
+use super::age::{self, Count, Room};
 use super::model::{self, Kind, Shape, Tile};
 use super::{host, looks, tile, Sidebar};
 use crate::ui::{hover_card, Crab, Glyph, Palette};
@@ -73,7 +74,7 @@ impl Sidebar {
     }
 
     /// The card beside a tile `width` wide, in the page's palette.
-    pub(crate) fn tile_card(&mut self, tile: &Tile, width: Pixels, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn tile_card(&mut self, tile: &Tile, width: Pixels, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let p = self.page.clone();
         let t = self.threads[tile.thread].clone();
         let prefs = self.around.preferences.clone().unwrap_or_default();
@@ -147,7 +148,7 @@ impl Sidebar {
             lines.push((None, note));
         }
         let settled = tile.shape == Shape::Settled || tile.snoozed_working.is_some();
-        let status_line = (!settled).then(|| self.status_line(&t, tile, &p));
+        let status_line = (!settled).then(|| self.status_line(&t, tile, &p, window, cx));
         // The status row's reason (`leadTree.ts` noteOf): what it asks, why it failed, or a finished turn's last line.
         let running = t.status == model::Status::Running;
         let reason = (!settled)
@@ -241,19 +242,27 @@ impl Sidebar {
     }
 
     /// The card's status row (`StatusLine.tsx`): the kind's glyph or the crab, its word, the time at the right.
-    fn status_line(&self, t: &model::Thread, tile: &Tile, p: &Palette) -> AnyElement {
+    fn status_line(&self, t: &model::Thread, tile: &Tile, p: &Palette, window: &mut Window, cx: &mut App) -> AnyElement {
         let kind = model::tile_kind(t, tile, self.now);
         let slot = model::tile_slot(t, tile, self.now);
         let word = model::word(t, kind, self.now, super::utc_offset_ms() as f64);
         // `timed` on Working, `aged` on the kinds that end a turn; the rest say no time.
-        let time = match kind {
-            Kind::Working => Some(model::running_time(self.now - t.started_at.unwrap_or(self.now))),
+        let since = match kind {
+            Kind::Working => Some((Count::Running, t.started_at.unwrap_or(self.now))),
             Kind::Resting | Kind::Finished | Kind::Done | Kind::Failed | Kind::Expired | Kind::Released | Kind::Stopped => {
-                tile.age_at.map(|at| model::resting_age(at, self.now))
+                tile.age_at.map(|at| (Count::Age, at))
             }
             _ => None,
         };
-        status_row(kind, slot.glyph, slot.tone, format!("card-crab-{}", t.key), word.to_string(), time, p)
+        let tail = match since {
+            Some((count, since)) => {
+                let time =
+                    age::age(format!("card-time-{}:{count:?}:{since}", t.key), count, super::now_ms() - since, Room::End, window, cx);
+                vec![age::rest(&time).debug_selector(|| "card-status-time".into()).into_any_element()]
+            }
+            None => vec![div().flex_1().into_any_element()],
+        };
+        status_row_with(kind, slot.glyph, slot.tone, format!("card-crab-{}", t.key), word.to_string(), tail, p)
     }
 }
 
@@ -266,6 +275,21 @@ pub(crate) fn status_row(
     crab_key: String,
     word: String,
     time: Option<String>,
+    p: &Palette,
+) -> AnyElement {
+    let mut tail = vec![div().flex_1().into_any_element()];
+    tail.extend(time.map(|t| div().debug_selector(|| "card-status-time".into()).flex_none().child(t).into_any_element()));
+    status_row_with(kind, glyph, tone, crab_key, word, tail, p)
+}
+
+/// `status_row` with `tail` after the word, where the time stands.
+fn status_row_with(
+    kind: Kind,
+    glyph: Option<&str>,
+    tone: Option<model::Tone>,
+    crab_key: String,
+    word: String,
+    tail: Vec<AnyElement>,
     p: &Palette,
 ) -> AnyElement {
     let (kind, glyph, tone, word) = match kind {
@@ -310,7 +334,6 @@ pub(crate) fn status_row(
                 .when(tone.is_none(), |el| el.text_color(p.foreground))
                 .child(word),
         )
-        .child(div().flex_1())
-        .children(time.map(|t| div().debug_selector(|| "card-status-time".into()).flex_none().child(t)))
+        .children(tail)
         .into_any_element()
 }
