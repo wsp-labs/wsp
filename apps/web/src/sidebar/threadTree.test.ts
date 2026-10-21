@@ -154,7 +154,7 @@ describe("the sidebar's tiles", () => {
       row("ws_b", "pr_1", [done("stale", "ws_b", 40), thread("busy-child", "ws_b", "stale"), done("failed", "ws_b", 5, null, { status: "failed" })]),
     ];
     const { live, settled } = sidebarTiles(rows, { picked: null, nowMs: NOW });
-    expect(shape(live)).toEqual(["failed", "recent", ["stale", ["busy-child"]]]);
+    expect(shape(live)).toEqual(["failed", ["stale", ["busy-child"]], "recent"]);
     expect(shape(settled)).toEqual([["quiet", ["quiet-child"]]]);
   });
 
@@ -235,7 +235,7 @@ const sections = (rows: SidebarProjectSnapshot[], o: Partial<Parameters<typeof s
   sidebarTiles(rows, { picked: null, nowMs: NOW, ...o }).sections.map(section => [section.id, shape(section.roots)]);
 
 describe("the sections the live list is drawn in", () => {
-  it("files a tree waiting on the person under Needs you and every other live tree in one list, newest first, whatever it is doing", () => {
+  it("files a tree waiting on the person under Needs you, a tree with a thread running at any depth under Working, and the rest in one list, each newest first", () => {
     const rows = [
       row("ws_a", "pr_1", [
         thread("asks", "ws_a", null, { asking: "Permission for Bash", needsYou: true, startedAt: ago(0.1) }),
@@ -250,9 +250,10 @@ describe("the sections the live list is drawn in", () => {
     ];
     expect(sections(rows)).toEqual([
       ["needs-you", ["asks", "broke"]],
-      ["threads", ["works", "unseen", "read", ["lead", ["builder"]], "ws:ws_b"]],
+      ["working", ["works", ["lead", ["builder"]]]],
+      ["threads", ["unseen", "read", "ws:ws_b"]],
     ]);
-    expect(shape(sidebarTiles(rows, { picked: null, nowMs: NOW }).live)).toEqual(["asks", "broke", "works", "unseen", "read", ["lead", ["builder"]], "ws:ws_b"]);
+    expect(shape(sidebarTiles(rows, { picked: null, nowMs: NOW }).live)).toEqual(["asks", "broke", "works", ["lead", ["builder"]], "unseen", "read", "ws:ws_b"]);
   });
 
   it("puts pinned trees first whatever their state, the latest pin on top; a pinned tree never folds by time, and a settle by hand folds it all the same", () => {
@@ -281,9 +282,9 @@ describe("the sections the live list is drawn in", () => {
     expect(sections([row("ws_a", "pr_1", [ended])])).toEqual([["threads", ["works"]]]);
     // A new turn on the thread is a new state too.
     const again = thread("works", "ws_a", null, { sessionId: "s_again", section: placed });
-    expect(sections([row("ws_a", "pr_1", [again])])).toEqual([["threads", ["works"]]]);
-    // A placement an older sidebar wrote into Working, Done or Idle draws in the one list.
-    expect(sections([row("ws_a", "pr_1", [{ ...working, section: { name: "done", whileState: "working:s_works" } }])])).toEqual([["threads", ["works"]]]);
+    expect(sections([row("ws_a", "pr_1", [again])])).toEqual([["working", ["works"]]]);
+    // A placement an older sidebar wrote into Working, Done or Idle draws where the tree's state files it.
+    expect(sections([row("ws_a", "pr_1", [{ ...working, section: { name: "done", whileState: "working:s_works" } }])])).toEqual([["working", ["works"]]]);
   });
 
   it("a drop on another section places the tree there, a drop on Pinned pins it, a pinned tree dropped elsewhere loses its pin, and a drop on its own section clears a placement", () => {
@@ -324,11 +325,11 @@ describe("the sections the live list is drawn in", () => {
     ]);
   });
 
-  it("keeps a snoozed tree reachable while a thread in it runs: its root alone at the foot of the list, folded, carrying how many work", () => {
+  it("keeps a snoozed tree reachable while a thread in it runs: its root alone in Working, folded, carrying how many work", () => {
     const snoozedUntil = new Date(NOW + 3_600_000).toISOString();
     const running = [row("ws_a", "pr_1", [done("away", "ws_a", 30, null, { snoozedUntil }), thread("child", "ws_a", "away"), thread("grandchild", "ws_a", "child"), done("here", "ws_a", 0.1)])];
     const tiles = sidebarTiles(running, { picked: null, nowMs: NOW });
-    expect(sections(running)).toEqual([["threads", ["here", "away"]]]);
+    expect(sections(running)).toEqual([["working", ["away"]], ["threads", ["here"]]]);
     const away = tiles.live.find(node => node.thread.id === "away")!;
     expect(away.children).toEqual([]);
     expect(away.thread.snoozedWorking).toBe(2);
@@ -360,6 +361,96 @@ describe("the sections the live list is drawn in", () => {
   });
 });
 
+describe("Working, every tree a thread of which runs", () => {
+  /** Five roots from this morning, a pinned one, and a lead started four days ago with a builder under it; `under`
+   * hangs under the builder. */
+  const fleet = (under: SidebarThreadSnapshot[] = []) => [
+    row("ws_a", "pr_1", [
+      done("pin", "ws_a", 0.5, null, { pinnedAt: agoMs(1) }),
+      ...[1, 2, 3, 4, 5].map(n => done(`m${n}`, "ws_a", n / 10)),
+      done("lead", "ws_a", 0.2, null, { startedAt: ago(96) }),
+      done("build", "ws_a", 0.3, "lead", { startedAt: ago(95) }),
+      ...under,
+    ]),
+  ];
+  const lead = (under: unknown[] = []) => ["lead", [under.length === 0 ? "build" : ["build", under]]];
+
+  it("takes a root started days ago to the top when a thread at any depth of it starts running, and back to its start place when that ends", () => {
+    expect(sections(fleet())).toEqual([
+      ["pinned", ["pin"]],
+      ["threads", ["m1", "m2", "m3", "m4", "m5", lead()]],
+    ]);
+    const running = thread("rev", "ws_a", "build", { startedAt: ago(0.01) });
+    expect(sections(fleet([running]))).toEqual([
+      ["pinned", ["pin"]],
+      ["working", [lead(["rev"])]],
+      ["threads", ["m1", "m2", "m3", "m4", "m5"]],
+    ]);
+    // A finish nobody has seen yet keeps it live, in the place its start gives it.
+    const ended = done("rev", "ws_a", 0, "build", { startedAt: ago(0.01), readAt: null, unread: true, needsYou: true });
+    expect(sections(fleet([ended]))).toEqual([
+      ["pinned", ["pin"]],
+      ["threads", ["m1", "m2", "m3", "m4", "m5", lead(["rev"])]],
+    ]);
+    // Read and quiet past the settle time, it folds into Settled by the settle rule.
+    const read = { ...ended, readAt: ago(0), unread: false, needsYou: false };
+    expect(shape(sidebarTiles(fleet([read]), { picked: null, nowMs: NOW + 3 * 3_600_000 }).settled)).toContainEqual(lead(["rev"]));
+  });
+
+  it("moves no row while a thread only streams output: its cost, indicator and title change and the sections stand", () => {
+    const running = thread("rev", "ws_a", "build", { startedAt: ago(0.01) });
+    const before = sidebarTiles(fleet([running]), { picked: null, nowMs: NOW });
+    const streamed = { ...running, title: "rev, retitled", costUsd: 0.42, indicator: { label: "Running Bash", tone: "running", pulse: true } } as SidebarThreadSnapshot;
+    const after = sidebarTiles(fleet([streamed]), { picked: null, nowMs: NOW + 60_000 });
+    expect(after.sections.map(section => [section.id, shape(section.roots)])).toEqual(before.sections.map(section => [section.id, shape(section.roots)]));
+    expect(shape(after.live)).toEqual(shape(before.live));
+  });
+
+  it("keeps start order inside Working, newest root first, whichever tree's work started last and wherever a person moved it; Pinned keeps its own", () => {
+    const rows = [
+      row("ws_a", "pr_1", [
+        done("old", "ws_a", 0.2, null, { startedAt: ago(48) }),
+        thread("old-kid", "ws_a", "old", { startedAt: ago(0.01) }),
+        done("moved", "ws_a", 0.2, null, { startedAt: ago(24), order: agoMs(0) }),
+        thread("moved-kid", "ws_a", "moved", { startedAt: ago(0.5) }),
+        thread("new", "ws_a", null, { startedAt: ago(1) }),
+        done("pinned", "ws_a", 0.2, null, { startedAt: ago(72), pinnedAt: agoMs(1) }),
+        thread("pinned-kid", "ws_a", "pinned", { startedAt: ago(0.02) }),
+        done("rest", "ws_a", 0.1),
+      ]),
+    ];
+    expect(sections(rows)).toEqual([
+      ["pinned", [["pinned", ["pinned-kid"]]]],
+      ["working", ["new", ["moved", ["moved-kid"]], ["old", ["old-kid"]]]],
+      ["threads", ["rest"]],
+    ]);
+  });
+
+  it("lists a thread that asks alone in Needs you; its tree stands in Working only while another thread of it runs", () => {
+    const asks = thread("rev", "ws_a", "build", { startedAt: ago(0.01), asking: "Permission for Bash", needsYou: true });
+    expect(sections(fleet([asks]))).toEqual([
+      ["pinned", ["pin"]],
+      ["needs-you", ["rev"]],
+      ["threads", ["m1", "m2", "m3", "m4", "m5", lead(["rev"])]],
+    ]);
+    const other = thread("probe", "ws_a", "lead", { startedAt: ago(0.02) });
+    expect(sections(fleet([asks, other]))).toEqual([
+      ["pinned", ["pin"]],
+      ["needs-you", ["rev"]],
+      ["working", [["lead", ["probe", ["build", ["rev"]]]]]],
+      ["threads", ["m1", "m2", "m3", "m4", "m5"]],
+    ]);
+  });
+
+  it("takes a drop on it as an unpin for a pinned working tree and as nothing for any other, a root that asks kept in Needs you", () => {
+    const rows = [row("ws_a", "pr_1", [done("pinned", "ws_a", 0.2, null, { pinnedAt: agoMs(1) }), thread("kid", "ws_a", "pinned"), done("quiet", "ws_a", 0.1), thread("asks", "ws_a", null, { asking: "Which ticket next?", needsYou: true }), thread("asks-kid", "ws_a", "asks")])];
+    const live = sidebarTiles(rows, { picked: null, nowMs: NOW }).live;
+    expect(dropMarks(live.find(node => node.thread.id === "asks")!, "working")).toBeNull();
+    expect(dropMarks(live.find(node => node.thread.id === "pinned")!, "working")).toEqual({ pinned: false });
+    expect(dropMarks(live.find(node => node.thread.id === "quiet")!, "working")).toBeNull();
+  });
+});
+
 describe("Needs you as an inbox", () => {
   /** The marathon's shape: a lead working, two of its children asking or failed, a grandchild failed under a
    * reviewer, a root of its own asking, and threads that no longer need the person. */
@@ -377,10 +468,10 @@ describe("Needs you as an inbox", () => {
     ]),
   ];
 
-  it("stands every thread that asks or failed, at any depth, as its own tile with nothing under it, in the order the trees draw them, and the trees stay in the list", () => {
+  it("stands every thread that asks or failed, at any depth, as its own tile with nothing under it, in the order the trees draw them, and the trees stay in their own section", () => {
     expect(sections(marathon())).toEqual([
       ["needs-you", ["g-probe", "c-ask", "c-fail", "relay"]],
-      ["threads", [["lead", [["c-rev", ["g-probe"]], "c-answered", "c-ask", "c-put-away", "c-resumes", "c-fail"]]]],
+      ["working", [["lead", [["c-rev", ["g-probe"]], "c-answered", "c-ask", "c-put-away", "c-resumes", "c-fail"]]]],
     ]);
     const inbox = sidebarTiles(marathon(), { picked: null, nowMs: NOW }).sections[0]!.roots;
     // One under a tree names the thread that started it and the whole path down to it; a root that stands nowhere else
@@ -399,14 +490,14 @@ describe("Needs you as an inbox", () => {
 
   it("lets a thread leave once it is answered or settled: nothing left to ask, the inbox holds none", () => {
     const answered = marathon().map(r => ({ ...r, threads: r.threads.map(t => ({ ...t, asking: null, status: t.status === "failed" ? ("completed" as const) : t.status, needsYou: false })) }));
-    expect(sections(answered).map(([id]) => id)).toEqual(["threads"]);
+    expect(sections(answered).map(([id]) => id)).toEqual(["working"]);
   });
 
-  it("a root that asks with a tree under it stands in the inbox and in the list both", () => {
+  it("a root that asks with a tree under it stands in the inbox and in its tree's section both", () => {
     const rows = [row("ws_a", "pr_1", [thread("lead", "ws_a", null, { asking: "Which ticket next?", needsYou: true }), thread("child", "ws_a", "lead")])];
     expect(sections(rows)).toEqual([
       ["needs-you", ["lead"]],
-      ["threads", [["lead", ["child"]]]],
+      ["working", [["lead", ["child"]]]],
     ]);
   });
 
@@ -472,7 +563,7 @@ describe("the order a person moves trees into", () => {
     rows = marked(rows, move(rows, "one", "threads", 0));
     expect(shape(listed(rows))).toEqual(["one", "three", "two"]);
     // A thread started now is later than every key, so it lands on top with no write.
-    const fresh = [row("ws_a", "pr_1", [...rows[0]!.threads, thread("fresh", "ws_a", null, { startedAt: ago(0) })])];
+    const fresh = [row("ws_a", "pr_1", [...rows[0]!.threads, done("fresh", "ws_a", 0, null, { startedAt: ago(0) })])];
     expect(shape(listed(fresh))).toEqual(["fresh", "one", "three", "two"]);
     // A pin from the menu stamps now, which is over every pin's key.
     let pins = marked(rows, [{ threadIds: ["two"], marks: { pinned: agoMs(10) } }]);
