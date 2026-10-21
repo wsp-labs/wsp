@@ -24,12 +24,12 @@ const ROWS: readonly { name: string; capabilities: Capabilities; copies: boolean
 ];
 
 describe("every backend answers both flags", () => {
-  for (const row of ROWS) {
-    it(`${row.name} says copies ${row.copies} and its own network ${row.ownNetwork}`, () => {
-      expect(Capabilities.parse(row.capabilities).copies).toBe(row.copies);
-      expect(Capabilities.parse(row.capabilities).ownNetwork).toBe(row.ownNetwork);
-    });
-  }
+  it("each says whether it copies and whether a copy has its own network", () => {
+    for (const row of ROWS) {
+      expect(Capabilities.parse(row.capabilities).copies, row.name).toBe(row.copies);
+      expect(Capabilities.parse(row.capabilities).ownNetwork, row.name).toBe(row.ownNetwork);
+    }
+  });
 
   it("is the whole list: a backend module with no row here is a computer nothing asked about copies", () => {
     expect(ROWS.map(r => r.name).sort()).toEqual(["box", "no provider", "solari", "the stand-in", "this computer"]);

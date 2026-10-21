@@ -52,8 +52,8 @@ the daemon's first answer after the create and after the resume, stop,
 resume, the replies to the replays, `hydrated`, and the starts the run
 counted.
 
-Solari's canary is `pnpm canary:solari` (`WSP_LIVE_LONG=1` adds the 65
-minute `createdAt` reading). It needs `SOLARI_API_KEY` in `.env` and covers:
+Solari's canary is `pnpm canary:solari`. It needs `SOLARI_API_KEY` in
+`.env` and covers:
 
 - `packages/engine/test/create-canary.live.test.ts`: the builder body from
   `prepareBuilder`, the smoke fork body from `sealGolden` and the fork body
@@ -67,13 +67,6 @@ minute `createdAt` reading). It needs `SOLARI_API_KEY` in `.env` and covers:
 - `packages/engine/test/solari-quirks.live.test.ts`: the platform bugs we
   coded around, one case each, shouting when the platform changes so a guard
   is relaxed on purpose.
-- `packages/engine/test/createdat-drift.live.test.ts` (only with
-  `WSP_LIVE_LONG=1`): one base sandbox with the builder's lifecycle, never
-  exec'd or paused, read right after create and at 2, 10 and 65 minutes. A
-  measurement, not a guard: it prints every `createdAt` and `expiresAt`,
-  asserts only that the machine stayed running and is gone after the kill.
-  Measured 2026-09-04, the provider's `createdAt` tracks the wall clock about
-  five minutes behind, so nothing in wsp reads it for a decision.
 
 ## Other live tests
 

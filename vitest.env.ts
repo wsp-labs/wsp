@@ -18,7 +18,6 @@ import { UPDATE_CHECK_ENV } from "./packages/protocol/src/env.js";
  * variable that changes what the code under test does is handed in, never read off the process running the suite. */
 export const GATES: Record<string, string> = {
   WSP_LIVE: "runs the tests that create real machines",
-  WSP_LIVE_LONG: "runs the live tests that take hours",
   WSP_LIVE_STATE: "the state file the live tests read their golden from",
   WSP_GOLDEN: "the golden the live tests build on instead of the state file's",
   WSP_RUNTIME_LIVE: "runs the tests that drive the workspace runtime on this computer, which take root and cgroup v2",
