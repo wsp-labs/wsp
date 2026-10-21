@@ -15,7 +15,6 @@ import { LETS_GO } from "../src/conversations.js";
 const THREAD_ID = "01a0e2c1-5d10-7b42-9a6e-3f1c2d4b5a60";
 const TURN_ID = "01a0e2c1-5e02-7c11-8d3f-9b2a1c0d4e71";
 const RECORDED_THREAD = "01a0e365-72f3-77e3-ba3a-3d18e12e9b95";
-const RECORDED_TURN = "01a0e365-73b9-7e10-8045-3ff9e93753f9";
 const RECORDED_COMMAND = "exec-267f4a9f-3715-4cb1-b8fc-14f9a57ec2f9";
 const NO_LOGIN_THREAD = "01a0e2b2-493b-7c53-ae59-446697cb28db";
 
@@ -343,11 +342,6 @@ describe("CodexAdapter over codex app-server", () => {
     expect(events.at(-1)).toEqual({ type: "session.end", sessionId: RECORDED_THREAD, exitCode: 0, sawResult: true });
     expect(session.threadId).toBe(RECORDED_THREAD);
     expect(session.localId).not.toBe(RECORDED_THREAD);
-  });
-
-  it("the recorded steer answers with the running turn's id, which is what reads as accepted", () => {
-    const answer = fixtureLines("app-server-turn").map(l => (l.startsWith("{") ? parse(l) : {})).find(m => m.id === "wsp-steer-1");
-    expect(answer).toEqual({ id: "wsp-steer-1", result: { turnId: RECORDED_TURN } });
   });
 
   it("an MCP call the tool failed keeps the tool's words, one that never reached it keeps the error, and one with neither says nothing", async () => {

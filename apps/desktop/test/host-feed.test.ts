@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { dialHost, startHost } from "@wsp/host";
 import { ANSWER_WORDS, DEFAULT_PREFERENCES, refusal, type SessionView } from "@wsp/protocol";
 import { createRuntime, memoryStore } from "@wsp/runtime";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { stubBackend } from "../../../packages/host/test/stub-backend.js";
 import { hostFeed, type FeedState } from "../src/host-feed.js";
 
@@ -52,6 +52,8 @@ function fakeHost(sessions: SessionView[] = [], answer: () => Promise<Record<str
 const ask = { type: "session.permission", workspaceId: "ws_mac", sessionId: "s1", threadId: "t1", askId: "a1", toolName: "Bash", input: "{}", options: [{ id: "o_yes", label: "Yes", effect: "allow" }] };
 
 describe("the menu bar's feed from the host the window is on", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("reads the rows, the workspaces, the computers and the switch, and keeps an open prompt by the turn that asks it until it closes", async () => {
     const host = fakeHost([{ id: "s1", workspaceId: "ws_mac", harness: "claude", status: "running", threadId: "t1" }]);
     const states: FeedState[] = [];
@@ -91,6 +93,7 @@ describe("the menu bar's feed from the host the window is on", () => {
   });
 
   it("reads the rows again when a turn starts or ends, and not on the stream of a turn's own words", async () => {
+    vi.useFakeTimers();
     const host = fakeHost();
     const states: FeedState[] = [];
     const feed = hostFeed({ dial: async () => host.client(), changed: s => states.push(s), settleMs: 0, retryMs: 10 });
@@ -99,7 +102,7 @@ describe("the menu bar's feed from the host the window is on", () => {
     const before = lists();
     host.push({ type: "session.delta", workspaceId: "ws_mac", sessionId: "s1", text: "hi" });
     host.push({ type: "workspace.sys", workspaceId: "ws_mac" });
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await vi.advanceTimersByTimeAsync(20);
     expect(lists()).toBe(before);
     host.sessions.push({ id: "s2", workspaceId: "ws_mac", harness: "claude", status: "running", threadId: "t2" });
     host.push({ type: "session.start", workspaceId: "ws_mac", sessionId: "s2", threadId: "t2" });
@@ -166,6 +169,7 @@ describe("the menu bar's feed from the host the window is on", () => {
   });
 
   it("drops what a socket it has let go of still says", async () => {
+    vi.useFakeTimers();
     const host = fakeHost();
     const states: FeedState[] = [];
     const heard: string[] = [];
@@ -176,13 +180,14 @@ describe("the menu bar's feed from the host the window is on", () => {
     await vi.waitFor(() => expect(host.sockets).toHaveLength(2));
     await vi.waitFor(() => expect(states.at(-1)?.lost).toBe(false));
     old.push(ask);
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await vi.advanceTimersByTimeAsync(20);
     expect(states.at(-1)?.asks.has("s1")).toBe(false);
     expect(heard).toEqual([]);
     feed.close();
   });
 
   it("stops dialling once closed", async () => {
+    vi.useFakeTimers();
     let dials = 0;
     const feed = hostFeed({
       dial: async () => {
@@ -196,7 +201,7 @@ describe("the menu bar's feed from the host the window is on", () => {
     await vi.waitFor(() => expect(dials).toBeGreaterThan(0));
     feed.close();
     const at = dials;
-    await new Promise(resolve => setTimeout(resolve, 40));
+    await vi.advanceTimersByTimeAsync(40);
     expect(dials).toBeLessThanOrEqual(at + 1);
   });
 });
