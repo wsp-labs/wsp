@@ -334,6 +334,38 @@ async function slateMenu(app, item) {
   if (item !== undefined) await pick(app, "[role=menuitem]", item);
 }
 
+/** A send with files: "what's this?" with a small JSON file and a small PNG, sent from New thread on bench. */
+const SENT = "what's this?";
+function sentFiles(host) {
+  const dir = join(host.home, "parity-files");
+  mkdirSync(dir, { recursive: true });
+  const json = join(dir, "package.json");
+  writeFileSync(json, `${JSON.stringify({ name: "bench", version: "0.1.0", private: true, scripts: { test: "vitest run" } }, null, 2)}\n`);
+  const image = join(dir, "screenshot.png");
+  writeFileSync(image, png(320, 200, [40, 90, 160], [230, 180, 90]));
+  return [json, image];
+}
+/** Drops the files on the composer, sends SENT and waits for the sent message's image to draw, then for `ready`. */
+const sentWith = (id, reply, ready) => ({
+  id,
+  data: host => (host.script(SENT, reply), sentFiles(host)),
+  go: async (app, files) => {
+    const composer = "[data-k=project-home] [data-chat-composer]";
+    await app.dropFiles(css(composer), files);
+    await app.waitFor(n => document.querySelectorAll("[data-composer-files] > *").length === n, 10_000, files.length);
+    await app.click(css(`${composer} [contenteditable=true]`));
+    await app.type(SENT);
+    await app.key("enter");
+    await app.waitFor(() => [...document.querySelectorAll("[data-chat-image-row=true] [data-chat-image] img")].some(i => i.complete && i.naturalWidth > 0), 15_000);
+    await ready(app);
+    await app.park();
+    await app.sleep(800);
+  },
+  cleanup: async host => {
+    for (const t of await host.threads()) if ([t.prompt, t.title].some(w => typeof w === "string" && w.includes(SENT))) await host.removeThread(t.id ?? t.threadId);
+  },
+});
+
 export default [
   terminal("W2-TRM-012", DRAWER, app => shell(app, "clear", "016")),
   terminal("W2-TRM-013", DRAWER, app => shell(app, COLOURS, "017")),
@@ -836,5 +868,8 @@ export default [
     go: askAside,
   },
   { id: "W2-UNO-078", data: withIds(), go: drives.pane("agents", "[data-agents-panel]", "checked") },
+  // The stub holds its init line, so the send stands before its turn starts, under the Starting line, until cleanup.
+  sentWith("W2-THR-SENT-FILES", ["unstarted"], app => app.waitFor(() => /\bStarting \S/.test(document.querySelector("[data-chat-view]")?.innerText ?? ""), 15_000)),
+  sentWith("W2-THR-SENT-FILES-STARTED", [{ kind: "text", text: "Looking at both files now." }, { kind: "hold", call: false }], app => reads(app, "Looking at both files now.")),
   { id: "W2-DLG-187", home: "empty", go: drives.onboarding },
 ];

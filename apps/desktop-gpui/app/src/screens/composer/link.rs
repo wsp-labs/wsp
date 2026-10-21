@@ -12,15 +12,16 @@ use std::time::Duration;
 
 use base64::Engine as _;
 use futures::channel::mpsc;
-use futures::StreamExt;
+use futures::{FutureExt as _, StreamExt};
 use gpui_kit::{App, AsyncWindowContext, Context, Entity, Subscription, Task, WeakEntity, Window};
 use serde_json::{json, Value};
 use wsp_host_client::protocol::{self, SessionEvent, SessionView, SessionsAnswerRequest};
 use wsp_host_client::{Event, Failure, Live, Op};
 
 use super::dock::{self, Answer};
-use super::model::{Agent, Command, Drawer, Hold, HostItem, Limit, Picks, Plan, Skill, Slot};
+use super::model::{Agent, Command, Drawer, File, Hold, HostItem, Limit, Picks, Plan, Skill, Slot};
 use super::{Composer, ComposerEvent, Fork, Outgoing};
+use crate::screens::thread_view::Carried;
 use crate::screens::{navigate, Host, Route};
 
 /// The thread the composer writes into: its workspace, and its id once it has one.
@@ -98,7 +99,16 @@ pub struct Link {
     begun: Option<String>,
     /// A send the host started whose `session.start` the transcript has not shown yet: its turn runs meanwhile.
     awaiting: Option<String>,
+    /// The watch for the starting line of a send that opens a thread, which goes on to that thread's own link.
+    unheard: Option<StartWatch>,
     _events: Subscription,
+}
+
+/// The host's `session.starting` for one send, kept as it arrives, so a thread's link that stands only after the host
+/// said it still says its line.
+pub struct StartWatch {
+    said: mpsc::UnboundedReceiver<(String, bool)>,
+    watched: futures::future::BoxFuture<'static, Result<(), Failure>>,
 }
 
 /// One op on the host's runtime, its reply back on the window's thread.
@@ -479,6 +489,7 @@ impl Link {
             starting: None,
             begun: None,
             awaiting: None,
+            unheard: None,
             _events: events,
         };
         if follows {
@@ -671,8 +682,8 @@ impl Link {
 
     /// Listens for the host saying the send `request` waits on its agent (`startingSaid` in useChatThread.ts), until
     /// the turn starts or the send is refused.
-    fn watch_start(&mut self, request: String, key: String, composer: &Entity<Composer>, cx: &mut Context<Self>) {
-        let (tx, mut rx) = mpsc::unbounded::<(String, bool)>();
+    fn watch_start(&self, request: String) -> StartWatch {
+        let (tx, said) = mpsc::unbounded::<(String, bool)>();
         let wanted = request;
         let watched = self.host.run(move |host| async move {
             let mut events = host.events().await?;
@@ -689,10 +700,16 @@ impl Link {
             }
             Ok::<(), Failure>(())
         });
+        StartWatch { said, watched: watched.boxed() }
+    }
+
+    /// Says the line `watch` hears under the send while the composer writes into the thread `key` names.
+    fn hear_start(&mut self, watch: StartWatch, key: String, composer: &Entity<Composer>, cx: &mut Context<Self>) {
+        let StartWatch { mut said, watched } = watch;
         let weak = composer.downgrade();
         let task = cx.spawn(async move |_, cx| {
-            let said = async {
-                if let Some((harness, installs)) = rx.next().await {
+            let heard = async {
+                if let Some((harness, installs)) = said.next().await {
                     _ = weak.update(cx, |c, cx| {
                         let agent = c.agents.iter().find(|a| a.harness == harness).map_or(harness.clone(), |a| a.label.clone());
                         if c.holds(&key) {
@@ -701,13 +718,14 @@ impl Link {
                     });
                 }
             };
-            futures::join!(said, async { _ = watched.await });
+            futures::join!(heard, async { _ = watched.await });
         });
         self.starting = Some(task);
     }
 
     /// The send's turn started, or the send was refused: its starting line goes.
     fn started_agent(&mut self, cx: &mut Context<Self>) {
+        self.unheard = None;
         if self.starting.take().is_none() {
             return;
         }
@@ -784,6 +802,7 @@ impl Link {
         let Seen { any, running, commands, prompts, plan, begun, .. } = seen;
         if begun.is_some() && begun == self.awaiting {
             self.awaiting = None;
+            self.started_agent(cx);
         }
         self.begun = begun;
         // A transcript read before the host wrote the start of a turn it already answered still runs that turn.
@@ -855,7 +874,16 @@ impl Link {
         self.refresh(cx);
     }
 
-    fn started(&mut self, session: SessionView, window: &mut Window, cx: &mut Context<Self>) {
+    /// The thread the page's send made opens in place, as ChatView's fresh thread becomes that thread: the thread screen
+    /// takes up the send's bubble, its starting line and its turn.
+    fn started(
+        &mut self,
+        session: SessionView,
+        request: String,
+        (text, files): (String, Vec<File>),
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.target.thread_id.is_some() {
             return;
         }
@@ -866,6 +894,21 @@ impl Link {
             composer.update(cx, |c, cx| c.thread_started(thread, cx));
         }
         self.follow(window, cx);
+        let (workspace_id, thread_id) = (self.target.workspace_id.clone(), self.target.thread_id.clone().unwrap_or_default());
+        let watch = self.unheard.take();
+        crate::screens::thread_view::carry(Carried { thread: thread_id.clone(), text, files, request, watch }, cx);
+        navigate(Route::Thread { workspace_id, thread_id }, cx);
+    }
+
+    /// A send the New thread page made on this thread before the screen showed it: its turn runs until the transcript
+    /// shows it begun, and its bubble and starting line stand until then, as for a send made here.
+    pub fn carry(&mut self, request: String, watch: Option<StartWatch>, cx: &mut Context<Self>) {
+        let Some(composer) = self.composer.upgrade() else { return };
+        let key = self.key();
+        self.awaiting = Some(request);
+        if let Some(watch) = watch {
+            self.hear_start(watch, key, &composer, cx);
+        }
     }
 
     /// Answers what the composer asks of the host. Every answer that lands checks that the composer still writes into
@@ -883,7 +926,12 @@ impl Link {
                 };
                 let asked = params.get("requestId").and_then(Value::as_str).unwrap_or_default().to_owned();
                 if out.fork.is_none() {
-                    self.watch_start(asked.clone(), key.clone(), composer, cx);
+                    let watch = self.watch_start(asked.clone());
+                    // A send that opens a thread says its line in that thread, which the host may answer first.
+                    match target.thread_id {
+                        Some(_) => self.hear_start(watch, key.clone(), composer, cx),
+                        None => self.unheard = Some(watch),
+                    }
                 }
                 cx.spawn_in(window, async move |this, cx| {
                     let started = match request::<protocol::SessionsStartRequest>(params) {
@@ -923,14 +971,15 @@ impl Link {
                                 })
                                 .unwrap_or(false);
                             if held {
+                                let sent = (out.prompt.clone(), out.files.clone());
                                 _ = this.update_in(cx, |link, window, cx| {
                                     // The turn the host started runs until the transcript says it ended; one whose start
                                     // the transcript already showed is the transcript's to say.
                                     if link.begun.as_deref() != Some(asked.as_str()) {
-                                        link.awaiting = Some(asked);
+                                        link.awaiting = Some(asked.clone());
                                         _ = weak.update(cx, |c, cx| c.set_turn(true, true, cx));
                                     }
-                                    link.started(started.session, window, cx)
+                                    link.started(started.session, asked, sent, window, cx)
                                 });
                             }
                         }
