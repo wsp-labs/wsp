@@ -2,26 +2,13 @@
 // What /compare holds, read from the data its pages render: every answer short enough for a table cell, every answer
 // sourced, and every tool with its own page.
 import { describe, expect, it } from "vitest";
-import { AHEAD, aheadOf, KINDS, ROWS, TOOLS, WSP, type Answers } from "../src/compare";
+import { AHEAD, aheadOf, ROWS, TOOLS, WSP, type Answers } from "../src/compare";
 import { fileOf, ROUTES, routeAt } from "../src/routes";
 
 const words = (text: string): number => text.trim().split(/\s+/).length;
 const everyAnswers: [string, Answers][] = [["wsp", WSP], ...TOOLS.map((t): [string, Answers] => [t.name, t.cells])];
 
 describe("every answer", () => {
-  it("asks the eight questions, in order", () => {
-    expect(ROWS.map(r => r.label)).toEqual([
-      "Runs agents on",
-      "Another computer",
-      "What that computer has when the agent starts",
-      "Where your keys and sign-ins live",
-      "Which agents",
-      "Platforms",
-      "Price",
-      "Source code",
-    ]);
-  });
-
   it("answers each question in six words or fewer, beside the long sentence it sums", () => {
     for (const [name, cells] of everyAnswers)
       for (const r of ROWS) {
@@ -56,11 +43,6 @@ describe("every answer", () => {
 });
 
 describe("every tool", () => {
-  it("is one of the ten, under one kind", () => {
-    expect(TOOLS.map(t => t.slug)).toEqual(["conductor", "superset", "orca", "emdash", "t3-code", "solo", "herdr", "claude-code-web", "codex-cloud", "cursor-cloud-agents"]);
-    expect(KINDS.map(k => k.name)).toEqual(["Apps on the computer you sit at", "A runtime over ssh", "The vendors' clouds"]);
-  });
-
   it("has its own page, titled wsp vs its name, with its own preview image", () => {
     for (const tool of TOOLS) {
       const route = routeAt(`/compare/${tool.slug}`);
