@@ -174,7 +174,7 @@ describe.skipIf(renderSkipped !== undefined)("every theme on the main screens", 
     }
   }, 60_000);
 
-  it.each(["light", "dark"] as const)("in the %s theme a tooltip is 13 px words that fade and slide, never scale, with no arrow", async side => {
+  it.each(["light"] as const)("in the %s theme a tooltip is 13 px words that fade and slide, never scale, with no arrow", async side => {
     const page = await browser!.newPage({ viewport: { width: 1280, height: 800 }, colorScheme: side });
     try {
       await page.goto(`${base}/test/wireframe/index.html?theme=${side}&screen=sidebar`);

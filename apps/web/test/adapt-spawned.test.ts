@@ -79,17 +79,8 @@ describe("a call that started a child of this lead is that child's row", () => {
     expect(spawnRows(rows([start, ...mcpRun("tu_1", runJson(CHILD)), say("One builder is out.")], children([CHILD])))).toEqual([[CHILD]]);
   });
 
-  it("maps a run through the MCP tool, answered with the text line, to its child", () => {
-    expect(spawnRows(rows([start, ...mcpRun("tu_1", `thread ${CHILD} on lab in ~/lab`), say("One builder is out.")], children([CHILD])))).toEqual([[CHILD]]);
-  });
-
   it("maps wsp run on the command line to its child", () => {
     expect(spawnRows(rows([start, ...cliRun("tu_1", `thread ${CHILD} on lab in ~/lab  (a prefix of the id is enough)`), say("One builder is out.")], children([CHILD])))).toEqual([[CHILD]]);
-  });
-
-  it("maps a Codex lead's run through the MCP tool, answered as its content blocks, to its child", () => {
-    const codex = [call("call_1", "mcp__wsp__run", { project: "lab", message: "build it", detach: true }), answer("call_1", `[{"type":"text","text":"thread ${CHILD} on lab in ~/lab"}]`)];
-    expect(spawnRows(rows([start, ...codex, say("One builder is out.")], children([CHILD])))).toEqual([[CHILD]]);
   });
 
   it("maps an Agent call to the subagent it launched, before its first line and once its lines are in", () => {

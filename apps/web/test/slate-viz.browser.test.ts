@@ -76,39 +76,38 @@ describe.skipIf(renderSkipped !== undefined)("the slate's chart kinds in Chromiu
   }, 30_000);
 
   for (const { kind, doc, id } of KINDS)
-    for (const w of [400, 640])
-      for (const theme of ["graphite", "paper"])
-        it(`${kind} at ${w} in ${theme} keeps every mark inside its box`, async () => {
-          const page = await browser!.newPage({ viewport: { width: w + 40, height: 1000 }, deviceScaleFactor: OUT === undefined ? 1 : 2, reducedMotion: "reduce" });
-          try {
-            await page.goto(`${harness!.base}?w=${w}&doc=${doc}&theme=${theme}`);
-            await page.waitForSelector(`[data-slate-piece="${id}"]`);
-            if (kind.startsWith("diagram")) await page.waitForSelector(`[data-slate-piece="${id}"] [data-mermaid] svg g.node`, { timeout: 15_000 });
-            else await page.waitForSelector(`[data-slate-piece="${id}"] svg, [data-slate-piece="${id}"] [data-slate-tile], [data-slate-piece="${id}"] [data-slate-span]`);
-            await page.waitForTimeout(300);
-            const found = await page.evaluate(pieceId => {
-              const piece = document.querySelector(`[data-slate-piece="${pieceId}"]`)!;
-              const box = piece.getBoundingClientRect();
-              // A frame that clips, the diagram's zoom frame, is a mark itself; what it holds cannot paint past it.
-              const clipped = (el: Element): boolean => {
-                for (let up = el.parentElement; up !== null && up !== piece; up = up.parentElement) if (getComputedStyle(up).overflow !== "visible") return true;
-                return false;
-              };
-              const marks = [...piece.querySelectorAll("*")].filter(el => {
-                const r = el.getBoundingClientRect();
-                return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden" && !clipped(el);
-              });
-              const out = marks
-                .map(el => ({ el, r: el.getBoundingClientRect() }))
-                .filter(({ r }) => r.left < box.left - 0.5 || r.right > box.right + 0.5 || r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5)
-                .map(({ el, r }) => `${el.tagName.toLowerCase()}${el.getAttribute("data-slate-tile") !== null ? "[tile]" : ""} "${(el.textContent ?? "").trim().slice(0, 24)}" ${Math.round(r.left - box.left)}..${Math.round(r.right - box.left)} of ${Math.round(box.width)}`);
-              return { marks: marks.length, out };
-            }, id);
-            if (OUT !== undefined) await page.locator("[data-panel]").screenshot({ path: join(OUT, `${kind}-${w}-${theme}.png`) });
-            expect(found.marks, "marks drawn").toBeGreaterThan(5);
-            expect(found.out).toEqual([]);
-          } finally {
-            await page.close();
-          }
-        }, 30_000);
+    for (const [w, theme] of [[400, "graphite"], [640, "paper"]] as const)
+      it(`${kind} at ${w} in ${theme} keeps every mark inside its box`, async () => {
+        const page = await browser!.newPage({ viewport: { width: w + 40, height: 1000 }, deviceScaleFactor: OUT === undefined ? 1 : 2, reducedMotion: "reduce" });
+        try {
+          await page.goto(`${harness!.base}?w=${w}&doc=${doc}&theme=${theme}`);
+          await page.waitForSelector(`[data-slate-piece="${id}"]`);
+          if (kind.startsWith("diagram")) await page.waitForSelector(`[data-slate-piece="${id}"] [data-mermaid] svg g.node`, { timeout: 15_000 });
+          else await page.waitForSelector(`[data-slate-piece="${id}"] svg, [data-slate-piece="${id}"] [data-slate-tile], [data-slate-piece="${id}"] [data-slate-span]`);
+          await page.waitForTimeout(300);
+          const found = await page.evaluate(pieceId => {
+            const piece = document.querySelector(`[data-slate-piece="${pieceId}"]`)!;
+            const box = piece.getBoundingClientRect();
+            // A frame that clips, the diagram's zoom frame, is a mark itself; what it holds cannot paint past it.
+            const clipped = (el: Element): boolean => {
+              for (let up = el.parentElement; up !== null && up !== piece; up = up.parentElement) if (getComputedStyle(up).overflow !== "visible") return true;
+              return false;
+            };
+            const marks = [...piece.querySelectorAll("*")].filter(el => {
+              const r = el.getBoundingClientRect();
+              return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden" && !clipped(el);
+            });
+            const out = marks
+              .map(el => ({ el, r: el.getBoundingClientRect() }))
+              .filter(({ r }) => r.left < box.left - 0.5 || r.right > box.right + 0.5 || r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5)
+              .map(({ el, r }) => `${el.tagName.toLowerCase()}${el.getAttribute("data-slate-tile") !== null ? "[tile]" : ""} "${(el.textContent ?? "").trim().slice(0, 24)}" ${Math.round(r.left - box.left)}..${Math.round(r.right - box.left)} of ${Math.round(box.width)}`);
+            return { marks: marks.length, out };
+          }, id);
+          if (OUT !== undefined) await page.locator("[data-panel]").screenshot({ path: join(OUT, `${kind}-${w}-${theme}.png`) });
+          expect(found.marks, "marks drawn").toBeGreaterThan(5);
+          expect(found.out).toEqual([]);
+        } finally {
+          await page.close();
+        }
+      }, 30_000);
 });

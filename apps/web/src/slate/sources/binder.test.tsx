@@ -2,7 +2,7 @@
 // The window's sources against a fake store and host: pr, git and cost off the workspace's status, usage off the
 // account rows with the host naming the account, the turn figures through slates.resolve, the clock ticking only
 // while time.now is drawn, and host holds taken while bound and given back after.
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AccountRow, type SessionView, type WorkspaceStatus } from "@wsp/protocol";
 import { slateStartValues, type SlateDoc, type SlateJson } from "@wsp/protocol/slate";
@@ -152,9 +152,8 @@ describe("the window's sources", () => {
     const doc = slate({ root: "m", pieces: { m: { type: "meter", props: { label: "Context", value: { bind: "thread.context.used" }, max: { bind: "thread.context.window" }, format: "tokens" } } } });
     drawBound(doc, fakeApp(), api);
     expect(screen.getByText("Not read yet")).toBeTruthy();
-    await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+    await waitFor(() => expect(screen.getByRole("meter", { name: "Context" }).getAttribute("aria-valuenow")).toBe("164000"));
     expect(api.resolve).toHaveBeenCalledWith("t1", expect.arrayContaining(["thread.context.used", "thread.context.window"]));
-    expect(screen.getByRole("meter", { name: "Context" }).getAttribute("aria-valuenow")).toBe("164000");
   });
 
   it("asks for the turn figures again only when its own workspace's rows move, never for another workspace's", async () => {
