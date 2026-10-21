@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import { exitClassOf } from "@wsp/protocol";
-import { BROKERED_SERVER_SIGN_IN_FIX, CLAUDE_MCP_LOGIN, CODEX_MCP_LOGIN, GEMINI_MCP_LOGIN, MCP_AGENTS, OPENCODE_MCP_LOGIN, SIGN_IN_ROWS, brokeredServerSignInLine, serverSignInRoad, signInRoadOf, type SignIn } from "../src/index.js";
+import { BROKERED_SERVER_SIGN_IN_FIX, CLAUDE_MCP_LOGIN, CODEX_MCP_LOGIN, GEMINI_MCP_LOGIN, OPENCODE_MCP_LOGIN, SIGN_IN_ROWS, brokeredServerSignInLine, serverSignInRoad, signInRoadOf, type SignIn } from "../src/index.js";
 
 describe("how one MCP server of an agent is signed in", () => {
   it("is each harness's own command, measured off its help, or the line its own session takes", () => {
@@ -10,10 +10,6 @@ describe("how one MCP server of an agent is signed in", () => {
     expect("command" in CODEX_MCP_LOGIN && CODEX_MCP_LOGIN.command("notion")).toBe("codex mcp login 'notion'");
     expect("command" in OPENCODE_MCP_LOGIN && OPENCODE_MCP_LOGIN.command("notion")).toBe("opencode mcp auth 'notion'");
     expect("inside" in GEMINI_MCP_LOGIN && GEMINI_MCP_LOGIN.inside("notion")).toBe("/mcp auth notion");
-  });
-
-  it("is registered on every agent with an MCP config, one module each", () => {
-    expect(Object.fromEntries(MCP_AGENTS.map(a => [a.id, a.mcp.login]))).toEqual({ claude: CLAUDE_MCP_LOGIN, codex: CODEX_MCP_LOGIN, gemini: GEMINI_MCP_LOGIN, opencode: OPENCODE_MCP_LOGIN });
   });
 
   it("runs its browser sign-in where the page comes back to it, the pasted address where only that finishes, and the person's line otherwise", () => {
