@@ -26,7 +26,7 @@ export const pickCodec: Codec<string | null> = {
 
 export type Fold = SidebarSection | "settled" | "setting-up";
 /** The folds a head can make: the one list has no head, so it never folds. */
-const FOLDS: readonly Fold[] = ["pinned", "needs-you", "settled", "setting-up"];
+const FOLDS: readonly Fold[] = ["pinned", "needs-you", "working", "settled", "setting-up"];
 /** The sections a person has folded by their heads. Settled starts folded, since it holds the tiles a person has
  * stopped looking at; every live section starts open. */
 export const FOLDED_KEY = "wsp:sidebar-folded";

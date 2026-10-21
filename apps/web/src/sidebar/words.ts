@@ -81,9 +81,10 @@ export const ADD_PROJECT_WORDS = {
 } as const;
 
 /** The live list's section heads and the Settled fold's. */
-export const SECTION_WORDS: Record<"pinned" | "needs-you" | "settled", string> = {
+export const SECTION_WORDS: Record<"pinned" | "needs-you" | "working" | "settled", string> = {
   pinned: "Pinned",
   "needs-you": threadStateWord("waiting"),
+  working: threadStateWord("running"),
   settled: "Settled",
 };
 

@@ -273,12 +273,13 @@ describe("a tree dragged in the sidebar", () => {
 
   it("draws neither the sidebar nor a tile from dragstart through every section to an Escape, and a drop draws the sidebar once", async () => {
     SESSIONS = [
-      ...Array.from({ length: 12 }, (_, i) => thread(i + 1, "running")),
+      // Finished and unseen, so the twelve stand in the list a person orders and not in Working.
+      ...Array.from({ length: 12 }, (_, i) => ({ ...thread(i + 1, "completed"), endedAt: Date.now() })),
       { ...thread(30, "running"), asking: "Permission for Bash: ls" },
       { ...thread(31, "completed"), endedAt: 40, pinnedAt: 50 },
     ];
     await mount();
-    await waitFor(() => expect(document.querySelectorAll("[data-slot=sidebar] [data-thread-status=working]").length).toBe(12));
+    await waitFor(() => expect(document.querySelectorAll("[data-slot=sidebar] [data-section=threads] [data-root]").length).toBe(12));
     await settle();
     const sidebar = drawn.sidebar;
     const tiles = drawn.tiles;
