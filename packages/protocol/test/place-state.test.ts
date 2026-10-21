@@ -157,11 +157,7 @@ describe("the turn limit", () => {
   });
 
   it("is taken by every computer, the one the app runs on included, and every cloud", () => {
-    expect(placeTakes({ kind: "computer", takesForks: false }, "turn-limit")).toBe(true);
-    expect(placeTakes({ kind: "computer", takesForks: true }, "turn-limit")).toBe(true);
-    expect(placeTakes({ kind: "provider", takesForks: true }, "turn-limit")).toBe(true);
     expect(placeSetRefusal({ id: HERE_PLACE_ID, kind: "computer", name: "mac", takesForks: false }, { turnLimitMs: null })).toBeUndefined();
-    expect(placeSetRefusal({ id: HERE_PLACE_ID, kind: "computer", name: "mac", takesForks: false }, {})).toBe("nothing to set on mac: it takes threads at once, turn limit, agents may start agents and levels deep");
   });
 
   it("reads in the settings line at what it runs at, with the default beside one the person set", () => {

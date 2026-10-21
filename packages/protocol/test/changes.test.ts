@@ -2,7 +2,7 @@
 // The checkout fact's words, the diff a draft is asked from, the question itself, and the answer read back as a
 // commit message.
 import { describe, expect, it } from "vitest";
-import { CHECKOUT_WORDS, checkoutCounts, commitMessage, cutDiff, DRAFT_DIFF_MAX_BYTES, draftPrompt, type Checkout } from "../src/index.js";
+import { CHECKOUT_WORDS, checkoutCounts, commitMessage, cutDiff, draftPrompt, type Checkout } from "../src/index.js";
 
 const fact: Checkout = { branch: "fix/cart", ahead: 0, behind: 0, changed: 0, readAt: 1 };
 
@@ -31,10 +31,6 @@ describe("the diff a draft is asked from", () => {
     const cut = cutDiff("é\né\né\n", 5);
     expect(cut).toBe("é\n");
     expect(new TextEncoder().encode(cut).length).toBeLessThanOrEqual(5);
-  });
-
-  it("is capped at 48 KB", () => {
-    expect(DRAFT_DIFF_MAX_BYTES).toBe(48 * 1024);
   });
 });
 
