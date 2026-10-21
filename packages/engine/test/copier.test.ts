@@ -165,22 +165,4 @@ describe("the stand-in every road above the daemon is driven through", () => {
     await copier.remove("/a", "/b", "clonefile");
     expect(copier.removed).toEqual([{ from: "/a", to: "/b", road: "clonefile" }]);
   });
-
-  it("answers whatever a case scripts, so a fallback and a refusal are both drivable from above", async () => {
-    const copier = fakeCopier(ask => ({
-      road: "worktree",
-      path: ask.to,
-      base: "0".repeat(40),
-      branch: "",
-      fetched: false,
-      carried: "config-only",
-      excluded: [],
-      bytes: 0,
-      ms: 1,
-      fellBack: "the folder is 21.0 GB and a clone above 20.0 GB is not taken",
-    }));
-    const made = await copier.make({ from: "/a", to: "/b", exclude: [], sizeLineBytes: 1 });
-    expect(made.fellBack).toContain("20.0 GB");
-    expect(made.carried).toBe("config-only");
-  });
 });

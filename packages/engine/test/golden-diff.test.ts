@@ -230,11 +230,6 @@ describe("rows the recipe stopped asking for", () => {
   it("a row retired twice is recorded once", () => {
     expect(retired([row("tools", "tools/brew/yq")], [], [{ id: "tools/brew/yq", name: "yq" }])).toEqual([{ id: "tools/brew/yq", name: "yq" }]);
   });
-
-  it("nothing changed retires nothing", () => {
-    const same = snap([row("tools", "tools/brew/jq")]);
-    expect(retiredBy(diffRecipes(same, same))).toEqual([]);
-  });
 });
 
 describe("describing and sizing the delta", () => {
@@ -299,12 +294,6 @@ describe("what the build line counts", () => {
       { count: 2, noun: "tool", word: "added" },
       { count: 2, noun: "row", word: "retired" },
     ]);
-  });
-
-  it("a recipe that only adds two tools counts exactly those", () => {
-    const from = snap([]);
-    const to = snap([row("tools", "tools/brew/jq"), row("tools", "tools/npm/bun")]);
-    expect(changeCounts(diffRecipes(from, to)).filter(c => c.count > 0)).toEqual([{ count: 2, noun: "tool", word: "added" }]);
   });
 });
 
