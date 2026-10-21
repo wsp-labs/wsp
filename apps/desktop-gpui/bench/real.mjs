@@ -166,6 +166,9 @@ function changed(r, turn, n) {
   }));
 }
 
+/** What the agent writes into a file a turn changes, the same bytes on every run. */
+export const fileText = file => Array.from({ length: file.lines }, (_, i) => `export const line${i} = ${file.turn * 1000 + i};`).join("\n") + "\n";
+
 /** The real thread's turns, `{ prompt, images, thinking, tools, reply, files }`; `images` are `{ name, width, height,
  * seed }`, drawn by `shot` when the fixture sends them, and `files` are `{ path, lines, turn }`, which the stub writes
  * into the thread's folder so the turn ends with a changed-files card. */

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # fixture.sh <out.json> [<n> [bare]]: a throwaway host serving the bench's threads and n more short ones, left running
 # until stop.sh <out.json>; bare makes the n short ones alone, for a bench that steps through top-level threads only.
-# BENCH_SESSION=<n> adds session-1 to session-<n> (session.mjs), for bench/session.sh; BENCH_SEED=<n> starts the host on
-# n threads, most of them settled, over n/10 workspaces written into its state first (seed.mjs), shaped like a
-# long-used host.
+# BENCH_SESSION=<n> adds session-1 to session-<n> (session.mjs), written into the host's state before it starts, for
+# bench/session.sh; BENCH_SEED=<n> starts the host on n threads, most of them settled, over n/10 workspaces written
+# into its state first (seed.mjs), shaped like a long-used host.
 set -eu
 [ $# -eq 1 ] || { [ $# -le 3 ] && [ "$2" -ge 0 ] 2>/dev/null && [ "${3:-bare}" = bare ]; } ||
   { echo "usage: fixture.sh <out.json> [<n more threads> [bare]]" >&2; exit 2; }

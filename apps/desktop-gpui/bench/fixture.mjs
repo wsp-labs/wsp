@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Called by fixture.sh as `node fixture.mjs <empty temp folder> <out.json> <n more> [bare]`, with the environment already cleared and
-// HOME that folder: starts a throwaway host on a fresh state file there, records the bench's threads on it through the
-// wsp command run in this process, and leaves the host serving until `stop.sh <out.json>`.
+// HOME that folder: starts a throwaway host on a fresh state file there, with the session threads written into it first,
+// records the other bench threads on it through the wsp command run in this process, and leaves the host serving until
+// `stop.sh <out.json>`.
 import { spawn, spawnSync } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { THREADS, turnsOf } from "./content.mjs";
-import { sessionNames } from "./session.mjs";
+import { sessionFolder, sessionNames, sessionState } from "./session.mjs";
 import { seededState } from "./seed.mjs";
-import { shot } from "./real.mjs";
+import { fileText, shot } from "./real.mjs";
 import { encode } from "../parity/png.mjs";
 
 const MARK = ".wsp-bench-fixture";
@@ -38,10 +39,36 @@ mkdirSync(join(dir, "state"));
 symlinkSync(join(here, "claude-stub.mjs"), join(dir, "bin", "claude"));
 const state = join(dir, "state", "state.json");
 const began = Date.now();
+const folder = join(dir, "bench");
+mkdirSync(folder);
+const git = (...args) => spawnSync("git", ["-c", "user.name=bench", "-c", "user.email=bench@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: folder, stdio: "ignore" });
+git("init", "-q", "-b", "main");
+git("commit", "-q", "--allow-empty", "-m", "bench");
+
+const seeded = {};
+const sessions = bare ? [] : sessionNames(process.env.BENCH_SESSION);
+let session;
 if (process.env.BENCH_SEED) {
+  const long = seededState({ threads: Number(process.env.BENCH_SEED), workspaces: Math.ceil(Number(process.env.BENCH_SEED) / 10), dir });
+  for (const project of Object.values(long.projects)) mkdirSync(project.path, { recursive: true });
+  Object.assign(seeded, long);
+}
+if (sessions.length > 0) {
+  const made = sessionFolder(folder, sessions, join(dir, "session-tree"));
+  rmSync(join(dir, "session-tree"), { recursive: true });
+  session = await sessionState({ names: sessions, home: dir, folder, made });
+  for (const [collection, records] of Object.entries(session.records)) seeded[collection] = { ...seeded[collection], ...records };
+  for (const blob of session.blobs) {
+    mkdirSync(join(dir, "state", "blobs", blob.collection), { recursive: true });
+    writeFileSync(join(dir, "state", "blobs", blob.collection, blob.id), blob.bytes);
+  }
+  const refs = spawnSync("git", ["update-ref", "--stdin"], { cwd: folder, input: session.refs.map(([ref, commit]) => `create ${ref} ${commit}\n`).join("") });
+  if (refs.status !== 0) throw new Error(`git update-ref failed: ${refs.stderr}`);
+  const turns = sessions.reduce((n, name) => n + turnsOf(name).length, 0);
+  console.log(`fixture: ${sessions.at(0)} to ${sessions.at(-1)}, ${turns} turns written into the state in ${((Date.now() - began) / 1000).toFixed(1)} s`);
+}
+if (Object.keys(seeded).length > 0) {
   const { STATE_SHAPE, DAEMON_VERSION } = await import(pathToFileURL(join(here, "../../../packages/protocol/dist/index.js")).href);
-  const seeded = seededState({ threads: Number(process.env.BENCH_SEED), workspaces: Math.ceil(Number(process.env.BENCH_SEED) / 10), dir });
-  for (const project of Object.values(seeded.projects)) mkdirSync(project.path, { recursive: true });
   const shape = { shape: STATE_SHAPE, wsp: "fixture", daemon: DAEMON_VERSION, bin: "fixture.mjs", at: new Date().toISOString() };
   writeFileSync(state, `${JSON.stringify({ $shape: shape, ...seeded })}\n`);
 }
@@ -100,12 +127,7 @@ while (!existsSync(join(dir, "state", "host-token")) || lockedPort() === 0) {
   await sleep(100);
 }
 
-const folder = join(dir, "bench");
-mkdirSync(folder);
-const git = (...args) => spawnSync("git", ["-c", "user.name=bench", "-c", "user.email=bench@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: folder, stdio: "ignore" });
-git("init", "-q", "-b", "main");
-git("commit", "-q", "--allow-empty", "-m", "bench");
-await wsp("add", folder, "--name", "bench");
+if (session === undefined) await wsp("add", folder, "--name", "bench");
 
 /** The host log's length in bytes, so a wait reads only what the host logged after it. */
 const logged = () => statSync(join(dir, "up.log")).size;
@@ -129,10 +151,10 @@ const RESENDS = 3;
 /** The host's window for a turn's snapshot (`turnSnapshotMs`), whose timer it starts before a turn's end reaches a line. */
 const SNAPSHOT_MS = 3_000;
 
-const threads = {};
+const threads = { ...session?.threads };
 const changing = {};
 let answered = 0;
-for (const name of bare ? [] : [...Object.keys(THREADS), ...sessionNames(process.env.BENCH_SESSION)]) {
+for (const name of bare ? [] : Object.keys(THREADS)) {
   const started = Date.now();
   for (const [i, turn] of turnsOf(name).entries()) {
     const writes = (turn.files ?? []).length > 0;
@@ -170,6 +192,14 @@ for (const name of bare ? [] : [...Object.keys(THREADS), ...sessionNames(process
     if ((i + 1) % 100 === 0) console.log(`fixture: ${name}, ${i + 1} turns`);
   }
   console.log(`fixture: ${name} ${threads[name]}, ${turnsOf(name).length} turns in ${((Date.now() - started) / 1000).toFixed(1)} s`);
+}
+
+// What the session threads' turns left in the folder, after real's, as when the stub played them there.
+for (const name of sessions) {
+  for (const file of turnsOf(name).flatMap(t => t.files)) {
+    mkdirSync(dirname(join(folder, file.path)), { recursive: true });
+    writeFileSync(join(folder, file.path), fileText(file));
+  }
 }
 
 // The real host's shape, kept apart from the bench's threads and their timing: a project with no thread, and one thread
