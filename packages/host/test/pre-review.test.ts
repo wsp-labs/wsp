@@ -13,6 +13,7 @@ import { writeStub } from "../../protocol/test/stub-script.js";
 
 const SCRIPT = fileURLToPath(new URL("../../../scripts/pre-review.sh", import.meta.url));
 const AFFECTED = fileURLToPath(new URL("../../../scripts/affected-tests.mjs", import.meta.url));
+const TEST_FILES = fileURLToPath(new URL("../../../scripts/test-files.sh", import.meta.url));
 
 /** Each run says where it ran, whether it saw this clone's installs and how pnpm was told to treat them. */
 const LAW = `#!/bin/sh
@@ -77,8 +78,8 @@ function clone(law = LAW, files: Record<string, string> = {}): { origin: string;
 /** This run's environment less the pnpm settings the pnpm that started it hands down, which the script decides. */
 const pnplessEnv = (): NodeJS.ProcessEnv => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("pnpm_config_")));
 
-function laws(work: string, runs: string, args = ["--laws"]): { status: number | null; out: string; ran: string[] } {
-  const run = spawnSync("bash", [join(work, "scripts/pre-review.sh"), ...args], { cwd: work, encoding: "utf8", env: { ...pnplessEnv(), LAW_RUNS: runs } });
+function laws(work: string, runs: string, args = ["--laws"], env: NodeJS.ProcessEnv = {}): { status: number | null; out: string; ran: string[] } {
+  const run = spawnSync("bash", [join(work, "scripts/pre-review.sh"), ...args], { cwd: work, encoding: "utf8", env: { ...pnplessEnv(), LAW_RUNS: runs, ...env } });
   const ran = existsSync(runs) ? readFileSync(runs, "utf8").split("\n").filter(Boolean) : [];
   rmSync(runs, { force: true });
   const logs = /^logs: (.+)$/m.exec(run.stdout);
@@ -355,5 +356,32 @@ describe("--review, a reviewer's run", () => {
     const run = laws(work, runs, ["--review"]);
     expect(run.status, run.out).toBe(1);
     expect(run.out).toContain("FAIL  the changed tests: packages/a/test/thing.test.ts > is 3");
+  });
+});
+
+describe("test-files.sh's words under CI", () => {
+  /** CI's own variables, under which vitest colors what it writes even into a file. */
+  const CI = { CI: "true", GITHUB_ACTIONS: "true" };
+
+  /** A clone running the real test-files.sh and vitest, with a home of its own for the cache pnpm writes. */
+  function realClone(): { work: string; runs: string; env: NodeJS.ProcessEnv } {
+    const made = clone(readFileSync(TEST_FILES, "utf8"), { ...PACKAGE, "package.json": JSON.stringify({ name: "t", private: true }), "packages/a/test/thing.test.ts": CASE("1") });
+    mkdirSync(join(made.work, "node_modules/.bin"));
+    writeStub(join(made.work, "node_modules/.bin/vitest"), `#!/bin/sh\nexec "${process.execPath}" "${VITEST}" "$@"\n`);
+    const home = join(dirname(made.work), "home");
+    mkdirSync(home);
+    return { ...made, env: { ...CI, HOME: home } };
+  }
+
+  it("reads the summary of a touched test that passes", () => {
+    const { work, runs, env } = realClone();
+    commit(work, { "packages/a/src/thing.ts": "export const thing = 2;\n", "packages/a/test/thing.test.ts": CASE("2") }, "feature");
+    expect(laws(work, runs, [], env).out).toContain("PASS  the touched tests: 1 passed (1)\n");
+  });
+
+  it("names the case of a touched test that fails", () => {
+    const { work, runs, env } = realClone();
+    commit(work, { "packages/a/test/thing.test.ts": CASE("3") }, "feature");
+    expect(laws(work, runs, [], env).out).toContain("FAIL  the touched tests: packages/a/test/thing.test.ts > is 3\n");
   });
 });
