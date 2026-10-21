@@ -451,3 +451,30 @@ fn a_retry_stands_until_the_agent_writes_into_its_turn() {
     t.push(events[4].clone());
     assert!(t.rows().iter().any(|r| matches!(r.kind, RowKind::Working { retry: None, .. })), "a live reply left the retry standing");
 }
+
+/// A carried send's bubble and its starting line stand until the events show its own turn begun, which takes their
+/// place whichever came first, the start or the listing.
+#[test]
+fn a_carried_sends_bubble_gives_way_to_its_own_turns_start() {
+    let start = |request: &str| {
+        event(
+            json!({"type": "session.start", "workspaceId": "w", "sessionId": "s", "turnId": "u1", "pos": 1, "at": 1.0, "prompt": "look", "requestId": request}),
+        )
+    };
+    let sent = crate::transcript::Sent { text: "look".into(), files: Vec::new(), request: Some("r1".into()) };
+    let listing = Listing { sent: Some(sent), starting: Some("Starting Claude Code".into()), ..Listing::default() };
+    let foot = |t: &Transcript| t.rows.iter().filter(|r| r.key == "sent" || r.key == "starting").count();
+    let mut live = Transcript::default();
+    live.listing(listing.clone());
+    live.load(Vec::new());
+    assert_eq!(foot(&live), 2, "the bubble and its starting line before any event");
+    live.push(start("another"));
+    assert_eq!(foot(&live), 2, "another send's start is not this one's");
+    live.push(start("r1"));
+    assert_eq!(foot(&live), 0, "the send's own start takes the bubble's place");
+    let mut late = Transcript::default();
+    late.load(vec![start("r1")]);
+    late.listing(listing);
+    assert_eq!(foot(&late), 0, "a listing set after the start draws no bubble");
+    assert_eq!(late.rows.iter().filter(|r| matches!(r.kind, RowKind::Person { .. })).count(), 1, "the message once");
+}

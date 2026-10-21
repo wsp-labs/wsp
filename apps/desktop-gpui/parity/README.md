@@ -117,6 +117,7 @@ One part or a list of parts, each a kind or `{ kind, ...options }`, played in or
 | `question` | AskUserQuestion through can_use_tool, waiting for the answer | |
 | `permission` | a Bash call (`rm -rf build`) through can_use_tool, waiting | `command` |
 | `hold` | a Bash call with no result, then nothing until Stop | `call: false`, `command` |
+| `unstarted` | first of a reply only: no init line, so the turn has not started on the host, until Stop or for `ms` | `ms` |
 
 A message nobody scripted plays what the bench's stub plays. `files` writes into the project's folder, which every
 thread on that project shares: give it a project of its own or clean the files up.

@@ -57,7 +57,16 @@ fn launched_with(
     still: bool,
     more: impl FnOnce(&common::Throwaway),
 ) -> (common::Throwaway, String, Entity<Shell>, &mut VisualTestContext) {
-    let host = common::Throwaway::start();
+    launched_on(common::Throwaway::start(), cx, still, more)
+}
+
+/// As [`launched_with`], on `host`.
+fn launched_on(
+    host: common::Throwaway,
+    cx: &mut TestAppContext,
+    still: bool,
+    more: impl FnOnce(&common::Throwaway),
+) -> (common::Throwaway, String, Entity<Shell>, &mut VisualTestContext) {
     let folder = host.repo("repo");
     host.wsp(&["add", &folder.to_string_lossy()]);
     // A project's New thread page here is its folder's workspace's, which its first thread makes.
@@ -137,6 +146,10 @@ fn the_field_moves_on_its_own_without_building_the_composer(cx: &mut TestAppCont
     // The host's answers to the page land before the count starts: the agents it lists and the folder's branch.
     let chip: &'static str = Box::leak(format!("tray-branch:{branch}").into_boxed_str());
     until(cx, "the page settled", |cx| composer.read_with(cx, |c, _| c.hold().is_none()) && cx.debug_bounds(chip).is_some());
+    // The new thread's box takes the keys, and its caret's blink draws the composer again; only the field moves here.
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    cx.update(|window, cx| window.blur(cx));
     std::thread::sleep(Duration::from_millis(300));
     cx.run_until_parked();
     let (frames, built) = cx.read(|cx| (hero.read(cx).frames(), composer.read(cx).built()));
@@ -349,4 +362,204 @@ fn the_placeholder_offers_the_slash_menu_where_btw_asks_a_side_question(cx: &mut
     composer.update(cx, |c, cx| c.set_catalog(vec![agent], Picks::default(), Vec::new(), cx));
     cx.run_until_parked();
     assert_eq!(composer.read_with(cx, |c, _| c.placeholder()), "Ask anything", "a new thread");
+}
+
+/// The page's composer once the host has answered it: its agents listed, nothing holding the box.
+fn settled_composer(shell: &Entity<Shell>, cx: &mut VisualTestContext) -> Entity<Composer> {
+    let page = page(shell, cx);
+    let composer = cx.read(|cx| page.read(cx).composer().clone());
+    until(cx, "the page's composer settled", |cx| composer.read_with(cx, |c, _| c.hold().is_none()));
+    composer
+}
+
+/// A send from the New thread page opens the thread it made in place once the host names it: the thread's view in the
+/// centre, the person's message its first row, and no page left standing over it.
+#[gpui_kit::test]
+fn a_send_from_the_new_thread_page_opens_its_thread_in_place(cx: &mut TestAppContext) {
+    use desktop_gpui::transcript::RowKind;
+    let (_host, _, shell, cx) = launched(cx, false);
+    let composer = settled_composer(&shell, cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.set_text("open me in place", window, cx);
+        c.submit(window, cx);
+    });
+    until(cx, "the thread on screen", |cx| shell.read_with(cx, |s, _| matches!(s.route(), Route::Thread { .. })));
+    assert!(shell.read_with(cx, |s, _| s.screen_view()).is_none(), "no page stands over the thread");
+    let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen in the centre");
+    let view = cx.read(|cx| screen.read(cx).view().clone());
+    until(cx, "the person's message as the first row", |cx| {
+        view.read_with(cx, |v, _| {
+            v.rows().first().is_some_and(|r| matches!(r.kind, RowKind::Person { .. }) && r.text == "open me in place")
+        })
+    });
+    // Its turn starts at once here: the transcript's own message takes the bubble's place, never beside it.
+    let messages = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |v, _| {
+            v.rows().iter().filter(|r| matches!(r.kind, RowKind::Person { .. }) && r.text == "open me in place").count()
+        })
+    };
+    until(cx, "the turn's own message", |cx| view.read_with(cx, |v, _| v.rows().iter().all(|r| r.key != "sent")) && messages(cx) == 1);
+}
+
+/// The caret the composer's field paints: a quad two pixels wide at most and 8 or more tall, inside the field.
+fn caret(cx: &mut VisualTestContext) -> bool {
+    let Some(field) = cx.debug_bounds("composer-editor") else { return false };
+    cx.update(|window, _| {
+        let scale = window.scale_factor();
+        window.painted_quads().iter().any(|q| {
+            let (w, h) = (q.bounds.size.width.as_f32() / scale, q.bounds.size.height.as_f32() / scale);
+            let mid = gpui_kit::point(px(q.bounds.origin.x.as_f32() / scale + w / 2.), px(q.bounds.origin.y.as_f32() / scale + h / 2.));
+            w > 0. && w <= 2. && h >= 8. && field.contains(&mid)
+        })
+    })
+}
+
+fn click_composer(cx: &mut VisualTestContext) {
+    let at = cx.debug_bounds("composer-editor").expect("the composer's field").center();
+    cx.simulate_click(at, gpui_kit::Modifiers::none());
+    cx.run_until_parked();
+}
+
+/// A press in the composer shows its caret at once, before any key is typed, and the caret blinks: on the New thread
+/// page and on a thread, where the frame draws the page, and the thread its composer, from a cache.
+#[gpui_kit::test]
+fn a_press_in_the_composer_shows_its_caret_before_any_typing(cx: &mut TestAppContext) {
+    let (_host, _, shell, cx) = launched(cx, false);
+    settled_composer(&shell, cx);
+    // The input draws its caret only in the window the system has active.
+    cx.update(|window, _| window.activate_window());
+    cx.update(|window, cx| window.blur(cx));
+    cx.run_until_parked();
+    assert!(!caret(cx), "no caret before the press");
+    click_composer(cx);
+    assert!(caret(cx), "the caret on the New thread page");
+    cx.executor().advance_clock(Duration::from_millis(500));
+    cx.run_until_parked();
+    assert!(!caret(cx), "the caret blinks off");
+    cx.executor().advance_clock(Duration::from_millis(500));
+    cx.run_until_parked();
+    assert!(caret(cx), "and on again");
+
+    let thread = first_thread(&shell, cx);
+    cx.update(|window, cx| shell.update(cx, |s, cx| s.go(thread, window, cx)));
+    let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen");
+    let composer = cx.read(|cx| screen.read(cx).composer().clone());
+    until(cx, "the thread's composer", |cx| {
+        composer.read_with(cx, |c, _| c.hold().is_none()) && cx.debug_bounds("composer-editor").is_some()
+    });
+    std::thread::sleep(Duration::from_millis(300));
+    cx.run_until_parked();
+    cx.update(|window, cx| window.blur(cx));
+    cx.run_until_parked();
+    assert!(!caret(cx), "no caret on the thread before the press");
+    click_composer(cx);
+    assert!(caret(cx), "the caret on the thread's composer");
+}
+
+/// The route of the thread `repo`'s first run made.
+fn first_thread(shell: &Entity<Shell>, cx: &mut VisualTestContext) -> Route {
+    let mut item = None;
+    until(cx, "the first thread in the sidebar", |cx| {
+        item = shell.read_with(cx, |s, cx| s.sidebar().read(cx).items().first().cloned());
+        item.is_some()
+    });
+    let item = item.unwrap();
+    Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }
+}
+
+/// Mod+T from a thread whose composer had the keys opens New thread with the keys in its composer: what is typed next
+/// lands there.
+#[gpui_kit::test]
+fn after_mod_t_typing_lands_in_the_new_threads_composer(cx: &mut TestAppContext) {
+    let (_host, _, shell, cx) = launched(cx, false);
+    let thread = first_thread(&shell, cx);
+    cx.update(|window, cx| shell.update(cx, |s, cx| s.go(thread, window, cx)));
+    let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen");
+    let old = cx.read(|cx| screen.read(cx).composer().clone());
+    until(cx, "the thread's composer", |cx| old.read_with(cx, |c, _| c.hold().is_none()) && cx.debug_bounds("composer-editor").is_some());
+    click_composer(cx);
+    let chord = desktop_gpui::screens::app_shell::keys::keystroke("mod+t", cfg!(target_os = "macos")).expect("mod+t reads");
+    cx.simulate_keystrokes(&chord);
+    cx.run_until_parked();
+    assert!(matches!(shell.read_with(cx, |s, _| s.route().clone()), Route::Screen(r) if r.starts_with("composer:")), "New thread");
+    let composer = settled_composer(&shell, cx);
+    cx.simulate_input("typed after mod t");
+    cx.run_until_parked();
+    assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "typed after mod t", "the keys landed in the new composer");
+    assert_eq!(old.read_with(cx, |c, cx| c.text(cx)), "", "not in the thread's");
+}
+
+/// A JSON file and an 8 px PNG, as a send carries them.
+fn two_files() -> Vec<desktop_gpui::screens::composer::model::File> {
+    use desktop_gpui::screens::composer::model::File;
+    let mut png = Vec::new();
+    image::RgbaImage::from_pixel(8, 8, image::Rgba([200, 40, 40, 255]))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    vec![
+        File { name: "data.json".into(), media_type: "application/json".into(), bytes: Arc::new(b"{\"a\":1}".to_vec()) },
+        File { name: "shot.png".into(), media_type: "image/png".into(), bytes: Arc::new(png) },
+    ]
+}
+
+/// The bubble the view draws for `text`: its files by name, and whether each is an image.
+fn bubble(view: &Entity<desktop_gpui::thread_view::ThreadView>, text: &str, cx: &mut VisualTestContext) -> Option<Vec<(String, bool)>> {
+    use desktop_gpui::transcript::RowKind;
+    view.read_with(cx, |v, _| {
+        v.rows().iter().rev().find_map(|r| match &r.kind {
+            RowKind::Person { files, .. } if r.text == text => Some(files.iter().map(|f| (f.name.clone(), f.image)).collect()),
+            _ => None,
+        })
+    })
+}
+
+/// A page send whose turn has not started stands in the thread it opened, as the page sent it: its bubble with its
+/// files, the turn running in the composer, and the line its agent's start says once the host says it.
+#[gpui_kit::test]
+fn a_page_send_before_its_turn_starts_stands_in_the_thread_it_opened(cx: &mut TestAppContext) {
+    // The stand-in says nothing to a message holding UNSTARTED, so the host never starts its turn.
+    let claude = common::STAND_IN
+        .replace("while IFS= read -r _; do\n", "while IFS= read -r line; do\n  case \"$line\" in *UNSTARTED*) continue ;; esac\n");
+    let (_host, _, shell, cx) = launched_on(common::Throwaway::start_with(&claude, false), cx, false, |_| {});
+    let composer = settled_composer(&shell, cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.attach(two_files(), cx);
+        c.set_text("UNSTARTED look", window, cx);
+        c.submit(window, cx);
+    });
+    until(cx, "the thread on screen", |cx| shell.read_with(cx, |s, _| matches!(s.route(), Route::Thread { .. })));
+    let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen");
+    let (view, composer) = cx.read(|cx| (screen.read(cx).view().clone(), screen.read(cx).composer().clone()));
+    let want = vec![("data.json".to_owned(), false), ("shot.png".to_owned(), true)];
+    until(cx, "the page's bubble with its files", |cx| bubble(&view, "UNSTARTED look", cx).as_ref() == Some(&want));
+    until(cx, "the image's thumbnail off the bytes the page held", |cx| cx.debug_bounds("thumb").is_some());
+    until(cx, "the turn running", |cx| composer.read_with(cx, |c, _| c.running()));
+    let focused = cx.update(|window, cx| gpui_kit::Focusable::focus_handle(composer.read(cx).editor().read(cx), cx).is_focused(window));
+    assert!(focused, "the thread's composer keeps the keys the page's had");
+    until(cx, "the agent's starting line", |cx| view.read_with(cx, |v, _| v.rows().iter().any(|r| r.key == "starting")));
+    assert_eq!(bubble(&view, "UNSTARTED look", cx), Some(want), "the bubble stands while the turn has not started");
+}
+
+/// A send's bubble carries its files the moment it is sent, before the host says anything of its turn: the file's tile
+/// and the image's, by their names.
+#[gpui_kit::test]
+fn a_sent_bubble_carries_its_files_before_the_hosts_first_event(cx: &mut TestAppContext) {
+    use desktop_gpui::transcript::RowKind;
+    let (_host, _, shell, cx) = launched(cx, false);
+    let thread = first_thread(&shell, cx);
+    cx.update(|window, cx| shell.update(cx, |s, cx| s.go(thread, window, cx)));
+    let screen = shell.read_with(cx, |s, _| s.thread_screen()).expect("the thread screen");
+    let (view, composer) = cx.read(|cx| (screen.read(cx).view().clone(), screen.read(cx).composer().clone()));
+    until(cx, "the thread's composer", |cx| composer.read_with(cx, |c, _| c.hold().is_none()) && view.read_with(cx, |v, _| v.loaded()));
+    composer.update_in(cx, |c, window, cx| {
+        c.attach(two_files(), cx);
+        c.set_text("what's this?", window, cx);
+        c.submit(window, cx);
+    });
+    let sent = view.read_with(cx, |v, _| {
+        v.rows().iter().rev().find(|r| matches!(r.kind, RowKind::Person { .. }) && r.text == "what's this?").map(|r| r.kind.clone())
+    });
+    let Some(RowKind::Person { files, .. }) = sent else { panic!("no bubble for the send") };
+    let names: Vec<(&str, bool)> = files.iter().map(|f| (f.name.as_str(), f.image)).collect();
+    assert_eq!(names, vec![("data.json", false), ("shot.png", true)], "the bubble's files, before the host answered");
 }

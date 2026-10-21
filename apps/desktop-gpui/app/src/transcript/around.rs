@@ -3,7 +3,7 @@
 
 use super::{
     prompt::prompt_row, waiting_asker_line, Body, Entry, Glyph, Listing, Prompt, Row, RowKind, Splice, StepState, Tone, Transcript,
-    PAUSED_KEY,
+    PAUSED_KEY, SENT_KEY,
 };
 
 impl Transcript {
@@ -64,6 +64,7 @@ impl Around {
         whole: bool,
         shut: bool,
         entries: &[Entry],
+        begun: Option<&str>,
     ) -> (Vec<Row>, Option<usize>) {
         let listing = self.listing.as_ref();
         let mut ix = 0;
@@ -93,7 +94,7 @@ impl Around {
             }
             ix += 1;
         }
-        let Some(listing) = listing else { return self.foot(rows, split, shut) };
+        let Some(listing) = listing else { return self.foot(rows, split, shut, begun) };
         if let Some(start) = &listing.start_failed {
             // `machineStartAt`: after the person's first message at or after the start began, with some slack; a start
             // still under way or failed with no such message stands last, a finished one is not drawn.
@@ -171,18 +172,21 @@ impl Around {
                 }
             }
         }
-        self.foot(rows, split, shut)
+        self.foot(rows, split, shut, begun)
     }
 
     /// The rows under the transcript: the send's starting notice, the Threads section and the machine line.
-    fn foot(&self, mut rows: Vec<Row>, split: Option<usize>, shut: bool) -> (Vec<Row>, Option<usize>) {
+    fn foot(&self, mut rows: Vec<Row>, split: Option<usize>, shut: bool, begun: Option<&str>) -> (Vec<Row>, Option<usize>) {
         // The settled turn's word stands under the Threads section, as ChatView's foot orders them.
         let word = rows.last().filter(|r| matches!(r.kind, RowKind::Footer { .. })).is_some().then(|| rows.pop()).flatten();
-        if let Some(text) = self.listing.as_ref().and_then(|l| l.sent.as_ref()) {
-            let kind = RowKind::Person { at: None, files: Vec::new(), fork: None, full: false, steered: false };
-            rows.push(Row { key: "sent".to_owned(), kind, text: text.clone(), turn: None });
+        let sent = self.listing.as_ref().and_then(|l| l.sent.as_ref());
+        // A send whose turn the events show begun is the transcript's own message by now, its starting line gone with it.
+        let begun = sent.and_then(|s| s.request.as_deref()).is_some_and(|request| begun == Some(request));
+        if let Some(sent) = sent.filter(|_| !begun) {
+            let kind = RowKind::Person { at: None, files: sent.files.clone(), fork: None, full: false, steered: false };
+            rows.push(Row { key: SENT_KEY.to_owned(), kind, text: sent.text.clone(), turn: None });
         }
-        if let Some(line) = self.listing.as_ref().and_then(|l| l.starting.as_ref()) {
+        if let Some(line) = self.listing.as_ref().and_then(|l| l.starting.as_ref()).filter(|_| !begun) {
             rows.push(Row {
                 key: "starting".to_owned(),
                 kind: RowKind::Work { tone: Tone::Notice, glyph: Glyph::Info, body: None, open: false },

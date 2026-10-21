@@ -202,6 +202,15 @@ pub fn push_again_prompt(branch: &str) -> String {
     format!("Push {branch} again, and say what the remote answers.")
 }
 
+/// A send in flight as its bubble draws it: its words and its files (`pendingPrompt` with its attachments' records).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Sent {
+    pub text: String,
+    pub files: Vec<super::FileTile>,
+    /// The send's request id where it is known, whose turn's start in the events takes the bubble's place.
+    pub request: Option<String>,
+}
+
 /// What the thread listing says about the open thread and the threads around it, read once each time the view follows
 /// the thread: the rows the transcript draws off it are the fork rule's title and Open, Rewind held on a capped turn,
 /// the open question this thread waits behind, the children's rows and the Threads section.
@@ -230,8 +239,8 @@ pub struct Listing {
     /// The notice under a send in flight while its agent starts (`agentStartingLine`), until its session starts; the
     /// send's link sets it off `session.starting`.
     pub starting: Option<String>,
-    /// The words of a send in flight, the person's message at once until its turn starts (`pendingPrompt`).
-    pub sent: Option<String>,
+    /// A send in flight, the person's message at once until its turn starts (`pendingPrompt`).
+    pub sent: Option<Sent>,
     /// The thread's own row while it runs (`drawnOffRow`): when it began, which the running turn's Working line counts
     /// from where it is earlier (`turnFromRow`), and the head of its opening message, the person's message until the
     /// thread has an event (`runningOffRow`).
@@ -256,6 +265,9 @@ pub struct Wait {
 
 /// The key of the paused line under the transcript, which the rule draws with Wake.
 pub const PAUSED_KEY: &str = "paused";
+
+/// The key of a send's bubble while its turn has not started, whose images the view holds off the composer's bytes.
+pub const SENT_KEY: &str = "sent";
 
 /// `waitingAskerLine` in packages/protocol/src/words/tools.ts.
 pub fn waiting_asker_line(title: &str) -> String {

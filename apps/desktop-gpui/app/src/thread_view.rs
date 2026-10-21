@@ -795,6 +795,36 @@ impl ThreadView {
         self.transcript.listed()
     }
 
+    /// A send in flight as the person's message at once, its files with it, until its turn starts (`pendingPrompt`);
+    /// its images draw off the bytes the composer held. `request`, where known, is the send's request id.
+    pub fn show_sent(
+        &mut self,
+        thread: String,
+        text: String,
+        files: &[crate::screens::composer::model::File],
+        request: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::transcript::{FileTile, Listing, Sent};
+        let listed = self.transcript.listed().filter(|l| l.thread == thread).cloned();
+        let listing = listed.unwrap_or_else(|| Listing { thread, ..Default::default() });
+        let tiles = files
+            .iter()
+            .enumerate()
+            .map(|(index, f)| FileTile {
+                name: f.name.clone(),
+                bytes: Some(f.bytes.len() as u64),
+                image: f.is_image(),
+                id: None,
+                index,
+                mime: Some(f.media_type.clone()),
+            })
+            .collect();
+        self.set_listing(Listing { sent: Some(Sent { text, files: tiles, request }), ..listing }, cx);
+        let held: Vec<_> = files.iter().map(|f| (f.media_type.clone(), f.bytes.clone())).collect();
+        cards::hold_sent(self, &held, cx);
+    }
+
     /// Stands what the thread listing says, as the host's listing would, also for a test or a capture.
     pub fn set_listing(&mut self, listing: crate::transcript::Listing, cx: &mut Context<Self>) {
         let splice = self.transcript.listing(listing);

@@ -226,7 +226,8 @@ impl Render for ThreadView {
             .on_mouse_down(
                 gpui_kit::MouseButton::Left,
                 cx.listener(|this, _, window, cx| {
-                    if !this.focus.contains_focused(window, cx) {
+                    // A press a field over the transcript took, the docked composer's, leaves the focus there.
+                    if !this.focus.contains_focused(window, cx) && !window.default_prevented() {
                         this.focus.focus(window, cx);
                     }
                 }),
