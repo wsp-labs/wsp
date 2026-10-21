@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use gpui_kit::{prelude::*, App, Context, Entity, PlatformInput, Subscription, Task, Window};
+use gpui_kit::{prelude::*, px, App, Context, Entity, ListAlignment, ListState, PlatformInput, Subscription, Task, Window};
 
 use super::bench_hold::Held;
 use super::Shell;
@@ -133,7 +133,12 @@ impl Shell {
                 if self.host.is_some() {
                     cx.activate(true);
                     window.activate_window();
-                    run.phase = Phase::Loading(self.bench_open(&run.args.thread, window, cx));
+                    run.phase = if run.args.screen {
+                        self.go(Route::Screen(run.args.thread.clone().into()), window, cx);
+                        Phase::Loading(Presented::default())
+                    } else {
+                        Phase::Loading(self.bench_open(&run.args.thread, window, cx))
+                    };
                 }
             }
             Phase::Loading(presented) if run.args.terminal.is_some() => {
@@ -203,10 +208,19 @@ impl Shell {
                 }
             }
             Phase::Loading(presented) if run.args.replay.is_some() || run.args.hold.is_some() => {
+                if run.args.screen && presented.borrow().is_none() && self.activity_listed(window, cx) {
+                    *presented.borrow_mut() = Some(Instant::now());
+                }
                 if presented.borrow().is_some() && window.is_window_active() {
-                    eprintln!("bench: thread drawn");
+                    eprintln!("bench: {} drawn", if run.args.screen { "screen" } else { "thread" });
                     if run.args.unfold {
                         self.bench_view(cx).update(cx, unfold_all);
+                    }
+                    // The events page back, as from a thread's end, so a screen's list stands at its end, drawn there
+                    // before the first event.
+                    if run.args.screen {
+                        self.bench_list(&run.args, cx).scroll_to_end();
+                        window.refresh();
                     }
                     let wake = cx.spawn(async move |this, cx| {
                         cx.background_executor().timer(REPLAY_SETTLE).await;
@@ -248,7 +262,7 @@ impl Shell {
                         eprintln!("desktop-gpui: {}: {e}", path.display());
                         std::process::exit(1);
                     });
-                    let list = self.bench_view(cx).read(cx).list().viewport_bounds();
+                    let list = self.bench_list(&run.args, cx).viewport_bounds();
                     eprintln!(
                         "bench: replaying {} wheel events over {:.1} s on a list {:?} x {:?}",
                         events.len(),
@@ -258,12 +272,13 @@ impl Shell {
                     );
                     scroll_trace::begin(window);
                     let done = Rc::new(Cell::new(false));
-                    run.phase = Phase::Replaying { done: done.clone(), _play: self.replay(events, run.args.pointer, done, window, cx) };
+                    let play = self.replay(events, run.args.pointer, run.args.screen, done.clone(), window, cx);
+                    run.phase = Phase::Replaying { done, _play: play };
                 }
             }
             Phase::Replaying { done, .. } => {
                 if done.get() {
-                    let rows = self.bench_view(cx).read(cx).rows().iter().map(traced).collect();
+                    let rows = if run.args.screen { Vec::new() } else { self.bench_view(cx).read(cx).rows().iter().map(traced).collect() };
                     match scroll_trace::finish(rows) {
                         Ok(said) => eprintln!("bench: {said}"),
                         Err(e) => {
@@ -392,17 +407,22 @@ impl Shell {
         }
     }
 
-    /// Plays `events` over the thread list from now, each through the window as the platform hands one over, and sets
-    /// `done` once the last has had its settle.
+    /// Plays `events` over the thread list, or with `screen` the screen's, from now, each through the window as the
+    /// platform hands one over, and sets `done` once the last has had its settle.
     fn replay(
         &self,
         events: Vec<Wheel>,
         pointer: Option<(f32, f32)>,
+        screen: bool,
         done: Rc<Cell<bool>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<()> {
-        let view = self.bench_view(cx);
+        let view = (!screen).then(|| self.bench_view(cx));
+        let list = view.as_ref().map_or_else(
+            || self.activity_list(cx).unwrap_or_else(|| ListState::new(0, ListAlignment::Top, px(0.))),
+            |v| v.read(cx).list().clone(),
+        );
         cx.spawn_in(window, async move |this, cx| {
             let start = Instant::now();
             for wheel in events {
@@ -414,15 +434,22 @@ impl Shell {
                     Some((x, y)) => Wheel { x, y, ..wheel },
                     None => wheel,
                 };
-                let origin = view.read_with(cx, |v, _| v.list().viewport_bounds().origin);
+                let origin = list.viewport_bounds().origin;
                 let event = wheel.event(origin);
-                let spot = view.read_with(cx, |v, _| v.spot(event.position.y));
+                let spot = match &view {
+                    Some(view) => view.read_with(cx, |v, _| v.spot(event.position.y)),
+                    None => scroll_trace::Spot {
+                        top: -f32::from(list.scroll_px_offset_for_scrollbar().y),
+                        max: f32::from(list.max_offset_for_scrollbar().y),
+                        under: None,
+                    },
+                };
                 // Through the window, not the shell, so a handler may update the shell as it would for a real event.
                 _ = cx.update(|window, cx| {
                     scroll_trace::input(due, &event, Some(spot));
                     scroll_trace::timed(|w, ms| w.input_ms += ms, || window.dispatch_event(PlatformInput::ScrollWheel(event), cx));
                 });
-                scroll_trace::handled(view.read_with(cx, |v, _| -f32::from(v.list().scroll_px_offset_for_scrollbar().y)));
+                scroll_trace::handled(-f32::from(list.scroll_px_offset_for_scrollbar().y));
             }
             cx.background_executor().timer(REPLAY_SETTLE).await;
             done.set(true);
@@ -470,6 +497,42 @@ impl Shell {
         let presented = Presented::default();
         self.bench_view(cx).update(cx, |v, cx| v.watch_presented(thread, presented.clone(), cx));
         presented
+    }
+
+    /// The list the bench scrolls: the screen's, or the thread view's.
+    fn bench_list(&self, args: &bench::Bench, cx: &App) -> ListState {
+        let list = if args.screen { self.activity_list(cx) } else { Some(self.bench_view(cx).read(cx).list().clone()) };
+        list.unwrap_or_else(|| ListState::new(0, ListAlignment::Top, px(0.)))
+    }
+
+    /// Settings > Activity's list, while Settings stands on it.
+    fn activity_list(&self, cx: &App) -> Option<ListState> {
+        let settings = self.screen_view()?.downcast::<screens::settings::SettingsScreen>().ok()?;
+        Some(settings.read(cx).activity_page()?.read(cx).list(cx))
+    }
+
+    /// Whether Activity lists every process the computer runs by CPU, its longest list, past its page; it is put on
+    /// that list first.
+    fn activity_listed(&self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        use screens::settings::pages::activity::{self, model::Sort, model::View};
+        let Some(list) = self.activity_list(cx) else { return false };
+        let pick = activity::kept(window, cx);
+        if pick.read(cx).view != View::Processes {
+            pick.update(cx, |p, cx| {
+                p.view = View::Processes;
+                cx.notify();
+            });
+            return false;
+        }
+        let Some(scoped) = pick.read(cx).drawn() else { return false };
+        if !scoped.read(cx).every() {
+            scoped.update(cx, |s, cx| {
+                s.set_every(true, cx);
+                s.set_sort(Sort::Cpu, cx);
+            });
+            return false;
+        }
+        list.max_offset_for_scrollbar().y > list.viewport_bounds().size.height
     }
 
     /// The thread view the bench drives: the registered thread screen's, else the frame's own.

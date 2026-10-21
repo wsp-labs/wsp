@@ -684,13 +684,16 @@ fn inside(
     let p = cx.palette();
     match shot {
         Shot::Shown(pic) => picture(pic, fit, size),
-        Shot::Loading => h_flex()
-            .debug_selector(|| "slate-image-loading".into())
-            .absolute()
-            .inset_0()
-            .justify_center()
-            .child(div().debug_selector(move || format!("{id}-loading")).child(spinner(cx).size(px(16.))))
-            .into_any_element(),
+        Shot::Loading => {
+            let spinner = spinner(cx).size(px(16.)).key(SharedString::from(format!("{id}-spinner")));
+            h_flex()
+                .debug_selector(|| "slate-image-loading".into())
+                .absolute()
+                .inset_0()
+                .justify_center()
+                .child(div().debug_selector(move || format!("{id}-loading")).child(spinner))
+                .into_any_element()
+        }
         Shot::Asking(domain) => allow_domain(id, domain, fit == Fit::Cover, screen, store, window, cx),
         Shot::Refused(why) => h_flex()
             .debug_selector(|| "slate-image-refused".into())

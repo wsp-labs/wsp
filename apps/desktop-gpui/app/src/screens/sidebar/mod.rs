@@ -4,6 +4,7 @@
 //! reads and writes through `wsp-host-client` and follows the host's pushes; the list is virtual, so only the rows
 //! on screen are built, whatever the number of threads.
 
+pub(crate) mod age;
 pub mod alone;
 pub(crate) mod card;
 pub mod chrome;
@@ -298,6 +299,7 @@ pub struct Sidebar {
     following: Option<Following>,
     renaming: Option<Renaming>,
     armed: Option<(String, Instant)>,
+    _disarm: Task<()>,
     pub(crate) switcher: Option<switcher::OpenSwitcher>,
     /// Where each switcher's head was drawn, so a press on it is not read as a press outside its popup.
     switcher_heads: Rc<Cell<[Bounds<Pixels>; 2]>>,
@@ -339,10 +341,9 @@ impl Sidebar {
             hold_crabs(cx);
             _ = weak.update(cx, |_, cx| cx.notify());
         });
-        // A working thread's time ticks each second; an age or a settle by time moves by the minute.
+        // A settle or a kind by time moves by the minute; the rows' times step on their own.
         let clock = cx.spawn(async move |this, cx| loop {
-            let working = this.update(cx, |this, _| this.threads.iter().any(|t| t.status == model::Status::Running)).unwrap_or(false);
-            cx.background_executor().timer(if working { Duration::from_secs(1) } else { Duration::from_secs(30) }).await;
+            cx.background_executor().timer(Duration::from_secs(30)).await;
             if this.update(cx, |this, cx| this.refresh(cx)).is_err() {
                 break;
             }
@@ -370,6 +371,7 @@ impl Sidebar {
             following: None,
             renaming: None,
             armed: None,
+            _disarm: Task::ready(()),
             switcher: None,
             switcher_heads: Rc::default(),
             menu: ContextMenu::default(),
@@ -992,12 +994,22 @@ impl Sidebar {
             .collect();
     }
 
-    /// Reads the clock again: a working time, an age, or a thread settling by time.
+    /// Reads the clock again, and draws the list again only where a thread settled or changed its kind by time.
     fn refresh(&mut self, cx: &mut Context<Self>) {
-        if self.armed.as_ref().is_some_and(|(_, at)| at.elapsed() >= ARMED) {
-            self.armed = None;
+        let now = now_ms();
+        let offset = utc_offset_ms() as f64;
+        // A kind's word moves by time too: Resuming's "resets in N min".
+        let kind_moved = |l: &Line| match &l.item {
+            Item::Tile(tile) => self.threads.get(tile.thread).is_some_and(|t| {
+                let (kind, was) = (model::tile_kind(t, tile, now), model::tile_kind(t, tile, self.now));
+                kind != was || model::word(t, kind, now, offset) != model::word(t, was, self.now, offset)
+            }),
+            _ => false,
+        };
+        let lines = model::sidebar(&self.threads, &self.prefs, now, self.held.as_deref(), self.machines()).lines(&self.folds);
+        if lines != self.lines || self.lines.iter().any(kind_moved) {
+            self.rebuild(cx);
         }
-        self.rebuild(cx);
     }
 
     /// Draws the list again from the threads, keeping the scroll where it was.
@@ -1179,6 +1191,7 @@ impl Sidebar {
 
 impl Render for Sidebar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Sidebar");
         self.around.images.drop_retired(window, cx);
         if let Some(drive) = &mut self.drive {
             if !drive.done {

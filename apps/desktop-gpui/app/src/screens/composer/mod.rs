@@ -7,6 +7,7 @@
 mod attach;
 pub mod dock;
 pub mod drop;
+mod field;
 pub mod fork;
 pub mod hero;
 mod keys;
@@ -234,6 +235,8 @@ pub struct Composer {
     /// The window the composer draws in, which a pane's words reach it through.
     window: gpui_kit::AnyWindowHandle,
     editor: Entity<TextareaState>,
+    /// The editor drawn in a view of its own, cached at its height, so its caret's blink draws it alone.
+    field: Entity<field::Field>,
     agents: Vec<Agent>,
     picks: Picks,
     /// The thread's own agent and choices, once it has run.
@@ -452,6 +455,9 @@ impl Composer {
         open.0.retain(|c| c.upgrade().is_some());
         open.0.push(me);
         let editor = cx.new(|cx| TextareaState::new(window, cx).auto_grow(1, 8).submit_on_enter(true).placeholder("Ask anything"));
+        let line_width = Rc::new(Cell::new(px(0.)));
+        let this = cx.entity().downgrade();
+        let field = cx.new(|cx| field::Field::new(editor.clone(), this, line_width.clone(), cx));
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search models..."));
         let dock_field = cx.new(|cx| InputState::new(window, cx));
         let subscriptions = vec![
@@ -481,6 +487,7 @@ impl Composer {
         let mut composer = Composer {
             window: window.window_handle(),
             editor,
+            field,
             agents: Vec::new(),
             picks: Picks::default(),
             ran: Picks::default(),
@@ -546,7 +553,7 @@ impl Composer {
             search,
             focus_search: false,
             search_lit: false,
-            line_width: Rc::new(Cell::new(px(0.))),
+            line_width,
             box_width: Rc::new(Cell::new(cx.try_global::<BoxWidth>().map_or(px(0.), |w| w.0))),
             drawn: Rc::new(Cell::new(px(0.))),
             laid: Rc::new(Cell::new(None)),

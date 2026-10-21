@@ -79,15 +79,16 @@ impl Render for Drawn {
             filtering: false,
             width,
             workspace: None,
+            pieces: Rc::default(),
         };
-        let looks = ThreadLooks { status: &|_| None, model: &|_, _| None };
+        let looks = ThreadLooks { status: Rc::new(|_| None), model: Rc::new(|_, _| None) };
         v_flex()
             .size_full()
             .p_4()
             .gap(px(40.))
-            .child(tiles(&scope, &[], None, width.sm, cx))
+            .child(tiles(&scope, &[], None, width.sm, &hand, cx))
             .child(controls(&self.page, selects, View::Threads, &self.scoped, s, width.sm, cx))
-            .child(tables::threads_table("This computer".into(), &scope.groups, &looks, false, None, &hand, cx))
+            .child(tables::threads_table("This computer".into(), Rc::new(scope.groups.clone()), looks, false, None, &hand).whole(cx))
     }
 }
 
@@ -370,6 +371,7 @@ fn what_a_too_old_daemon_signalled_alone_is_said_once_after_the_wait(cx: &mut gp
     assert!(scoped.read_with(cx, |s, _| s.ending.is_empty() && s.too_old.is_empty() && s.too_old_wait.is_none()));
 }
 
+/// A reading moves the memory tile's piece only where its words or its tint move, and the page draws again for none.
 #[gpui_kit::test]
 fn a_sample_that_moves_no_word_draws_nothing(cx: &mut gpui_kit::TestAppContext) {
     cx.update(|cx| {
@@ -382,20 +384,34 @@ fn a_sample_that_moves_no_word_draws_nothing(cx: &mut gpui_kit::TestAppContext) 
     let computer = Computer { glyph: ComputerIcon::of(&place, None), place, key: HERE.into(), workspace_id: None };
     let acts = Acts::new(gpui_kit::WeakEntity::new_invalid(), None, runtime);
     let scoped = cx.update(|window, cx| cx.new(|cx| Scoped::new(computer, acts, View::Threads, window, cx)));
+    // The daemon at 6 GiB, its frame drawn as the page would draw it.
+    let row = json!({ "pid": 1, "ppid": 0, "user": "u", "state": "S", "comm": "wsp-daemon", "cmdline": "wsp-daemon", "cpu": 0.,
+        "rss": 6. * 1024. * 1024. * 1024., "startedAt": 1 });
+    let frame = json!({ "type": "proc.snapshot", "at": 1000, "daemon": 1, "total": 1, "procs": [row], "seq": 1 });
+    scoped.update(cx, |s, cx| {
+        s.hear(frame, cx);
+        s.drawing(View::Threads, Width::default(), cx);
+    });
     let drawn = Rc::new(std::cell::Cell::new(0));
     let counted = drawn.clone();
     cx.update(|_, cx| cx.observe(&scoped, move |_, _| counted.set(counted.get() + 1)).detach());
-    let sample = |used: f64, total: f64| Arrival::Event(json!({ "type": "sys.sample", "mem": { "used": used, "total": total } }));
-    let take = |arrival: Arrival, cx: &mut gpui_kit::VisualTestContext| {
-        scoped.update(cx, |s, cx| s.arrive(arrival, cx));
+    let sample = |used: f64, total: f64| json!({ "type": "sys.sample", "mem": { "used": used, "total": total } });
+    let mut was = None;
+    let mut take = |event: Value, cx: &mut gpui_kit::VisualTestContext| {
+        scoped.update(cx, |s, cx| s.hear(event, cx));
         cx.run_until_parked();
-        drawn.get()
+        let look = scoped.read_with(cx, |s, cx| s.pieces().get("tile:mem").map(|piece| piece.read(cx).look().clone()));
+        let moved = look != was;
+        was = look;
+        moved
     };
-    assert_eq!(take(sample(4.0e9, 16.0e9), cx), 1, "the first sample draws");
-    assert_eq!(take(sample(4.0e9 + 1024., 16.0e9), cx), 1, "a few bytes more read the same words and draw nothing");
-    assert_eq!(take(sample(6.0e9, 16.0e9), cx), 2, "new words draw");
-    assert_eq!(take(sample(6.0e9, 32.0e9), cx), 3, "a new total moves the tint and draws");
-    assert_eq!(scoped.read_with(cx, |s, _| s.mem), Some((6.0e9, 32.0e9)), "the newest sample is held either way");
+    assert!(take(sample(4.0e9, 16.0e9), cx), "the first sample names the memory in use");
+    assert!(!take(sample(4.0e9 + 1024., 16.0e9), cx), "a few bytes more read the same words and draw nothing");
+    assert!(take(sample(6.0e9, 16.0e9), cx), "new words draw");
+    assert!(take(sample(6.0e9, 10.0e9), cx), "a total the daemon's 6 GiB is past half of moves the tint and draws");
+    assert!(!take(sample(6.0e9, 11.0e9), cx), "a total that leaves the words and the tint draws nothing");
+    assert_eq!(scoped.read_with(cx, |s, _| s.mem), Some((6.0e9, 11.0e9)), "the newest sample is held either way");
+    assert_eq!(drawn.get(), 0, "the page draws again for none of them");
 }
 
 #[gpui_kit::test]

@@ -684,16 +684,22 @@ fn the_shimmer_runs_on_its_own_frames_while_on_screen(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn the_working_clock_ticks_over_the_rows_without_building_them(cx: &mut TestAppContext) {
     let (view, cx) = window(cx, 900.);
+    let mut now = 4_000.;
+    cx.update(|_, cx| cx.set_global(desktop_gpui::ui::FrozenNow(now)));
     let mut events = apples(2);
     events.push(event("live", "session.start", 100, serde_json::json!({"prompt": "Keep going", "at": 1_000.0})));
     load(&view, events, cx);
     cx.update(|_, cx| cx.set_reduce_motion(true));
     frames(cx, 2);
-    let (built, renders) = view.read_with(cx, |v, _| (v.built(), v.renders()));
-    cx.executor().advance_clock(Duration::from_secs(3));
-    frames(cx, 2);
-    let renders = view.read_with(cx, |v, _| v.renders()) - renders;
-    assert!(renders > 0, "the clock did not tick");
+    let built = view.read_with(cx, |v, _| v.built());
+    desktop_gpui::frames::take();
+    for _ in 0..3 {
+        now += 1_000.;
+        cx.update(|_, cx| cx.set_global(desktop_gpui::ui::FrozenNow(now)));
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
+    }
+    assert_eq!(desktop_gpui::frames::take().get("Clock"), Some(&3), "the clock did not tick once a second");
     assert_eq!(view.read_with(cx, |v, _| v.built()), built, "a tick built rows again");
     let slot = cx.debug_bounds("clock-slot").expect("the Working line kept no slot for its clock");
     let clock = cx.debug_bounds("clock").expect("the clock was not drawn over the rows");

@@ -2,7 +2,6 @@
 //! The panel as drawn: its header and menu, the empty state, and the slate's column.
 
 use std::rc::Rc;
-use std::time::Instant;
 
 use gpui_kit::component::{h_flex, v_flex};
 use gpui_kit::{div, prelude::*, px, AnyElement, App, Context, SharedString, Window};
@@ -199,7 +198,7 @@ fn empty_frame(body: impl IntoElement, _cx: &App) -> AnyElement {
 impl Render for SlateScreen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let back = !self.on_screen();
-        self.drawn_at = Some(Instant::now());
+        self.mark_drawn(window, cx);
         if let (Some(text), Some(thread)) = (self.filling.take(), self.opened.thread_id.clone()) {
             insert_in_composer(&thread, &text, window, cx);
         }

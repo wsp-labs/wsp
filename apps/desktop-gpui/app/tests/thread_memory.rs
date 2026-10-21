@@ -2,7 +2,7 @@
 //! What a thread leaves behind once the person has moved on: threads opened one after another through the frame, as a
 //! click in the sidebar opens them, against a host started for this test alone whose claude is the bench's stub playing
 //! the session fixture's threads (bench/session.mjs: tool output, subagents, code, tables, screenshots). The live heap
-//! is read through a counting allocator, back on the same first thread each time, after 16 threads and again after 12
+//! is read through a counting allocator, back on the same first thread each time, after 18 threads and again after 12
 //! more; what the 12 left behind has to stay within a bound that does not grow with their number.
 //! The only test in its binary, so no other test's allocations land in the count. With `--features heap-profile` it
 //! counts through the app's sampler instead and prints what the many threads left, by the code that allocated it.
@@ -69,8 +69,9 @@ fn live() -> isize {
 }
 
 /// Threads opened before the first reading, so the caches that fill once per run (fonts, grammars, icons) are full
-/// and the socket's read buffer, which keeps the size of the largest page it read, has met pages like the later ones.
-const WARM: usize = 16;
+/// and the socket's read buffer, which keeps the size of the largest page it read, has met pages like the later ones;
+/// with views drawn in place the element arena and the layout tree reach their high mark only at the 18th.
+const WARM: usize = 18;
 /// Threads opened between the two readings.
 const MANY: usize = 12;
 /// Turns of each session thread the host records.

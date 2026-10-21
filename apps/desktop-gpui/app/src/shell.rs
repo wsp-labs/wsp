@@ -664,6 +664,7 @@ impl Shell {
 
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Shell");
         self.tick(window, cx);
         let narrow = ui::narrow::width(window).md;
         let shown = if narrow { 0. } else { self.sidebar_shown(window) };
@@ -916,7 +917,7 @@ impl Render for Shell {
                     .relative()
                     .flex_1()
                     .min_h_0()
-                    .children(backdrop.map(|view| div().absolute().inset_0().child(view)))
+                    .children(backdrop.map(|view| div().absolute().inset_0().child(view.cached(StyleRefinement::default().size_full()))))
                     .map(|el| match failed {
                         Some(failed) => {
                             let me = cx.entity().downgrade();

@@ -1,5 +1,5 @@
 diff --git a/src/text_system/line_layout.rs b/src/text_system/line_layout.rs
-index f0bf121..ec41622 100644
+index f0bf121..6de8c09 100644
 --- a/src/text_system/line_layout.rs
 +++ b/src/text_system/line_layout.rs
 @@ -206,6 +206,7 @@ impl LineLayout {
@@ -50,6 +50,44 @@ index f0bf121..ec41622 100644
              prev_ch = ch;
          }
  
+@@ -493,6 +491,37 @@ pub(crate) struct LineLayoutIndex {
+     wrapped_lines_by_hash_index: usize,
+ }
+ 
++impl LineLayoutIndex {
++    /// This index as a count of layouts past `base`, an index at or before it of the same generation.
++    pub(crate) fn offset_from(&self, base: &Self) -> Self {
++        Self {
++            font_generation: self.font_generation,
++            lines_index: self.lines_index - base.lines_index,
++            wrapped_lines_index: self.wrapped_lines_index - base.wrapped_lines_index,
++            lines_by_hash_index: self.lines_by_hash_index - base.lines_by_hash_index,
++            wrapped_lines_by_hash_index: self.wrapped_lines_by_hash_index
++                - base.wrapped_lines_by_hash_index,
++        }
++    }
++
++    /// The index `offset` layouts past this one.
++    pub(crate) fn offset_by(&self, offset: &Self) -> Self {
++        Self {
++            font_generation: self.font_generation,
++            lines_index: self.lines_index + offset.lines_index,
++            wrapped_lines_index: self.wrapped_lines_index + offset.wrapped_lines_index,
++            lines_by_hash_index: self.lines_by_hash_index + offset.lines_by_hash_index,
++            wrapped_lines_by_hash_index: self.wrapped_lines_by_hash_index
++                + offset.wrapped_lines_by_hash_index,
++        }
++    }
++
++    /// Whether both indices count layouts made with the same fonts.
++    pub(crate) fn same_generation(&self, other: &Self) -> bool {
++        self.font_generation == other.font_generation
++    }
++}
++
+ impl LineLayoutCache {
+     pub fn new(
+         platform_text_system: Arc<dyn PlatformTextSystem>,
 diff --git a/src/text_system/line_wrapper.rs b/src/text_system/line_wrapper.rs
 index ca821bb..6e42ff5 100644
 --- a/src/text_system/line_wrapper.rs

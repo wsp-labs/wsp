@@ -686,34 +686,58 @@ pub fn lost_line(cx: &App) -> impl IntoElement {
     )
 }
 
-/// A live timer's text, ticking once a second in its own entity so the transcript does not draw again with it.
+/// A live timer's text in its own entity, drawn cached over the rows: it wakes when its text would next change and draws
+/// again in place only if it did, so a tick draws nothing else.
 pub struct Clock {
     since: f64,
     now: Option<f64>,
+    shown: String,
     _tick: Option<Task<()>>,
 }
 
 impl Clock {
     pub fn new(since: f64, now: Option<f64>, cx: &mut Context<Self>) -> Self {
-        let tick = now.is_none().then(|| {
-            cx.spawn(async move |this, cx| loop {
-                cx.background_executor().timer(Duration::from_secs(1)).await;
-                if this.update(cx, |_, cx| cx.notify()).is_err() {
-                    break;
+        let mut clock = Clock { since, now, shown: String::new(), _tick: None };
+        clock.tick(cx);
+        clock
+    }
+
+    fn elapsed(&self, cx: &App) -> f64 {
+        (self.now.unwrap_or_else(|| crate::ui::status::now_ms(cx)) - self.since).max(0.)
+    }
+
+    fn tick(&mut self, cx: &mut Context<Self>) {
+        if self.now.is_some() {
+            return;
+        }
+        // A ms past the change, so the text read then has moved.
+        let wait = Duration::from_secs_f64((next_change(self.elapsed(cx)) + 1.) / 1_000.);
+        self._tick = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(wait).await;
+            _ = this.update(cx, |clock, cx| {
+                let text = timer(clock.elapsed(cx));
+                if text != clock.shown {
+                    clock.shown = text;
+                    cx.notify_in_place();
                 }
-            })
-        });
-        Clock { since, now, _tick: tick }
+                clock.tick(cx);
+            });
+        }));
     }
 }
 
 impl Render for Clock {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let now = self
-            .now
-            .unwrap_or_else(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0., |d| d.as_millis() as f64));
-        div().child(timer((now - self.since).max(0.)))
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Clock");
+        self.shown = timer(self.elapsed(cx));
+        div().flex().items_center().h_full().child(self.shown.clone())
     }
+}
+
+/// The ms from `ms` into a timer to its text's next change: the next second, then past an hour the next minute.
+fn next_change(ms: f64) -> f64 {
+    let step = if ms < 3_600_000. { 1_000. } else { 60_000. };
+    step - ms.rem_euclid(step)
 }
 
 /// `WorkingTimer`: `12s`, `3m 5s` or `3m`, then `1h 4m` or `1h`.

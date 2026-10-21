@@ -13,6 +13,8 @@ use serde_json::{json, Value};
 
 /// A frame slower than this, by its own draw or by the wait of the input it shows, is a stall.
 pub const SLOW_MS: f64 = 50.;
+/// A frame of a display's 60 a second, the line a screen's scroll is held to.
+pub const FRAME_MS: f64 = 16.;
 /// How long a recording runs from its first wheel event.
 pub const RECORD_FOR: Duration = Duration::from_secs(60);
 /// A Moved event belongs to a stream of them, which a Mac sends at least this often while fingers or momentum move,
@@ -147,7 +149,11 @@ pub struct Frame {
 
 impl Frame {
     pub fn slow(&self) -> bool {
-        self.draw + self.present > SLOW_MS || self.late > SLOW_MS
+        self.slower_than(SLOW_MS)
+    }
+
+    pub fn slower_than(&self, limit: f64) -> bool {
+        self.draw + self.present > limit || self.late > limit
     }
 
     /// The UI thread's own time for the frame: its draw and the traced work before it, without the present, which on
@@ -211,6 +217,8 @@ pub struct Plan {
     pub trace: Option<PathBuf>,
     pub thread: Option<String>,
     pub replay: bool,
+    /// The slowest a frame may be, `SLOW_MS` where none is given.
+    pub limit: Option<f64>,
 }
 
 thread_local! {
@@ -489,7 +497,8 @@ pub fn json(plan: &Plan, frames: &[Frame], inputs: &[Input], release: bool, scal
         }
         v
     };
-    let slow: Vec<Value> = frames.iter().enumerate().filter(|(_, f)| f.slow()).map(|(ix, f)| frame(ix, f)).collect();
+    let limit = plan.limit.unwrap_or(SLOW_MS);
+    let slow: Vec<Value> = frames.iter().enumerate().filter(|(_, f)| f.slower_than(limit)).map(|(ix, f)| frame(ix, f)).collect();
     let slowest = frames.iter().map(|f| (f.draw + f.present).max(f.late)).fold(0., f64::max);
     let pages: Vec<&(usize, f64)> = frames.iter().flat_map(|f| &f.work.pages).collect();
     let stuck: Vec<Value> =
@@ -509,10 +518,10 @@ pub fn json(plan: &Plan, frames: &[Frame], inputs: &[Input], release: bool, scal
         "thread": plan.thread,
         "release": release,
         "scale": scale,
-        "limit_ms": SLOW_MS,
+        "limit_ms": limit,
         "focused": frames.iter().all(|f| f.focused),
         "summary": { "frames": frames.len(), "inputs": inputs.len(), "slow": slow.len(), "slowest_ms": slowest,
-            "app_slow": frames.iter().filter(|f| f.app() > SLOW_MS).count(), "app_slowest_ms": frames.iter().map(Frame::app).fold(0., f64::max), "pages": pages.len(),
+            "app_slow": frames.iter().filter(|f| f.app() > limit).count(), "app_slowest_ms": frames.iter().map(Frame::app).fold(0., f64::max), "pages": pages.len(),
             "page_events": pages.iter().map(|(e, _)| e).sum::<usize>(), "stuck": stuck.len() },
         "slow": slow,
         "stuck": stuck,

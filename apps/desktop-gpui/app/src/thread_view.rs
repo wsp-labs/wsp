@@ -1477,6 +1477,7 @@ impl Rows {
 
 impl Render for Rows {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("Rows");
         let view = self.view.clone();
         list(self.list.clone(), move |ix, window, cx| {
             view.update(cx, |view, cx| view.render_row(ix, window, cx)).unwrap_or_else(|_| div().into_any_element())
