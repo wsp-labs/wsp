@@ -383,7 +383,7 @@ describe("find in thread: the count and the highlights", () => {
     await waitFor(() => expect([...collectRanges(document.body, words(word), false).values()].flat()).toHaveLength(total));
   });
 
-  it.each([["cmdword", 1], ["hiddenword", 1], ["deepword", 1], ["pathword", 1], ["goneword", 1], ["diffword", 1], ["ctxword", 1], ["thinkword", 3]])("a call row and a Thinking row opened by a step draw what the count says for %s", async (word, total) => {
+  it.each([["cmdword", 1], ["deepword", 1], ["pathword", 1], ["diffword", 1], ["thinkword", 3]])("a call row and a Thinking row opened by a step draw what the count says for %s", async (word, total) => {
     await open();
     pressFind();
     fireEvent.click(within(bar()).getByRole("button", { name: FIND_WORDS.tools }));

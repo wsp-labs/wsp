@@ -26,6 +26,10 @@ const LANDING = [
   "packages/host/test/file-size-check.test.ts",
   "apps/web/test/design-literals.test.ts",
   "apps/web/test/design-pieces.test.ts",
+  "packages/protocol/test/license.test.ts",
+  "packages/wspx/test/release-notes.test.ts",
+  "packages/host/test/pages.test.ts",
+  "packages/host/test/verb-words.test.ts",
 ];
 
 /** The files the LAWS array names, one per line between its parentheses. */

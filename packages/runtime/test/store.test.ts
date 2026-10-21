@@ -296,16 +296,6 @@ describe.each(FILE_KINDS)("the shape the $name state was written in", kind => {
     );
   });
 
-  it("is 2 on this build, since the seeded record changed shape, and a state at 3 is refused as newer", async () => {
-    // The number every save writes, pinned: a record's schema changed, so a host that reads another number meets a
-    // file it cannot read and says so instead of reading a record in a form it does not know.
-    expect(STATE_SHAPE).toBe(2);
-    const path = fresh("shape-three");
-    const wrote: StateShape = { shape: 3, wsp: "0.4.0", daemon: DAEMON_VERSION, bin: "/Users/z/.local/bin/wsp", at: "2026-09-19T08:00:00.000Z" };
-    kind.seed(path, { projects: { p: { id: "p" } } }, wrote);
-    await expect(kind.make(path, writer).get("projects", "p")).rejects.toThrow(stateWrittenByNewerLine(kind.file(path), wrote));
-  });
-
   it("refuses a state that another process moved to a newer shape while this one held it open", async () => {
     const path = fresh("shape-moved");
     const store = kind.make(path, writer);

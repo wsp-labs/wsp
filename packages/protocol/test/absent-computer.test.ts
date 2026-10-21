@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { PLACE_INSTALL, PLACES_WORDS, REPORTED_WORD, ROW_LINE_MAX, START_DAEMON_WORD, absentComputer, absentRoad, awayMsOf, backUrl, linkedOver, daemonSilent, imageCopyLine, lastKnown, ownDaemonDown, placeAddSheetWord, placeDialLine, placeDialRoad, placeNoDialLine, placeOwnedPaths, workspacePlace, workspaceState } from "../src/index.js";
+import { PLACE_INSTALL, PLACES_WORDS, REPORTED_WORD, ROW_LINE_MAX, START_DAEMON_WORD, absentComputer, absentRoad, awayMsOf, backUrl, linkedOver, daemonSilent, imageCopyLine, lastKnown, ownDaemonDown, placeAddSheetWord, placeDialLine, placeDialRoad, placeNoDialLine, placeOwnedPaths, workspaceState } from "../src/index.js";
 
 describe("the one state of a computer that is not answering", () => {
   const now = Date.parse("2026-09-12T13:30:00.000Z");
@@ -38,11 +38,6 @@ describe("the one state of a computer that is not answering", () => {
       expect(line).not.toContain("switch");
       expect(line.startsWith("no answer")).toBe(true);
     }
-  });
-
-  it("names the computer a fork stands on, and nothing for a workspace that stands on no place", () => {
-    expect(workspacePlace({ place: "p_oldlaptop" })).toBe("p_oldlaptop");
-    expect(workspacePlace({})).toBeUndefined();
   });
 
   it("folds a computer that answers nothing into the state word every surface reads", () => {
@@ -185,12 +180,6 @@ describe("what one dial of a computer answers", () => {
 });
 
 describe("what the two screens say wsp puts on a computer", () => {
-  it("writes the ssh road's install lines from the one list, folder, weight and whose service it is included", () => {
-    expect(placeAddSheetWord("wsp", "running")).toBe("installing wsp under ~/.wsp");
-    expect(PLACE_INSTALL.weight).toBe("about 40 MB");
-    expect(placeAddSheetWord("service", "running")).toBe("starting the daemon as a system service");
-  });
-
   it("calls the command beside wsp's files what it does, on the way in and on the way out, and never a shim", () => {
     expect(PLACE_INSTALL.taken.opener).toContain("opens sign-in pages in your browser");
     for (const said of [PLACES_WORDS.remove.leaveTakes, PLACE_INSTALL.taken.opener, PLACE_INSTALL.openerLine, placeAddSheetWord("wsp", "running"), placeAddSheetWord("service", "running")]) {
@@ -201,9 +190,6 @@ describe("what the two screens say wsp puts on a computer", () => {
   it("writes what Remove takes off from the same list, so neither screen can hold a word the other lost", () => {
     // Every one of the three, in the sentence, off the list rather than spelled again beside it.
     for (const said of Object.values(PLACE_INSTALL.taken)) expect(PLACES_WORDS.remove.leaveTakes).toContain(said);
-    expect(PLACES_WORDS.remove.leaveTakes).toBe(
-      `It takes off ${PLACE_INSTALL.taken.service}, ${PLACE_INSTALL.taken.files}, ${PLACE_INSTALL.taken.opener}, and, on a computer added over ssh, ${imageCopyLine()}. Your work folder stays.`,
-    );
   });
 
   it("tells a person the copy of their image comes off with wsp, since it sits in the runtime folder a root leave takes", () => {

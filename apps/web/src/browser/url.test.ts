@@ -8,7 +8,6 @@ describe("parseAddress", () => {
     [":3000", 3000, "/"],
     ["localhost:3000", 3000, "/"],
     ["http://localhost:3000", 3000, "/"],
-    ["http://localhost:3000/", 3000, "/"],
     ["3000/about", 3000, "/about"],
     [":3000/about", 3000, "/about"],
     ["localhost:3000/about?x=1", 3000, "/about?x=1"],

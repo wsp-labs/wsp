@@ -1561,7 +1561,8 @@ describe("the tone table owns every work glyph", () => {
     expect(drawn(rows[0]!).glyph).toBe(glyph);
   });
 
-  it.each(kindDrawing)("a live row for %s draws its glyph as before", async (_name, extra, glyph) => {
+  const liveKinds = new Set(["a command", "a plain tool call with no item type", "a notice that is tool-like"]);
+  it.each(kindDrawing.filter(([name]) => liveKinds.has(name)))("a live row for %s draws its glyph as before", async (_name, extra, glyph) => {
     const live = await renderLive(workEntry("tool", { toolLifecycleStatus: "inProgress", sourceActivityKind: "tool.started", ...extra }));
     expect(drawn(live).glyph).toBe(glyph);
   });

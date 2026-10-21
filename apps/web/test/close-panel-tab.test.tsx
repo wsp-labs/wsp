@@ -14,8 +14,6 @@ import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { selectWorkspaceRightPanelState, useRightPanelStore } from "../src/rightPanelStore.js";
 import { AppShell } from "../src/shell/AppShell.js";
-import { useThreadHistory } from "../src/shell/threadHistory.js";
-import { useWorkspaceSwitcher } from "../src/shell/workspaceSwitcher.js";
 import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
 import { caps } from "./caps.js";
 import { noDaemonApi } from "./fake-daemon-api.js";
@@ -63,8 +61,6 @@ beforeEach(() => {
   clearNotices();
   useRightPanelStore.setState({ byWorkspaceId: {} });
   useTerminalDrawerStore.setState({ byWorkspaceId: {} });
-  useThreadHistory.setState({ recent: [] });
-  useWorkspaceSwitcher.getState().close();
 });
 
 afterEach(() => {

@@ -357,19 +357,6 @@ async function bootOf(page: Page): Promise<{ tokenHash: string; token?: string; 
   return page.evaluate(() => (window as unknown as { __WSP__: { tokenHash: string; token?: string; version: string } }).__WSP__);
 }
 
-interface DesktopWindow {
-  wsp: { capturePreview(workspaceId: string): Promise<void>; workspacePreview(workspaceId: string): Promise<string | undefined>; setTheme(theme: string): void };
-}
-
-function readPreview(page: Page, workspaceId: string): Promise<string | undefined> {
-  return page.evaluate(id => (window as unknown as DesktopWindow).wsp.workspacePreview(id), workspaceId);
-}
-
-/** A thread's picture as the page files it, under the theme drawn now. */
-function readThreadPicture(page: Page, threadId: string): Promise<string | undefined> {
-  return page.evaluate(id => (window as unknown as DesktopWindow).wsp.workspacePreview(`${document.documentElement.dataset["theme"] ?? ""}/${id}`), threadId);
-}
-
 /** A page in both themes: the shell's theme source is flipped, since the onboarding page follows the system's. */
 async function photograph(app: ElectronApplication, page: Page, name: string): Promise<string[]> {
   mkdirSync(SHOTS, { recursive: true });
@@ -683,60 +670,6 @@ describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
     });
     await win.reload();
     await vi.waitFor(async () => expect(await source()).toBe("system"));
-  });
-
-  it("photographs its own page for a workspace and hands the picture back to the page", async () => {
-    launched = await launch({ SOLARI_API_KEY: FAKE_SOLARI }, seedGolden);
-    const win = await windowAt(launched.app, APP_URL);
-    await bootOf(win);
-    expect(await readPreview(win, "ws_a")).toBeUndefined();
-    await win.evaluate(id => (window as unknown as DesktopWindow).wsp.capturePreview(id), "ws_a");
-    expect(await readPreview(win, "ws_a")).toMatch(/^data:image\/png;base64,\w/);
-    expect(await readPreview(win, "ws_b")).toBeUndefined();
-  });
-
-  it("puts the picture of the thread the person left on that thread's switcher card", async () => {
-    // The switcher holds one card per thread, so two turns stay working in the seeded project, live in the sidebar
-    // for the walk to land on.
-    const agents = mkdtempSync(join(tmpdir(), "wsp-desktop-smoke-agents-"));
-    const pidFile = join(agents, "claude.pids");
-    claudeStandIn(join(agents, "bin"), join(agents, "gate"), pidFile);
-    const env = { PATH: `${join(agents, "bin")}:${LAUNCHD_PATH.join(":")}` };
-    try {
-      launched = await launch(env, seedLocalWorkspace);
-      const { home } = launched;
-      const win = await windowAt(launched.app, APP_URL);
-      await openedOnSeeded(win);
-      for (const task of ["fix the cart", "fix the login"]) {
-        const ran = spawnSync(shimPath(home), ["run", LOCAL_WORKSPACE.name, "--agent", "claude", "--detach", task], { encoding: "utf8", env: { ...process.env, ...env, HOME: home, WSP_HOME: home }, cwd: join(home, "cwd"), timeout: 30_000 });
-        expect(ran.status, `${ran.stdout}${ran.stderr}`).toBe(0);
-      }
-      const rows = win.locator("[data-row-id^='thread:']");
-      await vi.waitFor(async () => expect(await rows.count()).toBe(2), { timeout: 30_000, interval: 100 });
-      const [opened] = await rows.evaluateAll(found => found.map(r => r.getAttribute("data-row-id")!.slice("thread:".length)));
-      await win.click(`[data-row-id='${threadRowId(opened!)}']`);
-
-      // A tap: the chord's step and its release, which is what asks for a picture of the thread being left. The
-      // capture is an ipc round trip the tap only started, and the overlay reads the pictures once, when it opens.
-      await win.keyboard.down("Control");
-      await win.keyboard.press("Tab");
-      await win.keyboard.up("Control");
-      await win.waitForSelector("[data-workspace-switcher]", { state: "detached" });
-      await vi.waitFor(async () => expect(await readThreadPicture(win, opened!)).toMatch(/^data:image\/png;base64,\w/), { timeout: 30_000, interval: 100 });
-
-      await win.keyboard.down("Control");
-      await win.keyboard.press("Tab");
-      await win.waitForSelector("[data-workspace-switcher]");
-      const shot = win.locator(`[data-thread-card='${opened}'] [data-card-preview] img`);
-      await shot.waitFor();
-      expect(await shot.getAttribute("src")).toMatch(/^data:image\/png;base64,\w/);
-      // The picture decodes off the main thread; its size is a fact only once it has.
-      expect(await shot.evaluate((img: HTMLImageElement) => img.decode().then(() => img.naturalWidth))).toBeGreaterThan(0);
-      await win.keyboard.up("Control");
-    } finally {
-      for (const pid of existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim().split("\n").map(Number) : []) if (alive(pid)) process.kill(pid, "SIGKILL");
-      rmSync(agents, { recursive: true, force: true });
-    }
   });
 
   it("first launch with no key: the welcome, then the agents found here ticked, Open wsp gives them the tools and opens the app on the first run, whose Add a project holds the door to another computer, and the shim runs", async () => {

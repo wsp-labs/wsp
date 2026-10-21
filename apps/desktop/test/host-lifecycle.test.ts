@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stubBackend } from "../../../packages/host/test/stub-backend.js";
 import { copyingFake, fakeDaemonStart } from "../../../packages/host/test/verbs-fixture.js";
 import { hostFeed, type FeedState } from "../src/host-feed.js";
+import { installShim, shimText } from "../src/shim.js";
 import { KeptOtherRelease, StartFailed, ensureService, firstLaunch, homeOf, hostTokenMatches, loginStart, openHost, openHostReady, earlierHostCheck, oneAtATime, servesAgainNotice, runningHere, setLoginStart, statePathIn, stopWsp, userDataIn, workingHere, type HostSession, type OpenHostOptions, type ReplacePrompt, type ServiceRoad } from "../src/host-lifecycle.js";
 
 const PAGE = `<!doctype html>
@@ -1067,6 +1068,119 @@ describe("openHost", () => {
     } finally {
       await old.stop();
     }
+  });
+
+  /** The shim a launch writes, and the one an earlier build left without the V8 flag; the launch's answer to whether
+   * it rewrote the file is taken once, as the app takes it. */
+  const SHIM_TARGET = { execPath: "/Applications/wsp.app/Contents/MacOS/wsp", script: "/Applications/wsp.app/Contents/Resources/app/main/cli.mjs" };
+  const EARLIER_SHIM = '#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec /Applications/wsp.app/Contents/MacOS/wsp /Applications/wsp.app/Contents/Resources/app/main/cli.mjs "$@"\n';
+  function launchWrites(onDisk: string): () => boolean {
+    mkdirSync(dirname(shim), { recursive: true });
+    writeFileSync(shim, onDisk);
+    let stale = installShim(shim, shimText(SHIM_TARGET)) === "written";
+    return () => {
+      const was = stale;
+      stale = false;
+      return was;
+    };
+  }
+
+  it("a launch that rewrote the shim restarts the service's host of this release once, so it runs the new line", async () => {
+    const before = await olderHost(statePath, "service", VERSION);
+    olderUnit([shim]);
+    let restarts = 0;
+    const { dial } = hostAnswering([], [], () => void (restarts++, before.stop().then(() => launchd.load())));
+    try {
+      const staleShim = launchWrites(EARLIER_SHIM);
+      const session = await open({ dial, staleShim });
+      expect(readFileSync(shim, "utf8")).toContain("--no-memory-pool");
+      expect(restarts).toBe(1);
+      expect(before.alive()).toBe(false);
+      expect(session.url).toBe(`http://127.0.0.1:${launchd.host()!.port}`);
+      expect((await open({ dial, staleShim })).url).toBe(session.url);
+      expect(restarts).toBe(1);
+    } finally {
+      await before.stop();
+    }
+  });
+
+  it("a launch that found the shim as it would write it restarts nothing and attaches to the host serving", async () => {
+    const serving = await olderHost(statePath, "service", VERSION);
+    olderUnit([shim]);
+    let restarts = 0;
+    try {
+      const session = await open({ dial: hostAnswering([], [], () => void restarts++).dial, staleShim: launchWrites(shimText(SHIM_TARGET)) });
+      expect(restarts).toBe(0);
+      expect(serving.alive()).toBe(true);
+      expect(launchd.ran).toEqual([]);
+      expect(session.url).toBe(`http://127.0.0.1:${serving.port}`);
+    } finally {
+      await serving.stop();
+    }
+  });
+
+  it("a launch that rewrote the shim leaves a host of this release the service did not start serving, and restarts nothing", async () => {
+    const serving = await olderHost(statePath, "verb", VERSION);
+    olderUnit([shim]);
+    let restarts = 0;
+    try {
+      const session = await open({ dial: hostAnswering([], [], () => void restarts++).dial, staleShim: launchWrites(EARLIER_SHIM) });
+      expect(restarts).toBe(0);
+      expect(serving.alive()).toBe(true);
+      expect(launchd.ran).toEqual([]);
+      expect(session.url).toBe(`http://127.0.0.1:${serving.port}`);
+    } finally {
+      await serving.stop();
+    }
+  });
+
+  it("a launch that rewrote the shim leaves the service's host of a later release serving, and restarts nothing", async () => {
+    const later = await olderHost(statePath, "service", "99.0.0");
+    olderUnit([shim]);
+    let restarts = 0;
+    try {
+      const session = await open({ dial: hostAnswering([], [], () => void restarts++).dial, staleShim: launchWrites(EARLIER_SHIM) });
+      expect(restarts).toBe(0);
+      expect(later.alive()).toBe(true);
+      expect(launchd.ran).toEqual([]);
+      expect(session.url).toBe(`http://127.0.0.1:${later.port}`);
+    } finally {
+      await later.stop();
+    }
+  });
+
+  it("a launch that rewrote the shim while the service's host held the lock and had not yet answered restarts that host once it answers", async () => {
+    const probe = createTcpServer();
+    const port = await listen(probe);
+    await closeServer(probe);
+    olderUnit([shim]);
+    writeFileSync(join(home, "host.lock"), JSON.stringify({ pid: process.pid, port, startedAt: new Date().toISOString(), startedBy: "service" }));
+    let before: Awaited<ReturnType<typeof olderHost>> | undefined;
+    setTimeout(() => void olderHost(statePath, "service", VERSION).then(h => (before = h)), 600);
+    let restarts = 0;
+    const { dial } = hostAnswering([], [], () => void (restarts++, before?.stop().then(() => launchd.load())));
+    try {
+      const ready = await openHostReady({ statePath, home, shim, io: quietIO(), ask: noAsk, service: { ...launchd.road, waitMs: 2_000 }, dial, staleShim: launchWrites(EARLIER_SHIM) }, dial);
+      expect(restarts).toBe(1);
+      expect(ready.session.url).toBe(`http://127.0.0.1:${launchd.host()!.port}`);
+    } finally {
+      await before?.stop();
+    }
+  });
+
+  it("a launch that rewrote the shim while the service's host was still starting, with no lock taken yet, starts the unit again once", async () => {
+    olderUnit([shim]);
+    const run = launchd.road.run;
+    let starting = true;
+    launchd.road.run = async (argv, waitMs) => {
+      if (!starting || (argv[1] !== "print" && argv[1] !== "bootout")) return run(argv, waitMs);
+      launchd.ran.push([...argv]);
+      if (argv[1] === "bootout") starting = false;
+      return { code: 0, output: "state = running" };
+    };
+    await open({ staleShim: launchWrites(EARLIER_SHIM) });
+    expect(launchd.ran.map(argv => argv[1]).filter(verb => verb === "bootout" || verb === "bootstrap")).toEqual(["bootout", "bootstrap"]);
+    expect(unitWords()).toEqual([shim, "up", "--state", statePath, ...FLAGS]);
   });
 
   it("on systemd, an older service set not to start at login while it runs is stopped before its unit is written again, and stays off at login", async () => {

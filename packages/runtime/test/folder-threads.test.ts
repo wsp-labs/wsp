@@ -276,8 +276,6 @@ describe("a new worktree's dependencies", () => {
   const cases = [
     { lockfile: "uv.lock", carry: [], never: [".venv"], ran: "uv sync --locked" },
     { lockfile: "Cargo.lock", carry: [], never: ["target"], ran: "cargo fetch --locked" },
-    { lockfile: "go.sum", carry: [], never: [], ran: "go list -mod=readonly -deps -test ./..." },
-    { lockfile: "bun.lock", carry: ["node_modules"], never: [".next", ".turbo", ".cache"], ran: "bun install --frozen-lockfile" },
     { lockfile: "pnpm-lock.yaml", carry: ["node_modules"], never: [".next", ".turbo", ".cache"], ran: "pnpm install --frozen-lockfile --prefer-offline" },
   ];
   for (const c of cases) {

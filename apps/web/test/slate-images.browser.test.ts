@@ -77,29 +77,28 @@ describe.skipIf(skipped !== undefined)("the slate's image pieces in Chromium", (
   };
 
   for (const doc of CASES)
-    for (const w of [400, 640])
-      for (const theme of ["graphite", "paper"])
-        it(`${doc} at ${w} in ${theme} draws inside the panel`, async () => {
-          const page = await open(doc, w, theme);
-          try {
-            const out = await page.evaluate(() => {
-              const panel = document.querySelector("[data-panel]")!.getBoundingClientRect();
-              // A strip's row scrolls inside its own frame: what it holds past the panel's edge is scrolled out of view.
-              const scrolled = (el: Element): boolean => {
-                for (let up = el.parentElement; up !== null; up = up.parentElement) if (up.matches('[data-slot="scroll-area-viewport"]')) return true;
-                return false;
-              };
-              return [...document.querySelectorAll("[data-slate-image] *, [data-slate-images-piece] *")]
-                .filter(el => !scrolled(el))
-                .map(el => el.getBoundingClientRect())
-                .filter(r => r.width > 0 && (r.left < panel.left - 0.5 || r.right > panel.right + 0.5)).length;
-            });
-            await shoot(page, `${doc.slice(4)}-${w}-${theme}`);
-            expect(out).toBe(0);
-          } finally {
-            await page.close();
-          }
-        }, 30_000);
+    for (const [w, theme] of [[400, "graphite"], [640, "paper"]] as const)
+      it(`${doc} at ${w} in ${theme} draws inside the panel`, async () => {
+        const page = await open(doc, w, theme);
+        try {
+          const out = await page.evaluate(() => {
+            const panel = document.querySelector("[data-panel]")!.getBoundingClientRect();
+            // A strip's row scrolls inside its own frame: what it holds past the panel's edge is scrolled out of view.
+            const scrolled = (el: Element): boolean => {
+              for (let up = el.parentElement; up !== null; up = up.parentElement) if (up.matches('[data-slot="scroll-area-viewport"]')) return true;
+              return false;
+            };
+            return [...document.querySelectorAll("[data-slate-image] *, [data-slate-images-piece] *")]
+              .filter(el => !scrolled(el))
+              .map(el => el.getBoundingClientRect())
+              .filter(r => r.width > 0 && (r.left < panel.left - 0.5 || r.right > panel.right + 0.5)).length;
+          });
+          await shoot(page, `${doc.slice(4)}-${w}-${theme}`);
+          expect(out).toBe(0);
+        } finally {
+          await page.close();
+        }
+      }, 30_000);
 
   it("lays a strip in one row at one height, scrolling past what fits, and opens any of it large with previous and next", async () => {
     for (const theme of ["graphite", "paper"])

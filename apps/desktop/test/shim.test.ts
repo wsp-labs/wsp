@@ -4,12 +4,20 @@
 // where the MCP install's one constant says, rewritten when the app moved.
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { VERSION, daemonBinaryHere, shimPath } from "@wsp/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeStub } from "../../../packages/protocol/test/stub-script.js";
 import { installShim, keepAppImage, replaceOlderOnPath, shimText } from "../src/shim.js";
+
+/** The Electron the app ships, so a V8 that drops a flag the shim passes fails here and not at a person's launch. */
+const here = createRequire(import.meta.url);
+// A fresh install fetches the binary on this require, caching the zip under HOME, which the suite's home check fails.
+process.env["electron_config_cache"] ??= join(tmpdir(), "electron");
+const ELECTRON = here("electron") as string;
+const PRINT_LINE = "console.log(JSON.stringify([process.env.ELECTRON_RUN_AS_NODE, process.execArgv, ...process.argv.slice(2)]));\n";
 
 describe("the wsp shim", () => {
   let home: string;
@@ -18,33 +26,43 @@ describe("the wsp shim", () => {
   });
   afterEach(() => rmSync(home, { recursive: true, force: true }));
 
-  it("runs the app's binary as node on the bundled command with every argument, paths with spaces quoted", () => {
+  it("runs the app's binary as node with V8's page pool off on the bundled command with every argument, paths with spaces quoted", () => {
     const text = shimText({ execPath: "/Applications/My Tools/wsp.app/Contents/MacOS/wsp", script: "/Applications/My Tools/wsp.app/Contents/Resources/app/main/cli.mjs" });
     expect(text.startsWith("#!/bin/sh\n")).toBe(true);
-    expect(text).toContain(`ELECTRON_RUN_AS_NODE=1 exec '/Applications/My Tools/wsp.app/Contents/MacOS/wsp' '/Applications/My Tools/wsp.app/Contents/Resources/app/main/cli.mjs' "$@"`);
-    // Run for real with node standing in for the app's binary: the script the shim names gets the arguments.
-    writeFileSync(join(home, "cli.mjs"), 'console.log(JSON.stringify([process.env.ELECTRON_RUN_AS_NODE, ...process.argv.slice(2)]));\n');
+    expect(text).toContain(`ELECTRON_RUN_AS_NODE=1 exec '/Applications/My Tools/wsp.app/Contents/MacOS/wsp' '--no-memory-pool' '/Applications/My Tools/wsp.app/Contents/Resources/app/main/cli.mjs' "$@"`);
+    // Run for real on the app's Electron: it starts with the flag, and the script the shim names gets the arguments.
+    writeFileSync(join(home, "cli.mjs"), PRINT_LINE);
     const path = shimPath(join(home, ".wsp"));
-    expect(installShim(path, shimText({ execPath: process.execPath, script: join(home, "cli.mjs") }))).toBe("written");
+    expect(installShim(path, shimText({ execPath: ELECTRON, script: join(home, "cli.mjs") }))).toBe("written");
     const ran = spawnSync(path, ["mcp", "install", "--agent", "a b"], { encoding: "utf8" });
-    expect(ran.status).toBe(0);
-    expect(JSON.parse(ran.stdout)).toEqual(["1", "mcp", "install", "--agent", "a b"]);
+    expect(ran.status, ran.stderr).toBe(0);
+    expect(JSON.parse(ran.stdout)).toEqual(["1", ["--no-memory-pool"], "mcp", "install", "--agent", "a b"]);
+    // The host's own program starts on it too.
+    installShim(path, shimText({ execPath: ELECTRON, script: join(dirname(here.resolve("@wsp/host/package.json")), "dist", "bin.js") }));
+    const version = spawnSync(path, ["--version"], { encoding: "utf8" });
+    expect(version.status, version.stderr).toBe(0);
+    expect(version.stdout).toBe(`wsp ${VERSION}\n`);
+  });
+
+  it("ships the Electron the page pool flag was measured on", () => {
+    const pinned = (here("../package.json") as { devDependencies: Record<string, string> }).devDependencies["electron"];
+    expect(pinned?.split(".")[0], "wsp-map#2210 item 3: the app moved off Electron 43; re-measure the host's footprint on it, and swap the shim's --no-memory-pool for --memory-pool-timeout=0 where its V8 carries 2444c109f4f8").toBe("43");
   });
 
   it("puts the daemon's forwarder in front of the bundled command where the bundle carries one, and every line still reaches that command whole", () => {
     const text = shimText({ execPath: "/Applications/My Tools/wsp.app/Contents/MacOS/wsp", script: "/Applications/My Tools/wsp.app/Contents/Resources/app/main/cli.mjs", daemon: "/Applications/My Tools/wsp.app/Contents/Resources/app/assets/daemon/aarch64-apple-darwin/wsp-daemon" });
     expect(text).toContain(
-      `ELECTRON_RUN_AS_NODE=1 exec '/Applications/My Tools/wsp.app/Contents/Resources/app/assets/daemon/aarch64-apple-darwin/wsp-daemon' forward --wsp-argv '/Applications/My Tools/wsp.app/Contents/MacOS/wsp' --wsp-argv '/Applications/My Tools/wsp.app/Contents/Resources/app/main/cli.mjs' -- "$@"`,
+      `ELECTRON_RUN_AS_NODE=1 exec '/Applications/My Tools/wsp.app/Contents/Resources/app/assets/daemon/aarch64-apple-darwin/wsp-daemon' forward --wsp-argv '/Applications/My Tools/wsp.app/Contents/MacOS/wsp' --wsp-argv '--no-memory-pool' --wsp-argv '/Applications/My Tools/wsp.app/Contents/Resources/app/main/cli.mjs' -- "$@"`,
     );
-    // Run for real: the built forwarder, with node standing in for the app's binary. A line that is not a tool
-    // server naming where its tools go reaches the command whole, once.
-    writeFileSync(join(home, "cli.mjs"), "console.log(JSON.stringify([process.env.ELECTRON_RUN_AS_NODE, ...process.argv.slice(2)]));\n");
+    // Run for real: the built forwarder in front of the app's Electron. A line that is not a tool server naming where
+    // its tools go reaches the command whole, once, on an Electron started with the flag.
+    writeFileSync(join(home, "cli.mjs"), PRINT_LINE);
     const path = shimPath(join(home, ".wsp"));
-    installShim(path, shimText({ execPath: process.execPath, script: join(home, "cli.mjs"), daemon: daemonBinaryHere() }));
+    installShim(path, shimText({ execPath: ELECTRON, script: join(home, "cli.mjs"), daemon: daemonBinaryHere() }));
     for (const line of [["threads", "--json", "a b"], ["mcp", "install", "--agent", "a b"]]) {
       const ran = spawnSync(path, line, { encoding: "utf8" });
       expect(ran.status, ran.stderr).toBe(0);
-      expect(ran.stdout.trim().split("\n").map(l => JSON.parse(l) as unknown)).toEqual([["1", ...line]]);
+      expect(ran.stdout.trim().split("\n").map(l => JSON.parse(l) as unknown)).toEqual([["1", ["--no-memory-pool"], ...line]]);
     }
   });
 
@@ -55,7 +73,7 @@ describe("the wsp shim", () => {
     const daemon = join(mount, "resources", "app", "assets", "daemon", "aarch64-unknown-linux-musl", "wsp-daemon");
     mkdirSync(main, { recursive: true });
     mkdirSync(join(daemon, ".."), { recursive: true });
-    writeStub(join(mount, "wsp"), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} "$@"\n`);
+    writeStub(join(mount, "wsp"), `#!/bin/sh\nexec ${JSON.stringify(ELECTRON)} "$@"\n`);
     writeFileSync(join(main, "cli.mjs"), "console.log(JSON.stringify([process.env.ELECTRON_RUN_AS_NODE, ...process.argv.slice(2)]));\n");
     writeStub(daemon, "#!/bin/sh\n");
     const image = join(home, "wsp.AppImage");
@@ -129,7 +147,7 @@ describe("the wsp shim", () => {
     const wspHome = join(home, ".wsp");
     writeFileSync(join(home, "cli.mjs"), `console.log("wsp ${VERSION}");\n`);
     const shim = shimPath(wspHome);
-    installShim(shim, shimText({ execPath: process.execPath, script: join(home, "cli.mjs") }));
+    installShim(shim, shimText({ execPath: ELECTRON, script: join(home, "cli.mjs") }));
     // The owner's ~/.local/bin/wsp, and a later one.
     const older = npmGlobal(join(home, ".local"), "0.3.0");
     const later = npmGlobal(join(home, "npm-later"), "99.0.0");
@@ -179,7 +197,7 @@ describe("the wsp shim", () => {
   it("touches no wsp on PATH from a home other than the person's own, as a test or a lab runs on", () => {
     const older = npmGlobal(join(home, ".local"), "0.3.0");
     const lab = join(home, "lab-home");
-    installShim(shimPath(lab), shimText({ execPath: process.execPath, script: join(home, "cli.mjs") }));
+    installShim(shimPath(lab), shimText({ execPath: ELECTRON, script: join(home, "cli.mjs") }));
     expect(replaceOlderOnPath(lab, join(home, ".local", "bin"), VERSION, join(home, ".wsp"))).toEqual([]);
     expect(readlinkSync(older)).toBe(join("..", "lib", "node_modules", "@wsp-labs", "wsp", "dist", "bin.js"));
   });
@@ -189,7 +207,7 @@ describe("the wsp shim", () => {
     const temp = join(home, "temp-home");
     vi.stubEnv("HOME", temp);
     try {
-      installShim(shimPath(join(temp, ".wsp")), shimText({ execPath: process.execPath, script: join(home, "cli.mjs") }));
+      installShim(shimPath(join(temp, ".wsp")), shimText({ execPath: ELECTRON, script: join(home, "cli.mjs") }));
       expect(replaceOlderOnPath(join(temp, ".wsp"), join(home, "npm", "bin"), VERSION)).toEqual([]);
       expect(readlinkSync(older)).toBe(join("..", "lib", "node_modules", "@wsp-labs", "wsp", "dist", "bin.js"));
     } finally {

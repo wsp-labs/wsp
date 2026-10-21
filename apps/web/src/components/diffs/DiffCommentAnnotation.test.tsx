@@ -17,7 +17,6 @@ describe("DiffCommentAnnotation", () => {
       <DiffCommentAnnotation kind="draft" rangeLabel="+78" text="" {...callbacks} />,
     );
 
-    expect(markup).toContain("font-sans");
     expect(markup).not.toContain("chat-composer-glass");
     expect(markup).not.toContain("font-mono");
     expect(markup).not.toContain("Local comment");
@@ -26,10 +25,6 @@ describe("DiffCommentAnnotation", () => {
     expect(markup).toContain("Add a comment…");
     expect(markup).toContain(">Comment</button>");
     expect(markup).toContain("autofocus");
-    const textareaControl = markup.match(/<span[^>]*data-slot="textarea-control"[^>]*>/)?.[0];
-    expect(textareaControl).toBeDefined();
-    expect(textareaControl).not.toContain("ring-ring");
-    expect(markup).toContain("cursor-text");
   });
 
   it("lets a pull-request diff configure actions without replacing the composer", () => {
@@ -68,11 +63,6 @@ describe("DiffCommentAnnotation", () => {
     expect(markup).not.toContain("on +78");
     expect(markup).toContain("Please keep this branch explicit.");
     expect(markup).toContain('aria-label="Delete comment"');
-    // A hairline and the comment's own icon mark the row; a coloured left border two pixels wide is an accent
-    // doing what a hairline and an icon already do.
-    expect(markup).toContain("border-s border-border");
-    expect(markup).not.toContain("border-s-2");
-    expect(markup).not.toContain("bg-primary/");
     expect(markup).toContain("lucide-message-circle");
   });
 

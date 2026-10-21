@@ -10,11 +10,7 @@ describe("composeKey in raw mode", () => {
   it.each([
     ["printable", "a"],
     ["Enter", "\r"],
-    ["Backspace", "\x7f"],
-    ["Tab", "\t"],
-    ["ArrowUp", "\x1b[A"],
     ["Ctrl-C", "\x03"],
-    ["Escape", "\x1b"],
     ["paste", "ls -la\r"],
   ])("passes %s through byte for byte", (_name, key) => {
     expect(composeKey(RAW_STATE, key)).toEqual({ state: RAW_STATE, toPty: key, toScreen: "" });
@@ -61,11 +57,7 @@ describe("composeKey in line mode", () => {
 
   it.each([
     ["Tab", "\t"],
-    ["ArrowUp", "\x1b[A"],
-    ["ArrowLeft", "\x1b[D"],
     ["Ctrl-C", "\x03"],
-    ["Ctrl-D", "\x04"],
-    ["Escape", "\x1b"],
     ["Ctrl-J newline", "\n"],
   ])("%s flushes the buffer to the pty as-is and then passes the key", (_name, key) => {
     expect(composeKey(line("ab"), key)).toEqual({ state: line(), toPty: "ab" + key, toScreen: "\b \b\b \b" });

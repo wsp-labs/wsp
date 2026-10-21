@@ -4,7 +4,7 @@
 // for test-files.sh, holds the notes folder to three files: main adding one and the branch adding one each pass alone.
 // The full run then runs the test files the change reaches through imports, as the real affected-tests.mjs names them.
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,6 +63,7 @@ function clone(law = LAW, files: Record<string, string> = {}): { origin: string;
   mkdirSync(join(origin, "scripts"));
   copyFileSync(SCRIPT, join(origin, "scripts/pre-review.sh"));
   writeStub(join(origin, "scripts/test-files.sh"), law);
+  writeStub(join(origin, "scripts/heavy.sh"), '#!/bin/sh\nexec "$@"\n');
   write(origin, { ".gitignore": "node_modules/\n", "notes/one.md": "one\n", "notes/shared.md": "as it was\n", ...files });
   commit(origin, {}, "base");
   execFileSync("git", ["clone", "-q", origin, work]);
@@ -205,5 +206,154 @@ describe("the test files the change reaches", () => {
     expect(run.status, run.out).toBe(1);
     expect(run.out).toContain("FAIL  the affected tests: scripts/affected-tests.mjs failed, so no affected file ran: no workspace file");
     expect(run.ran.filter(files => !files.startsWith("--tools "))).toEqual([]);
+  });
+});
+
+const VITEST = fileURLToPath(new URL("../../../node_modules/vitest/vitest.mjs", import.meta.url));
+
+/** Each check names the folder it was handed and fails on one holding a file named broken, as tsc words it. */
+const TSC = `#!/bin/sh
+printf 'tsc %s\\n' "$*" >>"$LAW_RUNS"
+for a in "$@"; do [ "$prev" = -p ] && dir=$a; prev=$a; done
+[ -f "$dir/broken" ] || exit 0
+echo "$dir/src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'."
+exit 2
+`;
+
+/** a at the bottom, b and the host declaring it, c declaring nothing, each but the host with its own tsconfig. */
+const TYPED = {
+  ...PACKAGE,
+  "packages/a/tsconfig.json": "{}\n",
+  "packages/b/package.json": JSON.stringify({ name: "@t/b", dependencies: { "@t/a": "workspace:*" } }),
+  "packages/b/tsconfig.json": "{}\n",
+  "packages/b/src/index.ts": 'export { thing } from "@t/a";\n',
+  "packages/c/package.json": JSON.stringify({ name: "@t/c" }),
+  "packages/c/tsconfig.json": "{}\n",
+  "packages/c/src/index.ts": "export const c = 1;\n",
+  "packages/host/package.json": JSON.stringify({ name: "@t/host", dependencies: { "@t/a": "workspace:*" } }),
+  "packages/host/test/host.test.ts": "\n",
+};
+
+function typedClone(files: Record<string, string> = {}): { origin: string; work: string; runs: string } {
+  const made = clone(RECORD, { ...TYPED, ...files });
+  mkdirSync(join(made.work, "node_modules/.bin"), { recursive: true });
+  writeStub(join(made.work, "node_modules/.bin/tsc"), TSC);
+  return made;
+}
+
+describe("--changed, a builder's gate", () => {
+  it("typechecks the package the change touches and every package declaring it, each from its own cache", () => {
+    const { work, runs } = typedClone();
+    commit(work, { "packages/a/src/thing.ts": "export const thing = 2;\n" }, "feature");
+
+    const run = laws(work, runs, ["--changed"]);
+    expect(run.status, run.out).toBe(0);
+    expect(run.out).toContain("PASS  the typecheck of packages/a packages/b");
+    const cache = join(realpathSync(work), "node_modules/.cache/pre-review-tsc");
+    expect(run.ran.filter(line => line.startsWith("tsc "))).toEqual([
+      `tsc --noEmit -p packages/a --incremental --tsBuildInfoFile ${cache}/packages-a.tsbuildinfo`,
+      `tsc --noEmit -p packages/b --incremental --tsBuildInfoFile ${cache}/packages-b.tsbuildinfo`,
+    ]);
+    const tests = run.ran.filter(line => !line.startsWith("tsc "));
+    expect(tests).toHaveLength(1);
+    expect(tests[0]).toMatch(/^--tools packages\/host\/test\/words\.test\.ts .* packages\/a\/test\/thing\.test\.ts$/);
+    expect(tests[0]).toContain(" packages/host/test/contract.test.ts ");
+    expect(run.out).toContain("PASS  the laws, the touched tests (0) and the affected tests (1), in one run: ");
+
+    const whole = laws(work, runs, []);
+    expect(whole.out).not.toContain("the typecheck");
+    expect(whole.ran.filter(line => line.startsWith("tsc "))).toEqual([]);
+  });
+
+  it("leaves out the host's contract laws and the tool record when the change reaches no test of the host", () => {
+    const { work, runs } = typedClone();
+    commit(work, { "packages/c/src/index.ts": "export const c = 2;\n" }, "feature");
+
+    const run = laws(work, runs, ["--changed"]);
+    expect(run.status, run.out).toBe(0);
+    expect(run.out).toContain("SKIP  the parity, skill, contract and tool record tests: the change reaches no test of packages/host");
+    const tests = run.ran.filter(line => !line.startsWith("tsc "));
+    expect(tests).toHaveLength(1);
+    expect(tests[0]).toMatch(/^packages\/host\/test\/words\.test\.ts /);
+    expect(tests[0]!.split(" ").filter(f => /^packages\/host\/test\/(parity|skill|contract)\.test\.ts$/.test(f))).toEqual([]);
+  });
+
+  it("keeps a host law the branch changed, though the change reaches no other test of the host", () => {
+    const { work, runs } = typedClone();
+    commit(work, { "packages/host/test/parity.test.ts": "\n" }, "feature");
+
+    const run = laws(work, runs, ["--changed"]);
+    expect(run.out).not.toContain("SKIP  the parity");
+    expect(run.ran.filter(line => !line.startsWith("tsc "))[0]).toMatch(/^--tools .* packages\/host\/test\/parity\.test\.ts /);
+  });
+
+  it("runs the laws on their own when main has moved, since they judge the merge and the other tests this folder", () => {
+    const { origin, work, runs } = typedClone();
+    commit(work, { "packages/a/src/thing.ts": "export const thing = 2;\n" }, "feature");
+    commit(origin, { "notes/three.md": "three\n" }, "main moves");
+
+    const run = laws(work, runs, ["--changed"]);
+    expect(run.out).toContain("PASS  the laws: ");
+    expect(run.out).toContain("PASS  the affected tests, files affected-tests.mjs names: 1; 1 passed (1)");
+    expect(run.ran.filter(line => !line.startsWith("tsc ") && !line.startsWith("--tools "))).toEqual(["packages/a/test/thing.test.ts"]);
+  });
+
+  it("fails on a package declaring the changed one that no longer typechecks, with tsc's words", () => {
+    const { work, runs } = typedClone({ "packages/b/broken": "\n" });
+    commit(work, { "packages/a/src/thing.ts": 'export const thing = "two";\n' }, "feature");
+
+    const run = laws(work, runs, ["--changed"]);
+    expect(run.status, run.out).toBe(1);
+    expect(run.out).toContain("FAIL  the typecheck of packages/b: packages/b/src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.");
+  });
+
+  it("refuses two runs at once", () => {
+    const { work, runs } = typedClone();
+    const run = laws(work, runs, ["--laws", "--review"]);
+    expect(run.status).toBe(2);
+    expect(run.out).toContain("refused: --laws and --review are two runs; pick one");
+  });
+});
+
+const CASE = (value: string): string => `import { expect, it } from "vitest";\nimport { thing } from "../src/thing.js";\nit("is ${value}", () => expect(thing).toBe(${value}));\n`;
+
+/** A clone whose vitest is the real one, run without pnpm as the red proof runs it. */
+function reviewClone(files: Record<string, string> = {}): { work: string; runs: string } {
+  const made = typedClone({ "packages/a/test/thing.test.ts": CASE("1"), ...files });
+  writeStub(join(made.work, "node_modules/.bin/vitest"), `#!/bin/sh\nexec "${process.execPath}" "${VITEST}" "$@"\n`);
+  return made;
+}
+
+describe("--review, a reviewer's run", () => {
+  it("runs only the changed test files, on the branch and then on the merge-base's sources, and no law", () => {
+    const { work, runs } = reviewClone();
+    commit(work, { "packages/a/src/thing.ts": "export const thing = 2;\n", "packages/a/test/thing.test.ts": CASE("2"), "packages/a/test/kept.test.ts": 'import { it } from "vitest";\nit("holds", () => {});\n' }, "feature");
+
+    const run = laws(work, runs, ["--review"]);
+    expect(run.status, run.out).toBe(0);
+    expect(run.out).toContain("PASS  the changed tests: 2 passed (2)");
+    expect(run.out).toMatch(/^ {2}red {4}packages\/a\/test\/thing\.test\.ts: 1 of 1 red: /m);
+    expect(run.out).toContain("  green  packages/a/test/kept.test.ts: passes on the base, so it shows nothing this change fixed");
+    expect(run.out).not.toMatch(/the laws|the size check|affected|touched|one commit ahead|typecheck/);
+    expect(run.ran).toEqual([]);
+  });
+
+  it("runs a changed test that sits beside its source on the merge-base as the branch has it", () => {
+    const beside = (value: string): string => CASE(value).replace("../src/thing.js", "./thing.js");
+    const { work, runs } = reviewClone({ "packages/a/src/thing.test.ts": beside("1") });
+    commit(work, { "packages/a/src/thing.ts": "export const thing = 2;\n", "packages/a/src/thing.test.ts": beside("2") }, "feature");
+
+    const run = laws(work, runs, ["--review"]);
+    expect(run.status, run.out).toBe(0);
+    expect(run.out).toMatch(/^ {2}red {4}packages\/a\/src\/thing\.test\.ts: 1 of 1 red: /m);
+  });
+
+  it("fails when a changed test file fails on the branch", () => {
+    const { work, runs } = reviewClone();
+    commit(work, { "packages/a/test/thing.test.ts": CASE("3") }, "feature");
+
+    const run = laws(work, runs, ["--review"]);
+    expect(run.status, run.out).toBe(1);
+    expect(run.out).toContain("FAIL  the changed tests: packages/a/test/thing.test.ts > is 3");
   });
 });
