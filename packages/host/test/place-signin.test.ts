@@ -11,8 +11,6 @@ import { execsBeside, fakePtyLink, type FakePty } from "./fake-pty-link.js";
 import type { HostClient } from "../src/verbs.js";
 import type { SignInLine } from "@wsp/protocol";
 
-const tick = (): Promise<void> => new Promise(r => setTimeout(r, 5));
-
 function terminal(): RelayTerminal & { text(): string } {
   const input = new PassThrough() as PassThrough & { isTTY?: boolean };
   const output = new PassThrough() as PassThrough & { columns?: number; rows?: number };
@@ -148,7 +146,7 @@ describe("the pty road to a computer you own", () => {
     let ended = false;
     void road.link.closed?.then(() => (ended = true));
     c.push({ type: "daemon.closed", channel: "ch1", code: 1006, reason: "the computer went" });
-    await tick();
+    await road.link.closed;
     expect(ended).toBe(true);
     await road.close();
     expect(c.sent.at(-1)).toEqual({ op: "daemon.close", params: { channel: "ch1" } });
