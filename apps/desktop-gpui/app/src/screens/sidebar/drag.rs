@@ -77,6 +77,10 @@ impl Sidebar {
         let Drawn::Line(li) = *self.drawn_rows.get(ix)? else { return None };
         let line = self.lines.get(li)?;
         let section = line.section;
+        // Working is drawn from what runs, so it takes no drop.
+        if section == Section::Working {
+            return None;
+        }
         if !matches!(section, Section::Pinned | Section::Threads) || matches!(line.item, Item::Head { .. }) {
             return Some(DropPlace::Head(section));
         }
@@ -124,6 +128,7 @@ impl Sidebar {
         let members: Vec<String> = match view
             .section(Section::Pinned)
             .iter()
+            .chain(view.section(Section::Working))
             .chain(view.section(Section::Threads))
             .chain(view.section(Section::NeedsYou))
             .find(|n| n.key == dragged)
