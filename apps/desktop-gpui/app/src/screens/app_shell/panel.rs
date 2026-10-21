@@ -963,6 +963,7 @@ impl RightPanel {
 
     /// The panel's bar and content, with `controls` at the bar's right end.
     pub fn draw(&mut self, controls: impl IntoElement, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("RightPanel");
         let content = match self.active.and_then(|ix| self.tabs.get(ix)) {
             Some(Tab { view: Some(view), .. }) => {
                 div().flex_1().min_h_0().child(view.clone().cached(StyleRefinement::default().size_full())).into_any_element()

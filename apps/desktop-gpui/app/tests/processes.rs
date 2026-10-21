@@ -18,7 +18,7 @@ use desktop_gpui::screens::{self, palette, Host, Opened, Pane, Place};
 use desktop_gpui::sidebar::Sidebar;
 use desktop_gpui::ui::{self, Side};
 use gpui_kit::component::Root;
-use gpui_kit::{div, prelude::*, px, size, AnyView, Context, Entity, TestAppContext, VisualTestContext, Window};
+use gpui_kit::{div, prelude::*, px, size, AnyView, Context, Entity, StyleRefinement, TestAppContext, VisualTestContext, Window};
 use serde_json::{json, Value};
 use wsp_host_client::HostClient;
 
@@ -31,8 +31,9 @@ struct Holder(Option<AnyView>);
 
 impl Render for Holder {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        // The right panel's default width in a wide window, so what reads the pane's width cannot read the window's.
-        div().h_full().w(px(540.)).children(self.0.clone())
+        // The right panel's default width in a wide window, so what reads the pane's width cannot read the window's; the
+        // panel draws its pane cached.
+        div().h_full().w(px(540.)).children(self.0.clone().map(|pane| pane.cached(StyleRefinement::default().size_full())))
     }
 }
 
@@ -137,7 +138,7 @@ fn open(cx: &mut TestAppContext, more: Value, opened: Opened, changes: Vec<Chang
         }
     });
     let holder = cx.new(|_| Holder(None));
-    let (_, cx) = cx.add_window_view(|window, cx| Root::new(holder.clone(), window, cx));
+    let (_, cx) = cx.add_window_view(|window, cx| Root::new(holder.clone(), window, cx).cache_view());
     cx.simulate_resize(size(px(1280.), px(800.)));
     let pane = cx.update(|window, cx| {
         let layers = palette::overlays::of(window, cx).expect("the layers stand on the window's root");
@@ -609,4 +610,79 @@ fn a_computer_not_answering_says_its_said_and_will_lines(cx: &mut TestAppContext
     let absent = shown.absent.expect("its computer is away");
     assert_eq!((absent.said.as_str(), absent.will.as_deref()), ("Cloudco is not answering", Some("it connects on its own when it is on")));
     assert_eq!(shown.count, "no answer", "the count says the away word");
+}
+
+/// What came before has landed, and the frame the last one asked for (the scrollbar laid on the rows the frame
+/// brought) is drawn, as a display's next frame would draw it at once; the counts start from nothing.
+fn settled_counts(f: &mut Fixture) {
+    std::thread::sleep(Duration::from_millis(300));
+    f.cx.run_until_parked();
+    f.cx.update(|window, cx| window.simulate_next_frame(cx));
+    f.cx.run_until_parked();
+    desktop_gpui::frames::take();
+}
+
+/// A frame that moves only what rows say draws each moved row again where it stands and not the pane around it; one
+/// that moves nothing draws nothing; and rows the sort swaps are each drawn again in the place it swapped them into.
+#[gpui_kit::test]
+fn a_frame_that_moves_only_figures_draws_the_moved_rows_in_place(cx: &mut TestAppContext) {
+    let mut f = open(cx, json!({}), Opened::default(), vec![]);
+    f.cx.update(desktop_gpui::frames::watch);
+    f.framed(tree(), 5);
+    settled_counts(&mut f);
+    let with = |cpu11: f64, cpu12: f64| {
+        let mut procs = tree();
+        procs[2]["cpu"] = json!(cpu11);
+        procs[3]["cpu"] = json!(cpu12);
+        procs
+    };
+    let cpu_of = |pid: i64| {
+        move |p: &Processes, cx: &gpui_kit::App| p.table(cx).and_then(|t| t.rows.into_iter().find(|r| r.pid == pid)).map(|r| r.cpu)
+    };
+
+    f.push(snapshot(with(9.5, 0.1), 5));
+    f.until("11 at 9.5", |p, cx| cpu_of(11)(p, cx).as_deref() == Some("9.5"));
+    let counts = desktop_gpui::frames::take();
+    assert_eq!(counts.get("ProcRow"), Some(&1), "the one row that moved: {counts:?}");
+    assert!(!counts.contains_key("Processes"), "the pane is not drawn for a row's figure: {counts:?}");
+
+    f.push(snapshot(with(9.5, 0.1), 5));
+    settled_counts(&mut f);
+    f.push(snapshot(with(9.5, 0.1), 5));
+    f.cx.run_until_parked();
+    let counts = desktop_gpui::frames::take();
+    assert!(counts.is_empty(), "a frame that moves nothing draws nothing: {counts:?}");
+
+    f.push(snapshot(with(9.5, 20.), 5));
+    f.until("12 ahead of 11", |p, cx| p.table(cx).is_some_and(|t| t.rows.iter().map(|r| r.pid).collect::<Vec<_>>() == [1, 20, 10, 12, 11]));
+    let counts = desktop_gpui::frames::take();
+    assert_eq!(counts.get("ProcRow"), Some(&2), "the two places the swap moved: {counts:?}");
+    assert!(!counts.contains_key("Processes"), "a swap leaves the pane's layout as it was: {counts:?}");
+}
+
+/// In a thread's pane, a frame that moves a figure draws only the figures it moved, each in its piece: not the pane.
+#[gpui_kit::test]
+fn a_threads_pane_draws_a_moved_figure_in_its_piece(cx: &mut TestAppContext) {
+    let listed = json!({
+        "workspaces.list": { "reply": { "workspaces": [workspace("w1", "local", None)] } },
+        "sessions.list": { "reply": { "sessions": [turn("s1", "t1", "w1", Some(100), false, None)] } },
+    });
+    let changes = vec![Change::Workspaces(vec![workspace("w1", "local", None)])];
+    let opened = Opened { workspace_id: Some("w1".into()), thread_id: Some("t1".into()), ..Opened::default() };
+    let mut f = open(cx, listed, opened, changes);
+    f.cx.update(desktop_gpui::frames::watch);
+    f.until("the thread form", |p, _| p.form().is_some());
+    let procs =
+        |rss: f64| vec![row(1, 0, "wsp-daemon", 0.5, 30e6), row(100, 1, "claude", 1.0, 300e6), row(101, 100, "node dev.js", 1.0, rss)];
+    f.framed(procs(80e6), 3);
+    f.until("the thread's group", |p, cx| matches!(p.thread_state(cx), Some(ThreadState::Groups(_))));
+    assert!(f.cx.debug_bounds("activity-sub-row").is_some(), "the thread stands open on its rows");
+    settled_counts(&mut f);
+    f.push(snapshot(procs(90e6), 3));
+    f.until("the new memory", |p, cx| matches!(p.thread_state(cx), Some(ThreadState::Groups(g)) if g[0].procs[0].children[0].mem == 90e6));
+    std::thread::sleep(Duration::from_millis(100));
+    f.cx.run_until_parked();
+    let counts = desktop_gpui::frames::take();
+    assert_eq!(counts.get("ActivityFigure"), Some(&2), "the row's memory and its head's: {counts:?}");
+    assert!(!counts.contains_key("Processes"), "the pane is not drawn for a figure: {counts:?}");
 }

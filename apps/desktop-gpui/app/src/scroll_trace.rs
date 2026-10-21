@@ -13,6 +13,8 @@ use serde_json::{json, Value};
 
 /// A frame slower than this, by its own draw or by the wait of the input it shows, is a stall.
 pub const SLOW_MS: f64 = 50.;
+/// A frame of a display's 60 a second, the line a screen's scroll is held to.
+pub const FRAME_MS: f64 = 16.;
 /// How long a recording runs from its first wheel event.
 pub const RECORD_FOR: Duration = Duration::from_secs(60);
 /// A Moved event belongs to a stream of them, which a Mac sends at least this often while fingers or momentum move,
@@ -124,6 +126,8 @@ pub struct Work {
     pub highlight_ms: f64,
     /// The key of the row at the list's top when the thread view last drew, which names what the frame showed.
     pub top: Option<String>,
+    /// The views the frame rendered, by how often.
+    pub renders: std::collections::BTreeMap<&'static str, u64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -140,14 +144,33 @@ pub struct Frame {
     pub since: f64,
     /// The longest any wheel event this frame shows waited, from when it was due to this frame's present.
     pub late: f64,
+    /// The longest any of them took to reach the app from when it was due, the part of `late` before the app had it.
+    pub delivered: f64,
     pub inputs: u32,
     pub focused: bool,
     pub work: Work,
+    /// The window's draw in its parts, and the renderer's present this frame was: its waits for a drawable and for its
+    /// commands to be scheduled, and the GPU's own time, where the platform's renderer reports them.
+    pub below: Below,
+}
+
+/// Where a frame's time went below the app's own work, as `gpui_kit::frame_timing` reports it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Below {
+    pub split: Option<gpui_kit::frame_timing::DrawSplit>,
+    pub present: Option<u64>,
+    pub drawable_wait: Option<f64>,
+    pub scheduled_wait: Option<f64>,
+    pub gpu: Option<f64>,
 }
 
 impl Frame {
     pub fn slow(&self) -> bool {
-        self.draw + self.present > SLOW_MS || self.late > SLOW_MS
+        self.slower_than(SLOW_MS)
+    }
+
+    pub fn slower_than(&self, limit: f64) -> bool {
+        self.draw + self.present > limit || self.late > limit
     }
 
     /// The UI thread's own time for the frame: its draw and the traced work before it, without the present, which on
@@ -167,6 +190,12 @@ pub struct Input {
     /// Where the list stood when the event came, and where it stood once the event was handled, where that was read.
     pub spot: Option<Spot>,
     pub after: Option<f32>,
+    /// The frame that showed it, and how long after it was due that frame was presented; none for an event that left
+    /// the list where it stood, which no frame shows.
+    pub shown: Option<(usize, f64)>,
+    /// When a replay handed it to the platform's road, which a trackpad's event takes from when it is made: its wait is
+    /// counted from then, so the replay's own lateness in handing it over is not the app's.
+    pub posted: Option<f64>,
 }
 
 /// The list as an event finds it: how far it stands from its top, how far it can, and the kind of the row under the
@@ -198,6 +227,7 @@ struct Trace {
     work: Work,
     start: Option<(Instant, Usage)>,
     drawn: Option<(Instant, bool, Usage)>,
+    split: Option<gpui_kit::frame_timing::DrawSplit>,
     presented: Option<Instant>,
     heard: Vec<Wheel>,
     scale: f32,
@@ -211,6 +241,8 @@ pub struct Plan {
     pub trace: Option<PathBuf>,
     pub thread: Option<String>,
     pub replay: bool,
+    /// The slowest a frame may be, `SLOW_MS` where none is given.
+    pub limit: Option<f64>,
 }
 
 thread_local! {
@@ -269,12 +301,15 @@ pub fn begin(window: &mut Window) {
         TRACE.with(|t| {
             if let Some(t) = t.borrow_mut().as_mut() {
                 t.drawn = Some((Instant::now(), focused, Usage::now()));
+                t.work.renders = crate::frames::take();
+                t.split = Some(gpui_kit::frame_timing::last_draw());
             }
         });
         // Deferred work runs once the update that drew the frame ends, after GPUI has presented it.
         cx.defer(|_| presented(Instant::now()));
         on()
     });
+    gpui_kit::frame_timing::record(true);
     TRACE.with(|t| {
         *t.borrow_mut() = Some(Trace {
             began: Instant::now(),
@@ -284,6 +319,7 @@ pub fn begin(window: &mut Window) {
             work: Work::default(),
             start: None,
             drawn: None,
+            split: None,
             presented: None,
             heard: Vec::new(),
             scale: window.scale_factor(),
@@ -350,9 +386,15 @@ fn presented(now: Instant) {
             present: ms_since(drawn, now),
             since: presented - ms_since(t.began, previous),
             late: 0.,
+            delivered: 0.,
             inputs: 0,
             focused,
             work: std::mem::take(&mut t.work),
+            below: Below {
+                split: t.split.take(),
+                present: Some(gpui_kit::frame_timing::last_present()).filter(|&p| p > 0),
+                ..Below::default()
+            },
         });
         t.presented = Some(now);
     });
@@ -360,6 +402,11 @@ fn presented(now: Instant) {
 
 /// A wheel event due at `due` is being handled now, with the list standing at `spot`.
 pub fn input(due: Instant, event: &ScrollWheelEvent, spot: Option<Spot>) {
+    input_posted(due, None, event, spot);
+}
+
+/// A wheel event due at `due`, which a replay handed to the platform's road at `posted`, is being handled now.
+pub fn input_posted(due: Instant, posted: Option<Instant>, event: &ScrollWheelEvent, spot: Option<Spot>) {
     let moving = matches!(event.delta, ScrollDelta::Pixels(d) if f32::from(d.x).abs().max(f32::from(d.y).abs()) >= MOVING_PX);
     let dy = match event.delta {
         ScrollDelta::Pixels(d) => f32::from(d.y),
@@ -368,7 +415,17 @@ pub fn input(due: Instant, event: &ScrollWheelEvent, spot: Option<Spot>) {
     TRACE.with(|t| {
         if let Some(t) = t.borrow_mut().as_mut() {
             let at = ms_since(t.began, Instant::now());
-            t.inputs.push(Input { due: ms_since(t.began, due).min(at), at, phase: event.touch_phase, moving, dy, spot, after: None });
+            t.inputs.push(Input {
+                due: ms_since(t.began, due).min(at),
+                at,
+                phase: event.touch_phase,
+                moving,
+                dy,
+                spot,
+                after: None,
+                shown: None,
+                posted: posted.map(|p| ms_since(t.began, p).min(at)),
+            });
         }
     });
 }
@@ -444,30 +501,52 @@ pub fn heard(event: &ScrollWheelEvent, origin: Point<Pixels>, spot: Option<Spot>
     });
 }
 
+/// Whether `inputs[ix]` left the list where it stood, as far as the trace read it: no frame shows such an event.
+fn moved_nothing(inputs: &[Input], ix: usize) -> bool {
+    inputs[ix].spot.as_ref().zip(after(inputs, ix)).is_some_and(|(spot, after)| (after - spot.top).abs() < 0.01)
+}
+
 /// Each frame's inputs and wait: the wheel events handled after the frame before began and before it began, and the
 /// longest any of them waited, from when it was due, or for a Moved event after a moving one from one stream interval
-/// after that one, whichever is sooner, to the frame's present.
-pub fn settle(frames: &mut [Frame], inputs: &[Input]) {
+/// after that one, whichever is sooner, to the frame's present. An event that moved nothing is shown by no frame, so
+/// the next frame, drawn for something else after a pause, does not take its wait.
+pub fn settle(frames: &mut [Frame], inputs: &mut [Input]) {
     let mut next = 0;
-    for (ix, input) in inputs.iter().enumerate() {
+    for ix in 0..inputs.len() {
+        let input = &inputs[ix];
         let due = match (input.phase, ix.checked_sub(1).map(|p| &inputs[p])) {
             (TouchPhase::Moved, Some(before)) if before.moving => input.due.min(before.due + STREAM_MS),
             _ => input.due,
         };
-        while next < frames.len() && frames[next].at < input.at {
+        // A replay's own lateness in handing the event over is not the app's: its wait counts from when it was posted.
+        let due = input.posted.map_or(due, |posted| posted.max(due));
+        if moved_nothing(inputs, ix) {
+            continue;
+        }
+        let at = input.at;
+        while next < frames.len() && frames[next].at < at {
             next += 1;
         }
         let Some(frame) = frames.get_mut(next) else { break };
+        let late = frame.at + frame.draw + frame.present - due;
         frame.inputs += 1;
-        frame.late = frame.late.max(frame.at + frame.draw + frame.present - due);
+        frame.late = frame.late.max(late);
+        frame.delivered = frame.delivered.max(at - due);
+        inputs[ix].shown = Some((next, late));
     }
+}
+
+/// The value `share` of the way up `values`, which it sorts.
+fn quantile(values: &mut [f64], share: f64) -> f64 {
+    values.sort_by(f64::total_cmp);
+    values.get(((values.len() as f64 - 1.) * share).round() as usize).copied().unwrap_or(0.)
 }
 
 /// The trace as JSON: every frame, every input, and the slow frames with what each did.
 pub fn json(plan: &Plan, frames: &[Frame], inputs: &[Input], release: bool, scale: f32) -> Value {
     let work = |w: &Work| {
         json!({ "rows": w.rows, "row_ms": w.row_ms, "parsed": w.parsed, "parse_ms": w.parse_ms, "images": w.images,
-            "pages": w.pages.iter().map(|(events, ms)| json!({ "events": events, "ms": ms })).collect::<Vec<_>>(), "view_ms": w.view_ms, "input_ms": w.input_ms, "highlighted": w.highlighted, "highlight_ms": w.highlight_ms, "top": w.top })
+            "pages": w.pages.iter().map(|(events, ms)| json!({ "events": events, "ms": ms })).collect::<Vec<_>>(), "view_ms": w.view_ms, "input_ms": w.input_ms, "highlighted": w.highlighted, "highlight_ms": w.highlight_ms, "top": w.top, "renders": w.renders })
     };
     let frame = |ix: usize, f: &Frame| {
         let mut v = work(&f.work);
@@ -481,15 +560,23 @@ pub fn json(plan: &Plan, frames: &[Frame], inputs: &[Input], release: bool, scal
             ("present", json!(f.present)),
             ("since", json!(f.since)),
             ("late", json!(f.late)),
+            ("delivered", json!(f.delivered)),
             ("app", json!(f.app())),
             ("inputs", json!(f.inputs)),
             ("focused", json!(f.focused)),
+            ("before_ms", json!(f.below.split.map(|s| s.before_ms))),
+            ("roots_ms", json!(f.below.split.map(|s| s.roots_ms))),
+            ("after_ms", json!(f.below.split.map(|s| s.after_ms))),
+            ("drawable_wait_ms", json!(f.below.drawable_wait)),
+            ("scheduled_wait_ms", json!(f.below.scheduled_wait)),
+            ("gpu_ms", json!(f.below.gpu)),
         ] {
             o.insert(k.to_owned(), x);
         }
         v
     };
-    let slow: Vec<Value> = frames.iter().enumerate().filter(|(_, f)| f.slow()).map(|(ix, f)| frame(ix, f)).collect();
+    let limit = plan.limit.unwrap_or(SLOW_MS);
+    let slow: Vec<Value> = frames.iter().enumerate().filter(|(_, f)| f.slower_than(limit)).map(|(ix, f)| frame(ix, f)).collect();
     let slowest = frames.iter().map(|f| (f.draw + f.present).max(f.late)).fold(0., f64::max);
     let pages: Vec<&(usize, f64)> = frames.iter().flat_map(|f| &f.work.pages).collect();
     let stuck: Vec<Value> =
@@ -503,17 +590,34 @@ pub fn json(plan: &Plan, frames: &[Frame], inputs: &[Input], release: bool, scal
         seen.0 += 1;
         seen.1 += usize::from(after.is_some_and(|after| (after - spot.top).abs() >= 0.01));
     }
+    // Each event's wait from when it was due to the present of the frame that showed it, and the part of that before
+    // the app had it, which a replay's own timer adds and a busy UI thread does.
+    let mut waits: Vec<f64> = inputs.iter().filter_map(|i| i.shown.map(|(_, late)| late)).collect();
+    let mut delivery: Vec<f64> =
+        inputs.iter().filter(|i| i.shown.is_some()).map(|i| i.at - i.posted.map_or(i.due, |p| p.max(i.due))).collect();
+    // A replay's own lateness in handing each event to the platform's road, which the waits above leave out.
+    let mut handover: Vec<f64> = inputs.iter().filter_map(|i| Some(i.posted? - i.due)).collect();
+    let mut gpu: Vec<f64> = frames.iter().filter_map(|f| f.below.gpu).collect();
+    let mut drawable: Vec<f64> = frames.iter().filter_map(|f| f.below.drawable_wait).collect();
     json!({
         "app": "gpui",
         "mode": if plan.replay { "replay" } else { "record" },
         "thread": plan.thread,
         "release": release,
         "scale": scale,
-        "limit_ms": SLOW_MS,
+        "limit_ms": limit,
         "focused": frames.iter().all(|f| f.focused),
         "summary": { "frames": frames.len(), "inputs": inputs.len(), "slow": slow.len(), "slowest_ms": slowest,
-            "app_slow": frames.iter().filter(|f| f.app() > SLOW_MS).count(), "app_slowest_ms": frames.iter().map(Frame::app).fold(0., f64::max), "pages": pages.len(),
-            "page_events": pages.iter().map(|(e, _)| e).sum::<usize>(), "stuck": stuck.len() },
+            "app_slow": frames.iter().filter(|f| f.app() > limit).count(), "app_slowest_ms": frames.iter().map(Frame::app).fold(0., f64::max), "pages": pages.len(),
+            "page_events": pages.iter().map(|(e, _)| e).sum::<usize>(), "stuck": stuck.len(),
+            "shown": waits.len(), "late": frames.iter().filter(|f| f.late > limit).count(),
+            "wait_median_ms": quantile(&mut waits, 0.5), "wait_p95_ms": quantile(&mut waits, 0.95),
+            "delivery_median_ms": quantile(&mut delivery, 0.5), "delivery_p95_ms": quantile(&mut delivery, 0.95),
+            "handover": handover.len(), "handover_median_ms": quantile(&mut handover, 0.5), "handover_p95_ms": quantile(&mut handover, 0.95),
+            "gpu": gpu.len(), "gpu_median_ms": quantile(&mut gpu, 0.5), "gpu_p95_ms": quantile(&mut gpu, 0.95),
+            "gpu_slowest_ms": gpu.last().copied().unwrap_or(0.), "gpu_over": gpu.iter().filter(|&&ms| ms > limit).count(),
+            "drawable": drawable.len(), "drawable_median_ms": quantile(&mut drawable, 0.5), "drawable_p95_ms": quantile(&mut drawable, 0.95),
+            "drawable_slowest_ms": drawable.last().copied().unwrap_or(0.) },
         "slow": slow,
         "stuck": stuck,
         "under": under.iter().map(|(kind, (events, moved))| (kind.clone(), json!({ "events": events, "moved": moved }))).collect::<serde_json::Map<_, _>>(),
@@ -521,7 +625,8 @@ pub fn json(plan: &Plan, frames: &[Frame], inputs: &[Input], release: bool, scal
         "inputs": inputs
             .iter()
             .map(|i| json!({ "due": i.due, "at": i.at, "phase": phase_word(i.phase), "dy": i.dy, "top": i.spot.as_ref().map(|s| s.top),
-                "after": i.after, "under": i.spot.as_ref().and_then(|s| s.under.clone()) }))
+                "after": i.after, "under": i.spot.as_ref().and_then(|s| s.under.clone()), "frame": i.shown.map(|(f, _)| f),
+                "late": i.shown.map(|(_, late)| late), "posted": i.posted }))
             .collect::<Vec<_>>(),
     })
 }
@@ -531,7 +636,15 @@ pub fn json(plan: &Plan, frames: &[Frame], inputs: &[Input], release: bool, scal
 pub fn finish(rows: Vec<Value>) -> Result<String, String> {
     let Some(mut trace) = TRACE.with(|t| t.borrow_mut().take()) else { return Err("no trace ran".to_owned()) };
     let plan = PLAN.with(|p| p.borrow().clone()).unwrap_or_default();
-    settle(&mut trace.frames, &trace.inputs);
+    settle(&mut trace.frames, &mut trace.inputs);
+    for frame in &mut trace.frames {
+        if let Some(present) = frame.below.present.and_then(gpui_kit::frame_timing::present) {
+            frame.below.drawable_wait = Some(present.drawable_wait_ms);
+            frame.below.scheduled_wait = Some(present.scheduled_wait_ms);
+            frame.below.gpu = present.gpu_ms;
+        }
+    }
+    gpui_kit::frame_timing::record(false);
     let mut out = json(&plan, &trace.frames, &trace.inputs, !cfg!(debug_assertions), trace.scale);
     out["rows"] = Value::Array(rows);
     out["clock_ms"] = json!(trace.clock_ms);

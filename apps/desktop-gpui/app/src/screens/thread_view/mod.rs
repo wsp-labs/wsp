@@ -443,6 +443,7 @@ impl Screen for ThreadScreen {
 
 impl Render for ThreadScreen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("ThreadScreen");
         if let Some((x, y)) = self.capture.drop.filter(|_| !self.view.read(cx).rows().is_empty()) {
             self.capture.drop = None;
             let held = FileDropEvent::Entered { position: point(px(x), px(y)), paths: ExternalPaths(vec!["held.png".into()].into()) };

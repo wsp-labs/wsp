@@ -321,41 +321,64 @@ pub fn elapsed_line(ms: f64) -> String {
     }
 }
 
-/// `Elapsed`: a timed stage's seconds, its own entity ticking once a second, so only it draws again for the clock.
+/// `Elapsed`: a timed stage's seconds, its own entity reading the clock once a second and drawn cached in a box its
+/// line's width, so only it draws again for the clock, in place; a line of another length lays the row out again.
 pub struct Elapsed {
     since: f64,
-    next: Option<gpui_kit::Task<()>>,
+    shown: String,
+    ticks: Option<gpui_kit::Task<()>>,
     /// How often it drew, which a test reads.
     pub drawn: usize,
 }
 
 impl Elapsed {
     pub fn new(since: f64) -> Self {
-        Elapsed { since, next: None, drawn: 0 }
+        Elapsed { since, shown: elapsed_line(now_ms() as f64 - since), ticks: None, drawn: 0 }
+    }
+
+    /// The line it shows, which its row sizes its box by: its digits are the mono face's, all one width.
+    pub fn line(&self) -> &str {
+        &self.shown
+    }
+
+    fn tick(&mut self, cx: &mut gpui_kit::Context<Self>) {
+        let now = cx.try_global::<crate::ui::status::FrozenNow>().map_or(now_ms() as f64, |frozen| frozen.0);
+        let line = elapsed_line(now - self.since);
+        if line == self.shown {
+            return;
+        }
+        let relaid = line.chars().count() != self.shown.chars().count();
+        self.shown = line;
+        if relaid {
+            cx.notify();
+        } else {
+            cx.notify_in_place();
+        }
     }
 }
 
 impl Render for Elapsed {
     fn render(&mut self, _: &mut Window, cx: &mut gpui_kit::Context<Self>) -> impl IntoElement {
+        crate::frames::count("Elapsed");
         self.drawn += 1;
-        if self.next.is_none() {
-            self.next = Some(cx.spawn(async move |this, cx| {
+        if self.ticks.is_none() {
+            self.ticks = Some(cx.spawn(async move |this, cx| loop {
                 cx.background_executor().timer(std::time::Duration::from_secs(1)).await;
-                _ = this.update(cx, |this, cx| {
-                    this.next = None;
-                    cx.notify();
-                });
+                if this.update(cx, |this, cx| this.tick(cx)).is_err() {
+                    return;
+                }
             }));
         }
         let p = cx.palette().clone();
         div()
             .debug_selector(|| "elapsed".into())
             .flex_none()
+            .whitespace_nowrap()
             .font_family(cx.theme().mono_font_family.clone())
             .text_size(text::XS.0)
             .line_height(text::XS.1)
             .text_color(p.muted_foreground)
-            .child(elapsed_line(now_ms() as f64 - self.since))
+            .child(self.shown.clone())
     }
 }
 
@@ -396,7 +419,10 @@ fn stage_row(
     let opened = kept.read(cx).opened.get(stage.id).copied();
     let open = has && (live || opened.unwrap_or(failed || attention));
     let elapsed = stage.since.filter(|_| running && timed(stage.id)).map(|since| {
-        window.use_keyed_state(SharedString::from(format!("build-elapsed-{}", stage.id)), cx, move |_, _| Elapsed::new(since))
+        let elapsed =
+            window.use_keyed_state(SharedString::from(format!("build-elapsed-{}", stage.id)), cx, move |_, _| Elapsed::new(since));
+        let width = text::width(elapsed.read(cx).line(), f32::from(text::XS.0), cx.theme().mono_font_family.clone(), window).ceil();
+        elapsed.cached(gpui_kit::StyleRefinement::default().flex_none().w(width).h(text::XS.1))
     });
     let chevron = can_open.then(|| {
         let turn = crate::ui::motion::ease_f32(

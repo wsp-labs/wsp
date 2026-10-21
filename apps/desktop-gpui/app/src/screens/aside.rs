@@ -259,7 +259,7 @@ impl AsideScreen {
         let keys = cx.observe_keystrokes(|this, event, window, cx| this.on_key(event, window, cx));
         let tick = cx.spawn_in(window, async move |this, cx| loop {
             cx.background_executor().timer(Duration::from_secs(1)).await;
-            if this.update(cx, |this, cx| this.asking(cx).then(|| cx.notify())).is_err() {
+            if this.update(cx, |this, cx| this.asking(cx).then(|| cx.notify_in_place())).is_err() {
                 return;
             }
         });
@@ -269,6 +269,7 @@ impl AsideScreen {
 
 impl Render for AsideScreen {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("AsideScreen");
         let p = cx.palette().clone();
         let aside = self.workspace.as_deref().and_then(|w| standing(w, cx));
         let mut body = v_flex().id("aside-body").size_full().min_h_0().overflow_y_scroll().px(px(16.)).pt(px(8.)).pb(px(16.));
@@ -368,15 +369,12 @@ mod tests {
             made = Some(screen.clone());
             Root::new(screen, window, cx)
         });
-        let screen = made.unwrap();
-        let ticks = std::rc::Rc::new(std::cell::Cell::new(0));
-        let counted = ticks.clone();
-        cx.update(|_, cx| cx.observe(&screen, move |_, _| counted.set(counted.get() + 1)).detach());
+        made.unwrap();
         let three_seconds = |cx: &mut gpui_kit::VisualTestContext| {
-            ticks.set(0);
+            crate::frames::take();
             cx.executor().advance_clock(std::time::Duration::from_secs(3));
             cx.run_until_parked();
-            ticks.get()
+            crate::frames::take().get("AsideScreen").copied().unwrap_or(0)
         };
         cx.simulate_resize(size(px(420.), px(700.)));
         cx.run_until_parked();

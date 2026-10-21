@@ -189,12 +189,19 @@ fn elapsed_ticks_on_its_own_once_a_second(cx: &mut TestAppContext) {
         gpui_kit::init(cx);
         crate::ui::init(crate::ui::Side::Light, cx);
     });
-    let (view, cx) = cx.add_window_view(|_, _| Elapsed::new(now_ms() as f64 - 5_000.));
+    let base = now_ms() as f64;
+    cx.update(|cx| cx.set_global(crate::ui::status::FrozenNow(base)));
+    let (view, cx) = cx.add_window_view(|_, _| Elapsed::new(base - 5_000.));
     cx.run_until_parked();
     let first = view.read_with(cx, |e, _| e.drawn);
     cx.executor().advance_clock(std::time::Duration::from_millis(1_000));
     cx.run_until_parked();
+    assert_eq!(view.read_with(cx, |e, _| e.drawn), first, "a tick whose second has not come yet draws nothing");
+    cx.update(|_, cx| cx.set_global(crate::ui::status::FrozenNow(base + 1_000.)));
+    cx.executor().advance_clock(std::time::Duration::from_millis(1_000));
+    cx.run_until_parked();
     assert_eq!(view.read_with(cx, |e, _| e.drawn), first + 1, "one draw a second");
+    assert_eq!(view.read_with(cx, |e, _| e.line().to_owned()), "6s");
 }
 
 /// box1's IMAGE row with an image to copy there and a build that failed on `on`, drawn with no host behind it.

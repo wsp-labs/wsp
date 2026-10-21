@@ -103,6 +103,7 @@ impl Default for HeroField {
 
 impl Render for HeroField {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::frames::count("HeroField");
         if !self.composer.as_ref().is_some_and(|c| c.read(cx).fresh()) {
             self._next = None;
             return div().into_any_element();
@@ -116,7 +117,7 @@ impl Render for HeroField {
                 cx.background_executor().timer(FRAME).await;
                 _ = this.update(cx, |this, cx| {
                     this.frames += 1;
-                    cx.notify();
+                    cx.notify_in_place();
                 });
             })
         });

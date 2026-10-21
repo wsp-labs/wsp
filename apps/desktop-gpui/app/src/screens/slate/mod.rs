@@ -338,8 +338,9 @@ pub struct SlateScreen {
     pub gets: u64,
     /// Each path's latest write, so an earlier write's answer does not undo a later one drawn meanwhile.
     writes: HashMap<String, u64>,
-    /// When the panel last drew the slate: a tab behind another or a shut panel keeps its screen but draws nothing.
-    drawn_at: Option<Instant>,
+    /// The token the window's frame keeps while it draws the slate, and the watch on its release: a tab behind another
+    /// or a shut panel keeps its screen but draws nothing, and the first frame without it drops the token.
+    drawn: Option<(gpui_kit::EntityId, Subscription)>,
     /// The holds this panel wants on the host for its thread: the shown hold and each held source a drawn formula reads.
     held: HashSet<&'static str>,
     /// The holds the host answered taking and has not let go of; a hold dies with the socket that took it.
@@ -356,13 +357,9 @@ pub struct SlateScreen {
     _follow: Option<Task<()>>,
     _pump: Option<Task<()>>,
     _tick: Option<Task<()>>,
-    _watch: Option<Task<()>>,
     _holds: Option<Task<()>>,
     _release: Option<Subscription>,
 }
-
-/// How long after its last draw the slate counts as off screen: its hold goes and its clock stops asking.
-const OFF_SCREEN: Duration = Duration::from_secs(2);
 
 impl Screen for SlateScreen {
     const NAME: &'static str = "slate";
@@ -390,7 +387,7 @@ impl Screen for SlateScreen {
             get_again: false,
             gets: 0,
             writes: HashMap::new(),
-            drawn_at: None,
+            drawn: None,
             held: HashSet::new(),
             on_host: HashSet::new(),
             holding_asks,
@@ -401,7 +398,6 @@ impl Screen for SlateScreen {
             _follow: None,
             _pump: None,
             _tick: None,
-            _watch: None,
             _holds: None,
             _release: None,
         };
@@ -445,19 +441,6 @@ impl Screen for SlateScreen {
         }));
         screen.consent.seen = consent::shown_on(screen.opened.thread_id.as_deref(), cx);
         screen.follow(cx);
-        screen._watch = Some(cx.spawn(async move |this, cx| loop {
-            cx.background_executor().timer(OFF_SCREEN / 2).await;
-            // The right panel draws its tab cached, so a quiet slate is asked to draw again to show it is still on screen.
-            let watched = this.update(cx, |this, cx| {
-                if this.holding() {
-                    cx.notify();
-                }
-                this.sync_hold();
-            });
-            if watched.is_err() {
-                break;
-            }
-        }));
         screen._release = Some(cx.on_release(|this, cx| {
             let Some(thread) = this.opened.thread_id.clone() else { return };
             this.held.clear();
@@ -1002,7 +985,24 @@ impl SlateScreen {
     }
 
     fn on_screen(&self) -> bool {
-        self.drawn_at.is_some_and(|at| at.elapsed() < OFF_SCREEN)
+        self.drawn.is_some()
+    }
+
+    /// Keeps a token in the frame the slate draws in; the first frame that leaves the slate out drops it, and the slate
+    /// lets its holds go and its clock stops asking.
+    fn mark_drawn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let token = window.use_keyed_state("slate-drawn", cx, |_, _| ());
+        let id = token.entity_id();
+        if self.drawn.as_ref().is_some_and(|(held, _)| *held == id) {
+            return;
+        }
+        let gone = cx.observe_release(&token, move |this, _, _| {
+            if this.drawn.as_ref().is_some_and(|(held, _)| *held == id) {
+                this.drawn = None;
+                this.sync_hold();
+            }
+        });
+        self.drawn = Some((id, gone));
     }
 
     /// Takes the host's holds while a drawn slate is on screen and the socket is up: the shown hold, which keeps its
@@ -1106,10 +1106,10 @@ impl SlateScreen {
                     for formula in formulas {
                         resolved.entry(formula).or_insert(Value::Null);
                     }
-                    // An answer that moved nothing draws nothing, as the web redraws only the pieces whose reads moved.
+                    // As the web redraws only the pieces whose reads moved: an answer that moved nothing draws nothing.
                     if slate.resolved != resolved {
                         slate.resolved = resolved;
-                        cx.notify();
+                        cx.notify_in_place();
                     }
                     more |= slate.formulas().iter().any(|f| !slate.resolved.contains_key(f));
                 }
