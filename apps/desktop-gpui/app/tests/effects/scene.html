@@ -22,6 +22,18 @@
     "blur-tint-dark": { page: "#0a0a0a", ink: "#f4f4f5" },
     "blur-shadow": { page: "#f4f4f5", ink: "#18181b" },
     "fade": { page: "#f4f4f5", ink: "#18181b" },
+    // Today's tokens from apps/web/src/themes and index.css.
+    "borders-paper": {
+      page: "#fcfcfc", input: "#d4d4d8", inputFill: "#ffffff", keycap: "rgb(255 255 255/60%)", border: "#e4e4e7",
+      muted: "#fafafa", cardBorder: "rgb(228 228 231/60%)", card: "rgb(255 255 255/40%)", outline: "rgb(0 0 0/10%)",
+      highlight: "transparent", tint: "rgb(255 255 255/55%)", glass: "blur(12px) saturate(1.14)",
+    },
+    "borders-graphite": {
+      page: "#0a0a0a", input: "rgb(255 255 255/8%)", inputFill: "rgb(255 255 255/2.5%)", keycap: "rgb(255 255 255/6%)",
+      border: "#232323", muted: "rgb(255 255 255/3%)", cardBorder: "rgb(35 35 35/60%)", card: "rgb(17 17 17/40%)",
+      outline: "rgb(255 255 255/9%)", highlight: "rgb(255 255 255/4%)", tint: "rgb(245 245 245/3%)",
+      glass: "blur(16px) saturate(1.08)",
+    },
   };
   const params = new URLSearchParams(location.search);
   const name = params.get("scene") || "plain-light";
@@ -80,6 +92,20 @@
       panel.style.borderRadius = "12px";
       panel.style.backdropFilter = `blur(${blur}px)`;
     }
+  } else if (name.startsWith("borders-")) {
+    // GitSplit's outline halves, the chat's inline code, CARD_SURFACE and the composer's box, its drop shadow left out.
+    const piece = (left, top, width, height, css) => {
+      const d = rect(document.body, left, top, width, height, "transparent");
+      d.style.cssText += ";" + css;
+      return d;
+    };
+    const half = `border:1px solid ${scene.input};background:${scene.inputFill};box-shadow:inset 0 1px 0 ${scene.keycap}`;
+    piece(40, 40, 26, 32, `${half};border-radius:8px 0 0 8px`);
+    piece(65, 40, 18, 32, `${half};border-radius:0 8px 8px 0`);
+    piece(40, 120, 80, 20, `border:1px solid ${scene.border};border-radius:6px;background:${scene.muted}`);
+    piece(40, 180, 240, 100, `border:1px solid ${scene.cardBorder};border-radius:11px;background:${scene.card}`);
+    piece(320, 40, 280, 140, `border:1px solid ${scene.outline};border-radius:22px;background:${scene.tint};` +
+      `backdrop-filter:${scene.glass};box-shadow:inset 0 1px ${scene.highlight}`);
   } else if (name === "fade") {
     const bubble = document.createElement("div");
     bubble.style.cssText = "left:24px;top:40px;width:280px;padding:12px;border-radius:18px;background:#e4e4e7";

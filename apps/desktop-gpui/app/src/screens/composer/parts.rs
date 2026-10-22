@@ -89,7 +89,8 @@ pub fn glass_box(cx: &App) -> Div {
     g.frost(
         div().debug_selector(|| "composer-box".into()).relative().w_full().rounded(RADIUS).border_1().border_color(g.outline).bg(g.tint),
     )
-    .shadow(shadows)
+    // GPUI paints an inset shadow under the border, where CSS keeps it inside the padding box this child fills.
+    .child(div().absolute().inset_0().rounded(RADIUS - px(1.)).shadow(shadows))
 }
 
 /// A mention chip in the text: 17 px high in the chip's 12 px type, a 6 px radius, the border at 70% and the accent at

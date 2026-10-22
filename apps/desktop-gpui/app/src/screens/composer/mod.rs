@@ -13,7 +13,7 @@ mod keys;
 pub mod link;
 mod menus;
 pub mod model;
-pub(crate) mod parts;
+pub mod parts;
 mod render;
 pub mod screen;
 mod send;
