@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Backdrop blur and rounded clipping of children, drawn by GPUI's real offscreen renderer (WGPU on Linux, Metal on
-//! macOS) and compared with Chromium's rendering of the same CSS in effects/chromium/, made by effects/reference.sh.
+//! Backdrop blur, rounded clipping of children and rounded 1 px borders, drawn by GPUI's real offscreen renderer (WGPU on
+//! Linux, Metal on macOS) and compared with Chromium's rendering of the same CSS in effects/chromium/, made by
+//! effects/reference.sh.
 //! Captures and diff images go to $EFFECTS_OUT, by default effects/ in cargo's target folder. Runs without libtest's
 //! harness because AppKit panics unless it starts on the main thread.
 
+#[path = "effects/borders.rs"]
+mod borders;
 #[path = "effects/compare.rs"]
 mod compare;
 #[path = "effects/scene.rs"]
@@ -291,6 +294,7 @@ fn main() {
         }
     }
     failed.extend(the_rounded_clip_cuts_every_kind_of_primitive(&mut cx, &out));
+    failed.extend(borders::run(&out, &references));
     println!("captures and diffs in {}", out.display());
     assert!(failed.is_empty(), "failed: {failed:?}");
     println!("test effects_match_chromium ... ok");

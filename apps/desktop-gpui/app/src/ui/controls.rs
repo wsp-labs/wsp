@@ -415,7 +415,18 @@ impl RenderOnce for Button {
             .bg(fill)
             // GPUI paints an inset shadow under the border, where CSS keeps it inside; a child filling the padding box holds it there.
             .when(!self.flat && !matches!(self.kind, ButtonKind::Ghost | ButtonKind::GhostDanger | ButtonKind::Text), |el| {
-                el.child(div().absolute().inset_0().rounded(radius - px(1.)).shadow(keycap))
+                let inner = |r: Pixels| (r - px(1.)).max(px(0.));
+                let c = self.corners.unwrap_or(gpui_kit::Corners::all(radius));
+                el.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .rounded_tl(inner(c.top_left))
+                        .rounded_tr(inner(c.top_right))
+                        .rounded_br(inner(c.bottom_right))
+                        .rounded_bl(inner(c.bottom_left))
+                        .shadow(keycap),
+                )
             })
             .text_size(font)
             .line_height(line)
