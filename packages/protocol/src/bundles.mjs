@@ -20,6 +20,15 @@ export function bundleNames(version) {
   return { mac: `wsp-${version}-mac.dmg`, macZip: `wsp-${version}-mac.zip`, appImage: `wsp-${version}.AppImage` };
 }
 
+/** What the GPUI app's downloads are called, {version} standing for the version: the only files an installed GPUI
+ * app replaces itself from or saves into Downloads, never today's app's above. The GPUI app reads these three lines
+ * out of this file as written, so each stays a key, a colon and one double-quoted string. */
+export const GPUI_NAMES = {
+  mac: "wsp-experimental-{version}.dmg",
+  macZip: "wsp-experimental-{version}-mac.zip",
+  appImage: "wsp-experimental-{version}-x86_64.AppImage",
+};
+
 /** The copies the release job uploads beside the versioned ones, under names no version moves. GitHub serves the
  * newest release's copy of each at releases/latest/download, which is the only download link the site can hold. */
 export const STABLE_NAMES = { mac: "wsp-mac.dmg", appImage: "wsp-linux.AppImage" };

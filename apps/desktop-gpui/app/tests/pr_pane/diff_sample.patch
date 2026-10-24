@@ -1,0 +1,58 @@
+diff --git a/math.rs b/math.rs
+new file mode 100644
+index 0000000..e360e34
+--- /dev/null
++++ b/math.rs
+@@ -0,0 +1,10 @@
++/// Clamps `value` into `low..=high`.
++pub fn clamp(value: f64, low: f64, high: f64) -> f64 {
++    if value < low {
++        low
++    } else if value > high {
++        high
++    } else {
++        value
++    }
++}
+diff --git a/scroll.ts b/scroll.ts
+index 6449da7..bbe21fd 100644
+--- a/scroll.ts
++++ b/scroll.ts
+@@ -7,11 +7,12 @@ export interface Row {
+   pinned?: boolean;
+ }
+ 
+-const OVERSCAN = 4;
++const OVERSCAN = 8;
+ const MIN_HEIGHT = 20;
+ 
+-export function anchorOf(list: HTMLElement): number {
+-  return list.scrollHeight - list.scrollTop;
++export function anchorOf(list: HTMLElement, pad = 0): number {
++  // The distance from the bottom stays put while rows above grow.
++  return list.scrollHeight - list.scrollTop - pad;
+ }
+ 
+ export function visibleRange(rows: Row[], top: number, height: number): [number, number] {
+@@ -30,7 +31,8 @@ export function visibleRange(rows: Row[], top: number, height: number): [number,
+ }
+ 
+ export function totalHeight(rows: Row[]): number {
+-  return rows.reduce((sum, row) => sum + Math.max(row.height, MIN_HEIGHT), 0);
++  const heights = rows.map(row => clamp(row.height, MIN_HEIGHT, Infinity));
++  return heights.reduce((sum, h) => sum + h, 0);
+ }
+ 
+ export function restore(list: HTMLElement, anchor: number) {
+@@ -53,6 +55,10 @@ export class Transcript {
+   }
+ 
+   at(index: number): Row | undefined {
+-    return this.rows[index];
++    return this.rows.at(index);
++  }
++
++  clear() {
++    this.rows = [];
+   }
+ }

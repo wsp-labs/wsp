@@ -3,6 +3,8 @@
 //! answer in the whole line the TypeScript server answers, asks nothing past the token, and a host of its own release
 //! or one that names none is served as before.
 
+mod common;
+
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -102,4 +104,65 @@ async fn the_restart_tool_dials_past_the_release_check_that_names_it_as_the_fix(
     assert_eq!(printed["result"].get("isError"), None, "{printed}");
     assert_eq!(printed["result"]["structuredContent"], json!({ "running": [] }));
     assert!(asked.lock().unwrap().contains(&"host.restart".to_owned()), "{:?}", asked.lock().unwrap());
+}
+
+/// Catches: a code spent on the host here leaving the next call on a socket that skipped the release check, or that
+/// call not presenting the token the code bought.
+#[tokio::test]
+async fn a_code_spent_here_dials_again_on_the_token_it_bought_held_to_this_release() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let noted = asked.clone();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let Some(tcp) = common::upgrade_or_page(tcp, &common::wsp_page("the-host-token")).await else { continue };
+            let mut ws = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            while let Some(Ok(Message::Text(text))) = ws.next().await {
+                let frame: Value = serde_json::from_str(&text).unwrap();
+                let op = frame["op"].as_str().unwrap().to_owned();
+                noted.lock().unwrap().push(format!("{op} {}", frame["token"].as_str().unwrap_or_default()));
+                let answer = match op.as_str() {
+                    "pair.redeem" => json!({ "id": frame["id"], "ok": true, "deviceId": "d1", "deviceToken": "bought" }),
+                    _ => json!({ "id": frame["id"], "ok": true, "version": "0.0.1", "road": "service" }),
+                };
+                if ws.send(Message::text(answer.to_string())).await.is_err() {
+                    break;
+                }
+            }
+        }
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let lock = json!({ "pid": std::process::id(), "port": port, "address": "127.0.0.1", "startedAt": "2026-10-18T00:00:00.000Z" });
+    std::fs::write(dir.path().join("host.lock"), lock.to_string()).unwrap();
+    let env: Env = [("WSP_HOME".to_owned(), dir.path().join("home").to_string_lossy().into_owned())].into_iter().collect();
+    let host = wsp_mcp::host::Host::new(&Args { state: dir.path().join("state.json"), ..Args::default() }, &env, None);
+    host.redeem("ABCDEFGH", "a computer").await.unwrap_or_else(|f| panic!("pair.redeem: {}", f.message));
+    assert_eq!(host.held_token().as_deref(), Some("bought"));
+    let Err(refused) = host.client().await else { panic!("the call after the redeem rode a socket no release check judged") };
+    assert!(refused.message.contains("runs wsp 0.0.1"), "{}", refused.message);
+    assert_eq!(*asked.lock().unwrap(), ["pair.redeem ", "auth bought"]);
+}
+
+/// Catches: the desktop's rule refusing a newer host or not saying which release it is, taking an older one, or
+/// saying anything else to it than the line does; and the line's own rule taking a newer host.
+#[tokio::test]
+async fn the_desktops_rule_attaches_a_newer_host_and_refuses_an_older_one_in_the_lines_words() {
+    let dial = |release: &'static str, rule: wsp_mcp::ReleaseRule| async move {
+        let dir = tempfile::tempdir().unwrap();
+        let (port, _) = host(Some(release), "service").await;
+        let args = Args { state: dir.path().join("state.json"), ..Args::default() };
+        let host = wsp_mcp::host::Host::new(&args, &launched_at(dir.path(), port), None).with_release_rule(rule);
+        let dialled = host.client().await.map(|_| host.host_release());
+        (dialled, port)
+    };
+    let (newer, _) = dial("999.0.0", wsp_mcp::ReleaseRule::OwnOrNewer).await;
+    assert_eq!(newer.unwrap_or_else(|f| panic!("{}", f.message)).as_deref(), Some("999.0.0"));
+    let (refused, _) = dial("999.0.0", wsp_mcp::ReleaseRule::Own).await;
+    assert!(refused.unwrap_err().message.contains("runs wsp 999.0.0"), "the line's own rule took a newer host");
+    let (older, port) = dial("0.0.1", wsp_mcp::ReleaseRule::OwnOrNewer).await;
+    let mine = wsp_mcp::own_release();
+    let want =
+        format!("this line runs wsp {mine} and the host at http://127.0.0.1:{port} runs wsp 0.0.1: restart that host with wsp restart.");
+    assert_eq!(older.unwrap_err().message, want);
 }
