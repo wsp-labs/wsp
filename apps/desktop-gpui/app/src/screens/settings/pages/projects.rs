@@ -99,10 +99,10 @@ fn standing<'a>(ctx: &Ctx<'a>, cx: &mut App) -> &'a standing::Standing {
     &ctx.data.standing
 }
 
-/// Why Add a project is held: its dialog comes with a later build (D117).
+/// Why Add a project is held: its dialog comes with a later build.
 const ADD_LATER: &str = "Add a project opens in the next build of this app.";
 
-/// An Add whose dialog this build does not draw: refused, its hover saying why (D117).
+/// An Add whose dialog this build does not draw: refused, its hover saying why.
 pub fn held_add(id: &'static str, label: &'static str, why: &'static str) -> AnyElement {
     let held = format!("{id}-held");
     gpui_kit::div()

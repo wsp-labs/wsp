@@ -840,7 +840,7 @@ export default [
     data: host => fresh(host, "W2-PAL-028"),
     go: async (app, id) => (await serve(app, id), await activity(app), await pick(app, '[data-k="activity-views"] *', "Processes"), await app.sleep(1000)),
   },
-  skip("W2-PAL-029", "the Ports view listed no row for a listening python server within 40 s on Boat; the cause was not found"),
+  skip("W2-PAL-029", "the Ports view listed no row for a listening python server within 40 s on a Linux cloud machine; the cause was not found"),
   { id: "W2-PAL-031", data: host => fresh(host, "W2-PAL-031"), clip: ALERT, go: async (app, id) => (await serve(app, id), await app.key("mod+shift+e"), await has(app, '[data-k="settle-processes"]', 15_000)) },
   {
     id: "W2-PAL-034",

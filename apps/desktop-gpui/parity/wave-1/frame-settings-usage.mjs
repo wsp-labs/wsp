@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Wave 1 part A: the frame and layout, Settings and Usage states that have a baseline of their own.
+// The frame and layout, Settings and Usage states of wave-1 that have a baseline of their own.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 

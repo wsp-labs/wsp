@@ -188,7 +188,7 @@ const executablePath = process.env.CHROME ?? "/usr/bin/google-chrome";
 const home = mkdtempSync(join(tmpdir(), "usage-web-home-"));
 process.on("exit", () => rmSync(home, { recursive: true, force: true }));
 const env = { HOME: home, ...Object.fromEntries(["PATH", "TZ", "DISPLAY"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]])) };
-// Chrome draws at a real 2x device scale, as on the owner's Mac, rather than under Playwright's emulated one; the
+// Chrome draws at a real 2x device scale, as on a Retina Mac, rather than under Playwright's emulated one; the
 // window is the page's whole size, so its height is moved through the browser itself.
 const browser = await chromium.launch({
   executablePath,

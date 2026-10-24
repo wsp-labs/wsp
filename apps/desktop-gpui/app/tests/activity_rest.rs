@@ -62,7 +62,7 @@ fn churn(stop: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
 }
 
 /// Catches: a busy computer's samples each laying out the whole page, Settings and the shell around it, and rendering
-/// every figure on every row, on screen or not (780 renders a frame on the owner's Mac).
+/// every figure on every row, on screen or not (780 renders a frame on a Mac).
 #[gpui_kit::test]
 fn activity_left_live_renders_no_view_more_often_than_it_draws(cx: &mut TestAppContext) {
     let host = common::Throwaway::start_with(common::STAND_IN, true);

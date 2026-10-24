@@ -1,6 +1,6 @@
 ---
 name: wsp-gpui
-description: The guide for porting wsp's desktop app to GPUI (map wsp-map#2364, branch gpui/main). Load it before building, reviewing or testing any GPUI screen of wsp, together with gpui-kit, gpui-kit-design-guides and wsp-design-language. It holds the lane's locked decisions, how wsp's Settings pieces map onto gpui-kit components and theme tokens, the traps other GPUI ports hit, where working code lives, the parity audit and screenshot loops, and how to build and test on a Boat 8x16 machine.
+description: The guide for porting wsp's desktop app to GPUI (branch gpui/main). Load it before building, reviewing or testing any GPUI screen of wsp, together with gpui-kit, gpui-kit-design-guides and wsp-design-language. It holds the GPUI port's locked decisions, how wsp's Settings pieces map onto gpui-kit components and theme tokens, the traps other GPUI ports hit, where working code lives, the parity audit and screenshot loops, and how to build and test on a Linux machine with 8 cores and 16 GB.
 ---
 
 # wsp on GPUI
@@ -15,8 +15,8 @@ Load these first:
   [gpui-kit](../gpui-kit/SKILL.md), [design guides](../gpui-kit-design-guides/SKILL.md).
   Refresh both with [skill-refresh.sh](../../../scripts/skill-refresh.sh)
   (`scripts/skill-refresh.sh .claude/skills/gpui-kit`).
-- `wsp-design-language`, the owner's own skill on wsp's UI. It is a user
-  skill, not in this repo; it lists the source files it reads, among them
+- `wsp-design-language`, the skill on wsp's UI. It is a user skill, not in
+  this repo; it lists the source files it reads, among them
   [layout.ts](../../../apps/web/src/settings/layout.ts) and
   [rows.tsx](../../../apps/web/src/settings/rows.tsx).
 - `wsp-design`, the locked look and its token table:
@@ -27,14 +27,13 @@ Load these first:
 
 ## The locked decisions
 
-From [map #2364](https://github.com/wsp-labs/wsp-map/issues/2364), locked by
-the owner on 2026-10-17. In short:
+Locked on 2026-10-17. In short:
 
-1. A slow lane: one or two builder threads, lowest priority, never blocking a
+1. Lowest priority: one or two threads build the port, and it never blocks a
    release.
-2. Every build and test thread runs on Boat at `--size 8x16`.
+2. Every build and test runs on a Linux machine with 8 cores and 16 GB.
 3. Work branches off `gpui/main` and merges back into it. Nothing reaches
-   main before the cutover ticket. main is merged into `gpui/main` weekly.
+   main before the cutover. main is merged into `gpui/main` weekly.
 4. A separate app, `apps/desktop-gpui`, on the same host websocket protocol
    as Electron ([packages/protocol/src/wire](../../../packages/protocol/src/wire/runtime.ts)).
    Electron keeps shipping until parity.
@@ -43,19 +42,17 @@ the owner on 2026-10-17. In short:
 6. Order: Settings and Usage first, then the sidebar, then the thread view and
    composer, the browser pane last.
 7. Week one is a gate: the fork, memory, and a long transcript's scroll rate.
-   If GPUI does not beat Electron by a wide margin there, the lane stops.
+   If GPUI does not beat Electron by a wide margin there, the port stops.
 8. Rollout like Cap: a switch in Settings, Experimental, and a cutover only at
    full parity.
-9. A coordinator thread runs the map; builders report to it.
 
 Zeron (MIT) and zui (Apache-2.0), Zeron's GPUI fork, are references for how a
-thing is done, never code to paste (map #2364, notes), and neither is our base.
+thing is done, never code to paste, and neither is our base.
 
 ## The fork
 
-**gpui-kit on its own GPUI, no zui.** The owner reversed the
-[wsp-map#2366](https://github.com/wsp-labs/wsp-map/issues/2366) ruling (gpui-kit
-on zui) on 2026-10-17 at 21:18 IST. This is the one section written to change
+**gpui-kit on its own GPUI, no zui.** An earlier plan put gpui-kit on zui;
+that changed on 2026-10-17. This is the one section written to change
 when a pin moves. Pinned in [app/Cargo.toml](../../../apps/desktop-gpui/app/Cargo.toml), gpui-kit's also in `kit_rev` of gpui-patches.sh and the `[patch]` paths of Cargo.toml:
 
 - gpui-kit `14f59330a4aa0cb5becf140e067d64a616328612` (0.7.3, 2026-10-17), a git
@@ -77,18 +74,18 @@ when a pin moves. Pinned in [app/Cargo.toml](../../../apps/desktop-gpui/app/Carg
 - [Cargo.lock](../../../apps/desktop-gpui/Cargo.lock) committed; builds run `--locked`.
 - Rust 1.99.1 ([rust-toolchain.toml](../../../apps/desktop-gpui/rust-toolchain.toml)).
 
-Why (the reversal):
+Why not zui:
 
 - No competitor in the chain. Between wsp and Zed's GPUI sits only Longbridge.
 - Current versions. gpui-kit ships a weekly release on an exact `gpui-pre`
   snapshot ([lines 62-68](https://github.com/longbridge/gpui-kit/blob/14f59330a4aa0cb5becf140e067d64a616328612/Cargo.toml#L62-L68)).
-- Headless pixels on Boat today. gpui-kit's pixel tests
+- Headless pixels on Linux with no GPU today. gpui-kit's pixel tests
   ([rendering.rs](https://github.com/longbridge/gpui-kit/blob/14f59330a4aa0cb5becf140e067d64a616328612/crates/kit/tests/rendering.rs)) render through
   `HeadlessAppContext::capture_screenshot` on WGPU with Mesa lavapipe, and
-  passed on a Boat machine with no display (the wsp-map#2365 review). The
+  passed on a Linux machine with no display. The
   app's own pixel test is `apps/desktop-gpui/app/tests/pixels.rs`.
 
-Backdrop blur, rounded clipping of children (wsp-map#2373), Chromium's text placement and a list that keeps its rows'
+Backdrop blur, rounded clipping of children, Chromium's text placement and a list that keeps its rows'
 heights when its width changes are our patch: [patches/](../../../apps/desktop-gpui/patches/gpui-pre-0.3.9.patch) over three
 pinned crates and gpui-kit's pinned commit, applied in `vendor/` by
 [gpui-patches.sh](../../../apps/desktop-gpui/scripts/gpui-patches.sh) (`apply`
@@ -177,8 +174,8 @@ the first build, about 22 s for an app-crate rebuild
 ([Cap README](https://github.com/CapSoftware/Cap/blob/main/apps/desktop-gpui/README.md),
 Running it). Cap builds dependencies at `opt-level = 2` and keeps pixel loops in
 a crate at `opt-level = 3`, because unoptimised its frame conversion cost
-42.7 ms against 1.0 ms (same README). What this page measured on Boat is under
-"Build and test on Boat".
+42.7 ms against 1.0 ms (same README). What this page measured on Linux is under
+"Build and test on Linux".
 
 **No hot reload.** Cap built a rebuild-and-relaunch loop that swaps the app
 only when the build succeeds and reopens the same windows and page
@@ -206,8 +203,7 @@ pins a published snapshot, `gpui-pre` `=0.3.9` (The fork);
 Cap pins a commit of wingleeio/zed
 ([Cap Cargo.toml](https://github.com/CapSoftware/Cap/blob/main/apps/desktop-gpui/Cargo.toml)).
 Upgrades change behavior without saying so: one app's input lag went from
-6.5 ms to 35 ms when inactive windows were capped at 30 fps (map #2364,
-Costs). A rev bump is its own change, with the week-one numbers taken before
+6.5 ms to 35 ms when inactive windows were capped at 30 fps. A rev bump is its own change, with the week-one numbers taken before
 and after.
 
 **Upstream has no effects yet.** A Zed maintainer closed the effect layer stack
@@ -239,25 +235,25 @@ on Windows are still an open issue
 
 ## Traps in this app
 
-What the screens (#2391, #2402) and the owner's Mac runs taught.
+What the first screens and their runs on a Mac taught.
 
-- **A view's `cx.notify()` re-renders its ancestors**, so an entity that ticks repaints its whole page (#2391).
-- **Rows inside gpui-kit's `MotionReveal` never get clicks**, so draw an open list plainly (#2391).
+- **A view's `cx.notify()` re-renders its ancestors**, so an entity that ticks repaints its whole page.
+- **Rows inside gpui-kit's `MotionReveal` never get clicks**, so draw an open list plainly.
 - **A capture under Xvfb with no window manager** never has an active window: the capture focuses it itself, pins
-  `TZ`, and waits for its target to change rather than for a fixed time (#2391).
-- **Under the test clock a press right after a tooltip shows misses its element** (#2391).
+  `TZ`, and waits for its target to change rather than for a fixed time.
+- **Under the test clock a press right after a tooltip shows misses its element**.
 - **In the app, `status.subscribe` goes only through `HostClient::statuses()`**, which asks once a socket; each ask holds a
   watcher on the host for the socket's life. `status_subscribe_is_asked_only_through_statuses` in
   [shared_reads.rs](../../../apps/desktop-gpui/host-client/tests/shared_reads.rs) fails on a direct
-  `StatusSubscribeRequest` (#2391).
+  `StatusSubscribeRequest`.
 - **Test hosts go through the shared `Throwaway`** in
-  [host-client/tests/common](../../../apps/desktop-gpui/host-client/tests/common/mod.rs), never a host of their own (#2391).
-- **Idle CPU on Boat is software repaint**, so measure idle on a Mac (#2391).
+  [host-client/tests/common](../../../apps/desktop-gpui/host-client/tests/common/mod.rs), never a host of their own.
+- **Idle CPU on a Linux machine with no GPU is software repaint**, so measure idle on a Mac.
 - **A systemd unit stopped with `systemctl --user stop` stays enabled**, so host start
   ([start.rs](../../../apps/desktop-gpui/host-client/src/start.rs)) also loads a unit that is enabled but not running
-  while nothing serves the state file (#2402).
-- **A Mac test run guards the owner's computer** with `sandbox-exec` denying `/bin/launchctl`, `/usr/bin/open` and
-  editor command lines (`~/wsp-work/gpui-2366-mac-logs/guard.sb` on the owner's Mac), and runs vitest outside it,
+  while nothing serves the state file.
+- **A Mac test run guards the computer it runs on** with `sandbox-exec` denying `/bin/launchctl`, `/usr/bin/open`
+  and editor command lines, and runs vitest outside it,
   since its setup runs `ps`, which the sandbox refuses.
 - **A Mac's `/var` is `/private/var`**, so tests canonicalize their temp folders.
 - **The native context menu cannot be driven**, so tests assert `ContextMenu::asked()`.
@@ -271,39 +267,39 @@ gpui-kit's examples at our pin, skills from other GPUI repos, Zed's docs, whole 
 
 ## The parity audit
 
-Run it on a ported screen before its ticket reports done, and whenever the
-coordinator asks where a screen stands. Adapted from jayjay's gpui-parity-audit
+Run it on a ported screen before calling it done, and whenever someone asks
+where a screen stands. Adapted from jayjay's gpui-parity-audit
 (linked in [references/reading.md](references/reading.md)), which audits a GPUI shell against a SwiftUI one.
 
 1. **Gather the three references.** The locked design for the screen
    ([wsp-design](../wsp-design/SKILL.md) and its mockup), the protocol messages
    the screen reads and sends
    ([packages/protocol/src/wire](../../../packages/protocol/src/wire/runtime.ts)),
-   and screenshots of the Electron app on the same screen and state, from the
-   owner's Mac. Not the React code (locked decision 5).
+   and screenshots of the Electron app on the same screen and state, from a
+   Mac. Not the React code (locked decision 5).
 2. **List what a person can see or do,** one row each: a value shown, a
    control, a state (empty, loading, failed, long text), a keyboard path. A
    screen is not a row.
 3. **Fill each row with evidence:** Electron's behavior, GPUI's behavior, and
    the proof. Proof is a test name or a screenshot pair. Reading the code is
    not proof, and calling a row absent needs a search of the GPUI code first.
-4. **Give each row one verdict:** same; gap; or a difference on purpose, with
-   the ruling linked. A row that works but breaks the design language (a status
+4. **Give each row one verdict:** same; gap; or a difference on purpose, linked
+   to where it was agreed. A row that works but breaks the design language (a status
    dot, a filled pill for a pick, a second primary button) is a gap.
 5. **Check both themes and the widths `wsp-design-language` names** (Before
    you show anything), or the narrowest window the app allows where that is
    wider. Write which you checked; claim nothing beyond them.
-6. **Report the table.** An audit is findings only. Close gaps only when the
-   ticket asks for it, with a test per state the fix touches.
+6. **Report the table.** An audit is findings only. Close gaps only when that is
+   the task, with a test per state the fix touches.
 
 ## The mockup and screenshot loop
 
 Adapted from herdr-gpui's gpui-mockup (linked in [references/reading.md](references/reading.md)), which writes design
 variants as real GPUI code, shows them side by side and captures the window to
 check its own work. Its capture works on macOS only (its SKILL.md, Limits), so
-on Boat use Xvfb or the headless road below.
+on Linux use Xvfb or the headless road below.
 
-**Shoot on Boat.** gpui-kit's `hello_world` at d4c5681, on the same
+**Shoot on Linux.** gpui-kit's `hello_world` at d4c5681, on the same
 `gpui-pre` 0.3.9 as our pin, drew its text and button here on 2026-10-17 with
 these lines, as did wsp's window against `apps/desktop-gpui/bench/fixture.sh`.
 Run them as one script in the foreground so both processes end inside it:
@@ -319,9 +315,9 @@ wait $pid; kill $xpid
 Stop only the pids you started (wsp-review, Process laws). A window takes
 focus only with a window manager on the display: start `openbox` on `:99`
 first, or the bench exits 3 (`FOCUS_WAIT` in [bench_run.rs](../../../apps/desktop-gpui/app/src/shell/bench_run.rs)).
-Boat has no GPU (no `/dev/dri`; Mesa printed a DRI3 warning) and Linux fonts,
-so a Boat shot checks layout, clipping, overflow, alignment and states; type,
-vibrancy and color are judged on the owner's Mac every few days (map #2364). Shoot the web side in Chrome at `--force-device-scale-factor=2`, never Playwright's `deviceScaleFactor`, under which Blink rounds font metrics in CSS px (#2405).
+The Linux build machine has no GPU (no `/dev/dri`; Mesa printed a DRI3 warning) and Linux fonts,
+so a Linux shot checks layout, clipping, overflow, alignment and states; type,
+vibrancy and color are judged on a Mac every few days. Shoot the web side in Chrome at `--force-device-scale-factor=2`, never Playwright's `deviceScaleFactor`, under which Blink rounds font metrics in CSS px.
 
 **Open straight into the state.** Give each screen a way to start on itself in
 a fixture state, so a shot needs no clicks. Cap opens a settings page at launch
@@ -342,7 +338,7 @@ to an image with no display
 ([headless_app_context.rs](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/app/headless_app_context.rs)).
 On our pin it runs on WGPU on Linux
 ([test.md](../gpui-kit/references/gpui/test.md), Assertion boundaries), and
-gpui-kit's pixel tests passed on Boat that way (The fork). Run them with
+gpui-kit's pixel tests passed on Linux that way (The fork). Run them with
 `cargo test -p gpui-kit --features test-support --test rendering --locked`
 ([TESTING.md lines 191-198](https://github.com/longbridge/gpui-kit/blob/14f59330a4aa0cb5becf140e067d64a616328612/crates/kit/TESTING.md#L191-L198)).
 
@@ -350,13 +346,13 @@ gpui-kit's pixel tests passed on Boat that way (The fork). Run them with
 designs; port them, do not redesign them. Where a design is silent, write two
 to four variants in one file in a `mktemp -d` folder outside the repo, shoot
 them beside a Settings page in the same theme and width
-(`wsp-design-language`, Before you show anything), and send the shots to the
-coordinator for the owner's pick. The picked variant moves into the screen's
+(`wsp-design-language`, Before you show anything), and send the shots for a
+pick. The picked variant moves into the screen's
 module with tests on its geometry; the scratch file never enters the repo.
 
-## Build and test on Boat
+## Build and test on Linux
 
-Read on the 8x16 machine that wrote this page, 2026-10-17:
+Read on a Linux machine with 8 cores and 16 GB, 2026-10-17:
 
 | What | Value | Command |
 |---|---|---|
@@ -378,7 +374,7 @@ Measured: `cargo build -p hello_world` in a fresh gpui-kit checkout (d4c5681) to
 That is gpui-kit's smallest example, not wsp's app; for a full app use Cap's
 11 minutes (above) until we measure our own.
 
-Measured on our pin, 8x16: cold `cargo build -p desktop-gpui`, downloads included, 124 s, 5.9 GB.
+Measured on our pin, same machine: cold `cargo build -p desktop-gpui`, downloads included, 124 s, 5.9 GB.
 
 **The rebuild loop.** [dev.sh](../../../apps/desktop-gpui/dev.sh) rebuilds when
 `app/`, `host-client/src` or `Cargo.toml` changes and swaps the running app
