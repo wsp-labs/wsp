@@ -8,6 +8,7 @@ import { TOOLS } from "./compare";
 import { POSTS } from "./blog";
 import { BlogIndex, BlogPost } from "./pages/blog";
 import { Compare, ToolPage } from "./pages/compare";
+import { MacDownload } from "./pages/download-mac";
 import { Home } from "./pages/home";
 import { Privacy, Security, Terms } from "./pages/legal";
 import { NotFound } from "./pages/not-found";
@@ -131,6 +132,14 @@ export const ROUTES: readonly Route[] = [
       Page: () => <BlogPost post={post} />,
     }),
   ),
+  {
+    path: "/download/mac",
+    title: "Download wsp for Mac",
+    description: "Your wsp download has started. How to open it the first time, while the app is not signed by Apple yet.",
+    image: MAIN_IMAGE,
+    index: false,
+    Page: MacDownload,
+  },
   {
     path: "/404",
     title: "Not found: wsp",

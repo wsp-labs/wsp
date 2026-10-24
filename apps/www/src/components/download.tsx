@@ -78,23 +78,24 @@ export function Waitlist({ className }: { className?: string }) {
   );
 }
 
-/** The install, matched to the visitor: the app's own download on a Mac or Linux, the waitlist on Windows. */
+/** Where a Mac's download goes: a page that starts it and walks through the first open, since the app is not signed
+ * yet and macOS refuses a downloaded copy until Open Anyway (wsp-map#2004). */
+export const MAC_GUIDE = "/download/mac";
+
+/** The install, matched to the visitor: the install line first on a Mac or Linux, since a file curl writes carries no
+ * quarantine flag and so meets no security prompt; the app's own download beside it; the waitlist on Windows. */
 export function Install({ className, align = "start" }: { className?: string; align?: "start" | "center" }) {
   const platform = useVisitor();
   if (platform === "windows") return <Waitlist className={cn(align === "center" && "flex flex-col items-center text-center", className)} />;
-  const other = platform === "mac" ? "linux" : "mac";
   return (
-    <div className={cn("flex flex-wrap items-center gap-3", align === "center" && "justify-center", className)}>
+    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-3", align === "center" && "justify-center", className)}>
+      <CopyCommand command={INSTALL} shown="curl -fsSL usewsp.com/install | sh" className="text-[13px] sm:text-[14px]" />
       <a
-        href={DOWNLOADS[platform].href}
-        className="key inline-flex h-11 items-center gap-2 rounded-[10px] px-4.5 text-[15px] font-medium transition-opacity duration-150 hover:opacity-90"
+        href={platform === "mac" ? MAC_GUIDE : DOWNLOADS.linux.href}
+        className="inline-flex items-center gap-2 px-1 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground"
       >
-        {platform === "mac" ? <AppleGlyph className="size-4 -translate-y-px" /> : <LinuxGlyph className="size-4" />}
-        {DOWNLOADS[platform].label}
-      </a>
-      <CopyCommand command={INSTALL} shown="curl -fsSL usewsp.com/install | sh" className="hidden sm:inline-flex" />
-      <a href={DOWNLOADS[other].href} aria-label={DOWNLOADS[other].label} className="px-1 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground">
-        or {DOWNLOADS[other].label.replace("Download for", "for")}
+        {platform === "mac" ? <AppleGlyph className="size-3.5 -translate-y-px" /> : <LinuxGlyph className="size-3.5" />}
+        {platform === "mac" ? "or download the app" : "or download the AppImage"}
       </a>
     </div>
   );
