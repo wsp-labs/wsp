@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The host a launch opens on (`desktop:host-lifecycle.ts` `openHostReady`): the one the lock names, else the one
 //! this computer's own service manager brings up from its unit, waited on until it answers. A unit that stands is
-//! loaded as it stands and never rewritten or removed here. Where this app carries its own host and owns the wsp
-//! command (`Start::wsp`), a missing unit is written by that command's own `wsp up --service`, run in the wsp home,
-//! and a service host on files that went is restarted onto it before the open (`Start::restart`). Quit and stop wsp
-//! stops the host and keeps the unit, login switch and all, for the next launch and the next login; today's removes
-//! it, and with it the start at login.
+//! loaded as it stands and never removed here. Where this app carries its own host and owns the wsp command
+//! (`Start::wsp`), a missing unit is written by that command's own `wsp up --service`, run in the wsp home, a service
+//! host on files that went is restarted onto it before the open (`Start::restart`), and a move onto it (`follow`)
+//! writes again a unit that runs another program. Quit and stop wsp stops the host and keeps the unit, login switch
+//! and all, for the next launch and the next login; today's removes it, and with it the start at login.
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use wsp_mcp::lock::{alive as pid_alive, answers as probe, page_release, serving, vanished, Lock};
+use wsp_mcp::lock::{alive as pid_alive, answers as probe, page_release, proved_token, serving, vanished, Lock};
+use wsp_mcp::ReleaseRule;
 
 use crate::{Env, Failure, HostClient};
 
@@ -198,6 +199,12 @@ impl Manager {
                 )
             }
         }
+    }
+
+    /// Whether a unit's file runs `program` as its first word (`ServiceManager.runs`), read off its words as the
+    /// manager reads them, so a path launchd's plist writes with `&amp;` is still the path.
+    pub fn runs(self, text: &str, program: &Path) -> bool {
+        self.argv(text).is_some_and(|argv| argv.first().is_some_and(|first| Path::new(first) == program))
     }
 
     /// The command whose answer says whether the manager holds the unit, and the process it runs.
@@ -538,11 +545,12 @@ pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> 
     Ok(())
 }
 
-/// `untilLock` for the lock to go: the host still serving once `wait` has passed, else none.
-async fn until_gone(state: &Path, wait: Duration) -> Option<Lock> {
+/// `untilLock` for the lock to go, or where `pid` is named for it to name another: the host still serving once
+/// `wait` has passed, else none.
+async fn until_gone(state: &Path, wait: Duration, pid: Option<i32>) -> Option<Lock> {
     let until = Instant::now() + wait;
     loop {
-        let lock = serving(state)?;
+        let lock = serving(state).filter(|lock| pid.is_none_or(|pid| lock.pid == pid))?;
         if Instant::now() >= until {
             return Some(lock);
         }
@@ -572,7 +580,7 @@ pub async fn stop<R: Runner>(start: &Start, runner: &R) -> Result<(), String> {
         unsafe { libc::kill(lock.pid, libc::SIGTERM) };
         asked = true;
     }
-    let left = until_gone(&start.state, if asked { start.wait } else { Duration::ZERO }).await;
+    let left = until_gone(&start.state, if asked { start.wait } else { Duration::ZERO }, None).await;
     let Some(left) = left else { return Ok(()) };
     let host = match by {
         Some("up") => "the host wsp up started",
@@ -664,7 +672,7 @@ fn restarts_onto_wsp(start: &Start) -> bool {
     let (Some(wsp), Some(manager)) = (&start.wsp, start.manager) else { return false };
     let started_by_service = serving(&start.state).is_some_and(|lock| lock.started_by.as_deref() == Some("service"));
     let unit = std::fs::read_to_string(manager.unit(&start.home, &start.state)).unwrap_or_default();
-    start.restart && started_by_service && unit.contains(wsp.to_string_lossy().as_ref())
+    start.restart && started_by_service && manager.runs(&unit, wsp)
 }
 
 /// `restart` where the launch asked for one and the service's host runs the wsp command; nothing otherwise.
@@ -683,20 +691,90 @@ pub enum Followed {
     Restarted,
     /// It already serves this bundle's release on the files the wsp command names.
     Already,
-    /// Nothing serves; the next start runs the wsp command.
+    /// Nothing served: the next start runs the wsp command, or a unit that ran another program was written again to
+    /// run it, which started its host.
     NotServing,
     /// A host serves and was left as it is, for the reason given in words a person reads.
     Left(String),
 }
 
-/// `replaceHost` onto the wsp command, by the road the lock names: a service whose unit runs the command restarts
-/// through its own `wsp restart`; one whose unit runs another program, npm's wsp, is stopped and its unit written again
-/// by the command's `wsp up --service` with the words it was given kept; a host a terminal's `wsp up` or a verb started
-/// is stopped by its pid and the service started after it. A host no road of wsp's started is left, said in words.
-/// The refusal is in the command's or the manager's own words.
+/// `ensureService`'s rewrite of a unit that runs another program, npm's wsp: the host it runs is stopped and the unit
+/// written again by the command's `wsp up --service`, with the words it was given kept, which loads it and waits on
+/// its host. The load sets it to start at login, so a unit that was set not to is set back.
+async fn rewrite<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &Path, unit: &str) -> Result<(), String> {
+    let state = start.state.display();
+    let given = manager.argv(unit).and_then(|argv| Some(argv[argv.iter().position(|word| word == "up")? + 1..].to_vec()));
+    let given = given.unwrap_or_else(|| vec!["--state".to_owned(), start.state.to_string_lossy().into_owned()]);
+    let off_at_login = manager.starts_at_login(&runner.run(&manager.login_read(start)).await, &start.state) == Some(false);
+    (start.say)(&format!(
+        "the {} {} runs another wsp; it is stopped and written again to run {}",
+        manager.words(),
+        manager.name(&start.state),
+        wsp.display()
+    ));
+    // A host serving is stopped whatever the manager said of the unit, so a manager that could not answer refuses here.
+    if serving(&start.state).is_some() || manager.holding(&runner.run(&manager.holds(start)).await) {
+        if let Some((argv, ran)) = run_all(&manager.stop(start), runner).await {
+            return Err(run_failure_line(&argv, &ran));
+        }
+    }
+    if let Some(left) = until_gone(&start.state, start.wait, None).await {
+        return Err(format!("wsp (pid {}) was stopped and still serves {state} after {}", left.pid, fmt_wait(start.wait)));
+    }
+    let mut argv = vec![wsp.to_string_lossy().into_owned(), "up".to_owned(), "--service".to_owned()];
+    argv.extend(given);
+    let ran = runner.wsp(&argv, start.wsp_home()).await;
+    if off_at_login && manager.unit(&start.home, &start.state).exists() {
+        if let Some((argv, ran)) = run_all(&[manager.off_at_login(start)], runner).await {
+            (start.say)(&run_failure_line(&argv, &ran));
+        }
+    }
+    if ran.code != 0 {
+        // A unit it wrote whose host is slower than its wait is waited on as any other start is.
+        let written = std::fs::read_to_string(manager.unit(&start.home, &start.state)).is_ok_and(|unit| manager.runs(&unit, wsp));
+        if !written {
+            return Err(wsp_failure(&argv, &ran));
+        }
+        for said in ran.output.lines().filter(|said| !said.trim().is_empty()) {
+            (start.say)(&format!("wsp up --service: {said}"));
+        }
+    }
+    Ok(())
+}
+
+/// The unit, where there is one and it runs another program than the wsp command, written again to run it.
+async fn unit_onto<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &Path) -> Result<bool, String> {
+    match std::fs::read_to_string(manager.unit(&start.home, &start.state)) {
+        Ok(unit) if !manager.runs(&unit, wsp) => rewrite(start, runner, manager, wsp, &unit).await.map(|()| true),
+        _ => Ok(false),
+    }
+}
+
+/// Where nothing serves: the unit written again to run the wsp command where it runs another program, so the start
+/// that follows runs the command.
+pub async fn idle_onto<R: Runner>(start: &Start, runner: &R) -> Result<Followed, String> {
+    if let (Some(wsp), Some(manager)) = (&start.wsp, start.manager) {
+        unit_onto(start, runner, manager, wsp).await?;
+    }
+    Ok(Followed::NotServing)
+}
+
+/// `lockedHost`'s proof the lock is this home's host before anything reaches its pid: the pid is this login's, and
+/// the page on its port carries the digest of the token beside the state. A pid a dead host left, reused by another
+/// login or beside another home's host on that port, is refused in words.
+async fn own_host(start: &Start, lock: &Lock) -> Result<(), String> {
+    proved_token(&start.state, lock, PROBE, ReleaseRule::OwnOrNewer).await.map(drop).map_err(|refused| refused.message)
+}
+
+/// `replaceHost` onto the wsp command, by the road the lock names, once the lock is proved this home's host: a
+/// service whose unit runs the command restarts through its own `wsp restart`; one whose unit runs another program,
+/// npm's wsp, is stopped and its unit written again by the command's `wsp up --service` with the words it was given
+/// kept; a host a terminal's `wsp up` or a verb started is stopped by its pid and the service started after it, from
+/// a unit written again in the same way where it runs another program. A host no road of wsp's started, or one not
+/// proved this home's, is left, said in words. The refusal is in the command's or the manager's own words.
 pub async fn follow<R: Runner>(start: &Start, runner: &R) -> Result<Followed, String> {
     let Some(wsp) = &start.wsp else { return Err("this app carries no wsp of its own to restart the host with".to_owned()) };
-    let Some(lock) = serving(&start.state) else { return Ok(Followed::NotServing) };
+    let Some(lock) = serving(&start.state) else { return idle_onto(start, runner).await };
     let state = start.state.display();
     let Some(by) = lock.started_by.as_deref() else {
         return Ok(Followed::Left(format!(
@@ -704,32 +782,16 @@ pub async fn follow<R: Runner>(start: &Start, runner: &R) -> Result<Followed, St
             lock.pid
         )));
     };
+    if let Err(refused) = own_host(start, &lock).await {
+        return Ok(Followed::Left(refused));
+    }
     let manager = start.manager.ok_or_else(|| no_manager_line(std::env::consts::OS))?;
     if by == "service" {
         let unit = std::fs::read_to_string(manager.unit(&start.home, &start.state)).unwrap_or_default();
-        if unit.contains(wsp.to_string_lossy().as_ref()) {
+        if manager.runs(&unit, wsp) {
             restart(start, runner).await?;
-            return Ok(Followed::Restarted);
-        }
-        let given = manager.argv(&unit).and_then(|argv| Some(argv[argv.iter().position(|word| word == "up")? + 1..].to_vec()));
-        let given = given.unwrap_or_else(|| vec!["--state".to_owned(), start.state.to_string_lossy().into_owned()]);
-        (start.say)(&format!(
-            "the {} {} runs another wsp; it is stopped and written again to run {}",
-            manager.words(),
-            manager.name(&start.state),
-            wsp.display()
-        ));
-        if let Some((argv, ran)) = run_all(&manager.stop(start), runner).await {
-            return Err(run_failure_line(&argv, &ran));
-        }
-        if let Some(left) = until_gone(&start.state, start.wait).await {
-            return Err(format!("wsp (pid {}) was stopped and still serves {state} after {}", left.pid, fmt_wait(start.wait)));
-        }
-        let mut argv = vec![wsp.to_string_lossy().into_owned(), "up".to_owned(), "--service".to_owned()];
-        argv.extend(given);
-        let ran = runner.wsp(&argv, start.wsp_home()).await;
-        if ran.code != 0 {
-            return Err(wsp_failure(&argv, &ran));
+        } else {
+            rewrite(start, runner, manager, wsp, &unit).await?;
         }
         return Ok(Followed::Restarted);
     }
@@ -739,13 +801,16 @@ pub async fn follow<R: Runner>(start: &Start, runner: &R) -> Result<Followed, St
         wsp.display()
     ));
     if serving(&start.state).is_some_and(|now| now.pid == lock.pid) {
-        // SAFETY: a signal to the pid the host wrote in its own lock, read again just before.
+        // SAFETY: a signal to the pid the host wrote in its own lock, proved this home's host and read again just before.
         unsafe { libc::kill(lock.pid, libc::SIGTERM) };
     }
-    if let Some(left) = until_gone(&start.state, start.wait).await {
+    // A unit with nothing to stop it, npm's among them, may take the lock as soon as this pid lets it go.
+    if let Some(left) = until_gone(&start.state, start.wait, Some(lock.pid)).await {
         return Err(format!("wsp (pid {}) was stopped and still serves {state} after {}", left.pid, fmt_wait(start.wait)));
     }
-    ensure(start, runner).await.map_err(|failed| failed.failure.message)?;
+    if !unit_onto(start, runner, manager, wsp).await? {
+        ensure(start, runner).await.map_err(|failed| failed.failure.message)?;
+    }
     Ok(Followed::Restarted)
 }
 
