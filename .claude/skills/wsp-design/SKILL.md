@@ -343,30 +343,33 @@ exception is a paused machine past the days its cloud keeps a paused disk
 line naming the day, since a send may find the disk gone and start a new
 machine.
 
-### The sidebar's three parts
+### The sidebar's four parts
 
-The live sidebar is three parts (the owner's ruling of 2026-09-30, after T3's
-own list). On top, Needs you, and Pinned above it while anything is pinned,
-each under its head. Then one list of every other live tree, newest first,
+The live sidebar is four parts (the owner's ruling of 2026-09-30, after T3's
+own list, with Working back by the owner's word of 2026-10-21). On top, Needs you, and
+Pinned above it while anything is pinned, each under its head. Then Working,
+under its head while anything in it runs: every root with a thread running or
+starting at any depth, in start order, newest first, so a row moves only when
+work in its tree starts or stops. Then one list of every other live tree, newest first,
 standing bare with no head over it, as T3's active list; it never folds, and
 it stands 12px under the part above it. Each row says for itself where it
 stands in its status slot: the elapsed time ticking while it works (the word
 Working is for screen readers alone), Done until opened, its age once read.
-Then the Settled fold. Working, Done and Idle are not sections. A row that
+Then the Settled fold. Done and Idle are not sections. A row that
 calls for the person (Needs you, Failed, a Done nobody has opened) keeps the
 foreground ink; a working or read row's title recedes unless it is open, as
 T3's `shouldRecede`, and its label keeps its hue.
 
 ### Sidebar section heads
 
-Every headed section (Pinned, Needs you, Settled, Forwarded ports) opens with
+Every headed section (Pinned, Needs you, Working, Settled, Forwarded ports) opens with
 one head, T3's: the name and its count in
 parentheses, `Settled (9)`, 12px sans in the sidebar's muted ink, a 1px
 hairline in `--sidebar-border` filling the rest of the row, and a 14px
 chevron at the end that folds the section. The head is 28px with 8px sides,
 has no fill at rest or on hover (its ink brightens), and keeps its count
 while folded. Each section's fold is remembered in the window on its own;
-Pinned and Needs you start open, Settled starts shut. Folding takes away only the
+Pinned, Needs you and Working start open, Settled starts shut. Folding takes away only the
 section's tiles: the head and everything above it stay where they are.
 
 The hairline is the one divider the app draws inside a list, an exception to

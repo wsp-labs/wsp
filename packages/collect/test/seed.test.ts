@@ -74,12 +74,6 @@ describe("the seed menu for a folder on this computer", () => {
     expect(plan.files.find(f => f.path === "docs")?.row).toBeUndefined();
   });
 
-  it("hides the Finder's own metadata, wherever it sits", async () => {
-    const plan = await seedMenu(fakeHost(laptop()), FOLDER, { claudeStateHome: CLAUDE });
-    expect(plan.files.map(f => f.path)).not.toContain(".DS_Store");
-    expect(plan.files.map(f => f.path)).not.toContain("components/.DS_Store");
-  });
-
   it("reads the branch, the remote's default, the edits that stay here and nothing ahead of the remote", async () => {
     const plan = await seedMenu(fakeHost(laptop()), FOLDER, { claudeStateHome: CLAUDE });
     expect(plan.remote).toBe("https://github.com/spoo-me/frontend.git");

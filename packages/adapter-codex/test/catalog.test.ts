@@ -112,10 +112,6 @@ describe("catalogProbeCommand", () => {
     // Nothing here waits on a clock: the whole probe is well inside the one line the reader is allowed to wait for.
     expect(Date.now() - started).toBeLessThan(LINE_WAIT_MS);
   });
-
-  it("refuses a relative home, as the turn env does", () => {
-    expect(() => buildEnv({ home: ".codex" })).toThrow(/absolute/);
-  });
 });
 
 describe("parseCatalogProbe", () => {

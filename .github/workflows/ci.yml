@@ -5,7 +5,7 @@ name: ci
 # can reach, which scripts/affected-tests.mjs picks off the change from main, and the test files the change added or
 # modified run five times over. The whole suite runs every night on main and on a run started by hand. A push to main
 # carries a commit a land/** run already tested, so it only checks that such a run passed on the same sha. The
-# install, the build and the type check run on every run that tests: one job builds, and the suite runs in four parts
+# install, the build and the type check run on every run that tests: one job builds, and the suite runs in eight parts
 # after it on the build's own output. The slate's Chromium render cases and a project image's fit run in a job of their
 # own on every run that does not pick tests and on a change that touches either; the other Chromium cases and the Electron smoke stay
 # behind their own flags. What only a Mac runs, for a change of the files only a Mac runs, runs on macOS beside them.
@@ -57,12 +57,12 @@ jobs:
             echo "::error::$SHA reached main with no passing ci run on a land/** branch"
             exit 1
           fi
-          # A skipped job leaves its run green, so each ci run is held to its four test parts by name.
+          # A skipped job leaves its run green, so each ci run is held to its eight test parts by name.
           for id in $(jq -r '.[] | select(.path == ".github/workflows/ci.yml") | .id' <<< "$runs"); do
             passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" \
-              --jq '[.jobs[] | select((.name | test("^Tests [1-4]/4$")) and .conclusion == "success") | .name] | unique | length')
-            if [ "$passed" -ne 4 ]; then
-              echo "::error::$SHA reached main with $passed of 4 test parts passed in ci run $id"
+              --jq '[.jobs[] | select((.name | test("^Tests [1-8]/8$")) and .conclusion == "success") | .name] | unique | length')
+            if [ "$passed" -ne 8 ]; then
+              echo "::error::$SHA reached main with $passed of 8 test parts passed in ci run $id"
               exit 1
             fi
           done
@@ -149,19 +149,19 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  # The suite in four parts, each a quarter of the files the run picked, split the same way on every runner. No list,
-  # as on the nightly and a run by hand, and an empty one, for a change to the root config, are both the whole suite.
-  # A small list can leave a part with no file, and vitest passes that part on its own; a list that names no file at
-  # all still fails every part.
+  # The suite in eight parts of the files the run picked, dealt by each file's time in CI (vitest.shard.ts) the same
+  # way on every runner. No list, as on the nightly and a run by hand, and an empty one, for a change to the root
+  # config, are both the whole suite. A small list can leave a part with no file, and vitest passes that part on its
+  # own; a list that names no file at all still fails every part.
   tests:
-    name: Tests ${{ matrix.shard }}/4
+    name: Tests ${{ matrix.shard }}/8
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       # A case reads this repository's own tags and origin/main, which a shallow checkout lacks and skips without.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -189,7 +189,7 @@ jobs:
         run: |
           affected=()
           if [ -f "$RUNNER_TEMP/affected.txt" ]; then mapfile -t affected < "$RUNNER_TEMP/affected.txt"; fi
-          pnpm exec vitest run --minWorkers=1 --maxWorkers=4 --shard=${{ matrix.shard }}/4 --reporter=default --reporter=github-actions --reporter=./vitest.stall.ts "${affected[@]}"
+          pnpm exec vitest run --minWorkers=1 --maxWorkers=4 --shard=${{ matrix.shard }}/8 --reporter=default --reporter=github-actions --reporter=./vitest.stall.ts "${affected[@]}"
 
   flake:
     name: The test files this change added or modified, five times over

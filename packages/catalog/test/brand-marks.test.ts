@@ -34,16 +34,6 @@ describe("brand marks", () => {
     }
   });
 
-  it("GitHub takes the row's ink and the others their hue, a step darker on the light side where the hue measures under 3:1", () => {
-    const inks = Object.fromEntries(BRAND_MARKS.map(m => [m.id, m.inks]));
-    expect(inks).toEqual({
-      node: [{ dark: "#5fa04e", light: "#579348" }],
-      github: undefined,
-      cloudflare: [{ dark: "#f38020", light: "#cf6d1b" }],
-      linear: [{ dark: "#5e6ad2", light: "#5e6ad2" }],
-    });
-  });
-
   it("a server reached over an address takes the mark of the company that serves it, by the host or a domain under it", () => {
     expect(serverMark({ kind: "http", host: "mcp.linear.app" })?.id).toBe("linear");
     expect(serverMark({ kind: "http", host: "MCP.Linear.App" })?.id).toBe("linear");

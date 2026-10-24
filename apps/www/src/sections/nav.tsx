@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from "react";
+import { POSTS } from "@/blog";
 import { Lockup } from "@/components/brand";
+import { MAC_GUIDE } from "@/components/download";
 import { DOWNLOADS, useVisitor } from "@/downloads";
 import { DOCS, REPO } from "@/links";
 import { cn } from "@/lib/utils";
@@ -13,7 +15,7 @@ function GithubGlyph({ className }: { className?: string }) {
   );
 }
 
-export function Nav() {
+export function Nav({ path = "/" }: { path?: string }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 8);
@@ -31,9 +33,19 @@ export function Nav() {
       )}
     >
       <nav className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6">
-        <a href="/#top" aria-label="wsp" className="text-[22px]">
-          <Lockup />
-        </a>
+        <span className="flex items-center gap-2.5">
+          <a href="/#top" aria-label="wsp" className="flex items-center text-[22px]">
+            <Lockup />
+          </a>
+          {path.startsWith("/blog") && (
+            <>
+              <span aria-hidden className="text-[18px] leading-none text-faint">/</span>
+              <a href="/blog" className="text-[16px] leading-none font-medium text-foreground transition-colors duration-150 hover:text-foreground/80">
+                Blog
+              </a>
+            </>
+          )}
+        </span>
         <div className="flex items-center gap-1 sm:gap-2">
           <a href={DOCS} className="rounded-md px-3 py-2 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground">
             Docs
@@ -41,12 +53,17 @@ export function Nav() {
           <a href="/compare" className="hidden rounded-md px-3 py-2 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground sm:block">
             Compare
           </a>
+          {POSTS.length > 0 && !path.startsWith("/blog") && (
+            <a href="/blog" className="hidden rounded-md px-3 py-2 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground sm:block">
+              Blog
+            </a>
+          )}
           <a href={REPO} aria-label="GitHub" className="flex items-center gap-2 rounded-md px-3 py-2 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground">
             <GithubGlyph className="size-4" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
           <a
-            href={platform === "windows" ? "/#get" : DOWNLOADS[platform].href}
+            href={platform === "windows" ? "/#get" : platform === "mac" ? MAC_GUIDE : DOWNLOADS.linux.href}
             className="key ml-1 inline-flex h-8 items-center rounded-[8px] px-3 text-[13px] font-medium transition-opacity duration-150 hover:opacity-90"
           >
             {platform === "windows" ? "Get wsp" : "Download"}
