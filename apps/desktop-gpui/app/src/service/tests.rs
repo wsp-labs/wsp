@@ -104,9 +104,9 @@ fn package_dry_run(target: &str) -> String {
 fn the_package_checks_the_node_the_command_and_the_daemon_at_the_paths_the_app_reads() {
     let mac = package_dry_run("mac");
     for arch in ["aarch64", "x86_64"] {
-        let here = Bundled::beside(Path::new("dist/wsp Experimental.app/Contents/MacOS/desktop-gpui"), Os::Mac, arch);
+        let here = Bundled::beside(Path::new("dist/wsp.app/Contents/MacOS/desktop-gpui"), Os::Mac, arch);
         for (test, file) in [("-x", &here.node), ("-f", &here.command), ("-x", &here.daemon)] {
-            let line = format!("+ test {test} '{}'", file.display());
+            let line = format!("+ test {test} {}", file.display());
             assert!(mac.lines().any(|said| said == line), "no line {line} in:\n{mac}");
         }
     }

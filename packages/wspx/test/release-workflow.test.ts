@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { ASSET_KINDS, DAEMON_TARGETS, daemonArtifactName, workspaceAsset } from "@wsp/host";
-import { bundleEnv, bundleNames, STABLE_NAMES } from "../../protocol/src/bundles.mjs";
+import { bundleEnv, bundleNames, CLASSIC_STABLE_NAMES, classicNames, STABLE_NAMES } from "../../protocol/src/bundles.mjs";
+import { CLASSIC_APP_MB, sizeOnDiskMb, sizeVerdict } from "../scripts/bundle-size.mjs";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
@@ -14,8 +15,13 @@ const workflow = readFileSync(join(repo, ".github", "workflows", "release.yml"),
 const desktopPackage = JSON.parse(readFileSync(join(repo, "apps", "desktop", "package.json"), "utf8")) as { scripts: Record<string, string>; devDependencies: Record<string, string> };
 const desktopScripts = desktopPackage.scripts;
 const builderConfig = readFileSync(join(repo, "apps", "desktop", "electron-builder.yml"), "utf8");
-const macJob = workflow.slice(workflow.indexOf("\n  mac:\n"), workflow.indexOf("\n  linux:\n"));
-const linuxJob = workflow.slice(workflow.indexOf("\n  linux:\n"), workflow.indexOf("\n  npm:\n"));
+const jobAt = (id: string) => workflow.indexOf(`\n  ${id}:\n`);
+/** The GPUI app's jobs, the main download, then the classic app's, the Electron app the release lists second. */
+const macJob = workflow.slice(jobAt("mac"), jobAt("linux"));
+const linuxJob = workflow.slice(jobAt("linux"), jobAt("mac-classic"));
+const macClassicJob = workflow.slice(jobAt("mac-classic"), jobAt("linux-classic"));
+const linuxClassicJob = workflow.slice(jobAt("linux-classic"), jobAt("npm"));
+const bundleJobs = [macJob, linuxJob, macClassicJob, linuxClassicJob];
 const npmJob = workflow.slice(workflow.indexOf("\n  npm:\n"), workflow.indexOf("\n  publish:\n"));
 const publishJob = workflow.slice(workflow.indexOf("\n  publish:\n"));
 const daemonJob = workflow.slice(workflow.indexOf("\n  daemon:\n"), workflow.indexOf("\n  draft:\n"));
@@ -85,7 +91,7 @@ describe("the release workflow", () => {
     expect(npmJob).toContain("name: Publish\n        if: ${{ github.event_name == 'push' }}");
     expect(npmJob).toContain("needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success')");
     // The mac and linux jobs build and check their bundles on a run by hand too, and only a pushed tag attaches them.
-    for (const job of [macJob, linuxJob]) {
+    for (const job of bundleJobs) {
       expect(job).toContain("needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success')");
       expect(job).toContain("name: Attach them to the draft\n        if: ${{ github.event_name == 'push' }}");
     }
@@ -96,8 +102,8 @@ describe("the release workflow", () => {
     expect(draftJob).toContain("git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main");
     expect(draftJob).toContain('node packages/wspx/scripts/tag-version.mjs "$GITHUB_REF_NAME"');
     // Every job that drafts, builds, publishes or flips waits on that check.
-    for (const job of [macJob, linuxJob]) expect(job).toContain("needs: [draft, daemon]");
-    expect(publishJob).toContain("needs: [draft, mac, linux, npm]");
+    for (const job of bundleJobs) expect(job).toContain("needs: [draft, daemon]");
+    expect(publishJob).toContain("needs: [draft, mac, linux, mac-classic, linux-classic, npm]");
   });
 
   it("attaches the binaries and decides latest from the job that flips the draft, not from the one that publishes", () => {
@@ -154,7 +160,7 @@ describe("the release workflow", () => {
     expect(daemonJob).toContain('LIBSECCOMP_LIB_PATH="$PWD/target/libseccomp/musl" cargo build --locked --release --target "$TARGET" -p wsp-daemon-bin');
     expect(daemonJob).not.toContain("zig");
     // Every job that builds the command or the app reads the binaries back first, through the one script.
-    for (const job of [macJob, linuxJob, npmJob]) {
+    for (const job of [...bundleJobs, npmJob]) {
       expect(job).toContain("pattern: wsp-daemon-*");
       expect(job).toContain("node packages/wspx/scripts/daemon-binary.mjs --from-artifacts daemon-bins");
       expect(job).toContain("needs: [draft, daemon]");
@@ -162,15 +168,17 @@ describe("the release workflow", () => {
     expect(npmJob).toContain("node packages/wspx/scripts/daemon-binary.mjs --check");
     // The release is the one place the daemon binaries are required of a build: each job that builds sets the
     // variable the stage reads, so a missing binary fails there and a checkout without one still builds.
-    for (const job of [macJob, linuxJob, npmJob]) expect(job).toContain('WSP_REQUIRE_DAEMON: "1"');
-    expect(workflow.split('WSP_REQUIRE_DAEMON: "1"').length - 1).toBe(3);
+    for (const job of [...bundleJobs, npmJob]) expect(job).toContain('WSP_REQUIRE_DAEMON: "1"');
+    expect(workflow.split('WSP_REQUIRE_DAEMON: "1"').length - 1).toBe(5);
     expect(existsSync(join(repo, "packages/wspx/scripts/daemon-binary.mjs"))).toBe(true);
   });
 
   it("builds everything it ships public and reads each bundle for a cloud provider before it leaves the runner", () => {
     const roads = [
-      { job: macJob, build: "- name: Build the bundles\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop/build/app\n", ships: "gh release upload" },
+      { job: macJob, build: "- name: Build the app\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop-gpui/dist/wsp.app/Contents/Resources/app\n", ships: "gh release upload" },
       { job: linuxJob, build: "- name: Build the bundle\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop/build/app\n", ships: "gh release upload" },
+      { job: macClassicJob, build: "- name: Build the bundles\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop/build/app\n", ships: "gh release upload" },
+      { job: linuxClassicJob, build: "- name: Build the bundle\n", check: "node packages/wspx/scripts/public-check.mjs apps/desktop/build/app\n", ships: "gh release upload" },
       { job: npmJob, build: "- name: Build, with every daemon binary required\n", check: 'node packages/wspx/scripts/public-check.mjs "$RUNNER_TEMP"/wsp-labs-wsp-*.tgz\n', ships: "npm publish" },
     ];
     for (const { job, build, check, ships } of roads) {
@@ -207,20 +215,22 @@ describe("the release workflow", () => {
     }
   });
 
-  it("builds each platform through the script apps/desktop owns", () => {
-    for (const step of ["run build:mac", "run build:linux"]) expect(workflow).toContain(`pnpm --filter @wsp/desktop ${step}`);
-    const check = macJob.indexOf("- name: Check the packaged trees\n");
-    const smoke = macJob.indexOf("- name: Drive the packaged app with the smoke\n");
+  it("builds the classic app on each platform through the script apps/desktop owns", () => {
+    expect(macClassicJob).toContain("pnpm --filter @wsp/desktop run build:mac");
+    expect(linuxClassicJob).toContain("pnpm --filter @wsp/desktop run build:linux");
+    for (const job of [macJob, linuxJob]) expect(job).not.toContain("@wsp/desktop run build:");
+    const check = macClassicJob.indexOf("- name: Check the packaged trees\n");
+    const smoke = macClassicJob.indexOf("- name: Drive the packaged app with the smoke\n");
     expect(check).toBeGreaterThan(-1);
     expect(smoke).toBeGreaterThan(check);
-    expect(macJob.indexOf("- name:", check + 1)).toBe(smoke);
-    expect(macJob.slice(smoke, macJob.indexOf("- name:", smoke + 1))).toContain("run: pnpm --filter @wsp/desktop smoke\n");
+    expect(macClassicJob.indexOf("- name:", check + 1)).toBe(smoke);
+    expect(macClassicJob.slice(smoke, macClassicJob.indexOf("- name:", smoke + 1))).toContain("run: pnpm --filter @wsp/desktop smoke\n");
     expect(workflow).not.toContain("WSP_DESKTOP_SCREEN");
     expect(workflow).not.toContain("merge gate");
     // ci runs the signing check word for word on every land run, so a root config that breaks it from apps/desktop
     // fails a landing and not a tag.
     const signing = "run: pnpm --filter @wsp/desktop exec vitest run --minWorkers=1 --maxWorkers=1 test/signing.test.ts\n";
-    expect(macJob.slice(check, smoke)).toContain(signing);
+    expect(macClassicJob.slice(check, smoke)).toContain(signing);
     expect(readFileSync(join(repo, ".github", "workflows", "ci.yml"), "utf8")).toContain(signing);
     expect(workflow).not.toContain("pty-native");
     expect(desktopScripts["build:mac"]).toContain("--mac");
@@ -229,16 +239,24 @@ describe("the release workflow", () => {
     expect(desktopScripts["build"]).toBe("pnpm run build:deps && pnpm run build:app && electron-builder --config electron-builder.yml --publish never");
   });
 
-  it("starts the AppImage it uploads once, after the rename and before the upload, on a virtual display", () => {
-    const rename = linuxJob.indexOf("- name: Name the AppImage after the release");
-    const launch = linuxJob.indexOf("- name: Start the AppImage once and wait for its window's page\n");
-    const upload = linuxJob.indexOf("- name: Attach them to the draft\n");
-    expect(rename).toBeGreaterThan(-1);
-    expect(linuxJob.indexOf("- name:", rename + 1)).toBe(launch);
-    expect(linuxJob.indexOf("- name:", launch + 1)).toBe(upload);
-    expect(linuxJob.slice(launch, upload)).toContain('run: xvfb-run --auto-servernum node apps/desktop/scripts/appimage-launch.mjs "$APPIMAGE"\n');
+  it("starts each AppImage it uploads once, after the rename and before the upload, on a virtual display", () => {
+    const roads = [
+      { job: linuxJob, step: "- name: Start the AppImage once and wait for its window\n", run: 'run: xvfb-run --auto-servernum apps/desktop-gpui/scripts/appimage-launch.sh "$APPIMAGE"\n' },
+      { job: linuxClassicJob, step: "- name: Start the AppImage once and wait for its window's page\n", run: 'run: xvfb-run --auto-servernum node apps/desktop/scripts/appimage-launch.mjs "$CLASSIC_APPIMAGE"\n' },
+    ];
+    for (const { job, step, run } of roads) {
+      const rename = job.indexOf("- name: Name the AppImage after the release");
+      const launch = job.indexOf(step);
+      const upload = job.indexOf("- name: Attach them to the draft\n");
+      expect(rename).toBeGreaterThan(-1);
+      expect(job.indexOf("- name:", rename + 1)).toBe(launch);
+      expect(job.indexOf("- name:", launch + 1)).toBe(upload);
+      expect(job.slice(launch, upload)).toContain(run);
+    }
     const checked = spawnSync(process.execPath, ["--check", join(repo, "apps", "desktop", "scripts", "appimage-launch.mjs")], { encoding: "utf8" });
     expect(checked.status, checked.stderr).toBe(0);
+    const parsed = spawnSync("bash", ["-n", join(repo, "apps", "desktop-gpui", "scripts", "appimage-launch.sh")], { encoding: "utf8" });
+    expect(parsed.status, parsed.stderr).toBe(0);
   });
 
   it("builds every package the app's staging copies from in build:deps, the only build the release runs first", () => {
@@ -257,8 +275,12 @@ describe("the release workflow", () => {
   it("makes one mac bundle for both chips, so no download depends on reading the chip", () => {
     expect(desktopScripts["build:mac"]).not.toMatch(/--(arm64|x64)\b/);
     expect(/^mac:\n((?: .*\n)+)/m.exec(builderConfig)?.[1]).toContain("arch: [universal]");
-    expect(macJob).not.toContain("mac-arm64");
-    expect(macJob).not.toContain("dist/mac");
+    for (const job of [macJob, macClassicJob]) {
+      expect(job).not.toContain("mac-arm64");
+      expect(job).not.toContain("dist/mac");
+    }
+    expect(macJob).toContain("run: apps/desktop-gpui/scripts/package.sh --target mac\n");
+    expect(readFileSync(join(repo, "apps", "desktop-gpui", "scripts", "package.sh"), "utf8")).toContain('run lipo -create -output "$app/Contents/MacOS/$bin"');
   });
 
   it("builds the AppImage on the static runtime, which opens where libfuse.so.2 is not installed", () => {
@@ -266,25 +288,32 @@ describe("the release workflow", () => {
   });
 
   it("hands the signing secrets by name to the step that builds, tells the step that checks whether one signed, and no value anywhere", () => {
-    const [header, ...steps] = macJob.split("\n      - ");
     const secretOf = (name: string) => `${name}: \${{ secrets.${name} }}`;
-    const build = steps.find(step => step.startsWith("name: Build the bundles"));
-    const check = steps.find(step => step.startsWith("name: Check the packaged trees"));
     for (const name of SIGNING_SECRETS) {
-      expect(build).toContain(secretOf(name));
       const assignments = workflow.split("\n").filter(line => line.includes(`${name}:`)).map(line => line.trim());
       expect(new Set(assignments)).toEqual(new Set([secretOf(name)]));
+      expect(assignments).toHaveLength(2);
     }
-    // The check step reads whether an identity signed and never the certificate itself, so no test's environment
-    // carries its bytes.
-    expect(check).toContain("WSP_SIGNED: ${{ secrets.CSC_LINK != '' && '1' || '' }}");
-    for (const name of SIGNING_SECRETS) expect(check).not.toContain(secretOf(name));
-    expect(check).not.toMatch(/secrets\.(CSC_KEY|APPLE)/);
+    for (const { job, building, checking } of [
+      { job: macJob, building: "name: Build the app", checking: "name: Check the signature" },
+      { job: macClassicJob, building: "name: Build the bundles", checking: "name: Check the packaged trees" },
+    ]) {
+      const [header, ...steps] = job.split("\n      - ");
+      const build = steps.find(step => step.startsWith(building));
+      const check = steps.find(step => step.startsWith(checking));
+      for (const name of SIGNING_SECRETS) expect(build).toContain(secretOf(name));
+      // The check step reads whether an identity signed and never the certificate itself, so no test's environment
+      // carries its bytes.
+      expect(check).toContain("WSP_SIGNED: ${{ secrets.CSC_LINK != '' && '1' || '' }}");
+      for (const name of SIGNING_SECRETS) expect(check).not.toContain(secretOf(name));
+      expect(check).not.toMatch(/secrets\.(CSC_KEY|APPLE)/);
+      for (const part of [header, ...steps.filter(step => step !== build && step !== check)]) expect(part).not.toMatch(/secrets\.(CSC|APPLE)/);
+    }
+    for (const job of [linuxJob, linuxClassicJob]) expect(job).not.toMatch(/secrets\.(CSC|APPLE)/);
     // The test that reads whether an identity signed reads the name this step sets, so the two move as one.
     const signing = readFileSync(join(repo, "apps", "desktop", "test", "signing.test.ts"), "utf8");
     expect(signing).toContain("WSP_SIGNED");
     expect(signing).not.toContain("CSC_LINK");
-    for (const part of [header, ...steps.filter(step => step !== build && step !== check)]) expect(part).not.toMatch(/secrets\.(CSC|APPLE)/);
     expect(workflow).not.toContain("Developer ID Application:");
   });
 
@@ -297,19 +326,75 @@ describe("the release workflow", () => {
   });
 
   it("takes every asset name from the one formatter and spells none of its own", () => {
-    for (const job of [macJob, linuxJob]) expect(job).toContain('node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"');
-    for (const name of [...Object.values(bundleNames("$VERSION")), ...Object.values(STABLE_NAMES)]) expect(workflow).not.toContain(name);
+    for (const job of bundleJobs) expect(job).toContain('node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"');
+    const names = [bundleNames("$VERSION"), classicNames("$VERSION"), STABLE_NAMES, CLASSIC_STABLE_NAMES].flatMap(set => Object.values(set));
+    for (const name of names) expect(workflow).not.toContain(name);
     expect(workflow).not.toMatch(/wsp-[^"\s]*\.(dmg|AppImage|zip)/);
     for (const name of envNames) expect(workflow).toContain(`$${name}`);
   });
 
-  it("uploads each bundle under the release's own name and under the name a link can hold", () => {
-    expect(macJob).toContain('gh release upload "$GITHUB_REF_NAME" "$MAC_DMG" "$MAC_STABLE" "$MAC_ZIP" --clobber');
-    expect(macJob).toContain('cp "$MAC_DMG" "$MAC_STABLE"');
-    expect(macJob).toContain('set -- apps/desktop/dist/*.zip');
-    expect(macJob).toContain('mv "$1" "$MAC_ZIP"');
-    expect(linuxJob).toContain('gh release upload "$GITHUB_REF_NAME" "$APPIMAGE" "$APPIMAGE_STABLE" --clobber');
-    expect(linuxJob).toContain('cp "$APPIMAGE" "$APPIMAGE_STABLE"');
+  it("uploads each bundle under the release's own name and under the name a link can hold, the GPUI app's under today's names", () => {
+    for (const [job, dist, prefix] of [
+      [macJob, "apps/desktop-gpui/dist", ""],
+      [macClassicJob, "apps/desktop/dist", "CLASSIC_"],
+    ] as const) {
+      expect(job).toContain(`gh release upload "$GITHUB_REF_NAME" "$${prefix}MAC_DMG" "$${prefix}MAC_STABLE" "$${prefix}MAC_ZIP" --clobber`);
+      expect(job).toContain(`set -- ${dist}/*.dmg\n`);
+      expect(job).toContain(`mv "$1" "$${prefix}MAC_DMG"\n          cp "$${prefix}MAC_DMG" "$${prefix}MAC_STABLE"`);
+      expect(job).toContain(`set -- ${dist}/*.zip\n`);
+      expect(job).toContain(`mv "$1" "$${prefix}MAC_ZIP"`);
+    }
+    for (const [job, dist, prefix] of [
+      [linuxJob, "apps/desktop-gpui/dist", ""],
+      [linuxClassicJob, "apps/desktop/dist", "CLASSIC_"],
+    ] as const) {
+      expect(job).toContain(`gh release upload "$GITHUB_REF_NAME" "$${prefix}APPIMAGE" "$${prefix}APPIMAGE_STABLE" --clobber`);
+      expect(job).toContain(`set -- ${dist}/*.AppImage\n`);
+      expect(job).toContain(`cp "$${prefix}APPIMAGE" "$${prefix}APPIMAGE_STABLE"`);
+    }
+    expect(workflow.split("gh release upload").length - 1).toBe(5);
+  });
+
+  it("lists the GPUI app first and the classic app second, its jobs before the classic app's", () => {
+    const order = ["daemon", "draft", "mac", "linux", "mac-classic", "linux-classic", "npm", "publish"].map(jobAt);
+    for (const at of order) expect(at).toBeGreaterThan(-1);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(macJob).toContain("name: macOS app\n");
+    expect(macClassicJob).toContain("name: macOS disk image, the classic app\n");
+    expect(linuxClassicJob).toContain("name: Linux AppImage, the classic app\n");
+    // The GPUI jobs build out of apps/desktop-gpui alone and the classic jobs out of apps/desktop alone.
+    for (const job of [macJob, linuxJob]) expect(job).not.toContain("apps/desktop/dist");
+    for (const job of [macClassicJob, linuxClassicJob]) expect(job).not.toContain("apps/desktop-gpui");
+    expect(linuxJob).toContain("run: apps/desktop-gpui/scripts/package.sh --target linux\n");
+  });
+
+  it("refuses a GPUI Mac app that is not smaller on disk than the classic app, after the build and before anything is named or attached", () => {
+    const build = macJob.indexOf("- name: Build the app\n");
+    const size = macJob.indexOf("- name: The app is smaller on disk than the classic app\n");
+    const rename = macJob.indexOf("- name: Name the disk image after the release");
+    expect(build).toBeGreaterThan(-1);
+    expect(size).toBeGreaterThan(build);
+    expect(rename).toBeGreaterThan(size);
+    expect(macJob.slice(size, rename)).toContain("run: node packages/wspx/scripts/bundle-size.mjs apps/desktop-gpui/dist/wsp.app\n");
+    // Today's 0.3.8 wsp.app, of which Electron's framework is 451 MB.
+    expect(CLASSIC_APP_MB).toBe(515);
+    expect(sizeVerdict(514.9).ok).toBe(true);
+    expect(sizeVerdict(515)).toEqual({ ok: false, line: "refused: 515.0 MB on disk, against the classic app's 515 MB; the main download may not grow" });
+    // Counted as du counts it, every file's blocks once and no link followed.
+    const app = mkdtempSync(join(tmpdir(), "wsp-bundle-size-"));
+    made.push(app);
+    mkdirSync(join(app, "Contents", "MacOS"), { recursive: true });
+    writeFileSync(join(app, "Contents", "MacOS", "wsp"), Buffer.alloc(3 * 1024 * 1024, 1));
+    symlinkSync("/usr", join(app, "Contents", "elsewhere"));
+    const mb = sizeOnDiskMb(app);
+    expect(mb).toBeGreaterThanOrEqual(3);
+    expect(mb).toBeLessThan(3.2);
+    const script = join(repo, "packages", "wspx", "scripts", "bundle-size.mjs");
+    const passed = spawnSync(process.execPath, [script, app], { encoding: "utf8" });
+    expect(passed.status, passed.stderr).toBe(0);
+    expect(passed.stdout).toMatch(/^ok {4}3\.\d MB on disk, against the classic app's 515 MB\n$/);
+    const missing = spawnSync(process.execPath, [script, join(app, "absent")], { encoding: "utf8" });
+    expect(missing.status).toBe(1);
   });
 
   it("never lets the packager upload a release of its own", () => {

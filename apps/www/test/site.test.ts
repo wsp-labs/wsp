@@ -10,7 +10,7 @@ import { createElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
-import { DOWNLOADS, platformOf } from "../src/downloads";
+import { CLASSIC, DOWNLOADS, platformOf } from "../src/downloads";
 import { DOCS, EMAIL, ORG, REPO, X } from "../src/links";
 import { aheadOf, KINDS, ROWS, sources, TOOLS, WSP } from "../src/compare";
 import { fileOf, ROUTES } from "../src/routes";
@@ -81,6 +81,8 @@ describe("every route, as raw HTML", () => {
     }
     expect(html).toContain(`href="/download/mac"`);
     expect(html).toContain(`href="/compare/conductor"`);
+    expect(CLASSIC).toEqual({ mac: `${REPO}/releases/latest/download/wsp-classic-mac.dmg`, linux: `${REPO}/releases/latest/download/wsp-classic-linux.AppImage` });
+    for (const href of Object.values(CLASSIC)) expect(html).toContain(`href="${href}"`);
   });
 
   it("serves /compare as one card per tool, under its kind, each opening the tool's page", () => {

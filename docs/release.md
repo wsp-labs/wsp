@@ -44,20 +44,28 @@ checkout of `main` on a computer with the Solari key in `.env`.
    started by hand from the Actions tab is always the dry run, whatever ref it
    runs on: the four daemon binaries are built and the command line package
    is staged with them, and nothing is drafted, attached or published.
-   Then a macOS runner builds `apps/desktop` as one universal
-   bundle carrying both chips, signs it (see
-   [Signing the mac bundles](#signing-the-mac-bundles)), checks both slices of
-   its signature and its packaged tree, launches it under the desktop smoke,
-   and wraps it in the drag-to-Applications
-   disk image `wsp-<version>-mac.dmg`; a Linux runner builds
-   `wsp-<version>.AppImage`. Each also goes up as an unversioned copy,
+   Then a macOS runner builds the GPUI app, `apps/desktop-gpui`, with
+   `apps/desktop-gpui/scripts/package.sh --target mac`: one universal `wsp.app`
+   carrying both chips, its Node, the host and the daemons, signed, notarized
+   and stapled with the same secrets (see
+   [Signing the mac bundles](#signing-the-mac-bundles)), refused unless it is
+   smaller on disk than the classic app's 515 MB, and wrapped in the
+   drag-to-Applications disk image `wsp-<version>-mac.dmg`; a Linux runner
+   builds `wsp-<version>.AppImage` with `--target linux` and starts it once.
+   Each also goes up as an unversioned copy,
    `wsp-mac.dmg` and `wsp-linux.AppImage`, which is what GitHub serves at
    `releases/latest/download/<name>` and what the site's two download buttons
    link. The mac job also uploads `wsp-<version>-mac.zip`, which an installed
-   app downloads and replaces itself from. Every one of those names comes from
-   `packages/protocol/src/bundles.mjs`; the workflow spells none of them. They
-   land on a draft release on the tag, whose notes are the commits since the
-   previous tag plus the README's lines on opening a downloaded bundle. Nothing
+   app of either kind downloads and replaces itself from. Two more runners
+   build the classic app, the Electron app in `apps/desktop`, as before, under
+   names that say classic: `wsp-classic-<version>-mac.dmg`,
+   `wsp-classic-<version>-mac.zip`, `wsp-classic-<version>.AppImage`,
+   `wsp-classic-mac.dmg` and `wsp-classic-linux.AppImage`; the notes list it
+   second, and a classic app updates itself from the classic zip. Every one
+   of those names comes from `packages/protocol/src/bundles.mjs`; the
+   workflow spells none of them. They land on a draft release on the tag,
+   whose notes are the commits since the previous tag plus the README's lines
+   on opening a downloaded bundle. Nothing
    else on the workflow reaches npm: step 4 stays a person's, because of the one
    time password.
 7. **The draft turns itself into a release.** Once the bundles, the daemon
@@ -69,10 +77,10 @@ checkout of `main` on a computer with the Solari key in `.env`.
    a prerelease and is never latest. Read the notes on the release page and
    paste the doctor table from step 3 under them. If a runner is
    down, the same bundles come from a Mac by hand:
-   `pnpm --filter @wsp/desktop build`, then
-   `pnpm --filter @wsp/desktop smoke`, then the disk image electron-builder
-   left in `apps/desktop/dist`, renamed to `wsp-<version>-mac.dmg` and copied
-   to `wsp-mac.dmg`, both attached to the draft by hand.
+   `apps/desktop-gpui/scripts/package.sh --target mac`, then the disk image and
+   the zip it left in `apps/desktop-gpui/dist`, already named
+   `wsp-<version>-mac.dmg` and `wsp-<version>-mac.zip`, the disk image copied
+   to `wsp-mac.dmg`, all attached to the draft by hand.
    A Mac whose login keychain holds the Developer ID Application certificate
    signs them with it, and notarizes when `APPLE_ID`,
    `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` are set in the shell;

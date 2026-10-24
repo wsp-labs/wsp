@@ -3,7 +3,7 @@ import { track } from "@/lib/analytics";
 import { useState, type FormEvent } from "react";
 import { ArrowRight, Check } from "lucide-react";
 import { CopyCommand } from "@/components/copy-command";
-import { DOWNLOADS, useVisitor } from "@/downloads";
+import { CLASSIC, DOWNLOADS, useVisitor } from "@/downloads";
 import { EMAIL, INSTALL } from "@/links";
 import { cn } from "@/lib/utils";
 
@@ -83,20 +83,35 @@ export function Waitlist({ className }: { className?: string }) {
 export const MAC_GUIDE = "/download/mac";
 
 /** The install, matched to the visitor: the install line first on a Mac or Linux, since a file curl writes carries no
- * quarantine flag and so meets no security prompt; the app's own download beside it; the waitlist on Windows. */
+ * quarantine flag and so meets no security prompt; the app's own download beside it, and the classic app's in a quiet
+ * line under both; the waitlist on Windows. */
 export function Install({ className, align = "start" }: { className?: string; align?: "start" | "center" }) {
   const platform = useVisitor();
   if (platform === "windows") return <Waitlist className={cn(align === "center" && "flex flex-col items-center text-center", className)} />;
+  const classic = "text-foreground underline decoration-faint underline-offset-4 transition-colors duration-150 hover:decoration-foreground";
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-3", align === "center" && "justify-center", className)}>
-      <CopyCommand command={INSTALL} shown="curl -fsSL usewsp.com/install | sh" className="text-[13px] sm:text-[14px]" />
-      <a
-        href={platform === "mac" ? MAC_GUIDE : DOWNLOADS.linux.href}
-        className="inline-flex items-center gap-2 px-1 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground"
-      >
-        {platform === "mac" ? <AppleGlyph className="size-3.5 -translate-y-px" /> : <LinuxGlyph className="size-3.5" />}
-        {platform === "mac" ? "or download the app" : "or download the AppImage"}
-      </a>
+    <div className={cn(align === "center" && "text-center", className)}>
+      <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-3", align === "center" && "justify-center")}>
+        <CopyCommand command={INSTALL} shown="curl -fsSL usewsp.com/install | sh" className="text-[13px] sm:text-[14px]" />
+        <a
+          href={platform === "mac" ? MAC_GUIDE : DOWNLOADS.linux.href}
+          className="inline-flex items-center gap-2 px-1 text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground"
+        >
+          {platform === "mac" ? <AppleGlyph className="size-3.5 -translate-y-px" /> : <LinuxGlyph className="size-3.5" />}
+          {platform === "mac" ? "or download the app" : "or download the AppImage"}
+        </a>
+      </div>
+      <p className="mt-3 text-[13px] text-muted-foreground">
+        Or get the classic app for{" "}
+        <a href={CLASSIC.mac} aria-label="the classic app for Mac" className={classic}>
+          Mac
+        </a>{" "}
+        or{" "}
+        <a href={CLASSIC.linux} aria-label="the classic app for Linux" className={classic}>
+          Linux
+        </a>
+        .
+      </p>
     </div>
   );
 }

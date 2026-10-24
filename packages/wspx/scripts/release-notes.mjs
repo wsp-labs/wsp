@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // The version order lives with the app that also reads it; this job runs before any install, so the file is
 // imported where it sits rather than through the package it belongs to.
 import { compareVersions } from "../../protocol/src/semver.mjs";
-import { bundleNames } from "../../protocol/src/bundles.mjs";
+import { bundleNames, classicNames } from "../../protocol/src/bundles.mjs";
 import { isReleaseTag, versionFromTag } from "./tag-version.mjs";
 
 // The README owns this text so the page a stranger reads and the notes they get
@@ -83,6 +83,7 @@ export const BOAT_MOVED = "wsp now calls Boat at boat.dev/api/v1. Boat set 31 Oc
  */
 export function releaseNotes({ version, previous, changes, bundles, renames, signed = false, now = Date.now() }) {
   const names = bundleNames(version);
+  const classic = classicNames(version);
   return [
     previous === undefined ? "## What changed" : `## What changed since ${previous}`,
     "",
@@ -94,6 +95,7 @@ export function releaseNotes({ version, previous, changes, bundles, renames, sig
     "",
     `- \`${names.mac}\`: macOS on Apple silicon and on Intel, one disk image for both.`,
     `- \`${names.appImage}\`: Linux on x64.`,
+    `- The classic app, the Electron app wsp shipped before: \`${classic.mac}\` and \`${classic.appImage}\`.`,
     `- The command line: \`npm i -g ${PACKAGE}@${version}\`.`,
     "",
     ...(signed ? [] : [PERMISSIONS_AGAIN, ""]),
