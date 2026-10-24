@@ -135,6 +135,10 @@ name = "atlas_trim"
 harness = false
 
 [[test]]
+name = "gpu_buffers"
+harness = false
+
+[[test]]
 name = "terminal_shots"
 harness = false
 

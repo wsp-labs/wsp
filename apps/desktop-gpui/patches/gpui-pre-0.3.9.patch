@@ -748,7 +748,7 @@ index 2f755b1..9f808c1 100644
          for node in &self.nodes[index..] {
              if let Some(focus_id) = node.focus_id {
 diff --git a/src/platform/test/window.rs b/src/platform/test/window.rs
-index 5692b1e..8000249 100644
+index 5692b1e..f68f458 100644
 --- a/src/platform/test/window.rs
 +++ b/src/platform/test/window.rs
 @@ -1,10 +1,10 @@
@@ -810,7 +810,18 @@ index 5692b1e..8000249 100644
      pub fn simulate_input(&mut self, event: PlatformInput) -> bool {
          let mut lock = self.0.lock();
          let Some(mut callback) = lock.input_callback.take() else {
-@@ -603,7 +624,17 @@ impl PlatformWindow for TestWindow {
+@@ -559,6 +580,10 @@ impl PlatformWindow for TestWindow {
+         self.0.lock().sprite_atlas.clone()
+     }
+ 
++    fn gpu_usage(&self) -> Option<crate::GpuUsage> {
++        self.0.lock().renderer.as_ref().and_then(|r| r.gpu_usage())
++    }
++
+     #[cfg(any(test, feature = "test-support"))]
+     fn render_to_image(&self, scene: &Scene) -> anyhow::Result<RgbaImage> {
+         let scale_factor = self.scale_factor();
+@@ -603,7 +628,17 @@ impl PlatformWindow for TestWindow {
          state.start_external_drag_result
      }
  
@@ -830,10 +841,33 @@ index 5692b1e..8000249 100644
      fn gpu_specs(&self) -> Option<GpuSpecs> {
          None
 diff --git a/src/platform.rs b/src/platform.rs
-index c08d964..9be22cb 100644
+index c08d964..3ab5a4a 100644
 --- a/src/platform.rs
 +++ b/src/platform.rs
-@@ -1749,12 +1749,29 @@ pub trait PlatformAtlas {
+@@ -1276,6 +1276,10 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
+     fn draw(&self, scene: &Scene);
+     fn schedule_frame(&self) {}
+     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas>;
++    /// What the window's renderer holds beside its atlas, where the platform reads it.
++    fn gpu_usage(&self) -> Option<GpuUsage> {
++        None
++    }
+     fn is_subpixel_rendering_supported(&self) -> bool;
+ 
+     // macOS specific methods
+@@ -1425,6 +1429,11 @@ pub trait PlatformHeadlessRenderer {
+ 
+     /// Returns the sprite atlas used by this renderer.
+     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas>;
++
++    /// What this renderer holds beside its atlas, where it reads it.
++    fn gpu_usage(&self) -> Option<GpuUsage> {
++        None
++    }
+ }
+ 
+ /// Type alias for runnables with metadata.
+@@ -1749,12 +1758,38 @@ pub trait PlatformAtlas {
      ) -> Result<Option<AtlasTile>>;
      fn remove(&self, key: &AtlasKey);
  
@@ -851,6 +885,15 @@ index c08d964..9be22cb 100644
      }
  }
  
++/// What a window's renderer holds on the GPU beside its sprite atlas, in bytes.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct GpuUsage {
++    /// The textures paths are drawn through, as large as the window while it draws a path.
++    pub path_textures: u64,
++    /// The buffers a frame's instances are written to.
++    pub instance_data: u64,
++}
++
 +/// What a sprite atlas's textures hold, in bytes.
 +#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 +pub struct AtlasUsage {
@@ -863,7 +906,7 @@ index c08d964..9be22cb 100644
  #[doc(hidden)]
  pub trait AtlasBackend {
      fn insert(
-@@ -1824,6 +1841,18 @@ impl<Backend: AtlasBackend> AtlasState<Backend> {
+@@ -1824,6 +1859,18 @@ impl<Backend: AtlasBackend> AtlasState<Backend> {
              self.backend.remove(tile);
          }
      }
@@ -882,7 +925,7 @@ index c08d964..9be22cb 100644
  }
  
  /// A sprite atlas for windows without a GPU. It hands out uniquely identified
-@@ -1836,6 +1865,17 @@ pub struct HeadlessAtlas(parking_lot::Mutex<AtlasState<HeadlessAtlasBackend>>);
+@@ -1836,6 +1883,17 @@ pub struct HeadlessAtlas(parking_lot::Mutex<AtlasState<HeadlessAtlasBackend>>);
  #[derive(Default)]
  pub struct HeadlessAtlasBackend {
      next_id: u32,
@@ -900,7 +943,7 @@ index c08d964..9be22cb 100644
  }
  
  impl AtlasBackend for HeadlessAtlasBackend {
-@@ -1845,6 +1885,7 @@ impl AtlasBackend for HeadlessAtlasBackend {
+@@ -1845,6 +1903,7 @@ impl AtlasBackend for HeadlessAtlasBackend {
          size: Size<DevicePixels>,
          _bytes: &[u8],
      ) -> Result<AtlasTile> {
@@ -908,7 +951,7 @@ index c08d964..9be22cb 100644
          self.next_id += 1;
          let texture_id = self.next_id;
          self.next_id += 1;
-@@ -1863,7 +1904,9 @@ impl AtlasBackend for HeadlessAtlasBackend {
+@@ -1863,7 +1922,9 @@ impl AtlasBackend for HeadlessAtlasBackend {
          })
      }
  
@@ -919,7 +962,7 @@ index c08d964..9be22cb 100644
  }
  
  impl PlatformAtlas for HeadlessAtlas {
-@@ -1879,6 +1922,14 @@ impl PlatformAtlas for HeadlessAtlas {
+@@ -1879,6 +1940,14 @@ impl PlatformAtlas for HeadlessAtlas {
          self.0.lock().remove(key);
      }
  
@@ -934,7 +977,7 @@ index c08d964..9be22cb 100644
      #[cfg(any(test, feature = "test-support", feature = "bench-support"))]
      fn contains(&self, key: &AtlasKey) -> bool {
          self.0.lock().contains(key)
-@@ -2077,7 +2128,10 @@ impl PlatformInputHandler {
+@@ -2077,7 +2146,10 @@ impl PlatformInputHandler {
  
      pub fn bounds_for_range(&mut self, range_utf16: Range<usize>) -> Option<Bounds<Pixels>> {
          self.cx
@@ -946,7 +989,7 @@ index c08d964..9be22cb 100644
              .ok()
              .flatten()
      }
-@@ -2145,7 +2199,10 @@ impl PlatformInputHandler {
+@@ -2145,7 +2217,10 @@ impl PlatformInputHandler {
      #[allow(unused)]
      pub fn character_index_for_point(&mut self, point: Point<Pixels>) -> Option<usize> {
          self.cx
@@ -958,7 +1001,7 @@ index c08d964..9be22cb 100644
              .ok()
              .flatten()
      }
-@@ -2163,7 +2220,10 @@ impl PlatformInputHandler {
+@@ -2163,7 +2238,10 @@ impl PlatformInputHandler {
      /// See [`InputHandler::element_bounds`].
      pub fn element_bounds(&mut self) -> Option<Bounds<Pixels>> {
          self.cx
@@ -2525,7 +2568,7 @@ index 5b63821..7b481ae 100644
          !self.force_disabled
      }
 diff --git a/src/window.rs b/src/window.rs
-index 1214b03..fc5bf53 100644
+index 1214b03..c2788eb 100644
 --- a/src/window.rs
 +++ b/src/window.rs
 @@ -5,10 +5,11 @@ use crate::Inspector;
@@ -2535,7 +2578,7 @@ index 1214b03..fc5bf53 100644
 -    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
 -    AsyncWindowContext, AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow,
 +    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, AnyWeakView, App, AppContext, Arena, Asset,
-+    AsyncWindowContext, AtlasTile, AtlasUsage, AvailableSpace, BackdropBlur, Background, BorderStyle, Bounds,
++    AsyncWindowContext, AtlasTile, AtlasUsage, AvailableSpace, GpuUsage, BackdropBlur, Background, BorderStyle, Bounds,
 +    BoxShadow, Primitive, RoundedClipId,
      Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
 -    DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
@@ -4220,10 +4263,15 @@ index 1214b03..fc5bf53 100644
              order: 0,
              bounds,
              content_mask,
-@@ -5171,6 +6156,22 @@ impl Window {
+@@ -5171,6 +6156,27 @@ impl Window {
          });
      }
  
++    /// What this window's renderer holds beside its sprite atlas, where the platform reads it.
++    pub fn gpu_usage(&self) -> Option<GpuUsage> {
++        self.platform_window.gpu_usage()
++    }
++
 +    /// What this window's sprite atlas holds.
 +    pub fn atlas_usage(&self) -> AtlasUsage {
 +        self.sprite_atlas.usage()
@@ -4243,7 +4291,7 @@ index 1214b03..fc5bf53 100644
      /// Removes an image from the sprite atlas.
      pub fn drop_image(&mut self, data: Arc<RenderImage>) -> Result<()> {
          for frame_index in 0..data.frame_count() {
-@@ -5287,6 +6288,31 @@ impl Window {
+@@ -5287,6 +6293,31 @@ impl Window {
          bounds
      }
  
@@ -4275,7 +4323,7 @@ index 1214b03..fc5bf53 100644
      /// This method should be called during `prepaint`. You can use
      /// the returned [Hitbox] during `paint` or in an event handler
      /// to determine whether the inserted hitbox was the topmost.
-@@ -6654,7 +7680,7 @@ impl Window {
+@@ -6654,7 +7685,7 @@ impl Window {
          self.on_next_frame(|window, cx| {
              if let Some(mut input_handler) = window.platform_window.take_input_handler() {
                  if let Some(bounds) = input_handler.selected_bounds(window, cx) {
@@ -4284,7 +4332,7 @@ index 1214b03..fc5bf53 100644
                  }
                  window.platform_window.set_input_handler(input_handler);
              }
-@@ -7007,6 +8033,24 @@ impl Window {
+@@ -7007,6 +8038,24 @@ impl Window {
          self.a11y.is_active()
      }
  
@@ -4309,7 +4357,7 @@ index 1214b03..fc5bf53 100644
      /// Debug representation of the last frame's accessibility information.
      pub fn debug_a11y_tree_json(&self) -> Option<String> {
          self.a11y.debug_tree_json()
-@@ -7337,8 +8381,9 @@ impl Window {
+@@ -7337,8 +8386,9 @@ impl Window {
  
      #[inline(never)]
      fn observe_keyed_state<S: 'static>(state: &Entity<S>, current_view: EntityId, cx: &mut App) {

@@ -66,7 +66,7 @@ index a635bc4..0e64df6 100644
          texture_descriptor.set_width(size.width.into());
          texture_descriptor.set_height(size.height.into());
 diff --git a/src/metal_renderer.rs b/src/metal_renderer.rs
-index e466205..879aaf3 100644
+index e466205..abfcfd3 100644
 --- a/src/metal_renderer.rs
 +++ b/src/metal_renderer.rs
 @@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
@@ -81,10 +81,14 @@ index e466205..879aaf3 100644
  };
  #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
  use image::RgbaImage;
-@@ -38,6 +39,10 @@ const PATH_SAMPLE_COUNT: u32 = 4;
+@@ -38,6 +39,14 @@ const PATH_SAMPLE_COUNT: u32 = 4;
  /// Metal requires the offset a buffer is bound at to be 256-byte aligned.
  const INSTANCE_BUFFER_ALIGNMENT: usize = 256;
  const MAX_INSTANCE_BUFFER_SIZE: usize = 256 * 1024 * 1024;
++const INITIAL_INSTANCE_BUFFER_SIZE: usize = 2 * 1024 * 1024;
++/// Frames in a row that write under a quarter of a buffer before the buffers shrink: one heavy frame does not hold
++/// them for good, and a run of heavy frames with light ones between does not build them again each time.
++const SHRINK_INSTANCE_BUFFER_AFTER: u32 = 60;
 +/// Like Skia, larger blurs run on the region downscaled by a power of two.
 +const BACKDROP_BLUR_MAX_SIGMA: f32 = 4.0;
 +/// Public so the Metal header defines it, for `BackdropBlurPass::taps`.
@@ -92,7 +96,53 @@ index e466205..879aaf3 100644
  
  pub type Context = Arc<Mutex<InstanceBufferPool>>;
  pub type Renderer = MetalRenderer;
-@@ -124,6 +129,10 @@ pub struct MetalRenderer {
+@@ -55,13 +64,18 @@ pub unsafe fn new_renderer(
+ pub struct InstanceBufferPool {
+     buffer_size: usize,
+     buffers: Vec<metal::Buffer>,
++    /// Frames in a row that wrote under a quarter of a buffer, and the most one of them wrote.
++    light_frames: u32,
++    light_peak: usize,
+ }
+ 
+ impl Default for InstanceBufferPool {
+     fn default() -> Self {
+         Self {
+-            buffer_size: 2 * 1024 * 1024,
++            buffer_size: INITIAL_INSTANCE_BUFFER_SIZE,
+             buffers: Vec::new(),
++            light_frames: 0,
++            light_peak: 0,
+         }
+     }
+ }
+@@ -105,6 +119,25 @@ impl InstanceBufferPool {
+             self.buffers.push(buffer.metal_buffer)
+         }
+     }
++
++    /// Shrinks the buffers to twice what the frames wrote once enough frames in a row wrote under a quarter of one;
++    /// the buffers frames still hold are dropped as they come back.
++    fn settle(&mut self, written: usize, grew: bool) {
++        if grew || self.buffer_size <= INITIAL_INSTANCE_BUFFER_SIZE || written * 4 > self.buffer_size {
++            self.light_frames = 0;
++            self.light_peak = 0;
++            return;
++        }
++        self.light_frames += 1;
++        self.light_peak = self.light_peak.max(written);
++        if self.light_frames >= SHRINK_INSTANCE_BUFFER_AFTER {
++            let buffer_size = (self.light_peak * 2).next_power_of_two().max(INITIAL_INSTANCE_BUFFER_SIZE);
++            log::info!("decreased instance buffer size to {buffer_size}");
++            self.reset(buffer_size);
++            self.light_frames = 0;
++            self.light_peak = 0;
++        }
++    }
+ }
+ 
+ pub struct MetalRenderer {
+@@ -124,6 +157,10 @@ pub struct MetalRenderer {
      monochrome_sprites_pipeline_state: metal::RenderPipelineState,
      polychrome_sprites_pipeline_state: metal::RenderPipelineState,
      surfaces_pipeline_state: metal::RenderPipelineState,
@@ -103,7 +153,7 @@ index e466205..879aaf3 100644
      unit_vertices: metal::Buffer,
      #[allow(clippy::arc_with_non_send_sync)]
      instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>,
-@@ -132,6 +141,9 @@ pub struct MetalRenderer {
+@@ -132,6 +169,9 @@ pub struct MetalRenderer {
      path_intermediate_texture: Option<metal::Texture>,
      path_intermediate_msaa_texture: Option<metal::Texture>,
      path_sample_count: u32,
@@ -113,7 +163,7 @@ index e466205..879aaf3 100644
      /// Offscreen render target reused across `render_scene` calls when
      /// rendering headlessly without reading pixels back.
      #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
-@@ -144,6 +156,7 @@ pub struct PathRasterizationVertex {
+@@ -144,6 +184,7 @@ pub struct PathRasterizationVertex {
      pub st_position: Point<f32>,
      pub color: Background,
      pub bounds: Bounds<ScaledPixels>,
@@ -121,7 +171,7 @@ index e466205..879aaf3 100644
  }
  
  impl MetalRenderer {
-@@ -181,10 +194,7 @@ impl MetalRenderer {
+@@ -181,10 +222,7 @@ impl MetalRenderer {
          // https://developer.apple.com/documentation/metal/managing-your-game-window-for-metal-in-macos
          layer.set_opaque(!transparent);
          layer.set_maximum_drawable_count(3);
@@ -133,7 +183,7 @@ index e466205..879aaf3 100644
          layer.set_framebuffer_only(false);
          // metal-rs doesn't bind these setters, so view the same object through
          // objc2's typed CAMetalLayer binding.
-@@ -359,6 +369,39 @@ impl MetalRenderer {
+@@ -359,6 +397,39 @@ impl MetalRenderer {
              "surface_fragment",
              MTLPixelFormat::BGRA8Unorm,
          );
@@ -173,7 +223,7 @@ index e466205..879aaf3 100644
  
          let command_queue = device.new_command_queue();
          let supports_shared_storage = cfg!(target_os = "ios") || is_apple_gpu;
-@@ -399,6 +442,10 @@ impl MetalRenderer {
+@@ -399,6 +470,10 @@ impl MetalRenderer {
              monochrome_sprites_pipeline_state,
              polychrome_sprites_pipeline_state,
              surfaces_pipeline_state,
@@ -184,7 +234,7 @@ index e466205..879aaf3 100644
              unit_vertices,
              instance_buffer_pool,
              sprite_atlas,
-@@ -406,6 +453,7 @@ impl MetalRenderer {
+@@ -406,6 +481,7 @@ impl MetalRenderer {
              path_intermediate_texture: None,
              path_intermediate_msaa_texture: None,
              path_sample_count: PATH_SAMPLE_COUNT,
@@ -192,17 +242,75 @@ index e466205..879aaf3 100644
              #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
              headless_render_target: None,
          }
-@@ -720,6 +768,9 @@ impl MetalRenderer {
+@@ -422,6 +498,19 @@ impl MetalRenderer {
+             .unwrap_or(ptr::null_mut())
+     }
+ 
++    /// What the renderer holds beside its atlas: its path textures and the instance buffers its pool keeps.
++    pub fn gpu_usage(&self) -> gpui::GpuUsage {
++        let pool = self.instance_buffer_pool.lock();
++        gpui::GpuUsage {
++            path_textures: [&self.path_intermediate_texture, &self.path_intermediate_msaa_texture]
++                .into_iter()
++                .flatten()
++                .map(|texture| texture.allocated_size())
++                .sum(),
++            instance_data: (pool.buffer_size * pool.buffers.len()) as u64,
++        }
++    }
++
+     pub fn sprite_atlas(&self) -> &Arc<MetalAtlas> {
+         &self.sprite_atlas
+     }
+@@ -437,7 +526,8 @@ impl MetalRenderer {
+         if let Some(layer) = &self.layer {
+             layer.set_drawable_size(CGSize::new(size.width.0 as f64, size.height.0 as f64));
+         }
+-        self.update_path_intermediate_textures(size);
++        self.path_intermediate_texture = None;
++        self.path_intermediate_msaa_texture = None;
+     }
+ 
+     fn update_path_intermediate_textures(&mut self, size: Size<DevicePixels>) {
+@@ -625,9 +715,6 @@ impl MetalRenderer {
+         // Headless callers do not have a Cocoa event-loop pool to release
+         // autoreleased command buffers and render-pass descriptors.
+         objc2::rc::autoreleasepool(|_| {
+-            // Update path intermediate textures for this size
+-            self.update_path_intermediate_textures(size);
+-
+             // Create an offscreen texture as render target
+             let texture_descriptor = metal::TextureDescriptor::new();
+             texture_descriptor.set_width(size.width.0 as u64);
+@@ -679,8 +766,6 @@ impl MetalRenderer {
+         }
+ 
+         objc2::rc::autoreleasepool(|_| {
+-            self.update_path_intermediate_textures(size);
+-
+             let needs_new_target = self.headless_render_target.as_ref().is_none_or(|texture| {
+                 texture.width() != size.width.0 as u64 || texture.height() != size.height.0 as u64
+             });
+@@ -720,6 +805,18 @@ impl MetalRenderer {
          let command_queue = self.command_queue.clone();
          let command_buffer = command_queue.new_command_buffer();
          let alpha = if self.opaque { 1. } else { 0. };
 +        if scene.backdrop_blurs.is_empty() {
 +            self.backdrop_blur_textures = None;
 +        }
++        // The path textures are as large as the window, so they stand only while a frame draws a path.
++        if scene.paths.is_empty() {
++            self.path_intermediate_texture = None;
++            self.path_intermediate_msaa_texture = None;
++        } else if self.path_intermediate_texture.as_ref().is_none_or(|texture| {
++            texture.width() != viewport_size.width.0 as u64 || texture.height() != viewport_size.height.0 as u64
++        }) {
++            self.update_path_intermediate_textures(viewport_size);
++        }
  
          let mut command_encoder = new_command_encoder_for_texture(
              command_buffer,
-@@ -727,6 +778,7 @@ impl MetalRenderer {
+@@ -727,6 +824,7 @@ impl MetalRenderer {
              viewport_size,
              Some(metal::MTLClearColor::new(0., 0., 0., alpha)),
          );
@@ -210,7 +318,7 @@ index e466205..879aaf3 100644
  
          for batch in scene.batches() {
              match batch {
-@@ -742,6 +794,7 @@ impl MetalRenderer {
+@@ -742,6 +840,7 @@ impl MetalRenderer {
  
                      let did_draw = self.draw_paths_to_intermediate(
                          paths,
@@ -218,7 +326,7 @@ index e466205..879aaf3 100644
                          writer,
                          viewport_size,
                          command_buffer,
-@@ -753,6 +806,7 @@ impl MetalRenderer {
+@@ -753,6 +852,7 @@ impl MetalRenderer {
                          viewport_size,
                          None,
                      );
@@ -226,7 +334,7 @@ index e466205..879aaf3 100644
  
                      if did_draw {
                          if let Err(error) = self.draw_paths_from_intermediate(
-@@ -792,6 +846,32 @@ impl MetalRenderer {
+@@ -792,6 +892,32 @@ impl MetalRenderer {
                      viewport_size,
                      command_encoder,
                  ),
@@ -259,7 +367,7 @@ index e466205..879aaf3 100644
                  PrimitiveBatch::SubpixelSprites { .. } => unreachable!(),
              }
          }
-@@ -804,6 +884,7 @@ impl MetalRenderer {
+@@ -804,6 +930,7 @@ impl MetalRenderer {
      fn draw_paths_to_intermediate(
          &self,
          paths: &[Path<ScaledPixels>],
@@ -267,7 +375,7 @@ index e466205..879aaf3 100644
          writer: &mut InstanceBufferWriter,
          viewport_size: Size<DevicePixels>,
          command_buffer: &metal::CommandBufferRef,
-@@ -823,6 +904,7 @@ impl MetalRenderer {
+@@ -823,6 +950,7 @@ impl MetalRenderer {
                  st_position: v.st_position,
                  color: path.color,
                  bounds: path.bounds.intersect(&path.content_mask.bounds),
@@ -275,7 +383,7 @@ index e466205..879aaf3 100644
              }));
          }
          let vertex_instance_bindings = writer.write(&vertices)?;
-@@ -861,6 +943,7 @@ impl MetalRenderer {
+@@ -861,6 +989,7 @@ impl MetalRenderer {
              Some(&vertex_instance_bindings.buffer),
              vertex_instance_bindings.offset as u64,
          );
@@ -283,7 +391,7 @@ index e466205..879aaf3 100644
          command_encoder.draw_primitives(
              metal::MTLPrimitiveType::Triangle,
              0,
-@@ -1274,6 +1357,234 @@ impl MetalRenderer {
+@@ -1274,6 +1403,234 @@ impl MetalRenderer {
              );
          }
      }
@@ -518,7 +626,7 @@ index e466205..879aaf3 100644
  }
  
  fn new_command_encoder_for_texture<'a>(
-@@ -1458,6 +1769,7 @@ struct InstanceBindings {
+@@ -1458,6 +1815,7 @@ struct InstanceBindings {
      monochrome_sprites: InstanceBinding,
      polychrome_sprites: InstanceBinding,
      surfaces: InstanceBinding,
@@ -526,7 +634,7 @@ index e466205..879aaf3 100644
  }
  
  fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<InstanceBindings> {
-@@ -1471,6 +1783,12 @@ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<I
+@@ -1471,6 +1829,12 @@ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<I
              bounds: surface.bounds,
              content_mask: surface.content_mask,
          }))?,
@@ -539,7 +647,23 @@ index e466205..879aaf3 100644
      })
  }
  
-@@ -1645,6 +1963,33 @@ enum SurfaceInputIndex {
+@@ -1573,6 +1937,7 @@ impl InstanceBufferWriter {
+ 
+     fn finish(self) -> InstanceBuffer {
+         let Self {
++            pool,
+             unified_memory,
+             filled,
+             current,
+@@ -1598,6 +1963,7 @@ impl InstanceBufferWriter {
+             }
+         }
+ 
++        pool.lock().settle(offset, !filled.is_empty());
+         // Metal retains encoded resources until the command buffer completes.
+         // Only the final, largest buffer is worth keeping in the pool.
+         drop(filled);
+@@ -1645,6 +2011,33 @@ enum SurfaceInputIndex {
      CbCrTexture = 5,
  }
  
@@ -573,7 +697,18 @@ index e466205..879aaf3 100644
  #[repr(C)]
  enum PathRasterizationInputIndex {
      Vertices = 0,
-@@ -1707,6 +2052,86 @@ mod tests {
+@@ -1695,6 +2088,10 @@ impl gpui::PlatformHeadlessRenderer for MetalHeadlessRenderer {
+     fn sprite_atlas(&self) -> Arc<dyn gpui::PlatformAtlas> {
+         self.renderer.sprite_atlas().clone()
+     }
++
++    fn gpu_usage(&self) -> Option<gpui::GpuUsage> {
++        Some(self.renderer.gpu_usage())
++    }
+ }
+ 
+ #[cfg(test)]
+@@ -1707,6 +2104,86 @@ mod tests {
          CVPixelBufferUnlockBaseAddress, kCVPixelBufferIOSurfacePropertiesKey,
      };
  
