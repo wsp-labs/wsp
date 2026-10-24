@@ -79,7 +79,7 @@ describe("every route, as raw HTML", () => {
       expect(body).toContain(q);
       expect(body).toContain(a);
     }
-    expect(html).toContain(`href="${DOWNLOADS.mac.href}"`);
+    expect(html).toContain(`href="/download/mac"`);
     expect(html).toContain(`href="/compare/conductor"`);
   });
 
@@ -249,7 +249,7 @@ describe("the built page in a visitor's browser", () => {
         expect(mismatches).toEqual([]);
         expect(warned).not.toHaveBeenCalled();
         if (platform === "windows") expect(screen.getAllByRole("button", { name: /Join the waitlist/ })).toHaveLength(2);
-        else expect(screen.getAllByRole("link", { name: DOWNLOADS[platform as "mac" | "linux"].label })[0]!.className).toContain("key");
+        else expect(screen.getAllByRole("link", { name: platform === "mac" ? "or download the app" : "or download the AppImage" })[0]!.getAttribute("href")).toBe(platform === "mac" ? "/download/mac" : DOWNLOADS.linux.href);
         act(() => root.unmount());
       } finally {
         warned.mockRestore();
