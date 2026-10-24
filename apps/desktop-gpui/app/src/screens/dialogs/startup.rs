@@ -499,7 +499,8 @@ type Again = (PathBuf, Env, Arc<Runtime>, Rc<dyn Fn(&mut App)>);
 
 /// The service host restarted onto this app's files, then the open again, which says a host still not this release's.
 fn restart_then_open(title: &'static str, again: Again, starting: Starting, cx: &mut App) {
-    let restarted = crate::update::off_main(crate::update::restart_host_blocking);
+    let back = offers_back(cx);
+    let restarted = crate::update::off_main(move || crate::update::restart_host_blocking(back));
     cx.spawn(async move |cx: &mut AsyncApp| {
         let said = restarted.await.unwrap_or_else(|_| Err("the restart stopped before it answered".into()));
         cx.update(|cx| {

@@ -6,6 +6,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use gpui_kit::{App, AppContext as _, AsyncApp};
+
+use crate::screens::dialogs::startup;
+
 /// `MOVE_PROMPT`.
 pub const MOVE_MESSAGE: &str = "Move wsp to your Applications folder?";
 pub const MOVE_DETAIL: &str = "Opened from anywhere else, macOS runs wsp from a copy whose path changes every launch, and the wsp command it writes for your agents stops working. wsp restarts itself once it has moved.";
@@ -47,6 +51,57 @@ pub fn answered(picked: usize, bundle: &Path, copy: impl FnOnce(&Path, &Path) ->
     Ok(Some(to))
 }
 
+/// What starts the moved copy once this process has gone, as GPUI's own restart does, but whose spawn this app sees:
+/// bash waits on this pid, then `open` starts the bundle at `to`.
+pub fn relaunch_command(pid: u32, to: &Path) -> Command {
+    let mut bash = Command::new("/bin/bash");
+    bash.env_clear().arg("-c").arg(RELAUNCH).arg(pid.to_string()).arg(to);
+    bash
+}
+
+const RELAUNCH: &str = "while kill -0 \"$0\" 2>/dev/null; do /bin/sleep 0.1; done; exec /usr/bin/open \"$1\"";
+
+/// Starts the moved copy after this process, in a process group of its own so this one's exit does not take it.
+pub fn relaunch(to: &Path) -> Result<(), String> {
+    use std::os::unix::process::CommandExt as _;
+    relaunch_command(std::process::id(), to).process_group(0).spawn().map(drop).map_err(|e| e.to_string())
+}
+
+/// `offerMove`, with every other open held back while it stands: the Dock's reopen and a second launch see the launch
+/// still opening, so neither writes the wsp command or starts the service off this copy while it is asked about or
+/// copied. `ask` puts the question, `answer` acts on the button off the main thread, and the moved copy is started by
+/// `relaunch` before this one quits. Not now, a copy that failed and a relaunch that never started release the hold
+/// and run `then`, this copy's own open; a failure is logged first.
+pub fn held_move(
+    cx: &mut App,
+    ask: impl FnOnce() -> usize + 'static,
+    answer: impl FnOnce(usize) -> Result<Option<PathBuf>, String> + Send + 'static,
+    relaunch: impl FnOnce(&Path) -> Result<(), String> + 'static,
+    then: impl FnOnce(&mut App) + 'static,
+) {
+    startup::hold_opening(true, cx);
+    cx.spawn(async move |cx: &mut AsyncApp| {
+        let picked = ask();
+        let answer = cx.background_spawn(async move { answer(picked) }).await;
+        cx.update(|cx| {
+            let failed = match answer {
+                Ok(Some(to)) => match relaunch(&to) {
+                    Ok(()) => return cx.quit(),
+                    Err(why) => Some(format!("wsp moved itself to {} and could not restart as that copy: {why}", to.display())),
+                },
+                Ok(None) => None,
+                Err(why) => Some(why),
+            };
+            if let Some(why) = failed {
+                crate::desktop::log::error(&why);
+            }
+            startup::hold_opening(false, cx);
+            then(cx);
+        });
+    })
+    .detach();
+}
+
 #[cfg(target_os = "macos")]
 pub use native::*;
 
@@ -54,7 +109,7 @@ pub use native::*;
 mod native {
     use std::path::Path;
 
-    use gpui_kit::{App, AppContext as _, AsyncApp};
+    use gpui_kit::App;
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSAlert, NSAlertFirstButtonReturn, NSAlertStyle, NSApp, NSBeep, NSRequestUserAttentionType};
     use objc2_foundation::{NSBundle, NSFileManager, NSString, NSURL};
@@ -118,9 +173,9 @@ mod native {
     }
 
     /// `offerMove` before `installCommand`: a bundle outside Applications asks once at launch, and `then`, the launch's
-    /// open that writes the wsp command, runs only once it is answered. Move puts a bundle already there in the Trash,
-    /// copies this one there by `ditto` off the main thread and restarts as the moved one, never opening this copy; Not
-    /// now opens it, and a move that failed is logged and opens it.
+    /// open that writes the wsp command, runs only once it is answered (`held_move`). Move puts a bundle already there
+    /// in the Trash, copies this one there by `ditto` off the main thread and restarts as the moved one, never opening
+    /// this copy; Not now opens it, and a move that failed is logged and opens it.
     pub fn offer_move(cx: &mut App, then: impl FnOnce(&mut App) + 'static) {
         let bundle = cx.app_path().ok();
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
@@ -128,22 +183,8 @@ mod native {
         let Some(bundle) = bundle.filter(|bundle| super::offers_move(true, Some(bundle), home.as_deref(), driven)) else {
             return then(cx);
         };
-        cx.spawn(async move |cx: &mut AsyncApp| {
-            let picked = alert(Style::Question, super::MOVE_MESSAGE, super::MOVE_DETAIL, &super::MOVE_BUTTONS, Some(1));
-            let answer = cx.background_spawn(async move { super::answered(picked, &bundle, moved) }).await;
-            cx.update(|cx| match answer {
-                Ok(Some(to)) => {
-                    cx.set_restart_path(to);
-                    cx.restart();
-                }
-                Ok(None) => then(cx),
-                Err(why) => {
-                    crate::desktop::log::error(&why);
-                    then(cx);
-                }
-            });
-        })
-        .detach();
+        let ask = || alert(Style::Question, super::MOVE_MESSAGE, super::MOVE_DETAIL, &super::MOVE_BUTTONS, Some(1));
+        super::held_move(cx, ask, move |picked| super::answered(picked, &bundle, moved), super::relaunch, then);
     }
 
     fn moved(bundle: &Path, to: &Path) -> Result<(), String> {
@@ -195,6 +236,39 @@ mod tests {
         assert!(copied.get());
         let failed = answered(0, bundle, |_, _| Err("ditto: Permission denied".to_owned()));
         assert_eq!(failed, Err("wsp could not move itself to Applications: ditto: Permission denied".to_owned()));
+    }
+
+    /// Catches: the Dock's reopen or a second launch opening this copy while the move's question or its copy stands,
+    /// which writes the wsp command and starts the service off the copy being moved, and two opens racing after Not
+    /// now; and a relaunch that never started leaving the app with no window.
+    #[gpui_kit::test]
+    fn other_opens_wait_on_the_move_and_a_relaunch_that_never_started_opens_this_copy(cx: &mut gpui_kit::TestAppContext) {
+        let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let bundle = PathBuf::from("/Users/z/Downloads/wsp.app");
+        let cases: [(usize, Result<(), String>); 3] = [(1, Ok(())), (0, Err("bash: No such file".to_owned())), (0, Ok(()))];
+        for (at, (picked, relaunched)) in cases.into_iter().enumerate() {
+            let (kept, from) = (opened.clone(), bundle.clone());
+            cx.update(|cx| {
+                held_move(
+                    cx,
+                    move || picked,
+                    move |picked| answered(picked, &from, |_, _| Ok(())),
+                    move |to| {
+                        assert_eq!(to, Path::new("/Applications/wsp.app"));
+                        relaunched
+                    },
+                    move |cx| kept.borrow_mut().push((at, startup::opening(cx))),
+                );
+                assert!(startup::opening(cx), "case {at}: the Dock's reopen and a second launch wait while the move is asked");
+            });
+            cx.run_until_parked();
+        }
+        assert_eq!(*opened.borrow(), [(0, false), (1, false)], "Not now and a failed relaunch open this copy, the hold released");
+        let bash = relaunch_command(42, Path::new("/Applications/wsp.app"));
+        assert_eq!(bash.get_program(), "/bin/bash");
+        let args: Vec<_> = bash.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect();
+        assert_eq!(args, ["-c", RELAUNCH, "42", "/Applications/wsp.app"]);
+        assert_eq!(bash.get_envs().count(), 0, "the relaunch carries none of the app's environment");
     }
 
     #[test]

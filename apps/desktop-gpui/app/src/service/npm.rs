@@ -58,6 +58,13 @@ pub fn login_path(env: &Env) -> String {
         .process_group(0)
         .spawn();
     let Ok(mut child) = child else { return given };
+    // Read as it comes: a shell whose output passes the pipe's buffer blocks on it until someone reads.
+    let reader = child.stdout.take().map(|mut out| {
+        std::thread::spawn(move || {
+            let mut said = String::new();
+            out.read_to_string(&mut said).is_ok().then_some(said)
+        })
+    });
     let until = Instant::now() + SHELL_LIMIT;
     let exited = loop {
         match child.try_wait() {
@@ -69,9 +76,8 @@ pub fn login_path(env: &Env) -> String {
     // SAFETY: the group this function's own child leads, which it started above.
     unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL) };
     let _ = child.wait();
-    let mut said = String::new();
-    let read = child.stdout.take().is_some_and(|mut out| out.read_to_string(&mut said).is_ok());
-    let login = (exited && read).then(|| path_of(&said)).flatten();
+    let said = reader.and_then(|reader| reader.join().ok().flatten());
+    let login = said.filter(|_| exited).and_then(|said| path_of(&said));
     login.unwrap_or(given)
 }
 
@@ -225,6 +231,26 @@ mod tests {
         );
         std::fs::write(&shell, "#!/bin/sh\nexit 1\n").unwrap();
         assert_eq!(login_path(&env("/usr/bin:/bin:/usr/sbin:/sbin", "")), "/usr/bin:/bin:/usr/sbin:/sbin", "a failed shell leaves it");
+    }
+
+    /// Catches: the shell's output read only once it exits, so an environment past the pipe's buffer (16 KB on a Mac at
+    /// first) blocks the shell until its limit and npm's links are read off launchd's PATH.
+    #[test]
+    fn a_login_environment_past_the_pipes_buffer_is_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let shell = dir.path().join("login-shell");
+        let script = r#"#!/bin/sh
+BIG=$(head -c 300000 /dev/zero | tr '\0' x)
+printf 'BIG=%s\0PATH=/opt/homebrew/bin:/usr/bin\0' "$BIG"
+"#;
+        std::fs::write(&shell, script).unwrap();
+        std::fs::set_permissions(&shell, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let vars: Env = [("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"), ("SHELL", shell.to_str().unwrap())]
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .into();
+        let from = Instant::now();
+        assert_eq!(login_path(&vars), "/opt/homebrew/bin:/usr/bin");
+        assert!(from.elapsed() < SHELL_LIMIT, "read within the limit, not after it");
     }
 
     /// Catches: a line an rc file prints (a banner, nvm's notice) read as the start of the first PATH folder, which then
