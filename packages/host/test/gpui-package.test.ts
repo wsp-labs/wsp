@@ -4,7 +4,7 @@
 // environment built from nothing and a PATH whose first folder holds stubs of the tools a real run calls; a dry run
 // calls none of them, so the stubs only record. Apple's services are never reached.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -165,5 +165,78 @@ describe("package.sh --dry-run", () => {
     at(out, /^\+ mksquashfs /m);
     at(out, /^\+ write dist\/wsp-[\d.]+\.AppImage from /m);
     expect(out).not.toMatch(/codesign|xcrun|hdiutil/);
+  });
+});
+
+// apps/desktop-gpui/scripts/update-live.sh packs a Node into each bundle; one linked to a library outside the system,
+// as Homebrew's is to its libnode, aborts in the bundle with "Library not loaded". Its --check-node is the check each
+// packed Node passes, driven here through a stub ldd or otool (and uname, for the Mac) printing what the real one does.
+const updateLive = fileURLToPath(new URL("../../../apps/desktop-gpui/scripts/update-live.sh", import.meta.url));
+const OFFICIAL_LDD = `\tlinux-vdso.so.1 (0x00007ffc593c3000)
+\tlibdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x0000795011fc9000)
+\tlibstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x0000795011c00000)
+\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x0000795011ee0000)
+\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x0000795011eb2000)
+\tlibpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x0000795011ead000)
+\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x0000795011800000)
+\t/lib64/ld-linux-x86-64.so.2 (0x0000795011fe4000)
+`;
+const OFFICIAL_OTOOL = `/opt/node/bin/node:
+\t/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 1971.0.0)
+\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1300.36.0)
+\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1319.0.0)
+`;
+const BREW_OTOOL = `/opt/homebrew/bin/node:
+\t/opt/homebrew/lib/libnode.147.dylib (compatibility version 0.0.0, current version 0.0.0)
+\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1800.101.0)
+\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+`;
+
+function checkNode(os: "Linux" | "Darwin", printed: string) {
+  const dir = mkdtempSync(join(root, "check-node-"));
+  const said = join(dir, "said");
+  writeFileSync(said, printed);
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  writeStub(join(bin, "uname"), `#!/bin/sh\necho ${os}\n`);
+  writeStub(join(bin, os === "Darwin" ? "otool" : "ldd"), `#!/bin/sh\ncat '${said}'\n`);
+  const run = spawnSync(updateLive, ["--check-node", "/opt/node/bin/node"], { env: { PATH: `${bin}:/usr/bin:/bin` }, encoding: "utf8" });
+  return { status: run.status, out: `${run.stdout}${run.stderr}` };
+}
+
+describe("update-live.sh packs a Node that links nothing outside the system", () => {
+  it("passes the official Node's links on Linux and on a Mac", () => {
+    for (const [os, printed] of [["Linux", OFFICIAL_LDD], ["Darwin", OFFICIAL_OTOOL]] as const) {
+      const { status, out } = checkNode(os, printed);
+      expect(status, out).toBe(0);
+      expect(out).toMatch(/^ok: \/opt\/node\/bin\/node links nothing outside the system$/m);
+    }
+  });
+
+  it("refuses Homebrew's Node on a Mac, which links /opt/homebrew/lib/libnode.147.dylib", () => {
+    const { status, out } = checkNode("Darwin", BREW_OTOOL);
+    expect(status, out).toBe(2);
+    expect(out).toMatch(/^refused: \/opt\/node\/bin\/node links \/opt\/homebrew\/lib\/libnode\.147\.dylib, outside the system;/m);
+  });
+
+  it("refuses on Linux a Node linking a libnode from Homebrew's lib, or one ldd cannot find", () => {
+    const brew = checkNode("Linux", `${OFFICIAL_LDD}\tlibnode.so.147 => /home/linuxbrew/.linuxbrew/lib/libnode.so.147 (0x00007f0000000000)\n`);
+    expect(brew.status, brew.out).toBe(2);
+    expect(brew.out).toMatch(/^refused: \S+ links libnode\.so\.147 => \/home\/linuxbrew\/\.linuxbrew\/lib\/libnode\.so\.147, outside the system;/m);
+    const missing = checkNode("Linux", `${OFFICIAL_LDD}\tlibnode.so.147 => not found\n`);
+    expect(missing.status, missing.out).toBe(2);
+    expect(missing.out).toMatch(/^refused: \S+ links libnode\.so\.147 => not found, outside the system;/m);
+  });
+
+  it("passes a system binary through this computer's own ldd or otool", () => {
+    const run = spawnSync(updateLive, ["--check-node", "/bin/sh"], { env: { PATH: "/usr/bin:/bin" }, encoding: "utf8" });
+    expect(run.status, `${run.stdout}${run.stderr}`).toBe(0);
+  });
+
+  it("packs the official Node into every bundle, never the node on PATH", () => {
+    const text = readFileSync(updateLive, "utf8");
+    expect(text).not.toMatch(/install [^\n]*"\$node_bin"/);
+    expect(text.match(/install -m 755 "\$pack_node" /g)).toHaveLength(3);
+    expect(text).toContain('node_alone "$pack_node"');
   });
 });

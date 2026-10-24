@@ -33,6 +33,10 @@ const MANAGER_WAIT: Duration = Duration::from_secs(15);
 const PROBE: Duration = Duration::from_secs(2);
 const TAIL_LINES: usize = 20;
 const LOG_FILE: &str = "host.log";
+/// `DEFAULT_PORT`: the port a host serves on where nobody named one.
+pub const DEFAULT_PORT: u16 = 4400;
+/// `PORT_TRIES`: how many ports from a taken one the host's own pick steps through before it gives up.
+const PORT_TRIES: u16 = 20;
 
 /// The names a manager's command keeps from the app's environment: where the person's units sit, where the manager
 /// is found, and for `systemctl --user` the login's bus.
@@ -403,6 +407,8 @@ pub struct Start {
     /// Whether the host serving is to be restarted onto that command before the open: it is of the bundle's release
     /// and runs files the command named before and that went (`staleShim`).
     pub restart: bool,
+    /// The port a unit the wsp command writes serves on where it is free (`DEFAULT_PORT`); a test's own in a test.
+    pub port: u16,
     /// `SERVICE_WAIT_MS`, shorter in a test.
     pub wait: Duration,
     /// Where the lines a person reads in the app's log go.
@@ -422,6 +428,7 @@ impl Start {
             manager: Manager::here(),
             wsp: None,
             restart: false,
+            port: DEFAULT_PORT,
             wait: SERVICE_WAIT,
             say: Arc::new(|line| eprintln!("desktop-gpui: {line}")),
         }
@@ -502,16 +509,62 @@ fn wsp_failure(argv: &[String], ran: &Ran) -> String {
     ran.output.lines().map(str::trim).rfind(|said| !said.is_empty()).map(str::to_owned).unwrap_or_else(|| run_failure_line(argv, ran))
 }
 
+/// `portInUse`: a bind on loopback, where the host binds, refused as in use.
+fn port_taken(port: u16) -> bool {
+    std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).is_err_and(|e| e.kind() == std::io::ErrorKind::AddrInUse)
+}
+
+/// The first port from `from` a host can bind, inside the host's own step; none where every one is held, which the
+/// host refuses in its own words.
+fn free_port(from: u16) -> Option<u16> {
+    (0..PORT_TRIES).filter_map(|step| from.checked_add(step)).find(|port| !port_taken(*port))
+}
+
+/// The port a unit's words after `up` name with `--port`; none where they leave it to the host.
+fn named_port(words: &[String]) -> Option<u16> {
+    let at = words.iter().position(|word| word == "--port")?;
+    words.get(at + 1)?.parse().ok()
+}
+
+/// Words for `wsp up --service` with the port they name moved to a free one where something else holds it, so the
+/// unit records the port its host serves on and every later start reads it there; said where it moved.
+fn on_free_port(start: &Start, manager: Manager, mut words: Vec<String>) -> Vec<String> {
+    let Some(at) = words.iter().position(|word| word == "--port") else { return words };
+    let Some(held) = named_port(&words).filter(|port| *port != 0 && port_taken(*port)) else { return words };
+    let Some(port) = free_port(held) else { return words };
+    (start.say)(&format!(
+        "port {held} is in use on this computer by another program, so the {} {} serves on {port}",
+        manager.words(),
+        manager.name(&start.state)
+    ));
+    words[at + 1] = port.to_string();
+    words
+}
+
+/// Whether the unit names a port another program holds while no host of this state's is up, which its host would
+/// refuse to start on; a host of this state's, whatever its program, holds its own port.
+fn port_held(start: &Start, manager: Manager) -> Option<(String, u16)> {
+    let unit = std::fs::read_to_string(manager.unit(&start.home, &start.state)).ok()?;
+    let port = named_port(&manager.argv(&unit)?)?;
+    // The port before the lock: a host takes its lock before it binds and lets it go after, so its own port is never
+    // read as another program's.
+    let taken = start.wsp.is_some() && port != 0 && port_taken(port);
+    (taken && serving(&start.state).is_none() && !vanished(&start.state)).then_some((unit, port))
+}
+
 /// `ensureService` with a unit that is never rewritten: a unit that stands, loaded as it stands where the manager has
 /// let it go, holds it with nothing running it and nothing serving, or runs a host whose program has gone. A unit set
 /// not to start at login is loaded all the same and set back off once loaded. A missing one is written and loaded by
-/// the wsp command this app owns, through the host's own `wsp up --service`, which answers once its host serves.
+/// the wsp command this app owns, through the host's own `wsp up --service`, which answers once its host serves. The
+/// port it is given is the start's where that is free and the next free one where another program holds it, and a
+/// unit whose port another program holds while nothing of this state's serves is written again on a free one.
 pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> {
     let Some(manager) = start.manager else { return Err(line(no_manager_line(std::env::consts::OS))) };
     if !manager.unit(&start.home, &start.state).exists() {
         let Some(wsp) = &start.wsp else { return Err(line(NOT_SET_UP)) };
-        let argv =
-            [wsp.to_string_lossy().as_ref(), "up", "--service", "--state", start.state.to_string_lossy().as_ref()].map(str::to_owned);
+        let given = words(&["--state", start.state.to_string_lossy().as_ref(), "--port", &start.port.to_string()]);
+        let mut argv = vec![wsp.to_string_lossy().into_owned(), "up".to_owned(), "--service".to_owned()];
+        argv.extend(on_free_port(start, manager, given));
         let ran = runner.wsp(&argv, start.wsp_home()).await;
         if ran.code != 0 {
             for said in ran.output.lines().filter(|said| !said.trim().is_empty()) {
@@ -524,6 +577,10 @@ pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> 
         }
         (start.say)(&format!("{} wrote the {} {}", wsp.display(), manager.words(), manager.name(&start.state)));
         return Ok(());
+    }
+    if let (Some(wsp), Some((unit, port))) = (&start.wsp, port_held(start, manager)) {
+        let why = format!("serves on port {port}, which another program holds");
+        return rewrite(start, runner, manager, wsp, &unit, &why).await.map_err(line);
     }
     let off_at_login = manager.starts_at_login(&runner.run(&manager.login_read(start)).await, &start.state) == Some(false);
     let holds = manager.holds(start);
@@ -700,14 +757,15 @@ pub enum Followed {
 
 /// `ensureService`'s rewrite of a unit that runs another program, npm's wsp: the host it runs is stopped and the unit
 /// written again by the command's `wsp up --service`, with the words it was given kept, which loads it and waits on
-/// its host. The load sets it to start at login, so a unit that was set not to is set back.
-async fn rewrite<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &Path, unit: &str) -> Result<(), String> {
+/// its host, and its port moved where another program holds it once its own host is gone. The load sets it to start
+/// at login, so a unit that was set not to is set back. `why` says what was wrong with the unit.
+async fn rewrite<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &Path, unit: &str, why: &str) -> Result<(), String> {
     let state = start.state.display();
     let given = manager.argv(unit).and_then(|argv| Some(argv[argv.iter().position(|word| word == "up")? + 1..].to_vec()));
     let given = given.unwrap_or_else(|| vec!["--state".to_owned(), start.state.to_string_lossy().into_owned()]);
     let off_at_login = manager.starts_at_login(&runner.run(&manager.login_read(start)).await, &start.state) == Some(false);
     (start.say)(&format!(
-        "the {} {} runs another wsp; it is stopped and written again to run {}",
+        "the {} {} {why}; it is stopped and written again to run {}",
         manager.words(),
         manager.name(&start.state),
         wsp.display()
@@ -722,7 +780,7 @@ async fn rewrite<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &P
         return Err(format!("wsp (pid {}) was stopped and still serves {state} after {}", left.pid, fmt_wait(start.wait)));
     }
     let mut argv = vec![wsp.to_string_lossy().into_owned(), "up".to_owned(), "--service".to_owned()];
-    argv.extend(given);
+    argv.extend(on_free_port(start, manager, given));
     let ran = runner.wsp(&argv, start.wsp_home()).await;
     if off_at_login && manager.unit(&start.home, &start.state).exists() {
         if let Some((argv, ran)) = run_all(&[manager.off_at_login(start)], runner).await {
@@ -730,8 +788,10 @@ async fn rewrite<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &P
         }
     }
     if ran.code != 0 {
-        // A unit it wrote whose host is slower than its wait is waited on as any other start is.
-        let written = std::fs::read_to_string(manager.unit(&start.home, &start.state)).is_ok_and(|unit| manager.runs(&unit, wsp));
+        // A unit it wrote whose host is slower than its wait is waited on as any other start is; one it refused to
+        // write still reads as it did.
+        let written =
+            std::fs::read_to_string(manager.unit(&start.home, &start.state)).is_ok_and(|now| now != unit && manager.runs(&now, wsp));
         if !written {
             return Err(wsp_failure(&argv, &ran));
         }
@@ -742,10 +802,12 @@ async fn rewrite<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &P
     Ok(())
 }
 
+const RUNS_ANOTHER: &str = "runs another wsp";
+
 /// The unit, where there is one and it runs another program than the wsp command, written again to run it.
 async fn unit_onto<R: Runner>(start: &Start, runner: &R, manager: Manager, wsp: &Path) -> Result<bool, String> {
     match std::fs::read_to_string(manager.unit(&start.home, &start.state)) {
-        Ok(unit) if !manager.runs(&unit, wsp) => rewrite(start, runner, manager, wsp, &unit).await.map(|()| true),
+        Ok(unit) if !manager.runs(&unit, wsp) => rewrite(start, runner, manager, wsp, &unit, RUNS_ANOTHER).await.map(|()| true),
         _ => Ok(false),
     }
 }
@@ -791,7 +853,7 @@ pub async fn follow<R: Runner>(start: &Start, runner: &R) -> Result<Followed, St
         if manager.runs(&unit, wsp) {
             restart(start, runner).await?;
         } else {
-            rewrite(start, runner, manager, wsp, &unit).await?;
+            rewrite(start, runner, manager, wsp, &unit, RUNS_ANOTHER).await?;
         }
         return Ok(Followed::Restarted);
     }
