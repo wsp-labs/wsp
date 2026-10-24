@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { POSTS } from "@/blog";
 import { Lockup } from "@/components/brand";
+import { MAC_GUIDE } from "@/components/download";
 import { DOWNLOADS, useVisitor } from "@/downloads";
 import { DOCS, REPO } from "@/links";
 import { cn } from "@/lib/utils";
@@ -62,7 +63,7 @@ export function Nav({ path = "/" }: { path?: string }) {
             <span className="hidden sm:inline">GitHub</span>
           </a>
           <a
-            href={platform === "windows" ? "/#get" : DOWNLOADS[platform].href}
+            href={platform === "windows" ? "/#get" : platform === "mac" ? MAC_GUIDE : DOWNLOADS.linux.href}
             className="key ml-1 inline-flex h-8 items-center rounded-[8px] px-3 text-[13px] font-medium transition-opacity duration-150 hover:opacity-90"
           >
             {platform === "windows" ? "Get wsp" : "Download"}
