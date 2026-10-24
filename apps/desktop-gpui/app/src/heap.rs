@@ -11,6 +11,15 @@ pub fn live() -> Option<(usize, usize)> {
     None
 }
 
+/// The most the live heap held since the last call, which a transient burst reaches and the system allocator then keeps
+/// as its own high mark.
+pub fn take_peak() -> Option<usize> {
+    #[cfg(feature = "heap-profile")]
+    return Some(imp::take_peak());
+    #[cfg(not(feature = "heap-profile"))]
+    None
+}
+
 /// Where the sampler stands now, for [`holders`] to sum only what was allocated after it.
 pub fn mark() -> usize {
     #[cfg(feature = "heap-profile")]
@@ -51,6 +60,7 @@ mod imp {
 
     static LIVE_BYTES: AtomicIsize = AtomicIsize::new(0);
     static LIVE_COUNT: AtomicIsize = AtomicIsize::new(0);
+    static PEAK_BYTES: AtomicIsize = AtomicIsize::new(0);
     static MAYBE: [AtomicU8; SLOTS] = [const { AtomicU8::new(0) }; SLOTS];
     static SAMPLES: Mutex<Option<HashMap<usize, Sample>>> = Mutex::new(None);
     static TAKEN: AtomicUsize = AtomicUsize::new(0);
@@ -130,7 +140,8 @@ mod imp {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
             let ptr = unsafe { System.alloc(layout) };
             if !ptr.is_null() {
-                LIVE_BYTES.fetch_add(layout.size() as isize, Ordering::Relaxed);
+                let now = LIVE_BYTES.fetch_add(layout.size() as isize, Ordering::Relaxed) + layout.size() as isize;
+                PEAK_BYTES.fetch_max(now, Ordering::Relaxed);
                 LIVE_COUNT.fetch_add(1, Ordering::Relaxed);
                 taken(ptr, layout.size());
             }
@@ -140,7 +151,8 @@ mod imp {
         unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
             let ptr = unsafe { System.alloc_zeroed(layout) };
             if !ptr.is_null() {
-                LIVE_BYTES.fetch_add(layout.size() as isize, Ordering::Relaxed);
+                let now = LIVE_BYTES.fetch_add(layout.size() as isize, Ordering::Relaxed) + layout.size() as isize;
+                PEAK_BYTES.fetch_max(now, Ordering::Relaxed);
                 LIVE_COUNT.fetch_add(1, Ordering::Relaxed);
                 taken(ptr, layout.size());
             }
@@ -158,7 +170,8 @@ mod imp {
             let moved = unsafe { System.realloc(ptr, layout, new_size) };
             if !moved.is_null() {
                 freed(ptr);
-                LIVE_BYTES.fetch_add(new_size as isize - layout.size() as isize, Ordering::Relaxed);
+                let grown = new_size as isize - layout.size() as isize;
+                PEAK_BYTES.fetch_max(LIVE_BYTES.fetch_add(grown, Ordering::Relaxed) + grown, Ordering::Relaxed);
                 taken(moved, new_size);
             }
             moved
@@ -199,6 +212,10 @@ mod imp {
             .map(|rest| if file.contains("/registry/src/") { rest.split_once('/').map_or(rest, |(_, r)| r) } else { rest })
             .unwrap_or(&file);
         format!("{name} @ {short}:{}", symbol.lineno().unwrap_or(0))
+    }
+
+    pub fn take_peak() -> usize {
+        PEAK_BYTES.swap(LIVE_BYTES.load(Ordering::Relaxed), Ordering::Relaxed).max(0) as usize
     }
 
     pub fn mark() -> usize {

@@ -277,6 +277,9 @@ pub struct Composer {
     hold: Option<Hold>,
     steer_preferred: bool,
     files: Vec<File>,
+    /// Each image file's 56 px tile, cut off the window's thread, none while it is cut: GPUI keeps a whole decode of an
+    /// image it draws, and its atlas page, until it is let go of.
+    previews: Vec<(std::sync::Arc<Vec<u8>>, Option<attach::Preview>)>,
     refused: Vec<(String, String)>,
     queue: Vec<Queued>,
     /// The queued row a steer is out for, which stays put until the host answers.
@@ -516,6 +519,7 @@ impl Composer {
             hold: None,
             steer_preferred: false,
             files: Vec::new(),
+            previews: Vec::new(),
             refused: Vec::new(),
             queue: Vec::new(),
             steering: None,

@@ -3,10 +3,17 @@
 
 use std::sync::Arc;
 
-use gpui_kit::{prelude::*, ClipboardEntry, Context, Window};
+use gpui_kit::{prelude::*, ClipboardEntry, Context, Image, ImageFormat, ImageSource, RenderImage, Window};
 
 use super::model::{self, File};
 use super::Composer;
+use crate::screens::thread_view::cards::{release, thumbnail};
+
+/// An image file as the box draws it: a tile cut to its 56 px square, or a GIF whole.
+pub(super) enum Preview {
+    Tile(Arc<RenderImage>),
+    Whole(Arc<Image>),
+}
 
 impl Composer {
     /// Takes files as a pick, a drop or a paste does: each refused one is kept with its reason.
@@ -19,6 +26,53 @@ impl Composer {
             }
         }
         cx.notify();
+    }
+
+    /// Cuts a tile for each image file without one, and lets go of the tiles of files no longer in the box, out of
+    /// GPUI's cache and the window's atlas too. A GIF is drawn whole, since its tile would stand still.
+    pub(super) fn keep_previews(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let files = &self.files;
+        for (_, preview) in self.previews.extract_if(.., |(bytes, _)| !files.iter().any(|f| Arc::ptr_eq(&f.bytes, bytes))) {
+            match preview {
+                Some(Preview::Tile(tile)) => cx.drop_image(tile, Some(window)),
+                Some(Preview::Whole(image)) => release(image, window, cx),
+                None => {}
+            }
+        }
+        for file in self.files.iter().filter(|f| f.is_image()) {
+            if self.previews.iter().any(|(bytes, _)| Arc::ptr_eq(&file.bytes, bytes)) {
+                continue;
+            }
+            let format = ImageFormat::from_mime_type(&file.media_type).unwrap_or(ImageFormat::Png);
+            if format == ImageFormat::Gif {
+                let whole = Arc::new(Image::from_bytes(format, file.bytes.to_vec()));
+                self.previews.push((file.bytes.clone(), Some(Preview::Whole(whole))));
+                continue;
+            }
+            self.previews.push((file.bytes.clone(), None));
+            let (bytes, media) = (file.bytes.clone(), file.media_type.clone());
+            let cut = cx.background_spawn(async move { thumbnail(&bytes, &media) });
+            let key = file.bytes.clone();
+            cx.spawn(async move |this, cx| {
+                let Some(tile) = cut.await else { return };
+                _ = this.update(cx, |this, cx| {
+                    if let Some((_, slot @ None)) = this.previews.iter_mut().find(|(bytes, _)| Arc::ptr_eq(bytes, &key)) {
+                        *slot = Some(Preview::Tile(tile));
+                        cx.notify();
+                    }
+                });
+            })
+            .detach();
+        }
+    }
+
+    /// What the box draws for an image file, once it is ready.
+    pub(super) fn preview(&self, file: &File) -> Option<ImageSource> {
+        let (_, preview) = self.previews.iter().find(|(bytes, _)| Arc::ptr_eq(&file.bytes, bytes))?;
+        match preview.as_ref()? {
+            Preview::Tile(tile) => Some(ImageSource::Render(tile.clone())),
+            Preview::Whole(image) => Some(ImageSource::Image(image.clone())),
+        }
     }
 
     pub fn remove_file(&mut self, ix: usize, cx: &mut Context<Self>) {
