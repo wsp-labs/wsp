@@ -6,9 +6,9 @@
 //! rest, as `desktop:host-lifecycle.ts` `openHost` reads them: a host or a wsp command of a newer release than the
 //! bundle's is left as it is and opened on; one of an older release is taken over, the command written to run this
 //! bundle and the service host restarted onto it by `restart_host` (an update's swap, or the open that refused it);
-//! one of the same release has the command written where it names other files, and its host restarted before the
-//! open only where the files it ran went. A wsp command today's app wrote, naming an
-//! app of this release that stands, is that app's: it and its service are left alone.
+//! one of the same release has the command written where it names other files, and its host restarted onto it before
+//! the open. A wsp command today's app wrote, naming an app that stands, is that app's while Go Back is offered: it and
+//! its host are left alone.
 
 mod appimage;
 pub mod npm;
@@ -16,14 +16,16 @@ pub mod shim;
 
 use std::cmp::Ordering;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::OnceLock;
 
-use wsp_host_client::start::{self, Start, System};
+use wsp_host_client::start::{self, Runner, Start, System};
 use wsp_host_client::{release_order, Env};
 
 use crate::desktop::{log, switch};
 
 pub use appimage::Image;
+pub use wsp_host_client::start::Followed;
 
 /// The three files the bundle carries for the host, at the paths the packaging puts them (`scripts/package.sh`).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -140,9 +142,9 @@ pub enum Restart {
     /// It is of an older release, which the open refuses: restarted by `restart_host` once its turns are counted or
     /// the person said so (`replaceHost`), or by the update's swap.
     Older,
-    /// It is of this release on files the command named before and that went, a move or a trashed copy: restarted
-    /// before the open (`staleShim`).
-    FilesWent,
+    /// It is of this release and the command it ran named other files, which a move or a trash can take from under
+    /// it: restarted before the open (`staleShim`).
+    Rewritten,
 }
 
 /// The wsp command this app owns, and why the host serving is to be restarted onto it, where it is.
@@ -157,7 +159,7 @@ pub struct Owned {
 pub enum Left {
     /// `theirs`, the release serving the home or the one the command runs, as `what` says, is newer.
     Newer { theirs: String, what: &'static str },
-    /// The command runs today's app at this path, of no older release, which stands.
+    /// The command runs today's app at this path, which stands, so Go Back is offered for it.
     Today(PathBuf),
 }
 
@@ -166,14 +168,20 @@ impl Left {
     pub fn said(&self, mine: &str) -> String {
         match self {
             Left::Newer { theirs, what } => format!("wsp {theirs} {what}, newer than wsp {mine}"),
-            Left::Today(app) => format!("the wsp command on this computer runs today's wsp app at {}", app.display()),
+            Left::Today(app) => format!(
+                "the wsp command on this computer runs today's wsp app at {}, whose host this app leaves; {} returns to it",
+                app.display(),
+                switch::GO_BACK
+            ),
         }
     }
 }
 
 /// Whether `claim` leaves the wsp command of `home` and its service as they are for a bundle of release `mine`, with
 /// `serving` the release the host serving names: a host, or a command's files, of a newer release, or today's app's
-/// command naming an app of no older release that stands. The update reads it before a swap starts.
+/// command naming an app that stands, whatever its release. Go Back is offered for that app, and today's app writes its
+/// own command again on its next launch and keeps a newer host serving, so a host moved here would come back older
+/// on a newer database at the next login. The update reads it before a swap starts.
 pub fn left_as_is(home: &Path, serving: Option<&str>, mine: &str) -> Option<Left> {
     let was = std::fs::read_to_string(shim::path(home)).ok();
     let named = was.as_deref().and_then(shim::command_of).and_then(|command| shim::release_of(&command));
@@ -184,16 +192,14 @@ pub fn left_as_is(home: &Path, serving: Option<&str>, mine: &str) -> Option<Left
     if let Some((theirs, what)) = newer {
         return Some(Left::Newer { theirs: theirs.to_owned(), what });
     }
-    let older = named.as_deref().is_some_and(|theirs| against(theirs) == Against::Older);
-    switch::named_app(home).filter(|_| !older).map(Left::Today)
+    switch::named_app(home).map(Left::Today)
 }
 
 /// What a launch makes of the wsp command for the home `home`, with `serving` the release the host serving names.
-/// A host, or a command's files, of a newer release than the bundle's stays as it is (none); so does today's app's
-/// command naming an app of this release that stands. Otherwise the command is written to run `here`, or under an
+/// What `left_as_is` names stays as it is (none). Otherwise the command is written to run `here`, or under an
 /// AppImage a copy of it that outlives the launch, and kept where it already says exactly that; the host serving is to
-/// be restarted onto it where it is of an older release, or of this one with the files it ran gone. The refusal is a
-/// line for the app's log.
+/// be restarted onto it where it is of an older release, or of this one where the command named other files. The
+/// refusal is a line for the app's log.
 pub fn claim(home: &Path, here: Result<Bundled, String>, image: Option<&Image>, serving: Option<&str>) -> Result<Option<Owned>, String> {
     let wsp = shim::path(home);
     let here = here?;
@@ -217,12 +223,11 @@ pub fn claim(home: &Path, here: Result<Bundled, String>, image: Option<&Image>, 
         None => {}
     }
     let was = std::fs::read_to_string(&wsp).ok();
-    let named = was.as_deref().and_then(shim::command_of).and_then(|command| shim::release_of(&command));
     let against = |theirs: &str| Against::of(theirs, &mine);
     let done = install_command(home, &wsp, here, image, &mine, was.as_deref())?;
     let restart = match serving.map(against) {
         Some(Against::Older) => Some(Restart::Older),
-        Some(Against::Same) if done == shim::Done::Written && named.is_none() => Some(Restart::FilesWent),
+        Some(Against::Same) if done == shim::Done::Written => Some(Restart::Rewritten),
         _ => None,
     };
     Ok(Some(Owned { wsp, restart }))
@@ -263,14 +268,6 @@ pub fn take_back(home: &Path, here: Result<Bundled, String>, image: Option<&Imag
     Ok(wsp)
 }
 
-/// What `restart_host` did with the host serving: restarted it onto this bundle, or left it as it is, with why in words
-/// a person reads. A stand-in until the answer `restart_host` gives of its own lands.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Followed {
-    Restarted,
-    Left(String),
-}
-
 /// The launch's state and environment, which a restart after an update reads.
 static LAUNCH: OnceLock<(PathBuf, Env)> = OnceLock::new();
 /// The wsp command this launch owns, which every later start of the host hands the unit.
@@ -286,9 +283,26 @@ pub fn serving_now(state: &Path) -> Option<String> {
     })
 }
 
+/// Whether this run's pass over npm's links has started; one per run of the app, whatever opens after the launch's.
+static NPM_PASS: AtomicBool = AtomicBool::new(false);
+
+/// npm's `wsp` links on the login PATH of an older release pointed at the command (`replaceOlderOnPath`), once per run
+/// and off the open's road, since the login shell may take seconds. Whether this call started it.
+fn npm_pass(home: &Path, env: &Env, mine: String) -> bool {
+    if NPM_PASS.swap(true, AtomicOrdering::SeqCst) {
+        return false;
+    }
+    let (home, vars) = (home.to_owned(), env.clone());
+    std::thread::spawn(move || {
+        for line in npm::replace_older_on_path(&home, || npm::login_path(&vars), &mine, &npm::own_home()) {
+            log::info(&line);
+        }
+    });
+    true
+}
+
 /// `claim` for this launch, on its state file's home and the release serving it, with what it said in the app's log.
-/// Where it owns the command, npm's `wsp` links on the login PATH of an older release are pointed at it
-/// (`replaceOlderOnPath`), off the open's road since the login shell may take seconds.
+/// Where it owns the command, npm's older links are pointed at it once in the run (`npm_pass`).
 pub fn on_launch(state: &Path, env: &Env) -> Option<Owned> {
     let _ = LAUNCH.set((state.to_owned(), env.clone()));
     let home = state.parent().unwrap_or(Path::new(""));
@@ -298,12 +312,7 @@ pub fn on_launch(state: &Path, env: &Env) -> Option<Owned> {
         Ok(owned) => {
             if let (Some(owned), Some(mine)) = (&owned, mine) {
                 let _ = OWNED.set(owned.wsp.clone());
-                let (home, vars) = (home.to_owned(), env.clone());
-                std::thread::spawn(move || {
-                    for line in npm::replace_older_on_path(&home, || npm::login_path(&vars), &mine, &npm::own_home()) {
-                        log::info(&line);
-                    }
-                });
+                npm_pass(home, env, mine);
             }
             owned
         }
@@ -319,33 +328,38 @@ pub fn owned() -> Option<PathBuf> {
     OWNED.get().cloned()
 }
 
-/// Restarts the service host onto this bundle, for an update that swapped the bundle under it or an older host the
-/// open refused: the wsp command is written again to name this bundle's files, and the host serving the launch's
-/// state file is asked to restart on the road it came up on, where `claim` reads it as older or on files that went.
-/// Nothing serving, or a host of this release on files that stand, is nothing to restart; a host of a newer release,
-/// a wsp command today's app owns and a unit running another wsp are left as they are. The refusal is in words a
-/// person reads.
+/// Moves the host serving the launch's state file onto this bundle, for an update that swapped the bundle under it or
+/// an older host the open refused, and says what it did: the wsp command is written again to name this bundle's
+/// files, and a host `claim` reads as older, or of this release on other files, is restarted by the road it came up on
+/// (`start::follow`). A host whose release did not answer, and what `left_as_is` names, are left, said in words; the
+/// refusal is in words a person reads.
 pub async fn restart_host() -> Result<Followed, String> {
     let (state, env) = LAUNCH.get().cloned().unwrap_or_else(|| (default_state(), std::env::vars().collect()));
+    follow_onto(&state, &env, bundled(), &System::new(&env)).await
+}
+
+async fn follow_onto<R: Runner>(state: &Path, env: &Env, here: Result<Bundled, String>, runner: &R) -> Result<Followed, String> {
     let home = state.parent().unwrap_or(Path::new(""));
-    let serving = start::serving_release(&state).await;
-    let mine = bundled().ok().and_then(|here| here.release()).unwrap_or_default();
-    let Some(owned) = claim(home, bundled(), Image::of(&env).as_ref(), serving.as_deref())? else {
+    let serving = start::serving_release(state).await;
+    if serving.is_none() && wsp_host_client::lock::serving(state).is_some() {
+        return Ok(Followed::Left(format!(
+            "the host serving {} did not say its release within 2 s, so this app did not restart it",
+            state.display()
+        )));
+    }
+    let mine = here.as_ref().ok().and_then(Bundled::release).unwrap_or_default();
+    let Some(owned) = claim(home, here, Image::of(env).as_ref(), serving.as_deref())? else {
         let left = left_as_is(home, serving.as_deref(), &mine).map(|left| left.said(&mine));
         return Ok(Followed::Left(
             left.unwrap_or_else(|| format!("this app left the wsp command at {} as it is", shim::path(home).display())),
         ));
     };
     if owned.restart.is_none() {
-        return Ok(Followed::Left(match serving {
-            Some(theirs) => format!("wsp {theirs} already serves {} on files that stand", state.display()),
-            None => format!("no host serving {} said its release", state.display()),
-        }));
+        return Ok(if serving.is_some() { Followed::Already } else { Followed::NotServing });
     }
-    let mut road = Start::here(&state, &env);
+    let mut road = Start::here(state, env);
     road.wsp = Some(owned.wsp);
-    road.restart = true;
-    start::restart_service(&road, &System::new(&env)).await.map(|()| Followed::Restarted)
+    start::follow(&road, runner).await
 }
 
 /// `take_back` for this launch, then the service host restarted onto the command as it now stands.

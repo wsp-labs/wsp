@@ -35,6 +35,18 @@ pub fn move_command(bundle: &Path, to: &Path) -> Command {
     ditto
 }
 
+/// The move's answer acted on (`offerMove`): Not now opens this copy (none); Move copies the bundle into Applications
+/// and names the copy to restart as, which writes the wsp command from its settled path; a copy that failed is the
+/// line to log before this copy opens. The launch writes nothing before this answers.
+pub fn answered(picked: usize, bundle: &Path, copy: impl FnOnce(&Path, &Path) -> Result<(), String>) -> Result<Option<PathBuf>, String> {
+    if picked != 0 {
+        return Ok(None);
+    }
+    let to = moved_to(bundle);
+    copy(bundle, &to).map_err(|why| format!("wsp could not move itself to Applications: {why}"))?;
+    Ok(Some(to))
+}
+
 #[cfg(target_os = "macos")]
 pub use native::*;
 
@@ -105,30 +117,31 @@ mod native {
         usize::try_from(picked).ok().filter(|&at| at < buttons.len()).or(cancel).unwrap_or(0)
     }
 
-    /// `offerMove`: a bundle outside Applications asks once at launch; Move puts a bundle already there in the Trash,
-    /// copies this one there by `ditto` off the main thread and restarts as the moved one, Not now runs on, and a move
-    /// that failed is logged and runs on.
-    pub fn offer_move(cx: &mut App) {
+    /// `offerMove` before `installCommand`: a bundle outside Applications asks once at launch, and `then`, the launch's
+    /// open that writes the wsp command, runs only once it is answered. Move puts a bundle already there in the Trash,
+    /// copies this one there by `ditto` off the main thread and restarts as the moved one, never opening this copy; Not
+    /// now opens it, and a move that failed is logged and opens it.
+    pub fn offer_move(cx: &mut App, then: impl FnOnce(&mut App) + 'static) {
         let bundle = cx.app_path().ok();
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
         let driven = std::env::var_os("WSP_DESKTOP_SMOKE").is_some_and(|v| v == "1");
-        if !super::offers_move(true, bundle.as_deref(), home.as_deref(), driven) {
-            return;
-        }
-        let Some(bundle) = bundle else { return };
+        let Some(bundle) = bundle.filter(|bundle| super::offers_move(true, Some(bundle), home.as_deref(), driven)) else {
+            return then(cx);
+        };
         cx.spawn(async move |cx: &mut AsyncApp| {
-            if alert(Style::Question, super::MOVE_MESSAGE, super::MOVE_DETAIL, &super::MOVE_BUTTONS, Some(1)) != 0 {
-                return;
-            }
-            let to = super::moved_to(&bundle);
-            let target = to.clone();
-            match cx.background_spawn(async move { moved(&bundle, &target) }).await {
-                Ok(()) => cx.update(|cx| {
+            let picked = alert(Style::Question, super::MOVE_MESSAGE, super::MOVE_DETAIL, &super::MOVE_BUTTONS, Some(1));
+            let answer = cx.background_spawn(async move { super::answered(picked, &bundle, moved) }).await;
+            cx.update(|cx| match answer {
+                Ok(Some(to)) => {
                     cx.set_restart_path(to);
                     cx.restart();
-                }),
-                Err(why) => crate::desktop::log::error(&format!("wsp could not move itself to Applications: {why}")),
-            }
+                }
+                Ok(None) => then(cx),
+                Err(why) => {
+                    crate::desktop::log::error(&why);
+                    then(cx);
+                }
+            });
         })
         .detach();
     }
@@ -165,6 +178,23 @@ mod tests {
         assert!(!offers_move(true, Some(Path::new("/Users/z/src/target/debug")), home, false));
         assert!(!offers_move(true, Some(Path::new("/Applications/wsp.app")), home, false));
         assert!(!offers_move(true, Some(Path::new("/Users/z/Applications/wsp.app")), home, false));
+    }
+
+    /// Catches: the launch writing the wsp command and starting the service off the Downloads copy while the move's
+    /// question stands, so Move's copy (which keeps the original) leaves the service on a copy the person trashes next.
+    #[test]
+    fn only_the_moves_answer_lets_this_copy_open_and_move_restarts_as_the_copy() {
+        let bundle = Path::new("/Users/z/Downloads/wsp.app");
+        let copied = std::cell::Cell::new(false);
+        assert_eq!(answered(1, bundle, |_, _| panic!("Not now copies nothing")), Ok(None), "Not now opens this copy");
+        let restart = answered(0, bundle, |from, to| {
+            copied.set(from == bundle && to == Path::new("/Applications/wsp.app"));
+            Ok(())
+        });
+        assert_eq!(restart, Ok(Some(PathBuf::from("/Applications/wsp.app"))), "Move restarts as the copy and opens nothing here");
+        assert!(copied.get());
+        let failed = answered(0, bundle, |_, _| Err("ditto: Permission denied".to_owned()));
+        assert_eq!(failed, Err("wsp could not move itself to Applications: ditto: Permission denied".to_owned()));
     }
 
     #[test]
