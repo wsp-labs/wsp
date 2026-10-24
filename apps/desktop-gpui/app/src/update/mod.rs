@@ -593,7 +593,9 @@ pub fn after_swap(
         Some(swap::Settled::Waiting(waiting)) => {
             waiting.restarting().map_err(|e| e.to_string())?;
             match restart()? {
-                crate::service::Followed::Restarted => Ok(Some(waiting)),
+                crate::service::Followed::Restarted | crate::service::Followed::Already | crate::service::Followed::NotServing => {
+                    Ok(Some(waiting))
+                }
                 crate::service::Followed::Left(why) => {
                     waiting.left(&why).and_then(|()| waiting.not_restarted()).map_err(|e| e.to_string())?;
                     Err(why)
