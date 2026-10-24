@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The site's build: the client bundle, then a server bundle of the same pages that renders every route to its own
-// HTML, then the sitemap, robots.txt and llms.txt from the same route table. `node scripts/build.mjs [outDir]`.
+// HTML, then the sitemap, robots.txt, llms.txt and the blog's feed from the same route table. `node scripts/build.mjs [outDir]`.
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -27,5 +27,6 @@ for (const route of site.ROUTES) {
 write("sitemap.xml", site.sitemap());
 write("robots.txt", site.robots());
 write("llms.txt", site.llms());
+write("blog/rss.xml", site.rss());
 rmSync(server, { recursive: true });
 console.log(`prerendered ${site.ROUTES.map(r => r.path).join(" ")} into ${out}`);

@@ -7,7 +7,7 @@ export function App({ path = "/" }: { path?: string }) {
   const { Page } = routeAt(path);
   return (
     <>
-      <Nav />
+      <Nav path={path} />
       <Page />
       <Footer />
     </>
