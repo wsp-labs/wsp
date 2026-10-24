@@ -16,7 +16,7 @@ const root = mkdtempSync(join(tmpdir(), "wsp-gpui-package-"));
 const home = mkdtempSync(join(root, "home-"));
 const stubs = mkdtempSync(join(root, "stubs-"));
 const calls = join(root, "calls");
-for (const tool of ["cargo", "rustup", "codesign", "xcrun", "hdiutil", "lipo", "security", "ditto", "osascript", "tiffutil", "plutil", "curl", "mksquashfs"]) {
+for (const tool of ["cargo", "rustup", "codesign", "xcrun", "hdiutil", "lipo", "security", "ditto", "osascript", "tiffutil", "plutil", "curl", "mksquashfs", "pnpm", "tar", "node"]) {
   writeStub(join(stubs, tool), `#!/bin/sh\necho "${tool} $*" >> '${calls}'\n`);
 }
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -52,6 +52,25 @@ describe("package.sh --dry-run", () => {
     expect(out).not.toMatch(/--timestamp|security import|notarytool|stapler/);
   });
 
+  it("carries one Node for both chips out of the pinned archives, and signs it and each Mac daemon before the bundle", () => {
+    const out = dryRun("mac", CERT);
+    for (const [pa, sum] of [
+      ["darwin-arm64", "61130f394c1630d211dd50aecc4353d379480f36d3ac913cd85dbba1aed585c6"],
+      ["darwin-x64", "58e99022c2ff89395576cc7fd4d98cea24bb68081475d5f88b801ee8729fb026"],
+    ]) {
+      at(out, new RegExp(`^\\+ curl -fsSL https://nodejs\\.org/dist/v22\\.23\\.2/node-v22\\.23\\.2-${pa}\\.tar\\.gz `, "m"));
+      expect(readFileSync(script, "utf8")).toContain(`${pa}) echo ${sum} ;;`);
+    }
+    const build = at(out, /^\+ pnpm -C \.\.\/\.\. --filter @wsp\/desktop run build:app$/m);
+    const lipo = at(out, /^\+ lipo -create -output 'dist\/wsp Experimental\.app\/Contents\/MacOS\/node' \S+node-darwin-arm64\/bin\/node \S+node-darwin-x64\/bin\/node$/m);
+    expect(build).toBeLessThan(lipo);
+    const node = at(out, /^\+ codesign --force --options runtime --timestamp .*--entitlements \.\.\/desktop\/build\/entitlements\.mac\.plist .*'dist\/wsp Experimental\.app\/Contents\/MacOS\/node'$/m);
+    const daemon = at(out, /^\+ codesign --force --options runtime --timestamp .*'dist\/wsp Experimental\.app\/Contents\/Resources\/app\/assets\/daemon\/x86_64-apple-darwin\/wsp-daemon'$/m);
+    const bundle = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*'dist\/wsp Experimental\.app'$/m);
+    expect(node).toBeLessThan(bundle);
+    expect(daemon).toBeLessThan(bundle);
+  });
+
   it("with a certificate signs the inner Mach-O and then the bundle under the hardened runtime with a timestamp", () => {
     const out = dryRun("mac", CERT);
     at(out, /^\+ security import \S+ -k \S+ -P '<hidden>'/m);
@@ -78,6 +97,11 @@ describe("package.sh --dry-run", () => {
   it("on Linux builds the binary and packs the AppImage behind the pinned runtime, with no Apple tool", () => {
     const out = dryRun("linux", { ...CERT, ...APPLE });
     at(out, /^\+ cargo build --release --locked -p desktop-gpui$/m);
+    at(out, /^\+ curl -fsSL https:\/\/nodejs\.org\/dist\/v22\.23\.2\/node-v22\.23\.2-linux-x64\.tar\.gz /m);
+    const node = at(out, /^\+ install -m 755 \S+node-linux-x64\/bin\/node \S+\/AppDir\/usr\/bin\/node$/m);
+    const squash = at(out, /^\+ mksquashfs /m);
+    expect(node).toBeLessThan(squash);
+    at(out, /^\+ cp -R \.\.\/desktop\/build\/app\/assets \S+\/AppDir\/usr\/lib\/wsp\/app\/assets$/m);
     at(out, /^\+ curl -fsSL https:\/\/github\.com\/AppImage\/type2-runtime\/releases\/download\/20251108\/runtime-x86_64 /m);
     at(out, /^\+ mksquashfs /m);
     at(out, /^\+ write dist\/wsp-experimental-[\d.]+-x86_64\.AppImage from /m);

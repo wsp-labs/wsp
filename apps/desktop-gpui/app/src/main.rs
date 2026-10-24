@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -8,6 +8,7 @@ use desktop_gpui::gallery::Gallery;
 use desktop_gpui::screens::app_shell::{assets::AppAssets, menu, vibrancy};
 use desktop_gpui::screens::dialogs::startup::{self, Claim};
 use desktop_gpui::screens::{composer, Place, Route};
+use desktop_gpui::service::default_state;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
 use desktop_gpui::{bench, desktop, local_store, screens};
@@ -15,31 +16,6 @@ use futures::StreamExt as _;
 use gpui_kit::component::Root;
 use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
 use wsp_host_client::Env;
-
-/// The state file a launch means, as the Electron app picks it: WSP_HOME names the home, made absolute against the
-/// current folder, else ~/.wsp. An empty WSP_HOME names no home.
-fn default_state() -> PathBuf {
-    let home = std::env::var_os("WSP_HOME")
-        .filter(|home| !home.is_empty())
-        .map(|home| resolved(Path::new(&home), &std::env::current_dir().unwrap_or_default()))
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".wsp"));
-    home.join("state.json")
-}
-
-/// A path made absolute against `cwd` and tidied by its spelling alone, links left as they are (node's `path.resolve`).
-fn resolved(path: &Path, cwd: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for part in cwd.join(path).components() {
-        match part {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                out.pop();
-            }
-            part => out.push(part),
-        }
-    }
-    out
-}
 
 /// A launch on a named state keeps its store beside that state, so a capture or a bench on a throwaway host never
 /// writes into the person's own; the default state, which today's app names on every hand-over, keeps the default store.
@@ -291,7 +267,7 @@ fn open_main(
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{local_store, resolved, store_path, take_link, take_pane};
+    use super::{local_store, store_path, take_link, take_pane};
 
     /// Catches: a hand-over from today's app, which names the default state, keeping its panes in another store than a
     /// launch from the Dock; or a throwaway state writing into the person's store.
@@ -302,16 +278,6 @@ mod tests {
         assert_eq!(store_path(None, default), local_store::default_path());
         let bench = Path::new("/tmp/bench/state/state.json");
         assert_eq!(store_path(Some(bench), default), PathBuf::from("/tmp/bench/state/desktop-gpui-local-store.json"));
-    }
-
-    #[test]
-    fn resolves_the_home_as_path_resolve_does() {
-        let cwd = Path::new("/work/here");
-        assert_eq!(resolved(Path::new("homes/a"), cwd), PathBuf::from("/work/here/homes/a"));
-        assert_eq!(resolved(Path::new("../b/./c"), cwd), PathBuf::from("/work/b/c"));
-        assert_eq!(resolved(Path::new("//srv//wsp-home"), cwd), PathBuf::from("/srv/wsp-home"));
-        assert_eq!(resolved(Path::new("/srv/wsp-home/"), cwd), PathBuf::from("/srv/wsp-home"));
-        assert_eq!(resolved(Path::new("/../../x"), cwd), PathBuf::from("/x"));
     }
 
     #[test]
