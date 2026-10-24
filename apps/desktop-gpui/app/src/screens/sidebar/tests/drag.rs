@@ -12,7 +12,7 @@ fn tile(key: &str, cx: &mut VisualTestContext) -> Bounds<Pixels> {
     cx.debug_bounds(sel(format!("tile-{key}"))).unwrap_or_else(|| panic!("tile-{key} is drawn"))
 }
 
-fn written() -> Vec<(&'static str, Value)> {
+pub(super) fn written() -> Vec<(&'static str, Value)> {
     writes::WRITTEN.with(|w| std::mem::take(&mut *w.borrow_mut()))
 }
 
@@ -25,26 +25,30 @@ fn listed(snap: Snapshot, cx: &mut TestAppContext) -> (Entity<Sidebar>, &mut Vis
 }
 
 /// Presses on the tile of `key` and moves past the drag threshold: the drag starts and the heads stand.
-fn lift(key: &str, cx: &mut VisualTestContext) {
-    let from = tile(key, cx).center();
+pub(super) fn lift(key: &str, cx: &mut VisualTestContext) {
+    lift_at(tile(key, cx).center(), cx);
+}
+
+/// Presses at `from` and moves past the drag threshold, for a row its key does not name alone.
+pub(super) fn lift_at(from: Point<Pixels>, cx: &mut VisualTestContext) {
     cx.simulate_mouse_move(from, None, Modifiers::none());
     cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(from + point(px(0.), px(10.)), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
 }
 
-fn hover(to: Point<Pixels>, cx: &mut VisualTestContext) {
+pub(super) fn hover(to: Point<Pixels>, cx: &mut VisualTestContext) {
     cx.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
 }
 
-fn drop_at(to: Point<Pixels>, cx: &mut VisualTestContext) {
+pub(super) fn drop_at(to: Point<Pixels>, cx: &mut VisualTestContext) {
     cx.simulate_mouse_up(to, MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
 }
 
 /// The marks `sessions.mark` was asked to write, each with the threads it names.
-fn marks(writes: &[(&'static str, Value)]) -> Vec<(Vec<String>, Value)> {
+pub(super) fn marks(writes: &[(&'static str, Value)]) -> Vec<(Vec<String>, Value)> {
     writes
         .iter()
         .filter(|(op, _)| *op == "sessions.mark")
@@ -61,14 +65,14 @@ fn upper_half(b: Bounds<Pixels>) -> Point<Pixels> {
 }
 
 /// Where drawn row `ix` was laid out.
-fn row_bounds(sidebar: &Entity<Sidebar>, find: impl Fn(&Sidebar, &Line) -> bool, cx: &mut VisualTestContext) -> Bounds<Pixels> {
+pub(super) fn row_bounds(sidebar: &Entity<Sidebar>, find: impl Fn(&Sidebar, &Line) -> bool, cx: &mut VisualTestContext) -> Bounds<Pixels> {
     sidebar.read_with(cx, |s, _| {
         let ix = s.drawn_rows.iter().position(|d| matches!(d, Drawn::Line(l) if find(s, &s.lines[*l]))).expect("the row is drawn");
         s.list.bounds_for_item(ix).expect("the row is laid out")
     })
 }
 
-fn head(section: Section) -> impl Fn(&Sidebar, &Line) -> bool {
+pub(super) fn head(section: Section) -> impl Fn(&Sidebar, &Line) -> bool {
     move |_, l| matches!(l.item, Item::Head { section: s, .. } if s == section)
 }
 
@@ -270,11 +274,11 @@ fn a_group_head_drags_its_members_as_one(cx: &mut TestAppContext) {
     assert_eq!(marks(&written()), vec![(vec!["t5".to_owned(), "t4".to_owned()], serde_json::json!({ "pinned": true }))]);
 }
 
-/// Catches: a drop taken by Working, which is drawn from what runs; an empty Working head standing to take one; or
-/// a root dragged out of Working that writes other marks than the same drop from the list, or leaves Working while
-/// its tree still runs.
+/// Catches: a drop from the list taken by Working, which takes one only from Pinned; an empty Working head standing to
+/// take one; or a root dragged out of Working that writes other marks than the same drop from the list, or leaves
+/// Working while its tree still runs.
 #[gpui_kit::test]
-fn working_takes_no_drop_and_a_root_dragged_out_writes_the_lists_marks(cx: &mut TestAppContext) {
+fn working_takes_no_drop_from_the_list_and_a_root_dragged_out_writes_the_lists_marks(cx: &mut TestAppContext) {
     let now = now_ms();
     let (sidebar, cx) = listed(snapshot(4, now), cx);
     lift("t0", cx);
@@ -294,7 +298,7 @@ fn working_takes_no_drop_and_a_root_dragged_out_writes_the_lists_marks(cx: &mut 
     lift("t0", cx);
     for at in [upper_half(tile("t2", cx)), lower_half(tile("t2", cx)), row_bounds(&sidebar, head(Section::Working), cx).center()] {
         hover(at, cx);
-        assert_eq!(sidebar.read_with(cx, |s, _| s.drag.at.clone()), None, "Working takes no drop at {at:?}");
+        assert_eq!(sidebar.read_with(cx, |s, _| s.drag.at.clone()), None, "Working takes no drop from the list at {at:?}");
         assert!(cx.debug_bounds("drop-over-working").is_none());
     }
     drop_at(lower_half(tile("t2", cx)), cx);

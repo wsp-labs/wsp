@@ -240,12 +240,13 @@ fn a_snoozed_tree_hides_unless_it_works() {
     let snooze = |r: Row| Row { snoozed_until: Some(NOW + HOUR), ..r };
     let all = view(&[snooze(row("busy", Status::Running, NOW - HOUR)), snooze(done("idle", NOW - HOUR)), fresh("plain", NOW - 2.0 * HOUR)]);
     let v = sidebar(&all, &Prefs::default(), NOW, None, Vec::new());
-    assert_eq!(keys(&all, &v.threads), ["plain", "busy"]);
-    assert_eq!(v.threads[1].snoozed_working, Some(1));
+    assert_eq!(keys(&all, &v.working), ["busy"]);
+    assert_eq!(keys(&all, &v.threads), ["plain"]);
+    assert_eq!(v.working[0].snoozed_working, Some(1));
     assert!(v.settled.is_empty());
-    assert_eq!(v.root_place("busy"), None, "a snoozed tree at the foot does not move");
+    assert_eq!(v.root_place("busy"), None, "a snoozed tree in Working does not move");
     let lines = v.lines(&Folds::default());
-    let Item::Tile(busy) = &lines[1].item else { panic!("busy is the second row") };
+    let Item::Tile(busy) = &lines[1].item else { panic!("busy is the row under Working's head") };
     assert_eq!(tile_slot(&all[0], busy, NOW).text.as_deref(), Some("1 working"));
 }
 

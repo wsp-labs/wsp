@@ -155,14 +155,16 @@ impl Sidebar {
         let folded = self.foot_folds.contains("setting-up");
         let mono = cx.theme().mono_font_family.clone();
         let prefs = self.around.preferences.clone().unwrap_or_default();
-        let head = chrome::section_head("head-setting-up".into(), "Setting up", cards.len(), folded, cx).on_click(cx.listener(
-            |this, _, _, cx| {
-                if !this.foot_folds.remove("setting-up") {
+        let head = chrome::section_head("head-setting-up".into(), "Setting up", cards.len(), folded, cx)
+            .debug_selector(|| "head-setting-up".into())
+            .on_click(cx.listener(|this, _, _, cx| {
+                let folded = !this.foot_folds.remove("setting-up");
+                if folded {
                     this.foot_folds.insert("setting-up".to_owned());
                 }
+                this.keep_fold("setting-up", folded, cx);
                 cx.notify();
-            },
-        ));
+            }));
         let rows = cards.into_iter().map(|c| {
             let (line_ink, bar) = match c.tone {
                 Tone::Working => (p.sidebar_prose, p.sidebar_foreground),

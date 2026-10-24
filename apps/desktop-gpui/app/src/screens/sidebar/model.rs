@@ -17,7 +17,7 @@ pub use kinds::{
     kind_of, kind_slot, kind_word, recedes, resets_word, resting_age, running_time, slot, subagent_kind, tile_kind, tile_slot, word, Kind,
     Slot, Tone,
 };
-pub use list::{key_at, Folds, Item, Line, Move, MoveMark, RootPlace, Shape, Tile, Under};
+pub use list::{keep_fold, key_at, stored_folds, Folds, Item, Line, Move, MoveMark, RootPlace, Shape, Tile, Under, FOLDED_KEY};
 
 /// The quiet a read thread waits out before it settles, at the record's default `settleAfter: "2h"`.
 pub const SETTLE_MS_DEFAULT: f64 = 2.0 * 3_600_000.0;
@@ -881,13 +881,9 @@ impl<'a> Ctx<'a> {
         node.thread.is_some_and(|i| test(&self.all[i])) || node.children.iter().any(|c| self.any_tile(c, test))
     }
 
-    /// A thread of the tree works, or a machine one of its threads started is still coming up with no thread on it.
-    fn works(&self, node: &Tree, machines: &[Machine]) -> bool {
-        self.any_tile(node, &|t| t.works() || machines.iter().any(|m| m.starting && m.lead == t.key))
-    }
-
+    /// threadTree.ts workingIn: how many threads of the tree work, a machine under one counting for none.
     fn working_in(&self, node: &Tree) -> usize {
-        usize::from(node.thread.is_some_and(|i| self.all[i].running())) + node.children.iter().map(|c| self.working_in(c)).sum::<usize>()
+        usize::from(node.thread.is_some_and(|i| self.all[i].works())) + node.children.iter().map(|c| self.working_in(c)).sum::<usize>()
     }
 
     /// threadTree.ts inboxTiles: every thread that asks or failed and is not armed to resume, not settled, alone.
@@ -918,8 +914,6 @@ pub struct Machine {
     pub workspace: String,
     /// When its record was made, in ms since the epoch.
     pub started_at: f64,
-    /// Its start has begun and has neither stood nor failed.
-    pub starting: bool,
 }
 
 /// The sidebar's sections and the Settled fold, each a list of root trees in the order drawn.
@@ -927,7 +921,7 @@ pub struct View<'a> {
     cx: Ctx<'a>,
     pub pinned: Vec<Tree>,
     pub needs_you: Vec<Tree>,
-    /// The list's roots whose trees work, in the list's own order.
+    /// The roots whose trees work, a snoozed one among them, in start order whatever a move wrote.
     pub working: Vec<Tree>,
     pub threads: Vec<Tree>,
     pub settled: Vec<Tree>,
@@ -946,8 +940,10 @@ pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&
     if let Some(project) = &prefs.project {
         roots.retain(|n| n.thread.is_some_and(|i| all[i].project_id.as_deref() == Some(project)));
     }
+    let roots = attempt_groups(all, roots);
+    let start_rank: HashMap<String, usize> = roots.iter().enumerate().map(|(at, n)| (n.key.clone(), at)).collect();
     let (mut pinned, mut listed, mut settled, mut snoozed) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for node in attempt_groups(all, roots) {
+    for node in roots {
         let snoozed_root = node.thread.is_some_and(|i| all[i].snoozed_until.is_some());
         if snoozed_root && !cx.any_tile(&node, &|t| t.needs_you) {
             let working = cx.working_in(&node);
@@ -978,17 +974,17 @@ pub fn sidebar<'a>(all: &'a [Thread], prefs: &Prefs, now_ms: f64, held: Option<&
     let tops: HashSet<&str> = inbox.iter().filter(|t| t.inbox.as_ref().is_some_and(Vec::is_empty)).map(|t| t.key.as_str()).collect();
     let alone: Vec<bool> = listed.iter().map(|n| tops.contains(n.key.as_str()) && !cx.draws_under(n)).collect();
     let mut inbox_only: HashMap<String, Tree> = HashMap::new();
-    let (mut working, mut threads) = (Vec::new(), Vec::with_capacity(listed.len() + snoozed.len()));
+    let (mut working, mut threads) = (snoozed, Vec::with_capacity(listed.len()));
     for (node, alone) in listed.into_iter().zip(alone) {
         if alone {
             inbox_only.insert(node.key.clone(), node);
-        } else if cx.works(&node, &machines) {
+        } else if cx.working_in(&node) > 0 {
             working.push(node);
         } else {
             threads.push(node);
         }
     }
-    threads.extend(snoozed);
+    working.sort_by_key(|n| start_rank[&n.key]);
     // A root with nothing drawn under it stands nowhere else, so its inbox tile is its own tile.
     let needs_you = inbox.into_iter().map(|tile| inbox_only.remove(&tile.key).unwrap_or(tile)).collect();
 

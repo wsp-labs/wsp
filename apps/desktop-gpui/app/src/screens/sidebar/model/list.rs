@@ -4,6 +4,8 @@
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
 
+use crate::local_store::LocalStore;
+
 use super::{
     thread_section, Ctx, Lead, Machine, Part, Section, Thread, ThreadSection, Tree, View, ABOVE_TOP_MS, BELOW_LAST_MS, REKEY_GAP_MS,
     SETTLED_PAGE,
@@ -23,6 +25,8 @@ pub struct Folds {
     pub open: Option<String>,
     /// The root carried by the pointer (`data-drag-source`): its tree is not drawn, and every section stands.
     pub dragging: Option<String>,
+    /// The workspaces being made and not refused, drawn under Working's head and counted in it (`madeIn`).
+    pub making: usize,
 }
 
 impl Default for Folds {
@@ -34,8 +38,34 @@ impl Default for Folds {
             groups_shut: HashSet::new(),
             open: None,
             dragging: None,
+            making: 0,
         }
     }
+}
+
+/// Where the app's store keeps the folds the heads make, as the web's localStorage does (`picks.ts`).
+pub const FOLDED_KEY: &str = "wsp:sidebar-folded";
+const FOLDABLE: [Section; 4] = [Section::Pinned, Section::NeedsYou, Section::Working, Section::Settled];
+const FOLDS: [&str; 5] = ["pinned", "needs-you", "working", "settled", "setting-up"];
+
+/// The sections folded as the store kept them, and whether Setting up is.
+pub fn stored_folds(store: Option<&LocalStore>) -> (HashSet<Section>, bool) {
+    let ids = kept_folds(store);
+    (FOLDABLE.into_iter().filter(|s| ids.contains(&s.id())).collect(), ids.contains(&"setting-up"))
+}
+
+/// `foldedCodec`: Settled alone where the store keeps nothing, an id no head makes left out.
+fn kept_folds(store: Option<&LocalStore>) -> Vec<&'static str> {
+    let Some(ids) = store.and_then(|s| s.get_as::<Vec<Value>>(FOLDED_KEY)) else { return vec![Section::Settled.id()] };
+    ids.iter().filter_map(|id| FOLDS.into_iter().find(|f| id.as_str() == Some(f))).collect()
+}
+
+/// Folds or opens one head in the store and leaves the others as stored, since another window may have written them.
+pub fn keep_fold(store: &mut LocalStore, id: &str, folded: bool) -> std::io::Result<()> {
+    let mut ids = kept_folds(Some(store));
+    ids.retain(|f| *f != id);
+    ids.extend(FOLDS.into_iter().filter(|f| folded && *f == id));
+    store.set(FOLDED_KEY, json!(ids))
 }
 
 /// How a tile is drawn: the two-row tile, or a slim row in a Finished fold or a settled tree.
@@ -306,11 +336,12 @@ impl<'a> View<'a> {
         let mut top = Vec::new();
         let mut gaps = Vec::new();
         let mut sections: Vec<(usize, Section)> = Vec::new();
-        // While a tree is dragged every section that takes a drop stands to take it (`data-drop-only`); Working takes none.
+        // While a tree is dragged every section that takes a drop stands to take it (`data-drop-only`), Working only while it holds one.
         let dragging = folds.dragging.is_some();
         for section in [Section::Pinned, Section::NeedsYou, Section::Working, Section::Threads] {
             let roots = self.section(section);
-            if roots.is_empty() && !(dragging && matches!(section, Section::Pinned | Section::NeedsYou)) {
+            let making = if section == Section::Working { folds.making } else { 0 };
+            if roots.is_empty() && making == 0 && !(dragging && matches!(section, Section::Pinned | Section::NeedsYou)) {
                 continue;
             }
             if !top.is_empty() {
@@ -319,7 +350,7 @@ impl<'a> View<'a> {
             sections.push((top.len(), section));
             let folded = section != Section::Threads && folds.sections.contains(&section);
             if section != Section::Threads {
-                let count = roots.iter().map(|n| self.cx.drawn_count(n)).sum();
+                let count = roots.iter().map(|n| self.cx.drawn_count(n)).sum::<usize>() + making;
                 top.push(leaf(Item::Head { section, count, folded }));
             }
             for node in roots.iter().filter(|_| !folded) {
@@ -445,6 +476,10 @@ impl<'a> View<'a> {
         let mut marks = Map::new();
         match section {
             Section::Settled => return None,
+            // Working holds a tree by its state alone, so a drop there only takes a working tree out of Pinned.
+            Section::Working => {
+                return (pinned && self.cx.working_in(node) > 0).then(|| Map::from_iter([("pinned".into(), Value::Bool(false))]))
+            }
             Section::Pinned if pinned => return None,
             Section::Pinned => {
                 marks.insert("pinned".into(), Value::Bool(true));

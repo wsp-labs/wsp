@@ -43,6 +43,7 @@ use tokio::runtime::Runtime;
 use wsp_host_client::protocol::{HarnessesListRequest, PreferencesSetRequest, ProjectsIconsRequest, SessionView};
 use wsp_host_client::{lock, HostClient};
 
+use crate::local_store::LocalStore;
 use crate::screens::app_shell::title::thread_title;
 use crate::ui::context_menu::ContextMenu;
 use crate::ui::status::hold_crabs;
@@ -285,8 +286,6 @@ pub struct Sidebar {
     lines: Vec<Line>,
     /// Every row the list draws, and what each stands for, read off what it was drawn from.
     drawn_rows: Vec<rows::Drawn>,
-    /// The drawn rows that took the gap over the section they open, each with the line it took it from.
-    gap_moved: RefCell<Vec<(usize, usize)>>,
     line_ids: Vec<String>,
     /// The foot's folded sections, by the web's ids: setting-up, forwards.
     foot_folds: HashSet<String>,
@@ -351,6 +350,7 @@ impl Sidebar {
             }
         });
         cx.observe_global::<crate::update::Updates>(|_, cx| cx.notify()).detach();
+        let (kept_sections, kept_setting_up) = model::stored_folds(cx.try_global::<LocalStore>());
         Sidebar {
             items: Vec::new(),
             selected: None,
@@ -364,9 +364,8 @@ impl Sidebar {
             lines: Vec::new(),
             line_ids: Vec::new(),
             drawn_rows: Vec::new(),
-            gap_moved: RefCell::new(Vec::new()),
-            foot_folds: HashSet::new(),
-            folds: Folds::default(),
+            foot_folds: if kept_setting_up { HashSet::from(["setting-up".to_owned()]) } else { HashSet::new() },
+            folds: Folds { sections: kept_sections, ..Folds::default() },
             prefs: Prefs::default(),
             around: Around::default(),
             list,
@@ -1016,6 +1015,7 @@ impl Sidebar {
     /// Draws the list again from the threads, keeping the scroll where it was.
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.now = now_ms();
+        self.folds.making = self.creations_shown().1.len();
         let lines = self.view().lines(&self.folds);
         let old_lines = std::mem::replace(&mut self.lines, lines);
         self.working = self.working_roots();
@@ -1150,7 +1150,16 @@ impl Sidebar {
         if section == Section::Settled {
             self.folds.settled_shown = model::SETTLED_PAGE;
         }
+        self.keep_fold(section.id(), self.folds.sections.contains(&section), cx);
         self.rebuild(cx);
+    }
+
+    pub(super) fn keep_fold(&self, id: &str, folded: bool, cx: &mut Context<Self>) {
+        if cx.has_global::<LocalStore>() {
+            if let Err(e) = model::keep_fold(cx.global_mut::<LocalStore>(), id, folded) {
+                eprintln!("desktop-gpui: sidebar fold not kept: {e}");
+            }
+        }
     }
 
     fn toggle_finished(&mut self, lead: &str, cx: &mut Context<Self>) {
