@@ -439,7 +439,7 @@ mod tests {
             cmd.spawn()
         });
         assert!(child.stdin.is_some(), "a child started with a piped stdin holds it");
-        let _ = tokio::time::timeout(std::time::Duration::from_millis(100), child.wait()).await;
+        let _ = tokio::time::timeout(std::time::Duration::ZERO, child.wait()).await;
         assert!(child.stdin.is_none(), "the wait left this child's stdin in place");
         let _ = child.start_kill();
     }

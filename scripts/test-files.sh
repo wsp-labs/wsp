@@ -58,4 +58,7 @@ for f in "${files[@]}"; do
   [ $seen -eq 0 ] && unique+=("$f")
 done
 
-cd "$root" && exec scripts/heavy.sh pnpm exec vitest run --minWorkers=1 --maxWorkers=2 "${unique[@]}"
+# Vitest colors its output whenever CI is set, even into a file, which pre-review.sh greps; a terminal keeps its color.
+color=()
+[ -t 1 ] || color=(--no-color)
+cd "$root" && exec scripts/heavy.sh pnpm exec vitest run ${color[@]+"${color[@]}"} --minWorkers=1 --maxWorkers=2 "${unique[@]}"

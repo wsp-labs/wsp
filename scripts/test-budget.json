@@ -1,0 +1,25 @@
+{
+  "measured": "tests: scripts/test-budget.mjs's count at 9068124d2; seconds: each suite's wall time on the owner's Mac at 9068124d2 on 2026-10-21, after the test cut",
+  "packages": {
+    "apps/desktop": {"tests":456,"seconds":153.2},
+    "apps/docs-next": {"tests":19,"seconds":5.1},
+    "apps/web": {"tests":4797,"seconds":245.9},
+    "apps/www": {"tests":41,"seconds":4.6},
+    "daemon": {"tests":1421,"seconds":131.2},
+    "infra/relay": {"tests":92,"seconds":4.8},
+    "packages/adapter-claude": {"tests":320,"seconds":4.6},
+    "packages/adapter-codex": {"tests":232,"seconds":4.8},
+    "packages/adapter-cursor": {"tests":16,"seconds":1.8},
+    "packages/adapter-opencode": {"tests":21,"seconds":1.3},
+    "packages/catalog": {"tests":298,"seconds":7.4},
+    "packages/collect": {"tests":367,"seconds":8.6},
+    "packages/daemon": {"tests":105,"seconds":14.8},
+    "packages/engine": {"tests":1268,"seconds":68.8},
+    "packages/host": {"tests":3586,"seconds":375.3},
+    "packages/protocol": {"tests":1330,"seconds":41.7},
+    "packages/runtime": {"tests":3416,"seconds":427},
+    "packages/wspx": {"tests":140,"seconds":5.1}
+  },
+  "over": [],
+  "timed": {}
+}

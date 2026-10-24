@@ -7,7 +7,7 @@
 // --stream-partial-output; the rejected shell result is the case that build's
 // headless writer names (src/headless.ts in the bundle).
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { agentWord, type AdapterEvent, type ExecStream, type ExecStreamFactory } from "@wsp/protocol";
 import { createCursorAdapter } from "../src/adapter.js";
 
@@ -152,8 +152,9 @@ describe("CursorAdapter over an agent -p stream-json turn", () => {
 
   it("interrupt ends the process and the turn reads interrupted", async () => {
     const exec = scriptedExec([JSON.stringify({ type: "system", subtype: "init", session_id: CHAT })], { hang: true });
-    const session = adapterOver(exec, { interruptGraceMs: 5 }).start({ prompt: "go", onEvent: () => {} });
-    await new Promise(resolve => setTimeout(resolve, 5));
+    const { events, onEvent } = collect();
+    const session = adapterOver(exec, { interruptGraceMs: 5 }).start({ prompt: "go", onEvent });
+    await vi.waitFor(() => expect(events[0]?.type).toBe("session.start"));
     await session.interrupt();
     expect(await session.finished).toEqual({ status: "interrupted" });
     expect(exec.order[0]).toBe("teardown");

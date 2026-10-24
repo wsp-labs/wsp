@@ -276,19 +276,9 @@ describe("readHistories", () => {
       },
     });
     const out = await readHistories(host, CATALOG_AGENTS);
-    expect(out.map(h => [h.agent, h.state, h.sessions, h.calls])).toEqual([
-      ["claude", "read", 1, 1],
-      ["codex", "empty", 0, 0],
-      ["gemini", "no-reader", 0, 0],
-      ["opencode", "no-reader", 0, 0],
-      ["pi", "no-reader", 0, 0],
-      ["hermes", "unreadable", 0, 0],
-      ["crush", "no-reader", 0, 0],
-      ["qwen", "no-reader", 0, 0],
-      ["goose", "no-reader", 0, 0],
-      ["amp", "no-reader", 0, 0],
-      ["cursor", "no-reader", 0, 0],
-    ]);
+    expect(out.map(h => h.agent)).toEqual(CATALOG_AGENTS.map(a => a.id));
+    const stood: Record<string, [string, number, number]> = { claude: ["read", 1, 1], codex: ["empty", 0, 0], hermes: ["unreadable", 0, 0] };
+    for (const h of out) expect([h.state, h.sessions, h.calls], h.agent).toEqual(stood[h.agent] ?? ["no-reader", 0, 0]);
   });
 });
 
