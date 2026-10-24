@@ -14,7 +14,15 @@
 # com.wsp.host.<tag> in the person's own gui domain. wsp down removes it at the end, and the script checks it went.
 # REPO=<checkout> names the repo whose bench seed and protocol build seed the state (default: the one holding this
 # script). On Linux, DISPLAY must name a running X server. KEEP_WORK=1 keeps the work folder after a pass; a failed
-# run always keeps it.
+# run always keeps it. The feed names the asset as GPUI_NAMES in packages/protocol/src/bundles.mjs does.
+# SCENARIO picks what the feed offers (Linux alone takes the last two):
+#   good      the new version, which the old app swaps in, its host and daemon following (the default)
+#   electron  today's Electron AppImage under the GPUI app's name: refused off its squashfs, downloaded once across a
+#             relaunch, nothing replaced
+#   refused   the new version carrying a host of the old release, so the host is left as it is and the new app does
+#             not stay: the swap puts the old app back, which says why
+#   crash     the new version, whose app is killed once it has moved the host onto its files and before it is up: the
+#             swap puts the old app back, which moves the host back onto its own files
 set -eu
 umask 022
 
@@ -30,12 +38,18 @@ here=$(cd "$(dirname "$0")" && pwd -P)
 os=$(uname -s)
 REPO=${REPO:-$(cd "$here/../../.." && pwd -P)}
 uid=$(id -u)
+scenario=${SCENARIO:-good}
 
 refuse() { echo "refused: $*" >&2; exit 2; }
 case "$os" in
   Linux) triple=$(uname -m)-unknown-linux-musl ;;
   Darwin) case "$(uname -m)" in arm64) triple=aarch64-apple-darwin ;; *) triple=$(uname -m)-apple-darwin ;; esac ;;
   *) refuse "this runs on Linux or macOS, not $os" ;;
+esac
+case "$scenario" in
+  good) ;;
+  electron|refused|crash) [ "$os" = Linux ] || refuse "SCENARIO=$scenario runs on Linux alone" ;;
+  *) refuse "SCENARIO takes good, electron, refused or crash, not $scenario" ;;
 esac
 for v in "$old_v" "$new_v"; do
   case "$v" in [0-9]*.[0-9]*.[0-9]*) ;; *) refuse "$v is not a version like 1.2.3" ;; esac
@@ -243,6 +257,17 @@ set_version() {
   ' "$1" "$2/package.json" "$2/assets/cli/package.json"
 }
 
+# The release asset GPUI_NAMES in bundles.mjs names under key $1 for version $2.
+# shellcheck disable=SC2016
+gpui_asset() {
+  "$node_bin" --input-type=module -e '
+    import { pathToFileURL } from "node:url";
+    const [repo, key, version] = process.argv.slice(1);
+    const { GPUI_NAMES } = await import(pathToFileURL(`${repo}/packages/protocol/src/bundles.mjs`).href);
+    console.log(GPUI_NAMES[key].replace("{version}", version));
+  ' "$REPO" "$1" "$2"
+}
+
 # package.sh's host_stage: app/package.json, app/main/*.mjs but main.mjs, app/assets, readable by everyone.
 host_stage() {
   local res=$1 version=$2 f
@@ -290,18 +315,39 @@ fetch_runtime() {
   mv "$runtime.part" "$runtime"
 }
 
-# An AppImage laid out as package.sh linux() writes it.
+# An AppImage laid out as package.sh linux() writes it; $4, where given, is the release its host says it is.
 pack_linux() {
   local bin=$1 version=$2 out=$3 appdir=$work/pack/AppDir-$2
   mkdir -p "$appdir/usr/bin" "$appdir/usr/lib/wsp" "$appdir/usr/share/icons/hicolor/256x256/apps"
   install -m 755 "$bin" "$appdir/usr/bin/desktop-gpui"
   install -m 755 "$node_bin" "$appdir/usr/bin/node"
-  host_stage "$appdir/usr/lib/wsp" "$version"
-  cat >"$appdir/AppRun" <<'EOF'
+  host_stage "$appdir/usr/lib/wsp" "${4:-$version}"
+  if [ "${5-}" = crash ]; then
+    # The app killed once the stage says the host is moving and the host lock names a new pid, before it can say up.
+    cat >"$appdir/AppRun" <<'EOF'
+#!/bin/sh
+here=${APPDIR:-$(dirname "$(readlink -f "$0")")}
+"$here/usr/bin/desktop-gpui" "$@" &
+app=$!
+stage=$(dirname "$APPIMAGE")/.wsp-gpui-update
+pid_of() { sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$HOME/.wsp/host.lock" 2>/dev/null; }
+first=$(pid_of)
+n=0
+while [ "$n" -lt 900 ]; do
+  now=$(pid_of)
+  if [ -e "$stage/restarted" ] && [ -n "$now" ] && [ "$now" != "$first" ]; then break; fi
+  sleep 0.05
+  n=$((n + 1))
+done
+kill -9 "$app"
+EOF
+  else
+    cat >"$appdir/AppRun" <<'EOF'
 #!/bin/sh
 here=${APPDIR:-$(dirname "$(readlink -f "$0")")}
 exec "$here/usr/bin/desktop-gpui" "$@"
 EOF
+  fi
   chmod 755 "$appdir/AppRun"
   cat >"$appdir/wsp-experimental.desktop" <<EOF
 [Desktop Entry]
@@ -321,6 +367,23 @@ EOF
   cat "$runtime" "$work/pack/app-$version.squashfs" >"$out"
   chmod 755 "$out"
   rm -rf "$appdir" "$work/pack/app-$version.squashfs"
+}
+
+# Today's Electron AppImage as electron-builder lays one out (the app at the top, its code in resources/app.asar), on
+# the same runtime, so it carries the same ELF header and AppImage marks as the GPUI app's.
+pack_electron() {
+  local out=$1 appdir=$work/pack/AppDir-electron
+  mkdir -p "$appdir/resources" "$appdir/usr/lib"
+  install -m 755 "$node_bin" "$appdir/wsp"
+  printf 'asar' >"$appdir/resources/app.asar"
+  printf 'so' >"$appdir/usr/lib/libffmpeg.so"
+  # shellcheck disable=SC2016
+  printf '#!/bin/sh\nexec "$(dirname "$0")/wsp" "$@"\n' >"$appdir/AppRun"
+  chmod 755 "$appdir/AppRun"
+  mksquashfs "$appdir" "$work/pack/electron.squashfs" -all-root -noappend -no-progress -quiet -no-xattrs -no-fragments
+  cat "$runtime" "$work/pack/electron.squashfs" >"$out"
+  chmod 755 "$out"
+  rm -rf "$appdir" "$work/pack/electron.squashfs"
 }
 
 # A wsp.app laid out as package.sh mac() writes it, signed ad hoc.
@@ -356,16 +419,25 @@ EOF
 say "work folder $work"
 say "packing $old_v and $new_v"
 if [ "$os" = Linux ]; then
+  asset=$(gpui_asset appImage "$new_v")
   fetch_runtime
   pack_linux "$old_bin" "$old_v" "$installed"
-  pack_linux "$new_bin" "$new_v" "$work/feed/wsp-$new_v.AppImage"
-  new_sum=$(sha "$work/feed/wsp-$new_v.AppImage")
+  case "$scenario" in
+    good) pack_linux "$new_bin" "$new_v" "$work/feed/$asset" ;;
+    electron) pack_electron "$work/feed/$asset" ;;
+    refused) pack_linux "$new_bin" "$new_v" "$work/feed/$asset" "$old_v" ;;
+    crash) pack_linux "$new_bin" "$new_v" "$work/feed/$asset" "$new_v" crash ;;
+  esac
+  new_sum=$(sha "$work/feed/$asset")
+  old_sum=$(sha "$installed")
 else
+  asset=$(gpui_asset macZip "$new_v")
   pack_mac "$old_bin" "$old_v" "$work/install"
   mkdir -p "$work/pack/new"
   pack_mac "$new_bin" "$new_v" "$work/pack/new"
-  (cd "$work/pack/new" && ditto -c -k --sequesterRsrc --keepParent wsp.app "$work/feed/wsp-$new_v-mac.zip")
+  (cd "$work/pack/new" && ditto -c -k --sequesterRsrc --keepParent wsp.app "$work/feed/$asset")
 fi
+say "the feed offers $asset ($scenario)"
 echo "$new_v" >"$work/feed/VERSION"
 
 cat >"$work/feed.mjs" <<'FEED'
@@ -480,8 +552,11 @@ if [ "$os" = Linux ]; then
 else
   launch=$installed/Contents/MacOS/desktop-gpui
 fi
-app_old=$(cd "$home" && spawn "$work/app-old.log" env -i "${envs[@]}" "$launch")
-say "launched the old app $old_v as pid $app_old"
+launch_old() {
+  app_old=$(cd "$home" && spawn "$work/app-old.log" env -i "${envs[@]}" "$launch")
+  say "launched the old app $old_v as pid $app_old"
+}
+launch_old
 
 fail() {
   result=FAIL
@@ -568,6 +643,91 @@ old_copy=
 if [ "$os" = Linux ]; then
   old_copy=$(printf '%s\n' "$old_args" | sed -n "s|.*\\($home/.wsp/gpui-app/[^/ ]*\\)/.*|\\1|p")
   [ -n "$old_copy" ] || fail "the old host does not run from a copy under $home/.wsp/gpui-app: $old_args"
+fi
+
+# The version the host at pid $1 names, off the package.json beside the command it runs.
+host_version() {
+  local cmd pkg
+  cmd=$(args_of "$1" | awk '{ print $2 }')
+  pkg=$(dirname "$(dirname "$cmd")")/package.json
+  sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$pkg" 2>/dev/null | head -n 1
+}
+downloads() { grep -c " GET /wsp-labs/wsp/releases/download/" "$work/feed.log" 2>/dev/null || true; }
+app_said() { grep -h -e "$1" "$home"/.wsp/logs/app*.log 2>/dev/null | tail -n 1; }
+# Waits up to $2 seconds for the app log to say $1, failing with $3.
+until_said() {
+  local t=0
+  until [ -n "$(app_said "$1")" ]; do
+    [ "$t" -lt "$2" ] || fail "$3"
+    sleep 1
+    t=$((t + 1))
+  done
+  say "app log: $(app_said "$1" | cut -c1-220)"
+}
+
+if [ "$scenario" = electron ]; then
+  until_said 'holds another app than this one' 240 "the old app did not refuse today's AppImage within 240 s"
+  stop "$app_old" "old app"
+  launch_old
+  until_said 'was refused before' 240 "the relaunched app did not remember the refused asset within 240 s"
+  logs
+  why=
+  [ "$(downloads)" = 1 ] || why="$why; the asset was downloaded $(downloads) times, not once"
+  [ "$(sha "$installed")" = "$old_sum" ] || why="$why; the installed app changed"
+  left=$(ls -A "$stage_dir" 2>/dev/null || true)
+  [ -z "$left" ] || why="$why; the stage holds: $left"
+  alive "$app_old" || why="$why; the relaunched old app is not running"
+  echo "== downloads of the asset: $(downloads); installed sha256 $(sha "$installed" | cut -c1-12), before $(printf '%s' "$old_sum" | cut -c1-12)"
+  [ -z "$why" ] || fail "${why#; }"
+  result=PASS
+  echo "PASS: today's AppImage under $asset was refused off its squashfs, downloaded once across a relaunch, and nothing was replaced"
+  exit 0
+fi
+
+if [ "$scenario" = refused ] || [ "$scenario" = crash ]; then
+  t=0
+  until grep -q ' opened wsp ' "$home/.wsp/logs/update.log" 2>/dev/null; do
+    [ "$t" -lt 240 ] || fail "the swap did not open the new app within 240 s"
+    sleep 1
+    t=$((t + 1))
+  done
+  # The app put back would find the same release and try again; the feed now offers nothing newer.
+  echo "$old_v" >"$work/feed/VERSION"
+  napp=$(new_app_pid)
+  say "the swap opened the new app as pid $napp; the feed now offers $old_v"
+  t=0
+  until grep -q 'putting the old app back' "$home/.wsp/logs/update.log" 2>/dev/null; do
+    [ "$t" -lt 240 ] || fail "the swap did not put the old app back within 240 s"
+    sleep 1
+    t=$((t + 1))
+  done
+  t=0
+  back_host=
+  while [ "$t" -lt 180 ]; do
+    pid=$(lock_pid)
+    if [ ! -e "$stage_dir" ] && [ -n "$(installed_apps)" ] && alive "$pid" && args_of "$pid" | grep -qF "$old_copy/"; then back_host=$pid; break; fi
+    sleep 1
+    t=$((t + 1))
+  done
+  logs
+  why=
+  [ "$(sha "$installed")" = "$old_sum" ] || why="$why; the installed app is not the old one"
+  [ -n "$back_host" ] || why="$why; no host on the old files with the old app running and the stage swept within 180 s (the lock names $(lock_pid): $(args_of "$(lock_pid)"))"
+  alive "$napp" && why="$why; the new app $napp still runs"
+  echo "== the new app's own words: $(app_said 'did not open on its host\|the host did not follow' | cut -c1-260)"
+  echo "== the app put back says: $(app_said 'did not update' | cut -c1-260)"
+  echo "== the host names version $(host_version "$back_host")"
+  [ "$(host_version "$back_host")" = "$old_v" ] || why="$why; the host names $(host_version "$back_host"), not $old_v"
+  echo "== apps running the installed app: $(installed_apps | tr '\n' ' ')"
+  echo "== host $back_host: $(args_of "$back_host")"
+  [ -z "$why" ] || fail "${why#; }"
+  result=PASS
+  if [ "$scenario" = crash ]; then
+    echo "PASS: the new app died after moving the host and before up; the swap put the old app back, which moved the host back onto $old_copy"
+  else
+    echo "PASS: the new app could not open on its host, the swap put the old app back, and the host followed back onto $old_copy"
+  fi
+  exit 0
 fi
 
 installed_now() {

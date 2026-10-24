@@ -110,7 +110,12 @@ fn dismissing_a_restart_keeps_the_version_and_drops_the_checked_download(cx: &mu
     let dir = tempfile::tempdir().unwrap();
     let (sidebar, cx) = drawn(cx);
     cx.update(|_, cx| {
-        update::init(Some(Installed { path: dir.path().join("wsp.AppImage"), kind: Kind::AppImage }), dir.path(), cx);
+        update::init(
+            Some(Installed { path: dir.path().join("wsp.AppImage"), kind: Kind::AppImage }),
+            &dir.path().join("state.json"),
+            dir.path(),
+            cx,
+        );
         let kept = Download { version: "99.0.0".into(), phase: Phase::Kept };
         cx.update_global::<update::Updates, _>(|u, _| u.download = Some(kept));
     });

@@ -422,19 +422,25 @@ fn open_titled(
             Ok((_, Next::App)) => {
                 app(cx);
                 starting.end(cx);
+                crate::update::opened(cx);
             }
             Ok((client, Next::Onboarding)) => {
                 onboarding::open(Host::new(client, runtime), app, cx);
                 starting.end(cx);
+                crate::update::opened(cx);
             }
             Err(failed) if failed.failure.kind.as_deref() == Some("auth") => {
                 app(cx);
                 starting.end(cx);
+                crate::update::opened(cx);
             }
-            Err(failed) => match crate::update::follow::older_host(&failed.failure.message).filter(|_| !followed) {
-                Some(theirs) => ask_follow(title, theirs.to_owned(), again, starting, cx),
-                None => say_failed(title, &failed, &state, starting, cx),
-            },
+            Err(failed) => {
+                crate::update::not_opened(&failed.failure.message, cx);
+                match crate::update::follow::older_host(&failed.failure.message).filter(|_| !followed) {
+                    Some(theirs) => ask_follow(title, theirs.to_owned(), again, starting, cx),
+                    None => say_failed(title, &failed, &state, starting, cx),
+                }
+            }
         });
     })
     .detach();
