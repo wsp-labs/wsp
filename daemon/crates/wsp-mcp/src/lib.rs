@@ -35,7 +35,7 @@ pub use crate::release::{order as release_order, own as own_release, ReleaseRule
 
 /// The host's lock beside a state file, its process and its port, read once for every reader on this computer.
 pub mod lock {
-    pub use crate::aim::{answers, authority, dial_address, serving, vanished, Lock};
+    pub use crate::aim::{answers, authority, dial_address, proved_token, serving, vanished, Lock};
     pub use crate::proof::{alive, page_release};
 }
 

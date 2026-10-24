@@ -452,8 +452,73 @@ impl Runner for NoManager {
 }
 
 fn follow_onto_now(state: &Path, here: Bundled) -> Result<Followed, String> {
-    let env: Env = [("HOME".to_owned(), state.parent().unwrap().to_string_lossy().into_owned())].into();
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(state, &env, Ok(here), &NoManager))
+    follow_onto_by(state, here, true, &NoManager)
+}
+
+fn follow_onto_by<R: Runner>(state: &Path, here: Bundled, back: bool, runner: &R) -> Result<Followed, String> {
+    let vars: Env = [("HOME".to_owned(), state.parent().unwrap().to_string_lossy().into_owned())].into();
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(state, &vars, Ok(here), runner, back))
+}
+
+/// A manager that keeps every command it was handed and holds no unit.
+#[derive(Default)]
+struct Kept(std::sync::Mutex<Vec<String>>);
+
+impl Runner for Kept {
+    async fn run(&self, argv: &[String]) -> Ran {
+        self.0.lock().unwrap().push(argv.join(" "));
+        let held = argv.get(1).is_some_and(|word| word == "print");
+        Ran { code: if held { 113 } else { 0 }, output: "ActiveState=inactive\nUnitFileState=disabled\nMainPID=0".to_owned() }
+    }
+}
+
+/// Catches: `NotServing` answered while the unit runs npm's older wsp, which the next start loads as it stands, so
+/// the host an update's swap waits on comes back on npm's files.
+#[test]
+fn nothing_serving_on_a_unit_running_npms_wsp_has_the_unit_run_the_command() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join(".wsp");
+    std::fs::create_dir_all(&home).unwrap();
+    let state = home.join("state.json");
+    let manager = start::Manager::here().unwrap();
+    let unit = manager.unit(&home, &state);
+    std::fs::create_dir_all(unit.parent().unwrap()).unwrap();
+    let npm = "/usr/lib/node_modules/@wsp-labs/wsp/dist/bin.js";
+    let text = match manager {
+        start::Manager::Systemd => format!("ExecStart='/usr/bin/node' '{npm}' 'up' '--state' '{}'\n", state.display()),
+        start::Manager::Launchd => format!(
+            "<key>ProgramArguments</key>\n  <array>\n    <string>/usr/bin/node</string>\n    <string>{npm}</string>\n    <string>up</string>\n    <string>--state</string>\n    <string>{}</string>\n  </array>\n",
+            state.display()
+        ),
+    };
+    std::fs::write(&unit, text).unwrap();
+    let newer = bundle_in(&dir.path().join("Applications"), Os::here(), "0.3.9");
+    let kept = Kept::default();
+    assert_eq!(follow_onto_by(&state, newer, true, &kept), Ok(Followed::NotServing));
+    let up = format!("{} up --service --state {}", shim::path(&home).display(), state.display());
+    assert!(kept.0.lock().unwrap().contains(&up), "{:?}", kept.0.lock().unwrap());
+}
+
+/// Catches: the failure box saying Go Back returns to today's app while the switch is off and it offers no Go Back.
+#[test]
+fn a_host_left_for_todays_app_names_go_back_only_where_it_is_offered() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join(".wsp");
+    std::fs::create_dir_all(home.join("bin")).unwrap();
+    let state = home.join("state.json");
+    let electron = dir.path().join("wsp.app/Contents/MacOS/wsp");
+    std::fs::create_dir_all(electron.parent().unwrap()).unwrap();
+    std::fs::write(&electron, "electron").unwrap();
+    std::fs::write(shim::path(&home), format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' /x/cli.mjs \"$@\"\n", electron.display()))
+        .unwrap();
+    let newer = bundle_in(&dir.path().join("Applications"), Os::Mac, "0.3.9");
+    let said = |back: bool| match follow_onto_by(&state, newer.clone(), back, &NoManager) {
+        Ok(Followed::Left(why)) => why,
+        other => panic!("the host was not said to be left: {other:?}"),
+    };
+    assert!(said(true).contains(switch::GO_BACK), "{}", said(true));
+    let off = said(false);
+    assert!(!off.contains("Go Back") && off.ends_with("whose host this app leaves; open that app instead"), "{off}");
 }
 
 /// Catches: `restart_host` answering Ok where it restarted nothing, which the update's swap reads as the host
