@@ -5,6 +5,8 @@ import type { ComponentType } from "react";
 import { DOWNLOADS } from "./downloads";
 import { EMAIL, ORG, SITE, X } from "./links";
 import { TOOLS } from "./compare";
+import { POSTS } from "./blog";
+import { BlogIndex, BlogPost } from "./pages/blog";
 import { Compare, ToolPage } from "./pages/compare";
 import { Home } from "./pages/home";
 import { Privacy, Security, Terms } from "./pages/legal";
@@ -18,6 +20,9 @@ export type Route = {
   image: { path: string; line: string; alt: string };
   /** False keeps the page out of the sitemap and out of search. */
   index: boolean;
+  /** An article's day, YYYY-MM-DD: its head says article, not website. */
+  published?: string;
+  author?: { name: string; url: string | null; x: string | null } | null;
   data?: Record<string, unknown>[];
   Page: ComponentType;
 };
@@ -79,6 +84,51 @@ export const ROUTES: readonly Route[] = [
       image: { path: `/og-compare-${tool.slug}.png`, line: `wsp vs ${tool.name}.`, alt: `wsp vs ${tool.name}.` },
       index: true,
       Page: () => <ToolPage tool={tool} />,
+    }),
+  ),
+  {
+    path: "/blog",
+    title: "Blog: wsp",
+    description: "What we build, what broke, and what we learned shipping wsp.",
+    image: { path: "/og-blog.png", line: "The wsp blog.", alt: "The wsp blog." },
+    index: POSTS.some(p => !p.draft),
+    data: [
+      ORGANIZATION,
+      {
+        "@type": "Blog",
+        name: "The wsp blog",
+        url: `${SITE}/blog`,
+        publisher: { "@id": ORGANIZATION["@id"] },
+        blogPost: POSTS.filter(p => !p.draft).map(p => ({ "@type": "BlogPosting", headline: p.title, url: `${SITE}/blog/${p.slug}`, datePublished: p.date })),
+      },
+    ],
+    Page: BlogIndex,
+  },
+  ...POSTS.map(
+    (post): Route => ({
+      path: `/blog/${post.slug}`,
+      title: `${post.title}: wsp`,
+      description: post.summary,
+      image: { path: post.image ?? `/og-blog-${post.slug}.png`, line: post.title, alt: post.title },
+      author: post.author,
+      index: !post.draft,
+      published: post.date,
+      data: [
+        ORGANIZATION,
+        {
+          "@type": "BlogPosting",
+          headline: post.title,
+          description: post.summary,
+          datePublished: post.date,
+          dateModified: post.updated ?? post.date,
+          mainEntityOfPage: `${SITE}/blog/${post.slug}`,
+          url: `${SITE}/blog/${post.slug}`,
+          image: `${SITE}${post.image ?? `/og-blog-${post.slug}.png`}`,
+          author: post.author === null ? { "@id": ORGANIZATION["@id"] } : { "@type": "Person", name: post.author.name, ...(post.author.url === null ? {} : { url: post.author.url }) },
+          publisher: { "@id": ORGANIZATION["@id"] },
+        },
+      ],
+      Page: () => <BlogPost post={post} />,
     }),
   ),
   {

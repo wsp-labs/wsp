@@ -176,3 +176,210 @@
   color: var(--foreground);
 }
 
+/* A blog post reads larger and brighter than the legal pages: it is the page, not the small print. */
+.post p,
+.post li {
+  font-size: 17px;
+  line-height: 1.75;
+  color: color-mix(in oklab, var(--foreground) 82%, transparent);
+}
+.post h2 {
+  margin-top: 2.75rem;
+  font-size: 22px;
+  letter-spacing: -0.015em;
+}
+.post li {
+  margin-top: 0.5rem;
+}
+
+/* A blog post's extra pieces on top of the legal prose: subheads, numbered lists, code blocks, quotes and figures. */
+.post h3 {
+  margin-top: 2rem;
+  font-size: 16.5px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.post ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.post pre {
+  margin-top: 1.5rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+  padding: 14px 16px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.post pre code {
+  color: var(--foreground);
+}
+.post blockquote {
+  margin-top: 1.5rem;
+  border-left: 2px solid var(--rule);
+  padding-left: 1rem;
+}
+.post figure {
+  margin: 2rem 0;
+}
+.post figure img {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.post figure a {
+  text-decoration: none;
+}
+.post figure > img {
+  cursor: zoom-in;
+}
+.lightbox {
+  animation: lightbox-in 160ms ease-out;
+}
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lightbox {
+    animation: none;
+  }
+}
+.post figcaption {
+  margin-top: 0.75rem;
+  text-align: center;
+  font-size: 13px;
+  color: var(--faint);
+}
+.post hr {
+  margin: 2.5rem 0;
+  border-color: var(--rule);
+}
+.post figure video,
+.post iframe,
+.post .youtube button {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.post iframe {
+  margin: 2rem 0;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  background: var(--raised);
+}
+.post figure iframe {
+  margin: 0;
+}
+.post .youtube button {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  cursor: pointer;
+}
+.post .youtube button img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+}
+.post .youtube-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: rgb(18 17 16 / 70%);
+  color: var(--foreground);
+  backdrop-filter: blur(6px);
+  transition: transform 150ms ease, background 150ms ease;
+}
+.post .youtube-play svg {
+  width: 26px;
+  height: 26px;
+}
+.post .youtube button:hover .youtube-play {
+  background: rgb(18 17 16 / 85%);
+  transform: scale(1.04);
+}
+.post .tweet > a {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+  padding: 16px 18px;
+  text-decoration: none;
+  transition: border-color 150ms ease;
+}
+.post .tweet > a:hover {
+  border-color: color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+.post .tweet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.post .tweet-head > img {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+}
+.post .tweet-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.post .tweet-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.post .tweet-handle,
+.post .tweet time {
+  font-size: 13.5px;
+  color: var(--faint);
+}
+.post .tweet-head svg {
+  width: 18px;
+  height: 18px;
+  color: var(--foreground);
+}
+.post .tweet-text {
+  display: block;
+  margin-top: 12px;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--foreground);
+  white-space: normal;
+}
+.post .tweet-media {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.post .tweet-media-2,
+.post .tweet-media-4 {
+  grid-template-columns: 1fr 1fr;
+}
+.post .tweet-media img {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.post .tweet time {
+  display: block;
+  margin-top: 12px;
+}
+
