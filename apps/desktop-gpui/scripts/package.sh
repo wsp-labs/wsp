@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# Builds the GPUI app into dist/. On macOS: a universal "wsp Experimental.app", its DMG in today's drag layout and
-# the zip. On Linux: the bare binary and an x86_64 AppImage on today's static runtime. The app and the AppImage carry
+# Builds the GPUI app into dist/. On macOS: a universal wsp.app under today's app's bundle id, its DMG in today's drag
+# layout and the zip. On Linux: the bare binary and an x86_64 AppImage on today's static runtime. The app and the AppImage carry
 # the host as today's app carries it: a Node, the host's built command (apps/desktop's build/app) and the daemon for
 # each target, which packages/wspx/daemon must hold (WSP_REQUIRE_DAEMON=1 refuses a missing one, as the release does). With CSC_LINK and
 # CSC_KEY_PASSWORD set it signs with that Developer ID, else ad hoc; with APPLE_ID, APPLE_TEAM_ID and
-# APPLE_APP_SPECIFIC_PASSWORD also set it notarizes and staples. WSP_GPUI_BUNDLE_ID overrides the bundle id.
+# APPLE_APP_SPECIFIC_PASSWORD also set it notarizes and staples. WSP_GPUI_BUNDLE_ID overrides the bundle id, so a
+# check build on a Mac with wsp installed claims none of its links. Every file is named for the release's version.
 #   --target mac|linux  what to build, the host's own by default; mac builds only on macOS
 #   --dry-run           print each step and run none of them (no cargo, codesign, xcrun, hdiutil, download)
 set -eu
@@ -43,14 +44,16 @@ fi
 
 cd "$(dirname "$0")/.."
 bin=desktop-gpui
-version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+# The release's version, which apps/desktop/package.json carries as every manifest does (tag-version.mjs checks it); the
+# host copies and the updater read it, so the bundle says the same.
+version=$(sed -n 's/^  "version": "\(.*\)",$/\1/p' ../desktop/package.json | head -n 1)
 if [ -z "$version" ]; then
-  echo "refused: Cargo.toml's [workspace.package] has no version line" >&2
+  echo "refused: apps/desktop/package.json has no version line" >&2
   exit 1
 fi
-name="wsp Experimental"
-slug=wsp-experimental-$version
-bundle_id=${WSP_GPUI_BUNDLE_ID:-wsp.desktop.experimental}
+name=wsp
+slug=wsp-$version
+bundle_id=${WSP_GPUI_BUNDLE_ID:-wsp.desktop}
 case "$bundle_id" in
   *[!A-Za-z0-9.-]*) echo "refused: WSP_GPUI_BUNDLE_ID takes letters, digits, dots and hyphens, as a bundle id does" >&2; exit 2 ;;
 esac
@@ -231,7 +234,7 @@ sign_setup() {
 }
 
 mac() {
-  local app="$dist/$name.app" dmg="$dist/$slug.dmg" zip="$dist/$slug-mac.zip" triple
+  local app="$dist/$name.app" dmg="$dist/$slug-mac.dmg" zip="$dist/$slug-mac.zip" triple
   export MACOSX_DEPLOYMENT_TARGET=$min_macos
   run rustup target add aarch64-apple-darwin x86_64-apple-darwin
   for triple in aarch64-apple-darwin x86_64-apple-darwin; do
@@ -248,6 +251,8 @@ mac() {
     "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
   # One Node for both chips, as the app binary is: the host runs on whichever slice the Mac runs natively.
   run lipo -create -output "$app/Contents/MacOS/node" "$tmp/node-darwin-arm64/bin/node" "$tmp/node-darwin-x64/bin/node"
+  # Node's local symbols are 21 MB a slice and nothing reads them at run time; the exported ones an addon links stay.
+  run strip -x "$app/Contents/MacOS/node"
   host_stage "$app/Contents/Resources" darwin-arm64
   local triple_mac
   check -x "$app/Contents/MacOS/node"
@@ -257,7 +262,22 @@ mac() {
   done
   if [ "$host" = Darwin ]; then run "$app/Contents/MacOS/node" "$app/Contents/Resources/app/main/cli.mjs" --version; fi
   run cp "$icns" "$app/Contents/Resources/icon.icns"
-  # No CFBundleURLTypes while Experimental: today's app keeps wsp:// links and hands them here while its switch is on.
+  # Only today's bundle id takes wsp:// links, so a check build under another claims none of the person's.
+  local links=
+  if [ "$bundle_id" = wsp.desktop ]; then
+    links='
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>wsp</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>wsp</string>
+      </array>
+    </dict>
+  </array>'
+  fi
   write "$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -278,7 +298,7 @@ mac() {
   <key>CFBundleName</key>
   <string>$name</string>
   <key>CFBundlePackageType</key>
-  <string>APPL</string>
+  <string>APPL</string>$links
   <key>CFBundleShortVersionString</key>
   <string>$version</string>
   <key>CFBundleVersion</key>
@@ -424,7 +444,7 @@ icon_png() {
 }
 
 linux() {
-  local appdir=$tmp/AppDir appimage="$dist/$slug-x86_64.AppImage" runtime=vendor/.appimage/runtime-x86_64-20251108
+  local appdir=$tmp/AppDir appimage="$dist/$slug.AppImage" runtime=vendor/.appimage/runtime-x86_64-20251108
   if [ "$dry" = 0 ]; then
     [ "$(uname -m)" = x86_64 ] || refuse "the AppImage is x86_64, as today's is, and this machine is $(uname -m)"
     command -v mksquashfs >/dev/null || refuse "mksquashfs is missing: apt-get install squashfs-tools"
@@ -461,22 +481,22 @@ here=\${APPDIR:-\$(dirname "\$(readlink -f "\$0")")}
 exec "\$here/usr/bin/$bin" "\$@"
 EOF
   run chmod 755 "$appdir/AppRun"
-  # No MimeType=x-scheme-handler/wsp while Experimental: today's app keeps wsp:// links and hands them here while its switch is on.
-  write "$appdir/wsp-experimental.desktop" <<EOF
+  write "$appdir/wsp.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=$name
-Comment=wsp's desktop app on GPUI, Experimental
-Exec=$bin
-Icon=wsp-experimental
+Comment=wsp's desktop app
+Exec=$bin %U
+Icon=wsp
 Terminal=false
 Categories=Development;
+MimeType=x-scheme-handler/wsp;
 X-AppImage-Version=$version
 EOF
-  printf '+ write %s from %s\n' "$appdir/wsp-experimental.png" "$ico"
-  if [ "$dry" = 0 ]; then icon_png >"$appdir/wsp-experimental.png"; fi
-  run cp "$appdir/wsp-experimental.png" "$appdir/usr/share/icons/hicolor/256x256/apps/wsp-experimental.png"
-  run ln -s wsp-experimental.png "$appdir/.DirIcon"
+  printf '+ write %s from %s\n' "$appdir/wsp.png" "$ico"
+  if [ "$dry" = 0 ]; then icon_png >"$appdir/wsp.png"; fi
+  run cp "$appdir/wsp.png" "$appdir/usr/share/icons/hicolor/256x256/apps/wsp.png"
+  run ln -s wsp.png "$appdir/.DirIcon"
   # electron-builder's own mksquashfs flags for the static runtime, gzip by default as today's.
   run mksquashfs "$appdir" "$tmp/app.squashfs" -all-root -noappend -no-progress -quiet -no-xattrs -no-fragments
   printf '+ write %s from %s and %s\n' "$appimage" "$runtime" "$tmp/app.squashfs"

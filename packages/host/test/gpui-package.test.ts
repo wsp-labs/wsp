@@ -16,7 +16,7 @@ const root = mkdtempSync(join(tmpdir(), "wsp-gpui-package-"));
 const home = mkdtempSync(join(root, "home-"));
 const stubs = mkdtempSync(join(root, "stubs-"));
 const calls = join(root, "calls");
-for (const tool of ["cargo", "rustup", "codesign", "xcrun", "hdiutil", "lipo", "security", "ditto", "osascript", "tiffutil", "plutil", "curl", "mksquashfs", "pnpm", "tar", "node"]) {
+for (const tool of ["cargo", "rustup", "codesign", "xcrun", "hdiutil", "lipo", "security", "ditto", "osascript", "tiffutil", "plutil", "curl", "mksquashfs", "pnpm", "tar", "node", "strip"]) {
   writeStub(join(stubs, tool), `#!/bin/sh\necho "${tool} $*" >> '${calls}'\n`);
 }
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -43,12 +43,68 @@ const at = (out: string, line: RegExp) => {
   return index;
 };
 
+/** A heredoc package.sh writes, its variables filled as the script fills them. */
+function written(file: string, vars: Record<string, string>): string {
+  const text = readFileSync(script, "utf8");
+  const start = text.indexOf(`write "${file}" <<EOF\n`);
+  expect(start, file).toBeGreaterThan(-1);
+  const body = text.slice(text.indexOf("\n", start) + 1, text.indexOf("\nEOF\n", start));
+  return body.replace(/\$(\w+)/g, (_, name: string) => vars[name] ?? `$${name}`);
+}
+
+const release = (JSON.parse(readFileSync(new URL("../../../apps/desktop/package.json", import.meta.url), "utf8")) as { version: string }).version;
+const releaseRe = release.replaceAll(".", "\\.");
+
 describe("package.sh --dry-run", () => {
+  it("names the app wsp and every file for the release's version, the one apps/desktop/package.json carries, not Cargo's", () => {
+    expect(release).toMatch(/^\d+\.\d+\.\d+/);
+    const mac = dryRun("mac");
+    at(mac, new RegExp(`^package wsp ${releaseRe} for mac, dry run$`, "m"));
+    at(mac, new RegExp(`^\\+ rm -rf dist/wsp\\.app dist/wsp-${releaseRe}-mac\\.dmg dist/wsp-${releaseRe}-mac\\.zip$`, "m"));
+    at(mac, new RegExp(`-volname 'wsp ${releaseRe}' `));
+    at(dryRun("linux"), new RegExp(`^\\+ write dist/wsp-${releaseRe}\\.AppImage from `, "m"));
+  });
+
+  it("writes today's app's bundle identity into Info.plist: wsp.desktop, the wsp:// scheme and the release's version twice", () => {
+    const source = readFileSync(script, "utf8");
+    const links = source.slice(source.indexOf("    links='") + "    links='".length, source.indexOf("'\n  fi\n"));
+    expect(source).toContain('if [ "$bundle_id" = wsp.desktop ]; then\n    links=\'');
+    const plist = written("$app/Contents/Info.plist", { name: "wsp", bin: "desktop-gpui", bundle_id: "wsp.desktop", version: "0.3.9", min_macos: "12.0", links });
+    const value = (key: string) => new RegExp(`<key>${key}</key>\\s*<string>([^<]*)</string>`).exec(plist)?.[1];
+    expect(value("CFBundleIdentifier")).toBe("wsp.desktop");
+    expect(value("CFBundleName")).toBe("wsp");
+    expect(value("CFBundleExecutable")).toBe("desktop-gpui");
+    expect(value("CFBundleShortVersionString")).toBe("0.3.9");
+    expect(value("CFBundleVersion")).toBe("0.3.9");
+    expect(plist).toMatch(/<key>CFBundleURLSchemes<\/key>\s*<array>\s*<string>wsp<\/string>\s*<\/array>/);
+    // A check build under another bundle id claims no wsp:// link of the Mac it is built on.
+    expect(written("$app/Contents/Info.plist", { bundle_id: "wsp.desktop.check", links: "" })).not.toContain("CFBundleURLTypes");
+    expect(source).toContain("bundle_id=${WSP_GPUI_BUNDLE_ID:-wsp.desktop}\n");
+    expect(source).toContain("\nname=wsp\n");
+    // Today's identity is spelled in electron-builder.yml, and an update in place needs the two to agree.
+    const builder = readFileSync(new URL("../../../apps/desktop/electron-builder.yml", import.meta.url), "utf8");
+    expect(builder).toMatch(/^appId: wsp\.desktop$/m);
+    expect(builder).toMatch(/^productName: wsp$/m);
+  });
+
+  it("writes the AppImage's desktop entry with the wsp:// handler and the release's version", () => {
+    const entry = written("$appdir/wsp.desktop", { name: "wsp", bin: "desktop-gpui", version: "0.3.9" });
+    expect(entry).toContain("\nName=wsp\n");
+    expect(entry).toContain("\nExec=desktop-gpui %U\n");
+    expect(entry).toContain("\nMimeType=x-scheme-handler/wsp;\n");
+    expect(entry).toMatch(/\nX-AppImage-Version=0\.3\.9$/);
+  });
+
+  it("ships a stripped binary, which the release profile builds", () => {
+    const cargo = readFileSync(new URL("../../../apps/desktop-gpui/Cargo.toml", import.meta.url), "utf8");
+    expect(cargo).toMatch(/^\[profile\.release\]\nstrip = true$/m);
+  });
+
   it("with no signing secrets signs ad hoc, and skips signing with an identity and notarizing with a line each", () => {
     const out = dryRun("mac");
     at(out, /^skip {2}signing with a Developer ID: CSC_LINK and CSC_KEY_PASSWORD are not set/m);
     at(out, /^skip {2}notarizing: /m);
-    at(out, /^\+ codesign --force --options runtime --sign - 'dist\/wsp Experimental\.app'$/m);
+    at(out, /^\+ codesign --force --options runtime --sign - dist\/wsp\.app$/m);
     expect(out).not.toMatch(/--timestamp|security import|notarytool|stapler/);
   });
 
@@ -62,11 +118,14 @@ describe("package.sh --dry-run", () => {
       expect(readFileSync(script, "utf8")).toContain(`${pa}) echo ${sum} ;;`);
     }
     const build = at(out, /^\+ pnpm -C \.\.\/\.\. --filter @wsp\/desktop run build:app$/m);
-    const lipo = at(out, /^\+ lipo -create -output 'dist\/wsp Experimental\.app\/Contents\/MacOS\/node' \S+node-darwin-arm64\/bin\/node \S+node-darwin-x64\/bin\/node$/m);
+    const lipo = at(out, /^\+ lipo -create -output dist\/wsp\.app\/Contents\/MacOS\/node \S+node-darwin-arm64\/bin\/node \S+node-darwin-x64\/bin\/node$/m);
     expect(build).toBeLessThan(lipo);
-    const node = at(out, /^\+ codesign --force --options runtime --timestamp .*--entitlements \.\.\/desktop\/build\/entitlements\.mac\.plist .*'dist\/wsp Experimental\.app\/Contents\/MacOS\/node'$/m);
-    const daemon = at(out, /^\+ codesign --force --options runtime --timestamp .*'dist\/wsp Experimental\.app\/Contents\/Resources\/app\/assets\/daemon\/x86_64-apple-darwin\/wsp-daemon'$/m);
-    const bundle = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*'dist\/wsp Experimental\.app'$/m);
+    const strip = at(out, /^\+ strip -x dist\/wsp\.app\/Contents\/MacOS\/node$/m);
+    expect(lipo).toBeLessThan(strip);
+    const node = at(out, /^\+ codesign --force --options runtime --timestamp .*--entitlements \.\.\/desktop\/build\/entitlements\.mac\.plist .*dist\/wsp\.app\/Contents\/MacOS\/node$/m);
+    const daemon = at(out, /^\+ codesign --force --options runtime --timestamp .*dist\/wsp\.app\/Contents\/Resources\/app\/assets\/daemon\/x86_64-apple-darwin\/wsp-daemon$/m);
+    const bundle = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*dist\/wsp\.app$/m);
+    expect(strip).toBeLessThan(node);
     expect(node).toBeLessThan(bundle);
     expect(daemon).toBeLessThan(bundle);
   });
@@ -74,20 +133,20 @@ describe("package.sh --dry-run", () => {
   it("with a certificate signs the inner Mach-O and then the bundle under the hardened runtime with a timestamp", () => {
     const out = dryRun("mac", CERT);
     at(out, /^\+ security import \S+ -k \S+ -P '<hidden>'/m);
-    const inner = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*'dist\/wsp Experimental\.app\/Contents\/MacOS\/desktop-gpui'$/m);
-    const bundle = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*'dist\/wsp Experimental\.app'$/m);
+    const inner = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*dist\/wsp\.app\/Contents\/MacOS\/desktop-gpui$/m);
+    const bundle = at(out, /^\+ codesign --force --options runtime --timestamp .*--sign .*dist\/wsp\.app$/m);
     expect(inner).toBeLessThan(bundle);
-    at(out, /^\+ codesign --force --timestamp .*dist\/wsp-experimental-[\d.]+\.dmg$/m);
+    at(out, /^\+ codesign --force --timestamp .*dist\/wsp-[\d.]+-mac\.dmg$/m);
     at(out, /^skip {2}notarizing: APPLE_ID, APPLE_TEAM_ID and APPLE_APP_SPECIFIC_PASSWORD are not all set$/m);
     expect(out).not.toMatch(/--sign -|notarytool|stapler/);
   });
 
   it("with the Apple account too notarizes the disk image, then staples the app and the image before zipping the app", () => {
     const out = dryRun("mac", { ...CERT, ...APPLE });
-    const submit = at(out, /^\+ xcrun notarytool submit dist\/wsp-experimental-[\d.]+\.dmg --apple-id '<hidden>' --team-id '<hidden>' --password '<hidden>' --wait$/m);
-    const app = at(out, /^\+ xcrun stapler staple 'dist\/wsp Experimental\.app'$/m);
-    const dmg = at(out, /^\+ xcrun stapler staple dist\/wsp-experimental-[\d.]+\.dmg$/m);
-    const zip = at(out, /^\+ ditto -c -k --sequesterRsrc --keepParent 'dist\/wsp Experimental\.app' dist\/wsp-experimental-[\d.]+-mac\.zip$/m);
+    const submit = at(out, /^\+ xcrun notarytool submit dist\/wsp-[\d.]+-mac\.dmg --apple-id '<hidden>' --team-id '<hidden>' --password '<hidden>' --wait$/m);
+    const app = at(out, /^\+ xcrun stapler staple dist\/wsp\.app$/m);
+    const dmg = at(out, /^\+ xcrun stapler staple dist\/wsp-[\d.]+-mac\.dmg$/m);
+    const zip = at(out, /^\+ ditto -c -k --sequesterRsrc --keepParent dist\/wsp\.app dist\/wsp-[\d.]+-mac\.zip$/m);
     expect(submit).toBeLessThan(app);
     expect(app).toBeLessThan(zip);
     expect(dmg).toBeLessThan(zip);
@@ -104,7 +163,7 @@ describe("package.sh --dry-run", () => {
     at(out, /^\+ cp -R \.\.\/desktop\/build\/app\/assets \S+\/AppDir\/usr\/lib\/wsp\/app\/assets$/m);
     at(out, /^\+ curl -fsSL https:\/\/github\.com\/AppImage\/type2-runtime\/releases\/download\/20251108\/runtime-x86_64 /m);
     at(out, /^\+ mksquashfs /m);
-    at(out, /^\+ write dist\/wsp-experimental-[\d.]+-x86_64\.AppImage from /m);
+    at(out, /^\+ write dist\/wsp-[\d.]+\.AppImage from /m);
     expect(out).not.toMatch(/codesign|xcrun|hdiutil/);
   });
 });

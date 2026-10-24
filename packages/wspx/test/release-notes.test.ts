@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { compareVersions } from "../../protocol/src/semver.mjs";
-import { bundleNames } from "../../protocol/src/bundles.mjs";
+import { bundleNames, classicNames } from "../../protocol/src/bundles.mjs";
 import { BOX_API_URL } from "../../engine/src/box-backend.js";
 import { BOAT_MOVED, BOAT_SUNSET, PERMISSIONS_AGAIN, bundleNote, changeLines, cliArgs, previousTag, releaseNotes, renameNote } from "../scripts/release-notes.mjs";
 
@@ -164,6 +164,16 @@ describe("the notes on the draft release", () => {
     expect(notes()).not.toContain(macZip);
     expect(published).toBe("@wsp-labs/wsp");
     expect(notes()).toContain(`npm i -g ${published}@0.1.4`);
+  });
+
+  it("list the GPUI app first and the classic app second, never the classic app's zip", () => {
+    const { macZip, ...classic } = classicNames("0.1.4");
+    expect(classic).toEqual({ mac: "wsp-classic-0.1.4-mac.dmg", appImage: "wsp-classic-0.1.4.AppImage" });
+    const text = notes();
+    const first = Math.max(text.indexOf("wsp-0.1.4-mac.dmg"), text.indexOf("wsp-0.1.4.AppImage"));
+    for (const name of Object.values(classic)) expect(text.indexOf(name)).toBeGreaterThan(first);
+    expect(text).toContain("- The classic app, the Electron app wsp shipped before: ");
+    expect(text).not.toContain(macZip);
   });
 
   it("say once, while each release is signed on its own, that macOS may ask again for permissions given to wsp", () => {
