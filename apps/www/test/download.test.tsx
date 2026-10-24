@@ -2,7 +2,7 @@
 // The install: the install line first on a Mac or Linux, since a file curl writes meets no security prompt; the app's
 // download beside it, through the first-open guide on a Mac while the app is unsigned, and the classic app's under
 // both; the waitlist on Windows.
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../src/App";
 import { CLASSIC_STABLE_NAMES, downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
@@ -91,12 +91,17 @@ describe("the install on the page", () => {
 });
 
 describe("the Mac's first-open guide", () => {
-  it("starts the download, walks the four steps, and offers the install line instead", () => {
+  it("starts the download, walks the five steps one at a time, and offers the install line instead", () => {
     render(<App path={MAC_GUIDE} />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Your download has started.");
     expect(screen.getByRole("link", { name: "Download again" }).getAttribute("href")).toBe(HREF.mac);
     expect(screen.getAllByRole("listitem").filter(li => li.closest("main")).length).toBe(MAC_STEPS.length);
-    expect(screen.getByText(/Privacy & Security/)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Open Privacy & Security" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(MAC_STEPS[2]!.title) }));
+    expect(screen.getByRole("button", { name: new RegExp(MAC_STEPS[2]!.title) }).getAttribute("aria-current")).toBe("step");
+    expect(screen.getByRole("link", { name: "Open Privacy & Security" }).getAttribute("href")).toMatch(/^x-apple.systempreferences:/);
+    fireEvent.click(screen.getByRole("button", { name: "Next step" }));
+    expect(screen.getByRole("button", { name: new RegExp(MAC_STEPS[3]!.title) }).getAttribute("aria-current")).toBe("step");
     expect(screen.getByRole("button", { name: `Copy ${INSTALL}` })).toBeTruthy();
   });
 });
