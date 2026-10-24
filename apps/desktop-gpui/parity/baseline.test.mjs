@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // node --test apps/desktop-gpui/parity/baseline.test.mjs: the parts of the parity driver that need no app, and that
-// each wave's states.mjs shoots exactly the states its spec gives a baseline of their own.
+// each wave-<n>/states.mjs shoots exactly the states its spec.md gives a baseline of their own.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,10 +12,10 @@ import { crc32, deflateSync } from "node:zlib";
 import { crop, decode } from "./png.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-// Only a wave whose spec names each state's baseline file (wave 1's `png` words) can be held to its states.mjs.
+// Only a wave-<n> folder whose spec.md names each state's baseline file (wave-1's `png` words) can be held to its states.mjs.
 const waves = readdirSync(here).filter(name => /^wave-\d+$/.test(name) && existsSync(join(here, name, "spec.md")) && readFileSync(join(here, name, "spec.md"), "utf8").includes("png `"));
 
-/** Every state item of a wave's spec files: its id and the baseline it is shot in, its own, another's, or none. */
+/** Every state item of a wave-<n> folder's spec files: its id and the baseline it is shot in, its own, another's, or none. */
 function specStates(wave) {
   const states = [];
   for (const file of ["spec.md", "more.md"]) {

@@ -183,7 +183,7 @@ host_stage() {
   fi
   run cp -R "$host_app/assets" "$res/app/assets"
   run cp "$tmp/node-$pa/LICENSE" "$res/node/LICENSE"
-  # A build under umask 077 writes owner-only files, which a person other than the builder could not run.
+  # A build under umask 077 writes owner-only files, which a person other than the one who built them could not run.
   run chmod -R u+rwX,go+rX-w "$res/app" "$res/node"
 }
 
@@ -348,7 +348,7 @@ EOF
   elif [ -z "${APPLE_ID-}" ] || [ -z "${APPLE_TEAM_ID-}" ] || [ -z "${APPLE_APP_SPECIFIC_PASSWORD-}" ]; then
     skip "notarizing: APPLE_ID, APPLE_TEAM_ID and APPLE_APP_SPECIFIC_PASSWORD are not all set"
   else
-    # The disk image carries the app, so one submission covers both, and both take the ticket.
+    # The disk image carries the app, so one submission covers both, and both take the notarization ticket.
     show xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --wait
     if [ "$dry" = 0 ]; then
       local out

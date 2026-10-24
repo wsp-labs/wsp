@@ -264,7 +264,7 @@ fn a_refused_rename_keeps_the_box_open_with_the_name_typed(cx: &mut TestAppConte
 }
 
 /// A claude whose turn on a message naming `spawn` starts a thread titled Sub from inside the turn, as a lead starts
-/// a builder, and whose turn on `die now` ends in an error.
+/// a sub-thread, and whose turn on `die now` ends in an error.
 const SPAWNS: &str = r#"#!/bin/sh
 case " $* " in
   *" --version "*) echo "2.1.295 (Claude Code)"; exit 0 ;;
@@ -293,7 +293,7 @@ fn settle_on_a_failed_sub_threads_needs_you_row_reaches_the_host(cx: &mut TestAp
     use gpui_kit::Modifiers;
     let host = common::Throwaway::start_with(SPAWNS, false);
     host.wsp(&["add", &host.repo("repo").to_string_lossy()]);
-    host.wsp(&["run", "repo", "spawn a builder", "--agent", "claude", "--title", "Lead"]);
+    host.wsp(&["run", "repo", "spawn a sub-thread", "--agent", "claude", "--title", "Lead"]);
     let (sidebar, cx) = attached_to(&host, cx);
     wait_for(cx, &sidebar, "the failed Sub in Needs you and under Lead", |s| {
         let rows = s.lines().iter().filter(|l| matches!(&l.item, Item::Tile(t) if s.threads()[t.thread].title == "Sub")).count();

@@ -113,7 +113,7 @@ fn edited(n: usize, now: f64, edit: impl Fn(&str, &mut Value)) -> Snapshot {
 }
 
 /// Catches: a pressed move on a root's tile that starts no drag, or a drop on the lower half of the root under it
-/// that writes nothing (the owner's "drags do nothing"), where today's marks the edge after that root, moves the tree
+/// that writes nothing, where today's marks the edge after that root, moves the tree
 /// past it with one `sessions.mark` of its new key, and draws it there before the host's row lands.
 #[gpui_kit::test]
 fn a_root_dragged_onto_the_lower_half_of_the_next_lands_after_it(cx: &mut TestAppContext) {

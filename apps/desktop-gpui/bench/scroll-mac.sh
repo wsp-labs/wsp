@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
 # usage: bench/scroll-mac.sh record <thread id> [<out dir>] | bench/scroll-mac.sh replay <thread id> <events.jsonl | momentum> [<out dir>]
-# Scroll stalls on a real thread, on the owner's Mac. `record` builds desktop-gpui (release), opens the thread at its end
+# Scroll stalls on a real thread, on a Mac. `record` builds desktop-gpui (release), opens the thread at its end
 # on the person's own host and records the trackpad's scroll events over it for 60 s from the first one, with the
 # frame-time trace of those 60 s; the app quits by itself. `replay` opens the thread at its end again and plays a
 # recording (or `momentum`, bench/momentum.mjs's synthetic trackpad) through the same window, writing the same trace.

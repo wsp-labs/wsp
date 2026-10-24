@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Loaded into the fixture's host with NODE_OPTIONS=--import, never into the person's: gives this computer the display
 // name a Mac's `scutil --get ComputerName` gives it (packages/host/src/places/this-computer.ts:57), so a Linux fixture
-// has a computer whose name on screen differs from its hostname, as the owner's Mac has. No file on disk changes.
+// has a computer whose name on screen differs from its hostname, as a Mac's does. No file on disk changes.
 import { register } from "node:module";
 import { isMainThread } from "node:worker_threads";
 

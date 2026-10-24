@@ -121,7 +121,7 @@ fn the_dialog_occludes_keeps_a_press_inside_and_closes_on_escape(cx: &mut TestAp
     let (_server, host) = throwaway_host();
     let (dialog, pressed, cx) = dialog(cx, &host);
     assert!(open(cx), "Review with an agent opens over the pane");
-    assert_eq!(dialog.read_with(cx, |d, _| d.agent()), "codex", "Codex first, by the owner's rule");
+    assert_eq!(dialog.read_with(cx, |d, _| d.agent()), "codex", "Codex first");
     let title = cx.debug_bounds("dialog-title").expect("the dialog's title is drawn");
     cx.simulate_click(title.center(), Modifiers::none());
     assert!(open(cx), "a press inside keeps it open");

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Wave 2's palette, notice and Computer pane states on both sides: per state and theme, baseline.mjs shoots
+// The wave-2 palette, notice and Computer pane states on both sides: per state and theme, baseline.mjs shoots
 // the Electron side into --electron, then desktop-gpui is driven under Xvfb with xdotool to the same state, the Electron
 // entry's clip is cut out of its window and diffed against the Electron shot. Some states make threads on the fixture,
 // so each GPUI shot follows its own Electron shot and both see the same host.

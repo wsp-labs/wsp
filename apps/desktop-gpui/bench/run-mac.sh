@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
-# The whole bench on the owner's Mac, one step at a time: build both apps, start the fixture's throwaway host, read
+# The whole bench on a Mac, one step at a time: build both apps, start the fixture's throwaway host, read
 # each app's memory at rest, with `long` open and after one scroll through it, run each app's bench, stop the host,
 # print the table. GPUI's memory with `long` open needs `desktop-gpui --state <path> --open <thread id>`, which opens
 # that thread and stays. It stops at the first failure and names the step. It stops only the processes it started, by

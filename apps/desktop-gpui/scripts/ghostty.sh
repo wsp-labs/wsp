@@ -25,7 +25,7 @@ fi
 
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
-# A git clone or fetch stalled for minutes on Boat where the tarball takes seconds; unpacked aside, moved in whole.
+# A git clone or fetch stalled for minutes on a Linux cloud machine where the tarball takes seconds; unpacked aside, moved in whole.
 if [ ! -d "$dir" ]; then
   rm -rf vendor/ghostty vendor/ghostty-*
   mkdir -p vendor

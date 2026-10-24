@@ -1,6 +1,6 @@
 # Parity baselines
 
-`baseline.mjs` drives today's Electron app over the Chrome DevTools Protocol to each state a wave lists and writes one
+`baseline.mjs` drives today's Electron app over the Chrome DevTools Protocol to each state a `wave-<n>/states.mjs` lists and writes one
 PNG per state and theme, plus `index.json`.
 
 ```sh
@@ -8,7 +8,7 @@ node baseline.mjs --wave 1 --fixture <fx.json> --app <Electron app executable> -
 ```
 
 No `--theme` captures both. `--scale 2` launches Electron with `--force-device-scale-factor=2`, a real device scale,
-so a Boat run shoots at 2 as a Retina Mac does; without it the capture is at the display's own scale. Nothing is
+so a run on Linux shoots at 2 as a Retina Mac does; without it the capture is at the display's own scale. Nothing is
 emulated: Blink rounds font metrics in CSS px under emulation, so text would land a device pixel away from where a
 Retina Mac draws it. Narrow states size the real window too (the window has no minimum; the spec uses 980, 760, 600
 and 360).
@@ -184,7 +184,7 @@ stands whole above the composer.
 
 These move from run to run on the same build: the New thread background field (a canvas redrawn every 120 ms), the
 composer caret (it blinks), relative ages on tiles and rows ("4m"), and the computer's name (the machine's hostname,
-which differs between Boat and the Mac). The Agents page lists every agent the fixture host finds on its PATH, which
+which differs between a Linux machine and a Mac). The Agents page lists every agent the fixture host finds on its PATH, which
 holds `/usr/local/bin` and `/opt/homebrew/bin`, so two machines draw different rows there; compare Electron and GPUI on
 one machine.
 
@@ -193,7 +193,7 @@ thread is not where `route.thread` looks.
 
 ## On a Mac
 
-Beside the owner's own wsp, on a fresh home (the fixture's temp folder). Keep the pointer off the test window while it
+Beside your own wsp, on a fresh home (the fixture's temp folder). Keep the pointer off the test window while it
 runs.
 
 ```sh
@@ -214,7 +214,7 @@ apps/desktop-gpui/bench/stop.sh /tmp/parity-fx.json
 The daemon is built and staged before the packages, or every terminal state fails. On an Intel Mac the app is
 `apps/desktop/dist/mac/wsp.app/Contents/MacOS/wsp`.
 
-## On Boat
+## On Linux
 
 The checkout that runs fixture.sh needs the daemon too, built for musl:
 

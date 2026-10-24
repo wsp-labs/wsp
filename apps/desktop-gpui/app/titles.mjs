@@ -32,7 +32,7 @@ const TEXTS = [
   "  Fix the\tbuild  \nsecond line",
   "\r\n  \n\tReply  with\texactly   the word pong.  \r\n",
   "Add a test that the paging stops at the first event. (short-3, turn 1)",
-  "You are a builder for the wsp repo, which is at /Users/dev/wsp on this Mac: read the ticket, then run `pnpm test` and report.\n\nTicket: wsp-labs/wsp-map#408.",
+  "You are working on the wsp repo, which is at /Users/dev/wsp on this Mac: read the notes, then run `pnpm test` and report.\n\nNotes: docs/testing.md.",
   "Look at why the transcript jumps when a long tool output lands and fix it.\n\nAttached files:\n/tmp/a.png",
   exact,
   `${exact.slice(0, -1)} now.`,

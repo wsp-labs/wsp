@@ -174,7 +174,7 @@ fn the_row_menu_opens_on_the_twelve_px_surface() {
 }
 
 /// The faces the pieces draw with are the first of `--font-sans-system` and `--font-mono-system` this machine has,
-/// as Chromium picks them for the web app; the test prints them (Liberation Sans and DejaVu Sans Mono on Boat).
+/// as Chromium picks them for the web app; the test prints them (Liberation Sans and DejaVu Sans Mono on Linux).
 fn the_faces_are_the_web_stacks_first_installed() {
     let mut cx = app("paper");
     let (sans, mono, installed) =
@@ -451,7 +451,7 @@ fn the_sparkline_draws_the_points_it_is_given() {
 }
 
 /// A held field's value on Paper takes the web's `opacity-64` over the page, not a disabled gpui-kit input's half: its
-/// strongest stroke stands 64% of the way from the page to the same field's stroke unheld (on Boat, 116 against 40 on a
+/// strongest stroke stands 64% of the way from the page to the same field's stroke unheld (on Linux, 116 against 40 on a
 /// page of 252). Within 3 levels, a stroke's own rounding; half would land 25 levels lighter, a third 70.
 fn a_held_field_draws_its_text_at_the_webs_64_percent() {
     let strongest = |held: bool| {

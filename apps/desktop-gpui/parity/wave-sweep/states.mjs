@@ -18,7 +18,7 @@ const byId = (states, id) => {
 };
 
 const state = (id, go, extra = {}) => ({ id, data: withIds(), go, ...extra });
-/** A state another wave drives already, shot here whole window. */
+/** A state another wave-<n> folder drives already, shot here whole window. */
 const borrowed = (id, from) => ({ ...from, id, clip: undefined });
 
 export default [

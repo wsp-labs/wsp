@@ -51,7 +51,7 @@ pub mod words {
     }
 }
 
-/// The reviewers the dialog offers, Codex first by the owner's rule, with the names the catalog gives them.
+/// The reviewers the dialog offers, Codex first, with the names the catalog gives them.
 pub const REVIEWERS: [(&str, &str); 2] = [("codex", "Codex"), ("claude", "Claude")];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

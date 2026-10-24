@@ -269,7 +269,7 @@ fn icon_of(url: &str) -> Option<Arc<Image>> {
 }
 
 /// Each host's store, made with the first Settings that host's window opens and kept until that window closes, so
-/// a report read inside its hold is not asked again as Settings opens again, nor anything the pages hold lost (D69).
+/// a report read inside its hold is not asked again as Settings opens again, nor anything the pages hold lost.
 #[derive(Default)]
 struct Kept(HashMap<usize, (gpui_kit::WindowId, Entity<Store>)>);
 

@@ -37,5 +37,4 @@ Where working GPUI code lives, for [wsp-gpui](../SKILL.md).
 
 Stale, read only to know they are stale:
 [gpui-book](https://github.com/MatinAniss/gpui-book),
-[create-gpui-app](https://github.com/zed-industries/create-gpui-app)
-(map #2364, Resources).
+[create-gpui-app](https://github.com/zed-industries/create-gpui-app).

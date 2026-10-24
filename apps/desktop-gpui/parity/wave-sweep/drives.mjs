@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// How today's app is driven to the sweep's states, for wave-sweep/states.mjs and the wave specs' own rows of the same
+// How today's app is driven to the sweep's states, for wave-sweep/states.mjs and the wave-<n> specs' own rows of the same
 // states. Every drive starts where baseline.mjs leaves the window: New thread, at 1280x800.
 const css = selector => `css:${selector}`;
 const seen = (app, selector, ms = 15_000) => app.waitFor(s => document.querySelector(s) !== null, ms, selector);
@@ -20,7 +20,7 @@ async function ids(host) {
 /** A person's message long enough that the transcript folds it under "Show full message"; its thread's reply is one
  * short line, so the whole folded bubble stands above the composer in both apps. */
 export const LONG_BRIEF = [
-    "The transcript jumps when a long reply finishes streaming, and I think it is the measured heights going stale. Here is what I see on my Mac with the coordinator thread open, about seven thousand lines long:",
+    "The transcript jumps when a long reply finishes streaming, and I think it is the measured heights going stale. Here is what I see on my Mac with my longest thread open, about seven thousand lines long:",
     "1. Scroll up a few screens while a turn is running. 2. Wait for the turn to end. 3. The view lurches by roughly the height of the last reply, sometimes twice, and the scrollbar thumb jumps with it.",
     "It does not happen on short threads, and it does not happen when I stay pinned to the bottom. It got worse after the paging change, so look at how a page that lands above the viewport adjusts the anchor, and whether the row heights cached before a reflow are thrown away when the width changes.",
     "Please write down what you find before changing anything, and add a test that scrolls a long thread while a reply streams in and checks that the first visible row stays put to the pixel.",
@@ -70,7 +70,7 @@ export async function askAside(app, thread) {
   await seen(app, '[data-k="aside-refused"]', 15_000);
 }
 
-/** Each drive by name, for the wave specs' own rows of the same states. */
+/** Each drive by name, for the wave-<n> specs' own rows of the same states. */
 export const drives = {
   /** No thread selected: the home route, a project's home, the New thread page of the first project. */
   home: async app => (await app.route.home(), await app.sleep(1500), await app.park()),

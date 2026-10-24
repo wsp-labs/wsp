@@ -215,7 +215,7 @@ fn open_port(p: &Proc, group: Option<&Group>, port: Option<Port>, hand: &Hand) -
     }
     let port = port.or_else(|| p.ports.first().copied())?.port;
     hand.workspace_of(group)?;
-    // The in-app browser lands later (D78): until then a port opens in the system browser.
+    // The in-app browser lands later: until then a port opens in the system browser.
     let url = format!("http://localhost:{port}/");
     Some((port, Rc::new(move |_: &mut Window, cx: &mut App| cx.open_url(&url))))
 }

@@ -1,10 +1,10 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
-# rest.sh: the app at rest on each page, against the acceptance of wsp-map#2414. One fresh copy of desktop-gpui per page,
+# rest.sh: the app at rest on each page. One fresh copy of desktop-gpui per page,
 # on the fixture's throwaway host and a temp HOME, never the person's: settle 10 s untouched, then 60 s untouched while
 # `top -l 31 -s 2 -pid <pid>` reads its CPU and the process's energy counter (proc_pid_rusage's ri_energy_nj, the figure
 # Activity Monitor and wsp's own Activity page are built on) reads its power. DESKTOP_GPUI_FRAMES gives its frames and
-# renders a second. Prints one row per page and whether it meets the acceptance:
+# renders a second. Prints one row per page and whether it meets its limits:
 #   the New thread page under 2% of one core and 1 W (its field animates), Settings > Activity under 5% and 1 W,
 #   the computer pane, whose readings move every 2 s, under 1 W; every other page under 0.3 W and drawing no frame but
 #   a focused caret's and a sidebar time's step. A missing reading says NO READING, and so does a minute in which the

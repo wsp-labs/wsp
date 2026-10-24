@@ -257,7 +257,7 @@ struct DraggedModel {
     width: Pixels,
 }
 
-/// GPUI draws no ghost of what is dragged: the row itself at half strength, where it was taken (D72).
+/// GPUI draws no ghost of what is dragged: the row itself at half strength, where it was taken.
 struct ModelGhost(DraggedModel);
 
 impl Render for ModelGhost {

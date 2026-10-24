@@ -4,7 +4,7 @@
 # by parity/baseline.mjs at scale 2 in Paper and Graphite (or the one named) under an Xvfb and openbox of its own, on a
 # host bench/fixture.sh starts inside the run's namespace. Each state's go() ends by parking the pointer off the window,
 # so no hover tint lands in a shot. Writes <out>/<id>-<theme>.png and <out>/index.json with each clip in css px. Every
-# child runs under env -i with only the names it needs. SHOTS is the shots folder (default /root/shots/2397; out is its web), APP the Electron executable
+# child runs under env -i with only the names it needs. SHOTS is the shots folder (default /tmp/shots/pr-pane; out is its web), APP the Electron executable
 # (default apps/desktop/dist/linux-unpacked/wsp), DISPLAY_NUM the display (default 96).
 set -eu
 # Today's app asks avatars.githubusercontent.com for every face the host's page names no picture for, so the run goes
@@ -17,7 +17,7 @@ fi
 echo "web: network interfaces: $(ip -o link | awk -F': ' '{ print $2 }' | tr '\n' ' ')"
 here=$(cd "$(dirname "$0")" && pwd)
 desktop=$(cd "$here/../../../.." && pwd)
-shots=${SHOTS:-/root/shots/2397}
+shots=${SHOTS:-/tmp/shots/pr-pane}
 out=$shots/web
 theme=
 while [ $# -gt 0 ]; do
@@ -49,8 +49,8 @@ trap 'exit 1' HUP INT TERM
 echo "web: starting a throwaway host (about 140 s)"
 clean sh "$desktop/bench/fixture.sh" "$fixture"
 
-# baseline.mjs reads its states from wave-<n>/ beside itself, so a copy of it in the temp folder reads a wave that
-# wraps wave 2's states with a park after each go(); bench/ beside it is the real one.
+# baseline.mjs reads its states from wave-<n>/ beside itself, so a copy of it in the temp folder reads a wave-2/ that
+# wraps the real wave-2/states.mjs with a park after each go(); bench/ beside it is the real one.
 mkdir -p "$tmp/desktop/parity/wave-2"
 cp "$desktop/parity/baseline.mjs" "$tmp/desktop/parity/"
 ln -s "$desktop/parity/png.mjs" "$desktop/parity/claude-stub.mjs" "$tmp/desktop/parity/"

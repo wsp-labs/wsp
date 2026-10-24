@@ -5,9 +5,9 @@
 # writes <out>/<theme>/<id>.png (differing pixels in red at fuzz 3%) and <id>.pair.png (today's, ours, that diff),
 # and prints the share of differing pixels at fuzz 0%, 3% and 10% into <out>/table.txt.
 # A pair of two sizes is padded to the larger, each side in a colour of its own, so what one side lacks counts.
-# Defaults: the web, gpui and diff folders under SHOTS (default /root/shots/2397). Every child runs under env -i.
+# Defaults: the web, gpui and diff folders under SHOTS (default /tmp/shots/pr-pane). Every child runs under env -i.
 set -eu
-shots=${SHOTS:-/root/shots/2397}
+shots=${SHOTS:-/tmp/shots/pr-pane}
 web=${1:-$shots/web}
 gpui=${2:-$shots/gpui}
 out=${3:-$shots/diff}

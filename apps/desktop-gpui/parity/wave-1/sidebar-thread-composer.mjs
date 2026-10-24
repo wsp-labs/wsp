@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Wave 1 part B: the sidebar, thread view and composer states with a baseline of their own (states-B.md). Each starts
+// The sidebar, thread view and composer states of wave-1 with a baseline of their own. Each starts
 // on New thread at 1280x800. A state's own threads and projects are made in its data and taken out in its cleanup, so
 // the fixture's threads stay as fixture.sh made them; what a state leaves in the window (a draft, a stash, a held
 // message) its tidy undoes after the capture.

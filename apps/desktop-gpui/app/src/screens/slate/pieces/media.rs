@@ -730,8 +730,8 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
     }
 }
 
-/// A diagram as its caption and its Mermaid source in the mono, `diagram.tsx`'s own `source` line; the drawing waits
-/// on the owner's word.
+/// A diagram as its caption and its Mermaid source in the mono, `diagram.tsx`'s own `source` line; the diagram
+/// itself is not drawn.
 fn diagram(p: &PieceCx, cx: &App) -> Option<AnyElement> {
     let pal = cx.palette();
     let code = p.str("value").unwrap_or_default();

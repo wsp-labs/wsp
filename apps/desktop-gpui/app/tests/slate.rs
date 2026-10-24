@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The slate panel against a host started for this binary alone (host-client's tests/common): what it reads and draws,
-//! that every formula a drawn piece reads is the host's answer (ruling D2), what it writes and presses, and the pushes
+//! that every formula a drawn piece reads is the host's answer, what it writes and presses, and the pushes
 //! that keep it live. `d2_round_trips` (ignored) prints the `slates.resolve` round trips the panel makes.
 
 #[path = "../../host-client/tests/common/mod.rs"]
