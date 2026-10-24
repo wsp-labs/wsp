@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+import { TimedSequencer } from "./vitest.shard.js";
 
 // Live tests create real machines under a two-machine cap, so files run one at
 // a time. The worker pool reads this from the root config only; the same line
@@ -10,5 +11,5 @@ import { defineConfig } from "vitest/config";
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 export default defineConfig({
-  test: { fileParallelism: process.env.WSP_LIVE !== "1", globalSetup: [here("./vitest.daemons.ts"), here("./vitest.agent-store.ts")] },
+  test: { fileParallelism: process.env.WSP_LIVE !== "1", globalSetup: [here("./vitest.daemons.ts"), here("./vitest.agent-store.ts")], sequence: { sequencer: TimedSequencer } },
 });

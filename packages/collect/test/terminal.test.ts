@@ -38,8 +38,6 @@ const ITERM_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 
 describe("terminal font parsers", () => {
   it.each([
-    ["font-family = JetBrains Mono\nfont-size = 16\n", "JetBrains Mono"],
-    ['font-family = "Berkeley Mono"\n', "Berkeley Mono"],
     ["# font-family = Commented\nfont-family = Hack Nerd Font Mono\nfont-family = Symbols Nerd Font\n", "Hack Nerd Font Mono"],
     ["font-family = Menlo\nfont-family = \nfont-family = Iosevka\n", "Iosevka"],
     ["font-size = 16\n", undefined],

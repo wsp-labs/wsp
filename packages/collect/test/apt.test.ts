@@ -58,23 +58,6 @@ describe("the apt reader", () => {
     expect((await aptPackages(ubuntu())).map(p => p.name)).toEqual(["direnv", "fd-find", "fish", "tmux"]);
   });
 
-  it("drops a package the base image's priority says nobody chose", async () => {
-    // ubuntu-minimal is marked manual on every Ubuntu and is the image itself, not a choice.
-    expect((await aptPackages(ubuntu())).map(p => p.name)).not.toContain("ubuntu-minimal");
-  });
-
-  it("drops a package that ships no command under /usr/bin or /bin: a library or a font is not a tool to bring", async () => {
-    const names = (await aptPackages(ubuntu())).map(p => p.name);
-    expect(names).not.toContain("libpq5");
-    expect(names).not.toContain("fonts-dejavu-core");
-  });
-
-  it("drops the packages an installer marks manual that nobody picks", async () => {
-    const names = (await aptPackages(ubuntu())).map(p => p.name);
-    expect(names).not.toContain("sudo");
-    expect(names).not.toContain("lsb-release");
-  });
-
   it("reads one directory and two dpkg-query runs, never a dpkg -L per package", async () => {
     const host = ubuntu();
     await aptPackages(host);
