@@ -109,6 +109,15 @@
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
 }
 
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @keyframes trace {
   from {
     stroke-dashoffset: 1;

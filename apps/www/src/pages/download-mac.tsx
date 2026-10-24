@@ -2,12 +2,13 @@
 // Where "download the app" lands on a Mac: it starts the download and walks through the first open. The app is not
 // signed by Apple yet, so macOS refuses a downloaded copy until the person presses Open Anyway (wsp-map#2004). The
 // pictures are cut from a recording of that first open on macOS 26.
-import { useEffect } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { CopyCommand } from "@/components/copy-command";
 import { Section } from "@/components/section";
 import { DOWNLOADS } from "@/downloads";
 import { INSTALL } from "@/links";
+import { cn } from "@/lib/utils";
 
 /** System Settings' own address for Privacy & Security; a browser asks before it opens it. */
 const PRIVACY = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension";
@@ -47,36 +48,58 @@ export const MAC_STEPS: readonly Step[] = [
   },
 ];
 
-function Picture({ shot }: { shot: Shot }) {
+/** How long each step shows before the next, while nobody has picked one. */
+const DWELL_MS = 7000;
+/** The stage's width over its height; every picture fits inside it, centred, never past its own size. */
+const STAGE = 1.5;
+
+function Picture({ shot, shown }: { shot: Shot; shown: boolean }) {
+  const ratio = shot.width / shot.height;
   const media = { width: shot.width, height: shot.height, className: "block h-auto w-full" };
   return (
-    <div className="relative mx-auto overflow-hidden rounded-[12px] border border-border" style={{ maxWidth: shot.width / 2 }}>
-      {shot.clip === undefined ? (
-        <img src={shot.src} alt={shot.alt} loading="lazy" {...media} />
-      ) : (
-        <video src={shot.clip} poster={shot.src} autoPlay muted loop playsInline aria-label={shot.alt} {...media} />
-      )}
-      {shot.ring !== undefined && (
-        <span
-          aria-hidden
-          className="absolute rounded-full ring-2 ring-amber"
-          style={{ left: `${shot.ring.x}%`, top: `${shot.ring.y}%`, width: `${shot.ring.w}%`, height: `${shot.ring.h}%` }}
-        />
-      )}
+    <div className={cn("col-start-1 row-start-1 flex items-center justify-center p-4 transition-opacity duration-300 sm:p-8", shown ? "opacity-100" : "pointer-events-none opacity-0")} aria-hidden={!shown}>
+      <div className="relative overflow-hidden rounded-[10px] border border-white/[0.08]" style={{ width: `min(${Math.min(100, (ratio / STAGE) * 100)}%, ${shot.width / 2}px)` }}>
+        {shot.clip === undefined ? (
+          <img src={shot.src} alt={shot.alt} {...media} />
+        ) : (
+          <video src={shot.clip} poster={shot.src} autoPlay muted loop playsInline aria-label={shot.alt} {...media} />
+        )}
+        {shot.ring !== undefined && (
+          <span aria-hidden className="absolute rounded-full ring-2 ring-amber" style={{ left: `${shot.ring.x}%`, top: `${shot.ring.y}%`, width: `${shot.ring.w}%`, height: `${shot.ring.h}%` }} />
+        )}
+      </div>
     </div>
   );
 }
 
 export function MacDownload() {
+  const [at, setAt] = useState(0);
+  // The steps turn by themselves until a person picks one, like the slate examples on the home page.
+  const [auto, setAuto] = useState(true);
+  const [held, setHeld] = useState(false);
   useEffect(() => {
     window.location.href = DOWNLOADS.mac.href;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setAuto(false);
   }, []);
+  const go = (i: number) => {
+    setAt((i + MAC_STEPS.length) % MAC_STEPS.length);
+    setAuto(false);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") go(at + 1);
+      if (e.key === "ArrowLeft") go(at - 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  const step = MAC_STEPS[at]!;
   return (
     <main>
-      <Section className="pt-28 sm:pt-40">
+      <Section className="pt-28 sm:pt-36">
         <div className="mx-auto max-w-[620px] text-center">
-          <h1 className="heading text-[34px] sm:text-[48px]">Your download has started.</h1>
-          <p className="lede mt-5 text-[17px] sm:text-[18px]">
+          <h1 className="heading text-[34px] sm:text-[44px]">Your download has started.</h1>
+          <p className="lede mt-4 text-[17px]">
             wsp is not signed by Apple yet, so the first time you open it, macOS asks you to allow it. Five steps, about a minute.{" "}
             <a href={DOWNLOADS.mac.href} className="text-foreground underline decoration-faint underline-offset-4 transition-colors duration-150 hover:decoration-foreground">
               Download again
@@ -84,26 +107,62 @@ export function MacDownload() {
             if nothing started.
           </p>
         </div>
-        <ol className="mx-auto mt-14 max-w-[1000px] sm:mt-20">
-          {MAC_STEPS.map((step, i) => (
-            <li key={step.title} className="grid items-center gap-6 border-t border-rule py-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-12 md:py-14">
-              <div>
-                <span className="font-mono text-[13px] tabular-nums text-faint">
-                  Step {i + 1} of {MAC_STEPS.length}
-                </span>
-                <h2 className="mt-2 text-[20px] font-medium text-foreground sm:text-[22px]">{step.title}</h2>
-                <p className="mt-2 text-[16px] leading-relaxed text-muted-foreground">{step.body}</p>
-                {step.settings === true && (
-                  <a href={PRIVACY} className="keycap mt-4 inline-flex h-9 items-center gap-1.5 rounded-[8px] px-3 text-[14px] text-foreground transition-colors duration-150 hover:bg-foreground/[0.07]">
-                    Open Privacy & Security <ArrowUpRight className="size-3.5 text-faint" />
-                  </a>
+        <div
+          className="mx-auto mt-12 grid max-w-[1100px] gap-6 md:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] md:gap-10"
+          onPointerEnter={() => setHeld(true)}
+          onPointerLeave={() => setHeld(false)}
+        >
+          <ol className="order-2 md:order-1">
+            {MAC_STEPS.map((s, i) => (
+              <li key={s.title} className="relative border-t border-rule first:border-t-0 last:border-b md:first:border-t">
+                <button type="button" onClick={() => go(i)} aria-current={i === at ? "step" : undefined} className="group flex w-full items-baseline gap-3 py-3.5 text-left">
+                  <span className={cn("font-mono text-[13px] tabular-nums transition-colors duration-150", i === at ? "text-amber" : "text-faint")}>{i + 1}</span>
+                  <span className={cn("text-[16px] transition-colors duration-150", i === at ? "font-medium text-foreground" : "text-muted-foreground group-hover:text-foreground")}>{s.title}</span>
+                </button>
+                {i === at && (
+                  <div className="pb-5 pl-5">
+                    <p className="text-[15px] leading-relaxed text-muted-foreground">{s.body}</p>
+                    {s.settings === true && (
+                      <a href={PRIVACY} className="keycap mt-4 inline-flex h-9 items-center gap-1.5 rounded-[8px] px-3 text-[14px] text-foreground transition-colors duration-150 hover:bg-foreground/[0.07]">
+                        Open Privacy & Security <ArrowUpRight className="size-3.5 text-faint" />
+                      </a>
+                    )}
+                  </div>
                 )}
+                {auto && i === at ? (
+                  <span
+                    key={at}
+                    aria-hidden
+                    className="absolute bottom-[-1px] left-0 h-px w-full origin-left bg-foreground/60"
+                    style={{ animation: `fill ${DWELL_MS}ms linear forwards`, animationPlayState: held ? "paused" : "running" }}
+                    onAnimationEnd={() => setAt(n => (n + 1) % MAC_STEPS.length)}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ol>
+          <div className="order-1 md:order-2">
+            <div className="grid overflow-hidden rounded-[14px] border border-border bg-ground" style={{ aspectRatio: STAGE }} aria-live="polite" aria-label={`Step ${at + 1} of ${MAC_STEPS.length}: ${step.title}`}>
+              {MAC_STEPS.map((s, i) => (
+                <Picture key={s.title} shot={s.shot} shown={i === at} />
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="font-mono text-[13px] tabular-nums text-faint">
+                Step {at + 1} of {MAC_STEPS.length}
+              </span>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => go(at - 1)} aria-label="Previous step" className="keycap inline-flex size-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors duration-150 hover:text-foreground">
+                  <ChevronLeft className="size-4" />
+                </button>
+                <button type="button" onClick={() => go(at + 1)} aria-label="Next step" className="keycap inline-flex size-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors duration-150 hover:text-foreground">
+                  <ChevronRight className="size-4" />
+                </button>
               </div>
-              <Picture shot={step.shot} />
-            </li>
-          ))}
-        </ol>
-        <div className="mx-auto mt-20 flex max-w-[620px] flex-col items-center text-center sm:mt-24">
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto mt-20 flex max-w-[620px] flex-col items-center text-center">
           <h2 className="text-[17px] font-medium text-foreground">Rather skip all this?</h2>
           <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">Paste this line into Terminal. It installs the same app with no prompts, and adds the wsp command.</p>
           <CopyCommand command={INSTALL} shown="curl -fsSL usewsp.com/install | sh" className="mt-5 text-[13px] sm:text-[14px]" />
