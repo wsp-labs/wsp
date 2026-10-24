@@ -21,9 +21,11 @@ struct Stubbed {
     said: Arc<Mutex<Vec<String>>>,
 }
 
-/// What a stub runs as the unit's process: the throwaway host on the test's state, or `script` in its place.
+/// What a stub runs as the unit's process: the throwaway host on the test's state, the line the systemd unit's own
+/// `ExecStart=` names, or `script` in its place.
 enum Runs {
     Host,
+    Unit,
     Script(&'static str),
     Nothing,
 }
@@ -47,6 +49,12 @@ impl Stubbed {
                 format!(
                     "WSP_UPDATE_CHECK=0 WSP_STARTED_BY=service node {} up --port 0 --no-relay --state {state} </dev/null >>{log} 2>&1 &",
                     q(&bin)
+                )
+            }
+            Runs::Unit => {
+                let unit = q(&Manager::Systemd.unit(&home, &stubbed.state()));
+                format!(
+                    r#"line=$(sed -n 's/^ExecStart=//p' {unit}); WSP_UPDATE_CHECK=0 WSP_STARTED_BY=service sh -c "exec $line" </dev/null >>{log} 2>&1 &"#
                 )
             }
             Runs::Script(script) => format!("LOG={log} sh -c '{script}' </dev/null >/dev/null 2>&1 &"),
@@ -181,6 +189,7 @@ esac
             manager: Some(manager),
             wsp: None,
             restart: false,
+            port: start::DEFAULT_PORT,
             wait,
             say: Arc::new(move |line| said.lock().unwrap().push(line.to_owned())),
         }
@@ -345,4 +354,94 @@ fn launchd_quit_and_stop_keeps_the_unit_and_the_next_open_starts_it_again() {
     // SAFETY: getuid reads this process's user and cannot fail.
     let uid = unsafe { libc::getuid() };
     stops_and_opens_again(Manager::Launchd, |stubbed| format!("launchctl bootout gui/{uid}/{}", Manager::Launchd.name(&stubbed.state())));
+}
+
+fn lock_port(state: &Path) -> Option<u16> {
+    let lock = std::fs::read_to_string(state.with_file_name("host.lock")).ok()?;
+    serde_json::from_str::<serde_json::Value>(&lock).ok()?["port"].as_u64()?.try_into().ok()
+}
+
+/// The port the systemd unit's own words name.
+fn unit_port(stubbed: &Stubbed) -> Option<u16> {
+    let unit = std::fs::read_to_string(Manager::Systemd.unit(&stubbed.home(), &stubbed.state())).ok()?;
+    let argv = Manager::Systemd.argv(&unit)?;
+    argv.get(argv.iter().position(|word| word == "--port")? + 1)?.parse().ok()
+}
+
+/// Catches: a fresh install whose `wsp up --service` writes `--port 4400` into the unit while another wsp host, on
+/// another state file, holds 4400, so the service's host refuses the port it was named and the first run stops on a
+/// dialog; and a later launch whose recorded port another program took. The port the host moved to is the unit's,
+/// read by every later start, the wsp command and the app; the other host is never touched. Systemd's unit only, as
+/// the host's own `wsp up --service` writes the manager of the platform it runs on.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_fresh_install_whose_port_another_host_holds_serves_on_a_free_one_the_unit_keeps() {
+    let other = common::Throwaway::start();
+    let (held, other_lock) = (
+        lock_port(&other.state()).expect("the other host's port"),
+        std::fs::read_to_string(other.state().with_file_name("host.lock")).unwrap(),
+    );
+    let stubbed = Stubbed::new(Runs::Unit);
+    for manager in [Manager::Launchd, Manager::Systemd] {
+        std::fs::remove_file(manager.unit(&stubbed.home(), &stubbed.state())).unwrap();
+    }
+    let wsp = stubbed.home().join(".wsp/bin/wsp");
+    std::fs::create_dir_all(wsp.parent().unwrap()).unwrap();
+    std::fs::write(&wsp, format!("#!/bin/sh\nexec node '{}' \"$@\"\n", common::bundle_with(&stubbed.home(), None).display())).unwrap();
+    std::fs::set_permissions(&wsp, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let mut road = stubbed.start(Manager::Systemd, start::SERVICE_WAIT);
+    road.wsp = Some(wsp.clone());
+    road.port = held;
+    let runner = System::new(&road.env);
+    let open = || {
+        block(start::ready(&road, &runner, |client| async move { client.projects().await.map(|_| client.here()) })).unwrap_or_else(|f| {
+            panic!(
+                "{}\nran: {:?}\nhost log: {}",
+                f.failure.message,
+                stubbed.ran(),
+                std::fs::read_to_string(stubbed.log()).unwrap_or_default()
+            )
+        })
+    };
+
+    let (_, here) = open();
+    assert!(here);
+    let port = lock_port(&stubbed.state()).expect("the host holds the lock");
+    assert_ne!(port, held, "the host serves beside the other one");
+    assert_eq!(unit_port(&stubbed), Some(port), "the unit records the port its host serves on");
+    let moved = format!(
+        "port {held} is in use on this computer by another program, so the systemd unit {} serves on {port}",
+        Manager::Systemd.name(&stubbed.state())
+    );
+    assert!(stubbed.said.lock().unwrap().contains(&moved), "{:?}", stubbed.said.lock().unwrap());
+    let status = std::process::Command::new(&wsp)
+        .args(["status", "--state", &stubbed.state().to_string_lossy()])
+        .env_clear()
+        .envs(&road.env)
+        .output()
+        .unwrap();
+    let said = String::from_utf8_lossy(&status.stdout);
+    assert!(status.status.success() && said.contains(&format!(":{port}")), "wsp status: {said}{}", String::from_utf8_lossy(&status.stderr));
+    assert_eq!(
+        std::fs::read_to_string(other.state().with_file_name("host.lock")).unwrap(),
+        other_lock,
+        "the other host's lock is as it was"
+    );
+    block(wsp_host_client::HostClient::connect(&other.state(), &other.env())).expect("the other host still answers");
+
+    block(start::stop(&road, &runner)).expect("Quit and stop stops the host");
+    let (_, here) = open();
+    assert!(here);
+    assert_eq!(lock_port(&stubbed.state()), Some(port), "a later launch serves on the recorded port");
+    assert_eq!(unit_port(&stubbed), Some(port));
+
+    block(start::stop(&road, &runner)).expect("Quit and stop stops the host");
+    let taken = std::net::TcpListener::bind(("127.0.0.1", port)).expect("the test holds the recorded port");
+    let (_, here) = open();
+    assert!(here);
+    let again = lock_port(&stubbed.state()).expect("the host holds the lock");
+    assert!(again != port && again != held, "{again}");
+    assert_eq!(unit_port(&stubbed), Some(again), "the unit records the port it moved to");
+    drop(taken);
+    assert_eq!(std::fs::read_to_string(other.state().with_file_name("host.lock")).unwrap(), other_lock);
 }
