@@ -576,7 +576,11 @@ impl Sidebar {
             Act::Snooze => dialogs::snooze(self, key, window, cx),
             Act::Move(to) => self.move_root(key, to, cx),
             Act::CopyLink => {
-                let page = self.link.as_ref().and_then(|l| l.page.clone()).unwrap_or_else(|| "http://127.0.0.1:4400/".to_owned());
+                let page = self.link.as_ref().and_then(|l| super::link_page(l.host.here(), l.host.state(), l.page.as_deref()));
+                let Some(page) = page else {
+                    self.refuse("There is no page to link to: no host is serving".to_owned(), cx);
+                    return;
+                };
                 let thread = t.thread_id.clone().unwrap_or_default();
                 let link = format!("{page}#w/{}/t/{}", encode(&t.workspace_id), encode(&thread));
                 cx.write_to_clipboard(ClipboardItem::new_string(link));

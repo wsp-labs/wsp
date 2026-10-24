@@ -445,3 +445,206 @@ fn a_fresh_install_whose_port_another_host_holds_serves_on_a_free_one_the_unit_k
     drop(taken);
     assert_eq!(std::fs::read_to_string(other.state().with_file_name("host.lock")).unwrap(), other_lock);
 }
+
+/// launchd and the wsp command as the Mac's first launch met them: `wsp up --service` writes the plist and its host
+/// refuses `refused` in the host's own words, whatever this computer's probe reads of that port, and on any other
+/// port a real host starts as the agent would start it.
+struct MacLaunch {
+    home: PathBuf,
+    state: PathBuf,
+    refused: u16,
+    bin: PathBuf,
+    host: Mutex<Option<std::process::Child>>,
+    ran: Mutex<Vec<String>>,
+}
+
+impl MacLaunch {
+    fn plist_port(&self) -> Option<u16> {
+        let argv = Manager::Launchd.argv(&std::fs::read_to_string(Manager::Launchd.unit(&self.home, &self.state)).ok()?)?;
+        argv.get(argv.iter().position(|word| word == "--port")? + 1)?.parse().ok()
+    }
+
+    fn host_pid(&self) -> Option<u32> {
+        let mut host = self.host.lock().unwrap();
+        let alive = host.as_mut().is_some_and(|child| matches!(child.try_wait(), Ok(None)));
+        alive.then(|| host.as_ref().unwrap().id())
+    }
+}
+
+/// The host's own refusal of a held port it was named (`portTakenLine`, `portInsteadLine`).
+fn refusal(port: u16) -> String {
+    let next = port + 1;
+    format!(
+        "Port {port} is in use on this computer by Electron (pid 24790).\nNothing was booted. The next free port is {next}: wsp up --port {next}. Or stop what holds the one you named.\n"
+    )
+}
+
+impl start::Runner for MacLaunch {
+    async fn run(&self, argv: &[String]) -> start::Ran {
+        self.ran.lock().unwrap().push(argv.join(" "));
+        let ok = |output: String| start::Ran { code: 0, output };
+        match argv.get(1).map(String::as_str) {
+            Some("print") => match self.host_pid() {
+                Some(pid) => ok(format!("\tstate = running\n\tpid = {pid}\n")),
+                None => {
+                    // KeepAlive starts the plist's host again, and it refuses its port again in the log.
+                    if self.plist_port() == Some(self.refused) {
+                        let mut log =
+                            std::fs::OpenOptions::new().create(true).append(true).open(self.state.with_file_name("host.log")).unwrap();
+                        std::io::Write::write_all(&mut log, refusal(self.refused).as_bytes()).unwrap();
+                    }
+                    start::Ran { code: 113, output: "Could not find service".to_owned() }
+                }
+            },
+            Some("bootout") => {
+                if let Some(mut child) = self.host.lock().unwrap().take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                ok(String::new())
+            }
+            _ => ok(String::new()),
+        }
+    }
+
+    async fn wsp(&self, argv: &[String], _cwd: &Path) -> start::Ran {
+        self.ran.lock().unwrap().push(argv.join(" "));
+        let port: u16 = argv[argv.iter().position(|word| word == "--port").unwrap() + 1].parse().unwrap();
+        let words: String = argv.iter().map(|word| format!("<string>{word}</string>")).collect();
+        let plist = Manager::Launchd.unit(&self.home, &self.state);
+        std::fs::create_dir_all(plist.parent().unwrap()).unwrap();
+        std::fs::write(&plist, format!("<plist><dict><key>ProgramArguments</key><array>{words}</array></dict></plist>\n")).unwrap();
+        let log = self.state.with_file_name("host.log");
+        if port == self.refused {
+            let said = refusal(port);
+            std::fs::write(&log, said.repeat(2)).unwrap();
+            let loaded = format!(
+                "the launchd agent {} loaded, but nothing answered on port {port} for {} within 20s.",
+                Manager::Launchd.name(&self.state),
+                self.state.display()
+            );
+            return start::Ran { code: 1, output: format!("{loaded}\n{said}") };
+        }
+        let out = std::fs::OpenOptions::new().create(true).append(true).open(&log).unwrap();
+        let mut vars = common::env_in(&self.home);
+        vars.insert("WSP_STARTED_BY".to_owned(), "service".to_owned());
+        let child = std::process::Command::new("node")
+            .arg(&self.bin)
+            .args(["up", "--state", &self.state.to_string_lossy(), "--port", &port.to_string(), "--no-relay"])
+            .env_clear()
+            .envs(&vars)
+            .current_dir(&self.home)
+            .stdin(std::process::Stdio::null())
+            .stdout(out.try_clone().unwrap())
+            .stderr(out)
+            .spawn()
+            .unwrap();
+        *self.host.lock().unwrap() = Some(child);
+        let until = Instant::now() + Duration::from_secs(30);
+        while lock_port(&self.state) != Some(port) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        start::Ran { code: 0, output: format!("launchd agent {} is loaded", Manager::Launchd.name(&self.state)) }
+    }
+}
+
+impl Drop for MacLaunch {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.host.lock().unwrap().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/// Catches: the Mac's first launch, where this computer's probe read the port free and the host the plist runs
+/// refused it as held, stopping on the dialog with the plist still naming that port. The launch entry the window
+/// calls (`start::ready`) moves the plist to the port the host's refusal named and opens on the host there.
+#[test]
+fn a_launch_whose_host_refuses_the_port_the_probe_read_free_moves_to_the_one_it_named() {
+    refused_launch(false, false);
+}
+
+/// Catches: a later launch whose plist names a port the probe reads free and its host refuses at every start, as
+/// launchd starts it again, loaded as it stands at every launch; once the host has refused it, the plist moves.
+#[test]
+fn a_later_launch_whose_host_refuses_its_recorded_port_moves_to_the_one_it_named() {
+    refused_launch(true, false);
+}
+
+/// Catches: the move on the host's refusal taken while a computer has joined this host, whose door moves with the
+/// port; the plist stays and the host's own refusal is the answer, as before.
+#[test]
+fn a_later_launch_whose_host_refuses_its_port_stays_while_a_computer_has_joined() {
+    refused_launch(true, true);
+}
+
+fn refused_launch(standing: bool, joined: bool) {
+    let dir = common::tempdir();
+    let home = dir.path().to_owned();
+    let state = home.join(".wsp/state.json");
+    std::fs::create_dir_all(state.parent().unwrap()).unwrap();
+    let refused = loop {
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        if port < u16::MAX && std::net::TcpListener::bind(("127.0.0.1", port + 1)).is_ok() {
+            break port;
+        }
+    };
+    let wsp = home.join(".wsp/bin/wsp");
+    let launch = MacLaunch {
+        home: home.clone(),
+        state: state.clone(),
+        refused,
+        bin: common::bundle_with(&home, None),
+        host: Mutex::new(None),
+        ran: Mutex::new(Vec::new()),
+    };
+    if standing {
+        let words: String = [wsp.to_string_lossy().as_ref(), "up", "--state", &state.to_string_lossy(), "--port", &refused.to_string()]
+            .iter()
+            .map(|word| format!("<string>{word}</string>"))
+            .collect();
+        let plist = Manager::Launchd.unit(&home, &state);
+        std::fs::create_dir_all(plist.parent().unwrap()).unwrap();
+        std::fs::write(&plist, format!("<plist><dict><key>ProgramArguments</key><array>{words}</array></dict></plist>\n")).unwrap();
+    }
+    if joined {
+        let db = rusqlite::Connection::open(state.with_file_name("state.db")).unwrap();
+        db.execute_batch(
+            "create table collections (collection text, id text, json text); insert into collections values ('places', 'p1', '{}');",
+        )
+        .unwrap();
+    }
+    let said = Arc::new(Mutex::new(Vec::new()));
+    let kept = said.clone();
+    let road = Start {
+        state: state.clone(),
+        env: common::env_in(&home),
+        home: home.clone(),
+        uid: 501,
+        manager: Some(Manager::Launchd),
+        wsp: Some(wsp.clone()),
+        restart: false,
+        port: refused,
+        wait: if standing { Duration::from_secs(2) } else { start::SERVICE_WAIT },
+        say: Arc::new(move |line| kept.lock().unwrap().push(line.to_owned())),
+    };
+    let opened = block(start::ready(&road, &launch, |client| async move { client.projects().await.map(|_| client.here()) }));
+    if joined {
+        let failed = opened.map(|_| ()).unwrap_err();
+        assert!(failed.failure.message.contains(&format!("The next free port is {}", refused + 1)), "{}", failed.failure.message);
+        assert_eq!(launch.plist_port(), Some(refused), "the plist stays on its port");
+        assert!(!launch.ran.lock().unwrap().iter().any(|line| line.contains(" up --service ")), "{:?}", launch.ran.lock().unwrap());
+        return;
+    }
+    let (_, here) =
+        opened.unwrap_or_else(|f| panic!("{}\nran: {:?}\nsaid: {:?}", f.failure.message, launch.ran.lock().unwrap(), said.lock().unwrap()));
+    assert!(here);
+    let next = refused + 1;
+    assert_eq!(lock_port(&state), Some(next), "the host serves on the port its refusal named");
+    let plist = std::fs::read_to_string(Manager::Launchd.unit(&home, &state)).unwrap();
+    let argv = Manager::Launchd.argv(&plist).unwrap();
+    assert_eq!(argv[argv.iter().position(|word| word == "--port").unwrap() + 1], next.to_string(), "{plist}");
+    let moved = format!("which its host refused as in use, so it moves to {next}");
+    assert!(said.lock().unwrap().iter().any(|line| line.contains(&moved)), "{:?}", said.lock().unwrap());
+}

@@ -153,6 +153,12 @@ pub struct Link {
     pub page: Option<String>,
 }
 
+/// The page a thread's link names: for the host here, where its lock says it is dialled now, which follows its port
+/// when the unit moves; else the page the link attached on; none where neither is known.
+pub fn link_page(here: bool, state: &std::path::Path, attached: Option<&str>) -> Option<String> {
+    host_page(state).filter(|_| here).or_else(|| attached.map(str::to_owned))
+}
+
 /// The page the host serving `state` answers on, where its lock says it is dialled, as the desktop app loads it.
 pub fn host_page(state: &std::path::Path) -> Option<String> {
     let held = lock::serving(state)?;

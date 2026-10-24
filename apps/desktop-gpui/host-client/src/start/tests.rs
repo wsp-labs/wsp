@@ -1130,3 +1130,82 @@ fn a_rewrite_off_a_held_port_that_the_command_refused_is_its_refusal() {
     assert_eq!(failed.failure.message, refusal);
     assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), unit);
 }
+
+/// A unit for the fixture's state running the wsp command on `port`.
+fn unit_on(f: &Fixture, wsp: &Path, port: u16) -> String {
+    format!("ExecStart='{}' 'up' '--state' '{}' '--port' '{port}'\n", wsp.display(), f.start.state.display())
+}
+
+const ACTIVATING: &str = "ActiveState=activating\nUnitFileState=enabled\nMainPID=0";
+
+/// Catches: a recorded port another program held for a moment, as the launch read it, moving the unit for good; the
+/// port is read again a moment later and the unit is loaded as it stands.
+#[test]
+fn a_recorded_port_held_for_a_moment_leaves_the_unit_as_it_stands() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    let wsp = owned(&mut f);
+    let (taken, held) = held_port();
+    std::fs::write(&f.unit, unit_on(&f, &wsp, held)).unwrap();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(500));
+        drop(taken);
+    });
+    let fake = Fake::new(|argv| match argv[2].as_str() {
+        "show" => ok(ACTIVATING),
+        _ => ok(""),
+    });
+    block(ensure(&f.start, &fake)).unwrap();
+    assert!(!fake.ran().iter().any(|line| line.contains("--service") || line.contains(" stop ")), "{:?}", fake.ran());
+    assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), unit_on(&f, &wsp, held));
+}
+
+/// Catches: a later launch moving the unit off a held port while a computer has joined this host, whose door moves
+/// with the port and would no longer answer it; the joined computer read off the database, or off a state file not yet
+/// moved into one. The host's own refusal stands, as before.
+#[test]
+fn a_unit_on_a_held_port_stays_while_a_computer_has_joined() {
+    for store in ["state.db", "state.json"] {
+        let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+        let wsp = owned(&mut f);
+        let (_taken, held) = held_port();
+        std::fs::write(&f.unit, unit_on(&f, &wsp, held)).unwrap();
+        if store == "state.db" {
+            let db = rusqlite::Connection::open(f.start.state.with_file_name(store)).unwrap();
+            db.execute_batch(
+                "create table collections (collection text, id text, json text, primary key (collection, id));
+                 insert into collections values ('places', 'p1', '{\"id\":\"p1\",\"name\":\"box\"}');",
+            )
+            .unwrap();
+        } else {
+            std::fs::write(&f.start.state, r#"{"workspaces":{},"places":{"p1":{"id":"p1","name":"box"}}}"#).unwrap();
+        }
+        let fake = Fake::new(|argv| match argv[2].as_str() {
+            "show" => ok(ACTIVATING),
+            _ => ok(""),
+        });
+        block(ensure(&f.start, &fake)).unwrap();
+        assert!(!fake.ran().iter().any(|line| line.contains("--service") || line.contains(" stop ")), "{store}: {:?}", fake.ran());
+        assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), unit_on(&f, &wsp, held));
+        let stays = format!("since the computers joined to this host dial its door at {}", held + 20);
+        assert!(f.said().iter().any(|line| line.contains(&stays)), "{store}: {:?}", f.said());
+    }
+}
+
+/// Catches: a store with no computer in it read as one joined, so a later launch never moves; and a store that is
+/// there and cannot be read read as none, so the unit moves out from under a joined computer.
+#[test]
+fn joined_reads_the_places_the_store_holds() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = dir.path().join("state.json");
+    assert!(!joined(&state), "a home with no store has none");
+    std::fs::write(&state, r#"{"places":{}}"#).unwrap();
+    assert!(!joined(&state));
+    std::fs::write(&state, "not json").unwrap();
+    assert!(joined(&state), "a state file that does not read");
+    let db = rusqlite::Connection::open(dir.path().join("state.db")).unwrap();
+    db.execute_batch("pragma journal_mode = wal; create table collections (collection text, id text, json text); insert into collections values ('workspaces', 'w1', '{}');").unwrap();
+    drop(db);
+    assert!(!joined(&state), "the database has no places, and the old state file is passed over");
+    std::fs::write(dir.path().join("state.db"), "not a database").unwrap();
+    assert!(joined(&state), "a database that does not read");
+}

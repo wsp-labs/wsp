@@ -19,6 +19,21 @@ fn the_host_page_is_where_the_lock_is_dialled() {
     assert_eq!(lock(me, "127.0.0.2").as_deref(), Some("http://127.0.0.2:4100/"));
     assert_eq!(lock(0, "127.0.0.1"), None);
 }
+/// Catches: a thread link naming the page the window attached on, or 4400 where none was known, after the host moved
+/// to another port; a link to a host somewhere else keeps its own page, and nothing known is no link at all.
+#[test]
+fn a_thread_link_names_the_port_the_host_here_serves_on_now() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = dir.path().join("state.json");
+    let attached = Some("http://127.0.0.1:4400/");
+    assert_eq!(link_page(true, &state, None), None);
+    assert_eq!(link_page(false, &state, Some("https://box.example/")).as_deref(), Some("https://box.example/"));
+    let lock = format!(r#"{{"pid":{},"port":4401,"startedAt":"2026-10-25T00:00:00.000Z"}}"#, std::process::id());
+    std::fs::write(dir.path().join("host.lock"), lock).unwrap();
+    assert_eq!(link_page(true, &state, attached).as_deref(), Some("http://127.0.0.1:4401/"));
+    assert_eq!(link_page(false, &state, Some("https://box.example/")).as_deref(), Some("https://box.example/"));
+}
+
 use gpui_kit::component::Root;
 use gpui_kit::{size, TestAppContext, VisualTestContext};
 use model::Item;
