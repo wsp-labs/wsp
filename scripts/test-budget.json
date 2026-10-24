@@ -1,7 +1,8 @@
 {
-  "measured": "tests: scripts/test-budget.mjs's count at 9068124d2; seconds: each suite's wall time on the owner's Mac at 9068124d2 on 2026-10-21, after the test cut",
+  "measured": "tests: scripts/test-budget.mjs's count at 9068124d2; seconds: each suite's wall time on the owner's Mac at 9068124d2 on 2026-10-21, after the test cut; apps/desktop-gpui: its count at d5f6ca90e, and its seconds by hand on an 8-core Linux machine at load 0.43, from node --test --test-concurrency=2 on its seven test files, since they are node:test files vitest does not run",
   "packages": {
     "apps/desktop": {"tests":456,"seconds":153.2},
+    "apps/desktop-gpui": {"tests":56,"seconds":371.4},
     "apps/docs-next": {"tests":19,"seconds":5.1},
     "apps/web": {"tests":4797,"seconds":245.9},
     "apps/www": {"tests":41,"seconds":4.6},
@@ -20,6 +21,9 @@
     "packages/runtime": {"tests":3416,"seconds":427},
     "packages/wspx": {"tests":140,"seconds":5.1}
   },
-  "over": [],
+  "over": [
+    {"package":"apps/desktop","tests":481,"why":"the Experimental switch, which hands the desktop app over to the GPUI app, brought 25 tests: experimental.test.ts 17 and experimental-main.test.ts 8"},
+    {"package":"daemon","tests":1454,"why":"wsp-mcp gained 33 tests for the GPUI app's host takeover: the lock proofs it rests on in tests/lock_proof.rs 13 and src/proof.rs 9, and 11 more across aim.rs, client.rs, failure.rs, record.rs, release.rs, tests/lock_login.rs and tests/release.rs"}
+  ],
   "timed": {}
 }
