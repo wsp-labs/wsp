@@ -1,0 +1,232 @@
+diff --git a/src/text_system/line_layout.rs b/src/text_system/line_layout.rs
+index f0bf121..6de8c09 100644
+--- a/src/text_system/line_layout.rs
++++ b/src/text_system/line_layout.rs
+@@ -206,6 +206,7 @@ impl LineLayout {
+         };
+         let mut last_boundary_x = px(0.);
+         let mut prev_ch = '\0';
++        let mut before_prev_ch = '\0';
+         let mut glyphs = self
+             .runs
+             .iter()
+@@ -229,16 +230,11 @@ impl LineLayout {
+ 
+             // Here is very similar to `LineWrapper::wrap_line` to determine text wrapping,
+             // but there are some differences, so we have to duplicate the code here.
+-            if LineWrapper::is_word_char(ch) {
+-                if prev_ch == ' ' && ch != ' ' && first_non_whitespace_ix.is_some() {
+-                    last_candidate_ix = Some(boundary);
+-                    last_candidate_x = x;
+-                }
+-            } else {
+-                if ch != ' ' && first_non_whitespace_ix.is_some() {
+-                    last_candidate_ix = Some(boundary);
+-                    last_candidate_x = x;
+-                }
++            if LineWrapper::can_break_before(before_prev_ch, prev_ch, ch)
++                && first_non_whitespace_ix.is_some()
++            {
++                last_candidate_ix = Some(boundary);
++                last_candidate_x = x;
+             }
+ 
+             if ch != ' ' && first_non_whitespace_ix.is_none() {
+@@ -248,7 +244,8 @@ impl LineLayout {
+             let next_x = glyphs.peek().map_or(self.width, |(_, _, x)| *x);
+             let width = next_x - last_boundary_x;
+ 
+-            if width > wrap_width && boundary > last_boundary {
++            // A space crossing the edge hangs past it, as in Chromium; the line breaks after the run of spaces.
++            if width > wrap_width && boundary > last_boundary && ch != ' ' {
+                 // When used line_clamp, we should limit the number of lines.
+                 if let Some(max_lines) = max_lines
+                     && boundaries.len() >= max_lines.saturating_sub(1)
+@@ -265,6 +262,7 @@ impl LineLayout {
+                 }
+                 boundaries.push(last_boundary);
+             }
++            before_prev_ch = prev_ch;
+             prev_ch = ch;
+         }
+ 
+@@ -493,6 +491,37 @@ pub(crate) struct LineLayoutIndex {
+     wrapped_lines_by_hash_index: usize,
+ }
+ 
++impl LineLayoutIndex {
++    /// This index as a count of layouts past `base`, an index at or before it of the same generation.
++    pub(crate) fn offset_from(&self, base: &Self) -> Self {
++        Self {
++            font_generation: self.font_generation,
++            lines_index: self.lines_index - base.lines_index,
++            wrapped_lines_index: self.wrapped_lines_index - base.wrapped_lines_index,
++            lines_by_hash_index: self.lines_by_hash_index - base.lines_by_hash_index,
++            wrapped_lines_by_hash_index: self.wrapped_lines_by_hash_index
++                - base.wrapped_lines_by_hash_index,
++        }
++    }
++
++    /// The index `offset` layouts past this one.
++    pub(crate) fn offset_by(&self, offset: &Self) -> Self {
++        Self {
++            font_generation: self.font_generation,
++            lines_index: self.lines_index + offset.lines_index,
++            wrapped_lines_index: self.wrapped_lines_index + offset.wrapped_lines_index,
++            lines_by_hash_index: self.lines_by_hash_index + offset.lines_by_hash_index,
++            wrapped_lines_by_hash_index: self.wrapped_lines_by_hash_index
++                + offset.wrapped_lines_by_hash_index,
++        }
++    }
++
++    /// Whether both indices count layouts made with the same fonts.
++    pub(crate) fn same_generation(&self, other: &Self) -> bool {
++        self.font_generation == other.font_generation
++    }
++}
++
+ impl LineLayoutCache {
+     pub fn new(
+         platform_text_system: Arc<dyn PlatformTextSystem>,
+diff --git a/src/text_system/line_wrapper.rs b/src/text_system/line_wrapper.rs
+index ca821bb..6e42ff5 100644
+--- a/src/text_system/line_wrapper.rs
++++ b/src/text_system/line_wrapper.rs
+@@ -62,6 +62,7 @@ impl LineWrapper {
+         let mut last_candidate_width = px(0.);
+         let mut last_wrap_ix = 0;
+         let mut prev_c = '\0';
++        let mut before_prev_c = '\0';
+         let mut index = 0;
+         let mut candidates = fragments
+             .iter()
+@@ -71,30 +72,25 @@ impl LineWrapper {
+             for candidate in candidates.by_ref() {
+                 let ix = index;
+                 index += candidate.len_utf8();
+-                let mut new_prev_c = prev_c;
++                let (mut new_prev_c, mut new_before_prev_c) = (prev_c, before_prev_c);
+                 let item_width = match candidate {
+                     WrapBoundaryCandidate::Char { character: c } => {
+                         if c == '\n' {
+                             continue;
+                         }
+ 
+-                        if Self::is_word_char(c) {
+-                            if prev_c == ' ' && c != ' ' && first_non_whitespace_ix.is_some() {
+-                                last_candidate_ix = ix;
+-                                last_candidate_width = width;
+-                            }
+-                        } else {
+-                            // CJK may not be space separated, e.g.: `Hello world你好世界`
+-                            if c != ' ' && first_non_whitespace_ix.is_some() {
+-                                last_candidate_ix = ix;
+-                                last_candidate_width = width;
+-                            }
++                        if Self::can_break_before(before_prev_c, prev_c, c)
++                            && first_non_whitespace_ix.is_some()
++                        {
++                            last_candidate_ix = ix;
++                            last_candidate_width = width;
+                         }
+ 
+                         if c != ' ' && first_non_whitespace_ix.is_none() {
+                             first_non_whitespace_ix = Some(ix);
+                         }
+ 
++                        new_before_prev_c = prev_c;
+                         new_prev_c = c;
+ 
+                         self.width_for_char(c)
+@@ -115,6 +111,8 @@ impl LineWrapper {
+                         element_width
+                     }
+                 };
++                // Before a wrap returns, so the next line's first break sees the character that ended this one.
++                (prev_c, before_prev_c) = (new_prev_c, new_before_prev_c);
+ 
+                 width += item_width;
+                 if width > wrap_width && ix > last_wrap_ix {
+@@ -178,8 +176,6 @@ impl LineWrapper {
+ 
+                     return Some(Boundary::new(last_wrap_ix, next_indent));
+                 }
+-
+-                prev_c = new_prev_c;
+             }
+ 
+             None
+@@ -392,6 +388,7 @@ impl LineWrapper {
+         let mut last_candidate_width = px(0.);
+         let mut last_wrap_ix = 0usize;
+         let mut prev_c = '\0';
++        let mut before_prev_c = '\0';
+         let mut indent: Option<u32> = None;
+         let mut truncate_ix = 0usize;
+ 
+@@ -421,6 +418,7 @@ impl LineWrapper {
+                 last_candidate_width = px(0.);
+                 last_wrap_ix = ix + 1;
+                 prev_c = '\0';
++                before_prev_c = '\0';
+                 indent = None;
+                 truncate_ix = ix + 1;
+                 continue;
+@@ -428,12 +426,7 @@ impl LineWrapper {
+ 
+             let char_width = self.width_for_char(c);
+ 
+-            if Self::is_word_char(c) {
+-                if prev_c == ' ' && first_non_whitespace_ix.is_some() {
+-                    last_candidate_ix = ix;
+-                    last_candidate_width = width;
+-                }
+-            } else if c != ' ' && first_non_whitespace_ix.is_some() {
++            if Self::can_break_before(before_prev_c, prev_c, c) && first_non_whitespace_ix.is_some() {
+                 last_candidate_ix = ix;
+                 last_candidate_width = width;
+             }
+@@ -489,6 +482,7 @@ impl LineWrapper {
+                 }
+             }
+ 
++            before_prev_c = prev_c;
+             prev_c = c;
+         }
+ 
+@@ -496,6 +490,35 @@ impl LineWrapper {
+         (text, Cow::Borrowed(runs))
+     }
+ 
++    /// Whether a line may break before `c`, the character after `before` and `prev`: after a run of spaces; between two
++    /// printable ASCII characters only where Blink's table allows it (`FillAscii` in Chromium's
++    /// third_party/blink/renderer/platform/text/character_property_data_generator.cc, with `ShouldBreakFast` in
++    /// text_break_iterator.cc for `-` before a digit); elsewhere before any character that is not a word character.
++    pub(crate) fn can_break_before(before: char, prev: char, c: char) -> bool {
++        if c == ' ' {
++            return false;
++        }
++        if prev == ' ' {
++            return true;
++        }
++        let ascii = |c: char| ('!'..='\u{7f}').contains(&c);
++        if !(ascii(prev) && ascii(c)) {
++            // CJK may not be space separated, e.g.: `Hello world你好世界`
++            return !Self::is_word_char(c);
++        }
++        if matches!(prev, '$' | '\'' | '(' | '/' | '0'..='9' | '<' | '@' | 'A'..='Z' | '[' | '^'..='`' | 'a'..='z' | '{' | '\u{7f}')
++            || matches!(c, '!' | ')' | ',' | '.' | '/' | ':' | ';' | '?' | ']' | '}')
++        {
++            return false;
++        }
++        match prev {
++            '-' if c.is_ascii_digit() => before.is_ascii_alphanumeric(),
++            '-' => c != '$',
++            '?' => !matches!(c, '"' | '\''),
++            _ => matches!(c, '(' | '<' | '[' | '{'),
++        }
++    }
++
+     /// Any character in this list should be treated as a word character,
+     /// meaning it can be part of a word that should not be wrapped.
+     pub(crate) fn is_word_char(c: char) -> bool {

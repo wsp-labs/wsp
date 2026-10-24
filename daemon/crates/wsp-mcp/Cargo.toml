@@ -18,6 +18,9 @@ libc = "0.2"
 wsp-frames = { path = "../wsp-frames" }
 wsp-seal = { path = "../wsp-seal" }
 getrandom = "0.4"
+# The digest of the host's token a page on the lock's port is held to, compared in constant time.
+ring = "0.17"
+subtle.workspace = true
 
 # The record copied into the build, a public build's with Boat as its one cloud and no cloud-on words: build.rs.
 [build-dependencies]

@@ -1,0 +1,2191 @@
+diff --git a/src/cosmic_text_system.rs b/src/cosmic_text_system.rs
+index b7c38bb..380f1ca 100644
+--- a/src/cosmic_text_system.rs
++++ b/src/cosmic_text_system.rs
+@@ -237,16 +237,21 @@ impl PlatformTextSystem for CosmicTextSystem {
+         }
+     }
+ 
++    // The glyph's ink in font units, y up, as Core Text answers on the Mac; a glyph with no outline has none.
+     fn typographic_bounds(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Bounds<f32>> {
+-        let lock = self.0.read();
+-        let glyph_metrics = lock.loaded_font(font_id).font.as_swash().glyph_metrics(&[]);
+-        let glyph_id = glyph_id.0 as u16;
++        let mut lock = self.0.write();
++        let state = &mut *lock;
++        let font = state.loaded_fonts[font_id.0].font.as_swash();
++        let ink = state
++            .swash_scale_context
++            .builder(font)
++            .build()
++            .scale_outline(glyph_id.0 as u16)
++            .map(|outline| outline.bounds())
++            .unwrap_or_default();
+         Ok(Bounds {
+-            origin: point(0.0, 0.0),
+-            size: size(
+-                glyph_metrics.advance_width(glyph_id),
+-                glyph_metrics.advance_height(glyph_id),
+-            ),
++            origin: point(ink.min.x, ink.min.y),
++            size: size(ink.width(), ink.height()),
+         })
+     }
+ 
+@@ -527,7 +532,8 @@ impl CosmicTextSystemState {
+             .swash_scale_context
+             .builder(font_ref)
+             .size(pixel_size * params.scale_factor)
+-            .hint(true)
++            // Chromium stops hinting above scale 1, where it places glyphs at subpixel offsets.
++            .hint(params.scale_factor <= 1.)
+             .build();
+ 
+         let sources: &[Source] = if params.is_emoji {
+diff --git a/src/shaders.wgsl b/src/shaders.wgsl
+index 718cb75..eaf381f 100644
+--- a/src/shaders.wgsl
++++ b/src/shaders.wgsl
+@@ -111,6 +111,15 @@ struct Corners {
+     bottom_left: f32,
+ }
+ 
++struct SceneRoundedClip {
++    bounds: Bounds,
++    corner_radii: Corners,
++    parent: u32,
++    fade_top: f32,
++    fade_bottom: f32,
++    pad: u32,
++}
++
+ struct Edges {
+     top: f32,
+     right: f32,
+@@ -386,6 +395,27 @@ fn quad_sdf_impl(corner_center_to_point: vec2<f32>, corner_radius: f32) -> f32 {
+     }
+ }
+ 
++// Compiled out of the pipelines that draw a frame with no rounded clip.
++override ROUNDED_CLIPS: bool = true;
++
++// A primitive with no rounded clip passes 0 from its vertex stage and reads no clip memory.
++fn rounded_clip_alpha(point: vec2<f32>, clip_id: u32) -> f32 {
++    if (!ROUNDED_CLIPS) {
++        return 1.0;
++    }
++    var alpha = 1.0;
++    var id = clip_id;
++    while (id != 0u) {
++        let clip = load_rounded_clip(id);
++        alpha *= saturate(0.5 - quad_sdf(point, clip.bounds, clip.corner_radii));
++        if (clip.fade_bottom > clip.fade_top) {
++            alpha *= saturate((clip.fade_bottom - point.y) / (clip.fade_bottom - clip.fade_top));
++        }
++        id = clip.parent;
++    }
++    return alpha;
++}
++
+ // Abstract away the final color transformation based on the
+ // target alpha compositing mode.
+ fn blend_color(color: vec4<f32>, alpha_factor: f32) -> vec4<f32> {
+@@ -525,6 +555,8 @@ struct Quad {
+     border_color: Hsla,
+     corner_radii: Corners,
+     border_widths: Edges,
++    rounded_clip: u32,
++    pad: array<u32, 3>,
+ }
+ 
+ struct QuadVarying {
+@@ -536,6 +568,7 @@ struct QuadVarying {
+     @location(3) @interpolate(flat) background_solid: vec4<f32>,
+     @location(4) @interpolate(flat) background_color0: vec4<f32>,
+     @location(5) @interpolate(flat) background_color1: vec4<f32>,
++    @location(6) @interpolate(flat) rounded_clip: u32,
+ }
+ 
+ @vertex
+@@ -557,6 +590,7 @@ fn vs_quad(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) insta
+     out.background_color1 = gradient.color1;
+     out.border_color = hsla_to_rgba(quad.border_color);
+     out.quad_id = instance_id;
++    out.rounded_clip = quad.rounded_clip;
+     out.clip_distances = distance_from_clip_rect(unit_vertex, quad.bounds, quad.content_mask);
+     return out;
+ }
+@@ -569,6 +603,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+     }
+ 
+     let quad = load_quad(input.quad_id);
++    let clip_alpha = rounded_clip_alpha(input.position.xy, input.rounded_clip);
+ 
+     let background_color = gradient_color(quad.background, input.position.xy, quad.bounds,
+         input.background_solid, input.background_color0, input.background_color1);
+@@ -584,7 +619,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+             quad.border_widths.right == 0.0 &&
+             quad.border_widths.bottom == 0.0 &&
+             unrounded) {
+-        return blend_color(background_color, 1.0);
++        return blend_color(background_color, clip_alpha);
+     }
+ 
+     let size = quad.bounds.size;
+@@ -650,7 +685,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+     // However, that might negatively impact performance in the case of
+     // reasonable sizes for rounded corners.
+     if (is_within_inner_straight_border && !is_near_rounded_corner) {
+-        return blend_color(background_color, 1.0);
++        return blend_color(background_color, clip_alpha);
+     }
+ 
+     // Signed distance of the point to the outside edge of the quad's border. It
+@@ -882,14 +917,12 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+             }
+         }
+ 
+-        // Blend the border on top of the background and then linearly interpolate
+-        // between the two as we slide inside the background.
+-        let blended_border = over(background_color, border_color);
+-        color = mix(background_color, blended_border,
+-                    saturate(antialias_threshold - inner_sdf));
++        // Coverage scales the border before `over`: mixing straight alpha lights a translucent fill's arcs.
++        border_color.a *= saturate(antialias_threshold - inner_sdf);
++        color = over(background_color, border_color);
+     }
+ 
+-    return blend_color(color, saturate(antialias_threshold - outer_sdf));
++    return blend_color(color, saturate(antialias_threshold - outer_sdf) * clip_alpha);
+ }
+ 
+ // Returns the dash velocity of a corner given the dash velocity of the two
+@@ -955,13 +988,12 @@ struct Shadow {
+     corner_radii: Corners,
+     content_mask: Bounds,
+     color: Hsla,
+-    // Only consulted when `inset == 1u`: the element's own bounds, used as a rounded-rect
+-    // clip so the shadow never escapes the element.
++    // CSS paints an inset shadow only inside these bounds and an outer one only outside them.
+     element_bounds: Bounds,
+     element_corner_radii: Corners,
+     // 0 = drop shadow, 1 = inset shadow.
+     inset: u32,
+-    pad: u32, // align to 8 bytes
++    rounded_clip: u32,
+ }
+ 
+ struct ShadowVarying {
+@@ -970,6 +1002,7 @@ struct ShadowVarying {
+     @location(1) @interpolate(flat) shadow_id: u32,
+     //TODO: use `clip_distance` once Naga supports it
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) rounded_clip: u32,
+ }
+ 
+ @vertex
+@@ -992,6 +1025,7 @@ fn vs_shadow(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) ins
+     out.position = to_device_position(unit_vertex, geometry);
+     out.color = hsla_to_rgba(shadow.color);
+     out.shadow_id = instance_id;
++    out.rounded_clip = shadow.rounded_clip;
+     out.clip_distances = distance_from_clip_rect(unit_vertex, geometry, shadow.content_mask);
+     return out;
+ }
+@@ -1004,6 +1038,16 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
+     }
+ 
+     let shadow = load_shadow(input.shadow_id);
++    // An outer shadow paints nothing under its element, so the blur below is skipped there.
++    var outside = 1.0;
++    if (shadow.inset == 0u) {
++        outside = saturate(0.5 + quad_sdf(input.position.xy, shadow.element_bounds,
++                                          shadow.element_corner_radii));
++        if (outside == 0.0) {
++            return vec4<f32>(0.0);
++        }
++    }
++
+     let half_size = shadow.bounds.size / 2.0;
+     let center = shadow.bounds.origin + half_size;
+     let center_to_point = input.position.xy - center;
+@@ -1040,9 +1084,11 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
+         let element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
+                                         shadow.element_corner_radii);
+         alpha *= saturate(0.5 - element_distance);
++    } else {
++        alpha *= outside;
+     }
+ 
+-    return blend_color(input.color, alpha);
++    return blend_color(input.color, alpha * rounded_clip_alpha(input.position.xy, input.rounded_clip));
+ }
+ 
+ // --- path rasterization --- //
+@@ -1052,6 +1098,8 @@ struct PathRasterizationVertex {
+     st_position: vec2<f32>,
+     color: Background,
+     bounds: Bounds,
++    rounded_clip: u32,
++    pad: u32,
+ }
+ 
+ 
+@@ -1062,6 +1110,7 @@ struct PathRasterizationVarying {
+     @location(1) @interpolate(flat) vertex_id: u32,
+     //TODO: use `clip_distance` once Naga supports it
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) rounded_clip: u32,
+ }
+ 
+ @vertex
+@@ -1072,6 +1121,7 @@ fn vs_path_rasterization(@builtin(vertex_index) vertex_id: u32) -> PathRasteriza
+     out.position = to_device_position_impl(v.xy_position);
+     out.st_position = v.st_position;
+     out.vertex_id = vertex_id;
++    out.rounded_clip = v.rounded_clip;
+     out.clip_distances = distance_from_clip_rect_impl(v.xy_position, v.bounds);
+     return out;
+ }
+@@ -1106,6 +1156,7 @@ fn fs_path_rasterization(input: PathRasterizationVarying) -> @location(0) vec4<f
+     );
+     let color = gradient_color(background, input.position.xy, bounds,
+         prepared_gradient.solid, prepared_gradient.color0, prepared_gradient.color1);
++    alpha *= rounded_clip_alpha(input.position.xy, input.rounded_clip);
+     return vec4<f32>(color.rgb * color.a * alpha, color.a * alpha);
+ }
+ 
+@@ -1148,7 +1199,7 @@ fn fs_path(input: PathVarying) -> @location(0) vec4<f32> {
+ 
+ struct Underline {
+     order: u32,
+-    pad: u32,
++    rounded_clip: u32,
+     bounds: Bounds,
+     content_mask: Bounds,
+     color: Hsla,
+@@ -1163,6 +1214,7 @@ struct UnderlineVarying {
+     @location(1) @interpolate(flat) underline_id: u32,
+     //TODO: use `clip_distance` once Naga supports it
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) rounded_clip: u32,
+ }
+ 
+ @vertex
+@@ -1174,6 +1226,7 @@ fn vs_underline(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index)
+     out.position = to_device_position(unit_vertex, underline.bounds);
+     out.color = hsla_to_rgba(underline.color);
+     out.underline_id = instance_id;
++    out.rounded_clip = underline.rounded_clip;
+     out.clip_distances = distance_from_clip_rect(unit_vertex, underline.bounds, underline.content_mask);
+     return out;
+ }
+@@ -1189,9 +1242,10 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
+     }
+ 
+     let underline = load_underline(input.underline_id);
++    let clip_alpha = rounded_clip_alpha(input.position.xy, input.rounded_clip);
+     if (underline.wavy == 0u)
+     {
+-        return blend_color(input.color, input.color.a);
++        return blend_color(input.color, input.color.a * clip_alpha);
+     }
+ 
+     let half_thickness = underline.thickness * 0.5;
+@@ -1207,14 +1261,14 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
+     let distance_from_top_border = distance_in_pixels - half_thickness;
+     let distance_from_bottom_border = distance_in_pixels + half_thickness;
+     let alpha = saturate(0.5 - max(-distance_from_bottom_border, distance_from_top_border));
+-    return blend_color(input.color, alpha * input.color.a);
++    return blend_color(input.color, alpha * input.color.a * clip_alpha);
+ }
+ 
+ // --- monochrome sprites --- //
+ 
+ struct MonochromeSprite {
+     order: u32,
+-    pad: u32,
++    rounded_clip: u32,
+     bounds: Bounds,
+     content_mask: Bounds,
+     color: Hsla,
+@@ -1228,6 +1282,7 @@ struct MonoSpriteVarying {
+     @location(0) tile_position: vec2<f32>,
+     @location(1) @interpolate(flat) color: vec4<f32>,
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) rounded_clip: u32,
+ }
+ 
+ @vertex
+@@ -1241,6 +1296,7 @@ fn vs_mono_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index
+     out.tile_position = to_tile_position(unit_vertex, sprite.tile);
+     out.color = hsla_to_rgba(sprite.color);
+     out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, sprite.bounds, sprite.content_mask, sprite.transformation);
++    out.rounded_clip = sprite.rounded_clip;
+     return out;
+ }
+ 
+@@ -1254,14 +1310,14 @@ fn fs_mono_sprite(input: MonoSpriteVarying) -> @location(0) vec4<f32> {
+         return vec4<f32>(0.0);
+     }
+ 
+-    return blend_color(input.color, alpha_corrected);
++    return blend_color(input.color, alpha_corrected * rounded_clip_alpha(input.position.xy, input.rounded_clip));
+ }
+ 
+ // --- polychrome sprites --- //
+ 
+ struct PolychromeSprite {
+     order: u32,
+-    pad: u32,
++    rounded_clip: u32,
+     grayscale: u32,
+     opacity: f32,
+     bounds: Bounds,
+@@ -1276,6 +1332,7 @@ struct PolySpriteVarying {
+     @location(0) tile_position: vec2<f32>,
+     @location(1) @interpolate(flat) sprite_id: u32,
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) rounded_clip: u32,
+ }
+ 
+ @vertex
+@@ -1287,6 +1344,7 @@ fn vs_poly_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index
+     out.position = to_device_position(unit_vertex, sprite.bounds);
+     out.tile_position = to_tile_position(unit_vertex, sprite.tile);
+     out.sprite_id = instance_id;
++    out.rounded_clip = sprite.rounded_clip;
+     out.clip_distances = distance_from_clip_rect(unit_vertex, sprite.bounds, sprite.content_mask);
+     return out;
+ }
+@@ -1307,7 +1365,8 @@ fn fs_poly_sprite(input: PolySpriteVarying) -> @location(0) vec4<f32> {
+         let grayscale = dot(color.rgb, GRAYSCALE_FACTORS);
+         color = vec4<f32>(vec3<f32>(grayscale), sample.a);
+     }
+-    return blend_color(color, sprite.opacity * saturate(0.5 - distance));
++    let clip_alpha = rounded_clip_alpha(input.position.xy, input.rounded_clip);
++    return blend_color(color, sprite.opacity * saturate(0.5 - distance) * clip_alpha);
+ }
+ 
+ // --- surfaces --- //
+diff --git b/src/shaders_backdrop_blur.wgsl b/src/shaders_backdrop_blur.wgsl
+new file mode 100644
+index 0000000..f3ab646
+--- /dev/null
++++ b/src/shaders_backdrop_blur.wgsl
+@@ -0,0 +1,135 @@
++// --- backdrop blurs --- //
++
++struct BackdropBlur {
++    order: u32,
++    opacity: f32,
++    bounds: Bounds,
++    content_mask: Bounds,
++    corner_radii: Corners,
++    blur_radius: f32,
++    saturation: f32,
++    rounded_clip: u32,
++    // Unread: only the Mac's clear window sets a ground; this pipeline draws its copy with alpha 1.
++    ground: u32,
++}
++
++// `region` is the blur's bounds in whole target pixels, copied to the scratch textures' origin and blurred there
++// downscaled by `scale` to `scaled_size`. `taps[0]` is the kernel's center; every other tap is one bilinear sample
++// standing for two kernel taps, used on both sides.
++struct BackdropBlurPass {
++    blur: BackdropBlur,
++    region: Bounds,
++    scaled_size: vec2<f32>,
++    scale: f32,
++    tap_count: u32,
++    encode_srgb: u32,
++    pad: u32,
++    taps: array<vec2<f32>, 7>,
++}
++
++@group(1) @binding(0) var<storage, read> b_backdrop_blurs: array<BackdropBlurPass>;
++
++struct BackdropBlurVarying {
++    @builtin(position) position: vec4<f32>,
++    @location(0) @interpolate(flat) blur_id: u32,
++    @location(3) clip_distances: vec4<f32>,
++}
++
++// Mirrors like a MirrorRepeat sampler on a texture of exactly `size` texels, which the scratch textures are not.
++fn mirror_into_region(position: f32, size: f32) -> f32 {
++    let wrapped = position - 2.0 * size * floor(position / (2.0 * size));
++    return clamp(select(wrapped, 2.0 * size - wrapped, wrapped > size), 0.5, size - 0.5);
++}
++
++fn backdrop_blur_sample(position: vec2<f32>, size: vec2<f32>) -> vec3<f32> {
++    let mirrored = vec2<f32>(mirror_into_region(position.x, size.x), mirror_into_region(position.y, size.y));
++    return textureSampleLevel(t_sprite, s_sprite, mirrored / vec2<f32>(textureDimensions(t_sprite)), 0.0).rgb;
++}
++
++fn backdrop_blur_along(position: vec2<f32>, direction: vec2<f32>, blur_id: u32) -> vec4<f32> {
++    let size = b_backdrop_blurs[blur_id].scaled_size;
++    var color = backdrop_blur_sample(position, size) * b_backdrop_blurs[blur_id].taps[0].y;
++    for (var i = 1u; i < b_backdrop_blurs[blur_id].tap_count; i += 1u) {
++        let tap = b_backdrop_blurs[blur_id].taps[i];
++        color += (backdrop_blur_sample(position + direction * tap.x, size) +
++            backdrop_blur_sample(position - direction * tap.x, size)) * tap.y;
++    }
++    return vec4<f32>(color, 1.0);
++}
++
++// The Filter Effects saturate matrix, applied to the encoded values as browsers do.
++fn saturate_color(color: vec3<f32>, saturation: f32) -> vec3<f32> {
++    let s = saturation;
++    return saturate(vec3<f32>(
++        dot(vec3<f32>(0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s), color),
++        dot(vec3<f32>(0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s), color),
++        dot(vec3<f32>(0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s), color),
++    ));
++}
++
++// Covers the viewport, which is set to the scaled region of a scratch texture.
++@vertex
++fn vs_backdrop_blur_scratch(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) instance_id: u32) -> BackdropBlurVarying {
++    let unit_vertex = vec2<f32>(f32(vertex_id & 1u), 0.5 * f32(vertex_id & 2u));
++    var out = BackdropBlurVarying();
++    out.position = vec4<f32>(unit_vertex * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0), 0.0, 1.0);
++    out.blur_id = instance_id;
++    out.clip_distances = vec4<f32>(1.0);
++    return out;
++}
++
++// Averages each `scale` by `scale` block, one bilinear sample per 2 by 2 pixels.
++@fragment
++fn fs_backdrop_blur_downsample(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
++    let scale = b_backdrop_blurs[input.blur_id].scale;
++    let size = b_backdrop_blurs[input.blur_id].region.size;
++    let block = floor(input.position.xy) * scale;
++    var color = vec3<f32>(0.0);
++    for (var y = 1.0; y < scale; y += 2.0) {
++        for (var x = 1.0; x < scale; x += 2.0) {
++            color += backdrop_blur_sample(block + vec2<f32>(x, y), size);
++        }
++    }
++    return vec4<f32>(color * (4.0 / (scale * scale)), 1.0);
++}
++
++@fragment
++fn fs_backdrop_blur_horizontal(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
++    return backdrop_blur_along(input.position.xy, vec2<f32>(1.0, 0.0), input.blur_id);
++}
++
++@fragment
++fn fs_backdrop_blur_vertical(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
++    return backdrop_blur_along(input.position.xy, vec2<f32>(0.0, 1.0), input.blur_id);
++}
++
++@vertex
++fn vs_backdrop_blur_composite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) instance_id: u32) -> BackdropBlurVarying {
++    let unit_vertex = vec2<f32>(f32(vertex_id & 1u), 0.5 * f32(vertex_id & 2u));
++    let region = b_backdrop_blurs[instance_id].region;
++    var out = BackdropBlurVarying();
++    out.position = to_device_position(unit_vertex, region);
++    out.blur_id = instance_id;
++    out.clip_distances = distance_from_clip_rect(unit_vertex, region, b_backdrop_blurs[instance_id].blur.content_mask);
++    return out;
++}
++
++@fragment
++fn fs_backdrop_blur_composite(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
++    if (any(input.clip_distances < vec4<f32>(0.0))) {
++        return vec4<f32>(0.0);
++    }
++
++    let blur = b_backdrop_blurs[input.blur_id].blur;
++    let region = b_backdrop_blurs[input.blur_id].region;
++    let scaled_position = (input.position.xy - region.origin) / b_backdrop_blurs[input.blur_id].scale;
++    let blurred = backdrop_blur_sample(scaled_position, b_backdrop_blurs[input.blur_id].scaled_size);
++    var color = saturate_color(blurred, blur.saturation);
++    // An sRGB target encodes what it stores, and the blur already worked on encoded values.
++    if (b_backdrop_blurs[input.blur_id].encode_srgb != 0u) {
++        color = srgb_to_linear(color);
++    }
++    let alpha = saturate(0.5 - quad_sdf(input.position.xy, blur.bounds, blur.corner_radii)) *
++        rounded_clip_alpha(input.position.xy, blur.rounded_clip) * blur.opacity;
++    return blend_color(vec4<f32>(color, 1.0), alpha);
++}
+diff --git a/src/shaders_storage.wgsl b/src/shaders_storage.wgsl
+index 55b8080..8bbc0cd 100644
+--- a/src/shaders_storage.wgsl
++++ b/src/shaders_storage.wgsl
+@@ -12,6 +12,8 @@
+ @group(1) @binding(0) var<storage, read> b_underlines: array<Underline>;
+ @group(1) @binding(0) var<storage, read> b_mono_sprites: array<MonochromeSprite>;
+ @group(1) @binding(0) var<storage, read> b_poly_sprites: array<PolychromeSprite>;
++// The frame's rounded clips, bound next to every pipeline's instances.
++@group(1) @binding(1) var<storage, read> b_rounded_clips: array<SceneRoundedClip>;
+ 
+ fn load_quad(instance_id: u32) -> Quad {
+     return b_quads[instance_id];
+@@ -40,3 +42,7 @@ fn load_mono_sprite(instance_id: u32) -> MonochromeSprite {
+ fn load_poly_sprite(instance_id: u32) -> PolychromeSprite {
+     return b_poly_sprites[instance_id];
+ }
++
++fn load_rounded_clip(clip_id: u32) -> SceneRoundedClip {
++    return b_rounded_clips[clip_id];
++}
+diff --git a/src/shaders_subpixel.wgsl b/src/shaders_subpixel.wgsl
+index 8fd9364..8018220 100644
+--- a/src/shaders_subpixel.wgsl
++++ b/src/shaders_subpixel.wgsl
+@@ -2,7 +2,7 @@
+ 
+ struct SubpixelSprite {
+     order: u32,
+-    pad: u32,
++    rounded_clip: u32,
+     bounds: Bounds,
+     content_mask: Bounds,
+     color: Hsla,
+@@ -16,6 +16,7 @@ struct SubpixelSpriteOutput {
+     @location(0) tile_position: vec2<f32>,
+     @location(1) @interpolate(flat) color: vec4<f32>,
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) rounded_clip: u32,
+ }
+ 
+ struct SubpixelSpriteFragmentOutput {
+@@ -33,6 +34,7 @@ fn vs_subpixel_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_i
+     out.tile_position = to_tile_position(unit_vertex, sprite.tile);
+     out.color = hsla_to_rgba(sprite.color);
+     out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, sprite.bounds, sprite.content_mask, sprite.transformation);
++    out.rounded_clip = sprite.rounded_clip;
+     return out;
+ }
+ 
+@@ -51,6 +53,6 @@ fn fs_subpixel_sprite(input: SubpixelSpriteOutput) -> SubpixelSpriteFragmentOutp
+ 
+     var out = SubpixelSpriteFragmentOutput();
+     out.foreground = vec4<f32>(input.color.rgb, 1.0);
+-    out.alpha = vec4<f32>(input.color.a * alpha_corrected, 1.0);
++    out.alpha = vec4<f32>(input.color.a * alpha_corrected * rounded_clip_alpha(input.position.xy, input.rounded_clip), 1.0);
+     return out;
+ }
+diff --git a/src/shaders_webgl.wgsl b/src/shaders_webgl.wgsl
+index bf5f629..73c59cb 100644
+--- a/src/shaders_webgl.wgsl
++++ b/src/shaders_webgl.wgsl
+@@ -1,4 +1,6 @@
+ @group(1) @binding(0) var t_instances: texture_2d<u32>;
++// The frame's rounded clips, written first into the instance texture, so a clip's id indexes it directly.
++@group(1) @binding(1) var t_rounded_clips: texture_2d<u32>;
+ 
+ // Each texel of `t_instances` packs four 32-bit words of instance data. Most
+ // records are read strictly front to back through a cursor that keeps the
+@@ -138,7 +140,7 @@ fn read_transformation(cursor: ptr<function, InstanceCursor>) -> TransformationM
+ fn load_quad(instance_id: u32) -> Quad {
+     // Keep this fixed-layout decoder explicit. Some WebGL shader compilers fail
+     // to optimize the cursor's branches and dynamic vector indexing for quads.
+-    let first_texel_index = instance_id * 10u;
++    let first_texel_index = instance_id * 11u;
+     let width = textureDimensions(t_instances).x;
+     let texel0 = fetch_instance_texel(first_texel_index, width);
+     let texel1 = fetch_instance_texel(first_texel_index + 1u, width);
+@@ -150,6 +152,7 @@ fn load_quad(instance_id: u32) -> Quad {
+     let texel7 = fetch_instance_texel(first_texel_index + 7u, width);
+     let texel8 = fetch_instance_texel(first_texel_index + 8u, width);
+     let texel9 = fetch_instance_texel(first_texel_index + 9u, width);
++    let texel10 = fetch_instance_texel(first_texel_index + 10u, width);
+ 
+     let values0 = bitcast<vec4<f32>>(texel0);
+     let values1 = bitcast<vec4<f32>>(texel1);
+@@ -187,6 +190,8 @@ fn load_quad(instance_id: u32) -> Quad {
+         Hsla(values7.x, values7.y, values7.z, values7.w),
+         Corners(values8.x, values8.y, values8.z, values8.w),
+         Edges(values9.x, values9.y, values9.z, values9.w),
++        texel10.x,
++        array<u32, 3>(texel10.y, texel10.z, texel10.w),
+     );
+ }
+ 
+@@ -207,12 +212,14 @@ fn load_shadow(instance_id: u32) -> Shadow {
+ }
+ 
+ fn load_path_vertex(vertex_id: u32) -> PathRasterizationVertex {
+-    var cursor = instance_cursor(vertex_id * 26u);
++    var cursor = instance_cursor(vertex_id * 28u);
+     return PathRasterizationVertex(
+         read_vec2_f32(&cursor),
+         read_vec2_f32(&cursor),
+         read_background(&cursor),
+         read_bounds(&cursor),
++        read_word(&cursor),
++        read_word(&cursor),
+     );
+ }
+ 
+@@ -260,3 +267,22 @@ fn load_poly_sprite(instance_id: u32) -> PolychromeSprite {
+         read_atlas_tile(&cursor),
+     );
+ }
++
++fn fetch_rounded_clip_texel(texel_index: u32) -> vec4<u32> {
++    let width = textureDimensions(t_rounded_clips).x;
++    return textureLoad(t_rounded_clips, vec2<i32>(i32(texel_index % width), i32(texel_index / width)), 0);
++}
++
++fn load_rounded_clip(clip_id: u32) -> SceneRoundedClip {
++    let bounds = bitcast<vec4<f32>>(fetch_rounded_clip_texel(clip_id * 3u));
++    let radii = bitcast<vec4<f32>>(fetch_rounded_clip_texel(clip_id * 3u + 1u));
++    let parent = fetch_rounded_clip_texel(clip_id * 3u + 2u);
++    return SceneRoundedClip(
++        Bounds(bounds.xy, bounds.zw),
++        Corners(radii.x, radii.y, radii.z, radii.w),
++        parent.x,
++        bitcast<f32>(parent.y),
++        bitcast<f32>(parent.z),
++        parent.w,
++    );
++}
+diff --git a/src/wgpu_atlas.rs b/src/wgpu_atlas.rs
+index b541607..03b9a4c 100644
+--- a/src/wgpu_atlas.rs
++++ b/src/wgpu_atlas.rs
+@@ -2,7 +2,7 @@ use anyhow::{Context as _, Result};
+ use etagere::{BucketedAtlasAllocator, size2};
+ use gpui::{
+     AtlasBackend, AtlasKey, AtlasState, AtlasTextureId, AtlasTextureKind, AtlasTextureList,
+-    AtlasTile, Bounds, DevicePixels, PlatformAtlas, Point, Size,
++    AtlasTile, AtlasUsage, Bounds, DevicePixels, PlatformAtlas, Point, Size,
+ };
+ use parking_lot::Mutex;
+ use std::{borrow::Cow, ops, sync::Arc};
+@@ -122,6 +122,22 @@ impl PlatformAtlas for WgpuAtlas {
+     fn remove(&self, key: &AtlasKey) {
+         self.0.lock().remove(key);
+     }
++
++    fn usage(&self) -> AtlasUsage {
++        let lock = self.0.lock();
++        let bytes = |kind: AtlasTextureKind| -> u64 {
++            let textures = lock.backend.storage[kind].textures.iter().flatten();
++            textures.map(|t| t.texture.width() as u64 * t.texture.height() as u64 * t.bytes_per_pixel() as u64).sum()
++        };
++        AtlasUsage {
++            glyphs: bytes(AtlasTextureKind::Monochrome) + bytes(AtlasTextureKind::Subpixel),
++            images: bytes(AtlasTextureKind::Polychrome),
++        }
++    }
++
++    fn sweep_glyphs(&self) {
++        self.0.lock().remove_glyphs();
++    }
+ }
+ 
+ impl AtlasBackend for WgpuAtlasTextures {
+@@ -195,7 +211,15 @@ impl WgpuAtlasTextures {
+             height: DevicePixels(max_texture_size),
+         };
+ 
+-        let size = min_size.min(&max_atlas_size).max(&DEFAULT_ATLAS_SIZE);
++        // A colour page costs 4 bytes a texel and often holds one small image, such as an agent's mark.
++        let default_size = match kind {
++            AtlasTextureKind::Polychrome => Size {
++                width: DevicePixels(256),
++                height: DevicePixels(256),
++            },
++            _ => DEFAULT_ATLAS_SIZE,
++        };
++        let size = min_size.min(&max_atlas_size).max(&default_size);
+         let format = match kind {
+             AtlasTextureKind::Monochrome => wgpu::TextureFormat::R8Unorm,
+             AtlasTextureKind::Subpixel | AtlasTextureKind::Polychrome => self.color_texture_format,
+diff --git a/src/wgpu_renderer.rs b/src/wgpu_renderer.rs
+index 8387528..84a83a8 100644
+--- a/src/wgpu_renderer.rs
++++ b/src/wgpu_renderer.rs
+@@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
+ use bytemuck::{Pod, Zeroable};
+ use collections::FxHashMap;
+ use gpui::{
+-    AtlasTextureId, Background, Bounds, DevicePixels, GpuSpecs, Path, Point, PrimitiveBatch,
+-    ScaledPixels, Scene, Size, get_gamma_correction_ratios,
++    AtlasTextureId, BackdropBlur, Background, Bounds, DevicePixels, GpuSpecs, Path, Point,
++    PrimitiveBatch, RoundedClipId, ScaledPixels, Scene, SceneRoundedClip, Size,
++    get_gamma_correction_ratios,
+ };
+ use log::warn;
+ #[cfg(not(target_family = "wasm"))]
+@@ -25,6 +26,7 @@ const INSTANCE_TEXTURE_TEXEL_SIZE: u64 = 16;
+ const STORAGE_BUFFER_SHADERS: &str = concat!(
+     include_str!("shaders.wgsl"),
+     include_str!("shaders_storage.wgsl"),
++    include_str!("shaders_backdrop_blur.wgsl"),
+ );
+ 
+ /// Shader variant for WebGL2, which has no storage buffers: the shared shader
+@@ -96,6 +98,23 @@ struct GammaParams {
+     _pad: u32,
+ }
+ 
++/// Like Skia, larger blurs run on the region downscaled by a power of two.
++const BACKDROP_BLUR_MAX_SIGMA: f32 = 4.0;
++const BACKDROP_BLUR_MAX_TAPS: usize = 7;
++
++#[derive(Clone, Copy)]
++#[repr(C)]
++struct BackdropBlurPass {
++    blur: BackdropBlur,
++    region: PodBounds,
++    scaled_size: [f32; 2],
++    scale: f32,
++    tap_count: u32,
++    encode_srgb: u32,
++    pad: u32,
++    taps: [[f32; 2]; BACKDROP_BLUR_MAX_TAPS],
++}
++
+ #[derive(Clone, Debug)]
+ #[repr(C)]
+ struct PathSprite {
+@@ -109,6 +128,8 @@ struct PathRasterizationVertex {
+     st_position: Point<f32>,
+     color: Background,
+     bounds: Bounds<ScaledPixels>,
++    rounded_clip: RoundedClipId,
++    pad: u32,
+ }
+ 
+ pub struct WgpuSurfaceConfig {
+@@ -123,6 +144,7 @@ pub struct WgpuSurfaceConfig {
+     pub preferred_present_mode: Option<wgpu::PresentMode>,
+ }
+ 
++#[derive(Clone)]
+ struct WgpuPipelines {
+     quads: wgpu::RenderPipeline,
+     shadows: wgpu::RenderPipeline,
+@@ -134,6 +156,118 @@ struct WgpuPipelines {
+     poly_sprites: wgpu::RenderPipeline,
+     #[allow(dead_code)]
+     surfaces: wgpu::RenderPipeline,
++    backdrop_blurs: Option<BackdropBlurPipelines>,
++}
++
++impl WgpuPipelines {
++    fn of_kind(&self, kind: u16) -> &wgpu::RenderPipeline {
++        match kind {
++            EffectKinds::QUADS => &self.quads,
++            EffectKinds::SHADOWS => &self.shadows,
++            EffectKinds::PATHS => &self.path_rasterization,
++            EffectKinds::PATH_SPRITES => &self.paths,
++            EffectKinds::UNDERLINES => &self.underlines,
++            EffectKinds::MONO_SPRITES => &self.mono_sprites,
++            EffectKinds::SUBPIXEL_SPRITES => {
++                self.subpixel_sprites.as_ref().unwrap_or(&self.mono_sprites)
++            }
++            EffectKinds::POLY_SPRITES => &self.poly_sprites,
++            _ => &self.surfaces,
++        }
++    }
++}
++
++#[derive(Clone)]
++struct BackdropBlurPipelines {
++    downsample: wgpu::RenderPipeline,
++    horizontal: wgpu::RenderPipeline,
++    vertical: wgpu::RenderPipeline,
++    composite: wgpu::RenderPipeline,
++}
++
++/// The pipelines a frame needs with effects: each primitive kind it draws with a rounded clip, and
++/// the blurs. A software rasterizer compiles every pipeline into code, so only these are built.
++#[derive(Clone, Copy, Default)]
++struct EffectKinds(u16);
++
++impl EffectKinds {
++    const QUADS: u16 = 1;
++    const SHADOWS: u16 = 1 << 1;
++    const PATHS: u16 = 1 << 2;
++    const UNDERLINES: u16 = 1 << 3;
++    const MONO_SPRITES: u16 = 1 << 4;
++    const SUBPIXEL_SPRITES: u16 = 1 << 5;
++    const POLY_SPRITES: u16 = 1 << 6;
++    const BLURS: u16 = 1 << 7;
++    /// Never drawn with effects.
++    const PATH_SPRITES: u16 = 1 << 8;
++    const SURFACES: u16 = 1 << 9;
++
++    fn of(scene: &Scene) -> Self {
++        let mut kinds = if scene.backdrop_blurs.is_empty() {
++            0
++        } else {
++            Self::BLURS
++        };
++        if !scene.rounded_clips.is_empty() {
++            let mut add = |clipped: bool, kind: u16| {
++                if clipped {
++                    kinds |= kind;
++                }
++            };
++            add(scene.quads.iter().any(|q| q.rounded_clip != 0), Self::QUADS);
++            add(
++                scene.shadows.iter().any(|s| s.rounded_clip != 0),
++                Self::SHADOWS,
++            );
++            add(scene.paths.iter().any(|p| p.rounded_clip != 0), Self::PATHS);
++            add(
++                scene.underlines.iter().any(|u| u.rounded_clip != 0),
++                Self::UNDERLINES,
++            );
++            add(
++                scene.monochrome_sprites.iter().any(|s| s.rounded_clip != 0),
++                Self::MONO_SPRITES,
++            );
++            add(
++                scene.subpixel_sprites.iter().any(|s| s.rounded_clip != 0),
++                Self::SUBPIXEL_SPRITES,
++            );
++            add(
++                scene.polychrome_sprites.iter().any(|s| s.rounded_clip != 0),
++                Self::POLY_SPRITES,
++            );
++        }
++        EffectKinds(kinds)
++    }
++}
++
++/// Where one frame allocation of instance data lives.
++#[derive(Clone)]
++enum InstanceSlice {
++    Buffer {
++        buffer: wgpu::Buffer,
++        offset: u64,
++        size: u64,
++    },
++    Texture(wgpu::TextureView),
++}
++
++impl InstanceSlice {
++    fn binding_resource(&self) -> wgpu::BindingResource<'_> {
++        match self {
++            InstanceSlice::Buffer {
++                buffer,
++                offset,
++                size,
++            } => wgpu::BindingResource::Buffer(wgpu::BufferBinding {
++                buffer,
++                offset: *offset,
++                size: NonZeroU64::new(*size),
++            }),
++            InstanceSlice::Texture(view) => wgpu::BindingResource::TextureView(view),
++        }
++    }
+ }
+ 
+ /// One frame allocation of instance data, ready to bind.
+@@ -183,6 +317,10 @@ struct WgpuResources {
+     device: Arc<wgpu::Device>,
+     queue: Arc<wgpu::Queue>,
+     pipelines: WgpuPipelines,
++    /// Each kind built on the first frame that draws it with a rounded clip, the blurs on the first
++    /// frame with a backdrop blur; a kind not built yet holds `pipelines`' and is never drawn.
++    effect_pipelines: Option<WgpuPipelines>,
++    effect_kinds: EffectKinds,
+     bind_group_layouts: WgpuBindGroupLayouts,
+     atlas_sampler: wgpu::Sampler,
+     atlas_texture_bind_groups: FxHashMap<AtlasTextureId, CachedTextureBindGroup>,
+@@ -194,6 +332,16 @@ struct WgpuResources {
+     path_intermediate_view: Option<wgpu::TextureView>,
+     path_msaa_texture: Option<wgpu::Texture>,
+     path_msaa_view: Option<wgpu::TextureView>,
++    backdrop_blur_textures: Option<BackdropBlurTextures>,
++}
++
++/// The copied region, its downscaled and blurred copy, and its horizontal blur, with a view and a
++/// texture bind group each. They only grow while frames draw blurs.
++#[derive(Clone)]
++struct BackdropBlurTextures {
++    textures: [wgpu::Texture; 3],
++    views: [wgpu::TextureView; 3],
++    bind_groups: [wgpu::BindGroup; 3],
+ }
+ 
+ struct CachedTextureBindGroup {
+@@ -207,6 +355,7 @@ impl WgpuResources {
+         self.path_intermediate_view = None;
+         self.path_msaa_texture = None;
+         self.path_msaa_view = None;
++        self.backdrop_blur_textures = None;
+     }
+ }
+ 
+@@ -224,7 +373,11 @@ struct WgpuRendererCore {
+     dual_source_blending: bool,
+     adapter_info: wgpu::AdapterInfo,
+     target_format: wgpu::TextureFormat,
++    alpha_mode: wgpu::CompositeAlphaMode,
+     max_texture_size: u32,
++    backdrop_blur_skip_logged: bool,
++    /// The frame's rounded clips, which every instance bind group of the frame also binds.
++    rounded_clips: Option<InstanceSlice>,
+ }
+ 
+ /// GPU resources of a windowed renderer. A surface is only ever configured against the
+@@ -252,6 +405,7 @@ pub struct WgpuRenderer {
+     compositor_gpu: Option<CompositorGpuHint>,
+     state: RendererState,
+     surface_config: wgpu::SurfaceConfiguration,
++    surface_supports_copy_src: bool,
+     atlas: Arc<WgpuAtlas>,
+     transparent_alpha_mode: wgpu::CompositeAlphaMode,
+     opaque_alpha_mode: wgpu::CompositeAlphaMode,
+@@ -468,6 +622,7 @@ impl WgpuRenderer {
+             compositor_gpu,
+             state: RendererState::Ready { surface, core },
+             surface_config,
++            surface_supports_copy_src: surface_caps.usages.contains(wgpu::TextureUsages::COPY_SRC),
+             atlas,
+             transparent_alpha_mode,
+             opaque_alpha_mode,
+@@ -537,9 +692,17 @@ impl WgpuRendererCore {
+             count: None,
+         };
+ 
++        // Binding 1 is the frame's rounded clips, which any fragment stage may read.
+         let instances = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+             label: Some("instances_layout"),
+-            entries: &[instance_data_entry],
++            entries: &[
++                instance_data_entry,
++                wgpu::BindGroupLayoutEntry {
++                    binding: 1,
++                    visibility: wgpu::ShaderStages::FRAGMENT,
++                    ..instance_data_entry
++                },
++            ],
+         });
+ 
+         let texture = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+@@ -662,6 +825,7 @@ impl WgpuRendererCore {
+         path_sample_count: u32,
+         dual_source_blending: bool,
+         uses_webgl_instance_data: bool,
++        effects: Option<(EffectKinds, &WgpuPipelines)>,
+     ) -> WgpuPipelines {
+         // Diagnostic guard: verify the device actually has
+         // DUAL_SOURCE_BLENDING. We have a crash report (ZED-5G1) where a
+@@ -718,7 +882,20 @@ impl WgpuRendererCore {
+             write_mask: wgpu::ColorWrites::ALL,
+         };
+ 
+-        let create_pipeline = |name: &str,
++        // A software rasterizer runs clip code for every fragment, so pipelines without effects compile it out.
++        let constants: &[(&str, f64)] = if effects.is_some() {
++            &[]
++        } else {
++            &[("ROUNDED_CLIPS", 0.0)]
++        };
++        // The kinds not asked for keep the pipelines already built.
++        let kept = |kind: u16| {
++            effects
++                .filter(|(kinds, _)| kinds.0 & kind == 0)
++                .map(|(_, built)| built)
++        };
++        let create_pipeline = |kind: u16,
++                               name: &str,
+                                vs_entry: &str,
+                                fs_entry: &str,
+                                globals_layout: &wgpu::BindGroupLayout,
+@@ -728,6 +905,9 @@ impl WgpuRendererCore {
+                                color_targets: &[Option<wgpu::ColorTargetState>],
+                                sample_count: u32,
+                                module: &wgpu::ShaderModule| {
++            if let Some(built) = kept(kind) {
++                return built.of_kind(kind).clone();
++            }
+             let mut bind_group_layouts = vec![Some(globals_layout), Some(data_layout)];
+             bind_group_layouts.extend(texture_layout.map(Some));
+             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+@@ -743,13 +923,19 @@ impl WgpuRendererCore {
+                     module,
+                     entry_point: Some(vs_entry),
+                     buffers: &[],
+-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
++                    compilation_options: wgpu::PipelineCompilationOptions {
++                        constants,
++                        ..Default::default()
++                    },
+                 },
+                 fragment: Some(wgpu::FragmentState {
+                     module,
+                     entry_point: Some(fs_entry),
+                     targets: color_targets,
+-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
++                    compilation_options: wgpu::PipelineCompilationOptions {
++                        constants,
++                        ..Default::default()
++                    },
+                 }),
+                 primitive: wgpu::PrimitiveState {
+                     topology,
+@@ -772,6 +958,7 @@ impl WgpuRendererCore {
+         };
+ 
+         let quads = create_pipeline(
++            EffectKinds::QUADS,
+             "quads",
+             "vs_quad",
+             "fs_quad",
+@@ -785,6 +972,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let shadows = create_pipeline(
++            EffectKinds::SHADOWS,
+             "shadows",
+             "vs_shadow",
+             "fs_shadow",
+@@ -798,6 +986,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let path_rasterization = create_pipeline(
++            EffectKinds::PATHS,
+             "path_rasterization",
+             "vs_path_rasterization",
+             "fs_path_rasterization",
+@@ -828,6 +1017,7 @@ impl WgpuRendererCore {
+         };
+ 
+         let paths = create_pipeline(
++            EffectKinds::PATH_SPRITES,
+             "paths",
+             "vs_path",
+             "fs_path",
+@@ -845,6 +1035,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let underlines = create_pipeline(
++            EffectKinds::UNDERLINES,
+             "underlines",
+             "vs_underline",
+             "fs_underline",
+@@ -858,6 +1049,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let mono_sprites = create_pipeline(
++            EffectKinds::MONO_SPRITES,
+             "mono_sprites",
+             "vs_mono_sprite",
+             "fs_mono_sprite",
+@@ -885,6 +1077,7 @@ impl WgpuRendererCore {
+             };
+ 
+             Some(create_pipeline(
++                EffectKinds::SUBPIXEL_SPRITES,
+                 "subpixel_sprites",
+                 "vs_subpixel_sprite",
+                 "fs_subpixel_sprite",
+@@ -905,6 +1098,7 @@ impl WgpuRendererCore {
+         };
+ 
+         let poly_sprites = create_pipeline(
++            EffectKinds::POLY_SPRITES,
+             "poly_sprites",
+             "vs_poly_sprite",
+             "fs_poly_sprite",
+@@ -918,6 +1112,7 @@ impl WgpuRendererCore {
+         );
+ 
+         let surfaces = create_pipeline(
++            EffectKinds::SURFACES,
+             "surfaces",
+             "vs_surface",
+             "fs_surface",
+@@ -925,11 +1120,54 @@ impl WgpuRendererCore {
+             &layouts.surfaces,
+             None,
+             wgpu::PrimitiveTopology::TriangleStrip,
+-            &[Some(color_target)],
++            &[Some(color_target.clone())],
+             1,
+             &shader_module,
+         );
+ 
++        let backdrop_blur_scratch = |fs_entry| {
++            create_pipeline(
++                EffectKinds::BLURS,
++                fs_entry,
++                "vs_backdrop_blur_scratch",
++                fs_entry,
++                &layouts.globals,
++                &layouts.instances,
++                Some(&layouts.texture),
++                wgpu::PrimitiveTopology::TriangleStrip,
++                &[Some(wgpu::ColorTargetState {
++                    format: surface_format.remove_srgb_suffix(),
++                    blend: None,
++                    write_mask: wgpu::ColorWrites::ALL,
++                })],
++                1,
++                &shader_module,
++            )
++        };
++        let backdrop_blurs = match kept(EffectKinds::BLURS) {
++            Some(built) => built.backdrop_blurs.clone(),
++            None => {
++                (effects.is_some() && !uses_webgl_instance_data).then(|| BackdropBlurPipelines {
++                    downsample: backdrop_blur_scratch("fs_backdrop_blur_downsample"),
++                    horizontal: backdrop_blur_scratch("fs_backdrop_blur_horizontal"),
++                    vertical: backdrop_blur_scratch("fs_backdrop_blur_vertical"),
++                    composite: create_pipeline(
++                        EffectKinds::BLURS,
++                        "backdrop_blur_composite",
++                        "vs_backdrop_blur_composite",
++                        "fs_backdrop_blur_composite",
++                        &layouts.globals,
++                        &layouts.instances,
++                        Some(&layouts.texture),
++                        wgpu::PrimitiveTopology::TriangleStrip,
++                        &[Some(color_target)],
++                        1,
++                        &shader_module,
++                    ),
++                })
++            }
++        };
++
+         WgpuPipelines {
+             quads,
+             shadows,
+@@ -940,6 +1178,7 @@ impl WgpuRendererCore {
+             subpixel_sprites,
+             poly_sprites,
+             surfaces,
++            backdrop_blurs,
+         }
+     }
+ 
+@@ -1039,6 +1278,13 @@ impl WgpuRenderer {
+         if let Some(ref texture) = resources.path_msaa_texture {
+             texture.destroy();
+         }
++        for texture in resources
++            .backdrop_blur_textures
++            .iter()
++            .flat_map(|blur| &blur.textures)
++        {
++            texture.destroy();
++        }
+ 
+         // Invalidate intermediate textures - they will be lazily recreated
+         // in draw() after we confirm the surface is healthy. This avoids
+@@ -1081,7 +1327,11 @@ impl WgpuRenderer {
+             core.rendering_params.path_sample_count,
+             core.dual_source_blending,
+             core.uses_webgl_instance_data,
++            None,
+         );
++        resources.effect_pipelines = None;
++        resources.effect_kinds = EffectKinds::default();
++        core.alpha_mode = new_alpha_mode;
+ 
+         if let RendererState::Ready { surface, core } = &self.state {
+             surface.configure(&core.resources.device, &self.surface_config);
+@@ -1164,6 +1414,18 @@ impl WgpuRenderer {
+             self.failed_frame_count = 0;
+         }
+ 
++        // A blur copies out of the frame, so only a window that draws one asks for a readable surface.
++        if !scene.backdrop_blurs.is_empty()
++            && self.surface_supports_copy_src
++            && !self
++                .surface_config
++                .usage
++                .contains(wgpu::TextureUsages::COPY_SRC)
++        {
++            self.surface_config.usage |= wgpu::TextureUsages::COPY_SRC;
++            surface.configure(&core.resources.device, &self.surface_config);
++        }
++
+         let frame = match surface.get_current_texture() {
+             wgpu::CurrentSurfaceTexture::Success(frame) => frame,
+             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+@@ -1198,6 +1460,7 @@ impl WgpuRenderer {
+             self.surface_config.alpha_mode == wgpu::CompositeAlphaMode::PreMultiplied;
+         if let Err(error) = core.render_frame(
+             scene,
++            &frame.texture,
+             &frame_view,
+             size,
+             premultiplied_alpha,
+@@ -1234,6 +1497,7 @@ impl WgpuRendererCore {
+             rendering_params.path_sample_count,
+             dual_source_blending,
+             uses_webgl_instance_data,
++            None,
+         );
+         let atlas_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+             label: Some("atlas_sampler"),
+@@ -1342,6 +1606,8 @@ impl WgpuRendererCore {
+                 device,
+                 queue,
+                 pipelines,
++                effect_pipelines: None,
++                effect_kinds: EffectKinds::default(),
+                 bind_group_layouts,
+                 atlas_sampler,
+                 atlas_texture_bind_groups: FxHashMap::default(),
+@@ -1353,6 +1619,7 @@ impl WgpuRendererCore {
+                 path_intermediate_view: None,
+                 path_msaa_texture: None,
+                 path_msaa_view: None,
++                backdrop_blur_textures: None,
+             },
+             atlas,
+             path_globals_offset,
+@@ -1366,7 +1633,10 @@ impl WgpuRendererCore {
+             dual_source_blending,
+             adapter_info: context.adapter.get_info(),
+             target_format,
++            alpha_mode,
+             max_texture_size,
++            backdrop_blur_skip_logged: false,
++            rounded_clips: None,
+         }
+     }
+ 
+@@ -1374,6 +1644,13 @@ impl WgpuRendererCore {
+         &self.resources
+     }
+ 
++    fn pipelines(&self, effects: bool) -> &WgpuPipelines {
++        match &self.resources.effect_pipelines {
++            Some(pipelines) if effects => pipelines,
++            _ => &self.resources.pipelines,
++        }
++    }
++
+     fn resources_mut(&mut self) -> &mut WgpuResources {
+         &mut self.resources
+     }
+@@ -1417,6 +1694,7 @@ impl WgpuRendererCore {
+     fn render_frame(
+         &mut self,
+         scene: &Scene,
++        target: &wgpu::Texture,
+         target_view: &wgpu::TextureView,
+         size: Size<DevicePixels>,
+         premultiplied_alpha: bool,
+@@ -1468,7 +1746,7 @@ impl WgpuRendererCore {
+             bytemuck::bytes_of(&gamma_params),
+         );
+ 
+-        self.record_frame(scene, target_view, clear_color)
++        self.record_frame(scene, target, target_view, clear_color)
+             .inspect_err(|_| {
+                 // Queue writes are staged before encoding; flush them even if the frame fails.
+                 self.resources.queue.submit(std::iter::empty());
+@@ -1478,10 +1756,41 @@ impl WgpuRendererCore {
+     fn record_frame(
+         &mut self,
+         scene: &Scene,
++        target: &wgpu::Texture,
+         frame_view: &wgpu::TextureView,
+         clear_color: wgpu::Color,
+     ) -> Result<wgpu::SubmissionIndex> {
+         let mut instance_offset = 0;
++        let rounded_clips = if scene.rounded_clips.is_empty() {
++            &[SceneRoundedClip::default()][..]
++        } else {
++            &scene.rounded_clips
++        };
++        let (rounded_clips, first_rounded_clip) =
++            self.write_instance_data(&mut instance_offset, rounded_clips)?;
++        debug_assert_eq!(first_rounded_clip, 0, "clip ids index the clips from 0");
++        self.rounded_clips = Some(rounded_clips);
++        if scene.backdrop_blurs.is_empty() {
++            self.free_backdrop_blur_textures();
++        }
++        let missing = EffectKinds::of(scene).0 & !self.resources.effect_kinds.0;
++        if missing != 0 {
++            let built = self.resources.effect_pipelines.take();
++            self.resources.effect_pipelines = Some(Self::create_pipelines(
++                &self.resources.device,
++                &self.resources.bind_group_layouts,
++                self.target_format,
++                self.alpha_mode,
++                self.rendering_params.path_sample_count,
++                self.dual_source_blending,
++                self.uses_webgl_instance_data,
++                Some((
++                    EffectKinds(missing),
++                    built.as_ref().unwrap_or(&self.resources.pipelines),
++                )),
++            ));
++            self.resources.effect_kinds.0 |= missing;
++        }
+         let instance_bindings = self
+             .write_instances(scene, &mut instance_offset)
+             .with_context(|| {
+@@ -1525,13 +1834,25 @@ impl WgpuRendererCore {
+                 match batch {
+                     PrimitiveBatch::Quads(range) => self.draw_instances(
+                         &instance_bindings.quads,
+-                        &self.resources().pipelines.quads,
++                        &self
++                            .pipelines(
++                                scene.quads[range.clone()]
++                                    .iter()
++                                    .any(|q| q.rounded_clip != 0),
++                            )
++                            .quads,
+                         instance_range(range),
+                         &mut pass,
+                     ),
+                     PrimitiveBatch::Shadows(range) => self.draw_instances(
+                         &instance_bindings.shadows,
+-                        &self.resources().pipelines.shadows,
++                        &self
++                            .pipelines(
++                                scene.shadows[range.clone()]
++                                    .iter()
++                                    .any(|s| s.rounded_clip != 0),
++                            )
++                            .shadows,
+                         instance_range(range),
+                         &mut pass,
+                     ),
+@@ -1573,7 +1894,13 @@ impl WgpuRendererCore {
+                     }
+                     PrimitiveBatch::Underlines(range) => self.draw_instances(
+                         &instance_bindings.underlines,
+-                        &self.resources().pipelines.underlines,
++                        &self
++                            .pipelines(
++                                scene.underlines[range.clone()]
++                                    .iter()
++                                    .any(|u| u.rounded_clip != 0),
++                            )
++                            .underlines,
+                         instance_range(range),
+                         &mut pass,
+                     ),
+@@ -1581,21 +1908,30 @@ impl WgpuRendererCore {
+                         self.draw_sprites(
+                             &instance_bindings.monochrome_sprites,
+                             texture_id,
+-                            &self.resources().pipelines.mono_sprites,
++                            &self
++                                .pipelines(
++                                    scene.monochrome_sprites[range.clone()]
++                                        .iter()
++                                        .any(|s| s.rounded_clip != 0),
++                                )
++                                .mono_sprites,
+                             instance_range(range),
+                             &mut pass,
+                         )?;
+                     }
+                     PrimitiveBatch::SubpixelSprites { texture_id, range } => {
+-                        let resources = self.resources();
++                        let pipelines = self.pipelines(
++                            scene.subpixel_sprites[range.clone()]
++                                .iter()
++                                .any(|s| s.rounded_clip != 0),
++                        );
+                         self.draw_sprites(
+                             &instance_bindings.subpixel_sprites,
+                             texture_id,
+-                            resources
+-                                .pipelines
++                            pipelines
+                                 .subpixel_sprites
+                                 .as_ref()
+-                                .unwrap_or(&resources.pipelines.mono_sprites),
++                                .unwrap_or(&pipelines.mono_sprites),
+                             instance_range(range),
+                             &mut pass,
+                         )?;
+@@ -1604,7 +1940,13 @@ impl WgpuRendererCore {
+                         self.draw_sprites(
+                             &instance_bindings.polychrome_sprites,
+                             texture_id,
+-                            &self.resources().pipelines.poly_sprites,
++                            &self
++                                .pipelines(
++                                    scene.polychrome_sprites[range.clone()]
++                                        .iter()
++                                        .any(|s| s.rounded_clip != 0),
++                                )
++                                .poly_sprites,
+                             instance_range(range),
+                             &mut pass,
+                         )?;
+@@ -1612,6 +1954,38 @@ impl WgpuRendererCore {
+                     // Surfaces are macOS-only for video playback and are not
+                     // implemented by the WGPU renderer.
+                     PrimitiveBatch::Surfaces(_surfaces) => {}
++                    PrimitiveBatch::BackdropBlurs(range) => {
++                        for blur in &scene.backdrop_blurs[range] {
++                            let Some(region) = self.backdrop_blur_region(blur, target) else {
++                                continue;
++                            };
++                            drop(pass);
++                            let blurred = self.blur_backdrop(
++                                &mut encoder,
++                                target,
++                                blur,
++                                region,
++                                &mut instance_offset,
++                            )?;
++
++                            pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
++                                label: Some("main_pass_continued"),
++                                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
++                                    view: frame_view,
++                                    resolve_target: None,
++                                    ops: wgpu::Operations {
++                                        load: wgpu::LoadOp::Load,
++                                        store: wgpu::StoreOp::Store,
++                                    },
++                                    depth_slice: None,
++                                })],
++                                depth_stencil_attachment: None,
++                                ..Default::default()
++                            });
++
++                            self.composite_backdrop_blur(&blurred, &mut pass);
++                        }
++                    }
+                 }
+             }
+         }
+@@ -1847,6 +2221,8 @@ impl WgpuRendererCore {
+                 st_position: v.st_position,
+                 color: path.color,
+                 bounds,
++                rounded_clip: path.rounded_clip,
++                pad: 0,
+             }));
+         }
+ 
+@@ -1887,7 +2263,8 @@ impl WgpuRendererCore {
+                 ..Default::default()
+             });
+ 
+-            pass.set_pipeline(&resources.pipelines.path_rasterization);
++            let clipped = paths.iter().any(|path| path.rounded_clip != 0);
++            pass.set_pipeline(&self.pipelines(clipped).path_rasterization);
+             pass.set_bind_group(0, &resources.path_globals_bind_group, &[]);
+             pass.set_bind_group(1, &vertex_binding.bind_group, &[]);
+             // The path rasterization shader loads records by vertex index
+@@ -1903,12 +2280,267 @@ impl WgpuRendererCore {
+         Ok(true)
+     }
+ 
++    /// The target pixels a backdrop blur reads, as `[x, y, width, height]`, or `None` when it
++    /// cannot run.
++    fn backdrop_blur_region(
++        &mut self,
++        blur: &BackdropBlur,
++        target: &wgpu::Texture,
++    ) -> Option<[u32; 4]> {
++        if self.pipelines(true).backdrop_blurs.is_none()
++            || !target.usage().contains(wgpu::TextureUsages::COPY_SRC)
++        {
++            if !self.backdrop_blur_skip_logged {
++                self.backdrop_blur_skip_logged = true;
++                warn!("Backdrop blurs are unsupported by this renderer and are skipped");
++            }
++            return None;
++        }
++        let bounds = blur.bounds;
++        let left = bounds.origin.x.0.floor() as u32;
++        let top = bounds.origin.y.0.floor() as u32;
++        let right = ((bounds.origin.x + bounds.size.width).0.ceil() as u32).min(target.width());
++        let bottom = ((bounds.origin.y + bounds.size.height).0.ceil() as u32).min(target.height());
++        (right > left && bottom > top).then_some([left, top, right - left, bottom - top])
++    }
++
++    /// Copies the region out of the target and blurs it, returning what the composite pass
++    /// binds.
++    fn blur_backdrop(
++        &mut self,
++        encoder: &mut wgpu::CommandEncoder,
++        target: &wgpu::Texture,
++        blur: &BackdropBlur,
++        [x, y, width, height]: [u32; 4],
++        instance_offset: &mut u64,
++    ) -> Result<(InstanceBinding, wgpu::BindGroup)> {
++        let mut scale = 1u32;
++        while blur.blur_radius.0 > BACKDROP_BLUR_MAX_SIGMA * scale as f32
++            && scale < width.max(height)
++        {
++            scale *= 2;
++        }
++        let (scaled_width, scaled_height) = (width.div_ceil(scale), height.div_ceil(scale));
++        let mut blur_pass = BackdropBlurPass {
++            blur: *blur,
++            region: PodBounds {
++                origin: [x as f32, y as f32],
++                size: [width as f32, height as f32],
++            },
++            scaled_size: [scaled_width as f32, scaled_height as f32],
++            scale: scale as f32,
++            tap_count: 0,
++            encode_srgb: self.target_format.is_srgb() as u32,
++            pad: 0,
++            taps: [[0.0; 2]; BACKDROP_BLUR_MAX_TAPS],
++        };
++        blur_pass.tap_count =
++            backdrop_blur_taps(blur.blur_radius.0 / scale as f32, &mut blur_pass.taps);
++        let instances = self.write_instance_binding(
++            "backdrop_blur_bind_group",
++            instance_offset,
++            std::slice::from_ref(&blur_pass),
++        )?;
++
++        let BackdropBlurTextures {
++            textures,
++            views,
++            bind_groups: [source, scaled, horizontal],
++        } = self.ensure_backdrop_blur_textures([width, height], [scaled_width, scaled_height]);
++        encoder.copy_texture_to_texture(
++            wgpu::TexelCopyTextureInfo {
++                texture: target,
++                mip_level: 0,
++                origin: wgpu::Origin3d { x, y, z: 0 },
++                aspect: wgpu::TextureAspect::All,
++            },
++            wgpu::TexelCopyTextureInfo {
++                texture: &textures[0],
++                mip_level: 0,
++                origin: wgpu::Origin3d::ZERO,
++                aspect: wgpu::TextureAspect::All,
++            },
++            wgpu::Extent3d {
++                width,
++                height,
++                depth_or_array_layers: 1,
++            },
++        );
++
++        let scaled_size = blur_pass.scaled_size;
++        let resources = self.resources();
++        let Some(pipelines) = &self.pipelines(true).backdrop_blurs else {
++            anyhow::bail!("backdrop blur pipelines are missing");
++        };
++        let mut scratch_pass = |pipeline, input: &wgpu::BindGroup, output: &wgpu::TextureView| {
++            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
++                label: Some("backdrop_blur_pass"),
++                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
++                    view: output,
++                    resolve_target: None,
++                    ops: wgpu::Operations {
++                        load: wgpu::LoadOp::Load,
++                        store: wgpu::StoreOp::Store,
++                    },
++                    depth_slice: None,
++                })],
++                depth_stencil_attachment: None,
++                ..Default::default()
++            });
++            pass.set_viewport(0.0, 0.0, scaled_size[0], scaled_size[1], 0.0, 1.0);
++            pass.set_pipeline(pipeline);
++            pass.set_bind_group(0, &resources.globals_bind_group, &[]);
++            pass.set_bind_group(1, &instances.bind_group, &[]);
++            pass.set_bind_group(2, input, &[]);
++            pass.draw(0..4, instances.first_instance..instances.first_instance + 1);
++        };
++        if scale > 1 {
++            scratch_pass(&pipelines.downsample, &source, &views[1]);
++            scratch_pass(&pipelines.horizontal, &scaled, &views[2]);
++        } else {
++            scratch_pass(&pipelines.horizontal, &source, &views[2]);
++        }
++        scratch_pass(&pipelines.vertical, &horizontal, &views[1]);
++        Ok((instances, scaled))
++    }
++
++    /// Draws the blurred region over the target, clipped like any other primitive.
++    fn composite_backdrop_blur(
++        &self,
++        (instances, blurred): &(InstanceBinding, wgpu::BindGroup),
++        pass: &mut wgpu::RenderPass<'_>,
++    ) {
++        let resources = self.resources();
++        let Some(pipelines) = &self.pipelines(true).backdrop_blurs else {
++            return;
++        };
++        pass.set_pipeline(&pipelines.composite);
++        pass.set_bind_group(0, &resources.globals_bind_group, &[]);
++        pass.set_bind_group(1, &instances.bind_group, &[]);
++        pass.set_bind_group(2, blurred, &[]);
++        pass.draw(0..4, instances.first_instance..instances.first_instance + 1);
++    }
++
++    /// Drops the blur textures on a frame that draws no blur.
++    fn free_backdrop_blur_textures(&mut self) {
++        if let Some(blur) = self.resources.backdrop_blur_textures.take() {
++            for texture in &blur.textures {
++                texture.destroy();
++            }
++        }
++    }
++
++    /// One frame's blurs share these textures: the copy grown to the largest region, and the two
++    /// it is blurred through to the largest region as downscaled.
++    fn ensure_backdrop_blur_textures(
++        &mut self,
++        region: [u32; 2],
++        scaled: [u32; 2],
++    ) -> BackdropBlurTextures {
++        let resources = &mut self.resources;
++        let fits = |texture: &wgpu::Texture, [width, height]: [u32; 2]| {
++            texture.width() >= width && texture.height() >= height
++        };
++        if let Some(blur) = &resources.backdrop_blur_textures
++            && fits(&blur.textures[0], region)
++            && fits(&blur.textures[1], scaled)
++        {
++            return blur.clone();
++        }
++        let grown = |ix: usize, [width, height]: [u32; 2]| match &resources.backdrop_blur_textures {
++            Some(blur) => [
++                blur.textures[ix].width().max(width),
++                blur.textures[ix].height().max(height),
++            ],
++            None => [width, height],
++        };
++        let sizes = [grown(0, region), grown(1, scaled), grown(2, scaled)];
++        let create = |label, usage, [width, height]: [u32; 2]| {
++            resources.device.create_texture(&wgpu::TextureDescriptor {
++                label: Some(label),
++                size: wgpu::Extent3d {
++                    width,
++                    height,
++                    depth_or_array_layers: 1,
++                },
++                mip_level_count: 1,
++                sample_count: 1,
++                dimension: wgpu::TextureDimension::D2,
++                format: self.target_format.remove_srgb_suffix(),
++                usage: usage | wgpu::TextureUsages::TEXTURE_BINDING,
++                view_formats: &[],
++            })
++        };
++        let textures = [
++            create(
++                "backdrop_blur_source",
++                wgpu::TextureUsages::COPY_DST,
++                sizes[0],
++            ),
++            create(
++                "backdrop_blur_scaled",
++                wgpu::TextureUsages::RENDER_ATTACHMENT,
++                sizes[1],
++            ),
++            create(
++                "backdrop_blur_horizontal",
++                wgpu::TextureUsages::RENDER_ATTACHMENT,
++                sizes[2],
++            ),
++        ];
++        let views = textures
++            .each_ref()
++            .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()));
++        let bind_groups = views
++            .each_ref()
++            .map(|view| self.create_texture_bind_group("backdrop_blur_bind_group", view));
++        let blur = BackdropBlurTextures {
++            textures,
++            views,
++            bind_groups,
++        };
++        self.resources.backdrop_blur_textures = Some(blur.clone());
++        blur
++    }
++
+     fn write_instance_binding<T>(
+         &mut self,
+         label: &str,
+         instance_offset: &mut u64,
+         instances: &[T],
+     ) -> Result<InstanceBinding> {
++        let (instances, first_instance) = self.write_instance_data(instance_offset, instances)?;
++        let resources = self.resources();
++        let rounded_clips = self.rounded_clips.as_ref().unwrap_or(&instances);
++        let bind_group = resources
++            .device
++            .create_bind_group(&wgpu::BindGroupDescriptor {
++                label: Some(label),
++                layout: &resources.bind_group_layouts.instances,
++                entries: &[
++                    wgpu::BindGroupEntry {
++                        binding: 0,
++                        resource: instances.binding_resource(),
++                    },
++                    wgpu::BindGroupEntry {
++                        binding: 1,
++                        resource: rounded_clips.binding_resource(),
++                    },
++                ],
++            });
++        Ok(InstanceBinding {
++            bind_group,
++            first_instance,
++        })
++    }
++
++    /// Writes `instances` into this frame's instance data, returning where they landed and the
++    /// index of the first one within the bound data.
++    fn write_instance_data<T>(
++        &mut self,
++        instance_offset: &mut u64,
++        instances: &[T],
++    ) -> Result<(InstanceSlice, u32)> {
+         let data = unsafe { Self::instance_bytes(instances) };
+         // wgpu rejects zero-sized bindings, so empty primitive arrays still
+         // reserve the 16-byte minimum.
+@@ -1949,31 +2581,15 @@ impl WgpuRendererCore {
+                 }
+             }
+         }
+-        let bind_group = resources
+-            .device
+-            .create_bind_group(&wgpu::BindGroupDescriptor {
+-                label: Some(label),
+-                layout: &resources.bind_group_layouts.instances,
+-                entries: &[wgpu::BindGroupEntry {
+-                    binding: 0,
+-                    resource: match &resources.instance_data {
+-                        InstanceData::Storage(buffer) => {
+-                            wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+-                                buffer,
+-                                offset,
+-                                size: NonZeroU64::new(size),
+-                            })
+-                        }
+-                        InstanceData::Texture { view, .. } => {
+-                            wgpu::BindingResource::TextureView(view)
+-                        }
+-                    },
+-                }],
+-            });
+-        Ok(InstanceBinding {
+-            bind_group,
+-            first_instance,
+-        })
++        let slice = match &resources.instance_data {
++            InstanceData::Storage(buffer) => InstanceSlice::Buffer {
++                buffer: buffer.clone(),
++                offset,
++                size,
++            },
++            InstanceData::Texture { view, .. } => InstanceSlice::Texture(view.clone()),
++        };
++        Ok((slice, first_instance))
+     }
+ 
+     fn write_instance_texture(resources: &WgpuResources, offset: u64, data: &[u8]) {
+@@ -2399,14 +3015,13 @@ impl WgpuHeadlessRenderer {
+     fn render(&mut self, scene: &Scene, size: Size<DevicePixels>) -> anyhow::Result<()> {
+         self.check_gpu_errors()?;
+         self.ensure_render_target(size)?;
+-        let view = self
++        let target = self
+             .render_target
+             .as_ref()
+-            .ok_or_else(|| anyhow::anyhow!("Headless render target was not created"))?
+-            .view
+-            .clone();
++            .ok_or_else(|| anyhow::anyhow!("Headless render target was not created"))?;
++        let (texture, view) = (target.texture.clone(), target.view.clone());
+         self.core
+-            .render_frame(scene, &view, size, false, wgpu::Color::BLACK)?;
++            .render_frame(scene, &texture, &view, size, false, wgpu::Color::BLACK)?;
+         Ok(())
+     }
+ 
+@@ -2549,6 +3164,29 @@ fn instance_range(range: Range<usize>) -> Range<u32> {
+     range.start as u32..range.end as u32
+ }
+ 
++/// Fills `taps` with a normalized Gaussian of standard deviation `sigma` reaching ceil(3 sigma)
++/// pixels each way, as (offset, weight): the center, then one bilinear sample per two neighboring
++/// pixels. Returns the tap count.
++fn backdrop_blur_taps(sigma: f32, taps: &mut [[f32; 2]; BACKDROP_BLUR_MAX_TAPS]) -> u32 {
++    let radius = ((3.0 * sigma).ceil().max(0.0) as usize).min(2 * (BACKDROP_BLUR_MAX_TAPS - 1));
++    let weight = |offset: usize| (-((offset * offset) as f32) / (2.0 * sigma * sigma)).exp();
++    let total = 1.0 + 2.0 * (1..=radius).map(weight).sum::<f32>();
++    taps[0] = [0.0, 1.0 / total];
++    let mut count = 1;
++    for near in (1..=radius).step_by(2) {
++        let near_weight = weight(near);
++        let far_weight = if near < radius { weight(near + 1) } else { 0.0 };
++        let pair_weight = near_weight + far_weight;
++        if pair_weight == 0.0 {
++            break;
++        }
++        let offset = (near as f32 * near_weight + (near + 1) as f32 * far_weight) / pair_weight;
++        taps[count] = [offset, pair_weight / total];
++        count += 1;
++    }
++    count as u32
++}
++
+ #[cfg(not(target_family = "wasm"))]
+ fn create_surface(
+     instance: &wgpu::Instance,
+@@ -2614,9 +3252,9 @@ impl RenderingParameters {
+ mod tests {
+     use super::*;
+     use gpui::{
+-        BorderStyle, ColorSpace, ContentMask, Corners, Edges, Hsla, MonochromeSprite,
+-        PolychromeSprite, Quad, Shadow, Size, SubpixelSprite, Underline, linear_color_stop,
+-        linear_gradient,
++        BackdropBlur, BorderStyle, ColorSpace, ContentMask, Corners, Edges, Hsla, MonochromeSprite,
++        PolychromeSprite, Quad, RoundedClip, Shadow, Size, SubpixelSprite, Underline,
++        linear_color_stop, linear_gradient,
+     };
+     #[cfg(target_os = "linux")]
+     use gpui::{DevicePixels, PlatformHeadlessRenderer, Scene};
+@@ -2630,8 +3268,8 @@ mod tests {
+     }
+ 
+     #[cfg(target_os = "linux")]
+-    fn solid_quad(x: f32, y: f32, width: f32, height: f32, color: Hsla) -> Quad {
+-        let bounds = Bounds {
++    fn bounds(x: f32, y: f32, width: f32, height: f32) -> Bounds<ScaledPixels> {
++        Bounds {
+             origin: Point {
+                 x: x.into(),
+                 y: y.into(),
+@@ -2640,7 +3278,12 @@ mod tests {
+                 width: width.into(),
+                 height: height.into(),
+             },
+-        };
++        }
++    }
++
++    #[cfg(target_os = "linux")]
++    fn solid_quad(x: f32, y: f32, width: f32, height: f32, color: Hsla) -> Quad {
++        let bounds = bounds(x, y, width, height);
+         Quad {
+             order: 0,
+             border_style: BorderStyle::Solid,
+@@ -2650,6 +3293,8 @@ mod tests {
+             border_color: color,
+             corner_radii: Corners::default(),
+             border_widths: Edges::default(),
++            rounded_clip: 0,
++            pad: [0; 3],
+         }
+     }
+ 
+@@ -2673,6 +3318,8 @@ mod tests {
+     const BLUE: [u8; 4] = [0, 0, 255, 255];
+     #[cfg(target_os = "linux")]
+     const BLACK: [u8; 4] = [0, 0, 0, 255];
++    #[cfg(target_os = "linux")]
++    const WHITE: [u8; 4] = [255, 255, 255, 255];
+ 
+     #[cfg(target_os = "linux")]
+     #[test]
+@@ -2771,6 +3418,210 @@ mod tests {
+         Ok(())
+     }
+ 
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn headless_renderer_applies_rounded_clip() -> anyhow::Result<()> {
++        let mut renderer = WgpuHeadlessRenderer::new()?;
++        let mut scene = Scene::default();
++        let mut quad = solid_quad(0.0, 0.0, 32.0, 32.0, gpui::red());
++        quad.rounded_clip = scene.push_rounded_clip(
++            RoundedClip {
++                bounds: quad.bounds,
++                corner_radii: Corners::all(8.0.into()),
++                ..Default::default()
++            },
++            0,
++        );
++        scene.insert_primitive(quad);
++        scene.finish();
++
++        let image = renderer.render_scene_to_image(&scene, device_size(32, 32))?;
++        assert_pixel(&image, 0, 0, BLACK);
++        assert_pixel(&image, 31, 31, BLACK);
++        assert_pixel(&image, 1, 1, BLACK);
++        assert_pixel(&image, 3, 3, RED);
++        assert_pixel(&image, 0, 16, RED);
++        assert_pixel(&image, 16, 16, RED);
++        // Pixel (2, 2)'s center lies 0.22 px inside the corner's arc.
++        let edge = image.get_pixel(2, 2).0;
++        assert!(
++            (174..=194).contains(&edge[0]) && edge[1] == 0 && edge[2] == 0,
++            "pixel (2, 2) was {edge:?}, expected about 72% red"
++        );
++        Ok(())
++    }
++
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn headless_renderer_applies_every_rounded_clip_up_the_chain() -> anyhow::Result<()> {
++        let mut renderer = WgpuHeadlessRenderer::new()?;
++        let mut scene = Scene::default();
++        let outer = scene.push_rounded_clip(
++            RoundedClip {
++                bounds: bounds(0.0, 0.0, 32.0, 32.0),
++                corner_radii: Corners::all(16.0.into()),
++                ..Default::default()
++            },
++            0,
++        );
++        let inner = scene.push_rounded_clip(
++            RoundedClip {
++                bounds: bounds(0.0, 0.0, 64.0, 64.0),
++                corner_radii: Corners::all(4.0.into()),
++                ..Default::default()
++            },
++            outer,
++        );
++        let mut quad = solid_quad(0.0, 0.0, 32.0, 32.0, gpui::red());
++        quad.rounded_clip = inner;
++        scene.insert_primitive(quad);
++        scene.finish();
++
++        let image = renderer.render_scene_to_image(&scene, device_size(32, 32))?;
++        // The inner clip alone keeps (3, 3); the outer one's 16 px corner cuts it.
++        assert_pixel(&image, 3, 3, BLACK);
++        assert_pixel(&image, 31, 0, BLACK);
++        assert_pixel(&image, 16, 16, RED);
++        assert_pixel(&image, 16, 1, RED);
++        Ok(())
++    }
++
++    /// One axis of a CSS backdrop blur: a Gaussian of standard deviation `sigma` over `values`,
++    /// mirrored at their edges.
++    #[cfg(target_os = "linux")]
++    fn reference_blur(values: &[f64], sigma: f64) -> Vec<f64> {
++        let radius = (3.0 * sigma).ceil() as i64;
++        let weights: Vec<f64> = (-radius..=radius)
++            .map(|k| (-(k * k) as f64 / (2.0 * sigma * sigma)).exp())
++            .collect();
++        let total: f64 = weights.iter().sum();
++        let len = values.len() as i64;
++        (0..len)
++            .map(|i| {
++                (-radius..=radius)
++                    .zip(&weights)
++                    .map(|(k, weight)| {
++                        let mut j = (i + k).rem_euclid(2 * len);
++                        if j >= len {
++                            j = 2 * len - 1 - j;
++                        }
++                        weight * values[j as usize]
++                    })
++                    .sum::<f64>()
++                    / total
++            })
++            .collect()
++    }
++
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn headless_renderer_blurs_only_inside_backdrop_bounds() -> anyhow::Result<()> {
++        let mut renderer = WgpuHeadlessRenderer::new()?;
++        let mut scene = Scene::default();
++        scene.insert_primitive(solid_quad(32.0, 16.0, 32.0, 16.0, gpui::white()));
++        scene.insert_primitive(solid_quad(4.0, 0.0, 4.0, 32.0, gpui::red()));
++        let blur_bounds = bounds(8.0, 4.0, 48.0, 24.0);
++        scene.insert_primitive(BackdropBlur {
++            bounds: blur_bounds,
++            content_mask: ContentMask {
++                bounds: bounds(0.0, 0.0, 64.0, 32.0),
++            },
++            blur_radius: 3.0.into(),
++            saturation: 1.0,
++            opacity: 1.0,
++            ..Default::default()
++        });
++        scene.finish();
++
++        let image = renderer.render_scene_to_image(&scene, device_size(64, 32))?;
++        // The white corner starts 24 px into the blur horizontally and 12 px vertically.
++        let columns: Vec<f64> = (0..48).map(|x| if x >= 24 { 1.0 } else { 0.0 }).collect();
++        let rows: Vec<f64> = (0..24).map(|y| if y >= 12 { 1.0 } else { 0.0 }).collect();
++        let (columns, rows) = (reference_blur(&columns, 3.0), reference_blur(&rows, 3.0));
++        for (y, row) in rows.iter().enumerate() {
++            for (x, column) in columns.iter().enumerate() {
++                let expected = (row * column * 255.0).round() as u8;
++                assert_pixel(
++                    &image,
++                    x as u32 + 8,
++                    y as u32 + 4,
++                    [expected, expected, expected, 255],
++                );
++            }
++        }
++        let ramp: Vec<u8> = (8..56).map(|x| image.get_pixel(x, 24).0[0]).collect();
++        assert!(ramp.windows(2).all(|pair| pair[0] <= pair[1]), "{ramp:?}");
++        assert!(ramp[24 - 4] < 40 && ramp[24 + 3] > 215, "{ramp:?}");
++
++        assert_pixel(&image, 5, 16, RED);
++        assert_pixel(&image, 31, 30, BLACK);
++        assert_pixel(&image, 32, 30, WHITE);
++        assert_pixel(&image, 57, 16, WHITE);
++        assert_pixel(&image, 40, 2, BLACK);
++        Ok(())
++    }
++
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn headless_renderer_downscales_wide_backdrop_blurs() -> anyhow::Result<()> {
++        let mut renderer = WgpuHeadlessRenderer::new()?;
++        let edge: Vec<f64> = (0..200).map(|x| if x >= 101 { 1.0 } else { 0.0 }).collect();
++        for sigma in [4.5, 12.0, 32.0] {
++            let mut scene = Scene::default();
++            scene.insert_primitive(solid_quad(101.0, 0.0, 99.0, 16.0, gpui::white()));
++            scene.insert_primitive(BackdropBlur {
++                bounds: bounds(0.0, 0.0, 200.0, 16.0),
++                content_mask: ContentMask {
++                    bounds: bounds(0.0, 0.0, 200.0, 16.0),
++                },
++                blur_radius: sigma.into(),
++                saturation: 1.0,
++                opacity: 1.0,
++                ..Default::default()
++            });
++            scene.finish();
++
++            let image = renderer.render_scene_to_image(&scene, device_size(200, 16))?;
++            for (x, value) in reference_blur(&edge, sigma as f64).iter().enumerate() {
++                let expected = (value * 255.0).round() as u8;
++                let actual = image.get_pixel(x as u32, 8).0;
++                assert!(
++                    actual[0].abs_diff(expected) <= 4,
++                    "sigma {sigma}: pixel ({x}, 8) was {actual:?}, expected about {expected}"
++                );
++            }
++        }
++        Ok(())
++    }
++
++    #[cfg(target_os = "linux")]
++    #[test]
++    fn headless_renderer_desaturates_backdrop() -> anyhow::Result<()> {
++        let mut renderer = WgpuHeadlessRenderer::new()?;
++        let mut scene = Scene::default();
++        scene.insert_primitive(solid_quad(0.0, 0.0, 32.0, 32.0, gpui::red()));
++        scene.insert_primitive(BackdropBlur {
++            bounds: bounds(8.0, 8.0, 16.0, 16.0),
++            content_mask: ContentMask {
++                bounds: bounds(0.0, 0.0, 32.0, 32.0),
++            },
++            corner_radii: Corners::all(4.0.into()),
++            saturation: 0.0,
++            opacity: 1.0,
++            ..Default::default()
++        });
++        scene.finish();
++
++        let image = renderer.render_scene_to_image(&scene, device_size(32, 32))?;
++        // feColorMatrix saturate(0) keeps 0.213 of red in every channel.
++        assert_pixel(&image, 16, 16, [54, 54, 54, 255]);
++        assert_pixel(&image, 8, 16, [54, 54, 54, 255]);
++        assert_pixel(&image, 8, 8, RED);
++        assert_pixel(&image, 7, 16, RED);
++        assert_pixel(&image, 24, 16, RED);
++        Ok(())
++    }
++
+     #[test]
+     fn webgl_shader_is_valid_wgsl_without_storage_buffers() {
+         assert!(!WEBGL_SHADERS.contains("var<storage"));
+@@ -2797,16 +3648,66 @@ mod tests {
+             .expect("shader should validate");
+     }
+ 
++    #[test]
++    fn record_sizes_match_wgsl_storage_strides() {
++        let wgsl_size = |name: &str| {
++            [STORAGE_BUFFER_SHADERS, SUBPIXEL_SHADERS]
++                .into_iter()
++                .find_map(|source| {
++                    let module = naga::front::wgsl::parse_str(source).expect("shader should parse");
++                    let mut layouter = naga::proc::Layouter::default();
++                    layouter
++                        .update(module.to_ctx())
++                        .expect("layout should resolve");
++                    let (handle, _) = module
++                        .types
++                        .iter()
++                        .find(|(_, ty)| ty.name.as_deref() == Some(name))?;
++                    Some(layouter[handle].size as usize)
++                })
++                .unwrap_or_else(|| panic!("no WGSL struct {name}"))
++        };
++        assert_eq!(std::mem::size_of::<Quad>(), wgsl_size("Quad"));
++        assert_eq!(std::mem::size_of::<Shadow>(), wgsl_size("Shadow"));
++        assert_eq!(
++            std::mem::size_of::<PathRasterizationVertex>(),
++            wgsl_size("PathRasterizationVertex")
++        );
++        assert_eq!(std::mem::size_of::<PathSprite>(), wgsl_size("PathSprite"));
++        assert_eq!(std::mem::size_of::<Underline>(), wgsl_size("Underline"));
++        assert_eq!(
++            std::mem::size_of::<MonochromeSprite>(),
++            wgsl_size("MonochromeSprite")
++        );
++        assert_eq!(
++            std::mem::size_of::<SubpixelSprite>(),
++            wgsl_size("SubpixelSprite")
++        );
++        assert_eq!(
++            std::mem::size_of::<PolychromeSprite>(),
++            wgsl_size("PolychromeSprite")
++        );
++        assert_eq!(
++            std::mem::size_of::<BackdropBlurPass>(),
++            wgsl_size("BackdropBlurPass")
++        );
++        assert_eq!(
++            std::mem::size_of::<SceneRoundedClip>(),
++            wgsl_size("SceneRoundedClip")
++        );
++    }
++
+     #[test]
+     fn webgl_record_sizes_match_shader_word_strides() {
+-        assert_eq!(std::mem::size_of::<Quad>(), 40 * 4);
++        assert_eq!(std::mem::size_of::<Quad>(), 44 * 4);
+         assert_eq!(std::mem::size_of::<Shadow>(), 28 * 4);
+-        assert_eq!(std::mem::size_of::<PathRasterizationVertex>(), 26 * 4);
++        assert_eq!(std::mem::size_of::<PathRasterizationVertex>(), 28 * 4);
+         assert_eq!(std::mem::size_of::<PathSprite>(), 4 * 4);
+         assert_eq!(std::mem::size_of::<Underline>(), 16 * 4);
+         assert_eq!(std::mem::size_of::<MonochromeSprite>(), 28 * 4);
+         assert_eq!(std::mem::size_of::<SubpixelSprite>(), 28 * 4);
+         assert_eq!(std::mem::size_of::<PolychromeSprite>(), 24 * 4);
++        assert_eq!(std::mem::size_of::<SceneRoundedClip>(), 12 * 4);
+     }
+ 
+     #[test]
+@@ -2876,6 +3777,8 @@ mod tests {
+                 bottom: 32.0.into(),
+                 left: 33.0.into(),
+             },
++            rounded_clip: 34,
++            pad: [35, 36, 37],
+         };
+ 
+         let bytes = unsafe { WgpuRendererCore::instance_bytes(std::slice::from_ref(&quad)) };
+@@ -2923,6 +3826,10 @@ mod tests {
+                 31.0_f32.to_bits(),
+                 32.0_f32.to_bits(),
+                 33.0_f32.to_bits(),
++                34,
++                35,
++                36,
++                37,
+             ]
+         );
+     }

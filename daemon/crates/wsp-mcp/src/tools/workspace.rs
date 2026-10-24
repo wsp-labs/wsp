@@ -130,8 +130,8 @@ pub struct OnDelete {
     pub done: String,
 }
 
-pub fn words() -> Words {
-    record::words().workspaces
+pub fn words() -> &'static Words {
+    &record::words().workspaces
 }
 
 /// The recorded sentence for one of something or for a count of them, the count filled.
@@ -249,7 +249,7 @@ pub async fn workspace_of(client: &Client, reference: &str) -> Result<Workspace,
         workspace: Option<Value>,
     }
     let resolved: Resolved = client.request("workspaces.resolve", params([("ref", Value::from(reference))])).await?;
-    resolved.workspace.and_then(|w| serde_json::from_value(w).ok()).ok_or_else(|| Failure::new(words().other_version_resolve))
+    resolved.workspace.and_then(|w| serde_json::from_value(w).ok()).ok_or_else(|| Failure::new(words().other_version_resolve.clone()))
 }
 
 /// The one state word's key: the phase leads, and the machine's own state and the daemon reach only change it where

@@ -215,8 +215,8 @@ struct Places {
 pub async fn place_named(client: &Client, word: &str) -> Result<(String, String), Failure> {
     let listed = client.request::<Places>("places.list", Map::new()).await?;
     let words = record::words();
-    let names: Vec<&str> = listed.places.iter().map(|p| p.table_name(&words)).collect();
-    match listed.places.iter().find(|p| p.named(&words, word)) {
+    let names: Vec<&str> = listed.places.iter().map(|p| p.table_name(words)).collect();
+    match listed.places.iter().find(|p| p.named(words, word)) {
         Some(place) => Ok((place.id.clone(), place.name.clone())),
         None => {
             let said = fill(&words.no_such_place, &[("word", word), ("held", &names.join(", "))]);
@@ -386,7 +386,7 @@ fn lines(facts: &Facts, own: &RawValue, rows: Rows) -> Option<Vec<String>> {
             if servers.is_empty() {
                 vec!["no MCP servers".to_owned()]
             } else {
-                let names = record::words().agent_names;
+                let names = &record::words().agent_names;
                 let reach = |s: &McpRow| {
                     if s.transport.kind == "stdio" {
                         format!("stdio {}", s.transport.line.as_deref().unwrap_or("undefined"))
@@ -447,7 +447,7 @@ fn lines(facts: &Facts, own: &RawValue, rows: Rows) -> Option<Vec<String>> {
                 all.extend(plugins.iter().map(|p| {
                     vec![
                         cell(&p.id),
-                        super::target::agent_name(&words, &p.agent),
+                        super::target::agent_name(words, &p.agent),
                         scope_word(&p.scope, p.project.as_ref()),
                         state(p),
                         p.version.clone().unwrap_or_else(|| "-".to_owned()),

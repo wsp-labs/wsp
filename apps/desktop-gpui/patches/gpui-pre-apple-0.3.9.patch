@@ -1,0 +1,1423 @@
+diff --git a/build.rs b/build.rs
+index b8dda5e..23990b0 100644
+--- a/build.rs
++++ b/build.rs
+@@ -63,6 +63,12 @@ mod apple_build {
+             "SurfaceInputIndex".into(),
+             "SurfaceBounds".into(),
+             "TransformationMatrix".into(),
++            "SceneRoundedClip".into(),
++            "RoundedClipId".into(),
++            "RoundedClipInputIndex".into(),
++            "BackdropBlur".into(),
++            "BackdropBlurInputIndex".into(),
++            "BackdropBlurPass".into(),
+         ]);
+         config.no_includes = true;
+         config.enumeration.prefix_with_name = true;
+diff --git a/src/metal_atlas.rs b/src/metal_atlas.rs
+index a635bc4..0e64df6 100644
+--- a/src/metal_atlas.rs
++++ b/src/metal_atlas.rs
+@@ -3,7 +3,7 @@ use derive_more::{Deref, DerefMut};
+ use etagere::BucketedAtlasAllocator;
+ use gpui::{
+     AtlasBackend, AtlasKey, AtlasState, AtlasTextureId, AtlasTextureKind, AtlasTextureList,
+-    AtlasTile, Bounds, DevicePixels, PlatformAtlas, Point, Size,
++    AtlasTile, AtlasUsage, Bounds, DevicePixels, PlatformAtlas, Point, Size,
+ };
+ use metal::Device;
+ use parking_lot::Mutex;
+@@ -49,6 +49,19 @@ impl PlatformAtlas for MetalAtlas {
+     fn remove(&self, key: &AtlasKey) {
+         self.0.lock().remove(key);
+     }
++
++    fn usage(&self) -> AtlasUsage {
++        let lock = self.0.lock();
++        let bytes = |textures: &AtlasTextureList<MetalAtlasTexture>| -> u64 {
++            let textures = textures.textures.iter().flatten();
++            textures.map(|t| t.metal_texture.width() * t.metal_texture.height() * t.bytes_per_pixel() as u64).sum()
++        };
++        AtlasUsage { glyphs: bytes(&lock.backend.monochrome_textures), images: bytes(&lock.backend.polychrome_textures) }
++    }
++
++    fn sweep_glyphs(&self) {
++        self.0.lock().remove_glyphs();
++    }
+ }
+ 
+ impl AtlasBackend for MetalAtlasTextures {
+@@ -135,7 +148,15 @@ impl MetalAtlasTextures {
+             width: DevicePixels(16384),
+             height: DevicePixels(16384),
+         };
+-        let size = min_size.min(&MAX_ATLAS_SIZE).max(&DEFAULT_ATLAS_SIZE);
++        // A colour page costs 4 bytes a texel and often holds one small image, such as an agent's mark.
++        let default_size = match kind {
++            AtlasTextureKind::Polychrome => Size {
++                width: DevicePixels(256),
++                height: DevicePixels(256),
++            },
++            _ => DEFAULT_ATLAS_SIZE,
++        };
++        let size = min_size.min(&MAX_ATLAS_SIZE).max(&default_size);
+         let texture_descriptor = metal::TextureDescriptor::new();
+         texture_descriptor.set_width(size.width.into());
+         texture_descriptor.set_height(size.height.into());
+diff --git a/src/metal_renderer.rs b/src/metal_renderer.rs
+index e466205..2821685 100644
+--- a/src/metal_renderer.rs
++++ b/src/metal_renderer.rs
+@@ -3,8 +3,9 @@ use anyhow::{Context as _, Result};
+ use block2::RcBlock;
+ use core_graphics::geometry::CGSize;
+ use gpui::{
+-    AtlasTextureId, Background, Bounds, ContentMask, DevicePixels, PaintSurface, Path, Point,
+-    PrimitiveBatch, ScaledPixels, Scene, Size, point, size,
++    AtlasTextureId, BackdropBlur, Background, Bounds, ContentMask, DevicePixels, PaintSurface,
++    Path, Point, PrimitiveBatch, RoundedClipId, ScaledPixels, Scene, SceneRoundedClip, Size, point,
++    size,
+ };
+ #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
+ use image::RgbaImage;
+@@ -38,6 +39,10 @@ const PATH_SAMPLE_COUNT: u32 = 4;
+ /// Metal requires the offset a buffer is bound at to be 256-byte aligned.
+ const INSTANCE_BUFFER_ALIGNMENT: usize = 256;
+ const MAX_INSTANCE_BUFFER_SIZE: usize = 256 * 1024 * 1024;
++/// Like Skia, larger blurs run on the region downscaled by a power of two.
++const BACKDROP_BLUR_MAX_SIGMA: f32 = 4.0;
++/// Public so the Metal header defines it, for `BackdropBlurPass::taps`.
++pub const BACKDROP_BLUR_MAX_TAPS: usize = 7;
+ 
+ pub type Context = Arc<Mutex<InstanceBufferPool>>;
+ pub type Renderer = MetalRenderer;
+@@ -124,6 +129,10 @@ pub struct MetalRenderer {
+     monochrome_sprites_pipeline_state: metal::RenderPipelineState,
+     polychrome_sprites_pipeline_state: metal::RenderPipelineState,
+     surfaces_pipeline_state: metal::RenderPipelineState,
++    backdrop_blur_downsample_pipeline_state: metal::RenderPipelineState,
++    backdrop_blur_horizontal_pipeline_state: metal::RenderPipelineState,
++    backdrop_blur_vertical_pipeline_state: metal::RenderPipelineState,
++    backdrop_blur_composite_pipeline_state: metal::RenderPipelineState,
+     unit_vertices: metal::Buffer,
+     #[allow(clippy::arc_with_non_send_sync)]
+     instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>,
+@@ -132,6 +141,9 @@ pub struct MetalRenderer {
+     path_intermediate_texture: Option<metal::Texture>,
+     path_intermediate_msaa_texture: Option<metal::Texture>,
+     path_sample_count: u32,
++    /// The backdrop copied out of the target, and a scratch texture the blur passes alternate
++    /// with it. They grow with the largest region and are dropped on a frame with no blur.
++    backdrop_blur_textures: Option<[metal::Texture; 2]>,
+     /// Offscreen render target reused across `render_scene` calls when
+     /// rendering headlessly without reading pixels back.
+     #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
+@@ -144,6 +156,7 @@ pub struct PathRasterizationVertex {
+     pub st_position: Point<f32>,
+     pub color: Background,
+     pub bounds: Bounds<ScaledPixels>,
++    pub rounded_clip: RoundedClipId,
+ }
+ 
+ impl MetalRenderer {
+@@ -181,10 +194,7 @@ impl MetalRenderer {
+         // https://developer.apple.com/documentation/metal/managing-your-game-window-for-metal-in-macos
+         layer.set_opaque(!transparent);
+         layer.set_maximum_drawable_count(3);
+-        // Allow texture reading for visual tests and UI automation screenshots
+-        // (captures without ScreenCaptureKit). Only debug builds pay the
+-        // presentation cost, even when `test-support` is compiled in.
+-        #[cfg(all(feature = "test-support", debug_assertions))]
++        // Every drawable is readable, since a backdrop blur copies from it.
+         layer.set_framebuffer_only(false);
+         // metal-rs doesn't bind these setters, so view the same object through
+         // objc2's typed CAMetalLayer binding.
+@@ -359,6 +369,39 @@ impl MetalRenderer {
+             "surface_fragment",
+             MTLPixelFormat::BGRA8Unorm,
+         );
++        // Premultiplied output; each pass draws into a cleared texture, so blending is a plain write.
++        let backdrop_blur_downsample_pipeline_state = build_path_sprite_pipeline_state(
++            &device,
++            &library,
++            "backdrop_blur_downsamples",
++            "backdrop_blur_vertex",
++            "backdrop_blur_downsample_fragment",
++            MTLPixelFormat::BGRA8Unorm,
++        );
++        let backdrop_blur_horizontal_pipeline_state = build_path_sprite_pipeline_state(
++            &device,
++            &library,
++            "backdrop_blur_horizontals",
++            "backdrop_blur_vertex",
++            "backdrop_blur_horizontal_fragment",
++            MTLPixelFormat::BGRA8Unorm,
++        );
++        let backdrop_blur_vertical_pipeline_state = build_path_sprite_pipeline_state(
++            &device,
++            &library,
++            "backdrop_blur_verticals",
++            "backdrop_blur_vertex",
++            "backdrop_blur_vertical_fragment",
++            MTLPixelFormat::BGRA8Unorm,
++        );
++        let backdrop_blur_composite_pipeline_state = build_path_sprite_pipeline_state(
++            &device,
++            &library,
++            "backdrop_blur_composites",
++            "backdrop_blur_composite_vertex",
++            "backdrop_blur_composite_fragment",
++            MTLPixelFormat::BGRA8Unorm,
++        );
+ 
+         let command_queue = device.new_command_queue();
+         let supports_shared_storage = cfg!(target_os = "ios") || is_apple_gpu;
+@@ -399,6 +442,10 @@ impl MetalRenderer {
+             monochrome_sprites_pipeline_state,
+             polychrome_sprites_pipeline_state,
+             surfaces_pipeline_state,
++            backdrop_blur_downsample_pipeline_state,
++            backdrop_blur_horizontal_pipeline_state,
++            backdrop_blur_vertical_pipeline_state,
++            backdrop_blur_composite_pipeline_state,
+             unit_vertices,
+             instance_buffer_pool,
+             sprite_atlas,
+@@ -406,6 +453,7 @@ impl MetalRenderer {
+             path_intermediate_texture: None,
+             path_intermediate_msaa_texture: None,
+             path_sample_count: PATH_SAMPLE_COUNT,
++            backdrop_blur_textures: None,
+             #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
+             headless_render_target: None,
+         }
+@@ -504,7 +552,12 @@ impl MetalRenderer {
+             (viewport_size.width.ceil() as i32).into(),
+             (viewport_size.height.ceil() as i32).into(),
+         );
+-        let drawable = if let Some(drawable) = layer.next_drawable() {
++        let traced = gpui::frame_timing::recording().then(|| (gpui::frame_timing::present_began(), std::time::Instant::now()));
++        let next = layer.next_drawable();
++        if let Some((index, asked)) = traced {
++            gpui::frame_timing::drawable_waited(index, asked.elapsed().as_secs_f64() * 1000.);
++        }
++        let drawable = if let Some(drawable) = next {
+             drawable
+         } else {
+             log::error!(
+@@ -522,9 +575,28 @@ impl MetalRenderer {
+             }
+         };
+ 
++        if let Some((index, _)) = traced {
++            // The GPU's own time, read once its commands have run, for a trace to lay beside the frame.
++            let block = RcBlock::new(move |buffer: ptr::NonNull<AnyObject>| {
++                // SAFETY: the handler is handed the command buffer it was added to, which answers both.
++                let (began, ended): (f64, f64) = unsafe {
++                    let buffer = buffer.as_ref();
++                    (objc2::msg_send![buffer, GPUStartTime], objc2::msg_send![buffer, GPUEndTime])
++                };
++                gpui::frame_timing::gpu_ran(index, (ended - began) * 1000.);
++            });
++            // SAFETY: Both pointee types are opaque views of the same Objective-C block pointer ABI.
++            unsafe {
++                command_buffer.add_completed_handler(&*RcBlock::as_ptr(&block).cast());
++            }
++        }
+         if self.presents_with_transaction {
+             command_buffer.commit();
++            let asked = std::time::Instant::now();
+             command_buffer.wait_until_scheduled();
++            if let Some((index, _)) = traced {
++                gpui::frame_timing::scheduled_waited(index, asked.elapsed().as_secs_f64() * 1000.);
++            }
+             drawable.present();
+         } else {
+             command_buffer.present_drawable(drawable);
+@@ -720,6 +792,9 @@ impl MetalRenderer {
+         let command_queue = self.command_queue.clone();
+         let command_buffer = command_queue.new_command_buffer();
+         let alpha = if self.opaque { 1. } else { 0. };
++        if scene.backdrop_blurs.is_empty() {
++            self.backdrop_blur_textures = None;
++        }
+ 
+         let mut command_encoder = new_command_encoder_for_texture(
+             command_buffer,
+@@ -727,6 +802,7 @@ impl MetalRenderer {
+             viewport_size,
+             Some(metal::MTLClearColor::new(0., 0., 0., alpha)),
+         );
++        set_rounded_clips(command_encoder, &instance_bindings.rounded_clips);
+ 
+         for batch in scene.batches() {
+             match batch {
+@@ -742,6 +818,7 @@ impl MetalRenderer {
+ 
+                     let did_draw = self.draw_paths_to_intermediate(
+                         paths,
++                        instance_bindings,
+                         writer,
+                         viewport_size,
+                         command_buffer,
+@@ -753,6 +830,7 @@ impl MetalRenderer {
+                         viewport_size,
+                         None,
+                     );
++                    set_rounded_clips(command_encoder, &instance_bindings.rounded_clips);
+ 
+                     if did_draw {
+                         if let Err(error) = self.draw_paths_from_intermediate(
+@@ -792,6 +870,32 @@ impl MetalRenderer {
+                     viewport_size,
+                     command_encoder,
+                 ),
++                PrimitiveBatch::BackdropBlurs(range) => {
++                    for blur in &scene.backdrop_blurs[range] {
++                        let Some(region) = backdrop_blur_region(blur, texture) else {
++                            continue;
++                        };
++                        command_encoder.end_encoding();
++
++                        let (blur_pass, blurred_texture) =
++                            self.blur_backdrop(blur, region, texture, command_buffer);
++
++                        command_encoder = new_command_encoder_for_texture(
++                            command_buffer,
++                            texture,
++                            viewport_size,
++                            None,
++                        );
++                        set_rounded_clips(command_encoder, &instance_bindings.rounded_clips);
++                        self.composite_backdrop_blur(
++                            blur,
++                            &blur_pass,
++                            &blurred_texture,
++                            viewport_size,
++                            command_encoder,
++                        );
++                    }
++                }
+                 PrimitiveBatch::SubpixelSprites { .. } => unreachable!(),
+             }
+         }
+@@ -804,6 +908,7 @@ impl MetalRenderer {
+     fn draw_paths_to_intermediate(
+         &self,
+         paths: &[Path<ScaledPixels>],
++        instance_bindings: &InstanceBindings,
+         writer: &mut InstanceBufferWriter,
+         viewport_size: Size<DevicePixels>,
+         command_buffer: &metal::CommandBufferRef,
+@@ -823,6 +928,7 @@ impl MetalRenderer {
+                 st_position: v.st_position,
+                 color: path.color,
+                 bounds: path.bounds.intersect(&path.content_mask.bounds),
++                rounded_clip: path.rounded_clip,
+             }));
+         }
+         let vertex_instance_bindings = writer.write(&vertices)?;
+@@ -861,6 +967,7 @@ impl MetalRenderer {
+             Some(&vertex_instance_bindings.buffer),
+             vertex_instance_bindings.offset as u64,
+         );
++        set_rounded_clips(command_encoder, &instance_bindings.rounded_clips);
+         command_encoder.draw_primitives(
+             metal::MTLPrimitiveType::Triangle,
+             0,
+@@ -1274,6 +1381,234 @@ impl MetalRenderer {
+             );
+         }
+     }
++
++    /// Copies the region out of the target and blurs it at the pass's scale, returning the pass
++    /// and the texture holding the result in its scaled size.
++    fn blur_backdrop(
++        &mut self,
++        blur: &BackdropBlur,
++        region: Bounds<DevicePixels>,
++        texture: &metal::TextureRef,
++        command_buffer: &metal::CommandBufferRef,
++    ) -> (BackdropBlurPass, metal::Texture) {
++        let (width, height) = (region.size.width.0 as u32, region.size.height.0 as u32);
++        let mut scale = 1u32;
++        while blur.blur_radius.0 > BACKDROP_BLUR_MAX_SIGMA * scale as f32
++            && scale < width.max(height)
++        {
++            scale *= 2;
++        }
++        let scaled_size = size(
++            DevicePixels(width.div_ceil(scale) as i32),
++            DevicePixels(height.div_ceil(scale) as i32),
++        );
++        let mut taps = [[0.; 2]; BACKDROP_BLUR_MAX_TAPS];
++        let tap_count = backdrop_blur_taps(blur.blur_radius.0 / scale as f32, &mut taps);
++        let blur_pass = BackdropBlurPass {
++            region: backdrop_blur_region_bounds(region),
++            scaled_size: size(
++                ScaledPixels(scaled_size.width.0 as f32),
++                ScaledPixels(scaled_size.height.0 as f32),
++            ),
++            scale: scale as f32,
++            tap_count,
++            taps,
++        };
++        let mut textures = self.backdrop_blur_textures(region.size);
++
++        let blit = command_buffer.new_blit_command_encoder();
++        blit.copy_from_texture(
++            texture,
++            0,
++            0,
++            metal::MTLOrigin {
++                x: region.origin.x.0 as u64,
++                y: region.origin.y.0 as u64,
++                z: 0,
++            },
++            metal::MTLSize {
++                width: width as u64,
++                height: height as u64,
++                depth: 1,
++            },
++            &textures[0],
++            0,
++            0,
++            metal::MTLOrigin { x: 0, y: 0, z: 0 },
++        );
++        blit.end_encoding();
++
++        let downsample = (scale > 1).then_some(&self.backdrop_blur_downsample_pipeline_state);
++        let blur_passes = (tap_count > 1).then_some([
++            &self.backdrop_blur_horizontal_pipeline_state,
++            &self.backdrop_blur_vertical_pipeline_state,
++        ]);
++        for pipeline_state in downsample
++            .into_iter()
++            .chain(blur_passes.into_iter().flatten())
++        {
++            let command_encoder = new_command_encoder_for_texture(
++                command_buffer,
++                &textures[1],
++                scaled_size,
++                Some(metal::MTLClearColor::new(0., 0., 0., 0.)),
++            );
++            command_encoder.set_render_pipeline_state(pipeline_state);
++            command_encoder.set_vertex_buffer(
++                BackdropBlurInputIndex::Vertices as u64,
++                Some(&self.unit_vertices),
++                0,
++            );
++            command_encoder.set_fragment_bytes(
++                BackdropBlurInputIndex::Pass as u64,
++                mem::size_of_val(&blur_pass) as u64,
++                &blur_pass as *const BackdropBlurPass as *const _,
++            );
++            command_encoder
++                .set_fragment_texture(BackdropBlurInputIndex::Texture as u64, Some(&textures[0]));
++            command_encoder.draw_primitives(metal::MTLPrimitiveType::Triangle, 0, 6);
++            command_encoder.end_encoding();
++            textures.swap(0, 1);
++        }
++
++        let [blurred_texture, _] = textures;
++        (blur_pass, blurred_texture)
++    }
++
++    fn composite_backdrop_blur(
++        &self,
++        blur: &BackdropBlur,
++        blur_pass: &BackdropBlurPass,
++        blurred_texture: &metal::TextureRef,
++        viewport_size: Size<DevicePixels>,
++        command_encoder: &metal::RenderCommandEncoderRef,
++    ) {
++        command_encoder.set_render_pipeline_state(&self.backdrop_blur_composite_pipeline_state);
++        command_encoder.set_vertex_buffer(
++            BackdropBlurInputIndex::Vertices as u64,
++            Some(&self.unit_vertices),
++            0,
++        );
++        command_encoder.set_vertex_bytes(
++            BackdropBlurInputIndex::BackdropBlur as u64,
++            mem::size_of_val(blur) as u64,
++            blur as *const BackdropBlur as *const _,
++        );
++        command_encoder.set_fragment_bytes(
++            BackdropBlurInputIndex::BackdropBlur as u64,
++            mem::size_of_val(blur) as u64,
++            blur as *const BackdropBlur as *const _,
++        );
++        command_encoder.set_vertex_bytes(
++            BackdropBlurInputIndex::Pass as u64,
++            mem::size_of_val(blur_pass) as u64,
++            blur_pass as *const BackdropBlurPass as *const _,
++        );
++        command_encoder.set_fragment_bytes(
++            BackdropBlurInputIndex::Pass as u64,
++            mem::size_of_val(blur_pass) as u64,
++            blur_pass as *const BackdropBlurPass as *const _,
++        );
++        command_encoder.set_vertex_bytes(
++            BackdropBlurInputIndex::ViewportSize as u64,
++            mem::size_of_val(&viewport_size) as u64,
++            &viewport_size as *const Size<DevicePixels> as *const _,
++        );
++        command_encoder.set_fragment_texture(
++            BackdropBlurInputIndex::Texture as u64,
++            Some(blurred_texture),
++        );
++        command_encoder.draw_primitives(metal::MTLPrimitiveType::Triangle, 0, 6);
++    }
++
++    fn backdrop_blur_textures(&mut self, size: Size<DevicePixels>) -> [metal::Texture; 2] {
++        let (width, height) = self
++            .backdrop_blur_textures
++            .as_ref()
++            .map_or((0, 0), |[texture, _]| (texture.width(), texture.height()));
++        if width < size.width.0 as u64 || height < size.height.0 as u64 {
++            let texture_descriptor = metal::TextureDescriptor::new();
++            texture_descriptor.set_width(width.max(size.width.0 as u64));
++            texture_descriptor.set_height(height.max(size.height.0 as u64));
++            texture_descriptor.set_pixel_format(MTLPixelFormat::BGRA8Unorm);
++            texture_descriptor.set_storage_mode(metal::MTLStorageMode::Private);
++            texture_descriptor.set_usage(
++                metal::MTLTextureUsage::RenderTarget | metal::MTLTextureUsage::ShaderRead,
++            );
++            self.backdrop_blur_textures = Some([
++                self.device.new_texture(&texture_descriptor),
++                self.device.new_texture(&texture_descriptor),
++            ]);
++        }
++        self.backdrop_blur_textures
++            .clone()
++            .expect("just ensured the backdrop blur textures exist")
++    }
++}
++
++fn backdrop_blur_region(
++    blur: &BackdropBlur,
++    texture: &metal::TextureRef,
++) -> Option<Bounds<DevicePixels>> {
++    let bounds = blur.bounds;
++    let left = (bounds.origin.x.0.floor() as i32).max(0);
++    let top = (bounds.origin.y.0.floor() as i32).max(0);
++    let right = (bounds.right().0.ceil() as i32).min(texture.width() as i32);
++    let bottom = (bounds.bottom().0.ceil() as i32).min(texture.height() as i32);
++    (right > left && bottom > top).then(|| {
++        Bounds::from_corners(
++            point(DevicePixels(left), DevicePixels(top)),
++            point(DevicePixels(right), DevicePixels(bottom)),
++        )
++    })
++}
++
++fn backdrop_blur_region_bounds(region: Bounds<DevicePixels>) -> Bounds<ScaledPixels> {
++    Bounds {
++        origin: point(
++            ScaledPixels(region.origin.x.0 as f32),
++            ScaledPixels(region.origin.y.0 as f32),
++        ),
++        size: size(
++            ScaledPixels(region.size.width.0 as f32),
++            ScaledPixels(region.size.height.0 as f32),
++        ),
++    }
++}
++
++/// Fills `taps` with a normalized Gaussian of standard deviation `sigma` reaching ceil(3 sigma)
++/// pixels each way, as (offset, weight): the center, then one bilinear sample per two neighboring
++/// pixels. Returns the tap count.
++fn backdrop_blur_taps(sigma: f32, taps: &mut [[f32; 2]; BACKDROP_BLUR_MAX_TAPS]) -> u32 {
++    let radius = ((3.0 * sigma).ceil().max(0.0) as usize).min(2 * (BACKDROP_BLUR_MAX_TAPS - 1));
++    let weight = |offset: usize| (-((offset * offset) as f32) / (2.0 * sigma * sigma)).exp();
++    let total = 1.0 + 2.0 * (1..=radius).map(weight).sum::<f32>();
++    taps[0] = [0.0, 1.0 / total];
++    let mut count = 1;
++    for near in (1..=radius).step_by(2) {
++        let near_weight = weight(near);
++        let far_weight = if near < radius { weight(near + 1) } else { 0.0 };
++        let pair_weight = near_weight + far_weight;
++        if pair_weight == 0.0 {
++            break;
++        }
++        let offset = (near as f32 * near_weight + (near + 1) as f32 * far_weight) / pair_weight;
++        taps[count] = [offset, pair_weight / total];
++        count += 1;
++    }
++    count as u32
++}
++
++/// Binds the frame's rounded clips at the one index every clipping fragment function reads them from.
++fn set_rounded_clips(
++    command_encoder: &metal::RenderCommandEncoderRef,
++    rounded_clips: &InstanceBinding,
++) {
++    command_encoder.set_fragment_buffer(
++        RoundedClipInputIndex::RoundedClips as u64,
++        Some(&rounded_clips.buffer),
++        rounded_clips.offset as u64,
++    );
+ }
+ 
+ fn new_command_encoder_for_texture<'a>(
+@@ -1458,6 +1793,7 @@ struct InstanceBindings {
+     monochrome_sprites: InstanceBinding,
+     polychrome_sprites: InstanceBinding,
+     surfaces: InstanceBinding,
++    rounded_clips: InstanceBinding,
+ }
+ 
+ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<InstanceBindings> {
+@@ -1471,6 +1807,12 @@ fn write_instances(scene: &Scene, writer: &mut InstanceBufferWriter) -> Result<I
+             bounds: surface.bounds,
+             content_mask: surface.content_mask,
+         }))?,
++        // Bound even on a frame with no clips, so the buffer argument is never left unset.
++        rounded_clips: if scene.rounded_clips.is_empty() {
++            writer.write(&[SceneRoundedClip::default()])?
++        } else {
++            writer.write(&scene.rounded_clips)?
++        },
+     })
+ }
+ 
+@@ -1645,6 +1987,33 @@ enum SurfaceInputIndex {
+     CbCrTexture = 5,
+ }
+ 
++#[repr(C)]
++enum BackdropBlurInputIndex {
++    Vertices = 0,
++    BackdropBlur = 1,
++    ViewportSize = 2,
++    Pass = 3,
++    Texture = 4,
++}
++
++/// A backdrop blur's region in whole target pixels, copied to the textures' origin and blurred
++/// there downscaled by `scale` to `scaled_size`. `taps[0]` is the kernel's center; every other tap
++/// is one bilinear sample standing for two kernel taps, used on both sides.
++#[repr(C)]
++struct BackdropBlurPass {
++    region: Bounds<ScaledPixels>,
++    scaled_size: Size<ScaledPixels>,
++    scale: f32,
++    tap_count: u32,
++    taps: [[f32; 2]; BACKDROP_BLUR_MAX_TAPS],
++}
++
++/// Above every other input index, so it collides with none of the buffers it is bound beside.
++#[repr(C)]
++enum RoundedClipInputIndex {
++    RoundedClips = 6,
++}
++
+ #[repr(C)]
+ enum PathRasterizationInputIndex {
+     Vertices = 0,
+@@ -1707,6 +2076,86 @@ mod tests {
+         CVPixelBufferUnlockBaseAddress, kCVPixelBufferIOSurfacePropertiesKey,
+     };
+ 
++    fn quad(x: f32, y: f32, width: f32, height: f32, color: gpui::Hsla) -> gpui::Quad {
++        let bounds = Bounds {
++            origin: point(ScaledPixels(x), ScaledPixels(y)),
++            size: size(ScaledPixels(width), ScaledPixels(height)),
++        };
++        gpui::Quad {
++            bounds,
++            content_mask: ContentMask { bounds },
++            background: color.into(),
++            ..Default::default()
++        }
++    }
++
++    #[test]
++    fn a_rounded_clips_ramp_fades_what_it_clips() {
++        let mut scene = Scene::default();
++        let mut red = quad(0., 0., 32., 32., gpui::red());
++        red.rounded_clip = scene.push_rounded_clip(
++            gpui::RoundedClip {
++                bounds: red.bounds,
++                fade_top: ScaledPixels(8.),
++                fade_bottom: ScaledPixels(24.),
++                ..Default::default()
++            },
++            0,
++        );
++        scene.insert_primitive(red);
++        scene.finish();
++
++        let mut renderer = MetalRenderer::new_headless(Arc::new(Mutex::new(Default::default())));
++        let image = renderer
++            .render_scene_to_image(&scene, size(DevicePixels(32), DevicePixels(32)))
++            .unwrap();
++        assert_eq!(image.get_pixel(16, 4).0[0], 255, "whole above the ramp");
++        assert_eq!(image.get_pixel(16, 28).0[0], 0, "gone below it");
++        // Row 16's center lies 7.5 px above the ramp's foot, which is 16 px long.
++        let middle = image.get_pixel(16, 16).0[0];
++        assert!((110..=130).contains(&middle), "pixel (16, 16) was {middle}, expected about 47% red");
++    }
++
++    #[test]
++    fn a_blur_over_a_see_through_page_covers_it_on_its_ground() {
++        let page = gpui::Hsla { a: 0.5, ..gpui::white() };
++        let blur = |ground: u32| {
++            let mut scene = Scene::default();
++            scene.insert_primitive(quad(0., 0., 64., 32., page));
++            scene.insert_primitive(quad(30., 0., 4., 32., gpui::black()));
++            let area = quad(8., 4., 48., 24., page);
++            scene.insert_primitive(BackdropBlur {
++                bounds: area.bounds,
++                content_mask: area.content_mask,
++                blur_radius: ScaledPixels(3.),
++                saturation: 1.,
++                opacity: 1.,
++                ground,
++                ..Default::default()
++            });
++            scene.finish();
++            let mut renderer = MetalRenderer::new_headless(Arc::new(Mutex::new(Default::default())));
++            renderer.update_transparency(true);
++            renderer
++                .render_scene_to_image(&scene, size(DevicePixels(64), DevicePixels(32)))
++                .unwrap()
++        };
++        let bare = blur(0);
++        assert!(bare.get_pixel(16, 16).0[3] < 255, "the page under the blur is see-through");
++        let grounded = blur(gpui::pack_ground(gpui::rgb(0x232929).into()));
++        for (x, y) in [(10, 6), (16, 16), (32, 16), (54, 26)] {
++            assert_eq!(grounded.get_pixel(x, y).0[3], 255, "({x}, {y}): the ground under the copy covers the page");
++        }
++        // The page's half-white copy, premultiplied, over half of rgb(35 41 41).
++        let [r, g, b, _] = grounded.get_pixel(10, 6).0;
++        assert!(
++            r.abs_diff(145) <= 3 && g.abs_diff(148) <= 3 && b.abs_diff(148) <= 3,
++            "(10, 6) was {:?}, expected about (145, 148, 148)",
++            (r, g, b)
++        );
++        assert_eq!(grounded.get_pixel(2, 16).0[3], bare.get_pixel(2, 16).0[3], "outside the blur nothing changes");
++    }
++
+     #[test]
+     fn render_core_video_surface() {
+         let attributes = CFDictionary::from_slices(
+diff --git a/src/shaders.metal b/src/shaders.metal
+index 2b52bb9..b681123 100644
+--- a/src/shaders.metal
++++ b/src/shaders.metal
+@@ -28,6 +28,10 @@ float pick_corner_radius(float2 center_to_point, Corners_ScaledPixels corner_rad
+ float quad_sdf(float2 point, Bounds_ScaledPixels bounds,
+                Corners_ScaledPixels corner_radii);
+ float quad_sdf_impl(float2 center_to_point, float corner_radius);
++float rounded_clip_alpha(float2 position, uint clip_id, constant SceneRoundedClip *clips);
++float4 sample_mirrored(texture2d<float> source, float2 position, float2 region_size);
++float4 blur_backdrop(texture2d<float> source, float2 position, float2 direction,
++                     constant BackdropBlurPass &pass);
+ float gaussian(float x, float sigma);
+ float2 erf(float2 x);
+ float blur_along_x(float x, float y, float sigma, float corner,
+@@ -51,6 +55,7 @@ struct QuadVertexOutput {
+   float4 background_solid [[flat]];
+   float4 background_color0 [[flat]];
+   float4 background_color1 [[flat]];
++  uint rounded_clip [[flat]];
+   float clip_distance [[clip_distance]][4];
+ };
+ 
+@@ -61,6 +66,7 @@ struct QuadFragmentInput {
+   float4 background_solid [[flat]];
+   float4 background_color0 [[flat]];
+   float4 background_color1 [[flat]];
++  uint rounded_clip [[flat]];
+ };
+ 
+ vertex QuadVertexOutput quad_vertex(uint unit_vertex_id [[vertex_id]],
+@@ -94,15 +100,18 @@ vertex QuadVertexOutput quad_vertex(uint unit_vertex_id [[vertex_id]],
+       gradient.solid,
+       gradient.color0,
+       gradient.color1,
++      quad.rounded_clip,
+       {clip_distance.x, clip_distance.y, clip_distance.z, clip_distance.w}};
+ }
+ 
+ fragment float4 quad_fragment(QuadFragmentInput input [[stage_in]],
+                               constant Quad *quads
+-                              [[buffer(QuadInputIndex_Quads)]]) {
++                              [[buffer(QuadInputIndex_Quads)]],
++                              constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]) {
+   Quad quad = quads[input.quad_id];
+   float4 background_color = fill_color(quad.background, input.position.xy, quad.bounds,
+     input.background_solid, input.background_color0, input.background_color1);
++  float clip_alpha = rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips);
+ 
+   bool unrounded = quad.corner_radii.top_left == 0.0 &&
+     quad.corner_radii.bottom_left == 0.0 &&
+@@ -115,7 +124,7 @@ fragment float4 quad_fragment(QuadFragmentInput input [[stage_in]],
+       quad.border_widths.right == 0.0 &&
+       quad.border_widths.bottom == 0.0 &&
+       unrounded) {
+-    return background_color;
++    return background_color * float4(1.0, 1.0, 1.0, clip_alpha);
+   }
+ 
+   float2 size = float2(quad.bounds.size.width, quad.bounds.size.height);
+@@ -175,7 +184,7 @@ fragment float4 quad_fragment(QuadFragmentInput input [[stage_in]],
+ 
+   // Fast path for points that must be part of the background
+   if (is_within_inner_straight_border && !is_near_rounded_corner) {
+-    return background_color;
++    return background_color * float4(1.0, 1.0, 1.0, clip_alpha);
+   }
+ 
+   // Signed distance of the point to the outside edge of the quad's border
+@@ -386,14 +395,12 @@ fragment float4 quad_fragment(QuadFragmentInput input [[stage_in]],
+       }
+     }
+ 
+-    // Blend the border on top of the background and then linearly interpolate
+-    // between the two as we slide inside the background.
+-    float4 blended_border = over(background_color, border_color);
+-    color = mix(background_color, blended_border,
+-                saturate(antialias_threshold - inner_sdf));
++    // Coverage scales the border before `over`: mixing straight alpha lights a translucent fill's arcs.
++    border_color.a *= saturate(antialias_threshold - inner_sdf);
++    color = over(background_color, border_color);
+   }
+ 
+-  return color * float4(1.0, 1.0, 1.0, saturate(antialias_threshold - outer_sdf));
++  return color * float4(1.0, 1.0, 1.0, saturate(antialias_threshold - outer_sdf) * clip_alpha);
+ }
+ 
+ // Returns the dash velocity of a corner given the dash velocity of the two
+@@ -450,6 +457,7 @@ struct ShadowVertexOutput {
+   float4 position [[position]];
+   float4 color [[flat]];
+   uint shadow_id [[flat]];
++  uint rounded_clip [[flat]];
+   float clip_distance [[clip_distance]][4];
+ };
+ 
+@@ -457,6 +465,7 @@ struct ShadowFragmentInput {
+   float4 position [[position]];
+   float4 color [[flat]];
+   uint shadow_id [[flat]];
++  uint rounded_clip [[flat]];
+ };
+ 
+ vertex ShadowVertexOutput shadow_vertex(
+@@ -491,13 +500,24 @@ vertex ShadowVertexOutput shadow_vertex(
+       device_position,
+       color,
+       shadow_id,
++      shadow.rounded_clip,
+       {clip_distance.x, clip_distance.y, clip_distance.z, clip_distance.w}};
+ }
+ 
+ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
+                                 constant Shadow *shadows
+-                                [[buffer(ShadowInputIndex_Shadows)]]) {
++                                [[buffer(ShadowInputIndex_Shadows)]],
++                                constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]) {
+   Shadow shadow = shadows[input.shadow_id];
++  // An outer shadow paints nothing under its element, so the blur below is skipped there.
++  float outside = 1.;
++  if (shadow.inset == 0u) {
++    outside = saturate(0.5 + quad_sdf(input.position.xy, shadow.element_bounds,
++                                      shadow.element_corner_radii));
++    if (outside == 0.) {
++      return float4(0.);
++    }
++  }
+ 
+   float2 origin = float2(shadow.bounds.origin.x, shadow.bounds.origin.y);
+   float2 size = float2(shadow.bounds.size.width, shadow.bounds.size.height);
+@@ -549,7 +569,11 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
+     float element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
+                                       shadow.element_corner_radii);
+     alpha *= saturate(0.5 - element_distance);
++  } else {
++    // CSS paints an outer shadow only outside its element's border box.
++    alpha *= outside;
+   }
++  alpha *= rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips);
+ 
+   return input.color * float4(1., 1., 1., alpha);
+ }
+@@ -558,6 +582,7 @@ struct UnderlineVertexOutput {
+   float4 position [[position]];
+   float4 color [[flat]];
+   uint underline_id [[flat]];
++  uint rounded_clip [[flat]];
+   float clip_distance [[clip_distance]][4];
+ };
+ 
+@@ -565,6 +590,7 @@ struct UnderlineFragmentInput {
+   float4 position [[position]];
+   float4 color [[flat]];
+   uint underline_id [[flat]];
++  uint rounded_clip [[flat]];
+ };
+ 
+ vertex UnderlineVertexOutput underline_vertex(
+@@ -584,16 +610,19 @@ vertex UnderlineVertexOutput underline_vertex(
+       device_position,
+       color,
+       underline_id,
++      underline.rounded_clip,
+       {clip_distance.x, clip_distance.y, clip_distance.z, clip_distance.w}};
+ }
+ 
+ fragment float4 underline_fragment(UnderlineFragmentInput input [[stage_in]],
+                                    constant Underline *underlines
+-                                   [[buffer(UnderlineInputIndex_Underlines)]]) {
++                                   [[buffer(UnderlineInputIndex_Underlines)]],
++                                   constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]) {
+   const float WAVE_FREQUENCY = 2.0;
+   const float WAVE_HEIGHT_RATIO = 0.8;
+ 
+   Underline underline = underlines[input.underline_id];
++  float clip_alpha = rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips);
+   if (underline.wavy) {
+     float half_thickness = underline.thickness * 0.5;
+     float2 origin =
+@@ -612,9 +641,9 @@ fragment float4 underline_fragment(UnderlineFragmentInput input [[stage_in]],
+     float distance_from_bottom_border = distance_in_pixels + half_thickness;
+     float alpha = saturate(
+         0.5 - max(-distance_from_bottom_border, distance_from_top_border));
+-    return input.color * float4(1., 1., 1., alpha);
++    return input.color * float4(1., 1., 1., alpha * clip_alpha);
+   } else {
+-    return input.color;
++    return input.color * float4(1., 1., 1., clip_alpha);
+   }
+ }
+ 
+@@ -623,6 +652,7 @@ struct MonochromeSpriteVertexOutput {
+   float2 tile_position;
+   float4 color [[flat]];
+   float4 clip_distance;
++  uint rounded_clip [[flat]];
+ };
+ 
+ struct MonochromeSpriteFragmentInput {
+@@ -630,6 +660,7 @@ struct MonochromeSpriteFragmentInput {
+   float2 tile_position;
+   float4 color [[flat]];
+   float4 clip_distance;
++  uint rounded_clip [[flat]];
+ };
+ 
+ vertex MonochromeSpriteVertexOutput monochrome_sprite_vertex(
+@@ -652,13 +683,15 @@ vertex MonochromeSpriteVertexOutput monochrome_sprite_vertex(
+       device_position,
+       tile_position,
+       color,
+-      {clip_distance.x, clip_distance.y, clip_distance.z, clip_distance.w}};
++      {clip_distance.x, clip_distance.y, clip_distance.z, clip_distance.w},
++      sprite.rounded_clip};
+ }
+ 
+ fragment float4 monochrome_sprite_fragment(
+     MonochromeSpriteFragmentInput input [[stage_in]],
+     constant MonochromeSprite *sprites [[buffer(SpriteInputIndex_Sprites)]],
+-    texture2d<float> atlas_texture [[texture(SpriteInputIndex_AtlasTexture)]]) {
++    texture2d<float> atlas_texture [[texture(SpriteInputIndex_AtlasTexture)]],
++    constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]) {
+   if (any(input.clip_distance < float4(0.0))) {
+     return float4(0.0);
+   }
+@@ -668,7 +701,7 @@ fragment float4 monochrome_sprite_fragment(
+   float4 sample =
+       atlas_texture.sample(atlas_texture_sampler, input.tile_position);
+   float4 color = input.color;
+-  color.a *= sample.a;
++  color.a *= sample.a * rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips);
+   return color;
+ }
+ 
+@@ -676,6 +709,7 @@ struct PolychromeSpriteVertexOutput {
+   float4 position [[position]];
+   float2 tile_position;
+   uint sprite_id [[flat]];
++  uint rounded_clip [[flat]];
+   float clip_distance [[clip_distance]][4];
+ };
+ 
+@@ -683,6 +717,7 @@ struct PolychromeSpriteFragmentInput {
+   float4 position [[position]];
+   float2 tile_position;
+   uint sprite_id [[flat]];
++  uint rounded_clip [[flat]];
+ };
+ 
+ vertex PolychromeSpriteVertexOutput polychrome_sprite_vertex(
+@@ -705,13 +740,15 @@ vertex PolychromeSpriteVertexOutput polychrome_sprite_vertex(
+       device_position,
+       tile_position,
+       sprite_id,
++      sprite.rounded_clip,
+       {clip_distance.x, clip_distance.y, clip_distance.z, clip_distance.w}};
+ }
+ 
+ fragment float4 polychrome_sprite_fragment(
+     PolychromeSpriteFragmentInput input [[stage_in]],
+     constant PolychromeSprite *sprites [[buffer(SpriteInputIndex_Sprites)]],
+-    texture2d<float> atlas_texture [[texture(SpriteInputIndex_AtlasTexture)]]) {
++    texture2d<float> atlas_texture [[texture(SpriteInputIndex_AtlasTexture)]],
++    constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]) {
+   PolychromeSprite sprite = sprites[input.sprite_id];
+   constexpr sampler atlas_texture_sampler(mag_filter::linear,
+                                           min_filter::linear);
+@@ -727,7 +764,8 @@ fragment float4 polychrome_sprite_fragment(
+     color.g = grayscale;
+     color.b = grayscale;
+   }
+-  color.a *= sprite.opacity * saturate(0.5 - distance);
++  color.a *= sprite.opacity * saturate(0.5 - distance) *
++             rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips);
+   return color;
+ }
+ 
+@@ -735,6 +773,7 @@ struct PathRasterizationVertexOutput {
+   float4 position [[position]];
+   float2 st_position;
+   uint vertex_id [[flat]];
++  uint rounded_clip [[flat]];
+   float clip_rect_distance [[clip_distance]][4];
+ };
+ 
+@@ -742,6 +781,7 @@ struct PathRasterizationFragmentInput {
+   float4 position [[position]];
+   float2 st_position;
+   uint vertex_id [[flat]];
++  uint rounded_clip [[flat]];
+ };
+ 
+ vertex PathRasterizationVertexOutput path_rasterization_vertex(
+@@ -760,6 +800,7 @@ vertex PathRasterizationVertexOutput path_rasterization_vertex(
+       position,
+       float2(v.st_position.x, v.st_position.y),
+       vertex_id,
++      v.rounded_clip,
+       {
+         v.xy_position.x - v.bounds.origin.x,
+         v.bounds.origin.x + v.bounds.size.width - v.xy_position.x,
+@@ -771,7 +812,8 @@ vertex PathRasterizationVertexOutput path_rasterization_vertex(
+ 
+ fragment float4 path_rasterization_fragment(
+   PathRasterizationFragmentInput input [[stage_in]],
+-  constant PathRasterizationVertex *vertices [[buffer(PathRasterizationInputIndex_Vertices)]]
++  constant PathRasterizationVertex *vertices [[buffer(PathRasterizationInputIndex_Vertices)]],
++  constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]
+ ) {
+   float2 dx = dfdx(input.st_position);
+   float2 dy = dfdy(input.st_position);
+@@ -791,6 +833,7 @@ fragment float4 path_rasterization_fragment(
+     float distance = f / length(gradient);
+     alpha = saturate(0.5 - distance);
+   }
++  alpha *= rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips);
+ 
+   GradientColor gradient_color = prepare_fill_color(
+     background.tag,
+@@ -899,6 +942,108 @@ fragment float4 surface_fragment(SurfaceFragmentInput input [[stage_in]],
+   return ycbcrToRGBTransform * ycbcr;
+ }
+ 
++struct BackdropBlurVertexOutput {
++  float4 position [[position]];
++};
++
++// Covers the viewport, which the renderer sets to the scaled region of the pass's target.
++vertex BackdropBlurVertexOutput backdrop_blur_vertex(
++    uint unit_vertex_id [[vertex_id]],
++    constant float2 *unit_vertices [[buffer(BackdropBlurInputIndex_Vertices)]]) {
++  float2 unit_vertex = unit_vertices[unit_vertex_id];
++  return BackdropBlurVertexOutput{
++      float4(unit_vertex * float2(2., -2.) + float2(-1., 1.), 0., 1.)};
++}
++
++// Averages each scale by scale block, one bilinear sample per 2 by 2 pixels.
++fragment float4 backdrop_blur_downsample_fragment(
++    BackdropBlurVertexOutput input [[stage_in]],
++    constant BackdropBlurPass *passes [[buffer(BackdropBlurInputIndex_Pass)]],
++    texture2d<float> backdrop [[texture(BackdropBlurInputIndex_Texture)]]) {
++  constant BackdropBlurPass &pass = passes[0];
++  float2 region_size = float2(pass.region.size.width, pass.region.size.height);
++  float2 block = floor(input.position.xy) * pass.scale;
++  float4 color = float4(0.);
++  for (float y = 1.; y < pass.scale; y += 2.) {
++    for (float x = 1.; x < pass.scale; x += 2.) {
++      color += sample_mirrored(backdrop, block + float2(x, y), region_size);
++    }
++  }
++  return color * (4. / (pass.scale * pass.scale));
++}
++
++fragment float4 backdrop_blur_horizontal_fragment(
++    BackdropBlurVertexOutput input [[stage_in]],
++    constant BackdropBlurPass *passes [[buffer(BackdropBlurInputIndex_Pass)]],
++    texture2d<float> source [[texture(BackdropBlurInputIndex_Texture)]]) {
++  return blur_backdrop(source, input.position.xy, float2(1., 0.), passes[0]);
++}
++
++fragment float4 backdrop_blur_vertical_fragment(
++    BackdropBlurVertexOutput input [[stage_in]],
++    constant BackdropBlurPass *passes [[buffer(BackdropBlurInputIndex_Pass)]],
++    texture2d<float> source [[texture(BackdropBlurInputIndex_Texture)]]) {
++  return blur_backdrop(source, input.position.xy, float2(0., 1.), passes[0]);
++}
++
++struct BackdropBlurCompositeVertexOutput {
++  float4 position [[position]];
++  uint rounded_clip [[flat]];
++  float clip_distance [[clip_distance]][4];
++};
++
++struct BackdropBlurCompositeFragmentInput {
++  float4 position [[position]];
++  uint rounded_clip [[flat]];
++};
++
++vertex BackdropBlurCompositeVertexOutput backdrop_blur_composite_vertex(
++    uint unit_vertex_id [[vertex_id]],
++    constant float2 *unit_vertices [[buffer(BackdropBlurInputIndex_Vertices)]],
++    constant BackdropBlur *blurs [[buffer(BackdropBlurInputIndex_BackdropBlur)]],
++    constant Size_DevicePixels *viewport_size
++    [[buffer(BackdropBlurInputIndex_ViewportSize)]],
++    constant BackdropBlurPass *passes [[buffer(BackdropBlurInputIndex_Pass)]]) {
++  float2 unit_vertex = unit_vertices[unit_vertex_id];
++  BackdropBlur blur = blurs[0];
++  Bounds_ScaledPixels region = passes[0].region;
++  float4 device_position = to_device_position(unit_vertex, region, viewport_size);
++  float4 clip_distance =
++      distance_from_clip_rect(unit_vertex, region, blur.content_mask.bounds);
++  return BackdropBlurCompositeVertexOutput{
++      device_position,
++      blur.rounded_clip,
++      {clip_distance.x, clip_distance.y, clip_distance.z, clip_distance.w}};
++}
++
++fragment float4 backdrop_blur_composite_fragment(
++    BackdropBlurCompositeFragmentInput input [[stage_in]],
++    constant BackdropBlur *blurs [[buffer(BackdropBlurInputIndex_BackdropBlur)]],
++    constant BackdropBlurPass *passes [[buffer(BackdropBlurInputIndex_Pass)]],
++    texture2d<float> blurred [[texture(BackdropBlurInputIndex_Texture)]],
++    constant SceneRoundedClip *rounded_clips [[buffer(RoundedClipInputIndex_RoundedClips)]]) {
++  BackdropBlur blur = blurs[0];
++  constant BackdropBlurPass &pass = passes[0];
++  float2 region_origin = float2(pass.region.origin.x, pass.region.origin.y);
++  float2 scaled_size = float2(pass.scaled_size.width, pass.scaled_size.height);
++  float4 color = sample_mirrored(blurred, (input.position.xy - region_origin) / pass.scale,
++                                 scaled_size);
++
++  // feColorMatrix saturate, on the stored values; premultiplied, so clamped to alpha.
++  float luminance = dot(color.rgb, float3(0.213, 0.715, 0.072));
++  color.rgb = clamp(luminance + (color.rgb - luminance) * blur.saturation,
++                    float3(0.), float3(color.a));
++
++  // The ground under the copy, which a see-through page's copy needs to cover the page it sampled.
++  float4 ground = unpack_unorm4x8_to_float(blur.ground);
++  color += float4(ground.rgb * ground.a, ground.a) * (1. - color.a);
++
++  float coverage =
++      saturate(0.5 - quad_sdf(input.position.xy, blur.bounds, blur.corner_radii)) *
++      rounded_clip_alpha(input.position.xy, input.rounded_clip, rounded_clips) * blur.opacity;
++  return color * coverage;
++}
++
+ float4 hsla_to_rgba(Hsla hsla) {
+   float h = hsla.h * 6.0; // Now, it's an angle but scaled in [0, 6) range
+   float s = hsla.s;
+@@ -1089,6 +1234,52 @@ float quad_sdf_impl(float2 corner_center_to_point, float corner_radius) {
+     }
+ }
+ 
++// A primitive with no rounded clip passes 0 from its vertex stage and reads no clip memory.
++float rounded_clip_alpha(float2 position, uint clip_id, constant SceneRoundedClip *clips) {
++  float alpha = 1.;
++  while (clip_id != 0) {
++    constant SceneRoundedClip &clip = clips[clip_id];
++    alpha *= saturate(0.5 - quad_sdf(position, clip.bounds, clip.corner_radii));
++    if (clip.fade_bottom > clip.fade_top) {
++      alpha *= saturate((clip.fade_bottom - position.y) / (clip.fade_bottom - clip.fade_top));
++    }
++    clip_id = clip.parent;
++  }
++  return alpha;
++}
++
++// Reflects a position, in pixels, into the region like a mirror-repeat sampler
++// on a texture exactly the region's size, then keeps it off the neighbor
++// pixels outside the region.
++float mirror_coordinate(float position, float size) {
++  float period = 2. * size;
++  float folded = position - period * floor(position / period);
++  folded = folded < size ? folded : period - folded;
++  return clamp(folded, 0.5, size - 0.5);
++}
++
++// A linear sample between two pixels mirrors to the same blend of the pixels
++// they mirror to, so the merged taps still mirror like single ones.
++float4 sample_mirrored(texture2d<float> source, float2 position, float2 region_size) {
++  constexpr sampler source_sampler(mag_filter::linear, min_filter::linear);
++  float2 mirrored = float2(mirror_coordinate(position.x, region_size.x),
++                           mirror_coordinate(position.y, region_size.y));
++  float2 source_size = float2(float(source.get_width()), float(source.get_height()));
++  return source.sample(source_sampler, mirrored / source_size);
++}
++
++float4 blur_backdrop(texture2d<float> source, float2 position, float2 direction,
++                     constant BackdropBlurPass &pass) {
++  float2 scaled_size = float2(pass.scaled_size.width, pass.scaled_size.height);
++  float4 color = sample_mirrored(source, position, scaled_size) * pass.taps[0][1];
++  for (uint i = 1; i < pass.tap_count; i++) {
++    float2 offset = direction * pass.taps[i][0];
++    color += (sample_mirrored(source, position + offset, scaled_size) +
++              sample_mirrored(source, position - offset, scaled_size)) * pass.taps[i][1];
++  }
++  return color;
++}
++
+ // A standard gaussian function, used for weighting samples
+ float gaussian(float x, float sigma) {
+   return exp(-(x * x) / (2. * sigma * sigma)) / (sqrt(2. * M_PI_F) * sigma);
+diff --git a/src/text_system.rs b/src/text_system.rs
+index 3c0e17d..1c0adb7 100644
+--- a/src/text_system.rs
++++ b/src/text_system.rs
+@@ -3,7 +3,9 @@ use collections::{HashMap, HashSet};
+ use core_foundation::{
+     array::{CFArray, CFArrayRef},
+     attributed_string::CFMutableAttributedString,
+-    base::{CFRange, TCFType},
++    base::{CFIndex, CFRange, TCFType},
++    dictionary::CFDictionary,
++    error::{CFError, CFErrorRef},
+     number::CFNumber,
+     string::CFString,
+ };
+@@ -11,14 +13,17 @@ use core_graphics::{
+     base::{CGFloat, CGGlyph, kCGImageAlphaPremultipliedLast},
+     color_space::CGColorSpace,
+     context::{CGContext, CGTextDrawingMode},
++    data_provider::CGDataProvider,
++    font::CGFont,
+     geometry::CGPoint,
++    sys::CGFontRef,
+ };
+ use core_text::{
+     font::CTFont,
+     font_collection::CTFontCollectionRef,
+     font_descriptor::{
+-        CTFontDescriptor, kCTFontSlantTrait, kCTFontSymbolicTrait, kCTFontWeightTrait,
+-        kCTFontWidthTrait,
++        CTFontDescriptor, kCTFontSlantTrait, kCTFontSymbolicTrait, kCTFontVariationAttribute,
++        kCTFontWeightTrait, kCTFontWidthTrait,
+     },
+     line::CTLine,
+     string_attributes::kCTFontAttributeName,
+@@ -32,6 +37,7 @@ use font_kit::{
+     source::SystemSource,
+     sources::mem::MemSource,
+ };
++use foreign_types::ForeignType;
+ use gpui::{
+     Bounds, DevicePixels, Font, FontFallbacks, FontFeatures, FontId, FontMetrics, FontRun,
+     FontStyle, FontWeight, GlyphId, LineLayout, Pixels, PlatformTextSystem, RenderGlyphParams,
+@@ -173,7 +179,10 @@ impl PlatformTextSystem for AppleTextSystem {
+                 },
+             )?;
+ 
+-            let font_id = candidates[ix];
++            let mut font_id = candidates[ix];
++            if matches!(font.family.as_ref(), ".SystemUIFont" | ".AppleSystemUIFont") {
++                font_id = lock.system_font_at_weight(font_id, font.weight);
++            }
+             lock.font_selections.insert(font.clone(), font_id);
+             Ok(font_id)
+         }
+@@ -266,15 +275,22 @@ impl AppleTextSystemState {
+             .into_iter()
+             .map(|bytes| match bytes {
+                 Cow::Borrowed(embedded_font) => {
+-                    let data_provider = unsafe {
+-                        core_graphics::data_provider::CGDataProvider::from_slice(embedded_font)
+-                    };
+-                    let font = core_graphics::font::CGFont::from_data_provider(data_provider)
++                    let data_provider = unsafe { CGDataProvider::from_slice(embedded_font) };
++                    let font = CGFont::from_data_provider(data_provider)
+                         .map_err(|()| anyhow!("Could not load an embedded font."))?;
++                    register_with_core_text(&font);
+                     let font = font_kit::loaders::core_text::Font::from_core_graphics_font(font);
+                     Ok(Handle::from_native(&font))
+                 }
+-                Cow::Owned(bytes) => Ok(Handle::from_memory(Arc::new(bytes), 0)),
++                Cow::Owned(bytes) => {
++                    let bytes = Arc::new(bytes);
++                    if let Ok(font) =
++                        CGFont::from_data_provider(CGDataProvider::from_buffer(bytes.clone()))
++                    {
++                        register_with_core_text(&font);
++                    }
++                    Ok(Handle::from_memory(bytes, 0))
++                }
+             })
+             .collect::<Result<Vec<_>>>()?;
+         self.memory_source.add_fonts(fonts.into_iter())?;
+@@ -390,6 +406,32 @@ impl AppleTextSystemState {
+         Ok(font_ids)
+     }
+ 
++    /// The system font at `weight` through its `wght` axis, as Chromium draws a weight the family lists no face for.
++    fn system_font_at_weight(&mut self, font_id: FontId, weight: FontWeight) -> FontId {
++        let native = self.fonts[font_id.0].native_font();
++        if (self.fonts[font_id.0].properties().weight.0 - weight.0).abs() < 1. {
++            return font_id;
++        }
++        let wght = CFNumber::from(i64::from(u32::from_be_bytes(*b"wght")));
++        let variations =
++            CFDictionary::from_CFType_pairs(&[(wght, CFNumber::from(f64::from(weight.0)))]);
++        let key = unsafe { CFString::wrap_under_get_rule(kCTFontVariationAttribute) };
++        let attributes = CFDictionary::from_CFType_pairs(&[(key, variations.to_untyped())]);
++        let Ok(descriptor) = native
++            .copy_descriptor()
++            .create_copy_with_attributes(attributes.to_untyped())
++        else {
++            return font_id;
++        };
++        let weighted = core_text::font::new_from_descriptor(&descriptor, native.pt_size());
++        let weighted_id = FontId(self.fonts.len());
++        self.postscript_names_by_font_id
++            .insert(weighted_id, weighted.postscript_name());
++        self.fonts
++            .push(unsafe { FontKitFont::from_native_font(&weighted) });
++        weighted_id
++    }
++
+     fn advance(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Size<f32>> {
+         Ok(size_from_vector2f(
+             self.fonts[font_id.0].advance(glyph_id.0)?,
+@@ -542,6 +584,7 @@ impl AppleTextSystemState {
+         let mut string = CFMutableAttributedString::new();
+         let mut max_ascent = 0.0f32;
+         let mut max_descent = 0.0f32;
++        let mut requested = SmallVec::<[(usize, usize, FontId); 4]>::new();
+ 
+         {
+             let mut text = text;
+@@ -555,6 +598,7 @@ impl AppleTextSystemState {
+                 string.replace_str(&CFString::new(text_run), CFRange::init(utf16_start, 0));
+                 let utf16_end = string.char_len();
+ 
++                requested.push((utf16_start as usize, utf16_end as usize, run.font_id));
+                 let length = utf16_end - utf16_start;
+                 let cf_range = CFRange::init(utf16_start, length);
+                 let font = &self.fonts[run.font_id.0];
+@@ -592,7 +636,16 @@ impl AppleTextSystemState {
+                     .downcast::<CTFont>()
+                     .unwrap()
+             };
+-            let font_id = self.id_for_native_font(font);
++            // A weight of the system font can share its PostScript name with the face it was made from.
++            let first = run.string_indices().first().map(|&ix| ix as usize);
++            let font_id = requested
++                .iter()
++                .find(|&&(start, end, _)| first.is_some_and(|ix| (start..end).contains(&ix)))
++                .map(|&(_, _, id)| id)
++                .filter(|id| {
++                    self.postscript_names_by_font_id.get(id) == Some(&font.postscript_name())
++                })
++                .unwrap_or_else(|| self.id_for_native_font(font));
+ 
+             let glyphs = match runs.last_mut() {
+                 Some(run) if run.font_id == font_id => &mut run.glyphs,
+@@ -666,6 +719,28 @@ impl<'a> StringIndexConverter<'a> {
+     }
+ }
+ 
++/// Core Text's fallback cascade finds a font by name only once Core Text has it, not when only font-kit's MemSource does.
++#[allow(non_upper_case_globals)]
++fn register_with_core_text(font: &CGFont) {
++    unsafe extern "C" {
++        fn CTFontManagerRegisterGraphicsFont(font: CGFontRef, error: *mut CFErrorRef) -> bool;
++    }
++    const kCTFontManagerErrorAlreadyRegistered: CFIndex = 105;
++
++    let mut error: CFErrorRef = std::ptr::null_mut();
++    if unsafe { CTFontManagerRegisterGraphicsFont(font.as_ptr(), &mut error) } || error.is_null() {
++        return;
++    }
++    let error = unsafe { CFError::wrap_under_create_rule(error) };
++    if error.code() != kCTFontManagerErrorAlreadyRegistered {
++        log::warn!(
++            "Core Text did not register {:?} for fallback: {}",
++            font.postscript_name(),
++            error.description()
++        );
++    }
++}
++
+ fn font_kit_metrics_to_metrics(metrics: Metrics) -> FontMetrics {
+     FontMetrics {
+         units_per_em: metrics.units_per_em,
+@@ -801,6 +876,57 @@ mod tests {
+         assert!(!layout.runs.is_empty());
+     }
+ 
++    #[test]
++    fn test_system_font_medium_keeps_its_face_and_fallbacks_keep_theirs() {
++        let fonts = AppleTextSystem::new();
++        let regular = fonts.font_id(&font(".SystemUIFont")).unwrap();
++        let mut medium_font = font(".SystemUIFont");
++        medium_font.weight = gpui::FontWeight::MEDIUM;
++        let medium = fonts.font_id(&medium_font).unwrap();
++        assert_ne!(regular, medium);
++        let w = fonts.glyph_for_char(medium, 'W').unwrap();
++        assert!(fonts.advance(medium, w).unwrap().width > fonts.advance(regular, w).unwrap().width);
++
++        let text = "Sonnet 😀 漢字";
++        let layout = fonts.layout_line(
++            text,
++            px(13.),
++            &[FontRun {
++                font_id: medium,
++                len: text.len(),
++            }],
++        );
++        let state = fonts.0.read();
++        let name = |id| state.postscript_names_by_font_id[&id].clone();
++        let first = layout.runs[0].font_id;
++        assert_eq!(
++            first,
++            medium,
++            "drawn with {} ({first:?}); regular is {} ({regular:?})",
++            name(first),
++            name(regular)
++        );
++        assert!(layout.runs.iter().any(|run| state.is_emoji(run.font_id)));
++        let cjk = text.find('漢').unwrap();
++        let cjk_run = layout
++            .runs
++            .iter()
++            .find(|run| run.glyphs.iter().any(|g| g.index == cjk))
++            .unwrap();
++        assert!(
++            ![regular, medium].contains(&cjk_run.font_id),
++            "漢 is drawn with {}",
++            name(cjk_run.font_id)
++        );
++        for run in &layout.runs {
++            assert!(
++                run.font_id == medium || name(run.font_id) != name(medium),
++                "a fallback took {}",
++                name(medium)
++            );
++        }
++    }
++
+     #[test]
+     fn test_layout_line_bom_char() {
+         let fonts = AppleTextSystem::new();

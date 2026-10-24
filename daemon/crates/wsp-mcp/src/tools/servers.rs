@@ -112,15 +112,14 @@ async fn tools(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let ToolsIn { name, agent, thread, on, project, refresh } = input("servers_tools", arguments)?;
     let client = host.client().await?;
     let words = record::words();
-    let usage = target::usage(&words, "servers_tools");
+    let usage = target::usage(words, "servers_tools");
     let project = match project.as_deref() {
         None => None,
         Some("") => return Err(refused(&words.tools_project_bare, &[], &usage).into()),
-        Some(named) => target::project_asked(&words, Some(&ProjectIn::Named(named.to_owned())), on.as_deref(), &usage)?.name,
+        Some(named) => target::project_asked(words, Some(&ProjectIn::Named(named.to_owned())), on.as_deref(), &usage)?.name,
     };
     let aimed =
-        target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, project.as_deref(), "servers_tools", host.cloud())
-            .await?;
+        target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, project.as_deref(), "servers_tools", host.cloud()).await?;
     let mut asking = Map::new();
     asking.insert("target".to_owned(), aimed);
     asking.insert("agent".to_owned(), Value::from(agent));
@@ -129,7 +128,7 @@ async fn tools(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
         asking.insert("refresh".to_owned(), Value::Bool(true));
     }
     let Answered { answer } = client.request("servers.tools", asking).await?;
-    Ok(Answer::text(tool_lines(&words, &name, &answer).join("\n"), &answer))
+    Ok(Answer::text(tool_lines(words, &name, &answer).join("\n"), &answer))
 }
 
 /// One server's tools as lines: its sign-in as the connect found it, then each tool, or why none came back.
@@ -181,9 +180,9 @@ pub struct AddIn {
 async fn add(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let AddIn { name, agent, thread, on, command, env, url, header, project } = input("servers_add", arguments)?;
     let words = record::words();
-    let usage = target::usage(&words, "servers_add");
-    let mut adding = values(&words, host.env(), &env.unwrap_or_default(), &header.unwrap_or_default(), &usage)?;
-    let asked = target::project_asked(&words, project.as_ref(), on.as_deref(), &usage)?;
+    let usage = target::usage(words, "servers_add");
+    let mut adding = values(words, host.env(), &env.unwrap_or_default(), &header.unwrap_or_default(), &usage)?;
+    let asked = target::project_asked(words, project.as_ref(), on.as_deref(), &usage)?;
     adding.insert("agent".to_owned(), Value::from(agent));
     adding.insert("name".to_owned(), Value::from(name.as_str()));
     if let Some(line) = command {
@@ -202,7 +201,7 @@ async fn add(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     }
     let client = host.client().await?;
     let aimed =
-        target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "servers_add", host.cloud())
+        target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "servers_add", host.cloud())
             .await?;
     adding.insert("target".to_owned(), aimed);
     let out: Written = client.request("servers.add", adding).await?;
@@ -296,20 +295,19 @@ pub struct ChangeIn {
 async fn changed(host: Arc<Host>, arguments: Value, tool: &'static str, turn: Option<bool>) -> Result<Answer, Refused> {
     let ChangeIn { name, agent, thread, on, scope, project } = input(tool, arguments)?;
     let words = record::words();
-    let usage = target::usage(&words, tool);
-    let asked = target::project_asked(&words, project.as_ref(), on.as_deref(), &usage)?;
+    let usage = target::usage(words, tool);
+    let asked = target::project_asked(words, project.as_ref(), on.as_deref(), &usage)?;
     let client = host.client().await?;
     let mut changing = Map::new();
     changing.insert("agent".to_owned(), Value::from(agent));
     changing.insert("name".to_owned(), Value::from(name.as_str()));
-    if let Some(scope) = server_scope(&words, scope, &asked, &usage)? {
+    if let Some(scope) = server_scope(words, scope, &asked, &usage)? {
         changing.insert("scope".to_owned(), Value::from(scope));
     }
     if let Some(turn) = turn {
         changing.insert("on".to_owned(), Value::Bool(turn));
     }
-    let aimed =
-        target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), tool, host.cloud()).await?;
+    let aimed = target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), tool, host.cloud()).await?;
     changing.insert("target".to_owned(), aimed);
     let op = if turn.is_some() { "servers.toggle" } else { "servers.remove" };
     let out: Written = client.request(op, changing).await?;
@@ -349,7 +347,7 @@ async fn add_tools(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused>
     adding.insert("target".to_owned(), Value::Object(here));
     adding.insert("agent".to_owned(), Value::from(agent.as_str()));
     let out: Written = client.request("agents.addTools", adding).await?;
-    Ok(Answer::text(fill(&words.tools_added, &[("agent", &agent_name(&words, &agent)), ("file", &out.file)]), &out))
+    Ok(Answer::text(fill(&words.tools_added, &[("agent", &agent_name(words, &agent)), ("file", &out.file)]), &out))
 }
 
 #[cfg(test)]
@@ -369,7 +367,7 @@ mod tests {
 
     #[test]
     fn a_command_splits_as_the_typescript_split_does() {
-        let recorded = record::words().command_words;
+        let recorded = record::words().command_words.clone();
         assert!(!recorded.is_empty());
         for (line, split) in recorded {
             assert_eq!(command_words(&line), split, "{line:?}");

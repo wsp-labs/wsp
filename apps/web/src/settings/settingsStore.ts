@@ -77,6 +77,9 @@ export interface SettingsReads {
   /** Whether this computer's service starts wsp at login; null before an answer, in a browser tab, and where no
    * service is registered. */
   readonly loginStart: boolean | null;
+  /** Whether the desktop shell hands this app over to the Experimental one; null before an answer, in a browser tab,
+   * on a shell from before the switch, in a window on a host elsewhere and where no Experimental app is installed. */
+  readonly experimental: boolean | null;
 }
 
 /** How long a read made as Settings opens stands: what these say moves on the person's own acts here, which write
@@ -101,7 +104,7 @@ export function readImage(read: (() => Promise<SealedImageView>) | undefined): v
   );
 }
 
-export const NO_READS: SettingsReads = { setup: null, file: null, account: null, devices: null, devicesRefused: false, image: null, imageReading: false, imageStale: false, editors: null, sshInclude: null, loginStart: null };
+export const NO_READS: SettingsReads = { setup: null, file: null, account: null, devices: null, devicesRefused: false, image: null, imageReading: false, imageStale: false, editors: null, sshInclude: null, loginStart: null, experimental: null };
 
 export interface SettingsState {
   readonly at: SettingsAt;

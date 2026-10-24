@@ -57,8 +57,8 @@ async fn toggle(host: Arc<Host>, arguments: Value, tool: &'static str, turn_on: 
     let ToggleIn { plugin, agent, thread, on } = input(tool, arguments)?;
     let client = host.client().await?;
     let words = record::words();
-    let usage = target::usage(&words, tool);
-    let aimed = target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, None, tool, host.cloud()).await?;
+    let usage = target::usage(words, tool);
+    let aimed = target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, None, tool, host.cloud()).await?;
     let mut turning = Map::new();
     turning.insert("target".to_owned(), aimed);
     turning.insert("agent".to_owned(), Value::from(agent));
@@ -72,7 +72,7 @@ async fn toggle(host: Arc<Host>, arguments: Value, tool: &'static str, turn_on: 
     let read: Row = serde_json::from_str(row.get()).map_err(|_| super::agents::unread(tool))?;
     let line = fill(
         if read.on { &words.plugin_turned_on } else { &words.plugin_turned_off },
-        &[("id", &read.id), ("agent", &agent_name(&words, &read.agent))],
+        &[("id", &read.id), ("agent", &agent_name(words, &read.agent))],
     );
     Ok(Answer::text(line, &ToggleOut { plugin: row }))
 }
