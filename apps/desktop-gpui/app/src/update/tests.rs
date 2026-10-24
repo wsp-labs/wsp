@@ -148,7 +148,7 @@ fn no_tools(_: &str, _: &[&str]) -> (i32, String) {
 }
 
 /// An app at 0.3.8 installed in a temp folder, and what a release holds for it: the asset that updates it to 0.3.9
-/// with its bytes, and today's app under today's own name; with the tools its check runs.
+/// with its bytes, and today's app under the classic app's name; with the tools its check runs.
 pub(super) struct Install {
     pub(super) dir: tempfile::TempDir,
     pub(super) installed: Installed,
@@ -180,11 +180,11 @@ pub(super) fn install(kind: Kind) -> Install {
         Kind::Mac => {
             let today =
                 zip_of(&[("wsp.app/", b""), ("wsp.app/Contents/MacOS/wsp", b"electron"), ("wsp.app/Contents/Resources/app.asar", b"asar")]);
-            (gpui_zip(), ("wsp-0.3.9-mac.zip", today), b"old".to_vec(), b"new".to_vec(), Arc::new(mac_tools(0)))
+            (gpui_zip(), ("wsp-classic-0.3.9-mac.zip", today), b"old".to_vec(), b"new".to_vec(), Arc::new(mac_tools(0)))
         }
         Kind::AppImage => {
             let new = gpui_image("0.3.9");
-            (new.clone(), ("wsp-0.3.9.AppImage", electron_image()), app_image("0.3.8"), new, Arc::new(no_tools))
+            (new.clone(), ("wsp-classic-0.3.9.AppImage", electron_image()), app_image("0.3.8"), new, Arc::new(no_tools))
         }
     };
     match kind {
@@ -269,12 +269,13 @@ fn a_newer_release_is_found_and_the_asset_for_this_computer_picked() {
 
     let mac = Installed { path: "/Applications/wsp.app".into(), kind: Kind::Mac };
     let linux = Installed { path: "/opt/wsp.AppImage".into(), kind: Kind::AppImage };
-    assert_eq!(mac.asset("0.3.9"), "wsp-experimental-0.3.9-mac.zip", "the Mac's universal app comes in the release's zip");
-    assert_eq!(linux.asset("0.3.9"), "wsp-experimental-0.3.9-x86_64.AppImage");
+    assert_eq!(mac.asset("0.3.9"), "wsp-0.3.9-mac.zip", "the Mac's universal app comes in the release's zip");
+    assert_eq!(linux.asset("0.3.9"), "wsp-0.3.9.AppImage");
 
     for install in installs() {
         let installed_at = &install.installed.path;
-        let assets = ["wsp-experimental-0.3.9.dmg", "wsp-experimental-0.3.9-mac.zip", "wsp-experimental-0.3.9-x86_64.AppImage"];
+        let assets =
+            ["wsp-0.3.9-mac.dmg", "wsp-0.3.9-mac.zip", "wsp-0.3.9.AppImage", "wsp-classic-0.3.9-mac.zip", "wsp-classic-0.3.9.AppImage"];
         let bytes: Vec<(&str, &[u8])> =
             assets.iter().map(|a| (*a, if *a == install.asset { install.new.as_slice() } else { b"another" })).collect();
         let served = serve(release("0.3.9", &bytes, &HashMap::new()));
@@ -397,7 +398,7 @@ fn mac_app(signed: i32, host: bool) -> impl Fn(&str, &[&str]) -> (i32, String) +
         }
         "/usr/bin/codesign" => (signed, String::new()),
         "/usr/bin/plutil" if args[1] == "CFBundleShortVersionString" => (0, "0.3.9\n".into()),
-        "/usr/bin/plutil" if args[1] == "CFBundleIdentifier" => (0, "wsp.desktop.experimental\n".into()),
+        "/usr/bin/plutil" if args[1] == "CFBundleIdentifier" => (0, "wsp.desktop\n".into()),
         "/usr/bin/plutil" => (0, "desktop-gpui\n".into()),
         "/usr/bin/xattr" => (0, String::new()),
         _ => (1, format!("{tool} is not a tool here")),
@@ -638,16 +639,12 @@ fn only_the_gpui_app_is_fetched_and_staged() {
     let names = feed::bundle_names("0.3.9");
     assert_eq!(
         [names.mac.as_str(), names.mac_zip.as_str(), names.app_image.as_str()],
-        ["wsp-experimental-0.3.9.dmg", "wsp-experimental-0.3.9-mac.zip", "wsp-experimental-0.3.9-x86_64.AppImage"],
-        "the names GPUI_NAMES in bundles.mjs gives the GPUI app's downloads"
+        ["wsp-0.3.9-mac.dmg", "wsp-0.3.9-mac.zip", "wsp-0.3.9.AppImage"],
+        "the names GPUI_NAMES in bundles.mjs gives the GPUI app's downloads, today's release's own"
     );
     let package = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/package.sh")).unwrap();
-    for built in [
-        "slug=wsp-experimental-$version",
-        r#"dmg="$dist/$slug.dmg""#,
-        r#"zip="$dist/$slug-mac.zip""#,
-        r#"appimage="$dist/$slug-x86_64.AppImage""#,
-    ] {
+    for built in ["slug=wsp-$version", r#"dmg="$dist/$slug-mac.dmg""#, r#"zip="$dist/$slug-mac.zip""#, r#"appimage="$dist/$slug.AppImage""#]
+    {
         assert!(package.contains(built), "package.sh builds what the table names: {built}");
     }
 
@@ -660,7 +657,7 @@ fn only_the_gpui_app_is_fetched_and_staged() {
         assert_eq!(
             today_only.asked.lock().unwrap().as_slice(),
             ["/repos/wsp-labs/wsp/releases/tags/v0.3.9"],
-            "today's app is never fetched"
+            "the classic app is never fetched"
         );
         assert!(!stage::stage_of(installed_at).exists(), "and nothing is made beside the app");
 
@@ -709,16 +706,18 @@ fn the_appimage_is_read_off_its_squashfs() {
 /// same team passes; the new copy is signed `new_team`'s way.
 fn signed_by(new_team: &'static str) -> impl Fn(&str, &[&str]) -> (i32, String) + Send + Sync {
     let base = mac_app(0, true);
-    move |tool, args| {
-        match (tool, args.first().copied()) {
-        ("/usr/bin/codesign", Some("-d")) => (0, "Executable=/x\ndesignated => identifier \"wsp.desktop.experimental\" and anchor apple generic and certificate leaf[subject.OU] = TEAM1\n".into()),
+    move |tool, args| match (tool, args.first().copied()) {
+        ("/usr/bin/codesign", Some("-d")) => (
+            0,
+            "Executable=/x\ndesignated => identifier \"wsp.desktop\" and anchor apple generic and certificate leaf[subject.OU] = TEAM1\n"
+                .into(),
+        ),
         ("/usr/bin/codesign", Some("--verify")) => match args.iter().find_map(|a| a.strip_prefix("-R=")) {
             Some(req) if req.ends_with(new_team) => (0, String::new()),
             Some(_) => (3, "test-requirement: code failed to satisfy specified code requirement(s)".into()),
             None => (0, String::new()),
         },
         _ => base(tool, args),
-    }
     }
 }
 
@@ -732,14 +731,14 @@ fn a_mac_update_must_be_this_app_signed_by_its_team() {
     // SAFETY: getuid reads this process's user and cannot fail.
     let uid = unsafe { libc::getuid() };
     let download = |bytes: &[u8]| {
-        let at = dir.path().join("wsp-experimental-0.3.9-mac.zip");
+        let at = dir.path().join("wsp-0.3.9-mac.zip");
         std::fs::write(&at, bytes).unwrap();
         at
     };
 
     assert_eq!(
         stage::stage(&download(&gpui_zip()), "0.3.9", &installed, &signed_by("ADHOC"), uid).unwrap_err(),
-        "wsp-experimental-0.3.9-mac.zip failed its signature check and was deleted",
+        "wsp-0.3.9-mac.zip failed its signature check and was deleted",
         "a copy any other signature passes --strict with is held to the running app's requirement"
     );
     let staged = stage::stage(&download(&gpui_zip()), "0.3.9", &installed, &signed_by("TEAM1"), uid).unwrap();
@@ -770,16 +769,16 @@ fn a_mac_update_must_be_this_app_signed_by_its_team() {
     let today = zip_of(&[("wsp.app/", b""), ("wsp.app/Contents/MacOS/wsp", b"electron"), ("wsp.app/Contents/Resources/app.asar", b"asar")]);
     assert_eq!(
         stage::stage(&download(&today), "0.3.9", &installed, &tools, uid).unwrap_err(),
-        "wsp-experimental-0.3.9-mac.zip holds another app than this one and was deleted"
+        "wsp-0.3.9-mac.zip holds another app than this one and was deleted"
     );
     assert!(calls.lock().unwrap().is_empty(), "refused off the zip's directory, before anything is unpacked");
     let other_id = |tool: &str, args: &[&str]| match tool {
-        "/usr/bin/plutil" if args[1] == "CFBundleIdentifier" && args[5].contains("/new/") => (0, "wsp.desktop\n".into()),
+        "/usr/bin/plutil" if args[1] == "CFBundleIdentifier" && args[5].contains("/new/") => (0, "wsp.desktop.other\n".into()),
         _ => mac_tools(0)(tool, args),
     };
     assert_eq!(
         stage::stage(&download(&gpui_zip()), "0.3.9", &installed, &other_id, uid).unwrap_err(),
-        "wsp-experimental-0.3.9-mac.zip holds another app than this one and was deleted",
+        "wsp-0.3.9-mac.zip holds another app than this one and was deleted",
         "another bundle id is another app"
     );
 }

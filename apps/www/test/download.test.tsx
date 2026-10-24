@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The install: the install line first on a Mac or Linux, since a file curl writes meets no security prompt; the app's
-// download beside it, through the first-open guide on a Mac while the app is unsigned; the waitlist on Windows.
+// download beside it, through the first-open guide on a Mac while the app is unsigned, and the classic app's under
+// both; the waitlist on Windows.
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../src/App";
-import { downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
+import { CLASSIC_STABLE_NAMES, downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
 import { INSTALL, RELEASES } from "../src/links";
 import { platformOf } from "../src/downloads";
 import { MAC_GUIDE } from "../src/components/download";
@@ -32,6 +33,7 @@ const FIRST: Record<keyof typeof AGENTS, "mac" | "linux" | "windows"> = {
 };
 
 const HREF = { mac: downloadUrl(STABLE_NAMES.mac), linux: downloadUrl(STABLE_NAMES.appImage) } as const;
+const CLASSIC_HREF = { mac: downloadUrl(CLASSIC_STABLE_NAMES.mac), linux: downloadUrl(CLASSIC_STABLE_NAMES.appImage) } as const;
 
 const realAgent = navigator.userAgent;
 function browsing(userAgent: string): void {
@@ -53,17 +55,20 @@ describe("which download comes first", () => {
 });
 
 describe("the install on the page", () => {
-  it("puts the install line first on a Mac, and sends the app's download through the first-open guide", () => {
+  it("puts the install line first on a Mac, sends the app's download through the first-open guide, and links the classic app under both", () => {
     browsing(AGENTS["Safari on an M-series Mac"]);
     render(<App />);
     expect(screen.getAllByRole("button", { name: `Copy ${INSTALL}` })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: "or download the app" }).map(a => a.getAttribute("href"))).toEqual([MAC_GUIDE, MAC_GUIDE]);
     expect(screen.getByRole("link", { name: "Download" }).getAttribute("href")).toBe(MAC_GUIDE);
     expect(document.querySelector(`a[href="${HREF.mac}"]`)).toBeNull();
+    expect(screen.getAllByText(/^Or get the classic app for/)).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "the classic app for Mac" }).map(a => a.getAttribute("href"))).toEqual([CLASSIC_HREF.mac, CLASSIC_HREF.mac]);
+    expect(screen.getAllByRole("link", { name: "the classic app for Linux" }).map(a => a.getAttribute("href"))).toEqual([CLASSIC_HREF.linux, CLASSIC_HREF.linux]);
   });
 
   it("puts the install line first on Linux, with the AppImage beside it, the newest release's asset and no releases page", () => {
-    for (const href of Object.values(HREF)) {
+    for (const href of [...Object.values(HREF), ...Object.values(CLASSIC_HREF)]) {
       expect(href.startsWith(`${RELEASES}/latest/download/`)).toBe(true);
       expect(href).not.toMatch(/\d+\.\d+\.\d+/);
     }
@@ -72,12 +77,14 @@ describe("the install on the page", () => {
     expect(screen.getAllByRole("button", { name: `Copy ${INSTALL}` })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: "or download the AppImage" }).map(a => a.getAttribute("href"))).toEqual([HREF.linux, HREF.linux]);
     expect(screen.getByRole("link", { name: "Download" }).getAttribute("href")).toBe(HREF.linux);
+    expect(screen.getAllByRole("link", { name: "the classic app for Linux" }).map(a => a.getAttribute("href"))).toEqual([CLASSIC_HREF.linux, CLASSIC_HREF.linux]);
   });
 
   it("gives a Windows visitor the waitlist and no download that would not run", () => {
     browsing(AGENTS["Chrome on Windows"]);
     render(<App />);
     expect(screen.queryAllByRole("link", { name: /^or download/ })).toHaveLength(0);
+    expect(screen.queryAllByRole("link", { name: /classic app/ })).toHaveLength(0);
     expect(screen.queryAllByRole("button", { name: `Copy ${INSTALL}` })).toHaveLength(0);
     expect(screen.getAllByRole("button", { name: /Join the waitlist/ })).toHaveLength(2);
   });
