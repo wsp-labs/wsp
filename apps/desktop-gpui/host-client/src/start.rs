@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The host a launch opens on (`desktop:host-lifecycle.ts` `openHostReady`): the one the lock names, else the one
-//! this computer's own service manager brings up from the unit today's app wrote, waited on until it answers. The unit
-//! is loaded as it stands and never written, rewritten or removed here: it runs today's app's shim, and this app
-//! carries no node to run a unit of its own. Quit and stop wsp stops the host and keeps the unit, login switch and all,
-//! for the next launch and the next login; today's removes it, and with it the start at login.
-
+//! this computer's own service manager brings up from its unit, waited on until it answers. A unit that stands is
+//! loaded as it stands and never rewritten or removed here. Where this app carries its own host and owns the wsp
+//! command (`Start::wsp`), a missing unit is written by that command's own `wsp up --service`, and a service host
+//! still running the command this launch rewrote is restarted onto it. Quit and stop wsp stops the host and keeps the
+//! unit, login switch and all, for the next launch and the next login; today's removes it, and with it the start at
+//! login.
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -36,7 +37,27 @@ const LOG_FILE: &str = "host.log";
 /// is found, and for `systemctl --user` the login's bus.
 const MANAGER_ENV: [&str; 5] = ["HOME", "PATH", "USER", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"];
 
-/// What a start with no unit to load says: today's app writes the unit the first time it opens.
+/// The names the wsp command keeps from the app's environment: the manager's, the home it serves and the login
+/// shell it reads its PATH from, the locale its lines are written in, and where it keeps temporary files.
+const WSP_ENV: [&str; 11] = [
+    "HOME",
+    "PATH",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "LANG",
+    "TMPDIR",
+    "XDG_RUNTIME_DIR",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "WSP_HOME",
+    "WSP_STATE_STORE",
+];
+/// What a line of the wsp command gets: `wsp up --service` alone waits `SERVICE_WAIT_MS` for its host, after reading
+/// the login shell, and a restart waits that long for the old host to go and again for the new one to answer.
+const WSP_WAIT: Duration = Duration::from_secs(90);
+
+/// What a start with no unit to load says, in a build that carries no host: today's app writes the unit the first
+/// time it opens.
 pub const NOT_SET_UP: &str = "wsp is not set up on this computer yet: open the wsp app once, then open this one";
 
 /// The two managers `host:service.ts` writes units for.
@@ -60,6 +81,14 @@ impl Manager {
             Some(Manager::Systemd)
         } else {
             None
+        }
+    }
+
+    /// How a person names the manager's units in a line (`ServiceManager.words`).
+    pub fn words(self) -> &'static str {
+        match self {
+            Manager::Launchd => "launchd agent",
+            Manager::Systemd => "systemd unit",
         }
     }
 
@@ -222,36 +251,58 @@ pub struct Ran {
     pub output: String,
 }
 
-/// Runs a manager's command, as `ServiceDeps.run`; the real one is [`System`].
+/// Runs a manager's command, as `ServiceDeps.run`, and a line of the wsp command; the real one is [`System`].
 pub trait Runner: Sync {
     fn run(&self, argv: &[String]) -> impl Future<Output = Ran> + Send;
+
+    /// A line of the wsp command this app installed, which may wait on a host for longer than a manager answers in.
+    fn wsp(&self, argv: &[String]) -> impl Future<Output = Ran> + Send {
+        self.run(argv)
+    }
 }
 
 /// `systemRunner`: the manager by its bare name off PATH, 15 s to answer, and 127 where it is not there or never
 /// answered, with nothing of the app's environment but what a manager needs.
 pub struct System {
     env: Vec<(String, String)>,
+    wsp_env: Vec<(String, String)>,
 }
 
 impl System {
     pub fn new(env: &Env) -> System {
-        System { env: MANAGER_ENV.iter().filter_map(|name| Some(((*name).to_owned(), env.get(*name)?.clone()))).collect() }
+        let kept = |names: &[&str]| names.iter().filter_map(|name| Some(((*name).to_owned(), env.get(*name)?.clone()))).collect();
+        System { env: kept(&MANAGER_ENV), wsp_env: kept(&WSP_ENV) }
+    }
+}
+
+/// Runs `argv` on nothing of the app's environment but `env`, for at most `wait`, in `cwd` where one is named.
+async fn run_for(argv: &[String], env: &[(String, String)], wait: Duration, cwd: Option<&str>) -> Ran {
+    let Some((program, args)) = argv.split_first() else { return Ran { code: 127, output: String::new() } };
+    let mut command = tokio::process::Command::new(program);
+    command.args(args).env_clear().envs(env.iter().cloned()).stdin(Stdio::null()).kill_on_drop(true);
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    match tokio::time::timeout(wait, command.output()).await {
+        Ok(Ok(out)) => {
+            let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr)).trim().to_owned();
+            Ran { code: if out.status.success() { 0 } else { out.status.code().unwrap_or(127) }, output: said }
+        }
+        Ok(Err(e)) => Ran { code: 127, output: format!("{program}: {e}") },
+        Err(_) => Ran { code: 127, output: format!("{program} did not answer within {}", fmt_wait(wait)) },
     }
 }
 
 impl Runner for System {
     async fn run(&self, argv: &[String]) -> Ran {
-        let Some((program, args)) = argv.split_first() else { return Ran { code: 127, output: String::new() } };
-        let mut command = tokio::process::Command::new(program);
-        command.args(args).env_clear().envs(self.env.iter().cloned()).stdin(Stdio::null()).kill_on_drop(true);
-        match tokio::time::timeout(MANAGER_WAIT, command.output()).await {
-            Ok(Ok(out)) => {
-                let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr)).trim().to_owned();
-                Ran { code: if out.status.success() { 0 } else { out.status.code().unwrap_or(127) }, output: said }
-            }
-            Ok(Err(e)) => Ran { code: 127, output: format!("{program}: {e}") },
-            Err(_) => Ran { code: 127, output: format!("{program} did not answer within {}", fmt_wait(MANAGER_WAIT)) },
-        }
+        run_for(argv, &self.env, MANAGER_WAIT, None).await
+    }
+
+    /// Run in the person's home, so the unit `wsp up --service` writes works there and never in a checkout whose
+    /// `.env` the app happened to start beside.
+    async fn wsp(&self, argv: &[String]) -> Ran {
+        let home = self.wsp_env.iter().find(|(name, _)| name == "HOME").map(|(_, home)| home.as_str()).filter(|home| !home.is_empty());
+        run_for(argv, &self.wsp_env, WSP_WAIT, home).await
     }
 }
 
@@ -283,6 +334,11 @@ pub struct Start {
     /// The user launchd names its domain by.
     pub uid: u32,
     pub manager: Option<Manager>,
+    /// The wsp command this app installed and owns, which runs the host this app carries: where there is one, a unit
+    /// that is missing is written by its `wsp up --service`, so the unit runs it as today's app's runs its shim.
+    pub wsp: Option<PathBuf>,
+    /// Whether this launch rewrote that command, so a service host started before runs the line it started on.
+    pub rewrote: bool,
     /// `SERVICE_WAIT_MS`, shorter in a test.
     pub wait: Duration,
     /// Where the lines a person reads in the app's log go.
@@ -300,6 +356,8 @@ impl Start {
             // SAFETY: getuid reads this process's user and cannot fail.
             uid: unsafe { libc::getuid() },
             manager: Manager::here(),
+            wsp: None,
+            rewrote: false,
             wait: SERVICE_WAIT,
             say: Arc::new(|line| eprintln!("desktop-gpui: {line}")),
         }
@@ -369,13 +427,33 @@ pub fn fmt_wait(wait: Duration) -> String {
     }
 }
 
-/// `ensureService` with a unit that is never written: the unit today's app wrote, loaded as it stands where the
-/// manager has let it go, holds it with nothing running it and nothing serving, or runs a host whose program has gone.
-/// A unit set not to start at login is loaded all the same and set back off once loaded.
+/// The last thing a line of the wsp command said, which is its refusal; else the line, its code and its silence.
+fn wsp_failure(argv: &[String], ran: &Ran) -> String {
+    ran.output.lines().map(str::trim).rfind(|said| !said.is_empty()).map(str::to_owned).unwrap_or_else(|| run_failure_line(argv, ran))
+}
+
+/// `ensureService` with a unit that is never rewritten: a unit that stands, loaded as it stands where the manager has
+/// let it go, holds it with nothing running it and nothing serving, or runs a host whose program has gone. A unit set
+/// not to start at login is loaded all the same and set back off once loaded. A missing one is written and loaded by
+/// the wsp command this app owns, through the host's own `wsp up --service`, which answers once its host serves.
 pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> {
     let Some(manager) = start.manager else { return Err(line(no_manager_line(std::env::consts::OS))) };
     if !manager.unit(&start.home, &start.state).exists() {
-        return Err(line(NOT_SET_UP));
+        let Some(wsp) = &start.wsp else { return Err(line(NOT_SET_UP)) };
+        let argv =
+            [wsp.to_string_lossy().as_ref(), "up", "--service", "--state", start.state.to_string_lossy().as_ref()].map(str::to_owned);
+        let ran = runner.wsp(&argv).await;
+        if ran.code != 0 {
+            for said in ran.output.lines().filter(|said| !said.trim().is_empty()) {
+                (start.say)(&format!("wsp up --service: {said}"));
+            }
+            // A unit it wrote whose host is slower than its wait is waited on as any other start is.
+            if !manager.unit(&start.home, &start.state).exists() {
+                return Err(Failed { failure: Box::new(Failure::new(wsp_failure(&argv, &ran))), log: Some(start.log()) });
+            }
+        }
+        (start.say)(&format!("{} wrote the {} {}", wsp.display(), manager.words(), manager.name(&start.state)));
+        return Ok(());
     }
     let off_at_login = manager.starts_at_login(&runner.run(&manager.login_read(start)).await, &start.state) == Some(false);
     let holds = manager.holds(start);
@@ -501,6 +579,31 @@ pub async fn until_attachable<R: Runner>(start: &Start, runner: &R) -> Result<Ho
     }
 }
 
+/// `restartService` through the wsp command this app owns: the host serving the state file is asked to restart on
+/// the road it came up on (`wsp restart`), which for the service is its manager starting the unit's line again, now
+/// on the command as it stands. Nothing serving is nothing to restart, and the next open starts the unit. The answer
+/// is the refusal, in the command's own words.
+pub async fn restart<R: Runner>(start: &Start, runner: &R) -> Result<(), String> {
+    let Some(wsp) = &start.wsp else { return Err("this app carries no wsp of its own to restart the host with".to_owned()) };
+    let Some(lock) = serving(&start.state) else { return Ok(()) };
+    let argv = [wsp.to_string_lossy().as_ref(), "restart", "--state", start.state.to_string_lossy().as_ref()].map(str::to_owned);
+    (start.say)(&format!("wsp (pid {}) serves {}; restarting it on {}", lock.pid, start.state.display(), wsp.display()));
+    let ran = runner.wsp(&argv).await;
+    if ran.code != 0 {
+        return Err(wsp_failure(&argv, &ran));
+    }
+    Ok(())
+}
+
+/// Whether the service's host serves while its unit runs the wsp command this launch rewrote, so it still runs the
+/// files the command named before (`staleShim`).
+fn runs_what_was_rewritten(start: &Start) -> bool {
+    let (Some(wsp), Some(manager)) = (&start.wsp, start.manager) else { return false };
+    let started_by_service = serving(&start.state).is_some_and(|lock| lock.started_by.as_deref() == Some("service"));
+    let unit = std::fs::read_to_string(manager.unit(&start.home, &start.state)).unwrap_or_default();
+    start.rewrote && started_by_service && unit.contains(wsp.to_string_lossy().as_ref())
+}
+
 /// How an open ended short of a host: a start that failed, or a refusal of a lock that stands.
 enum Short {
     Failed(Failed),
@@ -585,6 +688,12 @@ where
         Failure { message, ..refused }.into()
     };
     let gave_up = |refused: Failure| if Instant::now() < until { refused.into() } else { waited(refused) };
+    // An update or a move rewrote the command under a service host that runs it, which brings it back on these files.
+    if runs_what_was_rewritten(start) {
+        if let Err(refused) = restart(start, runner).await {
+            (start.say)(&format!("the host was not restarted onto the rewritten wsp command: {refused}"));
+        }
+    }
     loop {
         let client = match open_host(start, runner).await {
             Ok(client) => Arc::new(client),
@@ -702,6 +811,8 @@ mod tests {
             home,
             uid: 501,
             manager: Some(manager),
+            wsp: None,
+            rewrote: false,
             wait,
             say: Arc::new(move |line| kept.lock().unwrap().push(line.to_owned())),
         };
@@ -1168,5 +1279,136 @@ mod tests {
         let message = &failed.failure.message;
         let holds = format!("a host (pid {pid}) holds {} on port {port} but no wsp host answers there", lock_path.display());
         assert!(message.starts_with("after ") && message.contains(&format!("s of waiting, {holds}")), "{message}");
+    }
+
+    /// The wsp command this app owns, in the fixture's home as the app writes it.
+    fn owned(f: &mut Fixture) -> PathBuf {
+        let wsp = f.start.home.join(".wsp/bin/wsp");
+        f.start.wsp = Some(wsp.clone());
+        wsp
+    }
+
+    /// Catches: a computer with no unit yet, where only this app is installed, told to open today's app first instead
+    /// of having the host's own `wsp up --service` write the unit to run this app's command.
+    #[test]
+    fn a_missing_unit_is_written_by_the_wsp_command_this_app_owns() {
+        for manager in [Manager::Launchd, Manager::Systemd] {
+            let mut f = fixture(manager, SERVICE_WAIT);
+            std::fs::remove_file(&f.unit).unwrap();
+            let wsp = owned(&mut f);
+            let fake = Fake::new(|_| ok("systemd unit wsp-host-x.service is loaded; it serves again at every login"));
+            block(ensure(&f.start, &fake)).unwrap();
+            assert_eq!(fake.ran(), [format!("{} up --service --state {}", wsp.display(), f.start.state.display())]);
+            assert_eq!(f.said(), [format!("{} wrote the {} {}", wsp.display(), manager.words(), manager.name(&f.start.state))]);
+        }
+    }
+
+    #[test]
+    fn an_install_the_command_refused_is_its_last_line_with_the_host_log() {
+        let mut f = fixture(Manager::Systemd, SERVICE_WAIT);
+        std::fs::remove_file(&f.unit).unwrap();
+        owned(&mut f);
+        let refusal = "wsp up --service: a service starts without your shell, so it reads its provider key from a file.";
+        let fake = Fake::new(move |_| Ran { code: 1, output: format!("adopted the login shell's PATH\n{refusal}\n") });
+        let failed = block(ensure(&f.start, &fake)).unwrap_err();
+        assert_eq!(failed.failure.message, refusal);
+        assert_eq!(failed.log, Some(f.log()));
+        assert_eq!(f.said().last().unwrap(), &format!("wsp up --service: {refusal}"));
+
+        // The unit written and its host slower than the command waited: the open goes on to wait on it.
+        let unit = f.unit.clone();
+        let slow = Fake::new(move |_| {
+            std::fs::write(&unit, "the unit wsp up --service wrote\n").unwrap();
+            Ran { code: 1, output: "the systemd unit loaded, but nothing answered on port 4400 within 20s".to_owned() }
+        });
+        block(ensure(&f.start, &slow)).unwrap();
+    }
+
+    /// Catches: a unit someone else wrote (today's app, a terminal's `wsp up --service`) written over by this app.
+    #[test]
+    fn a_unit_that_stands_is_loaded_as_it_stands_whoever_owns_the_command() {
+        let mut f = fixture(Manager::Systemd, SERVICE_WAIT);
+        owned(&mut f);
+        let fake = Fake::new(|argv| match argv[2].as_str() {
+            "is-enabled" => ok("enabled"),
+            "show" => ok(INACTIVE),
+            _ => ok(""),
+        });
+        block(ensure(&f.start, &fake)).unwrap();
+        assert!(!fake.ran().iter().any(|line| line.contains("--service")), "{:?}", fake.ran());
+        assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), "the unit today's app wrote\n");
+    }
+
+    #[test]
+    fn only_a_service_host_whose_unit_runs_the_rewritten_command_reads_as_running_old_files() {
+        let mut f = fixture(Manager::Systemd, SERVICE_WAIT);
+        let wsp = owned(&mut f);
+        let pid = f.kid(Path::new("/bin/sleep"), &["30"]);
+        f.write_lock(pid, 1, "service");
+        std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
+        assert!(!runs_what_was_rewritten(&f.start), "a launch that kept the command restarts nothing");
+        f.start.rewrote = true;
+        assert!(runs_what_was_rewritten(&f.start));
+        std::fs::write(&f.unit, "ExecStart=/usr/bin/node /usr/lib/node_modules/@wsp-labs/wsp/dist/bin.js up\n").unwrap();
+        assert!(!runs_what_was_rewritten(&f.start), "a unit running another wsp is not this command's");
+        std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
+        f.write_lock(pid, 1, "up");
+        assert!(!runs_what_was_rewritten(&f.start), "a host a terminal holds is that terminal's");
+    }
+
+    /// Catches: a launch that rewrote the command under a running service host opening on that host as it was, still
+    /// on the files the command named before.
+    #[test]
+    fn a_launch_that_rewrote_the_command_restarts_the_service_host_before_it_opens() {
+        let mut f = fixture(Manager::Systemd, Duration::from_millis(300));
+        let wsp = owned(&mut f);
+        f.start.rewrote = true;
+        std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
+        let host = sh("exec sleep 30");
+        let lock = f.write_lock(host, 1, "service");
+        let fake = Fake::new(move |argv| {
+            if argv[1] == "restart" {
+                // SAFETY: the pid this test started and recorded, which the restart ends as a host's manager would.
+                unsafe { libc::kill(host, libc::SIGTERM) };
+                std::fs::remove_file(&lock).unwrap();
+                return ok("the host restarted and serves again; no thread is running on it");
+            }
+            ok("ActiveState=inactive\nUnitFileState=disabled\nMainPID=0")
+        });
+        let _ = block(ready(&f.start, &fake, |_| async { Ok(()) }));
+        assert_eq!(fake.ran()[0], format!("{} restart --state {}", wsp.display(), f.start.state.display()));
+    }
+
+    #[test]
+    fn a_restart_with_nothing_serving_runs_nothing_and_a_refused_one_is_its_words() {
+        let mut f = fixture(Manager::Launchd, SERVICE_WAIT);
+        let fake = Fake::new(|_| Ran {
+            code: 1,
+            output: "wsp restart: the host wsp up holds in a terminal comes back only from that terminal".to_owned(),
+        });
+        assert_eq!(block(restart(&f.start, &fake)), Err("this app carries no wsp of its own to restart the host with".to_owned()));
+        let wsp = owned(&mut f);
+        block(restart(&f.start, &fake)).unwrap();
+        assert!(fake.ran().is_empty(), "{:?}", fake.ran());
+        let pid = f.kid(Path::new("/bin/sleep"), &["30"]);
+        f.write_lock(pid, 1, "up");
+        assert_eq!(
+            block(restart(&f.start, &fake)),
+            Err("wsp restart: the host wsp up holds in a terminal comes back only from that terminal".to_owned())
+        );
+        assert_eq!(fake.ran(), [format!("{} restart --state {}", wsp.display(), f.start.state.display())]);
+    }
+
+    #[test]
+    fn the_real_runner_hands_the_wsp_command_its_own_names_and_runs_it_in_the_home() {
+        let names = ["HOME", "PATH", "SHELL", "WSP_HOME", "WSP_HOST", "WSP_HOST_TOKEN", "ANTHROPIC_API_KEY", "GIT_DIR"];
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().canonicalize().unwrap().to_string_lossy().into_owned();
+        let mut vars: Env = names.iter().map(|name| ((*name).to_owned(), "/usr/bin:/bin".to_owned())).collect();
+        vars.insert("HOME".to_owned(), home.clone());
+        let system = System::new(&vars);
+        let script = "for n in HOME PATH SHELL WSP_HOME WSP_HOST WSP_HOST_TOKEN ANTHROPIC_API_KEY GIT_DIR; do eval \"[ -n \\\"\\${$n+x}\\\" ]\" && echo $n; done; pwd -P";
+        let named = block(system.wsp(&words(&["sh", "-c", script])));
+        assert_eq!(named, Ran { code: 0, output: format!("HOME\nPATH\nSHELL\nWSP_HOME\n{home}") });
     }
 }

@@ -550,7 +550,8 @@ pub fn act(what: TrayAct, cx: &mut App) {
 /// dials again; a failure goes to the log as "menu bar: <why>".
 fn start_host(cx: &mut App) {
     let Some(desk) = cx.try_global::<Desk>() else { return };
-    let road = start::Start::here(&desk.state, &desk.env);
+    let mut road = start::Start::here(&desk.state, &desk.env);
+    road.wsp = crate::service::owned();
     let started = desk
         .runtime
         .spawn(async move { start::ready(&road, &start::System::new(&road.env), |_| async { Ok::<_, Failure>(()) }).await.map(|_| ()) });
