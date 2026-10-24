@@ -211,14 +211,29 @@ mod tests {
         );
     }
 
+    /// A runnable script, written by a child of its own: a write descriptor of this process can be inherited by a child
+    /// another test forks meanwhile, and the script's run then fails as a busy text file.
+    fn script(path: &Path, text: &str) {
+        use std::io::Write as _;
+        let mut sh = Command::new("/bin/sh")
+            .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+            .arg(path)
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
+        sh.stdin.take().unwrap().write_all(text.as_bytes()).unwrap();
+        assert!(sh.wait().unwrap().success());
+    }
+
     /// Catches: npm's links read off launchd's PATH, which an app opened from Finder or the Dock is handed and which
     /// holds no npm prefix, so an older npm `wsp` is never found.
     #[test]
     fn the_path_is_the_login_shells_where_launchd_or_a_desktop_chose_the_launchs() {
         let dir = tempfile::tempdir().unwrap();
         let shell = dir.path().join("login-shell");
-        std::fs::write(&shell, "#!/bin/sh\n[ \"$1\" = -ilc ] && printf 'PATH=/opt/homebrew/bin:/usr/bin\\0'\n").unwrap();
-        std::fs::set_permissions(&shell, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        script(&shell, "#!/bin/sh\n[ \"$1\" = -ilc ] && printf 'PATH=/opt/homebrew/bin:/usr/bin\\0'\n");
         let env = |path: &str, image: &str| -> Env {
             [("PATH", path), ("SHELL", &shell.to_string_lossy()), ("APPIMAGE", image)].map(|(k, v)| (k.to_owned(), v.to_owned())).into()
         };
@@ -229,7 +244,7 @@ mod tests {
             "/home/me/.local/bin:/usr/bin:/bin",
             "a terminal's PATH stands"
         );
-        std::fs::write(&shell, "#!/bin/sh\nexit 1\n").unwrap();
+        script(&shell, "#!/bin/sh\nexit 1\n");
         assert_eq!(login_path(&env("/usr/bin:/bin:/usr/sbin:/sbin", "")), "/usr/bin:/bin:/usr/sbin:/sbin", "a failed shell leaves it");
     }
 
@@ -239,12 +254,11 @@ mod tests {
     fn a_login_environment_past_the_pipes_buffer_is_read() {
         let dir = tempfile::tempdir().unwrap();
         let shell = dir.path().join("login-shell");
-        let script = r#"#!/bin/sh
+        let text = r#"#!/bin/sh
 BIG=$(head -c 300000 /dev/zero | tr '\0' x)
 printf 'BIG=%s\0PATH=/opt/homebrew/bin:/usr/bin\0' "$BIG"
 "#;
-        std::fs::write(&shell, script).unwrap();
-        std::fs::set_permissions(&shell, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        script(&shell, text);
         let vars: Env = [("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"), ("SHELL", shell.to_str().unwrap())]
             .map(|(k, v)| (k.to_owned(), v.to_owned()))
             .into();
@@ -260,8 +274,7 @@ printf 'BIG=%s\0PATH=/opt/homebrew/bin:/usr/bin\0' "$BIG"
         let dir = tempfile::tempdir().unwrap();
         let shell = dir.path().join("login-shell");
         let said = "printf 'Welcome back\\nnvm is ready\\nHOME=/home/me\\0PATH=/home/me/.nvm/versions/node/v22/bin:/usr/bin\\0'";
-        std::fs::write(&shell, format!("#!/bin/sh\n[ \"$2\" = 'env -0' ] && {said}\n")).unwrap();
-        std::fs::set_permissions(&shell, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        script(&shell, &format!("#!/bin/sh\n[ \"$2\" = 'env -0' ] && {said}\n"));
         let env: Env = [("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"), ("SHELL", shell.to_str().unwrap())]
             .map(|(k, v)| (k.to_owned(), v.to_owned()))
             .into();
