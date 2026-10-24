@@ -2,8 +2,11 @@
 //! An installed app replacing itself (`self-update.ts`). The checked download is put in a private folder beside the
 //! installed app, so the swap is a rename on one volume, and checked before anything is said ready. A Mac's zip has
 //! its entries read before anything is unpacked, is unpacked with ditto, and its app must be a real folder whose
-//! signature verifies, at the version asked for, naming an executable inside it, with no quarantine flag. A Linux
-//! AppImage must carry the AppImage marks; its version is proven when it starts, since it cannot be read before.
+//! signature verifies (against the running app's own requirement where that is a Developer ID's), at the version
+//! asked for, naming an executable inside it, with no quarantine flag. Either must be this app: the GPUI binary with
+//! the host's Node, command and daemon beside it, read off the zip's directory or the AppImage's squashfs before
+//! anything is unpacked or started, and on a Mac the running app's bundle id. An AppImage's version is proven when it
+//! starts, since it cannot be read before.
 
 use std::ffi::CString;
 use std::fs;
@@ -51,11 +54,20 @@ pub mod words {
     pub fn not_app_image(asset: &str) -> String {
         format!("{asset} is not an AppImage and was deleted")
     }
+    pub fn not_this_app(asset: &str) -> String {
+        format!("{asset} holds another app than this one and was deleted")
+    }
 }
 
 /// The hidden folder beside the installed app holding the download, each checked copy in a private folder of its own,
 /// and the old app during a swap; not today's app's `.wsp-update`, since both apps can stand in one Applications.
 pub const STAGE_DIR: &str = ".wsp-gpui-update";
+
+/// The app a swap that never heard `up` replaced, kept in the stage until it is put back or an update is up.
+pub const PREVIOUS: &str = "previous";
+
+/// The GPUI app's executable inside its bundle or AppImage (`bin` in `scripts/package.sh`).
+pub const EXE: &str = "desktop-gpui";
 
 pub fn stage_of(installed: &Path) -> PathBuf {
     installed.parent().unwrap_or(Path::new("/")).join(STAGE_DIR)
@@ -337,12 +349,43 @@ pub fn archive_shape(entries: &[ZipEntry]) -> Shape {
     }
 }
 
-/// A checked copy: the new app, the private folder it sits in, and its executable's name inside a Mac's bundle.
+/// A checked copy: the new app, the private folder it sits in, its executable's name inside a Mac's bundle, and the
+/// signing requirement it passed, empty where the running app is signed ad hoc.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Staged {
     pub app: PathBuf,
     pub stage: PathBuf,
     pub exe: String,
+    pub requirement: String,
+}
+
+/// The files that make an app this one, relative to its bundle or AppImage root: the GPUI binary, and the Node,
+/// command and daemon the restart reads beside it.
+fn ours(os: crate::service::Os) -> Vec<PathBuf> {
+    let exe = match os {
+        crate::service::Os::Mac => Path::new("Contents/MacOS").join(EXE),
+        crate::service::Os::Linux => Path::new("usr/bin").join(EXE),
+    };
+    let host = crate::service::Bundled::beside(&exe, os, std::env::consts::ARCH);
+    vec![exe, host.node, host.command, host.daemon]
+}
+
+/// The designated requirement of the running app's signature, or nothing where it has none to hold another copy to:
+/// an ad hoc signature names only its own hash.
+pub fn requirement_of(app: &Path, run: &Runner) -> Option<String> {
+    let (code, said) = run("/usr/bin/codesign", &["-d", "-r-", &app.to_string_lossy()]);
+    let line = said.lines().find_map(|l| l.trim().trim_start_matches("# ").strip_prefix("designated => "))?.trim();
+    (code == 0 && !line.is_empty() && !line.starts_with("cdhash ")).then(|| line.to_owned())
+}
+
+/// `codesign`'s check of a copy, held to `requirement` where there is one.
+pub fn verify_args(app: &str, requirement: &str) -> Vec<String> {
+    let mut args = vec!["--verify".to_owned(), "--deep".into(), "--strict".into()];
+    if !requirement.is_empty() {
+        args.push(format!("-R={requirement}"));
+    }
+    args.push(app.to_owned());
+    args
 }
 
 fn real_dir(path: &Path) -> bool {
@@ -397,7 +440,7 @@ pub fn stage(download: &Path, version: &str, installed: &Installed, run: &Runner
     let checked = (|| {
         let root = own_root(&installed.path, uid)?;
         match installed.kind {
-            Kind::Mac => stage_mac(download, &asset, version, &root, &mut made, run),
+            Kind::Mac => stage_mac(download, &asset, version, &installed.path, &root, &mut made, run),
             Kind::AppImage => stage_app_image(download, &asset, &installed.path, &root, &mut made),
         }
     })();
@@ -410,13 +453,25 @@ pub fn stage(download: &Path, version: &str, installed: &Installed, run: &Runner
     checked
 }
 
-fn stage_mac(zip: &Path, asset: &str, version: &str, root: &Path, made: &mut Option<PathBuf>, run: &Runner) -> Result<Staged, String> {
-    let top = match zip_entries(zip).map(|e| archive_shape(&e)) {
-        Err(_) => return Err(words::unreadable(asset)),
-        Ok(Shape::Escapes(entry)) => return Err(words::escapes(asset, &entry)),
-        Ok(Shape::NotOneApp) => return Err(words::not_one_app(asset)),
-        Ok(Shape::Top(top)) => top,
+fn stage_mac(
+    zip: &Path,
+    asset: &str,
+    version: &str,
+    running: &Path,
+    root: &Path,
+    made: &mut Option<PathBuf>,
+    run: &Runner,
+) -> Result<Staged, String> {
+    let Ok(entries) = zip_entries(zip) else { return Err(words::unreadable(asset)) };
+    let top = match archive_shape(&entries) {
+        Shape::Escapes(entry) => return Err(words::escapes(asset, &entry)),
+        Shape::NotOneApp => return Err(words::not_one_app(asset)),
+        Shape::Top(top) => top,
     };
+    let names: std::collections::HashSet<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+    if !ours(crate::service::Os::Mac).iter().all(|f| names.contains(Path::new(&top).join(f).to_string_lossy().as_ref())) {
+        return Err(words::not_this_app(asset));
+    }
     let stage = private_dir(root, "stage-")?;
     *made = Some(stage.clone());
     let into = stage.join("new");
@@ -432,14 +487,23 @@ fn stage_mac(zip: &Path, asset: &str, version: &str, root: &Path, made: &mut Opt
     if names.len() != 1 || names[0] != *top || !real_dir(&app) {
         return Err(words::not_one_app(asset));
     }
-    if run("/usr/bin/codesign", &["--verify", "--deep", "--strict", &path(&app)]).0 != 0 {
+    let requirement = requirement_of(running, run).unwrap_or_default();
+    if requirement.is_empty() {
+        crate::desktop::log::info("update: this app is signed ad hoc, so the new app's signature is checked with no requirement");
+    }
+    let verify = verify_args(&path(&app), &requirement);
+    if run("/usr/bin/codesign", &verify.iter().map(String::as_str).collect::<Vec<_>>()).0 != 0 {
         return Err(words::unsigned(asset));
     }
-    let info = path(&app.join("Contents/Info.plist"));
-    let key = |name: &str| match run("/usr/bin/plutil", &["-extract", name, "raw", "-o", "-", &info]) {
+    let key_of = |plist: &Path, name: &str| match run("/usr/bin/plutil", &["-extract", name, "raw", "-o", "-", &path(plist)]) {
         (0, out) => out.trim().to_owned(),
         _ => String::new(),
     };
+    let key = |name: &str| key_of(&app.join("Contents/Info.plist"), name);
+    let id = key("CFBundleIdentifier");
+    if id.is_empty() || id != key_of(&running.join("Contents/Info.plist"), "CFBundleIdentifier") {
+        return Err(words::not_this_app(asset));
+    }
     let got = key("CFBundleShortVersionString");
     if got != version {
         return Err(words::wrong_version(asset, version, &got));
@@ -456,7 +520,7 @@ fn stage_mac(zip: &Path, asset: &str, version: &str, root: &Path, made: &mut Opt
     if run("/usr/bin/xattr", &["-dr", "com.apple.quarantine", &path(&app)]).0 != 0 {
         return Err(words::quarantined(asset));
     }
-    Ok(Staged { app, stage, exe })
+    Ok(Staged { app, stage, exe, requirement })
 }
 
 /// An ELF executable carrying the type 2 AppImage mark at byte 8.
@@ -469,6 +533,13 @@ fn stage_app_image(download: &Path, asset: &str, installed: &Path, root: &Path, 
     if !real_file(download) || !app_image_marked(download) {
         return Err(words::not_app_image(asset));
     }
+    let mut image = super::image::Image::open(download).map_err(|_| words::not_this_app(asset))?;
+    for file in ours(crate::service::Os::Linux) {
+        match image.entry(&file) {
+            Ok(Some(entry)) if entry.file && (entry.mode & 0o111 != 0 || file.extension().is_some_and(|e| e == "mjs")) => {}
+            _ => return Err(words::not_this_app(asset)),
+        }
+    }
     let stage = private_dir(root, "stage-")?;
     *made = Some(stage.clone());
     let into = stage.join("new");
@@ -476,11 +547,49 @@ fn stage_app_image(download: &Path, asset: &str, installed: &Path, root: &Path, 
     let app = into.join(installed.file_name().unwrap_or_default());
     fs::rename(download, &app).map_err(|_| words::unpacked(asset, "it could not be moved beside the app"))?;
     fs::set_permissions(&app, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
-    Ok(Staged { app, stage, exe: String::new() })
+    Ok(Staged { app, stage, exe: String::new(), requirement: String::new() })
 }
 
-/// Deletes whatever is staged beside the installed app: the person dismissed the update, or a newer release
-/// replaces it.
+/// Deletes whatever is staged beside the installed app but the app a swap that never finished replaced: the person
+/// dismissed the update, or a newer release replaces it.
 pub fn discard(installed: &Path) {
-    _ = fs::remove_dir_all(stage_of(installed));
+    let root = stage_of(installed);
+    let Ok(held) = fs::read_dir(&root) else { return };
+    let mut kept = false;
+    for entry in held.filter_map(|e| e.ok()) {
+        if entry.file_name() == PREVIOUS {
+            kept = true;
+        } else if entry.file_type().is_ok_and(|t| t.is_dir()) {
+            _ = fs::remove_dir_all(entry.path());
+        } else {
+            _ = fs::remove_file(entry.path());
+        }
+    }
+    if !kept {
+        _ = fs::remove_dir(&root);
+    }
+}
+
+/// The kept app put in a private stage of its own under its installed name, as a checked copy is, for a swap that
+/// puts it back.
+pub fn restage(installed: &Installed, run: &Runner, uid: u32) -> Result<Staged, String> {
+    let root = own_root(&installed.path, uid)?;
+    let previous = root.join(PREVIOUS);
+    let stage = private_dir(&root, "stage-")?;
+    let into = stage.join("new");
+    fs::DirBuilder::new().mode(0o700).create(&into).map_err(|e| e.to_string())?;
+    let app = into.join(installed.path.file_name().unwrap_or_default());
+    fs::rename(&previous, &app).map_err(|e| e.to_string())?;
+    let (exe, requirement) = match installed.kind {
+        Kind::AppImage => (String::new(), String::new()),
+        Kind::Mac => {
+            let info = app.join("Contents/Info.plist");
+            let exe = match run("/usr/bin/plutil", &["-extract", "CFBundleExecutable", "raw", "-o", "-", &info.to_string_lossy()]) {
+                (0, out) => out.trim().to_owned(),
+                _ => String::new(),
+            };
+            (exe, requirement_of(&installed.path, run).unwrap_or_default())
+        }
+    };
+    Ok(Staged { app, stage, exe, requirement })
 }
