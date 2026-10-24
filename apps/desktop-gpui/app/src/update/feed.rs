@@ -38,6 +38,9 @@ pub mod words {
     pub fn no_bundle(platform: &str) -> String {
         format!("no wsp bundle is built for {platform}")
     }
+    pub fn not_in_release(asset: &str) -> String {
+        format!("the release carries no {asset} yet, so nothing was downloaded")
+    }
     pub fn no_digest(asset: &str) -> String {
         format!("the release publishes no sha256 and size for {asset}")
     }
@@ -63,15 +66,31 @@ pub mod words {
     }
 }
 
-/// What each download on the release page is called for one version (`bundleNames` in `bundles.mjs`).
+/// What each of the GPUI app's downloads on the release page is called for one version (`GPUI_NAMES` in
+/// `bundles.mjs`).
 pub struct Names {
     pub mac: String,
     pub mac_zip: String,
     pub app_image: String,
 }
 
+const BUNDLES: &str = include_str!("../../../../../packages/protocol/src/bundles.mjs");
+
 pub fn bundle_names(version: &str) -> Names {
-    Names { mac: format!("wsp-{version}-mac.dmg"), mac_zip: format!("wsp-{version}-mac.zip"), app_image: format!("wsp-{version}.AppImage") }
+    static TEMPLATES: std::sync::OnceLock<[String; 3]> = std::sync::OnceLock::new();
+    let names = TEMPLATES.get_or_init(|| gpui_names(BUNDLES).expect("bundles.mjs names the GPUI app's three downloads in GPUI_NAMES"));
+    let at = |i: usize| names[i].replace("{version}", version);
+    Names { mac: at(0), mac_zip: at(1), app_image: at(2) }
+}
+
+/// The templates `GPUI_NAMES` holds in `text`, the Mac's disk image, its zip and the AppImage, each naming the version.
+pub fn gpui_names(text: &str) -> Option<[String; 3]> {
+    let table = text.split_once("export const GPUI_NAMES = {")?.1.split_once("};")?.0;
+    let read = |key: &str| {
+        let rest = table.split_once(&format!("\n  {key}: \""))?.1;
+        Some(rest.split_once('"')?.0.to_owned()).filter(|t| t.contains("{version}"))
+    };
+    Some([read("mac")?, read("macZip")?, read("appImage")?])
 }
 
 /// The version out of an ask, only where it is one the release workflow would tag (`RELEASE_TAG`).
@@ -153,7 +172,8 @@ impl Feed {
             .into()
     }
 
-    /// The sha256 and size GitHub publishes for this asset of the release, or nothing unless it lists both.
+    /// The sha256 and size GitHub publishes for this asset of the release, or nothing unless it lists both; refused
+    /// where the release lists no such asset.
     pub fn published(&self, tag: &str, asset: &str) -> Result<Option<Published>, Said> {
         let mut res = self
             .agent(Some(ANSWER_WHOLE))
@@ -171,7 +191,7 @@ impl Feed {
             .get("assets")
             .and_then(|a| a.as_array())
             .and_then(|rows| rows.iter().find(|r| r.get("name").and_then(|n| n.as_str()) == Some(asset)));
-        let Some(row) = row else { return Ok(None) };
+        let Some(row) = row else { return Err(Said::new(words::not_in_release(asset))) };
         let sum = row
             .get("digest")
             .and_then(|d| d.as_str())
@@ -249,14 +269,23 @@ impl Feed {
     /// This release's asset in `dir`, verified against the published sha256: a copy already there that matches is
     /// kept as it is (`getBundle`).
     pub fn get(&self, version: &str, dir: &Path, asset: &str) -> Result<Kept, Said> {
-        let tag = format!("v{version}");
-        let want = self.published(&tag, asset)?.ok_or_else(|| Said::new(words::no_digest(asset)))?;
+        let want = self.want(version, asset)?;
+        self.fetch(version, dir, asset, &want)
+    }
+
+    /// What the release publishes for this asset of `version`, before any byte of it is fetched.
+    pub fn want(&self, version: &str, asset: &str) -> Result<Published, Said> {
+        self.published(&format!("v{version}"), asset)?.ok_or_else(|| Said::new(words::no_digest(asset)))
+    }
+
+    /// The asset as `want` publishes it, in `dir`.
+    pub fn fetch(&self, version: &str, dir: &Path, asset: &str, want: &Published) -> Result<Kept, Said> {
         let file = dir.join(asset);
         if sum_of(&file).as_deref() == Some(want.sum.as_str()) {
-            return Ok(Kept { file, sum: want.sum });
+            return Ok(Kept { file, sum: want.sum.clone() });
         }
-        self.download(&self.asset_url(&tag, asset), &file, &want, asset)?;
-        Ok(Kept { file, sum: want.sum })
+        self.download(&self.asset_url(&format!("v{version}"), asset), &file, want, asset)?;
+        Ok(Kept { file, sum: want.sum.clone() })
     }
 }
 

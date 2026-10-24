@@ -8,13 +8,18 @@
 
 pub mod feed;
 pub mod follow;
+pub mod image;
 pub mod stage;
 pub mod swap;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_swap;
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use gpui_kit::{App, BorrowAppContext as _, Global};
@@ -48,6 +53,24 @@ pub mod words {
     pub fn not_restarted(said: &str) -> String {
         format!("wsp did not restart: {said}")
     }
+    pub fn other_app(app: &str) -> String {
+        format!("the wsp command on this computer runs today's wsp app at {app}, so the host would stay on that app; nothing was changed")
+    }
+    pub fn newer_command(theirs: &str, version: &str) -> String {
+        format!("the wsp command on this computer runs wsp {theirs}, newer than {version}, so the host would not follow it; nothing was changed")
+    }
+    pub const SWAPPING: &str = "an update is already being installed";
+    pub fn no_tools(missing: &str) -> String {
+        format!("this computer has no {missing} where the update looks for it, so nothing was changed")
+    }
+    pub fn refused_before(asset: &str) -> String {
+        format!("{asset} was refused before as another app than this one, so it was not downloaded again")
+    }
+    pub fn not_updated(said: &str) -> String {
+        format!("wsp did not update: {said}")
+    }
+    pub const UNFINISHED: &str = "The last update did not finish, so the app it replaced is kept.";
+    pub const PUT_BACK: &str = "Put it back";
     pub const MAC_HOVER: &str =
         "Downloads the disk image and checks its sha256. Unsigned builds need Privacy & Security, Open Anyway, once.";
     pub const LINUX_HOVER: &str = "Downloads the AppImage into Downloads and checks its sha256. The app you run is not replaced.";
@@ -130,6 +153,9 @@ pub fn update_stage(
 /// What the shell needs to get and open a release.
 pub struct ShellDeps {
     pub feed: Feed,
+    /// The launch's state file, whose host the swap's new app opens on, and whose home's wsp command says which app's
+    /// host serves it.
+    pub state: PathBuf,
     /// Where a download the person opens lands: their Downloads folder.
     pub downloads: PathBuf,
     /// This app's own version: only a release above it, and never a prerelease, is fetched.
@@ -142,6 +168,8 @@ pub struct ShellDeps {
     pub uid: u32,
     pub pid: u32,
     pub log: PathBuf,
+    /// How long the swap waits for this app to quit and then for the new one to be up.
+    pub patience: u32,
 }
 
 /// One platform's bundle into Downloads, and what makes it the person's next step once kept.
@@ -218,36 +246,92 @@ impl Shell {
         if self.staged.take().is_some() {
             stage::discard(&installed.path);
         }
+        let asset = installed.asset(version);
+        let want = self.deps.feed.want(version, &asset)?;
         let root = stage::stage_of(&installed.path);
         std::fs::create_dir_all(&root).map_err(|e| Said::new(e.to_string()))?;
-        let got = self.deps.feed.get(version, &root, &installed.asset(version))?;
-        let ready = stage::stage(&got.file, version, &installed, self.deps.run.as_ref(), self.deps.uid)?;
+        let refused = self.refused();
+        if std::fs::read_to_string(&refused).is_ok_and(|text| text.lines().any(|sum| sum == want.sum)) {
+            return Err(Said::new(words::refused_before(&asset)));
+        }
+        let got = self.deps.feed.fetch(version, &root, &asset, &want)?;
+        let ready = stage::stage(&got.file, version, &installed, self.deps.run.as_ref(), self.deps.uid).inspect_err(|said| {
+            if *said == stage::words::not_this_app(&asset) {
+                remember(&refused, &got.sum);
+            }
+        })?;
         self.staged = Some((ready, version.to_owned(), got.sum));
         Ok(())
+    }
+
+    /// The sha256 of every release asset refused as another app, so it is not downloaded again on a later launch.
+    fn refused(&self) -> PathBuf {
+        self.deps.log.with_file_name("update-refused")
+    }
+
+    /// Why no swap can start now, where one cannot: one is under way, the host would not follow the new app of
+    /// `version` onto its files (`claim` leaves the command as it is) while the host serving is older than it, so its
+    /// open would be refused, or a Linux tool the swap runs is missing.
+    fn refusal(&self, installed: &Installed, version: Option<&str>) -> Option<Said> {
+        if swap::swapping(&stage::stage_of(&installed.path)).is_some() {
+            return Some(Said::new(words::SWAPPING));
+        }
+        if let Some(version) = version {
+            let home = self.deps.state.parent().unwrap_or(Path::new(""));
+            let serving = crate::service::serving_now(&self.deps.state);
+            let refused =
+                serving.as_deref().is_none_or(|theirs| crate::service::Against::of(theirs, version) == crate::service::Against::Older);
+            match crate::service::left_as_is(home, serving.as_deref(), version).filter(|_| refused) {
+                Some(crate::service::Left::Today(app)) => return Some(Said::new(words::other_app(&app.to_string_lossy()))),
+                Some(crate::service::Left::Newer { theirs, .. }) => return Some(Said::new(words::newer_command(&theirs, version))),
+                None => {}
+            }
+        }
+        let missing = if installed.kind == Kind::AppImage { swap::missing_tools(swap::path()) } else { Vec::new() };
+        (!missing.is_empty()).then(|| Said::new(words::no_tools(&missing.join(", "))))
+    }
+
+    /// The swap of `staged` in for the installed app, started; the app quits after.
+    fn begin(&self, installed: Installed, staged: Staged, version: String, sum: String) -> Result<Opened, Said> {
+        let swap = swap::Swap {
+            pid: self.deps.pid,
+            installed: installed.path,
+            kind: installed.kind,
+            sum: if installed.kind == Kind::AppImage { sum } else { String::new() },
+            staged,
+            version,
+            log: self.deps.log.clone(),
+            patience: self.deps.patience,
+            grace: swap::GRACE_S,
+        };
+        swap::start(&swap, &swap::env(|n| std::env::var(n).ok())).map_err(|e| Said::new(e.to_string()))?;
+        Ok(Opened::Swapping)
+    }
+
+    /// The app an unfinished swap replaced, swapped back in for the running one.
+    pub fn put_back(&mut self) -> Result<Opened, Said> {
+        let Some(installed) = self.deps.installed.clone() else { return Err(Said::new(feed::words::NOTHING_KEPT)) };
+        if let Some(said) = self.refusal(&installed, None) {
+            return Err(said);
+        }
+        let staged = stage::restage(&installed, self.deps.run.as_ref(), self.deps.uid)?;
+        let sum = if installed.kind == Kind::AppImage { feed::sum_of(&staged.app).unwrap_or_default() } else { String::new() };
+        self.begin(installed, staged, String::new(), sum)
     }
 
     /// The kept release opened: the swap started where the app replaces itself, else the kept file checked again and
     /// handed to the person's next step on this platform. Either way the app quits after.
     pub fn open(&mut self) -> Result<Opened, Said> {
         if let Some(installed) = self.deps.installed.clone() {
-            let Some((copy, version, sum)) = self.staged.clone() else { return Err(Said::new(feed::words::NOTHING_KEPT)) };
-            if !copy.app.exists() {
-                self.staged = None;
-                return Err(Said::new(feed::words::GONE));
+            if self.staged.as_ref().is_none_or(|(copy, ..)| !copy.app.exists()) {
+                return Err(Said::new(if self.staged.take().is_some() { feed::words::GONE } else { feed::words::NOTHING_KEPT }));
             }
-            let swap = swap::Swap {
-                pid: self.deps.pid,
-                installed: installed.path,
-                kind: installed.kind,
-                sum: if installed.kind == Kind::AppImage { sum } else { String::new() },
-                staged: copy,
-                version,
-                log: self.deps.log.clone(),
-                patience: swap::PATIENCE_S,
-                grace: swap::GRACE_S,
-            };
-            swap::start(&swap, &swap::env(|n| std::env::var(n).ok())).map_err(|e| Said::new(e.to_string()))?;
-            return Ok(Opened::Swapping);
+            let version = self.staged.as_ref().map(|(_, version, _)| version.clone());
+            if let Some(said) = self.refusal(&installed, version.as_deref()) {
+                return Err(said);
+            }
+            let (copy, version, sum) = self.staged.take().expect("a checked copy, just looked at");
+            return self.begin(installed, copy, version, sum);
         }
         let Some(Kept { file, sum }) = self.kept.clone() else { return Err(Said::new(feed::words::NOTHING_KEPT)) };
         if feed::sum_of(&file).as_deref() != Some(sum.as_str()) {
@@ -295,18 +379,28 @@ pub fn installed_here() -> Option<Installed> {
     Installed::of(&std::env::current_exe().ok()?, std::env::var_os("APPIMAGE").as_deref(), std::env::var_os("APPDIR").as_deref())
 }
 
+/// Adds `sum` to the refused list at `file`, which keeps the newest few.
+fn remember(file: &Path, sum: &str) {
+    let text = std::fs::read_to_string(file).unwrap_or_default();
+    let mut sums: Vec<&str> = text.lines().filter(|l| !l.is_empty() && *l != sum).collect();
+    sums.push(sum);
+    let from = sums.len().saturating_sub(16);
+    _ = std::fs::write(file, sums[from..].iter().map(|s| format!("{s}\n")).collect::<String>());
+}
+
 /// The road for this run: an installed app replacing itself where it can, else Downloads. A development build alone
-/// takes the release base from the environment.
-pub fn init(installed: Option<Installed>, logs: &Path, cx: &mut App) {
+/// takes the release base from the environment. `state` is the launch's state file.
+pub fn init(installed: Option<Installed>, state: &Path, logs: &Path, cx: &mut App) {
     let why = installed.as_ref().and_then(stage::in_place_refusal);
     let installed = installed.filter(|_| why.is_none());
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let user = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
     let api = if cfg!(debug_assertions) { std::env::var(feed::RELEASE_API_ENV).ok() } else { None };
     let running = wsp_host_client::HostClient::app_release();
     let road = Road::here();
     let deps = ShellDeps {
         feed: Feed::new(api, format!("wsp/{running}")),
-        downloads: home.join("Downloads"),
+        state: state.to_owned(),
+        downloads: user.join("Downloads"),
         running,
         installed: installed.clone(),
         road,
@@ -315,6 +409,7 @@ pub fn init(installed: Option<Installed>, logs: &Path, cx: &mut App) {
         uid: unsafe { libc::getuid() },
         pid: std::process::id(),
         log: logs.join("update.log"),
+        patience: swap::PATIENCE_S,
     };
     let in_place = if installed.is_some() { Some(true) } else { road.map(|_| false) };
     cx.set_global(Updates { download: None, in_place, why, asked: Default::default(), shell: Arc::new(Mutex::new(Shell::new(deps))) });
@@ -485,31 +580,123 @@ pub fn background(stage: Option<&Stage>, dismissed: Option<Option<&str>>, cx: &m
 }
 
 /// What a launch does with what the stage said before it opens its window: the host follows this app onto its files
-/// where a swap waits on it, then the swap is answered; it follows back where a swap put this app back. A swap starts
-/// only from Restart, which the person pressed knowing the running threads carry on, so the host goes at once.
-pub fn after_swap(settled: Option<swap::Settled>, version: &str, restart: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+/// where a swap waits on it, and the swap is handed back to be answered once this app is open on that host; a host
+/// left as it was fails the swap with why. Where a swap put this app back after moving the host, `back` moves it back
+/// onto these files. A swap starts only from Restart, which the person pressed knowing the running threads carry on,
+/// so the host goes at once.
+pub fn after_swap(
+    settled: Option<swap::Settled>,
+    restart: impl FnOnce() -> Result<crate::service::Followed, String>,
+    back: impl FnOnce() -> Result<(), String>,
+) -> Result<Option<swap::Waiting>, String> {
     match settled {
         Some(swap::Settled::Waiting(waiting)) => {
             waiting.restarting().map_err(|e| e.to_string())?;
-            restart()?;
-            waiting.up(version).map_err(|e| e.to_string())
+            match restart()? {
+                crate::service::Followed::Restarted => Ok(Some(waiting)),
+                crate::service::Followed::Left(why) => {
+                    waiting.left(&why).and_then(|()| waiting.not_restarted()).map_err(|e| e.to_string())?;
+                    Err(why)
+                }
+            }
         }
-        Some(swap::Settled::Back { restart: true }) => restart(),
-        _ => Ok(()),
+        Some(swap::Settled::Back { restart: true, .. }) => back().map(|()| None),
+        _ => Ok(None),
     }
+}
+
+/// What a launch after a swap still owes it: `up` once this app is open on its host, and the offer of an app an
+/// unfinished swap replaced.
+#[derive(Default)]
+struct AfterSwap {
+    waiting: Option<(swap::Waiting, String)>,
+    previous: Option<PathBuf>,
+    /// Why the update this app was put back from did not stay.
+    said: Option<String>,
+}
+
+impl Global for AfterSwap {}
+
+/// This app's window is open on a host that accepted it: the swap waiting on it hears `up` once a window has drawn a
+/// frame, and an app an unfinished swap replaced is offered back.
+pub fn opened(cx: &mut App) {
+    if !cx.has_global::<AfterSwap>() {
+        return;
+    }
+    let (waiting, previous, said) = cx.update_global::<AfterSwap, _>(|a, _| (a.waiting.take(), a.previous.take(), a.said.take()));
+    if let Some(said) = said {
+        crate::desktop::log::info(&format!("update: {}", words::not_updated(&said)));
+        crate::ui::notify(cx, crate::ui::Notice::error(words::not_updated(&said)));
+    }
+    if let Some(answer) = waiting {
+        let once = Rc::new(RefCell::new(Some(answer)));
+        for handle in cx.windows() {
+            let once = once.clone();
+            // A next-frame callback runs before that frame draws, so the one it schedules runs after a frame drew.
+            _ = handle.update(cx, |_, window, _| {
+                window.on_next_frame(move |window, _| {
+                    window.on_next_frame(move |_, _| {
+                        if let Some((waiting, version)) = once.borrow_mut().take() {
+                            match waiting.up(&version) {
+                                Ok(()) => crate::desktop::log::info(&format!("update: wsp {version} is open on its host")),
+                                Err(e) => crate::desktop::log::error(&format!("update: the swap could not be told wsp is up: {e}")),
+                            }
+                        }
+                    })
+                })
+            });
+        }
+    }
+    if let Some(previous) = previous {
+        crate::desktop::log::info(&format!("update: the last swap never heard up; the app it replaced is kept at {}", previous.display()));
+        let back = crate::ui::NoticeAction::new(words::PUT_BACK, |_, cx| put_back(cx));
+        crate::ui::notify(cx, crate::ui::Notice::error(words::UNFINISHED).action(back));
+    }
+}
+
+/// This app did not open on its host. Where a swap waits on it, it exits, and the swap puts the old app back.
+pub fn not_opened(said: &str, cx: &App) {
+    if let Some((waiting, version)) = cx.try_global::<AfterSwap>().and_then(|a| a.waiting.as_ref()) {
+        crate::desktop::log::error(&format!("update: this app did not open on its host ({said}); the swap puts the old app back"));
+        _ = waiting.left(&format!("wsp {version} did not open on its host: {said}"));
+        std::process::exit(1);
+    }
+}
+
+fn put_back(cx: &mut App) {
+    step(
+        "put back".into(),
+        |shell| shell.put_back(),
+        |done, cx| match done {
+            Ok(_) => cx.quit(),
+            Err(said) => crate::ui::notify(cx, crate::ui::Notice::error(words::not_restarted(&said.error))),
+        },
+        cx,
+    );
 }
 
 /// The service's restart onto this bundle, from a thread of its own; the launch's wsp command written first, which the
 /// restart reads.
-pub fn restart_host_blocking() -> Result<(), String> {
+pub fn restart_host_blocking() -> Result<crate::service::Followed, String> {
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
     runtime.block_on(crate::service::restart_host())
 }
 
-/// `after_swap` off the main thread, then `open`. A new app whose host did not follow exits before it is up, so the
-/// swap puts the old app back.
+/// The service's restart back onto this bundle after a swap put it back, from a thread of its own.
+pub fn restart_back_blocking() -> Result<(), String> {
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+    runtime.block_on(crate::service::restart_back())
+}
+
+/// `after_swap` off the main thread, then `open`. A new app whose host did not follow, or that does not open on it,
+/// exits before it is up, so the swap puts the old app back.
 pub fn launch(settled: Option<swap::Settled>, state: PathBuf, vars: wsp_host_client::Env, open: Box<dyn FnOnce(&mut App)>, cx: &mut App) {
-    let follows = matches!(settled, Some(swap::Settled::Waiting(_)) | Some(swap::Settled::Back { restart: true }));
+    match &settled {
+        Some(swap::Settled::Unfinished { previous }) => cx.set_global(AfterSwap { previous: Some(previous.clone()), ..Default::default() }),
+        Some(swap::Settled::Back { said: Some(said), .. }) => cx.set_global(AfterSwap { said: Some(said.clone()), ..Default::default() }),
+        _ => {}
+    }
+    let follows = matches!(settled, Some(swap::Settled::Waiting(_)) | Some(swap::Settled::Back { restart: true, .. }));
     if !follows {
         return open(cx);
     }
@@ -519,15 +706,19 @@ pub fn launch(settled: Option<swap::Settled>, state: PathBuf, vars: wsp_host_cli
     crate::screens::dialogs::startup::hold_opening(true, cx);
     let task = off_main(move || {
         crate::service::on_launch(&state, &vars);
-        after_swap(settled, &version, restart_host_blocking)
+        after_swap(settled, restart_host_blocking, restart_back_blocking)
     });
     cx.spawn(async move |cx| {
         let followed = task.await.unwrap_or_else(|_| Err("the restart stopped before it answered".into()));
-        if let Err(said) = &followed {
-            crate::desktop::log::error(&format!("update: the host did not follow: {said}"));
-            if waiting {
-                std::process::exit(1);
+        match followed {
+            Err(said) => {
+                crate::desktop::log::error(&format!("update: the host did not follow: {said}"));
+                if waiting {
+                    std::process::exit(1);
+                }
             }
+            Ok(Some(answer)) => cx.update(|cx| cx.update_default_global::<AfterSwap, _>(|a, _| a.waiting = Some((answer, version)))),
+            Ok(None) => {}
         }
         cx.update(|cx| {
             crate::screens::dialogs::startup::hold_opening(false, cx);

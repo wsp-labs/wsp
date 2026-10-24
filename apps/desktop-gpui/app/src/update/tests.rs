@@ -19,17 +19,17 @@ use super::stage::{self, Installed, Kind, Shape, ZipEntry};
 use super::swap::{self, Settled};
 use super::*;
 
-fn hex_sum(bytes: &[u8]) -> String {
+pub(super) fn hex_sum(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// A release feed on loopback: each path answers its bytes, and every path asked is kept in order.
-struct Served {
-    base: String,
-    asked: Arc<Mutex<Vec<String>>>,
+pub(super) struct Served {
+    pub(super) base: String,
+    pub(super) asked: Arc<Mutex<Vec<String>>>,
 }
 
-fn serve(routes: HashMap<String, Vec<u8>>) -> Served {
+pub(super) fn serve(routes: HashMap<String, Vec<u8>>) -> Served {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let asked = Arc::new(Mutex::new(Vec::new()));
@@ -63,7 +63,7 @@ fn serve(routes: HashMap<String, Vec<u8>>) -> Served {
 
 /// One release's answer on the feed with these assets, each published with `published` sums (the real ones where
 /// nothing overrides them), and each asset's bytes at its download path.
-fn release(version: &str, assets: &[(&str, &[u8])], published: &HashMap<&str, String>) -> HashMap<String, Vec<u8>> {
+pub(super) fn release(version: &str, assets: &[(&str, &[u8])], published: &HashMap<&str, String>) -> HashMap<String, Vec<u8>> {
     let rows: Vec<_> = assets
         .iter()
         .map(|(name, bytes)| {
@@ -87,13 +87,70 @@ fn app_image(said: &str) -> Vec<u8> {
     bytes
 }
 
+/// A runtime's ELF header standing in for the type 2 runtime: the AppImage mark at byte 8, and no section headers,
+/// so the squashfs starts right after its 64 bytes.
+fn runtime_head() -> Vec<u8> {
+    let mut head = vec![0u8; 64];
+    head[..11].copy_from_slice(b"\x7fELF\x02\x01\x01\x00AI\x02");
+    head[0x28..0x30].copy_from_slice(&64u64.to_le_bytes());
+    head[0x3a..0x3c].copy_from_slice(&64u16.to_le_bytes());
+    head
+}
+
+/// An AppImage of these files (`path`, bytes, runnable), packed by mksquashfs as `scripts/package.sh` packs one.
+pub(super) fn packed(files: &[(&str, &[u8], bool)]) -> Vec<u8> {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tmp();
+    let root = dir.path().join("AppDir");
+    for (path, bytes, runnable) in files {
+        let at = root.join(path);
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        std::fs::write(&at, bytes).unwrap();
+        std::fs::set_permissions(&at, std::fs::Permissions::from_mode(if *runnable { 0o755 } else { 0o644 })).unwrap();
+    }
+    let image = dir.path().join("app.squashfs");
+    let made = Command::new("mksquashfs")
+        .args([root.as_os_str(), image.as_os_str()])
+        .args(["-all-root", "-noappend", "-no-progress", "-quiet", "-no-xattrs", "-no-fragments"])
+        .status()
+        .expect("these tests pack AppImages with mksquashfs: apt-get install squashfs-tools, or brew install squashfs");
+    assert!(made.success());
+    let mut bytes = runtime_head();
+    bytes.extend(std::fs::read(image).unwrap());
+    bytes
+}
+
+/// The GPUI app's AppImage at `version`: its binary, and the host's Node, command and daemon where the restart reads them.
+pub(super) fn gpui_image(version: &str) -> Vec<u8> {
+    let daemon = format!("usr/lib/wsp/app/assets/daemon/{}-unknown-linux-musl/wsp-daemon", std::env::consts::ARCH);
+    packed(&[
+        ("AppRun", b"#!/bin/sh\n", true),
+        ("usr/bin/desktop-gpui", version.as_bytes(), true),
+        ("usr/bin/node", b"node", true),
+        ("usr/lib/wsp/app/main/cli.mjs", b"cli", false),
+        (&daemon, b"daemon", true),
+    ])
+}
+
+/// Today's Electron AppImage as electron-builder lays one out, on the same runtime, so it carries the same marks.
+pub(super) fn electron_image() -> Vec<u8> {
+    packed(&[
+        ("AppRun", b"#!/bin/sh\n", true),
+        ("wsp", b"electron", true),
+        ("resources/app.asar", b"asar", false),
+        ("resources/app.asar.unpacked/assets/daemon/x86_64-unknown-linux-musl/wsp-daemon", b"daemon", true),
+        ("usr/lib/libffmpeg.so", b"so", false),
+    ])
+}
+
 fn no_tools(_: &str, _: &[&str]) -> (i32, String) {
     (1, "no tool in this test".into())
 }
 
-fn shell(feed: Feed, installed: Option<Installed>, downloads: &Path) -> Shell {
+pub(super) fn shell(feed: Feed, installed: Option<Installed>, downloads: &Path) -> Shell {
     Shell::new(ShellDeps {
         feed,
+        state: downloads.join("wsp-home/state.json"),
         downloads: downloads.to_owned(),
         running: "0.3.8".into(),
         installed,
@@ -103,18 +160,19 @@ fn shell(feed: Feed, installed: Option<Installed>, downloads: &Path) -> Shell {
         uid: unsafe { libc::getuid() },
         pid: std::process::id(),
         log: downloads.join("update.log"),
+        patience: 1,
     })
 }
 
-fn tmp() -> tempfile::TempDir {
+pub(super) fn tmp() -> tempfile::TempDir {
     tempfile::tempdir().unwrap()
 }
 
-fn read(path: &Path) -> Vec<u8> {
+pub(super) fn read(path: &Path) -> Vec<u8> {
     std::fs::read(path).unwrap_or_default()
 }
 
-fn stages(installed: &Path) -> Vec<PathBuf> {
+pub(super) fn stages(installed: &Path) -> Vec<PathBuf> {
     std::fs::read_dir(stage::stage_of(installed))
         .map(|d| {
             d.filter_map(|e| e.ok())
@@ -150,21 +208,20 @@ fn a_newer_release_is_found_and_the_asset_for_this_computer_picked() {
 
     let mac = Installed { path: "/Applications/wsp.app".into(), kind: Kind::Mac };
     let linux = Installed { path: "/opt/wsp.AppImage".into(), kind: Kind::AppImage };
-    assert_eq!(mac.asset("0.3.9"), "wsp-0.3.9-mac.zip", "the Mac's universal app comes in the release's zip");
-    assert_eq!(linux.asset("0.3.9"), "wsp-0.3.9.AppImage");
-    let names = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../packages/protocol/src/bundles.mjs")).unwrap();
-    let ours = feed::bundle_names("${version}");
-    for name in [ours.mac, ours.mac_zip, ours.app_image] {
-        assert!(names.contains(&format!("`{name}`")), "bundles.mjs names {name}");
-    }
+    assert_eq!(mac.asset("0.3.9"), "wsp-experimental-0.3.9-mac.zip", "the Mac's universal app comes in the release's zip");
+    assert_eq!(linux.asset("0.3.9"), "wsp-experimental-0.3.9-x86_64.AppImage");
 
     let dir = tmp();
     let installed_at = dir.path().join("wsp.AppImage");
     std::fs::write(&installed_at, app_image("0.3.8")).unwrap();
-    let new = app_image("0.3.9");
+    let new = gpui_image("0.3.9");
     let served = serve(release(
         "0.3.9",
-        &[("wsp-0.3.9-mac.dmg", b"dmg"), ("wsp-0.3.9-mac.zip", b"zip"), ("wsp-0.3.9.AppImage", &new)],
+        &[
+            ("wsp-experimental-0.3.9.dmg", b"dmg"),
+            ("wsp-experimental-0.3.9-mac.zip", b"zip"),
+            ("wsp-experimental-0.3.9-x86_64.AppImage", &new),
+        ],
         &HashMap::new(),
     ));
     let mut road = shell(
@@ -175,7 +232,7 @@ fn a_newer_release_is_found_and_the_asset_for_this_computer_picked() {
     road.get("0.3.9").unwrap();
     assert_eq!(
         served.asked.lock().unwrap().as_slice(),
-        ["/repos/wsp-labs/wsp/releases/tags/v0.3.9", "/wsp-labs/wsp/releases/download/v0.3.9/wsp-0.3.9.AppImage"],
+        ["/repos/wsp-labs/wsp/releases/tags/v0.3.9", "/wsp-labs/wsp/releases/download/v0.3.9/wsp-experimental-0.3.9-x86_64.AppImage"],
         "the release read, then this computer's asset alone"
     );
     let staged = stages(&installed_at);
@@ -191,35 +248,35 @@ fn a_bad_checksum_is_refused_with_nothing_replaced() {
     let dir = tmp();
     let installed_at = dir.path().join("wsp.AppImage");
     std::fs::write(&installed_at, app_image("0.3.8")).unwrap();
-    let new = app_image("0.3.9");
-    let wrong = HashMap::from([("wsp-0.3.9.AppImage", hex_sum(b"something else"))]);
-    let served = serve(release("0.3.9", &[("wsp-0.3.9.AppImage", &new)], &wrong));
+    let new = gpui_image("0.3.9");
+    let wrong = HashMap::from([("wsp-experimental-0.3.9-x86_64.AppImage", hex_sum(b"something else"))]);
+    let served = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", &new)], &wrong));
     let mut road = shell(
         Feed::new(Some(served.base), "wsp/0.3.8".into()),
         Some(Installed { path: installed_at.clone(), kind: Kind::AppImage }),
         dir.path(),
     );
     let said = road.get("0.3.9").unwrap_err();
-    assert_eq!(said.error, "wsp-0.3.9.AppImage did not match the release's sha256 and was deleted");
+    assert_eq!(said.error, "wsp-experimental-0.3.9-x86_64.AppImage did not match the release's sha256 and was deleted");
     assert_eq!(read(&installed_at), app_image("0.3.8"), "the installed app is untouched");
     let root = stage::stage_of(&installed_at);
     let left: Vec<_> = std::fs::read_dir(&root).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
     assert!(left.is_empty(), "no download, part or stage is left: {left:?}");
     assert_eq!(road.open().unwrap_err().error, "no verified download to open", "nothing checked, nothing to restart into");
 
-    let not_an_app = serve(release("0.3.9", &[("wsp-0.3.9.AppImage", b"a page, not an app")], &HashMap::new()));
+    let not_an_app = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", b"a page, not an app")], &HashMap::new()));
     let mut road = shell(
         Feed::new(Some(not_an_app.base), "wsp/0.3.8".into()),
         Some(Installed { path: installed_at.clone(), kind: Kind::AppImage }),
         dir.path(),
     );
-    assert_eq!(road.get("0.3.9").unwrap_err().error, "wsp-0.3.9.AppImage is not an AppImage and was deleted");
+    assert_eq!(road.get("0.3.9").unwrap_err().error, "wsp-experimental-0.3.9-x86_64.AppImage is not an AppImage and was deleted");
     assert!(stages(&installed_at).is_empty());
     assert_eq!(read(&installed_at), app_image("0.3.8"));
 }
 
 /// A zip of stored entries, enough for the central directory read; a name ending in / is a folder.
-fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
+pub(super) fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let (mut out, mut central) = (Vec::new(), Vec::new());
     for (name, data) in entries {
         let at = out.len() as u32;
@@ -258,9 +315,20 @@ fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
 }
 
 /// The Mac's tools as a test plays them: ditto unpacks the one app, codesign answers `signed`, plutil reads the
-/// version and executable the app was built with, xattr clears.
+/// version, executable and bundle id the app was built with, xattr clears.
 fn mac_tools(signed: i32) -> impl Fn(&str, &[&str]) -> (i32, String) + Send + Sync {
     mac_app(signed, true)
+}
+
+/// The zip's entries for a GPUI app named wsp.app: the binary and the host's Node, command and daemon for this chip.
+fn gpui_zip() -> Vec<u8> {
+    let exe = Path::new("wsp.app/Contents/MacOS/desktop-gpui");
+    let host = crate::service::Bundled::beside(exe, crate::service::Os::Mac, std::env::consts::ARCH);
+    let names: Vec<String> =
+        [exe.to_path_buf(), host.node, host.command, host.daemon].iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    let mut entries: Vec<(&str, &[u8])> = vec![("wsp.app/", b""), ("wsp.app/Contents/", b""), ("wsp.app/Contents/Info.plist", b"<plist/>")];
+    entries.extend(names.iter().map(|n| (n.as_str(), &b"x"[..])));
+    zip_of(&entries)
 }
 
 /// `mac_tools`, the unpacked app carrying the host at the paths the restart reads or, with `host` false, none, as an
@@ -282,6 +350,7 @@ fn mac_app(signed: i32, host: bool) -> impl Fn(&str, &[&str]) -> (i32, String) +
         }
         "/usr/bin/codesign" => (signed, String::new()),
         "/usr/bin/plutil" if args[1] == "CFBundleShortVersionString" => (0, "0.3.9\n".into()),
+        "/usr/bin/plutil" if args[1] == "CFBundleIdentifier" => (0, "wsp.desktop.experimental\n".into()),
         "/usr/bin/plutil" => (0, "desktop-gpui\n".into()),
         "/usr/bin/xattr" => (0, String::new()),
         _ => (1, format!("{tool} is not a tool here")),
@@ -297,7 +366,7 @@ fn a_bad_signature_is_refused_with_nothing_replaced() {
     let installed = Installed { path: app.clone(), kind: Kind::Mac };
     // SAFETY: getuid reads this process's user and cannot fail.
     let uid = unsafe { libc::getuid() };
-    let zip = zip_of(&[("wsp.app/", b""), ("wsp.app/Contents/", b""), ("wsp.app/Contents/Info.plist", b"<plist/>")]);
+    let zip = gpui_zip();
     let download = |name: &str| {
         let at = dir.path().join(name);
         std::fs::write(&at, &zip).unwrap();
@@ -350,13 +419,13 @@ fn a_bad_signature_is_refused_with_nothing_replaced() {
 
 /// An installed AppImage in a temp folder, the checked copy staged beside it, and the swap's arguments for an app
 /// whose pid is `pid`; each app is a script that marks `<name>.ran` when it runs, then does `then`.
-struct Swapping {
-    _dir: tempfile::TempDir,
-    installed: PathBuf,
-    swap: swap::Swap,
+pub(super) struct Swapping {
+    pub(super) _dir: tempfile::TempDir,
+    pub(super) installed: PathBuf,
+    pub(super) swap: swap::Swap,
 }
 
-fn swapping(pid: u32, new_then: &str) -> Swapping {
+pub(super) fn swapping(pid: u32, new_then: &str) -> Swapping {
     let dir = tmp();
     let root = std::fs::canonicalize(dir.path()).unwrap();
     let script = |name: &str, then: &str| format!("#!/bin/sh\n: > '{}'\n{then}\n", root.join(format!("{name}.ran")).display());
@@ -377,7 +446,7 @@ fn swapping(pid: u32, new_then: &str) -> Swapping {
         pid,
         installed: installed.clone(),
         kind: Kind::AppImage,
-        staged: stage::Staged { app: staged_app, stage: stage_dir, exe: String::new() },
+        staged: stage::Staged { app: staged_app, stage: stage_dir, exe: String::new(), requirement: String::new() },
         version: "0.3.9".into(),
         sum: hex_sum(new.as_bytes()),
         log: root.join("update.log"),
@@ -388,19 +457,16 @@ fn swapping(pid: u32, new_then: &str) -> Swapping {
 }
 
 /// The script run as the app starts it, in a session of its own, but waited on here.
-fn run_swap(s: &swap::Swap) -> std::process::Child {
-    Command::new("/bin/sh")
-        .arg("-c")
-        .arg(swap::SCRIPT)
-        .arg("wsp-update")
-        .args(swap::args(s))
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .spawn()
-        .unwrap()
+pub(super) fn run_swap(s: &swap::Swap) -> std::process::Child {
+    run_swap_on(s, "/usr/bin:/bin")
 }
 
-fn until(what: &str, wait: Duration, done: impl Fn() -> bool) {
+/// `run_swap` with `path` as the PATH the swap finds its tools on.
+pub(super) fn run_swap_on(s: &swap::Swap, path: &str) -> std::process::Child {
+    Command::new("/bin/sh").arg("-c").arg(swap::SCRIPT).arg("wsp-update").args(swap::args(s)).env_clear().env("PATH", path).spawn().unwrap()
+}
+
+pub(super) fn until(what: &str, wait: Duration, done: impl Fn() -> bool) {
     let from = Instant::now();
     while !done() {
         assert!(from.elapsed() < wait, "{what} within {wait:?}");
@@ -409,7 +475,7 @@ fn until(what: &str, wait: Duration, done: impl Fn() -> bool) {
 }
 
 /// A process standing in for the running app, gone at once, as an app that quit under the swap.
-fn quit_app() -> u32 {
+pub(super) fn quit_app() -> u32 {
     let mut gone = Command::new("/bin/true").spawn().unwrap();
     let pid = gone.id();
     gone.wait().unwrap();
@@ -429,7 +495,7 @@ fn a_swap_whose_new_app_fails_to_start_puts_the_old_one_back() {
     until("the old app opened again", Duration::from_secs(5), || s.installed.with_file_name("old.ran").exists());
     let log = std::fs::read_to_string(&s.swap.log).unwrap();
     assert!(log.contains("the new app exited before it was up; putting the old app back"), "{log}");
-    assert_eq!(swap::settle(&s.installed), Settled::Back { restart: false }, "the old app's launch sweeps the stage");
+    assert_eq!(swap::settle(&s.installed), Settled::Back { restart: false, said: None }, "the old app's launch sweeps the stage");
     assert!(!root.exists());
 
     let changed = swapping(quit_app(), "exit 0");
@@ -452,13 +518,17 @@ fn the_host_follows_onto_the_new_bundle_after_a_good_swap() {
     let settled = swap::settle(&s.installed);
     assert!(matches!(settled, Settled::Waiting(_)), "the new app's launch finds the swap waiting on it: {settled:?}");
     let seen = Mutex::new(None);
-    let followed = after_swap(Some(settled), "0.3.9", || {
-        assert!(root.join("restarted").exists(), "said before the host moves, so a failure moves it back");
-        *seen.lock().unwrap() = Some(read(&s.installed));
-        Ok(())
-    });
-    assert_eq!(followed, Ok(()));
+    let followed = after_swap(
+        Some(settled),
+        || {
+            assert!(root.join("restarted").exists(), "said before the host moves, so a failure moves it back");
+            *seen.lock().unwrap() = Some(read(&s.installed));
+            Ok(crate::service::Followed::Restarted)
+        },
+        || panic!("nothing to move back"),
+    );
     assert_eq!(seen.into_inner().unwrap().as_deref(), Some(new.as_slice()), "the host restarts onto the new app's files");
+    followed.unwrap().expect("the swap is handed back to be answered once the app is open").up("0.3.9").unwrap();
     assert!(script.wait().unwrap().success(), "{}", std::fs::read_to_string(&s.swap.log).unwrap());
     assert_eq!(read(&s.installed), new, "the new app stands in place");
     assert!(!root.exists(), "the old app is deleted once the new one is up");
@@ -468,7 +538,8 @@ fn the_host_follows_onto_the_new_bundle_after_a_good_swap() {
     let mut script = run_swap(&failing.swap);
     let root = stage::stage_of(&failing.installed);
     until("the swap opened the new app", Duration::from_secs(10), || root.join("opening").exists());
-    let said = after_swap(Some(swap::settle(&failing.installed)), "0.3.9", || Err("the host did not come back".into()));
+    let said =
+        after_swap(Some(swap::settle(&failing.installed)), || Err("the host did not come back".into()), || panic!("nothing to move back"));
     assert_eq!(said, Err("the host did not come back".into()));
     assert!(!root.join("up").exists(), "a host that did not follow never answers the swap");
     assert!(!script.wait().unwrap().success());
@@ -492,8 +563,153 @@ fn no_restart_while_a_turn_runs_unless_asked() {
     assert!(replace_prompt("0.3.8", "0.3.9", Some(1)).detail.starts_with("A thread is working on this computer. "));
     assert_eq!(older_host("wsp 0.3.8 keeps serving /h/.wsp/state.json: this app opens only on wsp 0.3.9"), Some("0.3.8"));
     assert_eq!(older_host("wsp stopped as it started"), None);
-    assert_eq!(after_swap(Some(Settled::Swept), "0.3.9", || panic!("nothing to follow")), Ok(()));
-    assert_eq!(after_swap(None, "0.3.9", || panic!("nothing to follow")), Ok(()));
+    assert_eq!(after_swap(Some(Settled::Swept), || panic!("nothing to follow"), || panic!("nothing to move back")), Ok(None));
+    assert_eq!(after_swap(None, || panic!("nothing to follow"), || panic!("nothing to move back")), Ok(None));
     assert_eq!(words::keep_running(2), "Your 2 running threads carry on. Open terminals close.");
     assert_eq!(words::keep_running(1), "Your running thread carries on. Open terminals close.");
+}
+
+#[test]
+fn only_the_gpui_app_is_fetched_and_staged() {
+    let names = feed::bundle_names("0.3.9");
+    assert_eq!(
+        [names.mac.as_str(), names.mac_zip.as_str(), names.app_image.as_str()],
+        ["wsp-experimental-0.3.9.dmg", "wsp-experimental-0.3.9-mac.zip", "wsp-experimental-0.3.9-x86_64.AppImage"],
+        "the names GPUI_NAMES in bundles.mjs gives the GPUI app's downloads"
+    );
+    let package = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/package.sh")).unwrap();
+    for built in [
+        "slug=wsp-experimental-$version",
+        r#"dmg="$dist/$slug.dmg""#,
+        r#"zip="$dist/$slug-mac.zip""#,
+        r#"appimage="$dist/$slug-x86_64.AppImage""#,
+    ] {
+        assert!(package.contains(built), "package.sh builds what the table names: {built}");
+    }
+
+    let dir = tmp();
+    let installed_at = dir.path().join("wsp.AppImage");
+    std::fs::write(&installed_at, app_image("0.3.8")).unwrap();
+    let installed = Some(Installed { path: installed_at.clone(), kind: Kind::AppImage });
+    let electron = electron_image();
+
+    let today_only = serve(release("0.3.9", &[("wsp-0.3.9.AppImage", &electron)], &HashMap::new()));
+    let mut road = shell(Feed::new(Some(today_only.base.clone()), "wsp/0.3.8".into()), installed.clone(), dir.path());
+    assert_eq!(
+        road.get("0.3.9").unwrap_err().error,
+        "the release carries no wsp-experimental-0.3.9-x86_64.AppImage yet, so nothing was downloaded"
+    );
+    assert_eq!(today_only.asked.lock().unwrap().as_slice(), ["/repos/wsp-labs/wsp/releases/tags/v0.3.9"], "today's app is never fetched");
+    assert!(!stage::stage_of(&installed_at).exists(), "and nothing is made beside the app");
+
+    let renamed = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", &electron)], &HashMap::new()));
+    let mut road = shell(Feed::new(Some(renamed.base.clone()), "wsp/0.3.8".into()), installed.clone(), dir.path());
+    assert_eq!(
+        road.get("0.3.9").unwrap_err().error,
+        "wsp-experimental-0.3.9-x86_64.AppImage holds another app than this one and was deleted",
+        "today's AppImage under the GPUI app's name, with the same runtime and marks, is refused off its squashfs"
+    );
+    assert!(stages(&installed_at).is_empty(), "nothing is staged");
+    assert_eq!(read(&installed_at), app_image("0.3.8"), "nothing is replaced");
+    let mut next_launch = shell(Feed::new(Some(renamed.base.clone()), "wsp/0.3.8".into()), installed.clone(), dir.path());
+    assert_eq!(
+        next_launch.get("0.3.9").unwrap_err().error,
+        "wsp-experimental-0.3.9-x86_64.AppImage was refused before as another app than this one, so it was not downloaded again"
+    );
+    let downloads = renamed.asked.lock().unwrap().iter().filter(|p| p.contains("/download/")).count();
+    assert_eq!(downloads, 1, "the refused asset is downloaded once across launches");
+
+    let no_daemon = packed(&[
+        ("usr/bin/desktop-gpui", b"0.3.9", true),
+        ("usr/bin/node", b"node", true),
+        ("usr/lib/wsp/app/main/cli.mjs", b"cli", false),
+    ]);
+    let mut image_at = dir.path().join("no-daemon.AppImage");
+    std::fs::write(&image_at, &no_daemon).unwrap();
+    let ours = |file: &str| image::Image::open(&image_at).unwrap().entry(Path::new(file)).unwrap();
+    assert!(ours("usr/bin/node").is_some_and(|e| e.file && e.mode & 0o111 != 0), "a file is read off the image with its mode");
+    assert_eq!(ours("usr/lib/wsp/app/assets/daemon"), None, "a build with no daemon is told apart");
+    image_at = dir.path().join("gpui.AppImage");
+    std::fs::write(&image_at, gpui_image("0.3.9")).unwrap();
+    let daemon = format!("usr/lib/wsp/app/assets/daemon/{}-unknown-linux-musl/wsp-daemon", std::env::consts::ARCH);
+    assert!(image::Image::open(&image_at).unwrap().entry(Path::new(&daemon)).unwrap().is_some_and(|e| e.file));
+}
+
+/// `mac_app`'s tools with a Developer ID signature on the running app, whose requirement only a copy signed by the
+/// same team passes; the new copy is signed `new_team`'s way.
+fn signed_by(new_team: &'static str) -> impl Fn(&str, &[&str]) -> (i32, String) + Send + Sync {
+    let base = mac_app(0, true);
+    move |tool, args| {
+        match (tool, args.first().copied()) {
+        ("/usr/bin/codesign", Some("-d")) => (0, "Executable=/x\ndesignated => identifier \"wsp.desktop.experimental\" and anchor apple generic and certificate leaf[subject.OU] = TEAM1\n".into()),
+        ("/usr/bin/codesign", Some("--verify")) => match args.iter().find_map(|a| a.strip_prefix("-R=")) {
+            Some(req) if req.ends_with(new_team) => (0, String::new()),
+            Some(_) => (3, "test-requirement: code failed to satisfy specified code requirement(s)".into()),
+            None => (0, String::new()),
+        },
+        _ => base(tool, args),
+    }
+    }
+}
+
+#[test]
+fn a_mac_update_must_be_this_app_signed_by_its_team() {
+    let dir = tmp();
+    let app = dir.path().join("wsp.app");
+    std::fs::create_dir_all(app.join("Contents/MacOS")).unwrap();
+    std::fs::write(app.join("Contents/MacOS/desktop-gpui"), "old").unwrap();
+    let installed = Installed { path: app.clone(), kind: Kind::Mac };
+    // SAFETY: getuid reads this process's user and cannot fail.
+    let uid = unsafe { libc::getuid() };
+    let download = |bytes: &[u8]| {
+        let at = dir.path().join("wsp-experimental-0.3.9-mac.zip");
+        std::fs::write(&at, bytes).unwrap();
+        at
+    };
+
+    assert_eq!(
+        stage::stage(&download(&gpui_zip()), "0.3.9", &installed, &signed_by("ADHOC"), uid).unwrap_err(),
+        "wsp-experimental-0.3.9-mac.zip failed its signature check and was deleted",
+        "a copy any other signature passes --strict with is held to the running app's requirement"
+    );
+    let staged = stage::stage(&download(&gpui_zip()), "0.3.9", &installed, &signed_by("TEAM1"), uid).unwrap();
+    assert!(staged.requirement.ends_with("leaf[subject.OU] = TEAM1"), "the swap checks the copy against it again: {}", staged.requirement);
+    assert_eq!(
+        swap::args(&swap::Swap {
+            pid: 1,
+            installed: app.clone(),
+            kind: Kind::Mac,
+            staged: staged.clone(),
+            version: "0.3.9".into(),
+            sum: String::new(),
+            log: dir.path().join("log"),
+            patience: 1,
+            grace: 1,
+        })[12],
+        staged.requirement
+    );
+    let ad_hoc = stage::stage(&download(&gpui_zip()), "0.3.9", &installed, &mac_tools(0), uid).unwrap();
+    assert_eq!(ad_hoc.requirement, "", "a running app signed ad hoc has no team to hold the copy to");
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let seen = calls.clone();
+    let tools = move |tool: &str, args: &[&str]| {
+        seen.lock().unwrap().push(tool.to_owned());
+        mac_tools(0)(tool, args)
+    };
+    let today = zip_of(&[("wsp.app/", b""), ("wsp.app/Contents/MacOS/wsp", b"electron"), ("wsp.app/Contents/Resources/app.asar", b"asar")]);
+    assert_eq!(
+        stage::stage(&download(&today), "0.3.9", &installed, &tools, uid).unwrap_err(),
+        "wsp-experimental-0.3.9-mac.zip holds another app than this one and was deleted"
+    );
+    assert!(calls.lock().unwrap().is_empty(), "refused off the zip's directory, before anything is unpacked");
+    let other_id = |tool: &str, args: &[&str]| match tool {
+        "/usr/bin/plutil" if args[1] == "CFBundleIdentifier" && args[5].contains("/new/") => (0, "wsp.desktop\n".into()),
+        _ => mac_tools(0)(tool, args),
+    };
+    assert_eq!(
+        stage::stage(&download(&gpui_zip()), "0.3.9", &installed, &other_id, uid).unwrap_err(),
+        "wsp-experimental-0.3.9-mac.zip holds another app than this one and was deleted",
+        "another bundle id is another app"
+    );
 }
