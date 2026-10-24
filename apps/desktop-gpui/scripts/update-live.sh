@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
 # usage: update-live.sh <old-app-binary> <old-version> <new-app-binary> <new-version> <host-app-dir>
+#        update-live.sh --check-node <node>   the check each packed Node passes: it links no library outside the system
 # Proves on Linux or macOS that the GPUI app one release behind updates itself from a local release feed and that its
 # host and daemon follow onto the new bundle, in a temp folder with a temp HOME. The binaries are debug builds of
 # apps/desktop-gpui at the two versions (only a debug build reads WSP_RELEASE_API and WSP_UPDATE_RESTART_WHEN_READY,
 # which presses Restart once the update is checked). <host-app-dir> is apps/desktop's build/app
 # (pnpm --filter @wsp/desktop run build:app) with this platform's daemon under assets/daemon/<triple>/wsp-daemon.
 # Each version is packed as scripts/package.sh packs it (host_stage): the app and Node in usr/bin or Contents/MacOS,
-# the host under usr/lib/wsp/app or Contents/Resources/app.
+# the host under usr/lib/wsp/app or Contents/Resources/app. The Node packed is the official one package.sh pins, never
+# the one on PATH, which runs this script's own helpers.
 # The host runs as a real service in the temp HOME, installed by the old app as the product installs it and patched
 # to carry WSP_RELEASE_API and the temp HOME: on Linux a systemd user unit wsp-host-<tag of the temp state>.service,
 # which root's user manager loads through a link in $XDG_RUNTIME_DIR/systemd/user; on a Mac a launchd job labelled
@@ -27,6 +29,30 @@ set -eu
 umask 022
 
 usage='usage: update-live.sh <old-app-binary> <old-version> <new-app-binary> <new-version> <host-app-dir>'
+os=$(uname -s)
+refuse() { echo "refused: $*" >&2; exit 2; }
+
+# Refuses a Node that links a library outside the system (Homebrew's links its libnode), which a bundle does not carry.
+node_alone() {
+  local node=$1 out outside
+  if [ "$os" = Darwin ]; then
+    out=$(otool -L "$node") || refuse "otool -L could not read $node"
+    outside=$(printf '%s\n' "$out" | awk 'NR > 1 && NF && !/:$/ && $1 !~ /^\/(usr\/lib|System\/Library)\// { printf "%s%s", s, $1; s = ", " }')
+  else
+    out=$(ldd "$node") || refuse "ldd could not read $node"
+    outside=$(printf '%s\n' "$out" | awk '
+      NF { lib = ($2 == "=>") ? $3 : $1 }
+      NF && lib !~ /^(linux-vdso|linux-gate)\.so\./ && lib !~ /^\/(usr\/)?lib(64)?\// { printf "%s%s", s, ($2 == "=>") ? $1 " => " ($3 == "not" ? "not found" : $3) : $1; s = ", " }')
+  fi
+  [ -z "$outside" ] || refuse "$node links $outside, outside the system; its copy in a bundle would not start, so it is not packed"
+}
+if [ "${1-}" = --check-node ]; then
+  [ $# -eq 2 ] || { echo "usage: update-live.sh --check-node <node>" >&2; exit 2; }
+  node_alone "$2"
+  echo "ok: $2 links nothing outside the system"
+  exit 0
+fi
+
 [ $# -eq 5 ] || { echo "$usage" >&2; exit 2; }
 abs() { (cd "$(dirname "$1")" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$1")"); }
 old_bin=$(abs "$1")
@@ -35,15 +61,13 @@ new_bin=$(abs "$3")
 new_v=$4
 host_app=$(cd "$5" && pwd -P)
 here=$(cd "$(dirname "$0")" && pwd -P)
-os=$(uname -s)
 REPO=${REPO:-$(cd "$here/../../.." && pwd -P)}
 uid=$(id -u)
 scenario=${SCENARIO:-good}
 
-refuse() { echo "refused: $*" >&2; exit 2; }
 case "$os" in
-  Linux) triple=$(uname -m)-unknown-linux-musl ;;
-  Darwin) case "$(uname -m)" in arm64) triple=aarch64-apple-darwin ;; *) triple=$(uname -m)-apple-darwin ;; esac ;;
+  Linux) triple=$(uname -m)-unknown-linux-musl; node_pa=linux-$(uname -m | sed 's/^x86_64$/x64/; s/^aarch64$/arm64/') ;;
+  Darwin) case "$(uname -m)" in arm64) triple=aarch64-apple-darwin; node_pa=darwin-arm64 ;; *) triple=$(uname -m)-apple-darwin; node_pa=darwin-x64 ;; esac ;;
   *) refuse "this runs on Linux or macOS, not $os" ;;
 esac
 case "$scenario" in
@@ -315,12 +339,40 @@ fetch_runtime() {
   mv "$runtime.part" "$runtime"
 }
 
+# package.sh's pinned node_version and node_sum, read from it so the Node packed here is the one a release carries.
+eval "$(sed -n '/^node_version=/,/^}/p' "$here/package.sh")"
+[ -n "${node_version-}" ] && [ "$(type -t node_sum)" = function ] || refuse "$here/package.sh no longer defines node_version and node_sum"
+# The official Node every bundle carries, out of package.sh's vendor/.node or fetched, unpacked into the work folder.
+fetch_node() {
+  local sum name cache archive
+  sum=$(node_sum "$node_pa")
+  [ -n "$sum" ] || refuse "package.sh pins no Node for $node_pa, so there is no official Node to pack"
+  name=node-v$node_version-$node_pa
+  # Making vendor/ where there is none would let package.sh skip gpui-patches.sh apply.
+  if [ -d "$here/../vendor" ]; then cache=$here/../vendor/.node; else cache=$work/pack; fi
+  archive=$cache/$name.tar.gz
+  if ! { [ -f "$archive" ] && [ "$(sha "$archive")" = "$sum" ]; }; then
+    mkdir -p "$cache"
+    curl -fsSL "https://nodejs.org/dist/v$node_version/$name.tar.gz" -o "$archive.part"
+    if [ "$(sha "$archive.part")" != "$sum" ]; then
+      rm -f "$archive.part"
+      refuse "Node $node_version for $node_pa does not match its sha256 $sum"
+    fi
+    mv "$archive.part" "$archive"
+  fi
+  mkdir -p "$work/node"
+  tar -xzf "$archive" -C "$work/node" --strip-components 1 "$name/bin/node"
+  pack_node=$work/node/bin/node
+  node_alone "$pack_node"
+  say "packing the official Node $node_version for $node_pa"
+}
+
 # An AppImage laid out as package.sh linux() writes it; $4, where given, is the release its host says it is.
 pack_linux() {
   local bin=$1 version=$2 out=$3 appdir=$work/pack/AppDir-$2
   mkdir -p "$appdir/usr/bin" "$appdir/usr/lib/wsp" "$appdir/usr/share/icons/hicolor/256x256/apps"
   install -m 755 "$bin" "$appdir/usr/bin/desktop-gpui"
-  install -m 755 "$node_bin" "$appdir/usr/bin/node"
+  install -m 755 "$pack_node" "$appdir/usr/bin/node"
   host_stage "$appdir/usr/lib/wsp" "${4:-$version}"
   if [ "${5-}" = crash ]; then
     # The app killed once the stage says the host is moving and the host lock names a new pid, before it can say up.
@@ -374,7 +426,7 @@ EOF
 pack_electron() {
   local out=$1 appdir=$work/pack/AppDir-electron
   mkdir -p "$appdir/resources" "$appdir/usr/lib"
-  install -m 755 "$node_bin" "$appdir/wsp"
+  install -m 755 "$pack_node" "$appdir/wsp"
   printf 'asar' >"$appdir/resources/app.asar"
   printf 'so' >"$appdir/usr/lib/libffmpeg.so"
   # shellcheck disable=SC2016
@@ -391,7 +443,7 @@ pack_mac() {
   local bin=$1 version=$2 app=$3/wsp.app
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
   install -m 755 "$bin" "$app/Contents/MacOS/desktop-gpui"
-  install -m 755 "$node_bin" "$app/Contents/MacOS/node"
+  install -m 755 "$pack_node" "$app/Contents/MacOS/node"
   host_stage "$app/Contents/Resources" "$version"
   cat >"$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -418,6 +470,7 @@ EOF
 
 say "work folder $work"
 say "packing $old_v and $new_v"
+fetch_node
 if [ "$os" = Linux ]; then
   asset=$(gpui_asset appImage "$new_v")
   fetch_runtime

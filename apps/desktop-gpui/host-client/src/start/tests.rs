@@ -63,6 +63,7 @@ fn fixture(manager: Manager, wait: Duration) -> Fixture {
         manager: Some(manager),
         wsp: None,
         restart: false,
+        port: free_port_here(),
         wait,
         say: Arc::new(move |line| kept.lock().unwrap().push(line.to_owned())),
     };
@@ -99,6 +100,11 @@ impl Fixture {
     }
 }
 
+/// A port nothing listens on as the test starts, so no host of the machine's on `DEFAULT_PORT` moves what a test reads.
+fn free_port_here() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
+}
+
 /// A wsp page on loopback carrying the digest of `token`, as a host serves its own; its port.
 fn page(token: &str) -> u16 {
     use std::io::{Read as _, Write as _};
@@ -120,8 +126,8 @@ fn page(token: &str) -> u16 {
 
 /// The unit npm's `wsp up --service` writes for the fixture's state, with a port it was given.
 fn npm_unit(f: &Fixture) -> String {
-    let state = f.start.state.display();
-    format!("ExecStart='/usr/bin/node' '/usr/lib/node_modules/@wsp-labs/wsp/dist/bin.js' 'up' '--state' '{state}' '--port' '4400'\n")
+    let (state, port) = (f.start.state.display(), f.start.port);
+    format!("ExecStart='/usr/bin/node' '/usr/lib/node_modules/@wsp-labs/wsp/dist/bin.js' 'up' '--state' '{state}' '--port' '{port}'\n")
 }
 
 impl Drop for Fixture {
@@ -559,7 +565,7 @@ fn a_missing_unit_is_written_by_the_wsp_command_this_app_owns() {
         let wsp = owned(&mut f);
         let fake = Fake::new(|_| ok("systemd unit wsp-host-x.service is loaded; it serves again at every login"));
         block(ensure(&f.start, &fake)).unwrap();
-        assert_eq!(fake.ran(), [format!("{} up --service --state {}", wsp.display(), f.start.state.display())]);
+        assert_eq!(fake.ran(), [format!("{} up --service --state {} --port {}", wsp.display(), f.start.state.display(), f.start.port)]);
         assert_eq!(f.said(), [format!("{} wrote the {} {}", wsp.display(), manager.words(), manager.name(&f.start.state))]);
     }
 }
@@ -778,7 +784,7 @@ fn a_service_unit_running_another_wsp_is_written_again_to_run_the_command_with_i
         [
             format!("systemctl --user is-enabled {name}"),
             format!("systemctl --user stop {name}"),
-            format!("{} up --service --state {state} --port 4400", wsp.display()),
+            format!("{} up --service --state {state} --port {}", wsp.display(), f.start.port),
             format!("systemctl --user disable {name}"),
         ]
     );
@@ -834,7 +840,7 @@ fn a_host_a_terminal_started_comes_back_on_the_command_where_the_unit_ran_anothe
     assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::Restarted));
     assert!(!pid_alive(host), "the terminal's host was stopped");
     let name = Manager::Systemd.name(&f.start.state);
-    let up = format!("{} up --service --state {} --port 4400", wsp.display(), f.start.state.display());
+    let up = format!("{} up --service --state {} --port {}", wsp.display(), f.start.state.display(), f.start.port);
     assert!(fake.ran().contains(&up), "{:?}", fake.ran());
     assert!(!fake.ran().contains(&format!("systemctl --user restart {name}")), "npm's unit is not loaded as it stands: {:?}", fake.ran());
 }
@@ -851,7 +857,7 @@ fn nothing_serving_on_a_unit_running_another_wsp_writes_the_unit_again() {
         _ => ok(""),
     });
     assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::NotServing));
-    let up = format!("{} up --service --state {} --port 4400", wsp.display(), f.start.state.display());
+    let up = format!("{} up --service --state {} --port {}", wsp.display(), f.start.state.display(), f.start.port);
     assert!(fake.ran().contains(&up), "{:?}", fake.ran());
     std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
     let fake = Fake::new(|_| ok(""));
@@ -917,7 +923,7 @@ fn a_unit_taking_the_lock_once_the_terminals_host_lets_it_go_is_written_again() 
         _ => ok(""),
     });
     assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::Restarted));
-    let up = format!("{} up --service --state {} --port 4400", wsp.display(), f.start.state.display());
+    let up = format!("{} up --service --state {} --port {}", wsp.display(), f.start.state.display(), f.start.port);
     assert!(fake.ran().contains(&up), "{:?}", fake.ran());
 }
 
@@ -947,4 +953,130 @@ fn a_launchd_units_words_are_read_off_its_program_arguments() {
                  </array><key>KeepAlive</key><true/></dict>";
     assert_eq!(Manager::Launchd.argv(plist), Some(words(&["/Users/a & b/.wsp/bin/wsp", "up", "--port", "4400"])));
     assert_eq!(Manager::Systemd.argv("ExecStart='/a b/wsp' 'up' --port 4400\n"), Some(words(&["/a b/wsp", "up", "--port", "4400"])));
+}
+
+/// A listener of the test's own holding a port, as another program would; its port.
+fn held_port() -> (std::net::TcpListener, u16) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    (listener, port)
+}
+
+/// Catches: a fresh install whose port another wsp host holds, serving a state file of its own, handed to `wsp up
+/// --service` as the port the unit names, so the service's host refuses it and the first run stops on a dialog. The
+/// other host's lock, process and unit are never touched.
+#[test]
+fn a_fresh_install_whose_port_another_host_holds_writes_its_unit_on_the_next_free_port() {
+    for manager in [Manager::Launchd, Manager::Systemd] {
+        let mut f = fixture(manager, SERVICE_WAIT);
+        std::fs::remove_file(&f.unit).unwrap();
+        let wsp = owned(&mut f);
+        let other = f.start.home.join("dev/.wsp/state.json");
+        std::fs::create_dir_all(other.parent().unwrap()).unwrap();
+        let (other_pid, held) = (sh("exec sleep 30"), page("the other home's token"));
+        let lock = format!(r#"{{"pid":{other_pid},"port":{held},"startedAt":"2026-10-25T03:01:00.000Z","startedBy":"up"}}"#);
+        std::fs::write(other.with_file_name("host.lock"), &lock).unwrap();
+        f.start.port = held;
+        let fake = Fake::new(|_| ok(""));
+        block(ensure(&f.start, &fake)).unwrap();
+        let ran = fake.ran();
+        let port: u16 = ran[0].rsplit(' ').next().unwrap().parse().unwrap();
+        assert!(port > held && port < held + 20, "the next free port after {held}, not {port}");
+        assert_eq!(ran, [format!("{} up --service --state {} --port {port}", wsp.display(), f.start.state.display())]);
+        let moved = format!(
+            "port {held} is in use on this computer by another program, so the {} {} serves on {port}",
+            manager.words(),
+            manager.name(&f.start.state)
+        );
+        assert_eq!(f.said()[0], moved);
+        assert!(pid_alive(other_pid), "the other host was never signalled");
+        assert_eq!(std::fs::read_to_string(other.with_file_name("host.lock")).unwrap(), lock);
+        assert!(!ran.iter().any(|line| line.contains(&manager.name(&other))), "{ran:?}");
+    }
+}
+
+/// Catches: a later launch whose unit names a port another program took since, loaded as it stands, so its host
+/// refuses the port at every start; the unit is stopped and written again on a free port, with its other words kept.
+#[test]
+fn a_unit_whose_port_another_program_holds_is_written_again_on_a_free_one() {
+    for manager in [Manager::Launchd, Manager::Systemd] {
+        let mut f = fixture(manager, Duration::from_secs(5));
+        let wsp = owned(&mut f);
+        let (_taken, held) = held_port();
+        let state = f.start.state.display().to_string();
+        let unit = match manager {
+            Manager::Systemd => format!("ExecStart='{}' 'up' '--state' '{state}' '--port' '{held}' '--listen' '127.0.0.1'\n", wsp.display()),
+            Manager::Launchd => format!(
+                "<key>ProgramArguments</key><array><string>{}</string><string>up</string><string>--state</string><string>{state}</string><string>--port</string><string>{held}</string><string>--listen</string><string>127.0.0.1</string></array>",
+                wsp.display()
+            ),
+        };
+        std::fs::write(&f.unit, unit).unwrap();
+        let fake = Fake::new(move |argv| match (manager, argv.get(1).map(String::as_str), argv.get(2).map(String::as_str)) {
+            (Manager::Launchd, Some("print"), _) => ok("\tstate = waiting\n"),
+            (Manager::Systemd, _, Some("show")) => ok("ActiveState=activating\nUnitFileState=enabled\nMainPID=0"),
+            (Manager::Systemd, _, Some("is-enabled")) => ok("enabled"),
+            _ => ok(""),
+        });
+        block(ensure(&f.start, &fake)).unwrap();
+        let ran = fake.ran();
+        let up = ran.iter().find(|line| line.contains(" up --service ")).unwrap_or_else(|| panic!("{ran:?}"));
+        let port: u16 = up.split(' ').skip_while(|word| *word != "--port").nth(1).unwrap().parse().unwrap();
+        assert_ne!(port, held);
+        assert_eq!(*up, format!("{} up --service --state {state} --port {port} --listen 127.0.0.1", wsp.display()));
+        let stop = manager.stop(&f.start).remove(0).join(" ");
+        assert!(
+            ran.iter().position(|line| *line == stop).expect("the unit was stopped") < ran.iter().position(|line| line == up).unwrap(),
+            "the held unit is stopped first: {ran:?}"
+        );
+        assert!(
+            f.said().iter().any(|line| line.contains(&format!("serves on port {held}, which another program holds"))),
+            "{:?}",
+            f.said()
+        );
+    }
+}
+
+/// Catches: a unit moved off a port that is free, or off the one its own host holds, which would leave the host the
+/// app and the wsp command already reach.
+#[test]
+fn a_unit_on_a_free_port_or_its_own_hosts_is_loaded_as_it_stands() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    let wsp = owned(&mut f);
+    let (taken, held) = held_port();
+    let unit = format!("ExecStart='{}' 'up' '--state' '{}' '--port' '{held}'\n", wsp.display(), f.start.state.display());
+    std::fs::write(&f.unit, &unit).unwrap();
+    let host = sh("exec sleep 30");
+    f.write_lock(host, held, "service");
+    let fake = Fake::new(|argv| match argv[2].as_str() {
+        "show" => ok(INACTIVE),
+        _ => ok(""),
+    });
+    block(ensure(&f.start, &fake)).unwrap();
+    drop(taken);
+    std::fs::remove_file(f.start.state.with_file_name("host.lock")).unwrap();
+    block(ensure(&f.start, &fake)).unwrap();
+    assert!(!fake.ran().iter().any(|line| line.contains("--service") || line.contains(" stop ")), "{:?}", fake.ran());
+    assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), unit);
+}
+
+/// Catches: a rewrite onto a free port that `wsp up --service` refused before writing anything read as done, since the
+/// unit already runs the wsp command, so the open waits out its whole wait and says nothing ran the service instead
+/// of the command's refusal, at every launch.
+#[test]
+fn a_rewrite_off_a_held_port_that_the_command_refused_is_its_refusal() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    let wsp = owned(&mut f);
+    let (_taken, held) = held_port();
+    let unit = format!("ExecStart='{}' 'up' '--state' '{}' '--port' '{held}'\n", wsp.display(), f.start.state.display());
+    std::fs::write(&f.unit, &unit).unwrap();
+    let refusal = "wsp up --service: a service starts without your shell, so it reads its provider key from a file.";
+    let fake = Fake::new(move |argv| match argv.get(1).map(String::as_str) {
+        Some("up") => Ran { code: 1, output: refusal.to_owned() },
+        Some("--user") if argv[2] == "show" => ok(INACTIVE),
+        _ => ok(""),
+    });
+    let failed = block(ensure(&f.start, &fake)).unwrap_err();
+    assert_eq!(failed.failure.message, refusal);
+    assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), unit);
 }
