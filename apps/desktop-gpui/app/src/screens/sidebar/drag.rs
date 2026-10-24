@@ -27,6 +27,8 @@ pub enum DropPlace {
 #[derive(Default)]
 pub struct Drag {
     pub at: Option<DropPlace>,
+    /// The section of the row the drag lifted, a Needs you copy's apart from its root's.
+    from: Option<Section>,
     probe: Rc<RefCell<Option<DropPlace>>>,
 }
 
@@ -57,30 +59,45 @@ impl Sidebar {
     }
 
     /// The drag begins: the tree folds and every head stands.
-    pub(super) fn start_drag(&mut self, key: &str, cx: &mut Context<Self>) {
+    pub(super) fn start_drag(&mut self, key: &str, from: Section, cx: &mut Context<Self>) {
         self.folds.dragging = Some(key.to_owned());
         self.drag.at = None;
+        self.drag.from = Some(from);
         self.rebuild(cx);
     }
 
     /// The drag ends, dropped or not: the tree and the heads stand as they did.
     pub(super) fn end_drag(&mut self, cx: &mut Context<Self>) {
         self.drag.at = None;
+        self.drag.from = None;
         if self.folds.dragging.take().is_some() {
             self.rebuild(cx);
+        }
+    }
+
+    /// The section drawn row `ix` stands in: a line's own, a creation's that of the head it is drawn under.
+    fn drawn_section(&self, ix: usize) -> Option<Section> {
+        let of_line = |d: &Drawn| match d {
+            Drawn::Line(li) => self.lines.get(*li).map(|l| l.section),
+            _ => None,
+        };
+        match self.drawn_rows.get(ix)? {
+            Drawn::Line(_) => of_line(&self.drawn_rows[ix]),
+            Drawn::Creation(_) => self.drawn_rows[..ix].iter().rev().find_map(of_line),
+            _ => None,
         }
     }
 
     /// `placeAt`: the place a drop on drawn row `ix` lands, the pointer `y` px down the row; none where it changes nothing.
     fn place_at(&self, ix: usize, y: Pixels) -> Option<DropPlace> {
         let dragged = self.folds.dragging.as_deref()?;
-        let Drawn::Line(li) = *self.drawn_rows.get(ix)? else { return None };
-        let line = self.lines.get(li)?;
-        let section = line.section;
-        // Working is drawn from what runs, so it takes no drop.
+        let section = self.drawn_section(ix)?;
+        // Working holds a tree by its state alone: only a tree leaving Pinned has anything to drop there.
         if section == Section::Working {
-            return None;
+            return (self.drag.from == Some(Section::Pinned)).then_some(DropPlace::Head(section));
         }
+        let Drawn::Line(li) = *self.drawn_rows.get(ix)? else { return Some(DropPlace::Head(section)) };
+        let line = self.lines.get(li)?;
         if !matches!(section, Section::Pinned | Section::Threads) || matches!(line.item, Item::Head { .. }) {
             return Some(DropPlace::Head(section));
         }
@@ -201,22 +218,26 @@ impl Sidebar {
             _ => None,
         };
         let gap = px(if line.is_some_and(|(_, l)| l.gap) { 12. } else { 0. });
-        let fill = line.and_then(|(li, l)| {
-            (self.drag.at == Some(DropPlace::Head(l.section))).then(|| {
-                let id = l.section.id();
-                let first = li == 0 || self.lines[li - 1].section != l.section;
-                let last = self.lines.get(li + 1).is_none_or(|n| n.section != l.section);
-                div()
-                    .debug_selector(move || format!("drop-over-{id}"))
-                    .absolute()
-                    .left(px(8.))
-                    .right(px(8.))
-                    .top(gap)
-                    .bottom_0()
-                    .bg(p.sidebar_row_hover)
-                    .when(first, |el| el.rounded_t(ROW_RADIUS))
-                    .when(last, |el| el.rounded_b(ROW_RADIUS))
-            })
+        let fill = self.drawn_section(ix).filter(|&s| self.drag.at == Some(DropPlace::Head(s))).map(|section| {
+            let id = section.id();
+            let (first, last) = match line {
+                Some((li, _)) => (
+                    li == 0 || self.lines[li - 1].section != section,
+                    self.lines.get(li + 1).is_none_or(|n| n.section != section)
+                        && !matches!(self.drawn_rows.get(ix + 1), Some(Drawn::Creation(_))),
+                ),
+                None => (false, self.drawn_section(ix + 1) != Some(section)),
+            };
+            div()
+                .debug_selector(move || format!("drop-over-{id}"))
+                .absolute()
+                .left(px(8.))
+                .right(px(8.))
+                .top(gap)
+                .bottom_0()
+                .bg(p.sidebar_row_hover)
+                .when(first, |el| el.rounded_t(ROW_RADIUS))
+                .when(last, |el| el.rounded_b(ROW_RADIUS))
         });
         let edge = line.and_then(|(li, l)| {
             let Some(DropPlace::Edge { root, after, .. }) = &self.drag.at else { return None };
@@ -237,9 +258,10 @@ impl Sidebar {
             })
         });
         // `data-[drag-source]`: the carried root's row at half opacity; its tree is not drawn.
-        let source = line
-            .and_then(|(_, l)| self.root_key(l))
-            .filter(|k| line.is_some_and(|(_, l)| l.depth == 0) && self.folds.dragging.as_deref() == Some(k.as_str()));
+        let source = line.and_then(|(_, l)| self.root_key(l)).filter(|k| {
+            line.is_some_and(|(_, l)| l.depth == 0 && Some(l.section) == self.drag.from)
+                && self.folds.dragging.as_deref() == Some(k.as_str())
+        });
         let probe = self.drag.probe.clone();
         let me = cx.weak_entity();
         div()

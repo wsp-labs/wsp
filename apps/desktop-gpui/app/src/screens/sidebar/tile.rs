@@ -27,6 +27,7 @@ const ELBOW_RADIUS: Pixels = px(6.);
 pub struct DraggedTile {
     pub key: String,
     title: SharedString,
+    section: Section,
 }
 
 struct DragPreview {
@@ -51,9 +52,9 @@ impl Render for DragPreview {
 
 /// A root that moves, carried by the pointer (`draggable` on the tile): the sidebar folds its tree once the drag starts
 /// and stands as it was once the drag ends, dropped or not.
-fn carried<E: StatefulInteractiveElement>(el: E, me: WeakEntity<Sidebar>, key: String, title: SharedString) -> E {
-    el.on_drag(DraggedTile { key, title }, move |d, _, _, cx| {
-        _ = me.update(cx, |this, cx| this.start_drag(&d.key, cx));
+fn carried<E: StatefulInteractiveElement>(el: E, me: WeakEntity<Sidebar>, key: String, title: SharedString, section: Section) -> E {
+    el.on_drag(DraggedTile { key, title, section }, move |d, _, _, cx| {
+        _ = me.update(cx, |this, cx| this.start_drag(&d.key, d.section, cx));
         let me = me.clone();
         cx.new(|cx| {
             cx.on_release(move |_, cx| _ = me.update(cx, |this, cx| this.end_drag(cx))).detach();
@@ -211,8 +212,11 @@ pub fn line(s: &mut Sidebar, ix: usize, line: &Line, window: &mut Window, cx: &m
                 let attempt = attempt.clone();
                 move || format!("group-{attempt}")
             });
-            let head =
-                if *moves { carried(head, me.clone(), format!("attempt:{attempt}"), SharedString::from(title.clone())) } else { head };
+            let head = if *moves {
+                carried(head, me.clone(), format!("attempt:{attempt}"), SharedString::from(title.clone()), line.section)
+            } else {
+                head
+            };
             frame(ix, line, 36., &p)
                 .child(
                     head.on_click(move |_, _, cx| _ = me.update(cx, |this, cx| this.toggle_group(&attempt, cx)))
@@ -508,7 +512,7 @@ fn tile_row(s: &mut Sidebar, ix: usize, line: &Line, tile: &Tile, window: &mut W
         .child(body)
         .when(active, |el| el.child(div().absolute().inset_0().rounded(ROW_RADIUS).border_1().border_color(p.sidebar_row_edge)));
     if tile.moves {
-        button = carried(button, me.clone(), key.clone(), SharedString::from(t.title.clone()));
+        button = carried(button, me.clone(), key.clone(), SharedString::from(t.title.clone()), line.section);
     }
     let act: Option<AnyElement> = if stops {
         let (me, key) = (me.clone(), key.clone());
