@@ -411,7 +411,7 @@ fn open_titled(
         let (state, vars) = (road.state.clone(), road.env.clone());
         if let Ok(Some(owned)) = tokio::task::spawn_blocking(move || service::on_launch(&state, &vars)).await {
             road.wsp = Some(owned.wsp);
-            road.restart = owned.restart == Some(service::Restart::FilesWent);
+            road.restart = owned.restart == Some(service::Restart::Rewritten);
         }
         start::ready(&road, &System::new(&road.env), |client: Arc<HostClient>| async move { next(&client).await }).await
     });
@@ -504,7 +504,7 @@ fn restart_then_open(title: &'static str, again: Again, starting: Starting, cx: 
         let said = restarted.await.unwrap_or_else(|_| Err("the restart stopped before it answered".into()));
         cx.update(|cx| {
             let (state, env, runtime, app) = again;
-            if let Err(said) = said {
+            if let Err(said) | Ok(service::Followed::Left(said)) = said {
                 let failed = Failed { failure: Box::new(Failure::new(crate::update::words::not_restarted(&said))), log: None };
                 return say_failed(title, &failed, &state, starting, cx);
             }

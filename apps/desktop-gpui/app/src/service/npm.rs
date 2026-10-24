@@ -9,6 +9,7 @@ use std::io::Read as _;
 use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 use std::time::{Duration, Instant};
 
 use wsp_host_client::{release_order, Env};
@@ -38,8 +39,8 @@ const LAUNCHD_PATH: [&str; 4] = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 const SHELL_LIMIT: Duration = Duration::from_secs(15);
 
 /// The PATH a shell of this person's finds `wsp` on (`adoptLoginPath`): the launch's own, except where launchd or a
-/// desktop chose it (launchd's four folders, an AppImage launch), where the login shell is asked. A shell that fails,
-/// runs past its limit or prints nothing leaves the launch's.
+/// desktop chose it (launchd's four folders, an AppImage launch), where it is read off the login shell's environment.
+/// A shell that fails, runs past its limit or names no PATH leaves the launch's.
 pub fn login_path(env: &Env) -> String {
     let given = env.get("PATH").cloned().unwrap_or_default();
     let dirs: Vec<&str> = given.split(':').filter(|dir| !dir.is_empty()).collect();
@@ -48,7 +49,7 @@ pub fn login_path(env: &Env) -> String {
     let Some(shell) = env.get("SHELL").filter(|shell| chosen && !shell.is_empty()) else { return given };
     // Its own process group, so a job an rc file leaves behind, holding the output open, goes with it.
     let child = Command::new(shell)
-        .args(["-ilc", "printf '%s' \"$PATH\""])
+        .args(["-ilc", "env -0"])
         .env_clear()
         .envs(env)
         .stdin(Stdio::null())
@@ -70,12 +71,23 @@ pub fn login_path(env: &Env) -> String {
     let _ = child.wait();
     let mut said = String::new();
     let read = child.stdout.take().is_some_and(|mut out| out.read_to_string(&mut said).is_ok());
-    let said = said.trim();
-    if exited && read && !said.is_empty() {
-        said.to_owned()
-    } else {
-        given
-    }
+    let login = (exited && read).then(|| path_of(&said)).flatten();
+    login.unwrap_or(given)
+}
+
+/// The PATH in a login shell's `env -0` (`loginEnvOf`): whatever an rc file printed before the first entry ends at its
+/// last line break and is no part of it.
+fn path_of(said: &str) -> Option<String> {
+    said.split('\0').enumerate().find_map(|(at, entry)| {
+        let entry = if at == 0 { entry.rsplit('\n').next().unwrap_or(entry) } else { entry };
+        entry.strip_prefix("PATH=").filter(|path| !path.is_empty()).map(str::to_owned)
+    })
+}
+
+/// A file name beside a link for its replacement, its own to each pass in this process and each process.
+fn part_name() -> String {
+    static PASSES: AtomicUsize = AtomicUsize::new(0);
+    format!(".wsp.{}.{}.part", std::process::id(), PASSES.fetch_add(1, AtomicOrdering::Relaxed))
 }
 
 /// The release an installed @wsp-labs/wsp package says it is, read off its package.json and never by running it.
@@ -132,7 +144,7 @@ pub fn replace_older_on_path(home: &Path, path: impl FnOnce() -> String, release
             Ordering::Equal => continue,
             Ordering::Less => {}
         }
-        let part = dir.join(format!(".wsp.{}.part", std::process::id()));
+        let part = dir.join(part_name());
         let _ = std::fs::remove_file(&part);
         match std::os::unix::fs::symlink(&wsp, &part).and_then(|()| std::fs::rename(&part, &file)) {
             Ok(()) => lines.push(format!("{} was npm's wsp {theirs}; it now runs {}, wsp {release}", file.display(), wsp.display())),
@@ -199,7 +211,7 @@ mod tests {
     fn the_path_is_the_login_shells_where_launchd_or_a_desktop_chose_the_launchs() {
         let dir = tempfile::tempdir().unwrap();
         let shell = dir.path().join("login-shell");
-        std::fs::write(&shell, "#!/bin/sh\n[ \"$1\" = -ilc ] && printf '%s' /opt/homebrew/bin:/usr/bin\n").unwrap();
+        std::fs::write(&shell, "#!/bin/sh\n[ \"$1\" = -ilc ] && printf 'PATH=/opt/homebrew/bin:/usr/bin\\0'\n").unwrap();
         std::fs::set_permissions(&shell, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
         let env = |path: &str, image: &str| -> Env {
             [("PATH", path), ("SHELL", &shell.to_string_lossy()), ("APPIMAGE", image)].map(|(k, v)| (k.to_owned(), v.to_owned())).into()
@@ -213,6 +225,29 @@ mod tests {
         );
         std::fs::write(&shell, "#!/bin/sh\nexit 1\n").unwrap();
         assert_eq!(login_path(&env("/usr/bin:/bin:/usr/sbin:/sbin", "")), "/usr/bin:/bin:/usr/sbin:/sbin", "a failed shell leaves it");
+    }
+
+    /// Catches: a line an rc file prints (a banner, nvm's notice) read as the start of the first PATH folder, which then
+    /// fails as a relative folder and is skipped, and that folder is often nvm's bin, where `npm i -g` put wsp.
+    #[test]
+    fn a_banner_from_an_rc_file_is_no_part_of_the_login_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let shell = dir.path().join("login-shell");
+        let said = "printf 'Welcome back\\nnvm is ready\\nHOME=/home/me\\0PATH=/home/me/.nvm/versions/node/v22/bin:/usr/bin\\0'";
+        std::fs::write(&shell, format!("#!/bin/sh\n[ \"$2\" = 'env -0' ] && {said}\n")).unwrap();
+        std::fs::set_permissions(&shell, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let env: Env = [("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"), ("SHELL", shell.to_str().unwrap())]
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .into();
+        assert_eq!(login_path(&env), "/home/me/.nvm/versions/node/v22/bin:/usr/bin");
+        assert_eq!(path_of("motd\nPATH=/a/bin\0"), Some("/a/bin".to_owned()), "the banner ends at its last line break");
+    }
+
+    /// Catches: two passes in one process sharing the name of the file each renames over a link, so one deletes the
+    /// other's before its rename.
+    #[test]
+    fn each_pass_replaces_a_link_through_a_file_of_its_own() {
+        assert_ne!(part_name(), part_name());
     }
 
     #[test]
