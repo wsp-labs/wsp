@@ -1,9 +1,9 @@
-# Wave 2 parity spec
+# Parity spec: terminal, pull request, slates, setup dialogs and palette
 
-Map wsp-labs/wsp-map#2364, ticket #2407. What today's app draws and does on Wave 2's screens, read off `main` at
-1516a0cd5 (2026-10-17): the terminal (#2396), the pull request, Changes and Files panes (#2397), slates (#2398),
-setup dialogs, onboarding and the pair screen (#2399), the palette, switcher, activity and notices (#2400), and the
-panes no ticket owns. Builders tick items by id; reviewers cite them.
+What today's app draws and does on the screens the GPUI app must match in `parity/wave-2`, read off `main` at
+1516a0cd5 (2026-10-17): the terminal, the pull request, Changes and Files panes, slates, setup dialogs, onboarding
+and the pair screen, the palette, switcher, activity and notices, and the remaining panes and pieces. Each item has an
+id that tests and code cite.
 
 **Reading an item.** One line: id, what, source `path:line`. Paths are under `apps/web/src/`; `desktop:` is
 `apps/desktop/src/`, `protocol:`, `runtime:` and `host:` are `packages/<name>/src/`, `daemon:` is `daemon/`, `sonner:`
@@ -12,34 +12,34 @@ is the Sonner 2.0.8 package. A state marked Shot has baselines `<id>-paper.png` 
 `apps/desktop-gpui/host-client/src/ops/`; Gap marks one the client lacks. Design names the `app/src/ui/` piece that
 draws an element, or none yet, and each transition with its property, duration and curve ("default curve" is
 Tailwind's `cubic-bezier(0.4, 0, 0.2, 1)`, 150 ms unless given). `more.md` holds the items this file had no room for,
-in the same id sequences; builders tick both.
+in the same id sequences.
 
-**Design rules for every screen.** Map decision 5: the screen looks exactly like today's Electron app, pixel-compared
-per state in Paper and Graphite; the locked designs count only where the app has no such piece. The fork ruling
-(#2366): gpui-kit 14f5933 on `gpui-pre` 0.3.9. Blur and rounded clipping are #2373's patch, already on `gpui/main`.
-gpui-kit (Apache-2.0) may be used and adapted; Zed's crates (GPL) are read, never pasted; zui and Zeron are never
-copied.
+**Design rules for every screen.** The screen looks exactly like today's Electron app, pixel-compared per state in
+Paper and Graphite; the locked designs count only where the app has no such piece. The app builds on gpui-kit 14f5933
+on `gpui-pre` 0.3.9. Blur and rounded clipping come from our patch, already on `gpui/main`. gpui-kit (Apache-2.0) may
+be used and adapted; Zed's crates (GPL) are read, never pasted; zui and Zeron are never copied.
 
-## Who owns each pane
+## Where each pane is specified
 
-| Pane (`panes.ts`) | Owner |
+| Pane (`panes.ts`) | Items |
 |---|---|
-| Browser | #2401, wave 3 |
-| Terminal | #2396 |
-| Changes, Pull request, Files | #2397 |
-| Computer | none: W2-UNO below; D11 recommends #2400 |
-| Processes | #2400 |
-| Agents | body is Settings' own (#2391); its wrapper none: W2-UNO; D11 recommends #2391 |
-| Aside (the side question, `/btw`) | none: W2-UNO; D11 recommends #2394 |
-| Slate | #2398 |
+| Browser | `parity/wave-3/spec.md`, W3-BRW |
+| Terminal | W2-TRM |
+| Changes, Pull request, Files | W2-PRP |
+| Computer | W2-UNO |
+| Processes | W2-PAL |
+| Agents | body is Settings' own (`parity/wave-1`); its wrapper W2-UNO |
+| Aside (the side question, `/btw`) | W2-UNO |
+| Slate | W2-SLT |
 
-Drawn by today's app and named by no ticket, all in W2-UNO: `components/DaemonDown.tsx` (terminal, Changes and
+Also in W2-UNO, drawn by today's app outside these screens: `components/DaemonDown.tsx` (terminal, Changes and
 Processes draw it), the context menu (native in Electron, `actions/ContextMenuHost.tsx` in a browser), and the
 Electron shell's own tray, Quit question, notifications and dock badge, Move to Applications and older-host prompts.
-Claimed twice: `settings/RemoveComputerDialog.tsx` (#2391 and #2399), `settings/activity/` (#2391 and #2400), the
-Computer pane's `ChartPlot` (also #2392's LiveBand and #2400's Activity). D11 rules each.
+Shared with Settings: `settings/RemoveComputerDialog.tsx` is W2-DLG's, opened by Settings; of `settings/activity/`,
+Settings draws the page frame and W2-PAL holds the model, tables and acts. The Computer pane's `ChartPlot` is one
+`ui/` piece shared with the live band and Activity.
 
-## Terminal (#2396)
+## Terminal
 
 Sources: `terminal/`, `components/ThreadTerminalDrawer.tsx`, `WorkspaceTerminalDrawer.tsx`, `WorkspaceTerminalPanel.tsx`. Emulation per D1; the grid, cursor and selection are ours, read off `terminal/ghostty/renderer.ts`; Zed's terminal crates may be read, not pasted.
 
@@ -113,7 +113,7 @@ Sources: `terminal/`, `components/ThreadTerminalDrawer.tsx`, `WorkspaceTerminalD
 - W2-TRM-054 Motion: scrollbar thumb, background-color, 120 ms, ease-out. `terminal/ghostty/surface/terminalSurface.ts:192`
 - W2-TRM-055 Motion: toolbar, outline button colors, font input border, 150 ms, default curve. `components/ThreadTerminalDrawer.tsx:1081`
 
-## Pull request, Changes and Files (#2397)
+## Pull request, Changes and Files
 
 Sources: `diffs/`, `components/diffs/`, `pull-request/`, `files/`, `components/files/`. Data the driver writes into `bench`: A, a branch off main with one change; B, five changes over committed fixtures (edit, delete, rename with an edit, binary, add); C, one long nested path; D, 300 new files; E, a file over 2 MB. Code and diffs per D3, markdown per D4.
 
@@ -210,7 +210,7 @@ Sources: `diffs/`, `components/diffs/`, `pull-request/`, `files/`, `components/f
 - W2-PRP-077 Motion: chevrons, rotate 90°, 150 ms, default curve. `diffs/DiffSurface.tsx:610`
 - W2-PRP-078 Motion: hovers, colors, 150 ms, default curve. `components/chat/ChangedFilesTree.tsx:196`
 
-## Slates (#2398)
+## Slates
 
 Sources: `slate/` and the catalog, `protocol:slate/kit.ts:224` (31 pieces). The driver writes `data/*.slate` with `wsp slate write`; `every.slate` holds each catalog piece once. Formulas per D2, charts per D8, diagrams per D9.
 
@@ -347,7 +347,7 @@ Sources: `slate/` and the catalog, `protocol:slate/kit.ts:224` (31 pieces). The 
 - W2-SLT-117 Motion: switch track 200 ms default; thumb .15 s, CSS ease. `components/ui/switch.tsx:12`
 - W2-SLT-118 Motion: piece fade-in once, opacity 150 ms ease-out, off for reduced motion. `index.css:1726`
 
-## Setup dialogs, onboarding and the pair screen (#2399)
+## Setup dialogs, onboarding and the pair screen
 
 Sources: `settings/add/`, the confirm dialogs, `desktop:onboarding.html`, `desktop:starting.html`, `PairScreen.tsx`, `BootGate.tsx`, `shell/FirstRun.tsx`. Startup per D5, the confirm frame per D10.
 
@@ -426,9 +426,9 @@ Sources: `settings/add/`, the confirm dialogs, `desktop:onboarding.html`, `deskt
 - W2-DLG-059 Motion: backdrop opacity, 200 ms, default curve, blur 4 px. `components/ui/dialog-styles.ts:2`
 - W2-DLG-060 Motion: popup scale 0.98, opacity, 200 ms, ease-in-out. `components/ui/dialog-styles.ts:5`
 
-## Palette, switcher, activity and notices (#2400)
+## Palette, switcher, activity and notices
 
-Sources: `components/palette/`, `components/switcher/`, `components/procs/`, `settings/activity/` (D11 splits it with #2391), `notices/`. Commands per D6.
+Sources: `components/palette/`, `components/switcher/`, `components/procs/`, `settings/activity/` (its page frame is Settings'), `notices/`. Commands per D6.
 
 ### Elements
 
@@ -463,7 +463,7 @@ Sources: `components/palette/`, `components/switcher/`, `components/procs/`, `se
 - W2-PAL-026 Thread pane empty. No shot: a thread's kept agent always lists. `components/procs/ThreadProcesses.tsx:94`
 - W2-PAL-027 Activity Threads. Shot. `settings/activity/page.tsx:186`
 - W2-PAL-028 Every process. Shot. `settings/activity/page.tsx:197`
-- W2-PAL-029 Ports. No shot: on Boat no port row came within 40 s for a listening server; cause not found. `settings/activity/tables.tsx:648`
+- W2-PAL-029 Ports. No shot: no port row came within 40 s for a listening server; cause not found. `settings/activity/tables.tsx:648`
 - W2-PAL-030 Row menu. No shot: native, off the page. `actions/contextMenu.ts:94`
 - W2-PAL-031 Settle ask. Shot: mod+shift+e. `components/procs/ProcessesLeft.tsx:74`
 - W2-PAL-032 Pending skeletons, away (pane: Start), refused. No shot: transient, dead daemon. `settings/activity/page.tsx:172`
@@ -503,9 +503,9 @@ Sources: `components/palette/`, `components/switcher/`, `components/procs/`, `se
 - W2-PAL-057 Motion: toast in from -100% y, transform, opacity, height 400 ms ease, shadow 200 ms; back ones lift, shrink 5% each, hide content; back exit 500/200 ms; swipe 200 ms ease-out; X 150 ms. `notices/Notice.tsx:67`
 - W2-PAL-058 Motion: Activity settle-in 180 ms cubic-bezier(0.23,1,0.32,1); skeleton sweep 2 s linear infinite. `index.css:185`
 
-## Panes and pieces no ticket owns
+## Other panes and pieces
 
-The Computer pane, the Agents pane's wrapper, Aside, `DaemonDown`, the context menu and the Electron shell's own windows. D11 names an owner for each.
+The Computer pane, the Agents pane's wrapper, Aside, `DaemonDown`, the context menu and the Electron shell's own windows.
 
 ### Elements
 
@@ -558,100 +558,109 @@ The Computer pane, the Agents pane's wrapper, Aside, `DaemonDown`, the context m
 
 ### Design
 
-- W2-UNO-038 Computer: plot, chips none yet (`ChartPlot` also #2392, #2400); footer `ui::Button::outline().xs()`, danger hover none yet.
-- W2-UNO-039 Agents tabs: none yet (segmented control); back `ui::Button` Ghost; body #2391's pieces.
-- W2-UNO-040 Side question: `ui::Crab`, #2394's markdown and bubble, refusal none yet. Daemon down: `ui::Button::outline().xs()`.
+- W2-UNO-038 Computer: plot, chips none yet (`ChartPlot` shared with the live band and Activity); footer `ui::Button::outline().xs()`, danger hover none yet.
+- W2-UNO-039 Agents tabs: none yet (segmented control); back `ui::Button` Ghost; body Settings' pieces.
+- W2-UNO-040 Side question: `ui::Crab`, the thread view's markdown and bubble, refusal none yet. Daemon down: `ui::Button::outline().xs()`.
 
-## Decisions for the coordinator to rule
+## Settled choices
 
-Each has a recommendation and its reasons. No Wave 2 builder starts before these are ruled.
+How the GPUI app meets today's app where the two cannot share code, with the file that does each. Items and code cite
+these by label. "The app must" marks what the app still has to meet.
 
 **D1. Terminal emulation: `libghostty-vt`.** Today's pane runs libghostty-vt as a 631 KB wasm vendored from t3code
-at Ghostty 9f62873 (`terminal/ghostty/README.md:19`), drawn on a 2D canvas by our `renderer.ts`. The crate 0.2.2 is
-MIT OR Apache-2.0 (fine in our AGPL app) and gives the same parser, widths, graphemes, selection, OSC 8 links and key,
-mouse and paste encoders. Cost: Zig 0.16 at build (it fetches Ghostty; 0.2.2 pins a887df42, not 9f62873) and a C API
-Ghostty calls not yet stable. `alacritty_terminal` 0.26 (Apache-2.0, pure Rust) is the runner-up: no grapheme
-clusters, no key encoder, colour replies left to us, and Zed ships a fork, so it drifts from today's pane. Neither
-size in our binary was measured. The Ghostty config needs no parser in the app: the host parses it
-(`packages/collect/src/ghostty-config.ts`) and sends the fields over `host.terminalConfig`. A test host stages a real
-wsp-daemon as CI does (`.github/workflows/flows.yml:66-74`): `musl-tools` and `gperf`, then in `daemon/`
-`scripts/libseccomp-archive.sh musl` and `LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo build --locked --release
---target x86_64-unknown-linux-musl -p wsp-daemon-bin`, then `node packages/wspx/scripts/daemon-binary.mjs --triple
-x86_64-unknown-linux-musl` (1 min 23 s cold on this 8x16 Boat machine, a 9,037,400-byte binary). The host spawns it on the first
-`daemon.open`; a test subscribes first (channel frames go only to the opener), then sends `pty.create`, `pty.attach`,
-`pty.write` and waits for `pty.data`.
+at Ghostty 9f62873 (`terminal/ghostty/README.md:19`), drawn on a 2D canvas by our `renderer.ts`. The app runs the
+same engine natively (`app/Cargo.toml:27`, built with Zig by `scripts/ghostty.sh`; `app/src/screens/terminal/engine.rs:9`):
+the same parser, widths, graphemes, selection, OSC 8 links and key, mouse and paste encoders, MIT OR Apache-2.0.
+`alacritty_terminal` 0.26 was the alternative: no grapheme clusters, no key encoder, colour replies left to us, and
+Zed ships a fork, so it would drift from today's pane. The Ghostty config needs no parser in the app: the host parses
+it (`packages/collect/src/ghostty-config.ts`) and sends the fields over `host.terminalConfig`
+(`app/src/screens/terminal/look.rs:2`). A test host stages a real wsp-daemon as CI does
+(`.github/workflows/flows.yml:66-74`), through `apps/desktop-gpui/scripts/stage-daemon.sh`: `musl-tools` and `gperf`,
+then in `daemon/` `scripts/libseccomp-archive.sh musl` and `LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo
+build --locked --release --target x86_64-unknown-linux-musl -p wsp-daemon-bin`, then `node
+packages/wspx/scripts/daemon-binary.mjs --triple x86_64-unknown-linux-musl` (1 min 23 s cold, a 9,037,400-byte
+binary). The host spawns it on the first `daemon.open`; a test subscribes first (channel frames go only to the
+opener), then sends `pty.create`, `pty.attach`, `pty.write` and waits for `pty.data`.
 
-**D2. Slate formulas: the host evaluates and pushes values.** One TypeScript module is the language
-(`protocol:slate/expr.ts`: parser :435, evaluator :963, checker :1074, 51 functions). The host already runs it for
-batches, reads and `slates.resolve` (`runtime:slates.ts:1253`, `:1487`) but pushes only plain values; the window
-evaluates again to draw. A generated parser covers only the grammar, so the 51 functions would be hand-copied, which
-is ruled out. QuickJS keeps one source but has no `Intl`: 1234.5 at 2 decimals reads "1234.5" there, "1,234.50" in
-Electron. Cost of the host road: a push of resolved props per piece and row (a protocol Gap), the window's scheduler
-(`slate/engine.ts`) moving to the host, a host tick for `time.now`, and a bound input keeping its text while its write
-is in flight.
+**D2. Slate formulas: the host evaluates them.** One TypeScript module is the language (`protocol:slate/expr.ts`:
+parser :435, evaluator :963, checker :1074, 51 functions), and the host runs it for batches, reads and
+`slates.resolve` (`runtime:slates.ts:1253`, `:1487`). The app has no evaluator of its own: every formula a drawn
+piece reads is answered by `slates.resolve`, asked again when a value moves and each second while a drawn formula
+reads the clock, one ask in flight at a time (`app/src/screens/slate/mod.rs:4`, `:1025`; `app/tests/slate.rs:3`). A
+generated parser would cover only the grammar and leave the 51 functions to copy by hand, and QuickJS has no `Intl`:
+1234.5 at 2 decimals reads "1234.5" there, "1,234.50" in Electron.
 
 **D3. Diffs and code: gpui-kit's `Diff` with tree-sitter.** Today: `@pierre/diffs` on Shiki 4.4.3 (242 grammars on
-demand), themes `pierre-light` and `pierre-dark`, surfaces from app tokens
-(`lib/diffRendering.ts:252`). gpui-kit's `Diff` is read-only, virtualised on GPUI's `list`, split or unified, with
-annotations and highlighting off the UI thread. Use it with `tree-sitter-languages` (35 grammars plus JSON, already in
-`app/Cargo.toml`); an unknown language draws plain, as today. Generate each theme's `highlight` block from the pierre
-JSON and check it by a screenshot pair. Large diffs keep today's limits: the daemon's 2 MiB cut and its banner, plain
-lines past 1,000 characters, virtual rows, the 2 MB file tab, 500 finder hits. Editing in place takes gpui-kit's code
-editor input.
+demand), themes `pierre-light` and `pierre-dark`, surfaces from app tokens (`lib/diffRendering.ts:252`). The app
+draws the Changes pane, the pull request's Files tab and the file tab on gpui-kit's `Diff`, read-only, virtualised,
+split or unified, highlighted off the UI thread (`app/src/screens/pr_pane/diff/code_view.rs:14`,
+`diff/mod.rs:1`), with `tree-sitter-languages` (`app/Cargo.toml:12`); an unknown language draws plain, as today.
+Each theme's `highlight` block is generated from the pierre JSON by `scripts/pierre-themes.mjs` (`diff/mod.rs:25`).
+Large diffs keep today's limits: the daemon's 2 MiB cut and its banner (`diff/mod.rs:48`), plain lines past 1,000
+characters (`diff/model.rs:19`), virtual rows, the 2 MB file tab (`files/words.rs:38`), 500 finder hits
+(`files/finder.rs:324`). Editing in place is gpui-kit's code editor (`changes/mod.rs:24`, `:967`).
 
-**D4. Markdown: gpui-kit's renderer with our styles.** `TextView::markdown` parses GFM; plugins take code block
-chrome, alerts and details; math and Mermaid draw as source. The missing style knobs (lists, blockquote, rules) go
-upstream as a small PR, not a fork. `gpui/main`'s thread view already uses it (`app/src/thread_view.rs`), so the PR
-pane, slates and the thread view share one renderer and the prose styles of `index.css`'s `.chat-markdown`.
+**D4. Markdown: gpui-kit's renderer with our styles.** `TextView` parses GFM; our plugins add the rule, math, file
+chips and the image fallback in replies (`app/src/screens/thread_view/markdown.rs:184`), and the pull request pane,
+the file tab, slates and Aside use the same renderer (`pr_pane/files/markdown.rs:2`, `slate/pieces/text.rs:9`,
+`aside.rs:234`) with the prose styles of `index.css`'s `.chat-markdown`. The style knobs gpui-kit lacked (lists,
+blockquote) are our patch over it (`apps/desktop-gpui/patches/gpui-kit-14f5933.markdown.patch`). Math is typeset in
+KaTeX's fonts and metrics, as today (`thread_view/math.rs:2`). The app must draw a Mermaid block in a reply as a
+diagram, as today's does (`components/ChatMarkdown.tsx:476`, `components/chat/MermaidBlock.tsx`); the app shows its
+source as a code block.
 
-**D5. Startup: the frame (#2390) owns it.** It takes the single-instance lock per home, attaches to or starts the
-host, shows the starting window after 800 ms (`desktop:starting.ts:9`) until the next window stands, then asks
-`golden.get` and `workspaces.list`: a host holding nothing opens onboarding, else the app. The starting window needs
-nothing from the host. Onboarding needs the computer's name, the agent scan and a per-agent install: the install is
-`agents.addTools` here, but name and scan have no host op (W2-DLG-052), so #2399 adds two. It follows the system
-colour scheme, as no preference exists yet. The pair screen draws only for a host GPUI holds no token for.
+**D5. Startup belongs to the app's frame.** It takes the single-instance lock per home
+(`app/src/screens/dialogs/startup.rs:61`, `:101`), attaches to or starts the host, shows the starting window after
+800 ms (`startup.rs:34`; today `desktop:starting.ts:9`) until the next window stands, then asks `golden.get` and
+`workspaces.list`: a host holding nothing opens onboarding, else the app (`startup.rs:284`). The starting window needs
+nothing from the host. Onboarding needs the computer's name, the agent scan and a per-agent install: the app reads the
+name itself (`startup.rs:341`), scans with `agents.read` on this computer (`startup.rs:313`) and installs with
+`agents.addTools`. It follows the system colour scheme, as no preference exists yet (`dialogs/onboarding.rs:4`). The
+pair screen draws only for a host the app holds no token for (`dialogs/pair.rs:2`).
 
 **D6. The palette's commands come from `screens/app_shell/keys.rs`.** Today a hand list
-(`components/palette/paletteItems.tsx:195`) borrows only shortcut labels from the key table. Give each command id in
-the key table a title, search words, icon, group, disabled reason and keep-open flag; the palette's chordless
-commands (New thread in, Resume, Add a project, Copy as Markdown, thread moves, Add a computer, Activity, links) join
-it with no chord. Threads, projects, message hits and a task's acts stay dynamic. Trap: the palette steps
-`workspace.next` and `thread.next` directly; the key's action would open the switcher with a hold no key-up ends.
+(`components/palette/paletteItems.tsx:195`) borrows only shortcut labels from the key table. In the app each command
+in the key table carries a title, search words, glyph, group, held reason and keep-open flag, with its chord where it
+has one (`app/src/screens/app_shell/keys.rs:545`, `COMMANDS` at `:584`), and the palette reads that list
+(`app/src/screens/palette/items.rs:3`); threads, projects, message hits and a task's acts stay dynamic. Trap: the
+palette steps `workspace.next` and `thread.next` directly; the key's action would open the switcher with a hold no
+key-up ends.
 
 **D7. Motion: gpui-kit's `motion` module and a `ui::motion` file of our durations and curves.** Today's app has no
 springs: `rg` over `apps/web/src` finds 138 `duration-*` classes in 87 files (101 at 150 ms) and 24 `@keyframes` in
 `index.css`, and curves `cubic-bezier(0.23, 1, 0.32, 1)` (10 uses), `(0.16, 1, 0.3, 1)`, `(0.215, 0.61, 0.355, 1)`,
 `(0.1, 0.5, 0.2, 1)`, and view-transition rules nothing triggers (`index.css:23-80`); each Design list gives its
-screen's. GPUI's `with_animation` cannot retarget or reverse. `1bye/gpui-motion`'s core retargets but reruns the full
-duration (150 ms reversed at 50 ms ends at 200 ms) and its adapter targets `gpui-ce`. `gpui_kit::base::motion` has a
-CSS-like `Transition`, `Easing::cubic_bezier`, keyframes and reduced motion; when a hover ends it starts from the
-current value and shortens the duration by CSS's reversing factor (gpui-kit `crates/base/src/motion.rs:325`). A second quick
-reversal runs full length (a small upstream fix). An animated hover needs an element id and an `on_hover` that
-notifies, since `.hover()` styles snap.
+screen's. The app's durations and curves live in `app/src/ui/motion.rs` over `gpui_kit::base::motion`'s CSS-like
+`Transition` (`motion.rs:8`): when a hover ends it starts from the current value and shortens the duration by CSS's
+reversing factor (gpui-kit `crates/base/src/motion.rs:325`). GPUI's `with_animation` cannot retarget or reverse, and
+`.hover()` styles snap, so an animated hover needs an element id and an `on_hover` that notifies. The app must also
+shorten a second quick reversal, as Chromium's CSS transitions do (for example `components/ui/button.tsx:22`);
+gpui-kit runs that one full length.
 
 **D8. Charts: port `UsageChart` once.** The slate chart is the Usage page's (`settings/usageChart.tsx`: SVG lines, a
-dithered canvas fill, a 520 ms tween from the old points). gpui-kit's charts reveal by a mask, do not tween, have no
-dither and no treemap or timeline. #2392 builds the piece; #2398 uses it.
+dithered canvas fill, a 520 ms tween from the old points); gpui-kit's charts reveal by a mask, do not tween, have no
+dither and no treemap or timeline. The app's one chart is `app/src/ui/chart.rs:1` (the 520 ms tween at `:54`), drawn
+by the Usage page (`screens/usage/used.rs:12`) and by slates (`slate/pieces/charts.rs:19`).
 
-**D9. Slate diagrams: the source as code first**, the catalog's declared fallback, listed as a difference for the
-owner's yes; a native Mermaid renderer is ruled separately.
+**D9. Slate diagrams: the source as code first**, the catalog's declared fallback, listed as a difference from
+today's app (`app/src/screens/slate/pieces/media.rs:733`); a native Mermaid renderer is a separate choice.
 
-**D10. Shared pieces with none yet.** #2399 adds a 440 px confirm frame (today's `max-w-110`; `ui::Dialog` is the
-560 px step dialog) and a destructive button; #2398 a switch, a menu and a segmented control; #2397 a multi-line
-field. Context menus are drawn by us, styled as `actions/ContextMenuHost.tsx`. Slate choices draw as today's, a tick
-at the right, not as `ui::Choice`.
+**D10. Shared pieces.** A 440 px confirm frame (today's `max-w-110`; `app/src/ui/dialog.rs:26`, `AlertDialog` at
+`:313`) beside `ui::Dialog`'s 560 px step dialog, a destructive act (`ui/act.rs:49`), a switch (`ui/toggle.rs`), a
+menu (`ui/menu.rs`), a segmented control (`ui/segmented.rs:32`) and a multi-line field (`ui/text_area.rs`). Slate
+choices draw as today's, a tick at the right, not as `ui::Choice` (`slate/pieces/controls.rs:889`). The context menu
+is an `NSMenu` at the pointer on the Mac and elsewhere our own menu styled as `actions/ContextMenuHost.tsx`
+(`app/src/ui/context_menu.rs:2`). The app must pop the system's own menu off the Mac too, as today's Electron does on
+every platform (`desktop:main.ts:156`).
 
-**D11. Owners for what no ticket names.** Computer pane and `DaemonDown`: #2400. Agents wrapper: #2391. Aside:
-#2394 (the `/btw` send stays #2395's). Context menu: #2390. Tray, Quit question, notifications, dock badge, Move to
-Applications, older-host prompts: #2402. `RemoveComputerDialog`: #2399, opened by Settings. `settings/activity/`:
-#2391 the page frame, #2400 the model, tables and acts. `ChartPlot`: one `ui/` piece from #2392.
-
-**D12. Switcher pictures.** Electron photographs the page (`desktop:previews.ts`); no host op does. Cards without a
-picture until a capture road exists, listed as a difference.
+**D12. Switcher pictures.** Electron photographed the page for the switcher's cards (`desktop:previews.ts` at
+1516a0cd5), and no host op does, so the cards were to draw without a picture, a listed difference. Today's app has
+since dropped the switcher: Ctrl+Tab steps the sidebar's threads at one level with no overlay (commit 982aa09f9), and
+the app does the same (`app/src/screens/app_shell/keys.rs:115`), so neither draws a picture.
 
 ## Baselines
 
-`states.mjs` drives today's app to every Shot state for `parity/baseline.mjs --wave 2` (#2406), on the host
+`states.mjs` drives today's app to every Shot state for `parity/baseline.mjs --wave 2`, on the host
 `bench/fixture.sh` makes from a `main` checkout with a wsp-daemon staged (D1). A state that changes a thread makes its
 own with `wsp run`; data goes in through `wsp`, `preferences.set` and files in `bench`; slate documents are in
 `data/`. A state that fits a box names it as `clip` (a pane, the drawer, a dialog), which keeps both themes near 22 MB;
