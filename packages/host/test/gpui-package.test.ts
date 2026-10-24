@@ -205,32 +205,26 @@ function checkNode(os: "Linux" | "Darwin", printed: string) {
 }
 
 describe("update-live.sh packs a Node that links nothing outside the system", () => {
-  it("passes the official Node's links on Linux and on a Mac", () => {
+  it("passes the official Node's links on Linux and on a Mac, and a system binary through this computer's own ldd or otool", () => {
     for (const [os, printed] of [["Linux", OFFICIAL_LDD], ["Darwin", OFFICIAL_OTOOL]] as const) {
       const { status, out } = checkNode(os, printed);
       expect(status, out).toBe(0);
       expect(out).toMatch(/^ok: \/opt\/node\/bin\/node links nothing outside the system$/m);
     }
+    const run = spawnSync(updateLive, ["--check-node", "/bin/sh"], { env: { PATH: "/usr/bin:/bin" }, encoding: "utf8" });
+    expect(run.status, `${run.stdout}${run.stderr}`).toBe(0);
   });
 
-  it("refuses Homebrew's Node on a Mac, which links /opt/homebrew/lib/libnode.147.dylib", () => {
-    const { status, out } = checkNode("Darwin", BREW_OTOOL);
-    expect(status, out).toBe(2);
-    expect(out).toMatch(/^refused: \/opt\/node\/bin\/node links \/opt\/homebrew\/lib\/libnode\.147\.dylib, outside the system;/m);
-  });
-
-  it("refuses on Linux a Node linking a libnode from Homebrew's lib, or one ldd cannot find", () => {
+  it("refuses Homebrew's Node on a Mac and on Linux, which links its libnode, and one ldd cannot find", () => {
+    const mac = checkNode("Darwin", BREW_OTOOL);
+    expect(mac.status, mac.out).toBe(2);
+    expect(mac.out).toMatch(/^refused: \/opt\/node\/bin\/node links \/opt\/homebrew\/lib\/libnode\.147\.dylib, outside the system;/m);
     const brew = checkNode("Linux", `${OFFICIAL_LDD}\tlibnode.so.147 => /home/linuxbrew/.linuxbrew/lib/libnode.so.147 (0x00007f0000000000)\n`);
     expect(brew.status, brew.out).toBe(2);
     expect(brew.out).toMatch(/^refused: \S+ links libnode\.so\.147 => \/home\/linuxbrew\/\.linuxbrew\/lib\/libnode\.so\.147, outside the system;/m);
     const missing = checkNode("Linux", `${OFFICIAL_LDD}\tlibnode.so.147 => not found\n`);
     expect(missing.status, missing.out).toBe(2);
     expect(missing.out).toMatch(/^refused: \S+ links libnode\.so\.147 => not found, outside the system;/m);
-  });
-
-  it("passes a system binary through this computer's own ldd or otool", () => {
-    const run = spawnSync(updateLive, ["--check-node", "/bin/sh"], { env: { PATH: "/usr/bin:/bin" }, encoding: "utf8" });
-    expect(run.status, `${run.stdout}${run.stderr}`).toBe(0);
   });
 
   it("packs the official Node into every bundle, never the node on PATH", () => {
