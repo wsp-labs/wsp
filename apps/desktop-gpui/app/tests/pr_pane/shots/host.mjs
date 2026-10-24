@@ -13,7 +13,7 @@ export const REPO = resolve(DESKTOP, "../..");
 const HOST_BIN = join(REPO, "packages/host/dist/bin.js");
 const { dialHost } = await import(pathToFileURL(join(REPO, "packages/host/dist/index.js")).href);
 
-/** The parity states this ticket shoots, in the order both sides run them, so each side's sidebar holds the same threads. */
+/** The parity states these shots cover, in the order both sides run them, so each side's sidebar holds the same threads. */
 export const IDS = ["019", "021", "023", "024", "025", "026", "027", "029", "030", "031", "032", "033", "037", "039", "040", "041", "042", "043", "044", "045", "046", "047-merged", "047-closed", "901"].map(n => `W2-PRP-${n}`);
 
 export async function states() {

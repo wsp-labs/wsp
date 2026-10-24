@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The slate panel in Paper and Graphite drawn by GPUI's real offscreen renderer, against a host started for this run
-//! alone, at the panel body's 539 px and the window's scale of 2. Each state writes one of the coordinator's
+//! alone, at the panel body's 539 px and the window's scale of 2. Each state writes one of the
 //! `parity/wave-2/data/*.slate` files onto a fresh thread. `SLATE_PNG=<folder>` writes `<theme>/<state>.png` there;
 //! `SLATE_STATES=a,b` picks states, the press-driven ones in `fixture::PRESSED` among them. Without libtest's harness, as `pixels.rs` explains.
 
