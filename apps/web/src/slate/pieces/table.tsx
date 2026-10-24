@@ -226,20 +226,25 @@ export const table: PieceView = {
       ...(edges ? [edge] : []),
     ];
     const rim = edges ? <span aria-hidden /> : null;
+    // The header names the columns inside the card, its first row, so it reads as the card's own and never floats over it.
+    const head = (space: string) => (
+      <div role="row" data-slate-head className={cn("col-span-full grid grid-cols-subgrid items-center", space)}>
+        {rim}
+        {columns.map((column, at) => (
+          <span key={at} role="columnheader" data-ch={widths[at]} className={cn("font-sans text-xs leading-4 text-muted-foreground", end(column, at) && "text-right", tight(at) && "whitespace-nowrap")}>
+            {header(at)}
+          </span>
+        ))}
+        {opens || actions.length > 0 ? <span aria-hidden /> : null}
+        {rim}
+      </div>
+    );
     return (
       <div role="table" className={cn("grid min-w-0 gap-x-4", MONO)} style={{ gridTemplateColumns: tracks.join(" ") }}>
-        {columns.every((_, at) => (header(at) ?? "") === "") ? null : <div role="row" data-slate-head className="col-span-full grid min-h-7 grid-cols-subgrid items-center pb-[5px]">
-          {rim}
-          {columns.map((column, at) => (
-            <span key={at} role="columnheader" data-ch={widths[at]} className={cn(at === 0 ? SECTION_HEAD : WORD, "font-sans", end(column, at) && "text-right", tight(at) && "whitespace-nowrap")}>
-              {header(at)}
-            </span>
-          ))}
-          {opens || actions.length > 0 ? <span aria-hidden /> : null}
-          {rim}
-        </div>}
+        {columns.every((_, at) => (header(at) ?? "") === "") || shown.length > 0 ? null : head("min-h-7 pb-[5px]")}
         {shown.length === 0 ? null : (
           <div className={cn("col-span-full grid grid-cols-subgrid [&>*+*]:border-t [&>*+*]:border-border/50", card)}>
+            {columns.every((_, at) => (header(at) ?? "") === "") ? null : head("min-h-9 py-2")}
             {shown.map((item, index) => {
               const row = { item, index };
               const body = (opener: ReactNode) => (

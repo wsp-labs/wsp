@@ -135,7 +135,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: `Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. ${SLATE_SCRIPT_WORDS}`,
+      description: `Writes this thread's slate, the live panel here: the person's visual companion, read at a glance, never a copy of the chat. Show what they want to see, watch or keep an eye on while you work (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes on a timer with no turns, so nothing polls. ${SLATE_SCRIPT_WORDS}`,
       input: {
         thread: SlateThreadIn,
         text: z.string().optional().describe("JSX-like text: a <slate>, or a patch"),

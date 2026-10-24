@@ -1,0 +1,61 @@
+<slate title="Native desktop app">
+  <value name="lookDiagrams" start="" />
+  <value name="lookSwitcher" start="" />
+  <value name="lookActivity" start="" />
+  <value name="pictures" start="" />
+  <value name="runBand" start="" />
+  <value name="wayland" start="" />
+  <derived name="answers"
+      value={{ diagrams: $lookDiagrams, switcher: $lookSwitcher, activity: $lookActivity, pictures: $pictures, runBand: $runBand, wayland: $wayland }} />
+  <run name="progress"
+      cmd="WSP_HOME=/Users/ada/wsp-work/ui-home /Users/ada/wsp-work/ui-home/thread-bin/wsp threads wsp --json 2>/dev/null"
+      every={30} then='python3 "$SLATE_DIR/progress.py"' />
+  <run name="gate" cmd='python3 "$SLATE_DIR/gate-status.py"' every={10} always />
+  <run name="mac" cmd='python3 "$SLATE_DIR/mac-status.py"' every={15} always />
+  <column id="page" gap="loose">
+    <section id="where" title="Where we are">
+      <text id="goal" value={$progress.json.goal} />
+      <row id="where-row">
+        <ring id="screens-ring" label="Screens in the new app" value={$progress.json.inapp}
+            max={$progress.json.screenTotal} format="fraction" tone="good" />
+        <ring id="steps-ring" label="Big steps done" value={$progress.json.done} max={$progress.json.total}
+            format="fraction" />
+        <number id="helpers-now" label="Helpers working now" value={$progress.json.running} format="integer"
+            unit="of 10 cloud machines" />
+      </row>
+      <text id="timeline" value={$progress.json.timeline} />
+      <text id="updated" value={concat("Updated ", ago($progress.endedAt))} tone="muted" size="small"
+          when={$progress.exit == 0} />
+    </section>
+  </column>
+  <file name="progress.py">{`
+    import json, sys
+
+    STATES = {"running": ("Working", "info"), "completed": ("Finished", "good"), "failed": ("Stopped", "bad")}
+    p = json.load(open("/Users/ada/wsp-work/coord/briefs/gpui/progress.json"))
+    try:
+        threads = {t["id"][:8]: t.get("status", "") for t in json.load(sys.stdin).get("threads", [])}
+    except Exception:
+        threads = {}
+    helpers = []
+    for h in p.get("helpers", []):
+        state, tone = STATES.get(threads.get(h["id"], ""), ("Starting", "muted"))
+        helpers.append({"name": h["name"], "state": state, "tone": tone})
+    steps = p.get("steps", [])
+    screens = p.get("screens", [])
+    print(json.dumps({
+        "goal": p.get("goal", ""),
+        "timeline": p.get("timeline", ""),
+        "leak": p.get("leak", ""),
+        "asks": p.get("asks", []),
+        "steps": steps,
+        "done": sum(1 for s in steps if s.get("state") == "done"),
+        "total": len(steps),
+        "screens": screens,
+        "inapp": sum(1 for s in screens if s.get("state") == "In the app"),
+        "screenTotal": len(screens),
+        "helpers": helpers,
+        "running": sum(1 for h in helpers if h["state"] == "Working"),
+    }))
+  `}</file>
+</slate>

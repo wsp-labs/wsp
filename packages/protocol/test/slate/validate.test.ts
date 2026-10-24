@@ -148,7 +148,7 @@ describe("the validator", () => {
       `<text>\u2022 first</text>`,
     ];
     for (const piece of clean) expect(all(wrap(piece, decls)), piece).not.toContain("W012");
-    expect(slateCatalog()).toContain("Separate things by layout, never by ·, • or |.");
+    expect(slateCatalog()).toContain("never ·, • or | between things");
   });
 
   it("warns W013 on a chart whose x is the row's index, and names a time in its fix", () => {

@@ -80,13 +80,13 @@ describe("the richer kit in the renderer", () => {
     expect(piece(view.container, "e").textContent).toContain("Open one and it shows here.");
   });
 
-  it("draws a ring as the meter row", () => {
+  it("draws a ring and a meter side by side as one stat tile, the share a ring", () => {
     const { view } = draw(compiled(`<slate><column>
 <ring id="r" label="Disk" value={40} max={80} />
 <meter id="m" label="Disk" value={40} max={80} />
 </column></slate>`));
     const ring = piece(view.container, "r");
-    expect(ring.querySelector("circle")).toBeNull();
+    expect(ring.querySelector("[data-slate-tile] [data-slate-ring='50']")).not.toBeNull();
     expect(ring.textContent).toBe(piece(view.container, "m").textContent);
   });
 

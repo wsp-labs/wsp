@@ -104,7 +104,7 @@ pub fn is_card_row(slate: &Slate, id: &str) -> bool {
         Some("row") => !is_toolbar(slate, id) && !children(slate, id).iter().any(|c| kind(slate, c).is_some_and(|k| flags(k).heads)),
         Some(
             "section" | "heading" | "text" | "markdown" | "chart" | "donut" | "timeline" | "treemap" | "diagram" | "image" | "images"
-            | "bars" | "button" | "table",
+            | "bars" | "button" | "table" | "stats",
         ) => false,
         Some(_) => true,
     }

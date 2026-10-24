@@ -50,6 +50,7 @@ export const SLATE_BRIEF = [
   SLATE_SCRIPT_WORDS,
   "A token or key the person keeps in a file stays there: the run's command reads it from the file. Never read that file or put its value in a tool call.",
   "A one-off answer, a comparison or an explanation stays in chat.",
+  "The slate is the person's visual companion, read at a glance: figures, counts with their exceptions and decisions, never a second copy of the chat. Words stay in chat, and your reply never restates the slate.",
 ].join("\n");
 
 /** How long an agent that holds its own limit on a tool call lets a wsp call run, which Codex reads as the server
