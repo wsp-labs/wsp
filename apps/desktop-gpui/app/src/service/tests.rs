@@ -278,41 +278,11 @@ this app's
     );
 }
 
-/// Catches: this app writing over the wsp command today's app wrote, which would move that app's service onto this
-/// one (the move over is its own step), or touching anything else of today's install.
+/// Catches: the move leaving the wsp command and the service on today's app because that app still stands (its .app
+/// beside this one, the AppImage it downloaded this one from, its copy under `<home>/app`), so the host never runs this
+/// app's Node; or the move touching anything else of today's install.
 #[test]
-fn todays_command_naming_an_app_that_stands_is_left_with_everything_else_of_its_install() {
-    let dir = tempfile::tempdir().unwrap();
-    let home = dir.path().join(".wsp");
-    todays_home(&home);
-    let electron = dir.path().join("Applications/wsp.app/Contents/MacOS/wsp");
-    std::fs::create_dir_all(electron.parent().unwrap()).unwrap();
-    std::fs::write(&electron, "electron").unwrap();
-    let todays = format!(
-        "#!/bin/sh\n# The wsp app writes this on each launch; it runs the wsp the app bundles.\nELECTRON_RUN_AS_NODE=1 exec '{}' --no-memory-pool '/Applications/wsp.app/Contents/Resources/app/main/cli.mjs' \"$@\"\n",
-        electron.display()
-    );
-    std::fs::create_dir_all(home.join("bin")).unwrap();
-    std::fs::write(home.join("bin/wsp"), &todays).unwrap();
-    let before = snapshot(&home);
-    let bundle = bundle_in(&dir.path().join("gpui"), Os::Mac, "0.3.8");
-    assert_eq!(claim(&home, Ok(bundle.clone()), None, None), Ok(None));
-    assert_eq!(snapshot(&home), before);
-
-    // Today's app gone, its command names nothing that runs, and this app's is written in its place.
-    std::fs::remove_file(&electron).unwrap();
-    let owned = claim(&home, Ok(bundle.clone()), None, None).unwrap().unwrap();
-    assert_eq!(std::fs::read_to_string(owned.wsp).unwrap(), shim::text(&bundle));
-    let after: Vec<_> = snapshot(&home).into_iter().filter(|(path, _)| !path.ends_with("bin/wsp")).collect();
-    let kept: Vec<_> = before.into_iter().filter(|(path, _)| !path.ends_with("bin/wsp")).collect();
-    assert_eq!(after, kept, "nothing of today's state, logs or copies changed");
-}
-
-/// Catches: today's older command taken over and its host restarted onto this app while Go Back stays offered: today's
-/// app writes its own command again on its next launch and keeps the newer host, so the next login runs its older host
-/// on the newer database. Its AppImage copy under `<home>/app` stands like an app.
-#[test]
-fn todays_command_is_left_whatever_its_release_while_go_back_is_offered() {
+fn todays_command_is_taken_over_whether_or_not_its_app_stands_and_nothing_else_of_its_install_changes() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().join(".wsp");
     todays_home(&home);
@@ -327,21 +297,28 @@ fn todays_command_is_left_whatever_its_release_while_go_back_is_offered() {
         cli = copy.join("resources/app/main/cli.mjs").display(),
     );
     std::fs::create_dir_all(home.join("bin")).unwrap();
-    std::fs::write(home.join("bin/wsp"), &todays).unwrap();
-    let before = snapshot(&home);
-    for release in ["0.3.8", "0.3.9"] {
+    let electron = dir.path().join("Applications/wsp.app/Contents/MacOS/wsp");
+    std::fs::create_dir_all(electron.parent().unwrap()).unwrap();
+    std::fs::write(&electron, "electron").unwrap();
+    let kept: Vec<_> = snapshot(&home).into_iter().filter(|(path, _)| !path.ends_with("bin/wsp")).collect();
+    for (release, serving, restart) in
+        [("0.3.8", Some("0.3.8"), Some(Restart::Rewritten)), ("0.3.9", Some("0.3.8"), Some(Restart::Older)), ("0.3.9", None, None)]
+    {
+        std::fs::write(home.join("bin/wsp"), &todays).unwrap();
         let bundle = bundle_in(&dir.path().join(release), Os::Linux, release);
-        assert_eq!(claim(&home, Ok(bundle.clone()), None, Some("0.3.8")), Ok(None), "today's host serving");
-        assert_eq!(claim(&home, Ok(bundle), None, None), Ok(None), "nothing serving");
+        let owned = claim(&home, Ok(bundle.clone()), None, serving).unwrap();
+        assert_eq!(owned, Some(Owned { wsp: shim::path(&home), restart }), "{release} with {serving:?} serving");
+        assert_eq!(std::fs::read_to_string(shim::path(&home)).unwrap(), shim::text(&bundle));
+        let after: Vec<_> = snapshot(&home).into_iter().filter(|(path, _)| !path.ends_with("bin/wsp")).collect();
+        assert_eq!(after, kept, "nothing of today's state, logs or copies changed");
     }
-    assert_eq!(snapshot(&home), before, "today's command, copies and state are as they were");
-    assert!(matches!(left_as_is(&home, Some("0.3.8"), "0.3.9"), Some(Left::Today(_))), "the update reads the same rule");
+    assert_eq!(left_as_is(&home, Some("0.3.8"), "0.3.9"), None, "the update reads the same rule");
 }
 
-/// Catches: today's app of this release losing its command to this app because an older host (a terminal's
-/// `wsp up`, today's own service before its restart) serves, which moves today's service onto this app's files.
+/// Catches: this app taking the command and the host from a newer today's app, whose host migrated the database past
+/// what this app's host reads.
 #[test]
-fn todays_app_of_this_release_keeps_its_command_whatever_release_serves() {
+fn a_newer_todays_command_is_left_as_it_is() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().join(".wsp");
     let electron = dir.path().join("Applications/wsp.app/Contents/MacOS/wsp");
@@ -350,13 +327,15 @@ fn todays_app_of_this_release_keeps_its_command_whatever_release_serves() {
     std::fs::create_dir_all(electron.parent().unwrap()).unwrap();
     std::fs::write(&electron, "electron").unwrap();
     std::fs::write(&cli, "cli").unwrap();
-    std::fs::write(cli.parent().unwrap().parent().unwrap().join("package.json"), r#"{"version":"0.3.9"}"#).unwrap();
+    std::fs::write(cli.parent().unwrap().parent().unwrap().join("package.json"), r#"{"version":"0.4.0"}"#).unwrap();
     let todays = format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' --no-memory-pool '{}' \"$@\"\n", electron.display(), cli.display());
     std::fs::create_dir_all(home.join("bin")).unwrap();
     std::fs::write(home.join("bin/wsp"), &todays).unwrap();
     let bundle = bundle_in(&dir.path().join("gpui"), Os::Mac, "0.3.9");
     assert_eq!(claim(&home, Ok(bundle), None, Some("0.3.8")), Ok(None));
     assert_eq!(std::fs::read_to_string(home.join("bin/wsp")).unwrap(), todays);
+    let left = left_as_is(&home, Some("0.3.8"), "0.3.9").unwrap();
+    assert_eq!(left.said("0.3.9"), "wsp 0.4.0 is what the wsp command runs, newer than wsp 0.3.9");
 }
 
 /// Catches: a release read off anything but the files the command runs, today's app's or this app's.
@@ -367,6 +346,9 @@ fn the_command_a_wsp_command_runs_is_read_off_either_apps_text() {
     let plain = "#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec /Applications/wsp.app/Contents/MacOS/wsp --no-memory-pool '/Applications/wsp.app/Contents/Resources/app/main/cli.mjs' \"$@\"\n";
     assert_eq!(shim::command_of(plain), Some(PathBuf::from("/Applications/wsp.app/Contents/Resources/app/main/cli.mjs")));
     assert_eq!(shim::command_of("#!/bin/sh\nexec node dist/cli.mjs \"$@\"\n"), None, "a relative command names no files");
+    let quoted = "ELECTRON_RUN_AS_NODE=1 exec '/d/wsp daemon' forward --wsp-argv '/o p/wsp' --wsp-argv '/it'\\''s/cli.mjs' -- \"$@\"";
+    assert_eq!(shim::command_of(quoted), Some(PathBuf::from("/it's/cli.mjs")), "read as sh reads its quotes");
+    assert_eq!(shim::command_of("exec '/a/cli.mjs"), None, "an unclosed quote is no line sh runs");
     assert_eq!(shim::command_of("#!/bin/sh\necho hi\n"), None);
 }
 
@@ -452,12 +434,12 @@ impl Runner for NoManager {
 }
 
 fn follow_onto_now(state: &Path, here: Bundled) -> Result<Followed, String> {
-    follow_onto_by(state, here, true, &NoManager)
+    follow_onto_by(state, here, &NoManager)
 }
 
-fn follow_onto_by<R: Runner>(state: &Path, here: Bundled, back: bool, runner: &R) -> Result<Followed, String> {
+fn follow_onto_by<R: Runner>(state: &Path, here: Bundled, runner: &R) -> Result<Followed, String> {
     let vars: Env = [("HOME".to_owned(), state.parent().unwrap().to_string_lossy().into_owned())].into();
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(state, &vars, Ok(here), runner, back))
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(state, &vars, Ok(here), runner))
 }
 
 /// A manager that keeps every command it was handed and holds no unit.
@@ -494,31 +476,9 @@ fn nothing_serving_on_a_unit_running_npms_wsp_has_the_unit_run_the_command() {
     std::fs::write(&unit, text).unwrap();
     let newer = bundle_in(&dir.path().join("Applications"), Os::here(), "0.3.9");
     let kept = Kept::default();
-    assert_eq!(follow_onto_by(&state, newer, true, &kept), Ok(Followed::NotServing));
+    assert_eq!(follow_onto_by(&state, newer, &kept), Ok(Followed::NotServing));
     let up = format!("{} up --service --state {}", shim::path(&home).display(), state.display());
     assert!(kept.0.lock().unwrap().contains(&up), "{:?}", kept.0.lock().unwrap());
-}
-
-/// Catches: the failure box saying Go Back returns to today's app while the switch is off and it offers no Go Back.
-#[test]
-fn a_host_left_for_todays_app_names_go_back_only_where_it_is_offered() {
-    let dir = tempfile::tempdir().unwrap();
-    let home = dir.path().join(".wsp");
-    std::fs::create_dir_all(home.join("bin")).unwrap();
-    let state = home.join("state.json");
-    let electron = dir.path().join("wsp.app/Contents/MacOS/wsp");
-    std::fs::create_dir_all(electron.parent().unwrap()).unwrap();
-    std::fs::write(&electron, "electron").unwrap();
-    std::fs::write(shim::path(&home), format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' /x/cli.mjs \"$@\"\n", electron.display()))
-        .unwrap();
-    let newer = bundle_in(&dir.path().join("Applications"), Os::Mac, "0.3.9");
-    let said = |back: bool| match follow_onto_by(&state, newer.clone(), back, &NoManager) {
-        Ok(Followed::Left(why)) => why,
-        other => panic!("the host was not said to be left: {other:?}"),
-    };
-    assert!(said(true).contains(switch::GO_BACK), "{}", said(true));
-    let off = said(false);
-    assert!(!off.contains("Go Back") && off.ends_with("whose host this app leaves; open that app instead"), "{off}");
 }
 
 /// Catches: `restart_host` answering Ok where it restarted nothing, which the update's swap reads as the host
@@ -545,13 +505,6 @@ fn restart_host_says_what_it_did_and_why_it_left_a_host() {
     std::fs::write(home.join("host.lock"), lock).unwrap();
     assert!(said(follow_onto_now(&state, newer.clone())).contains("did not say its release within 2 s"), "a page that does not answer");
     std::fs::remove_file(home.join("host.lock")).unwrap();
-
-    let electron = dir.path().join("wsp.app/Contents/MacOS/wsp");
-    std::fs::create_dir_all(electron.parent().unwrap()).unwrap();
-    std::fs::write(&electron, "electron").unwrap();
-    std::fs::write(shim::path(&home), format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' /x/cli.mjs \"$@\"\n", electron.display()))
-        .unwrap();
-    assert!(said(follow_onto_now(&state, newer)).contains(switch::GO_BACK), "today's app owns the command");
 }
 
 /// Catches: npm's links read again, and the login shell run again, on every open after the launch's: a later open, the

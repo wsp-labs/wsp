@@ -9,6 +9,8 @@
 //! failed step
 //! it stops that app, TERM then KILL, puts the old app back and opens it, leaving a note that says whether the host
 //! was moved onto the new files, so the old app moves it back. The old app is deleted only once the new one is up.
+//! Today's app's own swap (`SWAP_SCRIPT` in `self-update.ts`), which replaces today's app with this one at the same
+//! path, waits on the same `up` in its own stage, and this app answers it the same way.
 
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -249,6 +251,10 @@ fn running(pid: i32) -> bool {
     pid > 0 && (unsafe { libc::kill(pid, 0) } == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM))
 }
 
+/// Today's app's stage beside the app it replaces (`STAGE_DIR` in `self-update.ts`), where its swap writes `opening` and
+/// waits on `up` holding the version it asked for.
+pub const TODAYS_STAGE: &str = ".wsp-update";
+
 /// What a launch found beside its installed app (`settleStage`).
 #[derive(Debug, PartialEq)]
 pub enum Settled {
@@ -342,9 +348,14 @@ fn replaced(root: &Path) -> Option<PathBuf> {
 }
 
 /// Settles the stage beside `installed` at launch: a swap still running is left alone, and answered later where it
-/// waits on this app; one that put this app back is followed and swept. The app a swap replaced goes only once `up`
-/// was written: with no `up` it is kept and offered back. Anything else an earlier update left is deleted.
+/// waits on this app, today's app's swap among them; one that put this app back is followed and swept. The app a swap
+/// replaced goes only once `up` was written: with no `up` it is kept and offered back. Anything else an earlier update
+/// left is deleted. Today's stage is otherwise today's app's to sweep, since it may stand beside this one.
 pub fn settle(installed: &Path) -> Settled {
+    let today = installed.parent().unwrap_or(Path::new("/")).join(TODAYS_STAGE);
+    if own(&today) && waiting_pid(&today).is_some() {
+        return Settled::Waiting(Waiting { root: today });
+    }
     let root = stage_of(installed);
     if !own(&root) {
         return Settled::Nothing;

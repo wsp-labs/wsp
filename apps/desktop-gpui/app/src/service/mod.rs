@@ -7,8 +7,8 @@
 //! bundle's is left as it is and opened on; one of an older release is taken over, the command written to run this
 //! bundle and the service host restarted onto it by `restart_host` (an update's swap, or the open that refused it);
 //! one of the same release has the command written where it names other files, and its host restarted onto it before
-//! the open. A wsp command today's app wrote, naming an app that stands, is that app's while Go Back is offered: it and
-//! its host are left alone.
+//! the open. A wsp command today's app wrote is taken over by the same rules whether or not that app still stands: this
+//! app is the one wsp ships, and today's app is a separate download that takes the command back when it is opened.
 
 mod appimage;
 pub mod npm;
@@ -22,7 +22,7 @@ use std::sync::OnceLock;
 use wsp_host_client::start::{self, Runner, Start, System};
 use wsp_host_client::{release_order, Env};
 
-use crate::desktop::{log, switch};
+use crate::desktop::log;
 
 pub use appimage::Image;
 pub use wsp_host_client::start::Followed;
@@ -154,44 +154,33 @@ pub struct Owned {
     pub restart: Option<Restart>,
 }
 
-/// Why a bundle of release `mine` leaves the wsp command of the home `home` and its service as they are.
+/// Why a bundle of release `mine` leaves the wsp command of a home and its service as they are: `theirs`, the release
+/// serving the home or the one the command runs, as `what` says, is newer.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Left {
-    /// `theirs`, the release serving the home or the one the command runs, as `what` says, is newer.
-    Newer { theirs: String, what: &'static str },
-    /// The command runs today's app at this path, which stands.
-    Today(PathBuf),
+pub struct Left {
+    pub theirs: String,
+    pub what: &'static str,
 }
 
 impl Left {
-    /// Why, in words a person reads, for a bundle of release `mine`, naming Go Back only where `back` offers it.
-    pub fn said(&self, mine: &str, back: bool) -> String {
-        match self {
-            Left::Newer { theirs, what } => format!("wsp {theirs} {what}, newer than wsp {mine}"),
-            Left::Today(app) => {
-                let then = if back { format!("{} returns to it", switch::GO_BACK) } else { "open that app instead".to_owned() };
-                format!("the wsp command on this computer runs today's wsp app at {}, whose host this app leaves; {then}", app.display())
-            }
-        }
+    /// Why, in words a person reads, for a bundle of release `mine`.
+    pub fn said(&self, mine: &str) -> String {
+        format!("wsp {} {}, newer than wsp {mine}", self.theirs, self.what)
     }
 }
 
 /// Whether `claim` leaves the wsp command of `home` and its service as they are for a bundle of release `mine`, with
-/// `serving` the release the host serving names: a host, or a command's files, of a newer release, or today's app's
-/// command naming an app that stands, whatever its release. Go Back is offered for that app, and today's app writes its
-/// own command again on its next launch and keeps a newer host serving, so a host moved here would come back older
-/// on a newer database at the next login. The update reads it before a swap starts.
+/// `serving` the release the host serving names: a host, or a command's files, of a newer release, whichever app wrote
+/// the command. The update reads it before a swap starts.
 pub fn left_as_is(home: &Path, serving: Option<&str>, mine: &str) -> Option<Left> {
     let was = std::fs::read_to_string(shim::path(home)).ok();
     let named = was.as_deref().and_then(shim::command_of).and_then(|command| shim::release_of(&command));
     let against = |theirs: &str| Against::of(theirs, mine);
-    let newer = [(serving, "serves this home"), (named.as_deref(), "is what the wsp command runs")]
-        .into_iter()
-        .find_map(|(theirs, what)| theirs.filter(|theirs| against(theirs) == Against::Newer).map(|theirs| (theirs, what)));
-    if let Some((theirs, what)) = newer {
-        return Some(Left::Newer { theirs: theirs.to_owned(), what });
-    }
-    switch::named_app(home).map(Left::Today)
+    let newer =
+        [(serving, "serves this home"), (named.as_deref(), "is what the wsp command runs")].into_iter().find_map(|(theirs, what)| {
+            theirs.filter(|theirs| against(theirs) == Against::Newer).map(|theirs| Left { theirs: theirs.to_owned(), what })
+        });
+    newer
 }
 
 /// What a launch makes of the wsp command for the home `home`, with `serving` the release the host serving names.
@@ -203,23 +192,12 @@ pub fn claim(home: &Path, here: Result<Bundled, String>, image: Option<&Image>, 
     let wsp = shim::path(home);
     let here = here?;
     let mine = here.release().ok_or_else(|| format!("this build's host names no release: {} has none", here.command.display()))?;
-    match left_as_is(home, serving, &mine) {
-        Some(Left::Newer { theirs, what }) => {
-            log::info(&format!(
-                "wsp {theirs} {what}, newer than this app's {mine}, so this app leaves the wsp command at {} and the service as they are",
-                wsp.display()
-            ));
-            return Ok(None);
-        }
-        Some(Left::Today(app)) => {
-            log::info(&format!(
-                "the wsp command at {} runs today's wsp app at {}, so this app leaves it and that app's service as they are",
-                wsp.display(),
-                app.display()
-            ));
-            return Ok(None);
-        }
-        None => {}
+    if let Some(Left { theirs, what }) = left_as_is(home, serving, &mine) {
+        log::info(&format!(
+            "wsp {theirs} {what}, newer than this app's {mine}, so this app leaves the wsp command at {} and the service as they are",
+            wsp.display()
+        ));
+        return Ok(None);
     }
     let was = std::fs::read_to_string(&wsp).ok();
     let against = |theirs: &str| Against::of(theirs, &mine);
@@ -331,20 +309,14 @@ pub fn owned() -> Option<PathBuf> {
 /// an older host the open refused, and says what it did: the wsp command is written again to name this bundle's
 /// files, and a host `claim` reads as older, or of this release on other files, is restarted by the road it came up on
 /// (`start::follow`); with nothing serving, a unit running another program is written again to run the command
-/// (`start::idle_onto`). A host whose release did not answer, and what `left_as_is` names, are left, said in words that
-/// name Go Back where `back`, the failure box's offer, holds it; the refusal is in words a person reads.
-pub async fn restart_host(back: bool) -> Result<Followed, String> {
+/// (`start::idle_onto`). A host whose release did not answer, and what `left_as_is` names, are left, said in words a
+/// person reads.
+pub async fn restart_host() -> Result<Followed, String> {
     let (state, env) = LAUNCH.get().cloned().unwrap_or_else(|| (default_state(), std::env::vars().collect()));
-    follow_onto(&state, &env, bundled(), &System::new(&env), back).await
+    follow_onto(&state, &env, bundled(), &System::new(&env)).await
 }
 
-async fn follow_onto<R: Runner>(
-    state: &Path,
-    env: &Env,
-    here: Result<Bundled, String>,
-    runner: &R,
-    back: bool,
-) -> Result<Followed, String> {
+async fn follow_onto<R: Runner>(state: &Path, env: &Env, here: Result<Bundled, String>, runner: &R) -> Result<Followed, String> {
     let home = state.parent().unwrap_or(Path::new(""));
     let serving = start::serving_release(state).await;
     if serving.is_none() && wsp_host_client::lock::serving(state).is_some() {
@@ -355,7 +327,7 @@ async fn follow_onto<R: Runner>(
     }
     let mine = here.as_ref().ok().and_then(Bundled::release).unwrap_or_default();
     let Some(owned) = claim(home, here, Image::of(env).as_ref(), serving.as_deref())? else {
-        let left = left_as_is(home, serving.as_deref(), &mine).map(|left| left.said(&mine, back));
+        let left = left_as_is(home, serving.as_deref(), &mine).map(|left| left.said(&mine));
         return Ok(Followed::Left(
             left.unwrap_or_else(|| format!("this app left the wsp command at {} as it is", shim::path(home).display())),
         ));

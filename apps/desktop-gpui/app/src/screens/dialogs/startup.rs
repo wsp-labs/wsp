@@ -25,7 +25,6 @@ use wsp_host_client::start::{self, Failed, Start, System};
 use wsp_host_client::{Env, Failure, HostClient};
 
 use super::{onboarding, starting};
-use crate::desktop::switch;
 use crate::screens::Host;
 use crate::service;
 use crate::TITLE;
@@ -54,8 +53,6 @@ pub const START_FAILED: &str = "wsp could not start";
 /// What the box is titled for an open after the launch's: the Dock, or a second launch with no window standing.
 pub const OPEN_FAILED: &str = "wsp could not open";
 pub const OPEN_LOG: &str = "Open log";
-/// The way back, offered first while the switch is on, so today's app sets wsp up and starts it.
-pub const OPEN_CURRENT: &str = "Open the current wsp app";
 pub const QUIT: &str = "Quit";
 
 const LOCK_FILE: &str = "desktop-gpui.lock";
@@ -380,29 +377,31 @@ pub fn log_of(state: &Path, failed: Option<&Path>, app: &Path) -> PathBuf {
 /// started from its unit and waited on (`openHostReady`), the wsp command written first where this app owns it, then onboarding on a host that holds
 /// nothing and the app otherwise. A host that refuses this computer's token opens the app, whose window pairs.
 pub fn open(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
-    open_titled(START_FAILED, state, env, runtime, app, false, cx);
+    open_titled(START_FAILED, state, env, runtime, app, None, cx);
 }
 
 /// An open after the launch's with no window standing: the same road, its box titled as a later open's. One host step
 /// at a time: an open while another is still finding its window joins that one.
 pub fn open_later(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
     if !opening(cx) {
-        open_titled(OPEN_FAILED, state, env, runtime, app, false, cx);
+        open_titled(OPEN_FAILED, state, env, runtime, app, None, cx);
     }
 }
 
 /// `followed`: this open comes after the host was restarted onto this app's files, so a host of another release still
-/// serving is said, not asked about again.
+/// serving is said, not asked about again; it carries the starting window of the open before it, which stands until
+/// this open's window does, since on Linux the last window closing quits the app.
 fn open_titled(
     title: &'static str,
     state: PathBuf,
     env: Env,
     runtime: Arc<Runtime>,
     app: Rc<dyn Fn(&mut App)>,
-    followed: bool,
+    followed: Option<Starting>,
     cx: &mut App,
 ) {
-    let starting = starting_after(STARTING_SHOWN, starting::open, cx);
+    let after_restart = followed.is_some();
+    let starting = followed.unwrap_or_else(|| starting_after(STARTING_SHOWN, starting::open, cx));
     cx.set_global(Opening(true));
     let mut road = Start::here(&state, &env);
     let again = (state.clone(), env.clone(), runtime.clone(), app.clone());
@@ -436,7 +435,7 @@ fn open_titled(
             }
             Err(failed) => {
                 crate::update::not_opened(&failed.failure.message, cx);
-                match crate::update::follow::older_host(&failed.failure.message).filter(|_| !followed) {
+                match crate::update::follow::older_host(&failed.failure.message).filter(|_| !after_restart) {
                     Some(theirs) => ask_follow(title, theirs.to_owned(), again, starting, cx),
                     None => say_failed(title, &failed, &state, starting, cx),
                 }
@@ -499,8 +498,7 @@ type Again = (PathBuf, Env, Arc<Runtime>, Rc<dyn Fn(&mut App)>);
 
 /// The service host restarted onto this app's files, then the open again, which says a host still not this release's.
 fn restart_then_open(title: &'static str, again: Again, starting: Starting, cx: &mut App) {
-    let back = offers_back(cx);
-    let restarted = crate::update::off_main(move || crate::update::restart_host_blocking(back));
+    let restarted = crate::update::off_main(crate::update::restart_host_blocking);
     cx.spawn(async move |cx: &mut AsyncApp| {
         let said = restarted.await.unwrap_or_else(|_| Err("the restart stopped before it answered".into()));
         cx.update(|cx| {
@@ -509,29 +507,20 @@ fn restart_then_open(title: &'static str, again: Again, starting: Starting, cx: 
                 let failed = Failed { failure: Box::new(Failure::new(crate::update::words::not_restarted(&said))), log: None };
                 return say_failed(title, &failed, &state, starting, cx);
             }
-            starting.end(cx);
-            open_titled(title, state, env, runtime, app, true, cx);
+            open_titled(title, state, env, runtime, app, Some(starting), cx);
         });
     })
     .detach();
 }
 
 /// The start-failed box's answers as Electron's are: Open log the default, Quit the cancel. A Mac's alert gives the
-/// cancel button Escape; GPUI's own box elsewhere takes no Escape at all. With the way `back` on offer, its button
-/// comes first, the default a Mac's alert gives Return.
-pub fn failed_answers(back: bool) -> Vec<PromptButton> {
-    let today = [PromptButton::new(OPEN_LOG), PromptButton::cancel(QUIT)];
-    back.then(|| PromptButton::new(OPEN_CURRENT)).into_iter().chain(today).collect()
+/// cancel button Escape; GPUI's own box elsewhere takes no Escape at all.
+pub fn failed_answers() -> Vec<PromptButton> {
+    vec![PromptButton::new(OPEN_LOG), PromptButton::cancel(QUIT)]
 }
 
-/// Whether a failed start offers the way back: while the switch is on and the wsp command names today's app.
-pub fn offers_back(cx: &App) -> bool {
-    switch::on(cx) && cx.has_global::<switch::Back>()
-}
-
-/// `sayStartFailed`: the title, the failure's first line, the way back where offered, Open log and Quit, on the
-/// starting window, which stands for it if it did not yet. The starting window goes once it is answered, except under
-/// the way back, whose own failure box it holds.
+/// `sayStartFailed`: the title, the failure's first line, Open log and Quit, on the starting window, which stands for
+/// it if it did not yet. The starting window goes once it is answered.
 fn say_failed(title: &'static str, failed: &Failed, state: &Path, mut starting: Starting, cx: &mut App) {
     crate::desktop::log::error(&format!("{title}: {}", failed.failure.message));
     let Some(window) = starting.stand(cx) else {
@@ -539,8 +528,7 @@ fn say_failed(title: &'static str, failed: &Failed, state: &Path, mut starting: 
         return;
     };
     let line = first_line(&failed.failure.message).to_owned();
-    let back = offers_back(cx);
-    let answers = failed_answers(back);
+    let answers = failed_answers();
     let answer = window.update(cx, |_, window, cx| window.prompt(PromptLevel::Critical, title, Some(&line), &answers, cx));
     let app_log = cx.try_global::<crate::desktop::Launched>().map(|l| l.logs().join(crate::desktop::log::APP_LOG)).unwrap_or_default();
     let log = log_of(state, failed.log.as_deref(), &app_log);
@@ -550,9 +538,8 @@ fn say_failed(title: &'static str, failed: &Failed, state: &Path, mut starting: 
             Err(_) => None,
         };
         cx.update(|cx| {
-            match (back, picked) {
-                (true, Some(0)) => return switch::back(cx),
-                (true, Some(1)) | (false, Some(0)) => cx.open_with_system(&log),
+            match picked {
+                Some(0) => cx.open_with_system(&log),
                 _ => cx.quit(),
             }
             starting.end(cx);

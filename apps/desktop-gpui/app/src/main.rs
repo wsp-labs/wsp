@@ -18,7 +18,7 @@ use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppeara
 use wsp_host_client::Env;
 
 /// A launch on a named state keeps its store beside that state, so a capture or a bench on a throwaway host never
-/// writes into the person's own; the default state, which today's app names on every hand-over, keeps the default store.
+/// writes into the person's own; the default state keeps the default store.
 fn store_path(named: Option<&Path>, default: &Path) -> PathBuf {
     match named {
         Some(state) if state != default => state.with_file_name("desktop-gpui-local-store.json"),
@@ -100,12 +100,11 @@ fn main() {
     }
     let lock = match plain.then(|| startup::claim_with(&home, link.as_deref())) {
         Some(Ok(Claim::Held(lock))) => {
-            // Today's app offers its switch wherever this file names an app, and only a Mac's app menu has the way back.
-            if cfg!(target_os = "macos") {
-                if let Err(e) = switch::own_path(std::env::var_os("APPIMAGE")).and_then(|exe| switch::write_path(&home, &exe)) {
-                    desktop::log::error(&format!("{} could not be written: {e}", switch::PATH_FILE));
-                }
+            match switch::retire(&home) {
+                Ok(taken) => taken.iter().for_each(|file| desktop::log::info(&format!("took today's switch away: {}", file.display()))),
+                Err(e) => desktop::log::error(&format!("today's switch could not be taken away: {e}")),
             }
+            desktop::scheme::on_launch(&env);
             Some(lock)
         }
         Some(Ok(Claim::Taken)) => std::process::exit(0),
@@ -121,6 +120,8 @@ fn main() {
     // Before any window can hold the launch: a swap that opened this app waits on it.
     let installed = plain.then(update::installed_here).flatten();
     let settled = installed.as_ref().map(|i| update::swap::settle(&i.path));
+    #[cfg(target_os = "macos")]
+    let swapped = matches!(settled, Some(update::swap::Settled::Waiting(_)));
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let gallery = args.gallery;
     let bench::Capture { theme, unfold, now, reveal, drop } = args.capture;
@@ -136,7 +137,6 @@ fn main() {
         });
     }
     let launch = Launch { bench: args.bench, open: args.open, glass: args.glass, screen: args.screen };
-    let switched = switch::read(&home);
     frame::choose();
     let app = screens::browser::page::application().with_assets(AppAssets);
     // A Mac hands over the link that launched the app before it is running, so the handler comes before `run`.
@@ -171,8 +171,6 @@ fn main() {
         composer::init(cx);
         screens::palette::init(cx);
         frame::init(cx);
-        cx.set_global(switched);
-        switch::init(&home, cx);
         if let Some(link) = &link {
             links::open(link, cx);
         }
@@ -230,7 +228,7 @@ fn main() {
         };
         // The open writes the wsp command and starts the service, so it waits on the move's answer (`offerMove`).
         #[cfg(target_os = "macos")]
-        desktop::mac::offer_move(cx, open);
+        desktop::mac::offer_move(cx, swapped, open);
         #[cfg(not(target_os = "macos"))]
         open(cx);
     });
