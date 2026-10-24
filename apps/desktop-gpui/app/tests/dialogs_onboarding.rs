@@ -352,29 +352,7 @@ fn the_usage_line_follows_the_boot_line_of_the_hosts_page() {
 /// Catches: the start-failed box's Quit not its cancel button, so Escape on a Mac's alert would answer nothing.
 #[test]
 fn the_start_failed_box_answers_escape_with_quit() {
-    let answers = startup::failed_answers(false);
+    let answers = startup::failed_answers();
     assert_eq!(answers.iter().map(|a| a.label().to_string()).collect::<Vec<_>>(), [startup::OPEN_LOG, startup::QUIT]);
     assert!(!answers[0].is_cancel() && answers[1].is_cancel(), "Quit is the cancel button, as Electron's cancelId");
-}
-
-/// Catches: a start that failed while the switch is on, "not set up" among them, offering only Open log, so the
-/// person has no way to today's app, the one that sets wsp up and starts it.
-#[gpui_kit::test]
-fn a_failed_start_offers_the_way_back_while_the_switch_is_on(cx: &mut TestAppContext) {
-    use desktop_gpui::desktop::switch::{Back, Switch};
-    let labels = |cx: &gpui_kit::App| {
-        startup::failed_answers(startup::offers_back(cx)).iter().map(|a| (a.label().to_string(), a.is_cancel())).collect::<Vec<_>>()
-    };
-    let today = vec![(startup::OPEN_LOG.to_owned(), false), (startup::QUIT.to_owned(), true)];
-    cx.update(|cx| {
-        cx.set_global(Back { home: "/h/.wsp".into(), app: "/Applications/wsp.app/Contents/MacOS/wsp".into() });
-        cx.set_global(Switch { on: false });
-        assert_eq!(labels(cx), today, "with the switch off the box is today's");
-        cx.set_global(Switch { on: true });
-        // First is the default: Return on a Mac's alert.
-        let back = [("Open the current wsp app".to_owned(), false)].into_iter().chain(today.clone()).collect::<Vec<_>>();
-        assert_eq!(labels(cx), back);
-        cx.remove_global::<Back>();
-        assert_eq!(labels(cx), today, "a command naming no app has no way back to offer");
-    });
 }
