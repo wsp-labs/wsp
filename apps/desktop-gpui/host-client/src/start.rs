@@ -2,17 +2,17 @@
 //! The host a launch opens on (`desktop:host-lifecycle.ts` `openHostReady`): the one the lock names, else the one
 //! this computer's own service manager brings up from its unit, waited on until it answers. A unit that stands is
 //! loaded as it stands and never rewritten or removed here. Where this app carries its own host and owns the wsp
-//! command (`Start::wsp`), a missing unit is written by that command's own `wsp up --service`, and a service host
-//! still running the command this launch rewrote is restarted onto it. Quit and stop wsp stops the host and keeps the
-//! unit, login switch and all, for the next launch and the next login; today's removes it, and with it the start at
-//! login.
+//! command (`Start::wsp`), a missing unit is written by that command's own `wsp up --service`, run in the wsp home,
+//! and a service host on files that went is restarted onto it before the open (`Start::restart`). Quit and stop wsp
+//! stops the host and keeps the unit, login switch and all, for the next launch and the next login; today's removes
+//! it, and with it the start at login.
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use wsp_mcp::lock::{alive as pid_alive, answers as probe, serving, vanished, Lock};
+use wsp_mcp::lock::{alive as pid_alive, answers as probe, page_release, serving, vanished, Lock};
 
 use crate::{Env, Failure, HostClient};
 
@@ -255,8 +255,10 @@ pub struct Ran {
 pub trait Runner: Sync {
     fn run(&self, argv: &[String]) -> impl Future<Output = Ran> + Send;
 
-    /// A line of the wsp command this app installed, which may wait on a host for longer than a manager answers in.
-    fn wsp(&self, argv: &[String]) -> impl Future<Output = Ran> + Send {
+    /// A line of the wsp command this app installed, run in `cwd`, which may wait on a host for longer than a
+    /// manager answers in.
+    fn wsp(&self, argv: &[String], cwd: &Path) -> impl Future<Output = Ran> + Send {
+        let _ = cwd;
         self.run(argv)
     }
 }
@@ -276,7 +278,7 @@ impl System {
 }
 
 /// Runs `argv` on nothing of the app's environment but `env`, for at most `wait`, in `cwd` where one is named.
-async fn run_for(argv: &[String], env: &[(String, String)], wait: Duration, cwd: Option<&str>) -> Ran {
+async fn run_for(argv: &[String], env: &[(String, String)], wait: Duration, cwd: Option<&Path>) -> Ran {
     let Some((program, args)) = argv.split_first() else { return Ran { code: 127, output: String::new() } };
     let mut command = tokio::process::Command::new(program);
     command.args(args).env_clear().envs(env.iter().cloned()).stdin(Stdio::null()).kill_on_drop(true);
@@ -298,11 +300,8 @@ impl Runner for System {
         run_for(argv, &self.env, MANAGER_WAIT, None).await
     }
 
-    /// Run in the person's home, so the unit `wsp up --service` writes works there and never in a checkout whose
-    /// `.env` the app happened to start beside.
-    async fn wsp(&self, argv: &[String]) -> Ran {
-        let home = self.wsp_env.iter().find(|(name, _)| name == "HOME").map(|(_, home)| home.as_str()).filter(|home| !home.is_empty());
-        run_for(argv, &self.wsp_env, WSP_WAIT, home).await
+    async fn wsp(&self, argv: &[String], cwd: &Path) -> Ran {
+        run_for(argv, &self.wsp_env, WSP_WAIT, Some(cwd)).await
     }
 }
 
@@ -337,8 +336,9 @@ pub struct Start {
     /// The wsp command this app installed and owns, which runs the host this app carries: where there is one, a unit
     /// that is missing is written by its `wsp up --service`, so the unit runs it as today's app's runs its shim.
     pub wsp: Option<PathBuf>,
-    /// Whether this launch rewrote that command, so a service host started before runs the line it started on.
-    pub rewrote: bool,
+    /// Whether the host serving is to be restarted onto that command before the open: it is of the bundle's release
+    /// and runs files the command named before and that went (`staleShim`).
+    pub restart: bool,
     /// `SERVICE_WAIT_MS`, shorter in a test.
     pub wait: Duration,
     /// Where the lines a person reads in the app's log go.
@@ -357,7 +357,7 @@ impl Start {
             uid: unsafe { libc::getuid() },
             manager: Manager::here(),
             wsp: None,
-            rewrote: false,
+            restart: false,
             wait: SERVICE_WAIT,
             say: Arc::new(|line| eprintln!("desktop-gpui: {line}")),
         }
@@ -365,6 +365,12 @@ impl Start {
 
     fn log(&self) -> PathBuf {
         self.state.with_file_name(LOG_FILE)
+    }
+
+    /// The wsp home, the state file's folder: the wsp command runs there, as today's app runs its service
+    /// (`servicePlan`'s cwd), so the unit `wsp up --service` writes reads `<home>/.env` and never a `.env` in `$HOME`.
+    fn wsp_home(&self) -> &Path {
+        self.state.parent().unwrap_or(Path::new("/"))
     }
 }
 
@@ -442,7 +448,7 @@ pub async fn ensure<R: Runner>(start: &Start, runner: &R) -> Result<(), Failed> 
         let Some(wsp) = &start.wsp else { return Err(line(NOT_SET_UP)) };
         let argv =
             [wsp.to_string_lossy().as_ref(), "up", "--service", "--state", start.state.to_string_lossy().as_ref()].map(str::to_owned);
-        let ran = runner.wsp(&argv).await;
+        let ran = runner.wsp(&argv, start.wsp_home()).await;
         if ran.code != 0 {
             for said in ran.output.lines().filter(|said| !said.trim().is_empty()) {
                 (start.say)(&format!("wsp up --service: {said}"));
@@ -588,20 +594,33 @@ pub async fn restart<R: Runner>(start: &Start, runner: &R) -> Result<(), String>
     let Some(lock) = serving(&start.state) else { return Ok(()) };
     let argv = [wsp.to_string_lossy().as_ref(), "restart", "--state", start.state.to_string_lossy().as_ref()].map(str::to_owned);
     (start.say)(&format!("wsp (pid {}) serves {}; restarting it on {}", lock.pid, start.state.display(), wsp.display()));
-    let ran = runner.wsp(&argv).await;
+    let ran = runner.wsp(&argv, start.wsp_home()).await;
     if ran.code != 0 {
         return Err(wsp_failure(&argv, &ran));
     }
     Ok(())
 }
 
-/// Whether the service's host serves while its unit runs the wsp command this launch rewrote, so it still runs the
-/// files the command named before (`staleShim`).
-fn runs_what_was_rewritten(start: &Start) -> bool {
+/// Whether the launch asked for the host to be restarted and the service's host serves while its unit runs the wsp
+/// command, so a restart brings it back on the command as it stands; a unit running another wsp, npm's, is left.
+fn restarts_onto_wsp(start: &Start) -> bool {
     let (Some(wsp), Some(manager)) = (&start.wsp, start.manager) else { return false };
     let started_by_service = serving(&start.state).is_some_and(|lock| lock.started_by.as_deref() == Some("service"));
     let unit = std::fs::read_to_string(manager.unit(&start.home, &start.state)).unwrap_or_default();
-    start.rewrote && started_by_service && unit.contains(wsp.to_string_lossy().as_ref())
+    start.restart && started_by_service && unit.contains(wsp.to_string_lossy().as_ref())
+}
+
+/// `restart` where the launch asked for one and the service's host runs the wsp command; nothing otherwise.
+pub async fn restart_service<R: Runner>(start: &Start, runner: &R) -> Result<(), String> {
+    if !restarts_onto_wsp(start) {
+        return Ok(());
+    }
+    restart(start, runner).await
+}
+
+/// The release the host serving `state` names on its page (`lockedHost`); none where nothing serves or answers.
+pub async fn serving_release(state: &Path) -> Option<String> {
+    page_release(&serving(state)?, PROBE).await
 }
 
 /// How an open ended short of a host: a start that failed, or a refusal of a lock that stands.
@@ -688,11 +707,8 @@ where
         Failure { message, ..refused }.into()
     };
     let gave_up = |refused: Failure| if Instant::now() < until { refused.into() } else { waited(refused) };
-    // An update or a move rewrote the command under a service host that runs it, which brings it back on these files.
-    if runs_what_was_rewritten(start) {
-        if let Err(refused) = restart(start, runner).await {
-            (start.say)(&format!("the host was not restarted onto the rewritten wsp command: {refused}"));
-        }
+    if let Err(refused) = restart_service(start, runner).await {
+        (start.say)(&format!("the host was not restarted onto the wsp command: {refused}"));
     }
     loop {
         let client = match open_host(start, runner).await {
@@ -812,7 +828,7 @@ mod tests {
             uid: 501,
             manager: Some(manager),
             wsp: None,
-            rewrote: false,
+            restart: false,
             wait,
             say: Arc::new(move |line| kept.lock().unwrap().push(line.to_owned())),
         };
@@ -1340,29 +1356,28 @@ mod tests {
     }
 
     #[test]
-    fn only_a_service_host_whose_unit_runs_the_rewritten_command_reads_as_running_old_files() {
+    fn only_a_service_host_whose_unit_runs_the_command_is_restarted_onto_it() {
         let mut f = fixture(Manager::Systemd, SERVICE_WAIT);
         let wsp = owned(&mut f);
         let pid = f.kid(Path::new("/bin/sleep"), &["30"]);
         f.write_lock(pid, 1, "service");
         std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
-        assert!(!runs_what_was_rewritten(&f.start), "a launch that kept the command restarts nothing");
-        f.start.rewrote = true;
-        assert!(runs_what_was_rewritten(&f.start));
+        assert!(!restarts_onto_wsp(&f.start), "a launch that asked for no restart restarts nothing");
+        f.start.restart = true;
+        assert!(restarts_onto_wsp(&f.start));
         std::fs::write(&f.unit, "ExecStart=/usr/bin/node /usr/lib/node_modules/@wsp-labs/wsp/dist/bin.js up\n").unwrap();
-        assert!(!runs_what_was_rewritten(&f.start), "a unit running another wsp is not this command's");
+        assert!(!restarts_onto_wsp(&f.start), "a unit running another wsp is not this command's");
         std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
         f.write_lock(pid, 1, "up");
-        assert!(!runs_what_was_rewritten(&f.start), "a host a terminal holds is that terminal's");
+        assert!(!restarts_onto_wsp(&f.start), "a host a terminal holds is that terminal's");
     }
 
-    /// Catches: a launch that rewrote the command under a running service host opening on that host as it was, still
-    /// on the files the command named before.
+    /// Catches: a launch that asked for a restart (an older host, or files that went) opening on that host as it was.
     #[test]
-    fn a_launch_that_rewrote_the_command_restarts_the_service_host_before_it_opens() {
+    fn a_launch_that_asks_for_a_restart_restarts_the_service_host_before_it_opens() {
         let mut f = fixture(Manager::Systemd, Duration::from_millis(300));
         let wsp = owned(&mut f);
-        f.start.rewrote = true;
+        f.start.restart = true;
         std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
         let host = sh("exec sleep 30");
         let lock = f.write_lock(host, 1, "service");
@@ -1400,15 +1415,55 @@ mod tests {
     }
 
     #[test]
-    fn the_real_runner_hands_the_wsp_command_its_own_names_and_runs_it_in_the_home() {
+    fn the_real_runner_hands_the_wsp_command_its_own_names_and_runs_it_where_it_is_told() {
         let names = ["HOME", "PATH", "SHELL", "WSP_HOME", "WSP_HOST", "WSP_HOST_TOKEN", "ANTHROPIC_API_KEY", "GIT_DIR"];
         let dir = tempfile::tempdir().unwrap();
-        let home = dir.path().canonicalize().unwrap().to_string_lossy().into_owned();
+        let home = dir.path().canonicalize().unwrap();
         let mut vars: Env = names.iter().map(|name| ((*name).to_owned(), "/usr/bin:/bin".to_owned())).collect();
-        vars.insert("HOME".to_owned(), home.clone());
+        vars.insert("HOME".to_owned(), home.to_string_lossy().into_owned());
         let system = System::new(&vars);
         let script = "for n in HOME PATH SHELL WSP_HOME WSP_HOST WSP_HOST_TOKEN ANTHROPIC_API_KEY GIT_DIR; do eval \"[ -n \\\"\\${$n+x}\\\" ]\" && echo $n; done; pwd -P";
-        let named = block(system.wsp(&words(&["sh", "-c", script])));
-        assert_eq!(named, Ran { code: 0, output: format!("HOME\nPATH\nSHELL\nWSP_HOME\n{home}") });
+        let wsp_home = home.join(".wsp");
+        std::fs::create_dir_all(&wsp_home).unwrap();
+        let named = block(system.wsp(&words(&["sh", "-c", script]), &wsp_home));
+        assert_eq!(named, Ran { code: 0, output: format!("HOME\nPATH\nSHELL\nWSP_HOME\n{}", wsp_home.display()) });
+    }
+
+    /// Catches: a launch that cannot tell the release of the host serving, which every release rule reads first.
+    #[test]
+    fn the_release_serving_is_the_one_its_page_names() {
+        use std::io::{Read as _, Write as _};
+        let f = fixture(Manager::Systemd, SERVICE_WAIT);
+        assert_eq!(block(serving_release(&f.start.state)), None, "nothing serves");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for socket in listener.incoming().take(2) {
+                let mut socket = socket.unwrap();
+                let _ = socket.read(&mut [0u8; 1024]);
+                let page = r#"<html><script>window.__WSP__ = {"wsPath":"/ws","version":"0.4.0","tokenHash":"x"};</script></html>"#;
+                let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n{page}", page.len());
+            }
+        });
+        f.write_lock(std::process::id() as i32, port, "service");
+        assert_eq!(block(serving_release(&f.start.state)).as_deref(), Some("0.4.0"));
+    }
+
+    /// Catches: `wsp up --service` run in `$HOME`, which the host writes into the unit as its working folder, so a
+    /// person's `~/.env` holding a provider key wins over `~/.wsp/.env` at every login (`host:keys.ts`).
+    #[test]
+    fn the_wsp_command_writes_the_unit_from_the_wsp_home_and_not_the_persons_home() {
+        let mut f = fixture(Manager::Systemd, SERVICE_WAIT);
+        std::fs::remove_file(&f.unit).unwrap();
+        let wsp = owned(&mut f);
+        let home = f.start.home.canonicalize().unwrap();
+        let ran_in = home.join("ran-in");
+        std::fs::create_dir_all(wsp.parent().unwrap()).unwrap();
+        std::fs::write(&wsp, format!("#!/bin/sh\npwd -P > '{}'\n", ran_in.display())).unwrap();
+        std::fs::set_permissions(&wsp, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let vars: Env =
+            [("HOME", home.to_string_lossy().as_ref()), ("PATH", "/usr/bin:/bin")].map(|(k, v)| (k.to_owned(), v.to_owned())).into();
+        block(ensure(&f.start, &System::new(&vars))).unwrap();
+        assert_eq!(std::fs::read_to_string(&ran_in).unwrap().trim(), home.join(".wsp").to_string_lossy());
     }
 }

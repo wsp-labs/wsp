@@ -159,6 +159,14 @@ pub async fn page_carries(state: &Path, lock: &Lock, token: Option<&str>, window
     }
 }
 
+/// The release the page on the lock's port names, read within `window` (`lockedHost`'s `boot.version`); none where
+/// nothing answers or the page names none.
+pub async fn page_release(lock: &Lock, window: Duration) -> Option<String> {
+    let page = page_at(&aim::authority(&aim::dial_address(lock), lock.port), window).await?;
+    let boot = serde_json::from_str::<Value>(boot_script(&page)?).ok()?;
+    boot.get("version")?.as_str().map(str::to_owned)
+}
+
 /// Whether a digest is the sha256 of the token, hex, compared in a time that does not say where the two first
 /// differ (`hostTokenMatches`).
 fn digest_matches(token: &str, digest: &str) -> bool {
