@@ -78,17 +78,21 @@ impl Sidebar {
         self.prefs.project.as_deref().is_none_or(|p| project == Some(p))
     }
 
+    /// WorkspaceSidebar.tsx madeIn: the workspaces being made under the pick, refused (Needs you's) and in flight (Working's).
+    pub(super) fn creations_shown(&self) -> (Vec<usize>, Vec<usize>) {
+        (0..self.around.creations.len())
+            .filter(|&i| self.in_pick(self.around.creations[i].project.as_deref()))
+            .partition(|&i| self.around.creations[i].failed)
+    }
+
     /// Every row the list draws, top to bottom: the sends in flight, the threads' rows with the creations and the
     /// workspaces with no thread among them, then the forwarded ports.
     pub(crate) fn draw_rows(&self) -> Vec<Drawn> {
-        self.gap_moved.borrow_mut().clear();
         let mut out: Vec<Drawn> = (0..self.around.launches.len())
             .filter(|&i| self.in_pick(self.workspace_project(&self.around.launches[i].workspace_id).as_deref()))
             .map(Drawn::Launch)
             .collect();
-        let creations: Vec<usize> =
-            (0..self.around.creations.len()).filter(|&i| self.in_pick(self.around.creations[i].project.as_deref())).collect();
-        let (failed, running): (Vec<usize>, Vec<usize>) = creations.into_iter().partition(|&i| self.around.creations[i].failed);
+        let (failed, running) = self.creations_shown();
         let thread_workspaces: std::collections::HashSet<&str> = self.threads.iter().map(|t| t.workspace_id.as_str()).collect();
         let mut bare: Vec<(f64, String)> = self
             .around
@@ -104,22 +108,8 @@ impl Sidebar {
             .filter(|(_, id)| !thread_workspaces.contains(id.as_str()) && self.in_pick(self.workspace_project(id).as_deref()))
             .collect();
         bare.sort_by(|a, b| b.0.total_cmp(&a.0));
-        let (mut running_done, mut failed_done) = (running.is_empty(), failed.is_empty());
+        let mut failed_done = failed.is_empty();
         for (ix, line) in self.lines.iter().enumerate() {
-            if !failed_done && matches!(line.item, Item::Head { section: Section::NeedsYou, .. }) {
-                out.push(Drawn::Line(ix));
-                out.extend(failed.iter().map(|&i| Drawn::Creation(i)));
-                failed_done = true;
-                continue;
-            }
-            if !running_done && (line.section == Section::Threads || line.section == Section::Settled) && line.depth == 0 {
-                // The creations open the section, so the gap over it stands over them.
-                if line.gap && line.section == Section::Threads {
-                    self.gap_moved.borrow_mut().push((out.len(), ix));
-                }
-                out.extend(running.iter().map(|&i| Drawn::Creation(i)));
-                running_done = true;
-            }
             if line.section == Section::Threads && line.depth == 0 {
                 if let Item::Tile(t) = &line.item {
                     let started = self.threads[t.thread].started_at.unwrap_or(0.);
@@ -129,13 +119,20 @@ impl Sidebar {
                 }
             }
             out.push(Drawn::Line(ix));
+            match line.item {
+                Item::Head { section: Section::NeedsYou, folded, .. } if !failed_done => {
+                    if !folded {
+                        out.extend(failed.iter().map(|&i| Drawn::Creation(i)));
+                    }
+                    failed_done = true;
+                }
+                Item::Head { section: Section::Working, folded: false, .. } => out.extend(running.iter().map(|&i| Drawn::Creation(i))),
+                _ => {}
+            }
         }
         if !failed_done {
             let at = out.iter().position(|d| matches!(d, Drawn::Line(_))).unwrap_or(out.len());
             failed.iter().rev().for_each(|&i| out.insert(at, Drawn::Creation(i)));
-        }
-        if !running_done {
-            out.extend(running.iter().map(|&i| Drawn::Creation(i)));
         }
         out.extend(bare.into_iter().map(|(_, id)| Drawn::Workspace(id)));
         let forwards = self.forwards_shown().count();
@@ -163,23 +160,11 @@ impl Sidebar {
     pub(crate) fn render_drawn(&mut self, ix: usize, window: &mut gpui_kit::Window, cx: &mut Context<Self>) -> AnyElement {
         match self.drawn_rows.get(ix).cloned() {
             Some(Drawn::Line(line)) => match self.lines.get(line).cloned() {
-                Some(mut l) => {
-                    if self.gap_moved.borrow().iter().any(|&(_, from)| from == line) {
-                        l.gap = false;
-                    }
-                    tile::line(self, ix, &l, window, cx)
-                }
+                Some(l) => tile::line(self, ix, &l, window, cx),
                 None => div().into_any_element(),
             },
             Some(Drawn::Launch(i)) => self.launch_tile(i, cx),
-            Some(Drawn::Creation(i)) => {
-                let tile = self.creation_tile(i, cx);
-                if self.gap_moved.borrow().iter().any(|&(to, _)| to == ix) {
-                    div().pt(px(12.)).child(tile).into_any_element()
-                } else {
-                    tile
-                }
-            }
+            Some(Drawn::Creation(i)) => self.creation_tile(i, cx),
             Some(Drawn::Workspace(id)) => self.workspace_tile(&id, cx),
             Some(Drawn::ForwardsHead) => self.forwards_head(cx),
             Some(Drawn::Forward(i)) => self.forward_row(i, cx),
@@ -338,13 +323,10 @@ impl Sidebar {
                 let workspace = w.get("id")?.as_str()?.to_owned();
                 let lead = w.get("parentThreadId")?.as_str()?;
                 let made = w.get("createdAt").and_then(Value::as_str).and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok());
-                let spawn = w.pointer("/sub/spawn").filter(|s| s.is_object());
-                let starting = !model::start_failed(w) && spawn.is_some_and(|s| s.get("readyAt").is_none() && s.get("failed").is_none());
                 (!held.contains(workspace.as_str()) && self.thread(lead).is_some()).then(|| model::Machine {
                     lead: lead.to_owned(),
                     workspace,
                     started_at: made.map_or(0., |t| t.timestamp_millis() as f64),
-                    starting,
                 })
             })
             .collect();
