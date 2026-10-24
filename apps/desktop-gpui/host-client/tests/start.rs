@@ -180,7 +180,7 @@ esac
             uid: unsafe { libc::getuid() },
             manager: Some(manager),
             wsp: None,
-            rewrote: false,
+            restart: false,
             wait,
             say: Arc::new(move |line| said.lock().unwrap().push(line.to_owned())),
         }

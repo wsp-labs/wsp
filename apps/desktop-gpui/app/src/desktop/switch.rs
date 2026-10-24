@@ -114,7 +114,7 @@ pub fn shim_app(text: &str) -> Option<PathBuf> {
 }
 
 /// A line's words as `/bin/sh` reads `shellQuote`'s output: single quoted runs, `\'` and bare words; `"$@"` is a word.
-fn shell_words(line: &str) -> Option<Vec<String>> {
+pub(crate) fn shell_words(line: &str) -> Option<Vec<String>> {
     let (mut words, mut word, mut open) = (Vec::new(), String::new(), false);
     let mut chars = line.chars();
     while let Some(c) = chars.next() {

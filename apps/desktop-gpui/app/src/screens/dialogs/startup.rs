@@ -411,7 +411,7 @@ fn open_titled(
         let (state, vars) = (road.state.clone(), road.env.clone());
         if let Ok(Some(owned)) = tokio::task::spawn_blocking(move || service::on_launch(&state, &vars)).await {
             road.wsp = Some(owned.wsp);
-            road.rewrote = owned.rewrote;
+            road.restart = owned.restart == Some(service::Restart::FilesWent);
         }
         start::ready(&road, &System::new(&road.env), |client: Arc<HostClient>| async move { next(&client).await }).await
     });
