@@ -782,3 +782,53 @@ fn a_mac_update_must_be_this_app_signed_by_its_team() {
         "another bundle id is another app"
     );
 }
+
+struct Blank;
+
+impl gpui_kit::Render for Blank {
+    fn render(&mut self, _: &mut gpui_kit::Window, _: &mut gpui_kit::Context<Self>) -> impl gpui_kit::IntoElement {
+        gpui_kit::div()
+    }
+}
+
+/// Catches: a panic in the update's background work that takes the app down, or that ends with nothing said and
+/// Quit and open still offered, where it ends as the update's failure in the window's toasts.
+#[gpui_kit::test]
+fn a_panic_in_the_background_work_ends_as_the_updates_failure(cx: &mut gpui_kit::TestAppContext) {
+    let dir = tmp();
+    let file = dir.path().join("wsp-0.3.9-mac.dmg");
+    std::fs::write(&file, b"disk image").unwrap();
+    let kept = Kept { sum: feed::sum_of(&file).unwrap(), file };
+    let broken: Arc<Runner> = Arc::new(|_: &str, _: &[&str]| -> (i32, String) { panic!("the disk image would not open") });
+    let deps = ShellDeps {
+        feed: Feed::new(None, "wsp/0.3.8".into()),
+        state: dir.path().join("state.json"),
+        downloads: dir.path().to_owned(),
+        running: "0.3.8".into(),
+        installed: None,
+        road: Some(Road::Mac),
+        run: broken,
+        uid: 0,
+        pid: std::process::id(),
+        log: dir.path().join("update.log"),
+        patience: 1,
+    };
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        crate::ui::init(crate::ui::Side::Light, cx);
+    });
+    let (_, cx) = cx.add_window_view(|window, cx| gpui_kit::component::Root::new(gpui_kit::AppContext::new(cx, |_| Blank), window, cx));
+    cx.update(|_, cx| {
+        let shell = Arc::new(Mutex::new(Shell { deps, kept: Some(kept), staged: None }));
+        let download = Some(Download { version: "0.3.9".into(), phase: Phase::Kept });
+        cx.set_global(Updates { download, in_place: Some(false), why: None, asked: Default::default(), shell });
+        let stage = Stage { version: "0.3.9".into(), url: "u".into(), act: Act::Open };
+        run(&stage, cx);
+    });
+    cx.run_until_parked();
+    let said: Vec<String> = cx.update(|window, cx| {
+        crate::ui::toast::of(window, cx).expect("the window's toasts").read(cx).standing().iter().map(|n| n.text.to_string()).collect()
+    });
+    assert_eq!(said, [words::BROKE], "the panic is said as the update's failure");
+    assert_eq!(cx.update(|_, cx| cx.global::<Updates>().download.clone()), None, "Quit and open goes back to Get");
+}
