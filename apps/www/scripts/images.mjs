@@ -2,6 +2,7 @@
 // The images the site makes from its own: the narrow copies of the hero's pictures a phone loads, the link-preview
 // images (scripts/og.html filled with each route's line and photographed at 1200x630 into public/) and the 512 px logo
 // the structured data names. `pnpm images`, then commit what it wrote; the host's build has no browser.
+// `pnpm images /og-blog-<slug>.png ...` writes only the link-preview images named, as a new post needs.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,10 +23,11 @@ const NARROW = [
   ...["pr", "deploy", "cart", "traffic", "explain"].map(name => [`src/assets/shots/w-slate-${name}.webp`, `src/assets/shots/w-slate-${name}-1280.webp`, 1280]),
 ];
 
+const only = new Set(process.argv.slice(2));
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-  for (const [from, to, width] of NARROW) {
+  for (const [from, to, width] of only.size > 0 ? [] : NARROW) {
     const webp = await page.evaluate(
       async ([src, width]) => {
         const image = new Image();
@@ -59,17 +61,20 @@ try {
   };
   const template = readFileSync(join(root, "scripts/og.html"), "utf8");
   for (const [path, line] of new Map(ROUTES.map(r => [r.image.path, r.image.line]))) {
+    if (only.size > 0 && !only.has(path)) continue;
     await page.setContent(template.replace(/\{\{(\w+)\}\}/g, (_, key) => (key === "line" ? escape(line) : fill[key])), { waitUntil: "load" });
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: join(root, "public", path), type: "png" });
     console.log(`wrote public${path}`);
   }
 
-  await page.setViewportSize({ width: 512, height: 512 });
-  const mark = /<svg[\s\S]*?<\/svg>/.exec(lockup)[0].replace("<svg ", '<svg width="320" height="320" ');
-  await page.setContent(`<body style="margin:0;width:512px;height:512px;display:grid;place-items:center;background:#121110;color:#ece6dc">${mark}</body>`);
-  await page.screenshot({ path: join(root, "public/logo.png"), type: "png" });
-  console.log("wrote public/logo.png");
+  if (only.size === 0) {
+    await page.setViewportSize({ width: 512, height: 512 });
+    const mark = /<svg[\s\S]*?<\/svg>/.exec(lockup)[0].replace("<svg ", '<svg width="320" height="320" ');
+    await page.setContent(`<body style="margin:0;width:512px;height:512px;display:grid;place-items:center;background:#121110;color:#ece6dc">${mark}</body>`);
+    await page.screenshot({ path: join(root, "public/logo.png"), type: "png" });
+    console.log("wrote public/logo.png");
+  }
 } finally {
   await browser.close();
 }
