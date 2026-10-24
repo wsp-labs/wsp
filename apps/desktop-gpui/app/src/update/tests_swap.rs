@@ -49,13 +49,15 @@ fn up_waits_for_the_new_app_to_open_on_its_host() {
         let served = serve(release("0.3.9", &[(&install.asset, &install.new)], &HashMap::new()));
         let mut road = install.shell(Feed::new(Some(served.base), "wsp/0.3.8".into()));
         road.get("0.3.9").unwrap();
-        let today = owned.join("wsp-today");
-        std::fs::write(&today, "electron").unwrap();
+        let cli = owned.join("today/app/main/cli.mjs");
+        std::fs::create_dir_all(cli.parent().unwrap()).unwrap();
+        std::fs::write(&cli, "cli").unwrap();
+        std::fs::write(owned.join("today/app/package.json"), r#"{"version":"0.4.0"}"#).unwrap();
         let wsp = owned.join("wsp-home/bin/wsp");
         std::fs::create_dir_all(wsp.parent().unwrap()).unwrap();
-        std::fs::write(&wsp, format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' '/x/cli.mjs' \"$@\"\n", today.display())).unwrap();
+        std::fs::write(&wsp, format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '/x/wsp' '{}' \"$@\"\n", cli.display())).unwrap();
         let said = road.open().unwrap_err().error;
-        assert!(said.starts_with(&format!("the wsp command on this computer runs today's wsp app at {}", today.display())), "{said}");
+        assert_eq!(said, words::newer_command("0.4.0", "0.3.9"));
         assert!(!stage::stage_of(installed_at).join("swapping").exists(), "no swap started");
         assert_eq!(install.now(installed_at), install.was);
     }

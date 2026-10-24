@@ -21,10 +21,11 @@ pub fn in_applications(bundle: &Path, home: Option<&Path>) -> bool {
     bundle.starts_with(APPLICATIONS) || home.is_some_and(|home| bundle.starts_with(home.join("Applications")))
 }
 
-/// `offersMove`: only a packaged Mac bundle outside Applications is asked, and never a launch driven by a test.
-pub fn offers_move(mac: bool, bundle: Option<&Path>, home: Option<&Path>, driven: bool) -> bool {
+/// `offersMove`: only a packaged Mac bundle outside Applications is asked, and never a launch driven by a test, nor one
+/// a swap put in the old app's place and waits on, which answers the swap first as today's app does (`settleStage`).
+pub fn offers_move(mac: bool, bundle: Option<&Path>, home: Option<&Path>, driven: bool, swapped: bool) -> bool {
     let packaged = bundle.filter(|b| b.extension().is_some_and(|e| e == "app"));
-    mac && !driven && packaged.is_some_and(|b| !in_applications(b, home))
+    mac && !driven && !swapped && packaged.is_some_and(|b| !in_applications(b, home))
 }
 
 /// Where the moved bundle lands: Applications, under the bundle's own name.
@@ -176,11 +177,11 @@ mod native {
     /// open that writes the wsp command, runs only once it is answered (`held_move`). Move puts a bundle already there
     /// in the Trash, copies this one there by `ditto` off the main thread and restarts as the moved one, never opening
     /// this copy; Not now opens it, and a move that failed is logged and opens it.
-    pub fn offer_move(cx: &mut App, then: impl FnOnce(&mut App) + 'static) {
+    pub fn offer_move(cx: &mut App, swapped: bool, then: impl FnOnce(&mut App) + 'static) {
         let bundle = cx.app_path().ok();
         let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
         let driven = std::env::var_os("WSP_DESKTOP_SMOKE").is_some_and(|v| v == "1");
-        let Some(bundle) = bundle.filter(|bundle| super::offers_move(true, Some(bundle), home.as_deref(), driven)) else {
+        let Some(bundle) = bundle.filter(|bundle| super::offers_move(true, Some(bundle), home.as_deref(), driven, swapped)) else {
             return then(cx);
         };
         let ask = || alert(Style::Question, super::MOVE_MESSAGE, super::MOVE_DETAIL, &super::MOVE_BUTTONS, Some(1));
@@ -212,13 +213,14 @@ mod tests {
     fn the_move_is_offered_only_to_a_packaged_mac_bundle_outside_applications() {
         let downloads = Path::new("/Users/z/Downloads/wsp.app");
         let home = Some(Path::new("/Users/z"));
-        assert!(offers_move(true, Some(downloads), home, false));
-        assert!(!offers_move(false, Some(downloads), home, false), "Linux has nothing to move");
-        assert!(!offers_move(true, Some(downloads), home, true), "a driven launch answers no box");
-        assert!(!offers_move(true, None, home, false), "a build run out of a checkout is no bundle");
-        assert!(!offers_move(true, Some(Path::new("/Users/z/src/target/debug")), home, false));
-        assert!(!offers_move(true, Some(Path::new("/Applications/wsp.app")), home, false));
-        assert!(!offers_move(true, Some(Path::new("/Users/z/Applications/wsp.app")), home, false));
+        assert!(offers_move(true, Some(downloads), home, false, false));
+        assert!(!offers_move(false, Some(downloads), home, false, false), "Linux has nothing to move");
+        assert!(!offers_move(true, Some(downloads), home, true, false), "a driven launch answers no box");
+        assert!(!offers_move(true, Some(downloads), home, false, true), "a swap waiting on this launch is answered first");
+        assert!(!offers_move(true, None, home, false, false), "a build run out of a checkout is no bundle");
+        assert!(!offers_move(true, Some(Path::new("/Users/z/src/target/debug")), home, false, false));
+        assert!(!offers_move(true, Some(Path::new("/Applications/wsp.app")), home, false, false));
+        assert!(!offers_move(true, Some(Path::new("/Users/z/Applications/wsp.app")), home, false, false));
     }
 
     /// Catches: the launch writing the wsp command and starting the service off the Downloads copy while the move's

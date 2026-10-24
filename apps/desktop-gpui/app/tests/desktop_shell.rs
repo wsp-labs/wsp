@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The shell's duties around the window: the switch's files and its way back, a second launch's link over the lock's
+//! The shell's duties around the window: today's switch taken away, a second launch's link over the lock's
 //! socket, the links held for the next window, and the window controls a Linux desktop's frame takes from the app.
 
 #[path = "../../host-client/tests/common/mod.rs"]
 mod common;
 
 use std::cell::Cell;
-use std::io;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -19,105 +17,24 @@ use desktop_gpui::shell::{Launch, Shell};
 use gpui_kit::component::Root;
 use gpui_kit::{div, prelude::*, px, size, AppContext, Context, Pixels, TestAppContext, Window, WindowControls};
 
-/// Records whether the switch file still stood when today's app was opened.
-struct Fake<'a> {
-    home: &'a Path,
-    stood: Cell<Option<bool>>,
-    fails: bool,
-}
-
-impl switch::Opener for Fake<'_> {
-    fn open(&self, _app: &Path) -> io::Result<()> {
-        self.stood.set(Some(switch::switch_file(self.home).exists()));
-        if self.fails {
-            Err(io::Error::other("no such app"))
-        } else {
-            Ok(())
-        }
+/// Catches: today's Experimental switch left standing after the move, so today's app, opened again from the classic
+/// download, hands itself straight back to this one; or the move taking anything else of today's folder.
+#[test]
+fn a_launch_takes_todays_switch_and_path_away_and_nothing_else() {
+    let home = tempfile::tempdir().unwrap();
+    let dir = switch::desktop_dir(home.path());
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in [switch::SWITCH_FILE, switch::PATH_FILE, "lock", "update.log"] {
+        std::fs::write(dir.join(name), "").unwrap();
     }
-}
-
-/// Catches: a way back that opens today's app before it takes the switch away, so today's app, reading the switch on
-/// its launch, hands straight back to this one.
-#[test]
-fn the_way_back_takes_the_switch_away_before_it_opens() {
-    let home = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(home.path().join("desktop")).unwrap();
-    std::fs::write(home.path().join("desktop").join("experimental"), "").unwrap();
-    assert!(switch::read(home.path()).on, "the file's presence is the switch on");
-    let fake = Fake { home: home.path(), stood: Cell::new(None), fails: false };
-    switch::go_back(home.path(), Path::new("/Applications/wsp.app/Contents/MacOS/wsp"), &fake).unwrap();
-    assert_eq!(fake.stood.get(), Some(false), "the switch file went before today's app opened");
-    assert!(!switch::read(home.path()).on);
-    let again = Fake { home: home.path(), stood: Cell::new(None), fails: true };
-    assert!(switch::go_back(home.path(), Path::new("/x/wsp"), &again).is_err(), "an open that failed says so, so the app stays");
-    assert_eq!(again.stood.get(), Some(false), "and a switch already off is no failure of its own");
-    let stuck = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(stuck.path().join("desktop").join("experimental")).unwrap();
-    let held = Fake { home: stuck.path(), stood: Cell::new(None), fails: false };
-    assert!(switch::go_back(stuck.path(), Path::new("/x/wsp"), &held).is_err(), "a switch that will not go is said");
-    assert_eq!(held.stood.get(), None, "and today's app, which would read it on and hand straight back, is not opened");
-}
-
-/// Catches: a way back whose open failed leaving the switch off while this app stays, so the next launch opens today's
-/// app, which `turnExperimental` never leaves after an open of its own failed.
-#[test]
-fn a_way_back_that_did_not_open_puts_the_switch_back() {
-    let home = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(home.path().join("desktop")).unwrap();
-    std::fs::write(home.path().join("desktop").join("experimental"), "").unwrap();
-    let failing = Fake { home: home.path(), stood: Cell::new(None), fails: true };
-    assert!(switch::go_back(home.path(), Path::new("/x/wsp"), &failing).is_err());
-    assert_eq!(failing.stood.get(), Some(false), "the switch file still went before the open");
-    assert!(switch::read(home.path()).on, "the switch is back on, as this app stays");
-    let mode = std::fs::metadata(home.path().join("desktop").join("experimental")).unwrap().permissions();
-    assert_eq!(std::os::unix::fs::PermissionsExt::mode(&mode) & 0o777, 0o600, "written as keepSwitch writes it");
-}
-
-/// Catches: a launch that leaves today's app no way to find this one (`GPUI_PATH_FILE` in `desktop:experimental.ts`), or
-/// a path file half written or another's alone.
-#[test]
-fn a_launch_writes_where_this_app_is() {
-    use std::os::unix::fs::PermissionsExt;
-    let home = tempfile::tempdir().unwrap();
-    // SAFETY: umask only swaps the process mask; a strict one shows the file's mode is set, not inherited.
-    let was = unsafe { libc::umask(0o077) };
-    let written = switch::write_path(home.path(), Path::new("/opt/wsp gpui/desktop-gpui"));
-    // SAFETY: as above; the usual mask shows the folder's mode is the code's own.
-    unsafe { libc::umask(0o022) };
-    let usual = tempfile::tempdir().unwrap();
-    let made = switch::write_path(usual.path(), Path::new("/opt/wsp gpui/desktop-gpui"));
-    // SAFETY: as above, putting the mask back.
-    unsafe { libc::umask(was) };
-    written.unwrap();
-    made.unwrap();
-    let dir = std::fs::metadata(usual.path().join("desktop")).unwrap().permissions().mode() & 0o777;
-    assert_eq!(dir, 0o700, "the desktop folder it made is this login's alone");
-    let file = home.path().join("desktop").join("desktop-gpui.path");
-    assert_eq!(switch::path_file(home.path()), file);
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "/opt/wsp gpui/desktop-gpui");
-    assert_eq!(std::fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o644);
-    switch::write_path(home.path(), Path::new("/b/desktop-gpui")).unwrap();
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "/b/desktop-gpui", "each launch writes it again");
-    let names: Vec<_> = std::fs::read_dir(home.path().join("desktop")).unwrap().map(|e| e.unwrap().file_name()).collect();
-    assert_eq!(names, [switch::PATH_FILE], "no part file is left");
-}
-
-/// Catches: a shim the person's wsp command holds that names an app the menu then offers, or one naming nothing that
-/// still shows the row.
-#[test]
-fn the_way_back_is_offered_only_where_the_command_names_an_app() {
-    let home = tempfile::tempdir().unwrap();
-    assert_eq!(switch::named_app(home.path()), None, "no command, no way back");
-    let app = home.path().join("app").join("wsp");
-    std::fs::create_dir_all(app.parent().unwrap()).unwrap();
-    std::fs::write(&app, "").unwrap();
-    std::fs::create_dir_all(home.path().join("bin")).unwrap();
-    let shim = format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' '/x/cli.mjs' \"$@\"\n", app.display());
-    std::fs::write(home.path().join("bin").join("wsp"), shim).unwrap();
-    assert_eq!(switch::named_app(home.path()), Some(app.clone()));
-    std::fs::remove_file(&app).unwrap();
-    assert_eq!(switch::named_app(home.path()), None, "an app that is gone is no way back");
+    let taken = switch::retire(home.path()).unwrap();
+    assert_eq!(taken, [dir.join(switch::SWITCH_FILE), dir.join(switch::PATH_FILE)]);
+    let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+    left.sort();
+    assert_eq!(left, ["lock", "update.log"], "today's own files stay");
+    assert_eq!(switch::retire(home.path()).unwrap(), Vec::<std::path::PathBuf>::new(), "a home with neither has nothing to take");
+    let none = tempfile::tempdir().unwrap();
+    assert!(switch::retire(none.path()).unwrap().is_empty(), "a home today's app never ran in");
 }
 
 fn wait_for<T>(what: &str, mut got: impl FnMut() -> Option<T>) -> T {

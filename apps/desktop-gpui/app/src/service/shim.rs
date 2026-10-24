@@ -6,7 +6,6 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
 use super::Bundled;
-use crate::desktop::switch;
 
 /// Where the wsp command sits under a wsp home (`shimPath`), the path every agent's config and the unit run.
 pub fn path(home: &Path) -> PathBuf {
@@ -36,12 +35,54 @@ pub fn text(bundle: &Bundled) -> String {
 pub fn command_of(text: &str) -> Option<PathBuf> {
     let line =
         text.lines().map(str::trim).find_map(|line| line.strip_prefix("ELECTRON_RUN_AS_NODE=1 ").unwrap_or(line).strip_prefix("exec "))?;
-    let words = switch::shell_words(line)?;
+    let words = shell_words(line)?;
     let command = match words.iter().rposition(|word| word == "--wsp-argv") {
         Some(at) => words.get(at + 1)?,
         None => words.iter().rev().find(|word| *word != "\"$@\"")?,
     };
     Path::new(command).is_absolute().then(|| PathBuf::from(command))
+}
+
+/// A line's words as `/bin/sh` reads `shellQuote`'s output: single quoted runs, `\'` and bare words; `"$@"` is a word.
+fn shell_words(line: &str) -> Option<Vec<String>> {
+    let (mut words, mut word, mut open) = (Vec::new(), String::new(), false);
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => {
+                let mut closed = false;
+                for c in chars.by_ref() {
+                    if c == '\'' {
+                        closed = true;
+                        break;
+                    }
+                    word.push(c);
+                }
+                if !closed {
+                    return None;
+                }
+                open = true;
+            }
+            '\\' => {
+                word.push(chars.next()?);
+                open = true;
+            }
+            c if c.is_whitespace() => {
+                if open {
+                    words.push(std::mem::take(&mut word));
+                    open = false;
+                }
+            }
+            c => {
+                word.push(c);
+                open = true;
+            }
+        }
+    }
+    if open {
+        words.push(word);
+    }
+    Some(words)
 }
 
 /// The release a bundled command's files are, off the `package.json` two folders up from `app/main/cli.mjs`, which the

@@ -10,10 +10,10 @@ use gpui_kit::component::input;
 use gpui_kit::{actions, App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
 
 use crate::desktop::hosts::{self, HostsView, SwitchHost};
-use crate::desktop::{switch, zoom};
+use crate::desktop::zoom;
 use crate::TITLE;
 
-actions!(app, [About, Quit, CloseWindow, Hide, HideOthers, ShowAll, Minimize, Zoom, BringAllToFront, ToggleFullScreen, GoBack]);
+actions!(app, [About, Quit, CloseWindow, Hide, HideOthers, ShowAll, Minimize, Zoom, BringAllToFront, ToggleFullScreen]);
 
 /// Where the menu bar has which menus; Electron sets none on Linux.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,9 +41,8 @@ pub const HOSTS: &str = "Hosts";
 /// `QUIT_WORD` in `apps/desktop/src/quit.ts`.
 pub const QUIT: &str = "Quit wsp";
 
-/// The menus for `os`, each item with its action; `back` adds the way back to today's app to a Mac's app menu, and
-/// `hosts` the Hosts menu's rows.
-pub fn menus(os: Os, back: bool, hosts: Option<&HostsView>) -> Vec<Menu> {
+/// The menus for `os`, each item with its action, and `hosts` the Hosts menu's rows.
+pub fn menus(os: Os, hosts: Option<&HostsView>) -> Vec<Menu> {
     let menu = |name: &str, items: Vec<MenuItem>| Menu { name: name.to_owned().into(), items, disabled: false };
     let quit = MenuItem::action(QUIT, Quit);
     let close = MenuItem::action("Close Window", CloseWindow);
@@ -89,7 +88,6 @@ pub fn menus(os: Os, back: bool, hosts: Option<&HostsView>) -> Vec<Menu> {
                 TITLE,
                 [MenuItem::action(format!("About {TITLE}"), About), MenuItem::separator()]
                     .into_iter()
-                    .chain(back.then(|| [MenuItem::action(switch::GO_BACK, GoBack), MenuItem::separator()]).into_iter().flatten())
                     .chain([
                         MenuItem::os_submenu("Services", SystemMenuType::Services),
                         MenuItem::separator(),
@@ -142,7 +140,6 @@ pub fn init(cx: &mut App) {
     let os = Os::current();
     cx.bind_keys(bindings(os));
     zoom::init(os, cx);
-    cx.on_action(|_: &GoBack, cx| switch::back(cx));
     cx.on_action(|_: &Quit, cx| crate::desktop::quit::ask(cx));
     #[cfg(target_os = "macos")]
     cx.on_action(|_: &About, _| about_panel());
@@ -158,9 +155,9 @@ pub fn init(cx: &mut App) {
     refresh(cx);
 }
 
-/// Sets the menus as they stand now: the way back, and the Hosts rows with their check.
+/// Sets the menus as they stand now: the Hosts rows with their check.
 pub fn refresh(cx: &mut App) {
-    let menus = menus(Os::current(), cx.has_global::<switch::Back>(), hosts::view(cx).as_ref());
+    let menus = menus(Os::current(), hosts::view(cx).as_ref());
     cx.set_menus(menus);
 }
 
@@ -186,11 +183,11 @@ mod tests {
     }
 
     fn names(os: Os) -> Vec<String> {
-        menus(os, false, Some(&view(None, &[]))).iter().map(|m| m.name.to_string()).collect()
+        menus(os, Some(&view(None, &[]))).iter().map(|m| m.name.to_string()).collect()
     }
 
     fn named(os: Os, hosts: Option<&HostsView>, name: &str) -> Menu {
-        menus(os, false, hosts).into_iter().find(|m| m.name == name).unwrap_or_else(|| panic!("no {name} menu"))
+        menus(os, hosts).into_iter().find(|m| m.name == name).unwrap_or_else(|| panic!("no {name} menu"))
     }
 
     /// Each row with its check, as the menu bar draws it.
@@ -219,24 +216,13 @@ mod tests {
         assert_eq!(names(Os::Mac), [TITLE, "File", "Edit", "View", HOSTS, "Window"]);
         assert_eq!(names(Os::Windows), ["File", "Edit", "View", HOSTS, "Window"]);
         assert!(names(Os::Linux).is_empty());
-        let app = &menus(Os::Mac, false, None)[0];
+        let app = &menus(Os::Mac, None)[0];
         assert_eq!(rows(app), ["About wsp", "-", "Services", "-", "Hide wsp", "Hide Others", "Show All", "-", QUIT]);
-        assert_eq!(rows(&menus(Os::Windows, false, None)[0]), ["Close Window", "-", QUIT]);
+        assert_eq!(rows(&menus(Os::Windows, None)[0]), ["Close Window", "-", QUIT]);
         for os in [Os::Mac, Os::Windows] {
             let view = named(os, None, "View");
             assert_eq!(rows(&view), ["Actual Size", "Zoom In", "Zoom Out", "-", "Toggle Full Screen"]);
         }
-    }
-
-    #[test]
-    fn the_way_back_shows_only_where_the_command_names_todays_app() {
-        let app = &menus(Os::Mac, true, None)[0];
-        assert_eq!(
-            rows(app),
-            ["About wsp", "-", "Go Back to the Current wsp App", "-", "Services", "-", "Hide wsp", "Hide Others", "Show All", "-", QUIT]
-        );
-        assert_eq!(menus(Os::Windows, true, None).len(), menus(Os::Windows, false, None).len());
-        assert!(!rows(&menus(Os::Windows, true, None)[0]).contains(&switch::GO_BACK.to_owned()));
     }
 
     #[test]
@@ -248,7 +234,7 @@ mod tests {
     #[test]
     fn hosts_shows_once_there_is_a_host_this_computer_first_the_current_checked() {
         for os in [Os::Mac, Os::Windows] {
-            assert!(!menus(os, false, None).iter().any(|m| m.name == HOSTS), "no Hosts menu before an app window");
+            assert!(!menus(os, None).iter().any(|m| m.name == HOSTS), "no Hosts menu before an app window");
             assert_eq!(checks(&named(os, Some(&view(None, &[])), HOSTS)), [("zmac".to_owned(), true)], "no alias: this computer alone");
             let two = view(Some("studio"), &["box", "studio"]);
             assert_eq!(
@@ -256,7 +242,7 @@ mod tests {
                 [("zmac".to_owned(), false), ("box".to_owned(), false), ("studio".to_owned(), true)]
             );
         }
-        assert!(menus(Os::Linux, false, Some(&view(None, &["box"]))).is_empty(), "Linux has no menu bar, Hosts included");
+        assert!(menus(Os::Linux, Some(&view(None, &["box"]))).is_empty(), "Linux has no menu bar, Hosts included");
     }
 
     #[test]

@@ -16,6 +16,8 @@ pub mod swap;
 mod tests;
 #[cfg(test)]
 mod tests_swap;
+#[cfg(test)]
+mod tests_today;
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -52,9 +54,6 @@ pub mod words {
     }
     pub fn not_restarted(said: &str) -> String {
         format!("wsp did not restart: {said}")
-    }
-    pub fn other_app(app: &str) -> String {
-        format!("the wsp command on this computer runs today's wsp app at {app}, so the host would stay on that app; nothing was changed")
     }
     pub fn newer_command(theirs: &str, version: &str) -> String {
         format!("the wsp command on this computer runs wsp {theirs}, newer than {version}, so the host would not follow it; nothing was changed")
@@ -281,10 +280,8 @@ impl Shell {
             let serving = crate::service::serving_now(&self.deps.state);
             let refused =
                 serving.as_deref().is_none_or(|theirs| crate::service::Against::of(theirs, version) == crate::service::Against::Older);
-            match crate::service::left_as_is(home, serving.as_deref(), version).filter(|_| refused) {
-                Some(crate::service::Left::Today(app)) => return Some(Said::new(words::other_app(&app.to_string_lossy()))),
-                Some(crate::service::Left::Newer { theirs, .. }) => return Some(Said::new(words::newer_command(&theirs, version))),
-                None => {}
+            if let Some(left) = crate::service::left_as_is(home, serving.as_deref(), version).filter(|_| refused) {
+                return Some(Said::new(words::newer_command(&left.theirs, version)));
             }
         }
         let missing = if installed.kind == Kind::AppImage { swap::missing_tools(swap::path()) } else { Vec::new() };
@@ -678,10 +675,10 @@ fn put_back(cx: &mut App) {
 }
 
 /// The service's restart onto this bundle, from a thread of its own; the launch's wsp command written first, which the
-/// restart reads. `back`: whether the failure box offers the way back, which the words of a host left name.
-pub fn restart_host_blocking(back: bool) -> Result<crate::service::Followed, String> {
+/// restart reads.
+pub fn restart_host_blocking() -> Result<crate::service::Followed, String> {
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
-    runtime.block_on(crate::service::restart_host(back))
+    runtime.block_on(crate::service::restart_host())
 }
 
 /// The service's restart back onto this bundle after a swap put it back, from a thread of its own.
@@ -706,10 +703,9 @@ pub fn launch(settled: Option<swap::Settled>, state: PathBuf, vars: wsp_host_cli
     let version = wsp_host_client::HostClient::app_release();
     crate::desktop::log::info(&format!("update: moving the host onto wsp {version}"));
     crate::screens::dialogs::startup::hold_opening(true, cx);
-    let back = crate::screens::dialogs::startup::offers_back(cx);
     let task = off_main(move || {
         crate::service::on_launch(&state, &vars);
-        after_swap(settled, || restart_host_blocking(back), restart_back_blocking)
+        after_swap(settled, restart_host_blocking, restart_back_blocking)
     });
     cx.spawn(async move |cx| {
         let followed = task.await.unwrap_or_else(|_| Err("the restart stopped before it answered".into()));
