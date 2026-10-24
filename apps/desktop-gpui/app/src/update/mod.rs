@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use gpui_kit::{App, BorrowAppContext as _, Global};
+use gpui_kit::{App, BorrowAppContext as _, Global, Task};
 use serde_json::Value;
 
 use crate::screens::settings::pages::about::compare_versions;
@@ -68,6 +68,8 @@ pub mod words {
     pub fn not_updated(said: &str) -> String {
         format!("wsp did not update: {said}")
     }
+    pub const BROKE: &str = "the update stopped on an error in this app";
+    pub const STOPPED: &str = "the restart stopped before it answered";
     pub const UNFINISHED: &str = "The last update did not finish, so the app it replaced is kept.";
     pub const PUT_BACK: &str = "Put it back";
     pub const MAC_HOVER: &str =
@@ -445,15 +447,18 @@ fn set_download(download: Option<Download>, cx: &mut App) {
     }
 }
 
-/// `work` on a thread of its own, since a download or a host's restart blocks for as long as it takes.
-pub fn off_main<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> futures::channel::oneshot::Receiver<T> {
-    let (done, answer) = futures::channel::oneshot::channel();
-    std::thread::spawn(move || _ = done.send(work()));
-    answer
+/// `work` on a thread of its own, since a download or a host's restart blocks for as long as it takes; under a GPUI
+/// test, on the test's own loop. A panic in it comes back as its message.
+pub fn off_main<T: Send + Sync + 'static>(work: impl FnOnce() -> T + Send + 'static, cx: &App) -> Task<Result<T, String>> {
+    cx.background_executor().scheduler_executor().spawn_dedicated(move |_| async move {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)).map_err(|panic| {
+            panic.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| panic.downcast_ref::<String>().cloned()).unwrap_or_default()
+        })
+    })
 }
 
 /// One step on the shell's road, off the main thread, its ending in the app log and handed back to `done`.
-fn step<T: Send + 'static>(
+fn step<T: Send + Sync + 'static>(
     name: String,
     work: impl FnOnce(&mut Shell) -> Result<T, Said> + Send + 'static,
     done: impl FnOnce(Result<T, Said>, &mut App) + 'static,
@@ -461,9 +466,9 @@ fn step<T: Send + 'static>(
 ) {
     let Some(shell) = updates(cx).map(|u| u.shell.clone()) else { return };
     crate::desktop::log::info(&format!("update: {name}"));
-    let task = off_main(move || work(&mut shell.lock().unwrap_or_else(|e| e.into_inner())));
+    let task = off_main(move || work(&mut shell.lock().unwrap_or_else(|e| e.into_inner())), cx);
     cx.spawn(async move |cx| {
-        let Ok(got) = task.await else { return };
+        let got = task.await.unwrap_or_else(|panic| Err(Said { error: words::BROKE.into(), cause: Some(panic) }));
         let line = feed::log_line(&name, &got.as_ref().map(drop).map_err(Clone::clone));
         if got.is_ok() {
             crate::desktop::log::info(&line);
@@ -703,12 +708,15 @@ pub fn launch(settled: Option<swap::Settled>, state: PathBuf, vars: wsp_host_cli
     let version = wsp_host_client::HostClient::app_release();
     crate::desktop::log::info(&format!("update: moving the host onto wsp {version}"));
     crate::screens::dialogs::startup::hold_opening(true, cx);
-    let task = off_main(move || {
-        crate::service::on_launch(&state, &vars);
-        after_swap(settled, restart_host_blocking, restart_back_blocking)
-    });
+    let task = off_main(
+        move || {
+            crate::service::on_launch(&state, &vars);
+            after_swap(settled, restart_host_blocking, restart_back_blocking)
+        },
+        cx,
+    );
     cx.spawn(async move |cx| {
-        let followed = task.await.unwrap_or_else(|_| Err("the restart stopped before it answered".into()));
+        let followed = task.await.unwrap_or_else(|_| Err(words::STOPPED.into()));
         match followed {
             Err(said) => {
                 crate::desktop::log::error(&format!("update: the host did not follow: {said}"));
