@@ -7,6 +7,7 @@ pub mod heap;
 pub mod local_store;
 pub mod screens;
 pub mod scroll_trace;
+pub mod service;
 pub mod shell;
 pub mod sidebar;
 pub mod thread_view;

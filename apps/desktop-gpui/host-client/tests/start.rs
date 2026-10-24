@@ -179,6 +179,8 @@ esac
             // SAFETY: getuid reads this process's user and cannot fail.
             uid: unsafe { libc::getuid() },
             manager: Some(manager),
+            wsp: None,
+            rewrote: false,
             wait,
             say: Arc::new(move |line| said.lock().unwrap().push(line.to_owned())),
         }

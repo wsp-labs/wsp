@@ -27,6 +27,7 @@ use wsp_host_client::{Env, Failure, HostClient};
 use super::{onboarding, starting};
 use crate::desktop::switch;
 use crate::screens::Host;
+use crate::service;
 use crate::TITLE;
 
 /// `STARTING_SHOWN_MS`: an open that attaches to a host already up is quicker than this, and shows no starting window.
@@ -371,7 +372,7 @@ pub fn log_of(state: &Path, failed: Option<&Path>, app: &Path) -> PathBuf {
 }
 
 /// The window for this launch (`openOnHost`): the starting window after 800 ms while the host is attached to, or
-/// started from the unit today's app wrote and waited on (`openHostReady`), then onboarding on a host that holds
+/// started from its unit and waited on (`openHostReady`), the wsp command written first where this app owns it, then onboarding on a host that holds
 /// nothing and the app otherwise. A host that refuses this computer's token opens the app, whose window pairs.
 pub fn open(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
     open_titled(START_FAILED, state, env, runtime, app, cx);
@@ -388,8 +389,14 @@ pub fn open_later(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn F
 fn open_titled(title: &'static str, state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
     let starting = starting_after(STARTING_SHOWN, starting::open, cx);
     cx.set_global(Opening(true));
-    let road = Start::here(&state, &env);
+    let mut road = Start::here(&state, &env);
     let asked = runtime.spawn(async move {
+        // Off the main thread: under an AppImage the first launch of an image copies the host's files out of it.
+        let (state, vars) = (road.state.clone(), road.env.clone());
+        if let Ok(Some(owned)) = tokio::task::spawn_blocking(move || service::on_launch(&state, &vars)).await {
+            road.wsp = Some(owned.wsp);
+            road.rewrote = owned.rewrote;
+        }
         start::ready(&road, &System::new(&road.env), |client: Arc<HostClient>| async move { next(&client).await }).await
     });
     cx.spawn(async move |cx: &mut AsyncApp| {
