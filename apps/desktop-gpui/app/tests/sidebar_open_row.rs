@@ -146,7 +146,7 @@ fn card_shot(installed: bool, download: Option<Phase>, running: usize) -> (RgbaI
         ui::init(Side::Light, cx);
         ui::theme::set_theme("paper", cx);
         let app = installed.then(|| Installed { path: dir.path().join("wsp.AppImage"), kind: Kind::AppImage });
-        update::init(app, dir.path(), cx);
+        update::init(app, &dir.path().join("state.json"), dir.path(), cx);
         let download = download.map(|phase| Download { version: RELEASE.into(), phase });
         gpui_kit::BorrowAppContext::update_global::<update::Updates, _>(cx, |u, _| u.download = download);
         gpui_kit::component::Theme::global(cx).font_family.to_string()

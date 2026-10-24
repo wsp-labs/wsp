@@ -200,7 +200,7 @@ fn main() {
         }
         desktop::hosts::init(state.clone(), env.clone(), runtime.clone(), cx);
         if plain {
-            update::init(installed.clone(), &desktop::logs_of(&env), cx);
+            update::init(installed.clone(), &state, &desktop::logs_of(&env), cx);
         }
         menu::init(cx);
         cx.set_global(capture);

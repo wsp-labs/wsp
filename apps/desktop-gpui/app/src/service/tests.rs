@@ -432,3 +432,17 @@ fn resolves_the_home_as_path_resolve_does() {
     assert_eq!(resolved(Path::new("/srv/wsp-home/"), cwd), PathBuf::from("/srv/wsp-home"));
     assert_eq!(resolved(Path::new("/../../x"), cwd), PathBuf::from("/x"));
 }
+
+/// Catches: a swap that put the old app back after the new app had moved the host onto its own files, where claim reads
+/// the failed update's command as newer and leaves the host on files the stage then deletes.
+#[test]
+fn a_swap_put_back_takes_the_command_back_from_the_failed_newer_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join(".wsp");
+    let failed = bundle_in(&dir.path().join("stage/failed"), Os::Mac, "0.3.9");
+    let old = bundle_in(&dir.path().join("Applications"), Os::Mac, "0.3.8");
+    let wsp = claim(&home, Ok(failed.clone()), None, Some("0.3.8")).unwrap().unwrap().wsp;
+    assert_eq!(claim(&home, Ok(old.clone()), None, Some("0.3.9")), Ok(None), "claim leaves a newer host and command");
+    assert_eq!(take_back(&home, Ok(old.clone()), None), Ok(wsp.clone()));
+    assert_eq!(std::fs::read_to_string(&wsp).unwrap(), shim::text(&old), "the command runs the old app's files again");
+}
