@@ -39,6 +39,11 @@ struct Opening(bool);
 
 impl Global for Opening {}
 
+/// Holds later opens back while a launch moves its host before its own open, as while that open finds its window.
+pub fn hold_opening(on: bool, cx: &mut App) {
+    cx.set_global(Opening(on));
+}
+
 /// Whether a launch's own open is still finding its window.
 pub fn opening(cx: &App) -> bool {
     cx.try_global::<Opening>().is_some_and(|o| o.0)
@@ -375,21 +380,32 @@ pub fn log_of(state: &Path, failed: Option<&Path>, app: &Path) -> PathBuf {
 /// started from its unit and waited on (`openHostReady`), the wsp command written first where this app owns it, then onboarding on a host that holds
 /// nothing and the app otherwise. A host that refuses this computer's token opens the app, whose window pairs.
 pub fn open(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
-    open_titled(START_FAILED, state, env, runtime, app, cx);
+    open_titled(START_FAILED, state, env, runtime, app, false, cx);
 }
 
 /// An open after the launch's with no window standing: the same road, its box titled as a later open's. One host step
 /// at a time: an open while another is still finding its window joins that one.
 pub fn open_later(state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
     if !opening(cx) {
-        open_titled(OPEN_FAILED, state, env, runtime, app, cx);
+        open_titled(OPEN_FAILED, state, env, runtime, app, false, cx);
     }
 }
 
-fn open_titled(title: &'static str, state: PathBuf, env: Env, runtime: Arc<Runtime>, app: Rc<dyn Fn(&mut App)>, cx: &mut App) {
+/// `followed`: this open comes after the host was restarted onto this app's files, so a host of another release still
+/// serving is said, not asked about again.
+fn open_titled(
+    title: &'static str,
+    state: PathBuf,
+    env: Env,
+    runtime: Arc<Runtime>,
+    app: Rc<dyn Fn(&mut App)>,
+    followed: bool,
+    cx: &mut App,
+) {
     let starting = starting_after(STARTING_SHOWN, starting::open, cx);
     cx.set_global(Opening(true));
     let mut road = Start::here(&state, &env);
+    let again = (state.clone(), env.clone(), runtime.clone(), app.clone());
     let asked = runtime.spawn(async move {
         // Off the main thread: under an AppImage the first launch of an image copies the host's files out of it.
         let (state, vars) = (road.state.clone(), road.env.clone());
@@ -415,7 +431,79 @@ fn open_titled(title: &'static str, state: PathBuf, env: Env, runtime: Arc<Runti
                 app(cx);
                 starting.end(cx);
             }
-            Err(failed) => say_failed(title, &failed, &state, starting, cx),
+            Err(failed) => match crate::update::follow::older_host(&failed.failure.message).filter(|_| !followed) {
+                Some(theirs) => ask_follow(title, theirs.to_owned(), again, starting, cx),
+                None => say_failed(title, &failed, &state, starting, cx),
+            },
+        });
+    })
+    .detach();
+}
+
+/// An older host serving this app's state file (`replaceHost`): its turns read first, then restarted onto this app's
+/// files at once where none runs, else asked about, as where it would not say.
+fn ask_follow(title: &'static str, theirs: String, again: Again, starting: Starting, cx: &mut App) {
+    let mine = wsp_host_client::HostClient::app_release();
+    crate::desktop::log::info(&format!("wsp {theirs} serves {}; this app is {mine}", again.0.display()));
+    let (state, env) = (again.0.clone(), again.1.clone());
+    let read = again.2.spawn(async move { crate::desktop::quit::working_any_release(&state, &env).await });
+    cx.spawn(async move |cx: &mut AsyncApp| {
+        let working = read.await.ok().flatten();
+        cx.update(|cx| follow_or_ask(title, &theirs, &mine, working, again, starting, cx));
+    })
+    .detach();
+}
+
+fn follow_or_ask(
+    title: &'static str,
+    theirs: &str,
+    mine: &str,
+    working: Option<usize>,
+    again: Again,
+    mut starting: Starting,
+    cx: &mut App,
+) {
+    use crate::update::follow::{follow, replace_prompt, Follow};
+    if follow(working) == Follow::Restart {
+        return restart_then_open(title, again, starting, cx);
+    }
+    let Some(window) = starting.stand(cx) else {
+        cx.quit();
+        return;
+    };
+    let prompt = replace_prompt(theirs, mine, working);
+    let answers = [PromptButton::new(prompt.restart.clone()), PromptButton::cancel(prompt.quit)];
+    let answer =
+        window.update(cx, |_, window, cx| window.prompt(PromptLevel::Warning, &prompt.message, Some(&prompt.detail), &answers, cx));
+    cx.spawn(async move |cx: &mut AsyncApp| {
+        let picked = match answer {
+            Ok(answer) => answer.await.ok(),
+            Err(_) => None,
+        };
+        cx.update(|cx| match picked {
+            Some(0) => restart_then_open(title, again, starting, cx),
+            _ => cx.quit(),
+        });
+    })
+    .detach();
+}
+
+/// What a later open needs again: the state file, the environment, the runtime and the app's window.
+type Again = (PathBuf, Env, Arc<Runtime>, Rc<dyn Fn(&mut App)>);
+
+/// The service host restarted onto this app's files, then the open again, which says a host still not this release's.
+fn restart_then_open(title: &'static str, again: Again, starting: Starting, cx: &mut App) {
+    let restarted = crate::update::off_main(crate::update::restart_host_blocking);
+    cx.spawn(async move |cx: &mut AsyncApp| {
+        let said = restarted.await.unwrap_or_else(|_| Err("the restart stopped before it answered".into()));
+        cx.update(|cx| {
+            let (state, env, runtime, app) = again;
+            if let Err(said) = said {
+                let failed = Failed { failure: Box::new(Failure::new(crate::update::words::not_restarted(&said))), log: None };
+                return say_failed(title, &failed, &state, starting, cx);
+            }
+            starting.end(cx);
+            open_titled(title, state, env, runtime, app, true, cx);
         });
     })
     .detach();

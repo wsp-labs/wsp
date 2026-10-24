@@ -437,6 +437,18 @@ fn attached(state: &Path, env: &Env, alias: Option<&str>) -> Host {
     Host::new(&args, &env, None).with_release_rule(wsp_mcp::ReleaseRule::OwnOrNewer).with_account_window(ACCOUNT_DIAL)
 }
 
+/// The rows `op` answers under `key` from the host serving `state` on this computer, whatever its release: how the
+/// turns running on a host older than this app are read before it is replaced (`workingHere`), never a socket the app
+/// keeps.
+pub async fn listed_any_release(state: &Path, env: &Env, op: &str, key: &str) -> Result<Vec<Value>, Failure> {
+    let client = attached(state, env, None).client_any_release().await?;
+    let mut answer: Map<String, Value> = client.request(op, Map::new()).await?;
+    match answer.remove(key) {
+        Some(Value::Array(rows)) => Ok(rows),
+        _ => Err(Failure::new(format!("{op} answered no {key}"))),
+    }
+}
+
 /// The hosts on the account this computer holds records of, less the one this state file serves, each alias with its
 /// address, in the order `wsp hosts` lists them (`accountHosts`).
 pub fn account_hosts(state: &Path, env: &Env) -> Vec<(String, String)> {
