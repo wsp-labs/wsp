@@ -13,9 +13,13 @@ gpui-kit = { git = "https://github.com/longbridge/gpui-kit", rev = "14f59330a4aa
 wsp-host-client = { path = "../host-client" }
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# A symlink's target inside a release's zip, read before anything is unpacked.
+flate2 = "1"
 futures = "0.3"
 # Names sort as the web's localeCompare sorts them, by the same Unicode collation.
 icu_collator = "2.3"
+# A release zip's entry names compared in one Unicode form, as a Mac's volume compares them.
+icu_normalizer = "2.3"
 # The dither is rasterised once into an image GPUI draws, and its polylines need round joins and caps; a project's icon
 # is decoded from the formats the web takes.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
@@ -28,6 +32,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"] }
+# The update road's asks of the release page and its downloads, on the rustls the host client already links.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
 # A link's domain read as a browser reads the address, as the web's slateLinkDomain does with URL.
 url = "2"
 # The heap-profile feature's sampled call stacks (src/heap.rs); off in every build the app ships.

@@ -204,6 +204,7 @@ impl SettingsScreen {
         cx: &mut Context<Self>,
     ) -> Self {
         kept::keep(window.window_handle().window_id(), &at, cx);
+        cx.observe_global::<crate::update::Updates>(|_, cx| cx.notify()).detach();
         let search_field = cx.new(|cx| InputState::new(window, cx).placeholder("Search settings"));
         let search = cx.subscribe(&search_field, |this, field, event: &InputEvent, cx| {
             if let InputEvent::Change = event {

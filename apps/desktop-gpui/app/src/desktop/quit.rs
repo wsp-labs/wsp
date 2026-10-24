@@ -95,6 +95,13 @@ async fn running(state: &Path, env: &Env) -> Option<(std::sync::Arc<HostClient>,
     Some((client, running))
 }
 
+/// The turns running on this computer under a host of any release, or nothing where it would not say.
+pub async fn working_any_release(state: &Path, env: &Env) -> Option<usize> {
+    let sessions = wsp_host_client::listed_any_release(state, env, "sessions.list", "sessions").await.ok()?;
+    let workspaces = wsp_host_client::listed_any_release(state, env, "workspaces.list", "workspaces").await.ok()?;
+    Some(running_here(&sessions, &workspaces).len())
+}
+
 /// How many turns stopping wsp would stop; a count that fails reads as none.
 pub async fn working_here(state: &Path, env: &Env) -> usize {
     running(state, env).await.map_or(0, |(_, running)| running.len())

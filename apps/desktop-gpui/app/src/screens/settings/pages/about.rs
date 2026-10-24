@@ -14,11 +14,12 @@ use crate::screens::settings::model::req;
 use crate::screens::settings::page::{CardData, Ctx, Item};
 use crate::screens::settings::words::{built_when, read_when, stamp_ms};
 use crate::ui::{framed, ActivePalette, Button, MARK};
+use crate::update::{self, Act, Stage};
 
 /// `RELEASES` in `bundles.mjs`.
 const RELEASES: &str = "https://github.com/wsp-labs/wsp/releases";
 
-/// `ABOUT_WORDS` in `format.ts`, and `UPDATE_WORDS.notRestarted` in `shell/update.ts`.
+/// `ABOUT_WORDS` in `format.ts`.
 mod words {
     pub const TITLE: &str = "Version";
     pub const WSP: &str = "wsp";
@@ -29,6 +30,7 @@ mod words {
     pub const UNKNOWN: &str = "unknown";
     pub const OFF_HOVER: &str = "Update checks are off on the host: WSP_UPDATE_CHECK is 0.";
     pub const RESTART_HOST: &str = "Restart host";
+    pub const RESTART_TO_UPDATE: &str = "Restart to update";
     pub const RESTART_HOVER: &str = "Drops open terminal panes, localhost forwards and any sign-in in progress; running turns continue.";
     pub const APP: &str = "App";
     pub const APP_HOVER: &str = "The desktop shell holding this window.";
@@ -67,9 +69,6 @@ mod words {
     }
     pub fn get(version: &str) -> String {
         format!("Get {version}")
-    }
-    pub fn not_restarted(said: &str) -> String {
-        format!("wsp did not restart: {said}")
     }
 }
 
@@ -170,22 +169,45 @@ fn restart_shown(release: &ReleaseView, elsewhere: bool) -> bool {
     release.installed.is_some() && release.restart_refusal.is_none() && !elsewhere
 }
 
-/// `UpdateStep`: Restart host where newer files wait under the host, else the release page's Get.
-fn update_step(ctx: &Ctx, release: &ReleaseView, behind: Option<&str>) -> Option<Button> {
-    if let (Some(_), true) = (&release.installed, restart_shown(release, ctx.data.host_elsewhere)) {
-        let acts = ctx.acts.clone();
-        return Some(Button::outline("restart-host", words::RESTART_HOST).xs().tooltip(words::RESTART_HOVER).on_click(move |_, _, cx| {
-            let failed = acts.clone();
-            acts.call(req::<HostRestartRequest>(json!({})), cx, move |answer, cx| {
-                if let Err(said) = answer {
-                    failed.failed(words::not_restarted(&said), cx);
-                }
-            });
-        }));
+/// `STEP_WORDS`: the word of the step to the release, the same act the sidebar's update card offers.
+fn step_words(act: Act, version: &str) -> String {
+    match act {
+        Act::Link | Act::Get => words::get(version),
+        Act::Downloading => update::words::DOWNLOADING.to_owned(),
+        Act::Open => update::words::QUIT_AND_OPEN.to_owned(),
+        Act::Restart => words::RESTART_TO_UPDATE.to_owned(),
+        Act::RestartHost => words::RESTART_HOST.to_owned(),
     }
-    let version = behind?;
-    let url = release.latest.as_ref().map_or(RELEASES.to_owned(), |l| l.url.clone());
-    Some(Button::outline("get-release", words::get(version)).xs().on_click(move |_, _, cx| cx.open_url(&url)))
+}
+
+/// `UpdateStep`'s hover: what a restart of the host drops, or what Get does on this app's road.
+fn step_hover(act: Act, road: Option<&'static str>) -> Option<&'static str> {
+    match act {
+        Act::RestartHost => Some(words::RESTART_HOVER),
+        Act::Get => road,
+        _ => None,
+    }
+}
+
+/// `UpdateStep`: the stage's act, held while the download runs; Restart host goes to the host this page reads.
+fn update_step(ctx: &Ctx, stage: Stage, cx: &App) -> Button {
+    let id = if stage.act == Act::RestartHost { "restart-host" } else { "get-release" };
+    let mut step = Button::outline(id, step_words(stage.act, &stage.version)).xs().held(stage.act == Act::Downloading);
+    if let Some(hover) = step_hover(stage.act, update::hover(cx)) {
+        step = step.tooltip(hover);
+    }
+    let acts = ctx.acts.clone();
+    step.on_click(move |_, _, cx| {
+        if stage.act != Act::RestartHost {
+            return update::run(&stage, cx);
+        }
+        let failed = acts.clone();
+        acts.call(req::<HostRestartRequest>(json!({})), cx, move |answer, cx| {
+            if let Err(said) = answer {
+                failed.failed(update::words::not_restarted(&said), cx);
+            }
+        });
+    })
 }
 
 pub fn cards(ctx: &Ctx, _window: &mut Window, cx: &mut App) -> Vec<CardData> {
@@ -196,7 +218,10 @@ pub fn cards(ctx: &Ctx, _window: &mut Window, cx: &mut App) -> Vec<CardData> {
     let hover = release.and_then(|r| latest_hover(r, now));
     let notes = release.and_then(|r| r.latest.as_ref()).map_or(RELEASES.to_owned(), |l| l.url.clone());
     let step = match release {
-        Some(r) if restart_shown(r, ctx.data.host_elsewhere) || behind.is_some() => update_step(ctx, r, behind),
+        Some(r) if restart_shown(r, ctx.data.host_elsewhere) || behind.is_some() => {
+            let release = serde_json::to_value(r).ok();
+            update::stage(release.as_ref(), halves.host, !ctx.data.host_elsewhere, cx).map(|stage| update_step(ctx, stage, cx))
+        }
         Some(r) if r.state.to_string() != "off" => {
             let acts = ctx.acts.clone();
             Some(Button::outline("check-updates", words::CHECK_NOW).xs().held(r.state.to_string() == "checking").on_click(
@@ -312,5 +337,15 @@ mod tests {
         assert_eq!(state_line(Some(&unreached), None, now), "Could not reach GitHub just now");
         assert_eq!(state_line(Some(&release(json!({ "state": "off" }))), None, now), "Update checks are off");
         assert_eq!(read_when(3. * 86_400_000.), "3 d ago");
+    }
+
+    /// Catches: a step under another word than `STEP_WORDS` gives it, or the restart and road hovers on the wrong act.
+    #[test]
+    fn the_step_says_each_acts_word_and_hover() {
+        let acts = [Act::Link, Act::Get, Act::Downloading, Act::Open, Act::Restart, Act::RestartHost];
+        let said: Vec<_> = acts.iter().map(|&a| step_words(a, "0.5.0")).collect();
+        assert_eq!(said, ["Get 0.5.0", "Get 0.5.0", "Downloading", "Quit and open", "Restart to update", "Restart host"]);
+        let hovers: Vec<_> = acts.iter().map(|&a| step_hover(a, Some("road"))).collect();
+        assert_eq!(hovers, [None, Some("road"), None, None, None, Some(words::RESTART_HOVER)]);
     }
 }
