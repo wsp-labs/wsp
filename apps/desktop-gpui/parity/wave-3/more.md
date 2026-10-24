@@ -1,8 +1,9 @@
-# Wave 3 parity spec: more items
+# Parity spec: browser pane, desktop shell and Experimental switch, more items
 
-The items `spec.md` had no room for, in the same id sequences and the same shape. Builders tick these too. The last section holds what the browser spike must show for each road (D1).
+The items `spec.md` had no room for, in the same id sequences and the same shape. The last section holds what the
+browser pane's page must show (D1).
 
-## Browser pane (#2401)
+## Browser pane
 
 ### Elements
 
@@ -78,7 +79,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W3-BRW-154 Motion: panel drag line colour, 150 ms, default curve; W1-FRM-101 has the look only. `components/preview/RightPanelResizeHandle.tsx:31`
 - W3-BRW-155 Motion: sheet opacity, translate x 32 px, 200 ms, ease-in-out (default curve); the page stays where measured until transitionend. `components/ui/sheet.tsx:72`
 
-## The desktop shell (#2402)
+## The desktop shell
 
 ### Elements
 
@@ -268,11 +269,11 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W3-SHL-293 Bridge `openLogs`: this part; `settings/general.tsx:70`. `desktop:preload.ts:84`
 - W3-SHL-294 Bridge log channel: the preload's error and rejection listeners into app.log. `desktop:preload.ts:104`
 - W3-SHL-295 Bridge html class `desktop-mac` or `wco`: this part's frame. `desktop:preload.ts:115`
-- W3-SHL-296 Bridge `contextMenu`: #2390 (W2-UNO-010); `actions/contextMenu.ts:94`. `desktop:preload.ts:60` exists: app/src/ui/context_menu.rs:2.
+- W3-SHL-296 Bridge `contextMenu`: the context menu (W2-UNO-010); `actions/contextMenu.ts:94`. `desktop:preload.ts:60` exists: app/src/ui/context_menu.rs:2.
 - W3-SHL-297 Bridge `loginStart`, `setLoginStart`: host lifecycle part; `settings/settingsReads.ts:64`, `settings/general.tsx:69`. `desktop:preload.ts:85`
 - W3-SHL-298 Bridge `hostToken`, `hosts`, `switchHost`: host lifecycle part; `BootGate.tsx:35`, `shell/update.ts:82`. `desktop:preload.ts:48`
 - W3-SHL-299 Bridge `browserGuests`, `onGuestOpen`: browser pane part; `browser/guests.ts:164`. `desktop:preload.ts:63`
-- W3-SHL-300 Bridge `here`, `agents`, `install`, `finish`: onboarding (#2399); `desktop:onboarding.html:259`. `desktop:preload.ts:44`
+- W3-SHL-300 Bridge `here`, `agents`, `install`, `finish`: onboarding; `desktop:onboarding.html:259`. `desktop:preload.ts:44`
 - W3-SHL-301 Bridge `droppedPath`: no page caller on main. `desktop:preload.ts:59`
 - W3-SHL-302 `BrowserWindow` webPreferences: sandbox, contextIsolation, no nodeIntegration, webviewTag; one option set for app, onboarding, starting. `desktop:window.ts:134`
 - W3-SHL-303 Preload facts ride argv: `--wsp-version=`, `--wsp-html-class=`, `--wsp-bundle-hover=`, `--wsp-update-in-place=1`, `--wsp-update-why=`. `desktop:window.ts:141`
@@ -297,7 +298,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W3-SHL-319 Tray art: 18 pt and @2x template PNGs, the mark and a "?" stroked 2.4 on 16, black on clear. `apps/desktop/scripts/tray-icons.mjs:14`
 - W3-SHL-320 DMG window: light ground, 20 px dot grid, one glow, hairline arrow, "your setup, on cloud machines". `apps/desktop/scripts/dmg-background.mjs:16`
 
-## Experimental switch (#2402)
+## Experimental switch
 
 ### Elements
 
@@ -320,9 +321,9 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W3-SWT-053 GPUI app of another release: its client refuses any host not on its own release. No shot: needs a GPUI build of another release. `daemon/crates/wsp-mcp/src/release.rs:22`
 - W3-SWT-054 GPUI opened anyway: start-failed box, release sentence, Open log, Quit. No shot: native. exists: `app/src/screens/dialogs/startup.rs:365`. `desktop:starting.ts:45`
 - W3-SWT-055 Linux, macOS: one row; the launch differs (bundle, spawned binary). Check: a unit test per platform. `desktop:get-bundle.ts:53`
-- W3-SWT-056 Long note wraps at max-w-xl; the slot keeps its 10 rem beside. No shot: the row is new in #2402. `settings/rows.tsx:115`
+- W3-SWT-056 Long note wraps at max-w-xl; the slot keeps its 10 rem beside. No shot: the row is new. `settings/rows.tsx:115`
 - W3-SWT-057 Write refused: "That setting was not saved: <said>. It shows the host's value again." No shot: needs a refusing host. `protocol/store/useStore.ts:528`
-- W3-SWT-058 Long title wraps; the reset arrow follows it onto the next line. No shot: the row is new in #2402. `settings/rows.tsx:176`
+- W3-SWT-058 Long title wraps; the reset arrow follows it onto the next line. No shot: the row is new. `settings/rows.tsx:176`
 - W3-SWT-059 Phone width search: the row is a result in the sheet; a tap opens General and flashes the row. No shot: the row is new; W1-SET-030 shoots the sheet. `settings/SettingsSidebar.tsx:276`
 - W3-SWT-060 Read pending, if built on loginStart's bridge read: no row until the bridge answers, then the card grows. No shot: a moment as Settings opens. `settings/settingsReads.ts:63`
 - W3-SWT-061 First launch on an empty home: onboarding opens; a host field reads its default there, a shell-kept switch could still bounce. No shot: native. Check: app log. `desktop:main.ts:624`
@@ -354,7 +355,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 
 - W3-SWT-079 Card and head: `ui::Card` `.head`. `settings/rows.tsx:127`
 - W3-SWT-080 Held reason as the platform's title hover: none yet; `ui::tip` is wsp's own tooltip. `settings/privacy.tsx:39`
-- W3-SWT-081 Confirm, if ruled: `ui::AlertDialog` or #2399's 440 px frame; scale 0.98, opacity, 200 ms ease-in-out. `components/ui/dialog-styles.ts:6`
+- W3-SWT-081 Confirm, if one is added: `ui::AlertDialog` or the setup dialogs' 440 px frame; scale 0.98, opacity, 200 ms ease-in-out. `components/ui/dialog-styles.ts:6`
 - W3-SWT-082 Motion: reset arrow color, background, border, 150 ms default curve. `components/ui/button.tsx:22`
 - W3-SWT-083 Switch colours: track primary on, input off; thumb foreground off, primary-foreground on, shadow-sm/5; held 64%, not-allowed cursor. exists: `app/src/ui/toggle.rs:65`. `components/ui/switch.tsx:12`
 - W3-SWT-084 Pressed thumb also squares its corners to thumb/thumb*1.1, 150 ms CSS ease; `ui::Switch` keeps it round. `components/ui/switch.tsx:20`
@@ -363,30 +364,22 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W3-SWT-087 Reset arrow: ghost icon-xs 24 px, tooltip "Back to the default" above, 4 px off, opacity and 2 px shift. exists: `app/src/ui/card.rs:661`. `settings/rows.tsx:187`
 - W3-SWT-088 Below 640 px the slot stands under the words at the left; it moves right only from 640 (`sm:justify-end`). `settings/rows.tsx:121`
 
-## What the browser spike must show (D1)
+## What the browser page must show (D1)
 
-The spike thread (`wsp/gpui-browser-spike`) is asked nothing; this is the evidence each road needs before D1 is
-ruled. Read on 2026-10-19: gpui-kit 14f5933, gpui-fast 37f3959, wry 0.57.0, zed#62379 through `gh api`.
+The page is wry's web view as a child of GPUI's window (D1). `desktop-gpui --screen browser` runs the pane on a page
+the process serves, with no host, drives it through the platform's own input and prints one line per check
+(`app/src/screens/browser/check.rs:2`). What it must show, with the check that shows it where one exists:
 
-Road A, gpui-kit's web view on gpui-fast:
-1. macOS shot: a GPUI dropdown with its shadow, a tooltip and a dialog over a loaded localhost page.
-2. X11 shots with and without a compositing manager: the same menu over the page.
-3. A Wayland session: the app starts on XWayland and loads a page; a shot at 1.5x.
-4. The page focused on macOS: Cmd+L reaches the address bar, Cmd+R reloads, Cmd+W closes the tab, Cmd+V pastes into
-   the page, not the field.
-5. The same on Linux with Ctrl: which chords reach GPUI, and GPUI's frame rate while the page has focus.
-6. A press on the page closes a GPUI menu; a press outside returns typing to a GPUI field.
-7. Page scroll frame times on macOS and on Linux.
-8. RSS and PSS of the app and its WebKit processes with one page open, against Electron on the same page.
-9. The week-one numbers on gpui-fast, and `effects.rs`, `text.rs`, `pixels.rs` green with our patches cut again.
-
-Road B, wry as a child view on gpui-pre:
-1. macOS shot of a GPUI menu opened over the page (expected: under it).
-2. The snapshot swap: time from click to menu, and a pixel diff of the snapshot against the live page.
-3. Items 4 to 8 of road A.
-
-Road C, zed#62379 on our gpui-pre:
-1. The PR applied over `vendor/gpui-pre-0.3.9` with `gpui-patches.sh check` and our pixel tests green.
-2. macOS shot of a menu over a WKWebView page.
-3. A WebKitGTK page in the PR's native slot on X11 with a menu over it.
-4. The lines of patch and glue we would carry.
+1. A GPUI menu, a tooltip and a dialog drawn over a loaded page stand whole: "menu cut", "mask", "hit test", "press
+   on the menu reaches the app".
+2. On X11, with and without a compositing manager, the same menu over the page.
+3. On a Wayland session the page stands in the pane, as today's (`components/preview/BrowserGuests.tsx:117`); now
+   the app opens it in the system browser and says so (`page/mod.rs:84`).
+4. Keys before a press on the page go to the app; with the page focused it takes its keys and the app keeps its own
+   chords: "keys before a press go to the app", "page keys", "mod-k goes to the page", "mod-w goes to the app".
+5. A press on the page closes a GPUI menu, and a press outside returns typing to a GPUI field: "press on the page
+   closes the menu", "keys return to the app".
+6. The window draws no frames while the page is still: "the window rests".
+7. Page scroll frame rates on macOS and on Linux: the page prints `scroll-fps` in its title (`check.rs:474`).
+8. RSS and PSS of the app and its WebKit processes with one page open, against Electron on the same page: no check
+   reads these yet; the app must be measured.

@@ -1,10 +1,9 @@
-# Wave 1 parity spec
+# Parity spec: frame, Settings, Usage, sidebar, thread view, composer
 
-What today's Electron app draws and does on the six Wave 1 screens of map #2364: the frame and layout (#2390),
-Settings (#2391), Usage (#2392), the sidebar (#2393), the thread view (#2394) and the composer (#2395). Read from `main`
-at 1516a0c (v0.3.8), `apps/web` and `apps/desktop`, on 2026-10-18. Builders tick items by id; reviewers cite them. A
-state listed here and missing from the port is a blocker. `more.md` holds the items cut to fit this file, in the same
-id space; they count as listed.
+What today's Electron app draws and does on six screens, which the GPUI app must match: the frame and layout,
+Settings, Usage, the sidebar, the thread view and the composer. Read from `main` at 1516a0c (v0.3.8), `apps/web` and
+`apps/desktop`, on 2026-10-18. Each item has an id that stays fixed; every state listed is required in the GPUI app.
+`more.md` holds the items that did not fit this file, in the same id space; they count as listed.
 
 How to read an item:
 
@@ -19,10 +18,13 @@ How to read an item:
   (`shell/KeybindingDispatcher.tsx`) stands a rule down while a terminal, a text field or a browser tab owns the key.
 - Host operations use the names in `apps/desktop-gpui/host-client/src/ops/`. `gap` is a call the host client lacks;
   `window` is an Electron preload call the GPUI app answers itself.
-- Design: the map decision followed, the piece in `app/src/ui/` that draws it or "none yet", and what may be copied.
-  gpui-kit and Zed may be read and copied; zui and Zeron are never copied.
+- Design: which look wins (today's app first, the locked designs only where it has no piece), the piece in
+  `app/src/ui/` that draws it or "none yet", and what may be copied. gpui-kit and Zed may be read and copied; zui and
+  Zeron are never copied.
+- A deliberate difference is a place where the GPUI app may differ from today's on purpose; the port notes at the
+  end name each one.
 
-## Frame and layout (#2390)
+## Frame and layout
 
 ### Elements
 
@@ -90,13 +92,13 @@ How to read an item:
 
 ### Design
 
-- W1-FRM-053 Map decisions 4 and 5; today's 540 px panel over the locked 400.
+- W1-FRM-053 Today's look wins: the 540 px panel, not the locked design's 400.
 - W1-FRM-054 `Button`, `shortcut_tooltip`, `spinner`; rail, header, tabs, launcher, sheet: none yet.
 - W1-FRM-055 `Palette` has the sidebar's tokens (4422c64) but lacks sidebar-rail, sidebar-row-active, sidebar-row-rest, titlebar, scrollbar, glass-ink and the material tokens.
 - W1-FRM-056 gpui-kit `Sheet`, `h_resizable`, `TabBar`, `TitleBar`, `NativeMenu`; GPUI `cx.set_menus`.
 - W1-FRM-057 Grain on Linux, solid stand-ins, gpui-kit toasts in the notices slot.
 
-## Settings (#2391)
+## Settings
 
 ### Elements
 
@@ -194,12 +196,12 @@ How to read an item:
 
 ### Design
 
-- W1-SET-083 Map decisions 5 and 6; locked designs only where the app has no piece.
+- W1-SET-083 Today's look first; locked designs only where the app has no piece.
 - W1-SET-084 `Card` (`body`, `locked`), `section_head`, `Row` (its reset arrow), `Line`, `KeyCaps`, `glyph_frame`, `Select`, `Field`, `Button`, `CopyRow`, `Switch`, `Segmented`, `Stepper`, `Grid`, `GridRow`, `Skeleton`, `StepRow` draw the cards.
 - W1-SET-085 None yet: the settings sidebar's rows and search field, crumbs, theme tiles; Activity's history lines start from `Sparkline` (D12).
 - W1-SET-086 Copy gpui-kit `Switch`, `TabBar` (Segmented), `NumberInput`, `Skeleton`, `Tooltip`, `TextView::markdown`; Zed `canvas` for the lines. Glass card on the Mac only.
 
-## Usage (#2392)
+## Usage
 
 ### Elements
 
@@ -248,14 +250,14 @@ How to read an item:
 
 ### Design
 
-- W1-USE-034 Map decisions 5 and 6: today's app wins; agent inks, not primary, draw the lines.
+- W1-USE-034 Today's app wins: agent inks, not primary, draw the lines.
 - W1-USE-035 data-locked head 14 px regular, radius 14 px: `Card::locked`, `section_head`.
 - W1-USE-036 Totals, pools, No plan limit: `Card`; chart, table, mix: `section_head` over bare content.
 - W1-USE-037 `glyph_frame`, agent marks none yet; refresh `Button` icon xs; Use reset `Button` outline xs.
 - W1-USE-038 `Segmented`, `Skeleton`, `Sparkline` exist; rolling digits, meters and the dithered chart: none yet; the chart on gpui `canvas`, `PathBuilder`.
-- W1-USE-039 Reset dialog: today's 440 px alert, `AlertDialog`; notices are gpui-kit toasts until the notices ticket.
+- W1-USE-039 Reset dialog: today's 440 px alert, `AlertDialog`; gpui-kit toasts stand in for notices.
 
-## Sidebar (#2393)
+## Sidebar
 
 ### Elements
 
@@ -331,14 +333,14 @@ How to read an item:
 
 ### Design
 
-- W1-SBR-061 Map decisions 5 and 6: today's app first; wsp-design only where it has no piece.
+- W1-SBR-061 Today's app first; wsp-design only where it has no piece.
 - W1-SBR-062 `Crab`, `StatusMark`; the tile moves the crab off the slot; 8 kinds missing.
 - W1-SBR-063 None yet: tile, one-line row, sidebar head, rail, switcher, rename box.
 - W1-SBR-064 Corner, cards: `Button` icon, outline xs, text.
 - W1-SBR-065 gpui-kit `Popover`, `Input`, `HoverCard`, `PopupMenu`; GPUI `list`, `on_drag`.
 - W1-SBR-066 Solid stand-in for glass, grain on Linux, gpui-kit toasts for Undo.
 
-## Thread view (#2394)
+## Thread view
 
 ### Elements
 
@@ -411,13 +413,13 @@ How to read an item:
 
 ### Design
 
-- W1-THR-058 Map decisions 5, 6; the app wins over the locked design (message text 14 px, not 15/22).
+- W1-THR-058 Today's app wins over the locked design (message text 14 px, not 15/22).
 - W1-THR-059 ui/: `Button` (options, Wake, icon acts), `shortcut_tooltip` (find), `spinner`.
 - W1-THR-060 None yet: crumbs, list, bubble, call rows, find bar, minimap, Quote, noise field.
 - W1-THR-061 gpui-kit `MessageScroller`, `TextView`, highlighter, `Diff`, `Collapsible`, `ShimmerText`; GPUI `list`, `canvas`.
-- W1-THR-062 Raised: grain on Linux, solid find bar and pill without glass, gpui-kit toasts for copy failures.
+- W1-THR-062 Deliberate differences: grain on Linux, solid find bar and pill without glass, gpui-kit toasts for copy failures.
 
-## Composer (#2395)
+## Composer
 
 ### Elements
 
@@ -491,53 +493,71 @@ How to read an item:
 
 ### Design
 
-- W1-CMP-059 Map decisions 5 and 6; the one pane that frosts on the Mac too: #2373 blur, grain on Linux, solid where glass is off.
+- W1-CMP-059 Today's look; the one pane that frosts on the Mac too: our patch's backdrop blur, grain on Linux, solid where glass is off.
 - W1-CMP-060 Shared: drop `Card`, `glyph_frame`; dock `Choice`, `PickRow`, `Field`, `CopyRow`, `Button`; queue `Row`; `spinner`.
 - W1-CMP-061 None yet: shell, tray, send, stop, chips, tiles, drawer, menus, banner.
 - W1-CMP-062 Copy gpui-kit `Textarea` (tokens, on_paste), `Popover`, `PopupMenu`, `Tooltip`, toasts; Zed `anchored`.
 
-## Decisions
+## Port notes
 
-Recommended answers for the coordinator to rule. D1 to D6 are the ones builders raised. A ruling against an answer
-makes that a deliberate difference, with before and after images. More decisions, D23 on, are in `more.md`.
+Where GPUI cannot draw or behave as the browser does: how the GPUI app matches today's app, and the deliberate
+differences. Each note keeps its D number, which code and tests cite; `more.md` continues from D23.
 
-- D1 Host version: yes, `HostClient::version()` keeps the `version` the auth answer already carries
-  (`packages/runtime/src/serve.ts:889`, set at `packages/host/src/server.ts:642`; wsp-mcp's dial parses it and drops
-  it). The page reads the same value off its boot line today (`shell/shellVersion.ts:19`). "unknown" only when a host
-  sends none (`settings/about.tsx:101`). The GPUI binary's release stands in for `window.wsp.version`; App and Host
-  lines show when the two differ.
-- D2 Settings as the desktop shell (`window.wsp` set): yes; Electron is that shell, so the baselines show it. Its
-  rows: When you quit; Start at login (this computer's host with a service); Logs; App and Host lines; the update step
-  (Get opens the releases page until GPUI has an updater; Restart host stays `host.restart`); Glass on the Mac only;
-  installed fonts as a select; the chords a tab keeps plus Close the window, `mod+shift+w`.
-- D3 The minimap holds the whole thread: no. It holds the rows the view holds, as today
-  (`components/chat/timeline/list.tsx:359`), gaining ticks as older pages load. The whole thread means reading 4,900
-  events on open, a prompts-only host op that does not exist, and 900 ticks 0.57 px apart on a 512 px rail.
-- D4 The composer's store: yes, 5 MB, written off the UI thread. Today localStorage `wsp:composer-drafts:v1` is
+- D1 Host version: `HostClient::host_release()` returns the `version` the auth answer already carries
+  (`packages/runtime/src/serve.ts:889`, set at `packages/host/src/server.ts:642`), which wsp-mcp's dial parses and
+  keeps on its Host (`host-client/src/lib.rs:250`, read in `app/src/screens/settings/reads.rs:159`). The page reads
+  the same value off its boot line today (`shell/shellVersion.ts:19`). The mark is the host's version, else the app's
+  release, else "unknown", as `settings/about.tsx:101` does (`app/src/screens/settings/pages/about.rs:241`). The GPUI
+  binary's release stands in for `window.wsp.version` (`about.rs:78`); App and Host lines show when the two differ
+  (`about.rs:256`).
+- D2 Settings draws as the desktop shell (`window.wsp` set); Electron is that shell, so the baselines show it. Its
+  rows: When you quit; Start at login (this computer's host with a service); Logs; App and Host lines; the update
+  step, where Get downloads the release through the app's own updater and the releases page opens only when the app
+  cannot take it here (`app/src/update/mod.rs:145`), and Restart host stays `host.restart`; Glass on the Mac only;
+  installed fonts as a select; the chords a tab keeps plus Close the window, `mod+shift+w`
+  (`app/src/screens/settings/pages/general.rs`, `about.rs`, `appearance.rs`, `keybindings.rs`).
+- D3 The minimap holds the rows the view holds, not the whole thread, as today
+  (`components/chat/timeline/list.tsx:359`), gaining ticks as older pages load (`app/src/thread_view/render.rs`). The
+  whole thread would mean reading 4,900 events on open, a prompts-only host op that does not exist, and 900 ticks 0.57
+  px apart on a 512 px rail.
+- D4 The composer's store: capped at 5 MB, written off the UI thread. Today localStorage `wsp:composer-drafts:v1` is
   rewritten whole on every keystroke and caret move (`components/chat/composerDraftStore.ts:182`), capped only by the
-  origin quota. Port: one JSON file in the app's data folder, written 300 ms after the last edit and at once on send,
-  stash, switch and quit, through a temp file and a rename; past 5 MB drop the least recently edited drafts, never a
-  queued message or a stash entry. No import of Electron's drafts.
-- D5 Deliberate differences: grain is a tiled PNG of today's noise (`index.css:855`), as `ui/grain.rs` already draws
-  it, left out on Linux only where it measurably costs frames; solid stand-ins where glass is off (today's Linux app is
-  already solid) and where #2373's blur has not landed; gpui-kit toasts until the notices ticket, at today's corner
-  with today's words.
-- D6 Motion: neither GPUI's `with_animation` (time based, restarts per element id, no retarget, no cubic-bezier;
-  `gpui-pre-0.3.9/src/elements/animation.rs:84`) nor gpui-ce-motion (1bye/gpui-motion f20749b, MIT or Apache-2.0, a
-  day old, its adapter on `gpui-ce =0.2.2`, and its README says a retargeted tween restarts at full length). Use
-  gpui-kit 14f5933's own `base::motion` through our `ui/motion.rs`, which gpui/main already has: `transition` keeps its
-  state with `use_keyed_state`, starts a new target from the value sampled at that instant, and when the new target is
-  the old start scales the duration by CSS's reversing shortening factor (`crates/base/src/motion.rs:268`, `:326`), so
-  a hover that ends halfway back takes about half the time, as in Chromium. `Easing::CubicBezier` takes the curves
-  below as constants in `ui/motion.rs`; `Keyframes` and `Timing` run the loops, `Presence` the sheets, dialogs and
-  menus; `App::reduce_motion` is honoured. Colors ease in sRGB with premultiplied alpha, as `ui/motion.rs` does; the
-  end states match Chromium's, and only frames mid-transition may differ.
-- D7 Window minimum: none today (`desktop/window.ts:129`); set 360 x 360. Narrow states use 980, 760, 600 and 360.
+  origin quota. The app keeps the same key in its local store, one JSON file in the app's data folder
+  (`app/src/local_store.rs`), written 300 ms after the last edit and at once on send, stash, switch and quit, through
+  a temp file and a rename; the 5 MB cap is the whole file's, and past it the least recently edited drafts are
+  dropped, never a queued message or a stash entry (`app/src/screens/composer/store.rs`). No import of Electron's
+  drafts.
+- D5 Deliberate differences: grain may be left out on Linux only where it measurably costs frames, and solid stand-ins
+  stand where glass is off (today's Linux app is already solid; `app/src/screens/app_shell/material.rs`). The app
+  draws grain on Linux too. The app must draw grain as today's noise (`index.css:855`) on body, sidebar and inset;
+  Settings tiles it as a PNG (`app/src/ui/grain.rs`), but the main window now draws one flat grey at the tile's mean
+  (`app/src/screens/app_shell/frame.rs`). The composer's backdrop blur is on unless `DESKTOP_GPUI_COMPOSER_GLASS=off`
+  (`app/src/glass.rs`). Notices are the app's own toasts, a copy of Sonner's stack drawn as a gpui-kit Root plugin, at
+  today's corner with today's words (`app/src/ui/toast/`).
+- D6 Motion does not use gpui-ce-motion (1bye/gpui-motion f20749b, MIT or Apache-2.0, its adapter on `gpui-ce =0.2.2`,
+  and its README says a retargeted tween restarts at full length). Hovers, switches and other retargeted values use
+  gpui-kit 14f5933's own `base::motion` through our `ui/motion.rs`: `transition` keeps its state with
+  `use_keyed_state`, starts a new target from the value sampled at that instant, and when the new target is the old
+  start scales the duration by CSS's reversing shortening factor (`crates/base/src/motion.rs:268`, `:326`), so a hover
+  that ends halfway back takes about half the time, as in Chromium. `Easing::CubicBezier` takes the curves as
+  constants in `ui/motion.rs`; `Keyframes` and `Timing` run Settings' glide and flash
+  (`app/src/screens/settings/mod.rs`), `Presence` the sheets (`app/src/screens/app_shell/frame.rs`); dialogs fade in
+  through a hand-timed `open_fade` (`ui/motion.rs`); `App::reduce_motion` is honoured (`app/src/ui/status.rs`). GPUI's
+  `with_animation` (time based, restarts per element id, no retarget; `gpui-pre-0.3.9/src/elements/animation.rs:84`)
+  still runs one-shot fades and loops that never retarget: a slate piece's fade in, the minimap strip, the toolbar
+  pill, onboarding and the setup steps. Colors ease in sRGB with premultiplied alpha, as `ui/motion.rs` does; the end
+  states match Chromium's, and only frames mid-transition may differ.
+- D7 Window minimum: none today (`desktop/window.ts:129`) and none in the GPUI app, whose window options set no
+  `window_min_size` (`app/src/screens/dialogs/startup.rs`). Narrow states use 980, 760, 600 and 360.
 - D8 Keys: one dispatcher reading `DEFAULT_KEYBINDINGS` and `preferences.keybindings` with today's when-words, not
   GPUI keymap contexts; chords a field must see are actions in its key context; bare keys only when no field has focus.
 - D9 Per-window state (panel width and tabs, sidebar folds and picks, Settings page, drafts): a file in the app's data
   folder, never `preferences.set`.
-- D10 Context menus: the native menu where the OS has one, as Electron's; gpui-kit's popup elsewhere.
+- D10 Context menus: every right-click menu goes through the app's `ContextMenu` (`app/src/ui/context_menu.rs`). On
+  macOS it pops an AppKit `NSMenu` at the pointer, as Electron's `Menu.popup` does (`app/src/ui/context_menu/mac.rs`).
+  The app must show the OS menu on Linux too, as Electron pops it on every platform (`desktop/main.ts:156`); off the
+  Mac the app now draws its own port of the web's in-app menu (`actions/ContextMenuHost.tsx`). gpui-kit's `PopupMenu`
+  is used only for button dropdowns (`app/src/ui/menu.rs`).
 - D11 A reason in an HTML `title` today: a gpui-kit Tooltip in wsp's skin, same words.
 - D12 Shared pieces: since 4422c64 `ui/` has Switch, Segmented, Stepper, Grid and GridRow, Skeleton, Sparkline, grain,
   AlertDialog, row menus, Chip, `Card::body` and `locked`, and Row's reset arrow. Still missing: the sidebar's section
@@ -558,8 +578,9 @@ makes that a deliberate difference, with before and after images. More decisions
   mermaid show their source.
 - D21 The composer on gpui-kit `Textarea` with `InlineToken` chips; send waits while the IME composes; no
   `submit_on_enter`.
-- D22 Before later waves land: a tile click sends no `sessions.read`; a menu entry whose dialog is Wave 2 is refused
-  with its reason; the Search row stays held until the palette exists.
+- D22 The GPUI app has the thread view, the dialogs and the palette: a tile click opens the thread and marks it read
+  with `sessions.read` (`app/src/thread_view.rs`); the sidebar's menu entries open their dialogs (`app/src/shell.rs`);
+  the Search row opens the palette (`app/src/shell.rs`).
 
 ## Motion
 

@@ -1,10 +1,8 @@
-# Wave 2 parity spec: more items
+# Parity spec: terminal, pull request, slates, setup dialogs and palette, more items
 
+The items `spec.md` had no room for, in the same id sequences and the same shape.
 
-
-The items `spec.md` had no room for, in the same id sequences and the same shape. Builders tick these too.
-
-## Terminal (#2396)
+## Terminal
 
 ### Elements
 
@@ -146,7 +144,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W2-TRM-179 Scrollbar thumb at least 18 px. `terminal/ghostty/surface/layout.ts:8`
 - W2-TRM-180 Motion: tab X tooltip, opacity and translate, 150 ms, default curve. `components/ui/tooltip.tsx:46`
 
-## Pull request, Changes and Files (#2397)
+## Pull request, Changes and Files
 
 ### Elements
 
@@ -262,7 +260,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W2-PRP-176 Counts: whole "1,234" and a true minus in the PR pane. `components/chat/DiffStatLabel.tsx:36`
 - W2-PRP-177 Motion: skeleton token, 2 s, linear, infinite. `index.css:184`
 
-## Slates (#2398)
+## Slates
 
 ### Elements
 
@@ -471,7 +469,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W2-SLT-309 Quiet line: 12 px, muted, never red. `slate/pieces/quiet.tsx:7`
 - W2-SLT-310 Outcome line: 12 px, muted, a refusal in error ink, role status. `slate/pieces/outcome.tsx:8`
 
-## Setup dialogs, onboarding and the pair screen (#2399)
+## Setup dialogs, onboarding and the pair screen
 
 ### Elements
 
@@ -612,7 +610,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W2-DLG-185 Motion: reduced motion turns off every onboarding animation. `desktop:onboarding.html:87`
 - W2-DLG-186 Motion: reduced motion leaves the saved check still; dialog transitions unchanged. `index.css:1712`
 
-## Palette, switcher, activity and notices (#2400)
+## Palette, switcher, activity and notices
 
 ### Elements
 
@@ -727,7 +725,7 @@ The items `spec.md` had no room for, in the same id sequences and the same shape
 - W2-PAL-155 Motion: toast children opacity 400 ms ease. `sonner:dist/styles.css:304`
 - W2-PAL-156 Motion: swipe out keyframes 200 ms ease-out. `sonner:dist/styles.css:361`
 
-## Panes and pieces no ticket owns
+## Other panes and pieces
 
 ### Elements
 

@@ -1,32 +1,32 @@
-# Wave 3 parity spec
+# Parity spec: browser pane, desktop shell and Experimental switch
 
-Map wsp-labs/wsp-map#2364, ticket #2409. What today's app draws and does in Wave 3, read off `main` at 1516a0cd5
-(v0.3.8, 2026-10-17): the browser pane (#2401), what the desktop shell does around the window that the GPUI app must
-do itself before it can be switched on (#2402), and the Experimental switch in today's Settings (#2402). Builders tick
-items by id; reviewers cite them.
+What today's app draws and does on the parts the GPUI app must match in `parity/wave-3`, read off `main` at
+1516a0cd5 (v0.3.8, 2026-10-17): the browser pane, what the desktop shell does around the window that the GPUI app
+must do itself before it can be switched on, and the Experimental switch in today's Settings. Each item has an id that
+tests and code cite.
 
 **Reading an item.** One line: id, what, source `path:line`. Paths are under `apps/web/src/`; `desktop:` is
 `apps/desktop/src/`, `protocol:`, `runtime:` and `host:` are `packages/<name>/src/`; a test path without a folder is
 under `apps/desktop/test/`. GPUI paths in `exists:` are under `apps/desktop-gpui/` (`startup.rs`, `menu.rs` are
 `app/src/screens/dialogs/startup.rs`, `app/src/screens/app_shell/menu.rs`); "exists" means gpui/main af1e963
-already does it, so the builder checks it, and the parenthesis says how far it falls short. A state marked Shot has
-baselines `<id>-paper.png` and `<id>-graphite.png`, made by `parity/baseline.mjs --wave 3` from `states.mjs` here;
+already does it, so the item is checked against that code, and the parenthesis says how far it falls short. A state
+marked Shot has baselines `<id>-paper.png` and `<id>-graphite.png`, made by `parity/baseline.mjs --wave 3` from `states.mjs` here;
 No shot says why; Check names the test, command or OS read that proves a duty with no picture. Host operations use
 the names in `apps/desktop-gpui/host-client/src/ops/`; Gap marks one the client lacks; Electron and OS calls go by
 their API names. Design names the `app/src/ui/` piece that draws an element, or none yet, and each transition with
 its property, duration and curve ("default curve" is `cubic-bezier(0.4, 0, 0.2, 1)`, 150 ms unless given).
-`more.md` holds the items this file had no room for, in the same id sequences; builders tick both.
+`more.md` holds the items this file had no room for, in the same id sequences.
 
-**Design rules for every part.** Map decision 5: each screen looks exactly like today's Electron app, compared per
-state in Paper and Graphite. Map decision 4: a separate app on the same host protocol. Map decision 6: the browser
-pane comes last. Map decision 8: rollout through a switch in Settings, Experimental, and a cutover only at full
-parity. The fork: gpui-kit 14f5933 on `gpui-pre` 0.3.9, with our blur and rounded clipping (#2373); D1 asks to move
-it. gpui-kit (Apache-2.0) and wry (MIT or Apache-2.0) may be used and adapted; Zed's crates (GPL) are read, never
-pasted; zui and Zeron are never copied. The shell's native pieces have no `ui::` piece and follow the system (D10).
-Masks for a pixel diff, beyond Wave 2's: the computer's name in bars and rows, relative ages ("just now", "2m ago"),
-and the loading bar and spinner, which move.
+**Design rules for every part.** Each screen looks exactly like today's Electron app, compared per state in Paper
+and Graphite. The GPUI app is a separate app on the same host protocol. It is turned on by a switch in today's
+Settings, Experimental, and replaces today's app only at full parity. The base: gpui-kit 14f5933 on `gpui-pre` 0.3.9,
+with our blur and rounded clipping patch; the browser pane's page is wry on that base (D1). gpui-kit (Apache-2.0) and wry (MIT or
+Apache-2.0) may be used and adapted; Zed's crates (GPL) are read, never pasted; zui and Zeron are never copied. The
+shell's native pieces have no `ui::` piece and follow the system (D10). Masks for a pixel diff, beyond those of
+`parity/wave-2`: the computer's name in bars and rows, relative ages ("just now", "2m ago"), and the loading bar and
+spinner, which move.
 
-## Browser pane (#2401)
+## Browser pane
 
 Sources: `browser/`, `components/preview/`, `panes.ts`, `rightPanelStore.ts`, `components/RightPanelTabs.tsx`, `shell/shellCommands.ts`, `desktop:guests.ts`, `desktop:main.ts`, `desktop:app-procs.ts`. The panel's frame, tab strip, launcher, sheet and drag handle are W1-FRM's; this part is what the browser adds. The page is a native web view per D1. Driver kit (`states.mjs`): T, a thread of the state's own; its pane opened by `mod+shift+j`. Q, a page server on 127.0.0.1:47801 run with its folder in bench's, so the thread's port watch lists it (6 s: the daemon reads ports every 5 s); started again after W3-BRW-035 stops it. P, the same pages on 47803 from the driver's own process, a port no thread holds. C, 47802, nothing listening. "Type X": click the field, type X, Enter. A capture holds the `<webview>` page (it composites into the window), and states clip the panel.
 
@@ -81,7 +81,7 @@ Sources: `browser/`, `components/preview/`, `panes.ts`, `rightPanelStore.ts`, `c
 - W3-BRW-044 Tab cap refused, W3-BRW-026 raised. Shot: Q, T; ten tabs as W3-BRW-042, then "Add a panel", "Browser"; whole window. `rightPanelStore.ts:659`
 - W3-BRW-045 Narrow, the page in the sheet at 980. Shot: as W3-BRW-031 at width 980. `components/preview/BrowserGuests.tsx:144`
 - W3-BRW-046 Sheet with a menu up: the page leaves while a modal stands over the sheet. Shot: W3-BRW-045, "Preview menu". `components/preview/BrowserGuests.tsx:145`
-- W3-BRW-047 Inline panel at its 360 px floor with a page: the field takes what the buttons leave. No shot: the driver's drag of the edge moved nothing in two runs on Boat; Check: drag by hand, the panel stops at 360 px. `components/preview/PreviewPanelShell.tsx:69`
+- W3-BRW-047 Inline panel at its 360 px floor with a page: the field takes what the buttons leave. No shot: the driver's drag of the edge moved nothing in two runs; Check: drag by hand, the panel stops at 360 px. `components/preview/PreviewPanelShell.tsx:69`
 - W3-BRW-048 This computer's own panel: no route, "place:here". Shot: New thread, panel's Browser, type `127.0.0.1:47803`. `components/preview/BrowserSurface.tsx:219`
 - W3-BRW-049 Refusal bar and cards, route minting, a forwarded port. No shot: cloud or joined computer only; a thread here is never probed. `browser/refusal.ts:77`
 - W3-BRW-050 After an app reload the tabs return on the servers list, titled Browser. Check: W3-BRW-031, `location.reload()`, tab reads "Browser". `browser/tabs.ts:82`
@@ -141,9 +141,9 @@ Sources: `browser/`, `components/preview/`, `panes.ts`, `rightPanelStore.ts`, `c
 - W3-BRW-095 Motion: zoom pill opacity and translate y -4 to 0 px, 200 ms, `cubic-bezier(0, 0, 0.2, 1)`. `components/preview/ZoomIndicator.tsx:48`
 - W3-BRW-096 Motion: none on the page; it jumps to its slot when the sheet's 200 ms slide ends. `components/preview/BrowserGuests.tsx:154`
 
-## The desktop shell (#2402)
+## The desktop shell
 
-Sources: `desktop:` whole (`main.ts`, `host-lifecycle.ts`, `starting.ts`, `host-switch.ts`, `shim.ts`, `window.ts`, `menu.ts`, `tray.ts`, `host-feed.ts`, `needs-you.ts`, `deep-link.ts`, `quit.ts`, `close.ts`, `move.ts`, `awake.ts`, `self-update.ts`, `get-bundle.ts`, `app-log.ts`, `app-procs.ts`, `preload.ts`), `host:service.ts`, `host:host-lock.ts`, `host:cli/service.ts`, `apps/desktop/electron-builder.yml`, and the page callers of the bridge. Each list holds the host start first, then the shell around the window. D2 rules which host steps GPUI builds now; D10 and D11 the native pieces; items marked "was W2-UNO" replace those.
+Sources: `desktop:` whole (`main.ts`, `host-lifecycle.ts`, `starting.ts`, `host-switch.ts`, `shim.ts`, `window.ts`, `menu.ts`, `tray.ts`, `host-feed.ts`, `needs-you.ts`, `deep-link.ts`, `quit.ts`, `close.ts`, `move.ts`, `awake.ts`, `self-update.ts`, `get-bundle.ts`, `app-log.ts`, `app-procs.ts`, `preload.ts`), `host:service.ts`, `host:host-lock.ts`, `host:cli/service.ts`, `apps/desktop/electron-builder.yml`, and the page callers of the bridge. Each list holds the host start first, then the shell around the window. D2 says how GPUI starts the host; D10 and D11 the native pieces; items marked "was W2-UNO" replace those.
 
 ### Elements
 
@@ -278,9 +278,9 @@ Sources: `desktop:` whole (`main.ts`, `host-lifecycle.ts`, `starting.ts`, `host-
 - W3-SHL-117 Quit, Move, error boxes: app-modal native alerts, no parent window (D10). `desktop:main.ts:563` exists: `startup.rs:372` (the start-failed box only)
 - W3-SHL-118 Linux controls over the header: none yet; gpui-kit's TitleBar (D11). `desktop:window.ts:112`
 
-## Experimental switch (#2402)
+## Experimental switch
 
-Sources: `settings/general.tsx`, `settings/rows.tsx`, `settings/groups.ts`, `settings/settingsReads.ts`, `components/ui/switch.tsx`, `desktop:main.ts`, `desktop:preload.ts`, `desktop:get-bundle.ts`, `desktop:self-update.ts`, `protocol:views/desktop-bridge.ts`. The row is not on `main`: map decision 8 names it and #2402 adds it, the lane's only edit to today's app. Each item names the piece of today's app it is built from; D3 rules where it is kept, what it does and where it sits. Its pictures come after #2402; each state names the shot its look must match.
+Sources: `settings/general.tsx`, `settings/rows.tsx`, `settings/groups.ts`, `settings/settingsReads.ts`, `components/ui/switch.tsx`, `desktop:main.ts`, `desktop:preload.ts`, `desktop:get-bundle.ts`, `desktop:self-update.ts`, `protocol:views/desktop-bridge.ts`. The row is not on `main` at 1516a0cd5; this branch adds it to today's app (`settings/general.tsx:192`, `desktop:experimental.ts`), the only change the GPUI app needs there. Each item names the piece of today's app it is built from; D3 says where it is kept, what it does and where it sits. The row had no pictures when this was read; each state names the shot its look must match.
 
 ### Elements
 
@@ -297,7 +297,7 @@ Sources: `settings/general.tsx`, `settings/rows.tsx`, `settings/groups.ts`, `set
 
 ### States
 
-- W3-SWT-011 Off, Paper and Graphite. Shot: today's Startup and quit card, its neighbour (Start at login hides on the fixture, which has no unit); the row's own after #2402. `settings/general.tsx:167`
+- W3-SWT-011 Off, Paper and Graphite. Shot: today's Startup and quit card, its neighbour (Start at login hides on the fixture, which has no unit); the row's own once it is added. `settings/general.tsx:167`
 - W3-SWT-012 On, with its reset arrow, as Start at login off draws one. Shot: the same card with Keep awake off, which draws the arrow. `settings/general.tsx:163`
 - W3-SWT-013 GPUI app not found: no row, as Logs draws no card without its bridge member (D3). Check: a page test with the read null. `settings/general.tsx:171`
 - W3-SWT-014 Browser tab: no row. Check: a page test with `window.wsp` unset. `settings/general.tsx:152`
@@ -336,93 +336,113 @@ Sources: `settings/general.tsx`, `settings/rows.tsx`, `settings/groups.ts`, `set
 - W3-SWT-038 Slot under the words below 640 px: none yet; `ui::Row` keeps it beside (`app/src/ui/card.rs:705`). `settings/rows.tsx:123`
 - W3-SWT-039 Motion: track background-color 200 ms, default curve; thumb translate 150 ms, CSS `ease`; press widens 100 ms after 100 ms. `components/ui/switch.tsx:20`
 
-## Decisions for the coordinator to rule
+## Settled choices
 
-Each has a recommendation and its reasons. No Wave 3 builder starts before these are ruled. Read from code on `main`
-and gpui/main unless a line says it ran.
+How the GPUI app meets today's app where the two differ underneath. Items cite these by label. Read from code on
+`main` and gpui/main unless a line says it ran.
 
-**D1. The browser road: gpui-kit's web view, ruled as a move of the whole app to `gpui-fast`.** Today Chromium
-composites the `<webview>` into the page, so menus, tooltips and dialogs draw live over it; it hides only under a
-modal over the sheet (`components/preview/BrowserGuests.tsx:128`), and no snapshot swap exists. Road A, gpui-kit's
-`crates/webview` at 14f5933 (wry 0.53.3 as Longbridge's `lb-wry`, MIT or Apache-2.0): macOS puts the WKWebView between GPUI's base layer and its overlay views,
-X11 a child window under GPUI's overlays in a transparent window (square and shadowless without a compositor); it
-runs only on gpui-fast ("The gpui-pre backend is not supported", its README:18). Road B, wry `build_as_child` on our
-gpui-pre: the page sits above GPUI on macOS and X11, so every menu needs a snapshot or a popup window and today's
-look is never met. Road C, zed#62379: open, unreviewed, conflicting; on Linux its slot holds wgpu content, not a page.
-Every road: no Wayland web view (XWayland only); on Linux WebKitGTK runs while GPUI pumps GTK every 16 ms, and page
-focus reads as the window going inactive, holding GPUI near 30 fps; macOS Cmd chords reach GPUI first. The engine
-becomes WebKit: Web Inspector, and the shared `persist:wsp-browser` partition and the loopback service worker block
-(`desktop:page-session.ts:46`) need wry's data store (macOS 14+) and an init script. Recommendation: A. Rerun the
-week-one gate on gpui-fast and cut our three patches again before pane work; if either fails, port its composition
-into `vendor/gpui-pre-0.3.9` (same Zed base 93d7456, Apache-2.0) and vendor the crate without its gpui-fast line.
-Owner: under Wayland, the whole app on XWayland (recommended) or no pane. The spike's evidence per road: `more.md`.
+**D1. The browser road: the system's web view through wry, a child of GPUI's window on our gpui-pre.** Today
+Chromium composites the `<webview>` into the page, so menus, tooltips and dialogs draw live over it; it hides only
+under a modal over the sheet (`components/preview/BrowserGuests.tsx:128`), and no snapshot swap exists. The app embeds
+wry 0.53.5 (`app/Cargo.toml:49`) on gpui-pre 0.3.9 with our patches, not gpui-kit's `crates/webview` and not
+`gpui-fast`. On Linux the page is WebKitGTK in an X11 window wry makes a child of GPUI's, shaped by X11 SHAPE to its
+rectangle less whatever GPUI draws over it (`app/src/screens/browser/page/linux.rs:288`); on the Mac it is a WKWebView
+subview whose layer is masked to its rectangle less those holes and whose `hitTest:` passes a point in a hole to
+GPUI's view (`page/mac.rs:2`). A press on the page is replayed into GPUI, and the app's chords reach GPUI while the
+page holds the keys (`page/mod.rs:2`, `page/linux.rs:2`). Every tab shares one store in the app's data folder, as
+today's `persist:wsp-browser` (`page/mod.rs:109`, `app/src/main.rs:170`); its service workers are cleared before the
+first page loads and an init script stands in for today's block (`page/linux.rs:132`, `:417`, `page/mac.rs:91`). The
+engine is WebKit, so Web Inspector stands in for Chromium's tools. The app must hold the page in the pane on a
+Wayland session too, as today's does (`components/preview/BrowserGuests.tsx:117`). Now neither WebKitGTK nor wry
+embeds a page in a Wayland window, so on one the pane opens each page in the system browser and says so
+(`ON_WAYLAND`, `page/mod.rs:84`, its line at `:87`); asking GPUI for X11 so the app runs on XWayland
+(`OnWayland::XWayland`, `page/mod.rs:91`) is built but not picked. `desktop-gpui --screen browser` proves the cut, the presses and the keys on a real window
+(`app/src/screens/browser/check.rs:2`). What the page must show: `more.md`.
 
-**D2. Host start: port `host-lifecycle.ts`; while Experimental, load the unit today's app wrote and never write
-one.** GPUI only attaches (`host-client/src/lib.rs:170`). The unit runs `<home>/bin/wsp`, the Electron binary as node
-on its `cli.mjs` (`desktop:shim.ts:24`); a GPUI bundle has no node, and a unit naming another app's shim is rewritten
-(`desktop:host-lifecycle.ts:245`), so two apps writing their own would restart the host on every switch. The switch
-lives in today's app, so a unit exists. GPUI reads the lock with D9's checks; with no host it loads the unit as it
-stands (`launchctl enable`, `bootstrap gui/<uid> <plist>`; `systemctl --user daemon-reload`, `enable`, `restart`;
-names from sha256(state)[0:8], `host:service.ts:138`), then today's waits and words; no unit: the box says to open
-wsp once. Writing the shim and unit, the login PATH and the older-host replace wait for cutover, when the bundle
-carries node and `cli.mjs`. Proof with no service registered: managers run by bare name (`host:service.ts:423`), so a
-test puts stub `launchctl` and `systemctl` first on the child's PATH (as `parity/baseline.mjs:357`), starting
-host-client's Throwaway host on `bootstrap`/`restart` and answering `print`/`show`; unit tests assert each argv
-through a runner trait, as `ServiceDeps` (`host:cli/service.ts:75`). HOME a temp folder, `env_clear()`.
+**D2. Host start: `host-lifecycle.ts`'s start, ported into the host client.** The app opens on the host the lock
+names, else the one this computer's service manager brings up from its unit, and waits on it with today's waits and
+words (`host-client/src/start.rs:1`, `ready` at `:892`). It reads the lock with D9's checks (`start.rs:766`). A unit
+that stands is loaded as it stands (`launchctl enable`, `bootstrap gui/<uid> <plist>`; `systemctl --user
+daemon-reload`, `enable`, `restart`; names from sha256(state)[0:8]; `start.rs:121`) and never removed. A packaged app
+carries its own host as today's does: a Node, the host's built command and the daemon (`scripts/package.sh:4`,
+`app/src/service/mod.rs:1`). It writes the wsp command (`<home>/bin/wsp`) to run them; a missing unit is written by
+that command's `wsp up --service`; a host or command of an older release is taken over and restarted onto this
+bundle, a newer one is left and opened on, and a wsp command today's app wrote, naming an app that stands, is left
+alone while Go Back is offered (`service/mod.rs:5`, `start.rs:401`). A build that carries no host writes nothing: with
+no unit, the box says to open the wsp app once (`NOT_SET_UP`, `start.rs:62`). Quit and stop wsp must stop the host and
+remove its unit, as today's does through `wsp down`'s road (`desktop:host-lifecycle.ts:675`); now it stops the host
+and keeps the unit (`start.rs:7`). Tests run the managers through the `Runner` trait
+(`start.rs:320`) with a fake that records each argv (`host-client/src/start/tests.rs:171`).
 
 **D3. One host for both apps; the switch is the shell's, kept as Start at login is.** Both apps serve
 `<WSP_HOME or ~/.wsp>/state.json`, `host.lock` and `host-token` beside it (`host:host-lock.ts:132`,
 `app/src/main.rs:17`). Quitting today's app stops nothing (`desktop:host-lifecycle.ts:297`,
 `apps/desktop/test/smoke.electron.test.ts:590`) but through the Quit question's Stop (`desktop:main.ts:559`). The
 locks are different files (`<home>/desktop`, `desktop-gpui.lock`), so both apps can run. Today's app reads no
-preference before its window (`desktop:main.ts:429`). Recommendation: (1) a shell setting, a bridge read and write
-pair as `loginStart` (`settings/settingsReads.ts:62`) over a file in `<home>/desktop/`, read before `whenReady`: no
+preference before its window (`desktop:main.ts:429`). The switch lives in today's app (`desktop:experimental.ts:1`,
+`desktop:main.ts:300`): (1) a shell setting, a bridge read and write pair as `loginStart` (`settings/settingsReads.ts:62`) over a file in `<home>/desktop/`, read before `whenReady`: no
 host field, no record change, no older host refusing it; (2) on: open GPUI, then `app.quit()`, never the Quit
-question, once the open went, as Get's Quit and open (`desktop:get-bundle.ts:306`); a failure keeps the window with a
-notice; no confirm, as no Settings switch confirms; (3) while on, every way in (launch, Dock, second launch, a link,
-`desktop:main.ts:209-219`, `:636`) opens GPUI and quits; (4) GPUI's way back clears the file, opens today's app and quits,
-from its app menu until #2391's Settings has a row; (5) each finds the other in the home: the shim names today's
-executable (`desktop:shim.ts:24`, AppImage copy `:63`), GPUI writes `<home>/desktop-gpui.path` at launch; macOS
-`/usr/bin/open` as the swap does (`desktop:self-update.ts:327`); Linux has no precedent, so a detached spawn whose environment keeps WSP_HOME as `swapEnv` does (`:385`); (6) the row draws only when that
-file names an app and the window is on the host here (as Get's download, `shell/update.ts:77`): no `labs` gate, no `WSP_LABS=1`;
-(7) a card "Experimental" at the end of General's desktop cards, as Logs (`settings/general.tsx:171`); (8) with D4 a
-GPUI older than the host still attaches, so today's app updating no longer strands it.
+question, once the open went, as Get's Quit and open (`desktop:get-bundle.ts:306`); an open that fails turns the
+switch back off and the window stays and says why (`desktop:experimental.ts:132`); no confirm, as no Settings switch confirms; (3) while on, every way in (launch, Dock, second launch, a link,
+`desktop:main.ts:209-219`, `:636`) opens GPUI and quits (`desktop:experimental.ts:110`); (4) GPUI's way back clears
+the file, opens today's app and quits, from its app menu on the Mac (`app/src/screens/app_shell/menu.rs:92`,
+`app/src/desktop/switch.rs:275`); its Settings has no such row, and Linux, with no menu bar, has no way back: the app
+must offer one there; (5) each finds the other in the home: the shim names today's
+executable (`desktop:shim.ts:24`, AppImage copy `:63`), GPUI writes `<home>/desktop-gpui.path` at launch
+(`app/src/desktop/switch.rs:65`); macOS `/usr/bin/open` as the swap does (`desktop:self-update.ts:327`); Linux a
+detached spawn whose environment keeps WSP_HOME as `swapEnv` does (`:385`, `app/src/desktop/switch.rs:194`); (6) the
+row draws only when that file names an app and the window is on the host here (as Get's download,
+`shell/update.ts:77`): no `labs` gate, no `WSP_LABS=1`; (7) a card "Experimental" at the end of General's desktop
+cards, as Logs (`settings/general.tsx:192`); (8) with D4 a GPUI older than the host still attaches, so today's app
+updating no longer strands it.
 
-**D4. Release rule and closed enums (#2368): attach to a newer host, refuse an older one, an `Unknown` arm on every
-string enum.** The client takes only its own release (`daemon/crates/wsp-mcp/src/release.rs:20`), wsp-mcp's record
-0.3.7 (`record/server.json:3`), so af1e963 refuses today's 0.3.8 host. typify 0.8 writes no catch-all and makes
-`additionalProperties: false` into `deny_unknown_fields` (29 schemas), so one new value fails a whole reply
-(`host-client/src/lib.rs:97`). Values come often: WorkspacePhase gained two on 2026-10-12, event tags went from 17 to
-27 in ten days, eight releases in nine days. The page never meets this: it is the host's own. Recommendation: the
-record step adds `Unknown` arms and drops `deny_unknown_fields`; an unknown value draws neutral and an unknown event
-is skipped, as the slate's "This part needs a newer wsp" (`parity/wave-2/more.md:272`); dial newer hosts
-(`client_any_release`, `wsp-mcp/src/host.rs:84`) and say so as the page does (`shell/shellVersion.ts:32`); refuse
-older ones in today's words. A gpui build is mostly older than the host. A protocol number needs a host change and a
-bump nobody remembers.
+**D4. Release rule and closed enums: attach to a newer host, an `Unknown` arm on every string enum.** The client
+attaches to a host of its own release or a newer one (`ReleaseRule::OwnOrNewer`, `host-client/src/lib.rs:437`,
+`daemon/crates/wsp-mcp/src/release.rs:38`), so a GPUI build older than the host still opens. The protocol's types are
+generated from the record and opened to a newer host: no type refuses a field the record does not list, and every word
+list and union reads a value it does not know as `Unknown` (`host-client/build.rs:1`). Values come often:
+WorkspacePhase gained two on 2026-10-12, event tags went from 17 to 27 in ten days, eight releases in nine days. Each
+screen must draw an unknown value neutral and skip an unknown event, as the slate's "This part needs a newer
+wsp" (`parity/wave-2/more.md`, W2-SLT-122); today the screens map `Unknown` arms one by one (for example
+`app/src/screens/settings/pages/activity/wire.rs:475`). A newer host is said as the page says it ("this app is older than ...: get
+the new app", `app/src/screens/notices/words.rs:281`). An older host serving this app's state file is replaced as
+today's `replaceHost` replaces it (`desktop:host-lifecycle.ts:301`, `:311`): restarted onto this app's files, or asked
+about first while turns run on it (`app/src/screens/dialogs/startup.rs:448`). Rows of other hosts are read whatever their release only to
+count the turns running before a replace (`client_any_release`, `lib.rs:444`). A protocol number would need a host
+change and a bump nobody remembers.
 
-**D5. Updates: none in GPUI while Experimental; at cutover port `get-bundle.ts` and `self-update.ts`.** No Electron
-updater (`publish: null`, `apps/desktop/electron-builder.yml:16`): the host reads GitHub's latest release 30 s after
-start and every 6 h (`host:release.ts:19`), Get downloads and checks the sha256, a Mac app swaps itself by a detached
-script that kicks the service and rolls back (`desktop:self-update.ts:271`), Linux gets the AppImage in Downloads.
-GPUI's Get opens the release page (exists: `app/src/screens/sidebar/foot.rs:182`). Nothing reaches main before
-cutover (map decision 3), so there is nothing to update to. Trap: the last Electron release swaps into whatever
-`wsp-<v>-mac.zip` holds and rolls back unless the new app writes its version to `.wsp-update/up` within 60 s
-(`desktop:self-update.ts:341`, `desktop:main.ts:848`). Rejected: gpui-updater 0.4 (DMG only, a Team ID),
-cargo-packager-updater (no release since 2025-07), Sparkle (a feed and a key; again once a Developer ID exists).
+**D5. Updates: GPUI's own update road, ported from `get-bundle.ts` and `self-update.ts`.** No Electron updater
+(`publish: null`, `apps/desktop/electron-builder.yml:16`): the host reads GitHub's latest release 30 s after start and
+every 6 h (`host:release.ts:19`). The app downloads the newer release in the background, checks its sha256 and size,
+and offers Restart, which swaps it in by a detached script that brings the host and daemon over and rolls back on any
+failed step; any other install downloads the disk image or the AppImage into Downloads and offers Quit and open
+(`app/src/update/mod.rs:1`, `update/swap.rs:1`). It replaces itself from its own three downloads (`GPUI_NAMES` in
+`packages/protocol/src/bundles.mjs`, read at `update/feed.rs:79`), staged in `.wsp-gpui-update` beside the installed
+app, not today's `.wsp-update`, since both apps can stand in one Applications (`update/stage.rs:63`). No release
+workflow builds or publishes those downloads yet: the release must carry them before the road has anything to fetch.
+At cutover the app must also meet today's last Electron release, which swaps into whatever `wsp-<v>-mac.zip` holds
+and rolls back unless the new app writes its version to `.wsp-update/up` within 60 s (`desktop:self-update.ts:341`,
+`desktop:main.ts:848`). Not used: gpui-updater 0.4 (DMG only, a Team ID), cargo-packager-updater (no release since
+2025-07), Sparkle (a feed and a key).
 
 **D6. Signing, notarizing, the DMG and the Linux build.** Today ships ad hoc (`apps/desktop/scripts/after-pack.mjs:25`);
 the workflow signs and notarizes once `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
-`APPLE_TEAM_ID` are set (`.github/workflows/release.yml:173-197`). GPUI has no bundle. Needed: an `.app` with
-`CFBundleIdentifier`, `CFBundleExecutable`, `CFBundleShortVersionString` (the swap reads them), `CFBundleURLTypes`
-`wsp` and the icon, two darwin triples joined by `lipo`; `codesign --options runtime --timestamp`, inner Mach-O
-first; `xcrun notarytool submit --wait`, `stapler staple`; a DMG by `hdiutil create` in today's layout; the zip by
-`ditto -c -k --keepParent`; an AppImage on today's runtime, with libxkbcommon-x11 and a Vulkan loader. Entitlements:
-none for GPUI (my reading; the first notarized build says), allow-jit for a bundled node. Recommendation: one script
-in `apps/desktop-gpui/scripts/`, not a packager; its own bundle id while Experimental, `wsp.desktop` at cutover.
-Owner-only: join the Apple Developer Program, note the Team ID; make a Developer ID Application certificate on his
-Mac; export it as .p12 with a password into `CSC_LINK`, `CSC_KEY_PASSWORD`; make an app-specific password or an App
-Store Connect key; add `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD` as repository secrets; pick the
-Experimental bundle id. Linux needs no key. The same secrets sign Electron's next release.
+`APPLE_TEAM_ID` are set (`.github/workflows/release.yml:173-197`). The GPUI app is built by one script, not a packager
+(`apps/desktop-gpui/scripts/package.sh:1`): on macOS a universal "wsp Experimental.app" whose binary and Node are
+joined by `lipo` (`:247`), with `CFBundleIdentifier`, `CFBundleShortVersionString` and the icon, its DMG by `hdiutil`
+in today's drag layout and the zip by `ditto -c -k --keepParent` (`:345`); on Linux the binary and an x86_64 AppImage
+on today's static runtime (`:61`). With `CSC_LINK` and `CSC_KEY_PASSWORD` set it signs with that Developer ID, inner
+Mach-O first, `codesign --options runtime --timestamp`, the bundled Node with today's JIT entitlements and the app's
+binary with none (`:298`); else ad hoc. With the three Apple names also set it notarizes with `xcrun notarytool
+submit --wait` and staples (`:332`). Its bundle id is `wsp.desktop.experimental`, `WSP_GPUI_BUNDLE_ID` overriding it
+(`:53`); no `CFBundleURLTypes` while Experimental, since today's app keeps `wsp://` and hands links over (`:260`).
+Still to meet: no release workflow runs the script, so the release must build, sign and publish the GPUI app; the
+AppImage carries no libxkbcommon-x11 or Vulkan loader of its own and must run on the system's; at cutover the bundle
+id must become `wsp.desktop` and the bundle must claim `wsp://`. Outside the repository it needs an Apple Developer
+Program membership and its Team ID; a Developer ID Application certificate, exported as .p12 with a password into
+`CSC_LINK`, `CSC_KEY_PASSWORD`; an app-specific password or an App Store Connect key; `APPLE_ID`, `APPLE_TEAM_ID`,
+`APPLE_APP_SPECIFIC_PASSWORD` as repository secrets. Linux needs no key. The same secrets sign Electron's next
+release.
 
 **D7. Motion for the browser pane: today's, drawn by GPUI around a page that never animates.** Loading bar scaleX
 0.04 to 0.9 over 5.3 s, `cubic-bezier(0.1, 0.5, 0.2, 1)`, to 1 in 150 ms, fading after 220 ms, CSS `ease-out`, held
@@ -430,54 +450,67 @@ at 0.9 under reduced motion (`index.css:1397`); Refresh spins 1 s linear, reduce
 button fades and the field's end padding moves, 150 ms default curve; the zoom pill fades and drops 4 px, 200 ms
 `cubic-bezier(0, 0, 0.2, 1)`; tooltips fade and slide 2 px, 150 ms; More opens with no transition; the sheet slides
 32 px with opacity, 200 ms default curve; the page jumps to its slot on the slide's `transitionend`
-(`BrowserGuests.tsx:154`). Recommendation: Wave 2's D7 (`ui::motion` over gpui-kit's `Transition`); the spin keeps
-today's turning under reduced motion, which `ui::status::turning` does not (`app/src/ui/status.rs:34`); the web view's frame is set when a layout settles, never
-per frame, and it hides while a sheet slides, as today's jump (a native view moved per frame trails GPUI; my reading).
+(`BrowserGuests.tsx:154`). The app draws the bar's grow, hold and fade (`app/src/screens/browser/chrome.rs:24`,
+`:201`) and the zoom pill's curve (`bars.rs:170`) over gpui-kit's `Transition`, as `parity/wave-2`'s D7. Refresh
+must keep turning under reduced motion, as today's does (`components/preview/PreviewChromeRow.tsx:172`); now it turns
+with `ui::status::turning`, which stops there (`chrome.rs:125`, `app/src/ui/status.rs:147`). The page is moved to its slot after each frame that
+moves the slot (`page/mod.rs:239`), not only once a layout settles; in a sheet it leaves while a menu stands over it
+(`screen.rs:718`).
 
 **D8. A newer host at launch.** Today's app means to attach and say the app is older (`desktop:host-lifecycle.ts:305`),
 but the first-launch read then dials with the release check, which refuses at `auth` (`:611`,
-`host:verbs/client.ts:331`): likely "wsp could not start". Read, not run; no test covers it. Recommendation: GPUI
-copies the intent (D4); the coordinator files the path against main.
+`host:verbs/client.ts:331`): likely "wsp could not start". Read, not run; no test covers it. GPUI attaches to a newer
+host (D4, `host-client/src/lib.rs:437`) and says the app is older (`app/src/screens/notices/words.rs:281`).
 
 **D9. The token leaves only after Electron's three checks:** the lock's pid alive and this login's, a wsp page on its
-port, the page's `tokenHash` = sha256(host-token) (`desktop:host-lifecycle.ts:124-142`). wsp-mcp checks the pid
-(`aim.rs:166`) and sends the token to whatever answers (`aim.rs:179`). Recommendation: #2402 adds the two, with a test
-whose fake listener on the lock's port never reads the token.
+port, the page's `tokenHash` = sha256(host-token) (`desktop:host-lifecycle.ts:124-142`). wsp-mcp makes all three
+before the token is read (`proved_token`, `daemon/crates/wsp-mcp/src/aim.rs:218`), and tests whose listener on the
+lock's port serves no wsp page, or another token's digest, never read the token
+(`host-client/tests/token_checks.rs:78`, `:91`).
 
 **D10. Native pieces GPUI lacks.** gpui-pre 0.3.9 has notifications (UNUserNotificationCenter; notify-rust over
-D-Bus, no GTK) with clicks by tag, `prevent_idle_sleep`, `play_system_bell`, `request_attention`, client decorations,
-and `on_open_urls` on macOS; no status item, badge, parentless box or move. Recommendation: the tray by `tray-icon`
-0.26 and `muda` 0.21 (MIT or Apache-2.0) under `cfg(target_os = "macos")`, events through a channel to a foreground
-task, never into GPUI inside AppKit's menu loop (`app/src/ui/context_menu/mac.rs:3`); muda has no sublabel, so the
-state joins the label, a listed difference. Notifications by GPUI's own with a beep beside a line that sounds; when
-the system refuses one (no Developer ID), log it and bounce the Dock, as today. Badge `setBadgeLabel:`, `requestUserAttention:`, `NSBeep`, the Quit and
-Move boxes by `NSAlert runModal` from a spawned task: `objc2-app-kit`, already in `Cargo.lock`. Links: `on_open_urls`
-before `run` and `CFBundleURLTypes` on macOS; on Linux argv, carried by the lock's knock (`startup.rs:165` sends a
-bare connect). Move by `ditto`, then `cx.restart`. Mac only: tray, badge, alerts, `pmset -g assertions`, `open-url`,
-notifications (a Developer ID bundle; ad hoc only logs). Boat: notifications against a fake server under
-`dbus-run-session`, links by argv.
+D-Bus, no GTK, with our Linux patch `patches/gpui-pre-linux-0.3.9.notifications.patch`) with clicks by tag,
+`prevent_idle_sleep`, `play_system_bell`, `request_attention`, client decorations, and `on_open_urls` on macOS; no
+status item, badge, parentless box or move. The tray is drawn by `tray-icon` 0.26 and `muda` 0.21 (MIT or Apache-2.0)
+on macOS alone (`app/Cargo.toml:65`, `:92`); muda has no sublabel, so a row's state rides in its label after a middle
+dot, a listed difference (`app/src/desktop/tray.rs:2`). Notifications are GPUI's own with the system's alert sound
+beside a line that sounds; when the system refuses one, the app logs it and bounces the Dock (`desktop/notify.rs:2`,
+`:275`). The Dock's badge and bounce, the alert sound, app-modal alerts with no parent and the move to Applications go
+through `objc2-app-kit` (`desktop/mac.rs:2`); the move copies by `ditto`, then a detached shell relaunches the app
+once this process is gone (`mac.rs:56`). Links: `on_open_urls` on macOS (`app/src/main.rs:144`); on Linux the argument
+of a second launch, carried over the lock's socket (`desktop/links.rs:2`). Mac only: tray, badge, alerts, `pmset -g
+assertions`, `open-url`, notifications (a Developer ID bundle; ad hoc only logs). On Linux: notifications against a
+fake server under `dbus-run-session` (`app/tests/desktop_feed.rs:249`), links by argv.
 
 **D11. The Linux frame, Quit and zoom.** Electron draws its controls over the 52 px header on the desktops
-`desktop:window.ts:64` lists; GPUI keeps the system frame (`startup.rs:59`). Linux has no menu or tray, so closing
-quits unasked (`desktop:main.ts:379`). The View menu zooms the page (Cmd+0, Cmd+Plus, Cmd+-). Recommendation: the
-frame per desktop with gpui-kit's TitleBar; Linux's unasked quit kept; the zoom chords on GPUI's rem size for the
-run; Reload, Force Reload and Developer Tools dropped, as listed differences.
+`desktop:window.ts:64` lists. The app picks its frame the same way: on those desktops no system frame, with its own
+minimize, maximize and close drawn over the header's right end on its ground and ink; on every other Linux desktop the
+desktop's own frame (`app/src/desktop/frame.rs:1`, `:96`, `:195`). Linux has no menu or tray, so closing the last
+window quits unasked, as today (`app/src/main.rs:160`). The View menu's zoom scales every window by Chromium's steps
+and keeps its level across launches, as Chromium keeps a page's level (`desktop/zoom.rs:1`, through our gpui-pre
+patch's `set_window_zoom`); a focused terminal keeps the chords for its own text size. View holds Actual Size, Zoom
+In, Zoom Out and Toggle Full Screen; Reload, Force Reload and Developer Tools are dropped, as listed differences
+(`app/src/screens/app_shell/menu.rs:227`).
 
-**D12. Today's browser faults: copied, filed against main.** Back never returns to the servers list, Stop reloads,
-Hard reload is a plain reload, a port tab ignores the page's title, tabs come back empty after a reload, no key
-focuses the field, and New thread's panel names "place:here" (W3-BRW items cite each). Recommendation: GPUI copies
-each, as the look and behaviour are today's; a fix lands on main first. The frame path for a window with no guests
-(a browser tab, a host elsewhere, `BrowserSurface.tsx:246`) goes: GPUI draws natively for every host.
+**D12. Today's browser faults.** Today Back never returns to the servers list, Stop reloads, Hard reload is a plain
+reload, a port tab ignores the page's title, tabs come back empty after a reload, no key focuses the field, and New
+thread's panel names "place:here" (W3-BRW items cite each). The app must match each, as the look and behaviour are
+today's: Back must never reach the servers list (`components/preview/BrowserGuests.tsx:81`) and Stop must reload
+(`components/preview/BrowserSurface.tsx:165`); now the app's Back reaches the list and Stop stops
+(`app/src/screens/browser/check.rs:496`, `:489`, `screen.rs:276`). Hard reload is a plain reload (`more.rs:212`) and a
+port tab is named by its process and path, never the page's title (`tabs.rs:92`), as today. The frame path for a window
+with no guests (a browser tab, a host elsewhere, `BrowserSurface.tsx:246`) goes: GPUI holds a page whatever the host
+(`page/mod.rs:100`).
 
-**D13. Owners and Wave 2.** W2-UNO-011 to 015, 047 to 053 and 069 to 071 are replaced by the W3-SHL items marked
+**D13. Items that replace W2-UNO items.** W2-UNO-011 to 015, 047 to 053 and 069 to 071 are replaced by the W3-SHL items marked
 "was". The starting window, start-failed box and first-launch read stay W2-DLG-017, 038, 039 and 054; the W3-SHL
 items for them name each.
-Each `window.wsp` member becomes an in-process call owned by the part that lists it.
+Each `window.wsp` member becomes an in-process call made by the part that lists it (`app/src/desktop/`).
 
 ## Baselines
 
 `states.mjs` drives today's app to every Shot state for `parity/baseline.mjs --wave 3`, on the host
-`bench/fixture.sh` makes from a `main` checkout with a wsp-daemon staged (Wave 2's D1): without one the thread's
+`bench/fixture.sh` makes from a `main` checkout with a wsp-daemon staged (`parity/wave-2/spec.md`'s D1): without one the thread's
 port list never fills and every port reads as listening, so the down bar states show nothing. Browser states make a
 thread each with `wsp run`; Q is started in bench's folder, again after W3-BRW-035 stops it, and stopped by its pid; P runs in the driver; both
 keep fixed ports (47801, 47803; 47802 stays free), and the driver refuses to start if another process holds any of the three. Use a fresh fixture: the app keeps a
