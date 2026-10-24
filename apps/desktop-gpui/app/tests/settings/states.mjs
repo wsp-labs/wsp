@@ -19,7 +19,7 @@ const search = word => ({ type: ['[data-k="settings-search"]', word] });
  * last step that hovers keeps the pointer there for the shot, and a press marked `web: true` is the web's alone. An
  * `at` of "" keeps no page, as a first open of Settings, with `atShown` the page it lands on; `scroll: "foot"` shoots
  * the page scrolled to its foot. `skip` says why a state is shot by neither app. `pages: false` keeps a dialog's state to the one window;
- * `compare: false` is shot but left out of the compare, since another ticket owns that dialog. `width` is the
+ * `compare: false` is shot but left out of the compare, since that dialog is compared on its own. `width` is the
  * window's CSS width, 1280 where none is named. `gpui` steps run in the GPUI app alone before the web's: under 768 px
  * the web's sidebar is a sheet, shut, and the app's frame draws no sheet (D23), so the app's sidebar is put away for
  * the page to stand at the web's width. */
@@ -75,7 +75,7 @@ export const STATES = [
   ...specStates(),
 ];
 
-/** The Wave 1 parity spec's Settings and Usage states (/root/review/parity/spec.md and more.md, W1-SET and W1-USE
+/** The Wave 1 parity spec's Settings and Usage states (parity/wave-1/spec.md and more.md, W1-SET and W1-USE
  * items with a drive), each named by its id with the spec's words in `how`, driven as parity/wave-1 drives Electron.
  * A state the spec lists that these tools cannot reach carries `skip`, the reason, and is shot by neither app. */
 function specStates() {
