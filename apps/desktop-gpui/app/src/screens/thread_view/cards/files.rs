@@ -65,11 +65,17 @@ pub fn let_go(released: Vec<Released>, window: &mut Window, cx: &mut App) {
                 continue;
             }
         }
-        if let Some(decoded) = image.clone().get_render_image(window, cx) {
-            cx.drop_image(decoded, Some(window));
-        }
-        image.remove_asset(cx);
+        release(image, window, cx);
     }
+}
+
+/// Takes an image GPUI decoded whole out of the window's atlas and its cache; asking for one it never decoded starts
+/// a decode.
+pub fn release(image: Arc<Image>, window: &mut Window, cx: &mut App) {
+    if let Some(decoded) = image.clone().get_render_image(window, cx) {
+        cx.drop_image(decoded, Some(window));
+    }
+    image.remove_asset(cx);
 }
 
 /// A message's image as the host sent it, made ready off the UI thread: its bytes for the dialog, its size, and the

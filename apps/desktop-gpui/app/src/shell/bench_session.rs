@@ -90,6 +90,19 @@ fn resident() -> Option<u64> {
     Some(pages * page.max(0) as u64)
 }
 
+/// What the C allocator holds from the system and what of it is in use, where glibc says it: the Rust heap and every
+/// C library's (fonts, the GPU driver) together.
+fn malloc() -> Option<(u64, u64)> {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        // SAFETY: mallinfo2 only reads the allocator's own counters.
+        let info = unsafe { libc::mallinfo2() };
+        Some(((info.arena + info.hblkhd) as u64, (info.uordblks + info.hblkhd) as u64))
+    }
+    #[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+    None
+}
+
 fn mb(bytes: u64) -> f64 {
     (bytes as f64 / 1_048_576. * 10.).round() / 10.
 }
@@ -104,20 +117,29 @@ fn open_thread(shell: &Shell) -> Option<String> {
 /// One reading's memory as the bench prints it and keeps it: resident size, the live heap where counted, and the
 /// window's atlas.
 fn memory(window: &Window) -> (String, serde_json::Value) {
-    let (rss, heap, atlas) = (resident(), crate::heap::live(), window.atlas_usage());
+    let (rss, heap, peak, atlas) = (resident(), crate::heap::live(), crate::heap::take_peak(), window.atlas_usage());
+    let (gpu, allocator) = (window.gpu_usage(), malloc());
     let said = format!(
-        "rss {} heap {} atlas {:.1} MB glyphs {:.1} MB images",
+        "rss {} heap {}{} atlas {:.1} MB glyphs {:.1} MB images{}{}",
         rss.map_or("-".to_owned(), |b| format!("{:.1} MB", mb(b))),
         heap.map_or("-".to_owned(), |(b, n)| format!("{:.1} MB in {n} allocations", mb(b as u64))),
+        peak.map_or(String::new(), |b| format!(" peak {:.1} MB", mb(b as u64))),
         mb(atlas.glyphs),
         mb(atlas.images),
+        gpu.map_or(String::new(), |g| format!(" gpu {:.1} MB paths {:.1} MB instances", mb(g.path_textures), mb(g.instance_data))),
+        allocator.map_or(String::new(), |(held, used)| format!(" malloc {:.1} MB held {:.1} MB used", mb(held), mb(used))),
     );
     let kept = serde_json::json!({
         "rss_mb": rss.map(mb),
         "heap_mb": heap.map(|(b, _)| mb(b as u64)),
         "heap_allocations": heap.map(|(_, n)| n),
+        "heap_peak_mb": peak.map(|b| mb(b as u64)),
         "atlas_glyphs_mb": mb(atlas.glyphs),
         "atlas_images_mb": mb(atlas.images),
+        "gpu_path_textures_mb": gpu.map(|g| mb(g.path_textures)),
+        "gpu_instance_data_mb": gpu.map(|g| mb(g.instance_data)),
+        "malloc_held_mb": allocator.map(|(held, _)| mb(held)),
+        "malloc_used_mb": allocator.map(|(_, used)| mb(used)),
     });
     (said, kept)
 }

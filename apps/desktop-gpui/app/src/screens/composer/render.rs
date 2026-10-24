@@ -11,6 +11,7 @@ impl Render for Composer {
     /// The composer, and its height as drawn, which a parent that draws it cached lays it out at.
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.built += 1;
+        self.keep_previews(window, cx);
         let (drawn, laid, stale, me) = (self.drawn.clone(), self.laid.clone(), self.stale.clone(), cx.entity().downgrade());
         // Laid out cached at a height it no longer has, the composer asks to be drawn whole in the next frame.
         let measure = canvas(
