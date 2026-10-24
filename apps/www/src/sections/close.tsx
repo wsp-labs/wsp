@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { POSTS } from "@/blog";
 import { Lockup } from "@/components/brand";
 import { Install } from "@/components/download";
 import { Field } from "@/components/field";
@@ -66,6 +67,11 @@ export function Footer() {
           <a className="transition-colors hover:text-foreground" href="/compare">
             Compare
           </a>
+          {POSTS.length > 0 && (
+            <a className="transition-colors hover:text-foreground" href="/blog">
+              Blog
+            </a>
+          )}
           <a className="transition-colors hover:text-foreground" href={REPO}>
             GitHub
           </a>
