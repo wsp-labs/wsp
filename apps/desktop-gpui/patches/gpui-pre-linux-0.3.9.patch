@@ -1,5 +1,20 @@
+diff --git a/src/linux/wayland/window.rs b/src/linux/wayland/window.rs
+index 8d92234..b20f49d 100644
+--- a/src/linux/wayland/window.rs
++++ b/src/linux/wayland/window.rs
+@@ -2069,6 +2069,10 @@ impl PlatformWindow for WaylandWindow {
+             .clone()
+     }
+ 
++    fn gpu_usage(&self) -> Option<gpui::GpuUsage> {
++        self.borrow().renderer.as_ref().map(|r| r.gpu_usage())
++    }
++
+     fn show_window_menu(&self, position: Point<Pixels>) {
+         let state = self.borrow();
+         let serial = state.client.get_serial(SerialKind::MousePress);
 diff --git a/src/linux/x11/window.rs b/src/linux/x11/window.rs
-index f6ee76a..9b45c74 100644
+index f6ee76a..8bed7b7 100644
 --- a/src/linux/x11/window.rs
 +++ b/src/linux/x11/window.rs
 @@ -507,7 +507,7 @@ impl X11WindowState {
@@ -24,3 +39,14 @@ index f6ee76a..9b45c74 100644
          let mut bounds = params.bounds.to_device_pixels(scale_factor);
          if bounds.size.width.0 == 0 || bounds.size.height.0 == 0 {
              log::warn!(
+@@ -1793,6 +1799,10 @@ impl PlatformWindow for X11Window {
+             .clone()
+     }
+ 
++    fn gpu_usage(&self) -> Option<gpui::GpuUsage> {
++        self.0.state.borrow().renderer.as_ref().map(|r| r.gpu_usage())
++    }
++
+     fn show_window_menu(&self, position: Point<Pixels>) {
+         let state = self.0.state.borrow();
+ 

@@ -7,7 +7,9 @@
 # holds 2 s once its rows are drawn, says "bench: session step <i>/30", and holds 3 s more, in which this script reads
 # the app's memory: on macOS the physical footprint (mem.sh, Activity Monitor's number), the graphics memory
 # `footprint <pid>` names (IOAccelerator) and its whole report; elsewhere resident size. Each line also carries the
-# app's own reading of its window's atlas, the GPU textures of glyphs and images. The app then opens the first 3
+# app's own reading of its window's atlas, the GPU textures of glyphs and images, of its renderer's path textures and
+# instance data where the platform reads them (not the Mac's window), and on Linux what glibc's allocator holds and what
+# of it is in use; with BENCH_HEAP=1, the most the live heap held since the reading before. The app then opens the first 3
 # threads again and exits 1 if one reads otherwise than it first did, and presses Ctrl+Tab 60 times, each read the same
 # way after a 1 s glance ("bench: session walk <i>/60"). It stops only what it started, by pid, and never touches the
 # live host: the app and the host each get a temp HOME and nothing else of the caller's environment.
@@ -83,7 +85,7 @@ watcher=$!
 
 darwin=""
 [ "$(uname -s)" = Darwin ] && darwin=1
-printf 'step\tthread\trows\tapp_rss_mb\tapp_heap_mb\tatlas_glyphs_mb\tatlas_images_mb\tmem_sh_mb\tfootprint\tgraphics\n' > "$out/session.tsv"
+printf 'step\tthread\trows\tapp_rss_mb\tapp_heap_mb\tatlas_glyphs_mb\tatlas_images_mb\tmem_sh_mb\tfootprint\tgraphics\theap_peak_mb\tgpu_paths_mb\tgpu_instances_mb\tmalloc_held_mb\tmalloc_used_mb\n' > "$out/session.tsv"
 seen=0
 began=$(date +%s)
 while kill -0 "$app_pid" 2>/dev/null; do
@@ -102,6 +104,11 @@ while kill -0 "$app_pid" 2>/dev/null; do
     heap=$(echo "$line" | sed -n 's/.* heap \([0-9.]*\) MB.*/\1/p')
     glyphs=$(echo "$line" | sed -n 's/.* atlas \([0-9.]*\) MB glyphs.*/\1/p')
     images=$(echo "$line" | sed -n 's/.* glyphs \([0-9.]*\) MB images.*/\1/p')
+    peak=$(echo "$line" | sed -n 's/.* peak \([0-9.]*\) MB.*/\1/p')
+    paths=$(echo "$line" | sed -n 's/.* gpu \([0-9.]*\) MB paths.*/\1/p')
+    instances=$(echo "$line" | sed -n 's/.* paths \([0-9.]*\) MB instances.*/\1/p')
+    held=$(echo "$line" | sed -n 's/.* malloc \([0-9.]*\) MB held.*/\1/p')
+    used=$(echo "$line" | sed -n 's/.* held \([0-9.]*\) MB used.*/\1/p')
     mem=$("$bench/mem.sh" "$app_pid" 2>/dev/null || echo -)
     fp=-
     gfx=-
@@ -110,7 +117,8 @@ while kill -0 "$app_pid" 2>/dev/null; do
       fp=$(sed -n 's/.*Footprint: *\([0-9.]* [KMG]*B\).*/\1/p' "$out/footprint-$step.txt" | head -1)
       gfx=$(awk '/IOAccelerator/ { print $1 " " $2; exit }' "$out/footprint-$step.txt")
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$step" "$name" "$rows" "${rss:--}" "${heap:--}" "${glyphs:--}" "${images:--}" "$mem" "${fp:--}" "${gfx:--}" | tee -a "$out/session.tsv"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$step" "$name" "$rows" "${rss:--}" "${heap:--}" "${glyphs:--}" "${images:--}" "$mem" "${fp:--}" "${gfx:--}" \
+      "${peak:--}" "${paths:--}" "${instances:--}" "${held:--}" "${used:--}" | tee -a "$out/session.tsv"
   fi
   sleep 0.2
 done
@@ -127,5 +135,6 @@ grep "^bench: session return" "$log" || true
 rm -rf "$home"
 case $(uname -s) in Darwin) unit="mem_sh_mb: physical footprint; footprint: footprint(1)'s total" ;; *) unit="mem_sh_mb and app_rss_mb: resident size (no footprint off macOS)" ;; esac
 echo "memory: MB of 2^20 bytes; $unit; app_heap_mb: live heap, heap-profile builds only"
+echo "heap_peak_mb: the most the live heap held since the reading before; gpu_*: path textures and instance data the renderer holds, - where the platform does not read them; malloc_*: what glibc holds and what of it is in use, Linux only"
 awk -F '\t' 'NR > 1 && $8 != "-" { if ($1 ~ /^w/) { if ($8 > walk) walk = $8 } else if ($8 > max) max = $8 } END { printf "max mem_sh_mb %.1f over the threads, %.1f over the walk\n", max, walk }' "$out/session.tsv"
 echo "results: $out (session.tsv, session.json, app.log${darwin:+, footprint-<step>.txt})"

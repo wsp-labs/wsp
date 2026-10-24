@@ -388,11 +388,8 @@ pub fn files_row(c: &Composer, cx: &mut Context<Composer>) -> Option<AnyElement>
         .pt_3();
     for (ix, file) in c.files.iter().enumerate() {
         let shown = if file.is_image() {
-            let image = std::sync::Arc::new(gpui_kit::Image::from_bytes(
-                gpui_kit::ImageFormat::from_mime_type(&file.media_type).unwrap_or(gpui_kit::ImageFormat::Png),
-                file.bytes.to_vec(),
-            ));
-            tile().w(px(56.)).bg(p.card.opacity(0.5)).child(img(image).size_full().rounded(px(9.)).object_fit(gpui_kit::ObjectFit::Cover))
+            let image = c.preview(file).map(|tile| img(tile).size_full().rounded(px(9.)).object_fit(gpui_kit::ObjectFit::Cover));
+            tile().w(px(56.)).bg(p.card.opacity(0.5)).children(image)
         } else {
             tile()
                 .max_w(px(192.))
