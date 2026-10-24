@@ -207,14 +207,22 @@ pub async fn answers(lock: &Lock, within: Duration) -> bool {
 /// refusal is said in the words of the caller `rule` names.
 pub async fn here_door(state: &Path, window: Duration, rule: ReleaseRule) -> Result<(String, String, String), Failure> {
     let lock = serving_or_refused(state)?;
-    proof::own_login(state, &lock, rule)?;
+    let token = proved_token(state, &lock, window, rule).await?;
+    let (url, at) = address_of(&lock);
+    Ok((url, token, at))
+}
+
+/// The token beside this state file, once `lock` is proved the owner's own host within `window`: its process is this
+/// login's and its page carries that token's digest (`lockedHost`). A refusal is said in the words of the caller
+/// `rule` names.
+pub async fn proved_token(state: &Path, lock: &Lock, window: Duration, rule: ReleaseRule) -> Result<String, Failure> {
+    proof::own_login(state, lock, rule)?;
     let token_path = beside(state, &record::host().files.token).unwrap_or_default();
     let Some(token) = std::fs::read_to_string(&token_path).ok().map(|t| t.trim().to_owned()) else {
         return Err(Failure::auth(fill(&record::words().host_token_missing, &[("path", &token_path.to_string_lossy())])));
     };
-    proof::page_carries(state, &lock, Some(&token), window, rule).await?;
-    let (url, at) = address_of(&lock);
-    Ok((url, token, at))
+    proof::page_carries(state, lock, Some(&token), window, rule).await?;
+    Ok(token)
 }
 
 /// Where the host serving this state file here answers, and the address as a person reads it, for a device token or

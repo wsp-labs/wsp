@@ -99,6 +99,31 @@ impl Fixture {
     }
 }
 
+/// A wsp page on loopback carrying the digest of `token`, as a host serves its own; its port.
+fn page(token: &str) -> u16 {
+    use std::io::{Read as _, Write as _};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let digest: String =
+        ring::digest::digest(&ring::digest::SHA256, token.as_bytes()).as_ref().iter().map(|byte| format!("{byte:02x}")).collect();
+    std::thread::spawn(move || {
+        for socket in listener.incoming() {
+            let Ok(mut socket) = socket else { return };
+            let _ = socket.read(&mut [0u8; 1024]);
+            let page =
+                format!(r#"<html><script>window.__WSP__ = {{"wsPath":"/ws","version":"0.4.0","tokenHash":"{digest}"}};</script></html>"#);
+            let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n{page}", page.len());
+        }
+    });
+    port
+}
+
+/// The unit npm's `wsp up --service` writes for the fixture's state, with a port it was given.
+fn npm_unit(f: &Fixture) -> String {
+    let state = f.start.state.display();
+    format!("ExecStart='/usr/bin/node' '/usr/lib/node_modules/@wsp-labs/wsp/dist/bin.js' 'up' '--state' '{state}' '--port' '4400'\n")
+}
+
 impl Drop for Fixture {
     fn drop(&mut self) {
         for kid in &mut self.kids {
@@ -692,7 +717,8 @@ fn the_wsp_command_writes_the_unit_from_the_wsp_home_and_not_the_persons_home() 
 #[test]
 fn a_host_no_road_of_wsps_started_is_left_in_words_and_nothing_serving_is_said() {
     let mut f = fixture(Manager::Systemd, SERVICE_WAIT);
-    owned(&mut f);
+    let wsp = owned(&mut f);
+    std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
     let fake = Fake::new(|_| ok(""));
     assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::NotServing));
     let pid = f.kid(Path::new("/bin/sleep"), &["30"]);
@@ -709,9 +735,10 @@ fn a_host_no_road_of_wsps_started_is_left_in_words_and_nothing_serving_is_said()
 #[test]
 fn a_host_a_terminal_started_is_stopped_by_its_pid_and_the_service_started_after_it() {
     let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
-    owned(&mut f);
+    let wsp = owned(&mut f);
+    std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
     let host = sh("exec sleep 30");
-    f.write_lock(host, 1, "up");
+    f.write_lock(host, page("token"), "up");
     let fake = Fake::new(|argv| match argv[2].as_str() {
         "is-enabled" => ok("enabled"),
         "show" => ok(INACTIVE),
@@ -724,31 +751,193 @@ fn a_host_a_terminal_started_is_stopped_by_its_pid_and_the_service_started_after
 }
 
 /// Catches: a service whose unit runs npm's wsp restarted onto npm's older files, or left, where today's app writes
-/// the unit again to run its own command with the words it was given (`restartService`).
+/// the unit again to run its own command with the words it was given (`restartService`); and the rewrite's load
+/// turning start at login back on for a unit the person set to start only when asked (`ensureService`'s `offAtLogin`).
 #[test]
-fn a_service_unit_running_another_wsp_is_written_again_to_run_the_command_with_its_words() {
+fn a_service_unit_running_another_wsp_is_written_again_to_run_the_command_with_its_words_and_login_switch() {
     let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
     let wsp = owned(&mut f);
     let state = f.start.state.display().to_string();
-    let npm =
-        format!("ExecStart='/usr/bin/node' '/usr/lib/node_modules/@wsp-labs/wsp/dist/bin.js' 'up' '--state' '{state}' '--port' '4400'\n");
-    std::fs::write(&f.unit, npm).unwrap();
+    std::fs::write(&f.unit, npm_unit(&f)).unwrap();
     let host = sh("exec sleep 30");
-    let lock = f.write_lock(host, 1, "service");
-    let fake = Fake::new(move |argv| {
-        if argv.get(2).map(String::as_str) == Some("stop") {
+    let lock = f.write_lock(host, page("token"), "service");
+    let fake = Fake::new(move |argv| match argv.get(2).map(String::as_str) {
+        Some("is-enabled") => ok("disabled"),
+        Some("stop") => {
             // SAFETY: the pid this test started and recorded, which the stop ends as the manager would.
+            unsafe { libc::kill(host, libc::SIGTERM) };
+            let _ = std::fs::remove_file(&lock);
+            ok("")
+        }
+        _ => ok(""),
+    });
+    assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::Restarted));
+    let name = Manager::Systemd.name(&f.start.state);
+    assert_eq!(
+        fake.ran(),
+        [
+            format!("systemctl --user is-enabled {name}"),
+            format!("systemctl --user stop {name}"),
+            format!("{} up --service --state {state} --port 4400", wsp.display()),
+            format!("systemctl --user disable {name}"),
+        ]
+    );
+}
+
+/// Catches: a launchd plist read with its `&amp;` left in, so under a home whose path holds `&` the unit running the
+/// wsp command reads as another wsp's: its host is booted out and the unit written over instead of restarted.
+#[test]
+fn a_launchd_unit_running_the_command_under_a_home_with_an_ampersand_restarts_through_it() {
+    let mut f = fixture(Manager::Launchd, Duration::from_secs(5));
+    f.start.home = f.start.home.join("a & b");
+    f.start.state = f.start.home.join(".wsp/state.json");
+    std::fs::create_dir_all(f.start.state.parent().unwrap()).unwrap();
+    let wsp = owned(&mut f);
+    let unit = Manager::Launchd.unit(&f.start.home, &f.start.state);
+    std::fs::create_dir_all(unit.parent().unwrap()).unwrap();
+    let xml = |path: &Path| path.to_string_lossy().replace('&', "&amp;");
+    let plist = format!(
+        "<plist version=\"1.0\">\n<dict>\n  <key>ProgramArguments</key>\n  <array>\n    <string>{}</string>\n    <string>up</string>\n    <string>--state</string>\n    <string>{}</string>\n  </array>\n</dict>\n</plist>\n",
+        xml(&wsp),
+        xml(&f.start.state)
+    );
+    std::fs::write(&unit, plist).unwrap();
+    let host = sh("exec sleep 30");
+    let lock = f.write_lock(host, page("token"), "service");
+    let fake = Fake::new(move |argv| {
+        if argv.get(1).map(String::as_str) == Some("restart") {
+            // SAFETY: the pid this test started and recorded, which the restart ends as a host's manager would.
             unsafe { libc::kill(host, libc::SIGTERM) };
             let _ = std::fs::remove_file(&lock);
         }
         ok("")
     });
     assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::Restarted));
+    assert_eq!(fake.ran(), [format!("{} restart --state {}", wsp.display(), f.start.state.display())]);
+}
+
+/// Catches: a host a terminal started stopped and the service loaded from a unit that runs npm's older wsp, so the
+/// host comes back on npm's files while the answer says it was restarted onto the command (`replaceHost` ends in
+/// `ensureService`, which writes such a unit again).
+#[test]
+fn a_host_a_terminal_started_comes_back_on_the_command_where_the_unit_ran_another_wsp() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    let wsp = owned(&mut f);
+    std::fs::write(&f.unit, npm_unit(&f)).unwrap();
+    let host = sh("exec sleep 30");
+    f.write_lock(host, page("token"), "up");
+    let fake = Fake::new(|argv| match argv.get(2).map(String::as_str) {
+        Some("is-enabled") => ok("enabled"),
+        Some("show") => ok(INACTIVE),
+        _ => ok(""),
+    });
+    assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::Restarted));
+    assert!(!pid_alive(host), "the terminal's host was stopped");
     let name = Manager::Systemd.name(&f.start.state);
-    assert_eq!(
-        fake.ran(),
-        [format!("systemctl --user stop {name}"), format!("{} up --service --state {state} --port 4400", wsp.display())]
-    );
+    let up = format!("{} up --service --state {} --port 4400", wsp.display(), f.start.state.display());
+    assert!(fake.ran().contains(&up), "{:?}", fake.ran());
+    assert!(!fake.ran().contains(&format!("systemctl --user restart {name}")), "npm's unit is not loaded as it stands: {:?}", fake.ran());
+}
+
+/// Catches: nothing serving answered as the next start running the wsp command while the unit runs npm's older wsp,
+/// which that start loads as it stands.
+#[test]
+fn nothing_serving_on_a_unit_running_another_wsp_writes_the_unit_again() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    let wsp = owned(&mut f);
+    std::fs::write(&f.unit, npm_unit(&f)).unwrap();
+    let fake = Fake::new(|argv| match argv.get(2).map(String::as_str) {
+        Some("show") => ok(INACTIVE),
+        _ => ok(""),
+    });
+    assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::NotServing));
+    let up = format!("{} up --service --state {} --port 4400", wsp.display(), f.start.state.display());
+    assert!(fake.ran().contains(&up), "{:?}", fake.ran());
+    std::fs::write(&f.unit, format!("ExecStart={} up --state x\n", wsp.display())).unwrap();
+    let fake = Fake::new(|_| ok(""));
+    assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::NotServing));
+    assert!(fake.ran().is_empty(), "a unit running the command stays as it is: {:?}", fake.ran());
+}
+
+/// Catches: a rewrite read as failed where `wsp up --service` wrote and loaded the unit and only its host was slower
+/// than its wait, so an update's swap waiting on the host puts the old app back while the host comes up.
+#[test]
+fn a_rewrite_whose_host_is_slower_than_its_wait_is_waited_on_and_one_that_wrote_nothing_is_refused() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    let wsp = owned(&mut f);
+    std::fs::write(&f.unit, npm_unit(&f)).unwrap();
+    let (unit, runs) = (f.unit.clone(), format!("ExecStart={} up --state x\n", wsp.display()));
+    let slow = Fake::new(move |argv| match argv.get(1).map(String::as_str) {
+        Some("up") => {
+            std::fs::write(&unit, &runs).unwrap();
+            Ran { code: 1, output: "wsp did not start within 20s".to_owned() }
+        }
+        Some("--user") if argv[2] == "show" => ok(INACTIVE),
+        _ => ok(""),
+    });
+    assert_eq!(block(follow(&f.start, &slow)), Ok(Followed::NotServing));
+    assert!(f.said().contains(&"wsp up --service: wsp did not start within 20s".to_owned()), "{:?}", f.said());
+    std::fs::write(&f.unit, npm_unit(&f)).unwrap();
+    let refused = Fake::new(|argv| match argv.get(1).map(String::as_str) {
+        Some("up") => Ran { code: 1, output: "wsp up --service: the port is taken".to_owned() },
+        Some("--user") if argv[2] == "show" => ok(INACTIVE),
+        _ => ok(""),
+    });
+    assert_eq!(block(follow(&f.start, &refused)), Err("wsp up --service: the port is taken".to_owned()));
+}
+
+/// Catches: the wait after a terminal's host is stopped reading any lock as that host, so npm's unit taking the lock
+/// the moment it is let go is said to be the host that would not stop, and its unit is never written again.
+#[test]
+fn a_unit_taking_the_lock_once_the_terminals_host_lets_it_go_is_written_again() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    let wsp = owned(&mut f);
+    std::fs::write(&f.unit, npm_unit(&f)).unwrap();
+    let port = page("token");
+    let terminal = sh("exec sleep 30");
+    let lock = f.write_lock(terminal, port, "up");
+    let npm = sh("exec sleep 30");
+    std::thread::spawn({
+        let lock = lock.clone();
+        move || {
+            while pid_alive(terminal) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let held = format!(r#"{{"pid":{npm},"port":{port},"startedAt":"2026-10-19T00:00:00.000Z","startedBy":"service"}}"#);
+            std::fs::write(&lock, held).unwrap();
+        }
+    });
+    let fake = Fake::new(move |argv| match argv.get(2).map(String::as_str) {
+        Some("show") => ok("ActiveState=active\nUnitFileState=enabled\nMainPID=1"),
+        Some("stop") => {
+            // SAFETY: the pid this test started and recorded, which the stop ends as the manager would.
+            unsafe { libc::kill(npm, libc::SIGTERM) };
+            ok("")
+        }
+        _ => ok(""),
+    });
+    assert_eq!(block(follow(&f.start, &fake)), Ok(Followed::Restarted));
+    let up = format!("{} up --service --state {} --port 4400", wsp.display(), f.start.state.display());
+    assert!(fake.ran().contains(&up), "{:?}", fake.ran());
+}
+
+/// Catches: a stop that rests on the lock's pid being alive and something on its port naming a release, so after a
+/// crash left the lock and the pid went to another process, with another home's host on that port, the update's
+/// move signals a process that is not this home's host (`lockedHost` holds the page to the token beside the state).
+#[test]
+fn a_lock_whose_page_carries_another_tokens_digest_is_left_and_its_pid_never_signalled() {
+    let mut f = fixture(Manager::Systemd, Duration::from_secs(5));
+    owned(&mut f);
+    let host = sh("exec sleep 30");
+    f.write_lock(host, page("another home's token"), "up");
+    let fake = Fake::new(|_| ok(""));
+    let said = match block(follow(&f.start, &fake)) {
+        Ok(Followed::Left(said)) => said,
+        other => panic!("the host was not left: {other:?}"),
+    };
+    assert!(said.contains("carries another token's digest"), "{said}");
+    assert!(pid_alive(host), "the process was never signalled");
+    assert!(fake.ran().is_empty(), "{:?}", fake.ran());
 }
 
 #[test]

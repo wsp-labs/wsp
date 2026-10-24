@@ -159,20 +159,19 @@ pub struct Owned {
 pub enum Left {
     /// `theirs`, the release serving the home or the one the command runs, as `what` says, is newer.
     Newer { theirs: String, what: &'static str },
-    /// The command runs today's app at this path, which stands, so Go Back is offered for it.
+    /// The command runs today's app at this path, which stands.
     Today(PathBuf),
 }
 
 impl Left {
-    /// Why, in words a person reads, for a bundle of release `mine`.
-    pub fn said(&self, mine: &str) -> String {
+    /// Why, in words a person reads, for a bundle of release `mine`, naming Go Back only where `back` offers it.
+    pub fn said(&self, mine: &str, back: bool) -> String {
         match self {
             Left::Newer { theirs, what } => format!("wsp {theirs} {what}, newer than wsp {mine}"),
-            Left::Today(app) => format!(
-                "the wsp command on this computer runs today's wsp app at {}, whose host this app leaves; {} returns to it",
-                app.display(),
-                switch::GO_BACK
-            ),
+            Left::Today(app) => {
+                let then = if back { format!("{} returns to it", switch::GO_BACK) } else { "open that app instead".to_owned() };
+                format!("the wsp command on this computer runs today's wsp app at {}, whose host this app leaves; {then}", app.display())
+            }
         }
     }
 }
@@ -331,14 +330,21 @@ pub fn owned() -> Option<PathBuf> {
 /// Moves the host serving the launch's state file onto this bundle, for an update that swapped the bundle under it or
 /// an older host the open refused, and says what it did: the wsp command is written again to name this bundle's
 /// files, and a host `claim` reads as older, or of this release on other files, is restarted by the road it came up on
-/// (`start::follow`). A host whose release did not answer, and what `left_as_is` names, are left, said in words; the
-/// refusal is in words a person reads.
-pub async fn restart_host() -> Result<Followed, String> {
+/// (`start::follow`); with nothing serving, a unit running another program is written again to run the command
+/// (`start::idle_onto`). A host whose release did not answer, and what `left_as_is` names, are left, said in words that
+/// name Go Back where `back`, the failure box's offer, holds it; the refusal is in words a person reads.
+pub async fn restart_host(back: bool) -> Result<Followed, String> {
     let (state, env) = LAUNCH.get().cloned().unwrap_or_else(|| (default_state(), std::env::vars().collect()));
-    follow_onto(&state, &env, bundled(), &System::new(&env)).await
+    follow_onto(&state, &env, bundled(), &System::new(&env), back).await
 }
 
-async fn follow_onto<R: Runner>(state: &Path, env: &Env, here: Result<Bundled, String>, runner: &R) -> Result<Followed, String> {
+async fn follow_onto<R: Runner>(
+    state: &Path,
+    env: &Env,
+    here: Result<Bundled, String>,
+    runner: &R,
+    back: bool,
+) -> Result<Followed, String> {
     let home = state.parent().unwrap_or(Path::new(""));
     let serving = start::serving_release(state).await;
     if serving.is_none() && wsp_host_client::lock::serving(state).is_some() {
@@ -349,17 +355,18 @@ async fn follow_onto<R: Runner>(state: &Path, env: &Env, here: Result<Bundled, S
     }
     let mine = here.as_ref().ok().and_then(Bundled::release).unwrap_or_default();
     let Some(owned) = claim(home, here, Image::of(env).as_ref(), serving.as_deref())? else {
-        let left = left_as_is(home, serving.as_deref(), &mine).map(|left| left.said(&mine));
+        let left = left_as_is(home, serving.as_deref(), &mine).map(|left| left.said(&mine, back));
         return Ok(Followed::Left(
             left.unwrap_or_else(|| format!("this app left the wsp command at {} as it is", shim::path(home).display())),
         ));
     };
-    if owned.restart.is_none() {
-        return Ok(if serving.is_some() { Followed::Already } else { Followed::NotServing });
-    }
     let mut road = Start::here(state, env);
     road.wsp = Some(owned.wsp);
-    start::follow(&road, runner).await
+    match (owned.restart, serving) {
+        (Some(_), _) => start::follow(&road, runner).await,
+        (None, Some(_)) => Ok(Followed::Already),
+        (None, None) => start::idle_onto(&road, runner).await,
+    }
 }
 
 /// `take_back` for this launch, then the service host restarted onto the command as it now stands.
