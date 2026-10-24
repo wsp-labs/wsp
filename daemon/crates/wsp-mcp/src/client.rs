@@ -8,6 +8,7 @@
 //! pinned for it at `seal.open`, and every frame after that reply rides inside the seal both ends agreed, so the token
 //! and everything the line asks for cross a road whose carrier reads nothing and writes nothing into it.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -21,7 +22,7 @@ use serde_json::{Map, Value};
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
-use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+use tokio_tungstenite::tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tokio_tungstenite::tungstenite::Message;
 use wsp_frames::{
     numbers, place_link_transcript, Base64Bytes, LinkEphemerals, LinkRole, PlaceEphemeral, PlaceNonce, PlacePublicKey, PlaceSignature,
@@ -185,13 +186,19 @@ struct SealOpened {
     ephemeral: PlaceEphemeral,
 }
 
+/// The socket's reads: the buffer a frame is read into grows to the frame and is let go of once no message shares it,
+/// which happens only once the reads after it have filled what it held past the frame, up to one read's length.
+fn read_config() -> WebSocketConfig {
+    WebSocketConfig::default().read_buffer_size(8 * 1024)
+}
+
 /// Dials the host and presents what `presents` names, after the host proved the pinned key where one is pinned.
 pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Option<Paired>), Refused> {
     let words = record::words();
     let at = to.at;
     let not_proved = || Refused { failure: Failure::auth(fill(&words.pair_key, &[("url", at)])), token: false };
     let authed = async {
-        let (ws, _) = tokio_tungstenite::connect_async(to.url).await.map_err(|e| Refused {
+        let (ws, _) = tokio_tungstenite::connect_async_with_config(to.url, Some(read_config()), false).await.map_err(|e| Refused {
             failure: Failure::of_kind(fill(&words.no_answer, &[("where", at), ("why", &e.to_string())]), "unreachable"),
             token: false,
         })?;
@@ -288,32 +295,37 @@ impl Client {
         let reading = shared.clone();
         let reader = tokio::spawn(async move {
             let mut code = None;
+            // The frame before, held until the next is read: tungstenite reads each frame into one buffer and hands it
+            // out as the message, and takes back whole a buffer no message shares, at the size of the longest frame.
+            let mut _held = None;
             while let Some(read) = stream.next().await {
-                let text = match read {
-                    Ok(Message::Text(text)) if reading.seal.lock().unwrap().is_none() => Ok(text.to_string()),
-                    Ok(Message::Text(_)) => Err(()),
-                    Ok(Message::Binary(bytes)) => match reading.seal.lock().unwrap().as_mut() {
-                        Some(seal) => seal.unseal(&bytes).ok_or(()),
-                        None => Ok(String::from_utf8_lossy(&bytes).into_owned()),
-                    },
-                    Ok(Message::Close(frame)) => {
-                        code = frame.map(|f| u16::from(f.code));
-                        break;
-                    }
-                    Ok(_) => continue,
-                    Err(_) => break,
+                let Ok(message) = read else { break };
+                if let Message::Close(frame) = &message {
+                    code = frame.as_ref().map(|f| u16::from(f.code));
+                    break;
+                }
+                let text = match &message {
+                    Message::Text(text) if reading.seal.lock().unwrap().is_none() => Some(Ok(Cow::Borrowed(text.as_str()))),
+                    Message::Text(_) => Some(Err(())),
+                    Message::Binary(bytes) => Some(match reading.seal.lock().unwrap().as_mut() {
+                        Some(seal) => seal.unseal(bytes).map(Cow::Owned).ok_or(()),
+                        None => Ok(String::from_utf8_lossy(bytes)),
+                    }),
+                    _ => None,
                 };
                 match text {
-                    Ok(text) => reading.take(&text),
+                    Some(Ok(text)) => reading.take(&text),
                     // A frame in the clear after the seal began and one that will not open are the same thing:
                     // somebody carrying the bytes writing into the socket. It ends, and every waiting reply with it.
-                    Err(()) => {
+                    Some(Err(())) => {
                         let refusal = CloseFrame { code: CloseCode::Protocol, reason: record::host().seal_refusal.clone().into() };
                         let _ = closer.send(Message::Close(Some(refusal)));
                         code = Some(u16::from(CloseCode::Protocol));
                         break;
                     }
+                    None => {}
                 }
+                _held = Some(message);
             }
             reading.went(code);
         });
@@ -488,7 +500,7 @@ fn close_words(code: Option<u16>) -> String {
 }
 
 /// JavaScript escapes half an emoji as a lone surrogate, which serde refuses with the whole frame, so each becomes U+FFFD.
-fn lossy(text: &str) -> std::borrow::Cow<'_, str> {
+fn lossy(text: &str) -> Cow<'_, str> {
     let surrogate = |at: usize| {
         let hex = text.get(at + 2..at + 6).filter(|_| text[at..].starts_with("\\u"))?;
         u16::from_str_radix(hex, 16).ok().filter(|unit| (0xD800..0xE000).contains(unit))
