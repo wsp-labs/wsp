@@ -212,8 +212,6 @@ fn main() {
             let (state, env, runtime) = (state.clone(), env.clone(), runtime.clone());
             Rc::new(move |cx: &mut App| open_main(state.clone(), env.clone(), runtime.clone(), Launch::default(), None, false, cx))
         };
-        #[cfg(target_os = "macos")]
-        desktop::mac::offer_move(cx);
         let draw: desktop::feed::Draw = Rc::new(desktop::feed::native);
         desktop::feed::start(state.clone(), env.clone(), runtime.clone(), reopen.clone(), draw, cx);
         if let Some(lock) = lock {
@@ -221,12 +219,19 @@ fn main() {
             let later = move |cx: &mut App| startup::open_later(state.clone(), env.clone(), runtime.clone(), window.clone(), cx);
             startup::follow_raises(lock, Rc::new(later), cx);
         }
-        if plain {
-            let (at, vars) = (state.clone(), env.clone());
-            update::launch(settled, at, vars, Box::new(move |cx| startup::open(state, env, runtime, reopen, cx)), cx);
-        } else {
-            open_main(state, env, runtime, launch, pane.clone(), session, cx);
-        }
+        let open = move |cx: &mut App| {
+            if plain {
+                let (at, vars) = (state.clone(), env.clone());
+                update::launch(settled, at, vars, Box::new(move |cx| startup::open(state, env, runtime, reopen, cx)), cx);
+            } else {
+                open_main(state, env, runtime, launch, pane.clone(), session, cx);
+            }
+        };
+        // The open writes the wsp command and starts the service, so it waits on the move's answer (`offerMove`).
+        #[cfg(target_os = "macos")]
+        desktop::mac::offer_move(cx, open);
+        #[cfg(not(target_os = "macos"))]
+        open(cx);
     });
 }
 

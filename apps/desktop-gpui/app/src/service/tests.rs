@@ -2,6 +2,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use wsp_host_client::start::Ran;
+
 use super::appimage::KEPT_DIR;
 use super::*;
 
@@ -157,23 +159,22 @@ fn a_launch_keeps_a_command_naming_this_bundle_and_rewrites_one_naming_another()
     assert_eq!(std::fs::read_to_string(&owned.wsp).unwrap(), shim::text(&moved));
 }
 
-/// Catches: a launch that moved the app from Downloads restarting nothing, so the service host runs files that went;
-/// or two copies of one release taking turns restarting the host on every switch.
+/// Catches: a second copy of one release (the move's copy into Applications, which keeps the Downloads one) writing
+/// the command with no restart, so the host runs off the first copy until it is trashed and nothing notices.
 #[test]
-fn a_host_of_this_release_is_restarted_only_where_the_files_it_ran_went() {
+fn a_host_of_this_release_is_restarted_whenever_the_command_it_ran_named_other_files() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().join(".wsp");
     let downloads = bundle_in(&dir.path().join("Downloads"), Os::Mac, "0.3.8");
     let applications = bundle_in(&dir.path().join("Applications"), Os::Mac, "0.3.8");
-    claim(&home, Ok(downloads.clone()), None, None).unwrap().unwrap();
-    for bundle in [&applications, &downloads, &applications] {
+    assert_eq!(claim(&home, Ok(downloads.clone()), None, None).unwrap().unwrap().restart, None, "nothing serves yet");
+    for bundle in [&applications, &downloads] {
         let owned = claim(&home, Ok(bundle.clone()), None, Some("0.3.8")).unwrap().unwrap();
-        assert_eq!(owned.restart, None, "both copies stand, so the host runs files that are there");
+        assert_eq!(owned.restart, Some(Restart::Rewritten), "the host ran the other copy, though it still stands");
         assert_eq!(std::fs::read_to_string(&owned.wsp).unwrap(), shim::text(bundle));
     }
-    std::fs::remove_dir_all(dir.path().join("Applications")).unwrap();
-    let owned = claim(&home, Ok(downloads.clone()), None, Some("0.3.8")).unwrap().unwrap();
-    assert_eq!(owned.restart, Some(Restart::FilesWent), "the files it ran went");
+    let kept = claim(&home, Ok(downloads.clone()), None, Some("0.3.8")).unwrap().unwrap();
+    assert_eq!(kept.restart, None, "a kept command restarts nothing");
 }
 
 /// Catches: an older copy of the app (an old `.app` in Downloads, an older DMG or AppImage) rewriting the command and
@@ -307,10 +308,11 @@ fn todays_command_naming_an_app_that_stands_is_left_with_everything_else_of_its_
     assert_eq!(after, kept, "nothing of today's state, logs or copies changed");
 }
 
-/// Catches: today's AppImage command, naming its copy under `<home>/app` that nothing removes, read as an app that
-/// stands forever, so this app never takes the command and a newer one refuses today's last host.
+/// Catches: today's older command taken over and its host restarted onto this app while Go Back stays offered: today's
+/// app writes its own command again on its next launch and keeps the newer host, so the next login runs its older host
+/// on the newer database. Its AppImage copy under `<home>/app` stands like an app.
 #[test]
-fn todays_appimage_copy_of_an_older_release_is_taken_over_and_of_this_release_left() {
+fn todays_command_is_left_whatever_its_release_while_go_back_is_offered() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().join(".wsp");
     todays_home(&home);
@@ -326,21 +328,14 @@ fn todays_appimage_copy_of_an_older_release_is_taken_over_and_of_this_release_le
     );
     std::fs::create_dir_all(home.join("bin")).unwrap();
     std::fs::write(home.join("bin/wsp"), &todays).unwrap();
-    let todays_copies = snapshot(&home.join("app"));
-    let level = bundle_in(&dir.path().join("level"), Os::Linux, "0.3.8");
-    assert_eq!(claim(&home, Ok(level), None, Some("0.3.8")), Ok(None), "today's app of this release keeps its command");
-    let newer = bundle_in(&dir.path().join("newer"), Os::Linux, "0.3.9");
-    assert_eq!(
-        claim(&home, Ok(newer.clone()), None, Some("0.3.8")),
-        Ok(Some(Owned { wsp: home.join("bin/wsp"), restart: Some(Restart::Older) }))
-    );
-    assert_eq!(std::fs::read_to_string(home.join("bin/wsp")).unwrap(), shim::text(&newer));
-    assert_eq!(snapshot(&home.join("app")), todays_copies, "today's copies are its own to clear");
-
-    // Nothing serving: the copy's own release says it is older.
-    std::fs::write(home.join("bin/wsp"), &todays).unwrap();
-    assert_eq!(claim(&home, Ok(newer.clone()), None, None), Ok(Some(Owned { wsp: home.join("bin/wsp"), restart: None })));
-    assert_eq!(std::fs::read_to_string(home.join("bin/wsp")).unwrap(), shim::text(&newer));
+    let before = snapshot(&home);
+    for release in ["0.3.8", "0.3.9"] {
+        let bundle = bundle_in(&dir.path().join(release), Os::Linux, release);
+        assert_eq!(claim(&home, Ok(bundle.clone()), None, Some("0.3.8")), Ok(None), "today's host serving");
+        assert_eq!(claim(&home, Ok(bundle), None, None), Ok(None), "nothing serving");
+    }
+    assert_eq!(snapshot(&home), before, "today's command, copies and state are as they were");
+    assert!(matches!(left_as_is(&home, Some("0.3.8"), "0.3.9"), Some(Left::Today(_))), "the update reads the same rule");
 }
 
 /// Catches: today's app of this release losing its command to this app because an older host (a terminal's
@@ -445,4 +440,61 @@ fn a_swap_put_back_takes_the_command_back_from_the_failed_newer_files() {
     assert_eq!(claim(&home, Ok(old.clone()), None, Some("0.3.9")), Ok(None), "claim leaves a newer host and command");
     assert_eq!(take_back(&home, Ok(old.clone()), None), Ok(wsp.clone()));
     assert_eq!(std::fs::read_to_string(&wsp).unwrap(), shim::text(&old), "the command runs the old app's files again");
+}
+
+/// A manager no test may reach: every road `restart_host` takes here says why before it would run one.
+struct NoManager;
+
+impl Runner for NoManager {
+    async fn run(&self, argv: &[String]) -> Ran {
+        panic!("a manager's command ran: {argv:?}")
+    }
+}
+
+fn follow_onto_now(state: &Path, here: Bundled) -> Result<Followed, String> {
+    let env: Env = [("HOME".to_owned(), state.parent().unwrap().to_string_lossy().into_owned())].into();
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(state, &env, Ok(here), &NoManager))
+}
+
+/// Catches: `restart_host` answering Ok where it restarted nothing, which the update's swap reads as the host
+/// following it (it deletes the old app the host still runs off) and the ask reads as done, opening on the bare
+/// refusal with no reason.
+#[test]
+fn restart_host_says_what_it_did_and_why_it_left_a_host() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join(".wsp");
+    std::fs::create_dir_all(&home).unwrap();
+    let state = home.join("state.json");
+    let older = bundle_in(&dir.path().join("Downloads"), Os::Mac, "0.3.8");
+    let newer = bundle_in(&dir.path().join("Applications"), Os::Mac, "0.3.9");
+    assert_eq!(follow_onto_now(&state, newer.clone()), Ok(Followed::NotServing));
+
+    let said = |followed: Result<Followed, String>| match followed {
+        Ok(Followed::Left(why)) => why,
+        other => panic!("the host was not said to be left: {other:?}"),
+    };
+    assert!(said(follow_onto_now(&state, older.clone())).contains("newer than wsp 0.3.8"), "the command runs newer files");
+
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let lock = format!(r#"{{"pid":{},"port":{port},"startedAt":"2026-10-24T00:00:00.000Z","startedBy":"service"}}"#, std::process::id());
+    std::fs::write(home.join("host.lock"), lock).unwrap();
+    assert!(said(follow_onto_now(&state, newer.clone())).contains("did not say its release within 2 s"), "a page that does not answer");
+    std::fs::remove_file(home.join("host.lock")).unwrap();
+
+    let electron = dir.path().join("wsp.app/Contents/MacOS/wsp");
+    std::fs::create_dir_all(electron.parent().unwrap()).unwrap();
+    std::fs::write(&electron, "electron").unwrap();
+    std::fs::write(shim::path(&home), format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' /x/cli.mjs \"$@\"\n", electron.display()))
+        .unwrap();
+    assert!(said(follow_onto_now(&state, newer)).contains(switch::GO_BACK), "today's app owns the command");
+}
+
+/// Catches: npm's links read again, and the login shell run again, on every open after the launch's: a later open, the
+/// ask's reopen, the update's move.
+#[test]
+fn npms_links_are_read_once_in_a_run() {
+    let dir = tempfile::tempdir().unwrap();
+    let env: Env = [("PATH".to_owned(), "/usr/bin:/bin".to_owned())].into();
+    assert!(npm_pass(&dir.path().join(".wsp"), &env, "0.3.8".to_owned()));
+    assert!(!npm_pass(&dir.path().join(".wsp"), &env, "0.3.8".to_owned()));
 }
