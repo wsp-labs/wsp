@@ -370,7 +370,7 @@ function launchApp({ wspHome, ownHome, system = [dirname(hostNode), ...SYSTEM_PA
   const env = { HOME: appHome, WSP_HOME: wspHome, PATH: path, LANG: "en_US.UTF-8", SHELL: shell, WSP_DESKTOP_SMOKE: "1" };
   for (const name of ["DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"]) if (process.env[name] !== undefined) env[name] = process.env[name];
   step(`launching ${appPath} (wsp ${appRelease}) on ${wspHome}`);
-  // Chromium refuses to run as root with its sandbox on, which is how a Boat machine runs and a Mac never does.
+  // Chromium refuses to run as root with its sandbox on, which is how a Linux cloud machine runs and a Mac never does.
   // The scale is the display's own, never emulated: emulation rounds Blink's font metrics in CSS px, unlike a Retina Mac.
   const child = spawn(
     appPath,
@@ -508,7 +508,7 @@ async function onWindow(body, kind = "app") {
   return got.result.value;
 }
 
-// A Mac opens a scripted launch behind the owner's app and Chromium throttles a hidden window; LaunchServices cannot tell the two apps apart.
+// A Mac opens a scripted launch behind the person's own app and Chromium throttles a hidden window; LaunchServices cannot tell the two apps apart.
 async function raise(kind = "app") {
   for (const until = Date.now() + 30_000; ; await sleep(250)) {
     const shown = await onWindow(

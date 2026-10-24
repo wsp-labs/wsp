@@ -44,7 +44,7 @@ const env = { HOME: appHome, WSP_HOME: dirname(fixture.state), PATH: path, LANG:
 for (const name of ["DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"]) if (process.env[name] !== undefined) env[name] = process.env[name];
 
 step(`launching ${flag("app")} on ${fixture.state}`);
-// Chromium refuses to run as root with its sandbox on, which is how a Boat machine runs and a Mac never does.
+// Chromium refuses to run as root with its sandbox on, which is how a Linux cloud machine runs and a Mac never does.
 // --inspect opens the main process to this script, which is how its window is raised above other apps (front below).
 const app = spawn(flag("app"), ["--remote-debugging-port=0", "--inspect=0", ...(process.getuid?.() === 0 ? ["--no-sandbox"] : [])], { cwd: appHome, env, stdio: ["ignore", "pipe", "pipe"] });
 const said = [];
@@ -87,10 +87,10 @@ async function session(url) {
   return { send, close: () => ws.close() };
 }
 
-/** Raises this app's windows above every other app's, the owner's own wsp included, through its main process: a Mac
+/** Raises this app's windows above every other app's, the person's own wsp included, through its main process: a Mac
  * opens an app a script launched behind the frontmost one, Chromium reads an occluded window as hidden and throttles
  * it, and Page.bringToFront raises the tab inside the window, never the window. Nothing here goes through
- * LaunchServices, which knows the test app and the owner's by one bundle id. Answers each window's state. */
+ * LaunchServices, which knows the test app and the person's by one bundle id. Answers each window's state. */
 let mainProcess;
 async function raise() {
   if (mainProcess === undefined) {

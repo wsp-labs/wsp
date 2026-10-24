@@ -34,7 +34,7 @@ A daemon one version behind is normal: a box keeps its deploy until `wsp add <na
 - `refused_port()`'s doc claims a rule XNU's v6 bind breaks; assert with `squatter_binds()` (#1726).
 - Remove under `~/.wsp/put` only plain files, on the folder's descriptor from `open_under_home()`: `sweep_updates()`, `drop_upload()` (#2284).
 - A contract case reads the fake host's asks via `Asked::settled()`, once the server's socket closes; read when `serve` returns, one may be on the wire (#2275).
-- wsp-mcp's lock refusals end in the caller's words from its `ReleaseRule` (`said_by()`): the desktop's "then open wsp again", the command line's and the tool server's "then run this line again" (#2402).
+- wsp-mcp's lock refusals end in the caller's words from its `ReleaseRule` (`said_by()`): the desktop's "then open wsp again", the command line's and the tool server's "then run this line again".
 
 ## One home for
 

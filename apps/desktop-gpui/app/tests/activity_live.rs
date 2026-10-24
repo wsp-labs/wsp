@@ -219,7 +219,7 @@ fn busy(tick: usize, n: usize) -> Value {
 }
 
 /// Catches: a busy computer's samples, whose rows come, go and reorder on most of them, each laying out the whole page
-/// and rendering every figure on it, Settings and the shell around it too: 780 renders a frame on the owner's Mac.
+/// and rendering every figure on it, Settings and the shell around it too: 780 renders a frame on a Mac.
 #[gpui_kit::test]
 fn a_busy_computers_samples_draw_only_the_rows_on_screen(cx: &mut TestAppContext) {
     let (_host, shell, cx) = launched(cx);

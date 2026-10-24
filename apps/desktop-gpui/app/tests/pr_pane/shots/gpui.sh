@@ -7,7 +7,7 @@
 # window before the keys and again before the shot. Writes <out>/<id>-<theme>.window.png and <id>-<theme>.png, cut to the clip today's shot recorded in
 # <web>/index.json (web.sh), and prints what each state lacks on our side. Every child runs under env -i with only the
 # names it needs, so no host the caller's environment names is ever dialled. SHOTS is the shots folder (default
-# /root/shots/2397; out and web are its gpui and web), BIN the app (default debug/desktop-gpui under CARGO_TARGET_DIR,
+# /tmp/shots/pr-pane; out and web are its gpui and web), BIN the app (default debug/desktop-gpui under CARGO_TARGET_DIR,
 # else target), DISPLAY_NUM the display (default 97).
 set -eu
 # Today's app asks avatars.githubusercontent.com for every face the host's page names no picture for, so the run goes
@@ -20,7 +20,7 @@ fi
 echo "gpui: network interfaces: $(ip -o link | awk -F': ' '{ print $2 }' | tr '\n' ' ')"
 here=$(cd "$(dirname "$0")" && pwd)
 desktop=$(cd "$here/../../../.." && pwd)
-shots=${SHOTS:-/root/shots/2397}
+shots=${SHOTS:-/tmp/shots/pr-pane}
 out=$shots/gpui
 web=$shots/web
 while [ $# -gt 0 ]; do

@@ -298,7 +298,7 @@ fn pending_row(ctx: &Ctx, pending: &PendingComputer, cx: &mut App) -> GridRow {
         .cell(chevron(cx))
 }
 
-/// Why Add a computer is held: its dialog comes with a later build (D117).
+/// Why Add a computer is held: its dialog comes with a later build.
 pub const ADD_COMPUTER_LATER: &str = "Add a computer opens in the next build of this app.";
 
 /// What the Add a cloud button and a pending add's row say: this app draws neither dialog.

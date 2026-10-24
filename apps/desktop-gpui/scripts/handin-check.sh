@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# The checks a GPUI lane branch passes before hand-in, run from its worktree. Every check runs; each failure names
-# its fix, and the exit code is 1 if any failed. --no-rust skips cargo for a quick run off Boat; --commits N is for a
-# hand-in the coordinator ruled N commits.
+# The checks a GPUI branch passes before review, run from its worktree. Every check runs; each failure names its
+# fix, and the exit code is 1 if any failed. --no-rust skips cargo for a quick run on a Mac; --commits N is for a
+# change agreed as N commits.
 set -u
 
 usage='usage: apps/desktop-gpui/scripts/handin-check.sh [--no-rust] [--commits N]'
@@ -44,10 +44,10 @@ if ! git fetch -q origin +refs/heads/gpui/main:refs/remotes/origin/gpui/main; th
 fi
 base_sha=$(git rev-parse "$base")
 
-# wsp send --file drops the coordinator's attachments in .wsp-files/, which no commit carries.
+# wsp send --file drops attachments in .wsp-files/, which no commit carries.
 dirty=$(git status --porcelain -- . ':(exclude).wsp-files')
 attached=
-[ -d .wsp-files ] && attached="; .wsp-files/, the coordinator's attachments, is not counted"
+[ -d .wsp-files ] && attached="; .wsp-files/, where wsp send --file drops attachments, is not counted"
 if [ -n "$dirty" ]; then
   fail "the worktree has changes outside the commit, so the checks below would test them and not the commit:
 $(indent "$dirty")" "commit them with --amend, or remove them (an untracked .cargo/config.toml counts)"
@@ -71,14 +71,14 @@ done
 if [ "$commits" -eq 1 ]; then
   wanted="one commit"
 else
-  wanted="$commits commits, as the coordinator ruled (--commits $commits),"
+  wanted="$commits commits, as agreed (--commits $commits),"
 fi
 parent=$(git rev-parse -q --verify "$(printf '%s\n' "$line" | tail -n 1)^") || parent=
 if [ -z "$parent" ] && [ "$shallow" = true ]; then
   skip "the commit's history: the shallow clone hides the oldest commit's parent; unshallow and run this again"
 elif [ "$count" -ne "$commits" ]; then
   fail "commits on $base, a merge of origin/main not counted: $count, not $commits" \
-    "git reset --soft ${mb:-$base} && git commit, with one message for the whole change (then merge origin/main again if the branch held it), unless the coordinator ruled otherwise (--commits N)"
+    "git reset --soft ${mb:-$base} && git commit, with one message for the whole change (then merge origin/main again if the branch held it), unless the change was agreed as more commits (--commits N)"
 elif [ -z "$parent" ]; then
   fail "the oldest commit has no parent line, so GitHub sees no history in common with gpui/main and closes the PR" \
     "put the tree back on the commit it was built on (the parent of the commit before the amend, in git reflog): git reset --soft <that commit> && git commit -C ORIG_HEAD && git rebase $base"
@@ -143,7 +143,7 @@ dump='^[^:]+\.(sh|bash|zsh):[0-9]+: (.*([;&|{`]|\$\(|(then|do|else|if|while|!|ex
 dump+='(env|set|export|export[[:space:]]+-p|(declare|typeset)[[:space:]]+-[px])[[:space:]]*($|[|>;&)`#]|[0-9]>)'
 hits=$(added "${code[@]}" | grep -E -e "$dump" -e '(^|[^[:alnum:]_-])printenv([^[:alnum:]_-]|$)' -e '/proc/[^[:space:]]*/environ')
 if [ -n "$hits" ]; then
-  fail "added lines print the environment, which holds the owner's tokens:
+  fail "added lines print the environment, which holds the person's tokens:
 $(indent "$hits")" "list names only (bash -c 'compgen -e'); a test compares a child's environment by names, never values"
 else
   ok "no added line prints the environment (env, printenv, export -p, a bare set or export, /proc/*/environ)"
@@ -231,7 +231,7 @@ rust_inputs=(apps/desktop-gpui daemon/crates packages/protocol/src
 if [ -z "$(git diff --name-only "${range[@]}" -- "${rust_inputs[@]}")" ]; then
   skip "cargo: nothing the Rust build or its tests read changed"
 elif [ "$rust" -eq 0 ]; then
-  skip "cargo fmt, clippy and test: --no-rust was given; a hand-in runs them on Boat"
+  skip "cargo fmt, clippy and test: --no-rust was given; run them on Linux before review"
 elif [ -n "$target" ] && [ "${target#"$(pwd -P)"/}" = "$target" ]; then
   fail "refused to run cargo: CARGO_TARGET_DIR is $CARGO_TARGET_DIR, outside this worktree. Cargo knows the crates in vendor/ by their path inside the workspace and judges freshness by file times, so another worktree's patched crates build here as Fresh and the tests run the wrong code" \
     "unset CARGO_TARGET_DIR, or point it inside $(pwd -P), and run this again"
@@ -310,7 +310,7 @@ else
 fi
 
 if [ "$failed" -gt 0 ]; then
-  printf '\nhandin-check: %d failed. Fix each, amend, and run it again before hand-in.\n' "$failed"
+  printf '\nhandin-check: %d failed. Fix each, amend, and run it again before review.\n' "$failed"
   exit 1
 fi
 printf '\nhandin-check: every check passed at %s. Paste this whole output into the report.\n' "$(git rev-parse --short HEAD)"

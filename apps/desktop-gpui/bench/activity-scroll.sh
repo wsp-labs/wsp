@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
-# activity-scroll.sh: Settings > Activity under 30 s of trackpad scroll while its numbers move, against wsp-map#2414's
+# activity-scroll.sh: Settings > Activity under 30 s of trackpad scroll while its numbers move, held to one
 # line: no frame late on screen after its input. A fresh copy of desktop-gpui on the fixture's throwaway host and a temp HOME, never the
 # person's. The page lists every process the computer runs by CPU, its longest list, and the daemon's samples move its
 # figures and reorder its rows throughout. bench/momentum.mjs writes 30 s of trackpad gestures and their momentum, which
