@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 
 use super::feed::{self, Feed};
 use super::follow::{follow, older_host, replace_prompt, Follow};
-use super::stage::{self, Installed, Kind, Shape, ZipEntry};
+use super::stage::{self, Installed, Kind, Runner, Shape, ZipEntry};
 use super::swap::{self, Settled};
 use super::*;
 
@@ -147,21 +147,82 @@ fn no_tools(_: &str, _: &[&str]) -> (i32, String) {
     (1, "no tool in this test".into())
 }
 
-pub(super) fn shell(feed: Feed, installed: Option<Installed>, downloads: &Path) -> Shell {
-    Shell::new(ShellDeps {
-        feed,
-        state: downloads.join("wsp-home/state.json"),
-        downloads: downloads.to_owned(),
-        running: "0.3.8".into(),
-        installed,
-        road: Some(Road::Linux),
-        run: Arc::new(no_tools),
-        // SAFETY: getuid reads this process's user and cannot fail.
-        uid: unsafe { libc::getuid() },
-        pid: std::process::id(),
-        log: downloads.join("update.log"),
-        patience: 1,
-    })
+/// An app at 0.3.8 installed in a temp folder, and what a release holds for it: the asset that updates it to 0.3.9
+/// with its bytes, and today's app under today's own name; with the tools its check runs.
+pub(super) struct Install {
+    pub(super) dir: tempfile::TempDir,
+    pub(super) installed: Installed,
+    pub(super) asset: String,
+    pub(super) new: Vec<u8>,
+    pub(super) today: (&'static str, Vec<u8>),
+    /// The installed app's bytes as `now` reads them, and the checked copy's once staged.
+    pub(super) was: Vec<u8>,
+    pub(super) staged: Vec<u8>,
+    run: Arc<Runner>,
+}
+
+/// The installed apps a test updates: a Mac's bundle, checked with `mac_tools`, everywhere, and an AppImage packed with
+/// mksquashfs on Linux, the one road that has one.
+pub(super) fn installs() -> Vec<Install> {
+    let mut all = vec![install(Kind::Mac)];
+    if cfg!(target_os = "linux") {
+        all.push(install(Kind::AppImage));
+    }
+    all
+}
+
+pub(super) fn install(kind: Kind) -> Install {
+    let dir = tmp();
+    let at = dir.path().join(if kind == Kind::Mac { "wsp.app" } else { "wsp.AppImage" });
+    let installed = Installed { path: at.clone(), kind };
+    let asset = installed.asset("0.3.9");
+    let (new, today, was, staged, run): (_, _, _, _, Arc<Runner>) = match kind {
+        Kind::Mac => {
+            let today =
+                zip_of(&[("wsp.app/", b""), ("wsp.app/Contents/MacOS/wsp", b"electron"), ("wsp.app/Contents/Resources/app.asar", b"asar")]);
+            (gpui_zip(), ("wsp-0.3.9-mac.zip", today), b"old".to_vec(), b"new".to_vec(), Arc::new(mac_tools(0)))
+        }
+        Kind::AppImage => {
+            let new = gpui_image("0.3.9");
+            (new.clone(), ("wsp-0.3.9.AppImage", electron_image()), app_image("0.3.8"), new, Arc::new(no_tools))
+        }
+    };
+    match kind {
+        Kind::Mac => {
+            std::fs::create_dir_all(at.join("Contents/MacOS")).unwrap();
+            std::fs::write(at.join("Contents/MacOS/desktop-gpui"), &was).unwrap();
+        }
+        Kind::AppImage => std::fs::write(&at, &was).unwrap(),
+    }
+    Install { dir, installed, asset, new, today, was, staged, run }
+}
+
+impl Install {
+    /// The app at `at` as its bytes: an AppImage's own, a bundle's executable's.
+    pub(super) fn now(&self, at: &Path) -> Vec<u8> {
+        match self.installed.kind {
+            Kind::Mac => read(&at.join("Contents/MacOS/desktop-gpui")),
+            Kind::AppImage => read(at),
+        }
+    }
+
+    pub(super) fn shell(&self, feed: Feed) -> Shell {
+        let downloads = self.dir.path();
+        Shell::new(ShellDeps {
+            feed,
+            state: downloads.join("wsp-home/state.json"),
+            downloads: downloads.to_owned(),
+            running: "0.3.8".into(),
+            installed: Some(self.installed.clone()),
+            road: Some(Road::Linux),
+            run: self.run.clone(),
+            // SAFETY: getuid reads this process's user and cannot fail.
+            uid: unsafe { libc::getuid() },
+            pid: std::process::id(),
+            log: downloads.join("update.log"),
+            patience: 1,
+        })
+    }
 }
 
 pub(super) fn tmp() -> tempfile::TempDir {
@@ -211,68 +272,54 @@ fn a_newer_release_is_found_and_the_asset_for_this_computer_picked() {
     assert_eq!(mac.asset("0.3.9"), "wsp-experimental-0.3.9-mac.zip", "the Mac's universal app comes in the release's zip");
     assert_eq!(linux.asset("0.3.9"), "wsp-experimental-0.3.9-x86_64.AppImage");
 
-    let dir = tmp();
-    let installed_at = dir.path().join("wsp.AppImage");
-    std::fs::write(&installed_at, app_image("0.3.8")).unwrap();
-    let new = gpui_image("0.3.9");
-    let served = serve(release(
-        "0.3.9",
-        &[
-            ("wsp-experimental-0.3.9.dmg", b"dmg"),
-            ("wsp-experimental-0.3.9-mac.zip", b"zip"),
-            ("wsp-experimental-0.3.9-x86_64.AppImage", &new),
-        ],
-        &HashMap::new(),
-    ));
-    let mut road = shell(
-        Feed::new(Some(served.base.clone()), "wsp/0.3.8".into()),
-        Some(Installed { path: installed_at.clone(), kind: Kind::AppImage }),
-        dir.path(),
-    );
-    road.get("0.3.9").unwrap();
-    assert_eq!(
-        served.asked.lock().unwrap().as_slice(),
-        ["/repos/wsp-labs/wsp/releases/tags/v0.3.9", "/wsp-labs/wsp/releases/download/v0.3.9/wsp-experimental-0.3.9-x86_64.AppImage"],
-        "the release read, then this computer's asset alone"
-    );
-    let staged = stages(&installed_at);
-    assert_eq!(staged.len(), 1);
-    assert_eq!(read(&staged[0].join("new/wsp.AppImage")), new, "the checked copy waits beside the app under its name");
-    assert_eq!(read(&installed_at), app_image("0.3.8"), "nothing is replaced before the restart");
-    assert_eq!(road.get("0.3.8").unwrap_err().error, "0.3.8 is not a release above this app");
-    assert_eq!(road.get("0.4.0-rc.1").unwrap_err().error, "0.4.0-rc.1 is not a release above this app", "never a prerelease");
+    for install in installs() {
+        let installed_at = &install.installed.path;
+        let assets = ["wsp-experimental-0.3.9.dmg", "wsp-experimental-0.3.9-mac.zip", "wsp-experimental-0.3.9-x86_64.AppImage"];
+        let bytes: Vec<(&str, &[u8])> =
+            assets.iter().map(|a| (*a, if *a == install.asset { install.new.as_slice() } else { b"another" })).collect();
+        let served = serve(release("0.3.9", &bytes, &HashMap::new()));
+        let mut road = install.shell(Feed::new(Some(served.base.clone()), "wsp/0.3.8".into()));
+        road.get("0.3.9").unwrap();
+        assert_eq!(
+            served.asked.lock().unwrap().as_slice(),
+            ["/repos/wsp-labs/wsp/releases/tags/v0.3.9".to_owned(), format!("/wsp-labs/wsp/releases/download/v0.3.9/{}", install.asset)],
+            "the release read, then this computer's asset alone"
+        );
+        let staged = stages(installed_at);
+        assert_eq!(staged.len(), 1);
+        let name = installed_at.file_name().unwrap();
+        assert_eq!(install.now(&staged[0].join("new").join(name)), install.staged, "the checked copy waits beside the app under its name");
+        assert_eq!(install.now(installed_at), install.was, "nothing is replaced before the restart");
+        assert_eq!(road.get("0.3.8").unwrap_err().error, "0.3.8 is not a release above this app");
+        assert_eq!(road.get("0.4.0-rc.1").unwrap_err().error, "0.4.0-rc.1 is not a release above this app", "never a prerelease");
+    }
 }
 
 #[test]
 fn a_bad_checksum_is_refused_with_nothing_replaced() {
-    let dir = tmp();
-    let installed_at = dir.path().join("wsp.AppImage");
-    std::fs::write(&installed_at, app_image("0.3.8")).unwrap();
-    let new = gpui_image("0.3.9");
-    let wrong = HashMap::from([("wsp-experimental-0.3.9-x86_64.AppImage", hex_sum(b"something else"))]);
-    let served = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", &new)], &wrong));
-    let mut road = shell(
-        Feed::new(Some(served.base), "wsp/0.3.8".into()),
-        Some(Installed { path: installed_at.clone(), kind: Kind::AppImage }),
-        dir.path(),
-    );
-    let said = road.get("0.3.9").unwrap_err();
-    assert_eq!(said.error, "wsp-experimental-0.3.9-x86_64.AppImage did not match the release's sha256 and was deleted");
-    assert_eq!(read(&installed_at), app_image("0.3.8"), "the installed app is untouched");
-    let root = stage::stage_of(&installed_at);
-    let left: Vec<_> = std::fs::read_dir(&root).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
-    assert!(left.is_empty(), "no download, part or stage is left: {left:?}");
-    assert_eq!(road.open().unwrap_err().error, "no verified download to open", "nothing checked, nothing to restart into");
+    for install in installs() {
+        let (installed_at, asset) = (&install.installed.path, install.asset.as_str());
+        let wrong = HashMap::from([(asset, hex_sum(b"something else"))]);
+        let served = serve(release("0.3.9", &[(asset, &install.new)], &wrong));
+        let mut road = install.shell(Feed::new(Some(served.base), "wsp/0.3.8".into()));
+        let said = road.get("0.3.9").unwrap_err();
+        assert_eq!(said.error, format!("{asset} did not match the release's sha256 and was deleted"));
+        assert_eq!(install.now(installed_at), install.was, "the installed app is untouched");
+        let root = stage::stage_of(installed_at);
+        let left: Vec<_> = std::fs::read_dir(&root).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
+        assert!(left.is_empty(), "no download, part or stage is left: {left:?}");
+        assert_eq!(road.open().unwrap_err().error, "no verified download to open", "nothing checked, nothing to restart into");
 
-    let not_an_app = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", b"a page, not an app")], &HashMap::new()));
-    let mut road = shell(
-        Feed::new(Some(not_an_app.base), "wsp/0.3.8".into()),
-        Some(Installed { path: installed_at.clone(), kind: Kind::AppImage }),
-        dir.path(),
-    );
-    assert_eq!(road.get("0.3.9").unwrap_err().error, "wsp-experimental-0.3.9-x86_64.AppImage is not an AppImage and was deleted");
-    assert!(stages(&installed_at).is_empty());
-    assert_eq!(read(&installed_at), app_image("0.3.8"));
+        let not_an_app = serve(release("0.3.9", &[(asset, b"a page, not an app")], &HashMap::new()));
+        let mut road = install.shell(Feed::new(Some(not_an_app.base), "wsp/0.3.8".into()));
+        let refused = match install.installed.kind {
+            Kind::Mac => format!("{asset} is not a zip that could be read"),
+            Kind::AppImage => format!("{asset} is not an AppImage and was deleted"),
+        };
+        assert_eq!(road.get("0.3.9").unwrap_err().error, refused);
+        assert!(stages(installed_at).is_empty());
+        assert_eq!(install.now(installed_at), install.was);
+    }
 }
 
 /// A zip of stored entries, enough for the central directory read; a name ending in / is a folder.
@@ -458,7 +505,24 @@ pub(super) fn swapping(pid: u32, new_then: &str) -> Swapping {
 
 /// The script run as the app starts it, in a session of its own, but waited on here.
 pub(super) fn run_swap(s: &swap::Swap) -> std::process::Child {
-    run_swap_on(s, "/usr/bin:/bin")
+    run_swap_on(s, &linux_tools(s.log.parent().unwrap()))
+}
+
+/// The PATH an AppImage's swap finds its tools on: the system's own, and on a Mac, which keeps no sha256sum there, one
+/// written into `dir` that runs shasum.
+fn linux_tools(dir: &Path) -> String {
+    if cfg!(target_os = "linux") {
+        return "/usr/bin:/bin".into();
+    }
+    use std::os::unix::fs::PermissionsExt;
+    let bin = dir.join("bin");
+    let sum = bin.join("sha256sum");
+    if !sum.exists() {
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(&sum, "#!/bin/sh\nexec /usr/bin/shasum -a 256 \"$@\"\n").unwrap();
+        std::fs::set_permissions(&sum, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    format!("{}:/usr/bin:/bin", bin.display())
 }
 
 /// `run_swap` with `path` as the PATH the swap finds its tools on.
@@ -476,7 +540,7 @@ pub(super) fn until(what: &str, wait: Duration, done: impl Fn() -> bool) {
 
 /// A process standing in for the running app, gone at once, as an app that quit under the swap.
 pub(super) fn quit_app() -> u32 {
-    let mut gone = Command::new("/bin/true").spawn().unwrap();
+    let mut gone = Command::new("true").spawn().unwrap();
     let pid = gone.id();
     gone.wait().unwrap();
     pid
@@ -587,38 +651,44 @@ fn only_the_gpui_app_is_fetched_and_staged() {
         assert!(package.contains(built), "package.sh builds what the table names: {built}");
     }
 
+    for install in installs() {
+        let (installed_at, asset) = (&install.installed.path, install.asset.as_str());
+        let (today_name, today) = (install.today.0, install.today.1.as_slice());
+        let today_only = serve(release("0.3.9", &[(today_name, today)], &HashMap::new()));
+        let mut road = install.shell(Feed::new(Some(today_only.base.clone()), "wsp/0.3.8".into()));
+        assert_eq!(road.get("0.3.9").unwrap_err().error, format!("the release carries no {asset} yet, so nothing was downloaded"));
+        assert_eq!(
+            today_only.asked.lock().unwrap().as_slice(),
+            ["/repos/wsp-labs/wsp/releases/tags/v0.3.9"],
+            "today's app is never fetched"
+        );
+        assert!(!stage::stage_of(installed_at).exists(), "and nothing is made beside the app");
+
+        let renamed = serve(release("0.3.9", &[(asset, today)], &HashMap::new()));
+        let mut road = install.shell(Feed::new(Some(renamed.base.clone()), "wsp/0.3.8".into()));
+        assert_eq!(
+            road.get("0.3.9").unwrap_err().error,
+            format!("{asset} holds another app than this one and was deleted"),
+            "today's app under the GPUI app's name, an AppImage with the same runtime and marks, is refused off its zip's directory or squashfs"
+        );
+        assert!(stages(installed_at).is_empty(), "nothing is staged");
+        assert_eq!(install.now(installed_at), install.was, "nothing is replaced");
+        let mut next_launch = install.shell(Feed::new(Some(renamed.base.clone()), "wsp/0.3.8".into()));
+        assert_eq!(
+            next_launch.get("0.3.9").unwrap_err().error,
+            format!("{asset} was refused before as another app than this one, so it was not downloaded again")
+        );
+        let downloads = renamed.asked.lock().unwrap().iter().filter(|p| p.contains("/download/")).count();
+        assert_eq!(downloads, 1, "the refused asset is downloaded once across launches");
+    }
+    #[cfg(target_os = "linux")]
+    the_appimage_is_read_off_its_squashfs();
+}
+
+/// A file read off an AppImage's squashfs with its mode, and a build with no daemon told apart from one with it.
+#[cfg(target_os = "linux")]
+fn the_appimage_is_read_off_its_squashfs() {
     let dir = tmp();
-    let installed_at = dir.path().join("wsp.AppImage");
-    std::fs::write(&installed_at, app_image("0.3.8")).unwrap();
-    let installed = Some(Installed { path: installed_at.clone(), kind: Kind::AppImage });
-    let electron = electron_image();
-
-    let today_only = serve(release("0.3.9", &[("wsp-0.3.9.AppImage", &electron)], &HashMap::new()));
-    let mut road = shell(Feed::new(Some(today_only.base.clone()), "wsp/0.3.8".into()), installed.clone(), dir.path());
-    assert_eq!(
-        road.get("0.3.9").unwrap_err().error,
-        "the release carries no wsp-experimental-0.3.9-x86_64.AppImage yet, so nothing was downloaded"
-    );
-    assert_eq!(today_only.asked.lock().unwrap().as_slice(), ["/repos/wsp-labs/wsp/releases/tags/v0.3.9"], "today's app is never fetched");
-    assert!(!stage::stage_of(&installed_at).exists(), "and nothing is made beside the app");
-
-    let renamed = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", &electron)], &HashMap::new()));
-    let mut road = shell(Feed::new(Some(renamed.base.clone()), "wsp/0.3.8".into()), installed.clone(), dir.path());
-    assert_eq!(
-        road.get("0.3.9").unwrap_err().error,
-        "wsp-experimental-0.3.9-x86_64.AppImage holds another app than this one and was deleted",
-        "today's AppImage under the GPUI app's name, with the same runtime and marks, is refused off its squashfs"
-    );
-    assert!(stages(&installed_at).is_empty(), "nothing is staged");
-    assert_eq!(read(&installed_at), app_image("0.3.8"), "nothing is replaced");
-    let mut next_launch = shell(Feed::new(Some(renamed.base.clone()), "wsp/0.3.8".into()), installed.clone(), dir.path());
-    assert_eq!(
-        next_launch.get("0.3.9").unwrap_err().error,
-        "wsp-experimental-0.3.9-x86_64.AppImage was refused before as another app than this one, so it was not downloaded again"
-    );
-    let downloads = renamed.asked.lock().unwrap().iter().filter(|p| p.contains("/download/")).count();
-    assert_eq!(downloads, 1, "the refused asset is downloaded once across launches");
-
     let no_daemon = packed(&[
         ("usr/bin/desktop-gpui", b"0.3.9", true),
         ("usr/bin/node", b"node", true),

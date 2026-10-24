@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The swap's own rules, run as the app runs the script, in temp folders: `up` waits for the new app to open on its
-//! host, the old app goes only after `up`, one swap runs at a time, and the Linux tools are found, not assumed.
+//! host, the old app goes only after `up`, one swap runs at a time, the Linux tools are found, not assumed, and a
+//! Mac's are named by their paths.
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
 use super::feed::Feed;
 use super::stage::{self, Installed, Kind};
 use super::swap::{self, Settled};
-use super::tests::{gpui_image, quit_app, read, release, run_swap, run_swap_on, serve, shell, swapping, tmp, until, Swapping};
+use super::tests::{installs, quit_app, read, release, run_swap, run_swap_on, serve, swapping, tmp, until, Swapping};
 use super::*;
 
 fn log_of(s: &Swapping) -> String {
@@ -44,26 +44,21 @@ fn up_waits_for_the_new_app_to_open_on_its_host() {
     assert_eq!(std::fs::read_to_string(root.join("back")).unwrap().trim(), "restart", "and moves the host back");
     assert!(log_of(&s).contains("the new app exited before it was up; putting the old app back"), "{}", log_of(&s));
 
-    let owned = tmp();
-    let installed_at = owned.path().join("wsp.AppImage");
-    std::fs::write(&installed_at, "old").unwrap();
-    let new = gpui_image("0.3.9");
-    let served = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", &new)], &HashMap::new()));
-    let mut road = shell(
-        Feed::new(Some(served.base), "wsp/0.3.8".into()),
-        Some(Installed { path: installed_at.clone(), kind: Kind::AppImage }),
-        owned.path(),
-    );
-    road.get("0.3.9").unwrap();
-    let today = owned.path().join("wsp.AppImage-today");
-    std::fs::write(&today, "electron").unwrap();
-    let wsp = owned.path().join("wsp-home/bin/wsp");
-    std::fs::create_dir_all(wsp.parent().unwrap()).unwrap();
-    std::fs::write(&wsp, format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' '/x/cli.mjs' \"$@\"\n", today.display())).unwrap();
-    let said = road.open().unwrap_err().error;
-    assert!(said.starts_with(&format!("the wsp command on this computer runs today's wsp app at {}", today.display())), "{said}");
-    assert!(!stage::stage_of(&installed_at).join("swapping").exists(), "no swap started");
-    assert_eq!(read(&installed_at), b"old");
+    for install in installs() {
+        let (owned, installed_at) = (install.dir.path(), &install.installed.path);
+        let served = serve(release("0.3.9", &[(&install.asset, &install.new)], &HashMap::new()));
+        let mut road = install.shell(Feed::new(Some(served.base), "wsp/0.3.8".into()));
+        road.get("0.3.9").unwrap();
+        let today = owned.join("wsp-today");
+        std::fs::write(&today, "electron").unwrap();
+        let wsp = owned.join("wsp-home/bin/wsp");
+        std::fs::create_dir_all(wsp.parent().unwrap()).unwrap();
+        std::fs::write(&wsp, format!("#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec '{}' '/x/cli.mjs' \"$@\"\n", today.display())).unwrap();
+        let said = road.open().unwrap_err().error;
+        assert!(said.starts_with(&format!("the wsp command on this computer runs today's wsp app at {}", today.display())), "{said}");
+        assert!(!stage::stage_of(installed_at).join("swapping").exists(), "no swap started");
+        assert_eq!(install.now(installed_at), install.was);
+    }
 }
 
 #[test]
@@ -137,24 +132,19 @@ fn swapping_of(s: &Swapping) -> swap::Swap {
 
 #[test]
 fn one_swap_at_a_time() {
-    let dir = tmp();
-    let installed_at = dir.path().join("wsp.AppImage");
-    std::fs::write(&installed_at, "old").unwrap();
-    let new = gpui_image("0.3.9");
-    let served = serve(release("0.3.9", &[("wsp-experimental-0.3.9-x86_64.AppImage", &new)], &HashMap::new()));
-    let mut road = shell(
-        Feed::new(Some(served.base), "wsp/0.3.8".into()),
-        Some(Installed { path: installed_at.clone(), kind: Kind::AppImage }),
-        dir.path(),
-    );
-    road.get("0.3.9").unwrap();
-    // This test's own pid stands for the app, which never quits, so the swap gives up after its patience.
-    assert_eq!(road.open(), Ok(Opened::Swapping));
-    assert_eq!(road.open().unwrap_err().error, "no verified download to open", "a second Restart starts no second swap");
-    let log = dir.path().join("update.log");
-    until("the swap gave up", Duration::from_secs(10), || std::fs::read_to_string(&log).unwrap_or_default().contains("did not quit"));
-    until("the swap let go of the stage", Duration::from_secs(5), || !stage::stage_of(&installed_at).join("swapping").exists());
-    assert_eq!(read(&installed_at), b"old");
+    for install in installs() {
+        let installed_at = &install.installed.path;
+        let served = serve(release("0.3.9", &[(&install.asset, &install.new)], &HashMap::new()));
+        let mut road = install.shell(Feed::new(Some(served.base), "wsp/0.3.8".into()));
+        road.get("0.3.9").unwrap();
+        // This test's own pid stands for the app, which never quits, so the swap gives up after its patience.
+        assert_eq!(road.open(), Ok(Opened::Swapping));
+        assert_eq!(road.open().unwrap_err().error, "no verified download to open", "a second Restart starts no second swap");
+        let log = install.dir.path().join("update.log");
+        until("the swap gave up", Duration::from_secs(10), || std::fs::read_to_string(&log).unwrap_or_default().contains("did not quit"));
+        until("the swap let go of the stage", Duration::from_secs(5), || !stage::stage_of(installed_at).join("swapping").exists());
+        assert_eq!(install.now(installed_at), install.was);
+    }
 
     let mut app = Command::new("sleep").arg("30").spawn().unwrap();
     let first = swapping(app.id(), "exec sleep 3");
@@ -185,11 +175,12 @@ fn one_swap_at_a_time() {
 
 /// A folder of the system's own tools, these alone, as a NixOS system keeps them outside /bin; its sleep marks
 /// `sleep.used` beside itself before it sleeps, so a run shows it found that one.
+#[cfg(target_os = "linux")]
 fn tools_in(names: &[&str]) -> (tempfile::TempDir, String) {
     use std::os::unix::fs::PermissionsExt;
     let dir = tmp();
     for name in names {
-        let real = ["/usr/bin", "/bin"].iter().map(|d| Path::new(d).join(name)).find(|p| p.exists()).unwrap();
+        let real = ["/usr/bin", "/bin"].iter().map(|d| std::path::Path::new(d).join(name)).find(|p| p.exists()).unwrap();
         let at = dir.path().join(name);
         if *name == "sleep" {
             std::fs::write(
@@ -207,6 +198,7 @@ fn tools_in(names: &[&str]) -> (tempfile::TempDir, String) {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
 fn the_linux_swap_finds_its_tools_or_refuses() {
     let (all, everything) = tools_in(&swap::LINUX_TOOLS);
     let s = swapping(quit_app(), "");
@@ -235,6 +227,45 @@ fn the_linux_swap_finds_its_tools_or_refuses() {
     assert!(!s.installed.with_file_name("new.ran").exists(), "and the new app never ran from the stage");
     assert_eq!(swap::missing_tools(&no_sleep), ["sleep"]);
     assert!(swap::missing_tools(&everything).is_empty());
+}
+
+#[test]
+fn the_mac_swap_runs_its_tools_by_their_paths() {
+    let named: Vec<&str> = swap::SCRIPT
+        .split(|c: char| !(c.is_ascii_alphanumeric() || "/_.-".contains(c)))
+        .filter(|word| word.starts_with("/bin/") || word.starts_with("/usr/bin/"))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    assert_eq!(
+        named,
+        ["/bin/date", "/bin/mv", "/bin/rm", "/bin/sleep", "/usr/bin/codesign", "/usr/bin/open", "/usr/bin/plutil"],
+        "every tool the Mac's swap runs is named by its path"
+    );
+    if cfg!(target_os = "macos") {
+        use std::os::unix::fs::PermissionsExt;
+        for tool in &named {
+            let runnable = std::fs::metadata(tool).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0);
+            assert!(runnable, "{tool} is a runnable file on this Mac");
+        }
+    }
+
+    let mut app = Command::new("sleep").arg("30").spawn().unwrap();
+    let s = swapping(app.id(), "exec sleep 3");
+    let old = read(&s.installed);
+    let mac = swap::Swap { pid: app.id(), kind: Kind::Mac, patience: 1, ..swapping_of(&s) };
+    let empty = tmp();
+    let from = std::time::Instant::now();
+    assert!(!run_swap_on(&mac, &empty.path().to_string_lossy()).wait().unwrap().success());
+    assert!(from.elapsed() >= Duration::from_millis(900), "its ten waits of 0.1 s ran /bin/sleep on an empty PATH");
+    let log = log_of(&s);
+    let line = log.lines().find(|l| l.ends_with("did not quit; nothing was changed")).unwrap_or_else(|| panic!("{log}"));
+    let stamp = line.split(' ').next().unwrap();
+    assert!(stamp.len() == 20 && stamp.ends_with('Z'), "/bin/date dated the line: {line}");
+    assert!(!stage::stage_of(&s.installed).join("swapping").exists(), "/bin/rm let go of the stage");
+    assert_eq!(read(&s.installed), old, "nothing was changed");
+    app.kill().unwrap();
+    app.wait().unwrap();
 }
 
 #[test]
