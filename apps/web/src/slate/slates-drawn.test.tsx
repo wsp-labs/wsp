@@ -68,16 +68,16 @@ describe("the gold and traffic slate", () => {
     expect(foot.className).toContain("text-xs");
     expect(foot.className).toContain("text-muted-foreground");
     expect(c.querySelector("[data-slate-head]")!.textContent).toBe("ZoneLast hourLatest minute");
-    expect([...c.querySelectorAll("[data-slate-head] + div [role=row]")].map(row => row.textContent)).toEqual(["example.com59,9611,224", "example.org832", "example.net70", "example.dev00"]);
+    expect([...c.querySelectorAll("[data-slate-head] ~ [role=row]")].map(row => row.textContent)).toEqual(["example.com59,9611,224", "example.org832", "example.net70", "example.dev00"]);
   });
 });
 
 describe("the networking quiz and the Zoho inbox", () => {
-  it("draws the question as the card's first row and the right answer's state word", () => {
+  it("draws the question as a title over its own card and the right answer's state word", () => {
     const c = draw(QUIZ_TEXT);
     expect(heads(c)).toEqual(["Question 15 of 156 of 15 right", "Contextthis thread, as of the latest turn", "Gold in BengaluruINR per gram"]);
-    const card = cards(c)[0]!;
-    expect(card.querySelector("[role=radiogroup] > span")!.textContent).toContain("How many broadcast domains");
+    const card = c.querySelector<HTMLElement>("[data-slate-choices]")!;
+    expect(c.querySelector("[data-slate-choices] > span")!.textContent).toContain("How many broadcast domains");
     expect(card.querySelector("[data-slate-choice=right]")!.textContent).toBe("2Right");
     expect(c.querySelector('[role=meter][aria-label="Window used"]')!.textContent).toBe("Window used815k free of 1M185k");
   });
@@ -170,7 +170,7 @@ describe("the spoo live traffic slate", () => {
     // time, method and cc fit their widest value; path, the widest machine text, takes the room left and wraps.
     expect(t.style.gridTemplateColumns).toBe(`${edge} minmax(8ch,max-content) minmax(6ch,max-content) minmax(0,1fr) minmax(6ch,max-content) minmax(2ch,max-content) minmax(2ch,max-content) ${edge}`);
     const head = t.querySelector("[data-slate-head]")!;
-    const rows = [...t.querySelectorAll("[data-slate-head] + div [role=row]")];
+    const rows = [...t.querySelectorAll("[data-slate-head] ~ [role=row]")];
     expect(rows).toHaveLength(4);
     // Every row lays its children on the same tracks as the header, padding none of its own.
     for (const row of rows) {
@@ -280,14 +280,14 @@ describe("the spacing and tables, and the bar lists' switch", () => {
     expect(row.querySelector<HTMLElement>('[data-slate-type="row"] > div')!.className).toContain("gap-3");
   });
 
-  it("puts a table's header words on their columns' tracks, a third nearer the card than before", () => {
+  it("puts a table's header words on their columns' tracks, as the first row of its card", () => {
     const c = draw(GOLD_TEXT, GOLD_VALUES);
     const head = c.querySelector<HTMLElement>("[data-slate-head]")!;
-    expect(head.className).toContain("pb-[5px]");
-    const table = head.parentElement!;
+    expect(head.parentElement!.className).toContain("bg-card/40");
+    const table = head.parentElement!.parentElement!;
     const edge = "calc(var(--settings-inset,20px) - 15px)";
     expect(table.style.gridTemplateColumns.startsWith(edge)).toBe(true);
-    const row = head.nextElementSibling!.querySelector("[role=row]")!;
+    const row = head.nextElementSibling!;
     expect(row.children).toHaveLength(head.children.length);
   });
 

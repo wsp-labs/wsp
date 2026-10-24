@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Options to pick one, each a row of the card written to the piece's $value, the question the card's first row. A pick
-// before the answer is known puts a check at its row's end; once known, Right on the right row and Wrong on a wrong
-// pick, the state word in its tone.
+// Options to pick one, as Settings draws a pick of one: the question as a setting's title over its own card, a row per
+// option with its radio at the left, written to the piece's $value, every name but the pick dimmed once one is
+// picked. Each choices is its own card, so questions one after another stand apart. Once the answer is known, Right
+// on the right row and Wrong on a wrong pick, the state word in its tone.
 import type { SlateJson } from "@wsp/protocol/slate";
+import { Circle, CircleDot } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 import type { PieceView } from "../SlateView.js";
 import { getOwn } from "../paths.js";
 import { placeOf } from "./runs.js";
 import { CARD_SURFACE } from "../../settings/rows.js";
-import { Check } from "lucide-react";
+import { NOTE, SETTING_TITLE } from "../../settings/layout.js";
 import { heldBy, present, str } from "./look.js";
 import { twoWayPath } from "./press.js";
 
@@ -28,7 +30,7 @@ const same = (a: SlateJson | undefined, b: SlateJson | undefined): boolean => a 
 
 export const choices: PieceView = {
   type: "choices",
-  fills: true,
+  card: false,
   component: function ChoicesPiece({ id, piece, props, slate, sender, raise }) {
     const path = twoWayPath(piece.props?.["value"]);
     const picked = path === undefined ? props["value"] : getOwn(slate.values, path);
@@ -41,6 +43,7 @@ export const choices: PieceView = {
     const list = choicesOf(Array.isArray(props["options"]) ? present(slate, piece.props?.["options"], props["options"]) : undefined);
     // One stop in the tab order, the picked row's or else the first, as a native radio group keeps.
     const stop = Math.max(0, list.findIndex(choice => same(choice.value, picked)));
+    const any = list.some(choice => same(choice.value, picked));
     const pick = (value: SlateJson) => {
       if (path === undefined) return;
       void sender.now(path, value).then(() => (piece.on?.change !== undefined ? raise("change") : undefined));
@@ -72,29 +75,26 @@ export const choices: PieceView = {
                 pick(list[to]!.value);
               }}
               className={cn(
-                "flex min-h-11 w-full min-w-0 items-center gap-4 py-3 text-left outline-none transition-colors duration-150",
+                "flex min-h-12 w-full min-w-0 items-center gap-3 py-3 text-left outline-none transition-colors duration-150",
                 inset,
                 "hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:hover:bg-transparent motion-reduce:transition-none",
               )}
             >
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-sm leading-5 text-foreground">{choice.label}</span>
-                {choice.note === undefined ? null : <span className="text-[13px] leading-5 text-muted-foreground">{choice.note}</span>}
+              {chosen ? <CircleDot aria-hidden data-slate-radio className="size-4 shrink-0 text-foreground" /> : <Circle aria-hidden data-slate-radio className="size-4 shrink-0 text-muted-foreground/70" />}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className={cn("text-sm leading-5 break-words", any && !chosen ? "text-muted-foreground" : "text-foreground")}>{choice.label}</span>
+                {choice.note === undefined ? null : <span className={NOTE}>{choice.note}</span>}
               </span>
-              {word !== undefined ? (
-                <span className={cn("shrink-0 text-[13px] leading-5 font-medium", right ? "text-success" : "text-error-foreground")}>{word}</span>
-              ) : chosen ? (
-                <Check aria-hidden className="size-3.5 shrink-0 text-foreground" />
-              ) : null}
+              {word !== undefined ? <span className={cn("shrink-0 text-[13px] leading-5 font-medium", right ? "text-success" : "text-error-foreground")}>{word}</span> : null}
             </button>
           );
         })}
       </div>
     );
     return (
-      <div role="radiogroup" aria-label={label} className={cn("flex min-w-0 flex-col [&>*+*]:border-t [&>*+*]:border-border/50", place === "page" && CARD_SURFACE)}>
-        {label === "" ? null : <span className={cn("py-3 text-sm leading-5 text-foreground", inset)}>{label}</span>}
-        {options}
+      <div role="radiogroup" aria-label={label} data-slate-choices className="flex min-w-0 flex-col gap-2.5">
+        {label === "" ? null : <span className={cn(SETTING_TITLE, "break-words")}>{label}</span>}
+        <div className={cn(place === "page" && CARD_SURFACE)}>{options}</div>
       </div>
     );
   },

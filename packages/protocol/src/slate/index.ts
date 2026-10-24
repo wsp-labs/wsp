@@ -3,7 +3,7 @@
 // validator, the batch, the kit's registries, the sketch and the catalog, one module the host and the renderer both
 // run. Live values are keyed by name without the $; paths are "$name[.field|[index]]".
 export * from "./types.js";
-export { SLATE_LIMITS, slateBytes } from "./limits.js";
+export { SLATE_GLANCE, SLATE_LIMITS, slateBytes } from "./limits.js";
 export { SLATE_CODES, SLATE_SECRET_IN_ARGS, SLATE_WARNINGS, slateProblem, slateServerNotSetUp, slateHostAway, slateDescriptionMissing, nearest as slateNearest, type SlateCode } from "./problems.js";
 export { parseSlateOwnPath, slateSegments, getSlateValue, setSlateValue, slateStep, slateEqual } from "./paths.js";
 export {
@@ -11,7 +11,7 @@ export {
   parseSlateFormat, checkSlateExpression, slateTruthy, slateText, slatePathText, SLATE_FUNCTIONS, SLATE_PIPE_STEPS,
   type SlateExpr, type SlateEvalContext, type SlateFormatPart, type SlateCheckScope, type SlateType, type SlateTypeName,
 } from "./expr.js";
-export { slateFigure, slateHeldText, SLATE_PIECES, SLATE_TONES, SLATE_ITEM_KINDS, SLATE_RESERVED_PROPS, type SlatePieceModule, type SlatePropSpec, type SlatePropType, type SlateItemSpec, type SlateSketchView } from "./kit.js";
+export { slateFigure, slateFigureValue, slateHeldText, SLATE_PIECES, SLATE_TONES, SLATE_ITEM_KINDS, SLATE_RESERVED_PROPS, type SlatePieceModule, type SlatePropSpec, type SlatePropType, type SlateItemSpec, type SlateSketchView } from "./kit.js";
 export { SLATE_SOURCES, slateSourceType, slateShapeText, slateShapeType, slateIsSeries, type SlateSourceModule, type SlateShape } from "./sources.js";
 export { SLATE_STEPS, slateDomainKey, slateLinkDomain, type SlateStepModule } from "./steps.js";
 export { parseSlate, parseSlatePatch, printSlate, compileSlateText } from "./syntax.js";
@@ -19,6 +19,7 @@ export { validateSlate, validateDocument, type SlateLines } from "./validate.js"
 export { applySlatePatch, carrySlateValues, slateStartValues } from "./patch.js";
 export { runSlateBatch, type SlateBatchResult, type SlateBatchContext, type SlateBatchSend, type SlateBatchWindowStep, type SlateWriter } from "./batch.js";
 export { sketchSlate, type SlateSketchContext } from "./sketch.js";
+export { slateGlanceProblems } from "./glance.js";
 export { slateAxisWord, slateChartAxis, slateShares, slateSpanState, slateTime, SLATE_DONUT_PARTS, SLATE_SPAN_STATES, type SlateSpanState } from "./chart.js";
 export { slateResultShape, sketchSlateResult, slateFieldWords, SLATE_RESULT_ROWS, type SlateResultShape } from "./shape.js";
 export { slateCatalog, slateTokens, SLATE_CHAPTERS, SLATE_RULES } from "./catalog.js";

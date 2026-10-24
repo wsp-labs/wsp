@@ -1,0 +1,54 @@
+<slate title="Native desktop app">
+  <value name="lookDiagrams" start="" />
+  <value name="lookSwitcher" start="" />
+  <value name="lookActivity" start="" />
+  <value name="pictures" start="" />
+  <value name="runBand" start="" />
+  <value name="wayland" start="" />
+  <value name="shadows" start="" />
+  <run name="progress"
+      cmd="WSP_HOME=/Users/ada/wsp-work/ui-home /Users/ada/wsp-work/ui-home/thread-bin/wsp threads wsp --json 2>/dev/null"
+      every={30} then='python3 "$SLATE_DIR/progress.py"' />
+  <run name="mac" cmd='python3 "$SLATE_DIR/mac-status.py"' every={15} always />
+  <column id="page" gap="loose">
+    <section id="build" title="The new app">
+      <progress id="screens" label="screens in the app" items={$progress.json.screens} key={item.name}
+          name={first(split(item.name, ":"))} done={item.state == "In the app"}
+          note={replace(replace(replace(replace(replace(item.state, "In the app: ", ""), "In the app (", ""), "In the app ", ""), "(", ""), ")", "")} />
+      <progress id="steps" label="big steps done" items={$progress.json.steps} key={item.title} name={item.title}
+          done={item.state == "done"} note={item.state == "working" ? "Working now" : "Not started"} />
+      <progress id="helpers" label="helpers finished" items={$progress.json.helpers} key={item.name}
+          name={first(split(item.name, ":"))} done={item.state == "Finished"} note={item.state} />
+    </section>
+  </column>
+  <file name="progress.py">{`
+    import json, sys
+
+    STATES = {"running": ("Working", "info"), "completed": ("Finished", "good"), "failed": ("Stopped", "bad")}
+    p = json.load(open("/Users/ada/wsp-work/coord/briefs/gpui/progress.json"))
+    try:
+        threads = {t["id"][:8]: t.get("status", "") for t in json.load(sys.stdin).get("threads", [])}
+    except Exception:
+        threads = {}
+    helpers = []
+    for h in p.get("helpers", []):
+        state, tone = STATES.get(threads.get(h["id"], ""), ("Starting", "muted"))
+        helpers.append({"name": h["name"], "state": state, "tone": tone})
+    steps = p.get("steps", [])
+    screens = p.get("screens", [])
+    print(json.dumps({
+        "goal": p.get("goal", ""),
+        "timeline": p.get("timeline", ""),
+        "leak": p.get("leak", ""),
+        "asks": p.get("asks", []),
+        "steps": steps,
+        "done": sum(1 for s in steps if s.get("state") == "done"),
+        "total": len(steps),
+        "screens": screens,
+        "inapp": sum(1 for s in screens if s.get("state") == "In the app"),
+        "screenTotal": len(screens),
+        "helpers": helpers,
+        "running": sum(1 for h in helpers if h["state"] == "Working"),
+    }))
+  `}</file>
+</slate>

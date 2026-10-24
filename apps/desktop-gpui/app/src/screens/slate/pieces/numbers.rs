@@ -29,7 +29,102 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
         "meter" | "ring" => Some(meter(p, window, cx)),
         "sparkline" => Some(sparkline(p, cx)),
         "bars" => Some(bars(p, cx)),
+        "stats" => Some(stats(p, window, cx)),
         _ => None,
+    }
+}
+
+/// A figure written as text, value="90", read as the number it spells (`slateFigureValue`).
+fn figure_value(v: Option<&Value>) -> Option<Value> {
+    match v {
+        Some(Value::String(s)) => s.trim().parse::<f64>().ok().map(Value::from).or_else(|| Some(Value::String(s.clone()))),
+        other => other.filter(|v| !v.is_null()).cloned(),
+    }
+}
+
+/// `Ring` in `tile.tsx`: 20 px across beside a tile's label, a 12 percent track under its share's arc.
+fn ring(share: f64, ink: Hsla) -> gpui_kit::Div {
+    let percent = (share.clamp(0., 1.) * 100.).round() as u32;
+    let outer = px(20. * 22.5 / 24.);
+    div()
+        .relative()
+        .flex_none()
+        .size(px(20.))
+        .child(div().absolute().top((px(20.) - outer) / 2.).left((px(20.) - outer) / 2.).size(outer).rounded_full().border(px(2.5)).border_color(ink.opacity(0.12)))
+        .when(percent > 0, |el| el.child(gpui_kit::svg().absolute().inset_0().size(px(20.)).path(crate::ui::icons::ring_arc(percent)).text_color(ink)))
+}
+
+/// `stats.tsx` and `tile.tsx`: two to four figures as equal tiles in one card, a hairline between them; a tile's label
+/// with its ring where it has a max, the figure 26 px mono rolling to a new value, its window under it.
+fn stats(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
+    let pal = cx.palette().clone();
+    let resolved = p.prop("stats").and_then(Value::as_array).cloned().unwrap_or_default();
+    let tiles: Vec<Value> = p.slate.present(p.piece.prop("stats"), &resolved).into_iter().take(4).collect();
+    let pad = if tiles.len() >= 3 { px(12.) } else { INSET };
+    let rule = pal.border.opacity(0.5);
+    let cells: Vec<AnyElement> = tiles
+        .iter()
+        .enumerate()
+        .map(|(ix, t)| {
+            let get = |k: &str| t.get(k).filter(|v| !v.is_null());
+            let value = figure_value(get("value"));
+            let n = value.as_ref().and_then(Value::as_f64);
+            let max = get("max").and_then(Value::as_f64).filter(|m| *m > 0.);
+            let format = get("format").and_then(Value::as_str).unwrap_or(if max.is_some() { "fraction" } else { "plain" });
+            let plain = |x: f64| look::figure(Some(&Value::from(x)), None).unwrap_or_default();
+            let shown = match (n, format, max) {
+                (Some(v), "fraction", Some(m)) => Some(format!("{}/{}", plain(v), plain(m))),
+                (Some(v), "percent", Some(m)) => Some(format!("{}%", js_round(v / m * 100.))),
+                _ => look::figure(value.as_ref(), Some(&Value::from(format))),
+            };
+            let tone = layout::tone_of(get("tone"), p.slate, p.id());
+            let share = n.zip(max).map(|(v, m)| v / m);
+            let ink = if tone == Tone::Default { pal.foreground.opacity(0.55) } else { tone.ink(cx) };
+            let figure_ink = if share.is_none() && tone != Tone::Default { tone.ink(cx) } else { pal.foreground };
+            let figure = h_flex()
+                .min_h(px(32.))
+                .min_w_0()
+                .flex_wrap()
+                .items_baseline()
+                .gap_x_1()
+                .font_family(mono(cx))
+                .text_size(px(26.))
+                .line_height(px(32.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(figure_ink);
+            let figure = match shown {
+                None => figure.child(note("Not read yet", cx).self_center().font_family(cx.theme().font_family.clone()).font_weight(FontWeight::NORMAL)),
+                Some(shown) => figure.child(digit_roll(p.el(&format!("stat-{ix}")), &shown, px(32.), window, cx)).children(look::str(get("unit")).map(|unit| {
+                    div().font_family(cx.theme().font_family.clone()).font_weight(FontWeight::NORMAL).text_size(px(12.)).line_height(px(16.)).text_color(pal.muted_foreground).child(unit)
+                })),
+            };
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .gap(px(6.))
+                .px(pad)
+                .pt(px(16.))
+                .pb(px(14.))
+                .when(ix > 0, |el| el.border_l_1().border_color(rule))
+                .child(
+                    h_flex()
+                        .min_w_0()
+                        .items_start()
+                        .justify_between()
+                        .gap(px(8.))
+                        .child(div().min_w_0().text_size(px(13.)).line_height(px(20.)).text_color(pal.muted_foreground).children(look::str(get("label"))))
+                        .children(share.map(|s| ring(s, ink))),
+                )
+                .child(figure)
+                .children(look::str(get("window")).map(|w| note(w, cx)))
+                .into_any_element()
+        })
+        .collect();
+    let strip = h_flex().w_full().min_w_0().items_stretch().children(cells).debug_selector(|| "slate-stats".into());
+    if layout::place_of(p.slate, p.id()) == Place::Inside {
+        strip.into_any_element()
+    } else {
+        layout::surface(p.el("stats"), strip)
     }
 }
 

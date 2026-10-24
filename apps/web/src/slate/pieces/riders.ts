@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The words a number's stat cell carries in its note: a status and the text that follows it, written right after the
 // number, or beside it in the same row or cell (alone, or stacked in a column of their own). The number draws them;
-// the pieces themselves draw nothing. Two numbers or more alone in a row, column or grid are a strip of stat cells.
+// the pieces themselves draw nothing. Two figures or more (numbers, rings, meters) alone in a row, column or grid are a
+// strip of stat tiles.
 import type { SlateEngine } from "../engine.js";
 import { isNoteText } from "./look.js";
 
@@ -16,6 +17,8 @@ export interface Riders {
 
 const NONE: Riders = { state: undefined, texts: [], all: [] };
 const isWords = (type: string | undefined): boolean => type === "status" || type === "text";
+/** The pieces a strip of stat tiles holds. */
+const FIGURES: ReadonlySet<string> = new Set(["number", "ring", "meter"]);
 
 /** The parent lays its children side by side or stacks them in one cell, rather than gathering them into cards. */
 function holdsOneCell(slate: SlateEngine, id: string): boolean {
@@ -32,10 +35,11 @@ export function stripCells(slate: SlateEngine, id: string): string[] | undefined
   if (piece === undefined || !["row", "column", "grid"].includes(piece.type)) return undefined;
   const children = piece.children ?? [];
   const types = children.map(child => slate.piece(child)?.type);
-  const numbers = children.filter((_, at) => types[at] === "number");
-  if (numbers.length < 2) return undefined;
-  const fits = types.every((type, at) => type === "number" || (type === "status" && types[at - 1] === "number") || (type === "text" && types[at - 1] === "status" && types[at - 2] === "number"));
-  return fits ? numbers : undefined;
+  // A ring and a meter beside numbers draw as the same tile, so one row never mixes a bar line with a stacked figure.
+  const figures = children.filter((_, at) => FIGURES.has(types[at] ?? ""));
+  if (figures.length < 2) return undefined;
+  const fits = types.every((type, at) => FIGURES.has(type ?? "") || (type === "status" && types[at - 1] === "number") || (type === "text" && types[at - 1] === "status" && types[at - 2] === "number"));
+  return fits ? figures : undefined;
 }
 
 export const isStrip = (slate: SlateEngine, id: string): boolean => stripCells(slate, id) !== undefined;

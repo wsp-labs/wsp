@@ -49,6 +49,7 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
         "input" => input(p, window, cx),
         "select" => select(p, window, cx),
         "choices" => choices(p, window, cx),
+        "decision" => decision(p, window, cx),
         "toggle" => toggle(p, window, cx),
         _ => return None,
     })
@@ -836,6 +837,61 @@ fn choice_key(key: &str, stop: usize, n: usize) -> Option<usize> {
         "enter" | "space" => Some(stop),
         _ => None,
     }
+}
+
+/// `decision.tsx`: the question as a setting's title, the answers as outline keycaps and the agent's pick named under
+/// them with its reason; once answered, the answer with a check and a quiet Change, which clears it.
+fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
+    let pal = cx.palette().clone();
+    let path = two_way(p.piece.prop("value"));
+    let picked = current(p, path.as_deref()).cloned().filter(|v| !v.is_null() && v.as_str() != Some(""));
+    let open = held_by(p.prop("held")).is_none() && path.is_some() && !p.busy();
+    let list: Vec<Choice> = choices_of(&present(p, "options")).into_iter().take(4).collect();
+    let mine = list.iter().find(|c| same(Some(&c.value), p.prop("pick")));
+    let answered = list.iter().find(|c| same(Some(&c.value), picked.as_ref()));
+    let title = div()
+        .text_size(px(14.))
+        .line_height(px(20.))
+        .font_weight(if answered.is_none() { FontWeight::MEDIUM } else { FontWeight::NORMAL })
+        .text_color(if answered.is_none() { pal.foreground } else { pal.muted_foreground })
+        .children(p.str("label"));
+    let body = match answered {
+        None => v_flex()
+            .min_w_0()
+            .gap(px(10.))
+            .child(h_flex().min_w_0().flex_wrap().gap(px(8.)).children(list.iter().enumerate().map(|(ix, c)| {
+                let (picker, value) = (Picker::of(p, path.clone()), c.value.clone());
+                let key = Button::outline(p.el(&format!("answer-{ix}")), c.label.clone()).held(!open).on_click(move |_, _, cx| picker.pick(value.clone(), cx));
+                match c.note.clone() {
+                    Some(note) => key.tooltip(note),
+                    None => key,
+                }
+            })))
+            .children(mine.map(|c| {
+                let why = c.note.as_ref().map(|n| format!(". {n}")).unwrap_or_default();
+                div().text_size(px(13.)).line_height(px(20.)).text_color(pal.muted_foreground).child(format!("My pick: {}{why}", c.label))
+            }))
+            .into_any_element(),
+        Some(c) => {
+            let picker = Picker::of(p, path.clone());
+            h_flex()
+                .min_w_0()
+                .items_center()
+                .gap(px(8.))
+                .child(Icon::new(Glyph::Check).with_size(px(16.)).flex_none().text_color(pal.success))
+                .child(div().flex_1().min_w_0().text_size(px(14.)).line_height(px(20.)).text_color(pal.foreground).child(c.label.clone()))
+                .child(Button::ghost(p.el("change"), "Change").xs().held(!open).on_click(move |_, _, cx| picker.pick(Value::String(String::new()), cx)))
+                .into_any_element()
+        }
+    };
+    v_flex()
+        .min_w_0()
+        .gap(px(10.))
+        .debug_selector(move || format!("slate-decision-{}", if answered.is_some() { "answered" } else { "open" }))
+        .child(title)
+        .child(body)
+        .children(outcome(p.outcome(), cx))
+        .into_any_element()
 }
 
 fn choices(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
