@@ -11,7 +11,7 @@ use desktop_gpui::screens::{composer, Place, Route};
 use desktop_gpui::service::default_state;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
-use desktop_gpui::{bench, desktop, local_store, screens};
+use desktop_gpui::{bench, desktop, local_store, screens, update};
 use futures::StreamExt as _;
 use gpui_kit::component::Root;
 use gpui_kit::{px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
@@ -118,6 +118,9 @@ fn main() {
     if plain {
         desktop::log::started(&wsp_host_client::HostClient::app_release());
     }
+    // Before any window can hold the launch: a swap that opened this app waits on it.
+    let installed = plain.then(update::installed_here).flatten();
+    let settled = installed.as_ref().map(|i| update::swap::settle(&i.path));
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
     let gallery = args.gallery;
     let bench::Capture { theme, unfold, now, reveal, drop } = args.capture;
@@ -196,6 +199,9 @@ fn main() {
             return;
         }
         desktop::hosts::init(state.clone(), env.clone(), runtime.clone(), cx);
+        if plain {
+            update::init(installed.clone(), &desktop::logs_of(&env), cx);
+        }
         menu::init(cx);
         cx.set_global(capture);
         if browser_check {
@@ -216,7 +222,8 @@ fn main() {
             startup::follow_raises(lock, Rc::new(later), cx);
         }
         if plain {
-            startup::open(state, env, runtime, reopen, cx);
+            let (at, vars) = (state.clone(), env.clone());
+            update::launch(settled, at, vars, Box::new(move |cx| startup::open(state, env, runtime, reopen, cx)), cx);
         } else {
             open_main(state, env, runtime, launch, pane.clone(), session, cx);
         }

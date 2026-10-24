@@ -102,6 +102,33 @@ fn scroll_through(sidebar: &Entity<Sidebar>, cx: &mut VisualTestContext) {
     }
 }
 
+/// Catches: a dismiss that keeps the version but leaves the download the shell checked, so the copy beside the app
+/// and the Restart that opens it outlive the person's no; and a card that stands after it.
+#[gpui_kit::test]
+fn dismissing_a_restart_keeps_the_version_and_drops_the_checked_download(cx: &mut TestAppContext) {
+    use crate::update::{self, stage::Installed, stage::Kind, Act, Download, Phase};
+    let dir = tempfile::tempdir().unwrap();
+    let (sidebar, cx) = drawn(cx);
+    cx.update(|_, cx| {
+        update::init(Some(Installed { path: dir.path().join("wsp.AppImage"), kind: Kind::AppImage }), dir.path(), cx);
+        let kept = Download { version: "99.0.0".into(), phase: Phase::Kept };
+        cx.update_global::<update::Updates, _>(|u, _| u.download = Some(kept));
+    });
+    let mut snap = snapshot(0, now_ms());
+    snap.release = Some(json!({ "state": "read", "latest": { "version": "99.0.0", "url": "u" } }));
+    sidebar.update(cx, |s, cx| s.apply(Change::Whole(Box::new(snap)), cx));
+    cx.run_until_parked();
+    assert_eq!(sidebar.read_with(cx, |s, cx| s.update_shown(cx)).map(|s| s.act), Some(Act::Restart));
+    writes::WRITTEN.with(|w| w.borrow_mut().clear());
+    let dismiss = cx.debug_bounds("update-dismiss").expect("the card's dismiss is drawn").center();
+    cx.simulate_click(dismiss, gpui_kit::Modifiers::none());
+    cx.run_until_parked();
+    let written = writes::WRITTEN.with(|w| w.borrow().clone());
+    assert_eq!(written, [("preferences.set", json!({ "patch": { "updateDismissed": "99.0.0" } }))]);
+    assert_eq!(cx.update(|_, cx| cx.global::<update::Updates>().download.clone()), None, "the checked download is dropped");
+    assert!(cx.debug_bounds("update-card").is_none(), "the dismissed release's card is gone");
+}
+
 fn png(shade: u8) -> Vec<u8> {
     let mut out = std::io::Cursor::new(Vec::new());
     image::RgbaImage::from_pixel(128, 128, image::Rgba([shade, 0, 0, 255])).write_to(&mut out, image::ImageFormat::Png).unwrap();

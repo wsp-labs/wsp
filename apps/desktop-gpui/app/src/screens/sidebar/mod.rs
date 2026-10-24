@@ -295,6 +295,9 @@ pub struct Sidebar {
     around: Around,
     list: ListState,
     link: Option<Link>,
+    /// Whether the host is this computer's own, read once as the link is made: no link reads as here, as a page
+    /// with no shell does.
+    here: bool,
     following: Option<Following>,
     renaming: Option<Renaming>,
     armed: Option<(String, Instant)>,
@@ -347,6 +350,7 @@ impl Sidebar {
                 break;
             }
         });
+        cx.observe_global::<crate::update::Updates>(|_, cx| cx.notify()).detach();
         Sidebar {
             items: Vec::new(),
             selected: None,
@@ -367,6 +371,7 @@ impl Sidebar {
             around: Around::default(),
             list,
             link: None,
+            here: true,
             following: None,
             renaming: None,
             armed: None,
@@ -628,6 +633,7 @@ impl Sidebar {
                 }
             }
         });
+        self.here = link.host.here();
         self.link = Some(link);
         self.following = Some(Following { task, _receive: receive });
     }
@@ -638,6 +644,7 @@ impl Sidebar {
             Change::Whole(snapshot) => {
                 self.take(*snapshot);
                 self.read_whole(cx);
+                self.update_in_background(cx);
             }
             Change::Row { id, row } => {
                 let at = self.rows.iter().position(|r| r.id == id);
@@ -657,7 +664,10 @@ impl Sidebar {
                     (None, None) => {}
                 }
             }
-            Change::Preferences(p) => self.take_preferences(p),
+            Change::Preferences(p) => {
+                self.take_preferences(p);
+                self.update_in_background(cx);
+            }
             Change::Places(places) => self.around.places = places,
             Change::Job(job) => self.around.job = job.map(Rc::new),
             Change::JobNeed(need) => {
@@ -692,7 +702,10 @@ impl Sidebar {
                     .creations
                     .retain(|c| c.workspace_id.as_deref() != Some(id.as_str()) && !(c.workspace_id.is_none() && c.name == name));
             }
-            Change::Release(release) => self.around.release = Some(release),
+            Change::Release(release) => {
+                self.around.release = Some(release);
+                self.update_in_background(cx);
+            }
             Change::Forward(forward) => {
                 let key = |f: &Value| (f.get("workspaceId").cloned(), f.get("port").cloned());
                 self.around.forwards.retain(|f| key(f) != key(&forward));

@@ -3,15 +3,16 @@
 //! under the list (`sidebar/ForwardsList.tsx`).
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
-use gpui_kit::{div, prelude::*, px, relative, svg, AnyElement, Context, SharedString};
+use gpui_kit::{div, prelude::*, px, relative, svg, AnyElement, App, Context, SharedString, TestSupportExt as _};
 use serde_json::{json, Value};
 use wsp_host_client::protocol::{ForwardsStopRequest, HostRestartRequest, PreferencesSetRequest};
 
 use super::chrome::{self, ROW_RADIUS};
 use super::{looks, model, Asked, Sidebar};
 use crate::screens::notices::words::wait_line;
-use crate::ui::icons::LOCKUP;
+use crate::ui::icons::MARK;
 use crate::ui::{ActivePalette, Button, Glyph};
+use crate::update::{self, words, Act, Stage};
 
 /// How a setup card reads: working, needing the person, or failed.
 #[derive(Clone, Copy, PartialEq)]
@@ -69,25 +70,79 @@ fn setup_cards(places: &[Value]) -> Vec<SetupCard> {
         .collect()
 }
 
-/// The update the foot offers (`shell/update.ts` updateStage, for a page that is no desktop bundle): newer files
-/// under the host, which a restart brings in, else a newer release the host is behind.
-fn update_stage(release: Option<&Value>) -> Option<(String, String, bool)> {
-    let release = release?;
-    let url = release.pointer("/latest/url").and_then(Value::as_str).unwrap_or("https://github.com/wsp-labs/wsp/releases").to_owned();
-    if let Some(installed) = release.get("installed").and_then(Value::as_str) {
-        if release.get("restartRefusal").is_none() {
-            return Some((installed.to_owned(), url, true));
-        }
-    }
-    release.get("update")?;
-    Some((release.pointer("/latest/version")?.as_str()?.to_owned(), url, false))
+/// What the update card says for a stage (`UpdateCard`): the title, the line under it, the act's word, the act's
+/// hover, and whether the act is held while the download runs.
+#[derive(Debug, PartialEq)]
+pub(crate) struct CardWords {
+    pub title: String,
+    pub line: Option<String>,
+    pub act: &'static str,
+    pub hover: Option<&'static str>,
+    pub held: bool,
+}
+
+/// A restart into the checked copy carries the running threads on; an app that cannot replace itself says why beside
+/// Get.
+pub(crate) fn card_words(stage: &Stage, running: usize, why: Option<&'static str>, hover: Option<&'static str>) -> CardWords {
+    let title = if update::ready(stage.act) { words::ready(&stage.version) } else { words::out(&stage.version) };
+    let line = match stage.act {
+        Act::Restart => (running > 0).then(|| words::keep_running(running)),
+        Act::Get => why.map(str::to_owned),
+        _ => None,
+    };
+    let act = match stage.act {
+        Act::Link | Act::Get => words::GET,
+        Act::Downloading => words::DOWNLOADING,
+        Act::Open => words::QUIT_AND_OPEN,
+        Act::Restart | Act::RestartHost => words::RESTART,
+    };
+    CardWords { title, line, act, hover: hover.filter(|_| stage.act == Act::Get), held: stage.act == Act::Downloading }
 }
 
 impl Sidebar {
-    /// Whether the update card stands: a stage the person has not dismissed for its version.
-    pub(crate) fn update_shown(&self) -> Option<(String, String, bool)> {
-        let dismissed = self.around.preferences.as_ref()?.get("updateDismissed").and_then(Value::as_str).map(str::to_owned);
-        update_stage(self.around.release.as_ref()).filter(|(v, _, _)| dismissed.as_deref() != Some(v.as_str()))
+    /// The release this sidebar's host last read, as the update card and the background download take it.
+    pub(crate) fn update_stage(&self, cx: &App) -> Option<Stage> {
+        let host = self.link.as_ref().and_then(|l| l.host.host_release());
+        update::stage(self.around.release.as_ref(), host.as_deref(), self.here, cx)
+    }
+
+    /// The release the person dismissed, or nothing until the host's preferences are read (`useDismissed`).
+    fn update_dismissed(&self) -> Option<Option<&str>> {
+        self.around.preferences.as_deref().map(|p| p.get("updateDismissed").and_then(Value::as_str))
+    }
+
+    /// Whether the update card stands: a stage, once the preferences are read, the person has not dismissed.
+    pub(crate) fn update_shown(&self, cx: &App) -> Option<Stage> {
+        let dismissed = self.update_dismissed()?;
+        self.update_stage(cx).filter(|s| dismissed != Some(s.version.as_str()))
+    }
+
+    /// `useUpdateInBackground`, run as the release or the preferences land.
+    pub(crate) fn update_in_background(&self, cx: &mut Context<Self>) {
+        let stage = self.update_stage(cx);
+        update::background(stage.as_ref(), self.update_dismissed(), cx);
+    }
+
+    /// `dismissUpdate`: the host keeps the version for every window, and a copy the shell checked is deleted.
+    pub(crate) fn dismiss_update(&mut self, stage: &Stage, cx: &mut Context<Self>) {
+        if let Some(prefs) = self.around.preferences.as_mut().map(std::rc::Rc::make_mut).and_then(Value::as_object_mut) {
+            prefs.insert("updateDismissed".to_owned(), json!(stage.version));
+        }
+        self.write_op::<PreferencesSetRequest>(json!({ "patch": { "updateDismissed": stage.version } }), cx);
+        update::dismiss(stage, cx);
+        cx.notify();
+    }
+
+    /// Restart host, its refusal said as a notice.
+    fn restart_host(&mut self, cx: &mut Context<Self>) {
+        let Some(link) = self.link.clone() else { return };
+        let task = link.runtime.spawn(super::host::write::<HostRestartRequest>(link.host.clone(), json!({})));
+        cx.spawn(async move |_, cx| {
+            if let Err(failure) = task.await.unwrap_or_else(|e| Err(wsp_host_client::Failure::new(e.to_string()))) {
+                cx.update(|cx| crate::ui::notify(cx, crate::ui::Notice::error(words::not_restarted(&failure.message))));
+            }
+        })
+        .detach();
     }
 
     /// The Setting up section: its head and, unfolded, a card per computer being set up, the list held to 196 px.
@@ -177,23 +232,29 @@ impl Sidebar {
         )
     }
 
-    /// The update card, in the cloud card's shape: the mark, "wsp {v} is out" or "is ready", Get or Restart, and
-    /// What's new.
+    /// The update card (`UpdateCard.tsx`), in the cloud card's shape: the mark, "wsp {v} is out" or "is ready", the
+    /// line under it where there is one, the stage's act and What's new.
     pub(crate) fn update_card(&mut self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let (version, url, restart) = self.update_shown()?;
+        let stage = self.update_shown(cx)?;
         let p = cx.palette().clone();
-        let title = format!("wsp {version} {}", if restart { "is ready" } else { "is out" });
-        let (open, news) = (url.clone(), url);
-        let dismissed = version.clone();
-        let act = if restart {
-            Button::outline("update-act", "Restart")
-                .xs()
-                .on_click(cx.listener(|this, _, _, cx| this.write_op::<HostRestartRequest>(json!({}), cx)))
-        } else {
-            Button::outline("update-act", "Get").xs().on_click(move |_, _, cx| cx.open_url(&open))
-        };
+        let running = self.rows.iter().filter(|r| r.status == model::Status::Running).count();
+        let said = card_words(&stage, running, update::why(cx), update::hover(cx));
+        let me = cx.weak_entity();
+        let pressed = stage.clone();
+        let mut act = Button::outline("update-act", said.act).xs().held(said.held).on_click(move |_, _, cx| {
+            if pressed.act == Act::RestartHost {
+                _ = me.update(cx, |this, cx| this.restart_host(cx));
+            } else {
+                update::run(&pressed, cx);
+            }
+        });
+        if let Some(hover) = said.hover {
+            act = act.tooltip(hover);
+        }
+        let news = stage.url.clone();
         Some(
             v_flex()
+                .id("update-card")
                 .debug_selector(|| "update-card".into())
                 .flex_none()
                 .relative()
@@ -211,19 +272,12 @@ impl Sidebar {
                         .text_size(px(14.))
                         .line_height(px(20.))
                         .text_color(p.sidebar_foreground)
-                        // The tilde alone: the lockup's first 16 of its 51 px.
-                        .child(
-                            div()
-                                .flex_none()
-                                .w(px(14.))
-                                .h(px(14.))
-                                .overflow_hidden()
-                                .child(svg().path(LOCKUP).w(px(51.)).h(px(14.)).text_color(p.muted_foreground)),
-                        )
-                        .child(div().flex_1().min_w_0().truncate().child(title))
+                        .child(svg().flex_none().path(MARK).size(px(14.)).text_color(p.sidebar_muted_foreground))
+                        .child(div().debug_selector(|| "update-title".into()).flex_1().min_w_0().truncate().child(said.title))
                         .child(
                             div()
                                 .id("update-dismiss")
+                                .debug_selector(|| "update-dismiss".into())
                                 .flex()
                                 .flex_none()
                                 .items_center()
@@ -233,24 +287,26 @@ impl Sidebar {
                                 .rounded(px(6.))
                                 .cursor_pointer()
                                 .hover(move |s| s.bg(p.accent))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    if let Some(prefs) =
-                                        this.around.preferences.as_mut().map(std::rc::Rc::make_mut).and_then(Value::as_object_mut)
-                                    {
-                                        prefs.insert("updateDismissed".to_owned(), json!(dismissed));
-                                    }
-                                    this.write_op::<PreferencesSetRequest>(json!({ "patch": { "updateDismissed": dismissed } }), cx);
-                                }))
+                                .on_click(cx.listener(move |this, _, _, cx| this.dismiss_update(&stage, cx)))
                                 .child(Icon::new(Glyph::X).with_size(px(12.)).text_color(p.muted_foreground)),
                         ),
                 )
+                .children(said.line.map(|line| {
+                    div()
+                        .debug_selector(|| "update-line".into())
+                        .text_size(px(11.))
+                        .line_height(px(14.))
+                        .text_color(p.sidebar_muted_foreground)
+                        .child(line)
+                }))
                 .child(
                     h_flex()
                         .gap(px(8.))
                         .pt(px(6.))
                         .child(act)
-                        .child(Button::ghost("update-news", "What's new").on_click(move |_, _, cx| cx.open_url(&news))),
+                        .child(Button::ghost("update-news", words::WHATS_NEW).xs().on_click(move |_, _, cx| cx.open_url(&news))),
                 )
+                .test_support()
                 .into_any_element(),
         )
     }
@@ -380,11 +436,36 @@ mod tests {
         assert!(setup_cards(off.as_array().unwrap()).is_empty(), "a computer not answering reads its absence, not its setup");
     }
 
+    /// Catches: an act under another word than `ACT_WORDS` gives it, a title that calls a release ready before it is
+    /// on this computer, a hover beside any act but Get, a Downloading that takes a press, and the line under the title
+    /// standing anywhere but under a Restart with threads running or a Get that cannot replace the app.
     #[test]
-    fn the_update_card_offers_a_restart_before_a_release() {
-        assert_eq!(update_stage(Some(&json!({ "state": "read", "installed": "0.4.1" }))).map(|s| s.2), Some(true));
-        let behind = json!({ "state": "read", "latest": { "version": "0.4.2", "url": "u" }, "update": "npm i -g" });
-        assert_eq!(update_stage(Some(&behind)), Some(("0.4.2".to_owned(), "u".to_owned(), false)));
-        assert_eq!(update_stage(Some(&json!({ "state": "read", "latest": { "version": "0.4.2", "url": "u" } }))), None);
+    fn the_update_card_says_each_acts_word_title_and_line() {
+        let at = |act| Stage { version: "0.5.0".into(), url: "u".into(), act };
+        let said = |act, running| card_words(&at(act), running, Some("Move wsp out of Downloads."), Some("hover"));
+        let acts = [Act::Link, Act::Get, Act::Downloading, Act::Open, Act::Restart, Act::RestartHost];
+        let words: Vec<_> = acts.iter().map(|&a| said(a, 0).act).collect();
+        assert_eq!(words, ["Get", "Get", "Downloading", "Quit and open", "Restart", "Restart"]);
+        let titles: Vec<_> = acts.iter().map(|&a| said(a, 0).title).collect();
+        assert_eq!(titles[..3], ["wsp 0.5.0 is out", "wsp 0.5.0 is out", "wsp 0.5.0 is out"]);
+        assert_eq!(titles[3..], ["wsp 0.5.0 is ready", "wsp 0.5.0 is ready", "wsp 0.5.0 is ready"]);
+        let hovers: Vec<_> = acts.iter().map(|&a| said(a, 0).hover).collect();
+        assert_eq!(hovers, [None, Some("hover"), None, None, None, None], "the road's hover stands over Get alone");
+        let held: Vec<_> = acts.iter().map(|&a| said(a, 0).held).collect();
+        assert_eq!(held, [false, false, true, false, false, false]);
+
+        assert_eq!(said(Act::Restart, 2).line.as_deref(), Some("Your 2 running threads carry on. Open terminals close."));
+        assert_eq!(said(Act::Restart, 1).line.as_deref(), Some("Your running thread carries on. Open terminals close."));
+        assert_eq!(said(Act::Restart, 0).line, None, "no running thread, no line");
+        assert_eq!(said(Act::RestartHost, 2).line, None, "a host restart says nothing of the threads");
+        assert_eq!(
+            said(Act::Get, 2).line.as_deref(),
+            Some("Move wsp out of Downloads."),
+            "why the app cannot replace itself stands beside Get"
+        );
+        assert_eq!(card_words(&at(Act::Get), 0, None, None).line, None);
+        for act in [Act::Link, Act::Downloading, Act::Open] {
+            assert_eq!(said(act, 2).line, None, "{act:?} has no line");
+        }
     }
 }
