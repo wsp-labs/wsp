@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
 # Builds the GPUI app into dist/. On macOS: a universal "wsp Experimental.app", its DMG in today's drag layout and
-# the zip. On Linux: the bare binary and an x86_64 AppImage on today's static runtime. With CSC_LINK and
+# the zip. On Linux: the bare binary and an x86_64 AppImage on today's static runtime. The app and the AppImage carry
+# the host as today's app carries it: a Node, the host's built command (apps/desktop's build/app) and the daemon for
+# each target, which packages/wspx/daemon must hold (WSP_REQUIRE_DAEMON=1 refuses a missing one, as the release does). With CSC_LINK and
 # CSC_KEY_PASSWORD set it signs with that Developer ID, else ad hoc; with APPLE_ID, APPLE_TEAM_ID and
 # APPLE_APP_SPECIFIC_PASSWORD also set it notarizes and staples. WSP_GPUI_BUNDLE_ID overrides the bundle id.
 #   --target mac|linux  what to build, the host's own by default; mac builds only on macOS
@@ -61,6 +63,20 @@ dist=dist
 runtime_url=https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
 runtime_sum=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
 
+# The Node the host runs on: major 22, as package.json's engines and release.yml's NODE_VERSION name, at the release
+# packages/catalog's NODE_RELEASES pins, with the sums nodejs.org/dist/v22.23.2/SHASUMS256.txt gives each archive.
+node_version=22.23.2
+node_sum() {
+  case "$1" in
+    darwin-arm64) echo 61130f394c1630d211dd50aecc4353d379480f36d3ac913cd85dbba1aed585c6 ;;
+    darwin-x64) echo 58e99022c2ff89395576cc7fd4d98cea24bb68081475d5f88b801ee8729fb026 ;;
+    linux-x64) echo b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;
+  esac
+}
+# Today's app's own staged host: the command the shim runs with its chunks, and assets/ (web, cli, daemon/<triple>).
+host_app=../desktop/build/app
+entitlements=../desktop/build/entitlements.mac.plist
+
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/wsp-package.XXXXXX")
 keychain=
 device=
@@ -117,6 +133,66 @@ else
 fi
 run mkdir -p "$dist"
 
+# Runs a check of a file the bundle must hold, and refuses the build where it fails.
+check() {
+  show test "$1" "$2"
+  if [ "$dry" = 0 ] && ! test "$1" "$2"; then refuse "the bundle lacks $2"; fi
+}
+
+# The Node archive for one target, out of vendor/.node once it is there and matches its sum, unpacked to $tmp/node-<t>.
+node_fetch() {
+  local pa=$1 sum archive
+  sum=$(node_sum "$pa")
+  archive=vendor/.node/node-v$node_version-$pa.tar.gz
+  if [ "$dry" = 0 ] && [ -f "$archive" ] && [ "$(sha256 "$archive")" = "$sum" ]; then
+    ok "Node $node_version for $pa is in $archive"
+  else
+    run mkdir -p vendor/.node
+    run curl -fsSL "https://nodejs.org/dist/v$node_version/node-v$node_version-$pa.tar.gz" -o "$archive.part"
+    if [ "$dry" = 0 ] && [ "$(sha256 "$archive.part")" != "$sum" ]; then
+      rm -f "$archive.part"
+      refuse "Node $node_version for $pa does not match its sha256 $sum"
+    fi
+    run mv "$archive.part" "$archive"
+  fi
+  run mkdir -p "$tmp/node-$pa"
+  run tar -xzf "$archive" -C "$tmp/node-$pa" --strip-components 1 "node-v$node_version-$pa/bin/node" "node-v$node_version-$pa/LICENSE"
+}
+
+# Today's app's build of the host, the same two steps its own package runs before electron-builder.
+host_build() {
+  if [ "$dry" = 1 ] || [ ! -d ../../node_modules ]; then run pnpm -C ../.. install --frozen-lockfile; fi
+  run pnpm -C ../.. --filter @wsp/desktop run build:deps
+  run pnpm -C ../.. --filter @wsp/desktop run build:app
+}
+
+# Puts the host under a bundle's resources folder as today's app lays it out under its own: app/main/cli.mjs with every
+# module it loads (the window's main.mjs stays out), app/assets and app/package.json; Node's licence beside them.
+host_stage() {
+  local res=$1 pa=$2 f
+  run mkdir -p "$res/app/main" "$res/node"
+  run cp "$host_app/package.json" "$res/app/package.json"
+  printf '+ cp %s/main/*.mjs but main.mjs %s\n' "$host_app" "$res/app/main"
+  if [ "$dry" = 0 ]; then
+    for f in "$host_app"/main/*.mjs; do
+      [ "$(basename "$f")" = main.mjs ] || cp "$f" "$res/app/main/"
+    done
+  fi
+  run cp -R "$host_app/assets" "$res/app/assets"
+  run cp "$tmp/node-$pa/LICENSE" "$res/node/LICENSE"
+  # A build under umask 077 writes owner-only files, which a person other than the builder could not run.
+  run chmod -R u+rwX,go+rX-w "$res/app" "$res/node"
+}
+
+# What each part of the bundle weighs on disk, in MB.
+sizes() {
+  local whole=$1 binary=$2 node=$3 res=$4 daemons
+  [ "$dry" = 0 ] || return 0
+  mb() { du -sk "$@" | awk '{ k += $1 } END { printf "%.1f", k / 1024 }'; }
+  daemons=$(mb "$res/app/assets/daemon")
+  ok "sizes on disk: the bundle $(mb "$whole") MB; the app binary $(mb "$binary") MB, Node $(mb "$node") MB, the host's JS $(mb "$res/app/main" "$res/app/assets/web" "$res/app/assets/cli" "$res/app/package.json") MB, the daemons $daemons MB ($(cd "$res/app/assets/daemon" && echo *))"
+}
+
 identity=
 signed=0
 sign_setup() {
@@ -162,10 +238,24 @@ mac() {
     run cargo build --release --locked -p "$bin" --target "$triple"
   done
 
+  host_build
+  node_fetch darwin-arm64
+  node_fetch darwin-x64
+
   run rm -rf "$app" "$dmg" "$zip"
   run mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
   run lipo -create -output "$app/Contents/MacOS/$bin" \
     "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
+  # One Node for both chips, as the app binary is: the host runs on whichever slice the Mac runs natively.
+  run lipo -create -output "$app/Contents/MacOS/node" "$tmp/node-darwin-arm64/bin/node" "$tmp/node-darwin-x64/bin/node"
+  host_stage "$app/Contents/Resources" darwin-arm64
+  local triple_mac
+  check -x "$app/Contents/MacOS/node"
+  check -f "$app/Contents/Resources/app/main/cli.mjs"
+  for triple_mac in aarch64-apple-darwin x86_64-apple-darwin; do
+    check -x "$app/Contents/Resources/app/assets/daemon/$triple_mac/wsp-daemon"
+  done
+  if [ "$host" = Darwin ]; then run "$app/Contents/MacOS/node" "$app/Contents/Resources/app/main/cli.mjs" --version; fi
   run cp "$icns" "$app/Contents/Resources/icon.icns"
   # No CFBundleURLTypes while Experimental: today's app keeps wsp:// links and hands them here while its switch is on.
   write "$app/Contents/Info.plist" <<EOF
@@ -205,6 +295,20 @@ EOF
   run plutil -lint "$app/Contents/Info.plist"
 
   sign_setup
+  # Every Mach-O inside is signed before the bundle seals them: V8 needs the JIT entitlements under the hardened
+  # runtime, as Electron's does (entitlements.mac.plist), and the daemons take the runtime alone.
+  local inner
+  if [ "$signed" = 1 ]; then
+    run codesign --force --options runtime --timestamp --keychain "$keychain" --entitlements "$entitlements" --sign "$identity" "$app/Contents/MacOS/node"
+    for inner in aarch64-apple-darwin x86_64-apple-darwin; do
+      run codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$identity" "$app/Contents/Resources/app/assets/daemon/$inner/wsp-daemon"
+    done
+  else
+    run codesign --force --options runtime --entitlements "$entitlements" --sign - "$app/Contents/MacOS/node"
+    for inner in aarch64-apple-darwin x86_64-apple-darwin; do
+      run codesign --force --options runtime --sign - "$app/Contents/Resources/app/assets/daemon/$inner/wsp-daemon"
+    done
+  fi
   if [ "$signed" = 1 ]; then
     run codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$identity" "$app/Contents/MacOS/$bin"
     run codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$identity" "$app"
@@ -239,6 +343,7 @@ EOF
   fi
 
   run ditto -c -k --sequesterRsrc --keepParent "$app" "$zip"
+  sizes "$app" "$app/Contents/MacOS/$bin" "$app/Contents/MacOS/node" "$app/Contents/Resources"
   ok "built $app, $dmg and $zip"
 }
 
@@ -325,6 +430,8 @@ linux() {
     command -v mksquashfs >/dev/null || refuse "mksquashfs is missing: apt-get install squashfs-tools"
   fi
   run cargo build --release --locked -p "$bin"
+  host_build
+  node_fetch linux-x64
   run rm -f "$dist/$bin" "$appimage"
   run install -m 755 "target/release/$bin" "$dist/$bin"
 
@@ -342,6 +449,12 @@ linux() {
 
   run mkdir -p "$appdir/usr/bin" "$appdir/usr/share/icons/hicolor/256x256/apps"
   run install -m 755 "target/release/$bin" "$appdir/usr/bin/$bin"
+  run install -m 755 "$tmp/node-linux-x64/bin/node" "$appdir/usr/bin/node"
+  host_stage "$appdir/usr/lib/wsp" linux-x64
+  check -x "$appdir/usr/bin/node"
+  check -f "$appdir/usr/lib/wsp/app/main/cli.mjs"
+  check -x "$appdir/usr/lib/wsp/app/assets/daemon/x86_64-unknown-linux-musl/wsp-daemon"
+  run "$appdir/usr/bin/node" "$appdir/usr/lib/wsp/app/main/cli.mjs" --version
   write "$appdir/AppRun" <<EOF
 #!/bin/sh
 here=\${APPDIR:-\$(dirname "\$(readlink -f "\$0")")}
@@ -369,6 +482,8 @@ EOF
   printf '+ write %s from %s and %s\n' "$appimage" "$runtime" "$tmp/app.squashfs"
   if [ "$dry" = 0 ]; then cat "$runtime" "$tmp/app.squashfs" >"$appimage"; fi
   run chmod 755 "$appimage"
+  sizes "$appdir" "$appdir/usr/bin/$bin" "$appdir/usr/bin/node" "$appdir/usr/lib/wsp"
+  if [ "$dry" = 0 ]; then ok "the AppImage file $(du -k "$appimage" | awk '{ printf "%.1f", $1 / 1024 }') MB, its squashfs compressed"; fi
   ok "built $dist/$bin and $appimage"
 }
 
