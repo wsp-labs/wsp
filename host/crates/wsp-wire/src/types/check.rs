@@ -47,8 +47,12 @@ impl SchemaError {
                 o
             }
             "invalid_string" => {
-                let mut o = detail(&["validation"]);
+                let code_first = matches!(self.detail.get("validation").and_then(Value::as_str), Some("datetime" | "date" | "time"));
+                let mut o = if code_first { Vec::new() } else { detail(&["validation"]) };
                 o.push(("code".into(), Value::from(code)));
+                if code_first {
+                    o.extend(detail(&["validation"]));
+                }
                 o.push(("message".into(), Value::from(self.message.as_str())));
                 o.push(("path".into(), Value::Array(self.path.clone())));
                 o
