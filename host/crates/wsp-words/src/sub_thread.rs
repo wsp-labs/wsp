@@ -4,11 +4,22 @@
 //! the functions of packages/protocol/src/sub-thread.ts at a3b870a6e; its shapes and flat constants are
 //! wsp_wire::types::sub_thread. See spec/sub_thread.md.
 
-use wsp_wire::views::sub_row::SubResult;
+use std::sync::LazyLock;
+
+use regex::Regex;
+use wsp_wire::types::sub_thread::SUB_SHALLOW_LINE;
+use wsp_wire::views::sub_row::{sub_all_pushed, SubResult};
 
 use serde::Serialize;
 
-use crate::exit::HostError;
+use crate::exit::{refusal, refusal_parts, HostError, Kind};
+use crate::js::{js_collapse_whitespace, js_round, js_trim, js_trim_end, js_trim_start, number_string, to_fixed, utf16};
+use crate::place_word::{cloud_named, provider_key_name, PROVIDER_KEY_IDS};
+use crate::project_seed::seed_not_here_refusal;
+use crate::start::owner_repo_of;
+use crate::start::start_words;
+use crate::words::base::plural;
+use crate::words::units::fmt_mem_gb;
 
 // The most a sub-thread's picked files may come to, packed: the files worth picking are a few KB of `.env` style
 // configs, so anything past this is a data folder picked by mistake.
@@ -34,13 +45,38 @@ use crate::exit::HostError;
 // sub-thread.ts:41
 // in wsp_wire::types::sub_thread: SubStarted
 
+/// The whitespace JavaScript's `\s` matches: the ECMA-262 set, which Rust's `\s` does not.
+const JS_WS: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
+
+// sub-thread.ts:418
+static PUSH_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        r"^remote:[{JS_WS}]*(?:$|Enumerating|Counting|Compressing|Total|Resolving|Writing|Delta|To create|Create a pull request|[{JS_WS}]*https?://)"
+    ))
+    .expect("PUSH_PROGRESS is a valid pattern")
+});
+
+// sub-thread.ts:424
+static PUSH_REJECTED: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"^[{JS_WS}]*! \[")).expect("PUSH_REJECTED is a valid pattern"));
+
+// sub-thread.ts:415
+static GIT_PUSH: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        r"(?-u:\b)git(?-u:\b)(?:[{JS_WS}]+-[^{JS_WS}]+(?:[{JS_WS}]+[^{JS_WS}]+)?)*[{JS_WS}]+push(?-u:\b)"
+    ))
+    .expect("GIT_PUSH is a valid pattern")
+});
+
 /// Why a word beside --on is refused, the word a flag or a tool input: the sub-thread runs in a folder of its own on the
 /// cloud, under the asking thread.
 // sub-thread.ts:45
 // export const subBesideRefusal = (word: string): Error =>
 //   refusal(`--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it cannot also take ${word}`, `Drop ${word}, or run the work without --on.`, "usage");
 pub fn sub_beside_refusal(word: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it cannot also take {word}"),
+        &format!("Drop {word}, or run the work without --on."),
+    )
 }
 
 /// A project named beside --on that is not the asking thread's: the sub-thread carries that thread's project alone.
@@ -48,7 +84,10 @@ pub fn sub_beside_refusal(word: &str) -> crate::exit::HostError {
 // export const subOtherProjectRefusal = (on: string, word: string, carried: string): Error =>
 //   refusal(`run --on ${on} starts a sub-thread of the thread asking, on that thread's project ${carried}, and ${word} is another project`, `Leave the project out, or run the work on ${word} without --on.`, "usage");
 pub fn sub_other_project_refusal(on: &str, word: &str, carried: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("run --on {on} starts a sub-thread of the thread asking, on that thread's project {carried}, and {word} is another project"),
+        &format!("Leave the project out, or run the work on {word} without --on."),
+    )
 }
 
 /// The line ahead of the next message of a thread that started before a cloud was added: its agent read the computers
@@ -56,14 +95,14 @@ pub fn sub_other_project_refusal(on: &str, word: &str, carried: &str) -> crate::
 // sub-thread.ts:54
 // export const cloudAddedLine = (name: string): string => `${name} was added since this thread started: run with on ${name.toLowerCase()} starts a sub-thread there.`;
 pub fn cloud_added_line(name: &str) -> String {
-    todo!()
+    format!("{name} was added since this thread started: run with on {} starts a sub-thread there.", name.to_lowercase())
 }
 
 /// The same for a cloud taken away.
 // sub-thread.ts:57
 // export const cloudRemovedLine = (name: string): string => `${name} was removed since this thread started: run with on ${name.toLowerCase()} starts nothing there now.`;
 pub fn cloud_removed_line(name: &str) -> String {
-    todo!()
+    format!("{name} was removed since this thread started: run with on {} starts nothing there now.", name.to_lowercase())
 }
 
 /// One size a cloud sells a sub-thread, by its class's own name.
@@ -121,36 +160,60 @@ impl SizeFacts for CpuMem {
     }
 }
 
+// units.ts:123, the memory a size word spells in GB: whole when whole, else one decimal, read back as a number.
+fn mem_gb(mem_mb: f64) -> f64 {
+    to_fixed(mem_mb / 1024.0, 1).parse().unwrap_or(f64::NAN)
+}
+
+// units.ts:239, a size as the words name it: `<cpu>x<memGb>`.
+fn size_word_of(size: &impl SizeFacts) -> String {
+    format!("{}x{}", number_string(size.cpu()), number_string(mem_gb(size.mem_mb())))
+}
+
 /// A size as a sub-thread names it.
 // sub-thread.ts:68
 // export const subSizeWord = (size: { cpu: number; memMb: number }): string => sizeWord(size);
 pub fn sub_size_word(size: &CpuMem) -> String {
-    todo!()
+    size_word_of(size)
 }
 
 /// The size a word names, or nothing where it is not `<cpu>x<memGb>`.
 // sub-thread.ts:71
 // export const subSizeOf = (word: string): { cpu: number; memMb: number } | undefined => sizeFromWord(word);
 pub fn sub_size_of(word: &str) -> Option<CpuMem> {
-    todo!()
+    let (cpu, gb) = js_trim(word).split_once('x')?;
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let gb_ok = match gb.split_once('.') {
+        Some((whole, frac)) => digits(whole) && digits(frac),
+        None => digits(gb),
+    };
+    if !digits(cpu) || !gb_ok {
+        return None;
+    }
+    let cpu: f64 = cpu.parse().ok()?;
+    let mem_mb = js_round(gb.parse::<f64>().ok()? * 1024.0);
+    (cpu > 0.0 && mem_mb > 0.0).then_some(CpuMem { cpu, mem_mb })
 }
 
 /// A size in the words the preamble and the card say it in: `small, 2 vCPU, 4 GB`.
 // sub-thread.ts:74
 // export const subSizeWords = (size: Pick<SubSize, "name" | "cpu" | "memMb">): string => `${size.name}, ${size.cpu} vCPU, ${fmtMemGb(size.memMb)}`;
 pub fn sub_size_words(size: &SubSize) -> String {
-    todo!()
+    format!("{}, {} vCPU, {}", size.name, number_string(size.cpu), fmt_mem_gb(size.mem_mb))
 }
 
 // sub-thread.ts:76
 // private in the TS: port it as a private helper
 // const rateWord = (usdPerHour: number): string => `$${usdPerHour.toFixed(3)}/h`;
+fn rate_word(usd_per_hour: f64) -> String {
+    format!("${}/h", to_fixed(usd_per_hour, 3))
+}
 
 /// A size by the class name its row carries, or by its figures where it carries none.
 // sub-thread.ts:79
 // export const sizeNameOf = (size: { cpu: number; memMb: number; name?: string | undefined }): string => size.name ?? sizeWord(size);
 pub fn size_name_of(size: &impl SizeFacts) -> String {
-    todo!()
+    size.name().map_or_else(|| size_word_of(size), str::to_string)
 }
 
 /// The size a sub-thread killed for memory starts again at: the smallest its cloud sells with more memory than it had,
@@ -161,7 +224,7 @@ pub fn size_name_of(size: &impl SizeFacts) -> String {
 // }
 /// `mem_mb` is the TS `size.memMb`.
 pub fn sub_next_size<S: SizeFacts + Clone>(mem_mb: f64, sold: &[S]) -> Option<S> {
-    todo!()
+    sold.iter().filter(|s| s.mem_mb() > mem_mb).min_by(|a, b| a.mem_mb().total_cmp(&b.mem_mb())).cloned()
 }
 
 /// The sizes a cloud's row says it sells a sub-thread now: those its plan names, or every size it lists before a
@@ -171,7 +234,7 @@ pub fn sub_next_size<S: SizeFacts + Clone>(mem_mb: f64, sold: &[S]) -> Option<S>
 //   sizes.filter(s => plan === undefined || plan.sizes.includes(sizeWord(s)));
 /// `plan_sizes` is the TS `plan.sizes`, None for no plan.
 pub fn sub_sizes_sold<S: SizeFacts + Clone>(sizes: &[S], plan_sizes: Option<&[&str]>) -> Vec<S> {
-    todo!()
+    sizes.iter().filter(|s| plan_sizes.is_none_or(|plan| plan.contains(&size_word_of(*s).as_str()))).cloned().collect()
 }
 
 /// The folder a sub-thread works in on its machine: the repository's own name off its remote, under root's home.
@@ -181,7 +244,9 @@ pub fn sub_sizes_sold<S: SizeFacts + Clone>(sizes: &[S], plan_sizes: Option<&[&s
 //   return `/root/${name}`;
 // }
 pub fn sub_folder_of(remote: &str) -> String {
-    todo!()
+    let path = owner_repo_of(remote).unwrap_or_else(|| remote.to_string());
+    let last = path.split('/').next_back().unwrap_or("");
+    format!("/root/{}", last.strip_suffix(".git").unwrap_or(last))
 }
 
 /// The branch a sub-thread pushes when its start names none: `wsp/` and the machine's name as a slug.
@@ -191,7 +256,21 @@ pub fn sub_folder_of(remote: &str) -> String {
 //   return `wsp/${slug === "" ? "sub-thread" : slug}`;
 // }
 pub fn sub_branch_of(machine: &str) -> String {
-    todo!()
+    let mut runs = String::new();
+    let mut in_run = false;
+    for c in machine.to_lowercase().chars() {
+        if c.is_ascii_lowercase() || c.is_ascii_digit() {
+            runs.push(c);
+            in_run = false;
+        } else if !in_run {
+            runs.push('-');
+            in_run = true;
+        }
+    }
+    let trimmed = runs.trim_matches('-');
+    let slug: String = trimmed.chars().take(48).collect();
+    let slug = slug.trim_end_matches('-');
+    format!("wsp/{}", if slug.is_empty() { "sub-thread" } else { slug })
 }
 
 /// Whether git takes a name for a branch, by `git check-ref-format --branch`'s rules: never HEAD, no leading `-` or
@@ -204,7 +283,13 @@ pub fn sub_branch_of(machine: &str) -> String {
 //   return name.split("/").every(part => part !== "" && !part.startsWith(".") && !part.endsWith(".lock"));
 // }
 pub fn sub_branch_name_ok(name: &str) -> bool {
-    todo!()
+    if name.is_empty() || name == "HEAD" || name.starts_with('-') || name.starts_with('/') || name.ends_with('/') || name.ends_with('.') {
+        return false;
+    }
+    if name.chars().any(|c| c <= ' ' || c == '\x7f' || "~^:?*[\\".contains(c)) || name.contains("..") || name.contains("//") || name.contains("@{") {
+        return false;
+    }
+    name.split('/').all(|part| !part.is_empty() && !part.starts_with('.') && !part.ends_with(".lock"))
 }
 
 // The git lines that put a sub-thread's folder on its branch. Where the host keeps the machine's credentials, the
@@ -218,6 +303,36 @@ pub fn sub_branch_name_ok(name: &str) -> bool {
 //   if (o.brokered === true) return ["git init -q", `git remote add -t ${shellQuote(`${o.branch}*`)} origin ${o.repo}`, `git fetch -q --depth 1 origin ${o.fetch.ref}`, `git checkout -q -b ${o.branch} FETCH_HEAD`];
 //   return [o.setupGit, "git init -q", `git remote add origin ${o.repo}`, `git fetch -q --filter=blob:none origin ${o.fetch.blobless}`, `git checkout -q -b ${o.branch} ${o.fetch.checkout}`];
 // }
+/// The TS `fetch` of `subGitLines`: what the clone fetches and what it checks out.
+struct GitFetch<'a> {
+    fetch_ref: &'a str,
+    blobless: &'a str,
+    checkout: &'a str,
+}
+
+// sub-thread.ts:118, with the shell quote of the brokered refspec from shell-quote.ts:4.
+fn sub_git_lines(setup_git: &str, repo: &str, branch: &str, brokered: bool, fetch: &GitFetch) -> Vec<String> {
+    if brokered {
+        return vec![
+            "git init -q".into(),
+            format!("git remote add -t {} origin {repo}", shell_quote(&format!("{branch}*"))),
+            format!("git fetch -q --depth 1 origin {}", fetch.fetch_ref),
+            format!("git checkout -q -b {branch} FETCH_HEAD"),
+        ];
+    }
+    vec![
+        setup_git.to_string(),
+        "git init -q".into(),
+        format!("git remote add origin {repo}"),
+        format!("git fetch -q --filter=blob:none origin {}", fetch.blobless),
+        format!("git checkout -q -b {branch} {}", fetch.checkout),
+    ]
+}
+
+// shell-quote.ts:4, the one POSIX sh word a refspec is quoted as. No Rust home exists yet for shellQuote.
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
 
 // sub-thread.ts:124
 // in wsp_wire::types::sub_thread: SUB_SHALLOW_LINE
@@ -277,7 +392,29 @@ pub struct SubPreamble {
 }
 
 pub fn sub_preamble(o: &SubPreamble) -> String {
-    todo!()
+    let lead = utf16::cut(&o.lead, 8);
+    let brokered = o.brokered == Some(true);
+    let fetch = GitFetch { fetch_ref: &o.base.sha, blobless: &o.base.branch, checkout: &o.base.sha };
+    let mut lines = vec![
+        format!(
+            "This thread runs on a machine of its own on {} ({}), started by thread {lead}. The code is not here yet. {} Get the code first, in this folder:",
+            o.on,
+            sub_size_words(&o.size),
+            folder_words(&o.folder, &o.sent)
+        ),
+        String::new(),
+    ];
+    lines.extend(sub_git_lines(&o.setup_git, &o.repo, &o.branch, brokered, &fetch));
+    lines.push(String::new());
+    lines.push(format!(
+        "Work on {b}, then commit and run git push -u origin {b} before your turn ends. Thread {lead} merges that branch. This machine is deleted {}, and anything not pushed is lost with it.{}",
+        deleted_words(o.delete_after_minutes),
+        if brokered { format!(" {SUB_SHALLOW_LINE}") } else { String::new() },
+        b = o.branch
+    ));
+    lines.push(String::new());
+    lines.push("The task:".into());
+    lines.join("\n")
 }
 
 // The folder a sub-thread's machine opens in, as its preamble says it: empty, or holding the files picked.
@@ -285,11 +422,23 @@ pub fn sub_preamble(o: &SubPreamble) -> String {
 // private in the TS: port it as a private helper
 // const folderWords = (folder: string, sent: readonly string[]): string =>
 //   sent.length === 0 ? `The folder you are in, ${folder}, is empty.` : `The folder you are in, ${folder}, holds only the git-ignored files the person picked: ${sent.join(", ")}.`;
+fn folder_words(folder: &str, sent: &[impl AsRef<str>]) -> String {
+    if sent.is_empty() {
+        return format!("The folder you are in, {folder}, is empty.");
+    }
+    format!("The folder you are in, {folder}, holds only the git-ignored files the person picked: {}.", join_all(sent, ", "))
+}
 
 // When a sub-thread's machine goes, as its preamble says it.
 // sub-thread.ts:162
 // private in the TS: port it as a private helper
 // const deletedWords = (minutes: number): string => (minutes === 0 ? "as soon as your last turn ends" : `${minutes} minutes after your last turn ends`);
+fn deleted_words(minutes: f64) -> String {
+    if minutes == 0.0 {
+        return "as soon as your last turn ends".into();
+    }
+    format!("{} minutes after your last turn ends", number_string(minutes))
+}
 
 /// The head of a send into a sub-thread whose machine was deleted, on the new machine it runs on now: the conversation
 /// came and the code did not, so the git lines get its pushed branch back, or start it again from the lead's commit
@@ -337,21 +486,51 @@ pub struct SubResumePreamble {
 }
 
 pub fn sub_resume_preamble(o: &SubResumePreamble) -> String {
-    todo!()
+    let brokered = o.brokered == Some(true);
+    let (fetch, push) = if o.pushed {
+        (
+            GitFetch { fetch_ref: &o.branch, blobless: &o.branch, checkout: "FETCH_HEAD" },
+            format!("Push to {} as before.", o.branch),
+        )
+    } else {
+        (
+            GitFetch { fetch_ref: &o.base.sha, blobless: &o.base.branch, checkout: &o.base.sha },
+            format!("Work on {b}, then commit and run git push -u origin {b} before your turn ends.", b = o.branch),
+        )
+    };
+    let mut lines = vec![
+        format!(
+            "This thread's machine was deleted after its last turn, and the thread goes on here, on a new machine on {} ({}). Your conversation came with it; the code did not. {} Get your branch back first, in this folder:",
+            o.on,
+            sub_size_words(&o.size),
+            folder_words(&o.folder, &o.sent)
+        ),
+        String::new(),
+    ];
+    lines.extend(sub_git_lines(&o.setup_git, &o.repo, &o.branch, brokered, &fetch));
+    lines.push(String::new());
+    lines.push(format!(
+        "{push} This machine is deleted {}.{}",
+        deleted_words(o.delete_after_minutes),
+        if brokered { format!(" {SUB_SHALLOW_LINE}") } else { String::new() }
+    ));
+    lines.push(String::new());
+    lines.push("The message:".into());
+    lines.join("\n")
 }
 
 /// A sub-thread's session past what the host keeps, as its row says it.
 // sub-thread.ts:194
 // export const subSessionTooLargeLine = (size: string): string => `the agent's session was too large to keep (${size}); a send continues from the transcript`;
 pub fn sub_session_too_large_line(size: &str) -> String {
-    todo!()
+    format!("the agent's session was too large to keep ({size}); a send continues from the transcript")
 }
 
 /// A sub-thread's session the host could not keep, as its row says it.
 // sub-thread.ts:196
 // export const subSessionNotKeptLine = (why: string): string => `the agent's session was not kept (${why}); a send continues from the transcript`;
 pub fn sub_session_not_kept_line(why: &str) -> String {
-    todo!()
+    format!("the agent's session was not kept ({why}); a send continues from the transcript")
 }
 
 // sub-thread.ts:199
@@ -361,37 +540,46 @@ pub fn sub_session_not_kept_line(why: &str) -> String {
 // sub-thread.ts:202
 // export const subOpening = (preamble: string, task: string): string => `${preamble}\n\n${task}`;
 pub fn sub_opening(preamble: &str, task: &str) -> String {
-    todo!()
+    format!("{preamble}\n\n{task}")
 }
 
 // sub-thread.ts:204
 // private in the TS: port it as a private helper
 // const usage = (happened: string, fix: string): Error => refusal(happened, fix, "usage");
+fn usage(happened: &str, fix: &str) -> HostError {
+    refusal(happened, fix, Some(Kind::Usage))
+}
 
 // sub-thread.ts:205
 // private in the TS: port it as a private helper
 // const provider = (happened: string, fix: string): Error => refusal(happened, fix);
+fn provider(happened: &str, fix: &str) -> HostError {
+    refusal(happened, fix, None)
+}
 
 /// S1: a sub-thread is a child, so a line out of no thread has no lead to notify or merge into.
 // sub-thread.ts:208
 // export const subNoThreadRefusal = (on: string): Error =>
 //   usage(`run --on ${on} starts a sub-thread of the thread that asks, and this line came from no thread`, "Start it from a thread, or run the work on this computer with wsp run <project>.");
 pub fn sub_no_thread_refusal(on: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("run --on {on} starts a sub-thread of the thread that asks, and this line came from no thread"),
+        "Start it from a thread, or run the work on this computer with wsp run <project>.",
+    )
 }
 
 /// `size` from a terminal with no cloud named.
 // sub-thread.ts:211
 // export const subSizeNoCloudRefusal = (): Error => usage("--size sizes a sub-thread's machine, and this line starts none", "Add --on boat.");
 pub fn sub_size_no_cloud_refusal() -> crate::exit::HostError {
-    todo!()
+    usage("--size sizes a sub-thread's machine, and this line starts none", "Add --on boat.")
 }
 
 /// `from` from a terminal with no cloud named.
 // sub-thread.ts:213
 // export const subFromNoCloudRefusal = (): Error => usage("--from names the commit a sub-thread's machine starts from, and this line starts none", "Add --on boat.");
 pub fn sub_from_no_cloud_refusal() -> crate::exit::HostError {
-    todo!()
+    usage("--from names the commit a sub-thread's machine starts from, and this line starts none", "Add --on boat.")
 }
 
 /// A lead runs on this computer or on a computer the person added, never on a machine wsp forked.
@@ -399,7 +587,13 @@ pub fn sub_from_no_cloud_refusal() -> crate::exit::HostError {
 // export const subLeadOnMachineRefusal = (on: string, thread: string, machine: string): Error =>
 //   usage(`run --on ${on} starts a sub-thread of a thread on this computer or on a computer you added, and thread ${thread.slice(0, 8)} runs on ${machine}, a machine wsp forked`, "Start it from a thread on this computer.");
 pub fn sub_lead_on_machine_refusal(on: &str, thread: &str, machine: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!(
+            "run --on {on} starts a sub-thread of a thread on this computer or on a computer you added, and thread {} runs on {machine}, a machine wsp forked",
+            utf16::cut(thread, 8)
+        ),
+        "Start it from a thread on this computer.",
+    )
 }
 
 /// A sub-thread asking to start a thread: it starts none of its own, and its lead can.
@@ -407,7 +601,11 @@ pub fn sub_lead_on_machine_refusal(on: &str, thread: &str, machine: &str) -> cra
 // export const subStartsNothingRefusal = (thread: string, lead: string): Error =>
 //   usage(`sub-thread ${thread.slice(0, 8)} starts no threads of its own`, `Send the work to thread ${lead.slice(0, 8)}, which started it, with wsp send ${lead.slice(0, 8)} "<message>".`);
 pub fn sub_starts_nothing_refusal(thread: &str, lead: &str) -> crate::exit::HostError {
-    todo!()
+    let lead8 = utf16::cut(lead, 8);
+    usage(
+        &format!("sub-thread {} starts no threads of its own", utf16::cut(thread, 8)),
+        &format!("Send the work to thread {lead8}, which started it, with wsp send {lead8} \"<message>\"."),
+    )
 }
 
 /// S3: the word names no cloud this host holds a key for.
@@ -415,7 +613,8 @@ pub fn sub_starts_nothing_refusal(thread: &str, lead: &str) -> crate::exit::Host
 // export const subNoCloudRefusal = (word: string, held: readonly string[]): Error =>
 //   usage(`${word} is not a cloud this host holds`, `wsp add boat adds it. It holds: ${held.length === 0 ? "none" : held.join(", ")}.`);
 pub fn sub_no_cloud_refusal(word: &str, held: &[impl AsRef<str>]) -> crate::exit::HostError {
-    todo!()
+    let holds = if held.is_empty() { "none".to_string() } else { join_all(held, ", ") };
+    usage(&format!("{word} is not a cloud this host holds"), &format!("wsp add boat adds it. It holds: {holds}."))
 }
 
 /// S4: no remote, so nothing for the machine to fetch.
@@ -423,7 +622,10 @@ pub fn sub_no_cloud_refusal(word: &str, held: &[impl AsRef<str>]) -> crate::exit
 // export const subNoRemoteRefusal = (folder: string, on: string): Error =>
 //   usage(`${folder} has no remote, so a machine on ${on} has nothing to clone`, "Push it to GitHub or GitLab, add the remote with git remote add origin <url>, then start the sub-thread again.");
 pub fn sub_no_remote_refusal(folder: &str, on: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("{folder} has no remote, so a machine on {on} has nothing to clone"),
+        "Push it to GitHub or GitLab, add the remote with git remote add origin <url>, then start the sub-thread again.",
+    )
 }
 
 /// S4: a remote on a host the image signs in to no command for.
@@ -431,13 +633,19 @@ pub fn sub_no_remote_refusal(folder: &str, on: &str) -> crate::exit::HostError {
 // export const subOtherHostRefusal = (folder: string, host: string, on: string): Error =>
 //   usage(`${folder}'s remote is on ${host}, and a machine on ${on} signs in to GitHub and GitLab only`, "Run this work on this computer.");
 pub fn sub_other_host_refusal(folder: &str, host: &str, on: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("{folder}'s remote is on {host}, and a machine on {on} signs in to GitHub and GitLab only"),
+        "Run this work on this computer.",
+    )
 }
 
 // The other road past a lead branch the remote cannot give: a ref it holds already, the default branch for one.
 // sub-thread.ts:230
 // private in the TS: port it as a private helper
 // const fromRoad = (pushed: string): string => `or start it from a ref the remote holds with --from ${pushed}`;
+fn from_road(pushed: &str) -> String {
+    format!("or start it from a ref the remote holds with --from {pushed}")
+}
 
 /// A start on a machine whose credentials the host keeps, for a repo on a host other than GitHub: the host adds a
 /// credential for GitHub alone.
@@ -445,7 +653,10 @@ pub fn sub_other_host_refusal(folder: &str, host: &str, on: &str) -> crate::exit
 // export const brokeredGitHubOnlyRefusal = (project: string, host: string, on: string): Error =>
 //   usage(`${project}'s remote is on ${host}, and a machine on ${on} reaches GitHub alone, through this host`, "Run this work on this computer.");
 pub fn brokered_git_hub_only_refusal(project: &str, host: &str, on: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("{project}'s remote is on {host}, and a machine on {on} reaches GitHub alone, through this host"),
+        "Run this work on this computer.",
+    )
 }
 
 /// GitHub could not say which repository a start pushes to, read by gh on this computer: the push rule names the
@@ -454,14 +665,20 @@ pub fn brokered_git_hub_only_refusal(project: &str, host: &str, on: &str) -> cra
 // export const branchOfRecordUnreadRefusal = (repo: string, why: string): Error =>
 //   provider(`gh on this computer could not read ${repo} (${why}), and a machine whose credentials this host keeps pushes only to a repository GitHub names`, "Run gh auth status on this computer, then start it again.");
 pub fn branch_of_record_unread_refusal(repo: &str, why: &str) -> crate::exit::HostError {
-    todo!()
+    provider(
+        &format!("gh on this computer could not read {repo} ({why}), and a machine whose credentials this host keeps pushes only to a repository GitHub names"),
+        "Run gh auth status on this computer, then start it again.",
+    )
 }
 
 /// A pull request whose fork GitHub no longer holds: there is no branch left to push to.
 // sub-thread.ts:240
 // export const forkHeadGoneRefusal = (number: number): Error => usage(`pull request #${number}'s fork was deleted, so there is no branch to push to`, "Start the work from an issue or a branch instead.");
 pub fn fork_head_gone_refusal(number: f64) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("pull request #{}'s fork was deleted, so there is no branch to push to", number_string(number)),
+        "Start the work from an issue or a branch instead.",
+    )
 }
 
 /// A command on a machine whose credentials the host keeps, for a workspace with no thread to scope its token to: the
@@ -469,7 +686,7 @@ pub fn fork_head_gone_refusal(number: f64) -> crate::exit::HostError {
 // sub-thread.ts:243
 // export const cloneNoThreadRefusal = (name: string): Error => usage(`${name} has no thread yet, so wsp cannot reach GitHub for it`, "Start a thread on it first.");
 pub fn clone_no_thread_refusal(name: &str) -> crate::exit::HostError {
-    todo!()
+    usage(&format!("{name} has no thread yet, so wsp cannot reach GitHub for it"), "Start a thread on it first.")
 }
 
 /// A start that would push to a fork whose author allowed no edits from maintainers.
@@ -477,14 +694,17 @@ pub fn clone_no_thread_refusal(name: &str) -> crate::exit::HostError {
 // export const forkNotPushableRefusal = (owner: string, number: number): Error =>
 //   usage(START_WORDS.forkNotPushable(owner), `Ask ${owner} to allow edits from maintainers on pull request #${number}, or review it with wsp review instead.`);
 pub fn fork_not_pushable_refusal(owner: &str, number: f64) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &start_words::fork_not_pushable(owner),
+        &format!("Ask {owner} to allow edits from maintainers on pull request #{}, or review it with wsp review instead.", number_string(number)),
+    )
 }
 
 /// S5: the lead is on no branch.
 // sub-thread.ts:248
 // export const subDetachedRefusal = (folder: string, pushed: string): Error => usage(`${folder} is on no branch`, `Check one out and push it, ${fromRoad(pushed)}.`);
 pub fn sub_detached_refusal(folder: &str, pushed: &str) -> crate::exit::HostError {
-    todo!()
+    usage(&format!("{folder} is on no branch"), &format!("Check one out and push it, {}.", from_road(pushed)))
 }
 
 /// S5: the lead's branch is not on the remote.
@@ -492,7 +712,10 @@ pub fn sub_detached_refusal(folder: &str, pushed: &str) -> crate::exit::HostErro
 // export const subNoUpstreamRefusal = (branch: string, pushed: string): Error =>
 //   usage(`${branch} is not on the remote yet`, `Run git push -u origin ${branch} and start the sub-thread again, ${fromRoad(pushed)}.`);
 pub fn sub_no_upstream_refusal(branch: &str, pushed: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("{branch} is not on the remote yet"),
+        &format!("Run git push -u origin {branch} and start the sub-thread again, {}.", from_road(pushed)),
+    )
 }
 
 /// S5: the lead holds commits the remote lacks, which the sub-thread could not fetch.
@@ -500,7 +723,10 @@ pub fn sub_no_upstream_refusal(branch: &str, pushed: &str) -> crate::exit::HostE
 // export const subAheadRefusal = (branch: string, ahead: number, pushed: string): Error =>
 //   usage(`${branch} has ${ahead} ${ahead === 1 ? "commit" : "commits"} the remote does not`, `Run git push and start the sub-thread again, ${fromRoad(pushed)}.`);
 pub fn sub_ahead_refusal(branch: &str, ahead: f64, pushed: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("{branch} has {} {} the remote does not", number_string(ahead), if ahead == 1.0 { "commit" } else { "commits" }),
+        &format!("Run git push and start the sub-thread again, {}.", from_road(pushed)),
+    )
 }
 
 /// S5: git could not count the lead's commits against the remote, so some may not be on it.
@@ -508,7 +734,10 @@ pub fn sub_ahead_refusal(branch: &str, ahead: f64, pushed: &str) -> crate::exit:
 // export const subAheadUnknownRefusal = (branch: string, pushed: string): Error =>
 //   usage(`git could not count ${branch}'s commits against the remote, so some of them may not be on it`, `Run git fetch, then git push, and start the sub-thread again, ${fromRoad(pushed)}.`);
 pub fn sub_ahead_unknown_refusal(branch: &str, pushed: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("git could not count {branch}'s commits against the remote, so some of them may not be on it"),
+        &format!("Run git fetch, then git push, and start the sub-thread again, {}.", from_road(pushed)),
+    )
 }
 
 /// S5: --from names a ref the remote does not hold: a branch or tag it lacks, pushed by its name with origin/ dropped,
@@ -520,21 +749,31 @@ pub fn sub_ahead_unknown_refusal(branch: &str, pushed: &str) -> crate::exit::Hos
 //     name === undefined ? "Run git fetch if a branch holding it was pushed since, else push one with git push -u origin <branch>, then start the sub-thread again." : `Run git push -u origin ${name}, then start the sub-thread again.`,
 //   );
 pub fn sub_from_not_on_remote_refusal(r#ref: &str, name: Option<&str>) -> crate::exit::HostError {
-    todo!()
+    let fix = match name {
+        None => "Run git fetch if a branch holding it was pushed since, else push one with git push -u origin <branch>, then start the sub-thread again.".to_string(),
+        Some(name) => format!("Run git push -u origin {name}, then start the sub-thread again."),
+    };
+    usage(&format!("{} is not on the remote", r#ref), &fix)
 }
 
 /// S5: the remote did not answer the read of the ref --from names.
 // sub-thread.ts:266
 // export const subFromUnreadRefusal = (ref: string, said: string): Error => provider(`the remote did not say where ${ref} stands (${said})`, "Check the remote answers with git ls-remote origin, then start the sub-thread again.");
 pub fn sub_from_unread_refusal(r#ref: &str, said: &str) -> crate::exit::HostError {
-    todo!()
+    provider(
+        &format!("the remote did not say where {} stands ({said})", r#ref),
+        "Check the remote answers with git ls-remote origin, then start the sub-thread again.",
+    )
 }
 
 /// S6: no image on the cloud.
 // sub-thread.ts:268
 // export const subNoImageRefusal = (on: string): Error => usage(`${on} holds no image of yours yet`, `Build one in Settings > Computers > ${on}, or run wsp init --on ${on.toLowerCase()}.`);
 pub fn sub_no_image_refusal(on: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("{on} holds no image of yours yet"),
+        &format!("Build one in Settings > Computers > {on}, or run wsp init --on {}.", on.to_lowercase()),
+    )
 }
 
 /// S6: the image holds no sign-in for the remote's git host, so the sub-thread could fetch nothing private and push nothing.
@@ -553,7 +792,13 @@ pub struct GitHostWords {
 }
 
 pub fn sub_no_sign_in_refusal(on: &str, host: &GitHostWords, repo: &str) -> HostError {
-    todo!()
+    usage(
+        &format!(
+            "the image on {on} holds no {} sign-in ({}), so a sub-thread could neither clone {repo} nor push its branch",
+            host.label, host.cli
+        ),
+        &format!("Run wsp init --on {} again with the {} set to copy.", on.to_lowercase(), host.login),
+    )
 }
 
 /// S6, on a cloud whose credentials the host keeps: gh on this computer, whose login the host adds to every git and gh
@@ -562,7 +807,10 @@ pub fn sub_no_sign_in_refusal(on: &str, host: &GitHostWords, repo: &str) -> Host
 // export const subHostNoSignInRefusal = (on: string, repo: string): Error =>
 //   usage(`gh on this computer is not signed in to GitHub, so a sub-thread on ${on} could neither clone ${repo} nor push its branch`, "Run gh auth login in a terminal on this computer, then start the sub-thread again.");
 pub fn sub_host_no_sign_in_refusal(on: &str, repo: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("gh on this computer is not signed in to GitHub, so a sub-thread on {on} could neither clone {repo} nor push its branch"),
+        "Run gh auth login in a terminal on this computer, then start the sub-thread again.",
+    )
 }
 
 /// S6, on a cloud whose credentials the host keeps: a remote on a git host other than GitHub, which the host adds no
@@ -571,7 +819,10 @@ pub fn sub_host_no_sign_in_refusal(on: &str, repo: &str) -> crate::exit::HostErr
 // export const subHostOtherGitRefusal = (on: string, host: string, repo: string): Error =>
 //   usage(`a sub-thread on ${on} reaches GitHub alone through this computer, so it could not clone ${repo} on ${host}`, "Run this work on this computer.");
 pub fn sub_host_other_git_refusal(on: &str, host: &str, repo: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("a sub-thread on {on} reaches GitHub alone through this computer, so it could not clone {repo} on {host}"),
+        "Run this work on this computer.",
+    )
 }
 
 /// S7: a size the plan does not sell, or no class's figures at all.
@@ -582,21 +833,33 @@ pub fn sub_host_other_git_refusal(on: &str, host: &str, repo: &str) -> crate::ex
 //   return usage(`${on} sells ${list} on this plan; ${word} is not one of them`, `Name one of them, or leave the size out for ${on}'s own.`);
 // };
 pub fn sub_size_refusal(on: &str, word: &str, sold: &[SubSize]) -> crate::exit::HostError {
-    todo!()
+    let named: Vec<String> = sold
+        .iter()
+        .map(|s| format!("{} {} ({})", s.name, size_word_of(s), rate_word(s.rate_usd_per_hour)))
+        .collect();
+    let list = match named.split_last() {
+        None => "nothing".to_string(),
+        Some((last, [])) => last.clone(),
+        Some((last, rest)) => format!("{} and {last}", join_all(rest, ", ")),
+    };
+    usage(
+        &format!("{on} sells {list} on this plan; {word} is not one of them"),
+        &format!("Name one of them, or leave the size out for {on}'s own."),
+    )
 }
 
 /// S8: a name git refuses for a branch.
 // sub-thread.ts:290
 // export const subBranchNameRefusal = (name: string): Error => usage(`${name} is not a name git takes for a branch`, "Name another, or leave --branch out for wsp/<slug>.");
 pub fn sub_branch_name_refusal(name: &str) -> crate::exit::HostError {
-    todo!()
+    usage(&format!("{name} is not a name git takes for a branch"), "Name another, or leave --branch out for wsp/<slug>.")
 }
 
 /// S8: the result branch is the lead's own.
 // sub-thread.ts:292
 // export const subLeadBranchRefusal = (name: string): Error => usage(`the sub-thread pushes ${name}, and that is the lead's own branch`, "Name another, or leave --branch out for wsp/<slug>.");
 pub fn sub_lead_branch_refusal(name: &str) -> crate::exit::HostError {
-    todo!()
+    usage(&format!("the sub-thread pushes {name}, and that is the lead's own branch"), "Name another, or leave --branch out for wsp/<slug>.")
 }
 
 /// S9: a sub-machine runs its sub-thread alone.
@@ -604,7 +867,11 @@ pub fn sub_lead_branch_refusal(name: &str) -> crate::exit::HostError {
 // export const subMachineTakenRefusal = (machine: string, thread: string): Error =>
 //   usage(`${machine} is the machine of sub-thread ${thread.slice(0, 8)} and runs that thread alone`, `Send to ${thread.slice(0, 8)} to continue it.`);
 pub fn sub_machine_taken_refusal(machine: &str, thread: &str) -> crate::exit::HostError {
-    todo!()
+    let thread8 = utf16::cut(thread, 8);
+    usage(
+        &format!("{machine} is the machine of sub-thread {thread8} and runs that thread alone"),
+        &format!("Send to {thread8} to continue it."),
+    )
 }
 
 /// A second message into a sub-thread whose first is still waiting for its machine.
@@ -612,7 +879,10 @@ pub fn sub_machine_taken_refusal(machine: &str, thread: &str) -> crate::exit::Ho
 // export const subWaitingRefusal = (machine: string): Error =>
 //   usage(`${machine} is waiting for a machine, and its sub-thread's first message waits with it`, "Send again once it starts.");
 pub fn sub_waiting_refusal(machine: &str) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("{machine} is waiting for a machine, and its sub-thread's first message waits with it"),
+        "Send again once it starts.",
+    )
 }
 
 // sub-thread.ts:300
@@ -623,7 +893,10 @@ pub fn sub_waiting_refusal(machine: &str) -> crate::exit::HostError {
 // export const subNoAgentRefusal = (on: string, agent: string, carried: readonly string[]): Error =>
 //   usage(`the image on ${on} carries no ${agent}`, `Add it to the recipe and build the image again, or name one it carries: ${carried.join(", ")}.`);
 pub fn sub_no_agent_refusal(on: &str, agent: &str, carried: &[impl AsRef<str>]) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!("the image on {on} carries no {agent}"),
+        &format!("Add it to the recipe and build the image again, or name one it carries: {}.", join_all(carried, ", ")),
+    )
 }
 
 /// S12: the picked files come to more than a sub-thread carries.
@@ -631,7 +904,13 @@ pub fn sub_no_agent_refusal(on: &str, agent: &str, carried: &[impl AsRef<str>]) 
 // export const subSeedTooBigRefusal = (project: string, bytes: string, max: string, largest: readonly string[]): Error =>
 //   usage(`the files picked for ${project} come to ${bytes}, over the ${max} a sub-thread carries; the largest are ${largest.join(", ")}`, `Pick again with wsp projects seed ${project}.`);
 pub fn sub_seed_too_big_refusal(project: &str, bytes: &str, max: &str, largest: &[impl AsRef<str>]) -> crate::exit::HostError {
-    todo!()
+    usage(
+        &format!(
+            "the files picked for {project} come to {bytes}, over the {max} a sub-thread carries; the largest are {}",
+            join_all(largest, ", ")
+        ),
+        &format!("Pick again with wsp projects seed {project}."),
+    )
 }
 
 /// Why a machine failed before its sub-thread's first turn, the three a fresh machine cures.
@@ -652,7 +931,11 @@ pub enum SubFault {
 //   return `${on} could not get a machine for ${machine} and cancelled the create (${f.why}); wsp started another.`;
 // }
 pub fn sub_replaced_line(f: &SubFault, machine: &str, on: &str) -> String {
-    todo!()
+    match f {
+        SubFault::Unusable { r#box, why, .. } => format!("{on} gave {} with nothing able to run on it ({why}); wsp deleted it and started another.", r#box),
+        SubFault::Env { r#box } => format!("{on}'s machine {} did not take wsp's setup within 2 minutes (exit 124); wsp deleted it and started another.", r#box),
+        SubFault::Cancelled { why, .. } => format!("{on} could not get a machine for {machine} and cancelled the create ({why}); wsp started another."),
+    }
 }
 
 /// A sub-thread's turn the kernel ended for memory, as its finished line says it: the machine's size, that the
@@ -663,7 +946,14 @@ pub fn sub_replaced_line(f: &SubFault, machine: &str, on: &str) -> String {
 //   return `the agent on ${machine} was killed for memory: its machine is ${subSizeWords(size)}, and ${on}'s own processes hold part of that. ${again}`;
 // }
 pub fn sub_oom_line(machine: &str, on: &str, size: &SubSize, bigger: Option<&str>) -> String {
-    todo!()
+    let again = match bigger {
+        Some(bigger) => format!("Start the work again with size {bigger}."),
+        None => format!("{on} sells no bigger size, so the work has to use less memory."),
+    };
+    format!(
+        "the agent on {machine} was killed for memory: its machine is {}, and {on}'s own processes hold part of that. {again}",
+        sub_size_words(size)
+    )
 }
 
 /// The refusal a second failure in a row fails the spawn with, naming both machines.
@@ -680,7 +970,35 @@ pub fn sub_oom_line(machine: &str, on: &str, size: &SubSize, bigger: Option<&str
 //   return provider(`${on} gave two machines in a row that failed before the sub-thread started (${said(first)}; ${said(second)})`, fix);
 // }
 pub fn sub_twice_refusal(first: &SubFault, second: &SubFault, machine: &str, on: &str) -> crate::exit::HostError {
-    todo!()
+    let fix = "Start it again in a few minutes.";
+    match (first, second) {
+        (SubFault::Unusable { r#box: first_box, request_id: first_request, .. }, SubFault::Unusable { r#box: second_box, request_id: second_request, .. }) => {
+            let request = second_request.clone().or_else(|| first_request.clone());
+            let request = request.map_or(String::new(), |r| format!("; request {r}"));
+            provider(
+                &format!("{on} gave two machines in a row that could not run commands ({first_box}, {second_box}{request}); {on} is restoring badly right now"),
+                fix,
+            )
+        }
+        (SubFault::Env { r#box: first_box }, SubFault::Env { r#box: second_box }) => provider(
+            &format!("{on}'s machines are slow to take a setup right now ({first_box}, {second_box}, exit 124 on both)"),
+            fix,
+        ),
+        (SubFault::Cancelled { why: first_why, .. }, SubFault::Cancelled { why: second_why, .. }) => provider(
+            &format!("{on} cancelled two creates in a row for {machine} ({first_why}; {second_why})"),
+            fix,
+        ),
+        _ => {
+            let said = |f: &SubFault| match f {
+                SubFault::Env { r#box } => format!("{}: setup not taken, exit 124", r#box),
+                SubFault::Unusable { r#box, why, .. } | SubFault::Cancelled { r#box, why } => format!("{}: {why}", r#box),
+            };
+            provider(
+                &format!("{on} gave two machines in a row that failed before the sub-thread started ({}; {})", said(first), said(second)),
+                fix,
+            )
+        }
+    }
 }
 
 /// The line a start passes with when the lead's folder holds changes nobody committed.
@@ -688,21 +1006,27 @@ pub fn sub_twice_refusal(first: &SubFault, second: &SubFault, machine: &str, on:
 // export const subUncommittedLine = (n: number, folder: string, branch: string, sha: string): string =>
 //   `${n} uncommitted ${n === 1 ? "change" : "changes"} in ${folder} did not travel; the sub-thread starts at ${branch} as pushed (${sha.slice(0, 7)}).`;
 pub fn sub_uncommitted_line(n: f64, folder: &str, branch: &str, sha: &str) -> String {
-    todo!()
+    format!(
+        "{} uncommitted {} in {folder} did not travel; the sub-thread starts at {branch} as pushed ({}).",
+        number_string(n),
+        if n == 1.0 { "change" } else { "changes" },
+        utf16::cut(sha, 7)
+    )
 }
 
 /// Why nothing ignored went: nothing is picked for the project.
 // sub-thread.ts:341
 // export const subNothingPickedWhy = (project: string): string => `nothing is picked for ${project}`;
 pub fn sub_nothing_picked_why(project: &str) -> String {
-    todo!()
+    format!("nothing is picked for {project}")
 }
 
 /// Why nothing ignored went: the project's folder is on another computer.
 // sub-thread.ts:343
 // export const subPickedElsewhereWhy = (project: string, computer: string): string => refusalParts(seedNotHereRefusal(project, computer)).said.replace(/\.$/, "");
 pub fn sub_picked_elsewhere_why(project: &str, computer: &str) -> String {
-    todo!()
+    let said = refusal_parts(&seed_not_here_refusal(project, computer)).said;
+    said.strip_suffix('.').unwrap_or(&said).to_string()
 }
 
 /// The line a start passes with when no git-ignored file was sent.
@@ -710,7 +1034,8 @@ pub fn sub_picked_elsewhere_why(project: &str, computer: &str) -> String {
 // export const subNotSentLine = (why: string, project: string): string =>
 //   `no git-ignored files were sent: ${why}.${why.startsWith("nothing is picked") ? ` wsp projects seed ${project} shows what could go.` : ""}`;
 pub fn sub_not_sent_line(why: &str, project: &str) -> String {
-    todo!()
+    let shows = if why.starts_with("nothing is picked") { format!(" wsp projects seed {project} shows what could go.") } else { String::new() };
+    format!("no git-ignored files were sent: {why}.{shows}")
 }
 
 /// The line a start passes with when picked files stayed here: a sub-thread's machine is a provider's, which gets
@@ -719,21 +1044,21 @@ pub fn sub_not_sent_line(why: &str, project: &str) -> String {
 // export const subStayedLine = (paths: readonly string[]): string =>
 //   `${paths.join(", ")} stayed on this computer: a sub-thread's machine is a provider's, which gets no login, file of values or key.`;
 pub fn sub_stayed_line(paths: &[impl AsRef<str>]) -> String {
-    todo!()
+    format!("{} stayed on this computer: a sub-thread's machine is a provider's, which gets no login, file of values or key.", join_all(paths, ", "))
 }
 
 /// The stage line for the picked files landing.
 // sub-thread.ts:352
 // export const subCopyingLine = (files: number): string => `copying ${files} ${files === 1 ? "file" : "files"}`;
 pub fn sub_copying_line(files: f64) -> String {
-    todo!()
+    format!("copying {} {}", number_string(files), if files == 1.0 { "file" } else { "files" })
 }
 
 /// The first line a terminal prints: where the sub-thread runs.
 // sub-thread.ts:354
 // export const subOpenedLine = (threadId: string, on: string, folder: string): string => `thread ${threadId.slice(0, 8)} on ${on.toLowerCase()} in ${folder}`;
 pub fn sub_opened_line(thread_id: &str, on: &str, folder: &str) -> String {
-    todo!()
+    format!("thread {} on {} in {folder}", utf16::cut(thread_id, 8), on.to_lowercase())
 }
 
 // The work a done read found not pushed, in the words the delete's question and the lead's refusal give it.
@@ -743,18 +1068,34 @@ pub fn sub_opened_line(thread_id: &str, on: &str, folder: &str) -> String {
 //   const parts = [held.commits > 0 ? `${held.commits} ${held.commits === 1 ? "commit" : "commits"}` : "", held.files > 0 ? `${held.files} changed ${held.files === 1 ? "file" : "files"}` : ""].filter(Boolean);
 //   return parts.length === 0 ? "work" : parts.join(" and ");
 // }
+fn held_words(files: f64, commits: f64) -> String {
+    let mut parts = Vec::new();
+    if commits > 0.0 {
+        parts.push(plural(commits, "commit"));
+    }
+    if files > 0.0 {
+        parts.push(plural(files, "changed file"));
+    }
+    if parts.is_empty() {
+        return "work".into();
+    }
+    parts.join(" and ")
+}
 
 // The work a done read found not pushed and the branch it is on, as the open thread's notice and a tile's card say it.
 // sub-thread.ts:363
 // private in the TS: port it as a private helper
 // const heldOn = (held: { files: number; commits: number }, branch: string): string => `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed`;
+fn held_on(files: f64, commits: f64, branch: &str) -> String {
+    format!("{} on {branch} {} not pushed", held_words(files, commits), if files + commits == 1.0 { "is" } else { "are" })
+}
 
 /// A held machine's cloud may delete its disk from `day`: Boat says it deletes at day 14, and a box stopped 18 days still
 /// resumed whole (2026-10-15), so wsp warns and deletes nothing itself.
 // sub-thread.ts:367
 // export const diskMayGoLine = (on: string, day: string): string => `${on} may delete its disk from ${day}`;
 pub fn disk_may_go_line(on: &str, day: &str) -> String {
-    todo!()
+    format!("{on} may delete its disk from {day}")
 }
 
 /// A not pushed sub-thread's reason on its tile's card, with the day its cloud may delete the disk from where it naps,
@@ -763,7 +1104,14 @@ pub fn disk_may_go_line(on: &str, day: &str) -> String {
 // export const subNotPushedReason = (held: { files: number; commits: number }, branch: string, kept?: { on: string; day: string }): string =>
 //   kept === undefined ? `${capitalisedFirst(heldOn(held, branch))}, so its machine stays.` : `${diskMayGoLine(kept.on, kept.day)}, with ${heldWords(held)} on ${branch} not pushed.`;
 pub fn sub_not_pushed_reason(held: &Held, branch: &str, kept: Option<&KeptOn>) -> String {
-    todo!()
+    match kept {
+        None => format!("{}, so its machine stays.", capitalised_first(&held_on(held.files, held.commits, branch))),
+        Some(kept) => format!(
+            "{}, with {} on {branch} not pushed.",
+            disk_may_go_line(&kept.on, &kept.day),
+            held_words(held.files, held.commits)
+        ),
+    }
 }
 
 /// One strip over a sub-thread's composer: what holds or blocks it as the title, the why and what follows under it.
@@ -802,38 +1150,66 @@ pub struct SubStripWords {
 // } as const;
 /// The TS SUB_STRIP: fixed words as constants, the rest as functions.
 pub mod sub_strip {
-    use super::{Held, KeptOn, SubStripWords};
+    use super::{capitalised_first, disk_may_go_line, held_words, Held, KeptOn, SubStripWords};
+    use crate::js::number_string;
     pub const RAISE: &str = "Raise machines at once";
     pub const PUSH_AGAIN: &str = "Push again";
     pub fn waiting_slot(on: &str, running: f64, at_once: f64) -> SubStripWords {
-        todo!()
+        SubStripWords {
+            title: format!("Waiting for a machine on {on}"),
+            note: format!("{} of {} machines are running. It starts on its own when one frees.", number_string(running), number_string(at_once)),
+        }
     }
     pub fn waiting_minute(on: &str, used: f64, limit: f64) -> SubStripWords {
-        todo!()
+        SubStripWords {
+            title: format!("Waiting for {on}'s next minute of starts"),
+            note: format!(
+                "{} of {} starts this minute are used. It starts on its own within the minute.",
+                number_string(used),
+                number_string(limit)
+            ),
+        }
     }
     pub fn not_pushed(held: &Held, branch: &str, refused: Option<&str>, kept: Option<&KeptOn>) -> SubStripWords {
-        todo!()
+        let why = match refused {
+            None => format!("They are on {branch} on this machine."),
+            Some(refused) => format!("The push to {branch} was refused: {refused}."),
+        };
+        let kept = kept.map_or(String::new(), |k| format!(", but {}", disk_may_go_line(&k.on, &k.day)));
+        SubStripWords {
+            title: format!("{} not pushed", capitalised_first(&held_words(held.files, held.commits))),
+            note: format!("{why} This machine stays until the work is pushed or copied to your computer{kept}."),
+        }
     }
     pub fn deleting(minutes: &str, branch: &str) -> SubStripWords {
-        todo!()
+        SubStripWords {
+            title: format!("Its machine is deleted in {minutes}"),
+            note: format!("Everything is pushed to {branch}. The transcript stays, and a message after the delete starts a new machine."),
+        }
     }
     pub fn released(on: &str) -> SubStripWords {
-        todo!()
+        SubStripWords {
+            title: "This thread's machine was deleted".into(),
+            note: format!("A message starts a new one on {on}, and the conversation goes on."),
+        }
     }
     pub fn oom(line: &str) -> SubStripWords {
-        todo!()
+        SubStripWords { title: "Killed for memory".into(), note: capitalised_first(line) }
     }
     pub fn cloud_gone(on: &str, here: &str) -> SubStripWords {
-        todo!()
+        SubStripWords {
+            title: format!("{on} was removed from {here}"),
+            note: format!("This thread has no machine to start until {on} is added again. Its transcript stays."),
+        }
     }
     pub fn copy_to(computer: &str) -> String {
-        todo!()
+        format!("Copy to {computer}")
     }
     pub fn start_again(size: &str) -> String {
-        todo!()
+        format!("Start again at {size}")
     }
     pub fn add_again(on: &str) -> String {
-        todo!()
+        format!("Add {on} again")
     }
 }
 
@@ -864,12 +1240,21 @@ pub struct KeptOn {
 //     return input;
 //   }
 // }
+fn shell_command_of(input: &str) -> String {
+    match serde_json::from_str::<serde_json::Value>(input) {
+        Ok(serde_json::Value::Object(fields)) => match fields.get("command") {
+            Some(serde_json::Value::String(command)) => command.clone(),
+            _ => input.to_string(),
+        },
+        _ => input.to_string(),
+    }
+}
 
 /// Whether a shell call an agent made runs a git push.
 // sub-thread.ts:415
 // export const isGitPush = (input: string): boolean => /\bgit\b(?:\s+-\S+(?:\s+\S+)?)*\s+push\b/.test(shellCommandOf(input));
 pub fn is_git_push(input: &str) -> bool {
-    todo!()
+    GIT_PUSH.is_match(&shell_command_of(input))
 }
 
 // Progress lines a remote says on any push, refused or not.
@@ -892,28 +1277,50 @@ pub fn is_git_push(input: &str) -> bool {
 //   return said === "" ? undefined : said.slice(0, 200);
 // }
 pub fn push_refused_of(output: &str) -> Option<String> {
-    todo!()
+    let lines: Vec<&str> = output.split('\n').map(js_trim_end).collect();
+    let line = lines
+        .iter()
+        .copied()
+        .find(|l| l.starts_with("remote:") && !PUSH_PROGRESS.is_match(l))
+        .or_else(|| lines.iter().copied().find(|l| l.starts_with("fatal:")))
+        .or_else(|| lines.iter().copied().find(|l| PUSH_REJECTED.is_match(l)))
+        .or_else(|| lines.iter().copied().find(|l| l.starts_with("error:")))?;
+    let after_remote = line.strip_prefix("remote:").map_or(line, js_trim_start);
+    let after_bang = js_trim_start(after_remote).strip_prefix("! ").unwrap_or(after_remote);
+    let collapsed = js_collapse_whitespace(after_bang);
+    let trimmed = js_trim(&collapsed);
+    let said = trimmed.strip_suffix('.').unwrap_or(trimmed);
+    if said.is_empty() {
+        return None;
+    }
+    Some(utf16::cut(said, 200))
 }
 
 /// The message Start again sends the lead: the sub-thread by its title, started again at the size its kill named.
 // sub-thread.ts:435
 // export const subStartAgainPrompt = (title: string, on: string, size: string): string => `Start the work of the sub-thread "${title}" again on ${on} at size ${size}: its agent was killed for memory.`;
 pub fn sub_start_again_prompt(title: &str, on: &str, size: &str) -> String {
-    todo!()
+    format!("Start the work of the sub-thread \"{title}\" again on {on} at size {size}: its agent was killed for memory.")
 }
 
 /// The message Push again sends the sub-thread.
 // sub-thread.ts:438
 // export const subPushAgainPrompt = (branch: string): string => `Push ${branch} again, and say what the remote answers.`;
 pub fn sub_push_again_prompt(branch: &str) -> String {
-    todo!()
+    format!("Push {branch} again, and say what the remote answers.")
 }
 
 /// Whether a turn's failure is subOomLine's, which the strip over the composer says in its place.
 // sub-thread.ts:441
 // export const isSubOomLine = (line: string): boolean => /^the agent on .+ was killed for memory: /i.test(line);
 pub fn is_sub_oom_line(line: &str) -> bool {
-    todo!()
+    // The `i` flag folds ASCII letters alone, so ASCII lowering of the whole line is the same test.
+    let lower = line.to_ascii_lowercase();
+    let Some(rest) = lower.strip_prefix("the agent on ") else {
+        return false;
+    };
+    let head = rest.find(['\n', '\r', '\u{2028}', '\u{2029}']).unwrap_or(rest.len());
+    rest[..head].match_indices(" was killed for memory: ").any(|(at, _)| at >= 1)
 }
 
 /// The line under a sub-thread's brief and the steps it opens to, the stages the spawn reports with the facts it read:
@@ -939,50 +1346,68 @@ pub fn is_sub_oom_line(line: &str) -> bool {
 // } as const;
 /// The TS SUB_SPAWN_WORDS: fixed words as constants, the rest as functions.
 pub mod sub_spawn_words {
+    use crate::js::utf16;
+    use crate::words::base::plural;
+
     pub const DETAILS: &str = "Show details";
     pub const HIDE_DETAILS: &str = "Hide details";
     pub const TRY_AGAIN: &str = "Try again";
     pub fn branch(done: bool) -> String {
-        todo!()
+        String::from(if done { "Checked the branch" } else { "Checking the branch" })
     }
     pub fn branch_fact(branch: &str, sha: &str) -> String {
-        todo!()
+        format!("{branch} is pushed at {}", utf16::cut(sha, 7))
     }
     pub fn machine(on: &str, done: bool) -> String {
-        todo!()
+        if done { format!("Asked {on} for a machine") } else { format!("Asking {on} for a machine") }
     }
     pub fn files(n: f64, done: bool) -> String {
-        todo!()
+        format!("{} {}", if done { "Copied" } else { "Copying" }, plural(n, "picked file"))
     }
     pub fn agent(agent: &str) -> String {
-        todo!()
+        format!("Starting {agent}")
     }
     pub fn agent_fact(model: Option<&str>, effort: Option<&str>) -> Option<String> {
-        todo!()
+        let parts: Vec<&str> = [model, effort].into_iter().flatten().filter(|s| !s.is_empty()).collect();
+        (!parts.is_empty()).then(|| parts.join(", "))
     }
     pub fn machine_fact(id: Option<&str>, states: &[&str]) -> Option<String> {
-        todo!()
+        id.map(|id| std::iter::once(id).chain(states.iter().copied()).collect::<Vec<&str>>().join(", "))
     }
     pub fn files_fact(paths: &[&str], bytes: &str) -> String {
-        todo!()
+        format!("{}, {bytes}", paths.join(", "))
     }
     pub fn not_sent(why: &str) -> String {
-        todo!()
+        format!("No git-ignored files were sent: {why}.")
     }
     pub fn starting(on: &str) -> String {
-        todo!()
+        format!("Starting a machine on {on}")
     }
     pub fn started(on: &str, took: &str) -> String {
-        todo!()
+        format!("Started on {on} in {took}")
     }
     pub fn failed(on: &str) -> String {
-        todo!()
+        format!("Could not start a machine on {on}")
     }
 }
 
 // sub-thread.ts:464
 // private in the TS: port it as a private helper
 // const capitalisedFirst = (line: string): string => `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
+fn capitalised_first(line: &str) -> String {
+    let mut chars = line.chars();
+    match chars.next() {
+        None => String::new(),
+        // A lone half of a surrogate pair has no case, so JavaScript leaves the line as it is.
+        Some(first) if first.len_utf16() == 2 => line.to_string(),
+        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+    }
+}
+
+// The TS `.join(", ")` over any list of strings: one home for the sentences that list names.
+fn join_all(items: &[impl AsRef<str>], sep: &str) -> String {
+    items.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(sep)
+}
 
 /// What a sub-thread holds that no remote has: the counts its last read found, or that the read did not answer.
 // sub-thread.ts:467
@@ -1013,7 +1438,17 @@ pub struct SubUnpushed {
 //   return `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed and go with it.`;
 // }
 pub fn sub_unpushed_line(held: &SubUnpushed, branch: &str) -> String {
-    todo!()
+    if held.unread == Some(true) {
+        return format!("its machine has not been read since its last turn, so work on {branch} may not be pushed and would go with it.");
+    }
+    if let Some(failed) = &held.read_failed {
+        return format!("its machine could not be read ({failed}), so work on {branch} may not be pushed and would go with it.");
+    }
+    format!(
+        "{} on {branch} {} not pushed and go with it.",
+        held_words(held.files, held.commits),
+        if held.files + held.commits == 1.0 { "is" } else { "are" }
+    )
 }
 
 /// The question a person answers before a sub-thread and its machine go.
@@ -1034,7 +1469,15 @@ pub struct SubDeleteQuestion {
 }
 
 pub fn sub_delete_question(o: &SubDeleteQuestion) -> String {
-    todo!()
+    let first = format!("Delete sub-thread {} ({}) and its machine on {}?", utf16::cut(&o.thread_id, 8), o.title, o.on);
+    let second = match &o.held {
+        None => format!(
+            "Its turns leave this computer and its machine is deleted; what it pushed to {} stays on the remote.",
+            o.branch
+        ),
+        Some(held) => sub_unpushed_line(held, &o.branch),
+    };
+    format!("{first}\n{}", capitalised_first(&second))
 }
 
 /// What a sub-thread's machine holds that no remote has, or may: the line a remove of its cloud lists, and the half
@@ -1047,7 +1490,14 @@ pub fn sub_delete_question(o: &SubDeleteQuestion) -> String {
 //   return `sub-thread ${id8} holds ${heldWords(held)} not pushed on ${branch}`;
 // }
 pub fn sub_held_line(thread_id: &str, held: &SubUnpushed, branch: &str) -> String {
-    todo!()
+    let id8 = utf16::cut(thread_id, 8);
+    if held.unread == Some(true) {
+        return format!("sub-thread {id8}'s machine has not been read since its last turn, so work on {branch} may not be pushed");
+    }
+    if let Some(failed) = &held.read_failed {
+        return format!("sub-thread {id8}'s machine could not be read ({failed}), so work on {branch} may not be pushed");
+    }
+    format!("sub-thread {id8} holds {} not pushed on {branch}", held_words(held.files, held.commits))
 }
 
 /// A lead's own token asking the delete of a sub-thread whose work is not pushed: losing it is the person's call.
@@ -1055,21 +1505,21 @@ pub fn sub_held_line(thread_id: &str, held: &SubUnpushed, branch: &str) -> Strin
 // export const subHeldDeleteRefusal = (threadId: string, held: SubUnpushed, branch: string): Error =>
 //   usage(subHeldLine(threadId, held, branch), "Send it a push, or ask the person to delete it.");
 pub fn sub_held_delete_refusal(thread_id: &str, held: &SubUnpushed, branch: &str) -> crate::exit::HostError {
-    todo!()
+    usage(&sub_held_line(thread_id, held, branch), "Send it a push, or ask the person to delete it.")
 }
 
 /// A sub-thread whose cloud this host no longer holds, as its row says it.
 // sub-thread.ts:503
 // export const subCloudGoneLine = (on: string): string => `${on} is no longer on this host`;
 pub fn sub_cloud_gone_line(on: &str) -> String {
-    todo!()
+    format!("{on} is no longer on this host")
 }
 
 /// A send into a sub-thread whose cloud this host no longer holds.
 // sub-thread.ts:506
 // export const subCloudGoneRefusal = (on: string): Error => usage(subCloudGoneLine(on), `Add it with wsp add ${on.toLowerCase()} and send again.`);
 pub fn sub_cloud_gone_refusal(on: &str) -> crate::exit::HostError {
-    todo!()
+    usage(&sub_cloud_gone_line(on), &format!("Add it with wsp add {} and send again.", on.to_lowercase()))
 }
 
 /// A wake of a sub-thread whose machine was deleted after it was done: there is none to wake, and a send makes one.
@@ -1077,7 +1527,11 @@ pub fn sub_cloud_gone_refusal(on: &str) -> crate::exit::HostError {
 // export const subReleasedRefusal = (threadId: string, on: string): Error =>
 //   usage(`sub-thread ${threadId.slice(0, 8)}'s machine on ${on} was deleted after it was done, so there is none to wake`, `Send to it with wsp send ${threadId.slice(0, 8)} "<message>", which starts a new one.`);
 pub fn sub_released_refusal(thread_id: &str, on: &str) -> crate::exit::HostError {
-    todo!()
+    let id8 = utf16::cut(thread_id, 8);
+    usage(
+        &format!("sub-thread {id8}'s machine on {on} was deleted after it was done, so there is none to wake"),
+        &format!("Send to it with wsp send {id8} \"<message>\", which starts a new one."),
+    )
 }
 
 /// What a delete Boat refused says, and when it is asked again.
@@ -1085,7 +1539,7 @@ pub fn sub_released_refusal(thread_id: &str, on: &str) -> crate::exit::HostError
 // export const subDeleteRefusedLine = (on: string, machine: string, said: string, retryMinutes: number): string =>
 //   `${on} would not delete ${machine} (${said}); it is tried again in ${retryMinutes} minutes`;
 pub fn sub_delete_refused_line(on: &str, machine: &str, said: &str, retry_minutes: f64) -> String {
-    todo!()
+    format!("{on} would not delete {machine} ({said}); it is tried again in {} minutes", number_string(retry_minutes))
 }
 
 /// The line a cloud's remove adds to its question for sub-threads whose machines hold work no remote has: it goes
@@ -1097,7 +1551,13 @@ pub fn sub_delete_refused_line(on: &str, machine: &str, said: &str, retry_minute
 //   return `Work not pushed goes with ${held.length === 1 ? "its machine" : "their machines"}: ${held.slice(0, 5).join("; ")}${rest}.`;
 // }
 pub fn sub_held_on_remove_line(held: &[impl AsRef<str>]) -> Option<String> {
-    todo!()
+    if held.is_empty() {
+        return None;
+    }
+    let rest = if held.len() > 5 { format!("; and {} more", held.len() - 5) } else { String::new() };
+    let named: Vec<&str> = held.iter().take(5).map(AsRef::as_ref).collect();
+    let whose = if held.len() == 1 { "its machine" } else { "their machines" };
+    Some(format!("Work not pushed goes with {whose}: {}{rest}.", named.join("; ")))
 }
 
 /// A sub-thread's cloud as a line names it, off the word its record keeps: `boat` is Boat.
@@ -1107,14 +1567,17 @@ pub fn sub_held_on_remove_line(held: &[impl AsRef<str>]) -> Option<String> {
 //   return id === undefined ? on : providerKeyName(id);
 // }
 pub fn cloud_said(on: &str) -> String {
-    todo!()
+    match cloud_named(&PROVIDER_KEY_IDS[..], on) {
+        Some(id) => provider_key_name(&id),
+        None => on.to_string(),
+    }
 }
 
 /// What a sub-thread's delete did.
 // sub-thread.ts:531
 // export const subDeletedLine = (threadId: string, on: string): string => `deleted sub-thread ${threadId.slice(0, 8)} and its machine on ${on}`;
 pub fn sub_deleted_line(thread_id: &str, on: &str) -> String {
-    todo!()
+    format!("deleted sub-thread {} and its machine on {on}", utf16::cut(thread_id, 8))
 }
 
 // The UTC day of a moment, for a line about a cloud's keep of a disk: the keep is counted from the cloud's own stop,
@@ -1122,6 +1585,10 @@ pub fn sub_deleted_line(thread_id: &str, on: &str) -> String {
 // sub-thread.ts:535
 // private in the TS: port it as a private helper
 // const utcDay = (at: number): string => `${new Date(at).toISOString().slice(0, 10)} UTC`;
+fn utc_day(at: f64) -> String {
+    let day = jiff::Timestamp::from_millisecond(at as i64).expect("a cloud's keep is a moment jiff holds");
+    format!("{} UTC", day.strftime("%Y-%m-%d"))
+}
 
 /// The line a sub-thread's finished line to its lead ends with, off the done's read: the branch pushed and the merge
 /// that takes it, the work not pushed that keeps the machine, or nothing to merge. `deleteInMs` is how long the machine
@@ -1163,6 +1630,54 @@ pub struct SubResultFacts {
 }
 
 pub fn sub_result_line(o: &SubResultFacts) -> String {
-    todo!()
+    let r = &o.result;
+    let id8 = utf16::cut(&o.thread_id, 8);
+    let minutes = o.delete_in_ms.map_or(0.0, |ms| js_round(ms / 60_000.0));
+    let goes = if minutes > 0.0 {
+        format!("Its machine naps now and is deleted in {} unless you send to {id8} first.", plural(minutes, "minute"))
+    } else {
+        format!("Its machine is deleted now; a send to {id8} starts a new one with the conversation kept.")
+    };
+    let naps = match &o.kept {
+        None => "its machine is kept, napping at no cost".to_string(),
+        Some(kept) => format!("its machine naps at no cost, and {}", disk_may_go_line(&kept.on, &utc_day(kept.until))),
+    };
+    if let Some(failed) = &r.read_failed {
+        return format!(
+            "its machine could not be read ({failed}), so work on {} may not be pushed and {naps}. Send to {id8} to have it pushed, or ask the person to delete it.",
+            r.branch
+        );
+    }
+    if !sub_all_pushed(r) {
+        let unpushed = r.unpushed.get() as f64;
+        let changed = r.changed.get() as f64;
+        let mut parts = Vec::new();
+        if unpushed > 0.0 {
+            parts.push(plural(unpushed, "commit"));
+        }
+        if changed > 0.0 {
+            parts.push(plural(changed, "changed file"));
+        }
+        let one = unpushed + changed == 1.0;
+        return format!(
+            "{} on {} {} not pushed, so {naps}. Send to {id8} to have {} pushed, or ask the person to delete it.",
+            parts.join(" and "),
+            r.branch,
+            if one { "is" } else { "are" },
+            if one { "it" } else { "them" }
+        );
+    }
+    let commits = r.commits.get() as f64;
+    match &r.pushed_sha {
+        Some(sha) if commits != 0.0 => format!(
+            "branch {} pushed at {}, {} on {}; merge it with wsp merge in {} {id8}. {goes}",
+            r.branch,
+            utf16::cut(sha, 7),
+            plural(commits, "commit"),
+            o.base,
+            utf16::cut(&o.lead, 8)
+        ),
+        _ => format!("no commits on {}, so there is nothing to merge. {goes}", r.branch),
+    }
 }
 
