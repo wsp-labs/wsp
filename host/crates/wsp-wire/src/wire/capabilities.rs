@@ -47,14 +47,16 @@ pub struct InitSetup {
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub job: Option<InitJob>,
 }
+/// A box builds its sizes `{ name, cpu, memMb, rateUsdPerHour }` (engine/src/box-backend.ts:546), so `name` is written first;
+/// no other backend has one.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineSizeOffer {
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub name: Option<String>,
     pub cpu: JsNumber,
     pub mem_mb: JsNumber,
     pub rate_usd_per_hour: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub name: Option<String>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PauseMode {

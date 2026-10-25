@@ -560,8 +560,6 @@ pub struct SessionDeltaEvent {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub line: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub cut: Option<JsInt>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub bytes: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub exit_code: Option<JsInt>,
@@ -569,6 +567,10 @@ pub struct SessionDeltaEvent {
     pub duration_ms: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub patch: Option<Vec<FilePatch>>,
+    /// A head cuts a tool result with `headShape` (runtime/src/transcript-reader.ts:77), which appends `cut` and then
+    /// `patchCut` after every key the stored row held, so they are written last.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub cut: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub patch_cut: Option<True>,
 }
