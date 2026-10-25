@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import { DOWNLOADS, platformOf } from "../src/downloads";
 import { DOCS, EMAIL, ORG, REPO, X } from "../src/links";
-import { aheadOf, KINDS, ROWS, sources, TOOLS, WSP } from "../src/compare";
+import { KINDS, ROWS, saidOf, sources, STEPS, strongerOf, TOOLS, WSP } from "../src/compare";
 import { fileOf, ROUTES } from "../src/routes";
 import { QUESTIONS } from "../src/sections/close";
 
@@ -97,18 +97,22 @@ describe("every route, as raw HTML", () => {
   });
 
   for (const tool of TOOLS) {
-    it(`serves /compare/${tool.slug} with the eight questions, wsp in the raised column, and no citation numbers in a cell`, () => {
+    it(`serves /compare/${tool.slug} with every question and the line under it, wsp in the raised column, and no citation numbers in a cell`, () => {
       const html = built(fileOf(`/compare/${tool.slug}`));
       const body = text(html);
       expect(html).toMatch(new RegExp(`<h1[^>]*>wsp vs ${tool.name}</h1>`));
       expect(body).toContain(tool.differs);
+      const head = /<header class="mx-auto[\s\S]*?<\/header>/.exec(html)![0];
+      expect(head).toContain(`src="/logos/${tool.slug}.png"`);
+      expect(head).toMatch(/<span class="sr-only">wsp<\/span>/);
       const table = /<table[\s\S]*<\/table>/.exec(html)![0];
       expect(table).not.toMatch(/<a |<sup/);
       const rows = [...table.matchAll(/<tr class="border-t[\s\S]*?<\/tr>/g)].map(m => m[0]);
       expect(rows).toHaveLength(ROWS.length);
       ROWS.forEach((r, i) => {
         const cells = [...rows[i]!.matchAll(/<td title="([^"]*)" class="([^"]*)">([\s\S]*?)<\/td>/g)];
-        expect(unescape(/<th[^>]*>([^<]*)<\/th>/.exec(rows[i]!)![1]!)).toBe(r.label);
+        const asked = /<th[^>]*><span[^>]*>([^<]*)<\/span><span[^>]*>([^<]*)<\/span><\/th>/.exec(rows[i]!)!;
+        expect([unescape(asked[1]!), unescape(asked[2]!)]).toEqual([r.label, r.about]);
         expect(cells).toHaveLength(2);
         const [theirs, ours] = cells.map(m => ({ title: unescape(m[1]!), raised: m[2]!.includes("bg-raised"), text: text(m[3]!).trim(), mark: /aria-label="(yes|no)"/.exec(m[3]!)![1] }));
         for (const [seen, cell] of [[theirs!, tool.cells[r.key]], [ours!, WSP[r.key]]] as const) {
@@ -119,9 +123,18 @@ describe("every route, as raw HTML", () => {
         }
         expect([theirs!.raised, ours!.raised]).toEqual([false, true]);
       });
-      expect(body).toContain(tool.well);
-      expect(body).toContain(tool.fit);
-      for (const a of aheadOf(tool)) expect(body).toContain(`${a.title} ${a.said[0]} ${a.wsp}`);
+      for (const h of [`Where ${tool.name} is stronger`, "Where wsp is stronger", `Pick ${tool.name} if`, "Pick wsp if"]) expect(html).toMatch(new RegExp(`<h3[^>]*>${h}</h3>`));
+      for (const { said, wsp } of strongerOf(tool)) expect(body).toContain(wsp === undefined ? said[0] : `${said[0]} ${wsp[0]}`);
+      for (const point of [...tool.weaker, ...tool.pickThem, ...tool.pickWsp]) expect(body).toContain(saidOf(tool, point)[0]);
+      const steps = /<section id="steps"[\s\S]*?<\/section>/.exec(html)![0];
+      expect([...steps.matchAll(/<h3[^>]*>([^<]*)<\/h3>/g)].map(m => m[1])).toEqual(STEPS.map(s => s.title));
+      for (const s of STEPS) expect(text(steps)).toContain(s.said[0].replace(/`/g, ""));
+      expect(steps).toContain("curl -fsSL usewsp.com/install | sh");
+      const others = /<section id="others"[\s\S]*?<\/section>/.exec(html)![0];
+      const linked = [...others.matchAll(/href="\/compare\/([^"]+)"/g)].map(m => m[1]);
+      expect(linked).toEqual(TOOLS.filter(t => t.slug !== tool.slug).map(t => t.slug));
+      for (const slug of linked) expect(others).toContain(`src="/logos/${slug}.png"`);
+      expect(html).not.toContain('<section id="shot"');
       expect(html).toMatch(/<details class="[^"]*">/);
       const details = /<details[\s\S]*<\/details>/.exec(html)![0];
       for (const url of sources(tool)) expect(details).toContain(`href="${url}"`);
