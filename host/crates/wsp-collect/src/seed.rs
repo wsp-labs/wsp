@@ -43,7 +43,7 @@ pub async fn seed_menu(host: &Host, folder: &str, o: &SeedOptions) -> SeedPlan {
         for inner in broken {
             files.extend(row_for(inner, false, size(inner)));
         }
-        let own = size(path) - broken.iter().map(|inner| size(inner)).sum::<i64>();
+        let own = size(path).saturating_sub(broken.iter().fold(0i64, |sum, inner| sum.saturating_add(size(inner))));
         files.extend(row_for(path, is_dir(entry), own.max(0)));
     }
     files.sort_by(|a, b| collate(&a.path, &b.path));

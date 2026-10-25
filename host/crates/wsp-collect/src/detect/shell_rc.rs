@@ -76,8 +76,24 @@ pub const HEREDOC: &str = r#"^<<-?\s*(?:"([A-Za-z_]\w*)"|'([A-Za-z_]\w*)'|\\([A-
 pub const SOURCE: &str = r#"^([ \t]*)(source|\\?\.)[ \t]+("[^"]*"|'[^']*'|[^\s;&|<>()"'\\`]+)(?=[\s;&|<>()]|$)(.*)$"#;
 
 /// Compiles a JavaScript regex source for fancy-regex: `\s`, `\S`, `\w`, `\d`, `\b` and `.` keep JavaScript's meaning
-/// and `[^]` is any character.
+/// and `[^]` is any character. A search never stops at fancy-regex's backtrack limit: node has none, so a long file
+/// is answered, not refused.
 pub(crate) fn js_re(source: &str) -> Regex {
+    unbounded(&translate(source, false)).expect("a JavaScript pattern compiles")
+}
+
+/// A fancy-regex pattern with no backtrack limit, as a JavaScript engine has none.
+pub(crate) fn unbounded(pattern: &str) -> Result<Regex, fancy_regex::Error> {
+    fancy_regex::RegexBuilder::new(pattern).backtrack_limit(usize::MAX).build()
+}
+
+/// The same translation for the `regex` crate, which runs in linear time and never errors mid-search; only for a source
+/// with no lookaround or backreference.
+pub(crate) fn js_plain(source: &str) -> regex::Regex {
+    regex::Regex::new(&translate(source, true)).expect("a JavaScript pattern compiles")
+}
+
+fn translate(source: &str, plain: bool) -> String {
     let mut out = String::new();
     let mut class = false;
     let mut chars = source.chars().peekable();
@@ -96,6 +112,7 @@ pub(crate) fn js_re(source: &str) -> Regex {
                     ('w', true) => out.push_str("A-Za-z0-9_"),
                     ('d', false) => out.push_str("[0-9]"),
                     ('d', true) => out.push_str("0-9"),
+                    ('b', false) if plain => out.push_str("(?-u:\\b)"),
                     ('b', false) => out.push_str("(?:(?<=[A-Za-z0-9_])(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])(?=[A-Za-z0-9_]))"),
                     _ => {
                         out.push('\\');
@@ -131,7 +148,7 @@ pub(crate) fn js_re(source: &str) -> Regex {
             _ => out.push(c),
         }
     }
-    Regex::new(&out).expect("a JavaScript pattern compiles")
+    out
 }
 
 /// `re.test(text)`, false where the pattern cannot run.
@@ -170,7 +187,7 @@ static QUOTE_WRAP_RE: LazyLock<Regex> = LazyLock::new(|| js_re(r#"^(["']).*\1$"#
 pub(crate) static KEYWORDS_RE: LazyLock<Regex> = LazyLock::new(|| js_re(KEYWORDS));
 pub(crate) static ASSIGNS_RE: LazyLock<Regex> = LazyLock::new(|| js_re(ASSIGNS));
 pub(crate) static GUARD_RE: LazyLock<Regex> = LazyLock::new(|| js_re(GUARD));
-pub(crate) static QUOTED_RE: LazyLock<Regex> = LazyLock::new(|| js_re(QUOTED));
+pub(crate) static QUOTED_RE: LazyLock<regex::Regex> = LazyLock::new(|| js_plain(QUOTED));
 pub(crate) static HEREDOC_RE: LazyLock<Regex> = LazyLock::new(|| js_re(HEREDOC));
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -374,12 +391,35 @@ fn assigned_name(word: &str) -> Option<String> {
     captures(&ASSIGNED_RE, word).map(|caps| group(&caps, 1))
 }
 
-/// Every line's simple commands' assigned names, in order.
-pub(crate) fn assigned_names(text: &str) -> Vec<String> {
+/// A piece of shell text still to read for the names it assigns.
+enum Work {
+    Text(String),
+    Command(String),
+}
+
+/// The names under `first`, in the order the TS recursion lists them: a command's own leading names, then each text it
+/// runs again (an eval's arguments, an alias or abbr body) before the next command. The nesting is walked on a stack
+/// of the heap, not of the thread, so a line of a thousand `eval` words is answered as node answers it at 500.
+fn assigned_walk(first: Work) -> Vec<String> {
     let mut names = Vec::new();
-    for line in text.split('\n') {
-        for command in simple_commands(line) {
-            names.extend(assigned_in(&command));
+    let mut stack = vec![vec![first].into_iter()];
+    while let Some(top) = stack.last_mut() {
+        let Some(work) = top.next() else {
+            stack.pop();
+            continue;
+        };
+        match work {
+            Work::Text(text) => {
+                let commands: Vec<Work> = text.split('\n').flat_map(simple_commands).map(Work::Command).collect();
+                stack.push(commands.into_iter());
+            }
+            Work::Command(command) => {
+                let (own, again) = assigned_head(&command);
+                names.extend(own);
+                if !again.is_empty() {
+                    stack.push(again.into_iter().map(Work::Text).collect::<Vec<_>>().into_iter());
+                }
+            }
         }
     }
     names
@@ -388,28 +428,25 @@ pub(crate) fn assigned_names(text: &str) -> Vec<String> {
 /// The variables a simple command assigns, each of its leading assignments among them. A quoted builtin or name is read
 /// as the bare one, and eval's arguments, joined by blanks as eval joins them, and an alias or abbr body are shell again.
 pub(crate) fn assigned_in(command: &str) -> Vec<String> {
+    assigned_walk(Work::Command(command.to_string()))
+}
+
+/// What one command assigns itself, and the texts it runs again.
+fn assigned_head(command: &str) -> (Vec<String>, Vec<String>) {
     let (lead, run) = command_words(command);
-    let mut names: Vec<String> = lead.iter().filter_map(|w| assigned_name(w)).collect();
+    let leading: Vec<String> = lead.iter().filter_map(|w| assigned_name(w)).collect();
     match run.first().map(String::as_str) {
-        Some("eval") => {
-            names.extend(assigned_names(&run[1..].join(" ")));
-            return names;
-        }
-        Some("alias" | "abbr") => {
-            for body in alias_bodies(&run) {
-                names.extend(assigned_names(&body));
-            }
-            return names;
-        }
+        Some("eval") => return (leading, vec![run[1..].join(" ")]),
+        Some("alias" | "abbr") => return (leading, alias_bodies(&run)),
         _ => {}
     }
     let words = shell_words(&newline_as_space(command));
     let bare = skip_keywords(&words.join(" "));
     if let Some(fish) = captures(&FISH_SET_RE, &bare) {
-        return if is_match(&FISH_READS_RE, &group(&fish, 1)) { Vec::new() } else { vec![group(&fish, 2)] };
+        return (if is_match(&FISH_READS_RE, &group(&fish, 1)) { Vec::new() } else { vec![group(&fish, 2)] }, Vec::new());
     }
     if let Some(exported) = captures(&EXPORTED_RE, &bare) {
-        return group(&exported, 1).split(is_js_whitespace).filter_map(assigned_name).collect();
+        return (group(&exported, 1).split(is_js_whitespace).filter_map(assigned_name).collect(), Vec::new());
     }
     let mut out = Vec::new();
     if let Some(mut i) = (0..words.len()).find(|&k| words[k..].join(" ") == bare) {
@@ -418,7 +455,7 @@ pub(crate) fn assigned_in(command: &str) -> Vec<String> {
             i += 1;
         }
     }
-    out
+    (out, Vec::new())
 }
 
 /// A `\` before a newline, or a bare newline, as a space (`command.replace(/\\?\n/g, " ")`).

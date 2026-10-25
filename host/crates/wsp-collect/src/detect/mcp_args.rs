@@ -237,9 +237,18 @@ fn size(v: &str) -> String {
     format!("({} B)", v.len())
 }
 
+/// U+180E in a host: the WHATWG `URL` of V8 refuses it, where the `url` crate's older IDNA table maps it away.
+fn host_holds_mongolian_vowel_separator(s: &str) -> bool {
+    let Some((_, rest)) = s.split_once("//") else { return false };
+    rest.split(['/', '?', '#', '\\']).next().is_some_and(|authority| authority.contains('\u{180e}'))
+}
+
 /// An address that carries nothing of the person's: no login, no query and no path segment shaped like a key. One that
 /// carries any of them is a value, since asking costs a question and not asking can carry a key.
 fn plain_address(s: &str) -> bool {
+    if host_holds_mongolian_vowel_separator(s) {
+        return false;
+    }
     let Ok(u) = url::Url::parse(s) else { return false };
     u.username().is_empty()
         && u.password().is_none_or(str::is_empty)

@@ -12,7 +12,7 @@ use serde_json::Value;
 use wsp_words::exit::HostError;
 
 use crate::history::reader::PARSE_VERSION;
-use crate::history::tally::HistoryBucket;
+use crate::history::tally::{js_key_order, HistoryBucket};
 
 /// cache.ts:15. `&self` throughout: a cache is shared by the reads one store runs at once, on one thread.
 pub trait HistoryCache {
@@ -45,14 +45,28 @@ struct CacheFile<'a> {
     files: &'a IndexMap<String, CacheEntry>,
 }
 
-/// A count as the cache file writes it: a whole number, not negative.
-fn count(v: &Value) -> Option<u64> {
+/// A count as the cache file writes it: a whole number, not negative. zod's `int()` takes any such double, `1e20` too.
+fn whole(v: &Value) -> Option<f64> {
     let n = v.as_f64()?;
-    (n >= 0.0 && n.fract() == 0.0).then_some(n as u64)
+    (n >= 0.0 && n.fract() == 0.0).then_some(n)
 }
 
+fn count(v: &Value) -> Option<u64> {
+    whole(v).map(|n| n as u64)
+}
+
+/// A name-to-count record as zod's `z.record` rebuilds it: a `__proto__` key is assigned to the new object's prototype
+/// slot, where a number does nothing, so it is left out; the keys then come in a JavaScript object's order.
 fn counts(v: Option<&Value>) -> Option<IndexMap<String, u64>> {
-    v?.as_object()?.iter().map(|(name, c)| Some((name.clone(), count(c)?))).collect()
+    let kept: IndexMap<String, u64> = v?
+        .as_object()?
+        .iter()
+        .map(|(name, c)| Some((name.clone(), count(c)?)))
+        .collect::<Option<Vec<_>>>()?
+        .into_iter()
+        .filter(|(name, _)| name != "__proto__")
+        .collect();
+    Some(js_key_order(kept))
 }
 
 /// One bucket as the cache file shape holds it; a `null` where the shape has an optional field is refused.
@@ -68,7 +82,7 @@ fn bucket_of(v: &Value) -> Option<HistoryBucket> {
     Some(HistoryBucket {
         session: v.get("session")?.as_str()?.to_string(),
         folder,
-        calls: count(v.get("calls")?)?,
+        calls: whole(v.get("calls")?)? as u128,
         commands: counts(v.get("commands"))?,
         installs: counts(v.get("installs"))?,
         at,
@@ -139,12 +153,37 @@ impl HistoryCache for FileHistoryCache {
         }
         let out = CacheFile { version: 1, parse: PARSE_VERSION, files: &kept };
         let text = serde_json::to_string(&out).map_err(|e| HostError::new(e.to_string()))?;
-        let io = |e: std::io::Error| HostError::new(e.to_string());
         let dir = self.path.parent().unwrap_or(Path::new(""));
-        std::fs::create_dir_all(dir).map_err(io)?;
+        std::fs::create_dir_all(dir).map_err(|e| node_error(&e, "mkdir", dir, None))?;
         let now_ms = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
         let tmp = dir.join(format!(".{now_ms}-{}.tmp", temp_suffix()));
-        std::fs::write(&tmp, format!("{text}\n")).map_err(io)?;
-        std::fs::rename(&tmp, &self.path).map_err(io)
+        std::fs::write(&tmp, format!("{text}\n")).map_err(|e| node_error(&e, "open", &tmp, None))?;
+        std::fs::rename(&tmp, &self.path).map_err(|e| node_error(&e, "rename", &tmp, Some(&self.path)))
     }
+}
+
+/// A failed system call as node words it: `EEXIST: file already exists, mkdir '/a/b'`, a rename naming both paths.
+fn node_error(e: &std::io::Error, syscall: &str, path: &Path, dest: Option<&Path>) -> HostError {
+    let (code, what) = match e.raw_os_error() {
+        Some(libc::EEXIST) => ("EEXIST", "file already exists"),
+        Some(libc::ENOENT) => ("ENOENT", "no such file or directory"),
+        Some(libc::EACCES) => ("EACCES", "permission denied"),
+        Some(libc::EPERM) => ("EPERM", "operation not permitted"),
+        Some(libc::ENOTDIR) => ("ENOTDIR", "not a directory"),
+        Some(libc::EISDIR) => ("EISDIR", "illegal operation on a directory"),
+        Some(libc::ENOSPC) => ("ENOSPC", "no space left on device"),
+        Some(libc::EROFS) => ("EROFS", "read-only file system"),
+        Some(libc::EMFILE) => ("EMFILE", "too many open files"),
+        Some(libc::ENAMETOOLONG) => ("ENAMETOOLONG", "name too long"),
+        Some(libc::ENOTEMPTY) => ("ENOTEMPTY", "directory not empty"),
+        Some(libc::EBUSY) => ("EBUSY", "resource busy or locked"),
+        Some(libc::EXDEV) => ("EXDEV", "cross-device link not permitted"),
+        Some(libc::ELOOP) => ("ELOOP", "too many symbolic links encountered"),
+        Some(libc::EDQUOT) => ("EDQUOT", "disk quota exceeded"),
+        Some(libc::EINVAL) => ("EINVAL", "invalid argument"),
+        Some(libc::EIO) => ("EIO", "i/o error"),
+        _ => return HostError::new(e.to_string()),
+    };
+    let to = dest.map_or(String::new(), |d| format!(" -> '{}'", d.display()));
+    HostError::new(format!("{code}: {what}, {syscall} '{}'{to}", path.display()))
 }

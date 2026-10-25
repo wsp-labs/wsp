@@ -85,7 +85,8 @@ pub fn time_of(v: Option<&Value>) -> Option<f64> {
 }
 
 /// The ES5 date-time form Date.parse reads (spec rule 4): a year, an optional month and day, an optional `T` time
-/// with optional seconds and fraction, and an optional offset. A date with no offset is read as UTC.
+/// with optional seconds and fraction, and an optional offset. A date alone is read as UTC, a date-time with no offset as
+/// local time.
 fn iso_ms(s: &str) -> Option<f64> {
     let b = s.as_bytes();
     let at = |i: usize| b.get(i).copied();
@@ -143,9 +144,10 @@ fn iso_ms(s: &str) -> Option<f64> {
     }
 
     let mut offset = 0;
+    let mut local = false;
     if timed {
         match at(p) {
-            None => {}
+            None => local = true,
             Some(b'Z' | b'z') => p += 1,
             Some(sign @ (b'+' | b'-')) => {
                 let oh = num(p + 1, p + 3)?;
@@ -172,8 +174,24 @@ fn iso_ms(s: &str) -> Option<f64> {
     }
 
     let days = days_from_civil(year, month, 1) + day - 1;
-    let ms = days * 86_400_000 + (hour * 3600 + minute * 60 + second) * 1000 + milli - offset * 60_000;
+    let utc_secs = days * 86_400 + hour * 3600 + minute * 60 + second - offset * 60;
+    let secs = if local { local_secs(year, month, day, hour, minute, second)? } else { utc_secs };
+    let ms = secs * 1000 + milli;
     (ms.abs() <= 8_640_000_000_000_000).then_some(ms as f64)
+}
+
+/// Seconds since the epoch of a wall-clock time in this process's time zone, which `TZ` names as it does for node.
+fn local_secs(year: i64, month: i64, day: i64, hour: i64, minute: i64, second: i64) -> Option<i64> {
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    tm.tm_year = i32::try_from(year - 1900).ok()?;
+    tm.tm_mon = (month - 1) as i32;
+    tm.tm_mday = day as i32;
+    tm.tm_hour = hour as i32;
+    tm.tm_min = minute as i32;
+    tm.tm_sec = second as i32;
+    tm.tm_isdst = -1;
+    let at = unsafe { libc::mktime(&mut tm) };
+    (at != -1 || tm.tm_year == 69).then_some(at)
 }
 
 /// Days from 1970-01-01 to the given proleptic Gregorian date, month 1 to 12.

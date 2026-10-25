@@ -34,7 +34,7 @@ Every exit from `spawn_run` SIGKILLs the child's group (rule 11), so jobs an rc 
 
 ## Decisions
 
-1. `node_host` takes `HOME` as node does; node falls back to the password entry when `HOME` is unset, Rust may do the same.
+1. `node_host` takes `HOME` as node does, and the password entry when `HOME` is unset (W13).
 2. The TS spies on `process.kill` to prove the exited pid is never signalled; Rust cannot, so the test pins only that the run answers `None` and the job dies.
 
 ## After the port
@@ -72,6 +72,19 @@ outcome measured on the TS `spawnRun`.
   exit 143 is `None`; `true` is `""` (`stdout_is_decoded_*`).
 - W12. An empty command, or a NUL in the command, an argument or an env value, is a `SpawnRefusal` with the message node
   threw on node 22.23; a missing binary and a folder answer `None` (`an_empty_command_or_a_nul_*`).
+
+- W13. After the cold review: `node_host` takes `HOME` when it is set (empty included), else the password entry of the
+  effective user, as libuv does, and fails with node's sentence when there is none; `SHELL`, `PATH` and the other
+  variables, and every name and value `run` passes on, are decoded as node decodes them, each bad sequence one U+FFFD;
+  a variable named by a whole number below 2^32 - 1 never reaches a child (`review_files::*`, `review_proc::*`).
+- W14. `read_text` answers `None` for a file past 536,870,888 bytes, node's longest string, and stops reading there,
+  `/dev/zero` included. `stat`, `list`, `read_text` and `walk` run on the blocking pool, so a read stuck on a pipe leaves
+  the caller's timer free. `tree_bytes` and `walk` look up the path made from a name's lossy form, as node does, so a name
+  that is not UTF-8 counts nothing. `which` joins as `path.join` does: a trailing slash stays, an empty join is `.`.
+- W15. `spawn_run`: a budget past 2^31 - 1 ms is one millisecond, as `setTimeout` makes it; the child gets the default
+  action for every signal; the refusal text is `util.inspect`'s, a string past 124 UTF-16 units cut into its lines
+  joined by `' +\n  '` before the 128-unit cut, and `Object.keys` order (whole-number names first) decides which env value
+  is refused first. `HostExec::try_run` carries the refusal; `run` still reads it as `None`.
 
 ## Rules pinned
 

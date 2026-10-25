@@ -68,10 +68,11 @@ pub struct HistoryBucket {
     pub session: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
-    pub calls: u64,
-    /// Command name to how often it ran, in first-seen order.
+    /// Wider than a count: a cache file is read as JavaScript numbers, so a hand-edited `1e20` is kept as it is.
+    pub calls: u128,
+    /// Command name to how often it ran, in the order a JavaScript object lists its keys.
     pub commands: IndexMap<String, u64>,
-    /// install_key to how often an installer was asked for it, in first-seen order.
+    /// install_key to how often an installer was asked for it, in the same order.
     pub installs: IndexMap<String, u64>,
     /// The newest call of that session in that file, ms epoch; written as JavaScript writes the number. Last: the TS
     /// sets it after the bucket is made, so a freshly read bucket writes it last (spec/history_store.md rule 12).
@@ -107,14 +108,37 @@ pub async fn reduce_calls(mut calls: LocalBoxStream<'_, Result<Call, HostError>>
         }
         if let CallKind::Shell { line } = &c.kind {
             for name in command_names(line) {
-                *bucket.commands.entry(name).or_insert(0) += 1;
+                // `b.commands["__proto__"] = (b.commands["__proto__"] ?? 0) + 1` assigns text to the prototype slot, which
+                // JavaScript ignores: the name is never kept.
+                if name != "__proto__" {
+                    *bucket.commands.entry(name).or_insert(0) += 1;
+                }
             }
             for i in install_names(line) {
                 *bucket.installs.entry(install_key(&i)).or_insert(0) += 1;
             }
         }
     }
-    Ok(buckets.into_values().collect())
+    Ok(buckets
+        .into_values()
+        .map(|mut b| {
+            b.commands = js_key_order(std::mem::take(&mut b.commands));
+            b
+        })
+        .collect())
+}
+
+/// A JavaScript object's keys in the order it lists them: the names that read as array indexes first, ascending, then the
+/// rest as they were added.
+pub fn js_key_order<V>(map: IndexMap<String, V>) -> IndexMap<String, V> {
+    let index = |k: &str| {
+        (!k.is_empty() && k.bytes().all(|b| b.is_ascii_digit()) && (k == "0" || !k.starts_with('0')))
+            .then(|| k.parse::<u64>().ok().filter(|&n| n <= 4_294_967_294))
+            .flatten()
+    };
+    let (mut indexed, rest): (Vec<_>, Vec<_>) = map.into_iter().partition(|(k, _)| index(k).is_some());
+    indexed.sort_by_key(|(k, _)| index(k));
+    indexed.into_iter().chain(rest).collect()
 }
 
 /// One file's buckets with the holder its sessions sit under (TS `{ holder, buckets }`).
@@ -157,7 +181,7 @@ impl Tally {
     fn add(&mut self, name: &str, session: &str, calls: u64) {
         let (sessions, total) = self.seen.entry(name.to_string()).or_default();
         sessions.insert(session.to_string());
-        *total += calls;
+        *total = total.saturating_add(calls);
     }
 
     /// Most sessions first, then most calls, then by name.
@@ -178,7 +202,7 @@ fn tool(tools: &mut Tally, name: &str, session: &str, calls: u64) {
 /// Every bucket added up; with `folders`, only buckets `in_folders`.
 pub fn usage_of(buckets: &[HistoryBucket], folders: Option<&[String]>) -> Usage {
     let mut sessions: HashSet<&str> = HashSet::new();
-    let mut total = 0;
+    let mut total: u128 = 0;
     let mut commands = Tally::default();
     let mut installs = Tally::default();
     let mut tools = Tally::default();
@@ -187,7 +211,7 @@ pub fn usage_of(buckets: &[HistoryBucket], folders: Option<&[String]>) -> Usage 
             continue;
         }
         sessions.insert(&b.session);
-        total += b.calls;
+        total = total.saturating_add(b.calls);
         for (name, calls) in &b.commands {
             commands.add(name, &b.session, *calls);
             tool(&mut tools, name, &b.session, *calls);
@@ -197,5 +221,11 @@ pub fn usage_of(buckets: &[HistoryBucket], folders: Option<&[String]>) -> Usage 
             tool(&mut tools, &installed_name(key), &b.session, *calls);
         }
     }
-    Usage { sessions: sessions.len() as u64, calls: total, commands: commands.counts(), installs: installs.counts(), tools: tools.counts() }
+    Usage {
+        sessions: sessions.len() as u64,
+        calls: u64::try_from(total).unwrap_or(u64::MAX),
+        commands: commands.counts(),
+        installs: installs.counts(),
+        tools: tools.counts(),
+    }
 }

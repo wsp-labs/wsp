@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Review of what reads the person's real files: wsp-collect's live host and readers against the TS's answers.
 //! Every expected value below is what node 22.23 printed for the same input over the same kind of tree.
+#![allow(clippy::await_holding_lock, clippy::redundant_closure)]
 use std::ffi::{CStr, OsString};
 use std::fs;
 use std::os::unix::ffi::OsStringExt;
