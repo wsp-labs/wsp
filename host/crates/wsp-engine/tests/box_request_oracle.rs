@@ -49,7 +49,10 @@ fn box_refusal_reads_each_code_into_its_kind_and_keeps_boats_words_in_said() {
     assert_eq!((other.kind, other.message.as_str(), other.said.as_deref()), (ErrorKind::Concurrency, "weird words", Some("weird words")));
 
     let balance = box_refusal(refusal(402, Some("billing_required"), "pay"));
-    assert_eq!((balance.kind, balance.message.as_str(), balance.said.as_deref()), (ErrorKind::Plan, wsp_words::words::units::BOAT_BALANCE_LINE, Some("pay")));
+    assert_eq!(
+        (balance.kind, balance.message.as_str(), balance.said.as_deref()),
+        (ErrorKind::Plan, wsp_words::words::units::BOAT_BALANCE_LINE, Some("pay"))
+    );
     let cap = box_refusal(refusal(403, Some("team_member_cap_reached"), "members"));
     assert_eq!(cap.message, wsp_words::words::units::BOAT_MEMBER_CAP_LINE);
     let room = box_refusal(refusal(503, Some("out_of_capacity"), "full"));
@@ -95,7 +98,12 @@ fn road_words_say_the_gateway_status_or_the_systems_code() {
         cause: Some(RoadCause { message: "read ECONNRESET".into(), code: Some("ECONNRESET".into()), errors: None }),
     });
     assert_eq!(road_words(&dropped), "fetch failed: ECONNRESET");
-    let capped = EngineError::Road(RoadError { name: "TimeoutError".into(), message: "The operation was aborted due to timeout".into(), code: None, cause: None });
+    let capped = EngineError::Road(RoadError {
+        name: "TimeoutError".into(),
+        message: "The operation was aborted due to timeout".into(),
+        code: None,
+        cause: None,
+    });
     assert_eq!(road_words(&capped), "The operation was aborted due to timeout");
 }
 
@@ -125,7 +133,10 @@ fn a_template_row_reads_the_snapshots_status_and_its_error_only_when_failed() {
     let row = serde_json::to_value(template_row_of(&v("ready", Some("ignored")))).unwrap();
     assert_eq!(row, json!({ "id": "wsp-g-v1", "name": "wsp-g-v1", "status": "ready", "createdAt": "2026-09-11T06:47:23.959Z" }));
     let row = serde_json::to_value(template_row_of(&v("failed", Some("disk full")))).unwrap();
-    assert_eq!(row, json!({ "id": "wsp-g-v1", "name": "wsp-g-v1", "status": "failed", "error": "disk full", "createdAt": "2026-09-11T06:47:23.959Z" }));
+    assert_eq!(
+        row,
+        json!({ "id": "wsp-g-v1", "name": "wsp-g-v1", "status": "failed", "error": "disk full", "createdAt": "2026-09-11T06:47:23.959Z" })
+    );
     let row = serde_json::to_value(template_row_of(&v("saving", None))).unwrap();
     assert_eq!(row["status"], "building");
     let row = serde_json::to_value(template_row_of(&v("queued", None))).unwrap();

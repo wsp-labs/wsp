@@ -53,7 +53,10 @@ impl Fetch for Losing {
 fn backend_losing(api: &Arc<FakeBox>, lost: i64) -> On {
     api.on("GET", "/limits", vec![limits("standard")]);
     let fetch = Arc::new(Losing { api: api.clone(), left: Mutex::new(lost) });
-    backend_with(fetch as Arc<dyn Fetch>, BoxBudgetsAsk { poll_ms: Some(10), create_ms: Some(100), restore_ms: Some(100), ..Default::default() })
+    backend_with(
+        fetch as Arc<dyn Fetch>,
+        BoxBudgetsAsk { poll_ms: Some(10), create_ms: Some(100), restore_ms: Some(100), ..Default::default() },
+    )
 }
 
 /// box-backend.test.ts:1782 `MADE`.
@@ -182,7 +185,8 @@ async fn a_500_is_asked_again_as_a_lost_answer_and_a_refusal_below_500_is_not() 
     assert!(raws.iter().all(|r| *r == raws[0]), "{raws:?}");
     assert_eq!(raws.len(), 2);
 
-    let refused = FakeBox::new().on("POST", "/sandboxes", vec![error(409, "idempotency_key_reused", "This key was used with another body").into()]);
+    let refused =
+        FakeBox::new().on("POST", "/sandboxes", vec![error(409, "idempotency_key_reused", "This key was used with another body").into()]);
     let e = rejected(backend_losing(&refused, 0).backend.create(spec(), None, None).await);
     assert!(e.to_string().contains("This key was used with another body"), "{e}");
     assert_eq!(creates(&refused).len(), 1);
@@ -225,7 +229,8 @@ async fn an_ask_that_hears_nothing_inside_a_reads_cap_is_a_lost_answer_asked_aga
     assert_eq!(on.backend.create(spec(), None, None).await.unwrap().id(), "bx_1");
     assert!(on.warned.lines().contains(&lost_line("The operation was aborted due to timeout", "bx_1")), "{:?}", on.warned.lines());
     let silent = silent.silent.lock().unwrap().clone();
-    let reached: Vec<(Option<String>, Option<String>)> = creates(&api).into_iter().map(|s| (s.raw, s.headers.get("idempotency-key").cloned())).collect();
+    let reached: Vec<(Option<String>, Option<String>)> =
+        creates(&api).into_iter().map(|s| (s.raw, s.headers.get("idempotency-key").cloned())).collect();
     assert_eq!(reached, vec![(Some(silent[0].clone()), Some(KEY.to_string()))]);
 }
 
@@ -304,9 +309,11 @@ async fn a_replay_sends_the_attempts_bytes_under_its_key_names_the_box_back_and_
 /// box-backend.test.ts:1919
 #[tokio::test]
 async fn a_replay_of_an_attempt_as_old_as_boat_keeps_a_key_sends_nothing_and_answers_no_box() {
-    let api = FakeBox::new()
-        .on("POST", "/sandboxes", vec![made("bx_new", "provisioning")])
-        .on("PATCH", "/sandboxes/bx_new", vec![info("bx_new", "ready", json!({ "name": "wsp;o=h_1" }))]);
+    let api = FakeBox::new().on("POST", "/sandboxes", vec![made("bx_new", "provisioning")]).on(
+        "PATCH",
+        "/sandboxes/bx_new",
+        vec![info("bx_new", "ready", json!({ "name": "wsp;o=h_1" }))],
+    );
     let on = backend_losing(&api, 0);
     let mut owned = spec();
     owned.labels = Some(labels(&[(OWNER_LABEL, "h_1"), (WORKSPACE_LABEL, "ws_1")]));
@@ -314,7 +321,8 @@ async fn a_replay_of_an_attempt_as_old_as_boat_keeps_a_key_sends_nothing_and_ans
     let made_at = |ms: i64| iso(on.clock.now_ms() - ms);
     assert!(on.backend.replay_create(KEY, &sent, &made_at(24 * 3_600_000 - 125_000)).await.unwrap().is_none());
     assert!(creates(&api).is_empty());
-    let replayed = on.backend.replay_create(KEY, &sent, &made_at(24 * 3_600_000 - 126_000)).await.unwrap().expect("inside the key's window");
+    let replayed =
+        on.backend.replay_create(KEY, &sent, &made_at(24 * 3_600_000 - 126_000)).await.unwrap().expect("inside the key's window");
     assert_eq!(replayed.id(), "bx_new");
     assert_eq!(creates(&api).len(), 1);
 }
@@ -346,8 +354,18 @@ async fn lists_the_boxes_named_exactly_one_of_the_names_asked_running_or_archive
     assert_eq!(
         named,
         vec![
-            NamedMachine { id: "bx_ca2bqxuk".into(), name: "wsp-mac-default-v4".into(), state: MachineState::Running, created_at: Some("2026-10-11T09:48:00.000Z".into()) },
-            NamedMachine { id: "bx_old".into(), name: "wsp-mac-default-v3".into(), state: MachineState::Paused, created_at: Some("2026-10-11T09:00:00.000Z".into()) },
+            NamedMachine {
+                id: "bx_ca2bqxuk".into(),
+                name: "wsp-mac-default-v4".into(),
+                state: MachineState::Running,
+                created_at: Some("2026-10-11T09:48:00.000Z".into())
+            },
+            NamedMachine {
+                id: "bx_old".into(),
+                name: "wsp-mac-default-v3".into(),
+                state: MachineState::Paused,
+                created_at: Some("2026-10-11T09:00:00.000Z".into())
+            },
         ]
     );
 }

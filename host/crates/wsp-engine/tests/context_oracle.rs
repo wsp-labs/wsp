@@ -17,14 +17,21 @@ fn strings(v: &Value) -> Vec<String> {
 fn probe_of(v: &Value) -> ContextProbe {
     ContextProbe {
         kernel: v["kernel"].as_str().map(str::to_string),
-        disk: v["disk"].as_object().map(|d| Disk { size_bytes: d["sizeBytes"].as_f64().unwrap(), free_bytes: d["freeBytes"].as_f64().unwrap() }),
+        disk: v["disk"]
+            .as_object()
+            .map(|d| Disk { size_bytes: d["sizeBytes"].as_f64().unwrap(), free_bytes: d["freeBytes"].as_f64().unwrap() }),
         overlay: v["overlay"].as_bool().unwrap(),
         has: strings(&v["has"]).into_iter().collect::<IndexSet<_>>(),
         versions: serde_json::from_value::<Vec<GoldenBaseTool>>(v["versions"].clone()).unwrap(),
         agents: strings(&v["agents"]),
         secrets: strings(&v["secrets"]),
         shell: oracle::s(&v["shell"]).to_string(),
-        aliases: v["aliases"].as_array().unwrap().iter().map(|a| Alias { name: oracle::s(&a["name"]).into(), word: oracle::s(&a["word"]).into() }).collect(),
+        aliases: v["aliases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| Alias { name: oracle::s(&a["name"]).into(), word: oracle::s(&a["word"]).into() })
+            .collect(),
         aliases_unread: match v["aliasesUnread"].as_str() {
             Some("shared") => Some(AliasesUnread::Shared),
             Some("late") => Some(AliasesUnread::Late),
@@ -183,15 +190,33 @@ fn the_context_line_says_each_outcome_in_the_ts_words() {
 
 #[test]
 fn the_summary_names_what_was_written_and_for_whom() {
-    let r = |agent: &str, outcome, note: Option<&str>| ContextResult { agent: agent.into(), outcome, path: None, note: note.map(str::to_string), skill: "/s".into() };
-    assert_eq!(summarize(&[], &[], 2048), "2 KB written; no agent on the machine".replace("2 KB", &wsp_words::words::units::fmt_bytes(2048.0)));
-    let results = [r("claude", ContextOutcomeKind::Written, None), r("gemini", ContextOutcomeKind::Fallback, Some("x sets y")), r("hermes", ContextOutcomeKind::NotLoaded, Some("z"))];
+    let r = |agent: &str, outcome, note: Option<&str>| ContextResult {
+        agent: agent.into(),
+        outcome,
+        path: None,
+        note: note.map(str::to_string),
+        skill: "/s".into(),
+    };
+    assert_eq!(
+        summarize(&[], &[], 2048),
+        "2 KB written; no agent on the machine".replace("2 KB", &wsp_words::words::units::fmt_bytes(2048.0))
+    );
+    let results = [
+        r("claude", ContextOutcomeKind::Written, None),
+        r("gemini", ContextOutcomeKind::Fallback, Some("x sets y")),
+        r("hermes", ContextOutcomeKind::NotLoaded, Some("z")),
+    ];
     let agents: Vec<String> = ["claude", "gemini", "hermes"].iter().map(|s| s.to_string()).collect();
     let bytes = wsp_words::words::units::fmt_bytes(10240.0);
     let name = |id: &str| wsp_catalog::catalog::agent_name(id);
     assert_eq!(
         summarize(&results, &agents, 10240),
-        format!("{bytes} written for {}; {} by its fallback (x sets y); {} not loaded (z), skill only", name("claude"), name("gemini"), name("hermes"))
+        format!(
+            "{bytes} written for {}; {} by its fallback (x sets y); {} not loaded (z), skill only",
+            name("claude"),
+            name("gemini"),
+            name("hermes")
+        )
     );
     let none_written = [r("hermes", ContextOutcomeKind::NotLoaded, Some("z"))];
     assert_eq!(summarize(&none_written, &agents, 10240), format!("{bytes} written; {} not loaded (z), skill only", name("hermes")));

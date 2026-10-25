@@ -97,14 +97,24 @@ async fn a_named_snapshot_is_the_template_promoting_answers_the_name_and_the_tem
         .on(
             "GET",
             "/named-snapshots/wsp-mac-default-v1",
-            vec![reply(200, json!({ "ok": true, "type": "snapshot.named.info", "snapshot": named("wsp-mac-default-v1", "ready", json!({})) }))],
+            vec![reply(
+                200,
+                json!({ "ok": true, "type": "snapshot.named.info", "snapshot": named("wsp-mac-default-v1", "ready", json!({})) }),
+            )],
         )
         .on("GET", "/named-snapshots/wsp-mac-default-v2", vec![named_body("wsp-mac-default-v2", "saving", json!({}))])
-        .on("GET", "/named-snapshots/wsp-mac-default-v3", vec![named_body("wsp-mac-default-v3", "failed", json!({ "error": "capture timed out" }))])
+        .on(
+            "GET",
+            "/named-snapshots/wsp-mac-default-v3",
+            vec![named_body("wsp-mac-default-v3", "failed", json!({ "error": "capture timed out" }))],
+        )
         .on(
             "GET",
             "/named-snapshots",
-            vec![reply(200, json!({ "ok": true, "type": "snapshot.named.list", "snapshots": [named("wsp-mac-default-v1", "ready", json!({}))] }))],
+            vec![reply(
+                200,
+                json!({ "ok": true, "type": "snapshot.named.list", "snapshots": [named("wsp-mac-default-v1", "ready", json!({}))] }),
+            )],
         )
         .on(
             "DELETE",
@@ -217,7 +227,11 @@ async fn asked_for_named_snapshots_alone_reads_no_history_and_for_a_history_id_r
         )
     };
     let api = FakeBox::new()
-        .on("GET", "/named-snapshots", vec![reply(200, json!({ "ok": true, "snapshots": [named("wsp-mac-default-v1", "ready", json!({}))] }))])
+        .on(
+            "GET",
+            "/named-snapshots",
+            vec![reply(200, json!({ "ok": true, "snapshots": [named("wsp-mac-default-v1", "ready", json!({}))] }))],
+        )
         .on("GET", "/snapshots", vec![with(move |seen| history(seen.query_get("cursor")))]);
     let on = backend_on(&api, "trial", Default::default());
     let rows = on.backend.list_snapshots(Some(&["wsp-mac-default-v1".to_string()])).await.unwrap();
@@ -231,9 +245,11 @@ async fn asked_for_named_snapshots_alone_reads_no_history_and_for_a_history_id_r
 /// box-backend.test.ts:1146
 #[tokio::test]
 async fn deletes_a_snapshot_by_what_its_id_is_history_with_the_confirm_header_a_named_one_by_name_one_gone_is_done() {
-    let api = FakeBox::new()
-        .on("DELETE", "/snapshots/866f04de-8e8a-4401-9e29-cf58e1738213", vec![reply(202, json!({ "ok": true }))])
-        .on("DELETE", "/named-snapshots/wsp-mac-default-v1", vec![reply(200, json!({ "ok": true }))]);
+    let api = FakeBox::new().on("DELETE", "/snapshots/866f04de-8e8a-4401-9e29-cf58e1738213", vec![reply(202, json!({ "ok": true }))]).on(
+        "DELETE",
+        "/named-snapshots/wsp-mac-default-v1",
+        vec![reply(200, json!({ "ok": true }))],
+    );
     let on = backend_on(&api, "trial", Default::default());
     on.backend.delete_snapshot("866f04de-8e8a-4401-9e29-cf58e1738213").await.unwrap();
     assert_eq!(
@@ -364,7 +380,9 @@ async fn lists_wsps_boxes_alone_off_both_listings_a_box_on_both_once_by_the_labe
     let asked: Vec<(Option<String>, Option<String>, Option<String>)> = api
         .seen()
         .iter()
-        .map(|s| (s.query_get("limit").map(str::to_string), s.query_get("cursor").map(str::to_string), s.query_get("state").map(str::to_string)))
+        .map(|s| {
+            (s.query_get("limit").map(str::to_string), s.query_get("cursor").map(str::to_string), s.query_get("state").map(str::to_string))
+        })
         .collect();
     let some = |s: &str| Some(s.to_string());
     assert_eq!(asked, vec![(some("200"), None, None), (some("200"), some("c2"), None), (some("200"), None, some("archived"))]);
@@ -419,9 +437,11 @@ async fn an_exact_backstop_goes_as_it_is_earlier_than_the_last_one_sent() {
 /// box-backend.test.ts:1282
 #[tokio::test]
 async fn off_the_trial_the_backstop_is_the_runtimes_instant_whole_and_a_killed_boxs_instant_is_forgotten() {
-    let api = FakeBox::new()
-        .on("PATCH", &path(""), vec![idle(ID, "idle")])
-        .on("DELETE", &path(""), vec![reply(202, json!({ "ok": true, "operation": { "id": "bdop_1" } }))]);
+    let api = FakeBox::new().on("PATCH", &path(""), vec![idle(ID, "idle")]).on(
+        "DELETE",
+        &path(""),
+        vec![reply(202, json!({ "ok": true, "operation": { "id": "bdop_1" } }))],
+    );
     let on = backend_on(&api, "standard", Default::default());
     let machine = BoxMachine::new(on.backend.clone(), ID, MachineKind::Sandbox, None, None, false);
     on.backend.box_backstop(ID, on.clock.now_ms() + mins(360), false).await.unwrap();

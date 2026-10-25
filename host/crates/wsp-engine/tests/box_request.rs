@@ -163,10 +163,7 @@ async fn reads_the_owners_answer_of_17_06_utc_the_20_plan_100_machines_three_win
     assert_eq!(read.billing_status, None);
     let offer = |name: &str, cpu: f64, mem_mb: f64, rate: f64| (Some(name.to_string()), JsNumber(cpu), JsNumber(mem_mb), JsNumber(rate));
     let sizes: Vec<_> = on.backend.capabilities().sizes.into_iter().map(|s| (s.name, s.cpu, s.mem_mb, s.rate_usd_per_hour)).collect();
-    assert_eq!(
-        sizes,
-        vec![offer("small", 2.0, 4096.0, 0.018), offer("default", 4.0, 8192.0, 0.036), offer("large", 8.0, 16384.0, 0.072)]
-    );
+    assert_eq!(sizes, vec![offer("small", 2.0, 4096.0, 0.018), offer("default", 4.0, 8192.0, 0.036), offer("large", 8.0, 16384.0, 0.072)]);
 }
 
 /// box-backend.test.ts:1499
@@ -197,7 +194,10 @@ async fn a_trial_offers_small_and_default_and_reads_2_machines_a_100_plan_adds_x
 /// box-backend.test.ts:1509
 #[tokio::test]
 async fn keeps_a_read_10_s_reads_before_every_create_and_resume_past_that_and_counts_each_start() {
-    let made = Answer::Reply(Reply { status: 202, body: json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_c1", "provisioning", json!({ "name": "wsp" })) }) });
+    let made = Answer::Reply(Reply {
+        status: 202,
+        body: json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_c1", "provisioning", json!({ "name": "wsp" })) }),
+    });
     let api = FakeBox::new()
         .on("POST", "/sandboxes", vec![made])
         .on("GET", "/sandboxes/bx_c1", vec![info("bx_c1", "ready", json!({ "name": "wsp" }))])
@@ -205,7 +205,10 @@ async fn keeps_a_read_10_s_reads_before_every_create_and_resume_past_that_and_co
         .on(
             "POST",
             "/sandboxes/bx_c1/resume",
-            vec![Answer::Reply(Reply { status: 202, body: json!({ "ok": true, "sandbox": box_view("bx_c1", "provisioning", json!({})) }) })],
+            vec![Answer::Reply(Reply {
+                status: 202,
+                body: json!({ "ok": true, "sandbox": box_view("bx_c1", "provisioning", json!({})) }),
+            })],
         );
     let on = backend_on(&api, "standard", Default::default());
     api.on("GET", "/limits", vec![limits_reply(owner_limits())]);
@@ -367,7 +370,10 @@ async fn a_resume_that_meets_a_start_limit_says_so_too() {
     let e = machine.resume(None).await.unwrap_err();
     let w = provider(&e);
     assert_eq!((w.kind, w.window), (ErrorKind::StartLimit, Some(StartWindow::Day)));
-    assert!(w.message.starts_with("Boat's starts for today are used (200 of 200 on the $20 plan), so Write the upload docs was not started;"), "{e}");
+    assert!(
+        w.message.starts_with("Boat's starts for today are used (200 of 200 on the $20 plan), so Write the upload docs was not started;"),
+        "{e}"
+    );
 }
 
 /// box-backend.test.ts:1629
@@ -418,19 +424,29 @@ async fn an_address_past_boats_request_limit_waits_the_seconds_boat_names_and_as
     assert_eq!(posts[1].headers.get("idempotency-key"), posts[0].headers.get("idempotency-key"));
     assert_eq!(on.clock.sleeps()[0], 7_000);
     assert!(
-        on.warned.lines().contains(&"POST /sandboxes met Boat's limit of 1,000 requests a minute from one address; asking again in 7s, try 2 of 3".to_string()),
+        on.warned.lines().contains(
+            &"POST /sandboxes met Boat's limit of 1,000 requests a minute from one address; asking again in 7s, try 2 of 3".to_string()
+        ),
         "{:?}",
         on.warned.lines()
     );
 
-    let execd = FakeBox::new().on("POST", "/sandboxes/bx_tumrjngm/commands", vec![ip_limit(Some(3), true).into(), command("hi\n", Some(0), json!({}))]);
+    let execd = FakeBox::new().on(
+        "POST",
+        "/sandboxes/bx_tumrjngm/commands",
+        vec![ip_limit(Some(3), true).into(), command("hi\n", Some(0), json!({}))],
+    );
     let (exec_on, machine) = machine_on(&execd, "bx_tumrjngm");
     let out = machine.exec("echo hi", ExecOptions::default()).await.unwrap();
     assert_eq!((out.exit_code, out.stdout.as_str()), (0, "hi\n"));
     assert_eq!(execd.calls().iter().filter(|c| c.ends_with("/commands")).count(), 2);
     assert_eq!(exec_on.clock.sleeps(), vec![3_000]);
 
-    let put = FakeBox::new().on("PUT", "/sandboxes/bx_tumrjngm/files", vec![ip_limit(None, false).into(), Answer::Reply(Reply { status: 200, body: json!({ "ok": true }) })]);
+    let put = FakeBox::new().on(
+        "PUT",
+        "/sandboxes/bx_tumrjngm/files",
+        vec![ip_limit(None, false).into(), Answer::Reply(Reply { status: 200, body: json!({ "ok": true }) })],
+    );
     let (put_on, file) = machine_on(&put, "bx_tumrjngm");
     file.put_bytes("/tmp/note", b"hi", None).await.unwrap();
     assert_eq!(put.calls().iter().filter(|c| c.ends_with("/files")).count(), 2);
@@ -486,13 +502,22 @@ async fn a_402_and_a_503_out_of_capacity_print_boats_lines_503_only_once_the_cre
 #[tokio::test]
 async fn cancelled_reads_as_gone_and_ends_a_creates_wait_on_the_first_read_with_boats_reason() {
     let api = FakeBox::new()
-        .on("POST", "/sandboxes", vec![Answer::Reply(Reply { status: 202, body: json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_x1", "provisioning", json!({})) }) })])
+        .on(
+            "POST",
+            "/sandboxes",
+            vec![Answer::Reply(Reply {
+                status: 202,
+                body: json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_x1", "provisioning", json!({})) }),
+            })],
+        )
         .on("GET", "/sandboxes/bx_x1", vec![info("bx_x1", "cancelled", json!({ "error": "no machine available" }))])
         .on("DELETE", "/sandboxes/bx_x1", vec![error(404, "not_found", "not_found").into()]);
     let on = backend_on(&api, "standard", BoxBudgetsAsk { create_ms: Some(60_000), ..Default::default() });
     let e = on.backend.create(named_spec(), None, None).await.map(|_| ()).unwrap_err();
     assert!(
-        e.to_string().contains("Boat could not get a machine for Fix the flaky upload test and cancelled the create (no machine available); start it again."),
+        e.to_string().contains(
+            "Boat could not get a machine for Fix the flaky upload test and cancelled the create (no machine available); start it again."
+        ),
         "{e}"
     );
     assert_eq!(count(&api, "GET /sandboxes/bx_x1"), 1);
@@ -505,8 +530,20 @@ async fn every_refused_call_goes_in_the_host_log_with_boats_code_and_request_id(
     let (_, _, day) = refused_on(error(429, "daily_limit_reached", "Rate limit hit."), spent("day")).await;
     let (_, _, billing) = refused_default(error(402, "billing_required", "Add credits.")).await;
     let lines: Vec<String> = day.warned.lines().into_iter().chain(billing.warned.lines()).collect();
-    assert!(lines.contains(&"Boat refused POST /sandboxes: 429 code=daily_limit_reached requestId=req_b603629401be48d082e623575a1b9111: Rate limit hit.".to_string()), "{lines:?}");
-    assert!(lines.contains(&"Boat refused POST /sandboxes: 402 code=billing_required requestId=req_b603629401be48d082e623575a1b9111: Add credits.".to_string()), "{lines:?}");
+    assert!(
+        lines.contains(
+            &"Boat refused POST /sandboxes: 429 code=daily_limit_reached requestId=req_b603629401be48d082e623575a1b9111: Rate limit hit."
+                .to_string()
+        ),
+        "{lines:?}"
+    );
+    assert!(
+        lines.contains(
+            &"Boat refused POST /sandboxes: 402 code=billing_required requestId=req_b603629401be48d082e623575a1b9111: Add credits."
+                .to_string()
+        ),
+        "{lines:?}"
+    );
 }
 
 /// box-limits.test.ts:56: a fetch answering the owner's limits, or Boat's `internal` under the status set.
@@ -520,12 +557,12 @@ impl Fetch for Toggled {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         self.asked.lock().unwrap().push(req.url.clone());
         let status = *self.status.lock().unwrap();
-        let body = if status == 200 {
-            owner_limits()
-        } else {
-            json!({ "code": "internal", "message": "down" })
-        };
-        Ok(FetchResponse { status, headers: vec![("content-type".into(), "application/json".into())], body: serde_json::to_vec(&body).unwrap() })
+        let body = if status == 200 { owner_limits() } else { json!({ "code": "internal", "message": "down" }) };
+        Ok(FetchResponse {
+            status,
+            headers: vec![("content-type".into(), "application/json".into())],
+            body: serde_json::to_vec(&body).unwrap(),
+        })
     }
 }
 
@@ -611,14 +648,22 @@ async fn ends_each_of_boxs_reads_of_a_machine_the_fleet_and_the_snapshots_at_the
 async fn leaves_a_write_uncapped_where_its_own_road_gives_it_none() {
     let api = NeverAnswers::new();
     let on = backend_with(api.clone() as Arc<dyn Fetch>, BoxBudgetsAsk { read_ms: Some(150), ..Default::default() });
-    let _ = tokio::time::timeout(std::time::Duration::from_millis(20), on.backend.request("POST", "/sandboxes/bx_acme/stop", RequestOpts::default())).await;
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_millis(20),
+        on.backend.request("POST", "/sandboxes/bx_acme/stop", RequestOpts::default()),
+    )
+    .await;
     assert_eq!(api.asked(), vec![row("POST", "/api/v1/sandboxes/bx_acme/stop", false)]);
 }
 
 /// provider-reads.test.ts:55
 #[tokio::test]
 async fn asks_box_for_the_accounts_limits_again_once_a_read_of_them_ended_at_its_cap() {
-    let api = FakeBox::new().on("GET", "/limits", vec![Answer::Hang, Answer::Reply(Reply { status: 200, body: json!({ "accessTier": "paid" }) })]);
+    let api = FakeBox::new().on(
+        "GET",
+        "/limits",
+        vec![Answer::Hang, Answer::Reply(Reply { status: 200, body: json!({ "accessTier": "paid" }) })],
+    );
     let on = backend_with(api.clone() as Arc<dyn Fetch>, BoxBudgetsAsk { read_ms: Some(150), ..Default::default() });
     assert!(on.backend.ttl_cap().await.is_err());
     assert_eq!(on.backend.ttl_cap().await.unwrap(), None);

@@ -5,8 +5,8 @@ mod common;
 
 use indexmap::IndexMap;
 use wsp_engine::box_backend::{
-    box_budgets, box_class_for, box_labels, box_name, box_snapshot_name, BoxBudgetsAsk, BoxClassType, BoxPricing, SizeAsk, BOX_BASE_TEMPLATE,
-    BOX_CLASSES, BOX_INLINE_MAX_MS, BOX_NAME_MAX, SNAPSHOT_NAME_MAX,
+    box_budgets, box_class_for, box_labels, box_name, box_snapshot_name, BoxBudgetsAsk, BoxClassType, BoxPricing, SizeAsk,
+    BOX_BASE_TEMPLATE, BOX_CLASSES, BOX_INLINE_MAX_MS, BOX_NAME_MAX, SNAPSHOT_NAME_MAX,
 };
 use wsp_engine::machine::{BackendPricing, MachineBackend, MachineKind, Size, SnapshotStoragePricing, WireSnapshotStoragePricing};
 use wsp_engine::machine::{Capabilities, LifecycleBudgets};

@@ -9,7 +9,8 @@ use wsp_engine::box_backend::*;
 #[test]
 fn the_environment_script_is_the_ts_script_for_each_set_of_envs() {
     for case in oracle::load("box.json")["envLandingScript"].as_array().unwrap() {
-        let envs: IndexMap<String, String> = case["in"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), oracle::s(v).to_string())).collect();
+        let envs: IndexMap<String, String> =
+            case["in"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), oracle::s(v).to_string())).collect();
         assert_eq!(env_landing_script(&envs), oracle::s(&case["out"]), "{}", case["in"]);
     }
 }

@@ -128,7 +128,8 @@ impl Fetch for FakeBox {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let seen = Self::seen_of(&req);
         self.seen.lock().unwrap().push(seen.clone());
-        let mut answer = self.next(&format!("{} {}", seen.method, seen.path)).unwrap_or_else(|| Answer::Reply(error(404, "not_found", "not_found")));
+        let mut answer =
+            self.next(&format!("{} {}", seen.method, seen.path)).unwrap_or_else(|| Answer::Reply(error(404, "not_found", "not_found")));
         loop {
             match answer {
                 Answer::With(f) => answer = f(&seen),
@@ -141,7 +142,12 @@ impl Fetch for FakeBox {
                     abort.token.cancelled().await;
                     let timed_out = abort.timed_out.load(std::sync::atomic::Ordering::SeqCst);
                     return Err(if timed_out {
-                        RoadError { name: "TimeoutError".into(), message: "The operation was aborted due to timeout".into(), code: None, cause: None }
+                        RoadError {
+                            name: "TimeoutError".into(),
+                            message: "The operation was aborted due to timeout".into(),
+                            code: None,
+                            cause: None,
+                        }
                     } else {
                         RoadError { name: "AbortError".into(), message: "This operation was aborted".into(), code: None, cause: None }
                     });
@@ -318,6 +324,7 @@ pub fn backend_with(fetch: Arc<dyn Fetch>, budgets: wsp_engine::box_backend::Box
 /// box-backend.test.ts:174 `machineOn`: a BoxMachine handle on `id` (default bx_tumrjngm) over `backend_on(api, "trial")`.
 pub fn machine_on(api: &Arc<FakeBox>, id: &str) -> (On, wsp_engine::box_backend::BoxMachine) {
     let on = backend_on(api, "trial", Default::default());
-    let machine = wsp_engine::box_backend::BoxMachine::new(on.backend.clone(), id, wsp_engine::machine::MachineKind::Sandbox, None, None, false);
+    let machine =
+        wsp_engine::box_backend::BoxMachine::new(on.backend.clone(), id, wsp_engine::machine::MachineKind::Sandbox, None, None, false);
     (on, machine)
 }

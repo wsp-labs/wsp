@@ -22,7 +22,12 @@ fn aggregate(codes: &[Option<&str>]) -> EngineError {
         cause: Some(RoadCause {
             message: "".into(),
             code: None,
-            errors: Some(codes.iter().map(|c| RoadCause { message: format!("{c:?} on one address"), code: c.map(str::to_string), errors: None }).collect()),
+            errors: Some(
+                codes
+                    .iter()
+                    .map(|c| RoadCause { message: format!("{c:?} on one address"), code: c.map(str::to_string), errors: None })
+                    .collect(),
+            ),
         }),
     })
 }
@@ -71,7 +76,17 @@ fn each_typed_error_says_the_ts_sentence() {
 
 #[test]
 fn backoff_doubles_from_half_a_second_to_eight_and_adds_up_to_249_ms_of_draw() {
-    let want = [(0, 0.0, 500), (1, 0.0, 1000), (2, 0.0, 2000), (3, 0.0, 4000), (4, 0.0, 8000), (5, 0.0, 8000), (9, 0.0, 8000), (1, 0.999_999, 1249), (0, 0.5, 625)];
+    let want = [
+        (0, 0.0, 500),
+        (1, 0.0, 1000),
+        (2, 0.0, 2000),
+        (3, 0.0, 4000),
+        (4, 0.0, 8000),
+        (5, 0.0, 8000),
+        (9, 0.0, 8000),
+        (1, 0.999_999, 1249),
+        (0, 0.5, 625),
+    ];
     for (attempt, draw, ms) in want {
         assert_eq!(backoff_ms(attempt, draw), ms, "attempt {attempt} draw {draw}");
     }
@@ -124,7 +139,13 @@ fn the_far_end_answered_where_the_error_carries_a_kind_or_a_status() {
     assert!(far_end_answered(&EngineError::Provider(classify(404, None, None, None))));
     let carried = Carried { kind: None, status: Some(409), code: None, request_id: None };
     assert!(far_end_answered(&EngineError::MachineStopped { machine_id: "m".into(), message: "x".into(), carried }));
-    assert!(far_end_answered(&EngineError::GuestUnusable { machine_id: "m".into(), provider: "box".into(), detail: "d".into(), status: 200, line: "l".into() }));
+    assert!(far_end_answered(&EngineError::GuestUnusable {
+        machine_id: "m".into(),
+        provider: "box".into(),
+        detail: "d".into(),
+        status: 200,
+        line: "l".into()
+    }));
     assert!(!far_end_answered(&road(None, Some("ECONNRESET"))));
     assert!(!far_end_answered(&EngineError::Other { message: "Bad Gateway".into(), code: None }));
 }
@@ -148,7 +169,12 @@ fn road_code_names_the_first_offline_code_only_when_every_address_failed_offline
 
 #[test]
 fn is_capped_reads_the_timeout_name_and_nothing_else() {
-    let capped = EngineError::Road(RoadError { name: "TimeoutError".into(), message: "The operation was aborted due to timeout".into(), code: None, cause: None });
+    let capped = EngineError::Road(RoadError {
+        name: "TimeoutError".into(),
+        message: "The operation was aborted due to timeout".into(),
+        code: None,
+        cause: None,
+    });
     assert!(is_capped(&capped));
     assert!(!is_capped(&aborted()));
     assert!(!is_capped(&road(None, Some("ETIMEDOUT"))));
@@ -173,7 +199,15 @@ fn failure_words_spell_out_what_fetch_hid_in_its_cause() {
 
 #[test]
 fn the_wrappers_carry_the_providers_kind_status_code_and_request_id_and_its_message() {
-    let w = WspError { kind: ErrorKind::Conflict, status: 409, code: Some("sandbox_restoring".into()), message: "restoring".into(), request_id: Some("req_9".into()), window: None, said: None };
+    let w = WspError {
+        kind: ErrorKind::Conflict,
+        status: 409,
+        code: Some("sandbox_restoring".into()),
+        message: "restoring".into(),
+        request_id: Some("req_9".into()),
+        window: None,
+        said: None,
+    };
     let carried = Carried { kind: Some(w.kind), status: Some(w.status), code: w.code.clone(), request_id: w.request_id.clone() };
     let e = EngineError::RestoreUnfinished { machine_id: "bx_1".into(), message: w.message.clone(), carried };
     assert_eq!(e.to_string(), "restoring");
@@ -184,7 +218,13 @@ fn the_wrappers_carry_the_providers_kind_status_code_and_request_id_and_its_mess
     assert_eq!(e.name(), "RestoreUnfinishedError");
     let resume = EngineError::ResumeUnanswered { message: "x".into(), cause: None };
     assert!(resume.is_move_unanswered());
-    let exec = EngineError::MachineUnreachable { machine_id: "m".into(), said: "exec failed".into(), status: 502, line: "l".into(), exec_failed: true };
+    let exec = EngineError::MachineUnreachable {
+        machine_id: "m".into(),
+        said: "exec failed".into(),
+        status: 502,
+        line: "l".into(),
+        exec_failed: true,
+    };
     assert!(exec.is_machine_unreachable());
     assert_eq!(exec.name(), "ExecFailedError");
 }

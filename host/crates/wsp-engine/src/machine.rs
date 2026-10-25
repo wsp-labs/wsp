@@ -19,9 +19,8 @@ pub use wsp_wire::views::place_more::CloudLimits;
 pub use wsp_wire::views::workspace::{MachineFacts, MachineState};
 pub use wsp_wire::wire::capabilities::{Capabilities, PlaceCapacity};
 pub use wsp_wire::wire::machine_link::{
-    DaemonSupervisor, ExecResult, LifecycleBudgets, MachineLife, MachineSpecOnIdle, MachineListRow, MachineShape, MachineSpec, PreviewReach,
-    SnapshotRow, SnapshotStoragePricing as WireSnapshotStoragePricing, TemplateRow,
-    BackendFactsBaseTemplates as BaseTemplates,
+    BackendFactsBaseTemplates as BaseTemplates, DaemonSupervisor, ExecResult, LifecycleBudgets, MachineLife, MachineListRow, MachineShape,
+    MachineSpec, MachineSpecOnIdle, PreviewReach, SnapshotRow, SnapshotStoragePricing as WireSnapshotStoragePricing, TemplateRow,
 };
 
 use crate::box_backend::BoxLimits;

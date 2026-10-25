@@ -17,11 +17,11 @@ use wsp_engine::box_backend::{
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::fetch::Fetch;
 use wsp_engine::machine::{MachineBackend, MachineKind, MachineSpec, ProviderBoxState, Waiting};
-use wsp_wire::wire::machine_link::MachineSpecOnIdle;
 use wsp_wire::types::JsNumber;
 use wsp_wire::wire::daemon::EXEC_DEADLINE_EXIT;
+use wsp_wire::wire::machine_link::MachineSpecOnIdle;
 
-use common::fake_box::{backend_on, box_view, command, error, info, inner, FakeBox, Answer, Reply};
+use common::fake_box::{backend_on, box_view, command, error, info, inner, Answer, FakeBox, Reply};
 
 // exec-detached.ts:21 DEADLINE_EXIT is protocol's EXEC_DEADLINE_EXIT.
 const DEADLINE_EXIT: i64 = EXEC_DEADLINE_EXIT;
@@ -134,7 +134,8 @@ fn deletes(api: &FakeBox) -> Vec<String> {
 
 /// box-backend.test.ts:294
 #[tokio::test]
-async fn creates_from_the_stock_image_on_the_trial_class_two_hour_stop_no_secrets_labels_in_the_name_key_on_the_header_ready_before_the_handle() {
+async fn creates_from_the_stock_image_on_the_trial_class_two_hour_stop_no_secrets_labels_in_the_name_key_on_the_header_ready_before_the_handle(
+) {
     let api = FakeBox::new()
         .on("POST", "/sandboxes", vec![reply(202, json!({ "ok": true, "type": "sandbox.created", "status": "provisioning", "ttlSeconds": 7200, "sandbox": box_view("bx_tumrjngm", "provisioning", json!({})) }))])
         .on(
@@ -247,7 +248,14 @@ async fn creates_from_a_named_snapshot_renames_to_the_labels_and_off_the_trial_a
 #[tokio::test]
 async fn the_create_carries_the_idle_window_as_the_stop_timer_off_the_trial_and_the_cap_when_shorter() {
     let off = FakeBox::new()
-        .on("POST", "/sandboxes", vec![reply(202, json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_t1", "provisioning", json!({ "name": "wsp" })) }))])
+        .on(
+            "POST",
+            "/sandboxes",
+            vec![reply(
+                202,
+                json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_t1", "provisioning", json!({ "name": "wsp" })) }),
+            )],
+        )
         .on("GET", "/sandboxes/bx_t1", vec![info("bx_t1", "ready", json!({ "name": "wsp" }))])
         .on("POST", "/sandboxes/bx_t1/commands", vec![cmd("")]);
     backend(&off, "standard")
@@ -256,12 +264,23 @@ async fn the_create_carries_the_idle_window_as_the_stop_timer_off_the_trial_and_
         .unwrap();
     assert_eq!(off.took("POST", "/sandboxes").unwrap().body["ttlSeconds"], 40 * 60);
     let trial = FakeBox::new()
-        .on("POST", "/sandboxes", vec![reply(202, json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_t2", "provisioning", json!({ "name": "wsp" })) }))])
+        .on(
+            "POST",
+            "/sandboxes",
+            vec![reply(
+                202,
+                json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_t2", "provisioning", json!({ "name": "wsp" })) }),
+            )],
+        )
         .on("GET", "/sandboxes/bx_t2", vec![info("bx_t2", "ready", json!({ "name": "wsp" }))])
         .on("POST", "/sandboxes/bx_t2/commands", vec![cmd("")]);
     let backend = backend(&trial, "trial");
     backend
-        .create(MachineSpec { on_idle: Some(MachineSpecOnIdle::Pause), idle_timeout_ms: Some(n(6.0 * 60.0 * 60_000.0)), ..spec() }, None, None)
+        .create(
+            MachineSpec { on_idle: Some(MachineSpecOnIdle::Pause), idle_timeout_ms: Some(n(6.0 * 60.0 * 60_000.0)), ..spec() },
+            None,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(trial.took("POST", "/sandboxes").unwrap().body["ttlSeconds"], TRIAL_TTL_S);
@@ -328,7 +347,14 @@ async fn a_create_boat_cancels_ends_on_the_first_read_with_its_reason_typed_and_
 #[tokio::test]
 async fn an_environment_not_landed_at_the_restore_budget_is_typed_with_its_box_and_its_exit() {
     let api = FakeBox::new()
-        .on("POST", "/sandboxes", vec![reply(202, json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_t1", "provisioning", json!({ "name": "wsp" })) }))])
+        .on(
+            "POST",
+            "/sandboxes",
+            vec![reply(
+                202,
+                json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_t1", "provisioning", json!({ "name": "wsp" })) }),
+            )],
+        )
         .on("GET", "/sandboxes/bx_t1", vec![info("bx_t1", "ready", json!({ "name": "wsp" }))])
         .on("POST", "/sandboxes/bx_t1/commands", vec![cmd(""), detached_guest(DEADLINE_EXIT, "", "")])
         .on("DELETE", "/sandboxes/bx_t1", vec![reply(202, json!({ "ok": true, "operation": { "id": "bdop_t" } }))]);
@@ -344,12 +370,25 @@ async fn an_environment_not_landed_at_the_restore_budget_is_typed_with_its_box_a
 #[tokio::test]
 async fn a_landing_of_the_environment_runs_detached_and_one_that_times_out_is_launched_again_inside_the_budget() {
     let api = FakeBox::new()
-        .on("POST", "/sandboxes", vec![reply(202, json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_l1", "provisioning", json!({ "name": "wsp" })) }))])
+        .on(
+            "POST",
+            "/sandboxes",
+            vec![reply(
+                202,
+                json!({ "ok": true, "status": "provisioning", "sandbox": box_view("bx_l1", "provisioning", json!({ "name": "wsp" })) }),
+            )],
+        )
         .on("GET", "/sandboxes/bx_l1", vec![info("bx_l1", "ready", json!({ "name": "wsp" }))])
         .on(
             "POST",
             "/sandboxes/bx_l1/commands",
-            vec![cmd(""), detached_guest(DEADLINE_EXIT, "", ""), detached_guest(DEADLINE_EXIT, "", ""), detached_guest(DEADLINE_EXIT, "", ""), detached_ok()],
+            vec![
+                cmd(""),
+                detached_guest(DEADLINE_EXIT, "", ""),
+                detached_guest(DEADLINE_EXIT, "", ""),
+                detached_guest(DEADLINE_EXIT, "", ""),
+                detached_ok(),
+            ],
         );
     let backend = backend(&api, "trial");
     let machine = backend.create(MachineSpec { envs: Some(map(&[("A", "1")])), ..spec() }, None, None).await.unwrap();
@@ -369,8 +408,11 @@ async fn a_landing_of_the_environment_runs_detached_and_one_that_times_out_is_la
         assert_eq!(launched_text(l), env_landing_script(&map(&[("A", "1")])));
     }
     // A landing that fails for another reason is the failure at once, and a timeout past the budget too.
-    api.on("POST", "/sandboxes/bx_l1/commands", vec![detached_guest(DEADLINE_EXIT, "", "")])
-        .on("DELETE", "/sandboxes/bx_l1", vec![reply(202, json!({ "ok": true, "operation": { "id": "bdop_l" } }))]);
+    api.on("POST", "/sandboxes/bx_l1/commands", vec![detached_guest(DEADLINE_EXIT, "", "")]).on(
+        "DELETE",
+        "/sandboxes/bx_l1",
+        vec![reply(202, json!({ "ok": true, "operation": { "id": "bdop_l" } }))],
+    );
     let e = failed(backend.create(MachineSpec { envs: Some(map(&[("A", "1")])), ..spec() }, None, None).await);
     assert!(e.to_string().contains("environment did not land on bx_l1 (exit 124)"), "{e}");
 }
@@ -389,7 +431,11 @@ async fn a_refusal_is_the_providers_own_envelope_the_code_the_message_and_the_re
     assert_eq!(w.message, "Too many machine starts this minute.");
     assert_eq!(w.request_id.as_deref(), Some("req_b603629401be48d082e623575a1b9111"));
     let bad = FakeBox::new().on("GET", "/limits", vec![refuse(401, "unauthorized", "invalid api key")]);
-    let refused = BoxBackend::new(BoxBackendOptions { api_key: "box_wrong".into(), fetch: Some(bad.clone() as Arc<dyn Fetch>), ..Default::default() });
+    let refused = BoxBackend::new(BoxBackendOptions {
+        api_key: "box_wrong".into(),
+        fetch: Some(bad.clone() as Arc<dyn Fetch>),
+        ..Default::default()
+    });
     let e = failed(refused.check_key().await);
     let w = provider(&e);
     assert_eq!(w.kind, ErrorKind::Auth);
@@ -402,7 +448,11 @@ async fn the_concurrent_box_cap_is_the_concurrency_kind_whatever_status_carries_
     let trial = FakeBox::new().on(
         "POST",
         "/sandboxes",
-        vec![refuse(403, "trial_limit", "Trial accounts can run 2 concurrent boxes. End the trial or buy a pack after subscribing to move to 100 concurrent boxes.")],
+        vec![refuse(
+            403,
+            "trial_limit",
+            "Trial accounts can run 2 concurrent boxes. End the trial or buy a pack after subscribing to move to 100 concurrent boxes.",
+        )],
     );
     let e = failed(backend(&trial, "trial").create(spec(), None, None).await);
     let w = provider(&e);
@@ -420,13 +470,18 @@ async fn the_concurrent_box_cap_is_the_concurrency_kind_whatever_status_carries_
     let w = provider(&e);
     assert_eq!((w.kind, w.code.as_deref()), (ErrorKind::Concurrency, Some("limit_reached")));
     // A refusal about something else keeps its own kind.
-    let forbidden = FakeBox::new().on("POST", "/sandboxes", vec![refuse(403, "trial_machine_class_not_allowed", "large was requested on a trial account.")]);
+    let forbidden = FakeBox::new().on(
+        "POST",
+        "/sandboxes",
+        vec![refuse(403, "trial_machine_class_not_allowed", "large was requested on a trial account.")],
+    );
     let e = failed(backend(&forbidden, "trial").create(spec(), None, None).await);
     let w = provider(&e);
     assert_eq!((w.kind, w.code.as_deref()), (ErrorKind::Plan, Some("trial_machine_class_not_allowed")));
     // A size the trial does not sell is refused before Boat is asked.
     let large = FakeBox::new();
-    let e = failed(backend(&large, "trial").create(MachineSpec { cpu: Some(n(8.0)), mem_mb: Some(n(16384.0)), ..spec() }, None, None).await);
+    let e =
+        failed(backend(&large, "trial").create(MachineSpec { cpu: Some(n(8.0)), mem_mb: Some(n(16384.0)), ..spec() }, None, None).await);
     assert!(matches!(e, EngineError::Invalid { .. }), "{e:?}");
     assert_eq!(large.calls(), vec!["GET /limits"]);
 }

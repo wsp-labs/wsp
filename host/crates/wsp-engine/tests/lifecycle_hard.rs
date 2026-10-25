@@ -51,7 +51,8 @@ async fn a_wake_of_a_running_workspace_does_nothing_and_a_nap_of_a_napping_one_d
     assert_eq!(ws.wake(false).await.unwrap(), WakeResult::default());
     assert_eq!(machine.calls(), Vec::<String>::new());
     assert!(ws.is_first_life());
-    let mut napping = Workspace::new(machine.clone(), hooks(2), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
+    let mut napping =
+        Workspace::new(machine.clone(), hooks(2), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     napping.nap().await.unwrap();
     assert_eq!(machine.calls(), Vec::<String>::new());
     assert!(!napping.is_first_life());
@@ -178,7 +179,9 @@ async fn a_rebuild_whose_old_machine_is_already_gone_still_lands_and_any_other_r
         let m: MachineRef = f.clone();
         async move { Ok(m) }.boxed()
     }));
-    h.retire = Some(Arc::new(|_m| async { Err(EngineError::Provider(wsp_engine::errors::classify(404, Some("not_found"), Some("gone"), None))) }.boxed()));
+    h.retire = Some(Arc::new(|_m| {
+        async { Err(EngineError::Provider(wsp_engine::errors::classify(404, Some("not_found"), Some("gone"), None))) }.boxed()
+    }));
     let mut ws = Workspace::new(old.clone(), h.clone(), WorkspaceInitial { phase: Some(WorkspacePhase::Napping), first_life: Some(false) });
     ws.rebuild().await.unwrap();
     assert_eq!((ws.machine_id(), ws.current_phase(), ws.is_first_life()), ("new".to_string(), WorkspacePhase::Running, true));
