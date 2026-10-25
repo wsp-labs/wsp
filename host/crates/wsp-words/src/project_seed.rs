@@ -3,14 +3,23 @@
 //! refusals of a pick off the menu. Port of the functions of packages/protocol/src/project-seed.ts at a3b870a6e; its
 //! shapes and flat constants are wsp_wire::types::project_seed. See spec/project_seed.md.
 
+use wsp_wire::types::js_number::{JsInt, JsNumber};
+use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::views::workspace::ProjectSeed;
+use wsp_wire::views::workspace::ProjectSeedPicked;
 use wsp_wire::views::workspace::SeedChoice;
 use wsp_wire::views::workspace::SeedFile;
+use wsp_wire::views::workspace::SeedKind;
+use wsp_wire::views::workspace::SeedPickRow;
 use wsp_wire::views::workspace::SeedPlan;
 
+use indexmap::IndexMap;
 use serde::Serialize;
 
-use crate::exit::HostError;
+use crate::exit::{usage_refusal, HostError, Kind};
+use crate::js::{collate, number_string, utf16};
+use crate::words::base::plural;
+use crate::words::units::fmt_bytes;
 
 // project-seed.ts:16
 // in wsp_wire::types::project_seed: SEED_DIR
@@ -27,7 +36,7 @@ use crate::exit::HostError;
 // export const seedTravels = (plan: Pick<SeedPlan, "provider">, file: Pick<SeedFile, "kind">): boolean =>
 //   file.kind !== "never" && !(file.kind === "secret" && plan.provider === true);
 pub fn seed_travels(plan: &SeedPlan, file: &SeedFile) -> bool {
-    todo!()
+    travels_on(plan.provider, file)
 }
 
 /// The paths of a remembered choice this plan holds back rather than drops: the files of values and keys a provider
@@ -36,7 +45,12 @@ pub fn seed_travels(plan: &SeedPlan, file: &SeedFile) -> bool {
 // export const heldBackPicks = (plan: SeedPlan, remembered: readonly string[]): string[] =>
 //   remembered.filter(path => plan.files.some(f => f.path === path && f.kind === "secret" && !seedTravels(plan, f)));
 pub fn held_back_picks(plan: &SeedPlan, remembered: &[impl AsRef<str>]) -> Vec<String> {
-    todo!()
+    remembered
+        .iter()
+        .map(|path| path.as_ref())
+        .filter(|path| plan.files.iter().any(|f| f.path == *path && f.kind == SeedKind::Secret && !seed_travels(plan, f)))
+        .map(String::from)
+        .collect()
 }
 
 /// What the menu starts with: whatever each row is ticked as. A plan nobody has answered for carries the
@@ -53,7 +67,12 @@ pub fn held_back_picks(plan: &SeedPlan, remembered: &[impl AsRef<str>]) -> Vec<S
 //   };
 // }
 pub fn default_seed_choice(plan: &SeedPlan) -> SeedChoice {
-    todo!()
+    SeedChoice {
+        files: plan.files.iter().filter(|f| f.ticked && seed_travels(plan, f)).map(|f| f.path.clone()).collect(),
+        memory: plan.memory.is_some(),
+        commits: plan.unpushed.is_some(),
+        remember: None,
+    }
 }
 
 /// The choice a person's words make of the menu: the default, then the paths they named to keep and the ones they
@@ -83,7 +102,14 @@ pub struct SeedFlags {
 
 /// The TS throw of `seedPicks` is the Err.
 pub fn seed_choice_from(plan: &SeedPlan, keep: &[impl AsRef<str>], cut: &[impl AsRef<str>], flags: &SeedFlags) -> Result<SeedChoice, HostError> {
-    todo!()
+    let base = default_seed_choice(plan);
+    let files = seed_picks(plan, base.files.as_slice(), keep, cut)?.files;
+    Ok(SeedChoice {
+        files,
+        memory: if flags.memory == Some(false) { false } else { base.memory },
+        commits: if flags.commits == Some(false) { false } else { base.commits },
+        remember: if flags.remember == Some(true) { Some(true) } else { None },
+    })
 }
 
 /// Why a path somebody asked to keep is not on the menu: the menu is git's own listing of what it ignores, so a
@@ -92,7 +118,9 @@ pub fn seed_choice_from(plan: &SeedPlan, keep: &[impl AsRef<str>], cut: &[impl A
 // export const notInTheMenuLine = (path: string, shown: readonly string[]): string =>
 //   `${path} is not on the seed menu; git tracks it or it is not there, and the menu holds ${shown.length === 0 ? "nothing" : shown.join(", ")}`;
 pub fn not_in_the_menu_line(path: &str, shown: &[impl AsRef<str>]) -> String {
-    todo!()
+    let shown: Vec<&str> = shown.iter().map(|p| p.as_ref()).collect();
+    let menu = if shown.is_empty() { "nothing".to_string() } else { shown.join(", ") };
+    format!("{path} is not on the seed menu; git tracks it or it is not there, and the menu holds {menu}")
 }
 
 /// Why a login is refused even when it was ticked: it is signed in once per computer and a copy of one in a
@@ -101,7 +129,7 @@ pub fn not_in_the_menu_line(path: &str, shown: &[impl AsRef<str>]) -> String {
 // export const neverTravelsLine = (path: string, row: string | undefined): string =>
 //   `${path} is ${row === undefined ? "a login" : `${row}, a login`}, and a login never travels in a seed; the computer's image carries its own sign-in`;
 pub fn never_travels_line(path: &str, row: Option<&str>) -> String {
-    todo!()
+    format!("{path} is {}, and a login never travels in a seed; the computer's image carries its own sign-in", row.map_or("a login".to_string(), |row| format!("{row}, a login")))
 }
 
 /// Why a file of values or a key is refused for a provider place even when it was named: the provider's machine
@@ -110,7 +138,7 @@ pub fn never_travels_line(path: &str, row: Option<&str>) -> String {
 // export const staysHereLine = (path: string): string =>
 //   `${path} holds values or a key, which stay on this computer for a provider place; only a box of your own gets them`;
 pub fn stays_here_line(path: &str) -> String {
-    todo!()
+    format!("{path} holds values or a key, which stay on this computer for a provider place; only a box of your own gets them")
 }
 
 /// Why the repository's own folder is refused: the computer clones the repo itself, so its history never rides a
@@ -118,7 +146,7 @@ pub fn stays_here_line(path: &str) -> String {
 // project-seed.ts:77
 // export const neverGitLine = (path: string): string => `${path} is the repository's own folder, which a seed never carries: the computer clones the repo itself`;
 pub fn never_git_line(path: &str) -> String {
-    todo!()
+    format!("{path} is the repository's own folder, which a seed never carries: the computer clones the repo itself")
 }
 
 // What a pick names a path by: the menu's own path, so a folder typed with its slash names its row.
@@ -163,7 +191,44 @@ pub struct SeedPicks {
 
 /// The TS throws (an invalid refusal) are the Err.
 pub fn seed_picks(plan: &SeedPlan, start: &[impl AsRef<str>], keep: &[impl AsRef<str>], cut: &[impl AsRef<str>]) -> Result<SeedPicks, HostError> {
-    todo!()
+    let keeps: Vec<String> = keep.iter().map(|p| pick_path(p.as_ref())).collect();
+    let cuts: Vec<String> = cut.iter().map(|p| pick_path(p.as_ref())).collect();
+    let start: Vec<&str> = start.iter().map(|p| p.as_ref()).collect();
+    let mut known: IndexMap<&str, &SeedFile> = IndexMap::new();
+    for file in &plan.files {
+        known.insert(file.path.as_str(), file);
+    }
+    let shown: Vec<&str> = known.keys().copied().collect();
+    let missing: Vec<String> = start.iter().filter(|p| !known.contains_key(*p)).map(|p| p.to_string()).collect();
+    for path in keeps.iter().chain(cuts.iter()) {
+        if path == ".git" || path.starts_with(".git/") {
+            return Err(invalid(never_git_line(path)));
+        }
+    }
+    for path in &keeps {
+        let Some(file) = known.get(path.as_str()) else {
+            return Err(invalid(not_in_the_menu_line(path, &shown)));
+        };
+        if file.kind == SeedKind::Never {
+            return Err(invalid(never_travels_line(path, file.row.as_ref().map(|row| row.name.as_str()))));
+        }
+        if !seed_travels(plan, file) {
+            return Err(invalid(stays_here_line(path)));
+        }
+    }
+    for path in &cuts {
+        if !known.contains_key(path.as_str()) && !missing.contains(path) {
+            return Err(invalid(not_in_the_menu_line(path, &shown)));
+        }
+    }
+    let files = plan
+        .files
+        .iter()
+        .filter(|f| seed_travels(plan, f) && (start.contains(&f.path.as_str()) || keeps.contains(&f.path)) && !cuts.contains(&f.path))
+        .map(|f| f.path.clone())
+        .collect();
+    let missing = missing.into_iter().filter(|path| !cuts.contains(path)).collect();
+    Ok(SeedPicks { files, missing })
 }
 
 /// A project's seed picks as every door answers them: each row of the menu marked picked or not.
@@ -179,7 +244,31 @@ pub fn seed_picks(plan: &SeedPlan, start: &[impl AsRef<str>], keep: &[impl AsRef
 //   };
 // }
 pub fn project_seed_of(project: &str, plan: &SeedPlan, picks: &SeedPicks, saved: bool) -> ProjectSeed {
-    todo!()
+    let rows = plan
+        .files
+        .iter()
+        .map(|f| SeedPickRow {
+            path: f.path.clone(),
+            dir: f.dir,
+            bytes: f.bytes,
+            kind: f.kind,
+            why: seed_row_words(f, Some(plan)),
+            picked: picks.files.contains(&f.path),
+        })
+        .collect();
+    let picked: Vec<&SeedFile> = plan.files.iter().filter(|f| picks.files.contains(&f.path)).collect();
+    let bytes = picked.iter().map(|f| int(&f.bytes)).sum();
+    ProjectSeed {
+        project: project.to_string(),
+        folder: plan.source.clone(),
+        rows,
+        picked: ProjectSeedPicked {
+            paths: picked.iter().map(|f| f.path.clone()).collect(),
+            bytes: JsInt(JsNumber(bytes)),
+            missing: picks.missing.clone(),
+        },
+        saved,
+    }
 }
 
 /// The picks as a terminal reads them: the head line, the rows as cells for the caller's table, picked first and
@@ -206,7 +295,38 @@ pub struct SeedLines {
 }
 
 pub fn project_seed_lines(seed: &ProjectSeed) -> SeedLines {
-    todo!()
+    let mut rows = seed.rows.clone();
+    rows.sort_by(|a, b| {
+        b.picked
+            .cmp(&a.picked)
+            .then_with(|| int(&b.bytes).total_cmp(&int(&a.bytes)))
+            .then_with(|| collate(&a.path, &b.path))
+    });
+    let picked = seed.picked.paths.len();
+    let picked_bytes = if picked == 0 { String::new() } else { format!(", {}", fmt_bytes(int(&seed.picked.bytes))) };
+    let count = format!("{} picked{picked_bytes}.", number_string(picked as f64));
+    let head = format!("{}, {}: what git ignores, and what goes to a sub-thread's machine.", seed.project, seed.folder);
+    let table = if rows.is_empty() {
+        Vec::new()
+    } else {
+        let mut table = vec![vec!["".to_string(), "PATH".to_string(), "SIZE".to_string(), "WHY".to_string()]];
+        for r in &rows {
+            let path = if r.dir { format!("{}/", r.path) } else { r.path.clone() };
+            let tick = if r.picked { "x" } else { " " };
+            table.push(vec![tick.to_string(), path, fmt_bytes(int(&r.bytes)), r.why.clone()]);
+        }
+        table
+    };
+    let mut foot = Vec::new();
+    if !seed.picked.missing.is_empty() {
+        foot.push(format!("Picked but not in the folder now, so a sub-thread starts without: {}.", seed.picked.missing.join(", ")));
+    }
+    foot.push(if seed.saved {
+        format!("{count} Saved: every later sub-thread of {} gets these.", seed.project)
+    } else {
+        format!("{count} Nothing was saved; add --yes to save these picks.")
+    });
+    SeedLines { head, rows: table, foot }
 }
 
 /// Why a thread's own token may read a project's seed picks and not save them, with the line that saves the same
@@ -227,7 +347,21 @@ pub struct SeedAsked {
 }
 
 pub fn seed_save_refusal(project: &str, o: &SeedAsked) -> HostError {
-    todo!()
+    let mut words = vec!["wsp", "projects", "seed", project];
+    if o.none == Some(true) {
+        words.push("--none");
+    }
+    for keep in o.keep.iter().flatten() {
+        words.extend(["--keep", keep.as_str()]);
+    }
+    for cut in o.cut.iter().flatten() {
+        words.extend(["--cut", cut.as_str()]);
+    }
+    words.push("--yes");
+    usage_refusal(
+        "picking the files that leave this computer is the person's act",
+        &format!("Hand them the line {}", shell_line(&words)),
+    )
 }
 
 /// Why a project on another computer has no seed picks: the menu is read off a folder on this computer alone.
@@ -235,7 +369,7 @@ pub fn seed_save_refusal(project: &str, o: &SeedAsked) -> HostError {
 // export const seedNotHereRefusal = (project: string, computer: string): Error =>
 //   refusal(`${project} lives on ${computer}, and picks are read from folders on this computer only`, `A sub-thread of ${project} starts with no git-ignored files.`, "usage");
 pub fn seed_not_here_refusal(project: &str, computer: &str) -> HostError {
-    todo!()
+    usage_refusal(&format!("{project} lives on {computer}, and picks are read from folders on this computer only"), &format!("A sub-thread of {project} starts with no git-ignored files."))
 }
 
 /// The words one menu row ends in, which say why it is ticked or not.
@@ -249,7 +383,20 @@ pub fn seed_not_here_refusal(project: &str, computer: &str) -> HostError {
 //   return "not in the catalogue";
 // }
 pub fn seed_row_words(file: &SeedFile, plan: Option<&SeedPlan>) -> String {
-    todo!()
+    match file.kind {
+        SeedKind::Secret => {
+            if travels_on(plan.and_then(|p| p.provider), file) {
+                file.row.as_ref().map_or("values".to_string(), |row| row.name.clone())
+            } else {
+                "stays on this computer".to_string()
+            }
+        }
+        SeedKind::Config => file.row.as_ref().map_or("config".to_string(), |row| row.name.clone()),
+        SeedKind::Rebuilt => "rebuilt on the box".to_string(),
+        SeedKind::Data => "database, stop what uses it first".to_string(),
+        SeedKind::Never => "never travels".to_string(),
+        SeedKind::Unknown => "not in the catalogue".to_string(),
+    }
 }
 
 /// The bytes a seed's ticked files come to, which is the number the menu shows and the number the record keeps:
@@ -260,7 +407,7 @@ pub fn seed_row_words(file: &SeedFile, plan: Option<&SeedPlan>) -> String {
 //   return plan.files.filter(f => choice.files.includes(f.path)).reduce((sum, f) => sum + f.bytes, 0);
 // }
 pub fn seed_bytes(plan: &SeedPlan, choice: &SeedChoice) -> f64 {
-    todo!()
+    plan.files.iter().filter(|f| choice.files.contains(&f.path)).map(|f| int(&f.bytes)).sum()
 }
 
 /// What the seeding says as the person's files go to that computer: the same counts the menu showed them, in the
@@ -275,7 +422,19 @@ pub fn seed_bytes(plan: &SeedPlan, choice: &SeedChoice) -> f64 {
 //   return `Seeding ${parts.join(", ")}, from ${plan.source}.`;
 // }
 pub fn seeding_line(plan: &SeedPlan, choice: &SeedChoice) -> String {
-    todo!()
+    let files = plan.files.iter().filter(|f| choice.files.contains(&f.path)).count();
+    let mut parts = vec![if files == 0 {
+        "0 files".to_string()
+    } else {
+        format!("{} ({})", plural(files as f64, "file"), fmt_bytes(seed_bytes(plan, choice)))
+    }];
+    if let (true, Some(memory)) = (choice.memory, &plan.memory) {
+        parts.push(format!("Claude Code memory ({}, {})", plural(int(&memory.files), "file"), fmt_bytes(int(&memory.bytes))));
+    }
+    if let (true, Some(unpushed)) = (choice.commits, &plan.unpushed) {
+        parts.push(format!("{} the remote does not have", plural(int(&unpushed.commits), "commit")));
+    }
+    format!("Seeding {}, from {}.", parts.join(", "), plan.source)
 }
 
 /// What the seeding says once the computer's own git has answered, where the seed carried commits at all: the
@@ -284,7 +443,7 @@ pub fn seeding_line(plan: &SeedPlan, choice: &SeedChoice) -> String {
 // project-seed.ts:179
 // export const seedCommitsLandedLine = (commits: number): string => (commits === 0 ? "no commits to land" : `${plural(commits, "commit")} landed`);
 pub fn seed_commits_landed_line(commits: f64) -> String {
-    todo!()
+    if commits == 0.0 { "no commits to land".to_string() } else { format!("{} landed", plural(commits, "commit")) }
 }
 
 /// What the person is told a seed would carry, before anything leaves this computer: the ticked paths with their
@@ -300,7 +459,29 @@ pub fn seed_commits_landed_line(commits: f64) -> String {
 //   return lines;
 // }
 pub fn seed_summary_lines(plan: &SeedPlan, choice: &SeedChoice) -> Vec<String> {
-    todo!()
+    let ticked: Vec<&SeedFile> = plan.files.iter().filter(|f| choice.files.contains(&f.path)).collect();
+    let bytes = seed_bytes(plan, choice);
+    let mut lines = vec![if ticked.is_empty() {
+        "no files travel".to_string()
+    } else {
+        let paths: Vec<&str> = ticked.iter().map(|f| f.path.as_str()).collect();
+        format!("{}, {}: {}", plural(ticked.len() as f64, "file"), fmt_bytes(bytes), paths.join(", "))
+    }];
+    if let (true, Some(memory)) = (choice.memory, &plan.memory) {
+        lines.push(format!("Claude Code memory, {}, {}", plural(int(&memory.files), "file"), fmt_bytes(int(&memory.bytes))));
+    }
+    if let (true, Some(unpushed)) = (choice.commits, &plan.unpushed) {
+        lines.push(format!(
+            "{} the remote does not have, as a patch from {}",
+            plural(int(&unpushed.commits), "commit"),
+            utf16::cut(&unpushed.base, 7)
+        ));
+    }
+    let uncommitted = int(&plan.uncommitted);
+    if uncommitted > 0.0 {
+        lines.push(format!("{} stay on this computer", plural(uncommitted, "uncommitted change")));
+    }
+    lines
 }
 
 /// The menu as a terminal draws it: one row per path git ignores, ticked or not, with its size and the words its
@@ -319,7 +500,36 @@ pub fn seed_summary_lines(plan: &SeedPlan, choice: &SeedChoice) -> Vec<String> {
 //   ];
 // }
 pub fn seed_menu_rows(plan: &SeedPlan, choice: &SeedChoice) -> Vec<Vec<String>> {
-    todo!()
+    let tick = |on: bool| if on { "x" } else { " " };
+    let mut files: Vec<&SeedFile> = plan.files.iter().collect();
+    files.sort_by(|a, b| int(&b.bytes).total_cmp(&int(&a.bytes)).then_with(|| collate(&a.path, &b.path)));
+    let mut rows = vec![vec!["".to_string(), "PATH".to_string(), "SIZE".to_string(), "WHY".to_string()]];
+    for f in files {
+        let path = if f.dir { format!("{}/", f.path) } else { f.path.clone() };
+        rows.push(vec![
+            format!("[{}]", tick(choice.files.contains(&f.path))),
+            path,
+            fmt_bytes(int(&f.bytes)),
+            seed_row_words(f, Some(plan)),
+        ]);
+    }
+    if let Some(memory) = &plan.memory {
+        rows.push(vec![
+            format!("[{}]", tick(choice.memory)),
+            format!("{}/memory", memory.key),
+            fmt_bytes(int(&memory.bytes)),
+            format!("Claude Code memory, {}", plural(int(&memory.files), "file")),
+        ]);
+    }
+    if let Some(unpushed) = &plan.unpushed {
+        rows.push(vec![
+            format!("[{}]", tick(choice.commits)),
+            format!("{} as a patch", plan.branch),
+            String::new(),
+            format!("{} the remote does not have", plural(int(&unpushed.commits), "commit")),
+        ]);
+    }
+    rows
 }
 
 /// What the command line says under the menu when nobody has consented yet: nothing was sent, and the two lines
@@ -333,7 +543,14 @@ pub fn seed_menu_rows(plan: &SeedPlan, choice: &SeedChoice) -> Vec<Vec<String>> 
 //   ];
 // }
 pub fn seed_consent_lines(plan: &SeedPlan, computer: &str, add_line: &dyn Fn(&str) -> String) -> Vec<String> {
-    todo!()
+    let uncommitted = int(&plan.uncommitted);
+    let stays = if uncommitted > 0.0 { format!("{} stay on this computer, and ", plural(uncommitted, "uncommitted change")) } else { String::new() };
+    let remote = plan.remote.as_deref().unwrap_or("the repo");
+    vec![
+        format!("nothing was sent. {stays}{computer} clones {remote} itself."),
+        format!("to send the ticked rows:   {}", add_line("--yes")),
+        format!("to change what travels:    {}", add_line("--yes --keep <path> --cut <path> --no-memory --no-commits")),
+    ]
 }
 
 /// What the add says about the paths a ticked folder held that do not travel: a login, or a key bound for a
@@ -343,7 +560,8 @@ pub fn seed_consent_lines(plan: &SeedPlan, computer: &str, add_line: &dyn Fn(&st
 // export const leftBehindLine = (paths: readonly string[]): string =>
 //   `${plural(paths.length, "file")} inside the folders you ticked stayed on this computer: ${paths.join(", ")}`;
 pub fn left_behind_line(paths: &[impl AsRef<str>]) -> String {
-    todo!()
+    let paths: Vec<&str> = paths.iter().map(|p| p.as_ref()).collect();
+    format!("{} inside the folders you ticked stayed on this computer: {}", plural(paths.len() as f64, "file"), paths.join(", "))
 }
 
 /// What the add says when git refused the commits the remote has never seen: the person's own count and branch,
@@ -353,7 +571,7 @@ pub fn left_behind_line(paths: &[impl AsRef<str>]) -> String {
 // export const seedCommitsLostLine = (commits: number, branch: string, computer: string, said: string, back: string): string =>
 //   `the ${plural(commits, "commit")} on ${branch} did not land on ${computer}: ${said}; the checkout is on ${back}`;
 pub fn seed_commits_lost_line(commits: f64, branch: &str, computer: &str, said: &str, back: &str) -> String {
-    todo!()
+    format!("the {} on {branch} did not land on {computer}: {said}; the checkout is on {back}", plural(commits, "commit"))
 }
 
 /// Why a folder with no remote records nothing: the computer clones the repo, and a folder git has no remote for
@@ -362,6 +580,21 @@ pub fn seed_commits_lost_line(commits: f64, branch: &str, computer: &str, said: 
 // export const noRemoteLine = (folder: string): string =>
 //   `${folder} has no origin remote, and the computer clones the repo rather than copying the folder; push it somewhere and add it again`;
 pub fn no_remote_line(folder: &str) -> String {
-    todo!()
+    format!("{folder} has no origin remote, and the computer clones the repo rather than copying the folder; push it somewhere and add it again")
 }
 
+fn int(x: &JsInt) -> f64 {
+    x.0.0
+}
+
+fn travels_on(provider: Option<bool>, file: &SeedFile) -> bool {
+    file.kind != SeedKind::Never && !(file.kind == SeedKind::Secret && provider == Some(true))
+}
+
+fn pick_path(path: &str) -> String {
+    path.trim_end_matches('/').to_string()
+}
+
+fn invalid(line: String) -> HostError {
+    HostError::with_kind(line, Kind::Invalid)
+}
