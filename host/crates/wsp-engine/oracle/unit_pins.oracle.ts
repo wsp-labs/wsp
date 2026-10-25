@@ -126,6 +126,27 @@ it("unit pins", async () => {
     clientWords: ["bind [::1]:80: Address already in use\r\nreal", "Warning: Permanently added 'a\rb' (ED25519) to the list of known hosts.", "debug١: x", "debug1: y\nkept"].map(s => ({ in: s, out: ssh.clientWords(s) })),
   };
 
+  const keyscanArgs = async (port: string): Promise<unknown> => {
+    let scanned: unknown = null;
+    const run = async (file: string, args: readonly string[]) => {
+      if (file === "ssh") return { exitCode: 0, stdout: `hostname h\nport ${port}\n`, stderr: "" };
+      scanned = [file, ...args];
+      return { exitCode: 1, stdout: "", stderr: "" };
+    };
+    const got = await ssh.offeredHostKey({ user: "u", host: "h", port: 22 }, run);
+    return { port, scanned, got };
+  };
+  const wordReach = async (port: number | undefined, configPort: string): Promise<unknown> => {
+    const run = async () => ({ exitCode: 0, stdout: `hostname h.example\nuser dev\nport ${configPort}\n`, stderr: "" });
+    return { typed: port ?? null, configPort, out: await tryAsync(() => ssh.sshWordReach("alias", port === undefined ? {} : { port }, run)) };
+  };
+  Object.assign(keysPins, {
+    keyscan: await Promise.all(["2222.5", "-5", "99999", "1e3", "0x50", "0", "", "abc"].map(keyscanArgs)),
+    wordReach: [
+      await wordReach(0, "2222"), await wordReach(undefined, "70000"), await wordReach(undefined, "2222.5"), await wordReach(undefined, "-1"),
+      await wordReach(undefined, "0"), await wordReach(undefined, "abc"), await wordReach(undefined, "1e3"), await wordReach(2200, "abc"),
+    ],
+  });
   const sudoRead = async (stdout: string): Promise<unknown> =>
     tryAsync(() => ssh.readSshSudo({ user: "u", host: "h", port: 22 }, async () => ({ exitCode: 0, stdout, stderr: "" })));
   const machinePins = {
