@@ -1,0 +1,7 @@
+{
+ "files": {
+  "~/.claude/projects/-Users-dev-proj/s1.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/Users/dev/proj\",\"sessionId\":\"s1\",\"timestamp\":\"2026-09-06T10:01:00.000Z\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr view && brew install jq\"}}]}}\n{\"type\":\"assistant\",\"cwd\":\"/Users/dev/proj\",\"sessionId\":\"s1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"gh pr list\"}}]}}",
+  "~/.claude/projects/-Users-dev-proj/s2.jsonl": "{\"type\":\"assistant\",\"cwd\":\"/Users/dev/proj\",\"sessionId\":\"s2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"pnpm test\"}}]}}"
+ },
+ "text": "{\"version\":1,\"parse\":2,\"files\":{\"/Users/dev/.claude/projects/-Users-dev-proj/s2.jsonl\":{\"stamp\":\"1500.25:185\",\"buckets\":[{\"session\":\"s2\",\"folder\":\"/Users/dev/proj\",\"calls\":1,\"commands\":{\"pnpm\":1},\"installs\":{}}]},\"/Users/dev/.claude/projects/-Users-dev-proj/s1.jsonl\":{\"stamp\":\"1000:431\",\"buckets\":[{\"session\":\"s1\",\"folder\":\"/Users/dev/proj\",\"calls\":2,\"commands\":{\"gh\":2,\"brew\":1},\"installs\":{\"brew jq\":1},\"at\":1788688860000}]}}}\n"
+}
