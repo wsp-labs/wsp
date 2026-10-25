@@ -176,15 +176,17 @@ async fn lines_flush_stdout_then_stderr_and_skip_empty_ones() {
 
 #[tokio::test]
 async fn a_deadline_run_kills_reads_once_more_and_cleans() {
-    let machine = ScriptedMachine::new("m1", |cmd, _o| {
-        if cmd.contains("echo WSP_LAUNCHED") {
-            Ok(res(0, "WSP_LAUNCHED\n", ""))
-        } else if cmd.contains("echo WSP_POLL") {
-            Ok(res(0, "", ""))
-        } else {
-            Ok(res(0, "", ""))
-        }
-    });
+    let machine =
+        ScriptedMachine::new(
+            "m1",
+            |cmd, _o| {
+                if cmd.contains("echo WSP_LAUNCHED") {
+                    Ok(res(0, "WSP_LAUNCHED\n", ""))
+                } else {
+                    Ok(res(0, "", ""))
+                }
+            },
+        );
     let got = exec_detached_in(machine.as_ref(), "sleep 9", RunOptions { deadline_ms: 0, poll_ms: Some(1), ..Default::default() }, "/r")
         .await
         .unwrap();

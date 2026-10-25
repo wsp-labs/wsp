@@ -332,6 +332,7 @@ fn text() -> String {
 }
 
 #[derive(Clone, Copy)]
+#[allow(clippy::enum_variant_names)]
 enum Road {
     AMessageWrittenIntoARunningTurn,
     AStepRunForMinutes,

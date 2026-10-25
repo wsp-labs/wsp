@@ -3,22 +3,12 @@
 //! warn line and answer as the TS made them (spec/box_machine.md, rules B-M).
 mod common;
 
-use std::collections::BTreeSet;
-
 use common::scene::*;
 use serde_json::{json, Value};
-use wsp_engine::machine::{ExecOptions, Machine, MachineBackend, MachineLife, MachineSpec, SnapshotOptions};
+use wsp_engine::machine::{ExecOptions, Machine, MachineLife, SnapshotOptions};
 
 fn life() -> MachineLife {
     MachineLife { first_life: false }
-}
-
-fn spec(extra: Value) -> MachineSpec {
-    let mut v = json!({ "kind": "sandbox", "idempotencyKey": "key-1" });
-    for (k, val) in extra.as_object().unwrap() {
-        v[k] = val.clone();
-    }
-    serde_json::from_value(v).unwrap()
 }
 
 fn timer_json(t: Option<wsp_engine::box_backend::Timer>) -> Value {

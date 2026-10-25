@@ -1183,6 +1183,7 @@ async fn reap_reads_label_values_exactly() {
         result.reaped.iter().map(|r| (r.id.clone(), r.reason, r.builder)).collect::<Vec<_>>(),
         vec![("builder-true".to_string(), ReapReason::Orphan, false), ("builder-0".to_string(), ReapReason::Orphan, false),]
     );
+    #[allow(clippy::type_complexity)]
     let spared: Vec<(String, Whose, Option<String>, i64, Option<i64>)> =
         result.spared.iter().map(|s| (s.id.clone(), s.whose, s.owner.clone(), s.backstop_ms, s.age_ms)).collect();
     assert_eq!(

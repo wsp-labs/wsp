@@ -543,7 +543,7 @@ async fn a_login_shell_whose_rc_file_leaves_a_job_holding_the_output_open_ends_t
     assert!(started.elapsed() < Duration::from_millis(8_000), "{:?}", started.elapsed());
     assert_eq!(probe.aliases_unread, None);
     assert!(!pids_in(&pids).is_empty());
-    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().filter(|p| alive(*p)).next().is_none()).await;
+    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().find(|p| alive(*p)).is_none()).await;
 }
 
 /// machine-context.test.ts:663
@@ -564,5 +564,5 @@ async fn a_login_shell_that_has_not_answered_by_its_bound_is_ended_with_every_jo
     });
     assert!(doc.contains("- Aliases: not read. The login shell had not finished starting after 8 seconds, so wsp stopped it."), "{doc}");
     assert_eq!(pids_in(&pids).len(), 2);
-    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().filter(|p| alive(*p)).next().is_none()).await;
+    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().find(|p| alive(*p)).is_none()).await;
 }

@@ -194,7 +194,7 @@ async fn a_server_that_never_answers_ends_the_call_in_about_five_minutes() {
     req.abort = None;
     let t = Instant::now();
     let r = tokio::time::timeout(Duration::from_secs(310), platform_fetch().fetch(req)).await;
-    println!("RUST silent server, no cap: {:?} after {:?}", r.as_ref().map(|r| describe(r)), t.elapsed());
+    println!("RUST silent server, no cap: {:?} after {:?}", r.as_ref().map(describe), t.elapsed());
     let r = r.expect("still waiting after 310 s: the call has no headers timeout");
     assert_eq!(r.unwrap_err().message, "fetch failed");
 }

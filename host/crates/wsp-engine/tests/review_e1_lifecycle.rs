@@ -36,7 +36,7 @@ async fn a_wake_the_caller_stops_waiting_for_does_not_leave_the_phase_waking() {
     let machine = common::fake_machine::FakeMachine::new("m1");
     let mut h = hooks(1);
     h.wake_check = Some(Arc::new(|_m| futures::future::pending::<Result<Option<String>>>().boxed_local()));
-    let mut ws = Workspace::new(machine, h, napping());
+    let ws = Workspace::new(machine, h, napping());
     let cell = ws.phase_cell();
     let gave_up = tokio::time::timeout(Duration::from_millis(20), ws.wake(false)).await.is_err();
     assert!(gave_up, "the check never answers, so the timer wins");
@@ -61,7 +61,7 @@ async fn the_route_the_wake_check_dials_is_the_one_the_workspace_keeps() {
         }
         .boxed_local()
     }));
-    let mut ws = Workspace::new(machine.clone(), h, napping());
+    let ws = Workspace::new(machine.clone(), h, napping());
     ws.wake(false).await.unwrap();
     ws.daemon_reach().await.unwrap();
     assert_eq!(machine.count("preview_url:7070"), 1, "TS: one mint, the check's, kept by the workspace; calls: {:?}", machine.calls());

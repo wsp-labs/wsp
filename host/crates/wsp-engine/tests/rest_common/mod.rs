@@ -55,6 +55,7 @@ pub struct FakeMachine {
     pub upload_url_fn: UrlFn,
     pub preview_fn: Option<PreviewFn>,
     pub ran: Mutex<Vec<Ran>>,
+    #[allow(clippy::type_complexity)]
     pub puts: Mutex<Vec<(String, Vec<u8>, Option<u64>)>>,
     pub previews: Mutex<Vec<u16>>,
 }

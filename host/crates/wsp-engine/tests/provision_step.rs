@@ -153,7 +153,7 @@ use indexmap::IndexMap;
 
 use wsp_catalog::mcp::MCP_SERVERS_JSON;
 use wsp_catalog::skills::PluginRoad;
-use wsp_engine::golden_seam::{path_line, AgentsPlan, GoldenImport, McpAgentPlan, McpPlan, McpScope, PackFiles, PackedFiles, SkippedPath};
+use wsp_engine::golden_seam::{path_line, GoldenImport, McpAgentPlan, McpPlan, McpScope, PackFiles, PackedFiles, SkippedPath};
 use wsp_engine::provision::{provision_counts_of, provision_plan_of, PlanFiles, PlanPlugin, PlanSkipped};
 use wsp_engine::provision_files::{ProvisionLanding, SERVER_MARK};
 use wsp_engine::vault::{tar_of, TarEntry};
