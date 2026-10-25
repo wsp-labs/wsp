@@ -14,7 +14,7 @@ fn a_boxs_capabilities_write_sizes_last() {
         "liveCloneForks": false, "pauseMode": "disk", "replacesMachine": true, "previewUrls": true, "signedUrls": false,
         "callbackRelay": true, "diskSnapshots": true, "images": true, "snapshotsAnyLife": true, "snapshotListing": true,
         "templates": true, "kept": false, "copies": true, "ownNetwork": true,
-        "sizes": [{ "cpu": 2, "memMb": 4096, "rateUsdPerHour": 0.11, "name": "small" }]
+        "sizes": [{ "name": "small", "cpu": 2, "memMb": 4096, "rateUsdPerHour": 0.11 }]
     });
     let read: Capabilities = reads_exact(box_capabilities);
     assert_eq!(read.sizes.len(), 1);

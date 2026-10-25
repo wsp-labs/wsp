@@ -640,3 +640,61 @@ impl Check for SessionEvent {
             .or_else(|| <ThreadWaitedEvent as Check>::describe(path))
     }
 }
+
+/// A stored event as a thread's head writes it: transcript-reader.ts `headShape` returns `{ ...e, text, cut, ...keptPatch }`, so
+/// `cut` and then `patchCut` stand after every key the stored row held, where the schema (and `SessionEvent`) lists `cut` after
+/// `line` and `patchCut` after `patch`. The text is the same length either way.
+pub fn head_value(event: &SessionEvent) -> Result<serde_json::Value, serde_json::Error> {
+    let mut value = serde_json::to_value(event)?;
+    if let Some(fields) = value.as_object_mut() {
+        for key in ["cut", "patchCut"] {
+            if let Some(kept) = fields.shift_remove(key) {
+                fields.insert(key.to_string(), kept);
+            }
+        }
+    }
+    Ok(value)
+}
+
+pub fn head_text(event: &SessionEvent) -> Result<String, serde_json::Error> {
+    serde_json::to_string(&crate::types::kept::Kept(head_value(event)?))
+}
+
+/// The events of a thread's head (`sessions.head` runs each through `headShape`, runtime/src/threads/sessions.ts:963), written
+/// as a head writes them.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(transparent)]
+pub struct HeadEvents(pub Vec<SessionEvent>);
+
+impl std::ops::Deref for HeadEvents {
+    type Target = Vec<SessionEvent>;
+
+    fn deref(&self) -> &Vec<SessionEvent> {
+        &self.0
+    }
+}
+
+impl Serialize for HeadEvents {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{Error, SerializeSeq};
+        let mut seq = s.serialize_seq(Some(self.0.len()))?;
+        for event in &self.0 {
+            seq.serialize_element(&crate::types::kept::Kept(head_value(event).map_err(S::Error::custom)?))?;
+        }
+        seq.end()
+    }
+}
+
+impl Check for HeadEvents {
+    fn check(&self) -> Result<(), SchemaError> {
+        self.0.check()
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        <Vec<SessionEvent> as Check>::pass(value)
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        <Vec<SessionEvent> as Check>::describe(path)
+    }
+}

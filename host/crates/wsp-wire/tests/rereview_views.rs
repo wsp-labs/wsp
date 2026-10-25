@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use wsp_wire::types::check::{parse, Check};
 use wsp_wire::types::thread_defaults::{patched_fields, AgentDefaults, AgentDefaultsPatch};
 use wsp_wire::views::preferences::ThreadHead;
-use wsp_wire::views::session_events_more::SessionEvent;
+use wsp_wire::views::session_events_more::{head_text, SessionEvent};
 use wsp_wire::wire::capabilities::Capabilities;
 
 fn name<T>() -> &'static str {
@@ -66,7 +66,7 @@ fn head_of_a_cut_text_and_a_cut_patch() -> String {
 fn a_head_that_cuts_the_text_and_the_patch_writes_cut_before_patch_cut() {
     let node = head_of_a_cut_text_and_a_cut_patch();
     let event = parse::<SessionEvent>(&serde_json::from_str::<Value>(&node).unwrap()).unwrap();
-    let written = serde_json::to_string(&event).unwrap();
+    let written = head_text(&event).unwrap();
     assert_eq!(written.len(), node.len(), "the same length");
     let keys = |text: &str| serde_json::from_str::<serde_json::Map<String, Value>>(text).unwrap().keys().cloned().collect::<Vec<_>>();
     assert_eq!(keys(&written), keys(&node));
