@@ -16,6 +16,45 @@ use wsp_wire::types::usage::UsedRow;
 use indexmap::IndexMap;
 use serde::Serialize;
 
+use wsp_wire::types::usage::AccountNote;
+use wsp_wire::types::usage::LimitStatus;
+use wsp_wire::types::usage::USAGE_WORDS;
+
+use crate::js::js_round;
+use crate::js::{number_string, upper_first};
+use crate::words::units::fmt_cost;
+use crate::words::units::fmt_tokens;
+use crate::words::units::LIST_PRICE_WORD;
+
+use jiff::civil::Weekday;
+use jiff::tz::TimeZone;
+use jiff::Timestamp;
+use jiff::Zoned;
+
+fn usage_word(key: &str) -> &'static str {
+    USAGE_WORDS.iter().find(|(k, _)| *k == key).map(|(_, v)| *v).expect("a word the usage table holds")
+}
+
+fn zoned(at: f64, time_zone: Option<&str>) -> Zoned {
+    let zone = match time_zone {
+        Some(name) => TimeZone::get(name).expect("an IANA zone name"),
+        None => TimeZone::system(),
+    };
+    Timestamp::from_millisecond(at as i64).expect("an instant in range").to_zoned(zone)
+}
+
+fn weekday_short(day: Weekday) -> &'static str {
+    match day {
+        Weekday::Monday => "Mon",
+        Weekday::Tuesday => "Tue",
+        Weekday::Wednesday => "Wed",
+        Weekday::Thursday => "Thu",
+        Weekday::Friday => "Fri",
+        Weekday::Saturday => "Sat",
+        Weekday::Sunday => "Sun",
+    }
+}
+
 // The windows a plan counts use over, as wsp names them: an agent's five-hour window is the session, its seven-day
 // the week, a per-model week its own kind, and anything longer the month.
 // usage.ts:11
@@ -77,7 +116,13 @@ use serde::Serialize;
 //   return "month";
 // }
 pub fn limit_kind_of_minutes(minutes: f64) -> LimitKind {
-    todo!()
+    if minutes <= 300.0 {
+        LimitKind::Session
+    } else if minutes <= 10_080.0 {
+        LimitKind::Week
+    } else {
+        LimitKind::Month
+    }
 }
 
 // How a turn reached its account: one the harness named, the vault's token or key handed to every computer, or
@@ -149,7 +194,11 @@ pub fn limit_kind_of_minutes(minutes: f64) -> LimitKind {
 // usage.ts:137
 // export const resetWho = (o: { label: string; own: boolean; computer: string }): string => (o.own ? o.label : `${o.label} on ${o.computer}`);
 pub fn reset_who(label: &str, own: bool, computer: &str) -> String {
-    todo!()
+    if own {
+        label.to_string()
+    } else {
+        format!("{label} on {computer}")
+    }
 }
 
 /// Every sentence a reset may end in, by what it came to.
@@ -165,24 +214,27 @@ pub fn reset_who(label: &str, own: bool, computer: &str) -> String {
 // } as const;
 /// The TS RESET_WORDS, one function per entry.
 pub mod reset_words {
+    use crate::js::number_string;
+
     /// `left` None is the TS undefined.
     pub fn reset(who: &str, left: Option<f64>) -> String {
-        todo!()
+        let left = left.map(|n| format!(", {} left", number_string(n))).unwrap_or_default();
+        format!("Reset used: {who}'s windows start again now{left}")
     }
     pub fn nothing_to_reset(who: &str) -> String {
-        todo!()
+        format!("No window of {who} is in use right now, so the credit was kept")
     }
     pub fn no_credit(who: &str) -> String {
-        todo!()
+        format!("No reset banked on {who}")
     }
     pub fn already_redeemed(who: &str) -> String {
-        todo!()
+        format!("That reset of {who} was already used")
     }
     pub fn earlier(who: &str, left: f64) -> String {
-        todo!()
+        format!("The count on {who} fell since the earlier press: it may have gone through, or a reset expired or was used elsewhere. Nothing more was spent; {} left.", number_string(left))
     }
     pub fn unknown(agent: &str, outcome: &str, who: &str) -> String {
-        todo!()
+        format!("{agent} answered {outcome} for {who}; the account was read again")
     }
 }
 
@@ -193,74 +245,79 @@ pub mod reset_words {
 //   return `Use ${which} banked on ${who}? Its five-hour and weekly windows start again now. There is no undo.`;
 // }
 pub fn reset_question(who: &str, count: Option<f64>) -> String {
-    todo!()
+    let which = match count {
+        None => "a reset".to_string(),
+        Some(1.0) => "the one reset".to_string(),
+        Some(n) => format!("one of the {} resets", number_string(n)),
+    };
+    format!("Use {which} banked on {who}? Its five-hour and weekly windows start again now. There is no undo.")
 }
 
 // usage.ts:156
 // export const resetKeyedLine = (label: string): string => `${label} pays per token; an API key has no reset to use`;
 pub fn reset_keyed_line(label: &str) -> String {
-    todo!()
+    format!("{label} pays per token; an API key has no reset to use")
 }
 
 // usage.ts:157
 // export const resetSilentLine = (agent: string, computer: string): string => `${agent} on ${computer} did not answer; the same request goes again on the next press`;
 pub fn reset_silent_line(agent: &str, computer: &str) -> String {
-    todo!()
+    format!("{agent} on {computer} did not answer; the same request goes again on the next press")
 }
 
 // usage.ts:158
 // export const resetUnreadLine = (agent: string, computer: string, label: string): string => `${agent} on ${computer} did not read ${label}'s limits; nothing was spent`;
 pub fn reset_unread_line(agent: &str, computer: &str, label: &str) -> String {
-    todo!()
+    format!("{agent} on {computer} did not read {label}'s limits; nothing was spent")
 }
 
 // usage.ts:159
 // export const resetMismatchLine = (agent: string, computer: string, other: string, label: string): string => `${agent} on ${computer} is now signed in as ${other}, not ${label}; nothing was spent`;
 pub fn reset_mismatch_line(agent: &str, computer: &str, other: &str, label: &str) -> String {
-    todo!()
+    format!("{agent} on {computer} is now signed in as {other}, not {label}; nothing was spent")
 }
 
 // usage.ts:160
 // export const resetRefusedLine = (agent: string, computer: string, label: string, said: string): string => `${agent} on ${computer} refused the reset of ${label}: ${said}`;
 pub fn reset_refused_line(agent: &str, computer: &str, label: &str, said: &str) -> String {
-    todo!()
+    format!("{agent} on {computer} refused the reset of {label}: {said}")
 }
 
 // usage.ts:161
 // export const resetProviderOnlyLine = (label: string, provider: string, agent: string): string => `${label} lives only on ${provider} machines; sign ${agent} in on a computer of yours`;
 pub fn reset_provider_only_line(label: &str, provider: &str, agent: &str) -> String {
-    todo!()
+    format!("{label} lives only on {provider} machines; sign {agent} in on a computer of yours")
 }
 
 // usage.ts:162
 // export const resetSignedOutLine = (label: string, agent: string): string => `${label} is signed in on none of your computers now; sign ${agent} in on one of them`;
 pub fn reset_signed_out_line(label: &str, agent: &str) -> String {
-    todo!()
+    format!("{label} is signed in on none of your computers now; sign {agent} in on one of them")
 }
 
 // usage.ts:163
 // export const resetNotOnLine = (label: string, computer: string, on: readonly string[]): string => `${label} is not signed in on ${computer}; it is on ${listWords(on)}`;
 pub fn reset_not_on_line(label: &str, computer: &str, on: &[impl AsRef<str>]) -> String {
-    todo!()
+    format!("{label} is not signed in on {computer}; it is on {}", list_words(on))
 }
 
 // usage.ts:164
 // export const resetNoLoginsLine = (computer: string, agent: string): string =>
 //   `${computer} has not said where it keeps its logins, so ${agent}'s there cannot be reached; wsp add ${computer} --update puts a newer agent on it`;
 pub fn reset_no_logins_line(computer: &str, agent: &str) -> String {
-    todo!()
+    format!("{computer} has not said where it keeps its logins, so {agent}'s there cannot be reached; wsp add {computer} --update puts a newer agent on it")
 }
 
 // usage.ts:166
 // export const resetNoneLine = (agent: string): string => `${agent} banks no resets`;
 pub fn reset_none_line(agent: &str) -> String {
-    todo!()
+    format!("{agent} banks no resets")
 }
 
 // usage.ts:167
 // export const noSuchAccountLine = (word: string): string => `no account ${word}; wsp usage lists every account`;
 pub fn no_such_account_line(word: &str) -> String {
-    todo!()
+    format!("no account {word}; wsp usage lists every account")
 }
 
 // usage.ts:169
@@ -294,7 +351,7 @@ pub struct UsedAsk {
 }
 
 pub fn used_ask(range: &UsageRange, split: &UsageSplit) -> UsedAsk {
-    todo!()
+    UsedAsk { range: *range, split: *split, outside: true }
 }
 
 // The days a range reaches back over, today included.
@@ -371,21 +428,28 @@ pub fn used_ask(range: &UsageRange, split: &UsageSplit) -> UsedAsk {
 // usage.ts:268
 // export const freshIn = (tokens: { input: number; cached: number; cacheWrite?: number | undefined }): number => Math.max(0, tokens.input - tokens.cached - (tokens.cacheWrite ?? 0));
 pub fn fresh_in(input: f64, cached: f64, cache_write: Option<f64>) -> f64 {
-    todo!()
+    (input - cached - cache_write.unwrap_or(0.0)).max(0.0)
 }
 
 /// A list as a sentence reads it: "a", "a and b", "a, b and c".
 // usage.ts:271
 // export const listWords = (words: readonly string[]): string => (words.length < 2 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
 pub fn list_words(words: &[impl AsRef<str>]) -> String {
-    todo!()
+    match words {
+        [] => String::new(),
+        [only] => only.as_ref().to_string(),
+        [init @ .., last] => {
+            let head: Vec<&str> = init.iter().map(AsRef::as_ref).collect();
+            format!("{} and {}", head.join(", "), last.as_ref())
+        }
+    }
 }
 
 /// What the logs a range counted are, said once under its numbers: the agents that kept them and where.
 // usage.ts:274
 // export const logsLine = (logs: { agents: readonly string[]; computers: readonly string[] }): string => `Counts what ${listWords(logs.agents)} logged on ${listWords(logs.computers)}, wsp's threads there included.`;
 pub fn logs_line(logs: &UsedAnswerLogs) -> String {
-    todo!()
+    format!("Counts what {} logged on {}, wsp's threads there included.", list_words(&logs.agents), list_words(&logs.computers))
 }
 
 // usage.ts:276
@@ -406,7 +470,29 @@ pub fn logs_line(logs: &UsedAnswerLogs) -> String {
 //   return `${fmtTokens(tokens)} tokens ${RANGE_WORDS[used.range]}${cost}${cached > 0 ? `, ${fmtTokens(cached)} of it read from cache` : ""}.${unpriced}`;
 // }
 pub fn used_headline(used: &UsedAnswer) -> String {
-    todo!()
+    let sum = |pick: &dyn Fn(&UsedRow) -> f64| used.rows.iter().fold(0.0, |n, row| n + pick(row));
+    let tokens = sum(&|r: &UsedRow| r.tokens.input.0 + r.tokens.output.0);
+    if tokens == 0.0 {
+        return usage_word("noUse").to_string();
+    }
+    let priced = used.rows.iter().any(|r| r.cost_reported.is_some() || r.cost_list.is_some());
+    let listed = used.rows.iter().any(|r| r.cost_list.as_ref().map_or(0.0, |n| n.0) > 0.0);
+    let cost = if priced {
+        let at = if listed { format!(" at {LIST_PRICE_WORD}") } else { String::new() };
+        let total = sum(&|r: &UsedRow| r.cost_reported.as_ref().map_or(0.0, |n| n.0) + r.cost_list.as_ref().map_or(0.0, |n| n.0));
+        format!(", {}{at}", fmt_cost(total))
+    } else {
+        String::new()
+    };
+    let cached = sum(&|r: &UsedRow| r.tokens.cached.0);
+    let cache = if cached > 0.0 { format!(", {} of it read from cache", fmt_tokens(cached)) } else { String::new() };
+    let unpriced = if used.rows.iter().any(|r| !r.priced) { " Some of it has no price to read, so the figure leaves it out." } else { "" };
+    let range = match used.range {
+        UsageRange::Day => "today",
+        UsageRange::Week => "in the last 7 days",
+        UsageRange::Month => "in the last 30 days",
+    };
+    format!("{} tokens {range}{cost}{cache}.{unpriced}", fmt_tokens(tokens))
 }
 
 /// An account as a person reads it: the agent and how it pays, by key or by its plan, else the address it signed in
@@ -435,7 +521,27 @@ pub struct AccountWho {
 }
 
 pub fn account_words(o: &AccountWho) -> String {
-    todo!()
+    if o.keyed == Some(true) {
+        return format!("{} with an API key", o.agent_name);
+    }
+    if let Some(plan) = o.plan.as_deref().filter(|p| !p.is_empty()) {
+        let plan = upper_first(plan);
+        let text = match &o.plan_brand {
+            None => plan,
+            Some(brand) => format!("{brand} {plan}"),
+        };
+        return format!("{} with {text}", o.agent_name);
+    }
+    if let Some(named) = &o.named {
+        return format!("{} as {named}", o.agent_name);
+    }
+    if o.vaulted == Some(true) {
+        return format!("{} with your sign-in", o.agent_name);
+    }
+    match &o.own_on {
+        None => o.agent_name.clone(),
+        Some(on) => format!("{} signed in on {on}", o.agent_name),
+    }
 }
 
 // How long a price table is used before the host reads LiteLLM's file again.
@@ -497,14 +603,47 @@ pub type RateTable = IndexMap<String, Rate>;
 //   return table;
 // }
 pub fn parse_rate_table(document: &serde_json::Value) -> RateTable {
-    todo!()
+    let Some(entries) = document.as_object() else {
+        return RateTable::new();
+    };
+    let price = |v: Option<&serde_json::Value>| v.and_then(serde_json::Value::as_f64).filter(|n| *n >= 0.0);
+    let mut table = RateTable::new();
+    for (model, raw) in entries {
+        let Some(entry) = raw.as_object() else {
+            continue;
+        };
+        if model == "sample_spec" {
+            continue;
+        }
+        let (Some(input), Some(output)) = (price(entry.get("input_cost_per_token")), price(entry.get("output_cost_per_token"))) else {
+            continue;
+        };
+        let provider = entry.get("litellm_provider").and_then(serde_json::Value::as_str).map(str::to_string);
+        let rate = Rate {
+            input,
+            output,
+            cache_read: price(entry.get("cache_read_input_token_cost")),
+            cache_write: price(entry.get("cache_creation_input_token_cost")),
+            provider,
+        };
+        table.insert(model.clone(), rate);
+    }
+    table
 }
 
 /// A model as its maker names it, without the context window Claude Code writes after it, as in [1m].
 // usage.ts:342
 // export const baseModel = (model: string): string => model.replace(/\[[^\]]*\]$/, "");
 pub fn base_model(model: &str) -> String {
-    todo!()
+    if !model.ends_with(']') {
+        return model.to_string();
+    }
+    let end = model.len() - 1;
+    let from = model[..end].rfind(']').map_or(0, |i| i + 1);
+    match model[from..end].find('[') {
+        Some(i) => model[..from + i].to_string(),
+        None => model.to_string(),
+    }
 }
 
 /// A model's entry as a harness names it: as it is, without a provider in front, or without a date or a context
@@ -515,7 +654,16 @@ pub fn base_model(model: &str) -> String {
 //   return table[model] ?? table[bare] ?? table[bare.replace(/-\d{8}$/, "")];
 // }
 pub fn rate_of(model: &str, table: &RateTable) -> Option<Rate> {
-    todo!()
+    let after_provider = match model.rfind('/') {
+        Some(i) => &model[i + 1..],
+        None => model,
+    };
+    let bare = base_model(after_provider);
+    let undated = match bare.len().checked_sub(9) {
+        Some(at) if bare.as_bytes()[at] == b'-' && bare.as_bytes()[at + 1..].iter().all(u8::is_ascii_digit) => bare[..at].to_string(),
+        _ => bare.clone(),
+    };
+    table.get(model).or_else(|| table.get(bare.as_str())).or_else(|| table.get(undated.as_str())).cloned()
 }
 
 /// The list price of a turn's tokens, dollars, or nothing where the table has no entry for its model. input counts
@@ -539,7 +687,16 @@ pub struct PricedTokens {
 }
 
 pub fn price_of(model: &str, tokens: &PricedTokens, table: &RateTable) -> Option<f64> {
-    todo!()
+    let rate = rate_of(model, table)?;
+    let cached = tokens.cached.unwrap_or(0.0);
+    let written = tokens.cache_write.unwrap_or(0.0);
+    let fresh = (tokens.input - cached - written).max(0.0);
+    Some(
+        fresh * rate.input
+            + cached * rate.cache_read.unwrap_or(rate.input)
+            + written * rate.cache_write.unwrap_or(rate.input)
+            + tokens.output * rate.output,
+    )
 }
 
 /// The calendar day an instant falls on in a zone, YYYY-MM-DD; this computer's own zone where none is named.
@@ -550,7 +707,8 @@ pub fn price_of(model: &str, tokens: &PricedTokens, table: &RateTable) -> Option
 //   return `${part("year")}-${part("month")}-${part("day")}`;
 // }
 pub fn day_key_of(at: f64, time_zone: Option<&str>) -> String {
-    todo!()
+    let z = zoned(at, time_zone);
+    format!("{:04}-{:02}-{:02}", z.year(), z.month(), z.day())
 }
 
 /// The hour of the day an instant falls on in a zone, 0 to 23.
@@ -560,7 +718,7 @@ pub fn day_key_of(at: f64, time_zone: Option<&str>) -> String {
 //   return Number(hour) % 24;
 // }
 pub fn hour_of(at: f64, time_zone: Option<&str>) -> f64 {
-    todo!()
+    zoned(at, time_zone).hour() as f64
 }
 
 /// When a window starts again, as a row's quiet word: minutes under an hour, hours under a day, then the weekday. The
@@ -575,7 +733,17 @@ pub fn hour_of(at: f64, time_zone: Option<&str>) -> f64 {
 //   return `resets on ${weekday}`;
 // }
 pub fn resets_word(resets_at: f64, now: f64, time_zone: Option<&str>) -> String {
-    todo!()
+    let left = resets_at - now;
+    if left <= 0.0 {
+        return "reset".to_string();
+    }
+    if left < 3_600_000.0 {
+        return format!("resets in {} min", number_string(js_round(left / 60_000.0).max(1.0)));
+    }
+    if left < 86_400_000.0 {
+        return format!("resets in {} h", number_string((left / 3_600_000.0).floor()));
+    }
+    format!("resets on {}", weekday_short(zoned(resets_at, time_zone).weekday()))
 }
 
 // How long until a moment, as a row's quiet word: minutes under an hour, hours under a day, then days.
@@ -593,7 +761,26 @@ pub fn resets_word(resets_at: f64, now: f64, time_zone: Option<&str>) -> String 
 // }
 /// `count` and `next_expires_at` are the TS `credits` object's fields.
 pub fn credits_word(count: f64, next_expires_at: Option<f64>, now: f64) -> String {
-    todo!()
+    if count == 0.0 {
+        return "none banked".to_string();
+    }
+    let banked = format!("{} banked", number_string(count));
+    let span = |left: f64| {
+        if left < 3_600_000.0 {
+            format!("{} min", number_string(js_round(left / 60_000.0).max(1.0)))
+        } else if left < 86_400_000.0 {
+            format!("{} h", number_string((left / 3_600_000.0).floor()))
+        } else {
+            format!("{} d", number_string((left / 86_400_000.0).floor()))
+        }
+    };
+    match next_expires_at {
+        Some(next) if next > now => {
+            let which = if count == 1.0 { "expires" } else { "first expires" };
+            format!("{banked}, {which} in {}", span(next - now))
+        }
+        _ => banked,
+    }
 }
 
 /// A moment as a clock reads it: the time on `now`'s day, else the weekday and time.
@@ -605,7 +792,12 @@ pub fn credits_word(count: f64, next_expires_at: Option<f64>, now: f64) -> Strin
 //   return `${new Intl.DateTimeFormat("en-US", { weekday: "short", ...zone }).format(at)} ${time}`;
 // }
 pub fn clock_word(at: f64, now: f64, time_zone: Option<&str>) -> String {
-    todo!()
+    let z = zoned(at, time_zone);
+    let time = format!("{:02}:{:02}", z.hour(), z.minute());
+    if day_key_of(at, time_zone) == day_key_of(now, time_zone) {
+        return time;
+    }
+    format!("{} {time}", weekday_short(z.weekday()))
 }
 
 /// When a limit was last read, as the row's quiet word: the time today, else the weekday and time.
@@ -614,7 +806,7 @@ pub fn clock_word(at: f64, now: f64, time_zone: Option<&str>) -> String {
 //   return `as of ${clockWord(readAt, now, timeZone)}`;
 // }
 pub fn as_of_word(read_at: f64, now: f64, time_zone: Option<&str>) -> String {
-    todo!()
+    format!("as of {}", clock_word(read_at, now, time_zone))
 }
 
 /// A used row's price as a row reads it: the figure, with not priced where any of its tokens had no price, since
@@ -636,7 +828,19 @@ pub struct UsedPrice {
 }
 
 pub fn used_price(row: &UsedRow) -> UsedPrice {
-    todo!()
+    let word = if !row.priced {
+        Some(usage_word("notPriced"))
+    } else if row.cost_list.as_ref().is_some_and(|n| n.0 > 0.0) {
+        Some(usage_word("listPrice"))
+    } else {
+        None
+    };
+    let figure = if row.cost_reported.is_none() && row.cost_list.is_none() {
+        None
+    } else {
+        Some(fmt_cost(row.cost_reported.as_ref().map_or(0.0, |n| n.0) + row.cost_list.as_ref().map_or(0.0, |n| n.0)))
+    };
+    UsedPrice { figure, word: word.map(str::to_string) }
 }
 
 /// A window as a row's cell: how much of it is used and when it starts again.
@@ -646,7 +850,11 @@ pub fn used_price(row: &UsedRow) -> UsedPrice {
 //   return w.resetsAt === undefined ? used : `${used} ${resetsWord(w.resetsAt, now, timeZone)}`;
 // }
 pub fn window_cell(w: &LimitWindow, now: f64, time_zone: Option<&str>) -> String {
-    todo!()
+    let used = format!("{}%", number_string(js_round(w.used_percent.0)));
+    match w.resets_at.as_ref() {
+        None => used,
+        Some(at) => format!("{used} {}", resets_word(at.0, now, time_zone)),
+    }
 }
 
 /// An account row's state cell: limit reached where the agent said so, else the note that says why it has no windows.
@@ -655,7 +863,15 @@ pub fn window_cell(w: &LimitWindow, now: f64, time_zone: Option<&str>) -> String
 //   return row.status === "reached" ? USAGE_WORDS.reached : (row.note ?? "");
 // }
 pub fn account_state(row: &AccountRow) -> String {
-    todo!()
+    if row.status == Some(LimitStatus::Reached) {
+        return usage_word("reached").to_string();
+    }
+    match row.note {
+        None => String::new(),
+        Some(AccountNote::ReportsNoPlanLimit) => usage_word("noLimit").to_string(),
+        Some(AccountNote::PaysPerTokenNoPlanLimit) => usage_word("keyed").to_string(),
+        Some(AccountNote::NotReadYetShowsAfterItsNextTurn) => usage_word("unread").to_string(),
+    }
 }
 
 // A turn an agent's usage limit stopped: the agent said it may not run more now, and when its plan starts again
@@ -695,16 +911,16 @@ pub mod limit_words {
     pub const CANCEL: &str = "Cancel";
     pub const RESUMED: &str = "resumed at the reset";
     pub fn stopped(agent: &str) -> String {
-        todo!()
+        format!("{agent} stopped this turn until its plan resets.")
     }
     pub fn stopped_unknown(agent: &str) -> String {
-        todo!()
+        format!("{agent} stopped this turn and did not say when its plan resets.")
     }
     pub fn armed(agent: &str) -> String {
-        todo!()
+        format!("{agent} goes on with this turn when its plan resets.")
     }
     pub fn resumes_at(agent: &str, clock: &str) -> String {
-        todo!()
+        format!("{agent} resumes at {clock}")
     }
 }
 
@@ -719,6 +935,15 @@ pub mod limit_words {
 //   return held.length === 0 ? undefined : Math.max(...held);
 // }
 pub fn held_until(windows: &[LimitWindow], now: f64) -> Option<f64> {
-    todo!()
+    let held: Vec<f64> = windows
+        .iter()
+        .filter(|w| w.used_percent.0 >= 100.0)
+        .filter_map(|w| w.resets_at.as_ref().map(|r| r.0))
+        .filter(|r| *r > now)
+        .collect();
+    if held.is_empty() {
+        None
+    } else {
+        Some(held.iter().copied().fold(f64::NEG_INFINITY, f64::max))
+    }
 }
-

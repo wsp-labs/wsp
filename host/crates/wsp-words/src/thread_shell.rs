@@ -2,10 +2,14 @@
 //! The startup files that put a thread's own folder first on PATH in every shell a turn starts. Port of
 //! packages/protocol/src/thread-shell.ts at a3b870a6e. See spec/shell_and_text.md.
 
+use indexmap::IndexMap;
+use wsp_wire::types::shell_quote::shell_quote;
+
 // The files zsh starts from where ZDOTDIR names that folder, in the order a login shell reads them.
 // thread-shell.ts:5
 // private in the TS: port it as a private helper
 // const ZSH_FILES = [".zshenv", ".zprofile", ".zshrc", ".zlogin"] as const;
+const ZSH_FILES: [&str; 4] = [".zshenv", ".zprofile", ".zshrc", ".zlogin"];
 
 /// What bash reads where BASH_ENV names it: after the profile on bash -lc, and alone on bash -c.
 // thread-shell.ts:7
@@ -22,7 +26,7 @@ pub struct ShellVars {
 }
 
 pub fn thread_shell_vars(dir: &str) -> ShellVars {
-    todo!()
+    ShellVars { zdotdir: dir.to_string(), bash_env: format!("{dir}/{BASH_ENV_FILE}") }
 }
 
 /// The startup files, by name, that put `dir` back first on PATH. A login shell re-reads the person's profile and
@@ -48,7 +52,37 @@ pub fn thread_shell_vars(dir: &str) -> ShellVars {
 // }
 /// `env` is the environment the turn starts from, read for ZDOTDIR and BASH_ENV; a missing key and an absent value
 /// read alike. Answers (file name, body) pairs: the four zsh files in order, then `.bash_env`.
-pub fn thread_shell_files(dir: &str, env: &indexmap::IndexMap<String, String>) -> Vec<(String, String)> {
-    todo!()
+pub fn thread_shell_files(dir: &str, env: &IndexMap<String, String>) -> Vec<(String, String)> {
+    let first = shell_quote(&format!(":{dir}:"));
+    let quoted_dir = shell_quote(dir);
+    let own = match env.get("ZDOTDIR").filter(|z| !z.is_empty()) {
+        Some(z) => shell_quote(z),
+        None => "$HOME".to_string(),
+    };
+    let mut files: Vec<(String, String)> = ZSH_FILES
+        .iter()
+        .map(|name| {
+            let body = [
+                format!("ZDOTDIR=${{_wsp_zdotdir:-{own}}}"),
+                format!("[[ $ZDOTDIR -ef {quoted_dir} ]] && ZDOTDIR=$HOME"),
+                "_wsp_zdotdir=".to_string(),
+                format!("[[ -r \"$ZDOTDIR/{name}\" ]] && source \"$ZDOTDIR/{name}\""),
+                "_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}".to_string(),
+                format!("ZDOTDIR={quoted_dir}"),
+                format!("[[ :$PATH: == {first}* ]] || PATH={quoted_dir}:$PATH"),
+                String::new(),
+            ]
+            .join("\n");
+            (name.to_string(), body)
+        })
+        .collect();
+    let mut bash = Vec::new();
+    if let Some(bash_env) = env.get("BASH_ENV").filter(|v| !v.is_empty()) {
+        let (quoted, own_file) = (shell_quote(bash_env), shell_quote(&format!("{dir}/{BASH_ENV_FILE}")));
+        bash.push(format!("[ -r {quoted} ] && ! [ {quoted} -ef {own_file} ] && . {quoted}"));
+    }
+    bash.push(format!("case :$PATH: in {first}*) ;; *) PATH={quoted_dir}:$PATH ;; esac"));
+    bash.push(String::new());
+    files.push((BASH_ENV_FILE.to_string(), bash.join("\n")));
+    files
 }
-

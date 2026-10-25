@@ -27,7 +27,10 @@ mod the_fix_half_of_a_row_that_did_not_land {
             assert!(sentence.is_match(&fix), "{step}: {fix}");
             assert!(!banned.is_match(&fix), "{step}: {fix}");
         }
-        assert_eq!(setup_row_fix(&row(Some("folders"), NEEDS_GITHUB_LINE), "studio").as_deref(), Some("Sign GitHub in on studio, then retry."));
+        assert_eq!(
+            setup_row_fix(&row(Some("folders"), NEEDS_GITHUB_LINE), "studio").as_deref(),
+            Some("Sign GitHub in on studio, then retry.")
+        );
         let agents = setup_row_fix(&row(Some("agents"), "exit 1"), "studio").unwrap();
         assert!(agents.contains("studio"), "{agents}");
     }
