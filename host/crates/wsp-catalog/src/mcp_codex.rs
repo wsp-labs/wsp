@@ -6,9 +6,9 @@ use std::sync::OnceLock;
 use indexmap::IndexMap;
 use regex::Regex;
 
-use crate::smol_toml::parse_toml;
 use crate::mcp::{McpResolved, McpServer, McpTransport};
 use crate::mcp_toml::toml_string;
+use crate::smol_toml::parse_toml;
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
 

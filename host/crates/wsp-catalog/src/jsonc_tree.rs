@@ -194,6 +194,7 @@ impl Parser<'_> {
         let offset = self.pos;
         self.pos += 1;
         let mut children = Vec::new();
+        self.lone_comma(b'}')?;
         loop {
             self.skip_trivia();
             if self.peek()? == b'}' {
@@ -218,6 +219,7 @@ impl Parser<'_> {
         let offset = self.pos;
         self.pos += 1;
         let mut children = Vec::new();
+        self.lone_comma(b']')?;
         loop {
             self.skip_trivia();
             if self.peek()? == b']' {
@@ -236,6 +238,21 @@ impl Parser<'_> {
             }
         }
         Some(container(NodeType::Array, offset, self.pos - offset, children))
+    }
+
+    /// jsonc-parser recovers a container holding a comma and nothing else (`{,}`, which `read_jsonc` takes as `{}`): the
+    /// comma is passed over and the container is empty.
+    fn lone_comma(&mut self, close: u8) -> Option<()> {
+        self.skip_trivia();
+        if self.peek()? == b',' {
+            let after = self.pos + 1;
+            self.pos = after;
+            self.skip_trivia();
+            if self.peek()? != close {
+                self.pos = after - 1;
+            }
+        }
+        Some(())
     }
 
     fn property(&mut self) -> Option<Node> {

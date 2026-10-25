@@ -21,7 +21,13 @@ fn every_text_reads_or_fails_as_node_reads_it() {
             (got, ..) => wrong.push(format!("{text:?}\n   got {:?}\n  want {case}", got.map(|v| js_stringify(&v)).map_err(|e| e.message))),
         }
     }
-    assert!(wrong.is_empty(), "{} of {} differ, the first ten:\n{}", wrong.len(), cases.len(), wrong.iter().take(10).cloned().collect::<Vec<_>>().join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} of {} differ, the first ten:\n{}",
+        wrong.len(),
+        cases.len(),
+        wrong.iter().take(10).cloned().collect::<Vec<_>>().join("\n")
+    );
 }
 
 #[test]
