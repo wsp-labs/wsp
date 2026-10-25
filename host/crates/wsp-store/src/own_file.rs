@@ -19,7 +19,15 @@ pub const OWN_FILE_MODE: u32 = 0o600;
 /// A folder of the owner's: made with its parents when missing, and chmodded to 0700 when it stands at anything else
 /// (index.ts:18). Only `dir` itself is repaired; a parent this call made keeps the mode mkdir gave it.
 pub fn own_folder(dir: &Path) -> io::Result<()> {
-    DirBuilder::new().recursive(true).mode(OWN_DIR_MODE).create(dir)?;
+    if let Err(made) = DirBuilder::new().recursive(true).mode(OWN_DIR_MODE).create(dir) {
+        if made.kind() != io::ErrorKind::AlreadyExists {
+            return Err(made);
+        }
+        // node stats a name that exists before it refuses it, so a dangling link fails with that stat's error
+        if !fs::metadata(dir)?.is_dir() {
+            return Err(made);
+        }
+    }
     if fs::metadata(dir)?.permissions().mode() & 0o777 != OWN_DIR_MODE {
         fs::set_permissions(dir, Permissions::from_mode(OWN_DIR_MODE))?;
     }
@@ -54,10 +62,18 @@ pub fn write_own(root: &Path, rel: &str, bytes: impl AsRef<[u8]>) -> io::Result<
 /// under `base` where `Path::join` would replace `base`.
 fn join(base: &Path, rel: &[u8]) -> PathBuf {
     let mut text = base.as_os_str().as_bytes().to_vec();
-    text.push(b'/');
-    text.extend_from_slice(rel);
+    if !rel.is_empty() {
+        text.push(b'/');
+        text.extend_from_slice(rel);
+    }
     let (absolute, parts) = normalize(&text);
-    to_path(absolute, &parts)
+    let path = to_path(absolute, &parts);
+    if text.ends_with(b"/") && !parts.is_empty() {
+        let mut kept = path.into_os_string();
+        kept.push("/");
+        return PathBuf::from(kept);
+    }
+    path
 }
 
 /// node's `path.normalize` on posix: empty and `.` parts drop, `..` takes back the part before it, and an absolute
@@ -82,6 +98,9 @@ fn to_path(absolute: bool, parts: &[&[u8]]) -> PathBuf {
     let mut path = if absolute { PathBuf::from("/") } else { PathBuf::new() };
     for part in parts {
         path.push(OsStr::from_bytes(part));
+    }
+    if path.as_os_str().is_empty() {
+        path.push(".");
     }
     path
 }

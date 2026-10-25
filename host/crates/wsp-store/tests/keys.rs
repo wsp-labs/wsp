@@ -115,6 +115,12 @@ mod base64_as_node_reads_it {
         assert_eq!(node_base64("QU\nJD"), b"ABC");
         assert_eq!(node_base64("Q!U*JD"), b"ABC");
     }
+
+    #[test]
+    fn reads_a_character_past_latin_1_by_its_low_byte() {
+        assert_eq!(node_base64("QUJ\u{144}"), b"ABC");
+        assert_eq!(node_base64("QU\u{1F600}JD"), b"A");
+    }
 }
 
 mod signing {
@@ -166,6 +172,22 @@ mod signing {
         let sig = sign_place_bytes(&pair.private_key_pem, b"hello").unwrap();
         assert!(verify_place_bytes(&pair.public_key, b"hello", &sig));
         assert!(!verify_place_bytes(&new_place_key_pair().public_key, b"hello", &sig));
+    }
+
+    #[test]
+    fn a_pair_printed_for_debugging_shows_no_private_key() {
+        let pair = new_place_key_pair();
+        let body = pair.private_key_pem.lines().nth(1).unwrap();
+        assert!(!format!("{pair:?}").contains(body), "{pair:?}");
+    }
+
+    #[test]
+    fn signs_with_a_pem_node_reads_with_text_after_it_or_lines_wrapped_short() {
+        let v = signing_vectors();
+        let want = sign_place_bytes(&v.private_key_pem, b"x").unwrap();
+        assert_eq!(sign_place_bytes(&format!("{}trailing\n", v.private_key_pem), b"x").unwrap(), want);
+        let (head, body) = v.private_key_pem.split_at("-----BEGIN PRIVATE KEY-----\n".len() + 20);
+        assert_eq!(sign_place_bytes(&format!("{head}\n{body}"), b"x").unwrap(), want);
     }
 
     #[test]
@@ -221,6 +243,14 @@ mod agreement {
     fn a_low_order_peer_whose_agreement_is_all_zero_is_an_error() {
         let (a, _) = fresh_ephemeral();
         assert!(shared_secret(&a, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").is_err());
+    }
+
+    #[test]
+    fn seal_keys_printed_for_debugging_show_neither_key() {
+        let keys = seal_keys(&[1u8; 32], "p_x");
+        let printed = format!("{keys:?}");
+        assert!(!printed.contains(&format!("{:?}", keys.host_to_place)), "{printed}");
+        assert!(!printed.contains(&format!("{:?}", keys.place_to_host)), "{printed}");
     }
 
     #[test]
@@ -314,5 +344,43 @@ mod frames {
         assert_eq!(open_frame(Some(&mut place), Frame::Binary(&one)), Err(SealRefusal));
         let two = host.seal("two");
         assert_eq!(open_frame(Some(&mut place), Frame::Binary(&two)).unwrap(), "two");
+    }
+}
+
+mod citations {
+    use super::*;
+
+    /// Every `(index.ts:N)` the port cites names the TS line that defines the item it documents.
+    #[test]
+    fn each_cited_line_of_the_ts_defines_the_item_cited() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let ts = fs::read_to_string(root.join("../../../packages/keys/src/index.ts")).unwrap();
+        let ts: Vec<&str> = ts.lines().collect();
+        let rs = fs::read_to_string(root.join("src/keys.rs")).unwrap();
+        let rs: Vec<&str> = rs.lines().collect();
+        let mut wrong = Vec::new();
+        for (i, line) in rs.iter().enumerate() {
+            let Some(at) = line.find("index.ts:") else { continue };
+            let n: usize = line[at + 9..].chars().take_while(char::is_ascii_digit).collect::<String>().parse().unwrap();
+            let item = rs[i..].iter().find_map(|l| {
+                let l = l.trim_start().strip_prefix("pub ")?;
+                let l = ["fn ", "const ", "struct ", "enum "].iter().find_map(|k| l.strip_prefix(k))?;
+                Some(l.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect::<String>())
+            });
+            let Some(item) = item else { continue };
+            let camel = if let Some(ts_name) = [("EphemeralKey", "freshEphemeral"), ("SealRefusal", "SEAL_REFUSAL")].iter().find(|(r, _)| *r == item) {
+                ts_name.1.to_string()
+            } else if item.chars().all(|c| c.is_uppercase() || c == '_') {
+                item.clone()
+            } else {
+                let mut parts = item.split('_');
+                let first = parts.next().unwrap().to_string();
+                parts.fold(first, |acc, p| acc + &p[..1].to_uppercase() + &p[1..])
+            };
+            if !ts.get(n - 1).is_some_and(|l| l.contains(&camel)) {
+                wrong.push(format!("keys.rs:{} cites index.ts:{n} for {item}", i + 1));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 }
