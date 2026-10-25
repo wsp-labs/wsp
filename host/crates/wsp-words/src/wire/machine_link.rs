@@ -27,7 +27,18 @@ pub struct PlaceHeld {
 }
 
 pub fn place_forget_line(name: &str, held: &PlaceHeld, ssh: Option<&str>) -> String {
-    todo!()
+    let goes: Vec<String> = [held_part(&held.forks, "fork"), held_part(&held.projects, "project")]
+        .into_iter()
+        .flatten()
+        .map(|part| format!("its {part}"))
+        .collect();
+    let with = if goes.is_empty() { String::new() } else { format!(" with {}", goes.join(" and ")) };
+    let leaves = format!("{name} leaves this wsp{with}");
+    let tried = match ssh {
+        None => format!("{leaves}, and nothing is done on {name}"),
+        Some(ssh) => format!("wsp tries to take itself off {name} over {ssh} first. Then {leaves}, and nothing more is done on {name}"),
+    };
+    format!("{tried}: whatever of wsp's stays there comes off with wsp leave run on that computer.")
 }
 
 /// What goes with a computer, the one sentence its remove asks with and answers with: its forks deleted, its projects
@@ -40,7 +51,13 @@ pub fn place_forget_line(name: &str, held: &PlaceHeld, ssh: Option<&str>) -> Str
 //   return [forks === undefined ? undefined : `its ${forks} deleted`, projects === undefined ? undefined : `its ${projects} out of this wsp`].filter(p => p !== undefined).join(", and ");
 // }
 pub fn place_holds_line(held: &PlaceHeld) -> Option<String> {
-    todo!()
+    let forks = held_part(&held.forks, "fork").map(|part| format!("its {part} deleted"));
+    let projects = held_part(&held.projects, "project").map(|part| format!("its {part} out of this wsp"));
+    if forks.is_none() && projects.is_none() {
+        return None;
+    }
+    let parts: Vec<String> = [forks, projects].into_iter().flatten().collect();
+    Some(parts.join(", and "))
 }
 
 /// What a verb aimed at the bare computer a place is, rather than at a workspace forked on it, is refused with. A
@@ -49,13 +66,13 @@ pub fn place_holds_line(held: &PlaceHeld) -> Option<String> {
 // machine-link.ts:371
 // export const placeNotAWorkspaceLine = (place: string): string => `${place} is a computer you joined, not a workspace; its forks are the workspaces`;
 pub fn place_not_a_workspace_line(place: &str) -> String {
-    todo!()
+    format!("{place} is a computer you joined, not a workspace; its forks are the workspaces")
 }
 
 // machine-link.ts:372
 // export const placeNotAWorkspaceFix = (place: string): string => `Name a machine on it: wsp threads lists what runs on ${place}.`;
 pub fn place_not_a_workspace_fix(place: &str) -> String {
-    todo!()
+    format!("Name a machine on it: wsp threads lists what runs on {place}.")
 }
 
 /// What a person asking for a second workspace on the computer the app itself runs on is told. Its local mode is
@@ -63,5 +80,17 @@ pub fn place_not_a_workspace_fix(place: &str) -> String {
 // machine-link.ts:401
 // export const localRunsOneLine = (workspace: string): string => `${THIS_COMPUTER} is already a workspace, ${workspace}, the only one it can be`;
 pub fn local_runs_one_line(workspace: &str) -> String {
-    todo!()
+    format!("{} is already a workspace, {workspace}, the only one it can be", crate::words::computer::THIS_COMPUTER)
+}
+
+// heldPart (machine-link.ts:337): the noun for one row or "<n> <noun>s", the names, then the threads where any.
+fn held_part(rows: &[HeldRow], noun: &str) -> Option<String> {
+    if rows.is_empty() {
+        return None;
+    }
+    let threads: f64 = rows.iter().map(|row| row.threads).sum();
+    let head = if rows.len() == 1 { noun.to_string() } else { format!("{} {noun}s", rows.len()) };
+    let names = rows.iter().map(|row| row.name.as_str()).collect::<Vec<_>>().join(", ");
+    let named = format!("{head} {names}");
+    Some(if threads == 0.0 { named } else { format!("{named} with {}", crate::words::base::plural(threads, "thread")) })
 }
