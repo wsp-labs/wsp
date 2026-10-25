@@ -7,20 +7,20 @@ Source: `packages/runtime/src/slates.ts` (1,566), `slate-runs.ts` (987), `lazy-s
 
 ## Units
 
-| Unit | TS | Rust | Spec | Tests |
+| Unit | TS | Rust | Spec | Tests, count |
 |---|---|---|---|---|
-| helpers | slate-read.ts, slate-message.ts, slate-writes.ts, slate-refused.ts | `src/slate_{read,message,writes,refused}.rs` | `helpers.md` | `tests/helpers.rs` |
-| lazy_slates | lazy-slates.ts | `src/lazy_slates.rs` | `lazy_slates.md` | `tests/lazy_slates.rs` |
-| runs_parts | slate-runs.ts:17-242, 363-482, 985-987 | `src/slate_runs/parts.rs` | `runs_parts.md` | `tests/runs_parts.rs` |
-| runs_secrets | slate-runs.ts:499-611 | `src/slate_runs/secrets.rs` | `runs_secrets.md` | `tests/runs_secrets.rs` |
-| runs_road | slate-runs.ts:244-361, 491-497 | `src/slate_runs/road.rs` | `runs_road.md` | `tests/runs_road.rs` |
-| runs_table | slate-runs.ts:613-983 | `src/slate_runs/table.rs` | `runs_table.md` | `tests/runs_table.rs` |
-| slates_model | slates.ts:81-292, 686-758 | `src/slates/model.rs` | `slates_model.md` | `tests/slates_model.rs` |
-| slates_access | slates.ts:294-555, 1095-1116, 1281-1288, 1450-1480, 1495-1563 | `src/slates/access.rs` | `slates_access.md` | `tests/slates_access.rs` |
-| slates_reads | slates.ts:556-685, 1233-1279, 1482-1488 | `src/slates/reads.rs` | `slates_reads.md` | `tests/slates_reads.rs` |
-| slates_batch | slates.ts:760-1015 | `src/slates/batch.rs` | `slates_batch.md` | `tests/slates_batch.rs` |
-| slates_writes | slates.ts:1017-1231 | `src/slates/writes.rs` | `slates_writes.md` | `tests/slates_writes.rs` |
-| slates_acts | slates.ts:1290-1493 | `src/slates/acts.rs` | `slates_acts.md` | `tests/slates_acts.rs` |
+| helpers | slate-read.ts, slate-message.ts, slate-writes.ts, slate-refused.ts | `src/slate_{read,message,writes,refused}.rs` | `helpers.md` | `tests/helpers.rs`, 52 |
+| lazy_slates | lazy-slates.ts | `src/lazy_slates.rs` | `lazy_slates.md` | `tests/lazy_slates.rs`, 20 |
+| runs_parts | slate-runs.ts:17-242, 363-482, 985-987 | `src/slate_runs/parts.rs` | `runs_parts.md` | `tests/runs_parts.rs`, 48 |
+| runs_secrets | slate-runs.ts:499-611 | `src/slate_runs/secrets.rs` | `runs_secrets.md` | `tests/runs_secrets.rs`, 41 |
+| runs_road | slate-runs.ts:244-361, 491-497 | `src/slate_runs/road.rs` | `runs_road.md` | `tests/runs_road.rs`, 18 |
+| runs_table | slate-runs.ts:613-983 | `src/slate_runs/table.rs` | `runs_table.md` | `tests/runs_table.rs`, 46 |
+| slates_model | slates.ts:81-292, 686-758 | `src/slates/model.rs` | `slates_model.md` | `tests/slates_model.rs`, 28 |
+| slates_access | slates.ts:294-555, 1095-1116, 1281-1288, 1450-1480, 1495-1563 | `src/slates/access.rs` | `slates_access.md` | `tests/slates_access.rs`, 21 |
+| slates_reads | slates.ts:556-685, 1233-1279, 1482-1488 | `src/slates/reads.rs` | `slates_reads.md` | `tests/slates_reads.rs`, 24 |
+| slates_batch | slates.ts:760-1015 | `src/slates/batch.rs` | `slates_batch.md` | `tests/slates_batch.rs`, 13 |
+| slates_writes | slates.ts:1017-1231 | `src/slates/writes.rs` | `slates_writes.md` | `tests/slates_writes.rs`, 27 |
+| slates_acts | slates.ts:1290-1493 | `src/slates/acts.rs` | `slates_acts.md` | `tests/slates_acts.rs`, 24 |
 
 `createSlates` is one closure over shared state in the TS. In Rust it is one `SlatesArea` (`src/slates.rs`) holding
 `Rc<SlatesInner>`, whose fields are the closure's `let`s, each in a `RefCell` or `Cell`; each unit is an
@@ -98,3 +98,7 @@ answering `started`, `under`, `thread_of_token`, an empty source context, `run_e
 rewind through the runtime: the area sees the same calls the runtime makes. Cases that test the runtime and not the
 slate (a start into a missing folder, the model a press's turn starts on) stay with `wsp-threads` and are listed in
 `slates_writes.md`.
+
+## Red proof
+
+`cargo test --no-fail-fast` at the interface commit: 362 tests, 0 passed, 362 failed, every one on `not yet implemented` in this crate's `src/` (119 stop first at `create_slates`). The slate area's tests then need `wsp-slate`'s parser, batch and sketch (`pending::slate`), so they stay red until that crate is ported, whatever this crate does.

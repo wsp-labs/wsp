@@ -84,7 +84,8 @@ goes to `deps.on_record` at once. It starts nothing by itself but through a time
 - A held start beside a running confirm run: the record stays running with its runs; `deny` drops the new start and
   the first one ends `done` with `runs: 1` (slates.test.ts `a second press on a confirmed run`).
 - The asleep tick keeps the last out and exit on its held record and lists no ask.
-- `every` past 2,147,483 s fires every 1 ms, as node clamps (rule 8.18); it never panics.
+- `every` past 2,147,483 s fires every 1 ms, as node clamps (rule 8.18); it never panics. The table asks the clock
+  for `max(every, 10) * 1000` ms as it is (saturating, never wrapping) and the clock clamps, as node's timers do.
 - An `always` timer failing every 10 s: five starts by 40 s, none more until 300 s after the fifth, the sixth then;
   once one succeeds every tick starts again (test `an always timer that fails five ...`).
 - Shown-only timers: none fire until shown; shown fires at once and each 10 s floor after; hidden again stops them;
@@ -107,3 +108,55 @@ goes to `deps.on_record` at once. It starts nothing by itself but through a time
 - `stop_all` never runs the queue; a restart while four run holds itself busy until another ends (pilot).
 - A timer's `every` past node's limit fires every millisecond (8.18).
 - `drop(keep)` leaves running processes untracked: their ends still call `on_record`.
+
+## Tests
+
+45 tests name this unit. Rule or TS case, then the test.
+
+| Pins | Test |
+|---|---|
+| runs_table Behaviour 6: slate-runs.test.ts:83 | `runs_table::values_reach_a_command_as_data::an_env_value_with_shell_metacharacters_is_one_word_and_runs_nothing` |
+| runs_table Behaviour 6: slate-runs.test.ts:92 | `runs_table::values_reach_a_command_as_data::a_positional_parameter_and_stdin_carry_it_the_same_way` |
+| runs_table Behaviour 6: slate-runs.test.ts:103 | `runs_table::values_reach_a_command_as_data::null_is_unset_a_list_is_json_and_the_run_sees_the_login_environment_with_no_wsp` |
+| runs_table Behaviour 6: slate-runs.test.ts:115 | `runs_table::values_reach_a_command_as_data::a_cwd_is_read_against_the_thread_s_folder_and_a_missing_one_fails_with_why` |
+| runs_table Behaviour 6: an absolute cwd wins and `..` folds, as path.resolve does (pilot finding) | `runs_table::values_reach_a_command_as_data::an_absolute_cwd_wins_and_dot_dot_folds` |
+| runs_table Behaviour 6: an env name that is not one fails before anything starts (slate-runs.ts:751) | `runs_table::values_reach_a_command_as_data::an_env_name_that_is_not_a_name_fails_the_run` |
+| runs_table Behaviour 6-8, runs_secrets 7: slate-runs.test.ts:127 | `runs_table::values_reach_a_command_as_data::secrets::reach_a_run_through_env_and_stdin_and_are_scrubbed_from_out_err_lines_and_the_record` |
+| runs_table Behaviour 6: slate-runs.test.ts:162 | `runs_table::values_reach_a_command_as_data::secrets::are_refused_as_a_positional_parameter_which_ps_can_read` |
+| runs_table Behaviour 16: slate-runs.test.ts:170 | `runs_table::values_reach_a_command_as_data::secrets::the_sheet_shows_dots_never_the_value` |
+| runs_table Behaviour 3, 11: slate-runs.test.ts:205 | `runs_table::values_reach_a_command_as_data::secrets::consent::holds_until_approved_once_is_not_remembered_always_is_and_an_edited_command_is_held` |
+| runs_table Behaviour 3, 11: slate-runs.test.ts:235 | `runs_table::values_reach_a_command_as_data::secrets::consent::a_confirm_asks_every_time_don_t_ends_it_cancelled_and_a_revoke_asks_again` |
+| runs_table Behaviour 3e, 15: slate-runs.test.ts:253 | `runs_table::values_reach_a_command_as_data::secrets::consent::reactions_and_timers_start_a_run_at_most_12_times_a_minute_a_press_is_not_counted` |
+| runs_table Behaviour 3e, 15: slate-runs.test.ts:270 | `runs_table::values_reach_a_command_as_data::secrets::consent::the_person_s_starts_have_a_budget_of_their_own_12_a_minute_which_no_press_or` |
+| runs_table Edge case: the budget is spent before the approval check (slate-runs.ts:898-902) | `runs_table::values_reach_a_command_as_data::secrets::consent::a_start_held_for_approval_still_spends_the_budget` |
+| runs_table Behaviour 3b: a stored host run of a thread now away fails before anything asks (slate-runs.ts:891-892) | `runs_table::values_reach_a_command_as_data::secrets::consent::a_host_run_the_host_refuses_fails_before_it_asks` |
+| runs_table Behaviour 10, 12: slate-runs.test.ts:305 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::a_cancel_kills_the_whole_process_group_and_writes_cancelled` |
+| runs_table Behaviour 3c, 6: slate-runs.test.ts:326 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::a_start_while_it_runs_restarts_it_with_once_it_is_a_no_op` |
+| runs_table Behaviour 8: slate-runs.test.ts:339 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::a_timeout_ends_the_run_failed_with_exit_124_and_takes_its_group` |
+| runs_table Behaviour 8: slate-runs.test.ts:348 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::a_non_zero_exit_fails_with_its_code_and_a_json_out_is_parsed` |
+| runs_table Behaviour 8: slate-runs.test.ts:354 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::keeps_the_64_kb_tail_at_a_line_start_and_cuts_past_2_mb` |
+| runs_table Behaviour 13: slate-runs.test.ts:366 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::a_fifth_run_waits_for_one_of_four_to_end` |
+| runs_table Behaviour 12: slate-runs.test.ts:377 (the stop_all half; the records half is runs_parts') | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::stop_all_quiet_drops_completions_and_writes_nothing` |
+| runs_table Behaviour 12: stop_all with a why writes it on each running and held run, and not on a done one | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::stop_all_with_a_why_writes_it_on_running_and_held_runs_only` |
+| runs_table Behaviour 8: slate-runs.test.ts:395 (the run half; the key lines are runs_parts') | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::reshapes_the_output_into_json_keeps_out_raw_and_shows_on_the_sheet` |
+| runs_table Behaviour 8: slate-runs.test.ts:407 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_failing_reshape_fails_the_run_with_its_stderr_and_one_that_prints_no_json_says_so` |
+| runs_table Behaviour 8: slate-runs.test.ts:414 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::reads_the_output_scrubbed_and_never_sees_a_secret` |
+| runs_table Behaviour 3a: slate-runs.test.ts:422 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::a_tick_while_it_naps_is_held_saying_so_its_last_result_kept_and_nothing_launched` |
+| runs_table Behaviour 3a: a tick on a napping box while it runs is a no-op | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::a_tick_while_it_naps_and_runs_is_a_no_op` |
+| runs_table Behaviour 14: slate-runs.test.ts:437 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::an_always_timer_that_fails_five_starts_in_a_row_starts_once_every_five_minutes` |
+| runs_table Behaviour 14: slate-runs.test.ts:474 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::tick_only_while_shown_by_default_always_with_always_never_under_10_s` |
+| runs_table Behaviour 14: an unchanged timer keeps its period; a changed one fires at once | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::an_unchanged_timer_keeps_its_period_and_a_changed_one_fires_at_once` |
+| runs_table Edge case, rule 8.18, pilot finding: a huge every never panics; the clock is asked the delay as is | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_huge_every_never_panics_and_asks_the_clock_for_its_whole_delay` |
+| runs_table Behaviour 14: only a run with a timer counts a streak (slate-runs.ts:694-696) | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::failures_of_a_run_with_no_timer_never_back_off` |
+| runs_table Behaviour 9: slate-runs.test.ts:497 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::is_named_as_the_thread_s_slate_run_while_it_runs_the_pid_its_own_and_released` |
+| runs_table Behaviour 6, 8: slate-runs.test.ts:511 | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::on_the_thread_s_own_machine_carries_the_thread_s_mark_for_the_command_and_its_then` |
+| runs_table Behaviour 6: SLATE_DIR comes from dir, and its failure fails the run with why (slate-runs.ts:645-650, 747-749) | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::slate_dir_is_the_slate_s_folder_and_files_not_written_fail_the_run` |
+| runs_table Behaviour 2, pilot BLOCKER: a hold never wipes the kept result | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::a_hold_keeps_the_last_result_for_the_next_start` |
+| runs_table Behaviour 1: a start with `last` seeds the count and the kept result once, from a record | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::a_first_start_seeds_its_count_and_kept_result_from_the_stored_record` |
+| runs_table Behaviour 17, pilot BLOCKER: drop with keep still revokes approvals and forgets secrets | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::drop_with_keep_leaves_runs_running_but_revokes_approvals_and_forgets_secrets` |
+| runs_table Behaviour 17: drop without keep kills every run and writes nothing | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::drop_without_keep_kills_every_run_and_writes_nothing` |
+| runs_table Behaviour 18, rule 6.40: close kills every run of every thread and writes no record | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::close_kills_every_run_and_writes_no_record` |
+| rule R1, pilot BLOCKER: on_record may re-enter the table, which holds no borrow while it calls out | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::on_record_may_call_back_into_the_table` |
+| runs_table Behaviour 11, slates.test.ts:1210: deny beside a running instance drops only the new start | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::deny_beside_a_running_instance_drops_only_the_new_start` |
+| invariant 2: one end per instance; a restarted run's first instance never writes its end | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::invariant_2_a_replaced_instance_never_writes_its_end` |
+| runs_table Behaviour 2: the approvals deps backs Always when given (slate-runs.ts:615, 910) | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::always_is_kept_in_the_approvals_the_host_gives` |

@@ -60,3 +60,29 @@ as the daemon caps an exec's, kills the whole group at the deadline or on a kill
 
 ## After the port
 - A `then` waits for `close` only, so a grandchild holding its pipes keeps it until its deadline.
+
+## Tests
+
+19 tests name this unit. Rule or TS case, then the test.
+
+| Pins | Test |
+|---|---|
+| runs_road Behaviour 1: slate-runs.ts:301 | `runs_road::the_command_is_bash_c_with_the_values_as_positional_parameters` |
+| runs_road Behaviour 1: the environment is exactly the one given, nothing inherited (slate-runs.ts:301) | `runs_road::the_environment_is_exactly_the_one_given` |
+| runs_road Behaviour 1: no stdin is /dev/null; a given one is written then closed (slate-runs.ts:301, 322-325) | `runs_road::stdin_is_dev_null_unless_given_and_closed_after_it` |
+| runs_road Behaviour 2: lines as they arrive, the rest at the end, \r kept (slate-runs.ts:315-318, 339-344) | `runs_road::a_stream_run_tells_each_line_as_it_comes_and_the_rest_at_the_end` |
+| runs_road Behaviour 2: UTF-8 decoded across chunk edges (slate-runs.ts:306, 316) | `runs_road::a_character_split_across_two_writes_is_one_line` |
+| runs_road Behaviour 2: no stream asked, no line told (slate-runs.ts:315) | `runs_road::a_run_not_streaming_tells_no_line` |
+| runs_road Behaviour 2: one 2 MiB cap shared by out and err, cut set past it (slate-runs.ts:307-314) | `runs_road::out_and_err_share_one_2_mib_cap_and_say_they_were_cut` |
+| runs_road Behaviour 2, pilot finding: a streamed line grows only from capped output | `runs_road::a_streamed_line_never_grows_past_the_cap` |
+| runs_road Behaviour 3, 4: the deadline kills the whole group and the end says timed out (slate-runs.ts:329-332) | `runs_road::the_deadline_kills_the_group_and_ends_timed_out` |
+| runs_road Behaviour 5: the kill takes every process of the group, and the end still comes (slate-runs.ts:358) | `runs_road::a_kill_takes_the_whole_group_and_the_end_still_comes_once` |
+| runs_road Behaviour 4: a grandchild that left the group holding the pipes ends the run 1 s after the exit (slate-runs.ts:348-356) | `runs_road::a_setsid_grandchild_holding_the_pipes_ends_the_run_after_the_grace` |
+| runs_road Decisions 1: a spawn that fails ends with node's message and no code (slate-runs.ts:347) | `runs_road::a_spawn_that_fails_ends_with_the_error_and_no_code` |
+| runs_road Behaviour 6, rule 6.36: a kill of a group that is gone is ignored | `runs_road::kill_group_ignores_a_group_that_is_gone` |
+| runs_road Behaviour 7, 8: a then reshapes stdin into JSON (slate-runs.ts:246-294) | `runs_road::a_then_reads_the_input_on_stdin_and_answers_its_json` |
+| runs_road Behaviour 8: each failure of a then, said as the TS says it (slate-runs.ts:283-294; slate-runs.test.ts:407-412) | `runs_road::a_then_that_fails_says_why_with_its_stderr` |
+| runs_road Behaviour 8: the out and err a then answers are scrubbed before the parse | `runs_road::a_then_parses_its_out_after_the_scrub` |
+| runs_road Behaviour 8: first match wins, in the TS order: error, timeout, code, parse (slate-runs.ts:283-294) | `runs_road::reshape_answer_says_the_first_reason_in_order` |
+| runs_road Behaviour 8: err is cut to its 64 KiB tail from a line start (run_output_tail) | `runs_road::reshape_answer_keeps_the_tail_of_a_long_stderr` |
+| rule R1, runs_road Decisions 3: a road that ends inside start leaves no kill behind and finishes the run | `runs_table::values_reach_a_command_as_data::secrets::consent::process_lifetime::then::a_box_that_naps::timers::a_command_s_process::pilot_review::a_road_that_ends_inside_its_start_finishes_the_run` |

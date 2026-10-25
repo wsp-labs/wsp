@@ -87,3 +87,37 @@ the agent may start. Each goes on the thread's chain.
 
 ## After the port
 - None.
+
+## Tests
+
+27 tests name this unit. Rule or TS case, then the test.
+
+| Pins | Test |
+|---|---|
+| slates_writes Behaviour 1, 3 / Edge case: slates.test.ts:316 | `slates_writes::changing_how_often_a_command_runs_or_letting_it_run_hidden_asks_again` |
+| slates_writes Edge case: slates.test.ts:373 | `slates_writes::a_timed_run_the_person_has_not_allowed_reads_held_from_the_write_and_the_writ` |
+| slates_writes Behaviour 5 / Edge case: slates.test.ts:498 | `slates_writes::a_check_previews_what_the_panel_shows_for_a_run_s_result_setting_run_json_on` |
+| slates_writes Edge case: slates.test.ts:514 | `slates_writes::a_run_that_nothing_can_start_warns_in_the_write_s_text_and_the_slate_is_stil` |
+| slates_writes Behaviour 3 / Edge case: slates.test.ts:522 | `slates_writes::a_write_s_warnings_are_in_its_text_with_their_fixes_not_only_in_the_structure` |
+| slates_writes Edge case: slates.test.ts:536 | `slates_writes::a_refused_write_names_every_error_on_its_one_line_numbered_not_the_first_alon` |
+| slates_writes Edge case: slates.test.ts:1158 | `slates_writes::refuses_a_file_that_names_a_secret` |
+| slates_writes Edge case: slates.test.ts:1010 | `slates_writes::slate_read_shows_each_file_s_text_in_the_printed_slate_and_its_size_in_the_sk` |
+| slates_writes Behaviour 6 / Edge case: slates.test.ts:965 | `slates_writes::the_agent_starts_a_run_the_person_said_always_to_and_an_unapproved_or_ask_eve` |
+| slates_writes Behaviour 6 / Edge case: slates.test.ts:723 | `slates_writes::a_paired_computer_writes_values_and_starts_nothing_no_reaction_fires_off_its` |
+| slates_writes Edge case: slates.test.ts:826 | `slates_writes::a_plotted_value_that_is_not_a_number_is_a_problem_in_a_read_once_a_run_fills_` |
+| slates_writes Behaviour 1, 5, 6 / Edge case: slates.test.ts:588 | `slates_writes::a_check_rehearses_values_and_a_press_on_a_copy_a_bare_name_writes_name_and_a_` |
+| slates_writes Behaviour 1 / Edge case: values and press rehearse only under a check | `slates_writes::values_or_a_press_without_check_refuse_with_the_fix_to_add_it` |
+| slates_writes Behaviour 1: exactly one of text or document | `slates_writes::a_write_of_neither_text_nor_document_or_of_both_is_refused_a601` |
+| slates_writes Behaviour 1: a rehearsal with no document to rehearse | `slates_writes::a_rehearsal_of_the_live_slate_with_no_slate_refuses_z802` |
+| slates_writes Behaviour 1: a patch needs a slate to patch | `slates_writes::a_patch_with_no_slate_refuses_z802_and_asks_for_a_whole_slate` |
+| slates_writes Behaviour 1: a check stores nothing and leaves the version | `slates_writes::a_check_of_a_whole_slate_answers_its_sketch_at_the_version_read_and_stores_no` |
+| slates_writes Behaviour 1 / Edge case: a write at a stale version | `slates_writes::a_write_at_a_version_that_is_not_the_slate_s_refuses_v750` |
+| slates_writes Behaviour 2: the agent's budget, the person's none | `slates_writes::the_agent_s_twenty_first_write_at_once_refuses_v751_and_the_person_s_never` |
+| slates_writes Behaviour 3: the record, the announcement and the pushes of a write | `slates_writes::a_write_announces_every_piece_id_and_pushes_every_value` |
+| slates_writes Behaviour 3: pr.checks makes the host watch the pull request | `slates_writes::a_document_that_names_pr_checks_makes_the_host_watch_the_pull_request` |
+| slates_writes Behaviour 3, 4: a patch keeps one step back, undo puts it back and keeps one step too | `slates_writes::a_patch_keeps_the_slate_before_it_and_undo_puts_it_back` |
+| slates_writes Behaviour 1, 3: a clear keeps the values and reads cleared | `slates_writes::a_clear_empties_the_slate_keeps_its_values_and_reads_cleared` |
+| slates_writes Behaviour 6: a state with no slate, a stale version, and names that are not values | `slates_writes::a_state_with_no_slate_or_at_a_version_behind_is_refused` |
+| slates_writes Behaviour 6: a path that is not a value, a derived value, a run, an undeclared name | `slates_writes::a_state_names_that_are_not_value_paths_refuse_with_the_nearest_name` |
+| slates_writes Behaviour 6: a secret takes only the person's typed text at its root | `slates_writes::a_secret_takes_only_the_person_s_typed_string_and_an_empty_one_clears_it` |
+| slates_writes Behaviour 6: the agent's value write is announced, and a person's is not | `slates_writes::the_agent_s_state_is_announced_as_a_state_and_the_person_s_is_not` |
