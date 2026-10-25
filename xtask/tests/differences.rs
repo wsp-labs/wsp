@@ -117,7 +117,7 @@ fn what_a_second_run_hands_out_otherwise_reads_alike_and_nothing_beside_it_does(
     let read = |v| canonical(&[v], &[], &facts);
     assert_eq!(
         read(run(1738, "V_wCBr_gYpItUpIIAQjUzrLhATwmgZbm", 38647, "80ms")),
-        read(run(1757, "q2Rs7_xYpItUpIIAQjUzrLhATwmgZbm", 39885, "45ms"))
+        read(run(1757, "q2Rs7_xYpItUpIIAQjUzrLhATwmgZbmA", 39885, "45ms"))
     );
     let got = read(run(1738, "V_wCBr_gYpItUpIIAQjUzrLhATwmgZbm", 38647, "80ms"));
     assert_eq!(got["replies"][0]["stderr"], "wsp exec: no thread <uuid-1>\n", "the pid fact cut into the uuid");

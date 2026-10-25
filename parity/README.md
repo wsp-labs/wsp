@@ -41,3 +41,33 @@ of the computer is covered, /tmp, /run, /dev and /proc are the run's own and onl
 writes, and only the goldens. A tape's command line can be `wsp leave`, which takes what wsp installed off the
 computer it runs on, so with no namespaces (a Mac) the run is refused unless `--no-sandbox` says to run the tapes on
 the computer as it is, which it says again on every run.
+
+## How answers are compared
+
+Replies are compared in the order their requests were sent. Events are compared in the order they arrived on each
+stream the TS host keeps ordered, and never sorted by their text:
+
+- a thread's events (`threadId`): its turns' transcript events, `thread.head`, `session.held` and `session.starting`,
+  in emit order (spec 03, rules 3.6 and 3.12);
+- a thread's `session.row` pushes, which go out in order on one chain;
+- a turn's events that name no thread;
+- a workspace's cost ticks (`workspace.cost`);
+- each other family's events about the one thing they name (`<family>Id`, `id` or the workspace), or about the host;
+- the frames the socket itself sends: a close, a refusal of a frame that is no request, a binary frame.
+
+The windows where the TS host cannot order its events, inside which they are compared as a set:
+
+1. Between two streams, over the whole replay. Two threads' turns are separate processes, a cost tick comes off the
+   status poll's timer, the forwards, init, doctor and release doors send beside the bus, and one request's events
+   race another's.
+2. A thread's rows among its other events. A `session.row` push waits on a microtask and on `placedRows`
+   (`packages/runtime/src/machines/boot.ts`, spec 03, rule 3.12), so it lands anywhere after the move it reports.
+   The rows keep their order among themselves.
+
+An id keeps its form when its value goes: a uuid in capitals reads `<uuid-1, in capitals>`, a prefixed id of other
+than eight hex digits `<ws-1, 16 digits>`, a pairing code with its dash `<code-1, with a dash>`, and any other id says
+its length (`<id-1, 32 characters>`). A time reads as its distance from the replay's start in whole minutes
+(`<time+10m>`), so a TTL off by under a minute reads alike; the host's TTLs are whole minutes (a ticket 5, a pairing
+code 10), so a missing or wrong one still fails. A `code` of eight capitals and digits reads as a pairing code, so a
+refusal code such as `"CONFLICT"` there would too; the TS host sends none (its refusal codes are four characters,
+zod's are lower case).

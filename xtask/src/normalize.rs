@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What two runs of one host never agree on, and only that, taken out before the diff: ids become `<kind-N>` in order
 //! of first sight (`<ws-1>` for a `ws_` id, `<uuid-1>`, `<id-1>` for any other minted value, `<code-1>` for a pairing
-//! code), a time its distance from the replay's start in whole minutes (`<time>` within the minute, `<time+10m>`, a
+//! code), each with its form where the kind does not fix it (`<uuid-1, in capitals>`), a time its distance from the replay's start in whole minutes (`<time>` within the minute, `<time+10m>`, a
 //! midnight `<day-1>`), and the facts of the one run (its temp folder, port, pid, token, version, the computer's name)
 //! their placeholders. A key whose value is a reading that moves between two runs, as the disk's free bytes do, is
 //! blanked whole when it has the kind the TS host gives it. Only the value goes: a time not written as JavaScript
@@ -86,7 +86,7 @@ fn patterns() -> &'static Patterns {
         prefixed: Regex::new(r"\b[a-z][a-z0-9]*_[0-9a-f]{6,}\b").expect("prefixed"),
         hex: Regex::new(r"^[0-9a-f]{8,}$").expect("hex"),
         opaque: Regex::new(r"^[A-Za-z0-9+/_-]{32,}={0,2}$").expect("opaque"),
-        placeholder: Regex::new(r"<([a-z][a-z0-9]*)-(\d+)>").expect("placeholder"),
+        placeholder: Regex::new(r"<([a-z][a-z0-9]*)-(\d+)((?:, [a-z0-9 ]+)?)>").expect("placeholder"),
         fingerprint: Regex::new(r"SHA256:[A-Za-z0-9+/]{43}").expect("fingerprint"),
         short_hex: Regex::new(r"\b[0-9a-f]{8,16}\b").expect("short hex"),
         join_code: Regex::new(r"\b[0-9A-Z]{4}-[0-9A-Z]{4}\b").expect("join code"),
@@ -197,7 +197,7 @@ pub struct Normalizer {
     facts: Facts,
     ids: HashMap<String, String>,
     counts: HashMap<String, usize>,
-    /// Off for events, whose order is not defined: an id first seen there reads `<id>` with no number.
+    /// Off for events, which the TS host cannot order across streams: an id first seen there reads `<id>` with no number.
     numbering: bool,
     /// On while the answer being read is a refusal, whose "no such workspace: ws_..." names an id the host never minted.
     refusal: bool,
@@ -366,14 +366,36 @@ impl Normalizer {
         if let Some(known) = self.ids.get(raw) {
             return known.clone();
         }
+        let form = form(raw, kind);
         if !self.numbering {
-            return format!("<{kind}>");
+            return format!("<{kind}{form}>");
         }
         let n = self.counts.entry(kind.to_string()).or_default();
         *n += 1;
-        let placeholder = format!("<{kind}-{n}>");
+        let placeholder = format!("<{kind}-{n}{form}>");
         self.ids.insert(raw.to_string(), placeholder.clone());
         placeholder
+    }
+}
+
+/// What an id's placeholder keeps of how it was written, said after its number where the kind does not fix it: a uuid
+/// in capitals, a pairing code with a dash, a prefixed id of other than the eight hex digits `randomBytes(4)` gives, and
+/// any other id's length.
+fn form(raw: &str, kind: &str) -> String {
+    let p = patterns();
+    match kind {
+        "uuid" if raw.bytes().any(|b| b.is_ascii_uppercase()) => {
+            if raw.bytes().any(|b| b.is_ascii_lowercase()) { ", in mixed case" } else { ", in capitals" }.into()
+        }
+        "uuid" => String::new(),
+        "code" if raw.contains('-') => ", with a dash".into(),
+        "code" => String::new(),
+        "id" if p.fingerprint.is_match(raw) || p.join_code.is_match(raw) => String::new(),
+        "id" => format!(", {} characters", raw.chars().count()),
+        _ => match raw.split_once('_').map(|(_, digits)| digits.len()) {
+            Some(8) | None => String::new(),
+            Some(n) => format!(", {n} digits"),
+        },
     }
 }
 
@@ -401,18 +423,23 @@ impl Renumber {
         patterns()
             .placeholder
             .replace_all(s, |c: &regex::Captures| {
+                // A day before the replay's start is `<day-1>`, a distance and never an id's number.
+                if &c[1] == "day" {
+                    return c[0].to_string();
+                }
                 let key = (c[1].to_string(), c[2].to_string());
+                let form = &c[3];
                 if let Some(known) = self.map.get(&key) {
-                    return known.clone();
+                    return format!("{known}{form}>");
                 }
                 if self.frozen {
-                    return format!("<{}>", &c[1]);
+                    return format!("<{}{form}>", &c[1]);
                 }
                 let n = self.counts.entry(c[1].to_string()).or_default();
                 *n += 1;
-                let renamed = format!("<{}-{n}>", &c[1]);
+                let renamed = format!("<{}-{n}", &c[1]);
                 self.map.insert(key, renamed.clone());
-                renamed
+                format!("{renamed}{form}>")
             })
             .into_owned()
     }
@@ -492,8 +519,36 @@ pub fn ids_in(v: &Value, out: &mut std::collections::BTreeSet<String>) {
     }
 }
 
+/// The stream an event arrives in order on, by the ids it carries as sent (parity/README.md, "How events are
+/// compared"): a thread's rows pushed, a thread's other events, a turn's, a workspace's cost ticks, and else the
+/// event's family about the one thing it names (a pty, a workspace) or about the host; the frames the socket itself
+/// sends are one stream.
+fn stream(e: &Value) -> String {
+    let at = |k: &str| e.get(k).and_then(Value::as_str);
+    let Some(kind) = at("type") else { return "socket".into() };
+    if let Some(thread) = at("threadId") {
+        return if kind == "session.row" { format!("rows {thread}") } else { format!("thread {thread}") };
+    }
+    if kind == "session.row" {
+        return format!("rows {}", at("id").unwrap_or_default());
+    }
+    if let Some(turn) = at("turnId").or(at("sessionId")) {
+        return format!("turn {turn}");
+    }
+    let family = kind.split('.').next().unwrap_or(kind);
+    let workspace = at("workspaceId").or_else(|| e.pointer("/workspace/id").and_then(Value::as_str));
+    if let (true, Some(w)) = (kind == "workspace.cost", workspace) {
+        return format!("cost {w}");
+    }
+    match at(&format!("{family}Id")).or(at("id")).or(workspace) {
+        Some(id) => format!("{family} {id}"),
+        None => family.into(),
+    }
+}
+
 /// A replay's answers in the form goldens are kept in: the replies in the order their requests were sent, numbering
-/// ids as they first appear, then the events, which have no defined order, normalized and sorted.
+/// ids as they first appear, then the events, each stream's in the order they arrived and the streams, which the TS
+/// host cannot order against each other, one after another sorted by their text.
 pub fn canonical(replies: &[Value], events: &[Value], facts: &Facts) -> Value {
     let mut facts = facts.clone();
     for r in replies {
@@ -509,12 +564,22 @@ pub fn canonical(replies: &[Value], events: &[Value], facts: &Facts) -> Value {
         .collect();
     n.refusal = false;
     n.numbering = false;
+    let raw = events;
     let events: Vec<Value> = events.iter().map(|e| n.value(e)).collect();
     let mut again = Renumber::default();
     let replies: Vec<Value> = replies.iter().map(|r| again.value(r)).collect();
     again.frozen = true;
-    let mut events: Vec<Value> = events.iter().map(|e| again.value(e)).collect();
-    events.sort_by_cached_key(|e| e.to_string());
+    let mut streams: Vec<(String, Vec<Value>)> = Vec::new();
+    for (sent, e) in raw.iter().zip(events.iter().map(|e| again.value(e))) {
+        let key = stream(sent);
+        match streams.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, s)) => s.push(e),
+            None => streams.push((key, vec![e])),
+        }
+    }
+    let mut streams: Vec<Vec<Value>> = streams.into_iter().map(|(_, s)| s).collect();
+    streams.sort_by_cached_key(|s| Value::Array(s.clone()).to_string());
+    let events: Vec<Value> = streams.into_iter().flatten().collect();
     let mut out = Map::new();
     out.insert("replies".into(), Value::Array(replies));
     out.insert("events".into(), Value::Array(events));
