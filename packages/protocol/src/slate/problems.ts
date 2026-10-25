@@ -45,11 +45,13 @@ export const SLATE_CODES = {
   W001: "content-looks-like-path", W002: "tone-alone", W003: "series-as-bars", W004: "copy-style", W006: "deprecated", W010: "short-secret",
   W011: "secret-in-argv", W012: "joined-by-mark", W013: "chart-x-index", W014: "mono-on-sentence", W015: "file-undeclared", W017: "emoji", W018: "title-case",
   W019: "run-never-started", W020: "value-beside-series", W021: "time-in-seconds",
+  W030: "sections-open", W031: "tables-open", W032: "too-many-columns", W033: "too-many-words", W034: "raw-output", W035: "ascii-table",
+  W036: "same-every-row", W037: "sketch-too-long", W038: "text-heavy",
 } as const;
 export type SlateCode = keyof typeof SLATE_CODES;
 
 /** Codes that never block a write. */
-export const SLATE_WARNINGS: ReadonlySet<string> = new Set<SlateCode>(["T311", "X403", "W001", "W002", "W003", "W004", "W006", "W010", "W011", "W012", "W013", "W014", "W015", "W017", "W018", "W019", "W020", "W021"]);
+export const SLATE_WARNINGS: ReadonlySet<string> = new Set<SlateCode>(["T311", "X403", "W001", "W002", "W003", "W004", "W006", "W010", "W011", "W012", "W013", "W014", "W015", "W017", "W018", "W019", "W020", "W021", "W030", "W031", "W032", "W033", "W034", "W035", "W036", "W037", "W038"]);
 
 export function slateProblem(code: SlateCode, message: string, extra: Omit<SlateProblem, "code" | "name" | "message"> = {}): SlateProblem {
   const out: SlateProblem = { code, name: SLATE_CODES[code], message };
