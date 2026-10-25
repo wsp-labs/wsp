@@ -76,15 +76,7 @@ fn scan(text: &str, home: &str) -> Vec<Bare> {
             continue;
         };
         let token = portable(&cmd.token, home);
-        out.push(Bare {
-            line,
-            path: tilde(home, &abs),
-            indent: cmd.indent,
-            word: cmd.word,
-            rewritten: token != cmd.token,
-            token,
-            comment,
-        });
+        out.push(Bare { line, path: tilde(home, &abs), indent: cmd.indent, word: cmd.word, rewritten: token != cmd.token, token, comment });
     }
     out
 }

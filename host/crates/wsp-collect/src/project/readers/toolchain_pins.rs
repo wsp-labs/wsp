@@ -18,8 +18,7 @@ pub struct Pin {
 }
 
 /// The `#` comment to the end of a line. JavaScript's `.` stops before a carriage return, so a CRLF line keeps its comment.
-static COMMENT: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"#[^\n\r\x{2028}\x{2029}]*$").expect("COMMENT compiles"));
+static COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#[^\n\r\x{2028}\x{2029}]*$").expect("COMMENT compiles"));
 static VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"["']([^"']+)["']"#).expect("VERSION compiles"));
 
 /// `golang 1.24.0 1.23.5` to golang at 1.24.0; a comment or a blank line to nothing.

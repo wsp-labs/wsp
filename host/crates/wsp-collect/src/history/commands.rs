@@ -9,13 +9,30 @@ use wsp_words::js::{is_js_whitespace, js_trim, JS_WS};
 
 pub const SEPARATORS: [&str; 6] = ["|", "||", "&&", ";", "&", "\n"];
 const PREFIXES: [&str; 19] = [
-    "sudo", "doas", "env", "time", "nohup", "exec", "command", "builtin", "nice", "xargs", "caffeinate", "then", "do", "else",
-    "if", "elif", "while", "until", "!",
+    "sudo",
+    "doas",
+    "env",
+    "time",
+    "nohup",
+    "exec",
+    "command",
+    "builtin",
+    "nice",
+    "xargs",
+    "caffeinate",
+    "then",
+    "do",
+    "else",
+    "if",
+    "elif",
+    "while",
+    "until",
+    "!",
 ];
 const NOT_COMMANDS: [&str; 34] = [
-    "for", "case", "function", "fi", "done", "esac", "export", "local", "declare", "typeset", "readonly", "unset", "return",
-    "exit", "break", "continue", "shift", "set", "cd", "echo", "printf", "true", "false", "[", "[[", "test", "wait", "trap",
-    "source", ".", "alias", "eval", "read", ":",
+    "for", "case", "function", "fi", "done", "esac", "export", "local", "declare", "typeset", "readonly", "unset", "return", "exit",
+    "break", "continue", "shift", "set", "cd", "echo", "printf", "true", "false", "[", "[[", "test", "wait", "trap", "source", ".",
+    "alias", "eval", "read", ":",
 ];
 const VERSION_FLAGS: [&str; 4] = ["--version", "-version", "-v", "-V"];
 const COMMAND_LOOKUP_FLAGS: [&str; 2] = ["-v", "-V"];
@@ -300,8 +317,20 @@ pub fn installs_in(command: &str) -> Vec<Install> {
             .collect()
     };
     match head.as_str() {
-        "brew" => if at(1, &["install", "reinstall"]) { list("brew", 2) } else { Vec::new() },
-        "npm" => if at(1, &NPM_INSTALL[..]) && global { list("npm", 2) } else { Vec::new() },
+        "brew" => {
+            if at(1, &["install", "reinstall"]) {
+                list("brew", 2)
+            } else {
+                Vec::new()
+            }
+        }
+        "npm" => {
+            if at(1, &NPM_INSTALL[..]) && global {
+                list("npm", 2)
+            } else {
+                Vec::new()
+            }
+        }
         "pnpm" | "bun" => {
             if at(1, &["add", "install", "i"]) && global {
                 list(head.as_str(), 2)
@@ -309,7 +338,13 @@ pub fn installs_in(command: &str) -> Vec<Install> {
                 Vec::new()
             }
         }
-        "uv" => if at(1, &["tool"]) && at(2, &["install"]) { list("uv", 3) } else { Vec::new() },
+        "uv" => {
+            if at(1, &["tool"]) && at(2, &["install"]) {
+                list("uv", 3)
+            } else {
+                Vec::new()
+            }
+        }
         "pipx" => {
             if at(1, &["install"]) {
                 list("pipx", 2)
@@ -319,8 +354,20 @@ pub fn installs_in(command: &str) -> Vec<Install> {
                 Vec::new()
             }
         }
-        "cargo" | "go" => if at(1, &["install"]) { list(head.as_str(), 2) } else { Vec::new() },
-        "apt" | "apt-get" => if at(1, &["install"]) { list("apt", 2) } else { Vec::new() },
+        "cargo" | "go" => {
+            if at(1, &["install"]) {
+                list(head.as_str(), 2)
+            } else {
+                Vec::new()
+            }
+        }
+        "apt" | "apt-get" => {
+            if at(1, &["install"]) {
+                list("apt", 2)
+            } else {
+                Vec::new()
+            }
+        }
         "npx" | "bunx" | "uvx" => list(head.as_str(), 1).into_iter().take(1).collect(),
         _ => Vec::new(),
     }

@@ -4,7 +4,9 @@
 //! spec is spec/detect_turn_servers.md.
 use futures::future::join_all;
 use wsp_catalog::catalog::AgentEntry;
-use wsp_catalog::mcp_launch::{checkout_args, checkout_of, turn_server_files, turn_servers, Checkout, LaunchConfigs, TurnAgent, TurnFile, TurnServer};
+use wsp_catalog::mcp_launch::{
+    checkout_args, checkout_of, turn_server_files, turn_servers, Checkout, LaunchConfigs, TurnAgent, TurnFile, TurnServer,
+};
 
 use crate::host::{Host, RunOptions};
 
@@ -49,7 +51,10 @@ pub async fn read_turn_servers(host: &Host, agent: &AgentEntry, folder: &str, o:
     let projects: Vec<TurnFile> = if o.own {
         Vec::new()
     } else {
-        let reads = files.projects.iter().map(|path| async move { host.fs.read_text(path).await.map(|text| TurnFile { path: path.clone(), text }) });
+        let reads = files
+            .projects
+            .iter()
+            .map(|path| async move { host.fs.read_text(path).await.map(|text| TurnFile { path: path.clone(), text }) });
         join_all(reads).await.into_iter().flatten().collect()
     };
     let configs = LaunchConfigs { user, projects: Some(projects), folder: folder.to_string(), key: Some(checkout.key) };

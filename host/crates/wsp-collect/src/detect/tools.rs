@@ -29,24 +29,12 @@ pub enum BrewKind {
     Brew,
 }
 
-// tools.ts:10
-// export interface BrewLine {
-//   kind: "tap" | "brew";
-//   name: string;
-// }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BrewLine {
     pub kind: BrewKind,
     pub name: String,
 }
 
-// tools.ts:36
-// export interface Pkg {
-//   name: string;
-//   version?: string;
-//   /** The folder the package sits in, where the manager's listing names one. */
-//   path?: string;
-// }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pkg {
     pub name: String,
@@ -55,11 +43,6 @@ pub struct Pkg {
     pub path: Option<String>,
 }
 
-// tools.ts:124
-// export interface GoModule {
-//   path: string;
-//   version: string;
-// }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoModule {
     pub path: String,
@@ -78,7 +61,8 @@ pub const NPM_OWN: [&str; 2] = ["npm", "corepack"];
 /// Where another node once kept its globals; a laptop that moved to a new node still runs them from PATH (tools.ts:158).
 const NPM_PREFIXES: [&str; 2] = [MAC_BREW, "/usr/local"];
 
-static BREW_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r#"^(tap|brew)[{JS_WS}]+"([^"]+)""#)).expect("BREW_LINE compiles"));
+static BREW_LINE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r#"^(tap|brew)[{JS_WS}]+"([^"]+)""#)).expect("BREW_LINE compiles"));
 
 static NAME_VERSION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"^([^{JS_WS}]+)[{JS_WS}]+v([^{JS_WS}]+?)(?::|[{JS_WS}]|$)")).expect("NAME_VERSION compiles"));
@@ -108,7 +92,8 @@ pub fn parse_brewfile(text: &str) -> Vec<BrewLine> {
 /// keeps; and `bundle` is a command Homebrew runs `brew update` before once its last one is a day old. Measured on a
 /// Mac with 103 formulae: 3.3 s plain, 0.7 s like this.
 pub async fn brewfile_here(host: &Host) -> Vec<BrewLine> {
-    let opts = RunOptions { env: Some(IndexMap::from([("HOMEBREW_NO_AUTO_UPDATE".to_string(), "1".to_string())])), ..RunOptions::default() };
+    let opts =
+        RunOptions { env: Some(IndexMap::from([("HOMEBREW_NO_AUTO_UPDATE".to_string(), "1".to_string())])), ..RunOptions::default() };
     let out = host.exec.run("brew", &argv(&["bundle", "dump", "--file=-", "--formula", "--taps", "--no-restart"]), opts).await;
     parse_brewfile(&out.unwrap_or_default())
 }
@@ -222,7 +207,9 @@ fn formula_row(host: &Host, name: &str) -> ManifestEntry {
     let id = tool_row_id("brew", name);
     let opt = RowOptions { group: Some("Homebrew".to_string()), linux: Some(linux), ..RowOptions::default() };
     match linux {
-        Linux::No => item(Rung::Tools, &id, name, RowOptions { default: Some(RowDefault::Skip), reason: Some("no Linux bottle".to_string()), ..opt }),
+        Linux::No => {
+            item(Rung::Tools, &id, name, RowOptions { default: Some(RowDefault::Skip), reason: Some("no Linux bottle".to_string()), ..opt })
+        }
         Linux::Unknown => item(Rung::Tools, &id, name, RowOptions { default: Some(RowDefault::Skip), ..opt }),
         Linux::Yes => item(Rung::Tools, &id, name, opt),
     }
@@ -259,12 +246,7 @@ async fn go_rows(host: &Host) -> Vec<ManifestEntry> {
         let out = host.exec.run("go", &argv(&["version", "-m", &path]), RunOptions::default()).await;
         let opt = RowOptions { group: Some("Go binaries".to_string()), linux: Some(Linux::Yes), ..RowOptions::default() };
         rows.push(match parse_go_version_m(&out.unwrap_or_default()) {
-            None => item(
-                Rung::Tools,
-                &id,
-                &format!("{name} (no module info)"),
-                RowOptions { default: Some(RowDefault::Skip), ..opt },
-            ),
+            None => item(Rung::Tools, &id, &format!("{name} (no module info)"), RowOptions { default: Some(RowDefault::Skip), ..opt }),
             // The module path rides in paths so the detail pane shows it first; bytes 0 says there is nothing to upload.
             Some(m) => entry(EntrySpec {
                 rung: Rung::Tools,
@@ -336,10 +318,22 @@ struct GlobalManager {
 const GLOBALS: [GlobalManager; 7] = [
     GlobalManager { id: "npm", bin: "npm", group: "npm globals", sep: Some("@"), listing: Listing::Npm },
     GlobalManager { id: "pnpm", bin: "pnpm", group: "pnpm globals", sep: Some("@"), listing: Listing::Args(&NPM_LS, parse_pnpm_globals) },
-    GlobalManager { id: "bun", bin: "bun", group: "bun globals", sep: Some("@"), listing: Listing::Args(&["pm", "ls", "-g"], parse_bun_globals) },
+    GlobalManager {
+        id: "bun",
+        bin: "bun",
+        group: "bun globals",
+        sep: Some("@"),
+        listing: Listing::Args(&["pm", "ls", "-g"], parse_bun_globals),
+    },
     GlobalManager { id: "pipx", bin: "pipx", group: "pipx", sep: Some(" "), listing: Listing::Args(&["list", "--json"], parse_pipx_list) },
     GlobalManager { id: "uv", bin: "uv", group: "uv tools", sep: Some(" "), listing: Listing::Args(&["tool", "list"], parse_uv_tool_list) },
-    GlobalManager { id: "cargo", bin: "cargo", group: "cargo installs", sep: Some(" "), listing: Listing::Args(&["install", "--list"], parse_cargo_installs) },
+    GlobalManager {
+        id: "cargo",
+        bin: "cargo",
+        group: "cargo installs",
+        sep: Some(" "),
+        listing: Listing::Args(&["install", "--list"], parse_cargo_installs),
+    },
     // apt-mark is what says which packages a person asked for; dpkg alone cannot tell those from the base image's own.
     GlobalManager { id: "apt", bin: "apt-mark", group: "apt packages", sep: None, listing: Listing::Apt },
 ];
@@ -367,7 +361,12 @@ async fn global_rows(host: &Host, g: &GlobalManager) -> Result<Vec<ManifestEntry
     Ok(pkgs
         .into_iter()
         .map(|p| {
-            let opt = RowOptions { group: Some(g.group.to_string()), linux: Some(Linux::Yes), version: p.version.clone(), ..RowOptions::default() };
+            let opt = RowOptions {
+                group: Some(g.group.to_string()),
+                linux: Some(Linux::Yes),
+                version: p.version.clone(),
+                ..RowOptions::default()
+            };
             item(Rung::Tools, &tool_row_id(g.id, &p.name), &versioned(&p, g.sep), opt)
         })
         .collect())
@@ -377,10 +376,8 @@ async fn global_rows(host: &Host, g: &GlobalManager) -> Result<Vec<ManifestEntry
 pub async fn js_global_folders(host: &Host) -> Box<dyn Fn(&str) -> Vec<String>> {
     let npm_args = argv(&["root", "-g"]);
     let pnpm_args = argv(&NPM_LS);
-    let (npm, pnpm) = futures::join!(
-        host.exec.run("npm", &npm_args, RunOptions::default()),
-        host.exec.run("pnpm", &pnpm_args, RunOptions::default()),
-    );
+    let (npm, pnpm) =
+        futures::join!(host.exec.run("npm", &npm_args, RunOptions::default()), host.exec.run("pnpm", &pnpm_args, RunOptions::default()),);
     let mut roots: Vec<String> = Vec::new();
     let candidates = first_line(npm.as_deref())
         .into_iter()

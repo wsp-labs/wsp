@@ -175,7 +175,8 @@ fn is_array_head(c: char) -> bool {
 fn without_array_literals(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let n = chars.len();
-    let comment_at = |i: usize| chars[i] == '#' && (i == 0 || is_js_whitespace(chars[i - 1]) || matches!(chars[i - 1], ';' | '&' | '|' | '('));
+    let comment_at =
+        |i: usize| chars[i] == '#' && (i == 0 || is_js_whitespace(chars[i - 1]) || matches!(chars[i - 1], ';' | '&' | '|' | '('));
     let mut out = String::new();
     let mut quote: Option<char> = None;
     let mut depth = 0usize;
@@ -364,7 +365,9 @@ fn notes(missing: &[String], dropped: &[String]) -> Vec<String> {
 /// function that unsets and redefines itself while it runs crashes zsh 5.9 (exit 139, measured), so the guard is only ever
 /// unset on the way to the real command.
 fn guard_line(name: &str) -> String {
-    format!("{name}() {{ if (unset -f {name}; command -v {name}) >/dev/null 2>&1; then unset -f {name}; {name} \"$@\"; else return 127; fi; }}")
+    format!(
+        "{name}() {{ if (unset -f {name}; command -v {name}) >/dev/null 2>&1; then unset -f {name}; {name} \"$@\"; else return 127; fi; }}"
+    )
 }
 
 /// The text with the guard block prepended: a conditional silent no-op for each `missing` command and the notes for

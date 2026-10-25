@@ -110,7 +110,8 @@ pub async fn unpushed(host: &Host, folder: &str, default_branch: Option<&str>) -
     };
     let base = one_line(git(host, folder, &["merge-base", "HEAD", against.as_str()]).await.as_deref())?;
     let range = format!("{base}..HEAD");
-    let count_text = one_line(git(host, folder, &["rev-list", "--count", range.as_str()]).await.as_deref()).unwrap_or_else(|| "0".to_string());
+    let count_text =
+        one_line(git(host, folder, &["rev-list", "--count", range.as_str()]).await.as_deref()).unwrap_or_else(|| "0".to_string());
     let count = to_number(&count_text);
     (count.is_finite() && count.fract() == 0.0 && count > 0.0).then(|| SeedPlanUnpushed { commits: JsInt::from(count as i64), base })
 }

@@ -302,8 +302,13 @@ mod key_order {
 
     #[test]
     fn a_blink_deleted_and_set_again_moves_after_the_keys_set_meanwhile() {
-        let got = text(&[("~/.config/ghostty/config", "cursor-style-blink = true\nfont-size = 12\ncursor-style-blink =\ncursor-style-blink = false\n")]);
-        let want = format!(r#"{{"files":["/Users/dev/.config/ghostty/config"],"fontFamily":[],"palette":{NULLS},"fontSize":12,"cursorStyleBlink":false}}"#);
+        let got = text(&[(
+            "~/.config/ghostty/config",
+            "cursor-style-blink = true\nfont-size = 12\ncursor-style-blink =\ncursor-style-blink = false\n",
+        )]);
+        let want = format!(
+            r#"{{"files":["/Users/dev/.config/ghostty/config"],"fontFamily":[],"palette":{NULLS},"fontSize":12,"cursorStyleBlink":false}}"#
+        );
         assert_eq!(got, want);
     }
 
@@ -324,7 +329,9 @@ mod key_order {
     #[test]
     fn numbers_are_written_as_javascript_writes_them() {
         let got = text(&[("~/.config/ghostty/config", "window-padding-y = 2\nfont-family =\nbackground-opacity = 0.5\n")]);
-        let want = format!(r#"{{"files":["/Users/dev/.config/ghostty/config"],"fontFamily":[],"palette":{NULLS},"windowPaddingY":{{"top":2,"bottom":2}},"backgroundOpacity":0.5}}"#);
+        let want = format!(
+            r#"{{"files":["/Users/dev/.config/ghostty/config"],"fontFamily":[],"palette":{NULLS},"windowPaddingY":{{"top":2,"bottom":2}},"backgroundOpacity":0.5}}"#
+        );
         assert_eq!(got, want);
     }
 }
@@ -348,8 +355,10 @@ mod w2_oracle {
     fn directives_themes_and_paths_answer_what_the_ts_answered() {
         let f = w2("ghostty_config");
         for case in cases(&f, "parse_ghostty_directives") {
-            let got: Vec<Value> =
-                parse_ghostty_directives(case["args"][0].as_str().unwrap()).iter().map(|d| json!({ "key": d.key, "value": d.value })).collect();
+            let got: Vec<Value> = parse_ghostty_directives(case["args"][0].as_str().unwrap())
+                .iter()
+                .map(|d| json!({ "key": d.key, "value": d.value }))
+                .collect();
             assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
         }
         for case in cases(&f, "theme_for") {

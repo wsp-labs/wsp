@@ -55,38 +55,60 @@ pub struct StoreOptions<'a> {
     pub on_file: Option<&'a dyn Fn(usize, usize)>,
 }
 
-/// One of the store's workers: takes the next file until none is left, or until one of them fails.
-async fn reading(
-    host: &Host,
-    reader: &dyn HistoryReader,
-    root: &str,
-    files: &[HistoryFile],
-    opts: &StoreOptions<'_>,
-    next: &Cell<usize>,
-    read: &Cell<usize>,
-    held: &RefCell<Vec<Option<Held>>>,
-) -> Result<(), HostError> {
-    loop {
-        let i = next.get();
-        next.set(i + 1);
-        if i >= files.len() {
-            return Ok(());
+/// An `await` in JavaScript always lets the other workers run before it resumes, even on a settled promise.
+async fn yield_once() {
+    let mut yielded = false;
+    futures::future::poll_fn(|cx| {
+        if yielded {
+            return std::task::Poll::Ready(());
         }
-        let f = &files[i];
-        let buckets = match opts.cache.and_then(|c| c.get(&f.path, &f.stamp)) {
-            Some(buckets) => buckets,
-            None => {
-                let buckets = reduce_calls(reader.read(host, root, &f.path)).await?;
-                if let Some(cache) = opts.cache {
-                    cache.set(&f.path, &f.stamp, &buckets);
-                }
-                buckets
+        yielded = true;
+        cx.waker().wake_by_ref();
+        std::task::Poll::Pending
+    })
+    .await
+}
+
+/// One store's read, shared by its workers: the next file to take, how many have landed, and what each came to.
+struct StoreRead<'a> {
+    host: &'a Host,
+    reader: &'a dyn HistoryReader,
+    root: &'a str,
+    files: &'a [HistoryFile],
+    opts: &'a StoreOptions<'a>,
+    next: Cell<usize>,
+    read: Cell<usize>,
+    held: RefCell<Vec<Option<Held>>>,
+}
+
+impl StoreRead<'_> {
+    /// One of the store's workers: takes the next file until none is left, or until one of them fails.
+    async fn work(&self) -> Result<(), HostError> {
+        let (host, reader, root, files, opts) = (self.host, self.reader, self.root, self.files, self.opts);
+        loop {
+            let i = self.next.get();
+            self.next.set(i + 1);
+            if i >= files.len() {
+                return Ok(());
             }
-        };
-        held.borrow_mut()[i] = Some(Held { holder: reader.holder(root, &f.path), buckets });
-        read.set(read.get() + 1);
-        if let Some(on_file) = opts.on_file {
-            on_file(read.get(), files.len());
+            let f = &files[i];
+            let buckets = match opts.cache.and_then(|c| c.get(&f.path, &f.stamp)) {
+                Some(buckets) => buckets,
+                None => {
+                    let said = reduce_calls(reader.read(host, root, &f.path)).await;
+                    yield_once().await;
+                    let buckets = said?;
+                    if let Some(cache) = opts.cache {
+                        cache.set(&f.path, &f.stamp, &buckets);
+                    }
+                    buckets
+                }
+            };
+            self.held.borrow_mut()[i] = Some(Held { holder: reader.holder(root, &f.path), buckets });
+            self.read.set(self.read.get() + 1);
+            if let Some(on_file) = opts.on_file {
+                on_file(self.read.get(), files.len());
+            }
         }
     }
 }
@@ -96,14 +118,21 @@ async fn reading(
 pub async fn read_store(host: &Host, reader: &dyn HistoryReader, root: &str, opts: StoreOptions<'_>) -> Result<Usage, HostError> {
     let files = reader.files(host, root).await;
     let n = files.len();
-    let next = Cell::new(0);
-    let read = Cell::new(0);
-    let held: RefCell<Vec<Option<Held>>> = RefCell::new(vec![None; n]);
-    let (files, opts, next, read, held) = (&files, &opts, &next, &read, &held);
+    let store = StoreRead {
+        host,
+        reader,
+        root,
+        files: &files,
+        opts: &opts,
+        next: Cell::new(0),
+        read: Cell::new(0),
+        held: RefCell::new(vec![None; n]),
+    };
+    let store = &store;
     let ran = futures::future::join_all((0..n.min(FILES_AT_ONCE)).map(|_| async move {
-        let result = reading(host, reader, root, files, opts, next, read, held).await;
+        let result = store.work().await;
         if result.is_err() {
-            next.set(n);
+            store.next.set(n);
         }
         result
     }))
@@ -111,7 +140,7 @@ pub async fn read_store(host: &Host, reader: &dyn HistoryReader, root: &str, opt
     if let Some(error) = ran.into_iter().find_map(Result::err) {
         return Err(error);
     }
-    let held: Vec<Held> = held.take().into_iter().flatten().collect();
+    let held: Vec<Held> = store.held.take().into_iter().flatten().collect();
     Ok(usage_of(&one_holder(&held), opts.folders))
 }
 
@@ -138,13 +167,9 @@ pub async fn read_histories(host: &Host, agents: &[&AgentEntry], opts: HistoryOp
     let mut out = Vec::new();
     for a in agents {
         let history = match &a.history {
-            None => AgentHistory {
-                agent: a.id.clone(),
-                state: RecipeHistoryState::NoReader,
-                sessions: 0,
-                calls: 0,
-                usage: Usage::default(),
-            },
+            None => {
+                AgentHistory { agent: a.id.clone(), state: RecipeHistoryState::NoReader, sessions: 0, calls: 0, usage: Usage::default() }
+            }
             Some(store) => {
                 let progress = |read: usize, files: usize| {
                     if let Some(on_progress) = opts.on_progress {

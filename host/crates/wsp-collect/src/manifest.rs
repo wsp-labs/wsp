@@ -14,10 +14,6 @@ use wsp_words::words::thread::{issues_line, Issue, PathPart};
 
 pub use wsp_wire::types::init_job::LOGIN_CHOICES;
 
-// manifest.ts:9
-// export const RUNGS = ["identity", "shell", "toolchains", "tools", "agents", "logins"] as const;
-// export const Rung = z.enum(RUNGS);
-// export type Rung = z.infer<typeof Rung>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Rung {
@@ -54,11 +50,6 @@ pub enum RowDefault {
     Skip,
 }
 
-// manifest.ts:18
-// /** Whether a tools row can be installed on the Linux machine; unknown when nothing on the laptop can tell. */
-// export const LINUX = ["yes", "no", "unknown"] as const;
-// export const Linux = z.enum(LINUX);
-// export type Linux = z.infer<typeof Linux>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Linux {
@@ -292,10 +283,9 @@ fn check(shape: &Shape, v: &Value, path: &[Value], out: &mut Vec<ManifestIssue>)
         Shape::Str { min1 } => text(v, path, *min1, out),
         Shape::StrList { min1 } => match v.as_array() {
             None => expected(out, path, "array", v),
-            Some(items) => items
-                .iter()
-                .enumerate()
-                .fold(Status::Valid, |st, (i, item)| st.max(text(item, &at(path, json!(i)), *min1, out))),
+            Some(items) => {
+                items.iter().enumerate().fold(Status::Valid, |st, (i, item)| st.max(text(item, &at(path, json!(i)), *min1, out)))
+            }
         },
         Shape::Bool if v.is_boolean() => Status::Valid,
         Shape::Bool => expected(out, path, "boolean", v),

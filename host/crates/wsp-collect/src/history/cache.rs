@@ -111,12 +111,13 @@ pub fn file_history_cache(path: impl Into<PathBuf>) -> FileHistoryCache {
 fn temp_suffix() -> String {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
     let mut n = u64::from(now.subsec_nanos()) ^ (u64::from(std::process::id()) << 20);
-    (0..6).map(|_| {
-        let digit = char::from_digit((n % 36) as u32, 36).unwrap_or('0');
-        n /= 36;
-        digit
-    })
-    .collect()
+    (0..6)
+        .map(|_| {
+            let digit = char::from_digit((n % 36) as u32, 36).unwrap_or('0');
+            n /= 36;
+            digit
+        })
+        .collect()
 }
 
 impl HistoryCache for FileHistoryCache {

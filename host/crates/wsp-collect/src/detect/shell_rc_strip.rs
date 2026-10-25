@@ -10,8 +10,8 @@ use fancy_regex::Regex;
 use wsp_words::js::{is_js_whitespace, js_trim, js_trim_start};
 
 use crate::detect::shell_rc::{
-    assigned_in, captures, command_words, comment_at, group, is_match, is_secret_name, js_re, simple_commands, split_lines,
-    ASSIGNS_RE, GUARD_RE, HEREDOC_RE, KEYWORDS_RE, QUOTED_RE,
+    assigned_in, captures, command_words, comment_at, group, is_match, is_secret_name, js_re, simple_commands, split_lines, ASSIGNS_RE,
+    GUARD_RE, HEREDOC_RE, KEYWORDS_RE, QUOTED_RE,
 };
 
 /// What `strip_exports` hands back (TS `{ names, carried }`).
@@ -72,9 +72,12 @@ struct Joining {
     lines: Vec<String>,
 }
 
+/// A rule of the caller's that names the secret a line holds.
+pub type SecretIn<'a> = &'a dyn Fn(&str) -> Option<String>;
+
 /// The state `strip_exports` carries from line to line.
 struct Strip<'a> {
-    secret_in: Option<&'a dyn Fn(&str) -> Option<String>>,
+    secret_in: Option<SecretIn<'a>>,
     held: &'a mut Vec<String>,
     script: bool,
     names: Vec<String>,
@@ -455,11 +458,7 @@ impl Strip<'_> {
         }
         let o = scan_line(line, &closed(self.passing.arith));
         if is_open(&o) {
-            self.cutting = Some(Cutting {
-                whole: o.heredoc.is_none(),
-                open: o,
-                lines: line.split('\n').map(String::from).collect(),
-            });
+            self.cutting = Some(Cutting { whole: o.heredoc.is_none(), open: o, lines: line.split('\n').map(String::from).collect() });
         } else {
             self.leave(line.split('\n').map(String::from).collect(), true);
             self.passing = Passing { heredoc: None, arith: o.arith, value: None };
@@ -536,18 +535,10 @@ impl Strip<'_> {
 
 /// `secret_in` names a secret a line holds by a rule of the caller's; `held` collects what it names for a cut line
 /// that assigns none (TS defaults: none, a fresh list, `script` false).
-pub fn strip_exports(text: &str, secret_in: Option<&dyn Fn(&str) -> Option<String>>, held: &mut Vec<String>, script: bool) -> Stripped {
+pub fn strip_exports(text: &str, secret_in: Option<SecretIn<'_>>, held: &mut Vec<String>, script: bool) -> Stripped {
     let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
-    let mut strip = Strip {
-        secret_in,
-        held,
-        script,
-        names: Vec::new(),
-        kept: Vec::new(),
-        cutting: None,
-        passing: Passing::default(),
-        joining: None,
-    };
+    let mut strip =
+        Strip { secret_in, held, script, names: Vec::new(), kept: Vec::new(), cutting: None, passing: Passing::default(), joining: None };
     for line in split_lines(text) {
         strip.line(line);
     }

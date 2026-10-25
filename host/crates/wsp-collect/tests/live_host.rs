@@ -492,14 +492,17 @@ mod w2_oracle {
             match v {
                 Value::String(t) => std::fs::write(&path, t).unwrap(),
                 Value::Object(o) if o.contains_key("dir") => std::fs::create_dir_all(&path).unwrap(),
-                Value::Object(o) if o.contains_key("bytes") => std::fs::write(&path, vec![0u8; o["bytes"].as_u64().unwrap() as usize]).unwrap(),
+                Value::Object(o) if o.contains_key("bytes") => {
+                    std::fs::write(&path, vec![0u8; o["bytes"].as_u64().unwrap() as usize]).unwrap()
+                }
                 Value::Object(o) if o.contains_key("mode") => {
                     std::fs::write(&path, o["text"].as_str().unwrap()).unwrap();
                     let mode = u32::from_str_radix(o["mode"].as_str().unwrap(), 8).unwrap();
                     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
                 }
                 Value::Object(o) if o.contains_key("hex") => {
-                    let bytes: Vec<u8> = o["hex"].as_str().unwrap().split_whitespace().map(|h| u8::from_str_radix(h, 16).unwrap()).collect();
+                    let bytes: Vec<u8> =
+                        o["hex"].as_str().unwrap().split_whitespace().map(|h| u8::from_str_radix(h, 16).unwrap()).collect();
                     std::fs::write(&path, bytes).unwrap();
                 }
                 Value::Object(o) if o.contains_key("cat") => {
@@ -511,7 +514,9 @@ mod w2_oracle {
                     }
                     std::fs::write(&path, bytes).unwrap();
                 }
-                Value::Object(o) if o.contains_key("link") => std::os::unix::fs::symlink(sub(o["link"].as_str().unwrap(), &root), &path).unwrap(),
+                Value::Object(o) if o.contains_key("link") => {
+                    std::os::unix::fs::symlink(sub(o["link"].as_str().unwrap(), &root), &path).unwrap()
+                }
                 Value::Object(o) if o.contains_key("hardlink") => {
                     std::fs::hard_link(format!("{root}/{}", o["hardlink"].as_str().unwrap()), &path).unwrap()
                 }
