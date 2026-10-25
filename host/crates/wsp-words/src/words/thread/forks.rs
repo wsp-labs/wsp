@@ -4,9 +4,13 @@
 //! image, and the lines a thread names a folder by. Each TS statement stands as a comment above its stub. See
 //! spec/thread_forks.md.
 
-use wsp_wire::views::harness::HarnessCatalog;
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::views::harness::{HarnessCatalog, HarnessCatalogSource};
 use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
-use super::lines::*;
+use crate::js::{number_string, to_fixed, utf16};
+use crate::place_word::{names_place, place_said};
+use crate::words::computer::thread_word;
+use crate::words::units::{charges_nothing, fmt_bytes, fmt_bytes_of, fmt_duration, fmt_rate, fmt_size, DurationStyle};
 
 /// The refusal of a side question on a thread whose agent never announced a session: there is no conversation of
 /// its own to copy and ask.
@@ -24,7 +28,7 @@ pub const BLANK_ASIDE_LINE: &str = "a side question needs words to ask";
 //   return `${harness} takes no side question; send it as a message and the thread keeps it`;
 // }
 pub fn aside_unsupported_line(harness: &str) -> String {
-    todo!()
+    format!("{harness} takes no side question; send it as a message and the thread keeps it")
 }
 
 /// Why a side question came back with no answer: the harness said nothing for the whole wall and was stopped.
@@ -33,7 +37,7 @@ pub fn aside_unsupported_line(harness: &str) -> String {
 //   return `the side question had no answer after ${fmtDuration(ms)} and was stopped`;
 // }
 pub fn aside_wall_line(ms: f64) -> String {
-    todo!()
+    format!("the side question had no answer after {} and was stopped", fmt_duration(ms, None))
 }
 
 /// Why a side question came back with no answer: the harness ended it with no words in it.
@@ -54,7 +58,8 @@ pub const REWIND_WORKING_LINE: &str = "this thread is working; stop its turn fir
 //   return `stop the threads under this one first (${titles.join(", ")}); a rewind never stops them for you`;
 // }
 pub fn rewind_children_line(titles: &[impl AsRef<str>]) -> String {
-    todo!()
+    let names: Vec<&str> = titles.iter().map(|t| t.as_ref()).collect();
+    format!("stop the threads under this one first ({}); a rewind never stops them for you", names.join(", "))
 }
 
 /// An undo refused while another thread in the same folder runs: the files would go back under its agent mid-turn,
@@ -64,7 +69,7 @@ pub fn rewind_children_line(titles: &[impl AsRef<str>]) -> String {
 //   return `another thread in this folder is working (${title}), and its files would go back too; let its turn end or stop it first`;
 // }
 pub fn rewind_beside_line(title: &str) -> String {
-    todo!()
+    format!("another thread in this folder is working ({title}), and its files would go back too; let its turn end or stop it first")
 }
 
 /// Why a rewind put the conversation back and left the files: another thread worked in the folder after that reply,
@@ -82,7 +87,7 @@ pub const REWIND_NO_CHECKPOINT_LINE: &str = "that reply kept no checkpoint of th
 //   return `${agent} left no point in that reply to cut its conversation at, so only the files can go back`;
 // }
 pub fn rewind_no_anchor_line(agent: &str) -> String {
-    todo!()
+    format!("{agent} left no point in that reply to cut its conversation at, so only the files can go back")
 }
 
 /// A rewind whose harness kept the conversation whole, `why` in its own clause: what moved and what stayed.
@@ -91,7 +96,7 @@ pub fn rewind_no_anchor_line(agent: &str) -> String {
 //   return `${why}; ${filesBack ? "the files went back and every turn stays" : "every turn stays"}`;
 // }
 pub fn rewind_kept_line(why: &str, files_back: bool) -> String {
-    todo!()
+    format!("{why}; {}", if files_back { "the files went back and every turn stays" } else { "every turn stays" })
 }
 
 /// Why a Codex thread's conversation cannot be cut: the server cuts only the paginated history a Codex from 0.151.0
@@ -108,7 +113,7 @@ pub const CODEX_FEWER_TURNS: &str = "codex lists fewer turns in this thread than
 // thread.ts:511
 // export const codexNoTurnLine = (turnId: string): string => `codex lists no turn ${turnId} in this thread`;
 pub fn codex_no_turn_line(turn_id: &str) -> String {
-    todo!()
+    format!("codex lists no turn {turn_id} in this thread")
 }
 
 /// A rewind to the thread's latest reply, after which nothing stands to cut.
@@ -153,7 +158,17 @@ pub struct RewindNote {
 }
 
 pub fn rewind_note(o: &RewindNote) -> String {
-    todo!()
+    let undo = "Undo rewind puts them back until the next turn in this folder ends";
+    if let Some(kept) = &o.kept {
+        return format!("{}, so the conversation stays and the files go back to how they stood at this reply. {SHARED_FOLDER} {undo}.", upper_first(kept));
+    }
+    if !o.cuts_conversation {
+        return format!("{} keeps its own history, so the conversation stays and the files go back to how they stood at this reply. {SHARED_FOLDER} {undo}.", o.agent);
+    }
+    if !o.files {
+        return format!("{} the conversation; the files stay as they are.", turns_after(o.turns));
+    }
+    format!("{} the conversation, and the files go back to how they stood at this reply. {SHARED_FOLDER} {undo}; the conversation does not come back.", turns_after(o.turns))
 }
 
 /// A rewind to a turn a fork carried over from its thread: the fork's own history starts after it.
@@ -164,27 +179,27 @@ pub const REWIND_COPIED_LINE: &str = "that reply came with the fork from its thr
 // thread.ts:542
 // export const forkedFromLine = (title: string): string => `Forked from ${title}`;
 pub fn forked_from_line(title: &str) -> String {
-    todo!()
+    format!("Forked from {title}")
 }
 
 /// The banner over a fork's draft, before anything of it exists.
 // thread.ts:545
 // export const forkOfLine = (title: string): string => `Fork of ${title}`;
 pub fn fork_of_line(title: &str) -> String {
-    todo!()
+    format!("Fork of {title}")
 }
 
 /// The fork dialog's line under its title, and each pick's note.
 // thread.ts:548
 // export const forkDialogLine = (title: string): string => `A new thread with this conversation up to here. ${title} does not change.`;
 pub fn fork_dialog_line(title: &str) -> String {
-    todo!()
+    format!("A new thread with this conversation up to here. {title} does not change.")
 }
 
 // thread.ts:549
 // export const forkFolderNote = (title: string): string => `The files as they are now, shared with ${title}.`;
 pub fn fork_folder_note(title: &str) -> String {
-    todo!()
+    format!("The files as they are now, shared with {title}.")
 }
 
 // thread.ts:550
@@ -197,7 +212,10 @@ pub const FORK_BRANCH_HEAD_NOTE: &str = "A worktree at today's commit, with this
 // thread.ts:553
 // export const forkWhereLine = (branch: string | undefined): string => (branch === undefined ? "in this folder" : `on ${branch}`);
 pub fn fork_where_line(branch: Option<&str>) -> String {
-    todo!()
+    match branch {
+        None => "in this folder".to_string(),
+        Some(b) => format!("on {b}"),
+    }
 }
 
 // thread.ts:554
@@ -218,7 +236,21 @@ pub mod fork_pick_words {
 //   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 // }
 pub fn fork_branch_name(source: Option<&str>, taken: &indexmap::IndexSet<String>, thread_id: &str) -> String {
-    todo!()
+    let base = match source {
+        None | Some("") => format!("fork-{}", utf16::cut(thread_id, 8)),
+        Some(s) => format!("{s}-fork"),
+    };
+    if !taken.contains(base.as_str()) {
+        return base;
+    }
+    let mut n = 2;
+    loop {
+        let candidate = format!("{base}-{n}");
+        if !taken.contains(candidate.as_str()) {
+            return candidate;
+        }
+        n += 1;
+    }
 }
 
 /// A fork refused for naming what its thread already decides.
@@ -245,27 +277,27 @@ pub const AT_WITHOUT_FORK_FIX: &str = "Name the thread with --fork, or leave --a
 // thread.ts:573
 // export const atNotATurnLine = (at: string): string => `--at takes a finished turn's number from 1, not ${at}`;
 pub fn at_not_a_turn_line(at: &str) -> String {
-    todo!()
+    format!("--at takes a finished turn's number from 1, not {at}")
 }
 
 /// A fork refused for naming another agent than its thread's: no agent opens another agent's session.
 // thread.ts:576
 // export const forkAgentLine = (agent: string, asked: string): string => `a fork runs on its thread's agent, ${agent}, not ${asked}`;
 pub fn fork_agent_line(agent: &str, asked: &str) -> String {
-    todo!()
+    format!("a fork runs on its thread's agent, {agent}, not {asked}")
 }
 
 // thread.ts:577
 // export const forkAgentFix = (asked: string): string => `Leave the agent out, or open a new thread on ${asked}.`;
 pub fn fork_agent_fix(asked: &str) -> String {
-    todo!()
+    format!("Leave the agent out, or open a new thread on {asked}.")
 }
 
 /// A fork refused on an agent that keeps no road to fork its sessions.
 // thread.ts:580
 // export const forksNotLine = (agent: string): string => `${agent} cannot fork a thread`;
 pub fn forks_not_line(agent: &str) -> String {
-    todo!()
+    format!("{agent} cannot fork a thread")
 }
 
 // thread.ts:581
@@ -282,19 +314,28 @@ pub const FORK_RUNNING_FIX: &str = "Fork from an earlier reply, or wait for the 
 // thread.ts:588
 // export const forkTurnsLine = (finished: number): string => (finished === 0 ? "that thread has no finished turn to fork from" : `that thread has ${finished} finished ${finished === 1 ? "turn" : "turns"}`);
 pub fn fork_turns_line(finished: f64) -> String {
-    todo!()
+    if finished == 0.0 {
+        "that thread has no finished turn to fork from".to_string()
+    } else {
+        let noun = if finished == 1.0 { "turn" } else { "turns" };
+        format!("that thread has {} finished {noun}", number_string(finished))
+    }
 }
 
 // thread.ts:589
 // export const forkTurnsFix = (finished: number): string => (finished === 0 ? "Wait for its first turn to end." : `Name one from 1 to ${finished} with --at.`);
 pub fn fork_turns_fix(finished: f64) -> String {
-    todo!()
+    if finished == 0.0 {
+        "Wait for its first turn to end.".to_string()
+    } else {
+        format!("Name one from 1 to {} with --at.", number_string(finished))
+    }
 }
 
 // thread.ts:590
 // export const forkNoTurnLine = (turnId: string): string => `that thread holds no turn ${turnId}`;
 pub fn fork_no_turn_line(turn_id: &str) -> String {
-    todo!()
+    format!("that thread holds no turn {turn_id}")
 }
 
 // thread.ts:591
@@ -304,7 +345,7 @@ pub const FORK_NO_TURN_FIX: &str = "Fork from a reply the thread shows.";
 // thread.ts:594
 // export const forkNoAnchorLine = (agent: string): string => `${agent} left no point in that turn to fork its conversation at`;
 pub fn fork_no_anchor_line(agent: &str) -> String {
-    todo!()
+    format!("{agent} left no point in that turn to fork its conversation at")
 }
 
 // thread.ts:595
@@ -314,7 +355,7 @@ pub const FORK_NO_ANCHOR_FIX: &str = "Fork from another reply.";
 // thread.ts:598
 // export const forkRefusedLine = (agent: string, why: string): string => `${agent} could not fork the conversation: ${why}`;
 pub fn fork_refused_line(agent: &str, why: &str) -> String {
-    todo!()
+    format!("{agent} could not fork the conversation: {why}")
 }
 
 // thread.ts:599
@@ -335,7 +376,7 @@ pub const FORK_NO_CHECKPOINT_FIX: &str = "Fork it in this folder instead, withou
 //   return `this thread runs on ${agent}; open a new thread to run ${asked}`;
 // }
 pub fn thread_runs_on_line(agent: &str, asked: &str) -> String {
-    todo!()
+    format!("this thread runs on {agent}; open a new thread to run {asked}")
 }
 
 /// The refusal of a thread opened on no words: an empty or whitespace task would still start a process and a turn.
@@ -355,7 +396,7 @@ pub const EMPTY_TITLE_LINE: &str = "the name is empty; say what the thread is ca
 //   return `Codex is not signed in where this thread runs; run ${login} there`;
 // }
 pub fn codex_not_signed_in_line(login: &str) -> String {
-    todo!()
+    format!("Codex is not signed in where this thread runs; run {login} there")
 }
 
 /// The line when codex's provider reads its key from an environment variable the machine does not set.
@@ -364,7 +405,7 @@ pub fn codex_not_signed_in_line(login: &str) -> String {
 //   return `Codex's model provider reads its key from the environment variable ${name}, which is not set on this machine`;
 // }
 pub fn codex_missing_env_line(name: &str) -> String {
-    todo!()
+    format!("Codex's model provider reads its key from the environment variable {name}, which is not set on this machine")
 }
 
 /// The one line under the composer's model lists: the binary that filled them, else whose table stood in and what it
@@ -381,7 +422,16 @@ pub fn codex_missing_env_line(name: &str) -> String {
 //   return version === null ? why : `${why}, ${version}`;
 // }
 pub fn catalog_source_line(catalog: &HarnessCatalog, r#where: &str) -> String {
-    todo!()
+    let version = catalog.version.as_deref();
+    if catalog.source == HarnessCatalogSource::Harness {
+        let shown = version.map_or(String::new(), |v| format!(" {v}"));
+        return format!("{}{shown} on {}", catalog.label, r#where);
+    }
+    let why = catalog.refusal.clone().unwrap_or_else(|| format!("{} table", catalog.harness));
+    match version {
+        None => why,
+        Some(v) => format!("{why}, {v}"),
+    }
 }
 
 /// The one line in place of the model rows: what the binary reported, or what the table holds, and never a count the
@@ -391,7 +441,11 @@ pub fn catalog_source_line(catalog: &HarnessCatalog, r#where: &str) -> String {
 //   return catalog.source === "harness" ? `${catalog.label} reported no models` : `No model in the ${catalog.label} table`;
 // }
 pub fn no_models_line(catalog: &HarnessCatalog) -> String {
-    todo!()
+    if catalog.source == HarnessCatalogSource::Harness {
+        format!("{} reported no models", catalog.label)
+    } else {
+        format!("No model in the {} table", catalog.label)
+    }
 }
 
 /// The line when codex kept reconnecting to its provider and nothing ever answered: the CLI itself never gives up.
@@ -400,7 +454,7 @@ pub fn no_models_line(catalog: &HarnessCatalog) -> String {
 //   return `stopped after ${fmtDuration(elapsedMs, "clock")} of Codex reconnecting to its model provider with no answer`;
 // }
 pub fn codex_reconnect_line(elapsed_ms: f64) -> String {
-    todo!()
+    format!("stopped after {} of Codex reconnecting to its model provider with no answer", fmt_duration(elapsed_ms, Some(DurationStyle::Clock)))
 }
 
 /// What the daemon last read of the guest's memory and load before its link went quiet.
@@ -427,7 +481,7 @@ pub const MEMORY_NEAR_FULL: f64 = 0.9;
 //   return mem.total > 0 && mem.used / mem.total >= MEMORY_NEAR_FULL;
 // }
 pub fn memory_near_full(used: f64, total: f64) -> bool {
-    todo!()
+    total > 0.0 && used / total >= MEMORY_NEAR_FULL
 }
 
 /// The line every pane and row shows when a machine stopped answering with its memory near full: the last figures
@@ -437,7 +491,12 @@ pub fn memory_near_full(used: f64, total: f64) -> bool {
 //   return `Out of memory (${fmtBytes(r.used)} of ${fmtBytes(r.total)} used, load ${r.load1.toFixed(1)}) when the thread's computer last answered; the work there took the memory, not a fault in the computer`;
 // }
 pub fn out_of_memory_line(r: &MemoryReading) -> String {
-    todo!()
+    format!(
+        "Out of memory ({} of {} used, load {}) when the thread's computer last answered; the work there took the memory, not a fault in the computer",
+        fmt_bytes(r.used),
+        fmt_bytes(r.total),
+        to_fixed(r.load1, 1),
+    )
 }
 
 /// The sidebar row's form of the same fact, in the shape the daemon note takes: the row's second line is about
@@ -447,7 +506,7 @@ pub fn out_of_memory_line(r: &MemoryReading) -> String {
 //   return `out of memory, ${fmtBytesOf(r.used, r.total)}`;
 // }
 pub fn out_of_memory_row_line(r: &MemoryReading) -> String {
-    todo!()
+    format!("out of memory, {}", fmt_bytes_of(r.used, r.total, None))
 }
 
 /// What to do about it, shown ahead of any rebuild: the smallest size in the provider's table with more memory than
@@ -459,7 +518,17 @@ pub fn out_of_memory_row_line(r: &MemoryReading) -> String {
 //   return `A thread on ${fmtSize(bigger)} (${fmtRate(bigger.rateUsdPerHour)}) fits more; pick it when you start the next one`;
 // }
 pub fn bigger_size_line(current: &WorkspaceSize, offers: &[MachineSizeOffer]) -> String {
-    todo!()
+    let bigger = offers
+        .iter()
+        .filter(|o| o.mem_mb.0 > current.mem_mb.0)
+        .min_by(|a, b| a.mem_mb.0.total_cmp(&b.mem_mb.0));
+    match bigger {
+        None => "No size with more memory is offered; run less in the thread at once".to_string(),
+        Some(b) => {
+            let size = WorkspaceSize { cpu: JsNumber(b.cpu.0), mem_mb: JsNumber(b.mem_mb.0) };
+            format!("A thread on {} ({}) fits more; pick it when you start the next one", fmt_size(&size, None), fmt_rate(b.rate_usd_per_hour.0))
+        }
+    }
 }
 
 /// The machine row's line while the runtime replaces a daemon older than this wsp, and the line it shows instead
@@ -497,7 +566,7 @@ pub const DAEMON_INSTALL_FAILED: &str = "could not install the helper";
 //   return `the export was ${fmtBytes(bytes)}, over the ${fmtBytes(capBytes)} cap`;
 // }
 pub fn vault_over_cap_line(bytes: f64, cap_bytes: f64) -> String {
-    todo!()
+    format!("the export was {}, over the {} cap", fmt_bytes(bytes), fmt_bytes(cap_bytes))
 }
 
 /// A store an agent keeps for every project that an export could not read on the machine: nothing from it travelled,
@@ -507,7 +576,7 @@ pub fn vault_over_cap_line(bytes: f64, cap_bytes: f64) -> String {
 //   return `could not read ${store} on the machine, so nothing from it travelled: ${why}`;
 // }
 pub fn store_unread_line(store: &str, why: &str) -> String {
-    todo!()
+    format!("could not read {store} on the machine, so nothing from it travelled: {why}")
 }
 
 /// What a landing is refused with when the agents' state a machine answered with holds something that is neither a
@@ -519,7 +588,7 @@ pub fn store_unread_line(store: &str, why: &str) -> String {
 //   return `the agents' state from the machine holds ${entry}, which is ${what}; nothing of it was landed`;
 // }
 pub fn state_entry_refusal(entry: &str, what: &str) -> String {
-    todo!()
+    format!("the agents' state from the machine holds {entry}, which is {what}; nothing of it was landed")
 }
 
 /// The verdict when a nap could not store a fresh backup, said once with whatever the machine answered on the
@@ -533,7 +602,8 @@ pub fn state_entry_refusal(entry: &str, what: &str) -> String {
 // }
 /// `vaulted_at` is the workspace view's `vaultedAt`.
 pub fn vault_kept_line(vaulted_at: Option<&str>) -> String {
-    todo!()
+    let said = if vaulted_at.is_none() { "nothing is saved off the machine" } else { "what was saved before is kept" };
+    format!("the nap saved no backup; {said}")
 }
 
 /// The verdict when a guest refused the hostname the fork asked for. Naming a fork is cosmetic, so the create goes
@@ -548,7 +618,7 @@ pub const HOSTNAME_KEPT: &str = "hostname not set; the workspace keeps the machi
 //   return `hostname set to ${host}`;
 // }
 pub fn hostname_set_line(host: &str) -> String {
-    todo!()
+    format!("hostname set to {host}")
 }
 
 /// The creation log's line for the fork itself, in the words the app says a workspace and a computer in.
@@ -557,14 +627,14 @@ pub fn hostname_set_line(host: &str) -> String {
 //   return `starting ${name} on ${where}`;
 // }
 pub fn starting_line(name: &str, r#where: &str) -> String {
-    todo!()
+    format!("starting {name} on {}", r#where)
 }
 
 /// A copy's first line on the computer the host runs on: the folder it is made of and the folder it becomes.
 // thread.ts:754
 // export const copyingFolderLine = (from: string, to: string): string => `copying ${from} to ${to}`;
 pub fn copying_folder_line(from: &str, to: &str) -> String {
-    todo!()
+    format!("copying {from} to {to}")
 }
 
 /// How long a build is said to take where none has been measured.
@@ -579,7 +649,12 @@ pub const BUILD_TAKES_UNMEASURED: &str = "about ten minutes";
 //   return `building your image on ${where} first, ${BUILD_TAKES_UNMEASURED}${billed}, then ${name} forks from it`;
 // }
 pub fn copy_first_line(r#where: &str, name: &str, rate_usd_per_hour: f64) -> String {
-    todo!()
+    let billed = if charges_nothing(Some(rate_usd_per_hour)) {
+        String::new()
+    } else {
+        format!(", billed at {} while it builds", fmt_rate(rate_usd_per_hour))
+    };
+    format!("building your image on {} first, {BUILD_TAKES_UNMEASURED}{billed}, then {name} forks from it", r#where)
 }
 
 /// The last line of a create, as the word table ends it.
@@ -607,7 +682,10 @@ pub const CREATE_READY: &str = "ready";
 // }
 /// None is the TS null.
 pub fn vault_stale_line(vaulted_at: Option<&str>, vault_refused: Option<&str>) -> Option<String> {
-    todo!()
+    vault_refused.map(|_| match vaulted_at {
+        None => "no backup".to_string(),
+        Some(at) => format!("no backup since {}", utf16::cut(at, 10)),
+    })
 }
 
 /// Which call found the provider no longer knew a record's machine: the status poll's read, a pause, a wake's read,
@@ -631,7 +709,13 @@ pub enum GoneSeenBy {
 impl GoneSeenBy {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            GoneSeenBy::StatusPoll => "status poll",
+            GoneSeenBy::Pause => "pause",
+            GoneSeenBy::Wake => "wake",
+            GoneSeenBy::Sweep => "sweep",
+            GoneSeenBy::RecordLoad => "record load",
+        }
     }
 }
 
@@ -656,7 +740,8 @@ pub struct GoneSighting {
 // thread.ts:799
 // export const isoSeconds = (at: number): string => new Date(at).toISOString().replace(/\.\d+Z$/, "Z");
 pub fn iso_seconds(at: f64) -> String {
-    todo!()
+    let moment = jiff::Timestamp::from_millisecond(at as i64).expect("a moment jiff holds");
+    moment.to_zoned(jiff::tz::TimeZone::UTC).strftime("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
 /// What a record says about a machine the provider stopped knowing: which call found it gone and the second it did,
@@ -670,7 +755,15 @@ pub fn iso_seconds(at: f64) -> String {
 //   return `${base}: the ${seen.by} found it gone at ${at}${answer}`;
 // }
 pub fn gone_words(machine_id: &str, seen: Option<&GoneSighting>) -> String {
-    todo!()
+    let base = format!("machine {machine_id} is gone at the provider");
+    let Some(seen) = seen else {
+        return base;
+    };
+    let answer = match seen.answer.as_deref() {
+        None | Some("") => String::new(),
+        Some(answer) => format!(" ({answer})"),
+    };
+    format!("{base}: the {} found it gone at {}{answer}", seen.by.as_str(), iso_seconds(seen.at))
 }
 
 /// The machine row's line when a record that said paused met a machine the provider was running all along (a nap
@@ -693,7 +786,7 @@ pub const GONE_UNCHECKED: &str = "not known to be gone; wsp could not reach the 
 // export const goneUnconfirmedLine = (machineId: string, answer: string): string =>
 //   `machine ${machineId} answered ${answer} when this host started; wsp is asking the provider again before it calls it gone`;
 pub fn gone_unconfirmed_line(machine_id: &str, answer: &str) -> String {
-    todo!()
+    format!("machine {machine_id} answered {answer} when this host started; wsp is asking the provider again before it calls it gone")
 }
 
 /// The machine row's line on a workspace the sweep recorded from the provider's listing: a machine of this setup's
@@ -708,7 +801,7 @@ pub const RECORD_RESTORED: &str = "record restored from the provider's listing";
 //   return `reap: recorded ${machineId} as workspace ${name} (${workspaceId}): a machine from this setup that no record claimed; it bills until wsp delete ${name}`;
 // }
 pub fn record_restored_line(machine_id: &str, name: &str, workspace_id: &str) -> String {
-    todo!()
+    format!("reap: recorded {machine_id} as workspace {name} ({workspace_id}): a machine from this setup that no record claimed; it bills until wsp delete {name}")
 }
 
 /// The refusal a fork gets for a name another workspace holds; a name names at most one workspace.
@@ -717,7 +810,7 @@ pub fn record_restored_line(machine_id: &str, name: &str, workspace_id: &str) ->
 //   return `${name} is already a workspace; pick another name, or delete it first`;
 // }
 pub fn name_taken_refusal(name: &str) -> String {
-    todo!()
+    format!("{name} is already a workspace; pick another name, or delete it first")
 }
 
 /// The refusal a fork gets for a name whose workspace is being deleted this moment: the two never interleave.
@@ -726,7 +819,7 @@ pub fn name_taken_refusal(name: &str) -> String {
 //   return `${name} is being deleted; wait for the delete to finish, then fork it again`;
 // }
 pub fn name_deleting_refusal(name: &str) -> String {
-    todo!()
+    format!("{name} is being deleted; wait for the delete to finish, then fork it again")
 }
 
 /// A delete whose machine the provider still reads after three asks: the record stays, so the machine is still named.
@@ -736,7 +829,7 @@ pub fn name_deleting_refusal(name: &str) -> String {
 // }
 /// `state` is a MachineState's wire word.
 pub fn delete_refused_line(name: &str, machine_id: &str, state: &str) -> String {
-    todo!()
+    format!("{name}'s machine {machine_id} is still {state} after three asks; run wsp delete again or delete it at the provider")
 }
 
 /// The refusal a fork or a rename gets for a blank name: a person and an agent both address a workspace by its name.
@@ -766,7 +859,7 @@ pub const NO_BUILD_PLACE_LINE: &str = "no place here runs workspaces, so there i
 // thread.ts:872
 // export const buildPlaceAskLine = (names: readonly string[]): string => `${names.join(", ")} run workspaces and none of them is the default place; name the one to build your image on with --on`;
 pub fn build_place_ask_line(names: &[impl AsRef<str>]) -> String {
-    todo!()
+    format!("{} run workspaces and none of them is the default place; name the one to build your image on with --on", join_names(names))
 }
 
 /// What a fork is refused with when the place it would land on forks nothing while other places run workspaces: the
@@ -775,14 +868,14 @@ pub fn build_place_ask_line(names: &[impl AsRef<str>]) -> String {
 // thread.ts:877
 // export const placeForksNothingPickLine = (place: string, names: readonly string[]): string => `${place} forks no machines; name a place that runs workspaces with --on: ${names.join(", ")}`;
 pub fn place_forks_nothing_pick_line(place: &str, names: &[impl AsRef<str>]) -> String {
-    todo!()
+    format!("{place} forks no machines; name a place that runs workspaces with --on: {}", join_names(names))
 }
 
 /// The line under wsp init's opening that names where the image is built, so the first screen says it.
 // thread.ts:880
 // export const imageBuiltOnLine = (place: string): string => `your image is built on ${place}`;
 pub fn image_built_on_line(place: &str) -> String {
-    todo!()
+    format!("your image is built on {place}")
 }
 
 /// The line beside it when --on named a place other than the image's own: a rebuild never moves the image's home.
@@ -793,7 +886,7 @@ pub fn image_built_on_line(place: &str) -> String {
 pub type PlaceNamed = crate::place_word::PlaceRef;
 
 pub fn image_home_kept_line(on: Option<&str>, home: &PlaceNamed) -> Option<String> {
-    todo!()
+    on.filter(|on| !names_place(home, on)).map(|on| format!("your image lives on {}, so it is built there and not on {on}", place_said(home)))
 }
 
 /// What a line that takes a thread answers a word naming no thread but a project, or with a cloud a machine: what the
@@ -812,7 +905,11 @@ pub enum WordIs {
 
 /// `orComputer` defaults to false.
 pub fn not_a_thread_line(word: &str, is: WordIs, line: &str, or_computer: bool) -> String {
-    todo!()
+    let takes = format!("{line} takes a thread{}", if or_computer { ", or a computer with --on" } else { "" });
+    match is {
+        WordIs::Project => format!("{word} is a project; {takes}, as wsp threads {word} lists them."),
+        WordIs::Machine => format!("{word} is a machine; {takes}, as wsp threads lists them."),
+    }
 }
 
 /// Its fix, the same on the command line and the tool.
@@ -826,21 +923,26 @@ pub const NAME_A_THREAD_FIX: &str = "Name a thread by its id.";
 //   return others.length === 1 ? `thread ${others[0]!} works in this folder too` : `threads ${others.slice(0, -1).join(", ")} and ${others.at(-1)!} work in this folder too`;
 // }
 pub fn shared_folder_line(others: &[impl AsRef<str>]) -> String {
-    todo!()
+    let names: Vec<&str> = others.iter().map(|o| o.as_ref()).collect();
+    match names.split_last() {
+        Some((last, [])) => format!("thread {last} works in this folder too"),
+        Some((last, rest)) => format!("threads {} and {last} work in this folder too", rest.join(", ")),
+        None => String::new(),
+    }
 }
 
 /// A thread named to act in a folder it does not work in.
 // thread.ts:904
 // export const threadElsewhereLine = (threadId: string): string => `thread ${threadWord(threadId)} does not work in this folder`;
 pub fn thread_elsewhere_line(thread_id: &str) -> String {
-    todo!()
+    format!("thread {} does not work in this folder", thread_word(thread_id))
 }
 
 /// A thread named to merge that works in the lead's own folder, its child or not: nothing of it is apart to merge.
 // thread.ts:907
 // export const childBesideLeadLine = (child: string, lead: string): string => `thread ${threadWord(child)} works in the same folder as thread ${threadWord(lead)}; there is nothing apart to merge.`;
 pub fn child_beside_lead_line(child: &str, lead: &str) -> String {
-    todo!()
+    format!("thread {} works in the same folder as thread {}; there is nothing apart to merge.", thread_word(child), thread_word(lead))
 }
 
 // thread.ts:908
@@ -858,9 +960,29 @@ pub const BESIDE_ALONE_FIX: &str = "Drop project and branch, or beside.";
 // thread.ts:916
 // export const noProjectLine = (word: string): string => `no project ${word}`;
 pub fn no_project_line(word: &str) -> String {
-    todo!()
+    format!("no project {word}")
 }
 
 // thread.ts:917
 pub const READ_PROJECTS_FIX: &str = "Run wsp projects to read the names.";
 
+fn turns_after(turns: f64) -> String {
+    if turns == 1.0 {
+        "The turn after this reply leaves".to_string()
+    } else {
+        format!("The {} turns after this reply leave", number_string(turns))
+    }
+}
+
+fn upper_first(words: &str) -> String {
+    let mut chars = words.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+fn join_names(names: &[impl AsRef<str>]) -> String {
+    let names: Vec<&str> = names.iter().map(|n| n.as_ref()).collect();
+    names.join(", ")
+}
