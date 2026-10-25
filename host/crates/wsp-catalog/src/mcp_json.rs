@@ -9,12 +9,12 @@ use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
 use crate::json_edit::{edit_jsonc, json_canonical, set_at, JsonEdit};
+use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
 use crate::jsonc_tree::{JsonPath, PathSeg};
 use crate::mcp::{
-    EditOutcome, McpEditResult, McpEditScope, McpEdited, McpFormat, McpMergeResult, McpMergeScope, McpMerged, McpResolved,
-    McpServer, McpServerScope, McpTransport, MergeOutcome, RewriteString, WholeRef,
+    EditOutcome, McpEditResult, McpEditScope, McpEdited, McpFormat, McpMergeResult, McpMergeScope, McpMerged, McpResolved, McpServer,
+    McpServerScope, McpTransport, MergeOutcome, RewriteString, WholeRef,
 };
 use crate::mcp_travelled::travelled_servers;
 use wsp_words::exit::HostError;
@@ -103,12 +103,8 @@ pub(crate) fn flip_edits(format: McpFormat, root: &Map<String, Value>, entry: &[
             if !on {
                 return vec![(at(-1), Some(Value::String(name.to_string())))];
             }
-            let mut out: Vec<JsonEdit> = held
-                .iter()
-                .enumerate()
-                .filter(|(_, n)| n.as_str() == Some(name))
-                .map(|(i, _)| (at(i as i64), None))
-                .collect();
+            let mut out: Vec<JsonEdit> =
+                held.iter().enumerate().filter(|(_, n)| n.as_str() == Some(name)).map(|(i, _)| (at(i as i64), None)).collect();
             out.reverse();
             out
         }
@@ -314,7 +310,13 @@ fn server_of(format: McpFormat, name: &str, raw: &Value, scope: McpServerScope) 
         return Some(McpServer {
             name: name.to_string(),
             scope,
-            transport: McpTransport::Stdio { command, args: words.collect(), env: dict(def.get("environment")), cwd: None, tool_timeout_sec: None },
+            transport: McpTransport::Stdio {
+                command,
+                args: words.collect(),
+                env: dict(def.get("environment")),
+                cwd: None,
+                tool_timeout_sec: None,
+            },
             env_refs: Vec::new(),
             reads: None,
             disabled,
@@ -498,7 +500,9 @@ pub fn edit(format: McpFormat, lib: RewriteString<'_>, scope: &McpEditScope, tex
     for name in &scope.keep {
         let Some(def) = servers.get(name) else {
             match moved.get(name) {
-                Some(there) => results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Written, command: json_command_of(there) }),
+                Some(there) => {
+                    results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Written, command: json_command_of(there) })
+                }
                 None => results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Missing, command: None }),
             }
             continue;
@@ -556,7 +560,13 @@ pub fn entry_of(format: McpFormat, text: &str, name: &str, project: Option<&str>
 }
 
 /// wsp's servers merged into the agent's own file (mcp.ts:773).
-pub fn merge(format: McpFormat, lib: RewriteString<'_>, scope: &McpMergeScope, own: Option<&str>, travelled: &str) -> Result<McpMerged, HostError> {
+pub fn merge(
+    format: McpFormat,
+    lib: RewriteString<'_>,
+    scope: &McpMergeScope,
+    own: Option<&str>,
+    travelled: &str,
+) -> Result<McpMerged, HostError> {
     let key_name = servers_key(format);
     let held = own.filter(|t| !js_trim(t).is_empty());
     let mut root = match held {

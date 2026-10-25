@@ -26,7 +26,8 @@ mod provider_marks {
 
     #[test]
     fn solari_s_mark_is_an_outline_at_the_glyphs_2px_stroke_so_it_weighs_what_the_compu() {
-        let outline = Regex::new(r#"^<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" [^>]*/></svg>$"#).unwrap();
+        let outline =
+            Regex::new(r#"^<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" [^>]*/></svg>$"#).unwrap();
         let svg = &provider_mark("solari").unwrap().mark.svg;
         assert!(outline.is_match(svg), "{svg}");
     }

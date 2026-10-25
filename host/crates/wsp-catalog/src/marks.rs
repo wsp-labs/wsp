@@ -79,8 +79,7 @@ static BRAND_MARKS: LazyLock<Vec<BrandMark>> = LazyLock::new(|| {
 });
 
 #[cfg(not(feature = "public-build"))]
-static PROVIDER_MARKS: LazyLock<Vec<ProviderMark>> =
-    LazyLock::new(|| vec![solari_mark(), boat_mark()]);
+static PROVIDER_MARKS: LazyLock<Vec<ProviderMark>> = LazyLock::new(|| vec![solari_mark(), boat_mark()]);
 #[cfg(feature = "public-build")]
 static PROVIDER_MARKS: LazyLock<Vec<ProviderMark>> = LazyLock::new(|| vec![boat_mark()]);
 
@@ -186,23 +185,17 @@ pub fn editor_marks() -> &'static [EditorMark] {
 
 /// marks/index.ts:44.
 pub fn editor_mark(editor: EditorId) -> Option<&'static EditorMark> {
-    editor_marks()
-        .iter()
-        .find(|mark| mark.editors.contains(&editor))
+    editor_marks().iter().find(|mark| mark.editors.contains(&editor))
 }
 
 /// marks/index.ts:49.
 pub fn provider_mark(provider: &str) -> Option<&'static ProviderMark> {
-    provider_marks()
-        .iter()
-        .find(|mark| mark.provider == provider)
+    provider_marks().iter().find(|mark| mark.provider == provider)
 }
 
 /// marks/index.ts:56.
 pub fn tool_mark(id: &str) -> Option<&'static BrandMark> {
-    brand_marks()
-        .iter()
-        .find(|mark| mark.tools.iter().any(|tool| tool == id))
+    brand_marks().iter().find(|mark| mark.tools.iter().any(|tool| tool == id))
 }
 
 /// A word with its version cut: `@scope/name@1.2` is `@scope/name`, `image:tag` is `image` (marks/index.ts:69).
@@ -231,9 +224,7 @@ fn address_host(word: &str) -> Option<String> {
 }
 
 fn mark_for_host(host: &str) -> Option<&'static BrandMark> {
-    brand_marks()
-        .iter()
-        .find(|mark| mark.hosts.iter().any(|domain| host_under(host, domain)))
+    brand_marks().iter().find(|mark| mark.hosts.iter().any(|domain| host_under(host, domain)))
 }
 
 /// A server's mark off its address's host, or the first word of its line naming a package or an address a mark
@@ -241,19 +232,12 @@ fn mark_for_host(host: &str) -> Option<&'static BrandMark> {
 pub fn server_mark(transport: &McpRowTransport) -> Option<&'static BrandMark> {
     match transport {
         McpRowTransport::Http(http) => mark_for_host(&http.host),
-        McpRowTransport::Stdio(stdio) => {
-            stdio
-                .line
-                .split(is_js_whitespace)
-                .find_map(|word| match address_host(word) {
-                    Some(host) => mark_for_host(&host),
-                    None => {
-                        let name = package_of_word(word);
-                        brand_marks()
-                            .iter()
-                            .find(|mark| mark.packages.contains(&name))
-                    }
-                })
-        }
+        McpRowTransport::Stdio(stdio) => stdio.line.split(is_js_whitespace).find_map(|word| match address_host(word) {
+            Some(host) => mark_for_host(&host),
+            None => {
+                let name = package_of_word(word);
+                brand_marks().iter().find(|mark| mark.packages.contains(&name))
+            }
+        }),
     }
 }

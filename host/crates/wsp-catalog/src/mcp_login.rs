@@ -120,21 +120,15 @@ fn program_word(word: &str) -> String {
         Some(i) => &word[i + 1..],
         None => word,
     };
-    let cut = base
-        .char_indices()
-        .find(|&(i, c)| c == '@' || c == ':' || base[i..].starts_with("=="))
-        .map(|(i, _)| i);
+    let cut = base.char_indices().find(|&(i, c)| c == '@' || c == ':' || base[i..].starts_with("==")).map(|(i, _)| i);
     cut.map_or(base, |i| &base[..i]).to_string()
 }
 
 /// Programs that sign every request with a CLI's login unless the flag sends them unsigned (mcp-login.ts:272).
 fn signs_with_login(command: &str, args: &[String]) -> bool {
     const SIGNS_WITH_LOGIN: [(&str, &str); 2] = [("mcp-proxy-for-aws", "--skip-auth"), ("mcp-proxy-for-aws-cli", "--skip-auth")];
-    let words: Vec<String> = std::iter::once(command)
-        .chain(args.iter().map(String::as_str))
-        .flat_map(str::split_whitespace)
-        .map(program_word)
-        .collect();
+    let words: Vec<String> =
+        std::iter::once(command).chain(args.iter().map(String::as_str)).flat_map(str::split_whitespace).map(program_word).collect();
     SIGNS_WITH_LOGIN.iter().any(|(program, unsigned)| words.iter().any(|w| w == program) && !words.iter().any(|w| w == unsigned))
 }
 

@@ -33,7 +33,13 @@ pub fn resolve_codex(server: &McpServer, value: &dyn Fn(&str) -> Option<String>)
                     env.insert(name.clone(), got);
                 }
             }
-            let transport = McpTransport::Stdio { command: command.clone(), args: args.clone(), env, cwd: cwd.clone(), tool_timeout_sec: *tool_timeout_sec };
+            let transport = McpTransport::Stdio {
+                command: command.clone(),
+                args: args.clone(),
+                env,
+                cwd: cwd.clone(),
+                tool_timeout_sec: *tool_timeout_sec,
+            };
             McpResolved::Resolved { transport, values }
         }
         McpTransport::Http { url, headers } => {

@@ -5,8 +5,8 @@ use std::sync::LazyLock;
 
 use indexmap::IndexMap;
 
-use wsp_words::exit::HostError;
 use crate::roads::{InstallRoad, ReleaseAsset, ReleaseAssets};
+use wsp_words::exit::HostError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReleasePin {

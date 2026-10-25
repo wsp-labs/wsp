@@ -52,9 +52,7 @@ const MACHINE_BINS: [&str; 4] = ["/bin/", "/usr/bin/", "/usr/local/bin/", "/usr/
 const OPERATORS: [&str; 4] = ["&&", "||", "|", ";"];
 
 /// Commands whose first path argument is the script they run (hooks.ts:78).
-const INTERPRETERS: [&str; 12] = [
-    "env", "bash", "sh", "zsh", "dash", "node", "bun", "deno", "python", "python3", "ruby", "perl",
-];
+const INTERPRETERS: [&str; 12] = ["env", "bash", "sh", "zsh", "dash", "node", "bun", "deno", "python", "python3", "ruby", "perl"];
 
 /// Which word of a command the next one is: the command itself, the script an interpreter runs, or its arguments.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -66,10 +64,7 @@ enum Expect {
 
 /// hooks.ts:102.
 enum Rewritten {
-    Done {
-        command: String,
-        carried: Vec<Carried>,
-    },
+    Done { command: String, carried: Vec<Carried> },
     Left(String),
 }
 
@@ -83,12 +78,7 @@ impl HookCarry {
 
     /// The settings as the machine gets them: the input byte for byte where nothing moved (hooks.ts:134,
     /// codex-hooks.ts:223). Claude Code's edit may refuse as `edit_json` refuses.
-    pub fn carry(
-        self,
-        text: &str,
-        home: &str,
-        place: HookPlacer<'_>,
-    ) -> Result<CarriedHooks, HostError> {
+    pub fn carry(self, text: &str, home: &str, place: HookPlacer<'_>) -> Result<CarriedHooks, HostError> {
         match self {
             HookCarry::Claude => carry_claude(text, home, place),
             HookCarry::Codex => Ok(carry_codex(text, home, place)),
@@ -98,9 +88,7 @@ impl HookCarry {
 
 /// An absolute path under /bin/, /usr/bin/, /usr/local/bin/ or /usr/sbin/ with a name after it (hooks.ts:39).
 pub fn on_machine(abs: &str) -> bool {
-    MACHINE_BINS
-        .iter()
-        .any(|d| abs.starts_with(d) && abs.len() > d.len())
+    MACHINE_BINS.iter().any(|d| abs.starts_with(d) && abs.len() > d.len())
 }
 
 /// A word's path, `~/`, `$HOME/` and `${HOME}/` expanded; nothing for a word that is not a path (hooks.ts:42).
@@ -108,51 +96,33 @@ pub fn path_of(word: &str, home: &str) -> Option<String> {
     if word.starts_with('/') {
         return Some(word.to_string());
     }
-    HOME_PREFIXES
-        .iter()
-        .find_map(|p| word.strip_prefix(p).map(|rest| format!("{home}/{rest}")))
+    HOME_PREFIXES.iter().find_map(|p| word.strip_prefix(p).map(|rest| format!("{home}/{rest}")))
 }
 
 /// hooks.ts:82.
 pub fn runs_a_file(word: &str, home: &str) -> bool {
-    let name = if path_of(word, home).is_none() {
-        word
-    } else {
-        word.rsplit('/').next().unwrap_or(word)
-    };
+    let name = if path_of(word, home).is_none() { word } else { word.rsplit('/').next().unwrap_or(word) };
     INTERPRETERS.contains(&name)
 }
 
 /// hooks.ts:88.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlacedWord {
-    Word {
-        word: String,
-        carried: Option<Carried>,
-    },
+    Word { word: String, carried: Option<Carried> },
     Left(String),
 }
 
 /// hooks.ts:90.
 pub fn place_word(word: &str, home: &str, place: HookPlacer<'_>) -> PlacedWord {
     let Some(path) = path_of(word, home) else {
-        return PlacedWord::Word {
-            word: word.to_string(),
-            carried: None,
-        };
+        return PlacedWord::Word { word: word.to_string(), carried: None };
     };
     if on_machine(&path) {
-        return PlacedWord::Word {
-            word: word.to_string(),
-            carried: None,
-        };
+        return PlacedWord::Word { word: word.to_string(), carried: None };
     }
     match place(&path) {
         None => PlacedWord::Left(word.to_string()),
-        Some(to) => PlacedWord::Word {
-            word: to.clone(),
-            carried: Some(Carried { from: path, to }),
-        },
+        Some(to) => PlacedWord::Word { word: to.clone(), carried: Some(Carried { from: path, to }) },
     }
 }
 
@@ -160,12 +130,7 @@ pub fn place_word(word: &str, home: &str, place: HookPlacer<'_>) -> PlacedWord {
 pub fn hook_files(hooks: HookCarry, text: &str, home: &str) -> Result<Vec<String>, HostError> {
     let carried = hooks.carry(text, home, &|abs: &str| Some(abs.to_string()))?;
     let prefix = format!("{home}/");
-    Ok(carried
-        .carried
-        .into_iter()
-        .filter(|c| c.from.starts_with(&prefix))
-        .map(|c| c.from)
-        .collect())
+    Ok(carried.carried.into_iter().filter(|c| c.from.starts_with(&prefix)).map(|c| c.from).collect())
 }
 
 /// The command line cut into whitespace runs and words: a quoted span keeps its spaces, and a `;` glued to a word is its
@@ -210,10 +175,7 @@ fn tokens(line: &str) -> Vec<&str> {
 /// `NAME=` at the start of a word, an environment assignment (hooks.ts:79).
 fn is_env_assign(word: &str) -> bool {
     let bytes = word.as_bytes();
-    let name_len = bytes
-        .iter()
-        .take_while(|b| b.is_ascii_alphanumeric() || **b == b'_')
-        .count();
+    let name_len = bytes.iter().take_while(|b| b.is_ascii_alphanumeric() || **b == b'_').count();
     name_len > 0 && !bytes[0].is_ascii_digit() && bytes.get(name_len) == Some(&b'=')
 }
 
@@ -254,11 +216,7 @@ fn rewrite_command(command: &str, home: &str, place: HookPlacer<'_>) -> Rewritte
             joined.push_str(token);
             continue;
         }
-        expect = if runs_a_file(word, home) {
-            Expect::Script
-        } else {
-            Expect::Args
-        };
+        expect = if runs_a_file(word, home) { Expect::Script } else { Expect::Args };
         match place_word(word, home, place) {
             PlacedWord::Left(left) => {
                 if refused.is_none() {
@@ -266,10 +224,7 @@ fn rewrite_command(command: &str, home: &str, place: HookPlacer<'_>) -> Rewritte
                 }
                 joined.push_str(token);
             }
-            PlacedWord::Word {
-                word: placed,
-                carried: moved,
-            } => {
+            PlacedWord::Word { word: placed, carried: moved } => {
                 carried.extend(moved);
                 if placed == word {
                     joined.push_str(token);
@@ -282,10 +237,7 @@ fn rewrite_command(command: &str, home: &str, place: HookPlacer<'_>) -> Rewritte
     }
     match refused {
         Some(left) => Rewritten::Left(left),
-        None => Rewritten::Done {
-            command: joined,
-            carried,
-        },
+        None => Rewritten::Done { command: joined, carried },
     }
 }
 
@@ -308,19 +260,11 @@ fn hook_path(event: &str, group: usize, hook: usize, field: Option<&str>) -> Vec
 /// prompt (hooks.ts:132). Rewrites first, then each removal from the last index back, so every edit's path still names
 /// what it did.
 fn carry_claude(text: &str, home: &str, place: HookPlacer<'_>) -> Result<CarriedHooks, HostError> {
-    let mut out = CarriedHooks {
-        text: text.to_string(),
-        carried: vec![],
-        left: vec![],
-    };
+    let mut out = CarriedHooks { text: text.to_string(), carried: vec![], left: vec![] };
     let Ok(parsed) = read_jsonc(text) else {
         return Ok(out);
     };
-    let Some(hooks) = parsed
-        .as_object()
-        .and_then(|o| o.get("hooks"))
-        .and_then(Value::as_object)
-    else {
+    let Some(hooks) = parsed.as_object().and_then(|o| o.get("hooks")).and_then(Value::as_object) else {
         return Ok(out);
     };
     let mut seen: HashSet<String> = HashSet::new();
@@ -334,17 +278,9 @@ fn carry_claude(text: &str, home: &str, place: HookPlacer<'_>) -> Result<Carried
         for (g, group) in group_list.iter().enumerate() {
             let mut cut: Vec<JsonEdit> = Vec::new();
             let mut hooks_left = 0;
-            let hook_list: &[Value] = group
-                .as_object()
-                .and_then(|o| o.get("hooks"))
-                .and_then(Value::as_array)
-                .map_or(&[], Vec::as_slice);
+            let hook_list: &[Value] = group.as_object().and_then(|o| o.get("hooks")).and_then(Value::as_array).map_or(&[], Vec::as_slice);
             for (h, hook) in hook_list.iter().enumerate() {
-                let Some(command) = hook
-                    .as_object()
-                    .and_then(|o| o.get("command"))
-                    .and_then(Value::as_str)
-                else {
+                let Some(command) = hook.as_object().and_then(|o| o.get("command")).and_then(Value::as_str) else {
                     hooks_left += 1;
                     continue;
                 };
@@ -353,16 +289,10 @@ fn carry_claude(text: &str, home: &str, place: HookPlacer<'_>) -> Result<Carried
                         out.left.push(word);
                         cut.insert(0, (hook_path(event, g, h, None), None));
                     }
-                    Rewritten::Done {
-                        command: rewritten,
-                        carried,
-                    } => {
+                    Rewritten::Done { command: rewritten, carried } => {
                         hooks_left += 1;
                         if rewritten != command {
-                            rewrites.push((
-                                hook_path(event, g, h, Some("command")),
-                                Some(Value::String(rewritten)),
-                            ));
+                            rewrites.push((hook_path(event, g, h, Some("command")), Some(Value::String(rewritten))));
                         }
                         for c in carried {
                             if seen.insert(c.from.clone()) {
@@ -376,11 +306,7 @@ fn carry_claude(text: &str, home: &str, place: HookPlacer<'_>) -> Result<Carried
             if !emptied {
                 groups_left += 1;
             }
-            let add: Vec<JsonEdit> = if emptied {
-                vec![(hook_path_of_group(event, g), None)]
-            } else {
-                cut
-            };
+            let add: Vec<JsonEdit> = if emptied { vec![(hook_path_of_group(event, g), None)] } else { cut };
             gone.splice(0..0, add);
         }
         let emptied = groups.is_array() && groups_left == 0 && !gone.is_empty();
@@ -388,25 +314,13 @@ fn carry_claude(text: &str, home: &str, place: HookPlacer<'_>) -> Result<Carried
             events_left += 1;
         }
         if emptied {
-            removals.push((
-                vec![
-                    PathSeg::Key("hooks".to_string()),
-                    PathSeg::Key(event.to_string()),
-                ],
-                None,
-            ));
+            removals.push((vec![PathSeg::Key("hooks".to_string()), PathSeg::Key(event.to_string())], None));
         } else {
             removals.extend(gone);
         }
     }
     let edits: Vec<JsonEdit> = if events_left == 0 && !removals.is_empty() {
-        rewrites
-            .into_iter()
-            .chain(std::iter::once((
-                vec![PathSeg::Key("hooks".to_string())],
-                None,
-            )))
-            .collect()
+        rewrites.into_iter().chain(std::iter::once((vec![PathSeg::Key("hooks".to_string())], None))).collect()
     } else {
         rewrites.into_iter().chain(removals).collect()
     };
@@ -418,18 +332,12 @@ fn carry_claude(text: &str, home: &str, place: HookPlacer<'_>) -> Result<Carried
 
 /// The path of one group under `hooks`.
 fn hook_path_of_group(event: &str, group: usize) -> Vec<PathSeg> {
-    vec![
-        PathSeg::Key("hooks".to_string()),
-        PathSeg::Key(event.to_string()),
-        PathSeg::Index(group as i64),
-    ]
+    vec![PathSeg::Key("hooks".to_string()), PathSeg::Key(event.to_string()), PathSeg::Index(group as i64)]
 }
 
 /// Whether a code line sets the top-level `notify` key (codex-hooks.ts:15).
 fn is_notify(code: &str) -> bool {
-    js_trim_start(code)
-        .strip_prefix("notify")
-        .is_some_and(|rest| js_trim_start(rest).starts_with('='))
+    js_trim_start(code).strip_prefix("notify").is_some_and(|rest| js_trim_start(rest).starts_with('='))
 }
 
 /// Whether a line is a comment line (codex-hooks.ts:16).
@@ -440,10 +348,7 @@ fn is_comment(line: &str) -> bool {
 /// What carrying a `notify` program does: the line leaves, or its one word moves (codex-hooks.ts:24).
 enum Notify {
     Left(String),
-    Moved {
-        words: Vec<String>,
-        carried: Carried,
-    },
+    Moved { words: Vec<String>, carried: Carried },
 }
 
 /// The argv Codex runs after a turn: the program, then its arguments. A program that names a path has to be one the image
@@ -458,23 +363,14 @@ fn carry_notify(words: &[String], home: &str, place: HookPlacer<'_>) -> Option<N
     if !runs_a_file(program, home) {
         return None;
     }
-    let at = words
-        .iter()
-        .enumerate()
-        .position(|(i, w)| i > 0 && !w.starts_with('-'))?;
+    let at = words.iter().enumerate().position(|(i, w)| i > 0 && !w.starts_with('-'))?;
     match place_word(&words[at], home, place) {
         PlacedWord::Left(word) => Some(Notify::Left(word)),
         PlacedWord::Word { carried: None, .. } => None,
-        PlacedWord::Word {
-            word,
-            carried: Some(carried),
-        } => {
+        PlacedWord::Word { word, carried: Some(carried) } => {
             let mut moved = words.to_vec();
             moved[at] = word;
-            Some(Notify::Moved {
-                words: moved,
-                carried,
-            })
+            Some(Notify::Moved { words: moved, carried })
         }
     }
 }
@@ -509,11 +405,7 @@ fn carry_codex(text: &str, home: &str, place: HookPlacer<'_>) -> CarriedHooks {
             value.push_str(js_trim(&piece));
         }
         // An array that never closed is not TOML this reads, so it stays as written.
-        let words = if toml_open_array(&value) {
-            Vec::new()
-        } else {
-            toml_strings(&value)
-        };
+        let words = if toml_open_array(&value) { Vec::new() } else { toml_strings(&value) };
         match carry_notify(&words, home, place) {
             None => kept.extend(span),
             Some(Notify::Left(program)) => {
@@ -524,34 +416,17 @@ fn carry_codex(text: &str, home: &str, place: HookPlacer<'_>) -> CarriedHooks {
                     kept.pop();
                 }
             }
-            Some(Notify::Moved {
-                words: moved,
-                carried: c,
-            }) => {
+            Some(Notify::Moved { words: moved, carried: c }) => {
                 changed = true;
                 carried.push(c);
-                let swap: HashMap<String, String> = words
-                    .iter()
-                    .zip(&moved)
-                    .filter(|(w, m)| w != m)
-                    .map(|(w, m)| (w.clone(), m.clone()))
-                    .collect();
-                kept.extend(span.iter().map(|line| {
-                    rewrite_toml_line(line, &|v: &str| {
-                        swap.get(v).cloned().unwrap_or_else(|| v.to_string())
-                    })
-                }));
+                let swap: HashMap<String, String> =
+                    words.iter().zip(&moved).filter(|(w, m)| w != m).map(|(w, m)| (w.clone(), m.clone())).collect();
+                kept.extend(
+                    span.iter().map(|line| rewrite_toml_line(line, &|v: &str| swap.get(v).cloned().unwrap_or_else(|| v.to_string()))),
+                );
             }
         }
         i += 1;
     }
-    CarriedHooks {
-        text: if changed {
-            kept.join("\n")
-        } else {
-            text.to_string()
-        },
-        carried,
-        left,
-    }
+    CarriedHooks { text: if changed { kept.join("\n") } else { text.to_string() }, carried, left }
 }

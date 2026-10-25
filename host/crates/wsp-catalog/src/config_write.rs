@@ -82,18 +82,24 @@ pub fn config_write_line(w: &ConfigWrite) -> String {
     lines.push(format!("b=$(realpath {}) || exit 1", q(&w.base)));
     lines.push(format!("f={}", q(&w.file)));
     lines.push("if [ -e \"$f\" ] || [ -L \"$f\" ]; then".to_string());
-    lines.push(format!("  {}", match w.sum {
-        None => refuse(CONFIG_CHANGED_EXIT),
-        Some(_) => ":".to_string(),
-    }));
+    lines.push(format!(
+        "  {}",
+        match w.sum {
+            None => refuse(CONFIG_CHANGED_EXIT),
+            Some(_) => ":".to_string(),
+        }
+    ));
     lines.push("  r=$(realpath \"$f\" 2>/dev/null) || { printf '%s\\000%s\\000' \"$f\" \"$(readlink \"$f\")\"; exit 4; }".to_string());
     lines.push(format!("  {}", inside_base("\"$f\"")));
     lines.push(format!("  [ -z \"$(find \"$r\" -links +1)\" ] || {}", refuse(CONFIG_LINKS_EXIT)));
     lines.push("else".to_string());
-    lines.push(format!("  {}", match w.sum {
-        None => ":".to_string(),
-        Some(_) => refuse(CONFIG_CHANGED_EXIT),
-    }));
+    lines.push(format!(
+        "  {}",
+        match w.sum {
+            None => ":".to_string(),
+            Some(_) => refuse(CONFIG_CHANGED_EXIT),
+        }
+    ));
     lines.push("  d=${f%/*}; a=$d".to_string());
     lines.push("  while [ -n \"$a\" ] && [ ! -e \"$a\" ]; do a=${a%/*}; done".to_string());
     lines.push("  r=$(realpath \"${a:-/}\") || exit 1".to_string());

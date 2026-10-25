@@ -2,10 +2,10 @@
 //! The release road's scripts: a catalog row's recorded asset by arch, or a person's own row read off the release's
 //! listing, with the go fall-through. Port of packages/catalog/src/road-modules.ts:436-563 at a3b870a6e; the spec is
 //! spec/road_modules.md.
-use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::views::golden_image::ToolPin;
 use crate::road_modules::go_binary;
 use crate::roads::{pin_check_line, ReleaseAssets};
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::golden_image::ToolPin;
 
 /// road-modules.ts:472.
 pub const ASSET_ARCH_X86_64: &str = "amd64|x86_64|x64";

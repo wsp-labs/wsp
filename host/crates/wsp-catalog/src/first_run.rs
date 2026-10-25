@@ -82,7 +82,7 @@ fn lazy_run_tool(script: &str) -> Option<String> {
     if script.split('\n').nth(1) != Some("# ascii-harness-shim") {
         return None;
     }
-    script.split(is_line_end).filter_map(exec_launcher).last().map(str::to_string)
+    script.split(is_line_end).filter_map(exec_launcher).next_back().map(str::to_string)
 }
 
 fn mise_installed(tool: &str) -> String {

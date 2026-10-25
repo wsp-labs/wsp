@@ -5,8 +5,8 @@ use std::sync::LazyLock;
 
 use serde::{Deserialize, Serialize};
 
-use wsp_wire::types::shell_quote::shell_quote;
 use crate::roads::{ArchSums, VersionPin};
+use wsp_wire::types::shell_quote::shell_quote;
 
 /// linux-casks.ts:387.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -2,12 +2,12 @@
 // Ports packages/catalog/test/mcp-login.test.ts.
 use wsp_catalog::catalog::server_sign_in_road;
 use wsp_catalog::mcp_login::{brokered_server_sign_in_line, CopyWhy, McpLogin, PtyFinish, ServerSignInRoad, BROKERED_SERVER_SIGN_IN_FIX};
-use wsp_words::exit::Kind;
-use wsp_wire::types::agents_report::PageReach;
-use wsp_wire::types::init_job::SignInFinish;
-use wsp_wire::types::agents_report::SignInRoad;
 use wsp_catalog::signin::{sign_in_road_of, Headless, LoginSignIn, SignIn, SignInKind};
 use wsp_catalog::signin_rows::sign_in_row;
+use wsp_wire::types::agents_report::PageReach;
+use wsp_wire::types::agents_report::SignInRoad;
+use wsp_wire::types::init_job::SignInFinish;
+use wsp_words::exit::Kind;
 
 fn pty(command: &str, finish: PtyFinish) -> ServerSignInRoad {
     ServerSignInRoad::Pty { command: command.to_string(), finish }
@@ -36,8 +36,14 @@ mod how_one_mcp_server_of_an_agent_is_signed_in {
         }
         // Where no forward reaches, Claude Code alone finishes by the address the browser landed on.
         assert_eq!(road("claude", PageReach::None), Some(Ok(pty("claude mcp login 'notion' --no-browser", PtyFinish::Code))));
-        assert_eq!(road("codex", PageReach::None), Some(Ok(ServerSignInRoad::Copy { line: "codex mcp login 'notion'".to_string(), why: CopyWhy::Callback })));
-        assert_eq!(road("opencode", PageReach::None), Some(Ok(ServerSignInRoad::Copy { line: "opencode mcp auth 'notion'".to_string(), why: CopyWhy::Callback })));
+        assert_eq!(
+            road("codex", PageReach::None),
+            Some(Ok(ServerSignInRoad::Copy { line: "codex mcp login 'notion'".to_string(), why: CopyWhy::Callback }))
+        );
+        assert_eq!(
+            road("opencode", PageReach::None),
+            Some(Ok(ServerSignInRoad::Copy { line: "opencode mcp auth 'notion'".to_string(), why: CopyWhy::Callback }))
+        );
         match road("gemini", PageReach::Here) {
             Some(Ok(ServerSignInRoad::Copy { line, .. })) => assert_eq!(line, "/mcp auth notion"),
             other => panic!("gemini here: {other:?}"),

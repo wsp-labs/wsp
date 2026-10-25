@@ -8,10 +8,10 @@ use oracle_common::{fixture, json, opt, s, same};
 use serde_json::{json, Value};
 use wsp_catalog::bwrap_apparmor::BWRAP_APPARMOR;
 use wsp_catalog::catalog::*;
-use wsp_wire::types::agents_report::PageReach;
-use wsp_words::words::computer::Platform;
 use wsp_catalog::road_modules::install_homes;
 use wsp_catalog::roads::{InstallRoad, RoadName};
+use wsp_wire::types::agents_report::PageReach;
+use wsp_words::words::computer::Platform;
 
 fn cat() -> Value {
     fixture("catalog.json")
@@ -119,8 +119,16 @@ fn a_package_name_finds_the_ts_tool_by_every_road_it_is_known_by() {
         same(&format!("toolFor {pkg:?}"), opt(catalog_tool_for(pkg).map(|t| t.id.clone())), want);
     }
     for (pkg, want) in c["toolForDependency"].as_object().unwrap() {
-        same(&format!("toolForDependency npm {pkg}"), opt(catalog_tool_for_dependency(RoadName::Npm, pkg).map(|t| t.id.clone())), &want["npm"]);
-        same(&format!("toolForDependency pnpm {pkg}"), opt(catalog_tool_for_dependency(RoadName::Pnpm, pkg).map(|t| t.id.clone())), &want["pnpm"]);
+        same(
+            &format!("toolForDependency npm {pkg}"),
+            opt(catalog_tool_for_dependency(RoadName::Npm, pkg).map(|t| t.id.clone())),
+            &want["npm"],
+        );
+        same(
+            &format!("toolForDependency pnpm {pkg}"),
+            opt(catalog_tool_for_dependency(RoadName::Pnpm, pkg).map(|t| t.id.clone())),
+            &want["pnpm"],
+        );
     }
     for (key, want) in c["toolByRoad"].as_object().unwrap() {
         let (road, pkg) = key.split_once(' ').unwrap();

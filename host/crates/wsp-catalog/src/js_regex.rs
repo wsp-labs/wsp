@@ -9,7 +9,7 @@ use std::rc::Rc;
 use fancy_regex::Regex;
 use serde::{Serialize, Serializer};
 
-const JS_SPACE: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
+use wsp_words::js::JS_WS as JS_SPACE;
 const WORD: &str = "A-Za-z0-9_";
 
 /// The source between the slashes and the flags after them.
@@ -54,8 +54,9 @@ impl Serialize for JsRegex {
 
 /// The compiled regex for a literal source and its flags, built once per thread.
 pub(crate) fn compiled(source: &'static str, flags: &'static str) -> Option<Rc<Regex>> {
+    type Cache = HashMap<(&'static str, &'static str), Option<Rc<Regex>>>;
     thread_local! {
-        static CACHE: RefCell<HashMap<(&'static str, &'static str), Option<Rc<Regex>>>> = RefCell::new(HashMap::new());
+        static CACHE: RefCell<Cache> = RefCell::new(HashMap::new());
     }
     CACHE.with(|cache| cache.borrow_mut().entry((source, flags)).or_insert_with(|| build(source, flags).map(Rc::new)).clone())
 }
