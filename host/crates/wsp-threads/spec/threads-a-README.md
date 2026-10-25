@@ -102,3 +102,24 @@ owed end only through `kind.endOwed` (sessions.ts:580).
 7. `sessions.ts:275`, `:310`: two refusals use `new Error("no thread ... in this folder")` with no kind and the
    whole id, where every other absence is `notFoundRefusal` with `threadWord`.
 8. `launch.ts:283`: `existsSync` on this computer's disk for a local warm, a blocking read on the host's thread.
+
+## Cross-crate needs the implementers meet
+
+1. **The adapter port's `OnEvent` is `Arc<dyn Fn + Send + Sync>`** (wsp-adapters `port.rs:315`). A turn's forward holds
+   the turn's one-thread state (`Rc`), so `run_turn` hands `open` a `Forward = Rc<dyn Fn(AdapterEvent)>`, and the
+   two roads that hand a forward to a real adapter (sessions_launch L18's `adapter.start`, turns_reopen P7's
+   `attach`) cannot build an `OnEvent` from it until the port drops `Send + Sync` there, as ruling 6400791637 point 1
+   allows. The tests here never cross that line: their sessions are driven by hand.
+2. **Two optional adapter roads have no way to be asked for.** The TS checks `adapter.warm !== undefined`
+   (launch.ts:278) and `adapter.sessionHeld` (launch.ts:348) before calling. The Rust `HarnessAdapter::warm` answers
+   only by being called, and `sessionHeld` is not in the port. The interface asks `LaunchCtx::adapter_warms` and takes
+   `seed_after_loss(session_held: Option<SessionHeld>, ..)`; the port should gain `warms()` and `session_held`.
+3. **`SessionEntry` shares its view, live state and asked** (`src/pending.rs`), as ruling 6401022701 point 2 did for
+   `LiveWorkspace`. The wsp-core join moves it into `types/internal.rs` with `HeldThread`, `Rows` and `Records`.
+4. **The forks file is the other slice's.** `forkOpened`, `forkStart`, `forkTurnOf`, `readyFork`, `copyImages`,
+   `copiedEvents`, `moveSession` and `payCutOwed` (threads/forks.ts) are `SessionsCtx` methods here, so this slice's
+   tests do not wait on that port; the wiring forwards them to `wsp_threads::threads::forks`.
+5. **`ActivityDoor`'s methods** are declared in `src/activity.rs`; the empty `types::pending::ActivityDoor` in
+   wsp-core takes the same three when the threads crate is joined (ruling 6400658264 point 2).
+6. **wsp-account and wsp-machines** are not dependencies yet: nothing in this slice reads them (every read goes
+   through a context trait). The join adds them back if the other slice's files need them.

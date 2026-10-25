@@ -360,7 +360,7 @@ pub struct StopState {
 #[derive(Clone)]
 pub struct SessionsArea {
     pub(crate) ctx: Rc<dyn SessionsCtx>,
-    pub(crate) stops: Rc<RefCell<StopState>>,
+    pub stops: Rc<RefCell<StopState>>,
     /// sessions.ts:212.
     pub(crate) last_settle_at: Rc<Cell<f64>>,
 }
