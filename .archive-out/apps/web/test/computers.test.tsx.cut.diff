@@ -1,0 +1,293 @@
+diff --git a/apps/web/test/computers.test.tsx b/apps/web/test/computers.test.tsx
+index 89cbe75d4..24ba0590f 100644
+--- a/apps/web/test/computers.test.tsx
++++ b/apps/web/test/computers.test.tsx
+@@ -7,7 +7,7 @@
+ // that adds another computer.
+ import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+ import { afterEach, beforeEach, describe, expect, it } from "vitest";
+-import { type InitJob, COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgottenLine, placeStillInstalledLine, providerKeptLine, providerKeyRefused, providerKeyStillLine, refusal, type PlaceHolds, type ProjectView } from "@wsp/protocol";
++import { COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgottenLine, placeStillInstalledLine, providerKeptLine, providerKeyRefused, providerKeyStillLine, refusal, type PlaceHolds, type ProjectView } from "@wsp/protocol";
+ import { render } from "@testing-library/react";
+ import { makeApi, ProtocolClient, RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
+ import { useContextMenuStore } from "../src/actions/contextMenu.js";
+@@ -20,7 +20,6 @@ import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, COMPUTER_PAGE_WORDS, WHERE_WORDS
+ import { AGENTS_REPORT } from "./fixtures/agents-report.js";
+ import { IMAGE_WORDS } from "../src/settings/image.js";
+ import { absentOf } from "../src/settings/places.js";
+-import { openImageRecipe } from "../src/settings/openAt.js";
+ import { useSettingsStore, type SettingsAt } from "../src/settings/settingsStore.js";
+ import { SidebarCorner } from "../src/sidebar/SidebarCorner.js";
+ import { computerName } from "../src/sidebar/workspaceRows.js";
+@@ -45,7 +44,6 @@ const box: PlaceView = {
+   default: false,
+   present: true,
+   takesForks: true,
+-  engine: "docker",
+   os: "Ubuntu 24.04",
+   shape: { cpu: 2, memMb: 4096 },
+   diskFreeBytes: 38 * 1024 ** 3,
+@@ -54,7 +52,7 @@ const box: PlaceView = {
+ };
+ 
+ const MAC = "zingzy's MacBook Pro";
+-const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: MAC, default: true, present: true, takesForks: false, engine: "none", shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 210 * 1024 ** 3 };
++const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: MAC, default: true, present: true, takesForks: false, shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 210 * 1024 ** 3 };
+ const laptop: PlaceView = {
+   id: "p_1",
+   kind: "computer",
+@@ -62,7 +60,6 @@ const laptop: PlaceView = {
+   default: false,
+   present: false,
+   takesForks: true,
+-  engine: "none",
+   os: "Ubuntu 24.04",
+   agents: ["claude", "codex"],
+   shape: { cpu: 4, memMb: 8192 },
+@@ -101,7 +98,7 @@ const openPage = (id: string): void => {
+ };
+ 
+ /** A report with nothing on it. */
+-const EMPTY_REPORT: AgentsReport = { ...AGENTS_REPORT, agents: [], skills: [], servers: [], projects: [] };
++const EMPTY_REPORT: AgentsReport = { ...AGENTS_REPORT, agents: [], skills: [], servers: [] };
+ 
+ let live: ProtocolClient | undefined;
+ 
+@@ -359,7 +356,7 @@ describe("the Computers list", () => {
+ 
+ describe("a cloud's row on the Computers list", () => {
+   it("is the cloud's name, its image and when it was sealed, and how many machines run there, opening its page", async () => {
+-    const sealed = { image: { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", logins: [], sealedAt: "2026-10-13T09:00:00.000Z", sealedFrom: "x", usedBytes: 1 }, copies: [{ place: "box", version: 2, hash: "a".repeat(64), snapshotId: "s", builtAt: "2026-10-13T09:00:00.000Z" }], projects: [] };
++    const sealed = { image: { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", logins: [], sealedAt: "2026-10-13T09:00:00.000Z", sealedFrom: "x", usedBytes: 1 }, copies: [{ place: "box", version: 2, hash: "a".repeat(64), snapshotId: "s", builtAt: "2026-10-13T09:00:00.000Z" }] };
+     useStore.setState({ places: [here, ascii] });
+     await mountComputers(computersApi({ image: async () => sealed } as unknown as Partial<Api>).api);
+     await waitFor(() => expect(document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent).toMatch(/^Image v2, sealed /));
+@@ -374,55 +371,17 @@ describe("a cloud's row on the Computers list", () => {
+     await mountComputers(computersApi().api);
+     expect(document.querySelector("[data-place-row='box'] [data-grid-note]")).toBeNull();
+     cleanup();
+-    await mountComputers(computersApi({ image: async () => ({ image: null, copies: [], projects: [] }) } as unknown as Partial<Api>).api);
++    await mountComputers(computersApi({ image: async () => ({ image: null, copies: [] }) } as unknown as Partial<Api>).api);
+     await waitFor(() => expect(document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent).toBe("No image yet"));
+   });
+ 
+-  it("drops the answer a seal made stale: says it is reading while the host reads again, then the image, with no reload", async () => {
+-    const sealed = { image: { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", logins: [], sealedAt: "2026-10-13T09:00:00.000Z", sealedFrom: "x", usedBytes: 1 }, copies: [{ place: "box", version: 1, hash: "a".repeat(64), snapshotId: "s", builtAt: "2026-10-13T09:00:00.000Z" }], projects: [] };
+-    let answer: (view: typeof sealed) => void = () => {};
+-    let reads = 0;
+-    const image = (): Promise<unknown> => (reads++ === 0 ? Promise.resolve({ image: null, copies: [], projects: [] }) : new Promise(resolve => (answer = resolve)));
+-    useStore.setState({ places: [here, ascii] });
+-    await mountComputers(computersApi({ image, capabilities: () => new Promise(() => {}) } as unknown as Partial<Api>).api);
+-    const note = (): string | null | undefined => document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent;
+-    await waitFor(() => expect(note()).toBe("No image yet"));
+-    const job: InitJob = { id: "init_1", road: "manual", phase: "sealing", keys: { box: true }, place: { id: "box", name: "box" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 1, total: 2 }, log: [] };
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 1 } } }));
+-    await waitFor(() => expect(note()).toBe(IMAGE_WORDS.state.reading));
+-    expect(reads).toBe(2);
+-    act(() => answer(sealed));
+-    await waitFor(() => expect(note()).toMatch(/^Image v1, sealed /));
+-  });
+-
+-  it("reads again at a seal with Settings closed, and keeps out a read from before the seal that lands after it", async () => {
+-    const sealed = { image: { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", logins: [], sealedAt: "2026-10-13T09:00:00.000Z", sealedFrom: "x", usedBytes: 1 }, copies: [{ place: "box", version: 1, hash: "a".repeat(64), snapshotId: "s", builtAt: "2026-10-13T09:00:00.000Z" }], projects: [] };
+-    const answers: ((view: unknown) => void)[] = [];
+-    const image = (): Promise<unknown> => new Promise(resolve => answers.push(resolve));
+-    useStore.setState({ places: [here, ascii] });
+-    await mountComputers(computersApi({ image, capabilities: () => new Promise(() => {}) } as unknown as Partial<Api>).api);
+-    const note = (): string | null | undefined => document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent;
+-    await waitFor(() => expect(answers).toHaveLength(1));
+-    act(() => useStore.setState({ settingsOpen: false }));
+-    const job: InitJob = { id: "init_1", road: "manual", phase: "sealing", keys: { box: true }, place: { id: "box", name: "box" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 1, total: 2 }, log: [] };
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 1 } } }));
+-    expect(answers).toHaveLength(2);
+-    await act(async () => answers[0]!({ image: null, copies: [], projects: [] }));
+-    act(() => useStore.setState({ settingsOpen: true }));
+-    await waitFor(() => expect(note()).toBe(IMAGE_WORDS.state.reading));
+-    expect(answers).toHaveLength(2);
+-    await act(async () => answers[1]!(sealed));
+-    await waitFor(() => expect(note()).toMatch(/^Image v1, sealed /));
+-  });
+ });
+ 
+ describe("a computer's own page", () => {
+-  it("sets threads at once, the nap window and the agents switch through the host, takes a set one back, and offers an older daemon its update", async () => {
++  it("sets threads at once and the nap window through the host, takes a set one back, and offers an older daemon its update", async () => {
+     const asked: Array<[string, unknown, readonly string[]]> = [];
+     const updated: string[] = [];
+-    const agents = { spawn: true, maxMachines: 3, maxDepth: 2 };
++    const agents = { maxMachines: 3, maxDepth: 2 };
+     const row: PlaceView = { ...box, cap: { threads: 2 }, capDefault: { threads: 2 }, settings: { napMs: 30 * 60_000 }, napMs: 30 * 60_000, napDefault: 20 * 60_000, spawn: agents, spawnDefault: agents, daemonVersion: 1, behind: { word: "daemon 1", fix: "wsp add hetzner --update", act: "update" } };
+     useStore.setState({ places: [here, row] });
+     const api = computersApi({
+@@ -456,8 +415,6 @@ describe("a computer's own page", () => {
+ 
+     await act(async () => fireEvent.click(page.querySelector("[data-settings-row=nap-after] [data-k=row-reset]")!));
+     expect(asked.at(-1)).toEqual(["p_2", {}, ["nap"]]);
+-    await act(async () => fireEvent.click(page.querySelector("[data-k=agents-start-agents]")!));
+-    expect(asked.at(-1)).toEqual(["p_2", { spawn: { spawn: false } }, []]);
+   });
+ 
+   it("sets the turn limit through the host, off by default on a computer, six hours on a cloud, and takes a set one back", async () => {
+@@ -492,7 +449,7 @@ describe("a computer's own page", () => {
+     expect(asked.at(-1)).toEqual(["solari", {}, ["turn-limit"]]);
+   });
+ 
+-  it("steps Levels deep under the agents switch while it is on, takes a set depth back to the default, and names machines only where the computer forks them", async () => {
++  it("steps Levels deep, and takes a set depth back to the default", async () => {
+     const asked: Array<[string, unknown, readonly string[]]> = [];
+     const agents = { spawn: true, maxMachines: 3, maxDepth: 2 };
+     const row: PlaceView = { ...box, spawn: agents, spawnDefault: agents };
+@@ -509,7 +466,6 @@ describe("a computer's own page", () => {
+     }).api;
+     await mountComputers(api, { kind: "computer", id: "p_2" });
+     const page = document.querySelector("[data-settings-page]")!;
+-    expect(descriptionOf("agents-start-agents")).toBe("A thread here may open threads of its own, up to 3 machines and 2 levels deep.");
+     const levels = page.querySelector("[data-settings-row=levels-deep]")!;
+     expect(levels.closest("[data-settings-card]")?.getAttribute("data-settings-card")).toBe("computer-spawn");
+     expect(levels.querySelector("[data-settings-title]")?.textContent).toBe("Levels deep");
+@@ -519,7 +475,6 @@ describe("a computer's own page", () => {
+     await settle();
+     expect(asked.at(-1)).toEqual(["p_2", { spawn: { maxDepth: 3 } }, []]);
+     expect(page.querySelector("[data-k=levels-deep-value]")?.textContent).toBe("3");
+-    expect(descriptionOf("agents-start-agents")).toBe("A thread here may open threads of its own, up to 3 machines and 3 levels deep.");
+     await act(async () => fireEvent.click(page.querySelector("[data-settings-row=levels-deep] [data-k=row-reset]")!));
+     await settle();
+     expect(asked.at(-1)).toEqual(["p_2", {}, ["max-depth"]]);
+@@ -527,16 +482,6 @@ describe("a computer's own page", () => {
+     expect(page.querySelector("[data-k=levels-deep-value]")?.textContent).toBe("2");
+     expect(page.querySelector("[data-settings-row=levels-deep] [data-k=row-reset]")).toBeNull();
+ 
+-    await act(async () => fireEvent.click(page.querySelector("[data-k=agents-start-agents]")!));
+-    await settle();
+-    expect(asked.at(-1)).toEqual(["p_2", { spawn: { spawn: false } }, []]);
+-    expect(page.querySelector("[data-settings-row=levels-deep]")).toBeNull();
+-
+-    // A computer that forks no machines says depth alone.
+-    cleanup();
+-    useStore.setState({ places: [here, { ...row, takesForks: false }] });
+-    await mountComputers(api, { kind: "computer", id: "p_2" });
+-    expect(descriptionOf("agents-start-agents")).toBe("A thread here may open threads of its own, up to 2 levels deep.");
+   });
+ 
+   it("steps threads at once off the number it last sent while the host has not answered, so two quick presses land two up", async () => {
+@@ -591,7 +536,7 @@ describe("a computer's own page", () => {
+   });
+ 
+   it("draws the Image list on a computer's page only where the host registered a cloud, since an image is a cloud's", async () => {
+-    const image = async () => ({ image: null, copies: [], projects: [] });
++    const image = async () => ({ image: null, copies: [] });
+     const places = [here, { ...box, buildsImages: true }];
+     useStore.setState({ places });
+     await mountComputers(computersApi({ image } as Partial<Api>).api, { kind: "computer", id: "p_2" });
+@@ -1117,7 +1062,6 @@ describe("the cloud's page", () => {
+     version: 2,
+     hash: HASH,
+     recipeHash: "recipe-1",
+-    pins: [{ id: "claude", tag: "2.1.283" }],
+     recipe: { version: 1, at: AT, histories: [], rows: [{ id: "claude", kind: "agent", on: true, source: { kind: "popular", sessions: 0, images: 0 } }] },
+     logins: [{ name: "claude", state: "copied" }, { name: "gh", state: "signed-in" }],
+     sealedAt: "2026-09-12T09:12:00.000Z",
+@@ -1129,7 +1073,7 @@ describe("the cloud's page", () => {
+ 
+   it("lists the image's agents and your image as one row with the tools on one line and no recipe list, while the key is held", async () => {
+     const api = computersApi(
+-      { image: async () => ({ image: IMAGE, copies: [copy], projects: [] }), initStart: async () => ({}) as InitJob } as Partial<Api>,
++      { image: async () => ({ image: IMAGE, copies: [copy] }) } as Partial<Api>,
+       setupOf({ keys: { solari: true } }),
+     ).api;
+     useStore.setState({ places: [here, { ...solari, buildsImages: true }], workspaces: [atSolari("ws_y")] });
+@@ -1149,63 +1093,8 @@ describe("the cloud's page", () => {
+     expect(document.querySelector("[data-k='remove-note']")?.textContent).toBe(WHERE_WORDS.removeCloudDescription);
+   });
+ 
+-  it("keeps the Image row through a build's seal: building, then reading while the host reads again, then ready", async () => {
+-    let answer: (view: unknown) => void = () => {};
+-    let reads = 0;
+-    const image = (): Promise<unknown> => (reads++ === 0 ? Promise.resolve({ image: null, copies: [], projects: [] }) : new Promise(resolve => (answer = resolve)));
+-    const api = computersApi({ image, capabilities: () => new Promise(() => {}), initStart: async () => ({}) as InitJob } as unknown as Partial<Api>, setupOf({ keys: { solari: true } })).api;
+-    useStore.setState({ places: [here, { ...solari, buildsImages: true }] });
+-    await mountComputers(api, { kind: "computer", id: "solari" });
+-    const state = (): string | null | undefined => document.querySelector("[data-k='image-state']")?.getAttribute("data-state");
+-    const job: InitJob = { id: "init_1", road: "manual", phase: "building", keys: { solari: true }, place: { id: "solari", name: "solari" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 9, total: 12 }, log: [] };
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+-    await waitFor(() => expect(state()).toBe("building"));
+-    act(() => useStore.getState().applyEvent({ type: "golden.stage", name: "default", stage: "sealed" }));
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 2 } } }));
+-    expect(state()).toBe("reading");
+-    // The frame and the job's end each ask; the newest ask's answer is the one drawn.
+-    await waitFor(() => expect(reads).toBe(3));
+-    expect(state()).toBe("reading");
+-    expect(document.querySelector("[data-k='image-state'] [data-grid-note]")?.textContent).toBe(`${IMAGE_WORDS.state.reading}.`);
+-    act(() => answer({ image: IMAGE, copies: [copy], projects: [] }));
+-    await waitFor(() => expect(state()).toBe("ready"));
+-  });
+-
+-  it("says it is reading only while a read is out: a read after a seal that fails leaves no Image row standing", async () => {
+-    const asks: { resolve: (view: unknown) => void; reject: (e: unknown) => void }[] = [];
+-    const image = (): Promise<unknown> => new Promise((resolve, reject) => asks.push({ resolve, reject }));
+-    const api = computersApi({ image, capabilities: () => new Promise(() => {}), initStart: async () => ({}) as InitJob } as unknown as Partial<Api>, setupOf({ keys: { solari: true } })).api;
+-    useStore.setState({ places: [here, { ...solari, buildsImages: true }] });
+-    await mountComputers(api, { kind: "computer", id: "solari" });
+-    const state = (): string | null | undefined => document.querySelector("[data-k='image-state']")?.getAttribute("data-state");
+-    await waitFor(() => expect(asks).toHaveLength(1));
+-    await act(async () => asks[0]!.resolve({ image: IMAGE, copies: [copy], projects: [] }));
+-    await waitFor(() => expect(state()).toBe("ready"));
+-    const job: InitJob = { id: "init_1", road: "manual", phase: "building", keys: { solari: true }, place: { id: "solari", name: "solari" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 9, total: 12 }, log: [] };
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+-    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 3 } } }));
+-    expect(state()).toBe("reading");
+-    await act(async () => asks[1]!.reject(new Error("the socket closed")));
+-    expect(state()).toBeUndefined();
+-    act(() => useStore.setState({ settingsOpen: false }));
+-    act(() => useStore.setState({ settingsOpen: true }));
+-    await waitFor(() => expect(asks).toHaveLength(3));
+-    expect(state()).toBe("reading");
+-  });
+-
+-  it("opens no recipe on a page asked to edit the image, since the list is not drawn on these pages", async () => {
+-    const api = computersApi({ image: async () => ({ image: IMAGE, copies: [copy], projects: [] }), initStart: async () => ({}) as InitJob } as Partial<Api>, setupOf({ keys: { solari: true } })).api;
+-    useStore.setState({ places: [here, { ...solari, buildsImages: true }] });
+-    openImageRecipe("solari");
+-    mountSettings({ api });
+-    await settle();
+-    expect(pageAt()).toBe("computer:solari");
+-    expect(document.querySelector("[data-settings-page] [data-k='recipe']")).toBeNull();
+-    expect(document.querySelector("[data-k='image-state']")).not.toBeNull();
+-  });
+-
+   it("says nothing about the image on a cloud whose key this host does not hold, and keeps Remove neutral at rest", async () => {
+-    const api = computersApi({ image: async () => ({ image: IMAGE, copies: [copy], projects: [] }) } as Partial<Api>, setupOf({ keys: { solari: false } })).api;
++    const api = computersApi({ image: async () => ({ image: IMAGE, copies: [copy] }) } as Partial<Api>, setupOf({ keys: { solari: false } })).api;
+     useStore.setState({ places: [here, { ...solari, buildsImages: true }], workspaces: [atSolari("ws_y")] });
+     await mountComputers(api, { kind: "computer", id: "solari" });
+     expect(document.querySelector("[data-k='image-state']")).toBeNull();
+@@ -1217,25 +1106,14 @@ describe("the cloud's page", () => {
+     expect(document.querySelector<HTMLElement>("[data-k='remove-confirm']")!.className).toContain("bg-destructive");
+   });
+ 
+-  it("draws your image before a build with no press that opens the recipe", async () => {
+-    const api = computersApi({ image: async () => ({ image: null, copies: [], projects: [] }), initStart: async () => ({}) as InitJob } as Partial<Api>, setupOf({ keys: { solari: true } })).api;
++  it("draws your image before one is sealed with no press", async () => {
++    const api = computersApi({ image: async () => ({ image: null, copies: [] }) } as Partial<Api>, setupOf({ keys: { solari: true } })).api;
+     useStore.setState({ places: [here, { ...solari, buildsImages: true }] });
+     await mountComputers(api, { kind: "computer", id: "solari" });
+     expect(document.querySelector("[data-k='image-state']")?.getAttribute("data-state")).toBe("none");
+     expect(document.querySelector("[data-k='image-press']")).toBeNull();
+   });
+ 
+-  it("says a build running on another cloud nowhere on this cloud's page", async () => {
+-    const job = { id: "init_1", road: "manual", phase: "building", keys: {}, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 1, total: 5 }, log: [], place: { id: "box", name: "box" } } as unknown as InitJob;
+-    const api = computersApi({ image: async () => ({ image: IMAGE, copies: [copy], projects: [] }) } as Partial<Api>, setupOf({ keys: { solari: true, box: true } })).api;
+-    useStore.setState({ places: [here, { ...solari, buildsImages: true }, { ...ascii, buildsImages: true }], initJob: job });
+-    await mountComputers(api, { kind: "computer", id: "solari" });
+-    expect(document.querySelector("[data-settings-page]")?.textContent).not.toContain("building on");
+-    act(() => useSettingsStore.getState().go({ kind: "computer", id: "box" }));
+-    await settle();
+-    expect(document.querySelector("[data-k='image-state']")?.getAttribute("data-state")).toBe("building");
+-    expect(document.querySelector("[data-k='image-state'] [data-grid-note]")?.textContent).toBe("1 of 5 steps done. On your image: Claude Code.");
+-  });
+ });
+ 
+ describe("the list the four place events keep", () => {

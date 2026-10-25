@@ -1,0 +1,120 @@
+diff --git a/packages/protocol/src/views/golden-image.ts b/packages/protocol/src/views/golden-image.ts
+index 015c0a8de..44770545b 100644
+--- a/packages/protocol/src/views/golden-image.ts
++++ b/packages/protocol/src/views/golden-image.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ 
+ import { z } from "zod";
+-import { LoginChoice, LoginState } from "../init-job.js";
++import { LoginChoice, LoginState } from "../setup.js";
+ import { shellQuote } from "../shell-quote.js";
+ import { WorkspaceSize } from "../wire/capabilities.js";
+ 
+@@ -194,14 +194,6 @@ export const RecipeHistory = z.object({
+ });
+ export type RecipeHistory = z.infer<typeof RecipeHistory>;
+ 
+-/** Which rule decided every tick in a recipe: what the person's agents used on this computer, what is installed on
+- * it, or the catalog's own default. `wsp recipe --tick` names one; a recipe written without one (the wizard's
+- * screens) carries none and its rows say for themselves where each tick came from. */
+-export const RecipeTick = z.enum(["used", "installed", "default"]);
+-export type RecipeTick = z.infer<typeof RecipeTick>;
+-/** The words `--tick` takes, in the order the help lists them. */
+-export const RECIPE_TICKS: readonly RecipeTick[] = RecipeTick.options;
+-
+ /** A tool the recipe carries that the catalog does not, because an agent added it for the person's own projects:
+  * the lines that install it, run as given on the builder after every catalog road, and one command that exits 0
+  * once it is there. Nothing here is ever offered a sign-in: the install is the whole row. */
+@@ -220,24 +212,17 @@ export const RecipeCustomRow = z.object({
+ });
+ export type RecipeCustomRow = z.infer<typeof RecipeCustomRow>;
+ 
+-/** The small recipe: catalog ids with a tick each and the source of that tick, written by wsp recipe from this
+- * computer (or by hand, or by a local agent), read by wsp init --recipe, the app's pick screen and the import
+- * of a project. Among them this computer's own tools rows the catalog does not carry, under the collector's ids, and
++/** The small recipe: catalog ids with a tick each and the source of that tick, which a computer's setup plans from. Among them this computer's own tools rows the catalog does not carry, under the collector's ids, and
+  * beside them the rows an agent added for tools the catalog has none for. Names, ticks and install lines only: never
+  * a path's content, never a key. */
+ export const Recipe = z.object({
+   version: z.literal(1),
+   /** When it was written, ISO 8601. */
+   at: z.string().min(1),
+-  /** The rule that decided the ticks, when one was named; a later --set keeps it, so the table reads the same. */
+-  tick: RecipeTick.optional(),
+   histories: z.array(RecipeHistory),
+   rows: z.array(RecipeRow),
+   /** Rows outside the catalog, added on purpose; a recipe written before they existed carries none. */
+   custom: z.array(RecipeCustomRow).optional(),
+-  /** Every workspace from this image gets the place's container engine through the fenced socket, as `wsp new
+-   * --engine` gives one; absent is none unless the create asks. */
+-  engine: z.boolean().optional(),
+ });
+ export type Recipe = z.infer<typeof Recipe>;
+ 
+@@ -246,14 +231,6 @@ export function customRows(recipe: Pick<Recipe, "custom">): readonly RecipeCusto
+   return recipe.custom ?? [];
+ }
+ 
+-/** What a row added without a check of its own is checked with: its command on PATH. */
+-export function commandCheck(bin: string): string {
+-  return `command -v ${shellQuote(bin)}`;
+-}
+-
+-/** The why on a row an agent added without saying more. */
+-export const ADDED_BY_AGENT = "added by the agent";
+-
+ /** The live machine a person sets up before sealing it as a golden. It is not
+  * a workspace and never appears in the rail; `screen` is present when the
+  * machine streams a display (desktop kind). */
+@@ -343,35 +320,17 @@ export const SealedVault = z.object({
+ });
+ export type SealedVault = z.infer<typeof SealedVault>;
+ 
+-/** One row's pin as the record keeps it: the row by the id that names its tool on every computer (the catalog id
+- * where the catalog carries the tool, else the row's own id, which is the same on the computer that has it), what
+- * it installed, and the road it took, so a reader can say in the road's words why a latest row is one. */
+-export const SealedPin = ToolPin.extend({ id: z.string().min(1), road: z.string().optional() });
+-export type SealedPin = z.infer<typeof SealedPin>;
+-
+-/** The pins a sealed digest carries, one per tick that recorded one, in id order: what the record keeps beside the
+- * recipe and what its hash covers. `key` is the id a row is known by across computers, the caller's catalog rule;
+- * without one a tick keeps its own id. */
+-export function recipePins(digest: Pick<RecipeDigest, "ticks">, key: (id: string) => string = id => id): SealedPin[] {
+-  return digest.ticks
+-    .flatMap((t): SealedPin[] => (t.pin === undefined ? [] : [{ id: key(t.id), ...t.pin, ...(t.road !== undefined ? { road: t.road } : {}) }]))
+-    .sort((a, b) => a.id.localeCompare(b.id));
+-}
+-
+ /** The image the host owns: what every copy is built from. One per golden name. */
+ export const SealedImage = z.object({
+   name: z.string(),
+   version: z.number().int().positive(),
+-  /** sha256 over the recipe hash, the vault's sha256 and the pins; two copies with this hash were built from the same thing. */
++  /** sha256 over the recipe hash and the vault's sha256; two copies with this hash were built from the same thing. */
+   hash: z.string().length(64),
+   recipeHash: z.string(),
+   /** The small recipe as it stood at the seal, so a later edit of recipe.json changes no copy until the next
+    * version. Absent on a record backfilled from a golden sealed before records existed, and on one sealed by a
+    * road that carried no small recipe: a copy of such a record is refused, since there is nothing to build from. */
+   recipe: Recipe.optional(),
+-  /** What each row installed at the seal, read back off the builder: a copy installs these versions, and a row
+-   * marked latest installs the current one and is named as such. Absent on a record sealed before pins were read. */
+-  pins: z.array(SealedPin).optional(),
+   logins: z.array(GoldenLogin),
+   sealedAt: z.string(),
+   /** This computer's name at the seal, for the screen's "sealed from". */
+@@ -411,13 +370,6 @@ export type SealedImageCopy = z.infer<typeof SealedImageCopy>;
+ export const SealedImageBuilt = z.object({ copy: SealedImageCopy, built: z.boolean() });
+ export type SealedImageBuilt = z.infer<typeof SealedImageBuilt>;
+ 
+-/** What an export wrote on this computer. */
+-export const SealedImageExport = z.object({ path: z.string(), bytes: z.number().int().nonnegative(), hash: z.string().length(64) });
+-export type SealedImageExport = z.infer<typeof SealedImageExport>;
+-
+-/** The shortest passphrase an export is sealed to; a shorter one is refused before anything is read. */
+-export const IMAGE_PASSPHRASE_MIN = 12;
+-
+ /** A sealed vault's header, one line of JSON a reader parses before anything else: it says how the bytes behind it
+  * are keyed and carries the record in the plain, so an import can show what a file holds before asking for the
+  * passphrase. The header's own bytes are the cipher's additional data, so an edited header fails to open. */

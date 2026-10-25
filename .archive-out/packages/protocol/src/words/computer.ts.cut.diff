@@ -1,0 +1,98 @@
+diff --git a/packages/protocol/src/words/computer.ts b/packages/protocol/src/words/computer.ts
+index ceeb77fa1..7f5f0278a 100644
+--- a/packages/protocol/src/words/computer.ts
++++ b/packages/protocol/src/words/computer.ts
+@@ -8,10 +8,6 @@ import { spendMeterWord } from "./places.js";
+  * sidebar row's second line and the Machine tab's lineage all read this one phrase. */
+ export const THIS_COMPUTER = "this computer";
+ 
+-/** The one sentence for a project a run just recorded on this computer: wsp init's last tick says it, so where its
+- * threads run is named the same way whichever road wrote the record. */
+-export const thisComputerLine = (name: string, folder: string): string => `Threads on ${name} run in ${folder} on ${THIS_COMPUTER}, under your own sign-ins.`;
+-
+ /** What a place's machine is, in every sentence and every row that names it: a computer of the person's own that
+  * dialled this host and holds the link, so wsp drives it with the daemon protocol and never made it. */
+ export const JOINED_COMPUTER = "a computer you joined";
+@@ -65,10 +61,6 @@ export function noPreviewRouteLine(port: number, computer: string): string {
+   return `${computer} opens no address this pane can reach for port ${port}; it answers as localhost:${port} on that computer.`;
+ }
+ 
+-/** The heading over the tools a package manager here has that no catalog row carries: the wizard's own screen and
+- * the `wsp recipe scan` section are one section, so they carry one name. */
+-export const alsoTitle = (platform: "darwin" | "linux"): string => `Also on ${thisComputer(platform)}`;
+-
+ /** The one sentence a local workspace refuses a request relayed from a machine with. A local workspace is this
+  * computer; it answers only its own person, so a request that reached the host from a machine wsp runs cannot drive
+  * it. Today no machine has a road into the host, so nothing relays yet; the rule and its test land now. */
+@@ -158,24 +150,12 @@ export type SpawnAct = keyof typeof SPAWN_ACTS;
+ /** The acts a thread may ask for at all; every other act in the table is refused whatever the caps say. */
+ export const SPAWN_ACTS_ALLOWED: readonly SpawnAct[] = ["thread_new", "fork", "send", "bring_back", "commit", "fix", "update", "merge_in", "delete_sub"];
+ 
+-/** The one sentence a thread's own token is refused with when the folder or machine it runs on was made with its
+- * agents' switch off, which no line turns on again. */
+-export function agentsOffRefusal(workspace: string, act: SpawnAct): string {
+-  return `agents on ${workspace} may not ${SPAWN_ACTS[act]}, since it was made with them off; ask the person`;
+-}
+-
+-/** The refusal where the switch that is off is a computer's, over a folder there that holds none of its own: the
+- * thread refused, and the line that turns the switch back on. */
+-export function agentsOffComputerRefusal(threadId: string, computer: string, act: SpawnAct): string {
+-  return `thread ${threadWord(threadId)} may not ${SPAWN_ACTS[act]}, since agents on ${computer} are off; turn them on with ${shellLine(["wsp", "computers", "set", computer, "--spawn", "on"])}`;
+-}
+-
+ /** Why a thread may not act where this host no longer holds the folder it works in. */
+ export function folderGoneRefusal(threadId: string, act: SpawnAct): string {
+   return `thread ${threadWord(threadId)} may not ${SPAWN_ACTS[act]}, since this host no longer holds the folder it works in; ask the person`;
+ }
+ 
+-/** The refusal where no switch is off but the thread a tree started from was deleted, so nothing governs it. */
++/** The refusal where the thread a tree started from was deleted, so nothing governs it. */
+ export function rootGoneRefusal(threadId: string, act: SpawnAct): string {
+   return `thread ${threadWord(threadId)} may not ${SPAWN_ACTS[act]}, since the thread that started its tree was deleted; finish the work in this thread, or ask the person to start the one you need`;
+ }
+@@ -261,6 +241,13 @@ export function threadAt(threadId: string, on: string | undefined): string {
+   return `thread ${threadWord(threadId)}${on === undefined ? "" : ` on ${on}`}`;
+ }
+ 
++/** The one sentence a thread naming the image its fork starts from is refused with: a thread forks the image its
++ * own workspace's project runs, and the manifests that hold every snapshot id are not a thread's to read, so an id
++ * it names is one it read outside the tree it may read. */
++export function spawnGoldenRefusal(threadId: string, on: string | undefined): string {
++  return `this request came out of ${threadAt(threadId, on)}, and a thread forks the image its own workspace runs; naming an image to fork from is not a thread's to ask for`;
++}
++
+ /** The one sentence a thread's own token is refused with for an act no thread may ask for, whatever the caps. */
+ export function spawnActRefusal(threadId: string, act: SpawnAct, on: string | undefined): string {
+   return `this request came out of ${threadAt(threadId, on)}, and a thread may only ${SPAWN_ACTS_ALLOWED.map(a => SPAWN_ACTS[a]).join(", ")}, never ${SPAWN_ACTS[act]}`;
+@@ -299,13 +286,6 @@ export function folderForkFix(project: string): string {
+ export const SCOPED_TOKEN_ROAD_REFUSAL =
+   "a thread's token opens this host over the road its own computer's guest is served on, and this request came by another";
+ 
+-/** The one sentence a thread naming the image its fork starts from is refused with: a thread forks the image its
+- * own workspace's project runs, and the manifests that hold every snapshot id are not a thread's to read, so an id
+- * it names is one it read outside the tree it may read. */
+-export function spawnGoldenRefusal(threadId: string, on: string | undefined): string {
+-  return `this request came out of ${threadAt(threadId, on)}, and a thread forks the image its own workspace runs; naming an image to fork from is not a thread's to ask for`;
+-}
+-
+ /** The one sentence a fork past the machine cap is refused with, naming the root the machines were counted under. */
+ export function spawnCapRefusal(rootThreadId: string, standing: number, cap: number): string {
+   return `thread ${threadWord(rootThreadId)} already holds ${standing} of its ${cap} machines; delete one before forking another`;
+@@ -449,17 +429,6 @@ export function idPrefixRefusal(ref: string, ids: readonly string[]): string {
+   return `${ids.length} workspaces start with ${ref} (${ids.join(", ")}); give more of the id`;
+ }
+ 
+-/** The workspace table's cell for the switch: the machines a root thread there may hold, and empty where a person
+- * turned it off. */
+-export function agentsWord(agents: { spawn: boolean; maxMachines: number } | undefined): string {
+-  return agents?.spawn !== true ? "" : `${agents.maxMachines} ${agents.maxMachines === 1 ? "machine" : "machines"}`;
+-}
+-
+-/** What a listing and a computer's row say about a switch, one line either way. */
+-export function agentsLine(agents: { spawn: boolean; maxMachines: number; maxDepth: number } | undefined): string {
+-  return agents?.spawn !== true ? "agents may not spawn" : `agents may spawn: up to ${agents.maxMachines} ${agents.maxMachines === 1 ? "machine" : "machines"}`;
+-}
+-
+ /** Where the ssh client on this computer writes the key a machine first answered with under its own default
+  * config, in the words a person would type, since the file is theirs and nothing wsp owns. This is what a screen
+  * can name before anything is dialled, which is where a person reads what pressing Add will do; the file that was
