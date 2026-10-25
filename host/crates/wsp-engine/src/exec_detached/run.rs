@@ -4,6 +4,7 @@
 //! The launch, the polls, the kill and the cleanup of one detached run, and the loop that drives them.
 use std::time::{Duration, Instant};
 
+use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::wire::limits::EXEC_CHUNK_BYTES;
 use wsp_words::js::{js_trim, to_number};
 
@@ -128,7 +129,7 @@ impl LineStream {
 }
 
 /// Both streams flushed (stdout first) and the answer shaped like one exec's, with the note on its own line.
-fn finish(out: &mut LineStream, err: &mut LineStream, exit_code: i64, note: Option<&str>) -> ExecResult {
+fn finish(out: &mut LineStream, err: &mut LineStream, exit_code: f64, note: Option<&str>) -> ExecResult {
     out.flush();
     err.flush();
     let stderr = err.text();
@@ -139,7 +140,7 @@ fn finish(out: &mut LineStream, err: &mut LineStream, exit_code: i64, note: Opti
             format!("{stderr}{sep}{note}\n")
         }
     };
-    ExecResult { exit_code: exit_code.into(), stdout: out.text(), stderr }
+    ExecResult { exit_code: JsInt(JsNumber(exit_code)), stdout: out.text(), stderr }
 }
 
 /// Feeds one poll's bytes to both streams; true where a stream's chunk was full, so the next read comes at once.
@@ -213,7 +214,7 @@ pub async fn exec_detached_in(machine: &dyn Machine, script: &str, opts: RunOpti
         if cancelled() {
             let _ = send(machine, &kill_command(&base)).await;
             let _ = send(machine, &clean_command(&base)).await;
-            return Ok(finish(&mut out, &mut err, CANCELLED_EXIT, Some("cancelled")));
+            return Ok(finish(&mut out, &mut err, CANCELLED_EXIT as f64, Some("cancelled")));
         }
         if started.elapsed().as_millis() > u128::from(opts.deadline_ms) {
             let _ = send(machine, &kill_command(&base)).await;
@@ -222,7 +223,7 @@ pub async fn exec_detached_in(machine: &dyn Machine, script: &str, opts: RunOpti
                 read(&mut out, &mut err, &last);
             }
             let _ = send(machine, &clean_command(&base)).await;
-            return Ok(finish(&mut out, &mut err, DEADLINE_EXIT, None));
+            return Ok(finish(&mut out, &mut err, DEADLINE_EXIT as f64, None));
         }
         let poll = match send(machine, &poll_command(&base, out.offset, err.offset)).await {
             Ok(answer) => parse_poll(&answer.stdout),
@@ -242,16 +243,16 @@ pub async fn exec_detached_in(machine: &dyn Machine, script: &str, opts: RunOpti
             let _ = send(machine, &clean_command(&base)).await;
             let code = to_number(&poll.exit);
             return Ok(if code.is_finite() && code.fract() == 0.0 {
-                finish(&mut out, &mut err, code as i64, None)
+                finish(&mut out, &mut err, code, None)
             } else {
-                finish(&mut out, &mut err, -1, Some(NO_EXIT_NOTE))
+                finish(&mut out, &mut err, -1.0, Some(NO_EXIT_NOTE))
             });
         }
         if !poll.up {
             downs += 1;
             if downs > 1 {
                 let _ = send(machine, &clean_command(&base)).await;
-                return Ok(finish(&mut out, &mut err, -1, Some(NO_EXIT_NOTE)));
+                return Ok(finish(&mut out, &mut err, -1.0, Some(NO_EXIT_NOTE)));
             }
             continue;
         }

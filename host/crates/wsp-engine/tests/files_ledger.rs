@@ -203,7 +203,7 @@ async fn takes_out_the_names_the_list_holds_whose_entry_there_is_still_wsps_own_
     ];
     let computer = fake_port(&[(CLAUDE, claude), (CODEX, codex)], &keys);
 
-    let took = unmerge_servers(&computer.port, "/root", &IndexMap::new()).await;
+    let took = unmerge_servers(&computer.port, "/root", &IndexMap::new()).await.unwrap();
     assert_eq!(
         took,
         vec![
@@ -244,7 +244,7 @@ async fn keeps_the_comments_of_a_jsonc_file_it_takes_a_key_out_of() {
     ];
     let computer = fake_port(&[(opencode, commented.to_string()), (CLAUDE, claude)], &keys);
 
-    let took = unmerge_servers(&computer.port, "/root", &IndexMap::new()).await;
+    let took = unmerge_servers(&computer.port, "/root", &IndexMap::new()).await.unwrap();
     assert_eq!(
         took,
         vec![
@@ -262,12 +262,12 @@ async fn keeps_the_comments_of_a_jsonc_file_it_takes_a_key_out_of() {
 #[tokio::test]
 async fn writes_nothing_where_the_list_holds_no_key_where_the_file_is_not_there_and_where_every_entry_has_changed() {
     let empty = fake_port(&[(CLAUDE, claude_text())], &[]);
-    assert_eq!(unmerge_servers(&empty.port, "/root", &IndexMap::new()).await, vec![]);
+    assert_eq!(unmerge_servers(&empty.port, "/root", &IndexMap::new()).await.unwrap(), vec![]);
     assert_eq!(empty.wrote(), Vec::<String>::new());
 
     let gone = fake_port(&[], &[(format!("{MCP_ID_PREFIX}claude/gsc"), "d1".to_string())]);
-    assert_eq!(unmerge_servers(&gone.port, "/root", &IndexMap::new()).await, vec![]);
+    assert_eq!(unmerge_servers(&gone.port, "/root", &IndexMap::new()).await.unwrap(), vec![]);
     let theirs = fake_port(&[(CLAUDE, claude_text())], &[(format!("{MCP_ID_PREFIX}claude/gsc"), "d1".to_string())]);
-    assert_eq!(unmerge_servers(&theirs.port, "/root", &IndexMap::new()).await, vec![]);
+    assert_eq!(unmerge_servers(&theirs.port, "/root", &IndexMap::new()).await.unwrap(), vec![]);
     assert_eq!(theirs.wrote(), Vec::<String>::new());
 }

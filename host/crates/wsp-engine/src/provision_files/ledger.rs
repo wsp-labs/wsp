@@ -209,20 +209,19 @@ pub fn servers_out_lines(out: &ServersOut) -> Vec<String> {
 }
 
 /// provision-files.ts:586 `unmergeServers(port, home, stores = {})`.
-pub async fn unmerge_servers(port: &dyn ServerPort, home: &str, stores: &IndexMap<String, String>) -> Vec<ServersOut> {
+pub async fn unmerge_servers(port: &dyn ServerPort, home: &str, stores: &IndexMap<String, String>) -> Result<Vec<ServersOut>> {
     let keys = parse_landed_servers(&port.run(&landed_servers_script(home)).await);
     let mut out = Vec::new();
     for agent in mcp_agents() {
         let Some(mcp) = &agent.mcp else {
             continue;
         };
-        let mine: Vec<OwnKey> = keys
-            .iter()
-            .filter_map(|(id, digest)| {
-                let key = parse_mcp_id(id)?;
-                (key.agent == agent.id).then(|| OwnKey { name: key.name, home: key.home, folder: key.folder, digest: digest.clone() })
-            })
-            .collect();
+        let mut mine: Vec<OwnKey> = Vec::new();
+        for (id, digest) in &keys {
+            if let Some(key) = parse_mcp_id(id)?.filter(|key| key.agent == agent.id) {
+                mine.push(OwnKey { name: key.name, home: key.home, folder: key.folder, digest: digest.clone() });
+            }
+        }
         if mine.is_empty() {
             continue;
         }
@@ -286,7 +285,7 @@ pub async fn unmerge_servers(port: &dyn ServerPort, home: &str, stores: &IndexMa
             out.push(ServersOut::Took { path: file.path.clone(), names: took });
         }
     }
-    out
+    Ok(out)
 }
 
 /// provision-files.ts:640 `ownMarks`: in the order printed; drops a line without the mark, an empty path, an

@@ -76,7 +76,7 @@ fn row_ids_spell_the_user_scope_the_home_and_an_encoded_folder() {
 #[test]
 fn parse_mcp_id_reads_the_agent_scope_and_name_and_nothing_for_a_row_that_is_not_a_server() {
     for c in cases(&fixture("mcp_files"), "parseMcpId") {
-        let got = parse_mcp_id(&s(&c["id"])).map(|p| {
+        let got = parse_mcp_id(&s(&c["id"])).unwrap().map(|p| {
             let mut v = json!({ "agent": p.agent, "home": p.home, "name": p.name });
             if let Some(f) = p.folder {
                 v["folder"] = json!(f);
@@ -165,7 +165,7 @@ fn mcp_plan_for_keeps_drops_and_sets_aside_as_the_ts_and_is_nothing_with_no_serv
             agents: sources.clone(),
             bin_dirs: c.get("binDirs").map(strings),
         };
-        let got = mcp_plan_for(&rows, &opts).map(|p| plan_json(&p)).unwrap_or(Value::Null);
+        let got = mcp_plan_for(&rows, &opts).unwrap().map(|p| plan_json(&p)).unwrap_or(Value::Null);
         assert_eq!(got, c["out"], "{c}");
     }
 }

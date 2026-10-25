@@ -415,6 +415,7 @@ impl MachineBackend for FakeBackend {
                     name: None,
                 })
                 .collect(),
+            sizes_last: false,
         }
     }
     fn pricing(&self) -> Arc<dyn BackendPricing> {

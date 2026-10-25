@@ -605,6 +605,7 @@ impl MachineBackend for SolariBackend {
                 rate_usd_per_hour: JsNumber(rate_usd_per_hour(DEFAULT_SIZE)),
                 name: None,
             }],
+            sizes_last: true,
         }
     }
     fn pricing(&self) -> Arc<dyn BackendPricing> {

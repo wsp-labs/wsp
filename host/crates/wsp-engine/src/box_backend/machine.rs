@@ -29,7 +29,7 @@ use crate::run_env::DROP_SUDO_MARKS;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::session_events::DAEMON_UNIT;
-use wsp_words::js::{js_round, js_trim, number_string, to_number, utf16};
+use wsp_words::js::{is_js_whitespace, js_round, js_trim, number_string, to_number, utf16};
 use wsp_words::place_word::provider_key_name;
 use wsp_words::words::computer::{move_timed_out_line, Move};
 use wsp_words::words::thread::no_work_folder_line;
@@ -85,11 +85,11 @@ pub fn daemon_exits_of(stdout: &str) -> Option<String> {
     if !said.is_empty() {
         let cut: Vec<String> = said[said.len().saturating_sub(4)..]
             .iter()
-            .map(|l| if utf16::len(l) > 120 { format!("{}…", utf16::cut(l, 120)) } else { l.to_string() })
+            .map(|l| if utf16::len(l) > 120 { format!("{}…", units_lossy(l, 0, 120)) } else { l.to_string() })
             .collect();
         return Some(cut.join("; "));
     }
-    let mut words = lines[at][DAEMON_EXITS_MARK.len()..].split_whitespace();
+    let mut words = js_trim(&lines[at][DAEMON_EXITS_MARK.len()..]).split(is_js_whitespace).filter(|w| !w.is_empty());
     let sub = words.next().unwrap_or("");
     let result = words.next().unwrap_or("");
     let status = words.next().unwrap_or("");
@@ -163,8 +163,8 @@ impl BoxMachine {
         if loader_emfile(&stderr) {
             return Err(EngineError::guest_unusable(&self.id, &provider_key_name("box"), js_trim(&stderr), 200));
         }
-        let exit_code = res.exit_code.unwrap_or(if res.timed_out == Some(true) { DEADLINE_EXIT } else { -1 });
-        Ok(ExecResult { exit_code: JsInt::from(exit_code), stdout: res.stdout.unwrap_or_default(), stderr })
+        let exit_code = res.exit_code.unwrap_or(if res.timed_out == Some(true) { DEADLINE_EXIT as f64 } else { -1.0 });
+        Ok(ExecResult { exit_code: JsInt(JsNumber(exit_code)), stdout: res.stdout.unwrap_or_default(), stderr })
     }
 
     /// The reading of a command's refusal: a work folder that is gone, a shell the agent could not spawn, and a box
@@ -221,7 +221,7 @@ impl BoxMachine {
     pub async fn resume_as(&self, kind: Option<BoxClassType>, signal: Option<&Cancel>) -> Result<()> {
         self.backend.before_start().await?;
         let last = self.backend.last_timer(&self.id);
-        let instant = last.map(|t| self.backend.clock().now() + t.span_ms);
+        let instant = last.map(|t| self.backend.clock().now().saturating_add(t.span_ms));
         let ttl_seconds = self.backend.ttl_seconds_for(instant).await?;
         let mut body = json!({ "ttlSeconds": ttl_seconds });
         if let Some(kind) = kind {
@@ -347,7 +347,7 @@ impl BoxMachine {
             match self.exec(&format!("ufw allow {port}/tcp"), opts).await {
                 Ok(res) if res.exit_code.get() == 0 => held = Some(self.backend.clock().now()),
                 Ok(res) => said = refusal_words(&res.stderr, &res.stdout),
-                Err(e) => said = utf16::tail(js_trim(&e.to_string()), 200),
+                Err(e) => said = last_units_lossy(js_trim(&e.to_string()), 200),
             }
             let wait = if held.is_none() { budgets.poll_ms } else { FIREWALL_WATCH_MS };
             self.backend.clock().sleep(wait).await;
@@ -371,9 +371,7 @@ impl BoxMachine {
         let raw = self.backend.while_restoring(|| self.backend.request("GET", &path, opts.clone()), None).await?;
         let read: CommandViewContent =
             serde_json::from_value(raw).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
-        base64::engine::general_purpose::STANDARD
-            .decode(read.content.unwrap_or_default())
-            .map_err(|e| EngineError::Other { message: e.to_string(), code: None })
+        Ok(crate::node_base64::node_base64_decode(&read.content.unwrap_or_default()))
     }
 
     /// box-backend.ts:1360's one PUT of a piece of bytes.
@@ -422,6 +420,19 @@ impl BoxMachine {
     }
 }
 
+/// `s.slice(from, to)` written out as UTF-8: a pair the cut splits leaves U+FFFD for its lone half (the roads ruling),
+/// where `utf16::cut` drops it.
+fn units_lossy(s: &str, from: usize, to: usize) -> String {
+    let units: Vec<u16> = s.encode_utf16().collect();
+    String::from_utf16_lossy(&units[from.min(units.len())..to.min(units.len())])
+}
+
+/// `s.slice(-n)` written out as UTF-8, as `units_lossy`.
+fn last_units_lossy(s: &str, n: usize) -> String {
+    let len = s.encode_utf16().count();
+    units_lossy(s, len.saturating_sub(n), len)
+}
+
 /// The `content` a GET /files answers with.
 #[derive(serde::Deserialize)]
 struct CommandViewContent {
@@ -432,7 +443,7 @@ struct CommandViewContent {
 /// What a refused ufw add says: stderr when it is not empty, else stdout, trimmed, and its last 200 units.
 fn refusal_words(stderr: &str, stdout: &str) -> String {
     let raw = if stderr.is_empty() { stdout } else { stderr };
-    utf16::tail(js_trim(raw), 200)
+    last_units_lossy(js_trim(raw), 200)
 }
 
 #[async_trait(?Send)]
@@ -621,8 +632,14 @@ impl Machine for BoxMachine {
             return self.get_file(path, timeout_ms).await;
         }
         let base = format!("/tmp/wsp-get-{}", random_hex(6));
-        let pieces = ((size / FILE_GET_MAX as f64).ceil().max(1.0)) as usize;
-        let names: Vec<String> = (0..pieces).map(|i| format!("{base}.{i:04}")).collect();
+        let pieces = (size / FILE_GET_MAX as f64).ceil().max(1.0);
+        let invalid = || EngineError::Other { message: "Invalid array length".to_string(), code: None };
+        if pieces > u32::MAX as f64 {
+            return Err(invalid());
+        }
+        let mut names: Vec<String> = Vec::new();
+        names.try_reserve(pieces as usize).map_err(|_| invalid())?;
+        names.extend((0..pieces as usize).map(|i| format!("{base}.{i:04}")));
         let quoted: Vec<String> = names.iter().map(|n| shell_quote(n)).collect();
         let result = self.read_pieces(path, size, &base, &names, &quoted, timeout_ms).await;
         let _ = self.exec(&format!("rm -f {}", quoted.join(" ")), ExecOptions::default()).await;

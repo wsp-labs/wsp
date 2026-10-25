@@ -119,7 +119,7 @@ async fn a_leave_takes_wsps_server_out_of_a_claude_file_that_holds_a_lone_surrog
     let text = std::fs::read_to_string(&path).unwrap().replacen("{\"numStartups\":3,", "{\"note\":\"\\ud83d\",\"numStartups\":3,", 1);
     std::fs::write(&path, text).unwrap();
     let stores = IndexMap::from([(s("claude"), format!("{root}/.claude-cfg"))]);
-    let out = unmerge_servers(&machine_server_port(Arc::new(g.machine.clone())), &root, &stores).await;
+    let out = unmerge_servers(&machine_server_port(Arc::new(g.machine.clone())), &root, &stores).await.unwrap();
     let got: Vec<(String, Vec<String>)> = out
         .into_iter()
         .map(|o| match o {
