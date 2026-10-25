@@ -3,6 +3,7 @@
 //!
 //! One workspace's machine through naps, wakes, rebuilds and upgrades. Each TS hook is an optional closure; absent
 //! is the TS's `undefined`, and the fallback the TS takes for a missing hook is the spec's.
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 use futures::future::LocalBoxFuture;
@@ -78,16 +79,18 @@ pub struct WorkspaceInitial {
     pub first_life: Option<bool>,
 }
 
-/// lifecycle.ts:42. Every method takes `&mut self`: the TS object is driven by one caller at a time.
+/// lifecycle.ts:42. One object shared by everything that holds the workspace (wsp-core keeps it as `Rc<Workspace>`),
+/// as the TS shares one. Every method takes `&self` and the state sits in cells borrowed only between awaits (rule
+/// 3.3), so a hook can read the workspace while a wake runs.
 pub struct Workspace {
-    machine: MachineRef,
+    machine: RefCell<MachineRef>,
     hooks: WorkspaceHooks,
     /// Shared so a reader outside the workspace (a hook, the runtime's status) sees the phase while a wake runs.
     phase: Arc<std::sync::Mutex<WorkspacePhase>>,
-    first_life: bool,
+    first_life: Cell<bool>,
     /// The routes minted per port, and the machine id they were minted under.
-    preview_machine_id: String,
-    preview_by_port: IndexMap<u16, PreviewReach>,
+    preview_machine_id: RefCell<String>,
+    preview_by_port: RefCell<IndexMap<u16, PreviewReach>>,
 }
 
 impl Workspace {
@@ -96,8 +99,9 @@ impl Workspace {
         todo!()
     }
 
-    pub fn machine(&self) -> &MachineRef {
-        &self.machine
+    /// The machine now held; a rebuild or an upgrade replaces it.
+    pub fn machine(&self) -> MachineRef {
+        self.machine.borrow().clone()
     }
 
     /// lifecycle.ts:61.
@@ -126,52 +130,52 @@ impl Workspace {
     }
 
     /// lifecycle.ts:78. `port_reach(DAEMON_PORT)`.
-    pub async fn daemon_reach(&mut self) -> Result<PreviewReach> {
+    pub async fn daemon_reach(&self) -> Result<PreviewReach> {
         todo!()
     }
 
     /// lifecycle.ts:84. Through preview.rs's `refresh_preview_token(machine, port, cached)`.
-    pub async fn port_reach(&mut self, port: u16) -> Result<PreviewReach> {
+    pub async fn port_reach(&self, port: u16) -> Result<PreviewReach> {
         todo!()
     }
 
     /// lifecycle.ts:93.
-    pub async fn remint_port_reach(&mut self, port: u16) -> Result<PreviewReach> {
+    pub async fn remint_port_reach(&self, port: u16) -> Result<PreviewReach> {
         todo!()
     }
 
     /// lifecycle.ts:98.
-    pub async fn nap(&mut self) -> Result<()> {
+    pub async fn nap(&self) -> Result<()> {
         todo!()
     }
 
     /// lifecycle.ts:111.
-    pub fn note_paused(&mut self) {
+    pub fn note_paused(&self) {
         todo!()
     }
 
     /// lifecycle.ts:117.
-    pub fn note_running(&mut self) {
+    pub fn note_running(&self) {
         todo!()
     }
 
     /// lifecycle.ts:130. `landed`: a resume already sent that the provider took without its call answering.
-    pub async fn wake(&mut self, landed: bool) -> Result<WakeResult> {
+    pub async fn wake(&self, landed: bool) -> Result<WakeResult> {
         todo!()
     }
 
     /// lifecycle.ts:167.
-    pub async fn rebuild(&mut self) -> Result<()> {
+    pub async fn rebuild(&self) -> Result<()> {
         todo!()
     }
 
     /// lifecycle.ts:191.
-    pub async fn checkpoint(&mut self, name: &str) -> Result<String> {
+    pub async fn checkpoint(&self, name: &str) -> Result<String> {
         todo!()
     }
 
     /// lifecycle.ts:196.
-    pub async fn upgrade(&mut self, spec: SpecOverride) -> Result<()> {
+    pub async fn upgrade(&self, spec: SpecOverride) -> Result<()> {
         todo!()
     }
 }

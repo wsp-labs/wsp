@@ -1,8 +1,9 @@
 # lifecycle (lifecycle.ts, 205 lines)
 
 One workspace's machine through naps, wakes, rebuilds and upgrades. Rust: `src/lifecycle.rs`. Every method takes
-`&mut self`; the phase also lives in a shared cell (`phase_cell()`) so a reader outside, a hook among them, sees
-`Waking` while a wake runs (the TS object is read by others mid-wake).
+`&self` and the state sits in cells borrowed only between awaits (rule 3.3), so the runtime holds one `Rc<Workspace>`
+and a hook reads the workspace while a wake runs, as the TS object is read mid-wake. `phase_cell()` is the phase as a
+cell a reader can hold on its own.
 
 ## State, and what survives a restart
 
