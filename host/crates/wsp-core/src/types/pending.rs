@@ -6,6 +6,7 @@
 use std::rc::Rc;
 
 use indexmap::IndexMap;
+use wsp_words::exit::HostError;
 
 /// The clock seam: epoch ms and a one-shot timer whose answer cancels it. TS runtime clock.ts:4-9, wsp-core's
 /// `clock` module once written; chapter 03 rule 3.15.
@@ -40,16 +41,62 @@ pub struct StatusListOptions {}
 #[derive(Clone, Debug, Default)]
 pub struct StatusWatchOptions {}
 
-/// The paired devices and their codes. TS runtime devices.ts:122, wsp-core's `devices` module.
-pub trait DeviceDoor {}
+/// A fresh pairing code and when it stops being one. TS devices.ts:125.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IssuedCode {
+    pub code: String,
+    pub expires_at: i64,
+}
+
+/// What a redeem or an admit hands back: the token, once, and the device's view. TS devices.ts:113-117.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PairedDevice {
+    pub device_id: String,
+    pub device_token: String,
+    pub device: serde_json::Value,
+}
+
+/// The paired devices and their codes. TS runtime devices.ts:122-140, wsp-core's `devices` module; the methods past
+/// these four are the devices writer's to add.
+#[async_trait::async_trait(?Send)]
+pub trait DeviceDoor {
+    async fn issue(&self, now: i64, ttl_ms: u64, here: bool) -> Result<IssuedCode, HostError>;
+    async fn redeem(&self, code: &str, name: &str, now: i64) -> Result<Option<PairedDevice>, HostError>;
+    async fn spend(&self, code: &str, now: i64) -> Result<bool, HostError>;
+    async fn admit(&self, name: &str, now: i64) -> Result<PairedDevice, HostError>;
+}
+
+/// One daemon's link as the runtime holds it. TS runtime reach.ts:44-50, wsp-core's `reach` module; `ready`, `status`
+/// and `stats` are the reach writer's to add.
+#[async_trait::async_trait(?Send)]
+pub trait DaemonReach {
+    async fn request(
+        &self,
+        op: &str,
+        params: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, HostError>;
+    fn close(&self);
+}
 /// `Exclude<WorkspaceOrigin, "paired">`. TS devices.ts:31.
 pub type ScopedRoad = wsp_wire::views::workspace_more::WorkspaceOrigin;
 
 /// Where the reads off a git host keep their bodies and ETags. TS runtime github-cache.ts, wsp-core's `github_cache`.
 pub trait GitHubCache {}
 
-/// The host's store. TS runtime store.ts, wsp-store's row in chapter 01's table.
-pub trait Store {}
+/// The host's store. TS runtime store.ts:9-20, wsp-store's row in chapter 01's table. `transcripts` is the store
+/// writer's to add.
+#[async_trait::async_trait(?Send)]
+pub trait Store {
+    async fn get(&self, collection: &str, id: &str) -> Result<Option<serde_json::Value>, HostError>;
+    async fn put(&self, collection: &str, id: &str, value: serde_json::Value) -> Result<(), HostError>;
+    async fn list(&self, collection: &str) -> Result<Vec<serde_json::Value>, HostError>;
+    async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError>;
+    async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError>;
+    async fn get_blob(&self, collection: &str, id: &str) -> Result<Option<Vec<u8>>, HostError>;
+    async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError>;
+    async fn delete_blob(&self, collection: &str, id: &str) -> Result<(), HostError>;
+    async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError>;
+}
 /// The size and write time of a blob, which an index names the transcript it was read off by. TS store.ts:26-29.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BlobMark {
