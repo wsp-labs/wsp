@@ -1,0 +1,25 @@
+<slate title="Why the review waits on dogfood-r1">
+  <value name="next" start="" />
+  <column>
+    <text>A box runs one thread at once per 2048 MB, so this 4 GB box runs two. The review waits first in line and starts when either one ends.</text>
+    <table id="slots" items={[
+      { where: "Slot 1", turn: "Another thread's turn", state: "Running" },
+      { where: "Slot 2", turn: "Another thread's turn", state: "Running" },
+      { where: "Next in line", turn: "The review", state: "Waiting" }
+    ]} key={item.where}>
+      <col title="Where" value={item.where} width="fit" />
+      <col title="Turn" value={item.turn} width="fill" />
+      <col title="State" value={item.state} tone={item.state == 'Running' ? 'good' : 'muted'} width="fit" />
+    </table>
+    <stats id="now">
+      <stat label="Running" value={2} max={2} format="fraction" window="threads at once" />
+      <stat label="Waiting" value={1} format="integer" window="the review, first in line" />
+      <stat label="Memory" value={3915} unit="MB" window="free -m on the box" />
+    </stats>
+    <decision id="next" label="Start the review now?" value={$next} pick="wait" onChange={send("Review start", $next)}>
+      <option value="wait" label="Let it wait" note="It starts on its own when either running thread ends" />
+      <option value="mac" label="Move it to this Mac" note="6 of 8 slots free here" />
+      <option value="raise" label="Raise the box to 3 at once" note="At three on this box every turn died, 2026-09-12" />
+    </decision>
+  </column>
+</slate>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Two worktrees, one stash list</title>
+<style>
+  body { font: 13px/1.5 var(--font-sans); color: var(--foreground); }
+  .wrap { display: flex; flex-direction: column; gap: 12px; padding: 2px 0 4px; }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: 12px var(--font-sans); color: var(--muted-foreground); background: transparent; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { color: var(--foreground); border-color: var(--slate-accent); }
+  .board { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 8px; align-items: start; }
+  .col { border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-height: 100px; display: flex; flex-direction: column; gap: 6px; transition: border-color .25s; }
+  .col.on { border-color: var(--slate-accent); }
+  .head { font-size: 11px; color: var(--muted-foreground); display: flex; justify-content: space-between; gap: 4px; }
+  .head b { font-weight: 500; color: var(--foreground); }
+  .cmd { font: 11px var(--font-mono); color: var(--muted-foreground); min-height: 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col.on .cmd { color: var(--foreground); }
+  .chip { font: 11px var(--font-mono); border-radius: 6px; padding: 3px 6px; display: flex; justify-content: space-between; gap: 6px; border: 1px solid transparent; transition: background .25s, color .25s; }
+  .chip i { font-style: normal; opacity: .7; }
+  .a { background: color-mix(in oklab, var(--info-foreground) 16%, transparent); color: var(--info-foreground); }
+  .b { background: color-mix(in oklab, var(--warning-foreground) 18%, transparent); color: var(--warning-foreground); }
+  .wrong { border-color: var(--error-foreground); }
+  .empty { font-size: 11px; color: var(--muted-foreground); }
+  .stack { display: flex; flex-direction: column; gap: 4px; }
+  .say { min-height: 3.1em; }
+  .say b { font-weight: 500; }
+  code { font: 12px var(--font-mono); }
+  @media (max-width: 420px) { .board { grid-template-columns: 1fr 1fr; } .board .mid { grid-column: 1 / -1; order: 3; min-height: 0; } .col { min-height: 84px; } .board .mid { min-height: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="steps" role="group" aria-label="Steps"></div>
+  <div class="board">
+    <div class="col" data-col="a"><div class="head"><b>Builder A</b><span>worktree a</span></div><div class="cmd"></div><div class="files"></div></div>
+    <div class="col mid" data-col="s"><div class="head"><b>Stash list</b><span>one per repo</span></div><div class="stack"></div></div>
+    <div class="col" data-col="b"><div class="head"><b>Builder B</b><span>worktree b</span></div><div class="cmd"></div><div class="files"></div></div>
+  </div>
+  <div class="say" aria-live="polite"></div>
+</div>
+<script>
+  const A = { k: "a", t: "A's edit" }, B = { k: "b", t: "B's edit" };
+  const STEPS = [
+    { label: "Both edit", a: [A], b: [B], s: [], on: [], say: "Two builders on one repo, each in its own worktree, each with an uncommitted edit." },
+    { label: "A stashes", a: [], b: [B], s: [A], on: ["a", "s"], cmd: { a: "git stash push" }, say: "A sets its edit aside. It lands on the stash list as <code>stash@{0}</code>." },
+    { label: "B stashes", a: [], b: [], s: [B, A], on: ["b", "s"], cmd: { b: "git stash push" }, say: "B does the same. The list is <b>shared by every worktree</b>, so B's edit goes on top and A's slides to <code>stash@{1}</code>." },
+    { label: "A pops", a: [B], b: [], s: [A], on: ["a", "s"], cmd: { a: "git stash pop" }, wrong: ["a"], say: "A pops <code>stash@{0}</code>, the top, which is now <b>B's edit</b>. The files differ, so it applies cleanly and nothing warns." },
+    { label: "B pops", a: [B], b: [A], s: [], on: ["b", "s"], cmd: { b: "git stash pop" }, wrong: ["a", "b"], say: "B pops what is left: <b>A's edit</b>. Each builder now holds the other's change, as two did on 2026-10-16." },
+    { label: "The fix", a: [A], b: [B], s: [], on: ["a", "b"], cmd: { a: "git diff > a.patch", b: "git diff > b.patch" }, say: "Set work aside in a file of its own worktree: <code>git diff &gt; a.patch</code>, then <code>git apply a.patch</code>. No shared list, no race." },
+  ];
+  const steps = document.querySelector(".steps"), say = document.querySelector(".say");
+  const col = k => document.querySelector(`[data-col="${k}"]`);
+  const chip = (e, i, wrong) => { const d = document.createElement("div"); d.className = `chip ${e.k}${wrong ? " wrong" : ""}`; d.innerHTML = `<span>${e.t}</span>${i === undefined ? "" : `<i>stash@{${i}}</i>`}`; return d; };
+  const fill = (el, list, stash, wrong) => { el.replaceChildren(...(list.length ? list.map((e, i) => chip(e, stash ? i : undefined, wrong)) : [Object.assign(document.createElement("div"), { className: "empty", textContent: stash ? "empty" : "clean tree" })])); };
+  function show(i) {
+    const s = STEPS[i];
+    for (const k of ["a", "s", "b"]) {
+      col(k).classList.toggle("on", s.on.includes(k));
+      const cmd = col(k).querySelector(".cmd");
+      if (cmd) cmd.textContent = (s.cmd && s.cmd[k]) || "";
+    }
+    fill(col("a").querySelector(".files"), s.a, false, (s.wrong || []).includes("a"));
+    fill(col("b").querySelector(".files"), s.b, false, (s.wrong || []).includes("b"));
+    fill(col("s").querySelector(".stack"), s.s, true, false);
+    steps.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+    say.innerHTML = `${i + 1} of ${STEPS.length}. ${s.say}`;
+  }
+  STEPS.forEach((s, i) => { const b = document.createElement("button"); b.textContent = s.label; b.onclick = () => show(i); steps.append(b); });
+  addEventListener("keydown", e => { const at = [...steps.children].findIndex(b => b.getAttribute("aria-pressed") === "true"); if (e.key === "ArrowRight") show(Math.min(STEPS.length - 1, at + 1)); if (e.key === "ArrowLeft") show(Math.max(0, at - 1)); });
+  show(3);
+</script>
+</body>
+</html>
