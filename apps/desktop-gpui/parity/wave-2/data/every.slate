@@ -5,6 +5,7 @@
   <value name="answer" start={null} />
   <value name="showDone" start={true} />
   <value name="presses" start={0} />
+  <value name="ship" start="" />
   <run name="hello" cmd="echo hello" />
   <column>
     <heading level="title">Every piece</heading>
@@ -53,6 +54,15 @@
     <choices label="Which layer routes packets?" value={$answer} options={["Link", "Network", "Transport"]} answer="Network" />
     <toggle label="Show done" value={$showDone} note="Ticked steps stay in the list" />
     <button label="Run hello" variant="primary" onPress={start($hello)} />
+    <stats>
+      <stat label="Checks" value={3} max={4} window="this push" tone="good" />
+      <stat label="Spent" value={4.64} format="usd" window="this week" />
+    </stats>
+    <decision label="Ship it now?" value={$ship} pick="now" onChange={set($presses, $presses + 1)}>
+      <option value="now" label="Now" note="Checks are green" />
+      <option value="later" label="Later" note="Waits for the e2e run" />
+    </decision>
+    <progress label="screens in the app" items={[{ n: "Settings", in: true }, { n: "Usage", in: true }, { n: "Slate", in: false, why: "progress next" }]} key={item.n} name={item.n} done={item.in} note={item.why} />
     <empty title="No pull request yet">This branch has none.</empty>
   </column>
 </slate>
