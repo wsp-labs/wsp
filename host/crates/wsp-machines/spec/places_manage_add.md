@@ -22,7 +22,8 @@ its own `exec` (the door's `exec` is this one).
 - **A6** `stage(which, state, note, place_id, ms)`: `running` makes `which` the current step; `failed` notes it as said;
   `running` on `check` moves the pending add to `step: "check"`. Each stage is a `place.stage` event `{type, addId, step,
   state, note?, placeId?, ms?}` folded into the job by `with_place_stage` and handed to `opts.onStage`.
-- **A7** A code is issued: `devices.issue(now: at, ttl: PAIR_CODE_TTL_MS)`. Then the job is put afresh at the end of
+- **A7** A code is issued: `devices.issue(now: at, ttl: PAIR_CODE_TTL_MS)`. A failure here is outside the add's catch
+  (manage.ts:239): it passes on as it is, no job is kept, and the pending add stays at `connect` with no `failed`. Then the job is put afresh at the end of
   `adds` (`{addId, address, sshPort?, startedAt, state: running, steps: []}`), and `awaiting[code]` is an empty entry.
 - **A8** The install is asked with the request less `addId`, `choices` and `recipe`, plus `code: join_token(code,
   key_fingerprint(host public key))`, `held`: every record's id (R1 order), and `beforeDeploy(undo, ssh, hostKey)` moving
@@ -36,7 +37,8 @@ its own `exec` (the door's `exec` is this one).
   `wiring.log(login)` reads where the wiring has a log reader and the install named `ssh` (`box_said`; a failed read adds
   nothing).
 - **A11** The record must be there, else fail `place_no_link_line(name)`. `hold_back(record)` (R23). `stage(join, done,
-  note, place_id, ms)` with `note` = `linked_over(report.dialed, road.back, req.hostUrls)` where it says anything, and
+  note, place_id, ms)` with `note` = `linked_over(report.dialed, road.back, req.hostUrls)` joined, so an address this host did not hand
+  is `note: ""` (present and empty, manage.ts:291), and
   `ms` the join wait's length on the clock. The job reads `done` with its `placeId`.
 - **A12** `facts_on(place_id, record)` (V11), then the pending chain is awaited.
 - **A13** Nothing picked (`req.choices` absent): the pending add moves to `{...pending, placeId, step: "floor"}` and

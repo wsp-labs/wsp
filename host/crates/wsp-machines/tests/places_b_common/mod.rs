@@ -679,6 +679,8 @@ pub struct Provision {
     pub weight: RefCell<Option<PicksWeight>>,
     pub undos: RefCell<Option<Vec<PlaceUndo>>>,
     pub floor_rows: RefCell<Option<Result<Vec<wsp_wire::views::place::PlaceProvisionRow>, String>>>,
+    /// Runs inside `floor`, before it answers: what happens on the host while the floor is out.
+    pub on_floor: RefCell<Option<Box<dyn Fn()>>>,
     pub log: RefCell<Vec<String>>,
 }
 #[async_trait(?Send)]
@@ -688,6 +690,9 @@ impl PlaceProvisioner for Provision {
     }
     async fn floor(&self, _machine: Rc<dyn wsp_engine::machine::Machine>, home: &str, _stage: wsp_engine::provision::ProvisionStage) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
         self.log.borrow_mut().push(format!("floor {home}"));
+        if let Some(f) = self.on_floor.borrow().as_ref() {
+            f();
+        }
         self.floor_rows.borrow().clone().unwrap_or(Ok(vec![])).map_err(HostError::new)
     }
     async fn step(&self, _: Rc<dyn wsp_engine::machine::Machine>, _: &wsp_engine::provision::ProvisionPlan, _: &wsp_engine::provision::EngineStep, _: &wsp_engine::provision::SetupRun, _: wsp_engine::provision::ProvisionStage, _: &wsp_engine::provision::ProvisionOn) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
