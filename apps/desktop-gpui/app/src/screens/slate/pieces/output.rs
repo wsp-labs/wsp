@@ -270,7 +270,7 @@ static MATTERS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"(?mR)^\s*FAIL +(?:\|[^|]+\| +)?\S+\.[0-9A-Za-z_]+|--- FAIL|\.\.\. FAILED$|^\s*error(?:\[[0-9A-Za-z_]+\])?:",
         r"|^\s*[0-9A-Za-z_.]*(?:Error|Exception)(?:\[[0-9A-Za-z_]+\])?:|(?-u:\b)panicked at(?-u:\b)",
-        r"|^Traceback \(most recent call last\)|(?-u:\b)npm ERR!",
+        r"|^Traceback \(most recent call last\)|(?-u:\b)npm ERR!|(?-u:\b)error TS[0-9]+:",
         r"|^\s*(?:FAIL(?-u:\b)|FAILED(?-u:\b)|ERROR(?-u:\b)|[×✗✖❌]|[0-9]+\) )|(?-u:\b)error(?:\[[0-9A-Za-z_]+\])?:",
         r"|(?-u:\b)AssertionError(?-u:\b)",
     ))
@@ -613,6 +613,8 @@ mod tests {
             "vitest.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/vitest.txt"),
             "vitest-color.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/vitest-color.txt"),
             "cargo.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/cargo.txt"),
+            "tsc.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/tsc.txt"),
+            "tsc-pretty.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/tsc-pretty.txt"),
             other => panic!("readings.json names {other}: include it here too"),
         }
         .to_owned()
