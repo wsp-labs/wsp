@@ -276,3 +276,11 @@ async fn a_session_still_held_runs_as_one_launch() {
     assert_eq!(*events.lock().unwrap(), vec![start("old-1"), done("old-1", other_failure), end("old-1")]);
     assert!(Arc::ptr_eq(&after.first, &after.now.lock().unwrap().clone()));
 }
+
+// Rule P1: the runtime retries a message whose computer said nothing (threads.ts:67, `computerSilent`), which is
+// every class the transport throws but a plain error.
+#[test]
+fn every_transport_kind_but_other_is_a_silent_computer() {
+    let kinds = [ExecFailureKind::Unreached, ExecFailureKind::Unreachable, ExecFailureKind::PlaceAbsent, ExecFailureKind::LaunchUnanswered, ExecFailureKind::Deadline, ExecFailureKind::NoAnswer, ExecFailureKind::Other];
+    assert_eq!(kinds.map(ExecFailureKind::silent), [true, true, true, true, true, true, false]);
+}

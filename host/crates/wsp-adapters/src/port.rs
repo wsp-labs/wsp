@@ -143,14 +143,31 @@ pub struct ExecFailure {
     pub message: String,
 }
 
+/// The TS classes a run's transport throws, one variant each. The runtime's only reader is `computerSilent`
+/// (runtime threads.ts:67), which retries a message whose computer said nothing: every kind but `Other`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExecFailureKind {
-    /// The launch never ran on the machine.
+    /// `MachineUnreached` (engine errors.ts:299): the posts went out and the reach window passed with no answer.
     Unreached,
-    /// The machine did not answer (a TS rejection with no class of its own).
+    /// `MachineUnreachableError` (engine errors.ts:142): the provider answered that the machine cannot be reached.
+    Unreachable,
+    /// `PlaceAbsentError` (engine link-backend.ts:89, read by `isPlaceAbsent`): the computer holding it is not connected.
+    PlaceAbsent,
+    /// `LaunchUnanswered` (runtime machine-exec.ts:85): nothing answered the launch and the machine holds no such run.
+    LaunchUnanswered,
+    /// `DeadlineError` (runtime types/wiring.ts:940): a deadline passed before the call settled.
+    Deadline,
+    /// `DaemonUnanswered` (runtime daemon-channel.ts:30): the link to the daemon gave out with no answer from it.
     NoAnswer,
-    /// Anything else the transport threw.
+    /// Any other throw: a cut's own words, a refused launch, the turn limit.
     Other,
+}
+
+impl ExecFailureKind {
+    /// The runtime's `computerSilent`: true for every kind but `Other`.
+    pub fn silent(self) -> bool {
+        todo!()
+    }
 }
 
 impl std::fmt::Display for ExecFailure {
