@@ -25,6 +25,18 @@ Source at `a4033dc34`: `packages/engine/src/child-exec.ts` (140), `spawn-fed.ts`
   split a surrogate pair writes U+FFFD for the half it keeps, as the coordinator ruled for every such
   cut on #2446 (the TS keeps a lone surrogate, which reads as U+FFFD once encoded).
 
+- H14. A signal death is -1 whatever the signal (`ExitStatus::code()` is `None`; never `128 + n`, never 137), with the
+  output read so far. Values from the TS's run: `tests/fixtures/oracle/strengthen_child.json`.
+- H15. The quiet timer starts only at the exit (a chunk before it starts nothing); after it, every chunk on stdout *or*
+  stderr restarts the 200 ms. What arrives inside those windows (and before the cap) is in the answer and goes to
+  `on_line` before the final flush; `exit 4` with a background writer of `a` (stdout, +100 ms), `b` (stderr, +250 ms),
+  `c` (stdout, +400 ms) answers `{4, "a\nc\n", "b\n"}` no sooner than 500 ms, lines `["a", "c"]`.
+- H16. When the pipes close with the exit (nothing left holding them) the answer is at the close, not after a 200 ms
+  quiet: the drain timers only matter while something still holds a pipe. Ten `exit 5` children took 26 ms in the TS.
+- H17. Each chunk is decoded on its own in the TS (`Buffer.toString("utf8")` per chunk), so a character split across
+  two reads becomes U+FFFD there; the port decodes lossily as it reads and need not match a split character. No test
+  holds either; it is noted, not pinned.
+
 ## spawn_sync_fed (spawn-fed.ts:14)
 
 - H8. The bytes are written with mode 0600 and exclusive create to `in` inside a fresh `<tmp>/wsp-stdin-XXXXXX`, the
@@ -65,6 +77,9 @@ Files: `child_exec.rs` (ported), `child_exec_hard.rs` (hard).
 |---|---|
 | H1, H4 | ported `returns_at_its_deadline_with_the_commands_own_children_gone_the_output_so_far_kept`; hard `a_deadline_kills_the_whole_group_and_answers_124` |
 | H5 | ported `answers_when_the_command_exits_though_a_child_it_left_behind_still_holds_its_output`, `answers_a_command_that_exited_0_before_its_deadline_with_0_though_what_it_left_outlives_the_deadline`, `answers_a_command_whose_child_keeps_writing_within_a_second_of_the_commands_exit`; hard `an_exit_answers_within_the_drain_cap_while_a_grandchild_holds_the_pipes` |
+| H14 | hard `a_child_killed_by_a_signal_answers_minus_one_with_its_output` |
+| H15 | hard `a_write_on_either_pipe_after_the_exit_restarts_the_quiet_and_is_in_the_answer` |
+| H16 | hard `an_exit_whose_pipes_close_answers_at_once` |
 | H2 | hard `stdin_is_fed_and_closed_and_a_given_env_is_all_there_is` |
 | H3 | hard `on_line_gets_each_line_then_the_partial_one_once` |
 | H6 | hard `an_unstartable_child_answers_127_with_the_error` |

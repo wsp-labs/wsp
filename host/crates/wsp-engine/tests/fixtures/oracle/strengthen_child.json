@@ -1,0 +1,18 @@
+{
+  "signalled": {
+    "exitCode": -1,
+    "stdout": "hi\n",
+    "stderr": ""
+  },
+  "drained": {
+    "exitCode": 4,
+    "stdout": "a\nc\n",
+    "stderr": "b\n",
+    "lines": [
+      "a",
+      "c"
+    ],
+    "tookAtLeast500": true
+  },
+  "tenQuickExitsMs": 25
+}
