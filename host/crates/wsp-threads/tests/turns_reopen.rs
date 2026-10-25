@@ -166,7 +166,7 @@ fn a_failed_sweep_is_warned_and_ends_nothing() {
             "TurnsCtx::exec_sweep",
             Rc::new(|_e: &Entry| {
                 Some(Box::new(|_runs: Vec<String>| {
-                    async { Err(HostError { message: "the machine did not answer".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: Vec::new() }) }.boxed_local()
+                    async { Err(HostError::new("the machine did not answer")) }.boxed_local()
                 }) as Sweep)
             }),
         );
@@ -203,7 +203,7 @@ fn an_adapter_that_cannot_be_built_says_why() {
         host.add_entry(entry("w1", json!({})));
         host.hooks.set::<dyn Fn(&Entry, &str, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
             "TurnsCtx::adapter_for",
-            Rc::new(|_e: &Entry, _h: &str, _a: AdapterAsk| Err(HostError { message: "no adapter for codex in this host".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: Vec::new() })),
+            Rc::new(|_e: &Entry, _h: &str, _a: AdapterAsk| Err(HostError::new("no adapter for codex in this host"))),
         );
         let warned = wsp_core::console::capture();
         assert_eq!(TurnsArea::new(host.clone()).reattach(left_running(json!({})), false).await, Reopened::Cannot);
@@ -219,7 +219,7 @@ fn invariant_5_a_transcript_that_does_not_read_leaves_the_turn_running_and_unrea
         let host = host_with(adapter.clone());
         host.hooks.set::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>(
             "TurnsCtx::open_thread",
-            Rc::new(|_w: &str, _t: &str| async { Err(HostError { message: "the transcript of w1 does not parse".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: Vec::new() }) }.boxed_local()),
+            Rc::new(|_w: &str, _t: &str| async { Err(HostError::new("the transcript of w1 does not parse")) }.boxed_local()),
         );
         let warned = wsp_core::console::capture();
         let r = left_running(json!({}));
