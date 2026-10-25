@@ -366,14 +366,12 @@ mod the_words_the_clients_print_for_the_job {
 
     // Constants only: passes against the stubs.
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn the_first_workspace_s_default_name_lives_here_so_the_terminal_and_the_host_read() {
         assert_eq!(FIRST_WORKSPACE, "first");
     }
 
     // Constants only: passes against the stubs.
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn every_step_has_a_sentence_under_its_title_and_no_title_or_sentence_ends_in_a_per() {
         use wsp_words::words::init::cloud_setup_words::{agent, build, choice, reading};
         assert!(!build::SLIDE_TOP.ends_with('.') && !build::SLIDE_TOP.ends_with(';'));
@@ -492,7 +490,6 @@ mod the_words_the_clients_print_for_the_job {
     // Constants only: passes against the stubs. The TS stringifies the whole table, keys included; the strings are
     // listed here from the module's constants, which hold no key with these words.
     #[test]
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn the_screens_words_never_ask_the_person_to_run_a_command_and_never_say_cloud_mach() {
         let text = ALL_WORDS.join("\n");
         assert!(!Regex::new(r"(?i)wsp init|terminal").unwrap().is_match(&text), "{text}");

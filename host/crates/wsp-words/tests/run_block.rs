@@ -49,7 +49,6 @@ mod which_of_a_reply_s_code_blocks_a_person_can_run {
 
     #[test]
 
-    #[ignore = "checks constants alone, which the interface copied by script; no stub to fail on"]
     fn says_in_one_sentence_how_an_agent_labels_a_command_for_the_person() {
         assert!(RUN_BLOCK_WORDS.contains("`sh`"), "{RUN_BLOCK_WORDS}");
         assert!(!RUN_BLOCK_WORDS.ends_with('.'));
