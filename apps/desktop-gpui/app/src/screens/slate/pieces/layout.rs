@@ -100,11 +100,14 @@ pub fn is_toolbar(slate: &Slate, id: &str) -> bool {
 pub fn is_card_row(slate: &Slate, id: &str) -> bool {
     match kind(slate, id) {
         None => false,
+        // A strip is a card of its own, never a row of the card the pieces after it gather into.
+        _ if is_strip(slate, id) => false,
         Some("column") => !is_group(slate, id),
         Some("row") => !is_toolbar(slate, id) && !children(slate, id).iter().any(|c| kind(slate, c).is_some_and(|k| flags(k).heads)),
+        // A state word alone on the page stands bare; after a card's rows it joins them, as `gather` says.
         Some(
             "section" | "heading" | "text" | "markdown" | "chart" | "donut" | "timeline" | "treemap" | "diagram" | "image" | "images"
-            | "bars" | "button" | "table",
+            | "bars" | "button" | "table" | "stats" | "status" | "progress" | "choices",
         ) => false,
         Some(_) => true,
     }
@@ -184,7 +187,8 @@ pub fn gather(slate: &Slate, ids: &[String]) -> Vec<Run> {
             }
             continue;
         }
-        let joins = is_card_row(slate, id) || ridden_by(slate, id).is_some() || is_note_text(slate, id);
+        let joins =
+            is_card_row(slate, id) || ridden_by(slate, id).is_some() || is_note_text(slate, id) || kind(slate, id) == Some("status");
         match runs.last_mut() {
             Some(Run::Card(card)) if joins => card.push(id.clone()),
             _ if !is_card_row(slate, id) => runs.push(Run::Bare(id.clone())),
@@ -520,9 +524,10 @@ fn grid(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
 
 // ---- the stat strip ----
 
-/// One character of the 26 px mono figure, and a 12 px unit with its 4 px gap per character.
+/// One character of the 26 px mono figure, a 12 px unit with its 4 px gap per character, and a ring with its gap.
 const FIGURE_CH: f64 = 15.6;
 const UNIT_CH: f64 = 7.2;
+const RING: f64 = 30.;
 /// One character of the 13 px sans label, which keeps to one line so the figures under it share theirs.
 const LABEL_CH: f64 = 6.4;
 /// The card's inner width a strip can count on: the 400 px panel's, and the least a widened panel's (34rem).
@@ -548,16 +553,29 @@ pub fn across(count: usize, widest: f64, room: f64, cap: usize) -> usize {
     best
 }
 
-/// The widest a strip cell needs: its figure and unit, or its one-line label.
-fn cell_width(slate: &Slate, id: &str) -> f64 {
-    let figure = look::figure(read(slate, id, "value").as_ref(), read(slate, id, "format").as_ref()).map_or(0, |f| f.chars().count());
+/// The widest a strip cell needs: its figure and unit, or its one-line label. A ring's or a meter's figure is the one
+/// its tile draws, 209/214 rather than 209, with the ring beside it.
+pub fn cell_width(slate: &Slate, id: &str) -> f64 {
+    let value = read(slate, id, "value");
+    let format = read(slate, id, "format");
+    let gauged = matches!(kind(slate, id), Some("ring" | "meter"));
+    let shown = match value.as_ref().and_then(Value::as_f64) {
+        Some(v) if gauged => {
+            let max = read(slate, id, "max").as_ref().and_then(Value::as_f64).unwrap_or(100.);
+            let format = format.as_ref().and_then(Value::as_str).unwrap_or("percent");
+            (format != "none").then(|| look::slate_figure(v, if format == "value" { "plain" } else { format }, Some(max)))
+        }
+        _ => look::figure(value.as_ref(), format.as_ref()),
+    };
     let unit = look::str(read(slate, id, "unit").as_ref());
     let label = look::str(read(slate, id, "label").as_ref()).map_or(0, |l| l.chars().count());
-    let figure = figure as f64 * FIGURE_CH + unit.map_or(0., |u| u.chars().count() as f64 * UNIT_CH + 4.);
+    let figure = shown.map_or(0, |f| f.chars().count()) as f64 * FIGURE_CH
+        + unit.map_or(0., |u| u.chars().count() as f64 * UNIT_CH + 4.)
+        + if gauged { RING } else { 0. };
     figure.max(label as f64 * LABEL_CH)
 }
 
-/// The stat strip: one card split into equal cells with hairlines between them, a number per cell.
+/// The stat strip: one card split into equal cells with hairlines between them, a figure per cell.
 fn strip(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
     let slate = p.slate;
     let cells: Vec<String> = strip_cells(slate, p.id()).unwrap_or_default().into_iter().filter(|c| slate.shown(c)).collect();
@@ -792,7 +810,8 @@ pub mod tests {
             "g": {"type": "grid", "children": ["a", "s2", "t2", "b"]},
             "a": {"type": "number"}, "s2": {"type": "status"}, "t2": {"type": "text"}, "b": {"type": "number"},
         }));
-        assert_eq!(gather(&s, &ids(&["n", "st", "tx", "g"])), vec![Run::Card(ids(&["n", "st", "tx", "g"]))]);
+        // The strip after them is a card of its own, never a row of theirs.
+        assert_eq!(gather(&s, &ids(&["n", "st", "tx", "g"])), vec![Run::Card(ids(&["n", "st", "tx"])), Run::Bare("g".into())]);
         assert_eq!(super::super::riders::riders_of(&s, "n").all, ids(&["st", "tx"]));
         assert_eq!(strip_cells(&s, "g"), Some(ids(&["a", "b"])));
         assert_eq!(super::super::riders::riders_of(&s, "a").all, ids(&["s2", "t2"]));

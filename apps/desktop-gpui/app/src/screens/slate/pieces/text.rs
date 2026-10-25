@@ -14,7 +14,7 @@ use gpui_kit::{
 };
 use serde_json::Value;
 
-use super::layout::{head, place_of, surface, tone_of, Place, INSET, ROW_FLOOR};
+use super::layout::{head, measured, place_of, surface, tone_of, Place, INSET, ROW_FLOOR};
 use super::look::{self, is_figure, is_sentence, Tone};
 use super::riders::ridden_by;
 use super::PieceCx;
@@ -290,11 +290,36 @@ pub fn facts_grid(key: SharedString, list: &[Fact], place: Place, window: &Windo
     }
 }
 
-/// Facts on one line: pairs 12 px apart that wrap, each label 12 px muted before its value.
-pub fn facts_line(list: &[Fact], cx: &App) -> AnyElement {
+/// Facts on one line: pairs 12 px apart that wrap, each label 12 px muted before its value. Under 480 px of the row one
+/// pair a line, the labels a column of their own up to 40% of it, so the values start at one edge.
+pub fn facts_line(key: SharedString, list: &[Fact], window: &mut Window, cx: &mut App) -> AnyElement {
     let figures = list.iter().all(|f| is_figure(Some(&Value::String(f.value.clone()))));
     let muted = cx.palette().muted_foreground;
+    let (width, probe) = measured(key, window, cx);
+    if let Some(width) = width.filter(|w| *w < NARROW_FACTS) {
+        let sans = cx.theme().font_family.clone();
+        let widest = list.iter().map(|f| text::width(&f.label, 12., sans.clone(), window)).fold(px(0.), Pixels::max).ceil();
+        let column = widest.min(width * 0.4);
+        return v_flex()
+            .relative()
+            .debug_selector(|| "slate-facts".into())
+            .min_w_0()
+            .gap(px(6.))
+            .children(list.iter().map(|fact| {
+                // The label takes its value's line, so the two first lines share one middle.
+                let line = if fact.mono || figures { px(16.) } else { px(19.5) };
+                h_flex()
+                    .min_w_0()
+                    .items_start()
+                    .gap(px(12.))
+                    .child(div().flex_none().w(column).text_size(px(12.)).line_height(line).text_color(muted).child(fact.label.clone()))
+                    .child(fact_value(fact, figures, cx).flex_1())
+            }))
+            .child(probe)
+            .into_any_element();
+    }
     h_flex()
+        .relative()
         .debug_selector(|| "slate-facts".into())
         .min_w_0()
         .flex_wrap()
@@ -311,10 +336,14 @@ pub fn facts_line(list: &[Fact], cx: &App) -> AnyElement {
                 .child(div().pb(lift).text_size(px(12.)).line_height(px(16.)).text_color(muted).child(fact.label.clone()))
                 .child(fact_value(fact, figures, cx).whitespace_nowrap())
         }))
+        .child(probe)
         .into_any_element()
 }
 
-fn facts(p: &PieceCx, window: &Window, cx: &App) -> Option<AnyElement> {
+/// The row width under which facts on a line stand one pair a line, `facts.tsx`'s 30rem.
+const NARROW_FACTS: Pixels = px(480.);
+
+fn facts(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     let resolved = p.prop("facts").and_then(Value::as_array).cloned().unwrap_or_default();
     let shown = p.slate.present(p.piece.prop("facts"), &resolved);
     let list = facts_of(&shown, |t| tone_of(Some(t), p.slate, p.id()));
@@ -324,7 +353,7 @@ fn facts(p: &PieceCx, window: &Window, cx: &App) -> Option<AnyElement> {
     if p.str("layout").as_deref() == Some("grid") {
         Some(facts_grid(p.el("facts"), &list, place_of(p.slate, p.id()), window, cx))
     } else {
-        Some(facts_line(&list, cx))
+        Some(facts_line(p.el("facts-width"), &list, window, cx))
     }
 }
 
