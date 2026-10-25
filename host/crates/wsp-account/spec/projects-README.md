@@ -32,7 +32,7 @@ and `WorkspacesCtx`. A method keeps its TS name in snake case. The shared maps c
 entry is `Entry = Rc<RefCell<LiveWorkspace>>`, machines a's alias (`wsp-machines/src/machines/machines.rs:38`). By
 ruling 2 the join makes every entry of one workspace share one record; until then the record is read and written
 through the entry. Every type this slice takes from a crate that is not on `rust/2448-base` yet is named in
-`src/projects/seam.rs`, so the swap to the joined crates is one file.
+`src/projects/workspaces/seam.rs` (`crate::projects::workspaces::seam`; `projects.rs` is the skeleton owner's), so the swap to the joined crates is one file.
 
 The areas themselves are structs over `Rc<dyn ...Ctx>`: `Workspaces` implements `wsp_core::types::api::WorkspacesApi`,
 `Projects` implements `ProjectsApi`; the area handle traits of `wsp_core::context` (`FoldersArea`, `StartFromArea`,
