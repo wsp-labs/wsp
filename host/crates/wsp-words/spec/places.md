@@ -39,7 +39,7 @@ The words of the computers table and a computer's detail rows, a provider's remo
 ## Decisions
 1. `place_spend_line` takes the month and rate as two numbers; `host_menu_action` answers `Option<Option<String>>` for undefined, `{alias: null}` and `{alias}`.
 2. `KeyStill` is an enum of the two TS shapes.
-3. `fmt_theme_vars` reads `dot_colour`, `effective_opacity` and `theme_ink`, declared in `pending_wire::types::workspace_look` until the `workspace_look` unit is written.
+3. `fmt_theme_vars` reads `dot_colour`, `effective_opacity` and `theme_ink`, declared in `wsp_wire::types::workspace_look` until the `workspace_look` unit is written.
 4. Nested TS constant objects (`PLACE_INSTALL`, `PLACES_WORDS`, `PROVIDER_LEFT_WORDS`, `HOST_WORDS`) are modules of constants and functions, values copied by script.
 
 ## After the port

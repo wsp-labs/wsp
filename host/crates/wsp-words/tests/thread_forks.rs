@@ -6,8 +6,8 @@
 
 use regex::Regex;
 use serde_json::{json, Value};
-use wsp_words::pending_wire::views::harness::HarnessCatalog;
-use wsp_words::pending_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
+use wsp_wire::views::harness::HarnessCatalog;
+use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
 use wsp_words::words::computer::THIS_COMPUTER;
 use wsp_words::words::thread::*;
 
@@ -435,7 +435,7 @@ mod pinned {
     use wsp_words::words::thread::*;
 
     use serde_json::json;
-    use wsp_words::pending_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
+    use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
 
     fn wire<T: serde::de::DeserializeOwned>(v: serde_json::Value) -> T {
         serde_json::from_value(v).unwrap()
@@ -518,8 +518,8 @@ mod pinned {
         assert_eq!(out_of_memory_line(&MemoryReading { used: 3.59 * 1073741824.0, total: 3.94 * 1073741824.0, load1: 6.25 }), "Out of memory (3.6 GB of 3.9 GB used, load 6.3) when the thread's computer last answered; the work there took the memory, not a fault in the computer"); // outOfMemoryLine({used:3.59*1024**3,total:3.94*1024**3,load1:6.25})
         assert_eq!(out_of_memory_line(&MemoryReading { used: 100.0, total: 200.0, load1: 0.05 }), "Out of memory (100 B of 200 B used, load 0.1) when the thread's computer last answered; the work there took the memory, not a fault in the computer"); // outOfMemoryLine({used:100,total:200,load1:0.05})
         assert_eq!(out_of_memory_row_line(&MemoryReading { used: 3.59 * 1073741824.0, total: 3.94 * 1073741824.0, load1: 1.0 }), "out of memory, 3.6 of 3.9 GB"); // outOfMemoryRowLine({used:3.59*1024**3,total:3.94*1024**3,load1:1})
-        assert_eq!(bigger_size_line(&WorkspaceSize { cpu: 2.0, mem_mb: 4096.0 }, &[]), "No size with more memory is offered; run less in the thread at once"); // biggerSizeLine({cpu:2,memMb:4096}, [])
-        assert_eq!(bigger_size_line(&WorkspaceSize { cpu: 2.0, mem_mb: 4096.0 }, &[MachineSizeOffer { size: WorkspaceSize { cpu: 8.0, mem_mb: 16384.0 }, rate_usd_per_hour: 0.4, name: None }, MachineSizeOffer { size: WorkspaceSize { cpu: 2.0, mem_mb: 4096.0 }, rate_usd_per_hour: 0.1, name: None }, MachineSizeOffer { size: WorkspaceSize { cpu: 4.0, mem_mb: 8192.0 }, rate_usd_per_hour: 0.2, name: None }, MachineSizeOffer { size: WorkspaceSize { cpu: 6.0, mem_mb: 8192.0 }, rate_usd_per_hour: 0.3, name: None }]), "A thread on 4\u{a0}vCPU,\u{a0}8\u{a0}GB ($0.20/hr) fits more; pick it when you start the next one"); // biggerSizeLine({cpu:2,memMb:4096}, [{cpu:8,memMb:16384,rateUsdPerHour:0.4},{cpu:2,memMb:4096,rateUsdPerHour:0.1},{cpu:4,memMb:8192,rateUsdPerHour:0.2},{cpu:6,memMb:8192,rateUsdPerHour:0.3}])
+        assert_eq!(bigger_size_line(&serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(), &[]), "No size with more memory is offered; run less in the thread at once"); // biggerSizeLine({cpu:2,memMb:4096}, [])
+        assert_eq!(bigger_size_line(&serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(), &[serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 8.0, "memMb": 16384.0, "rateUsdPerHour": 0.4 })).unwrap(), serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0, "rateUsdPerHour": 0.1 })).unwrap(), serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 4.0, "memMb": 8192.0, "rateUsdPerHour": 0.2 })).unwrap(), serde_json::from_value::<MachineSizeOffer>(serde_json::json!({ "cpu": 6.0, "memMb": 8192.0, "rateUsdPerHour": 0.3 })).unwrap()]), "A thread on 4\u{a0}vCPU,\u{a0}8\u{a0}GB ($0.20/hr) fits more; pick it when you start the next one"); // biggerSizeLine({cpu:2,memMb:4096}, [{cpu:8,memMb:16384,rateUsdPerHour:0.4},{cpu:2,memMb:4096,rateUsdPerHour:0.1},{cpu:4,memMb:8192,rateUsdPerHour:0.2},{cpu:6,memMb:8192,rateUsdPerHour:0.3}])
     }
 
     #[test]

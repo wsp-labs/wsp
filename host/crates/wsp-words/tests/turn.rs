@@ -10,8 +10,8 @@
 
 use regex::Regex;
 use serde_json::{json, Value};
-use wsp_words::pending_wire::types::thread_read::ThreadMessage;
-use wsp_words::pending_wire::views::session_events::TurnResult;
+use wsp_wire::types::thread_read::ThreadMessage;
+use wsp_wire::views::session_events::TurnResult;
 use wsp_words::words::turn::*;
 use wsp_words::words::units::{fmt_tokens, LIST_PRICE_WORD};
 
@@ -477,8 +477,8 @@ mod pinned {
     }
 
     use serde_json::json;
-    use wsp_words::pending_wire::views::session::{TitleSource, TurnRefusal};
-    use wsp_words::pending_wire::views::session_events::TurnResult;
+    use wsp_wire::views::session::{TitleSource, TurnRefusal};
+    use wsp_wire::views::session_events::TurnResult;
 
     fn res(v: serde_json::Value) -> TurnResult {
         serde_json::from_value(v).unwrap()

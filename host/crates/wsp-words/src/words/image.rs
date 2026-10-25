@@ -3,8 +3,8 @@
 //! Settings > Image read them, project images, pins and the recipe's install lines, the lineage marks, and every line
 //! a snapshot, a template and a seal end on. Each TS statement stands as a comment above its stub. See spec/image.md.
 
-use crate::pending_wire::views::golden_image::{GoldenStage, SealedImage, SealedImageCopy, SealedImageExport, ToolPin};
-use crate::pending_wire::views::snapshot_lineage::{ProjectGolden, SealedProjectImage};
+use wsp_wire::views::golden_image::{GoldenStage, SealedImage, SealedImageCopy, SealedImageExport, ToolPin};
+use wsp_wire::views::snapshot_lineage::{ProjectGolden, SealedProjectImage};
 use crate::words::computer::Platform;
 use serde::Serialize;
 
@@ -88,8 +88,8 @@ pub fn copy_is_current(image: &SealedImage, copy: &SealedImageCopy) -> bool {
     todo!()
 }
 
-/// The states a login ends in with something of it on the machine, which is what the vault then carries: signed in
-/// there, copied from this computer, or there with no status command to prove it. The rest left nothing behind.
+// The states a login ends in with something of it on the machine, which is what the vault then carries: signed in
+// there, copied from this computer, or there with no status command to prove it. The rest left nothing behind.
 // image.ts:50
 // private in the TS: port it as a private helper
 // const LOGIN_ON_MACHINE: readonly LoginState[] = ["signed-in", "copied", "not-verified"];
@@ -490,11 +490,11 @@ pub fn behind_golden_line(on: f64, head: f64) -> String {
     todo!()
 }
 
-/// The states a version row can be in, each as the muted mono word the row's marks column shows: state is text there,
-/// never a badge, and a missing tool's outcome indexes this table as it is. The keys are the wire's; the words are
-/// the person's, so a row says what the version is rather than the name the code holds it under. The volatile key's
-/// word says what such a version has behind it, a snapshot at the provider and no durable template, since that is
-/// the whole of what it is and what the provider can drop.
+// The states a version row can be in, each as the muted mono word the row's marks column shows: state is text there,
+// never a badge, and a missing tool's outcome indexes this table as it is. The keys are the wire's; the words are
+// the person's, so a row says what the version is rather than the name the code holds it under. The volatile key's
+// word says what such a version has behind it, a snapshot at the provider and no durable template, since that is
+// the whole of what it is and what the provider can drop.
 // image.ts:283
 // export const LINEAGE_MARKS = { now: "now", head: "newest", fork: "this one", failed: "failed", skipped: "skipped", volatile: "snapshot only" } as const;
 
@@ -518,10 +518,10 @@ impl LineageMark {
     }
 }
 
-/// What is said for each folder git named no branch for: nothing in a branch slot or the diff pane's git mark, which
-/// show the branch or nothing until it is known, whatever kept it unknown; and the one line an empty diff pane says in
-/// place of a diff, only for a folder outside any repository, since an empty pane with no reason reads as broken while
-/// a refused read shows the cause git gave.
+// What is said for each folder git named no branch for: nothing in a branch slot or the diff pane's git mark, which
+// show the branch or nothing until it is known, whatever kept it unknown; and the one line an empty diff pane says in
+// place of a diff, only for a folder outside any repository, since an empty pane with no reason reads as broken while
+// a refused read shows the cause git gave.
 // image.ts:290
 // export const REPO_STATE_WORDS = {
 //   unknown: { pane: "" },
@@ -633,9 +633,9 @@ pub fn snapshot_refused_line(name: &str, answer: &ProviderAnswer, disk: &DiskUse
     todo!()
 }
 
-/// The folders that hold a pnpm switched to the version a folder pins, read off everything the failed call printed:
-/// pnpm 10 keeps the copy in PNPM_HOME/.tools/pnpm/<v> beside its <v>_tmp_ stage, pnpm 11 in its store's
-/// links/@/pnpm/<v>. Either is trusted while it stands and never fetched again, so removing it is the repair.
+// The folders that hold a pnpm switched to the version a folder pins, read off everything the failed call printed:
+// pnpm 10 keeps the copy in PNPM_HOME/.tools/pnpm/<v> beside its <v>_tmp_ stage, pnpm 11 in its store's
+// links/@/pnpm/<v>. Either is trusted while it stands and never fetched again, so removing it is the repair.
 // image.ts:337
 // private in the TS: port it as a private helper
 // function switchedPnpm(output: string): string | undefined {

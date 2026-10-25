@@ -3,8 +3,8 @@
 //! validator refusal, machine, disk and resize lines, the words every door quotes about turns, and the two-halves
 //! refusal line with redaction. Each TS statement stands as a comment above its stub. See spec/thread_lines.md.
 
-use crate::pending_wire::views::harness::HarnessCatalog;
-use crate::pending_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
+use wsp_wire::views::harness::HarnessCatalog;
+use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
 
 
 /// A limit as one unit: whole hours when it is hours, else whole minutes.
@@ -83,7 +83,7 @@ pub fn step_retry_line(limit_s: f64) -> String {
 //   return `${bin} was killed before it answered`;
 // }
 /// `exitCode` None is null; `ended` defaults to `{}`.
-pub fn harness_exit_line(bin: &str, exit_code: Option<f64>, path: Option<&str>, ended: Option<&HarnessEnded>) -> String {
+pub fn harness_exit_line(bin: &str, exit_code: Option<i32>, path: Option<&str>, ended: Option<&HarnessEnded>) -> String {
     todo!()
 }
 
@@ -105,9 +105,9 @@ pub struct HarnessEnded {
     pub reached: Option<bool>,
 }
 
-/// What a person's line calls each field a request carries, for the refusal that has to name one. The wire's own
-/// names are never printed: a person types flags and words, not fields. A field with no row here is one no line
-/// names on its own, and the refusal says the line instead.
+// What a person's line calls each field a request carries, for the refusal that has to name one. The wire's own
+// names are never printed: a person types flags and words, not fields. A field with no row here is one no line
+// names on its own, and the refusal says the line instead.
 // thread.ts:64
 // private in the TS: port it as a private helper
 // const REQUEST_WORDS: Readonly<Record<string, string>> = {

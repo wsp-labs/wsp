@@ -7,12 +7,15 @@
 //! absent-computer.test.ts:183 (needs placeAddSheetWord, not in the stubs) and workspace-theme.test.ts:114 (needs
 //! opacityCap, contrastRatio, SIDE_INK and WORD_FLOOR of workspace-look, not in the stubs).
 
+mod support;
+
 use regex::Regex;
 use serde_json::{json, Value};
-use wsp_words::pending_wire::types::workspace_look::{theme_ink, WorkspaceTheme};
-use wsp_words::pending_wire::views::desktop_bridge::HostsView;
-use wsp_words::pending_wire::views::place::PlaceView;
-use wsp_words::pending_wire::views::project_bundle::{ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig};
+use wsp_words::workspace_look::theme_ink;
+use wsp_wire::types::workspace_look::WorkspaceTheme;
+use wsp_wire::views::desktop_bridge::HostsView;
+use wsp_wire::views::place::PlaceView;
+use wsp_wire::views::project_bundle::{ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig};
 use wsp_words::words::places::*;
 
 fn wire<T: serde::de::DeserializeOwned>(v: Value) -> T {
@@ -63,7 +66,7 @@ mod the_import_dialog_s_words {
     use super::*;
 
     fn ev(over: Value) -> ProjectImportEvent {
-        let mut event = json!({ "message": "" });
+        let mut event = crate::support::trip_event();
         event.as_object_mut().unwrap().extend(over.as_object().unwrap().clone());
         wire(event)
     }
@@ -160,7 +163,7 @@ mod the_export_dialog_s_words {
     use super::*;
 
     fn ev(over: Value) -> ProjectExportEvent {
-        let mut event = json!({ "message": "" });
+        let mut event = crate::support::trip_event();
         event.as_object_mut().unwrap().extend(over.as_object().unwrap().clone());
         wire(event)
     }
@@ -615,7 +618,7 @@ mod pinned {
     }
 
     use serde_json::json;
-    use wsp_words::pending_wire::views::project_bundle::TerminalRgb;
+    use wsp_wire::views::project_bundle::TerminalRgb;
 
     fn wire<T: serde::de::DeserializeOwned>(v: serde_json::Value) -> T {
         serde_json::from_value(v).unwrap()
@@ -754,12 +757,12 @@ mod pinned {
 
     #[test]
     fn the_other_lines_read_as_the_ts_writes_them() {
-        assert_eq!(js(&import_progress(&[wire(json!({"stage":"planned","message":""})), wire(json!({"stage":"packing","message":"Packing 3 files."})), wire(json!({"stage":"uploading","message":"","bytes":50,"total":100})), wire(json!({"stage":"uploading","message":"","bytes":20,"total":100})), wire(json!({"stage":"landing","message":""})), wire(json!({"stage":"uploading","message":"","bytes":10,"total":2048}))], "ws")), "{\"line\":\"Uploading sessions, 2 KB\",\"fraction\":1}"); // JSON.stringify(importProgress([{"stage":"planned","message":""},{"stage":"packing","message":"Packing 3 files."},{"stage":"uploading","message":"","bytes":50,"total":100},{"stage":"uploading","message":"","bytes":20,"total":100},{"stage":"landing","message":""},{"stage":"uploading","message":"","bytes":10,"total":2048}], "ws"))
-        assert_eq!(js(&import_progress(&[wire(json!({"stage":"planned","message":""})), wire(json!({"stage":"packing","message":"Packing 3 files."})), wire(json!({"stage":"uploading","message":"","bytes":50,"total":100}))], "ws")), "{\"line\":\"Uploading 100 B\",\"fraction\":0.5}"); // JSON.stringify(importProgress([{"stage":"planned","message":""},{"stage":"packing","message":"Packing 3 files."},{"stage":"uploading","message":"","bytes":50,"total":100}], "ws"))
+        assert_eq!(js(&import_progress(&[wire(crate::support::over(crate::support::trip_event(), json!({"stage":"planned","message":""}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"packing","message":"Packing 3 files."}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"uploading","message":"","bytes":50,"total":100}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"uploading","message":"","bytes":20,"total":100}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"landing","message":""}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"uploading","message":"","bytes":10,"total":2048})))], "ws")), "{\"line\":\"Uploading sessions, 2 KB\",\"fraction\":1}"); // JSON.stringify(importProgress([{"stage":"planned","message":""},{"stage":"packing","message":"Packing 3 files."},{"stage":"uploading","message":"","bytes":50,"total":100},{"stage":"uploading","message":"","bytes":20,"total":100},{"stage":"landing","message":""},{"stage":"uploading","message":"","bytes":10,"total":2048}], "ws"))
+        assert_eq!(js(&import_progress(&[wire(crate::support::over(crate::support::trip_event(), json!({"stage":"planned","message":""}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"packing","message":"Packing 3 files."}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"uploading","message":"","bytes":50,"total":100})))], "ws")), "{\"line\":\"Uploading 100 B\",\"fraction\":0.5}"); // JSON.stringify(importProgress([{"stage":"planned","message":""},{"stage":"packing","message":"Packing 3 files."},{"stage":"uploading","message":"","bytes":50,"total":100}], "ws"))
         assert_eq!(js(&import_progress(&[], "ws")), "null"); // JSON.stringify(importProgress([], "ws"))
-        assert_eq!(js(&import_progress(&[wire(json!({"stage":"packing","message":"a"})), wire(json!({"stage":"failed","message":"x"}))], "ws")), "null"); // JSON.stringify(importProgress([{stage:"packing",message:"a"},{stage:"failed",message:"x"}], "ws"))
-        assert_eq!(js(&export_progress(&[wire(json!({"stage":"packing","message":""})), wire(json!({"stage":"downloading","message":"","bytes":30,"total":60})), wire(json!({"stage":"packing","message":""})), wire(json!({"stage":"downloading","message":"","bytes":1,"total":60})), wire(json!({"stage":"downloading","message":"","total":0,"bytes":0}))], "spoo")), "{\"line\":\"Downloading sessions, 0 B\",\"fraction\":0.5}"); // JSON.stringify(exportProgress([{"stage":"packing","message":""},{"stage":"downloading","message":"","bytes":30,"total":60},{"stage":"packing","message":""},{"stage":"downloading","message":"","bytes":1,"total":60},{"stage":"downloading","message":"","total":0,"bytes":0}], "spoo"))
-        assert_eq!(js(&export_progress(&[wire(json!({"stage":"landing","message":""}))], "")), "{\"line\":\"Landing\",\"fraction\":1}"); // JSON.stringify(exportProgress([{stage:"landing",message:""}], ""))
+        assert_eq!(js(&import_progress(&[wire(crate::support::over(crate::support::trip_event(), json!({"stage":"packing","message":"a"}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"failed","message":"x"})))], "ws")), "null"); // JSON.stringify(importProgress([{stage:"packing",message:"a"},{stage:"failed",message:"x"}], "ws"))
+        assert_eq!(js(&export_progress(&[wire(crate::support::over(crate::support::trip_event(), json!({"stage":"packing","message":""}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"downloading","message":"","bytes":30,"total":60}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"packing","message":""}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"downloading","message":"","bytes":1,"total":60}))), wire(crate::support::over(crate::support::trip_event(), json!({"stage":"downloading","message":"","total":0,"bytes":0})))], "spoo")), "{\"line\":\"Downloading sessions, 0 B\",\"fraction\":0.5}"); // JSON.stringify(exportProgress([{"stage":"packing","message":""},{"stage":"downloading","message":"","bytes":30,"total":60},{"stage":"packing","message":""},{"stage":"downloading","message":"","bytes":1,"total":60},{"stage":"downloading","message":"","total":0,"bytes":0}], "spoo"))
+        assert_eq!(js(&export_progress(&[wire(crate::support::over(crate::support::trip_event(), json!({"stage":"landing","message":""})))], "")), "{\"line\":\"Landing\",\"fraction\":1}"); // JSON.stringify(exportProgress([{stage:"landing",message:""}], ""))
         assert_eq!(js(&terminal_config_lines(&wire(json!({"files":["/a","/b"],"fontFamily":["A","B"],"fontSize":13.5,"theme":"dark","background":{"r":0,"g":15,"b":255},"palette":[null,{"r":1,"g":2,"b":3},null,null,null,null,null,null,null,null,null,null,null,null,null,null],"cursorStyleBlink":false,"windowPaddingX":{"left":4,"right":4},"windowPaddingY":{"top":1,"bottom":2},"backgroundOpacity":0.9,"backgroundBlur":0})))), "[\"Read /a, /b\",\"font-family = A, B\",\"font-size = 13.5\",\"theme = dark\",\"background = #000fff\",\"palette = 1 of 16 colors\",\"cursor-style-blink = false\",\"window-padding-x = 4\",\"window-padding-y = 1,2\",\"background-opacity = 0.9\",\"background-blur = 0\"]"); // JSON.stringify(terminalConfigLines({"files":["/a","/b"],"fontFamily":["A","B"],"fontSize":13.5,"theme":"dark","background":{"r":0,"g":15,"b":255},"palette":[null,{"r":1,"g":2,"b":3},null,null,null,null,null,null,null,null,null,null,null,null,null,null],"cursorStyleBlink":false,"windowPaddingX":{"left":4,"right":4},"windowPaddingY":{"top":1,"bottom":2},"backgroundOpacity":0.9,"backgroundBlur":0}))
         assert_eq!(js(&terminal_config_lines(&wire(json!({"files":[],"fontFamily":[],"palette":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]})))), "[\"No Ghostty config on this computer; the terminal pane keeps its defaults.\"]"); // JSON.stringify(terminalConfigLines({files:[],fontFamily:[],palette:Array(16).fill(null)}))
         assert_eq!(js(&shell_version_notice(None, "0.3.8", None)), "{\"line\":\"this app is older than the host, which is 0.3.8: get the new app\",\"update\":true}"); // JSON.stringify(shellVersionNotice(undefined, "0.3.8", undefined) ?? null)

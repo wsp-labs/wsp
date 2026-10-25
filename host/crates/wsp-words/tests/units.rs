@@ -5,11 +5,13 @@
 //! place-state.test.ts:73 (tests placeSettingsLine, a place-state sentence; fmtSize is incidental) and
 //! workspace-state.test.ts:223 (tests servesReading in workspace-state; NOT_ON_THIS_KIND is one incidental assertion).
 
+mod support;
+
 use indexmap::IndexSet;
 
 use serde_json::{json, Value};
-use wsp_words::pending_wire::types::init_job::{InitJob, InitScreen, InitScreenId};
-use wsp_words::pending_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
+use wsp_wire::types::init_job::{InitJob, InitScreen, InitScreenId};
+use wsp_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
 use wsp_words::words::units::*;
 
 fn wire<T: serde::de::DeserializeOwned>(v: Value) -> T {
@@ -124,7 +126,7 @@ mod the_room_left_on_a_box_as_the_doctor_reads_it_back {
     use super::*;
 
     fn capacity(v: Value) -> PlaceCapacity {
-        wire(v)
+        wire(crate::support::over(crate::support::place_capacity(), v))
     }
 
     #[test]
@@ -261,7 +263,7 @@ mod machine_size_words {
         assert_eq!(fmt_size(&size(1.0, 4096.0), None), nb("1 vCPU, 4 GB"));
         assert_eq!(place_facts_line(&size(1.0, 4096.0), None), nb("1 core, 4 GB"));
         assert_eq!(
-            box_room_lines(&wire(json!({ "cores": 1, "memMb": 4096, "cpuTaken": 0, "memTakenMb": 0 })))[0],
+            box_room_lines(&wire(crate::support::over(crate::support::place_capacity(), json!({ "cores": 1, "memMb": 4096, "cpuTaken": 0, "memTakenMb": 0 }))))[0],
             "1 core, 0 in use by forks, 1 free"
         );
         assert_eq!(fmt_cpus(1.0, Some(CpuWord::Cores)), "1 core");
@@ -276,7 +278,8 @@ mod machine_size_words {
         let read: Vec<Option<WorkspaceSize>> = ["2x4", " 4x8 ", "1x0.5"].iter().map(|w| size_from_word(w)).collect();
         assert_eq!(read, vec![Some(size(2.0, 4096.0)), Some(size(4.0, 8192.0)), Some(size(1.0, 512.0))]);
         for s in offers() {
-            assert_eq!(size_from_word(&size_word(&s.size)), Some(size(s.size.cpu, s.size.mem_mb)));
+            let shape: WorkspaceSize = serde_json::from_value(json!({ "cpu": s.cpu, "memMb": s.mem_mb })).unwrap();
+            assert_eq!(size_from_word(&size_word(&shape)), Some(shape));
         }
     }
 
@@ -306,11 +309,9 @@ mod machine_size_words {
     #[test]
     fn offered_size_is_the_one_membership_rule_and_the_refusal_names_the_word_as_given() {
         let offers = offers();
-        // offeredSize takes plain sizes in the stub: the offers' shapes without their rates.
-        let shapes: Vec<WorkspaceSize> = offers.iter().map(|o| o.size.clone()).collect();
-        assert!(offered_size(&shapes, &size(2.0, 8192.0)));
-        assert!(!offered_size(&shapes, &size(4.0, 8192.0)));
-        assert!(!offered_size(&[], &size(2.0, 4096.0)));
+        assert!(offered_size(&offers, &size(2.0, 8192.0)));
+        assert!(!offered_size(&offers, &size(4.0, 8192.0)));
+        assert!(!offered_size(&[] as &[WorkspaceSize], &size(2.0, 4096.0)));
         // The same match answers with the row itself, which is where a picker reads the rate it quotes.
         assert_eq!(
             size_offer(&offers, &size(2.0, 8192.0)).cloned(),
@@ -462,10 +463,10 @@ mod pinned {
         wsp_words::exit::json_line(&serde_json::to_value(v).unwrap(), None)
     }
 
-    use wsp_words::pending_wire::wire::capabilities::WorkspaceSize;
+    use wsp_wire::wire::capabilities::WorkspaceSize;
 
     fn sz(cpu: f64, mem_mb: f64) -> WorkspaceSize {
-        WorkspaceSize { cpu, mem_mb }
+        serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": cpu, "memMb": mem_mb })).unwrap()
     }
 
     #[test]

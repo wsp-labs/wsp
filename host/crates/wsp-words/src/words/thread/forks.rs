@@ -4,8 +4,8 @@
 //! image, and the lines a thread names a folder by. Each TS statement stands as a comment above its stub. See
 //! spec/thread_forks.md.
 
-use crate::pending_wire::views::harness::HarnessCatalog;
-use crate::pending_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
+use wsp_wire::views::harness::HarnessCatalog;
+use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
 use super::lines::*;
 
 /// The refusal of a side question on a thread whose agent never announced a session: there is no conversation of
@@ -586,8 +586,8 @@ pub fn copy_first_line(r#where: &str, name: &str, rate_usd_per_hour: f64) -> Str
 // thread.ts:767
 pub const CREATE_READY: &str = "ready";
 
-/// The day of a stamp in UTC, which is as far as this fact goes: the vault that stands can be days old, and the
-/// time of day is noise on a row about thirty characters wide.
+// The day of a stamp in UTC, which is as far as this fact goes: the vault that stands can be days old, and the
+// time of day is noise on a row about thirty characters wide.
 // thread.ts:771
 // private in the TS: port it as a private helper
 // const onDay = (iso: string): string => iso.slice(0, 10);
@@ -790,12 +790,7 @@ pub fn image_built_on_line(place: &str) -> String {
 // export const imageHomeKeptLine = (on: string | undefined, home: { id: string; name: string; kind?: string }): string | undefined =>
 //   on === undefined || namesPlace(home, on) ? undefined : `your image lives on ${placeSaid(home)}, so it is built there and not on ${on}`;
 /// A place as `namesPlace` and `placeSaid` read it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PlaceNamed {
-    pub id: String,
-    pub name: String,
-    pub kind: Option<String>,
-}
+pub type PlaceNamed = crate::place_word::PlaceRef;
 
 pub fn image_home_kept_line(on: Option<&str>, home: &PlaceNamed) -> Option<String> {
     todo!()

@@ -3,11 +3,11 @@
 //! a read's rows), thread titles from the opening turn and from a harness's answer, and the kept opening. Each TS
 //! statement stands as a comment above its stub. See spec/turn.md.
 
-use crate::pending_wire::types::thread_read::ThreadMessage;
-use crate::pending_wire::views::session::{TitleSource, TurnRefusal};
-use crate::pending_wire::views::session_events::{TurnResult, TurnStatus};
+use wsp_wire::types::thread_read::ThreadMessage;
+use wsp_wire::views::session::{TitleSource, TurnRefusal};
+use wsp_wire::views::session_events::{TurnResult, TurnStatus};
 
-/// A spend figure with the word that says what it is, where the surface has one to give it.
+// A spend figure with the word that says what it is, where the surface has one to give it.
 // turn.ts:7
 // private in the TS: port it as a private helper
 // const spendFigure = (usd: number, word: string | undefined): string => (word === undefined ? fmtCost(usd) : `${fmtCost(usd)} ${word}`);
@@ -74,14 +74,14 @@ pub const LISTED_LINE_CHARS: usize = 200;
 // turn.ts:42
 pub const SUBAGENT_ASKED_CHARS: usize = 280;
 
-/// A line cut from a longer text as a string of its own: V8 answers a piece of 13 characters or more as a view into the
-/// whole, so a row keeping the piece would keep the whole reply for as long as the row lives (measured 2026-10-09: 2000
-/// one-word last lines of 50 KB replies held 100 MB).
+// A line cut from a longer text as a string of its own: V8 answers a piece of 13 characters or more as a view into the
+// whole, so a row keeping the piece would keep the whole reply for as long as the row lives (measured 2026-10-09: 2000
+// one-word last lines of 50 KB replies held 100 MB).
 // turn.ts:47
 // private in the TS: port it as a private helper
 // const ownCopy = (line: string): string => line.split("").join("");
 
-/// A markdown list marker at a line's start: a row that draws the line alone draws no list for it to mark.
+// A markdown list marker at a line's start: a row that draws the line alone draws no list for it to mark.
 // turn.ts:50
 // private in the TS: port it as a private helper
 // const LIST_MARKER = /^(?:[-*+]|\d{1,9}[.)])\s+(?=\S)/;
@@ -607,8 +607,8 @@ pub fn stored_title_source(stored: &str, opening: Option<&str>) -> TitleSource {
 // turn.ts:336
 pub const GENERATED_TITLE_MAX: usize = 40;
 
-/// How much of the opening turn and of the reply the title question carries: the words a title comes from are at the
-/// top of both, and a whole brief would cost more to send than the answer is worth.
+// How much of the opening turn and of the reply the title question carries: the words a title comes from are at the
+// top of both, and a whole brief would cost more to send than the answer is worth.
 // turn.ts:339
 // private in the TS: port it as a private helper
 // const TITLE_EXCERPT_MAX = OPENING_KEPT;

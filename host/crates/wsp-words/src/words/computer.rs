@@ -5,7 +5,7 @@
 //! statement stands as a comment above its stub. See spec/computer.md.
 
 use crate::exit::HostError;
-use crate::pending_wire::wire::capabilities::Capabilities;
+use wsp_wire::wire::capabilities::Capabilities;
 
 /// The platform a sentence names this computer for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -905,10 +905,10 @@ pub fn host_key_kept_note(host_key: &str, file: Option<&str>) -> String {
 // export const PLACE_ROOT_SHELLS: readonly string[] = ["bash", "sh"];
 pub const PLACE_ROOT_SHELLS: [&str; 2] = ["bash", "sh"];
 
-/// The file a shell reads under the home before running a command, where wsp has read one: the measurement above.
-/// fish is not on the computer that measurement was made on, and its own documentation names the other. A shell in
-/// neither list is refused for not having been read, and the sentence says so rather than claiming a file it has
-/// not seen.
+// The file a shell reads under the home before running a command, where wsp has read one: the measurement above.
+// fish is not on the computer that measurement was made on, and its own documentation names the other. A shell in
+// neither list is refused for not having been read, and the sentence says so rather than claiming a file it has
+// not seen.
 // computer.ts:495
 // private in the TS: port it as a private helper
 // const SHELL_STARTUP_FILE: Readonly<Record<string, string>> = { zsh: "~/.zshenv", fish: "config.fish" };

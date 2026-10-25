@@ -40,6 +40,7 @@ Every refusal's message on the wire (rule 5.5); the turn-cut and harness-exit li
 ## Decisions
 1. `folder_level_line` takes the folder count, since the TS reads only the length.
 2. Issue paths are `PathPart::Key` or `PathPart::Index`.
+3. `harness_exit_line` takes the exit code as `Option<i32>` (the TS `number | null`), as `RunEnd` does.
 
 ## After the port
 - `foreign_flag_line` with no reader prints "belongs to undefined".

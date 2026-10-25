@@ -107,25 +107,25 @@ mod harness_exit_line {
     #[test]
     fn exit_127_names_the_binary_the_shell_could_not_find_and_the_path_it_searched_neve() {
         let path = "/root/.local/bin:/usr/bin:/bin";
-        assert_eq!(harness_exit_line("claude", Some(127.0), Some(path), None), "claude was not found on PATH (exit 127); PATH searched: /root/.local/bin:/usr/bin:/bin");
-        assert_eq!(harness_exit_line("codex", Some(127.0), Some(path), None), "codex was not found on PATH (exit 127); PATH searched: /root/.local/bin:/usr/bin:/bin");
+        assert_eq!(harness_exit_line("claude", Some(127), Some(path), None), "claude was not found on PATH (exit 127); PATH searched: /root/.local/bin:/usr/bin:/bin");
+        assert_eq!(harness_exit_line("codex", Some(127), Some(path), None), "codex was not found on PATH (exit 127); PATH searched: /root/.local/bin:/usr/bin:/bin");
     }
 
     #[test]
     fn exit_127_with_no_path_exported_says_the_machine_s_own_was_searched() {
-        assert_eq!(harness_exit_line("claude", Some(127.0), None, None), "claude was not found on PATH (exit 127); the launch exported no PATH, the machine's own was searched");
+        assert_eq!(harness_exit_line("claude", Some(127), None, None), "claude was not found on PATH (exit 127); the launch exported no PATH, the machine's own was searched");
     }
 
     #[test]
     fn any_other_exit_reads_as_the_code() {
-        assert_eq!(harness_exit_line("claude", Some(1.0), Some("/usr/bin"), None), "claude exited with code 1 before emitting a result");
+        assert_eq!(harness_exit_line("claude", Some(1), Some("/usr/bin"), None), "claude exited with code 1 before emitting a result");
     }
 
     #[test]
     fn a_run_that_ended_on_a_signal_says_the_agent_was_killed_and_names_the_signal_wher() {
         let ended = |signal: Option<&str>| HarnessEnded { signal: signal.map(str::to_string), reached: Some(true) };
         assert_eq!(harness_exit_line("claude", None, Some("/usr/bin"), Some(&ended(Some("SIGKILL")))), "claude was killed (SIGKILL) before it answered");
-        assert_eq!(harness_exit_line("claude", Some(-1.0), Some("/usr/bin"), Some(&ended(Some("SIGTERM")))), "claude was killed (SIGTERM) before it answered");
+        assert_eq!(harness_exit_line("claude", Some(-1), Some("/usr/bin"), Some(&ended(Some("SIGTERM")))), "claude was killed (SIGTERM) before it answered");
         assert_eq!(harness_exit_line("claude", None, Some("/usr/bin"), Some(&ended(None))), "claude was killed before it answered");
     }
 
@@ -133,7 +133,7 @@ mod harness_exit_line {
     fn a_launch_that_never_reached_the_agent_says_that_instead_of_naming_a_code() {
         let never = HarnessEnded { signal: None, reached: Some(false) };
         assert_eq!(harness_exit_line("claude", None, Some("/usr/bin"), Some(&never)), "the launch never reached claude: its run ended before the agent said a word");
-        assert_eq!(harness_exit_line("claude", Some(127.0), Some("/usr/bin"), Some(&never)), "claude was not found on PATH (exit 127); PATH searched: /usr/bin");
+        assert_eq!(harness_exit_line("claude", Some(127), Some("/usr/bin"), Some(&never)), "claude was not found on PATH (exit 127); PATH searched: /usr/bin");
     }
 }
 
@@ -431,7 +431,7 @@ mod issues_line {
 mod pinned {
     use wsp_words::words::thread::*;
 
-    use wsp_words::pending_wire::wire::capabilities::WorkspaceSize;
+    use wsp_wire::wire::capabilities::WorkspaceSize;
 
     #[test]
     fn limits_and_cut_turns() {
@@ -451,10 +451,10 @@ mod pinned {
 
     #[test]
     fn a_harness_that_ended_early_says_what_ended_it() {
-        assert_eq!(harness_exit_line("claude", Some(127.0), None, None), "claude was not found on PATH (exit 127); the launch exported no PATH, the machine's own was searched"); // harnessExitLine("claude", 127, undefined)
-        assert_eq!(harness_exit_line("claude", Some(127.0), Some("/usr/bin:/bin"), Some(&HarnessEnded { signal: Some("SIGKILL".into()), reached: None })), "claude was not found on PATH (exit 127); PATH searched: /usr/bin:/bin"); // harnessExitLine("claude", 127, "/usr/bin:/bin", {signal:"SIGKILL"})
-        assert_eq!(harness_exit_line("claude", Some(1.0), None, Some(&HarnessEnded { signal: Some("SIGTERM".into()), reached: None })), "claude was killed (SIGTERM) before it answered"); // harnessExitLine("claude", 1, undefined, {signal:"SIGTERM"})
-        assert_eq!(harness_exit_line("claude", Some(0.0), None, None), "claude exited with code 0 before emitting a result"); // harnessExitLine("claude", 0, undefined)
+        assert_eq!(harness_exit_line("claude", Some(127), None, None), "claude was not found on PATH (exit 127); the launch exported no PATH, the machine's own was searched"); // harnessExitLine("claude", 127, undefined)
+        assert_eq!(harness_exit_line("claude", Some(127), Some("/usr/bin:/bin"), Some(&HarnessEnded { signal: Some("SIGKILL".into()), reached: None })), "claude was not found on PATH (exit 127); PATH searched: /usr/bin:/bin"); // harnessExitLine("claude", 127, "/usr/bin:/bin", {signal:"SIGKILL"})
+        assert_eq!(harness_exit_line("claude", Some(1), None, Some(&HarnessEnded { signal: Some("SIGTERM".into()), reached: None })), "claude was killed (SIGTERM) before it answered"); // harnessExitLine("claude", 1, undefined, {signal:"SIGTERM"})
+        assert_eq!(harness_exit_line("claude", Some(0), None, None), "claude exited with code 0 before emitting a result"); // harnessExitLine("claude", 0, undefined)
         assert_eq!(harness_exit_line("claude", None, None, Some(&HarnessEnded { signal: None, reached: Some(false) })), "the launch never reached claude: its run ended before the agent said a word"); // harnessExitLine("claude", null, undefined, {reached:false})
         assert_eq!(harness_exit_line("claude", None, None, Some(&HarnessEnded { signal: None, reached: Some(true) })), "claude was killed before it answered"); // harnessExitLine("claude", null, undefined, {reached:true})
         assert_eq!(harness_exit_line("claude", None, None, None), "claude was killed before it answered"); // harnessExitLine("claude", null, undefined)
@@ -489,8 +489,8 @@ mod pinned {
 
     #[test]
     fn resize_and_folder_lines() {
-        assert_eq!(resize_landed_line("w", &WorkspaceSize { cpu: 2.0, mem_mb: 4096.0 }, &WorkspaceSize { cpu: 4.0, mem_mb: 8192.0 }), "w came back at 2x4, not the 4x8 asked for"); // resizeLandedLine("w", {cpu:2,memMb:4096}, {cpu:4,memMb:8192})
-        assert_eq!(resized_line("w", &WorkspaceSize { cpu: 2.0, mem_mb: 512.0 }), "w runs at 2x0.5 now, on a machine of that size"); // resizedLine("w", {cpu:2,memMb:512})
+        assert_eq!(resize_landed_line("w", &serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 4096.0 })).unwrap(), &serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 4.0, "memMb": 8192.0 })).unwrap()), "w came back at 2x4, not the 4x8 asked for"); // resizeLandedLine("w", {cpu:2,memMb:4096}, {cpu:4,memMb:8192})
+        assert_eq!(resized_line("w", &serde_json::from_value::<WorkspaceSize>(serde_json::json!({ "cpu": 2.0, "memMb": 512.0 })).unwrap()), "w runs at 2x0.5 now, on a machine of that size"); // resizedLine("w", {cpu:2,memMb:512})
         assert_eq!(resize_word_line(""), "\"\" names no size"); // resizeWordLine("")
         assert_eq!(resize_word_line("4x"), "\"4x\" names no size"); // resizeWordLine("4x")
         assert_eq!(resize_word_line("a\"b\\c\n"), "\"a\\\"b\\\\c\\n\" names no size"); // resizeWordLine("a\"b\\c\n")

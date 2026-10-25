@@ -5,9 +5,9 @@
 
 use serde_json::{json, Value};
 use std::collections::HashSet;
-use wsp_words::pending_wire::views::session::PermissionOutcome;
-use wsp_words::pending_wire::views::session_events::{SessionEvent, SessionPermissionEvent};
-use wsp_words::pending_wire::wire::helpers::{PermissionEffect, PermissionOption};
+use wsp_wire::views::session::PermissionOutcome;
+use wsp_wire::views::session_events::{SessionEvent, SessionPermissionEvent};
+use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 use wsp_words::words::tools::*;
 
 fn js(v: Value) -> String {
@@ -558,12 +558,12 @@ mod the_words_a_relayed_permission_prompt_shows {
 
     #[test]
     fn what_a_thread_says_it_is_waiting_on_is_the_prompt_row_s_own_lead_worded_in_one_p() {
-        let ask: SessionPermissionEvent = wire(json!({ "toolName": "Write", "input": "{\"file_path\":\"/root/out.txt\",\"content\":\"hi\"}", "detail": "out.txt" }));
+        let ask: SessionPermissionEvent = wire(json!({ "workspaceId": "w", "sessionId": "s", "askId": "a1", "options": [], "toolName": "Write", "input": "{\"file_path\":\"/root/out.txt\",\"content\":\"hi\"}", "detail": "out.txt" }));
         assert_eq!(asking_line(&ask), permission_ask_line(&ask.tool_name, &ask.input, ask.detail.as_deref()));
         // The whole prompt is in hand, so the lead reads the call's own fields and not only the phrase the harness named.
         let line = asking_line(&ask);
         assert!(line.contains("out.txt"), "{line}");
-        let bare: SessionPermissionEvent = wire(json!({ "toolName": "mcp__wsp__workspaces", "input": "{}" }));
+        let bare: SessionPermissionEvent = wire(json!({ "workspaceId": "w", "sessionId": "s", "askId": "a1", "options": [], "toolName": "mcp__wsp__workspaces", "input": "{}" }));
         assert_eq!(asking_line(&bare), permission_ask_line(&bare.tool_name, &bare.input, bare.detail.as_deref()));
     }
 
@@ -625,11 +625,11 @@ mod the_words_the_clients_print_for_the_job {
         // The prompt reads here in the same words the chat row leads with: one table words them, and both read it.
         let scan = js(json!({ "command": "wsp recipe scan --json", "description": "Read what the agents here use" }));
         assert_eq!(
-            thread_working_line(&event(json!({ "type": "session.permission", "askId": "a1", "toolName": "Bash", "input": scan, "detail": "Read what the agents here use", "options": [] }))),
+            thread_working_line(&event(json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "detail": "Read what the agents here use", "options": [] }))),
             Some("Run a command: wsp recipe scan --json".to_string())
         );
         assert_eq!(
-            thread_working_line(&event(json!({ "type": "session.permission", "askId": "a1", "toolName": "Bash", "input": scan, "options": [] }))),
+            thread_working_line(&event(json!({ "type": "session.permission", "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": "Bash", "input": scan, "options": [] }))),
             Some(permission_ask_line("Bash", &scan, None))
         );
         assert_eq!(thread_working_line(&event(json!({ "type": "session.delta", "kind": "tool_result", "text": "ok" }))), None);
@@ -645,9 +645,9 @@ mod pinned {
         wsp_words::exit::json_line(&serde_json::to_value(v).unwrap(), None)
     }
 
-    use wsp_words::pending_wire::views::session::PermissionOutcome;
-    use wsp_words::pending_wire::views::session_events::SessionPermissionEvent;
-    use wsp_words::pending_wire::wire::helpers::{PermissionEffect, PermissionOption};
+    use wsp_wire::views::session::PermissionOutcome;
+    use wsp_wire::views::session_events::SessionPermissionEvent;
+    use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 
     fn opt_answer(id: &str, label: &str) -> PermissionOption {
         PermissionOption { id: id.into(), label: label.into(), effect: PermissionEffect::Answer, mode: None }
@@ -658,7 +658,11 @@ mod pinned {
     }
 
     fn ask(tool_name: &str, input: &str, detail: Option<&str>) -> SessionPermissionEvent {
-        SessionPermissionEvent { ask_id: "a1".into(), tool_name: tool_name.into(), input: input.into(), detail: detail.map(String::from), options: vec![] }
+        let mut v = serde_json::json!({ "workspaceId": "w", "sessionId": "s", "askId": "a1", "toolName": tool_name, "input": input, "options": [] });
+        if let Some(d) = detail {
+            v["detail"] = serde_json::json!(d);
+        }
+        serde_json::from_value(v).unwrap()
     }
 
     #[test]

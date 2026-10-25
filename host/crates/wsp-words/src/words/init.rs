@@ -3,9 +3,9 @@
 //! rows and sign-ins, the counts and lines the sidebar, the toast and the terminal read off one job, and the agent
 //! road's brief. Each TS statement stands as a comment above its stub. See spec/init.md.
 
-use crate::pending_wire::types::init_job::{InitJob, InitPhase, InitRow, LoginChoice, LoginState};
-use crate::pending_wire::views::golden_image::GoldenStage;
-use crate::pending_wire::wire::capabilities::{InitSetup, WorkspaceSize};
+use wsp_wire::types::init_job::{InitJob, InitPhase, InitRow, LoginChoice, LoginState};
+use wsp_wire::views::golden_image::GoldenStage;
+use wsp_wire::wire::capabilities::{InitSetup, WorkspaceSize};
 use crate::words::computer::Platform;
 use serde::Serialize;
 
@@ -228,10 +228,10 @@ pub mod host_sign_in_commands {
     pub const GITHUB: &str = "gh auth login";
 }
 
-/// One answer the sign-ins step can give, in the words its row and the counts beside it print. One entry per answer,
-/// keyed by the union itself, so a fifth cannot be offered before it is named here; the order the arrows walk them is
-/// LOGIN_CHOICES' own. This is the one home for those words: the terminal's screens and a client that draws the step
-/// itself both read them from here.
+// One answer the sign-ins step can give, in the words its row and the counts beside it print. One entry per answer,
+// keyed by the union itself, so a fifth cannot be offered before it is named here; the order the arrows walk them is
+// LOGIN_CHOICES' own. This is the one home for those words: the terminal's screens and a client that draws the step
+// itself both read them from here.
 // init.ts:130
 // export interface SignInAnswer {
 //   /** The row's own column, for the computer the run is reading: the copy answer names it. */
@@ -631,7 +631,7 @@ pub const MACHINE_SWEEP_LINE: &str = "a machine from the last build is still bei
 // init.ts:367
 pub const NETWORK_LOST_LINE: &str = "This computer lost its network";
 
-/// The failures a provider client raises when the network is gone rather than when the provider refused.
+// The failures a provider client raises when the network is gone rather than when the provider refused.
 // init.ts:370
 // private in the TS: port it as a private helper
 // const OFFLINE_FAILURE = /^fetch failed$|\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ENETDOWN|ENETUNREACH|EHOSTUNREACH)\b/;
@@ -707,8 +707,8 @@ pub fn init_agent_step(job: &InitJob) -> bool {
     todo!()
 }
 
-/// The sentence a sign-in whose page is open makes: one spelling for the sidebar's line, the toast and a system
-/// notification.
+// The sentence a sign-in whose page is open makes: one spelling for the sidebar's line, the toast and a system
+// notification.
 // init.ts:414
 // private in the TS: port it as a private helper
 // const signInTo = (label: string): string => `sign in to ${label}`;
@@ -722,7 +722,7 @@ pub fn paste_here_line(word: &str, mint: Option<&str>) -> String {
     todo!()
 }
 
-/// The sign-in row whose page waits for the person, if one does.
+// The sign-in row whose page waits for the person, if one does.
 // init.ts:422
 // private in the TS: port it as a private helper
 // const openSignIn = (rows: InitJob["rows"]): InitJob["rows"][number] | undefined => rows.find(r => r.kind === "sign-in" && r.state === SIGN_IN_OPEN_STATE);
@@ -807,8 +807,8 @@ pub fn init_progress_line(job: &InitJob) -> String {
 // init.ts:471
 pub const SIGN_IN_STAGE_ID: &str = "stage/sign-ins";
 
-/// What the stage the sign-ins fold into stands at, from the sign-ins themselves. A run-out hands the stage its own
-/// outcome and its own word, so the stage says what the row under it says on whichever computer wrote it.
+// What the stage the sign-ins fold into stands at, from the sign-ins themselves. A run-out hands the stage its own
+// outcome and its own word, so the stage says what the row under it says on whichever computer wrote it.
 // init.ts:475
 // private in the TS: port it as a private helper
 // function signInStageState(signIns: readonly InitRow[]): Pick<InitRow, "state" | "login"> {
