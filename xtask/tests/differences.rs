@@ -66,17 +66,20 @@ fn a_pairing_code_that_stands_an_hour_reads_otherwise_than_one_that_stands_ten_m
 fn an_hour_s_bucket_reads_as_its_day_and_hour_and_the_door_s_port_as_the_door_s() {
     let start: i64 = 1_792_926_000_000 + 1_234_567; // 2026-10-25T11:20:34Z
     let today: i64 = 1_792_886_400_000;
+    // The replay reads the door's port off the file the host keeps beside its state, never off the answer.
+    let mut facts = started(start);
+    facts.add("41857", "<door-port>");
     let got = canonical(
         &[
             json!({ "id": 1, "series": [{ "t": today }, { "t": today + 3 * 3_600_000 }], "door": { "port": 41857, "addresses": ["http://127.0.0.1:41857"] },
             "said": "host        running (pid 7, up 682ms)" }),
         ],
         &[],
-        &started(start),
+        &facts,
     );
     assert_eq!(
         got["replies"][0],
-        json!({ "id": 1, "series": [{ "t": "<day>" }, { "t": "<day 03:00>" }], "door": { "port": "<door-port>", "addresses": ["http://127.0.0.1:<door-port>"] },
+        json!({ "id": 1, "series": [{ "t": "<day in ms>" }, { "t": "<day 03:00 in ms>" }], "door": { "port": "<door-port>", "addresses": ["http://127.0.0.1:<door-port>"] },
             "said": "host        running (pid 7, up <moving>)" })
     );
 }
@@ -96,7 +99,10 @@ fn a_day_s_bucket_reads_as_its_day_and_a_time_the_tape_sent_stays_as_sent() {
     let mut facts = started(start);
     facts.sent.insert(1_700_000_000_000);
     let got = canonical(&[json!({ "id": 3, "days": week, "since": 1_700_000_000_000_i64, "at": start + 2_000 })], &[], &facts);
-    assert_eq!(got["replies"][0], json!({ "id": 3, "days": ["<day>", "<day-1>"], "since": 1_700_000_000_000_i64, "at": "<time>" }));
+    assert_eq!(
+        got["replies"][0],
+        json!({ "id": 3, "days": ["<day in ms>", "<day-1 in ms>"], "since": 1_700_000_000_000_i64, "at": "<time in ms>" })
+    );
 }
 
 #[test]
@@ -120,4 +126,13 @@ fn what_a_second_run_hands_out_otherwise_reads_alike_and_nothing_beside_it_does(
     let mut other = run(1738, "V_wCBr_gYpItUpIIAQjUzrLhATwmgZbm", 38647, "80ms");
     other["stdout"] = Value::String(other["stdout"].as_str().unwrap().replace("wsp-doctor", "wsp-doctor-2"));
     assert_ne!(got, read(other));
+}
+
+#[test]
+fn a_workspace_a_refusal_names_that_the_host_made_reads_alike_on_every_run() {
+    // cli/skill/wsp-doctor: the host makes the workspace in the same command that refuses, so its id moves; only a
+    // refusal that says there is no such thing names an id the request sent.
+    let doctor = |ws: &str| json!({ "exit": 1, "stdout": "", "stderr": format!("no checkpoint at the turn end on workspace {ws}: the daemon did not start") });
+    let read = |v| canonical(&[v], &[], &Facts::default());
+    assert_eq!(read(doctor("ws_c98aae0d")), read(doctor("ws_acb53e3b")));
 }

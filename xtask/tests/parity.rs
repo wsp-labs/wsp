@@ -225,8 +225,8 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
         got,
         json!({
             "replies": [
-                { "id": 1, "workspaceId": "<ws-1>", "home": "<tmp>/home", "at": "<time>", "name": "<computer>" },
-                { "id": 2, "line": "<ws-1> and <uuid-1> at <time>", "diskFreeBytes": "<moving>" },
+                { "id": 1, "workspaceId": "<ws-1>", "home": "<tmp>/home", "at": "<time in ms>", "name": "<computer>" },
+                { "id": 2, "line": "<ws-1> and <uuid-1> at <time written dddd-dd-ddTdd:dd:ddZ>", "diskFreeBytes": "<moving>" },
                 { "id": 3, "hostPublicKey": "<id-1>", "bin": "/usr/local/lib/node_modules/wsp/dist/bin.js" },
                 {
                     "id": 4,
@@ -243,7 +243,7 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
                     "nonce": "<id-5>",
                     "table": "here  8      31 GB   163.1 GB   none\nup <moving>, then up <moving>",
                     "doctor": "local workspace  wsp-doctor-<temp> (made for this run) and wsp-parity-harness stays at 127.0.0.1:<port>",
-                    "stdout": { "jsonLines": [{ "diskFreeBytes": "<moving>", "name": "<computer>" }, { "ok": true }] },
+                    "stdout": { "jsonLines": [{ "diskFreeBytes": "<moving>", "name": "<computer>" }, { "ok": true }], "layout": "<json>\n<json>\n" },
                     "text": { "json": { "diskFreeBytes": "<moving>" }, "layout": "indented" },
                     "placeId": "<p-1>",
                     "said": "no checkpoint at thread <id-6>'s turn end, deadbeef, <id-7>",

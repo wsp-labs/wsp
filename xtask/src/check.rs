@@ -11,7 +11,7 @@ use crate::computer;
 use crate::diff::{diff, Difference};
 use crate::golden;
 use crate::host::{Host, Replay};
-use crate::normalize::{canonical, Facts};
+use crate::normalize::{canonical, ids_in, Facts};
 use crate::seed::Order;
 use crate::tape::{self, Door, Tape};
 use serde_json::Value;
@@ -259,7 +259,7 @@ fn selected(root: &Path, opts: &Options) -> Result<Vec<Tape>, String> {
 
 /// A replay's answers held to the golden, and the tape's own written answers held to it as well.
 fn judge(tape: &Tape, want: &Value, replay: &Replay, accepted: &Accepted, used: &mut BTreeSet<usize>) -> Verdict {
-    let live = canonical(&replay.replies, &replay.events, &replay.facts);
+    let live = canonical(&replay.replies, &replay.events, &sent_by(tape, &replay.facts));
     let mut found: Vec<(String, Difference)> = diff(want, &live).into_iter().map(|d| (String::new(), d)).collect();
     if let Some(written) = written(tape) {
         found.extend(diff(want, &written).into_iter().map(|d| ("the tape writes".to_string(), d)));
@@ -288,6 +288,13 @@ fn judge(tape: &Tape, want: &Value, replay: &Replay, accepted: &Accepted, used: 
     }
 }
 
+/// A replay's facts and the ids the tape's own frames carry, which any host that names one back names as sent.
+fn sent_by(tape: &Tape, facts: &Facts) -> Facts {
+    let mut facts = facts.clone();
+    ids_in(&Value::Array(tape.ins.clone()), &mut facts.sent_ids);
+    facts
+}
+
 /// The answers a tape writes down itself, in the golden's form, or none for a tape that writes none.
 fn written(tape: &Tape) -> Option<Value> {
     if tape.outs.is_empty() || tape.recorded {
@@ -311,7 +318,7 @@ fn written(tape: &Tape) -> Option<Value> {
             (replies, tape.outs.iter().filter(|f| !answer_to(f)).cloned().collect())
         }
     };
-    Some(canonical(&replies, &events, &Facts::default()))
+    Some(canonical(&replies, &events, &sent_by(tape, &Facts::default())))
 }
 
 fn replay_all(host: &dyn Host, tapes: &[Tape], opts: &Options) -> Vec<Result<Replay, String>> {
@@ -670,7 +677,7 @@ pub fn record(root: &Path, host: &dyn Host, opts: &Options, ops: &[String]) -> R
     for (tape, replay) in runnable.iter().zip(replays) {
         match replay {
             Ok(r) => {
-                let golden = canonical(&r.replies, &r.events, &r.facts);
+                let golden = canonical(&r.replies, &r.events, &sent_by(tape, &r.facts));
                 golden::write(&goldens_of(root, opts, tape), &tape.id, &golden)?;
                 written += 1;
                 let reads = computer::reads(tape, &golden);

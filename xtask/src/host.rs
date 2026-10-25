@@ -104,6 +104,10 @@ impl Host for ProcessHost {
             Door::Cli => Ok(cli(tape, &place, &self.program, self.reply_wait)),
             Door::Mcp => mcp(tape, &place, &self.program, self.reply_wait),
         }?;
+        // The door for computers the person owns listens on a port of its own, which the host keeps beside its state.
+        if let Ok(port) = fs::read_to_string(tmp.path().join("state/door-port")) {
+            facts.add(port.trim(), "<door-port>");
+        }
         drop(host);
         sweep(tmp.path());
         Ok(Replay { replies, events, facts })
