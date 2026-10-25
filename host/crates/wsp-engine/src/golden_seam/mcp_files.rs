@@ -2,11 +2,26 @@
 //! Unit mcp_files (spec/golden-mcp_files.md): golden-mcp.ts:1-335 at a4033dc34. Server row ids, the plan off a
 //! recipe, the one read of every config off a machine and its parse, the string rewrites, the edit of every scope and
 //! the landing of what changed.
-use indexmap::IndexMap;
-use wsp_catalog::mcp::McpFormat;
+use indexmap::{IndexMap, IndexSet};
+use wsp_catalog::config_write::{config_landing, config_refusal, config_sum, config_write_line, under_base, ConfigWrite};
+use wsp_catalog::mac_paths::{MAC_BIN_DIRS, MAC_BREW};
+use wsp_catalog::mcp::{EditOutcome, McpEditScope, McpFormat};
+use wsp_catalog::mcp_travelled::FromTo;
+use wsp_catalog::road_modules::BREW_PREFIX;
+use wsp_catalog::roads::GUEST_HOME;
+use wsp_wire::types::agents_report::{CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES};
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::golden_image::MCP_ID_PREFIX;
+use wsp_words::js::{js_trim, to_number};
 
-use super::{McpAgentPlan, McpPlan, ProjectMove, RecipeEntry, ScopeOutcome, ScopeRead};
-use crate::machine::{ExecResult, Machine};
+use super::import_roads::{withheld, WITHHELD_NOTE};
+use super::tools_disk::{inline_s, reason_of};
+use super::{AsideRow, DropName, EditedName, EditedOutcome, McpAgentPlan, McpPlan, McpScope, McpToolRow, ProjectMove, RecipeEntry, ScopeFile, ScopeOutcome, ScopeRead};
+use crate::exec_detached::INLINE_EXEC_MS;
+use crate::land_bytes::{land_bytes, LandBytesOptions};
+use crate::machine::{ExecOptions, ExecResult, Machine};
+
+const MCP_REMOTE_ID: &str = "agents/mcp/mcp-remote";
 
 /// golden-mcp.ts:21 `McpAgentSource`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,13 +58,23 @@ pub enum McpAt {
 //   `${MCP_ID_PREFIX}${agent}/${typeof at === "string" ? `@${encodeURIComponent(at)}/` : at ? "home/" : ""}${name}`;
 /// golden-mcp.ts:99 `mcpRowId`: `agents/mcp/<agent>/<name>`, `.../home/<name>`, or `.../@<encodeURIComponent(folder)>/<name>`.
 pub fn mcp_row_id(agent: &str, at: &McpAt, name: &str) -> String {
-    todo!()
+    let at = match at {
+        McpAt::User => String::new(),
+        McpAt::Home => "home/".to_string(),
+        McpAt::Folder(folder) => format!("@{}/", encode_component(folder)),
+    };
+    format!("{MCP_ID_PREFIX}{agent}/{at}{name}")
 }
 
 /// golden-mcp.ts:103 `scopeRowId`: the folder where the scope names one, else home where it moves a project, else the
 /// user scope.
 pub fn scope_row_id(agent: &str, project: Option<&ProjectMove>, folder: Option<&str>, name: &str) -> String {
-    todo!()
+    let at = match (folder, project) {
+        (Some(folder), _) => McpAt::Folder(folder.to_string()),
+        (None, Some(_)) => McpAt::Home,
+        (None, None) => McpAt::User,
+    };
+    mcp_row_id(agent, &at, name)
 }
 
 /// golden-mcp.ts:107 `parseMcpId`'s answer.
@@ -75,7 +100,20 @@ pub struct McpId {
 // }
 /// golden-mcp.ts:107 `parseMcpId`. A folder that does not decode is the TS's thrown `URIError`; this answers `None`.
 pub fn parse_mcp_id(id: &str) -> Option<McpId> {
-    todo!()
+    if !id.starts_with(MCP_ID_PREFIX) || id == MCP_REMOTE_ID {
+        return None;
+    }
+    let rest: Vec<&str> = id[MCP_ID_PREFIX.len()..].split('/').collect();
+    let agent = rest[0].to_string();
+    if rest.len() < 2 {
+        return None;
+    }
+    if rest.len() >= 3 && rest[1].starts_with('@') {
+        return Some(McpId { agent, home: false, folder: Some(decode_component(&rest[1][1..])?), name: rest[2..].join("/") });
+    }
+    let home = rest.len() == 3 && rest[1] == "home";
+    let name = if home { rest[2].to_string() } else { rest[1..].join("/") };
+    Some(McpId { agent, home, folder: None, name })
 }
 
 // TS golden-mcp.ts:93-94
@@ -124,7 +162,73 @@ pub fn parse_mcp_id(id: &str) -> Option<McpId> {
 // }
 /// golden-mcp.ts:120 `mcpPlanFor(rows, opts)`: `None` when no agent has a server row.
 pub fn mcp_plan_for(rows: &[RecipeEntry], opts: &McpPlanOptions) -> Option<McpPlan> {
-    todo!()
+    let guest_home = opts.guest_home.clone().unwrap_or_else(|| GUEST_HOME.to_string());
+    let ticked: IndexSet<&str> = rows.iter().filter(|e| e.bring == Some(true)).map(|e| e.id.as_str()).collect();
+    let mut agents = Vec::new();
+    for (agent, source) in &opts.agents {
+        let own: Vec<Own> = rows
+            .iter()
+            .filter_map(|e| parse_mcp_id(&e.id).filter(|p| p.agent == *agent).map(|p| Own { row: e, home: p.home, name: p.name }))
+            .collect();
+        if own.is_empty() {
+            continue;
+        }
+        if !ticked.contains(format!("agents/{agent}").as_str()) {
+            let aside = own
+                .iter()
+                .map(|o| AsideRow { id: o.row.id.clone(), name: o.name.clone(), reason: format!("{} is not ticked, so its config did not travel", source.label) })
+                .collect();
+            agents.push(McpAgentPlan { id: agent.clone(), label: source.label.clone(), scopes: Vec::new(), aside });
+            continue;
+        }
+        let mut scopes = Vec::new();
+        for home in [false, true] {
+            let mine: Vec<&Own> = own.iter().filter(|o| o.home == home).collect();
+            if mine.is_empty() {
+                continue;
+            }
+            let is_ticked = |o: &Own| ticked.contains(o.row.id.as_str());
+            scopes.push(McpScope {
+                files: source.files.clone(),
+                format: source.format,
+                project: home.then(|| ProjectMove { from: opts.home.clone(), to: guest_home.clone() }),
+                keep: mine.iter().filter(|o| is_ticked(o) && !withheld(o.row)).map(|o| o.name.clone()).collect(),
+                drop: mine
+                    .iter()
+                    .filter(|o| !is_ticked(o) || withheld(o.row))
+                    .map(|o| DropName {
+                        name: o.name.clone(),
+                        reason: if is_ticked(o) { WITHHELD_NOTE.to_string() } else { o.row.reason.clone().unwrap_or_else(|| "unticked".to_string()) },
+                        keys: None,
+                    })
+                    .collect(),
+                travelled: None,
+                own: None,
+                folder: None,
+                trust: None,
+                edit: None,
+            });
+        }
+        agents.push(McpAgentPlan { id: agent.clone(), label: source.label.clone(), scopes, aside: Vec::new() });
+    }
+    if agents.is_empty() {
+        return None;
+    }
+    let bin_dirs = match &opts.bin_dirs {
+        Some(dirs) => dirs.clone(),
+        None => MAC_BIN_DIRS.iter().map(|d| d.to_string()).collect(),
+    };
+    Some(McpPlan {
+        agents,
+        rewrites: vec![(format!("{}/", opts.home), format!("{guest_home}/")), (format!("{MAC_BREW}/"), format!("{BREW_PREFIX}/"))],
+        bin_dirs: [vec![format!("{}/.local/bin/", opts.home), "~/.local/bin/".to_string()], bin_dirs].concat(),
+        tools: rows
+            .iter()
+            .filter(|e| e.rung == "tools" && is_binary_row(&e.id))
+            .map(|e| McpToolRow { id: e.id.clone(), ticked: e.bring == Some(true), reason: e.reason.clone() })
+            .collect(),
+        guest_home,
+    })
 }
 
 /// golden-mcp.ts:161.
@@ -136,17 +240,18 @@ pub const MCP_READ_END: &str = "wsp-mcp end";
 
 /// golden-mcp.ts:167 `refused`: a call the machine never ran as exit -1 with the error's words on stderr.
 pub fn refused(message: &str) -> ExecResult {
-    todo!()
+    ExecResult { exit_code: (-1i64).into(), stdout: String::new(), stderr: message.to_string() }
 }
 
 /// golden-mcp.ts:172 `readReason`: `reason_of` with stdout blanked; `None` is `READ_MS / 1000` seconds.
 pub fn read_reason(res: &ExecResult, timeout_s: Option<f64>) -> String {
-    todo!()
+    let blank = ExecResult { exit_code: res.exit_code.clone(), stdout: String::new(), stderr: res.stderr.clone() };
+    reason_of(&blank, timeout_s.unwrap_or(READ_MS as f64 / 1000.0))
 }
 
 /// golden-mcp.ts:175 `readFailed`.
 pub fn read_failed(res: &ExecResult) -> String {
-    todo!()
+    format!("the config edit did not run ({})", read_reason(res, None))
 }
 
 /// One scope as the read is asked for it (golden-mcp.ts:186).
@@ -187,12 +292,35 @@ pub struct ReadAsk {
 // }
 /// golden-mcp.ts:186 `readConfigsCmd`.
 pub fn read_configs_cmd(scopes: &[ReadAsk]) -> String {
-    todo!()
+    let cap = CONFIG_READ_MAX_BYTES;
+    let mut lines = vec![
+        "wsp_mcp_read() {".to_string(),
+        r#"  i="$1"; b=$(realpath "$2" 2>/dev/null) || b=; shift 2; n=0"#.to_string(),
+        r#"  for f in "$@"; do"#.to_string(),
+        r#"    if [ -e "$f" ] || [ -L "$f" ]; then"#.to_string(),
+        format!(
+            r#"      r=$(realpath "$f" 2>/dev/null) && [ -n "$b" ] && {} || {{ printf '{MCP_READ_MARK} %s %s -plain\n' "$i" "$n"; return 0; }}"#,
+            under_base(r#"[ -f "$r" ]"#, "false")
+        ),
+        format!(r#"      if [ "$(head -c {} < "$r" | wc -c | tr -d ' ')" -gt {cap} ]; then printf '{MCP_READ_MARK} %s %s -cap\n' "$i" "$n"; return 0; fi"#, cap + 1),
+        format!(r#"      printf '{MCP_READ_MARK} %s %s ' "$i" "$n"; head -c {cap} < "$r" | base64 | tr -d '\n'; printf '\n'; return 0"#),
+        "    fi".to_string(),
+        "    n=$((n+1))".to_string(),
+        "  done".to_string(),
+        format!(r#"  printf '{MCP_READ_MARK} %s - -\n' "$i""#),
+        "}".to_string(),
+    ];
+    lines.extend(scopes.iter().enumerate().map(|(i, s)| {
+        let files: Vec<String> = s.files.iter().map(|f| shell_quote(f)).collect();
+        format!("wsp_mcp_read {i} {} {}", shell_quote(&s.base), files.join(" "))
+    }));
+    lines.push(format!(r#"printf '%s\n' '{MCP_READ_END}'"#));
+    lines.join("\n")
 }
 
 /// golden-mcp.ts:211 `readWhole`: a line that trims to `MCP_READ_END` is there.
 pub fn read_whole(stdout: &str) -> bool {
-    todo!()
+    stdout.split('\n').any(|line| js_trim(line) == MCP_READ_END)
 }
 
 // TS golden-mcp.ts:232-253
@@ -221,7 +349,27 @@ pub fn read_whole(stdout: &str) -> bool {
 /// golden-mcp.ts:235 `parseConfigs`: one entry per scope; `None` when no line carried the mark. Only `files` of each
 /// ask is read.
 pub fn parse_configs(stdout: &str, scopes: &[ReadAsk]) -> Option<Vec<Option<ScopeRead>>> {
-    todo!()
+    let mut out: Vec<Option<ScopeRead>> = scopes.iter().map(|_| None).collect();
+    let mut answered = false;
+    for line in stdout.split('\n') {
+        let words: Vec<&str> = js_trim(line).split(' ').collect();
+        if words[0] != MCP_READ_MARK || words.len() < 3 {
+            continue;
+        }
+        answered = true;
+        let at = js_index(words[1], scopes.len()).and_then(|i| js_index(words[2], scopes[i].files.len()).map(|j| (i, scopes[i].files[j].clone())));
+        let Some((i, path)) = at else { continue };
+        let word = words.get(3).copied().unwrap_or("");
+        out[i] = Some(match word {
+            "-plain" => ScopeRead::Unread { path, unread: CONFIG_NOT_PLAIN.to_string() },
+            "-cap" => ScopeRead::Unread { path, unread: CONFIG_PAST_CAP.to_string() },
+            _ => {
+                let bytes = base64_lenient(word);
+                ScopeRead::File(ScopeFile { path, text: String::from_utf8_lossy(&bytes).into_owned(), sum: config_sum(&bytes) })
+            }
+        });
+    }
+    answered.then_some(out)
 }
 
 // TS golden-mcp.ts:255-264
@@ -237,7 +385,23 @@ pub fn parse_configs(stdout: &str, scopes: &[ReadAsk]) -> Option<Vec<Option<Scop
 // }
 /// golden-mcp.ts:257 `rewriteString`.
 pub fn rewrite_string(plan: &McpPlan, s: &str, command: bool) -> String {
-    todo!()
+    if command {
+        for d in &plan.bin_dirs {
+            if let Some(rest) = s.strip_prefix(d.as_str()) {
+                if !rest.contains('/') {
+                    return rest.to_string();
+                }
+            }
+        }
+    }
+    let head = flag_head(s);
+    let body = &s[head.len()..];
+    for (from, to) in &plan.rewrites {
+        if let Some(rest) = body.strip_prefix(from.as_str()) {
+            return format!("{head}{to}{rest}");
+        }
+    }
+    s.to_string()
 }
 
 /// golden-mcp.ts:286's answer: each scope's outcome in plan order, and the text each file should end with, in the
@@ -281,7 +445,52 @@ pub struct EditedScopes {
 /// golden-mcp.ts:286 `editScopes(plan, agents, read)`: every scope through its format's `edit`, each on the text the
 /// scopes before it left.
 pub fn edit_scopes(plan: &McpPlan, agents: &[McpAgentPlan], read: &[Option<ScopeRead>]) -> EditedScopes {
-    todo!()
+    let mut texts: IndexMap<String, String> = read
+        .iter()
+        .flatten()
+        .filter_map(|f| match f {
+            ScopeRead::File(f) => Some((f.path.clone(), f.text.clone())),
+            ScopeRead::Unread { .. } => None,
+        })
+        .collect();
+    let mut outcomes = Vec::new();
+    let mut at = 0;
+    for agent in agents {
+        for scope in &agent.scopes {
+            let file = read.get(at).and_then(|f| f.as_ref());
+            at += 1;
+            let outcome = match file {
+                None => ScopeOutcome::default(),
+                Some(ScopeRead::Unread { path, unread }) => ScopeOutcome { file: Some(path.clone()), unread: Some(unread.clone()), ..Default::default() },
+                Some(ScopeRead::File(f)) => {
+                    let edit_scope = McpEditScope {
+                        keep: scope.keep.clone(),
+                        drop: scope.drop.iter().map(|d| d.name.clone()).collect(),
+                        project: scope.project.as_ref().map(|p| FromTo { from: p.from.clone(), to: p.to.clone() }),
+                    };
+                    let text = texts.get(&f.path).cloned().unwrap_or_default();
+                    let lib = |s: &str, command: bool| rewrite_string(plan, s, command);
+                    match scope.format.edit(&lib, &edit_scope, &text) {
+                        Ok(edited) => {
+                            texts.insert(f.path.clone(), edited.text);
+                            ScopeOutcome {
+                                file: Some(f.path.clone()),
+                                results: edited
+                                    .results
+                                    .into_iter()
+                                    .map(|r| EditedName { name: r.name, outcome: r.outcome.into(), command: r.command })
+                                    .collect(),
+                                ..Default::default()
+                            }
+                        }
+                        Err(e) => ScopeOutcome { file: Some(f.path.clone()), error: Some(e.to_string()), ..Default::default() },
+                    }
+                }
+            };
+            outcomes.push(outcome);
+        }
+    }
+    EditedScopes { outcomes, texts }
 }
 
 // TS golden-mcp.ts:314-335
@@ -314,5 +523,168 @@ pub async fn land_configs(
     read: &[Option<ScopeRead>],
     texts: &IndexMap<String, String>,
 ) -> Option<String> {
-    todo!()
+    let was: IndexMap<&str, &ScopeFile> = read
+        .iter()
+        .flatten()
+        .filter_map(|f| match f {
+            ScopeRead::File(f) => Some((f.path.as_str(), f)),
+            ScopeRead::Unread { .. } => None,
+        })
+        .collect();
+    let mut changed = Vec::new();
+    for (path, text) in texts {
+        if was.get(path.as_str()).is_some_and(|f| f.text == *text) {
+            continue;
+        }
+        let id = hex(&rand::random::<[u8; 6]>());
+        let landing = config_landing(path, &id).unwrap_or_else(|e| panic!("{e:?}"));
+        changed.push(Changed { path: path.clone(), bytes: text.as_bytes().to_vec(), landing });
+    }
+    if changed.is_empty() {
+        return None;
+    }
+    let landings: Vec<String> = changed.iter().map(|c| c.landing.clone()).collect();
+    for c in &changed {
+        let opts = LandBytesOptions { timeout_ms: Some(READ_MS), ..Default::default() };
+        if let Err(e) = land_bytes(machine, &c.landing, &c.bytes, opts).await {
+            return Some(swept(machine, &landings, &e.to_string()).await);
+        }
+    }
+    let line = changed
+        .iter()
+        .map(|c| {
+            let write = ConfigWrite {
+                file: c.path.clone(),
+                base: base(&c.path),
+                sum: was.get(c.path.as_str()).map(|f| f.sum.clone()),
+                bytes: c.bytes.len() as u64,
+                from: Some(c.landing.clone()),
+            };
+            format!("(\n{}\n) || exit $?", config_write_line(&write))
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+    let res = match machine.exec(&line, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await {
+        Ok(res) => res,
+        Err(e) => refused(&e.to_string()),
+    };
+    if res.exit_code.get() == 0 {
+        return None;
+    }
+    let why = config_refusal(res.exit_code.get() as i32, &res.stdout, &changed[0].path, &|p: &str| p.to_string())
+        .unwrap_or_else(|| reason_of(&res, inline_s()));
+    Some(swept(machine, &landings, &why).await)
+}
+
+struct Own<'a> {
+    row: &'a RecipeEntry,
+    home: bool,
+    name: String,
+}
+
+struct Changed {
+    path: String,
+    bytes: Vec<u8>,
+    landing: String,
+}
+
+impl From<EditOutcome> for EditedOutcome {
+    fn from(outcome: EditOutcome) -> Self {
+        match outcome {
+            EditOutcome::Written => EditedOutcome::Written,
+            EditOutcome::Missing => EditedOutcome::Missing,
+            EditOutcome::Dropped => EditedOutcome::Dropped,
+        }
+    }
+}
+
+fn is_binary_row(id: &str) -> bool {
+    id.strip_prefix("tools/")
+        .and_then(|rest| rest.split_once('/'))
+        .is_some_and(|(manager, _)| ["brew", "go", "cargo", "npm", "pnpm", "bun", "pipx", "uv", "hand"].contains(&manager))
+}
+
+fn encode_component(text: &str) -> String {
+    text.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
+}
+
+fn decode_component(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let hex = text.get(i + 1..i + 3)?;
+            if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return None;
+            }
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+fn flag_head(s: &str) -> &str {
+    for dashes in [2usize, 1] {
+        let Some(rest) = s.strip_prefix(&"--"[..dashes]) else { continue };
+        let name = rest.bytes().take_while(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-').count();
+        if name > 0 && rest.as_bytes().get(name) == Some(&b'=') {
+            return &s[..dashes + name + 1];
+        }
+    }
+    ""
+}
+
+fn js_index(word: &str, len: usize) -> Option<usize> {
+    let n = to_number(word);
+    (n.fract() == 0.0 && n >= 0.0 && (n as usize) < len).then_some(n as usize)
+}
+
+fn base64_lenient(text: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut acc: u32 = 0;
+    let mut bits = 0;
+    for c in text.bytes() {
+        if c == b'=' {
+            break;
+        }
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' | b'-' => 62,
+            b'/' | b'_' => 63,
+            _ => continue,
+        };
+        acc = (acc << 6) | u32::from(v);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    out
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+async fn swept(machine: &dyn Machine, landings: &[String], why: &str) -> String {
+    let cmd = format!("rm -f {}", landings.iter().map(|l| shell_quote(l)).collect::<Vec<String>>().join(" "));
+    let _ = machine.exec(&cmd, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await;
+    format!("the edited config did not land ({why})")
 }

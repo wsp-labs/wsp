@@ -2,8 +2,10 @@
 //! Unit import_agents (spec/golden-import_agents.md): golden-import.ts:1348-1403 and 1422-1534 at a4033dc34. The
 //! ticked agents' installers, the one Node step their floors ask for, and the agents as steps of the tools loop.
 use indexmap::IndexMap;
-use wsp_catalog::catalog::AgentEntry;
+use wsp_catalog::catalog::{catalog_agents, install_line, smoke_of, AgentEntry, CatalogEntry};
+use wsp_catalog::roads::{NODE_RELEASES, UV_INSTALL};
 
+use super::import_roads::{pin_read_of, road_word};
 use super::{AgentsPlan, PinRead, RecipeEntry, ToolInstall};
 
 /// golden-import.ts:1350 `AgentInstaller`. `road` is the road's name.
@@ -41,7 +43,33 @@ pub const AGENT_NODE_STEP: &str = "agents/node";
 /// golden-import.ts:1389 `agentInstallers(agents)`: each agent's by its id in the slice's order, then `aider`'s line.
 /// An agent whose road gives no install line is a catalog fault: the TS throws at load, and this panics.
 pub fn agent_installers(agents: &[AgentEntry]) -> IndexMap<String, AgentInstaller> {
-    todo!()
+    let mut out = IndexMap::new();
+    for a in agents {
+        let install = install_line(&CatalogEntry::Agent(a.clone())).unwrap_or_else(|e| panic!("{}: {e}", a.id));
+        out.insert(
+            a.id.clone(),
+            AgentInstaller {
+                name: a.name.clone(),
+                install,
+                smoke: smoke_of(&CatalogEntry::Agent(a.clone())),
+                road: road_word(a.install_road.name()).to_string(),
+                node: a.node,
+                pin: Some(pin_read_of(&a.install_road, &a.bin, None)),
+            },
+        );
+    }
+    out.insert(
+        "aider".to_string(),
+        AgentInstaller {
+            name: "Aider".to_string(),
+            install: format!("{}\nuv tool install --force --python 3.12 --with pip aider-chat==0.86.2", *UV_INSTALL),
+            smoke: "aider --version".to_string(),
+            road: "uv".to_string(),
+            node: None,
+            pin: None,
+        },
+    );
+    out
 }
 
 // TS golden-import.ts:1376-1384
@@ -57,7 +85,16 @@ pub fn agent_installers(agents: &[AgentEntry]) -> IndexMap<String, AgentInstalle
 /// golden-import.ts:1379 `nodeMajorFor(floor, now)`, `now` in ms since the epoch: the lowest pinned major at or above
 /// `floor` still supported at `now` (before `<eol>T23:59:59Z`), else `CURRENT_LTS`; `None` above every pinned major.
 pub fn node_major_for(floor: u32, now_ms: i64) -> Option<u32> {
-    todo!()
+    let mut majors: Vec<u32> = NODE_RELEASES.iter().map(|(major, _)| *major).collect();
+    majors.sort_unstable();
+    if floor > *majors.last()? {
+        return None;
+    }
+    let supported = |major: u32| {
+        let eol = NODE_RELEASES.iter().find(|(m, _)| *m == major).map_or("", |(_, r)| r.eol);
+        format!("{eol}T23:59:59Z").parse::<jiff::Timestamp>().is_ok_and(|end| now_ms < end.as_millisecond())
+    };
+    Some(majors.iter().copied().find(|&m| m >= floor && supported(m)).unwrap_or(CURRENT_LTS))
 }
 
 // TS golden-import.ts:1499-1503
@@ -68,7 +105,7 @@ pub fn node_major_for(floor: u32, now_ms: i64) -> Option<u32> {
 //   `major="$(node --version 2>/dev/null | sed 's/^v//; s/\\..*//')"; [ "\${major:-0}" -ge ${floor} ]`;
 /// golden-import.ts:1502 `nodeFloorCheck`.
 pub fn node_floor_check(floor: u32) -> String {
-    todo!()
+    format!(r#"major="$(node --version 2>/dev/null | sed 's/^v//; s/\..*//')"; [ "${{major:-0}}" -ge {floor} ]"#)
 }
 
 // TS golden-import.ts:1396-1403
@@ -132,7 +169,20 @@ pub fn agent_installs_for_rows(entries: &[RecipeEntry], agents: &[AgentEntry], n
 /// `agentInstallsFor(ids.map(row))`, as the provision tests call it: each id a ticked row as provision.test.ts:121
 /// `row(id)` builds it (rung `agents`, the id as its label), the catalog's agents, the clock now.
 pub fn agent_installs_for(ids: &[&str]) -> AgentsPlan {
-    todo!()
+    let entries: Vec<RecipeEntry> = ids
+        .iter()
+        .map(|id| RecipeEntry {
+            rung: "agents".to_string(),
+            id: id.to_string(),
+            label: id.to_string(),
+            default: "bring".to_string(),
+            bring: Some(true),
+            ..Default::default()
+        })
+        .collect();
+    let agents: Vec<AgentEntry> = catalog_agents().into_iter().cloned().collect();
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+    agent_installs_for_rows(&entries, &agents, now_ms)
 }
 
 // TS golden-import.ts:1505-1534
@@ -173,5 +223,6 @@ pub fn agent_steps_with(plan: &AgentsPlan, agents: &[AgentEntry], path: &str, pr
 
 /// golden-import.ts:1512 `agentSteps(plan, CATALOG_AGENTS, path, prefix)`, as provision runs it.
 pub fn agent_steps(plan: &AgentsPlan, path: &str, prefix: Option<&str>) -> Vec<ToolInstall> {
-    todo!()
+    let agents: Vec<AgentEntry> = catalog_agents().into_iter().cloned().collect();
+    agent_steps_with(plan, &agents, path, prefix)
 }
