@@ -214,6 +214,9 @@ pub struct HostError {
     pub warnings: Option<Vec<serde_json::Value>>,
     /// The threads and processes a settle or delete was refused over; read only when the kind is ProcessesLeft.
     pub left: Option<Vec<serde_json::Value>>,
+    /// The key a computer never dialled answered with, stamped by an add refused under `Kind::HostKey`
+    /// (`Object.assign(new Error(..), { kind: PLACE_HOST_KEY_KIND, hostKey })`, places/install.ts:69).
+    pub host_key: Option<String>,
     /// The names of the boolean marks the TS stamps on an `Error` as `true` (`wspMachineLacks`,
     /// `wspMachineUnanswered`, words/computer.ts:594-603), read by `marked`. Never on the wire, never in a reply.
     pub marks: Vec<String>,
@@ -222,12 +225,36 @@ pub struct HostError {
 impl HostError {
     /// `new Error(message)`: no fix, no kind, no lists.
     pub fn new(message: impl Into<String>) -> HostError {
-        HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: Vec::new() }
+        HostError {
+            message: message.into(),
+            fix: None,
+            kind: None,
+            errors: None,
+            warnings: None,
+            left: None,
+            host_key: None,
+            marks: Vec::new(),
+        }
     }
 
     /// `Object.assign(new Error(message), { kind })`: the message as given, no fix.
     pub fn with_kind(message: impl Into<String>, kind: Kind) -> HostError {
         HostError { kind: Some(kind), ..HostError::new(message) }
+    }
+
+    /// An add refused over a key the computer offered and nobody has confirmed: the kind `host-key` and the key, as
+    /// places/install.ts:69 stamps them.
+    pub fn with_host_key(message: impl Into<String>, host_key: impl Into<String>) -> HostError {
+        HostError { host_key: Some(host_key.into()), ..HostError::with_kind(message, Kind::HostKey) }
+    }
+
+    /// The key an add offers back (places/manage.ts:321): only an error of kind `host-key` carrying a string key.
+    pub fn offered_host_key(&self) -> Option<&str> {
+        if self.kind == Some(Kind::HostKey) {
+            self.host_key.as_deref()
+        } else {
+            None
+        }
     }
 
     /// `exitClassOf(e)` (exit.ts:37-40): the kind's class, provider where there is no kind.
@@ -388,7 +415,13 @@ fn write_json(value: &serde_json::Value, space: Option<usize>, depth: usize, out
 /// `verbFailure(e)` (exit.ts:56).
 pub fn verb_failure(e: &HostError) -> VerbFailure {
     let lists = problem_lists_of(e);
-    VerbFailure { error: e.message.clone(), class: e.class(), exit: i64::from(e.exit_code()), errors: lists.errors, warnings: lists.warnings }
+    VerbFailure {
+        error: e.message.clone(),
+        class: e.class(),
+        exit: i64::from(e.exit_code()),
+        errors: lists.errors,
+        warnings: lists.warnings,
+    }
 }
 
 /// `problemListsOf(e)` (exit.ts:63).
@@ -413,7 +446,11 @@ pub fn refusal_said(message: &str, fix: Option<&str>) -> String {
 
 /// `refusalParts(e)` (exit.ts:84).
 pub fn refusal_parts(e: &HostError) -> RefusalParts {
-    RefusalParts { said: refusal_said(&e.message, e.fix.as_deref()), fix: e.fix.clone(), kind: e.kind.as_ref().map(|k| k.as_str().to_string()) }
+    RefusalParts {
+        said: refusal_said(&e.message, e.fix.as_deref()),
+        fix: e.fix.clone(),
+        kind: e.kind.as_ref().map(|k| k.as_str().to_string()),
+    }
 }
 
 /// `markedCut(line, max)` (exit.ts:96): the line as it is up to `max` units, else its first `max` units and
@@ -446,7 +483,11 @@ pub fn usage_refusal(happened: &str, fix: &str) -> HostError {
 /// `cloudOffRefusal(line)` (exit.ts:109): `<line> needs the cloud, which is off on this computer:` and
 /// `start the host with WSP_CLOUD=1 to turn it on.`, kind usage.
 pub fn cloud_off_refusal(line: &str) -> HostError {
-    refusal(&format!("{line} needs the cloud, which is off on this computer:"), &format!("start the host with {CLOUD_ENV}=1 to turn it on."), Some(Kind::Usage))
+    refusal(
+        &format!("{line} needs the cloud, which is off on this computer:"),
+        &format!("start the host with {CLOUD_ENV}=1 to turn it on."),
+        Some(Kind::Usage),
+    )
 }
 
 /// `authRefusal(message)` (exit.ts:112): the message as given, kind auth, no fix.

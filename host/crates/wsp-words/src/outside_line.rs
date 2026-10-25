@@ -126,16 +126,11 @@ pub fn outside_line(moment: &OutsideMoment, choices: &GeneralPreferences) -> Opt
             let how = choices.plan_alerts.then_some(NotifyHow { show: true, sound: false });
             said(how, crate::plan_alerts::plan_alert_line(label, alert), String::new())
         }
-        OutsideMoment::SetupFailed { computer, said: error } => {
-            said(needs, setup_failed_line(computer), crate::quote::one_line(error))
-        }
+        OutsideMoment::SetupFailed { computer, said: error } => said(needs, setup_failed_line(computer), crate::quote::one_line(error)),
         OutsideMoment::SetupNeedsYou { computer, what } => {
             said(needs, crate::words::init::NEEDS_YOU.to_string(), setup_needs_you_line(computer, what))
         }
-        OutsideMoment::SetupReady { computer, missed } => {
-            said(done, setup_ready_line(computer, missed.as_deref()), String::new())
-        }
+        OutsideMoment::SetupReady { computer, missed } => said(done, setup_ready_line(computer, missed.as_deref()), String::new()),
         OutsideMoment::ImageReady { computer, image } => said(done, setup_ready_line(computer, None), image.clone()),
     }
 }
-

@@ -40,8 +40,8 @@ pub fn checkout_counts(c: &Checkout) -> Vec<String> {
     if c.edits_unread == Some(true) {
         return vec![checkout_words::UNREAD.to_string()];
     }
-    if c.changed.0.0 > 0.0 {
-        return vec![checkout_words::changed(c.changed.0.0)];
+    if c.changed.0 .0 > 0.0 {
+        return vec![checkout_words::changed(c.changed.0 .0)];
     }
     Vec::new()
 }
@@ -130,7 +130,11 @@ pub fn draft_prompt(diff: &str, task: Option<&str>) -> String {
     .map(String::from)
     .to_vec();
     if let Some(said) = said {
-        let task = if crate::js::utf16::len(said) <= DRAFT_TASK_MAX as usize { said.to_string() } else { crate::js::utf16::cut(said, DRAFT_TASK_MAX as usize) };
+        let task = if crate::js::utf16::len(said) <= DRAFT_TASK_MAX as usize {
+            said.to_string()
+        } else {
+            crate::js::utf16::cut(said, DRAFT_TASK_MAX as usize)
+        };
         lines.extend(["".to_string(), "The task the agent was given:".to_string(), task]);
     }
     lines.extend(["".to_string(), "The diff:".to_string(), diff.to_string()]);
@@ -195,7 +199,10 @@ fn unfence(text: &str) -> Option<&str> {
 fn unquote(text: &str) -> Option<&str> {
     let first = text.chars().next()?;
     let last = text.chars().last()?;
-    if text.chars().count() < 2 || !matches!(first, '"' | '\'' | '\u{201C}' | '\u{2018}') || !matches!(last, '"' | '\'' | '\u{201D}' | '\u{2019}') {
+    if text.chars().count() < 2
+        || !matches!(first, '"' | '\'' | '\u{201C}' | '\u{2018}')
+        || !matches!(last, '"' | '\'' | '\u{201D}' | '\u{2019}')
+    {
         return None;
     }
     Some(&text[first.len_utf8()..text.len() - last.len_utf8()])
@@ -266,4 +273,3 @@ pub fn committed_line(workspace: &str, commit: &MadeCommit) -> String {
 // Why a draft came back empty, as the one line the commit box shows under it.
 // changes.ts:120
 // in wsp_wire::types::changes: DRAFT_NOTES
-

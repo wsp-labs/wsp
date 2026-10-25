@@ -3,15 +3,15 @@
 //! rows and sign-ins, the counts and lines the sidebar, the toast and the terminal read off one job, and the agent
 //! road's brief. Each TS statement stands as a comment above its stub. See spec/init.md.
 
-use wsp_wire::types::init_job::{InitJob, InitPhase, InitRoad, InitRow, InitRowKind, LoginChoice, LoginState, SignInFinish};
-use wsp_wire::views::golden_image::GoldenStage;
-use wsp_wire::wire::capabilities::{InitSetup, WorkspaceSize};
 use crate::js::{js_trim, number_string, to_fixed};
 use crate::words::base::lower_first;
 use crate::words::computer::{this_computer, Platform};
 use crate::words::units::{fmt_bytes, fmt_duration, fmt_size};
 use regex::Regex;
 use serde::Serialize;
+use wsp_wire::types::init_job::{InitJob, InitPhase, InitRoad, InitRow, InitRowKind, LoginChoice, LoginState, SignInFinish};
+use wsp_wire::views::golden_image::GoldenStage;
+use wsp_wire::wire::capabilities::{InitSetup, WorkspaceSize};
 
 /// Every word of the steps that choose and build the image, drawn under a computer's Image card and, where a word is
 /// the host's, in the terminal too. Headlines are a step's title, tops the one sentence under it, keycaps the one
@@ -560,7 +560,11 @@ pub const DISK_SYNC_LINE: &str = "syncing the disk";
 // export const diskUnsettledLine = (reading: { dirtyKb: number; writebackKb: number }): string =>
 //   `synced, Dirty ${fmtBytes(reading.dirtyKb * KIB)} and Writeback ${fmtBytes(reading.writebackKb * KIB)} remain; a writer is still running`;
 pub fn disk_unsettled_line(dirty_kb: f64, writeback_kb: f64) -> String {
-    format!("synced, Dirty {} and Writeback {} remain; a writer is still running", fmt_bytes(dirty_kb * 1024.0), fmt_bytes(writeback_kb * 1024.0))
+    format!(
+        "synced, Dirty {} and Writeback {} remain; a writer is still running",
+        fmt_bytes(dirty_kb * 1024.0),
+        fmt_bytes(writeback_kb * 1024.0)
+    )
 }
 
 /// A snapshot refused because the guest's sync did not succeed, with the machine's own answer.
@@ -762,7 +766,8 @@ pub fn build_needs_file_line(missing: &str) -> String {
 
 /// The failures a provider client raises when the network is gone, not when the provider refused.
 fn is_offline(part: &str) -> bool {
-    let offline = Regex::new(r"^fetch failed$|(?-u:\b)(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ENETDOWN|ENETUNREACH|EHOSTUNREACH)(?-u:\b)").expect("a fixed pattern");
+    let offline = Regex::new(r"^fetch failed$|(?-u:\b)(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ENETDOWN|ENETUNREACH|EHOSTUNREACH)(?-u:\b)")
+        .expect("a fixed pattern");
     offline.is_match(part)
 }
 
@@ -1155,7 +1160,10 @@ pub fn key_unchecked_line(said: &str, provider: &str) -> String {
 // init.ts:551
 // export const savedKeyStoppedLine = (provider: string): string => `Save a key ${providerKeyName(provider)} takes and run wsp init again; nothing booted, and the recipe is kept.`;
 pub fn saved_key_stopped_line(provider: &str) -> String {
-    format!("Save a key {} takes and run wsp init again; nothing booted, and the recipe is kept.", crate::place_word::provider_key_name(provider))
+    format!(
+        "Save a key {} takes and run wsp init again; nothing booted, and the recipe is kept.",
+        crate::place_word::provider_key_name(provider)
+    )
 }
 
 /// What the machine the build boots costs, said once under the key screen's title from the backend's own rate.
@@ -1202,7 +1210,8 @@ pub fn init_setup_lines(setup: &InitSetup) -> Vec<String> {
         .keys
         .iter()
         .map(|(provider, yes)| {
-            let name = crate::place_word::provider_key_words(provider).map_or_else(|| provider.to_string(), |words| words.key_name.to_string());
+            let name =
+                crate::place_word::provider_key_words(provider).map_or_else(|| provider.to_string(), |words| words.key_name.to_string());
             format!("{name}: {}", held(*yes))
         })
         .collect();
@@ -1278,4 +1287,3 @@ pub fn init_agent_no_recipe_line(recipe_path: &str, reason: Option<&str>) -> Str
     };
     format!("the thread ended without writing {recipe_path}{tail}")
 }
-

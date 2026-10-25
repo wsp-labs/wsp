@@ -4,6 +4,8 @@
 
 use wsp_wire::types::shell_quote::shell_quote;
 
+use crate::js::replace_first;
+
 // docker-shim.ts:5
 // in wsp_wire::types::docker_shim: DOCKER_NOTES_FOLDER
 
@@ -29,7 +31,7 @@ use wsp_wire::types::shell_quote::shell_quote;
 //   return DOCKER_SHIM.replace("{bin}", shellQuote(bin)).replace("{notes}", shellQuote(notes));
 // }
 pub fn docker_shim(bin: &str, notes: &str) -> String {
-    DOCKER_SHIM.replacen("{bin}", &shell_quote(bin), 1).replacen("{notes}", &shell_quote(notes), 1)
+    replace_first(&replace_first(DOCKER_SHIM, "{bin}", &shell_quote(bin)), "{notes}", &shell_quote(notes))
 }
 
 // docker-shim.ts:29
@@ -137,4 +139,3 @@ const DOCKER_SHIM: &str = "#!/bin/sh\nbin={bin}\nnotes={notes}\npassed=${WSP_DOC
 // fi
 // exec "$real" "$@"
 // `;
-

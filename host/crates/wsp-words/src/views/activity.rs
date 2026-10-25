@@ -6,9 +6,9 @@ use indexmap::IndexSet;
 use serde_json::Value;
 
 use wsp_wire::views::activity::{
-    end_gone_line, end_reused_line, not_started_line, not_threads_line, processes_left_fix, with_read_placement, wsp_own_line, ActivityProc,
-    ActivityRead, ActivityScope, EndPlan, LeftThread, LeftVerb as WireLeftVerb, Placement, Whose, END_AGAIN_FIX, NOT_STARTED_FIX,
-    NOT_THREADS_FIX, SAME_START_MS, WSP_OWN_FIX,
+    end_gone_line, end_reused_line, not_started_line, not_threads_line, processes_left_fix, with_read_placement, wsp_own_line,
+    ActivityProc, ActivityRead, ActivityScope, EndPlan, LeftThread, LeftVerb as WireLeftVerb, Placement, Whose, END_AGAIN_FIX,
+    NOT_STARTED_FIX, NOT_THREADS_FIX, SAME_START_MS, WSP_OWN_FIX,
 };
 use wsp_wire::wire::daemon::{ProcKind, ProcOwnedBy};
 
@@ -31,13 +31,23 @@ pub fn not_joined_activity_line(thread_id: &str, name: &str) -> String {
 // activity.ts:471
 // export const agentEndLine = (pid: number, scope: ActivityScope): string => `${pid} is the agent of thread ${threadWord(scope.threadId)} "${scope.title}", which only its thread's stop ends:`;
 pub fn agent_end_line(pid: f64, scope: &ActivityScope) -> String {
-    format!("{} is the agent of thread {} \"{}\", which only its thread's stop ends:", number_string(pid), thread_word(&scope.thread_id), scope.title)
+    format!(
+        "{} is the agent of thread {} \"{}\", which only its thread's stop ends:",
+        number_string(pid),
+        thread_word(&scope.thread_id),
+        scope.title
+    )
 }
 
 // activity.ts:472
 // export const agentUnderLine = (pid: number, scope: ActivityScope): string => `${pid} has the agent of thread ${threadWord(scope.threadId)} "${scope.title}" under it, which only its thread's stop ends:`;
 pub fn agent_under_line(pid: f64, scope: &ActivityScope) -> String {
-    format!("{} has the agent of thread {} \"{}\" under it, which only its thread's stop ends:", number_string(pid), thread_word(&scope.thread_id), scope.title)
+    format!(
+        "{} has the agent of thread {} \"{}\" under it, which only its thread's stop ends:",
+        number_string(pid),
+        thread_word(&scope.thread_id),
+        scope.title
+    )
 }
 
 // activity.ts:473
@@ -85,7 +95,12 @@ pub fn agent_end_fix(scope: &ActivityScope) -> String {
 //   return { targets };
 // }
 /// The TS throws (a refusal) are the Err.
-pub fn end_plan(read: &ActivityRead, pid: f64, started_at: f64, may: &dyn Fn(Option<&str>) -> bool) -> Result<EndPlan, crate::exit::HostError> {
+pub fn end_plan(
+    read: &ActivityRead,
+    pid: f64,
+    started_at: f64,
+    may: &dyn Fn(Option<&str>) -> bool,
+) -> Result<EndPlan, crate::exit::HostError> {
     with_read_placement(read, |placed| {
         let whole = pid as i64;
         let Some((k, p)) = u32::try_from(whole).ok().and_then(|k| placed.by_pid.get(&k).map(|p| (k, p))) else {

@@ -103,10 +103,12 @@ pub fn worktree_of(cwd: &str, worktrees: &[impl AsRef<str>]) -> Option<String> {
 // project-path.ts:60
 // export const claudeProjectKey = (path: string): string => path.replace(/[^A-Za-z0-9]/g, "-");
 pub fn claude_project_key(path: &str) -> String {
-    path.encode_utf16().map(|unit| match u8::try_from(unit) {
-        Ok(byte) if byte.is_ascii_alphanumeric() => char::from(byte),
-        _ => '-',
-    }).collect()
+    path.encode_utf16()
+        .map(|unit| match u8::try_from(unit) {
+            Ok(byte) if byte.is_ascii_alphanumeric() => char::from(byte),
+            _ => '-',
+        })
+        .collect()
 }
 
 /// Where Claude Code keeps one project's own memory under a state home: the keyed projects folder, and `memory`
@@ -146,7 +148,11 @@ pub fn folder_slug(name: &str) -> String {
     let trimmed = dashed.trim_matches('-');
     let cut = &trimmed[..trimmed.len().min(40)];
     let slug = cut.trim_end_matches('-');
-    if slug.is_empty() { "work".to_string() } else { slug.to_string() }
+    if slug.is_empty() {
+        "work".to_string()
+    } else {
+        slug.to_string()
+    }
 }
 
 // project-path.ts:81
@@ -193,7 +199,8 @@ pub fn hidden_folder(path: &str, machine: Option<&FolderMachine>) -> bool {
 // the cloud folders among them, and the media folders beside them, as paths under the home. Listing one, or reading
 // any path inside it, holds the read until the person answers the prompt.
 // project-path.ts:106
-const MAC_GUARDED: [&str; 8] = ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"];
+const MAC_GUARDED: [&str; 8] =
+    ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"];
 
 /// The home of a Mac machine, without its trailing slashes, where the machine says it is one and names a home.
 fn mac_home(machine: Option<&FolderMachine>) -> Option<&str> {
@@ -224,7 +231,11 @@ pub fn guarded_folder(path: &str, machine: Option<&FolderMachine>) -> bool {
 // };
 pub fn parent_folder_name(path: &str) -> String {
     let parts: Vec<&str> = path.trim_end_matches('/').split('/').collect();
-    if parts.len() < 2 { String::new() } else { parts[parts.len() - 2].to_string() }
+    if parts.len() < 2 {
+        String::new()
+    } else {
+        parts[parts.len() - 2].to_string()
+    }
 }
 
 /// The PATH a daemon on a computer that runs workspaces resolves a command through, and the one every script of
@@ -611,4 +622,3 @@ pub fn stand_in_records_path(root: &str) -> String {
 pub fn stand_in_machine_path(root: &str, machine_id: &str) -> String {
     format!("{}/machines/{machine_id}", root.trim_end_matches('/'))
 }
-

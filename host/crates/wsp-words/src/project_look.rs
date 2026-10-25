@@ -54,4 +54,3 @@ pub struct SaidFix {
 pub fn project_icon_refusal(why: &str) -> SaidFix {
     SaidFix { said: format!("The host did not take this image: {why}."), fix: PROJECT_ICON_AGAIN.to_string() }
 }
-

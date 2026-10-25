@@ -8,8 +8,7 @@ use serde_json::json;
 use std::collections::HashSet;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::workspace_look::{
-    ThemeDot, ThemeHarmony, ThemeMode, WorkspaceTheme, INK_FLOOR, THEME_GRAIN_STEPS, THEME_HARMONIES, THEME_MAX_DOTS,
-    WORD_FLOOR,
+    ThemeDot, ThemeHarmony, ThemeMode, WorkspaceTheme, INK_FLOOR, THEME_GRAIN_STEPS, THEME_HARMONIES, THEME_MAX_DOTS, WORD_FLOOR,
 };
 use wsp_words::words::places::fmt_theme_vars;
 use wsp_words::workspace_look::*;
@@ -36,7 +35,11 @@ fn close(a: f64, b: f64, digits: i32) -> bool {
 
 // The TS test's `theme`: the default theme with a complementary pair on (200, 0.5).
 fn theme() -> WorkspaceTheme {
-    WorkspaceTheme { dots: harmony_dots(&dot(200.0, 0.5), ThemeHarmony::Complementary), harmony: ThemeHarmony::Complementary, ..default_theme() }
+    WorkspaceTheme {
+        dots: harmony_dots(&dot(200.0, 0.5), ThemeHarmony::Complementary),
+        harmony: ThemeHarmony::Complementary,
+        ..default_theme()
+    }
 }
 
 fn over(top: &Rgb, alpha: f64, under: &Rgb) -> Rgb {
@@ -66,14 +69,8 @@ mod the_harmonies {
         assert_eq!(THEME_HARMONIES.iter().map(|h| harmony_size(harmony(h))).collect::<Vec<_>>(), vec![1, 2, 2, 3, 3, 3]);
         assert_eq!(harmonies_of(2), vec![ThemeHarmony::Complementary, ThemeHarmony::Analogous]);
         assert_eq!(harmonies_of(4), Vec::<ThemeHarmony>::new());
-        assert_eq!(
-            harmony_dots(&dot(350.0, 0.4), ThemeHarmony::Complementary),
-            vec![dot(350.0, 0.4), dot(170.0, 0.4)]
-        );
-        assert_eq!(
-            harmony_dots(&dot(300.0, 0.4), ThemeHarmony::Triadic),
-            vec![dot(300.0, 0.4), dot(60.0, 0.4), dot(180.0, 0.4)]
-        );
+        assert_eq!(harmony_dots(&dot(350.0, 0.4), ThemeHarmony::Complementary), vec![dot(350.0, 0.4), dot(170.0, 0.4)]);
+        assert_eq!(harmony_dots(&dot(300.0, 0.4), ThemeHarmony::Triadic), vec![dot(300.0, 0.4), dot(60.0, 0.4), dot(180.0, 0.4)]);
     }
 
     #[test]
@@ -134,10 +131,7 @@ mod grain_scheme_and_ink {
         // Every preset at the default opacity draws under the app's own side on both sides.
         for preset in THEME_PRESETS.iter() {
             let picked = WorkspaceTheme { dots: preset_dots(preset), ..theme.clone() };
-            assert_eq!(
-                (preset.id, theme_scheme(&picked, true), theme_scheme(&picked, false)),
-                (preset.id, Side::Dark, Side::Light)
-            );
+            assert_eq!((preset.id, theme_scheme(&picked, true), theme_scheme(&picked, false)), (preset.id, Side::Dark, Side::Light));
         }
         assert_eq!(theme_scheme(&WorkspaceTheme { mode: ThemeMode::Dark, ..pale.clone() }, false), Side::Dark);
         assert_eq!(theme_scheme(&WorkspaceTheme { mode: ThemeMode::Light, ..deep.clone() }, true), Side::Light);
@@ -228,7 +222,8 @@ mod grain_scheme_and_ink {
         picks.extend(sweep.iter().map(|d| Pick { dots: vec![d.clone()], opacity: 1.0, both: false }));
         for app_dark in [false, true] {
             for pick in &picks {
-                let chosen = WorkspaceTheme { dots: pick.dots.clone(), opacity: JsNumber(pick.opacity), mode: ThemeMode::Auto, ..theme.clone() };
+                let chosen =
+                    WorkspaceTheme { dots: pick.dots.clone(), opacity: JsNumber(pick.opacity), mode: ThemeMode::Auto, ..theme.clone() };
                 let ink = theme_ink(&chosen, app_dark);
                 // The ground is the side the theme draws under, which Auto may move off the app's, at the opacity it paints at.
                 let under = match theme_scheme(&chosen, app_dark) {
@@ -330,22 +325,63 @@ mod pinned {
         assert_eq!(js(&harmonies_of(3)), "[\"splitComplementary\",\"triadic\",\"analogousThree\"]"); // JSON.stringify(harmoniesOf(3))
         assert_eq!(js(&harmonies_of(4)), "[]"); // JSON.stringify(harmoniesOf(4))
         assert_eq!(js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::Single)), "[{\"angle\":300,\"radius\":0.5}]"); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "single"))
-        assert_eq!(js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::Complementary)), "[{\"angle\":300,\"radius\":0.5},{\"angle\":120,\"radius\":0.5}]"); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "complementary"))
-        assert_eq!(js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::Analogous)), "[{\"angle\":300,\"radius\":0.5},{\"angle\":250,\"radius\":0.5}]"); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "analogous"))
-        assert_eq!(js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::SplitComplementary)), "[{\"angle\":300,\"radius\":0.5},{\"angle\":90,\"radius\":0.5},{\"angle\":150,\"radius\":0.5}]"); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "splitComplementary"))
-        assert_eq!(js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::Triadic)), "[{\"angle\":300,\"radius\":0.5},{\"angle\":60,\"radius\":0.5},{\"angle\":180,\"radius\":0.5}]"); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "triadic"))
-        assert_eq!(js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::AnalogousThree)), "[{\"angle\":300,\"radius\":0.5},{\"angle\":350,\"radius\":0.5},{\"angle\":250,\"radius\":0.5}]"); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "analogousThree"))
+        assert_eq!(
+            js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::Complementary)),
+            "[{\"angle\":300,\"radius\":0.5},{\"angle\":120,\"radius\":0.5}]"
+        ); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "complementary"))
+        assert_eq!(
+            js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::Analogous)),
+            "[{\"angle\":300,\"radius\":0.5},{\"angle\":250,\"radius\":0.5}]"
+        ); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "analogous"))
+        assert_eq!(
+            js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::SplitComplementary)),
+            "[{\"angle\":300,\"radius\":0.5},{\"angle\":90,\"radius\":0.5},{\"angle\":150,\"radius\":0.5}]"
+        ); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "splitComplementary"))
+        assert_eq!(
+            js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::Triadic)),
+            "[{\"angle\":300,\"radius\":0.5},{\"angle\":60,\"radius\":0.5},{\"angle\":180,\"radius\":0.5}]"
+        ); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "triadic"))
+        assert_eq!(
+            js(&harmony_dots(&dot(json!({"angle":300,"radius":0.5})), ThemeHarmony::AnalogousThree)),
+            "[{\"angle\":300,\"radius\":0.5},{\"angle\":350,\"radius\":0.5},{\"angle\":250,\"radius\":0.5}]"
+        ); // JSON.stringify(harmonyDots({angle:300,radius:0.5}, "analogousThree"))
         assert_eq!(js(&move_first_dot(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), &dot(json!({"angle":10,"radius":0.2})))), "{\"dots\":[{\"angle\":10,\"radius\":0.2},{\"angle\":130,\"radius\":0.2},{\"angle\":250,\"radius\":0.2}],\"harmony\":\"triadic\",\"grain\":0,\"opacity\":0.8,\"mode\":\"dark\"}"); // JSON.stringify(moveFirstDot({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, {angle:10,radius:0.2}))
         assert_eq!(js(&resize_dots(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), true)), "{\"dots\":[{\"angle\":55,\"radius\":0.72},{\"angle\":235,\"radius\":0.72}],\"harmony\":\"complementary\",\"grain\":0.3,\"opacity\":1,\"mode\":\"auto\"}"); // JSON.stringify(resizeDots({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, 1))
-        assert_eq!(js(&resize_dots(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), false)), "null"); // JSON.stringify(resizeDots({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, -1))
+        assert_eq!(
+            js(&resize_dots(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "null"
+        ); // JSON.stringify(resizeDots({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, -1))
         assert_eq!(js(&resize_dots(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), true)), "{\"dots\":[{\"angle\":262,\"radius\":0.62},{\"angle\":52,\"radius\":0.62},{\"angle\":112,\"radius\":0.62}],\"harmony\":\"splitComplementary\",\"grain\":0,\"opacity\":0.5,\"mode\":\"auto\"}"); // JSON.stringify(resizeDots({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, 1))
-        assert_eq!(js(&resize_dots(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), false)), "{\"dots\":[{\"angle\":262,\"radius\":0.62}],\"harmony\":\"single\",\"grain\":0,\"opacity\":0.5,\"mode\":\"auto\"}"); // JSON.stringify(resizeDots({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, -1))
-        assert_eq!(js(&resize_dots(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), true)), "null"); // JSON.stringify(resizeDots({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, 1))
+        assert_eq!(
+            js(&resize_dots(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                false
+            )),
+            "{\"dots\":[{\"angle\":262,\"radius\":0.62}],\"harmony\":\"single\",\"grain\":0,\"opacity\":0.5,\"mode\":\"auto\"}"
+        ); // JSON.stringify(resizeDots({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, -1))
+        assert_eq!(
+            js(&resize_dots(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                true
+            )),
+            "null"
+        ); // JSON.stringify(resizeDots({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, 1))
         assert_eq!(js(&resize_dots(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), false)), "{\"dots\":[{\"angle\":205,\"radius\":0.56},{\"angle\":25,\"radius\":0.56}],\"harmony\":\"complementary\",\"grain\":0,\"opacity\":0.8,\"mode\":\"dark\"}"); // JSON.stringify(resizeDots({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, -1))
-        assert_eq!(js(&cycle_harmony(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})))), "{\"dots\":[{\"angle\":55,\"radius\":0.72}],\"harmony\":\"single\",\"grain\":0.3,\"opacity\":1,\"mode\":\"auto\"}"); // JSON.stringify(cycleHarmony({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}))
+        assert_eq!(
+            js(&cycle_harmony(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})))),
+            "{\"dots\":[{\"angle\":55,\"radius\":0.72}],\"harmony\":\"single\",\"grain\":0.3,\"opacity\":1,\"mode\":\"auto\"}"
+        ); // JSON.stringify(cycleHarmony({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}))
         assert_eq!(js(&cycle_harmony(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})))), "{\"dots\":[{\"angle\":262,\"radius\":0.62},{\"angle\":82,\"radius\":0.62}],\"harmony\":\"complementary\",\"grain\":0,\"opacity\":0.5,\"mode\":\"auto\"}"); // JSON.stringify(cycleHarmony({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}))
         assert_eq!(js(&cycle_harmony(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})))), "{\"dots\":[{\"angle\":205,\"radius\":0.56},{\"angle\":255,\"radius\":0.56},{\"angle\":155,\"radius\":0.56}],\"harmony\":\"analogousThree\",\"grain\":0,\"opacity\":0.8,\"mode\":\"dark\"}"); // JSON.stringify(cycleHarmony({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}))
-        assert_eq!(js(&cycle_harmony(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"analogousThree","grain":0,"opacity":0.8,"mode":"dark"})))), "{\"dots\":[{\"angle\":205,\"radius\":0.56},{\"angle\":355,\"radius\":0.56},{\"angle\":55,\"radius\":0.56}],\"harmony\":\"splitComplementary\",\"grain\":0,\"opacity\":0.8,\"mode\":\"dark\"}"); // JSON.stringify(cycleHarmony({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"analogousThree","grain":0,"opacity":0.8,"mode":"dark"}))
+        assert_eq!(js(&cycle_harmony(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"analogousThree","grain":0,"opacity":0.8,"mode":"dark"})))), "{\"dots\":[{\"angle\":205,\"radius\":0.56},{\"angle\":355,\"radius\":0.56},{\"angle\":55,\"radius\":0.56}],\"harmony\":\"splitComplementary\",\"grain\":0,\"opacity\":0.8,\"mode\":\"dark\"}");
+        // JSON.stringify(cycleHarmony({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"analogousThree","grain":0,"opacity":0.8,"mode":"dark"}))
     }
 
     #[test]
@@ -374,60 +410,350 @@ mod pinned {
         assert_eq!(js(&rgb_to_hsl(&[128.0, 128.0, 128.0])), "[0,0,0.5019607843137255]"); // JSON.stringify(rgbToHsl([128,128,128]))
         assert_eq!(wsp_words::js::to_fixed(contrast_ratio(&[0.0, 0.0, 0.0], &[255.0, 255.0, 255.0]), 10), "21.0000000000"); // contrastRatio([0,0,0], [255,255,255]).toFixed(10)
         assert_eq!(wsp_words::js::to_fixed(contrast_ratio(&[39.0, 39.0, 42.0], &[250.0, 250.0, 250.0]), 10), "14.2700563010"); // contrastRatio([39,39,42], [250,250,250]).toFixed(10)
-        assert_eq!(wsp_words::js::to_fixed(contrast_ratio(&[10.0, 10.0, 10.0], &[10.0, 10.0, 10.0]), 10), "1.0000000000"); // contrastRatio([10,10,10], [10,10,10]).toFixed(10)
+        assert_eq!(wsp_words::js::to_fixed(contrast_ratio(&[10.0, 10.0, 10.0], &[10.0, 10.0, 10.0]), 10), "1.0000000000");
+        // contrastRatio([10,10,10], [10,10,10]).toFixed(10)
     }
 
     #[test]
     fn the_side_the_cap_and_the_ink_read_off_the_wash() {
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), true)), "dark"); // themeScheme({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), true)), "0.4"); // String(opacityCap({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), true)), "0.4"); // String(effectiveOpacity({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), true)), "[255,241,88]"); // JSON.stringify(themeInk({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), false)), "light"); // themeScheme({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), false)), "1"); // String(opacityCap({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), false)), "1"); // String(effectiveOpacity({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})), false)), "[137,125,0]"); // JSON.stringify(themeInk({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), true)), "dark"); // themeScheme({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), true)), "0.7"); // String(opacityCap({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), true)), "0.5"); // String(effectiveOpacity({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), true)), "[162,108,255]"); // JSON.stringify(themeInk({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), false)), "light"); // themeScheme({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), false)), "0.7"); // String(opacityCap({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), false)), "0.5"); // String(effectiveOpacity({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), false)), "[80,0,218]"); // JSON.stringify(themeInk({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), true)), "dark"); // themeScheme({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), true)), "0.45"); // String(opacityCap({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), true)), "0.45"); // String(effectiveOpacity({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), true)), "[71,179,255]"); // JSON.stringify(themeInk({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), false)), "dark"); // themeScheme({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), false)), "0.45"); // String(opacityCap({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), false)), "0.45"); // String(effectiveOpacity({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), false)), "[71,179,255]"); // JSON.stringify(themeInk({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), true)), "dark"); // themeScheme({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), true)), "0.4"); // String(opacityCap({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), true)), "0.4"); // String(effectiveOpacity({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), true)), "[255,255,111]"); // JSON.stringify(themeInk({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), false)), "light"); // themeScheme({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), false)), "1"); // String(opacityCap({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), false)), "1"); // String(effectiveOpacity({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), false)), "[145,145,0]"); // JSON.stringify(themeInk({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), true)), "light"); // themeScheme({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), true)), "0.45"); // String(opacityCap({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), true)), "0.45"); // String(effectiveOpacity({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), true)), "[0,69,104]"); // JSON.stringify(themeInk({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true))
-        assert_eq!(side(theme_scheme(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), false)), "light"); // themeScheme({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false)
-        assert_eq!(wsp_words::js::number_string(opacity_cap(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), false)), "0.45"); // String(opacityCap({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false))
-        assert_eq!(wsp_words::js::number_string(effective_opacity(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), false)), "0.45"); // String(effectiveOpacity({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false))
-        assert_eq!(js(&theme_ink(&th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})), false)), "[0,69,104]"); // JSON.stringify(themeInk({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false))
+        assert_eq!(
+            side(theme_scheme(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                true
+            )),
+            "dark"
+        ); // themeScheme({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                true
+            )),
+            "0.4"
+        ); // String(opacityCap({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                true
+            )),
+            "0.4"
+        ); // String(effectiveOpacity({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true))
+        assert_eq!(
+            js(&theme_ink(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                true
+            )),
+            "[255,241,88]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, true))
+        assert_eq!(
+            side(theme_scheme(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "light"
+        ); // themeScheme({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "1"
+        ); // String(opacityCap({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "1"
+        ); // String(effectiveOpacity({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false))
+        assert_eq!(
+            js(&theme_ink(
+                &th(json!({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "[137,125,0]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":55,"radius":0.72}],"harmony":"single","grain":0.3,"opacity":1,"mode":"auto"}, false))
+        assert_eq!(
+            side(theme_scheme(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                true
+            )),
+            "dark"
+        ); // themeScheme({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                true
+            )),
+            "0.7"
+        ); // String(opacityCap({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                true
+            )),
+            "0.5"
+        ); // String(effectiveOpacity({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true))
+        assert_eq!(
+            js(&theme_ink(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                true
+            )),
+            "[162,108,255]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, true))
+        assert_eq!(
+            side(theme_scheme(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                false
+            )),
+            "light"
+        ); // themeScheme({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                false
+            )),
+            "0.7"
+        ); // String(opacityCap({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                false
+            )),
+            "0.5"
+        ); // String(effectiveOpacity({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false))
+        assert_eq!(
+            js(&theme_ink(
+                &th(
+                    json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+                ),
+                false
+            )),
+            "[80,0,218]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, false))
+        assert_eq!(
+            side(theme_scheme(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                true
+            )),
+            "dark"
+        ); // themeScheme({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                true
+            )),
+            "0.45"
+        ); // String(opacityCap({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                true
+            )),
+            "0.45"
+        ); // String(effectiveOpacity({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true))
+        assert_eq!(
+            js(&theme_ink(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                true
+            )),
+            "[71,179,255]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, true))
+        assert_eq!(
+            side(theme_scheme(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                false
+            )),
+            "dark"
+        ); // themeScheme({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                false
+            )),
+            "0.45"
+        ); // String(opacityCap({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                false
+            )),
+            "0.45"
+        ); // String(effectiveOpacity({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false))
+        assert_eq!(
+            js(&theme_ink(
+                &th(
+                    json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+                ),
+                false
+            )),
+            "[71,179,255]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, false))
+        assert_eq!(
+            side(theme_scheme(
+                &th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})),
+                true
+            )),
+            "dark"
+        ); // themeScheme({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})),
+                true
+            )),
+            "0.4"
+        ); // String(opacityCap({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})),
+                true
+            )),
+            "0.4"
+        ); // String(effectiveOpacity({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true))
+        assert_eq!(
+            js(&theme_ink(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), true)),
+            "[255,255,111]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, true))
+        assert_eq!(
+            side(theme_scheme(
+                &th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "light"
+        ); // themeScheme({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "1"
+        ); // String(opacityCap({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})),
+                false
+            )),
+            "1"
+        ); // String(effectiveOpacity({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false))
+        assert_eq!(
+            js(&theme_ink(&th(json!({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"})), false)),
+            "[145,145,0]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":60,"radius":0.95}],"harmony":"single","grain":0,"opacity":1,"mode":"auto"}, false))
+        assert_eq!(
+            side(theme_scheme(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                true
+            )),
+            "light"
+        ); // themeScheme({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                true
+            )),
+            "0.45"
+        ); // String(opacityCap({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                true
+            )),
+            "0.45"
+        ); // String(effectiveOpacity({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true))
+        assert_eq!(
+            js(&theme_ink(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                true
+            )),
+            "[0,69,104]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, true))
+        assert_eq!(
+            side(theme_scheme(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                false
+            )),
+            "light"
+        ); // themeScheme({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false)
+        assert_eq!(
+            wsp_words::js::number_string(opacity_cap(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                false
+            )),
+            "0.45"
+        ); // String(opacityCap({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false))
+        assert_eq!(
+            wsp_words::js::number_string(effective_opacity(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                false
+            )),
+            "0.45"
+        ); // String(effectiveOpacity({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false))
+        assert_eq!(
+            js(&theme_ink(
+                &th(json!({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"})),
+                false
+            )),
+            "[0,69,104]"
+        ); // JSON.stringify(themeInk({"dots":[{"angle":200,"radius":0.1}],"harmony":"single","grain":0,"opacity":0.6,"mode":"light"}, false))
     }
 
     #[test]
     fn presets_apply_and_are_recognised() {
         assert_eq!(js(&apply_preset(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), &THEME_PRESETS[0])), "{\"dots\":[{\"angle\":262,\"radius\":0.62},{\"angle\":212,\"radius\":0.62}],\"harmony\":\"analogous\",\"grain\":0,\"opacity\":0.8,\"mode\":\"dark\"}"); // JSON.stringify(applyPreset({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, THEME_PRESETS[0]))
-        assert_eq!(is_preset(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), &THEME_PRESETS[0]), true); // isPreset({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, THEME_PRESETS[0])
-        assert_eq!(is_preset(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})), &THEME_PRESETS[1]), false); // isPreset({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, THEME_PRESETS[1])
-        assert_eq!(is_preset(&th(json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"complementary","grain":0,"opacity":0.5,"mode":"auto"})), &THEME_PRESETS[0]), false); // isPreset({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"complementary","grain":0,"opacity":0.5,"mode":"auto"}, THEME_PRESETS[0])
-        assert_eq!(is_preset(&th(json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})), &THEME_PRESETS[1]), true); // isPreset({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, THEME_PRESETS[1])
-        assert_eq!(serde_json::to_value(default_theme()).unwrap(), json!({"harmony":"analogous","dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"grain":0,"opacity":0.5,"mode":"auto"})); // JSON.stringify((({id, ...rest}) => rest)(DEFAULT_THEME))
+        assert!(is_preset(
+            &th(
+                json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+            ),
+            &THEME_PRESETS[0]
+        )); // isPreset({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, THEME_PRESETS[0])
+        assert!(!is_preset(
+            &th(
+                json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"})
+            ),
+            &THEME_PRESETS[1]
+        )); // isPreset({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"analogous","grain":0,"opacity":0.5,"mode":"auto"}, THEME_PRESETS[1])
+        assert!(!is_preset(
+            &th(
+                json!({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"complementary","grain":0,"opacity":0.5,"mode":"auto"})
+            ),
+            &THEME_PRESETS[0]
+        )); // isPreset({"dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"harmony":"complementary","grain":0,"opacity":0.5,"mode":"auto"}, THEME_PRESETS[0])
+        assert!(is_preset(
+            &th(
+                json!({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"})
+            ),
+            &THEME_PRESETS[1]
+        )); // isPreset({"dots":[{"angle":205,"radius":0.56},{"angle":325,"radius":0.56},{"angle":85,"radius":0.56}],"harmony":"triadic","grain":0,"opacity":0.8,"mode":"dark"}, THEME_PRESETS[1])
+        assert_eq!(
+            serde_json::to_value(default_theme()).unwrap(),
+            json!({"harmony":"analogous","dots":[{"angle":262,"radius":0.62},{"angle":212,"radius":0.62}],"grain":0,"opacity":0.5,"mode":"auto"})
+        ); // JSON.stringify((({id, ...rest}) => rest)(DEFAULT_THEME))
     }
 }

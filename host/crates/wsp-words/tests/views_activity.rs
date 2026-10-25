@@ -18,6 +18,8 @@ use wsp_wire::views::activity::{
 use wsp_words::exit::HostError;
 use wsp_words::views::activity::{agent_end_line, agent_under_line, end_plan, processes_left_line, LeftVerb};
 
+type Who<'a> = &'a dyn Fn(Option<&str>) -> bool;
+
 const START: i64 = 1_760_000_000_000;
 
 fn row(pid: i64, ppid: i64, comm: &str, cmdline: &str) -> Value {
@@ -109,7 +111,8 @@ mod a_snapshot_read_by_thread {
     #[test]
     fn leaves_a_settle_what_outlives_the_agent_what_runs_under_the_agent_ends_with_it() {
         let left = processes_left(&activity_of(&read(procs())), &[LAB_THREAD.to_string(), KEPT_THREAD.to_string()]);
-        let shape: Vec<(String, Vec<i64>)> = left.iter().map(|t| (t.thread_id.clone(), t.processes.iter().map(|p| p.pid.get()).collect())).collect();
+        let shape: Vec<(String, Vec<i64>)> =
+            left.iter().map(|t| (t.thread_id.clone(), t.processes.iter().map(|p| p.pid.get()).collect())).collect();
         assert_eq!(shape, vec![(LAB_THREAD.to_string(), vec![400])]);
         let left: Vec<LeftThread> = left
             .into_iter()
@@ -153,10 +156,7 @@ mod an_end_s_plan {
             let line = agent_end_line(pid as f64, &lab());
             assert!(said.contains(&line), "{said}");
         }
-        let mut all: Vec<Value> = procs()
-            .into_iter()
-            .map(|p| if p["pid"] == 100 { over(p, json!({ "ppid": 90 })) } else { p })
-            .collect();
+        let mut all: Vec<Value> = procs().into_iter().map(|p| if p["pid"] == 100 { over(p, json!({ "ppid": 90 })) } else { p }).collect();
         all.push(row_with(90, 1, "tmux", "tmux", json!({ "owner": { "by": "env", "thread": LAB_THREAD, "workspace": "ws-1" } })));
         let above = read(all);
         let said = refusal(|| end_plan(&above, 90.0, at(90), &anyone));
@@ -313,7 +313,7 @@ mod what_a_thread_s_pane_and_its_slate_started {
         let person = |_: Option<&str>| true;
         let thread = |t: Option<&str>| t == Some(LAB_THREAD);
         let other = |t: Option<&str>| t == Some(KEPT_THREAD);
-        let may: [&dyn Fn(Option<&str>) -> bool; 2] = [&person, &thread];
+        let may: [Who; 2] = [&person, &thread];
         for may in may {
             assert_eq!(pids_of(end_plan(&read(pane_procs()), 601.0, at(601), may).unwrap()), vec![601]);
             assert_eq!(pids_of(end_plan(&read(pane_procs()), 600.0, at(600), may).unwrap()), vec![600, 601]);

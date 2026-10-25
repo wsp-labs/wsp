@@ -3,7 +3,7 @@
 //! a read's rows), thread titles from the opening turn and from a harness's answer, and the kept opening. Each TS
 //! statement stands as a comment above its stub. See spec/turn.md.
 
-use crate::js::{is_js_whitespace, js_collapse_whitespace, js_trim, number_string, utf16};
+use crate::js::{is_js_whitespace, js_collapse_whitespace, js_trim, number_string, upper_first, utf16};
 use crate::words::base::{cut_line, fmt_threads, last_line, plural, words_within, ELLIPSIS};
 use crate::words::units::{fmt_cost, fmt_duration, fmt_tokens};
 use wsp_wire::types::thread_read::{ThreadMessage, ThreadVoice};
@@ -182,14 +182,8 @@ pub fn notify_line(thread_id: &str, result: &TurnResult, length: Option<NotifyLe
     if let Some(cost) = result.cost_usd.as_ref().map(|c| c.0) {
         facts.push(fmt_cost(cost));
     }
-    let body = notify_body(result, length)
-        .map(|body| format!(": {body}"))
-        .unwrap_or_default();
-    format!(
-        "thread {} finished ({}){body}",
-        utf16::cut(thread_id, 8),
-        facts.join(", ")
-    )
+    let body = notify_body(result, length).map(|body| format!(": {body}")).unwrap_or_default();
+    format!("thread {} finished ({}){body}", utf16::cut(thread_id, 8), facts.join(", "))
 }
 
 /// What the person is told of a message steered into a turn whose agent never read it, when it is not sent again:
@@ -200,11 +194,7 @@ pub fn notify_line(thread_id: &str, result: &TurnResult, length: Option<NotifyLe
 //   return `the agent never read this message: ${first}`;
 // }
 pub fn unread_line(prompt: &str) -> String {
-    let first = prompt
-        .split('\n')
-        .find(|line| !js_trim(line).is_empty())
-        .map(js_trim)
-        .unwrap_or("");
+    let first = prompt.split('\n').find(|line| !js_trim(line).is_empty()).map(js_trim).unwrap_or("");
     format!("the agent never read this message: {first}")
 }
 
@@ -292,15 +282,8 @@ pub struct Worked {
 
 pub fn turn_worked_ms(turn: &TurnClocks) -> Option<Worked> {
     let duration = turn.duration_ms?;
-    let waited = turn
-        .waited_ms
-        .filter(|waited| *waited > 0.0)
-        .unwrap_or(0.0)
-        .min(duration);
-    Some(Worked {
-        worked: duration - waited,
-        waited,
-    })
+    let waited = turn.waited_ms.filter(|waited| *waited > 0.0).unwrap_or(0.0).min(duration);
+    Some(Worked { worked: duration - waited, waited })
 }
 
 /// What a settled turn says beside its outcome word, in the order every client shows it: how long it worked, what
@@ -330,11 +313,7 @@ pub fn turn_settled_parts(turn: &TurnClocks, opened_cost_usd: Option<f64>, spend
         }
     }
     if let Some(cost) = turn.cost_usd {
-        parts.push(if opened.is_some() {
-            turn_spend_part(cost, spend_word)
-        } else {
-            spend_figure(cost, spend_word)
-        });
+        parts.push(if opened.is_some() { turn_spend_part(cost, spend_word) } else { spend_figure(cost, spend_word) });
     }
     if let Some(opened) = opened {
         parts.push(opened_spend_part(opened));
@@ -362,10 +341,7 @@ pub struct TurnFacts {
 
 impl From<&TurnResult> for TurnFacts {
     fn from(result: &TurnResult) -> TurnFacts {
-        TurnFacts {
-            model: result.model.clone(),
-            tokens: result.tokens.as_ref().map(|t| (t.input.0, t.output.0)),
-        }
+        TurnFacts { model: result.model.clone(), tokens: result.tokens.as_ref().map(|t| (t.input.0, t.output.0)) }
     }
 }
 
@@ -404,11 +380,7 @@ pub fn compacted_line(before: Option<f64>, after: Option<f64>) -> String {
     match (before, after) {
         (_, None) => "Compacted the context".to_string(),
         (None, Some(after)) => format!("Compacted the context to {} tokens", fmt_tokens(after)),
-        (Some(before), Some(after)) => format!(
-            "Compacted the context, {} to {} tokens",
-            fmt_tokens(before),
-            fmt_tokens(after)
-        ),
+        (Some(before), Some(after)) => format!("Compacted the context, {} to {} tokens", fmt_tokens(before), fmt_tokens(after)),
     }
 }
 
@@ -489,11 +461,7 @@ pub fn plan_steps_line(steps: &[PlanStep]) -> String {
     let mut lines = vec![format!("Plan: {done} of {} steps done", steps.len())];
     for step in steps {
         let mark = if step.state == StepState::Done { "x" } else { " " };
-        let working = if step.state == StepState::Working {
-            " (working)"
-        } else {
-            ""
-        };
+        let working = if step.state == StepState::Working { " (working)" } else { "" };
         lines.push(format!("- [{mark}] {}{working}", step.text));
     }
     lines.join("\n")
@@ -533,23 +501,10 @@ pub struct TurnChanges {
 pub fn turn_changes_line(changes: &TurnChanges) -> String {
     let added: f64 = changes.files.iter().map(|file| file.additions).sum();
     let taken: f64 = changes.files.iter().map(|file| file.deletions).sum();
-    let count = format!(
-        "{}, +{} -{}",
-        plural(changes.files.len() as f64, "file"),
-        number_string(added),
-        number_string(taken)
-    );
+    let count = format!("{}, +{} -{}", plural(changes.files.len() as f64, "file"), number_string(added), number_string(taken));
     if let Some(others) = changes.others {
-        let own = if changes.files.is_empty() {
-            "No files from this thread's edits".to_string()
-        } else {
-            format!("Changed {count}")
-        };
-        return if others == 0 {
-            own
-        } else {
-            format!("{own}; {} also changed in this folder", plural(others as f64, "file"))
-        };
+        let own = if changes.files.is_empty() { "No files from this thread's edits".to_string() } else { format!("Changed {count}") };
+        return if others == 0 { own } else { format!("{own}; {} also changed in this folder", plural(others as f64, "file")) };
     }
     if changes.shared {
         return format!(
@@ -571,11 +526,7 @@ pub fn turn_changes_line(changes: &TurnChanges) -> String {
 //   return failure === undefined ? line : `${line}: ${failure}`;
 // }
 pub fn turn_end_line(result: &TurnResult) -> String {
-    let failure = if result.status == TurnStatus::Completed {
-        None
-    } else {
-        result.error.as_deref()
-    };
+    let failure = if result.status == TurnStatus::Completed { None } else { result.error.as_deref() };
     let mut parts = vec![turn_settled_line(result, None)];
     parts.extend(turn_facts_parts(&TurnFacts::from(result), None));
     let line = parts.join("  ");
@@ -616,11 +567,7 @@ pub struct RefusalRoad {
 pub fn refused_turn(result: &TurnResult, refusal: Option<&RefusalRoad>) -> TurnResult {
     let said = js_trim(result.text.as_deref().or(result.error.as_deref()).unwrap_or(""));
     let road = refusal.and_then(|refusal| refusal.road.as_deref()).unwrap_or("");
-    let sentence = [said, road]
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("; ");
+    let sentence = [said, road].into_iter().filter(|part| !part.is_empty()).collect::<Vec<_>>().join("; ");
     TurnResult {
         status: TurnStatus::Failed,
         duration_ms: result.duration_ms,
@@ -664,14 +611,8 @@ pub fn fmt_clock(at: Option<f64>, offset_seconds_at: &dyn Fn(f64) -> i64) -> Str
 // }
 pub fn thread_row_lines(row: &ThreadMessage, offset_seconds_at: &dyn Fn(f64) -> i64) -> Vec<String> {
     let clock = fmt_clock(row.at.as_ref().map(|at| at.0), offset_seconds_at);
-    let head = if clock.is_empty() {
-        who_word(row.who).to_string()
-    } else {
-        format!("{} {clock}", who_word(row.who))
-    };
-    std::iter::once(head)
-        .chain(row.text.split('\n').map(str::to_string))
-        .collect()
+    let head = if clock.is_empty() { who_word(row.who).to_string() } else { format!("{} {clock}", who_word(row.who)) };
+    std::iter::once(head).chain(row.text.split('\n').map(str::to_string)).collect()
 }
 
 /// A thread's messages as one printout, a blank line between rows.
@@ -680,10 +621,7 @@ pub fn thread_row_lines(row: &ThreadMessage, offset_seconds_at: &dyn Fn(f64) -> 
 //   return rows.map(row => threadRowLines(row).join("\n")).join("\n\n");
 // }
 pub fn thread_read_text(rows: &[ThreadMessage], offset_seconds_at: &dyn Fn(f64) -> i64) -> String {
-    rows.iter()
-        .map(|row| thread_row_lines(row, offset_seconds_at).join("\n"))
-        .collect::<Vec<_>>()
-        .join("\n\n")
+    rows.iter().map(|row| thread_row_lines(row, offset_seconds_at).join("\n")).collect::<Vec<_>>().join("\n\n")
 }
 
 /// What a read prints for a thread the transcript this host holds carries no message of: the cap dropped its rows,
@@ -691,10 +629,7 @@ pub fn thread_read_text(rows: &[ThreadMessage], offset_seconds_at: &dyn Fn(f64) 
 // turn.ts:257
 // export const noMessagesLine = (threadId: string): string => `thread ${threadId.slice(0, 8)} has no messages in the transcript this host holds`;
 pub fn no_messages_line(thread_id: &str) -> String {
-    format!(
-        "thread {} has no messages in the transcript this host holds",
-        utf16::cut(thread_id, 8)
-    )
+    format!("thread {} has no messages in the transcript this host holds", utf16::cut(thread_id, 8))
 }
 
 /// What a read of the final reply alone prints for a thread whose first turn has not ended yet.
@@ -712,7 +647,8 @@ pub const NEWER_TURN_LINE: &str = "a newer turn is running; the reply above is t
 /// The note a turn carries where the machine held no session for the thread to resume (a Boat box woke with none on
 /// 2026-09-27): the turn ran in a new session, which the thread so far was handed as its first message.
 // turn.ts:268
-pub const LOST_SESSION_NOTE: &str = "the agent's session for this thread was gone from the machine, so this turn started a new one and handed it the thread so far";
+pub const LOST_SESSION_NOTE: &str =
+    "the agent's session for this thread was gone from the machine, so this turn started a new one and handed it the thread so far";
 
 /// The words that open that new session's first message, which the harness may title the new session by.
 // turn.ts:271
@@ -782,18 +718,8 @@ pub fn kept_opening(text: &str) -> String {
     if utf16::len(text) <= OPENING_KEPT {
         return text.to_string();
     }
-    let high_surrogate_at_edge = text
-        .encode_utf16()
-        .nth(OPENING_KEPT - 1)
-        .is_some_and(|unit| (0xD800..=0xDBFF).contains(&unit));
-    utf16::cut(
-        text,
-        if high_surrogate_at_edge {
-            OPENING_KEPT - 1
-        } else {
-            OPENING_KEPT
-        },
-    )
+    let high_surrogate_at_edge = text.encode_utf16().nth(OPENING_KEPT - 1).is_some_and(|unit| (0xD800..=0xDBFF).contains(&unit));
+    utf16::cut(text, if high_surrogate_at_edge { OPENING_KEPT - 1 } else { OPENING_KEPT })
 }
 
 /// Whether a row's opening may be the head of a longer message: a row keeps no mark of the cut.
@@ -830,9 +756,7 @@ pub fn stored_title_source(stored: &str, opening: Option<&str>) -> TitleSource {
     let words = collapsed(opening);
     let handed = format!("{words} {ATTACHED_FILES_HEAD}");
     let seed = !title.is_empty()
-        && (handed.starts_with(&title)
-            || title.starts_with(&handed)
-            || (opening_cut(opening) && title.starts_with(&words)));
+        && (handed.starts_with(&title) || title.starts_with(&handed) || (opening_cut(opening) && title.starts_with(&words)));
     if seed {
         TitleSource::Seed
     } else {
@@ -960,7 +884,7 @@ fn first_sentence(line: &str) -> Option<&str> {
     for (i, c) in line.char_indices() {
         if matches!(c, '.' | '!' | '?') {
             let after = &line[i + c.len_utf8()..];
-            if after.chars().next().map_or(true, is_js_whitespace) {
+            if after.chars().next().is_none_or(is_js_whitespace) {
                 return Some(&line[..i + c.len_utf8()]);
             }
         }
@@ -987,14 +911,6 @@ fn strip_list_marker(line: &str) -> &str {
         line
     } else {
         after_space
-    }
-}
-
-fn upper_first(word: &str) -> String {
-    let mut chars = word.chars();
-    match chars.next() {
-        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
-        None => String::new(),
     }
 }
 

@@ -7,19 +7,26 @@
 use std::sync::LazyLock;
 
 use regex::Regex;
+use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::types::sub_thread::SUB_SHALLOW_LINE;
 use wsp_wire::views::sub_row::{sub_all_pushed, SubResult};
 
 use serde::Serialize;
 
 use crate::exit::{refusal, refusal_parts, HostError, Kind};
-use crate::js::{js_collapse_whitespace, js_round, js_trim, js_trim_end, js_trim_start, number_string, to_fixed, utf16};
+use crate::js::{
+    js_collapse_whitespace, js_round, js_trim, js_trim_end, js_trim_start, number_string, to_fixed, upper_first, utf16, JS_WS,
+};
 use crate::place_word::{cloud_named, provider_key_name, PROVIDER_KEY_IDS};
 use crate::project_seed::seed_not_here_refusal;
 use crate::start::owner_repo_of;
 use crate::start::start_words;
 use crate::words::base::plural;
 use crate::words::units::fmt_mem_gb;
+
+mod end;
+
+pub use end::*;
 
 // The most a sub-thread's picked files may come to, packed: the files worth picking are a few KB of `.env` style
 // configs, so anything past this is a data folder picked by mistake.
@@ -45,9 +52,6 @@ use crate::words::units::fmt_mem_gb;
 // sub-thread.ts:41
 // in wsp_wire::types::sub_thread: SubStarted
 
-/// The whitespace JavaScript's `\s` matches: the ECMA-262 set, which Rust's `\s` does not.
-const JS_WS: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
-
 // sub-thread.ts:418
 static PUSH_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
@@ -57,14 +61,13 @@ static PUSH_PROGRESS: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 // sub-thread.ts:424
-static PUSH_REJECTED: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!(r"^[{JS_WS}]*! \[")).expect("PUSH_REJECTED is a valid pattern"));
+static PUSH_REJECTED: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"^[{JS_WS}]*! \[")).expect("PUSH_REJECTED is a valid pattern"));
 
 // sub-thread.ts:415
 static GIT_PUSH: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
-        r"(?-u:\b)git(?-u:\b)(?:[{JS_WS}]+-[^{JS_WS}]+(?:[{JS_WS}]+[^{JS_WS}]+)?)*[{JS_WS}]+push(?-u:\b)"
-    ))
-    .expect("GIT_PUSH is a valid pattern")
+    Regex::new(&format!(r"(?-u:\b)git(?-u:\b)(?:[{JS_WS}]+-[^{JS_WS}]+(?:[{JS_WS}]+[^{JS_WS}]+)?)*[{JS_WS}]+push(?-u:\b)"))
+        .expect("GIT_PUSH is a valid pattern")
 });
 
 /// Why a word beside --on is refused, the word a flag or a tool input: the sub-thread runs in a folder of its own on the
@@ -85,7 +88,9 @@ pub fn sub_beside_refusal(word: &str) -> crate::exit::HostError {
 //   refusal(`run --on ${on} starts a sub-thread of the thread asking, on that thread's project ${carried}, and ${word} is another project`, `Leave the project out, or run the work on ${word} without --on.`, "usage");
 pub fn sub_other_project_refusal(on: &str, word: &str, carried: &str) -> crate::exit::HostError {
     usage(
-        &format!("run --on {on} starts a sub-thread of the thread asking, on that thread's project {carried}, and {word} is another project"),
+        &format!(
+            "run --on {on} starts a sub-thread of the thread asking, on that thread's project {carried}, and {word} is another project"
+        ),
         &format!("Leave the project out, or run the work on {word} without --on."),
     )
 }
@@ -286,7 +291,11 @@ pub fn sub_branch_name_ok(name: &str) -> bool {
     if name.is_empty() || name == "HEAD" || name.starts_with('-') || name.starts_with('/') || name.ends_with('/') || name.ends_with('.') {
         return false;
     }
-    if name.chars().any(|c| c <= ' ' || c == '\x7f' || "~^:?*[\\".contains(c)) || name.contains("..") || name.contains("//") || name.contains("@{") {
+    if name.chars().any(|c| c <= ' ' || c == '\x7f' || "~^:?*[\\".contains(c))
+        || name.contains("..")
+        || name.contains("//")
+        || name.contains("@{")
+    {
         return false;
     }
     name.split('/').all(|part| !part.is_empty() && !part.starts_with('.') && !part.ends_with(".lock"))
@@ -327,11 +336,6 @@ fn sub_git_lines(setup_git: &str, repo: &str, branch: &str, brokered: bool, fetc
         format!("git fetch -q --filter=blob:none origin {}", fetch.blobless),
         format!("git checkout -q -b {branch} {}", fetch.checkout),
     ]
-}
-
-// shell-quote.ts:4, the one POSIX sh word a refspec is quoted as. No Rust home exists yet for shellQuote.
-fn shell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 // sub-thread.ts:124
@@ -488,10 +492,7 @@ pub struct SubResumePreamble {
 pub fn sub_resume_preamble(o: &SubResumePreamble) -> String {
     let brokered = o.brokered == Some(true);
     let (fetch, push) = if o.pushed {
-        (
-            GitFetch { fetch_ref: &o.branch, blobless: &o.branch, checkout: "FETCH_HEAD" },
-            format!("Push to {} as before.", o.branch),
-        )
+        (GitFetch { fetch_ref: &o.branch, blobless: &o.branch, checkout: "FETCH_HEAD" }, format!("Push to {} as before.", o.branch))
     } else {
         (
             GitFetch { fetch_ref: &o.base.sha, blobless: &o.base.branch, checkout: &o.base.sha },
@@ -696,7 +697,10 @@ pub fn clone_no_thread_refusal(name: &str) -> crate::exit::HostError {
 pub fn fork_not_pushable_refusal(owner: &str, number: f64) -> crate::exit::HostError {
     usage(
         &start_words::fork_not_pushable(owner),
-        &format!("Ask {owner} to allow edits from maintainers on pull request #{}, or review it with wsp review instead.", number_string(number)),
+        &format!(
+            "Ask {owner} to allow edits from maintainers on pull request #{}, or review it with wsp review instead.",
+            number_string(number)
+        ),
     )
 }
 
@@ -833,10 +837,7 @@ pub fn sub_host_other_git_refusal(on: &str, host: &str, repo: &str) -> crate::ex
 //   return usage(`${on} sells ${list} on this plan; ${word} is not one of them`, `Name one of them, or leave the size out for ${on}'s own.`);
 // };
 pub fn sub_size_refusal(on: &str, word: &str, sold: &[SubSize]) -> crate::exit::HostError {
-    let named: Vec<String> = sold
-        .iter()
-        .map(|s| format!("{} {} ({})", s.name, size_word_of(s), rate_word(s.rate_usd_per_hour)))
-        .collect();
+    let named: Vec<String> = sold.iter().map(|s| format!("{} {} ({})", s.name, size_word_of(s), rate_word(s.rate_usd_per_hour))).collect();
     let list = match named.split_last() {
         None => "nothing".to_string(),
         Some((last, [])) => last.clone(),
@@ -859,7 +860,10 @@ pub fn sub_branch_name_refusal(name: &str) -> crate::exit::HostError {
 // sub-thread.ts:292
 // export const subLeadBranchRefusal = (name: string): Error => usage(`the sub-thread pushes ${name}, and that is the lead's own branch`, "Name another, or leave --branch out for wsp/<slug>.");
 pub fn sub_lead_branch_refusal(name: &str) -> crate::exit::HostError {
-    usage(&format!("the sub-thread pushes {name}, and that is the lead's own branch"), "Name another, or leave --branch out for wsp/<slug>.")
+    usage(
+        &format!("the sub-thread pushes {name}, and that is the lead's own branch"),
+        "Name another, or leave --branch out for wsp/<slug>.",
+    )
 }
 
 /// S9: a sub-machine runs its sub-thread alone.
@@ -879,10 +883,7 @@ pub fn sub_machine_taken_refusal(machine: &str, thread: &str) -> crate::exit::Ho
 // export const subWaitingRefusal = (machine: string): Error =>
 //   usage(`${machine} is waiting for a machine, and its sub-thread's first message waits with it`, "Send again once it starts.");
 pub fn sub_waiting_refusal(machine: &str) -> crate::exit::HostError {
-    usage(
-        &format!("{machine} is waiting for a machine, and its sub-thread's first message waits with it"),
-        "Send again once it starts.",
-    )
+    usage(&format!("{machine} is waiting for a machine, and its sub-thread's first message waits with it"), "Send again once it starts.")
 }
 
 // sub-thread.ts:300
@@ -932,9 +933,15 @@ pub enum SubFault {
 // }
 pub fn sub_replaced_line(f: &SubFault, machine: &str, on: &str) -> String {
     match f {
-        SubFault::Unusable { r#box, why, .. } => format!("{on} gave {} with nothing able to run on it ({why}); wsp deleted it and started another.", r#box),
-        SubFault::Env { r#box } => format!("{on}'s machine {} did not take wsp's setup within 2 minutes (exit 124); wsp deleted it and started another.", r#box),
-        SubFault::Cancelled { why, .. } => format!("{on} could not get a machine for {machine} and cancelled the create ({why}); wsp started another."),
+        SubFault::Unusable { r#box, why, .. } => {
+            format!("{on} gave {} with nothing able to run on it ({why}); wsp deleted it and started another.", r#box)
+        }
+        SubFault::Env { r#box } => {
+            format!("{on}'s machine {} did not take wsp's setup within 2 minutes (exit 124); wsp deleted it and started another.", r#box)
+        }
+        SubFault::Cancelled { why, .. } => {
+            format!("{on} could not get a machine for {machine} and cancelled the create ({why}); wsp started another.")
+        }
     }
 }
 
@@ -972,7 +979,10 @@ pub fn sub_oom_line(machine: &str, on: &str, size: &SubSize, bigger: Option<&str
 pub fn sub_twice_refusal(first: &SubFault, second: &SubFault, machine: &str, on: &str) -> crate::exit::HostError {
     let fix = "Start it again in a few minutes.";
     match (first, second) {
-        (SubFault::Unusable { r#box: first_box, request_id: first_request, .. }, SubFault::Unusable { r#box: second_box, request_id: second_request, .. }) => {
+        (
+            SubFault::Unusable { r#box: first_box, request_id: first_request, .. },
+            SubFault::Unusable { r#box: second_box, request_id: second_request, .. },
+        ) => {
             let request = second_request.clone().or_else(|| first_request.clone());
             let request = request.map_or(String::new(), |r| format!("; request {r}"));
             provider(
@@ -980,14 +990,12 @@ pub fn sub_twice_refusal(first: &SubFault, second: &SubFault, machine: &str, on:
                 fix,
             )
         }
-        (SubFault::Env { r#box: first_box }, SubFault::Env { r#box: second_box }) => provider(
-            &format!("{on}'s machines are slow to take a setup right now ({first_box}, {second_box}, exit 124 on both)"),
-            fix,
-        ),
-        (SubFault::Cancelled { why: first_why, .. }, SubFault::Cancelled { why: second_why, .. }) => provider(
-            &format!("{on} cancelled two creates in a row for {machine} ({first_why}; {second_why})"),
-            fix,
-        ),
+        (SubFault::Env { r#box: first_box }, SubFault::Env { r#box: second_box }) => {
+            provider(&format!("{on}'s machines are slow to take a setup right now ({first_box}, {second_box}, exit 124 on both)"), fix)
+        }
+        (SubFault::Cancelled { why: first_why, .. }, SubFault::Cancelled { why: second_why, .. }) => {
+            provider(&format!("{on} cancelled two creates in a row for {machine} ({first_why}; {second_why})"), fix)
+        }
         _ => {
             let said = |f: &SubFault| match f {
                 SubFault::Env { r#box } => format!("{}: setup not taken, exit 124", r#box),
@@ -1034,7 +1042,8 @@ pub fn sub_picked_elsewhere_why(project: &str, computer: &str) -> String {
 // export const subNotSentLine = (why: string, project: string): string =>
 //   `no git-ignored files were sent: ${why}.${why.startsWith("nothing is picked") ? ` wsp projects seed ${project} shows what could go.` : ""}`;
 pub fn sub_not_sent_line(why: &str, project: &str) -> String {
-    let shows = if why.starts_with("nothing is picked") { format!(" wsp projects seed {project} shows what could go.") } else { String::new() };
+    let shows =
+        if why.starts_with("nothing is picked") { format!(" wsp projects seed {project} shows what could go.") } else { String::new() };
     format!("no git-ignored files were sent: {why}.{shows}")
 }
 
@@ -1044,7 +1053,10 @@ pub fn sub_not_sent_line(why: &str, project: &str) -> String {
 // export const subStayedLine = (paths: readonly string[]): string =>
 //   `${paths.join(", ")} stayed on this computer: a sub-thread's machine is a provider's, which gets no login, file of values or key.`;
 pub fn sub_stayed_line(paths: &[impl AsRef<str>]) -> String {
-    format!("{} stayed on this computer: a sub-thread's machine is a provider's, which gets no login, file of values or key.", join_all(paths, ", "))
+    format!(
+        "{} stayed on this computer: a sub-thread's machine is a provider's, which gets no login, file of values or key.",
+        join_all(paths, ", ")
+    )
 }
 
 /// The stage line for the picked files landing.
@@ -1105,12 +1117,10 @@ pub fn disk_may_go_line(on: &str, day: &str) -> String {
 //   kept === undefined ? `${capitalisedFirst(heldOn(held, branch))}, so its machine stays.` : `${diskMayGoLine(kept.on, kept.day)}, with ${heldWords(held)} on ${branch} not pushed.`;
 pub fn sub_not_pushed_reason(held: &Held, branch: &str, kept: Option<&KeptOn>) -> String {
     match kept {
-        None => format!("{}, so its machine stays.", capitalised_first(&held_on(held.files, held.commits, branch))),
-        Some(kept) => format!(
-            "{}, with {} on {branch} not pushed.",
-            disk_may_go_line(&kept.on, &kept.day),
-            held_words(held.files, held.commits)
-        ),
+        None => format!("{}, so its machine stays.", upper_first(&held_on(held.files, held.commits, branch))),
+        Some(kept) => {
+            format!("{}, with {} on {branch} not pushed.", disk_may_go_line(&kept.on, &kept.day), held_words(held.files, held.commits))
+        }
     }
 }
 
@@ -1150,14 +1160,18 @@ pub struct SubStripWords {
 // } as const;
 /// The TS SUB_STRIP: fixed words as constants, the rest as functions.
 pub mod sub_strip {
-    use super::{capitalised_first, disk_may_go_line, held_words, Held, KeptOn, SubStripWords};
+    use super::{disk_may_go_line, held_words, upper_first, Held, KeptOn, SubStripWords};
     use crate::js::number_string;
     pub const RAISE: &str = "Raise machines at once";
     pub const PUSH_AGAIN: &str = "Push again";
     pub fn waiting_slot(on: &str, running: f64, at_once: f64) -> SubStripWords {
         SubStripWords {
             title: format!("Waiting for a machine on {on}"),
-            note: format!("{} of {} machines are running. It starts on its own when one frees.", number_string(running), number_string(at_once)),
+            note: format!(
+                "{} of {} machines are running. It starts on its own when one frees.",
+                number_string(running),
+                number_string(at_once)
+            ),
         }
     }
     pub fn waiting_minute(on: &str, used: f64, limit: f64) -> SubStripWords {
@@ -1177,7 +1191,7 @@ pub mod sub_strip {
         };
         let kept = kept.map_or(String::new(), |k| format!(", but {}", disk_may_go_line(&k.on, &k.day)));
         SubStripWords {
-            title: format!("{} not pushed", capitalised_first(&held_words(held.files, held.commits))),
+            title: format!("{} not pushed", upper_first(&held_words(held.files, held.commits))),
             note: format!("{why} This machine stays until the work is pushed or copied to your computer{kept}."),
         }
     }
@@ -1194,7 +1208,7 @@ pub mod sub_strip {
         }
     }
     pub fn oom(line: &str) -> SubStripWords {
-        SubStripWords { title: "Killed for memory".into(), note: capitalised_first(line) }
+        SubStripWords { title: "Killed for memory".into(), note: upper_first(line) }
     }
     pub fn cloud_gone(on: &str, here: &str) -> SubStripWords {
         SubStripWords {
@@ -1359,7 +1373,11 @@ pub mod sub_spawn_words {
         format!("{branch} is pushed at {}", utf16::cut(sha, 7))
     }
     pub fn machine(on: &str, done: bool) -> String {
-        if done { format!("Asked {on} for a machine") } else { format!("Asking {on} for a machine") }
+        if done {
+            format!("Asked {on} for a machine")
+        } else {
+            format!("Asking {on} for a machine")
+        }
     }
     pub fn files(n: f64, done: bool) -> String {
         format!("{} {}", if done { "Copied" } else { "Copying" }, plural(n, "picked file"))
@@ -1390,294 +1408,3 @@ pub mod sub_spawn_words {
         format!("Could not start a machine on {on}")
     }
 }
-
-// sub-thread.ts:464
-// private in the TS: port it as a private helper
-// const capitalisedFirst = (line: string): string => `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
-fn capitalised_first(line: &str) -> String {
-    let mut chars = line.chars();
-    match chars.next() {
-        None => String::new(),
-        // A lone half of a surrogate pair has no case, so JavaScript leaves the line as it is.
-        Some(first) if first.len_utf16() == 2 => line.to_string(),
-        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
-    }
-}
-
-// The TS `.join(", ")` over any list of strings: one home for the sentences that list names.
-fn join_all(items: &[impl AsRef<str>], sep: &str) -> String {
-    items.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(sep)
-}
-
-/// What a sub-thread holds that no remote has: the counts its last read found, or that the read did not answer.
-// sub-thread.ts:467
-// export interface SubUnpushed {
-//   files: number;
-//   commits: number;
-//   readFailed?: string;
-//   /** A turn ran since the last read, so what it left is not known yet. */
-//   unread?: true;
-// }
-/// `unread` is the TS `true` or absent.
-#[derive(Clone, Debug, Default, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SubUnpushed {
-    pub files: f64,
-    pub commits: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub read_failed: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unread: Option<bool>,
-}
-
-/// The second line of the delete's question, and the half of the lead's refusal that says what is not pushed.
-// sub-thread.ts:476
-// export function subUnpushedLine(held: SubUnpushed, branch: string): string {
-//   if (held.unread === true) return `its machine has not been read since its last turn, so work on ${branch} may not be pushed and would go with it.`;
-//   if (held.readFailed !== undefined) return `its machine could not be read (${held.readFailed}), so work on ${branch} may not be pushed and would go with it.`;
-//   return `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed and go with it.`;
-// }
-pub fn sub_unpushed_line(held: &SubUnpushed, branch: &str) -> String {
-    if held.unread == Some(true) {
-        return format!("its machine has not been read since its last turn, so work on {branch} may not be pushed and would go with it.");
-    }
-    if let Some(failed) = &held.read_failed {
-        return format!("its machine could not be read ({failed}), so work on {branch} may not be pushed and would go with it.");
-    }
-    format!(
-        "{} on {branch} {} not pushed and go with it.",
-        held_words(held.files, held.commits),
-        if held.files + held.commits == 1.0 { "is" } else { "are" }
-    )
-}
-
-/// The question a person answers before a sub-thread and its machine go.
-// sub-thread.ts:483
-// export function subDeleteQuestion(o: { threadId: string; title: string; on: string; branch: string; held?: SubUnpushed }): string {
-//   const first = `Delete sub-thread ${o.threadId.slice(0, 8)} (${o.title}) and its machine on ${o.on}?`;
-//   const second = o.held === undefined ? `Its turns leave this computer and its machine is deleted; what it pushed to ${o.branch} stays on the remote.` : subUnpushedLine(o.held, o.branch);
-//   return `${first}\n${second.charAt(0).toUpperCase()}${second.slice(1)}`;
-// }
-/// The TS object `subDeleteQuestion` reads.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SubDeleteQuestion {
-    pub thread_id: String,
-    pub title: String,
-    pub on: String,
-    pub branch: String,
-    pub held: Option<SubUnpushed>,
-}
-
-pub fn sub_delete_question(o: &SubDeleteQuestion) -> String {
-    let first = format!("Delete sub-thread {} ({}) and its machine on {}?", utf16::cut(&o.thread_id, 8), o.title, o.on);
-    let second = match &o.held {
-        None => format!(
-            "Its turns leave this computer and its machine is deleted; what it pushed to {} stays on the remote.",
-            o.branch
-        ),
-        Some(held) => sub_unpushed_line(held, &o.branch),
-    };
-    format!("{first}\n{}", capitalised_first(&second))
-}
-
-/// What a sub-thread's machine holds that no remote has, or may: the line a remove of its cloud lists, and the half
-/// of the lead's refusal that says what happened.
-// sub-thread.ts:491
-// export function subHeldLine(threadId: string, held: SubUnpushed, branch: string): string {
-//   const id8 = threadId.slice(0, 8);
-//   if (held.unread === true) return `sub-thread ${id8}'s machine has not been read since its last turn, so work on ${branch} may not be pushed`;
-//   if (held.readFailed !== undefined) return `sub-thread ${id8}'s machine could not be read (${held.readFailed}), so work on ${branch} may not be pushed`;
-//   return `sub-thread ${id8} holds ${heldWords(held)} not pushed on ${branch}`;
-// }
-pub fn sub_held_line(thread_id: &str, held: &SubUnpushed, branch: &str) -> String {
-    let id8 = utf16::cut(thread_id, 8);
-    if held.unread == Some(true) {
-        return format!("sub-thread {id8}'s machine has not been read since its last turn, so work on {branch} may not be pushed");
-    }
-    if let Some(failed) = &held.read_failed {
-        return format!("sub-thread {id8}'s machine could not be read ({failed}), so work on {branch} may not be pushed");
-    }
-    format!("sub-thread {id8} holds {} not pushed on {branch}", held_words(held.files, held.commits))
-}
-
-/// A lead's own token asking the delete of a sub-thread whose work is not pushed: losing it is the person's call.
-// sub-thread.ts:499
-// export const subHeldDeleteRefusal = (threadId: string, held: SubUnpushed, branch: string): Error =>
-//   usage(subHeldLine(threadId, held, branch), "Send it a push, or ask the person to delete it.");
-pub fn sub_held_delete_refusal(thread_id: &str, held: &SubUnpushed, branch: &str) -> crate::exit::HostError {
-    usage(&sub_held_line(thread_id, held, branch), "Send it a push, or ask the person to delete it.")
-}
-
-/// A sub-thread whose cloud this host no longer holds, as its row says it.
-// sub-thread.ts:503
-// export const subCloudGoneLine = (on: string): string => `${on} is no longer on this host`;
-pub fn sub_cloud_gone_line(on: &str) -> String {
-    format!("{on} is no longer on this host")
-}
-
-/// A send into a sub-thread whose cloud this host no longer holds.
-// sub-thread.ts:506
-// export const subCloudGoneRefusal = (on: string): Error => usage(subCloudGoneLine(on), `Add it with wsp add ${on.toLowerCase()} and send again.`);
-pub fn sub_cloud_gone_refusal(on: &str) -> crate::exit::HostError {
-    usage(&sub_cloud_gone_line(on), &format!("Add it with wsp add {} and send again.", on.to_lowercase()))
-}
-
-/// A wake of a sub-thread whose machine was deleted after it was done: there is none to wake, and a send makes one.
-// sub-thread.ts:509
-// export const subReleasedRefusal = (threadId: string, on: string): Error =>
-//   usage(`sub-thread ${threadId.slice(0, 8)}'s machine on ${on} was deleted after it was done, so there is none to wake`, `Send to it with wsp send ${threadId.slice(0, 8)} "<message>", which starts a new one.`);
-pub fn sub_released_refusal(thread_id: &str, on: &str) -> crate::exit::HostError {
-    let id8 = utf16::cut(thread_id, 8);
-    usage(
-        &format!("sub-thread {id8}'s machine on {on} was deleted after it was done, so there is none to wake"),
-        &format!("Send to it with wsp send {id8} \"<message>\", which starts a new one."),
-    )
-}
-
-/// What a delete Boat refused says, and when it is asked again.
-// sub-thread.ts:513
-// export const subDeleteRefusedLine = (on: string, machine: string, said: string, retryMinutes: number): string =>
-//   `${on} would not delete ${machine} (${said}); it is tried again in ${retryMinutes} minutes`;
-pub fn sub_delete_refused_line(on: &str, machine: &str, said: &str, retry_minutes: f64) -> String {
-    format!("{on} would not delete {machine} ({said}); it is tried again in {} minutes", number_string(retry_minutes))
-}
-
-/// The line a cloud's remove adds to its question for sub-threads whose machines hold work no remote has: it goes
-/// with them. Names five and counts the rest.
-// sub-thread.ts:518
-// export function subHeldOnRemoveLine(held: readonly string[]): string | undefined {
-//   if (held.length === 0) return undefined;
-//   const rest = held.length > 5 ? `; and ${held.length - 5} more` : "";
-//   return `Work not pushed goes with ${held.length === 1 ? "its machine" : "their machines"}: ${held.slice(0, 5).join("; ")}${rest}.`;
-// }
-pub fn sub_held_on_remove_line(held: &[impl AsRef<str>]) -> Option<String> {
-    if held.is_empty() {
-        return None;
-    }
-    let rest = if held.len() > 5 { format!("; and {} more", held.len() - 5) } else { String::new() };
-    let named: Vec<&str> = held.iter().take(5).map(AsRef::as_ref).collect();
-    let whose = if held.len() == 1 { "its machine" } else { "their machines" };
-    Some(format!("Work not pushed goes with {whose}: {}{rest}.", named.join("; ")))
-}
-
-/// A sub-thread's cloud as a line names it, off the word its record keeps: `boat` is Boat.
-// sub-thread.ts:525
-// export function cloudSaid(on: string): string {
-//   const id = cloudNamed(Object.keys(PROVIDER_KEY_WORDS), on);
-//   return id === undefined ? on : providerKeyName(id);
-// }
-pub fn cloud_said(on: &str) -> String {
-    match cloud_named(&PROVIDER_KEY_IDS[..], on) {
-        Some(id) => provider_key_name(&id),
-        None => on.to_string(),
-    }
-}
-
-/// What a sub-thread's delete did.
-// sub-thread.ts:531
-// export const subDeletedLine = (threadId: string, on: string): string => `deleted sub-thread ${threadId.slice(0, 8)} and its machine on ${on}`;
-pub fn sub_deleted_line(thread_id: &str, on: &str) -> String {
-    format!("deleted sub-thread {} and its machine on {on}", utf16::cut(thread_id, 8))
-}
-
-// The UTC day of a moment, for a line about a cloud's keep of a disk: the keep is counted from the cloud's own stop,
-// so the time of day would claim more than wsp knows.
-// sub-thread.ts:535
-// private in the TS: port it as a private helper
-// const utcDay = (at: number): string => `${new Date(at).toISOString().slice(0, 10)} UTC`;
-fn utc_day(at: f64) -> String {
-    let day = jiff::Timestamp::from_millisecond(at as i64).expect("a cloud's keep is a moment jiff holds");
-    format!("{} UTC", day.strftime("%Y-%m-%d"))
-}
-
-/// The line a sub-thread's finished line to its lead ends with, off the done's read: the branch pushed and the merge
-/// that takes it, the work not pushed that keeps the machine, or nothing to merge. `deleteInMs` is how long the machine
-/// stays, absent where it goes at once; a span, never a clock time, since an agent and a person read it in any zone.
-/// `kept` is the day from which a cloud that deletes a paused machine's disk may delete this one's, a UTC day for the
-/// same reason.
-// sub-thread.ts:542
-// export function subResultLine(o: { threadId: string; lead: string; result: SubResult; base: string; deleteInMs?: number; kept?: { on: string; until: number } }): string {
-//   const { result: r, kept } = o;
-//   const id8 = o.threadId.slice(0, 8);
-//   const minutes = o.deleteInMs === undefined ? 0 : Math.round(o.deleteInMs / 60_000);
-//   const goes = minutes > 0 ? `Its machine naps now and is deleted in ${plural(minutes, "minute")} unless you send to ${id8} first.` : `Its machine is deleted now; a send to ${id8} starts a new one with the conversation kept.`;
-//   const naps = kept === undefined ? "its machine is kept, napping at no cost" : `its machine naps at no cost, and ${diskMayGoLine(kept.on, utcDay(kept.until))}`;
-//   if (r.readFailed !== undefined) return `its machine could not be read (${r.readFailed}), so work on ${r.branch} may not be pushed and ${naps}. Send to ${id8} to have it pushed, or ask the person to delete it.`;
-//   if (!subAllPushed(r)) {
-//     const parts = [r.unpushed > 0 ? plural(r.unpushed, "commit") : "", r.changed > 0 ? plural(r.changed, "changed file") : ""].filter(Boolean);
-//     const one = r.unpushed + r.changed === 1;
-//     return `${parts.join(" and ")} on ${r.branch} ${one ? "is" : "are"} not pushed, so ${naps}. Send to ${id8} to have ${one ? "it" : "them"} pushed, or ask the person to delete it.`;
-//   }
-//   if (r.pushedSha === null || r.commits === 0) return `no commits on ${r.branch}, so there is nothing to merge. ${goes}`;
-//   return `branch ${r.branch} pushed at ${r.pushedSha.slice(0, 7)}, ${plural(r.commits, "commit")} on ${o.base}; merge it with wsp merge in ${o.lead.slice(0, 8)} ${id8}. ${goes}`;
-// }
-/// The TS `{ on, until }` of a kept disk, `until` ms epoch.
-#[derive(Clone, Debug, PartialEq)]
-pub struct KeptUntil {
-    pub on: String,
-    pub until: f64,
-}
-
-/// The TS object `subResultLine` reads.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SubResultFacts {
-    pub thread_id: String,
-    pub lead: String,
-    pub result: SubResult,
-    pub base: String,
-    pub delete_in_ms: Option<f64>,
-    pub kept: Option<KeptUntil>,
-}
-
-pub fn sub_result_line(o: &SubResultFacts) -> String {
-    let r = &o.result;
-    let id8 = utf16::cut(&o.thread_id, 8);
-    let minutes = o.delete_in_ms.map_or(0.0, |ms| js_round(ms / 60_000.0));
-    let goes = if minutes > 0.0 {
-        format!("Its machine naps now and is deleted in {} unless you send to {id8} first.", plural(minutes, "minute"))
-    } else {
-        format!("Its machine is deleted now; a send to {id8} starts a new one with the conversation kept.")
-    };
-    let naps = match &o.kept {
-        None => "its machine is kept, napping at no cost".to_string(),
-        Some(kept) => format!("its machine naps at no cost, and {}", disk_may_go_line(&kept.on, &utc_day(kept.until))),
-    };
-    if let Some(failed) = &r.read_failed {
-        return format!(
-            "its machine could not be read ({failed}), so work on {} may not be pushed and {naps}. Send to {id8} to have it pushed, or ask the person to delete it.",
-            r.branch
-        );
-    }
-    if !sub_all_pushed(r) {
-        let unpushed = r.unpushed.get() as f64;
-        let changed = r.changed.get() as f64;
-        let mut parts = Vec::new();
-        if unpushed > 0.0 {
-            parts.push(plural(unpushed, "commit"));
-        }
-        if changed > 0.0 {
-            parts.push(plural(changed, "changed file"));
-        }
-        let one = unpushed + changed == 1.0;
-        return format!(
-            "{} on {} {} not pushed, so {naps}. Send to {id8} to have {} pushed, or ask the person to delete it.",
-            parts.join(" and "),
-            r.branch,
-            if one { "is" } else { "are" },
-            if one { "it" } else { "them" }
-        );
-    }
-    let commits = r.commits.get() as f64;
-    match &r.pushed_sha {
-        Some(sha) if commits != 0.0 => format!(
-            "branch {} pushed at {}, {} on {}; merge it with wsp merge in {} {id8}. {goes}",
-            r.branch,
-            utf16::cut(sha, 7),
-            plural(commits, "commit"),
-            o.base,
-            utf16::cut(&o.lead, 8)
-        ),
-        _ => format!("no commits on {}, so there is nothing to merge. {goes}", r.branch),
-    }
-}
-

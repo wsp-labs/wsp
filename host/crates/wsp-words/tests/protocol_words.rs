@@ -43,10 +43,10 @@ mod a_copy_of_the_image_beside_the_record {
     fn is_current_on_the_hash_alone_each_place_numbers_its_own_manifest_so_the_version() {
         let image = sealed_image(json!({}));
         // A second place's first copy is its v1 and was built from the record's v2; the hash is what they share.
-        assert_eq!(copy_is_current(&image, &image_copy(json!({ "version": 1, "hash": image.hash }))), true);
-        assert_eq!(copy_is_current(&image, &image_copy(json!({ "version": 9, "hash": image.hash }))), true);
-        assert_eq!(copy_is_current(&image, &image_copy(json!({ "version": 2, "hash": "b".repeat(64) }))), false);
-        assert_eq!(copy_is_current(&image, &image_copy(json!({ "version": 2 }))), false);
+        assert!(copy_is_current(&image, &image_copy(json!({ "version": 1, "hash": image.hash }))));
+        assert!(copy_is_current(&image, &image_copy(json!({ "version": 9, "hash": image.hash }))));
+        assert!(!copy_is_current(&image, &image_copy(json!({ "version": 2, "hash": "b".repeat(64) }))));
+        assert!(!copy_is_current(&image, &image_copy(json!({ "version": 2 }))));
     }
 
     #[test]
@@ -81,7 +81,9 @@ mod a_copy_of_the_image_beside_the_record {
         assert_eq!(copy_stopped_line(Some("no room today")), "the build stopped: no room today");
         assert_eq!(copy_stopped_line(None), "the build stopped");
         assert_eq!(copy_stopped_line(Some("fetch failed")), format!("the build stopped: {NETWORK_LOST_LINE}"));
-        let boxed = place(json!({ "id": "p_1", "kind": "computer", "name": "box", "default": false, "takesForks": true, "build": copy_building_line(GoldenStage::Creating) }));
+        let boxed = place(
+            json!({ "id": "p_1", "kind": "computer", "name": "box", "default": false, "takesForks": true, "build": copy_building_line(GoldenStage::Creating) }),
+        );
         assert_eq!(
             place_workspaces_parts(&boxed, 2.0, None),
             WorkspacesParts { count: "2".to_string(), note: Some(copy_building_line(GoldenStage::Creating)) }
@@ -140,7 +142,9 @@ mod what_a_computer_says_about_its_agents_and_what_a_person_reads_off_it {
 
     #[test]
     fn the_agents_cell_names_each_agent_its_version_and_its_sign_in_and_says_nothing_fo() {
-        let row = place(json!({ "agents": ["claude", "codex"], "agentVersions": { "claude": "2.1.270 (Claude Code)", "codex": "codex-cli 0.153.0" }, "signIns": { "claude": "vault-key", "codex": "none" } }));
+        let row = place(
+            json!({ "agents": ["claude", "codex"], "agentVersions": { "claude": "2.1.270 (Claude Code)", "codex": "codex-cli 0.153.0" }, "signIns": { "claude": "vault-key", "codex": "none" } }),
+        );
         assert_eq!(agents_cell(&row), "claude 2.1.270 signed in with a token, codex 0.153.0 not signed in");
         assert_eq!(agents_cell(&place(json!({ "agents": ["codex"], "signIns": { "codex": "signed-in" } }))), "codex signed in");
         assert_eq!(agents_cell(&place(json!({}))), "");
@@ -234,7 +238,8 @@ mod daemon_files_and_diff_ops {
         assert_eq!(place_daemon_paths("/home/maya/"), at);
         // Nothing here is root's: the daemon on a machine somebody owns is installed under their own login.
         let at_json = serde_json::to_value(&at).unwrap();
-        let outside: Vec<&str> = at_json.as_object().unwrap().values().map(|p| p.as_str().unwrap()).filter(|path| !path.starts_with("/home/maya/")).collect();
+        let outside: Vec<&str> =
+            at_json.as_object().unwrap().values().map(|p| p.as_str().unwrap()).filter(|path| !path.starts_with("/home/maya/")).collect();
         assert_eq!(outside, Vec::<&str>::new());
     }
 
@@ -278,11 +283,11 @@ mod thread_provenance {
     use super::*;
     use regex::Regex;
     use wsp_wire::views::session::{ThreadPlacement, ThreadSection};
+    use wsp_wire::views::session_events::TurnResult;
     use wsp_words::thread_state::*;
     use wsp_words::views::session::fold_threads;
     use wsp_words::words::base::{cut_line, ELLIPSIS};
     use wsp_words::words::turn::*;
-    use wsp_wire::views::session_events::TurnResult;
 
     fn row() -> Value {
         json!({ "id": "s1", "workspaceId": "ws_1", "harness": "claude", "status": "completed" })
@@ -315,17 +320,27 @@ mod thread_provenance {
     #[test]
     fn foldthreads_groups_turns_by_threadid_titles_by_the_opening_turn_reads_state_row() {
         let threads = fold_threads(&[
-            s(json!({ "id": "s1", "threadId": "thr_a", "startedBy": "cli", "prompt": "make a server", "claudeSessionId": "c1", "startedAt": 1_000, "endedAt": 2_000 })),
+            s(
+                json!({ "id": "s1", "threadId": "thr_a", "startedBy": "cli", "prompt": "make a server", "claudeSessionId": "c1", "startedAt": 1_000, "endedAt": 2_000 }),
+            ),
             s(json!({ "id": "s2", "threadId": "thr_b", "prompt": "unrelated", "startedAt": 3_000, "endedAt": 4_000 })),
-            s(json!({ "id": "s3", "threadId": "thr_a", "status": "running", "startedBy": "person", "prompt": "and tests", "claudeSessionId": "c2", "startedAt": 5_000 })),
+            s(
+                json!({ "id": "s3", "threadId": "thr_a", "status": "running", "startedBy": "person", "prompt": "and tests", "claudeSessionId": "c2", "startedAt": 5_000 }),
+            ),
             s(json!({ "id": "s4", "status": "failed", "prompt": "before threads", "startedAt": 6_000, "endedAt": 7_000 })),
         ]);
         assert_eq!(
             threads,
             vec![
-                thread(json!({ "id": "thr_a", "threadId": "thr_a", "workspaceId": "ws_1", "harness": "claude", "startedBy": "cli", "status": "running", "title": "make a server", "sessionId": "s3", "claudeSessionId": "c2", "startedAt": 5_000, "turns": 2, "ran": true })),
-                thread(json!({ "id": "thr_b", "threadId": "thr_b", "workspaceId": "ws_1", "harness": "claude", "startedBy": "person", "status": "completed", "title": "unrelated", "sessionId": "s2", "startedAt": 3_000, "endedAt": 4_000, "turns": 1, "ran": false })),
-                thread(json!({ "id": "s4", "workspaceId": "ws_1", "harness": "claude", "startedBy": "person", "status": "failed", "title": "before threads", "sessionId": "s4", "startedAt": 6_000, "endedAt": 7_000, "turns": 1, "ran": false })),
+                thread(
+                    json!({ "id": "thr_a", "threadId": "thr_a", "workspaceId": "ws_1", "harness": "claude", "startedBy": "cli", "status": "running", "title": "make a server", "sessionId": "s3", "claudeSessionId": "c2", "startedAt": 5_000, "turns": 2, "ran": true })
+                ),
+                thread(
+                    json!({ "id": "thr_b", "threadId": "thr_b", "workspaceId": "ws_1", "harness": "claude", "startedBy": "person", "status": "completed", "title": "unrelated", "sessionId": "s2", "startedAt": 3_000, "endedAt": 4_000, "turns": 1, "ran": false })
+                ),
+                thread(
+                    json!({ "id": "s4", "workspaceId": "ws_1", "harness": "claude", "startedBy": "person", "status": "failed", "title": "before threads", "sessionId": "s4", "startedAt": 6_000, "endedAt": 7_000, "turns": 1, "ran": false })
+                ),
             ]
         );
         // The TS also parses each folded thread back through ThreadView, which is wsp-wire's.
@@ -373,12 +388,9 @@ mod thread_provenance {
             s(json!({ "id": "s6", "threadId": "thr_e", "claudeSessionId": "c3", "status": "completed" })),
         ]);
         let signed_in_later = &later[0];
-        assert_eq!(
-            [worked.ran, never_announced.ran, working.ran, refused.ran, signed_in_later.ran],
-            [true, false, true, false, true]
-        );
+        assert_eq!([worked.ran, never_announced.ran, working.ran, refused.ran, signed_in_later.ran], [true, false, true, false, true]);
         // threadRan is wsp-wire's own function (views::session), todo!() there as well.
-        assert_eq!(wsp_wire::views::session::thread_ran(&[]), false);
+        assert!(!wsp_wire::views::session::thread_ran(&[]));
     }
 
     #[test]
@@ -402,7 +414,9 @@ mod thread_provenance {
     #[test]
     fn foldthreads_carries_the_latest_turn_s_open_prompt_so_the_word_every_row_reads_co() {
         let threads = fold_threads(&[
-            s(json!({ "id": "s1", "threadId": "thr_a", "status": "running", "prompt": "write it", "asking": "Permission for Write: out.txt" })),
+            s(
+                json!({ "id": "s1", "threadId": "thr_a", "status": "running", "prompt": "write it", "asking": "Permission for Write: out.txt" }),
+            ),
             s(json!({ "id": "s2", "threadId": "thr_b", "status": "running", "prompt": "nothing to ask" })),
         ]);
         let (asked, quiet) = (&threads[0], &threads[1]);
@@ -435,7 +449,10 @@ mod thread_provenance {
         assert_eq!(thread_word_of(&thread(caller.clone())), "Needs you");
         assert_eq!(waiting_line(&thread(caller.clone())).as_deref(), Some("Write hello.txt in root (2 B) needs an answer"));
         // Its own prompt leads: a thread asked something itself says that, whatever it is also behind.
-        assert_eq!(waiting_line(&thread(over(caller, json!({ "asking": "Permission for Bash: ls" })))).as_deref(), Some("Permission for Bash: ls"));
+        assert_eq!(
+            waiting_line(&thread(over(caller, json!({ "asking": "Permission for Bash: ls" })))).as_deref(),
+            Some("Permission for Bash: ls")
+        );
         // The TS passes a bare {}, which has no status; the base thread here has a completed one and no prompt.
         assert_eq!(waiting_line(&thread(json!({}))), None);
         assert_eq!(thread_state(&thread(json!({ "status": "running" }))), ThreadState::Running);
@@ -444,7 +461,10 @@ mod thread_provenance {
     #[test]
     fn reads_the_wsp_calls_that_wait_for_another_thread_off_the_call_alone_and_nothing() {
         use wsp_words::wsp_tools::{threads_followed, Followed};
-        assert_eq!(threads_followed("mcp__wsp__send", r#"{"thread":"thr_b","message":"go"}"#), Some(Followed::Named(vec!["thr_b".to_string()])));
+        assert_eq!(
+            threads_followed("mcp__wsp__send", r#"{"thread":"thr_b","message":"go"}"#),
+            Some(Followed::Named(vec!["thr_b".to_string()]))
+        );
         assert_eq!(
             threads_followed("mcp__wsp__threads_wait", r#"{"threads":["thr_b","thr_c"],"timeout":60}"#),
             Some(Followed::Named(vec!["thr_b".to_string(), "thr_c".to_string()]))
@@ -479,7 +499,7 @@ mod thread_provenance {
     #[test]
     fn a_turn_that_ended_and_that_no_window_has_shown_since_reads_done_until_a_read_sta() {
         let ended = json!({ "status": "completed", "endedAt": 2_000 });
-        assert_eq!(thread_unread(&thread(ended.clone())), true);
+        assert!(thread_unread(&thread(ended.clone())));
         assert_eq!(thread_word_of(&thread(over(ended.clone(), json!({ "readAt": 1_999 })))), "Done");
         assert_eq!(thread_state(&thread(over(ended.clone(), json!({ "readAt": 1_999 })))), ThreadState::Done);
         assert_eq!(thread_word_of(&thread(over(ended.clone(), json!({ "readAt": 2_000 })))), "Idle");
@@ -512,7 +532,9 @@ mod thread_provenance {
         let placed = json!({ "name": "done", "whileState": "completed s2" });
         let threads = fold_threads(&[
             s(json!({ "id": "s1", "threadId": "thr_a", "status": "completed", "endedAt": 1_000 })),
-            s(json!({ "id": "s2", "threadId": "thr_a", "status": "completed", "endedAt": 2_000, "pinnedAt": 10, "snoozedUntil": 20, "wokeAt": 15, "section": placed })),
+            s(
+                json!({ "id": "s2", "threadId": "thr_a", "status": "completed", "endedAt": 2_000, "pinnedAt": 10, "snoozedUntil": 20, "wokeAt": 15, "section": placed }),
+            ),
         ]);
         // The TS reads these marks back through ThreadView.parse (wsp-wire's); they are read off the fold's own value here.
         let thread = &threads[0];
@@ -524,7 +546,9 @@ mod thread_provenance {
     fn foldthreads_carries_the_latest_turn_s_last_line_its_failure_and_the_fold_mark_so() {
         let threads = fold_threads(&[
             s(json!({ "id": "s1", "threadId": "thr_a", "status": "failed", "endedAt": 1_000, "failure": "the model refused" })),
-            s(json!({ "id": "s2", "threadId": "thr_a", "status": "completed", "endedAt": 2_000, "lastLine": "Pushed the branch.", "foldedAt": 30 })),
+            s(
+                json!({ "id": "s2", "threadId": "thr_a", "status": "completed", "endedAt": 2_000, "lastLine": "Pushed the branch.", "foldedAt": 30 }),
+            ),
         ]);
         let thread = &threads[0];
         // The TS reads these two back through ThreadView.parse (wsp-wire's); they are read off the fold's own value here.
@@ -601,32 +625,32 @@ mod thread_provenance {
 
     #[test]
     fn a_thread_needs_the_person_while_it_asks_while_a_finish_or_a_failure_sits_unseen() {
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "running", "asking": "Permission for Bash: ls" }))), true);
+        assert!(thread_needs_you(&thread(json!({ "status": "running", "asking": "Permission for Bash: ls" }))));
         let behind = json!({ "threadId": "thr_b", "workspaceId": "ws_a", "sessionId": "s_b", "title": "child", "prompt": { "askId": "ask_1", "toolName": "Bash", "input": "{}", "options": [] } });
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "running", "waitingOn": behind }))), true);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "running" }))), false);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 1_000 }))), true);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "failed", "endedAt": 2_000, "readAt": 1_000 }))), true);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "failed", "endedAt": 2_000, "readAt": 2_000 }))), false);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 2_000 }))), false);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 3_000, "wokeAt": 4_000 }))), true);
+        assert!(thread_needs_you(&thread(json!({ "status": "running", "waitingOn": behind }))));
+        assert!(!thread_needs_you(&thread(json!({ "status": "running" }))));
+        assert!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 1_000 }))));
+        assert!(thread_needs_you(&thread(json!({ "status": "failed", "endedAt": 2_000, "readAt": 1_000 }))));
+        assert!(!thread_needs_you(&thread(json!({ "status": "failed", "endedAt": 2_000, "readAt": 2_000 }))));
+        assert!(!thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 2_000 }))));
+        assert!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 3_000, "wokeAt": 4_000 }))));
     }
 
     #[test]
     fn a_sub_thread_whose_work_not_pushed_holds_its_machine_needs_the_person_seen_or_no() {
         let held = json!({ "held": { "files": 3, "commits": 2 } });
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 3_000, "sub": sub(held.clone()) }))), true);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "running", "sub": sub(held) }))), false);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 3_000, "sub": sub(json!({})) }))), false);
+        assert!(thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 3_000, "sub": sub(held.clone()) }))));
+        assert!(!thread_needs_you(&thread(json!({ "status": "running", "sub": sub(held) }))));
+        assert!(!thread_needs_you(&thread(json!({ "status": "completed", "endedAt": 2_000, "readAt": 3_000, "sub": sub(json!({})) }))));
         // The TS then counts needsYouCount over one such session (1); needsYouCount is not in the stubs.
     }
 
     #[test]
     fn a_turn_the_person_stopped_asks_nothing_of_them_seen_or_not_a_snooze_ending_on_it() {
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000, "readAt": 1_000 }))), false);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000 }))), false);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000, "readAt": 3_000, "wokeAt": 4_000 }))), true);
-        assert_eq!(thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000, "asking": "Permission for Bash: ls" }))), true);
+        assert!(!thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000, "readAt": 1_000 }))));
+        assert!(!thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000 }))));
+        assert!(thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000, "readAt": 3_000, "wokeAt": 4_000 }))));
+        assert!(thread_needs_you(&thread(json!({ "status": "interrupted", "endedAt": 2_000, "asking": "Permission for Bash: ls" }))));
         // The TS then counts needsYouCount over one interrupted session (0); needsYouCount is not in the stubs.
     }
 
@@ -661,8 +685,12 @@ mod thread_provenance {
     #[test]
     fn foldthreads_titles_a_thread_by_what_the_harness_calls_the_session_the_next_send() {
         let threads = fold_threads(&[
-            s(json!({ "id": "s1", "threadId": "thr_a", "prompt": "make a server", "claudeSessionId": "c1", "harnessTitle": "Building the server", "startedAt": 1_000 })),
-            s(json!({ "id": "s2", "threadId": "thr_a", "prompt": "and tests", "claudeSessionId": "c1", "harnessTitle": "the sidebar's own name", "startedAt": 2_000 })),
+            s(
+                json!({ "id": "s1", "threadId": "thr_a", "prompt": "make a server", "claudeSessionId": "c1", "harnessTitle": "Building the server", "startedAt": 1_000 }),
+            ),
+            s(
+                json!({ "id": "s2", "threadId": "thr_a", "prompt": "and tests", "claudeSessionId": "c1", "harnessTitle": "the sidebar's own name", "startedAt": 2_000 }),
+            ),
         ]);
         assert_eq!(threads[0].title, "the sidebar's own name");
     }
@@ -671,9 +699,12 @@ mod thread_provenance {
     fn foldthreads_keeps_the_opening_turn_s_words_while_the_harness_has_no_title_of_its() {
         let none = fold_threads(&[s(json!({ "id": "s1", "threadId": "thr_a", "prompt": "make a server" }))]);
         assert_eq!(none[0].title, "make a server");
-        let wrapped = fold_threads(&[s(json!({ "id": "s2", "threadId": "thr_b", "prompt": "make a server", "harnessTitle": "  Building  the server \nand its tests" }))]);
+        let wrapped = fold_threads(&[s(
+            json!({ "id": "s2", "threadId": "thr_b", "prompt": "make a server", "harnessTitle": "  Building  the server \nand its tests" }),
+        )]);
         assert_eq!(wrapped[0].title, "Building the server");
-        let named = fold_threads(&[s(json!({ "id": "s3", "threadId": "thr_c", "claudeSessionId": "c3", "harnessTitle": "Building the server" }))]);
+        let named =
+            fold_threads(&[s(json!({ "id": "s3", "threadId": "thr_c", "claudeSessionId": "c3", "harnessTitle": "Building the server" }))]);
         assert_eq!(named[0].title, "Building the server");
     }
 
@@ -692,14 +723,17 @@ mod the_newest_release_as_the_host_read_it {
 
     #[test]
     fn reads_the_release_as_ahead_only_when_it_is_above_a_version_that_runs() {
-        let view: ReleaseView = serde_json::from_value(json!({ "state": "read", "latest": { "version": "0.3.0", "tag": "v0.3.0", "url": "u", "publishedAt": "p" } })).unwrap();
-        assert_eq!(release_above(&view, &["0.2.0"]), true);
-        assert_eq!(release_above(&view, &["0.3.0", "0.2.0"]), true);
-        assert_eq!(release_above(&view, &["0.3.0"]), false);
+        let view: ReleaseView = serde_json::from_value(
+            json!({ "state": "read", "latest": { "version": "0.3.0", "tag": "v0.3.0", "url": "u", "publishedAt": "p" } }),
+        )
+        .unwrap();
+        assert!(release_above(&view, &["0.2.0"]));
+        assert!(release_above(&view, &["0.3.0", "0.2.0"]));
+        assert!(!release_above(&view, &["0.3.0"]));
         // A host built ahead of the newest release, a prerelease or a checkout's, reads level.
-        assert_eq!(release_above(&view, &["0.4.0-rc.1"]), false);
+        assert!(!release_above(&view, &["0.4.0-rc.1"]));
         let checking: ReleaseView = serde_json::from_value(json!({ "state": "checking" })).unwrap();
-        assert_eq!(release_above(&checking, &["0.2.0"]), false);
+        assert!(!release_above(&checking, &["0.2.0"]));
     }
 }
 
@@ -707,9 +741,9 @@ mod bringing_work_back {
     use regex::Regex;
     use wsp_wire::views::workspace_kind::WorkspaceKind;
     use wsp_words::projects::child_on_another_computer_line;
+    use wsp_words::wire::runtime::thread_op_refusal;
     use wsp_words::words::computer::*;
     use wsp_words::words::thread::refusal_line;
-    use wsp_words::wire::runtime::thread_op_refusal;
     use wsp_words::workspace_state::thread_place;
 
     #[test]
@@ -721,8 +755,14 @@ mod bringing_work_back {
             format!("thread {word} works on landing, and docs is a project of another repository; a thread starts children on its own repository's projects alone. Name a project of the same repository, or ask the person to start this one.")
         );
         // The road out of a workspace outside the tree is what a run does on that project's kind of computer.
-        assert_eq!(spawn_reach_fix("my lab", true), r#"Start a child on my lab instead with wsp run 'my lab' "<message>", which forks a machine in your own tree."#);
-        assert_eq!(spawn_reach_fix("my lab", false), r#"Start a child in my lab's folder instead with wsp run 'my lab' "<message>", which opens a thread there in your own tree."#);
+        assert_eq!(
+            spawn_reach_fix("my lab", true),
+            r#"Start a child on my lab instead with wsp run 'my lab' "<message>", which forks a machine in your own tree."#
+        );
+        assert_eq!(
+            spawn_reach_fix("my lab", false),
+            r#"Start a child in my lab's folder instead with wsp run 'my lab' "<message>", which opens a thread there in your own tree."#
+        );
         assert_eq!(
             refusal_line(&spawn_folder_refusal(id, "lab-two"), SPAWN_FOLDER_FIX),
             format!("thread {word} may not start children in lab-two: it is a folder the person keeps of this repository, and a thread started there would stand outside your tree. Name a project wsp projects lists, or ask the person to start this one.")
@@ -735,7 +775,9 @@ mod bringing_work_back {
         // where no lead of its reaches the project, the person is the one who starts it there.
         assert_eq!(
             child_to_leads_computer_line("hetzner", "my mac", id),
-            format!(r#"a thread on hetzner cannot start one on my mac yet; ask thread {word}, your lead, with wsp send {word} "<message>", or name a project on hetzner"#)
+            format!(
+                r#"a thread on hetzner cannot start one on my mac yet; ask thread {word}, your lead, with wsp send {word} "<message>", or name a project on hetzner"#
+            )
         );
         assert_eq!(
             child_on_another_computer_line("hetzner", "default"),
@@ -744,7 +786,9 @@ mod bringing_work_back {
         // A workspace of another computer is refused in the words of the act asked for there.
         assert_eq!(
             elsewhere_workspace_line("lab-one", "default", "hetzner", AcrossAct::Exec, Some(id)),
-            format!(r#"lab-one is on default, and a thread on hetzner cannot run commands there yet; ask thread {word}, your lead, with wsp send {word} "<message>""#)
+            format!(
+                r#"lab-one is on default, and a thread on hetzner cannot run commands there yet; ask thread {word}, your lead, with wsp send {word} "<message>""#
+            )
         );
         assert_eq!(
             elsewhere_workspace_line("theirs", "default", "hetzner", AcrossAct::Work, None),
@@ -753,7 +797,10 @@ mod bringing_work_back {
         // A switch that is off on a computer, over a folder there holding none of its own, is turned on where it is held.
         assert_eq!(
             agents_off_computer_refusal("t_1234567890", "my box", SpawnAct::ThreadNew),
-            format!("thread t_123456 may not {}, since agents on my box are off; turn them on with wsp computers set 'my box' --spawn on", SpawnAct::ThreadNew.words())
+            format!(
+                "thread t_123456 may not {}, since agents on my box are off; turn them on with wsp computers set 'my box' --spawn on",
+                SpawnAct::ThreadNew.words()
+            )
         );
         // Bringing work back is one of the acts a thread may ask for, and it is named in the table like the rest.
         assert!(SPAWN_ACTS_ALLOWED.contains(&SpawnAct::BringBack));
@@ -763,11 +810,18 @@ mod bringing_work_back {
         // Every refusal to a thread's own token names where that thread runs, read off the kind table, and claims nothing
         // about what a thread there may start.
         let sized = spawn_act_refusal(id, SpawnAct::Size, Some("hetzner"));
-        assert!(Regex::new(r"^this request came out of thread \S+ on hetzner, and .*, never pick a machine's size$").unwrap().is_match(&sized), "{sized}");
+        assert!(
+            Regex::new(r"^this request came out of thread \S+ on hetzner, and .*, never pick a machine's size$").unwrap().is_match(&sized),
+            "{sized}"
+        );
         let sized = spawn_act_refusal(id, SpawnAct::Size, None);
         assert!(Regex::new(r"^this request came out of thread \S+, and ").unwrap().is_match(&sized), "{sized}");
         assert_eq!(
-            [thread_place(&WorkspaceKind::Local, "mini"), thread_place(&WorkspaceKind::Place, "hetzner"), thread_place(&WorkspaceKind::Cloud, "solari")],
+            [
+                thread_place(&WorkspaceKind::Local, "mini"),
+                thread_place(&WorkspaceKind::Place, "hetzner"),
+                thread_place(&WorkspaceKind::Cloud, "solari")
+            ],
             ["mini", "hetzner", MACHINE_WSP_FORKS]
         );
         let op = thread_op_refusal("pair.issue", id, Some("hetzner"));

@@ -4,18 +4,19 @@
 //! image, and the lines a thread names a folder by. Each TS statement stands as a comment above its stub. See
 //! spec/thread_forks.md.
 
-use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::views::harness::{HarnessCatalog, HarnessCatalogSource};
-use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
-use crate::js::{number_string, to_fixed, utf16};
+use crate::js::{number_string, to_fixed, upper_first, utf16};
 use crate::place_word::{names_place, place_said};
 use crate::words::computer::thread_word;
 use crate::words::units::{charges_nothing, fmt_bytes, fmt_bytes_of, fmt_duration, fmt_rate, fmt_size, DurationStyle};
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::views::harness::{HarnessCatalog, HarnessCatalogSource};
+use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
 
 /// The refusal of a side question on a thread whose agent never announced a session: there is no conversation of
 /// its own to copy and ask.
 // thread.ts:449
-pub const ASIDE_NO_SESSION_LINE: &str = "this thread's agent has not started a conversation yet, so there is nothing to ask about; wait for its first reply";
+pub const ASIDE_NO_SESSION_LINE: &str =
+    "this thread's agent has not started a conversation yet, so there is nothing to ask about; wait for its first reply";
 
 /// The refusal of a side question with no words in it.
 // thread.ts:452
@@ -46,7 +47,8 @@ pub const ASIDE_EMPTY_LINE: &str = "the side question came back with no words in
 
 /// Why a side question came back with no answer: the model reached for a tool, which a side question runs none of.
 // thread.ts:469
-pub const ASIDE_TOOL_LINE: &str = "the answer reached for a tool, and a side question runs none; ask it again, or send it as a message for the thread to work on";
+pub const ASIDE_TOOL_LINE: &str =
+    "the answer reached for a tool, and a side question runs none; ask it again, or send it as a message for the thread to work on";
 
 /// A rewind refused on a thread whose turn is running: the person stops it, never the rewind.
 // thread.ts:472
@@ -102,7 +104,8 @@ pub fn rewind_kept_line(why: &str, files_back: bool) -> String {
 /// Why a Codex thread's conversation cannot be cut: the server cuts only the paginated history a Codex from 0.151.0
 /// on writes.
 // thread.ts:504
-pub const CODEX_LEGACY_HISTORY: &str = "a Codex older than 0.151.0 made this thread and keeps its history in a form thread/revert cannot cut";
+pub const CODEX_LEGACY_HISTORY: &str =
+    "a Codex older than 0.151.0 made this thread and keeps its history in a form thread/revert cannot cut";
 
 /// A Codex rewind by count whose server lists fewer turns than the cut would take: cutting there would take the
 /// reply the person keeps too.
@@ -160,7 +163,10 @@ pub struct RewindNote {
 pub fn rewind_note(o: &RewindNote) -> String {
     let undo = "Undo rewind puts them back until the next turn in this folder ends";
     if let Some(kept) = &o.kept {
-        return format!("{}, so the conversation stays and the files go back to how they stood at this reply. {SHARED_FOLDER} {undo}.", upper_first(kept));
+        return format!(
+            "{}, so the conversation stays and the files go back to how they stood at this reply. {SHARED_FOLDER} {undo}.",
+            upper_first(kept)
+        );
     }
     if !o.cuts_conversation {
         return format!("{} keeps its own history, so the conversation stays and the files go back to how they stood at this reply. {SHARED_FOLDER} {undo}.", o.agent);
@@ -173,7 +179,8 @@ pub fn rewind_note(o: &RewindNote) -> String {
 
 /// A rewind to a turn a fork carried over from its thread: the fork's own history starts after it.
 // thread.ts:539
-pub const REWIND_COPIED_LINE: &str = "that reply came with the fork from its thread, so a rewind can go back only to the fork's own replies";
+pub const REWIND_COPIED_LINE: &str =
+    "that reply came with the fork from its thread, so a rewind can go back only to the fork's own replies";
 
 /// What a fork's tile card and the rule line after its copied history say, naming the thread it came from.
 // thread.ts:542
@@ -262,7 +269,8 @@ pub const FORK_BESIDE_FIX: &str = "Leave out the project, --cwd, --beside and --
 
 /// A fork beside --resume: one carries a wsp thread's conversation, the other one an agent kept outside wsp.
 // thread.ts:567
-pub const FORK_RESUME_LINE: &str = "a fork carries a thread's conversation and --resume carries one kept outside wsp, so a start takes one of them";
+pub const FORK_RESUME_LINE: &str =
+    "a fork carries a thread's conversation and --resume carries one kept outside wsp, so a start takes one of them";
 
 // thread.ts:568
 pub const FORK_RESUME_FIX: &str = "Name the thread with --fork, or the conversation with --resume and --copy, not both.";
@@ -454,7 +462,10 @@ pub fn no_models_line(catalog: &HarnessCatalog) -> String {
 //   return `stopped after ${fmtDuration(elapsedMs, "clock")} of Codex reconnecting to its model provider with no answer`;
 // }
 pub fn codex_reconnect_line(elapsed_ms: f64) -> String {
-    format!("stopped after {} of Codex reconnecting to its model provider with no answer", fmt_duration(elapsed_ms, Some(DurationStyle::Clock)))
+    format!(
+        "stopped after {} of Codex reconnecting to its model provider with no answer",
+        fmt_duration(elapsed_ms, Some(DurationStyle::Clock))
+    )
 }
 
 /// What the daemon last read of the guest's memory and load before its link went quiet.
@@ -518,15 +529,16 @@ pub fn out_of_memory_row_line(r: &MemoryReading) -> String {
 //   return `A thread on ${fmtSize(bigger)} (${fmtRate(bigger.rateUsdPerHour)}) fits more; pick it when you start the next one`;
 // }
 pub fn bigger_size_line(current: &WorkspaceSize, offers: &[MachineSizeOffer]) -> String {
-    let bigger = offers
-        .iter()
-        .filter(|o| o.mem_mb.0 > current.mem_mb.0)
-        .min_by(|a, b| a.mem_mb.0.total_cmp(&b.mem_mb.0));
+    let bigger = offers.iter().filter(|o| o.mem_mb.0 > current.mem_mb.0).min_by(|a, b| a.mem_mb.0.total_cmp(&b.mem_mb.0));
     match bigger {
         None => "No size with more memory is offered; run less in the thread at once".to_string(),
         Some(b) => {
             let size = WorkspaceSize { cpu: JsNumber(b.cpu.0), mem_mb: JsNumber(b.mem_mb.0) };
-            format!("A thread on {} ({}) fits more; pick it when you start the next one", fmt_size(&size, None), fmt_rate(b.rate_usd_per_hour.0))
+            format!(
+                "A thread on {} ({}) fits more; pick it when you start the next one",
+                fmt_size(&size, None),
+                fmt_rate(b.rate_usd_per_hour.0)
+            )
         }
     }
 }
@@ -848,7 +860,8 @@ pub const NO_PROVIDER_LINE: &str = "no machine provider is set up on this comput
 
 /// The same refusal where no provider can be added at all: what is missing, and the one road that brings it.
 // thread.ts:865
-pub const NO_MACHINES_LINE: &str = "this needs a machine wsp starts, and nothing here starts one; wsp add user@host joins a computer of yours that does";
+pub const NO_MACHINES_LINE: &str =
+    "this needs a machine wsp starts, and nothing here starts one; wsp add user@host joins a computer of yours that does";
 
 /// What an image build is refused with when no place this host holds runs workspaces: a joined computer whose doctor
 /// said yes is such a place, and so is a provider with a key. The init job and the command line beside it both say it.
@@ -886,7 +899,8 @@ pub fn image_built_on_line(place: &str) -> String {
 pub type PlaceNamed = crate::place_word::PlaceRef;
 
 pub fn image_home_kept_line(on: Option<&str>, home: &PlaceNamed) -> Option<String> {
-    on.filter(|on| !names_place(home, on)).map(|on| format!("your image lives on {}, so it is built there and not on {on}", place_said(home)))
+    on.filter(|on| !names_place(home, on))
+        .map(|on| format!("your image lives on {}, so it is built there and not on {on}", place_said(home)))
 }
 
 /// What a line that takes a thread answers a word naming no thread but a project, or with a cloud a machine: what the
@@ -927,7 +941,8 @@ pub fn shared_folder_line(others: &[impl AsRef<str>]) -> String {
     match names.split_last() {
         Some((last, [])) => format!("thread {last} works in this folder too"),
         Some((last, rest)) => format!("threads {} and {last} work in this folder too", rest.join(", ")),
-        None => String::new(),
+        // JavaScript prints an empty list as `threads  and undefined work in this folder too`.
+        None => "threads  and undefined work in this folder too".to_string(),
     }
 }
 
@@ -950,7 +965,8 @@ pub const CHILD_BESIDE_LEAD_FIX: &str = "Name a child that works in a folder of 
 
 /// A run beside a thread starts in that thread's folder, so it names no project and no branch of its own.
 // thread.ts:911
-pub const BESIDE_ALONE_LINE: &str = "--beside starts the thread in the folder another thread works in, so it takes no project and no --branch.";
+pub const BESIDE_ALONE_LINE: &str =
+    "--beside starts the thread in the folder another thread works in, so it takes no project and no --branch.";
 
 /// Its fix where a tool was called, which has no usage line to show.
 // thread.ts:913
@@ -971,14 +987,6 @@ fn turns_after(turns: f64) -> String {
         "The turn after this reply leaves".to_string()
     } else {
         format!("The {} turns after this reply leave", number_string(turns))
-    }
-}
-
-fn upper_first(words: &str) -> String {
-    let mut chars = words.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
     }
 }
 

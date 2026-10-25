@@ -169,7 +169,11 @@ pub fn app_hash(address: &AppAddress) -> String {
             Some(subagent) => format!("{thread}{SUBAGENT}{}", encode_uri_component(subagent)),
         };
     }
-    if address.fresh == Some(true) { format!("{base}{NEW}") } else { base }
+    if address.fresh == Some(true) {
+        format!("{base}{NEW}")
+    } else {
+        base
+    }
 }
 
 /// The hash wsp init opens the app on: the workspace it made, or none, with the code that lets the browser in.
@@ -336,4 +340,3 @@ pub fn link_from_hash(hash: &str) -> Option<LinkTarget> {
         _ => None,
     }
 }
-

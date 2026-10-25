@@ -10,8 +10,8 @@ use wsp_wire::views::place::PlaceProvisionRow;
 use wsp_wire::views::place::PlaceSetup;
 use wsp_wire::views::place::PlaceSetupStep;
 use wsp_wire::views::place::PlaceSync;
-use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::place::PlaceWait;
+use wsp_wire::views::place_more::PlaceView;
 
 use serde::Serialize;
 
@@ -22,8 +22,8 @@ use crate::words::base::{name_list, plural};
 use crate::words::thread::iso_seconds;
 use crate::words::units::{fmt_bytes, fmt_bytes_of_total};
 use wsp_wire::views::place::{
-    provision_counts, PlaceProvisionKind, PlaceProvisionRowOutcome, PlaceSetupLineState, PlaceSetupState, PlaceSyncState, PlaceWaitState, SETUP_STEP_CLASS,
-    SETUP_STEP_WORDS,
+    provision_counts, PlaceProvisionKind, PlaceProvisionRowOutcome, PlaceSetupLineState, PlaceSetupState, PlaceSyncState, PlaceWaitState,
+    SETUP_STEP_CLASS, SETUP_STEP_WORDS,
 };
 use wsp_wire::wire::daemon_version::place_daemon_behind;
 use wsp_wire::wire::machine_link::PLACE_BLOCKED_WORD;
@@ -68,7 +68,12 @@ pub fn place_no_home_line(name: &str) -> String {
 //   (applied?.rows ?? []).filter(r => r.outcome === "failed" && r.step !== undefined && SETUP_STEP_CLASS[r.step] === "important");
 pub fn important_failures(applied: Option<&PlaceApplied>) -> Vec<PlaceProvisionRow> {
     let Some(applied) = applied else { return Vec::new() };
-    applied.rows.iter().filter(|r| r.outcome == PlaceProvisionRowOutcome::Failed && r.step.is_some_and(|step| setup_step_class(&step) == "important")).cloned().collect()
+    applied
+        .rows
+        .iter()
+        .filter(|r| r.outcome == PlaceProvisionRowOutcome::Failed && r.step.is_some_and(|step| setup_step_class(&step) == "important"))
+        .cloned()
+        .collect()
 }
 
 /// The setup on a computer as the TOOLS column says it: the step under way, where it stopped, or what stands.
@@ -95,9 +100,11 @@ pub fn setup_word(setup: Option<&PlaceSetup>, applied: Option<&PlaceApplied>) ->
         PlaceSetupState::Failed => format!("stopped: {}", setup.said.as_deref().unwrap_or("no reason recorded")),
         PlaceSetupState::Done => {
             let rows: &[PlaceProvisionRow] = applied.map_or(&[], |applied| applied.rows.as_slice());
-            let failed: Vec<&str> = rows.iter().filter(|r| r.outcome == PlaceProvisionRowOutcome::Failed).map(|r| r.label.as_str()).collect();
+            let failed: Vec<&str> =
+                rows.iter().filter(|r| r.outcome == PlaceProvisionRowOutcome::Failed).map(|r| r.label.as_str()).collect();
             if failed.is_empty() {
-                let counts: indexmap::IndexMap<PlaceProvisionKind, f64> = provision_counts(rows).into_iter().map(|(kind, n)| (kind, n as f64)).collect();
+                let counts: indexmap::IndexMap<PlaceProvisionKind, f64> =
+                    provision_counts(rows).into_iter().map(|(kind, n)| (kind, n as f64)).collect();
                 format!("{} ready", provision_count_word(&counts))
             } else {
                 format!("{} of {} failed: {}", failed.len(), rows.len(), name_list(failed.as_slice()))
@@ -173,7 +180,8 @@ pub fn place_word(place: &PlaceView, absent: Option<&AbsentComputer>, pending: O
     }
     let important = important_failures(place.applied.as_ref());
     if !important.is_empty() {
-        let sentence = important.iter().map(|r| format!("{}: {}", r.label, r.note.as_deref().unwrap_or("failed"))).collect::<Vec<_>>().join("; ");
+        let sentence =
+            important.iter().map(|r| format!("{}: {}", r.label, r.note.as_deref().unwrap_or("failed"))).collect::<Vec<_>>().join("; ");
         return word_state(setup_words::NEEDS_YOU, Some(sentence));
     }
     if let Some(pending) = pending {
@@ -188,7 +196,10 @@ pub fn place_word(place: &PlaceView, absent: Option<&AbsentComputer>, pending: O
     if let Some(sync) = place.sync.as_ref() {
         return word_state(setup_words::BEHIND, Some(sync_line(sync)));
     }
-    word_state(&place_daemon_behind(place.daemon_version.map(|version| version.get())).unwrap_or_else(|| setup_words::READY.to_string()), None)
+    word_state(
+        &place_daemon_behind(place.daemon_version.map(|version| version.get())).unwrap_or_else(|| setup_words::READY.to_string()),
+        None,
+    )
 }
 
 /// A pending add's word: Setup failed where a step stopped it, else Pending with how far it got.
@@ -262,7 +273,12 @@ pub struct PlaceState {
 //   if (full !== undefined) return { word: "Full", tone: "warning", sentence: full };
 //   return setup;
 // }
-pub fn place_state_of(place: &PlaceView, absent: Option<&AbsentComputer>, spent_today_usd: Option<f64>, pending: Option<&PendingComputer>) -> PlaceState {
+pub fn place_state_of(
+    place: &PlaceView,
+    absent: Option<&AbsentComputer>,
+    spent_today_usd: Option<f64>,
+    pending: Option<&PendingComputer>,
+) -> PlaceState {
     if let Some(blocked) = &place.blocked {
         return word_state(PLACE_BLOCKED_WORD, Some(blocked.clone()));
     }
@@ -310,13 +326,28 @@ pub fn setup_lines(name: &str, setup: &PlaceSetup, applied: Option<&PlaceApplied
         None => &[],
     };
     let of = |outcome: PlaceProvisionRowOutcome| rows.iter().filter(move |r| r.outcome == outcome);
-    let installed: Vec<&str> = rows.iter().filter(|r| r.outcome == PlaceProvisionRowOutcome::Installed && r.earlier != Some(true)).map(|r| r.label.as_str()).collect();
-    let present = rows.iter().filter(|r| r.outcome == PlaceProvisionRowOutcome::Present || (r.outcome == PlaceProvisionRowOutcome::Installed && r.earlier == Some(true))).count();
-    let mut tally = vec![if installed.is_empty() { "nothing installed".to_string() } else { format!("{} installed: {}", installed.len(), name_list(installed.as_slice())) }];
+    let installed: Vec<&str> = rows
+        .iter()
+        .filter(|r| r.outcome == PlaceProvisionRowOutcome::Installed && r.earlier != Some(true))
+        .map(|r| r.label.as_str())
+        .collect();
+    let present = rows
+        .iter()
+        .filter(|r| {
+            r.outcome == PlaceProvisionRowOutcome::Present || (r.outcome == PlaceProvisionRowOutcome::Installed && r.earlier == Some(true))
+        })
+        .count();
+    let mut tally = vec![if installed.is_empty() {
+        "nothing installed".to_string()
+    } else {
+        format!("{} installed: {}", installed.len(), name_list(installed.as_slice()))
+    }];
     if present > 0 {
         tally.push(format!("{present} already there"));
     }
-    let to_do = |r: &PlaceProvisionRow| -> Vec<String> { [r.fix.clone(), command.and_then(|command| command(r))].into_iter().flatten().map(|line| format!("    {line}")).collect() };
+    let to_do = |r: &PlaceProvisionRow| -> Vec<String> {
+        [r.fix.clone(), command.and_then(|command| command(r))].into_iter().flatten().map(|line| format!("    {line}")).collect()
+    };
     let mut lines = vec![format!("{name}: {}", tally.join(", "))];
     for r in of(PlaceProvisionRowOutcome::Failed) {
         lines.push(format!("  x {}: {}", r.label, r.note.as_deref().unwrap_or("no reason recorded")));
@@ -496,8 +527,14 @@ pub fn sign_in_way_does(way: &SignInWay, o: &SignInWayFacts) -> String {
             let mint = o.mint.clone().unwrap_or_else(|| format!("{}'s own command", o.name));
             format!("{mint} runs on {} and asks your browser once", o.here)
         }
-        SignInWay::Key if o.field == Some(true) => format!("paste your {}; wsp saves it to ~/.wsp/.env without showing it", o.key_env.as_deref().unwrap_or("key")),
-        SignInWay::Key => format!("put {} in ~/.wsp/.env on {} first, and wsp reads it from there without showing it", o.key_env.as_deref().unwrap_or("the key"), o.here),
+        SignInWay::Key if o.field == Some(true) => {
+            format!("paste your {}; wsp saves it to ~/.wsp/.env without showing it", o.key_env.as_deref().unwrap_or("key"))
+        }
+        SignInWay::Key => format!(
+            "put {} in ~/.wsp/.env on {} first, and wsp reads it from there without showing it",
+            o.key_env.as_deref().unwrap_or("the key"),
+            o.here
+        ),
         SignInWay::Machine => format!("{}'s own sign-in runs there", o.name),
     }
 }
@@ -699,10 +736,13 @@ pub fn floor_failed_line(rows: &[PlaceProvisionRow]) -> String {
 // export const noAgentLine = (rows: readonly Pick<PlaceProvisionRow, "label" | "note">[]): string =>
 //   `no agent installed: ${rows.map(r => `${r.label}${r.note === undefined ? "" : ` (${r.note})`}`).join("; ")}`;
 pub fn no_agent_line(rows: &[PlaceProvisionRow]) -> String {
-    let said: Vec<String> = rows.iter().map(|r| match &r.note {
-        Some(note) => format!("{} ({note})", r.label),
-        None => r.label.clone(),
-    }).collect();
+    let said: Vec<String> = rows
+        .iter()
+        .map(|r| match &r.note {
+            Some(note) => format!("{} ({note})", r.label),
+            None => r.label.clone(),
+        })
+        .collect();
     format!("no agent installed: {}", said.join("; "))
 }
 
@@ -733,7 +773,12 @@ pub struct Packed {
 
 pub fn provision_packed_line(paths: f64, p: &Packed) -> String {
     let counted = match (p.files, p.stood) {
-        (Some(files), Some(stood)) => format!("{} {} there already, {} packed, ", plural(stood, "file"), if stood == 1.0 { "stands" } else { "stand" }, plural(files, "file")),
+        (Some(files), Some(stood)) => format!(
+            "{} {} there already, {} packed, ",
+            plural(stood, "file"),
+            if stood == 1.0 { "stands" } else { "stand" },
+            plural(files, "file")
+        ),
         _ => String::new(),
     };
     format!("packed on this computer: {}, {counted}{}", plural(paths, "path"), fmt_bytes(p.bytes))

@@ -2,8 +2,8 @@
 //! What an import asks about a project's secret files and how a row says each one. Port of the functions of packages/protocol/src/project-import.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::project_import. See spec/project_import.md.
 
-use wsp_wire::views::project_bundle::ProjectAgent;
 use wsp_wire::types::project_import::ProjectImportRequest;
+use wsp_wire::views::project_bundle::ProjectAgent;
 use wsp_wire::views::project_bundle::ProjectPlan;
 use wsp_wire::views::project_bundle::ProjectSecret;
 
@@ -67,7 +67,11 @@ pub fn default_agents(agents: &[ProjectAgent]) -> IndexSet<String> {
 // }
 pub fn agents_request(agents: &[ProjectAgent], ticked: &IndexSet<String>) -> Option<Vec<String>> {
     let chosen: Vec<String> = agents.iter().filter(|a| ticked.contains(&a.agent)).map(|a| a.agent.clone()).collect();
-    if chosen.is_empty() { None } else { Some(chosen) }
+    if chosen.is_empty() {
+        None
+    } else {
+        Some(chosen)
+    }
 }
 
 /// What a person answered under the plan: yes to its defaults, or a keep or cut per secret-shaped row.
@@ -105,7 +109,13 @@ pub fn import_consented(a: &ImportAnswers) -> bool {
 //   const travelling = agentsRequest(plan.agents, agents);
 //   return { source, dest: plan.source, ...consentRequest(plan.secrets, ticked), ...(travelling !== undefined ? { agents: travelling } : {}), ...(replace === true ? { replace: true } : {}) };
 // }
-pub fn import_request(plan: &ProjectPlan, source: &str, ticked: &IndexSet<String>, agents: &IndexSet<String>, replace: Option<bool>) -> ProjectImportRequest {
+pub fn import_request(
+    plan: &ProjectPlan,
+    source: &str,
+    ticked: &IndexSet<String>,
+    agents: &IndexSet<String>,
+    replace: Option<bool>,
+) -> ProjectImportRequest {
     let travelling = agents_request(&plan.agents, agents);
     let consent = consent_request(&plan.secrets, ticked);
     ProjectImportRequest {
@@ -148,4 +158,3 @@ pub fn secret_offer(s: &ProjectSecret, ticked: bool) -> SecretOffer {
     let dropped = if rewrite.drop.is_empty() { String::new() } else { format!("; {} left out", rewrite.drop.join(", ")) };
     SecretOffer { short: short.into(), full: format!("{short}{remote}{dropped}") }
 }
-

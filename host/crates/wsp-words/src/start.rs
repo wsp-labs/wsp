@@ -3,12 +3,12 @@
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::start. See spec/start.md.
 
 use wsp_wire::types::start::GithubLink;
-use wsp_wire::types::start::{GitPrDiffReply, IssueRead};
 use wsp_wire::types::start::ReviewBlock;
 use wsp_wire::types::start::ReviewBlockVerdict;
 use wsp_wire::types::start::ReviewDraft;
 use wsp_wire::types::start::WorkspaceFrom;
 use wsp_wire::types::start::WorkspaceFromKind;
+use wsp_wire::types::start::{GitPrDiffReply, IssueRead};
 
 use regex::Regex;
 
@@ -57,7 +57,10 @@ pub fn github_link_of(text: &str) -> Option<GithubLink> {
     let kind = if path == "issues" { "issue" } else { "pull_request" };
     let number: f64 = digits.parse().ok()?;
     let url = format!("https://github.com/{owner}/{name}/{path}/{digits}");
-    serde_json::from_value(serde_json::json!({ "host": "github.com", "repo": format!("{owner}/{name}"), "kind": kind, "number": number, "url": url })).ok()
+    serde_json::from_value(
+        serde_json::json!({ "host": "github.com", "repo": format!("{owner}/{name}"), "kind": kind, "number": number, "url": url }),
+    )
+    .ok()
 }
 
 /// The `owner/repo` an https or ssh remote of a known host names, or nothing where the remote names no path; a
@@ -507,7 +510,8 @@ impl JsonReader {
 // }
 pub fn from_task_prompt(from: &WorkspaceFrom, read: &IssueRead) -> String {
     let noun = if from.kind == WorkspaceFromKind::Issue { "issue" } else { "pull request" };
-    let mut lines = vec![format!("Work on this {noun}: #{} {}", number_string(read.number.as_f64()), one_line(&read.title)), read.url.clone()];
+    let mut lines =
+        vec![format!("Work on this {noun}: #{} {}", number_string(read.number.as_f64()), one_line(&read.title)), read.url.clone()];
     let (body, cut) = head_within(js_trim(&read.body), BODY_MAX_BYTES);
     if !body.is_empty() {
         lines.push(String::new());
@@ -528,7 +532,10 @@ pub fn from_task_prompt(from: &WorkspaceFrom, read: &IssueRead) -> String {
     }
     lines.push(String::new());
     if from.kind == WorkspaceFromKind::Issue {
-        lines.push(format!("When you bring the work back, the pull request's description says Closes #{}.", number_string(from.number.as_f64())));
+        lines.push(format!(
+            "When you bring the work back, the pull request's description says Closes #{}.",
+            number_string(from.number.as_f64())
+        ));
     } else {
         let branch = match &from.head {
             None => "the pull request's branch".to_string(),
@@ -552,13 +559,19 @@ pub fn from_task_prompt(from: &WorkspaceFrom, read: &IssueRead) -> String {
 //   return trimmed === "" ? `Closes #${issue}` : `${trimmed}\n\nCloses #${issue}`;
 // }
 pub fn with_closes(body: &str, issue: f64) -> String {
-    let closes = Regex::new(&format!(r"(?-u:\b)(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) #{}(?-u:\b)", regex::escape(&number_string(issue)))).unwrap();
+    let closes =
+        Regex::new(&format!(r"(?-u:\b)(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) #{}(?-u:\b)", regex::escape(&number_string(issue))))
+            .unwrap();
     if closes.is_match(&body.to_ascii_lowercase()) {
         return body.to_string();
     }
     let trimmed = js_trim_end(body);
     let closing = format!("Closes #{}", number_string(issue));
-    if trimmed.is_empty() { closing } else { format!("{trimmed}\n\n{closing}") }
+    if trimmed.is_empty() {
+        closing
+    } else {
+        format!("{trimmed}\n\n{closing}")
+    }
 }
 
 /// Whether a line on a side of a file stands inside one of the diff's hunks for that file, which is where a git host
@@ -638,10 +651,7 @@ pub fn taken_name_after(name: &str, taken: &indexmap::IndexSet<String>) -> Strin
     if !taken.contains(name) {
         return name.to_string();
     }
-    (2..)
-        .map(|n| format!("{name} {n}"))
-        .find(|candidate| !taken.contains(candidate))
-        .expect("an unbounded count finds a free name")
+    (2..).map(|n| format!("{name} {n}")).find(|candidate| !taken.contains(candidate)).expect("an unbounded count finds a free name")
 }
 
 // The review a reviewer's reply ends with, as its fenced json block writes it.
@@ -695,7 +705,8 @@ pub fn review_from_reply(text: &str) -> Result<ReviewBlock, String> {
     let value = parse_json(body).map_err(|why| format!("the json block does not parse: {why}"))?;
     wsp_wire::types::check::read::<ReviewBlock>(&value).map_err(|issues| {
         let issue = &issues[0];
-        let path: Vec<String> = issue.path.iter().map(|segment| segment.as_str().map_or_else(|| segment.to_string(), str::to_string)).collect();
+        let path: Vec<String> =
+            issue.path.iter().map(|segment| segment.as_str().map_or_else(|| segment.to_string(), str::to_string)).collect();
         let path = path.join(".");
         let path = if path.is_empty() { "shape".to_string() } else { path };
         format!("the json block's {path} is wrong: {}", issue.message)
@@ -749,7 +760,10 @@ pub fn review_task_prompt(from: &WorkspaceFrom, read: &IssueRead, diff: &GitPrDi
         "".to_string(),
     ]);
     if diff.truncated {
-        lines.push(format!("The diff is cut at 96 KB on a file's boundary; these files are left out of it, read them in the copy: {}.", diff.left.join(", ")));
+        lines.push(format!(
+            "The diff is cut at 96 KB on a file's boundary; these files are left out of it, read them in the copy: {}.",
+            diff.left.join(", ")
+        ));
     }
     let fence = fence_for(&diff.diff);
     lines.extend([
@@ -835,56 +849,55 @@ pub mod start_words {
     pub const NOT_A_PULL_REQUEST: &str = "a review needs a pull request's link, or a thread with a pull request";
     /// `verdicts[v]`.
     pub fn verdicts(v: ReviewVerdict) -> &'static str {
-            match v {
-                ReviewVerdict::Comment => "Comment",
-                ReviewVerdict::Approve => "Approve",
-                ReviewVerdict::RequestChanges => "Request changes",
-            }
+        match v {
+            ReviewVerdict::Comment => "Comment",
+            ReviewVerdict::Approve => "Approve",
+            ReviewVerdict::RequestChanges => "Request changes",
+        }
     }
     pub fn start_on(n: f64) -> String {
-            format!("Start on #{}", number_string(n))
+        format!("Start on #{}", number_string(n))
     }
     pub fn review(n: f64) -> String {
-            format!("Review #{}", number_string(n))
+        format!("Review #{}", number_string(n))
     }
     pub fn from_issue(n: f64, title: &str) -> String {
-            format!("From issue #{} {}", number_string(n), one_line(title))
+        format!("From issue #{} {}", number_string(n), one_line(title))
     }
     pub fn from_pull_request(n: f64) -> String {
-            format!("From pull request #{}", number_string(n))
+        format!("From pull request #{}", number_string(n))
     }
     pub fn no_project_for_repo(repo: &str) -> String {
-            format!("no project here is a checkout of {repo}; add one with wsp add https://github.com/{repo}")
+        format!("no project here is a checkout of {repo}; add one with wsp add https://github.com/{repo}")
     }
     pub fn fork_not_pushable(login: &str) -> String {
-            format!("can't push to {login}'s fork: they did not allow edits from maintainers")
+        format!("can't push to {login}'s fork: they did not allow edits from maintainers")
     }
     pub fn no_read_only(agent: &str, others: &[&str]) -> String {
-            format!("{agent} has no read-only access wsp can give a reviewer; review with {}", others.join(" or "))
+        format!("{agent} has no read-only access wsp can give a reviewer; review with {}", others.join(" or "))
     }
     pub fn no_review_yet(workspace: &str) -> String {
-            format!("{workspace} has no review to post yet")
+        format!("{workspace} has no review to post yet")
     }
     pub fn not_a_link(text: &str) -> String {
-            format!("{} is not a link to a GitHub issue or pull request", utf16::cut(&one_line(text), 80))
+        format!("{} is not a link to a GitHub issue or pull request", utf16::cut(&one_line(text), 80))
     }
     pub fn made(workspace: &str, from: Option<&WorkspaceFrom>) -> String {
-            match from {
-                None => format!("made {workspace}"),
-                Some(from) => {
-                    let noun = if from.kind == WorkspaceFromKind::Issue { "issue" } else { "pull request" };
-                    format!("made {workspace} from {noun} #{}", number_string(from.number.as_f64()))
-                }
+        match from {
+            None => format!("made {workspace}"),
+            Some(from) => {
+                let noun = if from.kind == WorkspaceFromKind::Issue { "issue" } else { "pull request" };
+                format!("made {workspace} from {noun} #{}", number_string(from.number.as_f64()))
             }
+        }
     }
     pub fn posted(workspace: &str, n: f64, comments: f64, folded: f64) -> String {
-            format!(
-                "{workspace}: review posted on #{} ({} comment{}, {} in the summary)",
-                number_string(n),
-                number_string(comments),
-                if comments == 1.0 { "" } else { "s" },
-                number_string(folded)
-            )
+        format!(
+            "{workspace}: review posted on #{} ({} comment{}, {} in the summary)",
+            number_string(n),
+            number_string(comments),
+            if comments == 1.0 { "" } else { "s" },
+            number_string(folded)
+        )
     }
 }
-

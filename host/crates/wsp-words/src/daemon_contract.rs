@@ -362,10 +362,7 @@ pub fn port_scope_refusal(port: &str) -> String {
 // daemon-contract.ts:264
 // export const foldersOutsideLine = (dir: string, roots: string, on = "that computer"): string => `${dir} is outside the folders wsp browses on ${on}: ${roots}`;
 pub fn folders_outside_line(dir: &str, roots: &str, on: Option<&str>) -> String {
-    format!(
-        "{dir} is outside the folders wsp browses on {}: {roots}",
-        on.unwrap_or("that computer")
-    )
+    format!("{dir} is outside the folders wsp browses on {}: {roots}", on.unwrap_or("that computer"))
 }
 
 /// The one line the daemon prints on stdout once it is bound; whoever started it reads the port off this.
@@ -576,10 +573,7 @@ pub fn place_cgroup_stands_line(path: &str) -> String {
 // export const placeLeaveUnsavedLine = (lines: readonly string[]): string => `nothing was removed: ${lines.join("; ")}; that work is on this computer alone`;
 pub fn place_leave_unsaved_line(lines: &[impl AsRef<str>]) -> String {
     let lines: Vec<&str> = lines.iter().map(|line| line.as_ref()).collect();
-    format!(
-        "nothing was removed: {}; that work is on this computer alone",
-        lines.join("; ")
-    )
+    format!("nothing was removed: {}; that work is on this computer alone", lines.join("; "))
 }
 
 /// A checkout or a workspace under the runtime's folder a leave could not read at all. Said on both roads a leave runs
@@ -637,9 +631,7 @@ pub fn guest_no_daemon_line(port: &str) -> String {
 // export const onBaseRefusal = (base: string): string =>
 //   `this workspace is on ${base}, the branch it started from; move the commits onto a branch of their own and bring back again`;
 pub fn on_base_refusal(base: &str) -> String {
-    format!(
-        "this workspace is on {base}, the branch it started from; move the commits onto a branch of their own and bring back again"
-    )
+    format!("this workspace is on {base}, the branch it started from; move the commits onto a branch of their own and bring back again")
 }
 
 // daemon-contract.ts:389
@@ -671,8 +663,6 @@ pub fn no_host_cli_line(host: &str) -> String {
 // export const noGitCredentialLine = (host: string, fix?: string): string =>
 //   `this computer has no git credential for ${host}, so nothing was pushed${fix === undefined ? "" : `; ${fix}, then bring back again`}`;
 pub fn no_git_credential_line(host: &str, fix: Option<&str>) -> String {
-    let fix = fix
-        .map(|fix| format!("; {fix}, then bring back again"))
-        .unwrap_or_default();
+    let fix = fix.map(|fix| format!("; {fix}, then bring back again")).unwrap_or_default();
     format!("this computer has no git credential for {host}, so nothing was pushed{fix}")
 }

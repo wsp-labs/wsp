@@ -124,11 +124,54 @@ pub mod utf16 {
     }
 }
 
+/// The set `is_js_whitespace` names, as the inside of a regex class: what JavaScript's `\s` matches and Rust's does not.
+pub const JS_WS: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
+
 /// Whether `c` is whitespace to JavaScript's `trim()` and to `\s` in a regex: WhiteSpace plus LineTerminator of
 /// ECMA-262, which is U+0009 to U+000D, U+0020, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F,
 /// U+3000 and U+FEFF. Not U+0085 and not U+180E, where Rust's `char::is_whitespace` says otherwise (rule 8.6).
 pub fn is_js_whitespace(c: char) -> bool {
     matches!(c, '\u{9}'..='\u{d}' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+}
+
+/// `` `${s.charAt(0).toUpperCase()}${s.slice(1)}` ``: the first UTF-16 unit upper-cased. A lone half of a surrogate pair
+/// has no case, so a first character outside the BMP leaves `s` as it is.
+pub fn upper_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) if first.len_utf16() == 1 => format!("{}{}", first.to_uppercase(), chars.as_str()),
+        _ => s.to_string(),
+    }
+}
+
+/// `s.replace(pattern, replacement)` with a string pattern: the first occurrence only, and the replacement's `$$`, `$&`,
+/// `` $` `` and `$'` read as JavaScript reads them (a `$1` or `$<name>` has no group to name here and stays as written).
+pub fn replace_first(s: &str, pattern: &str, replacement: &str) -> String {
+    let Some(at) = s.find(pattern) else {
+        return s.to_string();
+    };
+    let (before, after) = (&s[..at], &s[at + pattern.len()..]);
+    let mut out = String::from(before);
+    let mut chars = replacement.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '$' {
+            out.push(c);
+            continue;
+        }
+        match chars.peek() {
+            Some('$') => out.push('$'),
+            Some('&') => out.push_str(pattern),
+            Some('`') => out.push_str(before),
+            Some('\'') => out.push_str(after),
+            _ => {
+                out.push('$');
+                continue;
+            }
+        }
+        chars.next();
+    }
+    out.push_str(after);
+    out
 }
 
 /// `s.trim()` (rule 8.6).

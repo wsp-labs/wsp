@@ -80,16 +80,9 @@ mod the_address_the_port_is_bound_on {
         for at in [LOOPBACK, "127.0.0.2", "127.1.2.3", "::1", "[::1]", "localhost"] {
             assert!(is_loopback(at), "{at}");
         }
-        for at in [
-            "0.0.0.0",
-            "::",
-            "192.168.1.20",
-            "100.64.0.3",
-            "box.example.com",
-            "1270.0.0.1",
-            "127.evil.example",
-            "127.0.0.1.evil.example",
-        ] {
+        for at in
+            ["0.0.0.0", "::", "192.168.1.20", "100.64.0.3", "box.example.com", "1270.0.0.1", "127.evil.example", "127.0.0.1.evil.example"]
+        {
             assert!(!is_loopback(at), "{at}");
         }
     }
@@ -141,7 +134,8 @@ mod the_address_a_person_types_to_join_a_wsp {
 
     #[test]
     fn is_nothing_for_a_word_that_names_no_wsp_a_name_with_no_port_a_socket_address_an() {
-        for word in ["", "   ", "box", "192.168.1.20", "ws://192.168.1.20:7788", "wss://box", "http://", "192.168.1.20:", "not an address"] {
+        for word in ["", "   ", "box", "192.168.1.20", "ws://192.168.1.20:7788", "wss://box", "http://", "192.168.1.20:", "not an address"]
+        {
             assert_eq!(join_address_of(word), None, "{word}");
         }
     }
@@ -183,5 +177,34 @@ mod who_holds_a_port_and_the_lines_about_it {
             state_file_line("/Users/z/.wsp/state.json"),
             "Setting up /Users/z/.wsp/state.json; --state <path> starts a fresh setup instead."
         );
+    }
+}
+
+mod ws_url_of {
+    use wsp_words::app_ports::ws_url_of;
+
+    #[test]
+    fn turns_an_address_into_the_one_the_runtime_answers_on() {
+        // node 22: wsUrlOf(url) for each address.
+        let wsp = |url| ws_url_of(url).unwrap();
+        assert_eq!(wsp("https://h.example/p/"), "wss://h.example/p/ws");
+        assert_eq!(wsp("http://127.0.0.1:2222"), "ws://127.0.0.1:2222/ws");
+        assert_eq!(wsp("wss://x/a//"), "wss://x/a/ws");
+        assert_eq!(wsp("ws://[::1]:80/x"), "ws://[::1]/x/ws");
+        assert_eq!(wsp("HTTPS://Host.Example:443/a b/ü?q#f"), "wss://host.example/a%20b/%C3%BC/ws");
+        assert_eq!(wsp("http://h:80"), "ws://h/ws");
+        assert_eq!(wsp("http://h:8080/%7Ea/./b/../c"), "ws://h:8080/%7Ea/c/ws");
+        assert_eq!(wsp("https://bücher.example/x"), "wss://xn--bcher-kva.example/x/ws");
+        assert_eq!(wsp("http://user:pw@h/x"), "ws://h/x/ws");
+        assert_eq!(wsp("ssh://h/x"), "ws://h/x/ws");
+        assert_eq!(wsp("http://h//"), "ws://h/ws");
+        assert_eq!(wsp("https://h/a%2Fb/"), "wss://h/a%2Fb/ws");
+    }
+
+    #[test]
+    fn throws_invalid_url_as_an_error_where_the_address_does_not_parse() {
+        for bad in ["nope", ""] {
+            assert_eq!(ws_url_of(bad).unwrap_err().message, "Invalid URL", "{bad:?}");
+        }
     }
 }

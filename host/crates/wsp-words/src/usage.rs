@@ -21,7 +21,7 @@ use wsp_wire::types::usage::LimitStatus;
 use wsp_wire::types::usage::USAGE_WORDS;
 
 use crate::js::js_round;
-use crate::js::number_string;
+use crate::js::{number_string, upper_first};
 use crate::words::units::fmt_cost;
 use crate::words::units::fmt_tokens;
 use crate::words::units::LIST_PRICE_WORD;
@@ -247,7 +247,7 @@ pub mod reset_words {
 pub fn reset_question(who: &str, count: Option<f64>) -> String {
     let which = match count {
         None => "a reset".to_string(),
-        Some(n) if n == 1.0 => "the one reset".to_string(),
+        Some(1.0) => "the one reset".to_string(),
         Some(n) => format!("one of the {} resets", number_string(n)),
     };
     format!("Use {which} banked on {who}? Its five-hour and weekly windows start again now. There is no undo.")
@@ -525,9 +525,7 @@ pub fn account_words(o: &AccountWho) -> String {
         return format!("{} with an API key", o.agent_name);
     }
     if let Some(plan) = o.plan.as_deref().filter(|p| !p.is_empty()) {
-        let mut chars = plan.chars();
-        let first = chars.next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_default();
-        let plan = format!("{first}{}", chars.as_str());
+        let plan = upper_first(plan);
         let text = match &o.plan_brand {
             None => plan,
             Some(brand) => format!("{brand} {plan}"),
@@ -693,7 +691,12 @@ pub fn price_of(model: &str, tokens: &PricedTokens, table: &RateTable) -> Option
     let cached = tokens.cached.unwrap_or(0.0);
     let written = tokens.cache_write.unwrap_or(0.0);
     let fresh = (tokens.input - cached - written).max(0.0);
-    Some(fresh * rate.input + cached * rate.cache_read.unwrap_or(rate.input) + written * rate.cache_write.unwrap_or(rate.input) + tokens.output * rate.output)
+    Some(
+        fresh * rate.input
+            + cached * rate.cache_read.unwrap_or(rate.input)
+            + written * rate.cache_write.unwrap_or(rate.input)
+            + tokens.output * rate.output,
+    )
 }
 
 /// The calendar day an instant falls on in a zone, YYYY-MM-DD; this computer's own zone where none is named.
@@ -944,4 +947,3 @@ pub fn held_until(windows: &[LimitWindow], now: f64) -> Option<f64> {
         Some(held.iter().copied().fold(f64::NEG_INFINITY, f64::max))
     }
 }
-

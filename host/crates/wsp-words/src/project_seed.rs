@@ -101,7 +101,12 @@ pub struct SeedFlags {
 }
 
 /// The TS throw of `seedPicks` is the Err.
-pub fn seed_choice_from(plan: &SeedPlan, keep: &[impl AsRef<str>], cut: &[impl AsRef<str>], flags: &SeedFlags) -> Result<SeedChoice, HostError> {
+pub fn seed_choice_from(
+    plan: &SeedPlan,
+    keep: &[impl AsRef<str>],
+    cut: &[impl AsRef<str>],
+    flags: &SeedFlags,
+) -> Result<SeedChoice, HostError> {
     let base = default_seed_choice(plan);
     let files = seed_picks(plan, base.files.as_slice(), keep, cut)?.files;
     Ok(SeedChoice {
@@ -129,7 +134,10 @@ pub fn not_in_the_menu_line(path: &str, shown: &[impl AsRef<str>]) -> String {
 // export const neverTravelsLine = (path: string, row: string | undefined): string =>
 //   `${path} is ${row === undefined ? "a login" : `${row}, a login`}, and a login never travels in a seed; the computer's image carries its own sign-in`;
 pub fn never_travels_line(path: &str, row: Option<&str>) -> String {
-    format!("{path} is {}, and a login never travels in a seed; the computer's image carries its own sign-in", row.map_or("a login".to_string(), |row| format!("{row}, a login")))
+    format!(
+        "{path} is {}, and a login never travels in a seed; the computer's image carries its own sign-in",
+        row.map_or("a login".to_string(), |row| format!("{row}, a login"))
+    )
 }
 
 /// Why a file of values or a key is refused for a provider place even when it was named: the provider's machine
@@ -190,7 +198,12 @@ pub struct SeedPicks {
 }
 
 /// The TS throws (an invalid refusal) are the Err.
-pub fn seed_picks(plan: &SeedPlan, start: &[impl AsRef<str>], keep: &[impl AsRef<str>], cut: &[impl AsRef<str>]) -> Result<SeedPicks, HostError> {
+pub fn seed_picks(
+    plan: &SeedPlan,
+    start: &[impl AsRef<str>],
+    keep: &[impl AsRef<str>],
+    cut: &[impl AsRef<str>],
+) -> Result<SeedPicks, HostError> {
     let keeps: Vec<String> = keep.iter().map(|p| pick_path(p.as_ref())).collect();
     let cuts: Vec<String> = cut.iter().map(|p| pick_path(p.as_ref())).collect();
     let start: Vec<&str> = start.iter().map(|p| p.as_ref()).collect();
@@ -297,10 +310,7 @@ pub struct SeedLines {
 pub fn project_seed_lines(seed: &ProjectSeed) -> SeedLines {
     let mut rows = seed.rows.clone();
     rows.sort_by(|a, b| {
-        b.picked
-            .cmp(&a.picked)
-            .then_with(|| int(&b.bytes).total_cmp(&int(&a.bytes)))
-            .then_with(|| collate(&a.path, &b.path))
+        b.picked.cmp(&a.picked).then_with(|| int(&b.bytes).total_cmp(&int(&a.bytes))).then_with(|| collate(&a.path, &b.path))
     });
     let picked = seed.picked.paths.len();
     let picked_bytes = if picked == 0 { String::new() } else { format!(", {}", fmt_bytes(int(&seed.picked.bytes))) };
@@ -358,10 +368,7 @@ pub fn seed_save_refusal(project: &str, o: &SeedAsked) -> HostError {
         words.extend(["--cut", cut.as_str()]);
     }
     words.push("--yes");
-    usage_refusal(
-        "picking the files that leave this computer is the person's act",
-        &format!("Hand them the line {}", shell_line(&words)),
-    )
+    usage_refusal("picking the files that leave this computer is the person's act", &format!("Hand them the line {}", shell_line(&words)))
 }
 
 /// Why a project on another computer has no seed picks: the menu is read off a folder on this computer alone.
@@ -369,7 +376,10 @@ pub fn seed_save_refusal(project: &str, o: &SeedAsked) -> HostError {
 // export const seedNotHereRefusal = (project: string, computer: string): Error =>
 //   refusal(`${project} lives on ${computer}, and picks are read from folders on this computer only`, `A sub-thread of ${project} starts with no git-ignored files.`, "usage");
 pub fn seed_not_here_refusal(project: &str, computer: &str) -> HostError {
-    usage_refusal(&format!("{project} lives on {computer}, and picks are read from folders on this computer only"), &format!("A sub-thread of {project} starts with no git-ignored files."))
+    usage_refusal(
+        &format!("{project} lives on {computer}, and picks are read from folders on this computer only"),
+        &format!("A sub-thread of {project} starts with no git-ignored files."),
+    )
 }
 
 /// The words one menu row ends in, which say why it is ticked or not.
@@ -443,7 +453,11 @@ pub fn seeding_line(plan: &SeedPlan, choice: &SeedChoice) -> String {
 // project-seed.ts:179
 // export const seedCommitsLandedLine = (commits: number): string => (commits === 0 ? "no commits to land" : `${plural(commits, "commit")} landed`);
 pub fn seed_commits_landed_line(commits: f64) -> String {
-    if commits == 0.0 { "no commits to land".to_string() } else { format!("{} landed", plural(commits, "commit")) }
+    if commits == 0.0 {
+        "no commits to land".to_string()
+    } else {
+        format!("{} landed", plural(commits, "commit"))
+    }
 }
 
 /// What the person is told a seed would carry, before anything leaves this computer: the ticked paths with their
@@ -544,7 +558,11 @@ pub fn seed_menu_rows(plan: &SeedPlan, choice: &SeedChoice) -> Vec<Vec<String>> 
 // }
 pub fn seed_consent_lines(plan: &SeedPlan, computer: &str, add_line: &dyn Fn(&str) -> String) -> Vec<String> {
     let uncommitted = int(&plan.uncommitted);
-    let stays = if uncommitted > 0.0 { format!("{} stay on this computer, and ", plural(uncommitted, "uncommitted change")) } else { String::new() };
+    let stays = if uncommitted > 0.0 {
+        format!("{} stay on this computer, and ", plural(uncommitted, "uncommitted change"))
+    } else {
+        String::new()
+    };
     let remote = plan.remote.as_deref().unwrap_or("the repo");
     vec![
         format!("nothing was sent. {stays}{computer} clones {remote} itself."),
@@ -584,7 +602,7 @@ pub fn no_remote_line(folder: &str) -> String {
 }
 
 fn int(x: &JsInt) -> f64 {
-    x.0.0
+    x.0 .0
 }
 
 fn travels_on(provider: Option<bool>, file: &SeedFile) -> bool {

@@ -12,7 +12,10 @@ use wsp_wire::views::session_events::{
 };
 
 use crate::words::tools::{tool_activity_line, tool_done_line};
-use crate::words::turn::{fmt_clock, notify_body, notify_reply, plan_steps_line, StepState, turn_changes_line, turn_end_line, FileLines, NotifyLength, TurnChanges, NEWER_TURN_LINE, NO_RESULT_LINE};
+use crate::words::turn::{
+    fmt_clock, notify_body, notify_reply, plan_steps_line, turn_changes_line, turn_end_line, FileLines, NotifyLength, StepState,
+    TurnChanges, NEWER_TURN_LINE, NO_RESULT_LINE,
+};
 
 // Who a row of a read is: the message that opened or steered a turn, the agent's own words, one tool call, or the
 // turn's own end as the chat's footer states it.
@@ -296,7 +299,8 @@ pub fn thread_markdown(rows: &[ThreadMessage]) -> String {
                 continue;
             }
             ThreadVoice::Turn => {
-                blocks.push(row.text.split('\n').map(|line| if line.is_empty() { line.to_string() } else { format!("*{line}*") }).collect());
+                blocks
+                    .push(row.text.split('\n').map(|line| if line.is_empty() { line.to_string() } else { format!("*{line}*") }).collect());
                 speaker = Some(ThreadVoice::Turn);
                 continue;
             }
@@ -489,7 +493,6 @@ fn at_of(event: &SessionEvent) -> Option<f64> {
     on_each_event!(event, e => e.at.as_ref().map(|at| at.0))
 }
 
-
 // A turn's result the runtime wrote for it: failed, with the reason it ended on.
 fn failed_result(error: &str) -> TurnResult {
     TurnResult {
@@ -533,7 +536,7 @@ fn latest_turn(events: &[SessionEvent], thread_id: &str) -> Option<LatestTurn> {
                 }
                 end = Some(e);
             }
-            SessionEvent::SessionDoneEvent(e) if end.map_or(true, |end| e.turn_id == end.turn_id) => {
+            SessionEvent::SessionDoneEvent(e) if end.is_none_or(|end| e.turn_id == end.turn_id) => {
                 return Some(LatestTurn { at: at_of(event), result: e.result.clone(), running });
             }
             SessionEvent::SessionStartEvent(e) => match end {
@@ -697,7 +700,8 @@ impl Reader {
                 self.saw_text = true;
             }
             DeltaKind::ToolResult => {
-                let answered = e.tool_use_id.as_ref().and_then(|id| self.calls.get(id)).map(|call| (call.row, call.name.clone(), call.input.clone()));
+                let answered =
+                    e.tool_use_id.as_ref().and_then(|id| self.calls.get(id)).map(|call| (call.row, call.name.clone(), call.input.clone()));
                 if let Some((row, name, input)) = answered {
                     if e.is_error != Some(true) {
                         if let Some(did) = tool_done_line(Some(&name), &input) {

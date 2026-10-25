@@ -90,10 +90,7 @@ mod the_subagent_a_page_opens_on {
 
     #[test]
     fn keeps_the_pairing_code_off_what_it_names() {
-        assert_eq!(
-            address_from_hash("#w/ws_a1b2/t/thr_9/a/toolu_01Ab/c/7K3MQP2X"),
-            Some(subagent("ws_a1b2", "thr_9", "toolu_01Ab"))
-        );
+        assert_eq!(address_from_hash("#w/ws_a1b2/t/thr_9/a/toolu_01Ab/c/7K3MQP2X"), Some(subagent("ws_a1b2", "thr_9", "toolu_01Ab")));
     }
 }
 

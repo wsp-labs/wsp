@@ -19,14 +19,27 @@ use crate::js::{to_number, utf16};
 // }
 /// `added` true is the TS sign "+", false is "-".
 pub fn whole_file_hunk(content: &str, added: bool) -> PatchHunk {
-    let lines: Vec<&str> = if content.is_empty() { Vec::new() } else { content.strip_suffix('\n').unwrap_or(content).split('\n').collect() };
+    let lines: Vec<&str> =
+        if content.is_empty() { Vec::new() } else { content.strip_suffix('\n').unwrap_or(content).split('\n').collect() };
     let count = JsInt::from(lines.len() as i64);
     let at = JsInt::from(i64::from(!lines.is_empty()));
     let zero = JsInt::from(0);
     if added {
-        PatchHunk { old_start: zero, old_lines: zero, new_start: at, new_lines: count, lines: lines.iter().map(|l| format!("+{l}")).collect() }
+        PatchHunk {
+            old_start: zero,
+            old_lines: zero,
+            new_start: at,
+            new_lines: count,
+            lines: lines.iter().map(|l| format!("+{l}")).collect(),
+        }
     } else {
-        PatchHunk { old_start: at, old_lines: count, new_start: zero, new_lines: zero, lines: lines.iter().map(|l| format!("-{l}")).collect() }
+        PatchHunk {
+            old_start: at,
+            old_lines: count,
+            new_start: zero,
+            new_lines: zero,
+            lines: lines.iter().map(|l| format!("-{l}")).collect(),
+        }
     }
 }
 
@@ -74,7 +87,9 @@ pub fn unified_hunks(diff: &str) -> Vec<PatchHunk> {
     let mut hunks: Vec<PatchHunk> = Vec::new();
     for line in diff.strip_suffix('\n').unwrap_or(diff).split('\n') {
         match hunk_head(line) {
-            Some([old_start, old_lines, new_start, new_lines]) => hunks.push(PatchHunk { old_start, old_lines, new_start, new_lines, lines: Vec::new() }),
+            Some([old_start, old_lines, new_start, new_lines]) => {
+                hunks.push(PatchHunk { old_start, old_lines, new_start, new_lines, lines: Vec::new() })
+            }
             None => {
                 if let Some(hunk) = hunks.last_mut() {
                     hunk.lines.push(line.to_string());

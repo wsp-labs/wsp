@@ -3,9 +3,6 @@
 //! Settings > Image read them, project images, pins and the recipe's install lines, the lineage marks, and every line
 //! a snapshot, a template and a seal end on. Each TS statement stands as a comment above its stub. See spec/image.md.
 
-use wsp_wire::views::golden_image::{GoldenStage, SealedImage, SealedImageCopy, SealedImageExport, ToolPin};
-use wsp_wire::views::snapshot_lineage::{ProjectGolden, SealedProjectImage};
-use wsp_wire::types::init_job::LoginState;
 use crate::js::{js_round, number_string, to_fixed, utf16};
 use crate::words::base::{fmt_threads, listed_name, lower_first, name_list, plural};
 use crate::words::computer::{this_computer, Platform};
@@ -13,6 +10,9 @@ use crate::words::init::{cloud_setup_words, golden_stage_word, init_stopped_line
 use crate::words::units::{disk_tone, fmt_bytes, fmt_bytes_of, fmt_duration, SizeTone};
 use regex::Regex;
 use serde::Serialize;
+use wsp_wire::types::init_job::LoginState;
+use wsp_wire::views::golden_image::{GoldenStage, SealedImage, SealedImageCopy, SealedImageExport, ToolPin};
+use wsp_wire::views::snapshot_lineage::{ProjectGolden, SealedProjectImage};
 
 /// --- the image and its copies, as `wsp image` and Settings > Image read them ---
 /// What a record with no vault says: its copies ask for every sign-in again until the next version holds them.
@@ -79,7 +79,8 @@ pub const NO_IMAGE_YET: &str = "no image yet; run wsp init";
 /// And where that road was an add carrying a person's own files onto a computer that keeps an image.
 // image.ts:38
 // export const NO_IMAGE_FOR_SEED = `${NO_IMAGE_YET}; the seed lands inside a copy of your image, so there is nowhere for it to go yet`;
-pub const NO_IMAGE_FOR_SEED: &str = "no image yet; run wsp init; the seed lands inside a copy of your image, so there is nowhere for it to go yet";
+pub const NO_IMAGE_FOR_SEED: &str =
+    "no image yet; run wsp init; the seed lands inside a copy of your image, so there is nowhere for it to go yet";
 
 /// Whether a copy stands on the record as it is now: built at the record's hash, which is the whole of it. The
 /// version is the place's own manifest number and says nothing about which record the copy came from, so a second
@@ -122,7 +123,9 @@ pub fn sealed_image_line(image: &SealedImage) -> String {
     } else {
         match &image.vault {
             None => IMAGE_NO_VAULT.to_string(),
-            Some(vault) => format!("{} held, {}", plural(sealed_logins_held(image) as f64, "sign-in"), plural(vault.paths.as_f64(), "path")),
+            Some(vault) => {
+                format!("{} held, {}", plural(sealed_logins_held(image) as f64, "sign-in"), plural(vault.paths.as_f64(), "path"))
+            }
         }
     };
     let mut parts = vec![format!("{} v{}", image.name, number_string(image.version.as_f64())), image.hash.clone(), held];
@@ -279,7 +282,10 @@ pub fn no_project_image_line(word: &str) -> String {
 //   `project image ${id} has ${workspaces.length === 1 ? "a workspace" : "workspaces"} standing on it: ${nameList(workspaces)}; delete ${workspaces.length === 1 ? "it" : "them"} first, and forget any whose machine is already gone`;
 pub fn project_image_in_use_refusal(id: &str, workspaces: &[impl AsRef<str>]) -> String {
     let (what, pronoun) = if workspaces.len() == 1 { ("a workspace", "it") } else { ("workspaces", "them") };
-    format!("project image {id} has {what} standing on it: {}; delete {pronoun} first, and forget any whose machine is already gone", name_list(workspaces))
+    format!(
+        "project image {id} has {what} standing on it: {}; delete {pronoun} first, and forget any whose machine is already gone",
+        name_list(workspaces)
+    )
 }
 
 /// What a removal takes, the one sentence the command line's question and the tool's unconfirmed answer both say.
@@ -287,7 +293,11 @@ pub fn project_image_in_use_refusal(id: &str, workspaces: &[impl AsRef<str>]) ->
 // export const projectImageRemoveNotice = (g: Pick<ProjectGolden, "workspaceName" | "createdAt">): string =>
 //   `Its snapshot, taken from ${g.workspaceName} on ${g.createdAt.slice(0, 10)}, is deleted at the provider, and no workspace starts from it again.`;
 pub fn project_image_remove_notice(g: &ProjectGolden) -> String {
-    format!("Its snapshot, taken from {} on {}, is deleted at the provider, and no workspace starts from it again.", g.workspace_name, utf16::slice(&g.created_at, 0, Some(10)))
+    format!(
+        "Its snapshot, taken from {} on {}, is deleted at the provider, and no workspace starts from it again.",
+        g.workspace_name,
+        utf16::slice(&g.created_at, 0, Some(10))
+    )
 }
 
 /// What a removal came to: a snapshot the provider had already lost is gone either way, so its record went too.
@@ -824,7 +834,10 @@ pub fn snapshot_manager_line(name: &str, check: &str, dir: &str, said: &str, out
 // }
 pub fn snapshot_login_line(name: &str, paths: &[impl AsRef<str>]) -> String {
     let paths: Vec<&str> = paths.iter().map(|p| p.as_ref()).collect();
-    format!("{name} was not snapshotted: it holds sign-in files ({}), which every workspace forked from the snapshot would carry", paths.join(", "))
+    format!(
+        "{name} was not snapshotted: it holds sign-in files ({}), which every workspace forked from the snapshot would carry",
+        paths.join(", ")
+    )
 }
 
 // image.ts:357
@@ -836,7 +849,13 @@ pub const SNAPSHOT_LOGIN_FIX: &str = "Remove them on the machine, then snapshot 
 // export function snapshotAttemptLine(attempt: number, attempts: number, answer: ProviderAnswer, builderState: BuilderReading, retryMs: number): string {
 //   return `attempt ${attempt} of ${attempts} answered ${providerAnswerLine(answer)}; the builder reads ${builderState}, next attempt in ${fmtDuration(retryMs)}`;
 // }
-pub fn snapshot_attempt_line(attempt: f64, attempts: f64, answer: &ProviderAnswer, builder_state: &BuilderReading, retry_ms: f64) -> String {
+pub fn snapshot_attempt_line(
+    attempt: f64,
+    attempts: f64,
+    answer: &ProviderAnswer,
+    builder_state: &BuilderReading,
+    retry_ms: f64,
+) -> String {
     let reading = match builder_state {
         BuilderReading::State(state) => state.as_str(),
         BuilderReading::Unread => "unread",
@@ -996,7 +1015,10 @@ pub fn seal_failed_builder_stays_line(builder_id: &str, rate_usd_per_hour: f64, 
 //   return `Seal failed; the provider could not be read about the builder, so nothing on it was touched. ${builderStaysLine(builderId, rateUsdPerHour, attachCommand)}`;
 // }
 pub fn seal_failed_builder_unread_line(builder_id: &str, rate_usd_per_hour: f64, attach_command: &str) -> String {
-    format!("Seal failed; the provider could not be read about the builder, so nothing on it was touched. {}", builder_stays_line(builder_id, rate_usd_per_hour, attach_command))
+    format!(
+        "Seal failed; the provider could not be read about the builder, so nothing on it was touched. {}",
+        builder_stays_line(builder_id, rate_usd_per_hour, attach_command)
+    )
 }
 
 /// Why a seal was refused before it took the snapshot: the builder holds a file a sign-in leaves behind. The paths
@@ -1017,7 +1039,8 @@ pub const SEAL_FAILED_LINE: &str = "Seal failed and the builder is gone. Run wsp
 /// The wizard's last line when the snapshot failed and the provider answers 404 for the builder: the provider
 /// dropped it, not wsp.
 // image.ts:449
-pub const SEAL_FAILED_BUILDER_GONE_LINE: &str = "Seal failed and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again; the recipe is kept.";
+pub const SEAL_FAILED_BUILDER_GONE_LINE: &str =
+    "Seal failed and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again; the recipe is kept.";
 
 /// The update's last line when the snapshot of the new version failed and the provider still has the machine it
 /// ran on: the golden stands, the machine is as it was, the retry runs on it or the sweep ends it.
@@ -1045,6 +1068,8 @@ pub fn upgrade_seal_failed_unread_line(version: f64, builder_id: &str) -> String
 //   return `Image v${version} is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.`;
 // }
 pub fn upgrade_seal_failed_gone_line(version: f64) -> String {
-    format!("Image v{} is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.", number_string(version))
+    format!(
+        "Image v{} is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.",
+        number_string(version)
+    )
 }
-
