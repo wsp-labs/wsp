@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-wire"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The host's wire: the frames clients and computers send it, the views it sends back, and the limits on both"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
