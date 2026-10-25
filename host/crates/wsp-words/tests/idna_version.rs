@@ -38,9 +38,9 @@ fn a_letter_node_has_no_mapping_for_is_taken_here() {
     assert!(ws_url_of("https://a\u{4C0}b.com/x/y").is_ok());
 }
 
-// node: servedHostname("http://xn--ab-.com") is "xn--ab-.com" and joinAddressWord the same; the crate refuses the label as bad punycode.
+// node: servedHostname("http://xn--ab-.com") is "xn--ab-.com" and joinAddressWord the same; the crate answers the same.
 #[test]
-fn a_punycode_label_node_takes_is_refused_here() {
-    assert_eq!(served_hostname("http://xn--ab-.com"), None);
-    assert_eq!(join_address_word("http://xn--ab-.com"), "http://xn--ab-.com");
+fn a_punycode_label_node_takes_is_taken_here_too() {
+    assert_eq!(served_hostname("http://xn--ab-.com").as_deref(), Some("xn--ab-.com"));
+    assert_eq!(join_address_word("http://xn--ab-.com"), "xn--ab-.com");
 }

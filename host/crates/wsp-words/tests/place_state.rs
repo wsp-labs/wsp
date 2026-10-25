@@ -189,10 +189,9 @@ mod threads_at_once {
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo" }), json!({ "threads": 2 }), &[Threads]).as_deref(),
             Some("spoo: threads at once is both set and reset; name it once")
         );
-        let zero_threads: PlaceCap = wire(json!({ "threads": 0 }));
-        assert!(zero_threads.check().is_err());
-        let zero_machines: PlaceCap = wire(json!({ "machines": 0, "spendPerDayUsd": 10 }));
-        assert!(zero_machines.check().is_err());
+        // The TS: PlaceView.shape.cap.parse({ threads: 0 }) throws; the wire reads the union as zod does, so the read refuses.
+        assert!(serde_json::from_value::<PlaceCap>(json!({ "threads": 0 })).is_err());
+        assert!(serde_json::from_value::<PlaceCap>(json!({ "machines": 0, "spendPerDayUsd": 10 })).is_err());
         let free_cloud: PlaceCap = wire(json!({ "machines": 1, "spendPerDayUsd": 0 }));
         assert_eq!(free_cloud.check(), Ok(()));
         assert_eq!(serde_json::to_value(&free_cloud).unwrap(), json!({ "machines": 1, "spendPerDayUsd": 0 }));
