@@ -93,7 +93,20 @@ mount -o remount,bind,rw "$WSP_PARITY_WRITABLE"
 cd /
 exec "$0" "$@""#;
 
+/// The copy inside the sandbox is the first process of its PID namespace, which the kernel hands no signal it has no
+/// handler for: a Ctrl-C would leave it running. Ending it ends the namespace and every host in it.
+extern "C" fn end_the_run(_: libc::c_int) {
+    // SAFETY: _exit is async-signal-safe.
+    unsafe { libc::_exit(130) }
+}
+
 fn main() -> ExitCode {
+    if std::env::var_os(SANDBOX_ENV).is_some() {
+        for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+            // SAFETY: the handler only calls _exit.
+            unsafe { libc::signal(signal, end_the_run as extern "C" fn(libc::c_int) as libc::sighandler_t) };
+        }
+    }
     let cli = Cli::parse();
     let root = repo_root();
     let outcome = match cli.task {
@@ -169,7 +182,8 @@ fn sandboxed(root: &Path, run: &Run) -> Result<Option<ExitCode>, String> {
     }
     // SAFETY: geteuid reads the process's own id and cannot fail.
     let root_user = unsafe { libc::geteuid() } == 0;
-    let mut flags = vec!["--net", "--mount", "--pid", "--fork", "--mount-proc"];
+    // --kill-child: unshare ends the copy inside if unshare itself is killed.
+    let mut flags = vec!["--net", "--mount", "--pid", "--fork", "--mount-proc", "--kill-child"];
     if !root_user {
         flags.push("--map-root-user");
     }
