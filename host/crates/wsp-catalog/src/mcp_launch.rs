@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 
+use crate::smol_toml::parse_toml;
 use crate::json_parse::parse_json;
 use crate::config_write::store_base;
 use crate::json_edit::{edit_json, JsonEdit};
@@ -65,7 +66,7 @@ pub fn checkout_args(folder: &str) -> Vec<String> {
 
 /// mcp-launch.ts:108.
 pub fn checkout_of(said: Option<&str>, folder: &str) -> Checkout {
-    let lines: Vec<&str> = said.unwrap_or("").split('\n').map(str::trim).collect();
+    let lines: Vec<&str> = said.unwrap_or("").split('\n').map(wsp_words::js::js_trim).collect();
     let top = lines.first().copied().unwrap_or("");
     if top.is_empty() || !top.starts_with('/') {
         return Checkout { top: None, key: folder.to_string() };
@@ -169,7 +170,7 @@ fn filled(v: &Value, values: &IndexMap<String, String>) -> (Value, bool) {
 /// The ones of `keys` a TOML config sets no top-level value of, read by a TOML parser; none where the text does not
 /// parse (mcp-launch.ts:180).
 pub fn unset_toml_keys(text: &str, keys: &[HeadlessKey]) -> Vec<HeadlessKey> {
-    let Ok(top) = text.parse::<toml::Table>() else {
+    let Ok(top) = parse_toml(text) else {
         return Vec::new();
     };
     keys.iter().filter(|k| !top.contains_key(&k.key)).cloned().collect()
@@ -292,12 +293,8 @@ fn claude_switches_put(text: Option<&str>, folder: &str, switches: &FolderSwitch
     let existing = folder_entry(text, folder);
     let mut edits: Vec<JsonEdit> = Vec::new();
     for (k, names) in switches {
-        let mut merged = names_in(existing.as_ref().and_then(|e| e.get(k)));
-        for n in names {
-            if !merged.contains(n) {
-                merged.push(n.clone());
-            }
-        }
+        let held = names_in(existing.as_ref().and_then(|e| e.get(k)));
+        let merged: IndexSet<String> = held.into_iter().chain(names.iter().cloned()).collect();
         let path = vec![PathSeg::Key("projects".into()), PathSeg::Key(folder.into()), PathSeg::Key(k.clone())];
         edits.push((path, Some(Value::Array(merged.into_iter().map(Value::String).collect()))));
     }
@@ -563,6 +560,6 @@ pub fn launch_misses(agent: &str, format: McpFormat, server: &McpServer, held: &
     let road = launch_server_road(agent);
     let mut out: Vec<String> =
         read.into_inner().into_iter().filter(|name| held.contains(name) && road.is_none_or(|r| !r.hands(server, name))).collect();
-    out.sort();
+    out.sort_by(|a, b| wsp_words::js::utf16::cmp(a, b));
     out
 }

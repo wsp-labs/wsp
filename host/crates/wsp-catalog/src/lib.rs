@@ -20,6 +20,7 @@ pub mod mcp_json_refer;
 
 pub mod mcp_codex;
 pub mod mcp_toml;
+pub mod smol_toml;
 pub mod mcp_toml_refer;
 
 pub mod mcp_check;
