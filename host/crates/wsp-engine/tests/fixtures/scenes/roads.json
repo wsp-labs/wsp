@@ -452,5 +452,244 @@
    },
    "err": null
   }
+ ],
+ "links": [
+  {
+   "name": "frames_of_the_roads_no_other_test_sends",
+   "previewUrl": "",
+   "sent": [
+    {
+     "op": "machine.pause",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.kill",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.state",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.downloadUrl",
+     "params": {
+      "path": "/a b",
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.uploadUrl",
+     "params": {
+      "path": "/x",
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.describe",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.metrics",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.get",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "machine.list",
+     "params": {},
+     "opts": {}
+    },
+    {
+     "op": "machine.list",
+     "params": {
+      "labels": {}
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": {
+    "state": "running",
+    "down": "https://u",
+    "up": "https://u",
+    "shape": {
+     "cpu": 2
+    }
+   },
+   "err": null
+  },
+  {
+   "name": "an_empty_stdin_is_sent_empty",
+   "previewUrl": "",
+   "sent": [
+    {
+     "op": "machine.exec",
+     "params": {
+      "cmd": "cat",
+      "timeoutMs": 20000,
+      "stdin": "",
+      "machineId": "c1"
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    }
+   ],
+   "forwarded": [],
+   "answer": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_daemon_frame_keeps_its_own_machine_id_place_and_its_replys_ok",
+   "previewUrl": "",
+   "sent": [
+    {
+     "op": "git.ok",
+     "params": {
+      "machineId": "c1",
+      "a": 1
+     },
+     "opts": {}
+    },
+    {
+     "op": "git.refused",
+     "params": {
+      "a": 2,
+      "machineId": "c1"
+     },
+     "opts": {}
+    },
+    {
+     "op": "git.coded",
+     "params": {
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": [
+    {
+     "ok": false,
+     "x": 1
+    },
+    {
+     "ok": false,
+     "error": ""
+    },
+    {
+     "ok": false,
+     "error": "no remote",
+     "code": "no-remote"
+    }
+   ],
+   "err": null
+  },
+  {
+   "name": "a_route_on_the_schemes_own_port_names_no_port",
+   "previewUrl": "http://127.0.0.1:80/",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": null,
+   "err": "c1 answered http://127.0.0.1:80/, which names no port this host can be carried to"
+  },
+  {
+   "name": "a_route_on_a_scheme_with_no_default_keeps_its_port",
+   "previewUrl": "foo://h:80",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [
+    80
+   ],
+   "answer": {
+    "url": "http://127.0.0.1:51001",
+    "token": "",
+    "expiresAt": 9007199254740991
+   },
+   "err": null
+  },
+  {
+   "name": "a_route_on_an_ipv6_loopback_reads_its_port",
+   "previewUrl": "http://[::1]:8080/x",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [
+    8080
+   ],
+   "answer": {
+    "url": "http://127.0.0.1:51001",
+    "token": "",
+    "expiresAt": 9007199254740991
+   },
+   "err": null
+  },
+  {
+   "name": "a_route_the_url_reader_refuses_is_invalid_url",
+   "previewUrl": "http://h:99999",
+   "sent": [
+    {
+     "op": "machine.previewUrl",
+     "params": {
+      "port": 3000,
+      "machineId": "c1"
+     },
+     "opts": {}
+    }
+   ],
+   "forwarded": [],
+   "answer": null,
+   "err": "Invalid URL"
+  }
  ]
 }

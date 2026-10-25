@@ -96,3 +96,28 @@ Nothing is cached past the facts; nothing survives a restart.
 | resume cancel | `stops_waiting_on_a_resume_the_caller_gave_up_on` |
 | quiet figure | `reads_how_long_the_machine_has_been_quiet` |
 | capacity, on_computer | `reads_the_capacity_of_the_computer_on_the_far_side`, `frames_match_the_ts_byte_for_byte` |
+
+## Pins (wave 2)
+
+Scenes in `oracle/roads_scenes.oracle.ts` (`links`), replayed by `tests/link_backend_scenes.rs::<name>`: every frame
+after the machine was got, its params and ask byte for byte, then the answer.
+
+- L-1 pause, kill, state, `downloadUrl { path }`, `uploadUrl { path }`, describe and metrics each send their op with
+  `machineId` last and no ask options; the backend's `get` sends `{ machineId }`, `list(None)` sends `{}` and
+  `list(Some({}))` sends `{"labels":{}}` (`frames_of_the_roads_no_other_test_sends`).
+- L-2 An empty stdin is bytes: `"stdin":""` goes between `timeoutMs` and `machineId`
+  (`an_empty_stdin_is_sent_empty`).
+- L-3 daemon_frame: `{ ...params, machineId }` overwrites a frame's own `machineId` in its place and appends it
+  otherwise; `{ ok: true, ...reply }` lets a reply's own `ok` override the value, the key staying first; a refusal is
+  `{ ok: false, error: message }` (an empty message stays empty) plus `code` only where it is a string
+  (`a_daemon_frame_keeps_its_own_machine_id_place_and_its_replys_ok`).
+- L-4 The place's port is WHATWG `URL.port` read with `Number`: the scheme's own port (`http://h:80`) reads `""`, so
+  0, so `{id} answered {url}, which names no port this host can be carried to`; `foo://h:80` keeps 80; `[::1]:8080`
+  is 8080; a URL the reader refuses (`http://h:99999`) fails `Invalid URL` and nothing is forwarded
+  (`a_route_on_the_schemes_own_port_names_no_port`, `a_route_on_a_scheme_with_no_default_keeps_its_port`,
+  `a_route_on_an_ipv6_loopback_reads_its_port`, `a_route_the_url_reader_refuses_is_invalid_url`).
+- L-5 A failing upload asks `dials_back` only below its third attempt, so twice, sends each attempt from seq 0 under
+  a new id with no wait, and fails with the last part's own error
+  (`a_failing_upload_asks_whether_the_link_dials_back_twice_and_sends_three_times`).
+- L-6 `create(spec, waiting, sent)` ignores `waiting` and `sent`, and `pause(wait_ms)` ignores the wait: the TS takes
+  neither (link-backend.ts:357, :174).
