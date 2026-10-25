@@ -378,6 +378,57 @@ fn a_box() -> Data {
     Data { places: vec![serde_json::from_value(place).unwrap()], places_read: true, ..bare() }
 }
 
+/// A box mid-setup, and with `long` an MCP server not copied for want of many keys, so its row's note runs long.
+fn a_box_setting_up(long: bool) -> Data {
+    let keys = ["GSC_CREDENTIALS_PATH", "GOOGLE_APPLICATION_CREDENTIALS", "SEARCH_CONSOLE_PROPERTY", "ANALYTICS_ACCOUNT_ID"];
+    let applied: Vec<Value> = long
+        .then(|| json!({ "id": "agents/mcp/gsc", "label": "Claude Code gsc", "outcome": "skipped", "step": "mcp", "keys": keys }))
+        .into_iter()
+        .collect();
+    let place = json!({ "id": "box1", "kind": "computer", "name": "box1", "default": false, "road": { "ssh": "me@box1" },
+        "setup": { "state": "running", "addId": "a", "startedAt": "x", "waiting": [], "steps": [
+            { "step": "floor", "state": "done" }, { "step": "agents", "state": "done" }, { "step": "mcp", "state": "done" },
+        ] },
+        "applied": { "hash": "h", "at": "x", "rows": applied } });
+    Data { places: vec![serde_json::from_value(place).unwrap()], places_read: true, ..bare() }
+}
+
+/// Catches: the Setup list sized to its rows, past the page's column to the window's edge where a row runs long, with
+/// the long note on one line, and short of the column where every row is short, where today's list fills the column
+/// and wraps the note; at a narrow window and a wide one.
+#[gpui_kit::test]
+fn the_setup_list_fills_the_columns_width_and_wraps_a_long_row(cx: &mut TestAppContext) {
+    init(cx);
+    let mut wrong = Vec::new();
+    for long in [true, false] {
+        let (_, cx) = open(a_box_setting_up(long), At::Computer("box1".into()), (900., 900.), cx);
+        for width in [900., 1600.] {
+            cx.simulate_resize(size(px(width), px(900.)));
+            settle(cx);
+            let page = cx.debug_bounds("settings-page").expect("the page");
+            let column = (page.size.width - px(64.)).min(px(696.));
+            let (left, right) = (page.center().x - column / 2., page.center().x + column / 2.);
+            let ids: &[&str] = if long { &["floor", "agents", "mcp", "agents/mcp/gsc"] } else { &["floor", "agents", "mcp"] };
+            for id in ids {
+                let row = cx.debug_bounds(Box::leak(format!("step-row:{id}").into_boxed_str())).expect("the row");
+                let (l, r) = (row.left(), row.right());
+                if (l - left).abs() > px(1.5) || (r - right).abs() > px(1.5) {
+                    wrong.push(format!(
+                        "at {width} px, long rows {long}, the {id} row spans {l:?} to {r:?}, the column {left:?} to {right:?}"
+                    ));
+                }
+            }
+            if long {
+                let note = cx.debug_bounds("step-note:agents/mcp/gsc").expect("the long note");
+                if note.size.height <= px(24.) {
+                    wrong.push(format!("at {width} px the long note stands on one line: {note:?}"));
+                }
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
 /// Whether a Settings dialog stands on the window's dialogs layer.
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
     cx.update(|_, cx| crate::screens::dialogs::layer::is_open(super::DIALOG, cx))
