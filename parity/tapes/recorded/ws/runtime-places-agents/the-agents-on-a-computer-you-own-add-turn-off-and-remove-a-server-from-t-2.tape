@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-agents.test.ts > the agents on a computer you own > add, turn off and remove a server from the host's own socket alone, each on the computer named, and never log the values an add carried","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"events.subscribe"}}
 {"out":{"id":2,"ok":true,"seq":2,"stream":"00000000-0000-4000-8000-000000000001"}}
@@ -16,4 +16,4 @@
 {"out":{"type":"agents.changed","target":{"placeId":"p_00000001"},"seq":6}}
 {"out":{"id":6,"ok":false,"error":"refused {\"Authorization\":\"<redacted>\"} {\"ACME_KEY\":\"<redacted>\"}","kind":"usage"}}
 {"in":{"purpose":"connect","id":7,"op":"ticket.issue"}}
-{"out":{"id":7,"ok":true,"ticket":"<redacted>","expiresAt":1792928700637}}
+{"out":{"id":7,"ok":true,"ticket":"<redacted>","expiresAt":1792941993515}}

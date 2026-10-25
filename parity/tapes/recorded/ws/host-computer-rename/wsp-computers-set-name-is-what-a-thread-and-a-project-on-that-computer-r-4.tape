@@ -1,7 +1,0 @@
-{"meta":{"door":"ws","source":"packages/host/test/computer-rename.test.ts > wsp computers set --name > is what a thread and a project on that computer read in wsp threads and wsp projects","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true}}
-{"in":{"id":2,"op":"workspaces.list"}}
-{"out":{"id":2,"ok":true,"workspaces":[{"id":"ws_00000001","name":"spoo-api","machineId":"p_00000002","phase":"running","kind":"place","golden":"","createdAt":"2026-10-25T11:42:28.580Z","project":{"id":"pr_00000003","name":"spoo-api","path":"/root/spoo-api","computer":"p_00000002"},"folder":"/root/spoo-api","home":"/root","claudeSessionId":"00000000-0000-4000-8000-000000000001","agents":{"spawn":true,"maxMachines":3,"maxDepth":2},"place":"p_00000002","provider":"docker"}]}}
-{"in":{"id":3,"op":"sessions.list"}}
-{"out":{"id":3,"ok":true,"sessions":[{"id":"00000000-0000-4000-8000-000000000001","workspaceId":"ws_00000001","harness":"claude","status":"completed","startedBy":"person","threadId":"00000000-0000-4000-8000-000000000002","prompt":"look around","startedAt":1792928548585,"model":"claude-opus-5-5","effort":"high","permissionMode":"bypassPermissions","cwd":"/root/spoo-api","claudeSessionId":"00000000-0000-4000-8000-000000000001","lastLine":"ok","endedAt":1792928548586,"readAt":1792928548568,"project":{"id":"pr_00000003","name":"spoo-api"},"computerName":"hetzner"}]}}

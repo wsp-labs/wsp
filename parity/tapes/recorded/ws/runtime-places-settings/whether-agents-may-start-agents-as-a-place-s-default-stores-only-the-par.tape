@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > whether agents may start agents, as a place's default > stores only the parts a person set, so a switch turned off and on again follows a later default, and levels deep resets alone","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","spawn":{"spawn":false},"id":2,"op":"places.set"}}
 {"out":{"id":2,"ok":true,"place":{"id":"here","kind":"computer","name":"zingzys-mac","mac":"mac-mini","default":true,"os":"macOS 15.0","shape":{"cpu":8,"memMb":16384},"engine":"docker","home":"/home/dev","present":true,"takesForks":false,"buildsImages":false,"cap":{"threads":8},"capDefault":{"threads":8},"settings":{"spawn":{"spawn":false}},"turnLimitMs":null,"turnLimitDefault":null,"spawn":{"spawn":false,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":0}}}

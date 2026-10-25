@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"prompt":"deepest","id":2,"op":"sessions.start"}}
-{"out":{"id":2,"ok":false,"error":"thread 247f9198 is 2 deep under its root and this computer allows 2, so a thread this deep may not spawn; raise Levels deep in Settings > Computers or run wsp computers set this-mac --max-depth 3"}}
+{"out":{"id":2,"ok":false,"error":"thread d5267d12 is 2 deep under its root and this computer allows 2, so a thread this deep may not spawn; raise Levels deep in Settings > Computers or run wsp computers set this-mac --max-depth 3"}}

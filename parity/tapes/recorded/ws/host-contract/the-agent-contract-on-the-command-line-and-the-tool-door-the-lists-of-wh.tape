@@ -4,4 +4,4 @@
 {"in":{"id":2,"op":"sessions.list"}}
 {"out":{"id":2,"ok":true,"sessions":[]}}
 {"in":{"id":3,"op":"projects.list"}}
-{"out":{"id":3,"ok":true,"projects":[{"id":"pr_00000001","name":"alpha","computer":"default","source":{"kind":"git","url":"https://github.com/dev/alpha.git"},"path":"/root/alpha","remote":"https://github.com/dev/alpha.git","defaultBranch":"main","memoryKey":"-root-alpha","memoryDir":"/root/.claude-cfg/projects/-root-alpha/memory","createdAt":"2026-10-25T11:38:20.720Z"}]}}
+{"out":{"id":3,"ok":true,"projects":[{"id":"pr_00000001","name":"alpha","computer":"default","source":{"kind":"git","url":"https://github.com/dev/alpha.git"},"path":"/root/alpha","remote":"https://github.com/dev/alpha.git","defaultBranch":"main","memoryKey":"-root-alpha","memoryDir":"/root/.claude-cfg/projects/-root-alpha/memory","createdAt":"2026-10-25T15:20:21.388Z"}]}}

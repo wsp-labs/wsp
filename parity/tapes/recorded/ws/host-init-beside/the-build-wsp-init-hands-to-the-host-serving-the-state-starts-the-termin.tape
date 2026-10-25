@@ -13,6 +13,6 @@
 {"out":{"type":"init.job","job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"building","rows":[{"id":"stage/creating","kind":"stage","label":"Machine created","state":"done","detail":"sandbox from ubuntu:24.04","ms":332}]}}}
 {"out":{"type":"init.job","job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"done","rows":[{"id":"stage/creating","kind":"stage","label":"Machine created","state":"done","detail":"sandbox from ubuntu:24.04","ms":332},{"id":"stage/installing-tools","kind":"stage","label":"Tools installed","state":"skipped"},{"id":"workspace/beside","kind":"workspace","label":"beside","state":"forked"}],"golden":{"version":1},"workspace":{"id":"ws_1","name":"beside"}}}}
 {"in":{"here":true,"id":5,"op":"pair.issue"}}
-{"out":{"id":5,"ok":true,"code":"<redacted>","expiresAt":1792929155910}}
+{"out":{"id":5,"ok":true,"code":"<redacted>","expiresAt":1792942401558}}
 {"in":{"id":6,"op":"devices.list"}}
-{"out":{"id":6,"ok":true,"devices":[{"id":"d_00000001","name":"a Mac in a browser","createdAt":"2026-10-25T11:42:35.922Z","lastSeenAt":"2026-10-25T11:42:35.922Z","here":true}]}}
+{"out":{"id":6,"ok":true,"devices":[{"id":"d_00000001","name":"a Mac in a browser","createdAt":"2026-10-25T15:23:21.563Z","lastSeenAt":"2026-10-25T15:23:21.563Z","here":true}]}}

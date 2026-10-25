@@ -2,4 +2,4 @@
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"purpose":"connect","id":2,"op":"ticket.issue"}}
-{"out":{"id":2,"ok":true,"ticket":"<redacted>","expiresAt":1792928594271}}
+{"out":{"id":2,"ok":true,"ticket":"<redacted>","expiresAt":1792941923833}}

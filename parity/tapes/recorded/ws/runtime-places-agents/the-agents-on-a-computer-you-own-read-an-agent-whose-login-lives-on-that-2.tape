@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-agents.test.ts > the agents on a computer you own > read an agent whose login lives on that computer as signed in once its sign-in there lands, on the row and the next read, without waiting for a redial","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"events.subscribe"}}
 {"out":{"id":2,"ok":true,"seq":2,"stream":"00000000-0000-4000-8000-000000000001"}}
@@ -16,4 +16,4 @@
 {"out":{"type":"agents.signIn","signInId":"si_00000004","state":"signed-in"}}
 {"out":{"type":"agents.changed","target":{"placeId":"p_00000001"},"seq":5}}
 {"in":{"target":{"placeId":"p_00000001"},"id":6,"op":"agents.read"}}
-{"out":{"id":6,"ok":true,"report":{"target":{"placeId":"p_00000001"},"home":"/home/maya","user":"maya","readAt":"2026-10-25T11:40:00.923Z","agents":[],"skills":[],"servers":[],"refused":[],"reach":"none"}}}
+{"out":{"id":6,"ok":true,"report":{"target":{"placeId":"p_00000001"},"home":"/home/maya","user":"maya","readAt":"2026-10-25T15:21:33.702Z","agents":[],"skills":[],"servers":[],"refused":[],"reach":"none"}}}

@@ -3,4 +3,4 @@
 {"out":{"id":1,"ok":true}}
 {"in":{"after":18,"id":2,"op":"events.subscribe"}}
 {"out":{"id":2,"ok":true,"seq":18,"stream":"00000000-0000-4000-8000-000000000001"}}
-{"out":{"type":"session.delta","workspaceId":"ws_00000001","sessionId":"00000000-0000-4000-8000-000000000002","turnId":"00000000-0000-4000-8000-000000000003","threadId":"00000000-0000-4000-8000-000000000004","line":8,"kind":"text","text":"only this","at":1792928587603,"pos":9,"seq":19}}
+{"out":{"type":"session.delta","workspaceId":"ws_00000001","sessionId":"00000000-0000-4000-8000-000000000002","turnId":"00000000-0000-4000-8000-000000000003","threadId":"00000000-0000-4000-8000-000000000004","line":8,"kind":"text","text":"only this","at":1792941821976,"pos":9,"seq":19}}

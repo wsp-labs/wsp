@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a cloud's spend per day > refuses a new machine on a cloud once its spend today reaches its spend per day, passes one under it, and leaves the running ones and this computer's copies alone","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"solari","spendPerDayUsd":1,"id":2,"op":"places.set"}}
 {"out":{"id":2,"ok":true,"place":{"id":"solari","kind":"provider","name":"solari","default":true,"takesForks":true,"rateUsdPerHour":0.11,"sizes":[{"cpu":2,"memMb":2048,"rateUsdPerHour":0.09},{"cpu":2,"memMb":4096,"rateUsdPerHour":0.11},{"cpu":2,"memMb":8192,"rateUsdPerHour":0.15},{"cpu":4,"memMb":8192,"rateUsdPerHour":0.22}],"buildsImages":true,"cap":{"machines":3,"spendPerDayUsd":1},"capDefault":{"machines":3,"spendPerDayUsd":10},"settings":{"spendPerDayUsd":1},"napMs":86400000,"napDefault":86400000,"turnLimitMs":21600000,"turnLimitDefault":21600000,"spawn":{"spawn":true,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":2,"size":{"cpu":2,"memMb":4096},"sizeDefault":{"cpu":2,"memMb":4096},"deleteAfterMs":1800000}}}
