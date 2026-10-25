@@ -46,7 +46,7 @@ pub fn flags(kind: &str) -> Flags {
     let bare = Flags { bare: true, ..Flags::default() };
     match kind {
         "heading" => Flags { heads: true, ..bare },
-        "text" | "markdown" | "diagram" | "image" | "images" | "bars" => bare,
+        "text" | "markdown" | "diagram" | "image" | "images" | "bars" | "stats" => bare,
         "timeline" | "donut" | "treemap" | "chart" => Flags { accent: true, ..bare },
         "button" => Flags { control: true, ..bare },
         "input" | "select" | "toggle" => Flags { control: true, ..Flags::default() },
@@ -58,7 +58,7 @@ pub fn flags(kind: &str) -> Flags {
 }
 
 /// The types this build draws, `SLATE_PIECES` in `protocol:slate/catalog.ts`.
-pub const KNOWN: [&str; 31] = [
+pub const KNOWN: [&str; 34] = [
     "column",
     "row",
     "grid",
@@ -90,6 +90,9 @@ pub const KNOWN: [&str; 31] = [
     "choices",
     "toggle",
     "empty",
+    "decision",
+    "stats",
+    "progress",
 ];
 
 /// What one piece draws from.
@@ -170,11 +173,11 @@ fn view(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     match p.piece.kind.as_str() {
         "column" | "row" | "grid" | "section" => layout::draw(p, window, cx),
         "heading" | "text" | "markdown" | "status" | "chip" | "facts" | "empty" => text::draw(p, window, cx),
-        "number" | "meter" | "ring" | "sparkline" | "bars" => numbers::draw(p, window, cx),
+        "number" | "meter" | "ring" | "sparkline" | "bars" | "stats" => numbers::draw(p, window, cx),
         "chart" | "donut" | "timeline" | "treemap" => charts::draw(p, window, cx),
         "diagram" | "image" | "images" => media::draw(p, window, cx),
-        "table" | "checklist" => lists::draw(p, window, cx),
-        "button" | "input" | "select" | "choices" | "toggle" => controls::draw(p, window, cx),
+        "table" | "checklist" | "progress" => lists::draw(p, window, cx),
+        "button" | "input" | "select" | "choices" | "decision" | "toggle" => controls::draw(p, window, cx),
         "output" => output::draw(p, window, cx),
         _ => None,
     }

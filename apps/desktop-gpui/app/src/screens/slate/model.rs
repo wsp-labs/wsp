@@ -599,6 +599,7 @@ pub fn row_scoped(kind: &str) -> &'static [&'static str] {
         "treemap" => &["name", "value", "group"],
         "chart" => &["x", "value", "series"],
         "checklist" => &["key", "title", "done", "state", "note"],
+        "progress" => &["key", "name", "done", "note"],
         "output" => &["run"],
         "table" => &["columns", "rowActions", "key"],
         _ => &[],
