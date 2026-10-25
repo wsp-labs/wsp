@@ -79,7 +79,7 @@ const fakeRecording = (log: string[], over: Record<string, unknown> = {}) => ({
   projectsOn: async () => [],
   holdsOn: async (_id: string, read?: boolean) => (log.push(`holdsOn read=${String(read)}`), { forks: [], projects: [], unsaved: [] }),
   dropOn: async () => (log.push("dropOn"), { forks: [], projects: [] }),
-  forgetOn: async () => (log.push("forgetOn"), { forks: [{ id: "ws_00000001", name: "f1", threads: [] }], projects: [] }),
+  forgetOn: async () => (log.push("forgetOn"), { forks: [{ name: "f1", threads: 0 }], projects: [] }),
   runningOn: async (id: string) => (id === "p_0000000000000001" ? 2 : 0),
   removeFolder: async () => undefined,
   folderLook: async () => undefined,
@@ -199,7 +199,7 @@ it("writes the places b fixture", async () => {
     removeCases["after"] = { record: (await store.get("places", "p_0000000000000001")) ?? null, mark: (await store.get("place-default", "default")) ?? null, pending: await store.list("pending-computers") };
   }
   {
-    const { d } = await door({ recording: { holdsOn: async () => ({ forks: [{ id: "ws_00000001", name: "f1", threads: [] }], projects: [], unsaved: [] }) } });
+    const { d } = await door({ recording: { holdsOn: async () => ({ forks: [{ name: "f1", threads: 0 }], projects: [], unsaved: [] }) } });
     removeCases["awayWithForks"] = await outcome(() => d.remove("p_0000000000000001"));
     removeCases["awayForget"] = await outcome(() => d.remove("p_0000000000000001", { forget: true }));
   }

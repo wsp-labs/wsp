@@ -2011,9 +2011,8 @@
         "took": {
           "forks": [
             {
-              "id": "ws_00000001",
               "name": "f1",
-              "threads": []
+              "threads": 0
             }
           ],
           "projects": []
@@ -2049,9 +2048,8 @@
         "took": {
           "forks": [
             {
-              "id": "ws_00000001",
               "name": "f1",
-              "threads": []
+              "threads": 0
             }
           ],
           "projects": []
