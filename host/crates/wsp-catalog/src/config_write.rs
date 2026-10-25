@@ -4,6 +4,7 @@
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_words::agents_report::{config_changed_refusal, config_hard_link_refusal, config_link_refusal};
 use wsp_words::exit::HostError;
+use wsp_words::js::utf16;
 use wsp_words::project_path::under_project;
 
 /// The home where the store sits under it, else the store (config-write.ts:341).
@@ -42,8 +43,8 @@ pub fn config_landing(file: &str, id: &str) -> Result<String, HostError> {
         return Err(HostError::new("a landing's id is twelve hex digits"));
     }
     let folder = match file.rfind('/') {
-        Some(i) => &file[..i],
-        None => &file[..file.len().saturating_sub(1)],
+        Some(i) => file[..i].to_string(),
+        None => utf16::slice(file, 0, Some(-1)),
     };
     Ok(format!("{folder}/{TEMP}{id}"))
 }

@@ -50,6 +50,8 @@ file refused where a value would still travel.
 
 - Rule 4.26: `servers` is table order, the file's own first; `values` is insertion order: headers, env, secrets,
   argument defaults, known hits.
+- The OAuth table's shape and the header-name clash are refused before any value is read (mcp.ts:1008-1013), so a
+  server with two faults gets the TS's refusal: `oauth_plan` runs before `put_entries`.
 
 ## Tapes
 

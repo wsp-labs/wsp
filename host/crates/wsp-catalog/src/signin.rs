@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::js_regex::JsRegex;
+use crate::json_parse::parse_json;
 use crate::jsonc::is_js_space;
 use crate::roads::GUEST_HOME;
 use wsp_wire::types::agents_report::AgentSignInKind;
@@ -489,7 +490,7 @@ fn claude_status(output: &str) -> Option<Value> {
     if end <= start {
         return None;
     }
-    serde_json::from_str::<Value>(&output[start..=end]).ok()
+    parse_json(&output[start..=end]).ok()
 }
 
 fn field<'a>(status: &'a Value, key: &str) -> Option<&'a str> {

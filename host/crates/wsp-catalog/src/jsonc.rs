@@ -3,6 +3,8 @@
 //! JavaScript writes it. Port of packages/catalog/src/jsonc.ts at a3b870a6e; the spec is spec/jsonc.md.
 use serde_json::{Map, Number, Value};
 
+use crate::json_parse::{lone_surrogate, parse_json};
+use crate::plugins::js_entries;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::HostError;
 
@@ -12,7 +14,7 @@ pub type JsonObject = Map<String, Value>;
 /// The value the text holds, comments and trailing commas taken out first; a real syntax error is an error as
 /// `JSON.parse`'s throw is (jsonc.ts:12). A key named twice keeps its first place and its last value.
 pub fn read_jsonc(text: &str) -> Result<Value, HostError> {
-    serde_json::from_str(&strip_comments_and_commas(text)).map_err(|e| HostError::new(e.to_string()))
+    parse_json(&strip_comments_and_commas(text))
 }
 
 /// The value alone (jsonc.ts:44).
@@ -69,7 +71,10 @@ pub(crate) fn js_string(s: &str) -> String {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
+            c => match lone_surrogate(c) {
+                Some(unit) => out.push_str(&format!("\\u{unit:04x}")),
+                None => out.push(c),
+            },
         }
     }
     out.push('"');
@@ -150,7 +155,7 @@ fn write_value(value: &Value, pretty: bool, depth: usize, out: &mut String) {
                 return;
             }
             out.push('{');
-            for (i, (key, item)) in map.iter().enumerate() {
+            for (i, (key, item)) in js_entries(map).into_iter().enumerate() {
                 if i > 0 {
                     out.push(',');
                 }

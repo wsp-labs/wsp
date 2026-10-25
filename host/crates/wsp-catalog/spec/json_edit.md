@@ -50,6 +50,8 @@ value is refused rather than written as a guess.
 
 - Rule 4.26: inserted keys go after the last member, in the edits' order; nothing is re-sorted.
 - Rule 8.8: `json_canonical` sorts by UTF-16 units: `"\u{1F600}"` sorts before `"\u{FFFF}"`, the reverse of byte order.
+- `{,}` and `[,]` (which `read_jsonc` takes as empty) are edited: jsonc-parser recovers an empty container from a lone
+  comma, and so does `parse_tree`.
 
 ## Tapes
 
