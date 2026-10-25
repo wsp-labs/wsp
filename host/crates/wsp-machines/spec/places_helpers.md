@@ -22,9 +22,9 @@ link"`, `LINK_FRAME_MS = 300_000`, `RELINK_WAIT_MS = 120_000`, `BACKEND_FACTS_MS
   - No row under `row.id`: `None` when `row.label` is `None`; else `rows` with `row` appended (its own label).
   - A row under the id whose outcome is neither `skipped` nor `failed`: `None` (a landed row never replaces an
     installed or present one).
-  - Else the rows with that one replaced, in its place, by `{ ...row, label: stood.label, step: stood.step if any }`:
-    key order is `row`'s own keys first, then `label`, then `step` (fixture `landed[0]`). The landed row's own
-    `label` is dropped for the stood one (`landed[1]`). The stood row's `fix`, `ms` and `note` do not carry over
+  - Else the rows with that one replaced, in its place, by `{ ...row, label: stood.label, step: stood.step if any }`
+    (fixture `landed[0]`); a `PlaceProvisionRow` is a wsp-wire struct, so its JSON keys come in the struct's order
+    and the test compares values. The landed row's own `label` is dropped for the stood one (`landed[1]`). The stood row's `fix`, `ms` and `note` do not carry over
     (`landed[6]`).
 - `bounded(work, ms, what)` (:56): `work`'s answer, or after `ms` on the clock `HostError("{what} was not answered
   in {round(ms / 1000)}s")`, JS `Math.round` (half up): 500 is `1s`, 499 is `0s`, 2,500 is `3s`. An error from
@@ -95,7 +95,7 @@ local_port, conns: IndexMap<String, conn>, stop: Option<..> }`. `SyncJob`, `Pend
 | Rule | Test |
 |---|---|
 | every constant | `constants_match_the_ts` |
-| landed_on, every branch and key order | `landed_on_matches_the_ts` |
+| landed_on, every branch | `landed_on_matches_the_ts` |
 | bounded message and rounding, error passthrough, no timer left | `bounded_says_what_was_not_answered`, `bounded_rounds_half_up`, `bounded_passes_the_works_own_error`, `bounded_leaves_no_timer_once_settled` |
 | ed25519 read | `reads_as_ed25519_matches_the_ts` |
 | home refusal and taken report, key order, store vars | `place_home_refusal_matches_the_ts`, `taken_report_matches_the_ts` |

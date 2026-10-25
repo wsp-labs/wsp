@@ -48,7 +48,8 @@ Option<{ held(), drop(id) }> }`. `name = provider_key_name(place_id)`.
 8. Else `still = forget_key(place_id)` where wired, and `{ removed: true, swept: [], deleted, snapshots?, note? }`
    with `note = still` where it answered one. The key is forgotten only here, after every delete read back gone.
 
-Key order of the answer is exactly `removed, swept, deleted, snapshots, note`.
+`PlaceRemoved` is the wire struct (`removed`, `took`, `swept`, `note`, `deleted`, `snapshots`); this function never
+sets `took`, always sets `deleted`, and sets `snapshots` and `note` only as above.
 
 ## Pins
 
@@ -72,4 +73,4 @@ Key order of the answer is exactly `removed, swept, deleted, snapshots, note`.
 | a still-listed snapshot | `a_snapshot_still_listed_after_its_window_is_named` | |
 | never more than four deletes at once | `never_runs_more_than_four_deletes_at_once` | |
 | a relist failure after something is left answers the kept line | `a_relist_failure_after_a_left_machine_answers_the_kept_line` | |
-| answer key order | `the_answer_keeps_the_ts_key_order` | |
+| took never set, deleted always set | `the_answer_sets_deleted_and_never_took` | |
