@@ -133,7 +133,7 @@ describe("what the live gold slate wrote", () => {
     expect(axis.querySelector("svg[role=img]")).toBeNull();
     expect(axis.className).toContain("text-[11px]");
     const labels = [...axis.querySelectorAll("[data-k=y-tick]")].map(tick => tick.textContent);
-    expect(labels).toEqual(["$4,140.00", "$4,160.00", "$4,180.00", "$4,200.00", "$4,220.00"]);
+    expect(labels).toEqual(["$4,140", "$4,160", "$4,180", "$4,200", "$4,220"]);
   });
 });
 
@@ -168,7 +168,7 @@ describe("the spoo live traffic slate", () => {
     const t = c.querySelector<HTMLElement>("[role=table]")!;
     const edge = "calc(var(--settings-inset,20px) - 15px)";
     // time, method and cc fit their widest value; path, the widest machine text, takes the room left and wraps.
-    expect(t.style.gridTemplateColumns).toBe(`${edge} minmax(8ch,max-content) minmax(6ch,max-content) minmax(0,1fr) minmax(6ch,max-content) minmax(2ch,max-content) minmax(2ch,max-content) ${edge}`);
+    expect(t.style.gridTemplateColumns).toBe(`${edge} minmax(8ch,max-content) minmax(6ch,max-content) minmax(min(23ch,50%),1fr) minmax(6ch,max-content) minmax(2ch,max-content) minmax(2ch,max-content) ${edge}`);
     const head = t.querySelector("[data-slate-head]")!;
     const rows = [...t.querySelectorAll("[data-slate-head] ~ [role=row]")];
     expect(rows).toHaveLength(4);
@@ -296,7 +296,7 @@ describe("the spacing and tables, and the bar lists' switch", () => {
     const tracks = c.querySelector<HTMLElement>('[data-slate-piece="log"] [role=table]')!.style.gridTemplateColumns.split(/ (?![^(]*\))/);
     // Edge, time, method, path, status, ms, cc, edge.
     expect(tracks).toHaveLength(8);
-    expect(tracks[3]).toBe("minmax(0,1fr)");
+    expect(tracks[3]).toBe("minmax(min(18ch,50%),1fr)");
     expect(tracks.filter(track => track.includes("1fr"))).toHaveLength(1);
   });
 

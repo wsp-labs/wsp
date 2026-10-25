@@ -90,5 +90,6 @@ export function riddenBy(slate: SlateEngine, id: string): string | undefined {
 export function isStatCell(slate: SlateEngine, id: string): boolean {
   const children = slate.piece(id)?.children ?? [];
   const numbers = children.filter(child => slate.piece(child)?.type === "number");
-  return numbers.length === 1 && holdsOneCell(slate, id) && ridersOf(slate, numbers[0]!).all.length > 0;
+  // A strip pads its own cells, so its one number with a status is a strip cell, not a stat cell padded again.
+  return numbers.length === 1 && holdsOneCell(slate, id) && !isStrip(slate, id) && ridersOf(slate, numbers[0]!).all.length > 0;
 }

@@ -7,7 +7,7 @@ import { isStrip } from "./riders.js";
 import { Tile } from "./tile.js";
 
 /** The figure right of the label, in the word the meter's format names. */
-function meterFigure(value: number, max: number, format: string): string | undefined {
+export function meterFigure(value: number, max: number, format: string): string | undefined {
   return format === "none" ? undefined : slateFigure(value, format === "value" ? "plain" : format, max);
 }
 

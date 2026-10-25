@@ -231,11 +231,16 @@ fn button(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
         Some(t) => control.tooltip(t),
         None => control,
     };
+    // A held button says why under itself, where the person looks for it, not only on hover.
+    let why = held.clone().map(|w| {
+        div().debug_selector(|| "slate-held-why".into()).text_size(px(12.)).line_height(px(16.)).text_color(cx.palette().muted_foreground).child(w)
+    });
     v_flex()
         .min_w_0()
         .items_start()
         .gap(px(4.))
         .child(held_hover(p.el("held"), held, control))
+        .children(why)
         .children(outcome(p.outcome(), cx))
         .into_any_element()
 }
@@ -849,6 +854,7 @@ fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
     let list: Vec<Choice> = choices_of(&present(p, "options")).into_iter().take(4).collect();
     let mine = list.iter().find(|c| same(Some(&c.value), p.prop("pick")));
     let answered = list.iter().find(|c| same(Some(&c.value), picked.as_ref()));
+    let mut others = list.iter().filter(|c| !mine.is_some_and(|m| std::ptr::eq(m, *c)) && c.note.is_some()).peekable();
     let title = div()
         .text_size(px(14.))
         .line_height(px(20.))
@@ -861,16 +867,28 @@ fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
             .gap(px(10.))
             .child(h_flex().min_w_0().flex_wrap().gap(px(8.)).children(list.iter().enumerate().map(|(ix, c)| {
                 let (picker, value) = (Picker::of(p, path.clone()), c.value.clone());
-                let key = Button::outline(p.el(&format!("answer-{ix}")), c.label.clone()).held(!open).on_click(move |_, _, cx| picker.pick(value.clone(), cx));
-                match c.note.clone() {
-                    Some(note) => key.tooltip(note),
-                    None => key,
-                }
+                Button::outline(p.el(&format!("answer-{ix}")), c.label.clone()).held(!open).on_click(move |_, _, cx| picker.pick(value.clone(), cx))
             })))
-            .children(mine.map(|c| {
-                let why = c.note.as_ref().map(|n| format!(". {n}")).unwrap_or_default();
-                div().text_size(px(13.)).line_height(px(20.)).text_color(pal.muted_foreground).child(format!("My pick: {}{why}", c.label))
-            }))
+            .when(mine.is_some() || others.peek().is_some(), |el| {
+                // The other answers' notes stand under the pick's, quieter, so each answer's cost reads without a hover.
+                el.child(
+                    v_flex()
+                        .min_w_0()
+                        .gap(px(4.))
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .children(mine.map(|c| {
+                            let why = c.note.as_ref().map(|n| format!(". {n}")).unwrap_or_default();
+                            div().text_color(pal.muted_foreground).child(format!("My pick: {}{why}", c.label))
+                        }))
+                        .children(others.map(|c| {
+                            div()
+                                .debug_selector(|| "slate-answer-note".into())
+                                .text_color(pal.muted_foreground.opacity(0.7))
+                                .child(format!("{}: {}", c.label, c.note.clone().unwrap_or_default()))
+                        })),
+                )
+            })
             .into_any_element(),
         Some(c) => {
             let picker = Picker::of(p, path.clone());
