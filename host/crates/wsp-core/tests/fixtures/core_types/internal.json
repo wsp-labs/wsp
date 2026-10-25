@@ -1,0 +1,2283 @@
+{
+ "chat": {
+  "events": [
+   {
+    "type": "session.start",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 10,
+    "pos": 1,
+    "prompt": "Find the BUG in parser",
+    "requestId": "r1",
+    "cwd": "/w",
+    "model": "opus"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 11,
+    "pos": 2,
+    "kind": "text",
+    "text": "Looking ",
+    "messageId": "m1"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 12,
+    "pos": 3,
+    "kind": "text",
+    "text": "now.",
+    "messageId": "m1"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 13,
+    "pos": 4,
+    "kind": "text",
+    "text": "sub says",
+    "messageId": "m1",
+    "parentToolUseId": "tool9"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 14,
+    "pos": 5,
+    "kind": "tool_use",
+    "text": "ls"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 15,
+    "pos": 6,
+    "kind": "text",
+    "text": "Second message",
+    "messageId": "m2"
+   },
+   {
+    "type": "session.steer",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 16,
+    "pos": 7,
+    "prompt": "also tests",
+    "requestId": "r2"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 17,
+    "pos": 8,
+    "kind": "text",
+    "text": "ok",
+    "messageId": "m2"
+   },
+   {
+    "type": "session.end",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 18,
+    "pos": 9,
+    "exitCode": null,
+    "sawResult": false
+   },
+   {
+    "type": "session.start",
+    "workspaceId": "w1",
+    "sessionId": "s2",
+    "threadId": "t2",
+    "turnId": "u2",
+    "at": 20,
+    "pos": 10,
+    "prompt": "😀 emoji first",
+    "permissionMode": "plan"
+   },
+   {
+    "type": "session.earlier",
+    "workspaceId": "w1",
+    "sessionId": "s2",
+    "threadId": "t2",
+    "at": 5,
+    "who": "person",
+    "text": "earlier ask"
+   },
+   {
+    "type": "session.earlier",
+    "workspaceId": "w1",
+    "sessionId": "s2",
+    "threadId": "t2",
+    "at": 6,
+    "who": "tool",
+    "text": "tool row"
+   },
+   {
+    "type": "session.end",
+    "workspaceId": "w1",
+    "sessionId": "s2",
+    "threadId": "t2",
+    "turnId": "u2",
+    "at": 21,
+    "pos": 11,
+    "exitCode": 0,
+    "sawResult": true
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t3",
+    "turnId": "u3",
+    "at": 30,
+    "pos": 12,
+    "kind": "text",
+    "text": "copied words",
+    "copiedFrom": "t1"
+   },
+   {
+    "type": "session.start",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t3",
+    "turnId": "u3",
+    "at": 31,
+    "pos": 13,
+    "prompt": "copied",
+    "copiedFrom": "t1",
+    "requestId": "r3"
+   },
+   {
+    "type": "session.delta",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "turnId": "u9",
+    "at": 40,
+    "pos": 14,
+    "kind": "text",
+    "text": "no thread"
+   },
+   {
+    "type": "session.end",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t2",
+    "turnId": "u4",
+    "at": 41,
+    "pos": 15,
+    "exitCode": null,
+    "sawResult": false,
+    "unstarted": true
+   }
+  ],
+  "index": {
+   "words": [
+    [
+     "t1",
+     {
+      "lines": [
+       "Find the BUG in parser",
+       "Looking now.",
+       "Second message",
+       "also tests",
+       "ok"
+      ],
+      "open": "u1:m2",
+      "last": 18,
+      "size": 60,
+      "first": "Find the BUG in parser"
+     }
+    ],
+    [
+     "t2",
+     {
+      "lines": [
+       "😀 emoji first",
+       "earlier ask"
+      ],
+      "last": 41,
+      "size": 25,
+      "first": "😀 emoji first"
+     }
+    ],
+    [
+     "t3",
+     {
+      "lines": [
+       "copied words",
+       "copied"
+      ],
+      "last": 31,
+      "size": 18,
+      "first": "copied words"
+     }
+    ]
+   ],
+   "starts": [
+    [
+     "t1",
+     "s1"
+    ],
+    [
+     "t2",
+     "s2"
+    ]
+   ],
+   "cut": [
+    [
+     "t1",
+     true
+    ],
+    [
+     "t2",
+     false
+    ]
+   ],
+   "facts": [
+    [
+     "s1",
+     {
+      "cwd": "/w",
+      "model": "opus"
+     }
+    ],
+    [
+     "s2",
+     {
+      "permissionMode": "plan"
+     }
+    ]
+   ],
+   "taken": [
+    [
+     "r1",
+     {
+      "sessionId": "s1",
+      "threadId": "t1",
+      "turnId": "u1",
+      "outcome": "started"
+     }
+    ],
+    [
+     "r2",
+     {
+      "sessionId": "s1",
+      "threadId": "t1",
+      "turnId": "u1",
+      "outcome": "steered"
+     }
+    ]
+   ],
+   "children": [],
+   "trimmed": [],
+   "pos": 15
+  }
+ },
+ "promptless": {
+  "events": [
+   {
+    "type": "session.start",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 1,
+    "prompt": "a",
+    "requestId": "r1"
+   },
+   {
+    "type": "session.steer",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 2,
+    "prompt": "b",
+    "requestId": "r2"
+   },
+   {
+    "type": "session.start",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u2",
+    "at": 3,
+    "prompt": "c",
+    "requestId": "r3"
+   },
+   {
+    "type": "session.end",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 4,
+    "exitCode": null,
+    "sawResult": false,
+    "promptless": true
+   }
+  ],
+  "index": {
+   "words": [
+    [
+     "t1",
+     {
+      "lines": [
+       "a",
+       "b",
+       "c"
+      ],
+      "last": 4,
+      "size": 3,
+      "first": "a"
+     }
+    ]
+   ],
+   "starts": [
+    [
+     "t1",
+     "s1"
+    ]
+   ],
+   "cut": [
+    [
+     "t1",
+     true
+    ]
+   ],
+   "facts": [
+    [
+     "s1",
+     {}
+    ]
+   ],
+   "taken": [
+    [
+     "r2",
+     {
+      "sessionId": "s1",
+      "threadId": "t1",
+      "turnId": "u1",
+      "outcome": "steered"
+     }
+    ],
+    [
+     "r3",
+     {
+      "sessionId": "s1",
+      "threadId": "t1",
+      "turnId": "u2",
+      "outcome": "started"
+     }
+    ]
+   ],
+   "children": [],
+   "trimmed": [],
+   "pos": 0
+  }
+ },
+ "children": {
+  "events": [
+   {
+    "type": "session.start",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 1,
+    "prompt": "go"
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 2,
+    "task": "k1",
+    "state": "running",
+    "title": "Explore",
+    "depth": 1,
+    "model": "haiku",
+    "asked": "look"
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 3,
+    "task": "k1",
+    "state": "running",
+    "usage": {
+     "tokens": {
+      "input": 10,
+      "output": 2,
+      "cached": 0,
+      "cacheWrite": 0,
+      "reasoning": 0
+     },
+     "toolUses": 3,
+     "durationMs": 50
+    }
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 4,
+    "task": "k2",
+    "state": "running"
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 5,
+    "task": "k2",
+    "state": "done",
+    "summary": "line one\nfinal line\n"
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 6,
+    "task": "k3",
+    "state": "running",
+    "title": "Fail"
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 7,
+    "task": "k3",
+    "state": "failed",
+    "summary": "why it failed\nmore"
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 8,
+    "task": "ghost",
+    "state": "done",
+    "summary": "no start"
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u0",
+    "at": 9,
+    "task": "k4",
+    "state": "running"
+   },
+   {
+    "type": "session.end",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "threadId": "t1",
+    "turnId": "u1",
+    "at": 10,
+    "exitCode": 0,
+    "sawResult": true
+   },
+   {
+    "type": "session.subagent",
+    "workspaceId": "w1",
+    "sessionId": "s1",
+    "turnId": "u1",
+    "at": 11,
+    "task": "nothread",
+    "state": "running"
+   }
+  ],
+  "index": {
+   "words": [
+    [
+     "t1",
+     {
+      "lines": [
+       "go"
+      ],
+      "last": 10,
+      "size": 2,
+      "first": "go"
+     }
+    ]
+   ],
+   "starts": [
+    [
+     "t1",
+     "s1"
+    ]
+   ],
+   "cut": [
+    [
+     "t1",
+     false
+    ]
+   ],
+   "facts": [
+    [
+     "s1",
+     {}
+    ]
+   ],
+   "taken": [],
+   "children": [
+    [
+     "t1",
+     [
+      [
+       "k1",
+       {
+        "id": "k1",
+        "title": "Explore",
+        "state": "stopped",
+        "depth": 1,
+        "model": "haiku",
+        "asked": "look",
+        "usage": {
+         "tokens": {
+          "input": 10,
+          "output": 2,
+          "cached": 0,
+          "cacheWrite": 0,
+          "reasoning": 0
+         },
+         "toolUses": 3
+        },
+        "startedAt": 2,
+        "turnId": "u1",
+        "startRow": 3,
+        "endedAt": 10
+       }
+      ],
+      [
+       "k2",
+       {
+        "id": "k2",
+        "title": "k2",
+        "state": "done",
+        "startedAt": 4,
+        "turnId": "u1",
+        "startRow": 4,
+        "endedAt": 5,
+        "lastLine": "final line"
+       }
+      ],
+      [
+       "k3",
+       {
+        "id": "k3",
+        "title": "Fail",
+        "state": "failed",
+        "startedAt": 6,
+        "turnId": "u1",
+        "startRow": 6,
+        "endedAt": 7,
+        "failure": "why it failed"
+       }
+      ],
+      [
+       "k4",
+       {
+        "id": "k4",
+        "title": "k4",
+        "state": "running",
+        "startedAt": 9,
+        "turnId": "u0",
+        "startRow": 9
+       }
+      ]
+     ]
+    ]
+   ],
+   "trimmed": [],
+   "pos": 0
+  }
+ },
+ "forget": {
+  "afterWrongRow": {
+   "words": [
+    [
+     "t1",
+     {
+      "lines": [
+       "go"
+      ],
+      "last": 10,
+      "size": 2,
+      "first": "go"
+     }
+    ]
+   ],
+   "starts": [
+    [
+     "t1",
+     "s1"
+    ]
+   ],
+   "cut": [
+    [
+     "t1",
+     false
+    ]
+   ],
+   "facts": [
+    [
+     "s1",
+     {}
+    ]
+   ],
+   "taken": [],
+   "children": [
+    [
+     "t1",
+     [
+      [
+       "k1",
+       {
+        "id": "k1",
+        "title": "Explore",
+        "state": "stopped",
+        "depth": 1,
+        "model": "haiku",
+        "asked": "look",
+        "usage": {
+         "tokens": {
+          "input": 10,
+          "output": 2,
+          "cached": 0,
+          "cacheWrite": 0,
+          "reasoning": 0
+         },
+         "toolUses": 3
+        },
+        "startedAt": 2,
+        "turnId": "u1",
+        "startRow": 3,
+        "endedAt": 10
+       }
+      ],
+      [
+       "k2",
+       {
+        "id": "k2",
+        "title": "k2",
+        "state": "done",
+        "startedAt": 4,
+        "turnId": "u1",
+        "startRow": 4,
+        "endedAt": 5,
+        "lastLine": "final line"
+       }
+      ],
+      [
+       "k3",
+       {
+        "id": "k3",
+        "title": "Fail",
+        "state": "failed",
+        "startedAt": 6,
+        "turnId": "u1",
+        "startRow": 6,
+        "endedAt": 7,
+        "failure": "why it failed"
+       }
+      ],
+      [
+       "k4",
+       {
+        "id": "k4",
+        "title": "k4",
+        "state": "running",
+        "startedAt": 9,
+        "turnId": "u0",
+        "startRow": 9
+       }
+      ]
+     ]
+    ]
+   ],
+   "trimmed": [],
+   "pos": 0
+  },
+  "afterOwnRow": {
+   "words": [
+    [
+     "t1",
+     {
+      "lines": [
+       "go"
+      ],
+      "last": 10,
+      "size": 2,
+      "first": "go"
+     }
+    ]
+   ],
+   "starts": [
+    [
+     "t1",
+     "s1"
+    ]
+   ],
+   "cut": [
+    [
+     "t1",
+     false
+    ]
+   ],
+   "facts": [
+    [
+     "s1",
+     {}
+    ]
+   ],
+   "taken": [],
+   "children": [
+    [
+     "t1",
+     [
+      [
+       "k2",
+       {
+        "id": "k2",
+        "title": "k2",
+        "state": "done",
+        "startedAt": 4,
+        "turnId": "u1",
+        "startRow": 4,
+        "endedAt": 5,
+        "lastLine": "final line"
+       }
+      ],
+      [
+       "k3",
+       {
+        "id": "k3",
+        "title": "Fail",
+        "state": "failed",
+        "startedAt": 6,
+        "turnId": "u1",
+        "startRow": 6,
+        "endedAt": 7,
+        "failure": "why it failed"
+       }
+      ],
+      [
+       "k4",
+       {
+        "id": "k4",
+        "title": "k4",
+        "state": "running",
+        "startedAt": 9,
+        "turnId": "u0",
+        "startRow": 9
+       }
+      ]
+     ]
+    ]
+   ],
+   "trimmed": [],
+   "pos": 0
+  },
+  "lone": {
+   "words": [
+    [
+     "t1",
+     {
+      "lines": [],
+      "last": 9,
+      "size": 0
+     }
+    ]
+   ],
+   "starts": [],
+   "cut": [],
+   "facts": [],
+   "taken": [],
+   "children": [],
+   "trimmed": [],
+   "pos": 0
+  }
+ },
+ "indexBytesCold": {
+  "of": {
+   "bytes": 99,
+   "at": 7
+  },
+  "words": [
+   [
+    "t1",
+    {
+     "lines": [],
+     "last": 18,
+     "size": 60,
+     "first": "Find the BUG in parser",
+     "cold": true
+    }
+   ],
+   [
+    "t2",
+    {
+     "lines": [],
+     "last": 41,
+     "size": 25,
+     "first": "😀 emoji first",
+     "cold": true
+    }
+   ],
+   [
+    "t3",
+    {
+     "lines": [],
+     "last": 31,
+     "size": 18,
+     "first": "copied words",
+     "cold": true
+    }
+   ]
+  ],
+  "starts": [
+   [
+    "t1",
+    "s1"
+   ],
+   [
+    "t2",
+    "s2"
+   ]
+  ],
+  "cut": [
+   [
+    "t1",
+    true
+   ],
+   [
+    "t2",
+    false
+   ]
+  ],
+  "facts": [
+   [
+    "s1",
+    {
+     "cwd": "/w",
+     "model": "opus"
+    }
+   ],
+   [
+    "s2",
+    {
+     "permissionMode": "plan"
+    }
+   ]
+  ],
+  "taken": [
+   [
+    "r1",
+    {
+     "sessionId": "s1",
+     "threadId": "t1",
+     "turnId": "u1",
+     "outcome": "started"
+    }
+   ],
+   [
+    "r2",
+    {
+     "sessionId": "s1",
+     "threadId": "t1",
+     "turnId": "u1",
+     "outcome": "steered"
+    }
+   ]
+  ],
+  "children": [],
+  "trimmed": [],
+  "pos": 15
+ },
+ "indexBytesRaw": "{\"of\":{\"bytes\":99,\"at\":7},\"words\":[[\"t1\",{\"lines\":[\"Find the BUG in parser\",\"Looking now.\",\"Second message\",\"also tests\",\"ok\"],\"open\":\"u1:m2\",\"last\":18,\"size\":60,\"first\":\"Find the BUG in parser\"}],[\"t2\",{\"lines\":[\"😀 emoji first\",\"earlier ask\"],\"last\":41,\"size\":25,\"first\":\"😀 emoji first\"}],[\"t3\",{\"lines\":[\"copied words\",\"copied\"],\"last\":31,\"size\":18,\"first\":\"copied words\"}]],\"starts\":[[\"t1\",\"s1\"],[\"t2\",\"s2\"]],\"cut\":[[\"t1\",true],[\"t2\",false]],\"facts\":[[\"s1\",{\"cwd\":\"/w\",\"model\":\"opus\"}],[\"s2\",{\"permissionMode\":\"plan\"}]],\"taken\":[[\"r1\",{\"sessionId\":\"s1\",\"threadId\":\"t1\",\"turnId\":\"u1\",\"outcome\":\"started\"}],[\"r2\",{\"sessionId\":\"s1\",\"threadId\":\"t1\",\"turnId\":\"u1\",\"outcome\":\"steered\"}]],\"children\":[],\"trimmed\":[],\"pos\":15}",
+ "reads": {
+  "full": {
+   "of": {
+    "bytes": 99,
+    "at": 7
+   },
+   "index": {
+    "of": {
+     "bytes": 99,
+     "at": 7
+    },
+    "words": [
+     [
+      "t1",
+      {
+       "lines": [
+        "Find the BUG in parser",
+        "Looking now.",
+        "Second message",
+        "also tests",
+        "ok"
+       ],
+       "open": "u1:m2",
+       "last": 18,
+       "size": 60,
+       "first": "Find the BUG in parser"
+      }
+     ],
+     [
+      "t2",
+      {
+       "lines": [
+        "😀 emoji first",
+        "earlier ask"
+       ],
+       "last": 41,
+       "size": 25,
+       "first": "😀 emoji first"
+      }
+     ],
+     [
+      "t3",
+      {
+       "lines": [
+        "copied words",
+        "copied"
+       ],
+       "last": 31,
+       "size": 18,
+       "first": "copied words"
+      }
+     ]
+    ],
+    "starts": [
+     [
+      "t1",
+      "s1"
+     ],
+     [
+      "t2",
+      "s2"
+     ]
+    ],
+    "cut": [
+     [
+      "t1",
+      true
+     ],
+     [
+      "t2",
+      false
+     ]
+    ],
+    "facts": [
+     [
+      "s1",
+      {
+       "cwd": "/w",
+       "model": "opus"
+      }
+     ],
+     [
+      "s2",
+      {
+       "permissionMode": "plan"
+      }
+     ]
+    ],
+    "taken": [
+     [
+      "r1",
+      {
+       "sessionId": "s1",
+       "threadId": "t1",
+       "turnId": "u1",
+       "outcome": "started"
+      }
+     ],
+     [
+      "r2",
+      {
+       "sessionId": "s1",
+       "threadId": "t1",
+       "turnId": "u1",
+       "outcome": "steered"
+      }
+     ]
+    ],
+    "children": [],
+    "trimmed": [],
+    "pos": 15
+   }
+  },
+  "notJson": null,
+  "noTaken": null,
+  "noChildren": null,
+  "noPos": null,
+  "oldWords": {
+   "of": null,
+   "index": {
+    "words": [
+     [
+      "t1",
+      {
+       "lines": [
+        "hello there",
+        "x"
+       ],
+       "last": 5,
+       "size": 12,
+       "first": "hello there"
+      }
+     ],
+     [
+      "t2",
+      {
+       "lines": [],
+       "last": 0,
+       "size": 0
+      }
+     ]
+    ],
+    "starts": [],
+    "cut": [],
+    "facts": [],
+    "taken": [],
+    "children": [],
+    "trimmed": [],
+    "pos": 3
+   }
+  },
+  "noTrimmed": {
+   "of": null,
+   "index": {
+    "words": [],
+    "starts": [
+     [
+      "t1",
+      "s1"
+     ]
+    ],
+    "cut": [
+     [
+      "t1",
+      true
+     ]
+    ],
+    "facts": [
+     [
+      "s1",
+      {
+       "model": "m"
+      }
+     ]
+    ],
+    "taken": [],
+    "children": [
+     [
+      "t1",
+      [
+       [
+        "k",
+        {
+         "id": "k",
+         "title": "k",
+         "state": "running",
+         "startedAt": 1
+        }
+       ]
+      ]
+     ]
+    ],
+    "trimmed": [],
+    "pos": 9
+   }
+  },
+  "empty": null
+ },
+ "words": {
+  "t1": {
+   "lines": [
+    "Find the BUG in parser",
+    "Looking now.",
+    "Second message",
+    "also tests",
+    "ok"
+   ],
+   "open": "u1:m2",
+   "last": 18,
+   "size": 60,
+   "first": "Find the BUG in parser"
+  },
+  "none": {
+   "lines": [],
+   "last": 0,
+   "size": 0
+  },
+  "cold": {
+   "lines": [],
+   "last": 9,
+   "size": 16,
+   "first": "aaaa",
+   "opened": 4,
+   "cold": true
+  },
+  "newestFits": {
+   "lines": [
+    "aaaa",
+    "bbbbbb",
+    "cc",
+    "😀😀"
+   ],
+   "last": 9,
+   "size": 16,
+   "first": "aaaa"
+  },
+  "newest6": {
+   "lines": [
+    "cc",
+    "😀😀"
+   ],
+   "last": 9,
+   "size": 16,
+   "first": "aaaa",
+   "cold": true,
+   "room": 6
+  },
+  "newest5": {
+   "lines": [
+    "😀😀"
+   ],
+   "last": 9,
+   "size": 16,
+   "first": "aaaa",
+   "cold": true,
+   "room": 5
+  },
+  "newest0": {
+   "lines": [],
+   "last": 9,
+   "size": 16,
+   "first": "aaaa",
+   "cold": true,
+   "room": 0
+  },
+  "newestOfCold": {
+   "lines": [
+    "aaaa",
+    "bbbbbb",
+    "cc",
+    "😀😀"
+   ],
+   "last": 9,
+   "size": 16,
+   "first": "aaaa",
+   "cold": true,
+   "room": 100
+  },
+  "heldWarm": 16,
+  "heldCold": 4,
+  "firstOfSplit": "\"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\\ud83d\"",
+  "firstOfLong": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+ },
+ "search": {
+  "bug": {
+   "found": [
+    {
+     "hit": {
+      "workspaceId": "w1",
+      "threadId": "t1",
+      "snippet": "Find the BUG in parser"
+     },
+     "last": 18
+    }
+   ],
+   "skipped": 1
+  },
+  "needle": {
+   "found": [
+    {
+     "hit": {
+      "workspaceId": "w1",
+      "threadId": "t8",
+      "snippet": "needle in a cold thread"
+     },
+     "last": 51
+    }
+   ],
+   "skipped": 0
+  },
+  "ok": [
+   {
+    "hit": {
+     "workspaceId": "w1",
+     "threadId": "t1",
+     "snippet": "Looking now."
+    },
+    "last": 18
+   }
+  ],
+  "emoji": [
+   {
+    "hit": {
+     "workspaceId": "w1",
+     "threadId": "t2",
+     "snippet": "😀 emoji first"
+    },
+    "last": 41
+   }
+  ],
+  "snippets": [
+   [
+    "x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x target tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t tail\n\t",
+    80,
+    6,
+    "…x x x x x x x x x x x x x x x x x x x x target tail tail tail tail tail tail tail tail tail tail tail ta…"
+   ],
+   [
+    "short target here",
+    6,
+    6,
+    "short target here"
+   ],
+   [
+    "😀😀😀 hit",
+    7,
+    3,
+    "😀😀😀 hit"
+   ],
+   [
+    "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀hit😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+    60,
+    3,
+    "…😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀hit😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀…"
+   ],
+   [
+    "split",
+    41,
+    3,
+    "\"…😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀hit\""
+   ],
+   [
+    "   lead and trail   ",
+    3,
+    4,
+    "lead and trail"
+   ]
+  ]
+ },
+ "reindex": {
+  "words": [
+   [
+    "t2",
+    {
+     "lines": [
+      "😀 emoji first",
+      "earlier ask"
+     ],
+     "last": 41,
+     "size": 25,
+     "first": "😀 emoji first"
+    }
+   ],
+   [
+    "t3",
+    {
+     "lines": [
+      "copied words",
+      "copied"
+     ],
+     "last": 31,
+     "size": 18,
+     "first": "copied words"
+    }
+   ],
+   [
+    "t1",
+    {
+     "lines": [
+      "Second message",
+      "also tests",
+      "ok"
+     ],
+     "open": "u1:m2",
+     "last": 18,
+     "size": 26,
+     "first": "Second message"
+    }
+   ]
+  ],
+  "starts": [
+   [
+    "t2",
+    "s2"
+   ]
+  ],
+  "cut": [
+   [
+    "t2",
+    false
+   ],
+   [
+    "t1",
+    true
+   ]
+  ],
+  "facts": [
+   [
+    "s1",
+    {
+     "cwd": "/w",
+     "model": "opus"
+    }
+   ],
+   [
+    "s2",
+    {
+     "permissionMode": "plan"
+    }
+   ]
+  ],
+  "taken": [
+   [
+    "r2",
+    {
+     "sessionId": "s1",
+     "threadId": "t1",
+     "turnId": "u1",
+     "outcome": "steered"
+    }
+   ]
+  ],
+  "children": [],
+  "trimmed": [],
+  "pos": 15
+ },
+ "turnWritten": {
+  "u1": {
+   "lines": 0,
+   "subagents": 2,
+   "compactions": 3,
+   "retries": 4,
+   "started": true,
+   "changes": false
+  },
+  "u1Done": {
+   "lines": 0,
+   "subagents": 2,
+   "compactions": 3,
+   "retries": 4,
+   "reply": "completed",
+   "started": true,
+   "changes": true
+  },
+  "startOnly": {
+   "lines": 0,
+   "subagents": 0,
+   "compactions": 0,
+   "retries": 0,
+   "started": true,
+   "changes": false
+  },
+  "evicted": {
+   "lines": 0,
+   "subagents": 2,
+   "compactions": 3,
+   "retries": 4,
+   "started": true,
+   "changes": false
+  },
+  "retryUnlined": {
+   "lines": 0,
+   "subagents": 0,
+   "compactions": 0,
+   "retries": 0,
+   "started": false,
+   "changes": false
+  },
+  "none": {
+   "lines": 0,
+   "subagents": 0,
+   "compactions": 0,
+   "retries": 0,
+   "started": false,
+   "changes": false
+  },
+  "doneOnly": {
+   "lines": 0,
+   "subagents": 0,
+   "compactions": 0,
+   "retries": 0,
+   "reply": "failed",
+   "started": true,
+   "changes": false
+  }
+ },
+ "views": {
+  "namedOnly": {
+   "id": "s1",
+   "workspaceId": "w1",
+   "harness": "claude",
+   "status": "completed",
+   "subagents": [
+    {
+     "id": "k",
+     "title": "K",
+     "state": "done",
+     "startedAt": 1,
+     "depth": 1
+    }
+   ]
+  },
+  "namedOnlyBare": {
+   "id": "s",
+   "workspaceId": "w1",
+   "harness": "claude",
+   "status": "running"
+  },
+  "lines1": {
+   "id": "s1",
+   "workspaceId": "w1",
+   "harness": "claude",
+   "status": "completed",
+   "lastLine": "new",
+   "subagents": [
+    {
+     "id": "k",
+     "title": "K",
+     "state": "done",
+     "asked": "q",
+     "lastLine": "l",
+     "failure": "f",
+     "startedAt": 1,
+     "depth": 1
+    }
+   ]
+  },
+  "lines2": {
+   "id": "s1",
+   "workspaceId": "w1",
+   "harness": "claude",
+   "status": "completed",
+   "failure": "f2",
+   "subagents": [
+    {
+     "id": "k",
+     "title": "K",
+     "state": "done",
+     "asked": "q",
+     "lastLine": "l",
+     "failure": "f",
+     "startedAt": 1,
+     "depth": 1
+    }
+   ]
+  }
+ },
+ "keys": {
+  "copyKey": "solari/default",
+  "parts": [
+   [
+    "solari/default",
+    {
+     "place": "solari",
+     "name": "default"
+    }
+   ],
+   [
+    "default",
+    {
+     "name": "default"
+    }
+   ],
+   [
+    "a/b/c",
+    {
+     "place": "a",
+     "name": "b/c"
+    }
+   ],
+   [
+    "/x",
+    {
+     "place": "",
+     "name": "x"
+    }
+   ],
+   [
+    "x/",
+    {
+     "place": "x",
+     "name": ""
+    }
+   ]
+  ],
+  "recipeKey": "default@v3",
+  "vaultKey": "img@v12"
+ },
+ "lines": {
+  "labelOf": [
+   "box",
+   "thread 01234567"
+  ],
+  "gone": "workspace w1 is gone: 404",
+  "swept1": "ended 1 harness run on w1 that no thread here holds: r1",
+  "swept2": "ended 2 harness runs on w1 that no thread here holds: r1, r2",
+  "swept0": "ended 0 harness runs on w1 that no thread here holds: ",
+  "unread": "Claude Code's MCP servers on that computer could not be read for the values its launch hands them (timed out), so the turn did not start; try again once it answers",
+  "left": "Codex's MCP servers on that computer were not read for the values its launch hands them: config.toml is a link out of its folder, so the turn did not start; make it a plain file under 32 MB, or a link to one inside its folder, and send again",
+  "cut": "Codex's MCP servers on that computer could not be read whole for the values its launch hands them: a.json and b.toml together, once encoded, pass the 2 MB one read there carries, so the turn did not start; make them smaller and send again",
+  "noTitle": "no title for session 01234567 on w1: gone",
+  "noTitleEmoji": "no title for session 😀😀😀😀 on w1: gone",
+  "noMadeTitle": "thread abcdefgh on w1 keeps its opening words: slow",
+  "noCheckpoint": "no checkpoint of the files at thread abcdefgh's turn end on workspace w1: dirty",
+  "noNameWrite": "the harness did not take the name for session abc on w1: refused",
+  "lostSession": "session sess-full-id of thread thread-l was gone from w1, so its turn started a new one: no file",
+  "stop": "stop on thread thread-l: stopped",
+  "stopTask": "stop on thread thread-l subagent task-lon: gone (3 left)",
+  "restart": [
+   "cut by a host restart after 0m 00s",
+   "cut by a host restart after 0m 01s",
+   "cut by a host restart after 1m 01s",
+   "cut by a host restart after 1h 00m 05s"
+  ],
+  "transcriptUnread": "the transcript of w1 does not read (bad json)"
+ },
+ "fingerprint": {
+  "plain": "088cfb890de7350f4c1fffac6c0d078622ed251db1cb9ac382a785fb37b839ec",
+  "keyed": "ba75406360265d343a0936fbcd50950d5c26ff230b4152dc740ce29f746f0246",
+  "keyed2": "ba75406360265d343a0936fbcd50950d5c26ff230b4152dc740ce29f746f0246",
+  "labelsFirst": "ba75406360265d343a0936fbcd50950d5c26ff230b4152dc740ce29f746f0246",
+  "emptyLabels": "088cfb890de7350f4c1fffac6c0d078622ed251db1cb9ac382a785fb37b839ec",
+  "hashOf": "088cfb890de7350f4c1fffac6c0d078622ed251db1cb9ac382a785fb37b839ec"
+ },
+ "prepare": [
+  {
+   "id": null,
+   "o": null,
+   "message": "prepare stopped before a machine existed",
+   "name": "PrepareStoppedError",
+   "builderId": null,
+   "kept": false,
+   "left": null
+  },
+  {
+   "id": "b1",
+   "o": null,
+   "message": "prepare stopped; builder b1 killed",
+   "name": "PrepareStoppedError",
+   "builderId": "b1",
+   "kept": false,
+   "left": null
+  },
+  {
+   "id": "b1",
+   "o": {
+    "kept": true
+   },
+   "message": "prepare stopped; builder b1 left running with a seal still in it",
+   "name": "PrepareStoppedError",
+   "builderId": "b1",
+   "kept": true,
+   "left": null
+  },
+  {
+   "id": "b1",
+   "o": {
+    "left": "provider said no"
+   },
+   "message": "prepare stopped; builder b1 did not stop: provider said no",
+   "name": "PrepareStoppedError",
+   "builderId": "b1",
+   "kept": false,
+   "left": "provider said no"
+  }
+ ],
+ "machines": {
+  "dead": {
+   "id": "m1",
+   "kind": "sandbox",
+   "streamUrl": null,
+   "calls": {
+    "exec": {
+     "err": "machine m1 is gone",
+     "kind": "missing",
+     "status": 404
+    },
+    "run": {
+     "err": "machine m1 is gone",
+     "kind": "missing",
+     "status": 404
+    },
+    "snapshot": {
+     "err": "machine m1 is gone",
+     "kind": "missing",
+     "status": 404
+    },
+    "pause": {
+     "err": "machine m1 is gone",
+     "kind": "missing",
+     "status": 404
+    },
+    "resume": {
+     "err": "machine m1 is gone",
+     "kind": "missing",
+     "status": 404
+    },
+    "kill": {
+     "ok": null
+    },
+    "state": {
+     "ok": "gone"
+    },
+    "downloadUrl": {
+     "err": "machine m1 is gone",
+     "kind": "missing",
+     "status": 404
+    },
+    "uploadUrl": {
+     "err": "machine m1 is gone",
+     "kind": "missing",
+     "status": 404
+    }
+   },
+   "absent": false
+  },
+  "absent": {
+   "id": "m2",
+   "kind": "sandbox",
+   "calls": {
+    "exec": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "run": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "snapshot": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "pause": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "resume": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "kill": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "state": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "downloadUrl": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    },
+    "uploadUrl": {
+     "err": "the computer is away",
+     "kind": "unreachable",
+     "status": null
+    }
+   },
+   "absent": true
+  }
+ },
+ "bodies": {
+  "under": "hello world",
+  "cut": "hello wo",
+  "cutExact": "hello ",
+  "splitChar": "ab�",
+  "dies": "part",
+  "empty": "",
+  "zeroCap": ""
+ },
+ "refusals": {
+  "codes": [
+   {
+    "code": "no-host-cli",
+    "name": "DaemonRefusal",
+    "message": "said",
+    "host": true,
+    "cred": false,
+    "def": false
+   },
+   {
+    "code": "no-git-credential",
+    "name": "DaemonRefusal",
+    "message": "said",
+    "host": false,
+    "cred": true,
+    "def": false
+   },
+   {
+    "code": "on-default-branch",
+    "name": "DaemonRefusal",
+    "message": "said",
+    "host": false,
+    "cred": false,
+    "def": true
+   },
+   {
+    "code": null,
+    "name": "DaemonRefusal",
+    "message": "said",
+    "host": false,
+    "cred": false,
+    "def": false
+   },
+   {
+    "code": "other",
+    "name": "DaemonRefusal",
+    "message": "said",
+    "host": false,
+    "cred": false,
+    "def": false
+   }
+  ],
+  "plainErrorIsNotRefusal": false,
+  "defaultBranch": [
+   {
+    "road": "fork",
+    "message": "my-copy is on main, the project's default branch, with commits the remote lacks, and wsp never pushes main. Move the commits in my-copy onto a branch of their own, then fork it again.",
+    "kind": "usage",
+    "fix": "Move the commits in my-copy onto a branch of their own, then fork it again."
+   },
+   {
+    "road": "run",
+    "message": "my-copy is on main, the project's default branch, with commits the remote lacks, and wsp never pushes main. Move the commits in my-copy onto a branch of their own, then start the thread again.",
+    "kind": "usage",
+    "fix": "Move the commits in my-copy onto a branch of their own, then start the thread again."
+   },
+   {
+    "road": "bring back",
+    "message": "my-copy is on main, the project's default branch, with commits the remote lacks, and wsp never pushes main. Move the commits in my-copy onto a branch of their own, then bring it back again.",
+    "kind": "usage",
+    "fix": "Move the commits in my-copy onto a branch of their own, then bring it back again."
+   }
+  ],
+  "capRefusal": [
+   true,
+   false,
+   false
+  ]
+ },
+ "reading": {
+  "steered": [
+   [
+    null,
+    null
+   ],
+   [
+    [],
+    null
+   ],
+   [
+    "x",
+    null
+   ],
+   [
+    {},
+    {}
+   ],
+   [
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person"
+     }
+    },
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person"
+     }
+    }
+   ],
+   [
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "nobody"
+     }
+    },
+    {}
+   ],
+   [
+    {
+     "a": {
+      "startedBy": "person"
+     }
+    },
+    {}
+   ],
+   [
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person",
+      "by": {
+       "kind": "thread",
+       "threadId": "t1",
+       "workspaceId": "w1",
+       "rootThreadId": "t0"
+      },
+      "road": "relayed",
+      "requestId": "r1",
+      "attachments": []
+     }
+    },
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person",
+      "by": {
+       "kind": "thread",
+       "threadId": "t1",
+       "workspaceId": "w1",
+       "rootThreadId": "t0"
+      },
+      "road": "relayed",
+      "requestId": "r1"
+     }
+    }
+   ],
+   [
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person",
+      "by": {
+       "bad": 1
+      }
+     }
+    },
+    {}
+   ],
+   [
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person",
+      "road": "nowhere"
+     }
+    },
+    {}
+   ],
+   [
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person",
+      "requestId": 5,
+      "attachments": "x"
+     }
+    },
+    {
+     "a": {
+      "prompt": "p",
+      "startedBy": "person"
+     }
+    }
+   ],
+   [
+    {
+     "a": null,
+     "b": {
+      "prompt": "q",
+      "startedBy": "person"
+     }
+    },
+    {
+     "b": {
+      "prompt": "q",
+      "startedBy": "person"
+     }
+    }
+   ]
+  ],
+  "asked": [
+   [
+    null,
+    null
+   ],
+   [
+    "p",
+    null
+   ],
+   [
+    {
+     "prompt": 1
+    },
+    null
+   ],
+   [
+    {
+     "prompt": "p"
+    },
+    {
+     "prompt": "p"
+    }
+   ],
+   [
+    {
+     "prompt": "p",
+     "effort": "high",
+     "typed": "t",
+     "requestId": "r",
+     "owed": true,
+     "awaitsPrompt": true
+    },
+    {
+     "prompt": "p",
+     "effort": "high",
+     "typed": "t",
+     "requestId": "r",
+     "owed": true,
+     "awaitsPrompt": true
+    }
+   ],
+   [
+    {
+     "prompt": "p",
+     "effort": 3,
+     "typed": null,
+     "owed": "yes",
+     "awaitsPrompt": false
+    },
+    {
+     "prompt": "p"
+    }
+   ],
+   [
+    [
+     "p"
+    ],
+    null
+   ]
+  ],
+  "scope": [
+   [
+    null,
+    null
+   ],
+   [
+    null,
+    null
+   ],
+   [
+    {
+     "kind": "thread",
+     "threadId": "t1",
+     "workspaceId": "w1",
+     "rootThreadId": "t0"
+    },
+    {
+     "kind": "thread",
+     "threadId": "t1",
+     "workspaceId": "w1",
+     "rootThreadId": "t0"
+    }
+   ],
+   [
+    {
+     "kind": "device",
+     "threadId": "t1",
+     "workspaceId": "w1",
+     "rootThreadId": "t0"
+    },
+    null
+   ],
+   [
+    {
+     "threadId": 1
+    },
+    null
+   ]
+  ],
+  "road": [
+   [
+    null,
+    null
+   ],
+   [
+    null,
+    null
+   ],
+   [
+    "relayed",
+    "relayed"
+   ],
+   [
+    "here",
+    "here"
+   ],
+   [
+    "paired",
+    "paired"
+   ],
+   [
+    "nowhere",
+    null
+   ]
+  ]
+ },
+ "launches": [
+  [
+   {
+    "fixed": "a",
+    "picks": {}
+   },
+   {
+    "fixed": "a",
+    "picks": {}
+   },
+   true
+  ],
+  [
+   {
+    "fixed": "a",
+    "picks": {
+     "model": "m"
+    }
+   },
+   {
+    "fixed": "a",
+    "picks": {}
+   },
+   true
+  ],
+  [
+   {
+    "fixed": "a",
+    "picks": {}
+   },
+   {
+    "fixed": "a",
+    "picks": {
+     "model": "m"
+    }
+   },
+   false
+  ],
+  [
+   {
+    "fixed": "a",
+    "picks": {
+     "model": "m"
+    }
+   },
+   {
+    "fixed": "a",
+    "picks": {
+     "model": "m"
+    }
+   },
+   true
+  ],
+  [
+   {
+    "fixed": "a",
+    "picks": {
+     "model": "m"
+    }
+   },
+   {
+    "fixed": "b",
+    "picks": {
+     "model": "m"
+    }
+   },
+   false
+  ],
+  [
+   {
+    "fixed": "a",
+    "picks": {
+     "fast": false
+    }
+   },
+   {
+    "fixed": "a",
+    "picks": {
+     "fast": false
+    }
+   },
+   true
+  ],
+  [
+   {
+    "fixed": "a",
+    "picks": {
+     "fast": false
+    }
+   },
+   {
+    "fixed": "a",
+    "picks": {
+     "fast": null
+    }
+   },
+   false
+  ]
+ ],
+ "files": {
+  "depth1": "/B/s-abc.jsonl",
+  "depth0": "/flat-s-abc.jsonl",
+  "depth2": null,
+  "missing": null,
+  "sizeMissing": -1,
+  "order": [
+   "Z9",
+   "z9",
+   "z10",
+   "f",
+   "é",
+   "e",
+   "B",
+   "b",
+   "A",
+   "a",
+   "2026-9-30",
+   "2026-10-01",
+   "_z"
+  ],
+  "layout": [
+   "a/s-abc.jsonl:3",
+   "B/s-abc.jsonl:5",
+   "2026-09-30/s-abc.jsonl:7",
+   "2026-10-01/s-other.jsonl:9",
+   "flat-s-abc.jsonl:11"
+  ]
+ },
+ "constants": {
+  "WORKSPACES": "workspaces",
+  "PROJECTS": "projects",
+  "SEED_CHOICES": "seed-choices",
+  "GOLDENS": "goldens",
+  "GOLDEN_RECIPES": "golden-recipes",
+  "PROJECT_GOLDENS": "project-goldens",
+  "IMAGES": "images",
+  "IMAGE_VAULTS": "image-vaults",
+  "TRANSCRIPTS": "transcripts",
+  "TRANSCRIPT_HEADS": "transcript-heads",
+  "TRANSCRIPT_INDEX": "transcript-index",
+  "ATTACHMENTS": "attachments",
+  "ATTACHMENT_KEYS": "attachment-keys",
+  "SESSIONS": "sessions",
+  "NOTIFY_OWED": "notify-owed",
+  "HELD_STARTS": "held-starts",
+  "SUB_STARTS": "sub-starts",
+  "WORKSPACE_NAMES": "workspace-names",
+  "DROPPED": "dropped-machines",
+  "UNRECORDED": "unrecorded-machines",
+  "PREFERENCES": "preferences",
+  "PREFERENCES_ID": "default",
+  "READS": "reads",
+  "READS_ID": "since",
+  "AGENT_LISTS": "agent-lists",
+  "BUILDERS": "builders",
+  "OWNER": "owner",
+  "CREATES": "creates",
+  "NO_COPY_RECIPE": "this runtime cannot compose the recipe a copy builds from; the host that serves the app wires one",
+  "NO_SEED_WIRING": "this runtime cannot read a folder on this computer, so a folder cannot seed a project elsewhere; the host that serves the app wires the reader",
+  "PAUSED_REASON": "machine paused while the agent was working",
+  "DELETED_REASON": "machine deleted while the agent was working",
+  "RESTARTED_REASON": "host restarted while the agent was working",
+  "GONE_REASON": "machine gone at the provider while the agent was working",
+  "OWED_RETRY_MS": 30000,
+  "OWED_RETRY_MAX_MS": 600000,
+  "OWED_FOR_MS": 3600000,
+  "DROPPED_WATCH_MS": 604800000,
+  "UNRECORDED_DELETE_MS": 86400000,
+  "DAEMON_TOKEN_MISS_TTL_MS": 60000,
+  "TRANSCRIPT_CAP": 5000,
+  "TRANSCRIPT_BYTES": 4194304,
+  "TOOL_RESULT_KEPT": 16384,
+  "TRANSCRIPTS_HELD": 4,
+  "PENDING_FLUSH_BYTES": 1048576,
+  "MAX_TIMER_MS": 2147483647,
+  "WORDS_HELD": 2097152,
+  "SESSION_INDEX_CAP": 200,
+  "TRANSCRIPT_FLUSH_MS": 250,
+  "KEPT_CLOSE_WAIT_MS": 2000,
+  "KEY_PURPOSE_MAX": 238,
+  "LOST_CREATE_MS": 120000,
+  "HELD_TTL_MS": 900000,
+  "HEARTBEAT_MS": 300000,
+  "SESSION_FACTS": [
+   "cwd",
+   "permissionMode",
+   "model",
+   "effort"
+  ],
+  "OPTIONAL_BACKEND_CALLS": [
+   "checkKey",
+   "limits",
+   "listSnapshots",
+   "promoteSnapshot",
+   "getTemplate",
+   "listTemplates",
+   "deleteTemplate",
+   "createRequest",
+   "replayCreate",
+   "namedAfter"
+  ]
+ }
+}
