@@ -10,4 +10,5 @@ use crate::brew_bottles::BottleSnapshot;
 pub const LINUX_BOTTLES_JSON: &str = include_str!("../../data/linux-bottles.json");
 
 /// LINUX_BOTTLES_JSON parsed once; a file that does not parse is a build mistake and panics on first use.
-pub static LINUX_BOTTLES: LazyLock<BottleSnapshot> = LazyLock::new(|| todo!());
+pub static LINUX_BOTTLES: LazyLock<BottleSnapshot> =
+    LazyLock::new(|| serde_json::from_str(LINUX_BOTTLES_JSON).expect("the embedded bottle snapshot parses"));
