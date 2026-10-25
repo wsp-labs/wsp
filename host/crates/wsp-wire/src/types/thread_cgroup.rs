@@ -11,7 +11,8 @@ use wsp_frames::CgroupMemory;
 /// The memory the daemon read for the first entry naming this cgroup; None without a cgroup, without a list, or
 /// with no entry for it.
 pub fn cgroup_memory(cgroups: Option<&[CgroupMemory]>, cgroup: Option<&str>) -> Option<u64> {
-    todo!()
+    let cgroup = cgroup?;
+    cgroups?.iter().find(|c| c.cgroup == cgroup).map(|c| c.memory)
 }
 
 // thread-cgroup.ts:25 at a3b870a6e
@@ -20,5 +21,5 @@ pub fn cgroup_memory(cgroups: Option<&[CgroupMemory]>, cgroup: Option<&str>) -> 
 // }
 /// Whether a row's cgroup is this one or one under it (`<cgroup>/...`); never for a row with none.
 pub fn in_cgroup(at: Option<&str>, cgroup: &str) -> bool {
-    todo!()
+    at.is_some_and(|at| at.strip_prefix(cgroup).is_some_and(|rest| rest.is_empty() || rest.starts_with('/')))
 }
