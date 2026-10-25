@@ -15,7 +15,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
 use wsp_core::ids::Ids;
-use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
+use wsp_core::types::internal::{BuilderLife, EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
 use wsp_core::types::pending::{Clock, MachineExecOptions, PlaceDoor, ScopedRoad, TurnWaiting};
 use wsp_core::types::wiring::{
     CreateWorkspaceOptions, CreatedWorkspace, IdleWindow, LiveWorkspace, Local, ProjectImportOptions, StageReport, StageSaid, WorkspaceRecord,
@@ -834,7 +834,14 @@ impl World {
             .map(|b| KeptBuilder {
                 id: b["id"].as_str().expect("id").into(),
                 name: b["name"].as_str().expect("name").into(),
-                life: b["life"].as_str().expect("life").into(),
+                life: match b["life"].as_str().expect("life") {
+                    "own" => BuilderLife::Own,
+                    "reusable" => BuilderLife::Reusable,
+                    "stale" => BuilderLife::Stale,
+                    "foreign" => BuilderLife::Foreign,
+                    "held" => BuilderLife::Held,
+                    other => panic!("a builder life the oracle never writes: {other}"),
+                },
                 sealed_version: b.get("sealed").and_then(Value::as_u64).map(|n| n as u32),
                 place: b.get("place").and_then(Value::as_str).map(str::to_string),
             })
