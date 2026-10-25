@@ -13,14 +13,19 @@ use crate::exit::HostError;
 //   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 // }
 pub fn plural(n: f64, noun: &str) -> String {
-    todo!()
+    let suffix = if n == 1.0 { "" } else { "s" };
+    format!("{} {}{}", crate::js::number_string(n), noun, suffix)
 }
 
 /// A sentence opening read mid-line: its first letter lowered, the rest as written.
 // base.ts:10
 // export const lowerFirst = (words: string): string => `${words.charAt(0).toLowerCase()}${words.slice(1)}`;
 pub fn lower_first(words: &str) -> String {
-    todo!()
+    let mut chars = words.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => format!("{}{}", first.to_lowercase(), chars.as_str()),
+    }
 }
 
 /// One name inside a comma-joined list of names: quoted when the name carries that comma itself, so a free-text
@@ -30,7 +35,11 @@ pub fn lower_first(words: &str) -> String {
 //   return name.includes(",") ? JSON.stringify(name) : name;
 // }
 pub fn listed_name(name: &str) -> String {
-    todo!()
+    if name.contains(',') {
+        serde_json::to_string(name).unwrap()
+    } else {
+        name.to_string()
+    }
 }
 
 /// A list of names as every tally that names its rows prints it, each name by the rule above.
@@ -39,7 +48,7 @@ pub fn listed_name(name: &str) -> String {
 //   return names.map(listedName).join(", ");
 // }
 pub fn name_list(names: &[impl AsRef<str>]) -> String {
-    todo!()
+    names.iter().map(|name| listed_name(name.as_ref())).collect::<Vec<_>>().join(", ")
 }
 
 /// A thread count with its noun, as the sidebar's counts and the verbs' lines say it.
@@ -48,7 +57,7 @@ pub fn name_list(names: &[impl AsRef<str>]) -> String {
 //   return plural(n, "thread");
 // }
 pub fn fmt_threads(n: f64) -> String {
-    todo!()
+    plural(n, "thread")
 }
 
 // base.ts:28
@@ -64,7 +73,12 @@ pub const ELLIPSIS: &str = "\u{2026}";
 //   return `${wordsWithin(text, head) ?? wholeCharacters(text, head).replace(SEPARATOR_TAIL, "")}${ELLIPSIS}`;
 // }
 pub fn cut_line(text: &str, room: usize) -> String {
-    todo!()
+    if text.encode_utf16().count() <= room {
+        return text.to_string();
+    }
+    let head = room as i64 - 1;
+    let cut = words_within_at(text, head).unwrap_or_else(|| trim_separator_tail(&whole_characters(text, head)).to_string());
+    format!("{cut}{ELLIPSIS}")
 }
 
 // The text's first units up to room, with a pair the edge would split left out whole: half of one is no character,
@@ -91,7 +105,7 @@ pub fn cut_line(text: &str, room: usize) -> String {
 //   return boundary > 0 ? head.slice(0, boundary).replace(SEPARATOR_TAIL, "") : undefined;
 // }
 pub fn words_within(line: &str, room: usize) -> Option<String> {
-    todo!()
+    words_within_at(line, room as i64)
 }
 
 /// Text cut to its last line: the last non-empty line with the whitespace collapsed, or nothing when the text has
@@ -103,14 +117,15 @@ pub fn words_within(line: &str, room: usize) -> Option<String> {
 //   return last === undefined ? undefined : last.replace(/\s+/g, " ").trim();
 // }
 pub fn last_line(text: &str) -> Option<String> {
-    todo!()
+    let last = text.split('\n').map(|line| line.strip_suffix('\r').unwrap_or(line)).rfind(|line| !crate::js::js_trim(line).is_empty())?;
+    Some(crate::js::js_trim(&crate::js::js_collapse_whitespace(last)).to_string())
 }
 
 /// Whether an error carries the boolean mark `mark` (`HostError::marks`).
 // base.ts:65
 // export const marked = (e: unknown, mark: string): e is Error => e instanceof Error && (e as unknown as Record<string, unknown>)[mark] === true;
 pub fn marked(e: &HostError, mark: &str) -> bool {
-    todo!()
+    e.marks.iter().any(|m| m == mark)
 }
 
 /// One window of Boat starts: its limit.
@@ -187,7 +202,30 @@ pub struct BoatSizeWords {
 //   return `Boat added: ${held.join(", ")}; ${sizeWords(size)}.`;
 // }
 pub fn boat_added_line(limits: Option<&BoatLimitsRead>, size: &BoatSizeWords) -> String {
-    todo!()
+    let Some(limits) = limits else {
+        return format!("Boat added; {}.", size_words(size));
+    };
+    let machines: Vec<String> = limits
+        .machines_at_once
+        .map(|m| format!("{} machine{} at once", crate::js::number_string(m), if m == 1.0 { "" } else { "s" }))
+        .into_iter()
+        .collect();
+    let starts = starts_words(limits.starts.as_ref());
+    if limits.trial {
+        let mut held: Vec<String> = limits.credit_balance_hours.map(hours_word).into_iter().collect();
+        held.extend(machines);
+        held.extend(starts);
+        let paren = if held.is_empty() { String::new() } else { format!(" ({})", held.join(", ")) };
+        return format!("Boat added: trial{paren}; small and default sizes.");
+    }
+    let plan = match limits.plan_usd {
+        None => "a paid plan".to_string(),
+        Some(usd) => format!("${} plan", crate::js::number_string(usd)),
+    };
+    let mut held = vec![plan];
+    held.extend(machines);
+    held.extend(starts);
+    format!("Boat added: {}; {}.", held.join(", "), size_words(size))
 }
 
 // boat.ts:42
@@ -198,7 +236,8 @@ pub fn boat_added_line(limits: Option<&BoatLimitsRead>, size: &BoatSizeWords) ->
 // boat.ts:45
 // export const boatForksNoFirstLine = (flags: readonly string[]): string => `Boat forks no first machine, so ${flags.join(" and ")} ${flags.length === 1 ? "does" : "do"} nothing here.`;
 pub fn boat_forks_no_first_line(flags: &[impl AsRef<str>]) -> String {
-    todo!()
+    let joined = flags.iter().map(|flag| flag.as_ref()).collect::<Vec<_>>().join(" and ");
+    format!("Boat forks no first machine, so {joined} {} nothing here.", if flags.len() == 1 { "does" } else { "do" })
 }
 
 /// What a seal on Boat ends on in place of a first machine: nothing is forked there, a lead's sub-thread is.
@@ -208,3 +247,63 @@ pub const BOAT_READY_LINE: &str = "Boat is ready for sub-threads: a thread start
 /// The GitHub CLI login row's label: the detector writes it and a seal records the login under it.
 // boat.ts:51
 pub const GITHUB_LOGIN_NAME: &str = "GitHub CLI login";
+
+// The text's first units up to room, a split high surrogate at the edge dropped (rule 8.5). A negative room counts
+// from the end, as JavaScript's slice does.
+fn whole_characters(text: &str, room: i64) -> String {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let mut head = head_units(&units, room);
+    if let Some((last, rest)) = head.split_last() {
+        if (0xD800..=0xDBFF).contains(last) {
+            head = rest;
+        }
+    }
+    String::from_utf16_lossy(head)
+}
+
+fn head_units(units: &[u16], n: i64) -> &[u16] {
+    let len = units.len() as i64;
+    let end = if n < 0 { (len + n).max(0) } else { n.min(len) };
+    &units[..end as usize]
+}
+
+// SEPARATOR_TAIL: `[\s,;:]+$`, the run a cut leaves hanging off its last word.
+fn trim_separator_tail(text: &str) -> &str {
+    text.trim_end_matches(|c: char| crate::js::is_js_whitespace(c) || matches!(c, ',' | ';' | ':'))
+}
+
+fn words_within_at(line: &str, room: i64) -> Option<String> {
+    let units: Vec<u16> = line.encode_utf16().collect();
+    let head = head_units(&units, room + 1);
+    let boundary = head.iter().rposition(|unit| *unit == 0x20)?;
+    if boundary == 0 {
+        return None;
+    }
+    Some(trim_separator_tail(&String::from_utf16_lossy(&head[..boundary])).to_string())
+}
+
+fn hours_word(hours: f64) -> String {
+    let words = if hours.fract() == 0.0 { crate::js::number_string(hours) } else { crate::js::to_fixed(hours, 1) };
+    format!("{words} h")
+}
+
+fn starts_words(starts: Option<&BoatStarts>) -> Vec<String> {
+    match starts {
+        None => Vec::new(),
+        Some(s) => vec![
+            format!("{} starts a minute", crate::js::number_string(s.minute.limit)),
+            format!("{} an hour", crate::js::number_string(s.hour.limit)),
+            format!("{} a day", crate::js::number_string(s.day.limit)),
+        ],
+    }
+}
+
+fn size_words(size: &BoatSizeWords) -> String {
+    format!(
+        "{} {} {} at {}/h until you pick another size",
+        size.r#type,
+        crate::words::units::fmt_cpus(size.cpu, None),
+        crate::words::units::fmt_mem_gb(size.mem_mb),
+        crate::words::units::fmt_rate_dollars(size.rate_usd_per_hour),
+    )
+}

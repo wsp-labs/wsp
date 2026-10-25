@@ -19,8 +19,8 @@ use wsp_words::project_path::{place_daemon_paths, place_provision_paths, work_fo
 use wsp_words::projects::copies_folder;
 use wsp_words::views::place::provision_count_word;
 use wsp_words::views::place_setup_words::{
-    pending_word, place_no_home_line, place_no_picks_line, place_provisioning_line, place_state_of, place_word, setup_lines, setup_width, setup_word, PlaceState,
-    PlaceTone, SignInWay, SignInWayFacts, sign_in_there_fix, sign_in_way_label, sign_in_ways_fix,
+    pending_word, place_no_home_line, place_no_picks_line, place_provisioning_line, place_state_of, place_word, setup_lines, setup_width,
+    setup_word, sign_in_there_fix, sign_in_way_label, sign_in_ways_fix, PlaceState, PlaceTone, SignInWay, SignInWayFacts,
 };
 use wsp_words::words::computer::{spend_cap_refusal, SPEND_LIMIT_LINE};
 use wsp_words::workspace_state::{absent_computer, kind_words};
@@ -198,7 +198,10 @@ mod places {
             wire(applied(rows))
         }
         fn base() -> Value {
-            over(place_view(), json!({ "id": "p_1", "kind": "computer", "name": "spoo", "default": false, "daemonVersion": DAEMON_VERSION }))
+            over(
+                place_view(),
+                json!({ "id": "p_1", "kind": "computer", "name": "spoo", "default": false, "daemonVersion": DAEMON_VERSION }),
+            )
         }
         fn with(v: Value, fields: Value) -> PlaceView {
             wire(over(v, fields))
@@ -237,7 +240,10 @@ mod places {
             let p = with(base(), json!({ "setup": done(), "daemonVersion": DAEMON_VERSION - 1 }));
             assert_eq!(place_word(&p, None, None).word, format!("daemon {}, host {}", DAEMON_VERSION - 1, DAEMON_VERSION));
             // A failed row whose step can be fixed later never reads Needs you: it is a row with Retry.
-            let p = with(base(), json!({ "setup": done(), "applied": applied(vec![row(json!({ "id": "skills/unslop", "label": "unslop", "step": "skills", "outcome": "failed" }))]) }));
+            let p = with(
+                base(),
+                json!({ "setup": done(), "applied": applied(vec![row(json!({ "id": "skills/unslop", "label": "unslop", "step": "skills", "outcome": "failed" }))]) }),
+            );
             assert_eq!(place_word(&p, None, None), said("Ready", None));
             let expired = over(wait(), json!({ "state": "expired" }));
             let p = with(base(), json!({ "setup": over(done(), json!({ "waiting": [expired] })) }));
@@ -248,7 +254,8 @@ mod places {
         fn reads_a_pending_add_as_pending_with_how_far_it_got_or_setup_failed_with_why() {
             let pending: PendingComputer = wire(pending_choosing());
             assert_eq!(pending_word(&pending), said("Pending", Some("joined; waiting on what goes on it")));
-            let failed: PendingComputer = wire(over(pending_choosing(), json!({ "step": "check", "failed": { "said": "spoo runs no systemd" } })));
+            let failed: PendingComputer =
+                wire(over(pending_choosing(), json!({ "step": "check", "failed": { "said": "spoo runs no systemd" } })));
             assert_eq!(pending_word(&failed), said("Setup failed", Some("spoo runs no systemd")));
         }
 
@@ -261,7 +268,8 @@ mod places {
             assert_eq!(place_word(&p, Some(&absent_computer("spoo", None)), Some(&choosing)).word, "Pending");
             let waiting = with(base(), json!({ "setup": over(running(), json!({ "waiting": [wait()] })) }));
             assert_eq!(place_word(&waiting, None, Some(&choosing)).word, "Needs you");
-            let failed: PendingComputer = wire(over(choosing_json, json!({ "failed": { "said": "the base tools did not install: curl" } })));
+            let failed: PendingComputer =
+                wire(over(choosing_json, json!({ "failed": { "said": "the base tools did not install: curl" } })));
             assert_eq!(place_word(&p, None, Some(&failed)), said("Setup failed", Some("the base tools did not install: curl")));
         }
 
@@ -269,7 +277,10 @@ mod places {
         fn says_on_the_tools_cell_what_is_under_way_where_it_stopped_or_what_stands() {
             assert_eq!(setup_word(None, None), "");
             assert_eq!(setup_word(Some(&setup(running())), None), "setting up the agents");
-            assert_eq!(setup_word(Some(&setup(over(done(), json!({ "state": "failed", "said": "spoo is not connected" })))), None), "stopped: spoo is not connected");
+            assert_eq!(
+                setup_word(Some(&setup(over(done(), json!({ "state": "failed", "said": "spoo is not connected" })))), None),
+                "stopped: spoo is not connected"
+            );
             let ready = applied_of(vec![
                 row(json!({})),
                 row(json!({ "id": "files/.claude/skills/x", "label": "x", "kind": "file" })),
@@ -290,7 +301,9 @@ mod places {
                     row(json!({})),
                     row(json!({ "id": "tools/uv/ruff", "label": "ruff", "outcome": "present" })),
                     row(json!({ "id": "tools/release/gh", "label": "GitHub CLI", "outcome": "failed", "note": "no Linux build" })),
-                    row(json!({ "id": "plugins/x@y", "label": "x@y", "outcome": "skipped", "note": "this computer names no marketplace for it" })),
+                    row(
+                        json!({ "id": "plugins/x@y", "label": "x@y", "outcome": "skipped", "note": "this computer names no marketplace for it" }),
+                    ),
                 ])),
                 None,
             );
@@ -303,14 +316,22 @@ mod places {
                     "  ? Codex waits on you to sign in at https://auth.openai.com/codex/device with code ABCD-EFGH",
                 ]
             );
-            let stopped = setup_lines("spoo", &setup(over(done(), json!({ "state": "failed", "said": "spoo is not connected" }))), Some(&applied_of(vec![])), None);
+            let stopped = setup_lines(
+                "spoo",
+                &setup(over(done(), json!({ "state": "failed", "said": "spoo is not connected" }))),
+                Some(&applied_of(vec![])),
+                None,
+            );
             assert_eq!(stopped.last().map(String::as_str), Some("spoo: spoo is not connected"));
         }
 
         #[test]
         fn prints_under_a_row_that_did_not_land_what_to_do_about_it_then_the_command_line_s() {
-            let failed = row(json!({ "id": "signins/codex", "label": "Codex", "outcome": "failed", "note": "zingzy's MacBook Pro has no Codex sign-in to copy", "fix": "Sign in on spoo instead." }));
-            let skipped = row(json!({ "id": "github", "label": "GitHub", "outcome": "skipped", "note": "skipped; gh is not signed in there" }));
+            let failed = row(
+                json!({ "id": "signins/codex", "label": "Codex", "outcome": "failed", "note": "zingzy's MacBook Pro has no Codex sign-in to copy", "fix": "Sign in on spoo instead." }),
+            );
+            let skipped =
+                row(json!({ "id": "github", "label": "GitHub", "outcome": "skipped", "note": "skipped; gh is not signed in there" }));
             let command = |r: &PlaceProvisionRow| -> Option<String> {
                 if r.id == "signins/codex" {
                     Some("wsp add spoo --sign-in codex".to_string())
@@ -347,7 +368,10 @@ mod places {
 
         #[test]
         fn says_a_computer_that_reported_no_home_folder_or_holds_no_picks_got_nothing_and_w() {
-            assert_eq!(place_no_home_line("spoo"), "spoo got no agents or tools: it reported no home folder for its login, so nothing on it could be reached");
+            assert_eq!(
+                place_no_home_line("spoo"),
+                "spoo got no agents or tools: it reported no home folder for its login, so nothing on it could be reached"
+            );
             assert_eq!(
                 place_no_picks_line("spoo"),
                 "spoo has nothing picked to go on it: choose in the app's Add a computer, or run wsp add spoo --resume --recipe <name>"
@@ -471,10 +495,16 @@ mod place_state {
     use super::*;
 
     fn spoo() -> Value {
-        over(place_view(), json!({ "id": "p_1", "kind": "computer", "name": "spoo", "default": false, "shape": { "cpu": 2, "memMb": 7885 }, "daemonVersion": DAEMON_VERSION, "cap": { "threads": 2 }, "running": 0 }))
+        over(
+            place_view(),
+            json!({ "id": "p_1", "kind": "computer", "name": "spoo", "default": false, "shape": { "cpu": 2, "memMb": 7885 }, "daemonVersion": DAEMON_VERSION, "cap": { "threads": 2 }, "running": 0 }),
+        )
     }
     fn solari() -> Value {
-        over(place_view(), json!({ "id": "solari", "kind": "provider", "name": "solari", "default": false, "cap": { "machines": 3, "spendPerDayUsd": 10 }, "running": 0 }))
+        over(
+            place_view(),
+            json!({ "id": "solari", "kind": "provider", "name": "solari", "default": false, "cap": { "machines": 3, "spendPerDayUsd": 10 }, "running": 0 }),
+        )
     }
     fn view(base: Value, fields: Value) -> PlaceView {
         wire(over(base, fields))
@@ -502,8 +532,14 @@ mod place_state {
 
         #[test]
         fn reads_full_once_the_count_meets_the_cap_with_the_count_in_the_sentence() {
-            assert_eq!(place_state_of(&view(spoo(), json!({ "running": 2 })), None, None, None), warning("Full", "full: 2 of 2 threads running"));
-            assert_eq!(place_state_of(&view(solari(), json!({ "running": 3 })), None, None, None), warning("Full", "full: 3 of 3 machines running"));
+            assert_eq!(
+                place_state_of(&view(spoo(), json!({ "running": 2 })), None, None, None),
+                warning("Full", "full: 2 of 2 threads running")
+            );
+            assert_eq!(
+                place_state_of(&view(solari(), json!({ "running": 3 })), None, None, None),
+                warning("Full", "full: 3 of 3 machines running")
+            );
             let one = view(spoo(), json!({ "cap": { "threads": 1 }, "running": 1 }));
             assert_eq!(place_state_of(&one, None, None, None).sentence.as_deref(), Some("full: 1 of 1 thread running"));
         }
@@ -542,16 +578,27 @@ mod place_state {
 
         #[test]
         fn puts_blocked_then_not_answering_then_at_limit_then_full_then_the_setup_running_t() {
-            let all = over(solari(), json!({ "blocked": "no overlay", "running": 3, "setup": running(), "daemonVersion": DAEMON_VERSION - 1 }));
+            let all =
+                over(solari(), json!({ "blocked": "no overlay", "running": 3, "setup": running(), "daemonVersion": DAEMON_VERSION - 1 }));
             let away = absent_computer("solari", None);
-            assert_eq!(place_state_of(&view(all.clone(), json!({})), Some(&away), Some(20.0), None), said(PLACE_BLOCKED_WORD, Some("no overlay")));
+            assert_eq!(
+                place_state_of(&view(all.clone(), json!({})), Some(&away), Some(20.0), None),
+                said(PLACE_BLOCKED_WORD, Some("no overlay"))
+            );
             let unblocked = without(all, "blocked");
-            assert_eq!(place_state_of(&view(unblocked.clone(), json!({})), Some(&away), Some(20.0), None), said(away.away.as_str(), Some(&away.sentence)));
+            assert_eq!(
+                place_state_of(&view(unblocked.clone(), json!({})), Some(&away), Some(20.0), None),
+                said(away.away.as_str(), Some(&away.sentence))
+            );
             assert_eq!(place_state_of(&view(unblocked.clone(), json!({})), None, Some(20.0), None).word, "At limit");
             assert_eq!(place_state_of(&view(unblocked.clone(), json!({})), None, None, None).word, "Full");
-            assert_eq!(place_state_of(&view(unblocked.clone(), json!({ "running": 0 })), None, None, None), said("Setting up", Some("setting up the agents")));
+            assert_eq!(
+                place_state_of(&view(unblocked.clone(), json!({ "running": 0 })), None, None, None),
+                said("Setting up", Some("setting up the agents"))
+            );
             // A setup that waits on the person, or failed, wins over the spend and the cap: nothing new runs there until it is through.
-            let failed = view(unblocked.clone(), json!({ "setup": over(running(), json!({ "state": "failed", "said": "no agent installed" })) }));
+            let failed =
+                view(unblocked.clone(), json!({ "setup": over(running(), json!({ "state": "failed", "said": "no agent installed" })) }));
             assert_eq!(place_state_of(&failed, None, Some(20.0), None), said("Setup failed", Some("no agent installed")));
             let settled = without(unblocked, "setup");
             assert_eq!(

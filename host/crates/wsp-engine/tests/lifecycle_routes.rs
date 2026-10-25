@@ -104,7 +104,7 @@ fn hooks(resurrect: Option<Arc<PreviewMachine>>) -> WorkspaceHooks {
 #[tokio::test]
 async fn mints_once_and_reuses_across_calls_on_the_same_running_machine() {
     let m = machine_with_preview("m1", FRESH_MS);
-    let mut ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
+    let ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
     let first = ws.daemon_reach().await.unwrap();
     assert_eq!(ws.daemon_reach().await.unwrap(), first);
     assert_eq!(m.mints(), 1);
@@ -114,7 +114,7 @@ async fn mints_once_and_reuses_across_calls_on_the_same_running_machine() {
 #[tokio::test]
 async fn a_wake_drops_the_cached_routes_the_first_daemon_reach_after_it_mints_again_on_the_same_machine() {
     let m = machine_with_preview("m1", FRESH_MS);
-    let mut ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
+    let ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
     let first = ws.daemon_reach().await.unwrap();
     ws.nap().await.unwrap();
     ws.wake(false).await.unwrap();
@@ -128,7 +128,7 @@ async fn a_wake_drops_the_cached_routes_the_first_daemon_reach_after_it_mints_ag
 #[tokio::test]
 async fn remints_once_the_cached_reach_goes_stale() {
     let m = machine_with_preview("m1", 5.0 * 60_000.0);
-    let mut ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
+    let ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
     ws.daemon_reach().await.unwrap();
     ws.daemon_reach().await.unwrap();
     assert_eq!(m.mints(), 2);
@@ -139,7 +139,7 @@ async fn remints_once_the_cached_reach_goes_stale() {
 async fn remints_when_the_machine_was_replaced() {
     let a = machine_with_preview("m1", FRESH_MS);
     let b = machine_with_preview("m2", FRESH_MS);
-    let mut ws = Workspace::new(a.clone(), hooks(Some(b.clone())), WorkspaceInitial::default());
+    let ws = Workspace::new(a.clone(), hooks(Some(b.clone())), WorkspaceInitial::default());
     let first = ws.daemon_reach().await.unwrap();
     ws.upgrade(None).await.unwrap();
     let second = ws.daemon_reach().await.unwrap();
@@ -152,7 +152,7 @@ async fn remints_when_the_machine_was_replaced() {
 #[tokio::test]
 async fn caches_per_port_two_ports_mint_twice_asking_again_reuses_each_and_7070_is_the_daemons_own_route() {
     let m = machine_with_preview("m1", FRESH_MS);
-    let mut ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
+    let ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
     let a = ws.port_reach(3000).await.unwrap();
     let b = ws.port_reach(5173).await.unwrap();
     assert!(a.url.contains("m1-3000"));
@@ -170,7 +170,7 @@ async fn caches_per_port_two_ports_mint_twice_asking_again_reuses_each_and_7070_
 async fn a_replaced_machine_voids_every_ports_route() {
     let a = machine_with_preview("m1", FRESH_MS);
     let b = machine_with_preview("m2", FRESH_MS);
-    let mut ws = Workspace::new(a.clone(), hooks(Some(b.clone())), WorkspaceInitial::default());
+    let ws = Workspace::new(a.clone(), hooks(Some(b.clone())), WorkspaceInitial::default());
     assert!(ws.port_reach(3000).await.unwrap().url.contains("m1-3000"));
     ws.upgrade(None).await.unwrap();
     assert!(ws.port_reach(3000).await.unwrap().url.contains("m2-3000"));
@@ -181,7 +181,7 @@ async fn a_replaced_machine_voids_every_ports_route() {
 #[tokio::test]
 async fn remint_port_reach_drops_one_ports_fresh_route_and_mints_it_again_the_other_ports_keep_theirs() {
     let m = machine_with_preview("m1", FRESH_MS);
-    let mut ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
+    let ws = Workspace::new(m.clone(), hooks(None), WorkspaceInitial::default());
     let a = ws.port_reach(3000).await.unwrap();
     let b = ws.port_reach(5173).await.unwrap();
     let fresh = ws.remint_port_reach(3000).await.unwrap();
