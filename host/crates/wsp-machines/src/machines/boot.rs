@@ -33,15 +33,6 @@ use wsp_words::exit::HostError;
 
 use super::machines::{Entry, Ids, Row, ThreadOn};
 
-/// A builder as this host holds it (TS `LiveBuilder`, internal.ts:923). wsp-core's `LiveBuilder` holds `Rc<dyn Builder>`, whose
-/// trait is empty (pending.rs:32) and has no `machine`, which the start reads: so this keeps the machine itself.
-pub struct HeldBuilder {
-    pub record: BuilderRecord,
-    pub machine: Arc<dyn Machine>,
-    pub sealable: bool,
-    pub life: BuilderLife,
-}
-
 /// A computer a project can live on, by its row in the places table (boot.ts:1038).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComputerRow {
@@ -120,7 +111,7 @@ pub trait BootRuntime {
     fn live(&self) -> Rc<RefCell<IndexMap<String, Entry>>>;
     fn sessions(&self) -> Rc<RefCell<IndexMap<String, Row>>>;
     fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadOn>>>;
-    fn builders(&self) -> Rc<RefCell<IndexMap<String, HeldBuilder>>>;
+    fn builders(&self) -> crate::images::Builders;
     fn projects_held(&self) -> Rc<RefCell<IndexMap<String, ProjectView>>>;
     /// `ctx.bootWork`: what a starting host still has out on each machine.
     fn boot_work(&self) -> Rc<RefCell<IndexMap<String, futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>>>;

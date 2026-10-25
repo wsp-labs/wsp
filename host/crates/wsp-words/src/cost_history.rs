@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A workspace's cost history: the ticks where its burn rate changed, folded and read by one rule. Port of
-//! packages/protocol/src/cost-history.ts at a3b870a6e. See spec/costs_and_alerts.md.
+//! packages/protocol/src/cost-history.ts at the cut (383708c78). See spec/costs_and_alerts.md.
 
 use wsp_wire::types::cost_history::COST_HISTORY_CAP;
 use wsp_wire::views::workspace_events::WorkspaceCostEvent;
@@ -105,9 +105,7 @@ pub fn rate_at(points: &[WorkspaceCostEvent], t: f64) -> Option<f64> {
 // }
 /// Local midnight of the first of `at`'s month in `zone` (the host's zone, rule 8.16), as ms epoch.
 pub fn month_start(at: f64, zone: &jiff::tz::TimeZone) -> f64 {
-    let local = jiff::Timestamp::from_millisecond(at as i64).unwrap().to_zoned(zone.clone());
-    let start = local.date().first_of_month().at(0, 0, 0, 0).to_zoned(zone.clone()).unwrap();
-    start.timestamp().as_millisecond() as f64
+    local_midnight(at, zone, |day| day.first_of_month())
 }
 
 /// The first instant of the day `at` falls in, in the zone the computer is set to, as monthStart reads the month.
@@ -118,9 +116,30 @@ pub fn month_start(at: f64, zone: &jiff::tz::TimeZone) -> f64 {
 // }
 /// Local midnight of `at`'s day in `zone`, as ms epoch.
 pub fn day_start(at: f64, zone: &jiff::tz::TimeZone) -> f64 {
-    let local = jiff::Timestamp::from_millisecond(at as i64).unwrap().to_zoned(zone.clone());
-    let start = local.date().at(0, 0, 0, 0).to_zoned(zone.clone()).unwrap();
-    start.timestamp().as_millisecond() as f64
+    local_midnight(at, zone, |day| day)
+}
+
+/// Local midnight of the day `pick` makes of `at`'s day, as ms epoch: NaN where `new Date(at)` is Invalid Date or the
+/// midnight lies past the dates a `Date` holds. A moment jiff cannot hold is read 400 years on or back, which has the
+/// same calendar, and the answer moved the same way.
+fn local_midnight(at: f64, zone: &jiff::tz::TimeZone, pick: impl Fn(jiff::civil::Date) -> jiff::civil::Date) -> f64 {
+    let Some(t) = crate::js_date::time_value(at) else {
+        return f64::NAN;
+    };
+    let (inside, cycles) = crate::js_date::within_jiff(t);
+    let Ok(moment) = jiff::Timestamp::from_millisecond(inside) else {
+        return f64::NAN;
+    };
+    let day = pick(moment.to_zoned(zone.clone()).date());
+    let Ok(start) = day.at(0, 0, 0, 0).to_zoned(zone.clone()) else {
+        return f64::NAN;
+    };
+    let start = start.timestamp().as_millisecond() + cycles * crate::js_date::CYCLE_MS;
+    if (start as f64).abs() > crate::js_date::MAX_TIME_MS {
+        f64::NAN
+    } else {
+        start as f64
+    }
 }
 
 /// What a series accrued between `from` and its newest tick, or up to `until` where one is given: past the newest
@@ -160,7 +179,7 @@ pub fn spent_since(points: &[WorkspaceCostEvent], from: f64, until: Option<f64>)
 
 // Date.parse of a tick's stamp: NaN where it reads no date, so every comparison with it is false, as in the TS.
 fn parse_at(at: &str) -> f64 {
-    at.parse::<jiff::Timestamp>().map(|t| t.as_millisecond() as f64).unwrap_or(f64::NAN)
+    crate::date_parse::date_parse(at)
 }
 
 // The index of the tick at or before t and the one after it, when t falls inside the series.

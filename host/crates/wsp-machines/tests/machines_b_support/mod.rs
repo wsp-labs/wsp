@@ -401,6 +401,7 @@ pub fn boat_capabilities() -> Capabilities {
         kept: false,
         copies: false,
         own_network: false,
+        sizes_last: false,
         sizes: vec![size(2.0, 4096.0, 0.018), size(4.0, 8192.0, 0.036), size(8.0, 16384.0, 0.072), size(16.0, 32768.0, 0.2)],
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! An edit's hunks as a tool result carries them: a whole file as one hunk, a unified diff's hunks, and the lines that
-//! fit a count of characters. Port of packages/protocol/src/tool-result.ts at a3b870a6e. See spec/shell_and_text.md.
+//! fit a count of characters. Port of packages/protocol/src/tool-result.ts at the cut (383708c78). See spec/shell_and_text.md.
 
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::views::session_events::{FilePatch, PatchHunk};

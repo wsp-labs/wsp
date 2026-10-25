@@ -487,7 +487,9 @@ mod w2_oracle {
     use super::*;
     use common::oracle::{cases, host, w2};
     use serde_json::{json, Value};
-    use wsp_collect::detect::logins::{api_key_helper_of, billed_here, claude_bills, claude_keychain_service, detect_logins, holds_claude_login, login_default, Bills};
+    use wsp_collect::detect::logins::{
+        api_key_helper_of, billed_here, claude_bills, claude_keychain_service, detect_logins, holds_claude_login, login_default, Bills,
+    };
 
     fn bills(b: Option<Bills>) -> Value {
         match b {

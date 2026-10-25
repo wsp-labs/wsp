@@ -58,7 +58,9 @@ agents.read (plugins) and plugins.toggle (#2443).
 ## Decisions
 
 1. `PluginIo` is a trait with async `peek`, `run` and `edit`; `can_edit` stands for the TS `edit?`.
-2. `PluginShelf::turn` answers `Option<String>` for the TS `{ refused? }`.
+2. `PluginShelf::turn` answers `Result<Option<String>, HostError>`: `Ok(Some(sentence))` is the TS `{ refused }`, which the host's
+   `plugins-acts.ts:50` maps to a usage error (exit 3), and `Err` is what `io.edit` threw, kept with its kind so a refused
+   write (exit 3) stays apart from a failed one (exit 1). The first draft answered `Option<String>` and lost the kind.
 
 ## After the port
 

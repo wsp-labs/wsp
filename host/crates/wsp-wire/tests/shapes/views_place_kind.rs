@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The shapes of views/place-kind.ts against what zod answered for the same inputs. Generated.
 
-use super::common::{cases, cases_tagged};
+use super::common::cases;
 use wsp_wire::views::place_kind::*;
 
 const FIXTURES: &str = include_str!("../fixtures/shapes/views_place_kind.json");

@@ -35,7 +35,7 @@ plugin into the report's `PluginRow` with home paths `~`-relative, and gathers e
    error's message as is (an empty message leaves `: ` at the end, a newline stays); the other agents' reads and rows stand, and the agent keeps its place in `agents`, `plugins` and
    `refused`. Ruled by the coordinator on #2446 ("return a `Result` where the TS fails or throws"). This needs
    wsp-catalog's `PluginShelf::read` to return `Result<PluginsFound, HostError>`: an ask on wave 1's catalog, not
-   this crate. Until it does, no input reaches this rule and it has no test here; the catalog change brings one.
+   this crate. Until it does, only one input reaches this rule: a NUL escape in a path a plugin file names, which node's `spawn` refuses. `HostPluginIo` keeps the first refusal `HostExec::try_run` returns, stops starting commands after it, and `detect_plugins` puts the refusal line in place of that agent's read (`review_proc::a_nul_in_*`).
 
 ## Edge cases
 - `detect_plugins` with no agent that has a shelf: all three lists empty, nothing run.

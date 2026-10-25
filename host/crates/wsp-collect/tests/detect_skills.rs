@@ -54,7 +54,7 @@ impl HostExec for Wrap {
                 }
                 Mode::Fail => None,
                 Mode::Blind => {
-                    if args.get(1).map_or(false, |a| a.contains("linked()")) {
+                    if args.get(1).is_some_and(|a| a.contains("linked()")) {
                         None
                     } else {
                         self.inner.run(cmd, args, opts).await
@@ -754,7 +754,7 @@ mod pins {
         let dirs = "/Users/dev/code/app/.a/skills /Users/dev/code/app/.agents/skills/ /Users/dev/code/app/.agents/skills";
         let answer = "/Users/dev/code/app/.a/skills\t/Users/dev/code/app/.a\t/elsewhere\n/Users/dev/code/app/.agents/skills\t/Users/dev/code/app/.agents/skills\t/x\n/not/asked\t/y\t/z\n\u{1e}END\n";
         let host = fake_host(FakeLaptop::new().exec(&format!("sh -c {LINKED_SCRIPT} sh /Users/dev/code/app {dirs}"), answer));
-        let got = block_on(skill_roots(&host, Some(&[&a, &b]), &[p.clone()], &[]));
+        let got = block_on(skill_roots(&host, Some(&[&a, &b]), std::slice::from_ref(&p), &[]));
         assert_eq!(host.calls(), vec![format!("run sh -c {LINKED_SCRIPT} sh /Users/dev/code/app {dirs} (20000 ms)")]);
         let skipped = |r: SkillRootAt, line: &str| SkillRootAt { skipped: Some(line.into()), ..r };
         // posix.join keeps a trailing slash, so `./.agents/skills/` is a root of its own beside `.agents/skills`.
@@ -787,7 +787,7 @@ mod w2_oracle {
     }
     use common::fake_host::block_on;
     use common::oracle::{cases, host, w2};
-    use wsp_collect::detect::skills::SkillRootAt;
+    use wsp_collect::detect::skills::{SkillPlugin, SkillRootAt};
     use wsp_wire::types::agents_report::SkillScope;
 
     fn front(f: &SkillFront) -> Value {
@@ -827,7 +827,11 @@ mod w2_oracle {
             agent: v["agent"].as_str().map(str::to_string),
             project: v.get("project").map(|p| serde_json::from_value(p.clone()).unwrap()),
             skipped: v["skipped"].as_str().map(str::to_string),
-            plugin: None,
+            plugin: v.get("plugin").map(|p| SkillPlugin {
+                id: p["id"].as_str().unwrap().into(),
+                prefix: p["prefix"].as_str().unwrap().into(),
+                on: p["on"].as_bool().unwrap(),
+            }),
         }
     }
 
@@ -874,7 +878,9 @@ mod w2_oracle {
                     fs::create_dir_all(std::path::Path::new(&path).parent().unwrap()).unwrap();
                     match v {
                         Value::String(t) => fs::write(&path, t).unwrap(),
-                        Value::Object(o) if o.contains_key("link") => symlink(o["link"].as_str().unwrap().replace("<dir>", &root), &path).unwrap(),
+                        Value::Object(o) if o.contains_key("link") => {
+                            symlink(o["link"].as_str().unwrap().replace("<dir>", &root), &path).unwrap()
+                        }
                         _ => fs::create_dir_all(&path).unwrap(),
                     }
                 }

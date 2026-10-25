@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::helpers::ReqId;
+use crate::types::js_number::JsInt;
 use crate::types::{Check, JsNumber, SchemaError};
 use wsp_frames::{False, True};
 
@@ -41,22 +42,28 @@ pub const HOST_STOPPING_CLOSE: i64 = 4001;
 pub const AUTH_DEADLINE_CLOSE: i64 = 4408;
 pub const FORWARD_MAX_PER_TARGET: i64 = 16;
 
-/// A callback port the laptop binds without root, 1024 to 65535; wsp-frames reads it with the same bounds.
-/// A callback port the laptop binds without root, 1024 to 65535 (limits.ts:153): a JSON integer in those bounds.
+/// A callback port the laptop binds without root, 1024 to 65535 (limits.ts:153): `.int().min(1024).max(65535)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct RelayPort(pub i64);
+pub struct RelayPort(pub JsInt);
 
 impl RelayPort {
     pub fn get(self) -> i64 {
-        self.0
+        self.0.get()
     }
 }
 
 impl Check for RelayPort {
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.0 as f64, 1024.0)?;
-        crate::types::check::num_at_most(self.0 as f64, 65535.0)
+        crate::types::check::num_at_least(self.0.as_f64(), 1024.0)?;
+        crate::types::check::num_at_most(self.0.as_f64(), 65535.0)
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        let mut found = crate::types::check::issues_of::<JsInt>(value);
+        let whole = JsInt::dirty(value).or_else(|| crate::types::check::read::<JsInt>(value).ok());
+        found.extend(whole.and_then(|n| RelayPort(n).check().err()));
+        Some(found)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -95,11 +102,11 @@ impl Check for PortForward {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("port") { None => out.push(crate::types::check::missing::<Self>("port")), Some(v) => { match crate::types::check::read::<RelayPort>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
-        match obj.get("startedAt") { None => out.push(crate::types::check::missing::<Self>("startedAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<PortForwardKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<RelayPort>(obj, "port", &mut out);
+        crate::types::keys::req_key::<String>(obj, "startedAt", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<PortForwardKind>(obj, "kind", &mut out);
         Some(out)
     }
 
@@ -157,9 +164,8 @@ pub fn is_http_url(url: &str) -> bool {
         (None, Some(_)) => &url[7..],
         (None, None) => return false,
     };
-    // The url crate's IDNA table drops U+180E from a host where node refuses it, so it is refused here too.
-    let plain = !rest.is_empty() && rest.chars().all(|c| !is_js_space(c) && (c as u32) > 0x1f && c != '\x7f' && c != '\u{180e}');
-    plain && url::Url::parse(url).is_ok()
+    let plain = !rest.is_empty() && rest.chars().all(|c| !is_js_space(c) && (c as u32) > 0x1f && c != '\x7f');
+    plain && super::node_host::parse(url).is_some()
 }
 
 /// JavaScript's `\s`: the white space and line terminators its trim strips, which the regex above reads.
@@ -201,22 +207,17 @@ pub fn is_under_path(path: &str) -> bool {
 //   }
 // }
 pub fn host_of(url: &str) -> Option<String> {
-    let parsed = url::Url::parse(url).ok()?;
-    let host = parsed.host_str().unwrap_or_default();
-    Some(match parsed.port() {
-        Some(port) => format!("{host}:{port}"),
-        None => host.to_string(),
-    })
+    super::node_host::parse(url).map(|parsed| parsed.host())
 }
 
 /// The URL a sign-in's redirect_uri names, when the URL carries one and both parse.
-fn redirect_of(url: &str) -> Option<url::Url> {
-    let redirect = url::Url::parse(url).ok()?.query_pairs().find(|(key, _)| key == "redirect_uri")?.1.into_owned();
-    url::Url::parse(&redirect).ok()
+fn redirect_of(url: &str) -> Option<super::node_host::NodeUrl> {
+    let redirect = super::node_host::parse(url)?.query_param("redirect_uri")?;
+    super::node_host::parse(&redirect)
 }
 
-fn is_loopback(target: &url::Url) -> bool {
-    matches!(target.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
+fn is_loopback(target: &super::node_host::NodeUrl) -> bool {
+    matches!(target.hostname(), "localhost" | "127.0.0.1" | "[::1]")
 }
 // limits.ts:172
 // /** Whether a sign-in's page comes back to the machine that asked for it: its redirect_uri names a loopback host,

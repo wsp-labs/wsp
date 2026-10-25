@@ -1,0 +1,16 @@
+{
+ "recordRestored": "record restored from the provider's listing",
+ "droppedWatchMs": 604800000,
+ "unrecordedDeleteMs": 86400000,
+ "collections": {
+  "dropped": "dropped-machines",
+  "unrecorded": "unrecorded-machines",
+  "names": "workspace-names",
+  "workspaces": "workspaces"
+ },
+ "labels": {
+  "workspace": "wsp-workspace",
+  "golden": "wsp-golden",
+  "createdAt": "createdAt"
+ }
+}

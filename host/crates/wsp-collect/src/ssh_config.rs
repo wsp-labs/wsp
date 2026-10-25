@@ -20,12 +20,10 @@ pub const SSH_IGNORE_UNKNOWN_DETAIL: &str = concat!("copied with IgnoreUnknown a
 
 /// The config as the machine can parse it, the rest of the file untouched; a config that already starts with the
 /// prelude is left alone.
-// ssh-config.ts:22
-// /** The config as the machine can parse it, the rest of the file untouched. A config that has already been through
-//  * here is left alone, so a re-import does not stack the line. */
-// export function withIgnoreUnknown(text: string): string {
-//   return text.startsWith(PRELUDE) ? text : PRELUDE + text;
-// }
 pub fn with_ignore_unknown(text: &str) -> String {
-    todo!()
+    if text.starts_with(PRELUDE) {
+        text.to_string()
+    } else {
+        format!("{PRELUDE}{text}")
+    }
 }

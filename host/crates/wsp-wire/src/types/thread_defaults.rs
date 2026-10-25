@@ -65,12 +65,14 @@ impl Check for ModelPicker {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("hide") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hide"))), } }
-        if let Some(v) = obj.get("order") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("order"))), } }
-        if let Some(v) = obj.get("custom") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("custom"))), } }
+        crate::types::keys::opt_key::<Vec<String>>(obj, "hide", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "order", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "custom", &mut out);
         let known: &[&str] = &["hide", "order", "custom"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -115,13 +117,15 @@ impl Check for AgentDefaults {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("effort") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
-        if let Some(v) = obj.get("access") { match crate::types::check::read_present::<AccessChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
-        if let Some(v) = obj.get("models") { match crate::types::check::read_present::<ModelPicker>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("models"))), } }
+        crate::types::keys::opt_key::<String>(obj, "model", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "effort", &mut out);
+        crate::types::keys::opt_key::<AccessChoice>(obj, "access", &mut out);
+        crate::types::keys::opt_key::<ModelPicker>(obj, "models", &mut out);
         let known: &[&str] = &["model", "effort", "access", "models"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -167,13 +171,15 @@ impl Check for AgentDefaultsPatch {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("model") { match crate::types::check::read_double::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("effort") { match crate::types::check::read_double::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
-        if let Some(v) = obj.get("access") { match crate::types::check::read_double::<AccessChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
-        if let Some(v) = obj.get("models") { match crate::types::check::read_double::<ModelPicker>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("models"))), } }
+        crate::types::keys::dbl_key::<String>(obj, "model", &mut out);
+        crate::types::keys::dbl_key::<String>(obj, "effort", &mut out);
+        crate::types::keys::dbl_key::<AccessChoice>(obj, "access", &mut out);
+        crate::types::keys::dbl_key::<ModelPicker>(obj, "models", &mut out);
         let known: &[&str] = &["model", "effort", "access", "models"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -232,7 +238,12 @@ impl Check for ProjectOverrides {
     fn check(&self) -> Result<(), SchemaError> {
         self.access.check().map_err(|e| e.under("access"))?;
         if let Some(v) = &self.after_worktree {
-            crate::types::check::text_at_least_with(v, 1, "the after-worktree command is a shell line; --reset after-worktree takes it away").map_err(|e| e.under("afterWorktree"))?;
+            crate::types::check::text_at_least_with(
+                v,
+                1,
+                "the after-worktree command is a shell line; --reset after-worktree takes it away",
+            )
+            .map_err(|e| e.under("afterWorktree"))?;
         }
         self.trackers.check().map_err(|e| e.under("trackers"))?;
         Ok(())
@@ -243,15 +254,17 @@ impl Check for ProjectOverrides {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("agent") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agent"))), } }
-        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("effort") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
-        if let Some(v) = obj.get("access") { match crate::types::check::read_present::<AccessChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
-        if let Some(v) = obj.get("afterWorktree") { match crate::types::check::read_trimmed_opt(v) { Ok(x) => { if let Err(e) = Self::rule_after_worktree(&x) { out.push(e.under("afterWorktree")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("afterWorktree"))), } }
-        if let Some(v) = obj.get("trackers") { match crate::types::check::read_present::<Vec<TrackerRepo>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("trackers"))), } }
+        crate::types::keys::opt_key::<String>(obj, "agent", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "model", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "effort", &mut out);
+        crate::types::keys::opt_key::<AccessChoice>(obj, "access", &mut out);
+        crate::types::keys::opt_trimmed_with(obj, "afterWorktree", &mut out, Self::rule_after_worktree);
+        crate::types::keys::opt_key::<Vec<TrackerRepo>>(obj, "trackers", &mut out);
         let known: &[&str] = &["agent", "model", "effort", "access", "afterWorktree", "trackers"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -273,7 +286,11 @@ impl Check for ProjectOverrides {
 impl ProjectOverrides {
     fn rule_after_worktree(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = x {
-            crate::types::check::text_at_least_with(v, 1, "the after-worktree command is a shell line; --reset after-worktree takes it away")?;
+            crate::types::check::text_at_least_with(
+                v,
+                1,
+                "the after-worktree command is a shell line; --reset after-worktree takes it away",
+            )?;
         }
         Ok(())
     }
@@ -304,7 +321,12 @@ impl Check for ProjectOverridesPatch {
     fn check(&self) -> Result<(), SchemaError> {
         self.access.check().map_err(|e| e.under("access"))?;
         if let Some(Some(v)) = &self.after_worktree {
-            crate::types::check::text_at_least_with(v, 1, "the after-worktree command is a shell line; --reset after-worktree takes it away").map_err(|e| e.under("afterWorktree"))?;
+            crate::types::check::text_at_least_with(
+                v,
+                1,
+                "the after-worktree command is a shell line; --reset after-worktree takes it away",
+            )
+            .map_err(|e| e.under("afterWorktree"))?;
         }
         self.trackers.check().map_err(|e| e.under("trackers"))?;
         Ok(())
@@ -315,15 +337,17 @@ impl Check for ProjectOverridesPatch {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("agent") { match crate::types::check::read_double::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agent"))), } }
-        if let Some(v) = obj.get("model") { match crate::types::check::read_double::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("effort") { match crate::types::check::read_double::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
-        if let Some(v) = obj.get("access") { match crate::types::check::read_double::<AccessChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
-        if let Some(v) = obj.get("afterWorktree") { match crate::types::check::read_double_trimmed(v) { Ok(x) => { if let Err(e) = Self::rule_after_worktree(&x) { out.push(e.under("afterWorktree")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("afterWorktree"))), } }
-        if let Some(v) = obj.get("trackers") { match crate::types::check::read_double::<Vec<TrackerRepo>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("trackers"))), } }
+        crate::types::keys::dbl_key::<String>(obj, "agent", &mut out);
+        crate::types::keys::dbl_key::<String>(obj, "model", &mut out);
+        crate::types::keys::dbl_key::<String>(obj, "effort", &mut out);
+        crate::types::keys::dbl_key::<AccessChoice>(obj, "access", &mut out);
+        crate::types::keys::dbl_trimmed_with(obj, "afterWorktree", &mut out, Self::rule_after_worktree);
+        crate::types::keys::dbl_key::<Vec<TrackerRepo>>(obj, "trackers", &mut out);
         let known: &[&str] = &["agent", "model", "effort", "access", "afterWorktree", "trackers"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -345,7 +369,11 @@ impl Check for ProjectOverridesPatch {
 impl ProjectOverridesPatch {
     fn rule_after_worktree(x: &Option<Option<String>>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(Some(v)) = x {
-            crate::types::check::text_at_least_with(v, 1, "the after-worktree command is a shell line; --reset after-worktree takes it away")?;
+            crate::types::check::text_at_least_with(
+                v,
+                1,
+                "the after-worktree command is a shell line; --reset after-worktree takes it away",
+            )?;
         }
         Ok(())
     }
@@ -359,7 +387,10 @@ pub struct EnvName(pub String);
 
 impl Check for EnvName {
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::regex_check_with(crate::types::check::env_name(&self.0), "a variable's name is letters, digits and _, not starting with a digit")
+        crate::types::check::regex_check_with(
+            crate::types::check::env_name(&self.0),
+            "a variable's name is letters, digits and _, not starting with a digit",
+        )
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -392,14 +423,16 @@ impl Check for AgentSetupView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("on") { None => out.push(crate::types::check::missing::<Self>("on")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } } }
-        if let Some(v) = obj.get("program") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("program"))), } }
-        if let Some(v) = obj.get("configDir") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("configDir"))), } }
-        if let Some(v) = obj.get("args") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("args"))), } }
-        match obj.get("envNames") { None => out.push(crate::types::check::missing::<Self>("envNames")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("envNames"))), } } }
+        crate::types::keys::req_key::<bool>(obj, "on", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "program", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "configDir", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "args", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "envNames", &mut out);
         let known: &[&str] = &["on", "program", "configDir", "args", "envNames"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -430,7 +463,12 @@ pub struct AgentSetupSet {
     pub config_dir: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
     pub args: Option<Option<Vec<String>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::kept::record_opt",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub env: Option<IndexMap<EnvName, Option<String>>>,
 }
 
@@ -453,14 +491,16 @@ impl Check for AgentSetupSet {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("on") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } }
-        if let Some(v) = obj.get("program") { match crate::types::check::read_double::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_program(&x) { out.push(e.under("program")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("program"))), } }
-        if let Some(v) = obj.get("configDir") { match crate::types::check::read_double::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_config_dir(&x) { out.push(e.under("configDir")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("configDir"))), } }
-        if let Some(v) = obj.get("args") { match crate::types::check::read_double::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("args"))), } }
-        if let Some(v) = obj.get("env") { match crate::types::check::read_present::<IndexMap<EnvName, Option<String>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("env"))), } }
+        crate::types::keys::opt_key::<bool>(obj, "on", &mut out);
+        crate::types::keys::dbl_key_with::<String>(obj, "program", &mut out, Self::rule_program);
+        crate::types::keys::dbl_key_with::<String>(obj, "configDir", &mut out, Self::rule_config_dir);
+        crate::types::keys::dbl_key::<Vec<String>>(obj, "args", &mut out);
+        crate::types::keys::opt_key::<IndexMap<EnvName, Option<String>>>(obj, "env", &mut out);
         let known: &[&str] = &["on", "program", "configDir", "args", "env"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -532,8 +572,8 @@ impl Check for ResolvedPick {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("value") { None => out.push(crate::types::check::missing::<Self>("value")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("value"))), } } }
-        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<DefaultFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        crate::types::keys::req_key::<String>(obj, "value", &mut out);
+        crate::types::keys::req_key::<DefaultFrom>(obj, "from", &mut out);
         Some(out)
     }
 
@@ -571,9 +611,9 @@ impl Check for ResolvedAccess {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("value") { None => out.push(crate::types::check::missing::<Self>("value")), Some(v) => { match crate::types::check::read::<AccessChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("value"))), } } }
-        match obj.get("mode") { None => out.push(crate::types::check::missing::<Self>("mode")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mode"))), } } }
-        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<DefaultFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        crate::types::keys::req_key::<AccessChoice>(obj, "value", &mut out);
+        crate::types::keys::req_key::<String>(obj, "mode", &mut out);
+        crate::types::keys::req_key::<DefaultFrom>(obj, "from", &mut out);
         Some(out)
     }
 
@@ -618,10 +658,10 @@ impl Check for ThreadDefaults {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("agent") { None => out.push(crate::types::check::missing::<Self>("agent")), Some(v) => { match crate::types::check::read::<ResolvedPick>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agent"))), } } }
-        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<ResolvedPick>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("effort") { match crate::types::check::read_present::<ResolvedPick>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
-        if let Some(v) = obj.get("access") { match crate::types::check::read_present::<ResolvedAccess>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
+        crate::types::keys::req_key::<ResolvedPick>(obj, "agent", &mut out);
+        crate::types::keys::opt_key::<ResolvedPick>(obj, "model", &mut out);
+        crate::types::keys::opt_key::<ResolvedPick>(obj, "effort", &mut out);
+        crate::types::keys::opt_key::<ResolvedAccess>(obj, "access", &mut out);
         Some(out)
     }
 
@@ -653,32 +693,131 @@ impl Check for ThreadDefaults {
 /// A record with a patch's fields over it, read as JSON objects: a key the patch writes null is taken away, an absent
 /// one kept, any other value set (a key the record lacked goes after the ones it had). None when no key is left.
 /// `T` is the record (AgentDefaults, ProjectOverrides), `P` its patch (AgentDefaultsPatch, ProjectOverridesPatch),
-/// whose fields are double options so null and absent stay apart.
-pub fn patched_fields<T, P>(kept: Option<&T>, patch: &P) -> Option<T>
+/// whose fields are double options so null and absent stay apart. The result writes the keys in that order, where a
+/// struct would write its own.
+pub fn patched_fields<T, P>(kept: Option<&T>, patch: &P) -> Option<Fields<T>>
 where
     T: Serialize + serde::de::DeserializeOwned,
     P: Serialize,
 {
-    let mut next = match kept.map(serde_json::to_value) {
-        Some(Ok(serde_json::Value::Object(fields))) => fields,
+    let start = kept.map(|kept| object_of(kept)).unwrap_or_default();
+    Fields::from_object(merged(start, patch)?)
+}
+
+fn object_of<T: Serialize>(record: &T) -> serde_json::Map<String, serde_json::Value> {
+    match serde_json::to_value(record) {
+        Ok(serde_json::Value::Object(fields)) => fields,
         _ => serde_json::Map::new(),
-    };
-    if let Ok(serde_json::Value::Object(fields)) = serde_json::to_value(patch) {
-        for (key, value) in fields {
-            match value {
-                serde_json::Value::Null => {
-                    next.shift_remove(&key);
-                }
-                value => {
-                    next.insert(key, value);
-                }
+    }
+}
+
+fn merged<P: Serialize>(
+    mut next: serde_json::Map<String, serde_json::Value>,
+    patch: &P,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    for (key, value) in object_of(patch) {
+        match value {
+            serde_json::Value::Null => {
+                next.shift_remove(&key);
+            }
+            value => {
+                next.insert(key, value);
             }
         }
     }
-    if next.is_empty() {
-        return None;
+    (!next.is_empty()).then_some(next)
+}
+
+/// A record written with its keys in the order `patchedFields` leaves them: the kept keys where they stood, a new key
+/// after them. Read from JSON it holds the struct's order, which is the order zod's parse gives.
+#[derive(Clone, Debug)]
+pub struct Fields<T> {
+    value: T,
+    keys: Vec<String>,
+}
+
+impl<T: Serialize> Fields<T> {
+    pub fn new(value: T) -> Self {
+        let keys = object_of(&value).into_iter().map(|(key, _)| key).collect();
+        Fields { value, keys }
     }
-    serde_json::from_value(serde_json::Value::Object(next)).ok()
+
+    /// The record with `key` written last, as `{ ...rest, key }` writes it where the key was taken out first.
+    pub fn last(value: T, key: &str) -> Self {
+        let mut fields = Self::new(value);
+        fields.keys.retain(|k| k != key);
+        fields.keys.push(key.to_string());
+        fields
+    }
+
+    pub fn into_inner(self) -> T {
+        self.value
+    }
+}
+
+impl<T: Serialize + serde::de::DeserializeOwned> Fields<T> {
+    /// `patchedFields` on a record: None when no key is left.
+    pub fn patched<P: Serialize>(kept: Option<&Self>, patch: &P) -> Option<Self> {
+        let start = kept.map(object_of).unwrap_or_default();
+        Self::from_object(merged(start, patch)?)
+    }
+
+    fn from_object(next: serde_json::Map<String, serde_json::Value>) -> Option<Self> {
+        let keys = next.keys().cloned().collect();
+        Some(Fields { value: serde_json::from_value(serde_json::Value::Object(next)).ok()?, keys })
+    }
+}
+
+impl<T> std::ops::Deref for Fields<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<T: PartialEq> PartialEq for Fields<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<T: PartialEq> PartialEq<T> for Fields<T> {
+    fn eq(&self, other: &T) -> bool {
+        self.value == *other
+    }
+}
+
+impl<T: Serialize> Serialize for Fields<T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{Error, SerializeMap};
+        let fields = object_of(&self.value);
+        let mut out = s.serialize_map(Some(fields.len()))?;
+        for key in &self.keys {
+            out.serialize_entry(key, fields.get(key).ok_or_else(|| S::Error::custom("a record key is missing"))?)?;
+        }
+        out.end()
+    }
+}
+
+impl<'de, T: Serialize + Deserialize<'de>> Deserialize<'de> for Fields<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        T::deserialize(d).map(Fields::new)
+    }
+}
+
+impl<T: Check + Serialize> Check for Fields<T> {
+    fn check(&self) -> Result<(), SchemaError> {
+        self.value.check()
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        T::pass(value)
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        T::describe(path)
+    }
 }
 
 // thread-defaults.ts:81 at a3b870a6e
@@ -701,7 +840,12 @@ pub struct AgentSetup {
     pub config_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub args: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::kept::record_opt",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub env: Option<indexmap::IndexMap<String, String>>,
 }
 

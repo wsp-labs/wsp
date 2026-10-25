@@ -1,5 +1,5 @@
 # app_ports
-Source: the functions of `packages/protocol/src/app-ports.ts` (200 lines) at a3b870a6e; its flat constants (`DEFAULT_PORT`, `PLACE_PORT_OFFSET`, `DEFAULT_PLACE_PORT`, `LOOPBACK`, `WS_PATH`, `WILDCARD`, `PORT_TAKEN_REFUSAL`) are `wsp_wire::types::app_ports`. Tests: `packages/protocol/test/app-ports.test.ts` (18 of 20 cases ported in `tests/app_ports.rs`; skipped :138-151, the two source-tree laws that no other file spells 4400 or the loopback address). No `pinned` module.
+Source: the functions of `packages/protocol/src/app-ports.ts` (193 lines) at the cut, 383708c78 (200 lines at a3b870a6e); its flat constants (`DEFAULT_PORT`, `PLACE_PORT_OFFSET`, `DEFAULT_PLACE_PORT`, `LOOPBACK`, `WS_PATH`, `WILDCARD`, `PORT_TAKEN_REFUSAL`) are `wsp_wire::types::app_ports`. Tests: `packages/protocol/test/app-ports.test.ts` (17 of 19 cases ported in `tests/app_ports.rs`; skipped :134-147, the two source-tree laws that no other file spells 4400 or the loopback address). No `pinned` module.
 
 ## What it does
 The port and address the host serves the app and its WebSocket on, read off `--port` and `--listen`; the one reading of loopback, the wildcard and a URL; the address a person types to join; and the lines a port somebody else holds says.
@@ -16,7 +16,7 @@ The port and address the host serves the app and its WebSocket on, read off `--p
 9. `authority(a, port)`: an address holding ":" and not starting "[" is bracketed; then ":<port>" (:112-115). `relay_url_of(h)` is "https://<h>" (:120-122).
 10. `ports_asked(port, listen)`: the port is `Number(port)` where given, else 4400, and `named` says it was given; the address is `listen` where given and not "", else "127.0.0.1" (:156-162).
 11. `port_holder_words(h)`: None is "another process"; a host is "the host serving <statePath>"; a process is "<command> (pid <pid>)" (:170-173).
-12. The lines: `port_taken_line` "Port <port> is in use on this computer by <holder>." (:176-178); `ports_picked_line` "Serving on <port>; <taken> is held by <holder>." (:182-184); `port_instead_line` (:191-193); `state_file_line` "Setting up <path>; --state <path> starts a fresh setup instead." (:198-200); `listen_beyond_loopback_line` (:126-128); `loopback_threads_line` (:132-134).
+12. The lines: `port_taken_line` "Port <port> is in use on this computer by <holder>." (:176-178); `ports_picked_line` "Serving on <port>; <taken> is held by <holder>." (:182-184); `port_instead_line` (:191-193); `listen_beyond_loopback_line` (:126-128); `loopback_threads_line` (:132-134).
 
 ## Edge cases
 - `served_hostname("HTTP://Box.Example")` is "box.example"; `("http://[2001:db8::5]:4400")` is "[2001:db8::5]"; "ws://box:4410", "http://", "https://", "box", "ftp://box" and "" are None (test asserts).
@@ -37,7 +37,7 @@ The port and address the host serves the app and its WebSocket on, read off `--p
 - `Number(text)` is JavaScript's string-to-number: whitespace trimmed, "" is 0, hex, octal and binary prefixes and exponents read, anything else NaN.
 
 ## Tapes
-`wsp up` and `wsp init` (the port and address they serve, the taken, picked and instead lines, the state file line, the beyond-loopback lines); the join screen and `wsp join`; the address a computer you own dials; `wsp host pair`.
+`wsp up` (the port and address it serves, the taken, picked and instead lines, the beyond-loopback lines); the join screen and `wsp join`; the address a computer you own dials; `wsp host pair`.
 
 ## Decisions
 1. `ports_asked` takes the two flags as `Option<&str>` arguments for the TS object; `ListenAsked.port` is `f64` so NaN survives, where `AppPorts.port` and `PortsAsked.port` are `u16`.

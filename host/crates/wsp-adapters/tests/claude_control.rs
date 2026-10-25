@@ -22,7 +22,7 @@ use wsp_adapters::claude::turn::ClaudeSession;
 use wsp_adapters::claude::{create_claude_adapter, AdapterDeps, AttachedSession};
 use wsp_adapters::pending::QUESTION_TOOL;
 use wsp_adapters::port::{AccessOutcome, AdapterAttachOptions, AdapterEvent, AnswerOutcome, DeltaKind, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, HarnessStartOptions, PermissionAnswer, PermissionAsk, PermissionOutcome, SteerOutcome, TaskStop, TurnResult, TurnStatus, WriteOutcome, PERMISSION_ALLOW, PERMISSION_DENY};
-use wsp_wire::types::pending_wire::PermissionEffect;
+use wsp_wire::wire::helpers::PermissionEffect;
 
 use claude_exec::{collect, types, Call, Exit, FakeExec, Script, StreamOpts, RUN_HANDLE};
 

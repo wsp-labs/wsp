@@ -41,7 +41,7 @@ Corrections to the rules above, found against the TS (each overrides the rule it
 - C2. Rule 6 (palette): N is read by `Number()`: an empty N is 0 (`palette = =#112233` sets slot 0); `1.0`, `1e1`, `+3`, `08`, `-0` are integers; U+00A0 around N is trimmed.
 - C3. Rule 6 (blur): the word is lower-cased first (`TRUE`, `MACOS-GLASS-CLEAR` work), and the integer test is on the `Number()` value (`0x10`, `1e1`, `20.0` accepted).
 - C4. Rule 7: JavaScript `Number()` takes a sign only on decimal text (`-0x10` and `+0x10` are refused), accepts `.5`, `5.`, `012`, `+12`, `1E1`, `0X1F`, `0B11`, `0O7`, and refuses `1_000`, `12px`, `1 2`, `1,5` and non-ASCII digits.
-- C5. Rule 8b: number text is `JSON.stringify`'s: at or above 1e21 or below 1e-6 an exponent with a sign (`1e+21`, `1e-7`), a value above 2^53 rounded first, `-0` written `0`. A blur past `i64` is still a number.
+- C5. Rule 8b: number text is `JSON.stringify`'s: at or above 1e21 or below 1e-6 an exponent with a sign (`1e+21`, `1e-7`), a value above 2^53 rounded first, `-0` written `0`. A blur past `i64` is still a number. The Rust map writes a different text in two ranges only, accepted: a fraction from 1e-6 up to 1e-5 (`1.5e-6`, node `0.0000015`) and a whole number from 2^64 up to 1e21 (`1.8446744073709552e+19`, node `18446744073709552000`); the numbers are equal, and `ghostty_config::in_pinned_range` and `review_lead` pin them.
 - C6. Rule 1: it is the trimmed value after `=` that must start and end with `"`, and the regex's `.` stops at `\r`, U+2028 and U+2029, so a value holding one is not unquoted.
 
 - W1. Directives, themes and config paths (`parse_ghostty_directives`, `theme_for`, `ghostty_config_paths`).

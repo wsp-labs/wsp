@@ -173,7 +173,12 @@ mod w2_oracle {
                 .map(|s| json!({ "agent": s.agent.id, "turn": serde_json::to_value(&s.turn).unwrap(), "row": serde_json::to_value(&s.row).unwrap() }))
                 .collect();
             let want = &case["out"];
-            assert_eq!(json!({ "servers": servers, "read": got.read, "checkout": checkout_json(&got.checkout) }), *want, "{}", case["name"]);
+            assert_eq!(
+                json!({ "servers": servers, "read": got.read, "checkout": checkout_json(&got.checkout) }),
+                *want,
+                "{}",
+                case["name"]
+            );
             assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
         }
     }

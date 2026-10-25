@@ -312,19 +312,6 @@ mod the_nap_s_words_when_its_vault_was_not_stored {
     }
 }
 
-mod wsp_init_on_once_an_image_stands {
-    use super::*;
-
-    #[test]
-    fn says_in_one_sentence_that_the_image_is_built_at_its_own_place_when_on_named_anot() {
-        let home = PlaceNamed { id: "p_abc".to_string(), name: "spoo".to_string(), kind: None };
-        assert_eq!(image_home_kept_line(Some("solari"), &home), some("your image lives on spoo, so it is built there and not on solari"),);
-        assert_eq!(image_home_kept_line(Some("spoo"), &home), None);
-        assert_eq!(image_home_kept_line(Some("p_abc"), &home), None);
-        assert_eq!(image_home_kept_line(None, &home), None);
-    }
-}
-
 mod a_create_s_own_words {
     use super::*;
 
@@ -644,7 +631,6 @@ mod pinned {
             place_forks_nothing_pick_line("here", &["a", "b"]),
             "here forks no machines; name a place that runs workspaces with --on: a, b"
         ); // placeForksNothingPickLine("here", ["a", "b"])
-        assert_eq!(image_built_on_line("Boat"), "your image is built on Boat"); // imageBuiltOnLine("Boat")
         assert_eq!(
             not_a_thread_line("spoo", WordIs::Project, "wsp send", false),
             "spoo is a project; wsp send takes a thread, as wsp threads spoo lists them."

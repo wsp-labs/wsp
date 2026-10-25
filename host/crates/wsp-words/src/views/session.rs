@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Turns folded into the threads the sidebar lists. Port of the functions of packages/protocol/src/views/session.ts that wsp-wire left to this crate, at
-//! a3b870a6e; that file's shapes are wsp-wire's. See spec/views_session.md.
+//! the cut (383708c78); that file's shapes are wsp-wire's. See spec/views_session.md.
 
 use indexmap::IndexMap;
 

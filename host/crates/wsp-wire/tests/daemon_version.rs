@@ -138,10 +138,16 @@ fn the_kill_and_slate_lines_name_the_computer_and_the_update() {
 #[test]
 fn a_state_shape_names_its_writer_by_binary_build_and_daemon() {
     let wrote: StateShape =
-        reads_exact(json!({ "shape": 2, "wsp": "0.3.8", "daemon": 167, "bin": "/usr/local/bin/wsp", "at": "2026-10-25T00:00:00.000Z" }));
+        reads_exact(json!({ "shape": 3, "wsp": "0.3.8", "daemon": 167, "bin": "/usr/local/bin/wsp", "at": "2026-10-25T00:00:00.000Z" }));
     assert_eq!(wrote.shape.get(), STATE_SHAPE);
     assert_eq!(state_writer_words(&wrote), "/usr/local/bin/wsp (wsp 0.3.8, daemon 167)");
     // shape and daemon are integers; every field is required.
     assert_eq!(refused::<StateShape>(json!({ "shape": 2.5, "wsp": "x", "daemon": 1, "bin": "b", "at": "t" })).path, path!["shape"]);
     assert_eq!(refused::<StateShape>(json!({ "shape": 2, "wsp": "x", "daemon": 1, "bin": "b" })).path, path!["at"]);
+}
+
+// The Rust store's fresh schema is shape 3 (the TS host's own is 2); wsp-wire is the one home the store reads it from.
+#[test]
+fn the_state_shape_is_the_fresh_schemas_three() {
+    assert_eq!(STATE_SHAPE, 3);
 }

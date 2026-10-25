@@ -4,9 +4,14 @@
 //! the files its config-file lines include; the last theme line resolved against the config's themes folder and the
 //! bundled ones, its colors under the config's own. Port of packages/collect/src/ghostty-config.ts at a3b870a6e; the
 //! spec is spec/ghostty_config.md.
-use wsp_wire::views::project_bundle::{TerminalRgb, TerminalScheme};
+use std::collections::{HashMap, HashSet};
 
-use crate::host::Host;
+use serde_json::{json, Map, Value};
+use wsp_wire::types::js_number::JsInt;
+use wsp_wire::views::project_bundle::{TerminalRgb, TerminalScheme};
+use wsp_words::js::{js_trim, number_string, to_number};
+
+use crate::host::{expand, Host, Platform};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GhosttyDirective {
@@ -22,251 +27,334 @@ pub const LINUX_SHARED_THEMES: [&str; 2] = ["/usr/local/share/ghostty/themes", "
 /// Ghostty's blur intensity for `background-blur = true`.
 pub const DEFAULT_BLUR: i64 = 20;
 
+const CURSOR_STYLES: [&str; 4] = ["block", "bar", "underline", "block_hollow"];
+
 /// The key = value lines of one file, in order and with repeats; comments, blanks and lines with no = are not
 /// directives.
-// ghostty-config.ts:27
-// const unquote = (value: string): string => value.replace(/^"(.*)"$/, "$1");
-//
-// /** The key = value lines of one Ghostty file, in order and with repeats; comments, blanks and lines with no = are not directives. */
-// export function parseGhosttyDirectives(text: string): GhosttyDirective[] {
-//   const out: GhosttyDirective[] = [];
-//   for (const raw of text.split("\n")) {
-//     const line = raw.replace(/^\uFEFF/, "").trim();
-//     if (line === "" || line.startsWith("#")) continue;
-//     const at = line.indexOf("=");
-//     if (at < 0) continue;
-//     const key = line.slice(0, at).trim();
-//     if (key === "") continue;
-//     out.push({ key, value: unquote(line.slice(at + 1).trim()) });
-//   }
-//   return out;
-// }
 pub fn parse_ghostty_directives(text: &str) -> Vec<GhosttyDirective> {
-    todo!()
+    let mut out = Vec::new();
+    for raw in text.split('\n') {
+        let line = js_trim(raw.strip_prefix('\u{FEFF}').unwrap_or(raw));
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some(at) = line.find('=') else {
+            continue;
+        };
+        let key = js_trim(&line[..at]);
+        if key.is_empty() {
+            continue;
+        }
+        out.push(GhosttyDirective { key: key.to_string(), value: unquote(js_trim(&line[at + 1..])).to_string() });
+    }
+    out
+}
+
+/// `replace(/^"(.*)"$/, "$1")`: one enclosing pair of quotes, with no line break inside.
+fn unquote(value: &str) -> &str {
+    match value.strip_prefix('"').and_then(|rest| rest.strip_suffix('"')) {
+        Some(inner) if !inner.contains(['\r', '\u{2028}', '\u{2029}']) => inner,
+        _ => value,
+    }
+}
+
+fn xdg_config_dir(host: &Host) -> String {
+    host.xdg_config_home.clone().unwrap_or_else(|| format!("{}/.config", host.home))
 }
 
 /// Where Ghostty looks for its config on this computer, in load order.
-// ghostty-config.ts:44
-// function xdgConfigDir(host: Host): string {
-//   return host.xdgConfigHome ?? `${host.home}/.config`;
-// }
-//
-// /** Where Ghostty looks for its config on this computer, in the order it loads them: config.ghostty before the config
-//  * it was named before 1.2.3, and conflicting values in a later file win, as the config reference has it. */
-// export function ghosttyConfigPaths(host: Host): string[] {
-//   const xdg = `${xdgConfigDir(host)}/ghostty`;
-//   const paths = [`${xdg}/config.ghostty`, `${xdg}/config`];
-//   if (host.platform === "darwin") paths.push(expand(host, `${MAC_APP_SUPPORT}/config.ghostty`), expand(host, `${MAC_APP_SUPPORT}/config`));
-//   return paths;
-// }
 pub fn ghostty_config_paths(host: &Host) -> Vec<String> {
-    todo!()
+    let xdg = format!("{}/ghostty", xdg_config_dir(host));
+    let mut paths = vec![format!("{xdg}/config.ghostty"), format!("{xdg}/config")];
+    if host.platform == Platform::Darwin {
+        paths.push(expand(&host.home, &format!("{MAC_APP_SUPPORT}/config.ghostty")));
+        paths.push(expand(&host.home, &format!("{MAC_APP_SUPPORT}/config")));
+    }
+    paths
 }
 
 /// `#RRGGBB` or `RRGGBB`, surrounding whitespace allowed, any case.
-// ghostty-config.ts:110
-// function hexColor(value: string): TerminalRgb | undefined {
-//   const m = /^#?([0-9a-fA-F]{6})$/.exec(value.trim());
-//   if (m === null) return undefined;
-//   const hex = m[1]!;
-//   return { r: parseInt(hex.slice(0, 2), 16), g: parseInt(hex.slice(2, 4), 16), b: parseInt(hex.slice(4, 6), 16) };
-// }
 pub fn hex_color(value: &str) -> Option<TerminalRgb> {
-    todo!()
+    let t = js_trim(value);
+    let hex = t.strip_prefix('#').unwrap_or(t);
+    if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    let part = |at: usize| i64::from_str_radix(&hex[at..at + 2], 16).ok();
+    Some(TerminalRgb { r: JsInt::from(part(0)?), g: JsInt::from(part(2)?), b: JsInt::from(part(4)?) })
 }
 
 /// The theme a `theme` value names for the scheme: the one name, or the light:/dark: pair's side.
-// ghostty-config.ts:213
-// /** The theme a `theme` value names for the scheme: the one name, or the light:/dark: pair's side. */
-// export function themeFor(value: string, scheme: TerminalScheme): string {
-//   const sides = new Map<string, string>();
-//   for (const part of value.split(",")) {
-//     const at = part.indexOf(":");
-//     if (at > 0) sides.set(part.slice(0, at).trim(), part.slice(at + 1).trim());
-//   }
-//   return sides.get(scheme) ?? (sides.size === 0 ? value.trim() : "");
-// }
 pub fn theme_for(value: &str, scheme: TerminalScheme) -> String {
-    todo!()
+    let mut sides: HashMap<&str, &str> = HashMap::new();
+    for part in value.split(',') {
+        if let Some(at) = part.find(':').filter(|&at| at > 0) {
+            sides.insert(js_trim(&part[..at]), js_trim(&part[at + 1..]));
+        }
+    }
+    let name = match scheme {
+        TerminalScheme::Light => "light",
+        TerminalScheme::Dark => "dark",
+    };
+    match sides.get(name) {
+        Some(side) => side.to_string(),
+        None if sides.is_empty() => js_trim(value).to_string(),
+        None => String::new(),
+    }
+}
+
+/// Where a theme name is looked for, in order: the config's own themes folder, then the bundled ones.
+fn theme_paths(host: &Host, name: &str) -> Vec<String> {
+    if name.starts_with('/') {
+        return vec![name.to_string()];
+    }
+    let mut dirs = vec![format!("{}/ghostty/themes", xdg_config_dir(host))];
+    if host.platform == Platform::Darwin {
+        dirs.push(MAC_BUNDLED_THEMES.to_string());
+    } else {
+        dirs.extend(LINUX_SHARED_THEMES.iter().map(|dir| dir.to_string()));
+    }
+    dirs.into_iter().map(|dir| format!("{dir}/{name}")).collect()
+}
+
+fn dir_of(path: &str) -> &str {
+    match path.rfind('/') {
+        Some(at) if at > 0 => &path[..at],
+        _ => "/",
+    }
+}
+
+fn resolve_include(value: &str, from: &str, home: &str) -> Option<String> {
+    let path = unquote(value.strip_prefix('?').unwrap_or(value));
+    if path.is_empty() {
+        return None;
+    }
+    let expanded = expand(home, path);
+    Some(if expanded.starts_with('/') { expanded } else { format!("{}/{expanded}", dir_of(from)) })
+}
+
+fn normalize(path: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    for part in path.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    format!("/{}", out.join("/"))
+}
+
+/// Config files in load order, each once, with the files each includes after it; an unreadable file is skipped.
+async fn load_with_includes(host: &Host, paths: &[String], files: &mut Vec<String>, into: &mut Vec<GhosttyDirective>) {
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut stack: Vec<String> = paths.iter().rev().cloned().collect();
+    while let Some(path) = stack.pop() {
+        let own = normalize(&path);
+        if seen.contains(&own) {
+            continue;
+        }
+        let Some(text) = host.fs.read_text(&own).await else {
+            continue;
+        };
+        seen.insert(own.clone());
+        files.push(own.clone());
+        let directives = parse_ghostty_directives(&text);
+        let mut includes: Vec<String> = Vec::new();
+        for directive in &directives {
+            if directive.key != "config-file" {
+                continue;
+            }
+            if directive.value.is_empty() {
+                includes.clear();
+            } else if let Some(resolved) = resolve_include(&directive.value, &own, &host.home) {
+                includes.push(resolved);
+            }
+        }
+        into.extend(directives);
+        stack.extend(includes.into_iter().rev());
+    }
+}
+
+/// `Number(value.trim())` when the trimmed value is not empty and the result is finite.
+fn finite(value: &str) -> Option<f64> {
+    let t = js_trim(value);
+    if t.is_empty() {
+        return None;
+    }
+    let n = to_number(t);
+    n.is_finite().then_some(n)
+}
+
+/// `N=COLOR` with N an integer from 0 to 15 as `Number` reads it, and a hex colour.
+fn palette_entry(value: &str) -> Option<(usize, TerminalRgb)> {
+    let at = value.find('=')?;
+    let index = to_number(&value[..at]);
+    let color = hex_color(&value[at + 1..])?;
+    (index.is_finite() && index.fract() == 0.0 && (0.0..=15.0).contains(&index)).then_some((index as usize, color))
+}
+
+/// One or two non-negative numbers, comma separated; one value sets both sides.
+fn padding(value: &str) -> Option<(f64, f64)> {
+    let parts: Vec<Option<f64>> = value.split(',').map(finite).collect();
+    let a = parts[0]?;
+    if parts.len() > 2 || a < 0.0 {
+        return None;
+    }
+    let b = if parts.len() == 2 {
+        let b = parts[1]?;
+        if b < 0.0 {
+            return None;
+        }
+        b
+    } else {
+        a
+    };
+    Some((a, b))
+}
+
+fn blur(value: &str) -> Option<f64> {
+    let word = js_trim(value).to_lowercase();
+    if word == "false" {
+        return Some(0.0);
+    }
+    if word == "true" || word.starts_with("macos-glass-") {
+        return Some(DEFAULT_BLUR as f64);
+    }
+    let n = finite(&word)?;
+    (n.fract() == 0.0 && n >= 0.0).then_some(n)
+}
+
+/// A number as JavaScript's JSON writes it: no `.0` on an integer, and digits kept where serde_json can hold them.
+fn js_number(n: f64) -> Value {
+    if n.fract() == 0.0 && n.abs() < 9007199254740992.0 {
+        Value::from(n as i64)
+    } else if n.fract() == 0.0 && n.abs() < 1e21 {
+        serde_json::from_str(&number_string(n)).unwrap_or(Value::from(n))
+    } else {
+        Value::from(n)
+    }
+}
+
+fn rgb_value(color: TerminalRgb) -> Value {
+    serde_json::to_value(color).unwrap_or(Value::Null)
+}
+
+/// The keys the pane honours, applied in order over the answer's map; a value that does not parse leaves its key.
+fn apply(out: &mut Map<String, Value>, directive: &GhosttyDirective) {
+    let value = directive.value.as_str();
+    match directive.key.as_str() {
+        "font-family" => {
+            if value.is_empty() {
+                out.insert("fontFamily".into(), json!([]));
+            } else if let Some(Value::Array(list)) = out.get_mut("fontFamily") {
+                list.push(Value::String(value.to_string()));
+            }
+        }
+        "font-size" => {
+            if let Some(n) = finite(value).filter(|n| *n > 0.0) {
+                out.insert("fontSize".into(), js_number(n));
+            }
+        }
+        "background" | "foreground" | "selection-background" | "cursor-color" => {
+            if let Some(color) = hex_color(value) {
+                let name = match directive.key.as_str() {
+                    "background" => "background",
+                    "foreground" => "foreground",
+                    "selection-background" => "selectionBackground",
+                    _ => "cursorColor",
+                };
+                out.insert(name.into(), rgb_value(color));
+            }
+        }
+        "palette" => {
+            if let Some((index, color)) = palette_entry(value) {
+                if let Some(Value::Array(palette)) = out.get_mut("palette") {
+                    palette[index] = rgb_value(color);
+                }
+            }
+        }
+        "cursor-style" => {
+            if CURSOR_STYLES.contains(&value) {
+                out.insert("cursorStyle".into(), json!(value));
+            }
+        }
+        "cursor-style-blink" => match value {
+            "true" => {
+                out.insert("cursorStyleBlink".into(), json!(true));
+            }
+            "false" => {
+                out.insert("cursorStyleBlink".into(), json!(false));
+            }
+            "" => {
+                out.shift_remove("cursorStyleBlink");
+            }
+            _ => {}
+        },
+        "window-padding-x" => {
+            if let Some((left, right)) = padding(value) {
+                out.insert("windowPaddingX".into(), json!({ "left": js_number(left), "right": js_number(right) }));
+            }
+        }
+        "window-padding-y" => {
+            if let Some((top, bottom)) = padding(value) {
+                out.insert("windowPaddingY".into(), json!({ "top": js_number(top), "bottom": js_number(bottom) }));
+            }
+        }
+        "background-opacity" => {
+            if let Some(n) = finite(value) {
+                out.insert("backgroundOpacity".into(), js_number(n.clamp(0.0, 1.0)));
+            }
+        }
+        "background-blur" | "background-blur-radius" => {
+            if let Some(n) = blur(value) {
+                out.insert("backgroundBlur".into(), js_number(n));
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The person's Ghostty config as the pane applies it; with no file, files and fontFamily empty, sixteen `None`
 /// palette slots and every other key absent.
-// ghostty-config.ts:57
-// /** Where a theme name is looked for, in order: the config's own themes folder, then the bundled ones. */
-// function themePaths(host: Host, name: string): string[] {
-//   if (name.startsWith("/")) return [name];
-//   const dirs = [`${xdgConfigDir(host)}/ghostty/themes`, ...(host.platform === "darwin" ? [MAC_BUNDLED_THEMES] : LINUX_SHARED_THEMES)];
-//   return dirs.map(dir => `${dir}/${name}`);
-// }
-//
-// function dirOf(path: string): string {
-//   const at = path.lastIndexOf("/");
-//   return at <= 0 ? "/" : path.slice(0, at);
-// }
-//
-// function resolveInclude(value: string, from: string, home: string): string | undefined {
-//   const optional = value.startsWith("?");
-//   const path = unquote(optional ? value.slice(1) : value);
-//   if (path === "") return undefined;
-//   const expanded = expand({ home }, path);
-//   return expanded.startsWith("/") ? expanded : `${dirOf(from)}/${expanded}`;
-// }
-//
-// /** Ghostty normalises a path lexically before comparing it, so an include naming its own file through .. is a cycle. */
-// function normalize(path: string): string {
-//   const out: string[] = [];
-//   for (const part of path.split("/")) {
-//     if (part === "" || part === ".") continue;
-//     if (part === "..") out.pop();
-//     else out.push(part);
-//   }
-//   return `/${out.join("/")}`;
-// }
-//
-// /** One config file and, after it, the files it includes, each once; the directives in load order and the files read. */
-// async function loadWithIncludes(host: Host, path: string, seen: Set<string>, files: string[], into: GhosttyDirective[]): Promise<void> {
-//   const own = normalize(path);
-//   if (seen.has(own)) return;
-//   const text = await host.fs.readText(own);
-//   if (text === undefined) return;
-//   seen.add(own);
-//   files.push(own);
-//   const directives = parseGhosttyDirectives(text);
-//   into.push(...directives);
-//   const includes: string[] = [];
-//   for (const { key, value } of directives) {
-//     if (key !== "config-file") continue;
-//     if (value === "") includes.length = 0;
-//     else {
-//       const resolved = resolveInclude(value, own, host.home);
-//       if (resolved !== undefined) includes.push(resolved);
-//     }
-//   }
-//   for (const include of includes) await loadWithIncludes(host, include, seen, files, into);
-// }
-// ghostty-config.ts:117
-// function finite(value: string): number | undefined {
-//   const n = Number(value.trim());
-//   return value.trim() !== "" && Number.isFinite(n) ? n : undefined;
-// }
-//
-// /** `N=COLOR` with N in decimal, 0x, 0o or 0b; only the first sixteen slots are the pane's. */
-// function paletteEntry(value: string): { index: number; color: TerminalRgb } | undefined {
-//   const at = value.indexOf("=");
-//   if (at < 0) return undefined;
-//   const index = Number(value.slice(0, at).trim());
-//   const color = hexColor(value.slice(at + 1));
-//   if (!Number.isInteger(index) || index < 0 || index > 15 || color === undefined) return undefined;
-//   return { index, color };
-// }
-//
-// /** One or two non-negative numbers, comma separated; one value sets both sides. */
-// function padding(value: string): [number, number] | undefined {
-//   const parts = value.split(",").map(finite);
-//   const [a, b] = parts;
-//   if (parts.length > 2 || a === undefined || a < 0 || (parts.length === 2 && (b === undefined || b < 0))) return undefined;
-//   return [a, b ?? a];
-// }
-//
-// function blur(value: string): number | undefined {
-//   const word = value.trim().toLowerCase();
-//   if (word === "false") return 0;
-//   if (word === "true" || word.startsWith("macos-glass-")) return DEFAULT_BLUR;
-//   const n = finite(word);
-//   return n !== undefined && Number.isInteger(n) && n >= 0 ? n : undefined;
-// }
-//
-// type Draft = Omit<TerminalConfig, "files" | "theme" | "palette"> & { palette: (TerminalRgb | null)[] };
-//
-// /** The keys the pane honours, applied in order over a draft; a value that does not parse leaves its key as it was. */
-// function apply(draft: Draft, { key, value }: GhosttyDirective): void {
-//   switch (key) {
-//     case "font-family":
-//       if (value === "") draft.fontFamily = [];
-//       else draft.fontFamily.push(value);
-//       return;
-//     case "font-size": {
-//       const n = finite(value);
-//       if (n !== undefined && n > 0) draft.fontSize = n;
-//       return;
-//     }
-//     case "background":
-//     case "foreground":
-//     case "selection-background":
-//     case "cursor-color": {
-//       const color = hexColor(value);
-//       if (color === undefined) return;
-//       if (key === "background") draft.background = color;
-//       else if (key === "foreground") draft.foreground = color;
-//       else if (key === "selection-background") draft.selectionBackground = color;
-//       else draft.cursorColor = color;
-//       return;
-//     }
-//     case "palette": {
-//       const entry = paletteEntry(value);
-//       if (entry !== undefined) draft.palette[entry.index] = entry.color;
-//       return;
-//     }
-//     case "cursor-style":
-//       if (CURSOR_STYLES.has(value)) draft.cursorStyle = value as TerminalCursorStyle;
-//       return;
-//     case "cursor-style-blink":
-//       if (value === "true") draft.cursorStyleBlink = true;
-//       else if (value === "false") draft.cursorStyleBlink = false;
-//       else if (value === "") delete draft.cursorStyleBlink;
-//       return;
-//     case "window-padding-x": {
-//       const p = padding(value);
-//       if (p !== undefined) draft.windowPaddingX = { left: p[0], right: p[1] };
-//       return;
-//     }
-//     case "window-padding-y": {
-//       const p = padding(value);
-//       if (p !== undefined) draft.windowPaddingY = { top: p[0], bottom: p[1] };
-//       return;
-//     }
-//     case "background-opacity": {
-//       const n = finite(value);
-//       if (n !== undefined) draft.backgroundOpacity = Math.min(1, Math.max(0, n));
-//       return;
-//     }
-//     case "background-blur":
-//     case "background-blur-radius": {
-//       const n = blur(value);
-//       if (n !== undefined) draft.backgroundBlur = n;
-//       return;
-//     }
-//     default:
-//       return;
-//   }
-// }
-// ghostty-config.ts:223
-// /** The person's Ghostty config as the pane applies it, or the empty object when no file exists. */
-// export async function readGhosttyConfig(host: Host, scheme: TerminalScheme = "dark"): Promise<TerminalConfig> {
-//   const files: string[] = [];
-//   const own: GhosttyDirective[] = [];
-//   const seen = new Set<string>();
-//   for (const path of ghosttyConfigPaths(host)) await loadWithIncludes(host, path, seen, files, own);
-//   const themeLine = own.filter(d => d.key === "theme").at(-1);
-//   const theme = themeLine === undefined ? undefined : themeFor(themeLine.value, scheme);
-//   const draft: Draft = { fontFamily: [], palette: Array<TerminalRgb | null>(16).fill(null) };
-//   if (theme !== undefined && theme !== "") {
-//     for (const path of themePaths(host, theme)) {
-//       const text = await host.fs.readText(path);
-//       if (text === undefined) continue;
-//       files.push(path);
-//       for (const directive of parseGhosttyDirectives(text)) if (directive.key !== "theme" && directive.key !== "config-file") apply(draft, directive);
-//       break;
-//     }
-//   }
-//   for (const directive of own) apply(draft, directive);
-//   return { files, ...draft, ...(theme !== undefined && theme !== "" ? { theme } : {}) };
-// }
 /// The answer is an ordered JSON map in the TS object's key order (coordinator's ruling on #2446): `files`,
 /// `fontFamily`, `palette`, then each applied key in the order it was first set (theme file first, then the config),
 /// a key that `cursor-style-blink =` deleted going to the end when set again, and `theme` last. Its keys and values
 /// are wsp-wire's `TerminalConfig` fields in camelCase, so `serde_json::from_value` reads it into that struct.
 pub async fn read_ghostty_config(host: &Host, scheme: TerminalScheme) -> serde_json::Map<String, serde_json::Value> {
-    todo!()
+    let mut files: Vec<String> = Vec::new();
+    let mut own: Vec<GhosttyDirective> = Vec::new();
+    load_with_includes(host, &ghostty_config_paths(host), &mut files, &mut own).await;
+    let theme = own.iter().rev().find(|d| d.key == "theme").map(|d| theme_for(&d.value, scheme)).filter(|t| !t.is_empty());
+    let mut out: Map<String, Value> = Map::new();
+    out.insert("fontFamily".into(), json!([]));
+    out.insert("palette".into(), Value::Array(vec![Value::Null; 16]));
+    if let Some(name) = &theme {
+        for path in theme_paths(host, name) {
+            let Some(text) = host.fs.read_text(&path).await else {
+                continue;
+            };
+            files.push(path);
+            for directive in parse_ghostty_directives(&text) {
+                if directive.key != "theme" && directive.key != "config-file" {
+                    apply(&mut out, &directive);
+                }
+            }
+            break;
+        }
+    }
+    for directive in &own {
+        apply(&mut out, directive);
+    }
+    let mut answer: Map<String, Value> = Map::new();
+    answer.insert("files".into(), json!(files));
+    for (key, value) in out {
+        answer.insert(key, value);
+    }
+    if let Some(theme) = theme {
+        answer.insert("theme".into(), json!(theme));
+    }
+    answer
 }

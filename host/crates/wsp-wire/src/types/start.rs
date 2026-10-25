@@ -8,6 +8,8 @@ use crate::types::check::{Check, SchemaError};
 use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 
+pub use crate::types::frames_replies::{GitPrDiffReply, GitPrReviewReply};
+
 literal!(GithubComLit, "github.com");
 
 /// TS: packages/protocol/src/start.ts:104 at a3b870a6e.
@@ -43,7 +45,7 @@ impl Check for GithubLink {
     fn check(&self) -> Result<(), SchemaError> {
         self.host.check().map_err(|e| e.under("host"))?;
         self.kind.check().map_err(|e| e.under("kind"))?;
-        crate::types::check::num_at_least(self.number.0.0, 0.0).map_err(|e| e.under("number"))?;
+        crate::types::check::num_at_least(self.number.0 .0, 0.0).map_err(|e| e.under("number"))?;
         Ok(())
     }
 
@@ -52,11 +54,11 @@ impl Check for GithubLink {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("host") { None => out.push(crate::types::check::missing::<Self>("host")), Some(v) => { match crate::types::check::read::<GithubComLit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("host"))), } } }
-        match obj.get("repo") { None => out.push(crate::types::check::missing::<Self>("repo")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("repo"))), } } }
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<GithubLinkKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-        match obj.get("number") { None => out.push(crate::types::check::missing::<Self>("number")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_number(&x) { out.push(e.under("number")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("number"))), } } }
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
+        crate::types::keys::req_key::<GithubComLit>(obj, "host", &mut out);
+        crate::types::keys::req_key::<String>(obj, "repo", &mut out);
+        crate::types::keys::req_key::<GithubLinkKind>(obj, "kind", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "number", &mut out, Self::rule_number);
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
         Some(out)
     }
 
@@ -76,7 +78,7 @@ impl Check for GithubLink {
 }
 impl GithubLink {
     fn rule_number(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -114,8 +116,8 @@ impl Check for WorkspaceFromHeadFork {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("owner") { None => out.push(crate::types::check::missing::<Self>("owner")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("owner"))), } } }
-        match obj.get("pushable") { None => out.push(crate::types::check::missing::<Self>("pushable")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pushable"))), } } }
+        crate::types::keys::req_key::<String>(obj, "owner", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "pushable", &mut out);
         Some(out)
     }
 
@@ -153,9 +155,9 @@ impl Check for WorkspaceFromHead {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        if let Some(v) = obj.get("oid") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("oid"))), } }
-        if let Some(v) = obj.get("fork") { match crate::types::check::read_present::<WorkspaceFromHeadFork>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fork"))), } }
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "oid", &mut out);
+        crate::types::keys::opt_key::<WorkspaceFromHeadFork>(obj, "fork", &mut out);
         Some(out)
     }
 
@@ -192,7 +194,7 @@ impl Check for WorkspaceFrom {
     /// Nested checks: head.
     fn check(&self) -> Result<(), SchemaError> {
         self.kind.check().map_err(|e| e.under("kind"))?;
-        crate::types::check::num_at_least(self.number.0.0, 0.0).map_err(|e| e.under("number"))?;
+        crate::types::check::num_at_least(self.number.0 .0, 0.0).map_err(|e| e.under("number"))?;
         self.head.check().map_err(|e| e.under("head"))?;
         Ok(())
     }
@@ -202,13 +204,13 @@ impl Check for WorkspaceFrom {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<WorkspaceFromKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-        match obj.get("repo") { None => out.push(crate::types::check::missing::<Self>("repo")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("repo"))), } } }
-        match obj.get("number") { None => out.push(crate::types::check::missing::<Self>("number")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_number(&x) { out.push(e.under("number")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("number"))), } } }
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        if let Some(v) = obj.get("base") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } }
-        if let Some(v) = obj.get("head") { match crate::types::check::read_present::<WorkspaceFromHead>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("head"))), } }
+        crate::types::keys::req_key::<WorkspaceFromKind>(obj, "kind", &mut out);
+        crate::types::keys::req_key::<String>(obj, "repo", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "number", &mut out, Self::rule_number);
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "base", &mut out);
+        crate::types::keys::opt_key::<WorkspaceFromHead>(obj, "head", &mut out);
         Some(out)
     }
 
@@ -230,7 +232,7 @@ impl Check for WorkspaceFrom {
 }
 impl WorkspaceFrom {
     fn rule_number(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -253,9 +255,9 @@ impl Check for IssueReadCommentsItem {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("author") { None => out.push(crate::types::check::missing::<Self>("author")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("author"))), } } }
-        match obj.get("body") { None => out.push(crate::types::check::missing::<Self>("body")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("body"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
+        crate::types::keys::req_key::<String>(obj, "author", &mut out);
+        crate::types::keys::req_key::<String>(obj, "body", &mut out);
+        crate::types::keys::req_key::<String>(obj, "at", &mut out);
         Some(out)
     }
 
@@ -287,7 +289,7 @@ pub struct IssueRead {
 
 impl Check for IssueRead {
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.number.0.0, 0.0).map_err(|e| e.under("number"))?;
+        crate::types::check::num_at_least(self.number.0 .0, 0.0).map_err(|e| e.under("number"))?;
         self.comments.check().map_err(|e| e.under("comments"))?;
         Ok(())
     }
@@ -297,12 +299,12 @@ impl Check for IssueRead {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("number") { None => out.push(crate::types::check::missing::<Self>("number")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_number(&x) { out.push(e.under("number")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("number"))), } } }
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("body") { None => out.push(crate::types::check::missing::<Self>("body")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("body"))), } } }
-        match obj.get("state") { None => out.push(crate::types::check::missing::<Self>("state")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("state"))), } } }
-        match obj.get("comments") { None => out.push(crate::types::check::missing::<Self>("comments")), Some(v) => { match crate::types::check::read::<Vec<IssueReadCommentsItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("comments"))), } } }
+        crate::types::keys::req_key_with::<JsInt>(obj, "number", &mut out, Self::rule_number);
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<String>(obj, "body", &mut out);
+        crate::types::keys::req_key::<String>(obj, "state", &mut out);
+        crate::types::keys::req_key::<Vec<IssueReadCommentsItem>>(obj, "comments", &mut out);
         Some(out)
     }
 
@@ -323,7 +325,7 @@ impl Check for IssueRead {
 }
 impl IssueRead {
     fn rule_number(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -347,7 +349,7 @@ impl Check for GitIssueReadReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("issue") { None => out.push(crate::types::check::missing::<Self>("issue")), Some(v) => { match crate::types::check::read::<IssueRead>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("issue"))), } } }
+        crate::types::keys::req_key::<IssueRead>(obj, "issue", &mut out);
         Some(out)
     }
 
@@ -356,28 +358,6 @@ impl Check for GitIssueReadReply {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "issue" => <IssueRead as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-/// TS: packages/protocol/src/start.ts:92 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrDiffReply;
-
-impl Check for GitPrDiffReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "diff" => <String as Check>::describe(rest),
-                "truncated" => <bool as Check>::describe(rest),
-                "left" => <Vec<String> as Check>::describe(rest),
                 _ => None,
             },
         }
@@ -398,27 +378,6 @@ impl Check for GitPrCheckoutReply {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "branch" => <String as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-/// TS: packages/protocol/src/start.ts:100 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrReviewReply;
-
-impl Check for GitPrReviewReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "url" => <String as Check>::describe(rest),
-                "folded" => <Vec<String> as Check>::describe(rest),
                 _ => None,
             },
         }
@@ -468,7 +427,7 @@ impl Check for ReviewBlockCommentsItem {
     /// Rules: path: at least 1 UTF-16 units; line: > 0.
     fn check(&self) -> Result<(), SchemaError> {
         crate::types::check::text_at_least(&self.path, 1).map_err(|e| e.under("path"))?;
-        crate::types::check::num_above(self.line.0.0, 0.0).map_err(|e| e.under("line"))?;
+        crate::types::check::num_above(self.line.0 .0, 0.0).map_err(|e| e.under("line"))?;
         self.side.check().map_err(|e| e.under("side"))?;
         Ok(())
     }
@@ -478,10 +437,10 @@ impl Check for ReviewBlockCommentsItem {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("path") { None => out.push(crate::types::check::missing::<Self>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_path(&x) { out.push(e.under("path")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
-        match obj.get("line") { None => out.push(crate::types::check::missing::<Self>("line")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_line(&x) { out.push(e.under("line")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("line"))), } } }
-        match obj.get("side") { None => out.push(crate::types::check::missing::<Self>("side")), Some(v) => { match crate::types::check::read::<ReviewBlockCommentsItemSide>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("side"))), } } }
-        match obj.get("body") { None => out.push(crate::types::check::missing::<Self>("body")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("body"))), } } }
+        crate::types::keys::req_key_with::<String>(obj, "path", &mut out, Self::rule_path);
+        crate::types::keys::req_key_with::<JsInt>(obj, "line", &mut out, Self::rule_line);
+        crate::types::keys::req_key::<ReviewBlockCommentsItemSide>(obj, "side", &mut out);
+        crate::types::keys::req_key::<String>(obj, "body", &mut out);
         Some(out)
     }
 
@@ -504,7 +463,7 @@ impl ReviewBlockCommentsItem {
         Ok(())
     }
     fn rule_line(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0.0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -533,9 +492,15 @@ impl Check for ReviewBlock {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("verdict") { None => out.push(crate::types::check::missing::<Self>("verdict")), Some(v) => { match crate::types::check::read::<ReviewBlockVerdict>(&crate::types::start::review_verdict_value(v)) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("verdict"))), } } }
-        match obj.get("summary") { None => out.push(crate::types::check::missing::<Self>("summary")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("summary"))), } } }
-        match obj.get("comments") { None => out.push(crate::types::check::missing::<Self>("comments")), Some(v) => { match crate::types::check::read::<Vec<ReviewBlockCommentsItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("comments"))), } } }
+        match obj.get("verdict") {
+            None => out.push(crate::types::check::missing::<Self>("verdict")),
+            Some(v) => match crate::types::check::read::<ReviewBlockVerdict>(&crate::types::start::review_verdict_value(v)) {
+                Ok(_) => {}
+                Err(es) => out.extend(es.into_iter().map(|e| e.under("verdict"))),
+            },
+        }
+        crate::types::keys::req_key::<String>(obj, "summary", &mut out);
+        crate::types::keys::req_key::<Vec<ReviewBlockCommentsItem>>(obj, "comments", &mut out);
         Some(out)
     }
 
@@ -583,7 +548,7 @@ pub struct ReviewDraftComment {
 impl Check for ReviewDraftComment {
     /// Rules: line: > 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_above(self.line.0.0, 0.0).map_err(|e| e.under("line"))?;
+        crate::types::check::num_above(self.line.0 .0, 0.0).map_err(|e| e.under("line"))?;
         self.side.check().map_err(|e| e.under("side"))?;
         Ok(())
     }
@@ -593,13 +558,13 @@ impl Check for ReviewDraftComment {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("path") { None => out.push(crate::types::check::missing::<Self>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
-        match obj.get("line") { None => out.push(crate::types::check::missing::<Self>("line")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_line(&x) { out.push(e.under("line")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("line"))), } } }
-        match obj.get("side") { None => out.push(crate::types::check::missing::<Self>("side")), Some(v) => { match crate::types::check::read::<ReviewDraftCommentSide>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("side"))), } } }
-        match obj.get("body") { None => out.push(crate::types::check::missing::<Self>("body")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("body"))), } } }
-        match obj.get("on") { None => out.push(crate::types::check::missing::<Self>("on")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } } }
-        if let Some(v) = obj.get("inSummary") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("inSummary"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "path", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "line", &mut out, Self::rule_line);
+        crate::types::keys::req_key::<ReviewDraftCommentSide>(obj, "side", &mut out);
+        crate::types::keys::req_key::<String>(obj, "body", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "on", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "inSummary", &mut out);
         Some(out)
     }
 
@@ -621,7 +586,7 @@ impl Check for ReviewDraftComment {
 }
 impl ReviewDraftComment {
     fn rule_line(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0.0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -660,9 +625,9 @@ impl Check for ReviewDraftV0Posted {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
-        match obj.get("folded") { None => out.push(crate::types::check::missing::<Self>("folded")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("folded"))), } } }
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "at", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "folded", &mut out);
         Some(out)
     }
 
@@ -706,13 +671,13 @@ impl Check for ReviewDraftV0 {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("verdict") { None => out.push(crate::types::check::missing::<Self>("verdict")), Some(v) => { match crate::types::check::read::<ReviewDraftV0Verdict>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("verdict"))), } } }
-        match obj.get("summary") { None => out.push(crate::types::check::missing::<Self>("summary")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("summary"))), } } }
-        match obj.get("comments") { None => out.push(crate::types::check::missing::<Self>("comments")), Some(v) => { match crate::types::check::read::<Vec<ReviewDraftComment>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("comments"))), } } }
-        match obj.get("headOid") { None => out.push(crate::types::check::missing::<Self>("headOid")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("headOid"))), } } }
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
-        if let Some(v) = obj.get("posted") { match crate::types::check::read_present::<ReviewDraftV0Posted>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("posted"))), } }
+        crate::types::keys::req_key::<ReviewDraftV0Verdict>(obj, "verdict", &mut out);
+        crate::types::keys::req_key::<String>(obj, "summary", &mut out);
+        crate::types::keys::req_key::<Vec<ReviewDraftComment>>(obj, "comments", &mut out);
+        crate::types::keys::req_key::<String>(obj, "headOid", &mut out);
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "at", &mut out);
+        crate::types::keys::opt_key::<ReviewDraftV0Posted>(obj, "posted", &mut out);
         Some(out)
     }
 
@@ -752,9 +717,9 @@ impl Check for ReviewDraftV1 {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("note") { None => out.push(crate::types::check::missing::<Self>("note")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
-        if let Some(v) = obj.get("reasked") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("reasked"))), } }
+        crate::types::keys::req_key::<String>(obj, "note", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "at", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "reasked", &mut out);
         Some(out)
     }
 
@@ -773,12 +738,14 @@ impl Check for ReviewDraftV1 {
 
 /// TS: packages/protocol/src/start.ts:266 at a3b870a6e.
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum ReviewDraft {
     V0(ReviewDraftV0),
     V1(ReviewDraftV1),
 }
+
+crate::zod_union!(ReviewDraft { V0(ReviewDraftV0), V1(ReviewDraftV1) });
 
 impl Check for ReviewDraft {
     fn check(&self) -> Result<(), SchemaError> {
@@ -789,11 +756,16 @@ impl Check for ReviewDraft {
     }
 
     fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        Some(crate::types::check::union_answer(vec![crate::types::check::issues_of::<ReviewDraftV0>(value), crate::types::check::issues_of::<ReviewDraftV1>(value)]))
+        Some(crate::types::check::union_answer(vec![
+            crate::types::check::issues_of::<ReviewDraftV0>(value),
+            crate::types::check::issues_of::<ReviewDraftV1>(value),
+        ]))
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        if path.is_empty() {
+            return Some(crate::types::check::Zod::Union);
+        }
         <ReviewDraftV0 as Check>::describe(path).or_else(|| <ReviewDraftV1 as Check>::describe(path))
     }
 }
@@ -803,9 +775,9 @@ impl Check for ReviewDraft {
 /// zod's `preprocess` on a review's verdict, as the value zod reads: a string lower-cased, each white space or dash `_`.
 pub fn review_verdict_value(v: &serde_json::Value) -> serde_json::Value {
     match v {
-        serde_json::Value::String(s) => {
-            serde_json::Value::String(s.to_lowercase().chars().map(|c| if crate::types::check::js_space(c) || c == '-' { '_' } else { c }).collect())
-        }
+        serde_json::Value::String(s) => serde_json::Value::String(
+            s.to_lowercase().chars().map(|c| if crate::types::check::js_space(c) || c == '-' { '_' } else { c }).collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -816,9 +788,9 @@ pub fn review_verdict<'de, D: serde::Deserializer<'de>>(d: D) -> Result<ReviewBl
     use serde::de::Error;
     let v = serde_json::Value::deserialize(d)?;
     let v = match v {
-        serde_json::Value::String(s) => {
-            serde_json::Value::String(s.to_lowercase().chars().map(|c| if crate::types::check::js_space(c) || c == '-' { '_' } else { c }).collect())
-        }
+        serde_json::Value::String(s) => serde_json::Value::String(
+            s.to_lowercase().chars().map(|c| if crate::types::check::js_space(c) || c == '-' { '_' } else { c }).collect(),
+        ),
         other => other,
     };
     ReviewBlockVerdict::deserialize(v).map_err(D::Error::custom)

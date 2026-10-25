@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The name a person reads a computer by, and which computer a workspace runs on. Port of
-//! packages/protocol/src/place-name.ts at a3b870a6e. See spec/place_word.md.
+//! packages/protocol/src/place-name.ts at the cut (383708c78). See spec/place_word.md.
 
 use crate::exit::{refusal, HostError, Kind};
 use crate::place_state::workspace_place_id;
 use crate::place_word::{place_said, provider_key_name, PlaceRef};
-use crate::workspace_state::{is_local_workspace, where_word, workspace_kind, WhereRecord};
+use crate::workspace_state::{is_local_workspace, where_word, workspace_kind, WhereFacts, WhereRecord};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::views::place::PlaceView;
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::workspace::WorkspaceView;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
+use wsp_wire::views::workspace_more::MachineFacts;
 
 /// Whether this row is the computer the host runs on: the one predicate, read by id and never by position.
 // place-name.ts:13
@@ -124,13 +125,23 @@ pub fn place_of<'a>(places: &'a [PlaceView], workspace: &WorkspaceView) -> Optio
 //   return whereWord(workspace, workspace.provider === undefined ? undefined : providerKeyName(workspace.provider));
 // }
 pub fn workspace_computer_name(places: &[PlaceView], workspace: &WorkspaceView) -> String {
+    workspace_computer_name_with(places, workspace, None)
+}
+
+/// `workspace_computer_name` for a record that carries the machine's facts (a `WorkspaceStatus` or `WorkspaceListing`
+/// row), whose operating system names this computer `this Mac` where it is one. A `WorkspaceView` carries none.
+pub fn workspace_computer_name_with(places: &[PlaceView], workspace: &WorkspaceView, facts: Option<&MachineFacts>) -> String {
     if let Some(at) = place_of(places, workspace) {
         return place_name(at);
     }
     if is_local_workspace(workspace.kind.as_ref()) {
         return here_name(places);
     }
-    let record =
-        WhereRecord { machine_id: workspace.machine_id.clone(), kind: workspace.kind, provider: workspace.provider.clone(), facts: None };
+    let record = WhereRecord {
+        machine_id: workspace.machine_id.clone(),
+        kind: workspace.kind,
+        provider: workspace.provider.clone(),
+        facts: facts.map(|facts| WhereFacts { os: Some(facts.os.clone()) }),
+    };
     where_word(&record, workspace.provider.as_deref().map(provider_key_name).as_deref())
 }

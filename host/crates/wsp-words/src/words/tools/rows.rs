@@ -129,10 +129,15 @@ impl ToolRow {
 }
 
 pub(super) fn tool_input(input: &str) -> Option<ToolInput> {
-    match serde_json::from_str::<Value>(input) {
-        Ok(Value::Object(fields)) => Some(fields),
+    match crate::v8_json::parse_json_lax(input) {
+        Some(Value::Object(fields)) => Some(js_ordered(fields)),
         _ => None,
     }
+}
+
+/// The fields as a JavaScript object lists them: the keys that read as array indexes first, in ascending number.
+pub(super) fn js_ordered(fields: ToolInput) -> ToolInput {
+    crate::js::js_key_order(fields.iter()).into_iter().map(|(key, value)| (key.clone(), value.clone())).collect()
 }
 
 pub(super) fn tool_field<'a>(fields: &'a ToolInput, name: &str) -> Option<&'a str> {
@@ -218,7 +223,7 @@ pub(super) fn decode_uri_component(text: &str) -> Option<String> {
     let mut at = 0;
     while at < bytes.len() {
         if bytes[at] == b'%' {
-            let hex = text.get(at + 1..at + 3)?;
+            let hex = text.get(at + 1..at + 3).filter(|hex| hex.bytes().all(|b| b.is_ascii_hexdigit()))?;
             out.push(u8::from_str_radix(hex, 16).ok()?);
             at += 3;
         } else {
@@ -229,8 +234,8 @@ pub(super) fn decode_uri_component(text: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// `/^q(\d+):other:(.*)$/` read back as its question index and decoded words.
-pub(super) fn typed_answer(id: &str) -> Option<(usize, String)> {
+/// `/^q(\d+):other:(.*)$/` read back as its question number, which `Number` reads as a float however long, and decoded words.
+pub(super) fn typed_answer(id: &str) -> Option<(f64, String)> {
     let rest = id.strip_prefix('q')?;
     let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
     if digits == 0 {

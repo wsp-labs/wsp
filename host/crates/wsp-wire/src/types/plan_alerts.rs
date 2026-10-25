@@ -34,8 +34,8 @@ impl Check for PlanAlertLow {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("window") { None => out.push(crate::types::check::missing::<Self>("window")), Some(v) => { match crate::types::check::read::<LimitKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("window"))), } } }
-        match obj.get("step") { None => out.push(crate::types::check::missing::<Self>("step")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("step"))), } } }
+        crate::types::keys::req_key::<LimitKind>(obj, "window", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "step", &mut out);
         Some(out)
     }
 
@@ -66,15 +66,19 @@ impl Check for PlanAlertBlocked {
     }
 
     fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
+        let serde_json::Value::Object(_obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let mut out = Vec::new();
+        let out = Vec::new();
         Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
+        if path.is_empty() {
+            Some(crate::types::check::Zod::Word("object"))
+        } else {
+            None
+        }
     }
 }
 
@@ -93,15 +97,19 @@ impl Check for PlanAlertBack {
     }
 
     fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
+        let serde_json::Value::Object(_obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let mut out = Vec::new();
+        let out = Vec::new();
         Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
+        if path.is_empty() {
+            Some(crate::types::check::Zod::Word("object"))
+        } else {
+            None
+        }
     }
 }
 
@@ -131,19 +139,39 @@ impl Check for PlanAlert {
         let serde_json::Value::Object(obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let Some(tag) = obj.get("kind") else { return Some(vec![crate::types::check::missing::<Self>("kind")]); };
+        let Some(tag) = obj.get("kind") else {
+            return Some(vec![crate::types::check::missing::<Self>("kind")]);
+        };
         match tag.as_str() {
-            Some("low") => { let mut body = obj.clone(); body.shift_remove("kind"); Some(crate::types::check::issues_of::<PlanAlertLow>(&serde_json::Value::Object(body))) }
-            Some("blocked") => { let mut body = obj.clone(); body.shift_remove("kind"); Some(crate::types::check::issues_of::<PlanAlertBlocked>(&serde_json::Value::Object(body))) }
-            Some("back") => { let mut body = obj.clone(); body.shift_remove("kind"); Some(crate::types::check::issues_of::<PlanAlertBack>(&serde_json::Value::Object(body))) }
+            Some("low") => {
+                let mut body = obj.clone();
+                body.shift_remove("kind");
+                Some(crate::types::check::issues_of::<PlanAlertLow>(&serde_json::Value::Object(body)))
+            }
+            Some("blocked") => {
+                let mut body = obj.clone();
+                body.shift_remove("kind");
+                Some(crate::types::check::issues_of::<PlanAlertBlocked>(&serde_json::Value::Object(body)))
+            }
+            Some("back") => {
+                let mut body = obj.clone();
+                body.shift_remove("kind");
+                Some(crate::types::check::issues_of::<PlanAlertBack>(&serde_json::Value::Object(body)))
+            }
             _ => Some(vec![crate::types::check::unknown_tag::<Self>("kind", tag)]),
         }
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { return Some(crate::types::check::Zod::Word("object")); }
-        if path.len() == 1 && path[0].as_str() == Some("kind") { return Some(crate::types::check::Zod::Tags("kind", &["low", "blocked", "back"])); }
-        <PlanAlertLow as Check>::describe(path).or_else(|| <PlanAlertBlocked as Check>::describe(path)).or_else(|| <PlanAlertBack as Check>::describe(path))
+        if path.is_empty() {
+            return Some(crate::types::check::Zod::Word("object"));
+        }
+        if path.len() == 1 && path[0].as_str() == Some("kind") {
+            return Some(crate::types::check::Zod::Tags("kind", &["low", "blocked", "back"]));
+        }
+        <PlanAlertLow as Check>::describe(path)
+            .or_else(|| <PlanAlertBlocked as Check>::describe(path))
+            .or_else(|| <PlanAlertBack as Check>::describe(path))
     }
 }
 
@@ -174,10 +202,10 @@ impl Check for UsageAlertEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("key") { None => out.push(crate::types::check::missing::<Self>("key")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("key"))), } } }
-        match obj.get("agent") { None => out.push(crate::types::check::missing::<Self>("agent")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agent"))), } } }
-        match obj.get("label") { None => out.push(crate::types::check::missing::<Self>("label")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("label"))), } } }
-        match obj.get("alert") { None => out.push(crate::types::check::missing::<Self>("alert")), Some(v) => { match crate::types::check::read::<PlanAlert>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("alert"))), } } }
+        crate::types::keys::req_key::<String>(obj, "key", &mut out);
+        crate::types::keys::req_key::<String>(obj, "agent", &mut out);
+        crate::types::keys::req_key::<String>(obj, "label", &mut out);
+        crate::types::keys::req_key::<PlanAlert>(obj, "alert", &mut out);
         Some(out)
     }
 

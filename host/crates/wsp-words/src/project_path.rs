@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Paths as wsp reads and writes them: a project's folder and a repo inside it, the key Claude Code files a project's
 //! sessions under, the folders a browser hides or guards, and every path wsp keeps on a computer it joined. Port of
-//! the functions of packages/protocol/src/project-path.ts at a3b870a6e; its flat constants are
+//! the functions of packages/protocol/src/project-path.ts at the cut (383708c78); its flat constants are
 //! wsp_wire::types::project_path. See spec/project_path.md.
 
 use serde::Serialize;

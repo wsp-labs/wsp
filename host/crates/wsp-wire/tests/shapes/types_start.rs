@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The shapes of start.ts against what zod answered for the same inputs. Generated.
 
-use super::common::{cases, cases_tagged};
+use super::common::cases;
 use wsp_wire::types::start::*;
 
 const FIXTURES: &str = include_str!("../fixtures/shapes/types_start.json");

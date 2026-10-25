@@ -1,5 +1,5 @@
 # thread_forks
-Source: `packages/protocol/src/words/thread.ts` lines 446-917 at a3b870a6e (the second unit of the file; `thread_lines` is the first). Tests: `packages/protocol/test/format.test.ts` and `rewind-words.test.ts` (25 cases ported; 4 ignored as constants alone), plus `pinned` in `tests/thread_forks.rs` (every value printed by the TS under node).
+Source: `packages/protocol/src/words/thread.ts` lines 446-910 at the cut, 383708c78 (446-917 at a3b870a6e; the second unit of the file, `thread_lines` is the first). Tests: `packages/protocol/test/format.test.ts` and `rewind-words.test.ts` (24 cases ported; 4 ignored as constants alone), plus `pinned` in `tests/thread_forks.rs` (every value printed by the TS under node).
 
 ## What it does
 The words of a side question, a rewind and a fork; the codex sign-in and model-catalog lines; a machine that ran out of memory and the size to move to; the helper's update lines; a nap's vault lines; a create's own lines; a machine gone at its provider; name refusals; the providers and places an image is built on; and how a word that is not a thread is refused.
@@ -16,7 +16,7 @@ The words of a side question, a rewind and a fork; the codex sign-in and model-c
 9. `iso_seconds(ms)`: `toISOString()` with its fraction removed, so `YYYY-MM-DDTHH:MM:SSZ`, the milliseconds truncated (rule 8.15). `gone_words(id, seen)`: `the <by> found it gone at <iso_seconds(at)>` and ` (<answer>)` only for a non-empty answer.
 10. `not_a_thread_line(word, is, line, or_computer)`: `<line> takes a thread[, or a computer with --on]`; a project adds `as wsp threads <word> lists them.`, a machine `as wsp threads lists them.`
 11. `shared_folder_line(others)`: one `thread a works in this folder too`; more `threads a, b and c work in this folder too`.
-12. `image_home_kept_line(on, home)`: None for no `on`, or when `names_place(home, on)`; else `your image lives on <place_said(home)>, so it is built there and not on <on>`.
+12. `NO_PROVIDER_LINE` ends `...; wsp add <provider> connects one` (thread.ts:862).
 
 ## Edge cases
 - `fork_branch_name(Some(""), {fork-01234567}, "0123456789")` is "fork-01234567-2"; a taken `-2` with a free base gives the base (`a_forks_branch_is_numbered_past_every_name_taken`).
@@ -30,7 +30,7 @@ The words of a side question, a rewind and a fork; the codex sign-in and model-c
 - Rule 8.13: the load figure is `to_fixed`, not rounding by `{:.1}`.
 
 ## Tapes
-`sessions.rewind`, `sessions.start` with a fork, `workspaces.*` gone and name refusals, `init.start` placement lines.
+`sessions.rewind`, `sessions.start` with a fork, `workspaces.*` gone and name refusals, `image.build` placement lines.
 
 ## Decisions
 1. `vault_kept_line` and `vault_stale_line` take the view's two fields.
@@ -49,4 +49,4 @@ The words of a side question, a rewind and a fork; the codex sign-in and model-c
 | 7, 8 | `the_nap_s_words_when_its_vault_was_not_stored::*`, `vault_and_create_lines` |
 | 9 | `gone_words::*`, `a_moment_is_utc_to_the_second` |
 | 10, 11 | `places_and_threads_named_by_a_word` |
-| 12 | `wsp_init_on_once_an_image_stands::*` |
+| 12 | no test pins it |

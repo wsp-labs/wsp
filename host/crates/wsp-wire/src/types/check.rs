@@ -22,7 +22,7 @@ pub struct SchemaError {
     pub message: String,
     /// zod's other keys in zod's order: expected, received, options, keys, minimum, maximum, inclusive, exact, type,
     /// validation.
-    pub detail: IndexMap<String, Value>,
+    pub detail: Box<IndexMap<String, Value>>,
 }
 
 impl SchemaError {
@@ -31,8 +31,11 @@ impl SchemaError {
     pub fn issue_text(&self) -> String {
         let mut issue: IndexMap<String, Value> = IndexMap::new();
         let code = self.code.as_str();
-        let detail = |keys: &[&str]| keys.iter().filter_map(|k| self.detail.get(*k).map(|v| (k.to_string(), v.clone()))).collect::<Vec<_>>();
-        let rest = |skip: &[&str]| self.detail.iter().filter(|(k, _)| !skip.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        let detail =
+            |keys: &[&str]| keys.iter().filter_map(|k| self.detail.get(*k).map(|v| (k.to_string(), v.clone()))).collect::<Vec<_>>();
+        let rest = |skip: &[&str]| {
+            self.detail.iter().filter(|(k, _)| !skip.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()
+        };
         let float = self.detail.get("received") == Some(&Value::from("float"));
         let order: Vec<(String, Value)> = match code {
             "invalid_enum_value" | "invalid_literal" => {
@@ -44,8 +47,12 @@ impl SchemaError {
                 o
             }
             "invalid_string" => {
-                let mut o = detail(&["validation"]);
+                let code_first = matches!(self.detail.get("validation").and_then(Value::as_str), Some("datetime" | "date" | "time"));
+                let mut o = if code_first { Vec::new() } else { detail(&["validation"]) };
                 o.push(("code".into(), Value::from(code)));
+                if code_first {
+                    o.extend(detail(&["validation"]));
+                }
                 o.push(("message".into(), Value::from(self.message.as_str())));
                 o.push(("path".into(), Value::Array(self.path.clone())));
                 o
@@ -80,7 +87,9 @@ impl SchemaError {
             }
         };
         issue.extend(order);
-        serde_json::to_string_pretty(&Value::Array(vec![Value::Object(issue.into_iter().collect())])).expect("an issue writes as JSON")
+        let mut text = String::new();
+        write_pretty(&Value::Array(vec![Value::Object(issue.into_iter().collect())]), 0, &mut text);
+        text
     }
 
     /// The same issue one level down: `segment` goes in front of the path, so a struct's check names the field it
@@ -92,10 +101,42 @@ impl SchemaError {
     }
 }
 
+/// `JSON.stringify(value, null, 2)`: a number as `String(n)` and an object's keys in JavaScript's order, which serde_json's own
+/// pretty writer does neither of.
+fn write_pretty(value: &Value, depth: usize, out: &mut String) {
+    let pad = |out: &mut String, depth: usize| out.push_str(&"  ".repeat(depth));
+    match value {
+        Value::Array(items) if !items.is_empty() => {
+            out.push_str("[\n");
+            for (i, item) in items.iter().enumerate() {
+                pad(out, depth + 1);
+                write_pretty(item, depth + 1, out);
+                out.push_str(if i + 1 < items.len() { ",\n" } else { "\n" });
+            }
+            pad(out, depth);
+            out.push(']');
+        }
+        Value::Object(map) if !map.is_empty() => {
+            out.push_str("{\n");
+            let entries = crate::types::kept::js_order(map.iter().map(|(k, v)| (k.as_str(), v)));
+            for (i, (key, item)) in entries.iter().enumerate() {
+                pad(out, depth + 1);
+                out.push_str(&crate::text::json_stringify(&Value::from(*key)));
+                out.push_str(": ");
+                write_pretty(item, depth + 1, out);
+                out.push_str(if i + 1 < entries.len() { ",\n" } else { "\n" });
+            }
+            pad(out, depth);
+            out.push('}');
+        }
+        other => out.push_str(&crate::text::json_stringify(other)),
+    }
+}
+
 /// What zod calls the value a path reaches, for the issue a refused value answers with. `Word` is a plain type word,
 /// `Int` an `.int()` number, `Options` a `z.enum`'s words, `Tags` a tagged union's tag key and its tags, `Union` an
 /// untagged union, which answers `invalid_union` where it is missing or of no variant, and `Literal` a literal's one value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum Zod {
     Word(&'static str),
     Int,
@@ -105,10 +146,23 @@ pub enum Zod {
     Literal(fn() -> Value),
 }
 
+impl PartialEq for Zod {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Zod::Word(a), Zod::Word(b)) => a == b,
+            (Zod::Int, Zod::Int) | (Zod::Union, Zod::Union) => true,
+            (Zod::Options(a), Zod::Options(b)) => a == b,
+            (Zod::Tags(ka, a), Zod::Tags(kb, b)) => ka == kb && a == b,
+            (Zod::Literal(a), Zod::Literal(b)) => a() == b(),
+            _ => false,
+        }
+    }
+}
+
 /// The refinements of one type. A type with none keeps the default, which checks nothing; a struct's check runs the
 /// check of every field whose type has one, in field order, and answers the first issue with the field's key in front
 /// of its path.
-pub trait Check: DeserializeOwned {
+pub trait Check: DeserializeOwned + 'static {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
     }
@@ -123,13 +177,55 @@ pub trait Check: DeserializeOwned {
     }
 
     /// What zod calls the value at `path` below this type, or None where the type does not say. A missing key, a wrong
-    /// type or an unknown tag names its expected word through this, since serde's error does not.
-    fn describe(_path: &[Value]) -> Option<Zod>
+    /// type or an unknown tag names its expected word through this, since serde's error does not. Where a type says
+    /// nothing, the value itself is worded as serde words it: a unit enum by its words, a struct as an object.
+    fn describe(path: &[Value]) -> Option<Zod>
+    where
+        Self: Sized,
+    {
+        if path.is_empty() {
+            probe_word::<Self>()
+        } else {
+            None
+        }
+    }
+
+    /// The value of a number whose only fault is zod's integer rule, so the key's bounds are still checked on it as
+    /// zod checks them (the integer check leaves the parse dirty and goes on).
+    fn dirty(_value: &Value) -> Option<Self>
     where
         Self: Sized,
     {
         None
     }
+}
+
+/// What serde says of a string it cannot read as `T`: a unit enum's words, or that `T` is a struct.
+fn probe_word<T: Check>() -> Option<Zod> {
+    static WORDS: std::sync::Mutex<Vec<(std::any::TypeId, Option<Zod>)>> = std::sync::Mutex::new(Vec::new());
+    let id = std::any::TypeId::of::<T>();
+    let mut words = WORDS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, zod)) = words.iter().find(|(known, _)| *known == id) {
+        return *zod;
+    }
+    let zod = match serde_json::from_value::<T>(Value::from("\u{1}probe")) {
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.starts_with("unknown variant `") {
+                variant_names(&msg).map(|names| {
+                    let words: Vec<&'static str> = names.into_iter().map(|n| &*Box::leak(n.into_boxed_str())).collect();
+                    Zod::Options(Box::leak(words.into_boxed_slice()))
+                })
+            } else if msg.contains("expected struct ") || msg.contains("expected a map") {
+                Some(Zod::Word("object"))
+            } else {
+                None
+            }
+        }
+        Ok(_) => None,
+    };
+    words.push((id, zod));
+    zod
 }
 
 /// The word of a type that is one value and has no path below it.
@@ -156,6 +252,11 @@ impl<T: Check> Check for Vec<T> {
             Some((_, rest)) => T::describe(rest),
         }
     }
+
+    fn dirty(value: &Value) -> Option<Self> {
+        let Value::Array(items) = value else { return None };
+        items.iter().map(dirty_of::<T>).collect()
+    }
 }
 
 impl<T: Check> Check for Option<T> {
@@ -176,6 +277,10 @@ impl<T: Check> Check for Option<T> {
     fn describe(path: &[Value]) -> Option<Zod> {
         T::describe(path)
     }
+
+    fn dirty(value: &Value) -> Option<Self> {
+        T::dirty(value).map(Some)
+    }
 }
 
 impl<K: Check + Serialize + std::hash::Hash + Eq, V: Check> Check for IndexMap<K, V> {
@@ -191,9 +296,9 @@ impl<K: Check + Serialize + std::hash::Hash + Eq, V: Check> Check for IndexMap<K
     fn pass(value: &Value) -> Option<Vec<SchemaError>> {
         let Value::Object(map) = value else { return None };
         let mut out = Vec::new();
-        for (key, item) in map {
-            out.extend(issues_of::<K>(&Value::String(key.clone())).into_iter().map(|e| e.under(key.as_str())));
-            out.extend(issues_of::<V>(item).into_iter().map(|e| e.under(key.as_str())));
+        for (key, item) in crate::types::kept::js_order(map.iter().map(|(k, v)| (k.as_str(), v))) {
+            out.extend(issues_of::<K>(&Value::String(key.to_string())).into_iter().map(|e| e.under(key)));
+            out.extend(issues_of::<V>(item).into_iter().map(|e| e.under(key)));
         }
         Some(out)
     }
@@ -250,7 +355,15 @@ impl Check for f64 {
 
 impl Check for Value {}
 
-fn bound(code: &str, minimum: Option<Value>, maximum: Option<Value>, ty: &str, inclusive: bool, exact: bool, message: String) -> SchemaError {
+fn bound(
+    code: &str,
+    minimum: Option<Value>,
+    maximum: Option<Value>,
+    ty: &str,
+    inclusive: bool,
+    exact: bool,
+    message: String,
+) -> SchemaError {
     let mut detail = IndexMap::new();
     if let Some(v) = minimum {
         detail.insert("minimum".to_string(), v);
@@ -260,7 +373,7 @@ fn bound(code: &str, minimum: Option<Value>, maximum: Option<Value>, ty: &str, i
     detail.insert("type".to_string(), Value::from(ty));
     detail.insert("inclusive".to_string(), Value::from(inclusive));
     detail.insert("exact".to_string(), Value::from(exact));
-    SchemaError { code: code.into(), path: Vec::new(), message, detail }
+    SchemaError { code: code.into(), path: Vec::new(), message, detail: Box::new(detail) }
 }
 
 fn num_json(n: f64) -> Value {
@@ -272,28 +385,60 @@ pub fn num_at_least(v: f64, min: f64) -> Result<(), SchemaError> {
     if v >= min {
         return Ok(());
     }
-    Err(bound("too_small", Some(num_json(min)), None, "number", true, false, format!("Number must be greater than or equal to {}", JsNumber(min).js_string())))
+    Err(bound(
+        "too_small",
+        Some(num_json(min)),
+        None,
+        "number",
+        true,
+        false,
+        format!("Number must be greater than or equal to {}", JsNumber(min).js_string()),
+    ))
 }
 
 pub fn num_above(v: f64, min: f64) -> Result<(), SchemaError> {
     if v > min {
         return Ok(());
     }
-    Err(bound("too_small", Some(num_json(min)), None, "number", false, false, format!("Number must be greater than {}", JsNumber(min).js_string())))
+    Err(bound(
+        "too_small",
+        Some(num_json(min)),
+        None,
+        "number",
+        false,
+        false,
+        format!("Number must be greater than {}", JsNumber(min).js_string()),
+    ))
 }
 
 pub fn num_at_most(v: f64, max: f64) -> Result<(), SchemaError> {
     if v <= max {
         return Ok(());
     }
-    Err(bound("too_big", None, Some(num_json(max)), "number", true, false, format!("Number must be less than or equal to {}", JsNumber(max).js_string())))
+    Err(bound(
+        "too_big",
+        None,
+        Some(num_json(max)),
+        "number",
+        true,
+        false,
+        format!("Number must be less than or equal to {}", JsNumber(max).js_string()),
+    ))
 }
 
 pub fn num_below(v: f64, max: f64) -> Result<(), SchemaError> {
     if v < max {
         return Ok(());
     }
-    Err(bound("too_big", None, Some(num_json(max)), "number", false, false, format!("Number must be less than {}", JsNumber(max).js_string())))
+    Err(bound(
+        "too_big",
+        None,
+        Some(num_json(max)),
+        "number",
+        false,
+        false,
+        format!("Number must be less than {}", JsNumber(max).js_string()),
+    ))
 }
 
 /// zod's `.min(n)` on a string: its length in UTF-16 units.
@@ -315,10 +460,26 @@ pub fn text_at_most(s: &str, max: usize) -> Result<(), SchemaError> {
 pub fn text_exactly(s: &str, n: usize) -> Result<(), SchemaError> {
     let len = utf16_len(s);
     if len < n {
-        return Err(bound("too_small", Some(Value::from(n)), None, "string", true, true, format!("String must contain exactly {n} character(s)")));
+        return Err(bound(
+            "too_small",
+            Some(Value::from(n)),
+            None,
+            "string",
+            true,
+            true,
+            format!("String must contain exactly {n} character(s)"),
+        ));
     }
     if len > n {
-        return Err(bound("too_big", None, Some(Value::from(n)), "string", true, true, format!("String must contain exactly {n} character(s)")));
+        return Err(bound(
+            "too_big",
+            None,
+            Some(Value::from(n)),
+            "string",
+            true,
+            true,
+            format!("String must contain exactly {n} character(s)"),
+        ));
     }
     Ok(())
 }
@@ -339,10 +500,26 @@ pub fn items_at_most(len: usize, max: usize) -> Result<(), SchemaError> {
 
 pub fn items_exactly(len: usize, n: usize) -> Result<(), SchemaError> {
     if len < n {
-        return Err(bound("too_small", Some(Value::from(n)), None, "array", true, true, format!("Array must contain exactly {n} element(s)")));
+        return Err(bound(
+            "too_small",
+            Some(Value::from(n)),
+            None,
+            "array",
+            true,
+            true,
+            format!("Array must contain exactly {n} element(s)"),
+        ));
     }
     if len > n {
-        return Err(bound("too_big", None, Some(Value::from(n)), "array", true, true, format!("Array must contain exactly {n} element(s)")));
+        return Err(bound(
+            "too_big",
+            None,
+            Some(Value::from(n)),
+            "array",
+            true,
+            true,
+            format!("Array must contain exactly {n} element(s)"),
+        ));
     }
     Ok(())
 }
@@ -352,7 +529,7 @@ pub fn refine(ok: bool, message: &str) -> Result<(), SchemaError> {
     if ok {
         return Ok(());
     }
-    Err(SchemaError { code: "custom".into(), path: Vec::new(), message: message.into(), detail: IndexMap::new() })
+    Err(SchemaError { code: "custom".into(), path: Vec::new(), message: message.into(), detail: Box::default() })
 }
 
 /// A zod `.regex(r)` that failed: zod's `invalid_string` with validation `regex`, and the message the rule gave.
@@ -366,7 +543,7 @@ pub fn regex_check_with(ok: bool, message: &str) -> Result<(), SchemaError> {
     }
     let mut detail = IndexMap::new();
     detail.insert("validation".to_string(), Value::from("regex"));
-    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: message.into(), detail })
+    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: message.into(), detail: Box::new(detail) })
 }
 
 /// zod's `.min(n, message)` on a string, which answers the rule's own words.
@@ -380,7 +557,11 @@ pub fn text_at_least_with(s: &str, min: usize, message: &str) -> Result<(), Sche
 /// JavaScript's `\s`: the white space and line terminators a JavaScript regex and `String.prototype.trim` take. Rust's
 /// `char::is_whitespace` is another set: it has U+0085 and lacks U+FEFF.
 pub fn js_space(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+    matches!(
+        c,
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+    )
 }
 
 /// `/^[^/\s]+\/[^/\s]+$/`: one slash between two non-empty runs of non-space characters.
@@ -448,6 +629,11 @@ pub fn issues_of<T: DeserializeOwned + Check>(value: &Value) -> Vec<SchemaError>
 /// The value serde reads as `T` and the first issue of its `check`, or serde's one error. The way a type with no
 /// pass is read, and the rules of a tagged union's member whose fields its pass has read clean.
 pub fn rules_of<T: DeserializeOwned + Check>(value: &Value) -> Vec<SchemaError> {
+    match T::describe(&[]) {
+        Some(Zod::Options(words)) if !value.is_string() => return vec![wrong_type(Vec::new(), options_text(words), value)],
+        Some(Zod::Word("object")) if !value.is_object() => return vec![not_object(value)],
+        _ => {}
+    }
     match serde_path_to_error::deserialize::<_, T>(value) {
         Ok(read) => read.check().err().into_iter().collect(),
         Err(e) => vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)],
@@ -461,6 +647,15 @@ pub fn read<T: DeserializeOwned + Check>(value: &Value) -> Result<T, Vec<SchemaE
         return Err(issues);
     }
     serde_path_to_error::deserialize::<_, T>(value).map_err(|e| vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)])
+}
+
+/// The value of a key whose only faults leave zod's parse dirty (an integer rule, a length or pattern refinement): zod goes on
+/// to the key's later rules with it, so a rule can still be run.
+pub fn dirty_of<T: DeserializeOwned + Check>(value: &Value) -> Option<T> {
+    T::dirty(value).or_else(|| {
+        let found = issues_of::<T>(value);
+        (!found.is_empty() && !found.iter().any(is_aborted)).then(|| serde_path_to_error::deserialize::<_, T>(value).ok()).flatten()
+    })
 }
 
 /// A field zod reads as `.optional()` alone: a value is read, and `null` is refused.
@@ -488,9 +683,6 @@ pub fn read_trimmed(value: &Value) -> Result<String, Vec<SchemaError>> {
 }
 
 pub fn read_trimmed_opt(value: &Value) -> Result<Option<String>, Vec<SchemaError>> {
-    if value.is_null() {
-        return Ok(None);
-    }
     read_trimmed(value).map(Some)
 }
 
@@ -511,13 +703,32 @@ pub fn null_issue<T: Check>() -> SchemaError {
     serde_issue::<T>("invalid type: null, expected a value", Vec::new(), &Value::Null)
 }
 
+/// A value of the wrong JSON type: invalid_type with the word zod expects there and the word of what it got.
+fn wrong_type(path: Vec<Value>, expected: String, value: &Value) -> SchemaError {
+    let received = received_word(Some(value));
+    let mut detail = IndexMap::new();
+    detail.insert("expected".to_string(), Value::from(expected.as_str()));
+    detail.insert("received".to_string(), Value::from(received));
+    SchemaError {
+        code: "invalid_type".into(),
+        path,
+        message: format!("Expected {expected}, received {received}"),
+        detail: Box::new(detail),
+    }
+}
+
 /// A JSON value where zod reads an object: invalid_type, "Expected object, received <its word>".
 pub fn not_object(value: &Value) -> SchemaError {
     let received = received_word(Some(value));
     let mut detail = IndexMap::new();
     detail.insert("expected".to_string(), Value::from("object"));
     detail.insert("received".to_string(), Value::from(received));
-    SchemaError { code: "invalid_type".into(), path: Vec::new(), message: format!("Expected object, received {received}"), detail }
+    SchemaError {
+        code: "invalid_type".into(),
+        path: Vec::new(),
+        message: format!("Expected object, received {received}"),
+        detail: Box::new(detail),
+    }
 }
 
 /// A discriminator zod cannot match: invalid_union_discriminator at `key`, with the tags of `T`.
@@ -529,9 +740,13 @@ pub fn unknown_tag<T: Check>(key: &str, value: &Value) -> SchemaError {
     serde_issue::<T>(&format!("unknown variant `{text}`"), vec![Value::from(key)], value)
 }
 
-/// zod's issues that abort a parse, as opposed to the ones that leave a value dirty (its refinements and unknown keys).
-fn is_aborted(code: &str) -> bool {
-    matches!(code, "invalid_type" | "invalid_enum_value" | "invalid_literal" | "invalid_union" | "invalid_union_discriminator")
+/// zod's issues that abort a parse, as opposed to the ones that leave a value dirty (its refinements, an unknown key
+/// and the integer check of a number).
+pub(crate) fn is_aborted(issue: &SchemaError) -> bool {
+    match issue.code.as_str() {
+        "invalid_type" => issue.detail.get("expected") != Some(&Value::from("integer")),
+        code => matches!(code, "invalid_enum_value" | "invalid_literal" | "invalid_union" | "invalid_union_discriminator"),
+    }
 }
 
 /// zod's z.union: the first member that reads clean wins; else the first member with issues that abort nothing answers
@@ -541,18 +756,20 @@ pub fn union_answer(members: Vec<Vec<SchemaError>>) -> Vec<SchemaError> {
         return Vec::new();
     }
     for issues in members.iter() {
-        if !issues.iter().any(|e| is_aborted(&e.code)) {
+        if !issues.iter().any(is_aborted) {
             return issues.clone();
         }
     }
-    vec![SchemaError { code: "invalid_union".into(), path: Vec::new(), message: "Invalid input".into(), detail: IndexMap::new() }]
+    vec![SchemaError { code: "invalid_union".into(), path: Vec::new(), message: "Invalid input".into(), detail: Box::default() }]
 }
 
 pub fn unrecognized(path: Vec<Value>, keys: Vec<String>) -> SchemaError {
+    let keys: Vec<String> =
+        crate::types::kept::js_order(keys.iter().map(|k| (k.as_str(), ()))).into_iter().map(|(k, _)| k.to_string()).collect();
     let message = format!("Unrecognized key(s) in object: {}", keys.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", "));
     let mut detail = IndexMap::new();
     detail.insert("keys".to_string(), Value::Array(keys.into_iter().map(Value::from).collect()));
-    SchemaError { code: "unrecognized_keys".into(), path, message, detail }
+    SchemaError { code: "unrecognized_keys".into(), path, message, detail: Box::new(detail) }
 }
 
 fn segments(path: &serde_path_to_error::Path) -> Vec<Value> {
@@ -564,25 +781,6 @@ fn segments(path: &serde_path_to_error::Path) -> Vec<Value> {
             serde_path_to_error::Segment::Unknown => None,
         })
         .collect()
-}
-
-fn remove(work: &mut Value, path: &[Value], key: &str) -> bool {
-    let mut at = work;
-    for seg in path {
-        let next = match seg {
-            Value::String(k) => at.get_mut(k.as_str()),
-            Value::Number(i) => at.get_mut(i.as_u64().unwrap_or(0) as usize),
-            _ => None,
-        };
-        match next {
-            Some(v) => at = v,
-            None => return false,
-        }
-    }
-    match at {
-        Value::Object(map) => map.shift_remove(key).is_some(),
-        _ => false,
-    }
 }
 
 fn value_at<'a>(value: &'a Value, path: &[Value]) -> Option<&'a Value> {
@@ -599,12 +797,15 @@ fn received_word(value: Option<&Value>) -> &'static str {
         None => "undefined",
         Some(Value::Null) => "null",
         Some(Value::Bool(_)) => "boolean",
-        Some(Value::Number(n)) if n.is_f64() && n.as_f64().is_some_and(|f| f.fract() != 0.0) => "float",
         Some(Value::Number(_)) => "number",
         Some(Value::String(_)) => "string",
         Some(Value::Array(_)) => "array",
         Some(Value::Object(_)) => "object",
     }
+}
+
+fn is_fraction(value: Option<&Value>) -> bool {
+    matches!(value, Some(Value::Number(n)) if n.is_f64() && n.as_f64().is_some_and(|f| f.is_finite() && f.fract() != 0.0))
 }
 
 fn options_text(options: &[&str]) -> String {
@@ -632,7 +833,7 @@ fn missing_issue(at: Vec<Value>, zod: Option<Zod>) -> SchemaError {
             let mut detail = IndexMap::new();
             detail.insert("expected".to_string(), Value::from(expected));
             detail.insert("received".to_string(), Value::from("undefined"));
-            SchemaError { code: "invalid_type".into(), path: at, message: "Required".into(), detail }
+            SchemaError { code: "invalid_type".into(), path: at, message: "Required".into(), detail: Box::new(detail) }
         }
     }
 }
@@ -681,7 +882,7 @@ fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaErr
             code: "invalid_enum_value".into(),
             path,
             message: format!("Invalid enum value. Expected {}, received '{got}'", options_text(&words)),
-            detail,
+            detail: Box::new(detail),
         };
     }
     if msg.starts_with("invalid type: ") || msg.starts_with("invalid value: ") {
@@ -692,7 +893,7 @@ fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaErr
             Some(Zod::Literal(word)) => invalid_literal(path, Some(at.cloned().unwrap_or(Value::Null)), word()),
             zod => {
                 let (expected, received) = match zod {
-                    Some(Zod::Int) if received_word(at) == "float" => ("integer".to_string(), "float"),
+                    Some(Zod::Int) if is_fraction(at) => ("integer".to_string(), "float"),
                     Some(Zod::Int) => ("number".to_string(), received_word(at)),
                     Some(Zod::Word(w)) => (w.to_string(), received_word(at)),
                     Some(Zod::Options(o)) => (options_text(o), received_word(at)),
@@ -701,7 +902,12 @@ fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaErr
                 let mut detail = IndexMap::new();
                 detail.insert("expected".to_string(), Value::from(expected.as_str()));
                 detail.insert("received".to_string(), Value::from(received));
-                SchemaError { code: "invalid_type".into(), path, message: format!("Expected {expected}, received {received}"), detail }
+                SchemaError {
+                    code: "invalid_type".into(),
+                    path,
+                    message: format!("Expected {expected}, received {received}"),
+                    detail: Box::new(detail),
+                }
             }
         };
     }
@@ -729,13 +935,18 @@ fn variant_names(msg: &str) -> Option<Vec<String>> {
 }
 
 /// zod's `invalid_literal`. `received` is None where the value is absent: zod's `undefined` is left out of its JSON.
-fn invalid_literal(path: Vec<Value>, received: Option<Value>, expected: Value) -> SchemaError {
+pub(crate) fn invalid_literal(path: Vec<Value>, received: Option<Value>, expected: Value) -> SchemaError {
     let mut detail = IndexMap::new();
     if let Some(received) = received {
         detail.insert("received".to_string(), received);
     }
     detail.insert("expected".to_string(), expected.clone());
-    SchemaError { code: "invalid_literal".into(), path, message: format!("Invalid literal value, expected {expected}"), detail }
+    SchemaError {
+        code: "invalid_literal".into(),
+        path,
+        message: format!("Invalid literal value, expected {expected}"),
+        detail: Box::new(detail),
+    }
 }
 
 fn discriminator(path: Vec<Value>, _key: &str, tags: &[&str]) -> SchemaError {
@@ -745,16 +956,16 @@ fn discriminator(path: Vec<Value>, _key: &str, tags: &[&str]) -> SchemaError {
         code: "invalid_union_discriminator".into(),
         path,
         message: format!("Invalid discriminator value. Expected {}", options_text(tags)),
-        detail,
+        detail: Box::new(detail),
     }
 }
 
 fn invalid_union(path: Vec<Value>) -> SchemaError {
-    SchemaError { code: "invalid_union".into(), path, message: "Invalid input".into(), detail: IndexMap::new() }
+    SchemaError { code: "invalid_union".into(), path, message: "Invalid input".into(), detail: Box::default() }
 }
 
 fn custom(path: Vec<Value>, msg: &str) -> SchemaError {
-    SchemaError { code: "custom".into(), path, message: msg.to_string(), detail: IndexMap::new() }
+    SchemaError { code: "custom".into(), path, message: msg.to_string(), detail: Box::default() }
 }
 
 /// A zod `.default(v)` value, written in the generated code as the JSON the TS default holds.
@@ -783,7 +994,10 @@ impl<K: Serialize, V: Serialize> Serialize for JsRecord<'_, K, V> {
             })
             .collect();
         let is_index = |k: &str| {
-            !k.is_empty() && k.bytes().all(|b| b.is_ascii_digit()) && (k == "0" || !k.starts_with('0')) && k.parse::<u64>().is_ok_and(|n| n < 4_294_967_295)
+            !k.is_empty()
+                && k.bytes().all(|b| b.is_ascii_digit())
+                && (k == "0" || !k.starts_with('0'))
+                && k.parse::<u64>().is_ok_and(|n| n < 4_294_967_295)
         };
         entries.sort_by_key(|(k, _)| if is_index(k) { (0, k.parse::<u64>().unwrap_or(0)) } else { (1, 0) });
         let mut map = s.serialize_map(Some(entries.len()))?;
@@ -855,13 +1069,6 @@ impl Check for wsp_frames::False {
     }
 }
 
-/// The request id: zod's `z.union([z.string(), z.number()])`, which answers invalid_union where it is neither.
-impl Check for wsp_frames::RequestId {
-    fn describe(path: &[Value]) -> Option<Zod> {
-        leaf(path, Zod::Union)
-    }
-}
-
 /// wsp-frames' process kind, read by its camelCase words (proc-owner.ts).
 impl Check for wsp_frames::ProcKind {
     fn describe(path: &[Value]) -> Option<Zod> {
@@ -875,7 +1082,6 @@ impl Check for wsp_frames::ProcOwnedBy {
         leaf(path, Zod::Options(&["root", "fork", "group", "env", "cgroup", "folder", "coalition"]))
     }
 }
-
 
 /// wsp-frames' kill signal, read by its two words.
 impl Check for wsp_frames::ProcSignal {

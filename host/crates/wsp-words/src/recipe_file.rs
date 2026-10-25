@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A recipe file as the person writes it: its kinds, what a sign-in reads as, and the options the picker offers. Port of the functions of packages/protocol/src/recipe-file.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::recipe_file. See spec/recipe_file.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::recipe_file. See spec/recipe_file.md.
 
 use wsp_wire::types::recipe_file::RecipeFile;
 use wsp_wire::types::recipe_file::RecipeSignIn;
@@ -52,13 +52,16 @@ fn kind_word(kind: RecipeKind) -> &'static str {
     }
 }
 
-/// Every object's keys sorted by UTF-16 code unit at every depth, the way the TS's `sorted` reads them.
+/// Every object's keys sorted by UTF-16 code unit at every depth, the way the TS's `sorted` reads them, and in the order
+/// the object that holds them lists them.
 fn sorted_keys(value: &serde_json::Value) -> serde_json::Value {
     match value {
         serde_json::Value::Array(items) => serde_json::Value::Array(items.iter().map(sorted_keys).collect()),
         serde_json::Value::Object(object) => {
             let mut entries: Vec<(&String, &serde_json::Value)> = object.iter().collect();
             entries.sort_by(|a, b| crate::js::utf16::cmp(a.0, b.0));
+            // `Object.fromEntries` lists the keys that read as array indexes first, in ascending number.
+            let entries = crate::js::js_key_order(entries);
             serde_json::Value::Object(entries.into_iter().map(|(key, value)| (key.clone(), sorted_keys(value))).collect())
         }
         other => other.clone(),

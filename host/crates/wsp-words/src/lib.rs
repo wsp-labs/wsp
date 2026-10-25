@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Every sentence the host says to a person, the refusal and exit contract, and the JavaScript text and number rules
 //! the TS host leans on. Port of packages/protocol/src/words/, format.ts, exit.ts and the sentence functions of
-//! packages/protocol/src/ at a3b870a6e. Each unit's spec is spec/<unit>.md beside this folder.
+//! packages/protocol/src/ at the cut (383708c78). Each unit's spec is spec/<unit>.md beside this folder.
 
 pub mod agents_report;
 pub mod app_address;
@@ -11,10 +11,12 @@ pub mod changes;
 pub mod conversations;
 pub mod cost_history;
 pub mod daemon_contract;
+pub mod date_parse;
 pub mod docker_shim;
 pub mod exit;
 pub mod general_prefs;
 pub mod js;
+pub mod js_date;
 pub mod oom;
 pub mod outside_line;
 pub mod place_name;
@@ -37,12 +39,14 @@ pub mod semver;
 pub mod start;
 pub mod sub_thread;
 pub mod thread_cgroup;
+pub mod thread_defaults;
 pub mod thread_read;
 pub mod thread_shell;
 pub mod thread_state;
 pub mod tool_result;
 pub mod tree;
 pub mod usage;
+pub mod v8_json;
 pub mod views;
 pub mod wire;
 pub mod words;

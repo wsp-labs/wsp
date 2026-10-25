@@ -3,7 +3,9 @@
 
 #![allow(unused_imports)]
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use super::helpers::ReqId;
@@ -54,6 +56,30 @@ pub struct MachineSizeOffer {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
 }
+
+/// A box builds its sizes `{ name, cpu, memMb, rateUsdPerHour }` (engine/src/box-backend.ts:546), `name` first, and sends them
+/// as built; no other backend has a name.
+struct BuiltSizes<'a>(&'a [MachineSizeOffer]);
+
+impl Serialize for BuiltSizes<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        struct Built<'a>(&'a MachineSizeOffer);
+        impl Serialize for Built<'_> {
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                let mut map = s.serialize_map(None)?;
+                if let Some(name) = &self.0.name {
+                    map.serialize_entry("name", name)?;
+                }
+                map.serialize_entry("cpu", &self.0.cpu)?;
+                map.serialize_entry("memMb", &self.0.mem_mb)?;
+                map.serialize_entry("rateUsdPerHour", &self.0.rate_usd_per_hour)?;
+                map.end()
+            }
+        }
+        s.collect_seq(self.0.iter().map(Built))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PauseMode {
     #[serde(rename = "memory")]
@@ -61,10 +87,13 @@ pub enum PauseMode {
     #[serde(rename = "disk")]
     Disk,
 }
-/// The fields sit in the order a backend writes them (`{ ...BOX_CAPABILITIES, sizes }`, engine/src/box-backend.ts:541):
-/// `sizes` after `ownNetwork`, not where the schema lists it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// A backend writes the keys in the order its code builds them, which is not the schema's, and `sizes_last` is which one it
+/// builds: a box and Solari build `{ ...BOX_CAPABILITIES, sizes }` (engine/src/box-backend.ts:546) and list `sizes` after
+/// `ownNetwork` (`true`); the local, no-provider, place-folder and fake backends list `sizes` after `templates` (`false`,
+/// engine/src/local-backend.ts:158, no-provider-backend.ts:50, place-machine.ts:248, fake-backend.ts:290). A frame read
+/// carries the order it came in.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(remote = "Self", rename_all = "camelCase")]
 pub struct Capabilities {
     pub live_clone_forks: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -82,6 +111,48 @@ pub struct Capabilities {
     pub copies: bool,
     pub own_network: bool,
     pub sizes: Vec<MachineSizeOffer>,
+    #[serde(skip)]
+    pub sizes_last: bool,
+}
+
+impl Serialize for Capabilities {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(None)?;
+        map.serialize_entry("liveCloneForks", &self.live_clone_forks)?;
+        if let Some(mode) = &self.pause_mode {
+            map.serialize_entry("pauseMode", mode)?;
+        }
+        map.serialize_entry("replacesMachine", &self.replaces_machine)?;
+        map.serialize_entry("previewUrls", &self.preview_urls)?;
+        map.serialize_entry("signedUrls", &self.signed_urls)?;
+        map.serialize_entry("callbackRelay", &self.callback_relay)?;
+        map.serialize_entry("diskSnapshots", &self.disk_snapshots)?;
+        map.serialize_entry("images", &self.images)?;
+        map.serialize_entry("snapshotsAnyLife", &self.snapshots_any_life)?;
+        map.serialize_entry("snapshotListing", &self.snapshot_listing)?;
+        map.serialize_entry("templates", &self.templates)?;
+        if !self.sizes_last {
+            map.serialize_entry("sizes", &BuiltSizes(&self.sizes))?;
+        }
+        map.serialize_entry("kept", &self.kept)?;
+        map.serialize_entry("copies", &self.copies)?;
+        map.serialize_entry("ownNetwork", &self.own_network)?;
+        if self.sizes_last {
+            map.serialize_entry("sizes", &BuiltSizes(&self.sizes))?;
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Capabilities {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let frame = Value::deserialize(d)?;
+        let at = |key: &str| frame.as_object().and_then(|keys| keys.keys().position(|k| k == key));
+        let sizes_last = at("sizes") > at("kept");
+        let mut read = Capabilities::deserialize(frame).map_err(D::Error::custom)?;
+        read.sizes_last = sizes_last;
+        Ok(read)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -130,8 +201,8 @@ impl Check for WorkspaceSize {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
-        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
+        crate::types::keys::req_key::<JsNumber>(obj, "cpu", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "memMb", &mut out);
         Some(out)
     }
 
@@ -163,15 +234,15 @@ impl Check for InitSetup {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("keys") { None => out.push(crate::types::check::missing::<Self>("keys")), Some(v) => { match crate::types::check::read::<InitKeys>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keys"))), } } }
-        if let Some(v) = obj.get("keyProvider") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keyProvider"))), } }
-        match obj.get("home") { None => out.push(crate::types::check::missing::<Self>("home")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("home"))), } } }
-        match obj.get("agents") { None => out.push(crate::types::check::missing::<Self>("agents")), Some(v) => { match crate::types::check::read::<Vec<InitAgent>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } } }
-        match obj.get("pricing") { None => out.push(crate::types::check::missing::<Self>("pricing")), Some(v) => { match crate::types::check::read::<Option<InitSetupPricing>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pricing"))), } } }
-        if let Some(v) = obj.get("place") { match crate::types::check::read_present::<SetupPlace>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("place"))), } }
-        if let Some(v) = obj.get("forksOn") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forksOn"))), } }
-        if let Some(v) = obj.get("buildRefusal") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("buildRefusal"))), } }
-        match obj.get("job") { None => out.push(crate::types::check::missing::<Self>("job")), Some(v) => { match crate::types::check::read::<Option<InitJob>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("job"))), } } }
+        crate::types::keys::req_key::<InitKeys>(obj, "keys", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "keyProvider", &mut out);
+        crate::types::keys::req_key::<String>(obj, "home", &mut out);
+        crate::types::keys::req_key::<Vec<InitAgent>>(obj, "agents", &mut out);
+        crate::types::keys::req_key::<Option<InitSetupPricing>>(obj, "pricing", &mut out);
+        crate::types::keys::opt_key::<SetupPlace>(obj, "place", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "forksOn", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "buildRefusal", &mut out);
+        crate::types::keys::req_key::<Option<InitJob>>(obj, "job", &mut out);
         Some(out)
     }
 
@@ -210,9 +281,9 @@ impl Check for InitSetupPricing {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("size") { None => out.push(crate::types::check::missing::<Self>("size")), Some(v) => { match crate::types::check::read::<WorkspaceSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } } }
-        match obj.get("rateUsdPerHour") { None => out.push(crate::types::check::missing::<Self>("rateUsdPerHour")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rateUsdPerHour"))), } } }
-        if let Some(v) = obj.get("builderDiskGb") { match crate::types::check::read_present::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_builder_disk_gb(&x) { out.push(e.under("builderDiskGb")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("builderDiskGb"))), } }
+        crate::types::keys::req_key::<WorkspaceSize>(obj, "size", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "rateUsdPerHour", &mut out);
+        crate::types::keys::opt_key_with::<JsNumber>(obj, "builderDiskGb", &mut out, Self::rule_builder_disk_gb);
         Some(out)
     }
 
@@ -230,7 +301,7 @@ impl Check for InitSetupPricing {
 }
 impl InitSetupPricing {
     fn rule_builder_disk_gb(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_above(v.0, 0.0)?;
         }
         Ok(())
@@ -244,10 +315,10 @@ impl Check for MachineSizeOffer {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
-        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
-        match obj.get("rateUsdPerHour") { None => out.push(crate::types::check::missing::<Self>("rateUsdPerHour")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rateUsdPerHour"))), } } }
-        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
+        crate::types::keys::req_key::<JsNumber>(obj, "cpu", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "memMb", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "rateUsdPerHour", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "name", &mut out);
         Some(out)
     }
 
@@ -278,21 +349,21 @@ impl Check for Capabilities {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("liveCloneForks") { None => out.push(crate::types::check::missing::<Self>("liveCloneForks")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("liveCloneForks"))), } } }
-        if let Some(v) = obj.get("pauseMode") { match crate::types::check::read_present::<PauseMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pauseMode"))), } }
-        match obj.get("replacesMachine") { None => out.push(crate::types::check::missing::<Self>("replacesMachine")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replacesMachine"))), } } }
-        match obj.get("previewUrls") { None => out.push(crate::types::check::missing::<Self>("previewUrls")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("previewUrls"))), } } }
-        match obj.get("signedUrls") { None => out.push(crate::types::check::missing::<Self>("signedUrls")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signedUrls"))), } } }
-        match obj.get("callbackRelay") { None => out.push(crate::types::check::missing::<Self>("callbackRelay")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("callbackRelay"))), } } }
-        match obj.get("diskSnapshots") { None => out.push(crate::types::check::missing::<Self>("diskSnapshots")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskSnapshots"))), } } }
-        match obj.get("images") { None => out.push(crate::types::check::missing::<Self>("images")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("images"))), } } }
-        match obj.get("snapshotsAnyLife") { None => out.push(crate::types::check::missing::<Self>("snapshotsAnyLife")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snapshotsAnyLife"))), } } }
-        match obj.get("snapshotListing") { None => out.push(crate::types::check::missing::<Self>("snapshotListing")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snapshotListing"))), } } }
-        match obj.get("templates") { None => out.push(crate::types::check::missing::<Self>("templates")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("templates"))), } } }
-        match obj.get("sizes") { None => out.push(crate::types::check::missing::<Self>("sizes")), Some(v) => { match crate::types::check::read::<Vec<MachineSizeOffer>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sizes"))), } } }
-        match obj.get("kept") { None => out.push(crate::types::check::missing::<Self>("kept")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kept"))), } } }
-        match obj.get("copies") { None => out.push(crate::types::check::missing::<Self>("copies")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("copies"))), } } }
-        match obj.get("ownNetwork") { None => out.push(crate::types::check::missing::<Self>("ownNetwork")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ownNetwork"))), } } }
+        crate::types::keys::req_key::<bool>(obj, "liveCloneForks", &mut out);
+        crate::types::keys::opt_key::<PauseMode>(obj, "pauseMode", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "replacesMachine", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "previewUrls", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "signedUrls", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "callbackRelay", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "diskSnapshots", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "images", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "snapshotsAnyLife", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "snapshotListing", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "templates", &mut out);
+        crate::types::keys::req_key::<Vec<MachineSizeOffer>>(obj, "sizes", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "kept", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "copies", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "ownNetwork", &mut out);
         Some(out)
     }
 
@@ -334,10 +405,10 @@ impl Check for WorkspaceLanding {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("place") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("place"))), } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("capabilities") { None => out.push(crate::types::check::missing::<Self>("capabilities")), Some(v) => { match crate::types::check::read::<Capabilities>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("capabilities"))), } } }
-        if let Some(v) = obj.get("kind") { match crate::types::check::read_present::<WorkspaceKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } }
+        crate::types::keys::opt_key::<String>(obj, "place", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<Capabilities>(obj, "capabilities", &mut out);
+        crate::types::keys::opt_key::<WorkspaceKind>(obj, "kind", &mut out);
         Some(out)
     }
 
@@ -368,15 +439,15 @@ impl Check for PlaceCapacity {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("cores") { None => out.push(crate::types::check::missing::<Self>("cores")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cores"))), } } }
-        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
-        match obj.get("memRoomMb") { None => out.push(crate::types::check::missing::<Self>("memRoomMb")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memRoomMb"))), } } }
-        match obj.get("machineMemMb") { None => out.push(crate::types::check::missing::<Self>("machineMemMb")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineMemMb"))), } } }
-        if let Some(v) = obj.get("cpuTaken") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpuTaken"))), } }
-        if let Some(v) = obj.get("memTakenMb") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memTakenMb"))), } }
-        match obj.get("diskFreeBytes") { None => out.push(crate::types::check::missing::<Self>("diskFreeBytes")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskFreeBytes"))), } } }
-        match obj.get("images") { None => out.push(crate::types::check::missing::<Self>("images")), Some(v) => { match crate::types::check::read::<Vec<PlaceCapacityImage>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("images"))), } } }
-        match obj.get("machines") { None => out.push(crate::types::check::missing::<Self>("machines")), Some(v) => { match crate::types::check::read::<PlaceCapacityMachines>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machines"))), } } }
+        crate::types::keys::req_key::<JsNumber>(obj, "cores", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "memMb", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "memRoomMb", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "machineMemMb", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "cpuTaken", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "memTakenMb", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "diskFreeBytes", &mut out);
+        crate::types::keys::req_key::<Vec<PlaceCapacityImage>>(obj, "images", &mut out);
+        crate::types::keys::req_key::<PlaceCapacityMachines>(obj, "machines", &mut out);
         Some(out)
     }
 
@@ -406,9 +477,9 @@ impl Check for PlaceCapacityImage {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
-        match obj.get("sizeBytes") { None => out.push(crate::types::check::missing::<Self>("sizeBytes")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sizeBytes"))), } } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "sizeBytes", &mut out);
         Some(out)
     }
 
@@ -432,8 +503,8 @@ impl Check for PlaceCapacityMachines {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("running") { None => out.push(crate::types::check::missing::<Self>("running")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("running"))), } } }
-        match obj.get("paused") { None => out.push(crate::types::check::missing::<Self>("paused")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("paused"))), } } }
+        crate::types::keys::req_key::<JsNumber>(obj, "running", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "paused", &mut out);
         Some(out)
     }
 

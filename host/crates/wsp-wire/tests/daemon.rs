@@ -61,6 +61,7 @@ mod daemon_wire_types_one_home_for_the_ops_the_daemon_answers {
     // protocol.test.ts:746
     // The runtime's workspaces.updateDaemon refusal at the end of this case is the runtime writer's.
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn the_hello_carries_the_daemon_s_version_and_one_without_is_refused() {
         assert!(DAEMON_VERSION >= 2);
         let current = reads_with(parse_daemon_event, json!({"type": "daemon.hello", "root": "/root", "version": DAEMON_VERSION}));
@@ -159,7 +160,7 @@ mod daemon_files_and_diff_ops {
     fn parses_the_typed_replies() {
         let list = json!({"entries": [{"name": "a.ts", "type": "file", "size": 12, "mtime": 1_700_000_000_000_i64}], "truncated": false, "total": 1});
         let got: FsListReply = reads(list.clone());
-        assert_eq!((got.entries.len(), got.total, got.truncated), (1, 1, false));
+        assert_eq!((got.entries.len(), got.total.0, got.truncated), (1, 1.0, false));
         let e = refused::<FsListReply>(
             json!({"entries": [with(&list["entries"][0], "type", json!("socket"))], "truncated": false, "total": 1}),
         );

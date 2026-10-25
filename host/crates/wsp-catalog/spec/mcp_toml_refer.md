@@ -62,7 +62,18 @@ Project import and copy roads carrying a Codex config (#2443).
 
 1. The TS writes the fallback with smol-toml's `stringify`; the port uses the `toml` crate's writer. The two differ
    in spacing and quoting; no test pins the fallback's bytes (the TS tests parse it back), and this is an accepted
-   difference for the harness, class `toml-layout`.
+   difference for the harness, class `toml-layout`. A value type is not layout: JavaScript cannot tell `20.0` from
+   `20`, so the tree the parser gives holds a whole number as an integer and the fallback writes `20`.
+3. The file is read by `smol_toml::parse_toml`, a port of smol-toml 1.9.0's parse (TOML 1.1: multi-line inline
+   tables, a trailing comma in one, `\e` and `\xHH`, a time without seconds; an integer past 2^53 refused), not the
+   `toml` crate, so a file reads as the same tree or fails with the same message (the first line in
+   `refer_codex`'s "the file is not valid TOML (...)", the whole message with its code block where the TS lets it
+   through). `oracle/toml_parse.oracle.mjs` writes 5329 texts with smol-toml's answer; `tests/toml_parse.rs` checks
+   them. Differences: nesting is refused past 256 levels (smol-toml 1000), and V8's lenient legacy date reader is not
+   ported (a date shape TOML has reads as it does).
+4. `decode_toml` throws as `String.fromCodePoint` throws on a `\u` or `\U` without its digits ("Invalid code point
+   NaN") or past U+10FFFF; `read_codex` reads that as no server, the editors, `refer` and the Codex hooks carry the
+   error.
 2. Synchronous: smol-toml was loaded lazily only to save the host's memory.
 
 ## After the port
