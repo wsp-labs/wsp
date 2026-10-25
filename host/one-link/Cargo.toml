@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# A throwaway link test for #2450: one binary holding the daemon's crates, wsp-mcp and a stub host that links the
+# wave crates and the libraries the host will need. Its own workspace, so the daemon's lock and the waves' are untouched.
+[workspace]
+
+[package]
+name = "wsp-one-link"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+
+[[bin]]
+name = "wsp"
+path = "src/main.rs"
+
+[features]
+default = ["mcp"]
+mcp = []
+
+[dependencies]
+wsp-frames = { path = "../../daemon/crates/wsp-frames" }
+wsp-daemon = { path = "../../daemon/crates/wsp-daemon" }
+wsp-guest = { path = "../../daemon/crates/wsp-guest" }
+wsp-runtime = { path = "../../daemon/crates/wsp-runtime" }
+wsp-seal = { path = "../../daemon/crates/wsp-seal" }
+wsp-mcp = { path = "../../daemon/crates/wsp-mcp" }
+wsp-store = { path = "../crates/wsp-store" }
+wsp-wire = { path = "../crates/wsp-wire" }
+wsp-words = { path = "../crates/wsp-words" }
+wsp-catalog = { path = "../crates/wsp-catalog" }
+wsp-collect = { path = "../crates/wsp-collect" }
+wsp-engine = { path = "../crates/wsp-engine" }
+tokio = { version = "1", features = ["rt", "net", "time", "io-util", "macros", "sync", "fs", "process", "signal"] }
+clap = { version = "4", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+icu_collator = "2"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "json"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
