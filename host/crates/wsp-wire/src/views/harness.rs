@@ -247,7 +247,7 @@ pub struct HarnessCatalog {
     pub read_only_mode: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub read_only_tools_free: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub access: Option<IndexMap<AccessChoice, String>>,
 }
 

@@ -971,7 +971,7 @@ pub struct PlaceApplied {
     pub hash: String,
     pub at: String,
     pub rows: Vec<PlaceProvisionRow>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub items: Option<IndexMap<String, String>>,
 }
 

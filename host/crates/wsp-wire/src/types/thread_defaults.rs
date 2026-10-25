@@ -320,7 +320,7 @@ pub struct AgentSetupSet {
     pub config_dir: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
     pub args: Option<Option<Vec<String>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub env: Option<IndexMap<EnvName, Option<String>>>,
 }
 
@@ -509,7 +509,7 @@ pub struct AgentSetup {
     pub config_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub args: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub env: Option<indexmap::IndexMap<String, String>>,
 }
 

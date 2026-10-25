@@ -139,7 +139,7 @@ pub struct PlaceReport {
     pub daemon_port: Option<i64>,
     pub wsp: Vec<String>,
     pub agents: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub agent_versions: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub logins: Option<Vec<String>>,

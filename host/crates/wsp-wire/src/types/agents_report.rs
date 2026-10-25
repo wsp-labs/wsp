@@ -957,11 +957,11 @@ pub struct ServerAdd {
     pub command: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub args: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub env: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub headers: Option<IndexMap<String, String>>,
 }
 
@@ -1320,7 +1320,7 @@ impl Check for AgentsChangedEvent {
 #[serde(rename_all = "camelCase")]
 pub struct SignInLine {
     pub command: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub env: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub prepare: Option<String>,
