@@ -171,11 +171,13 @@ pub trait ScreenOut: Send + Sync {
     fn is_tty(&self) -> bool;
 }
 
-/// What a screen reads off the process it runs in: whether styleText paints, the colour depth of the output, the
-/// glyph set, and the process stdout's columns that clack wraps a frame at.
+/// What a screen reads off the process it runs in: whether styleText paints (`styles_on`), the help line's colour
+/// depth (`colour_depth(output.is_tty(), env)`), the glyph set (`unicode_in`), and the process stdout's columns that
+/// clack hard-wraps a frame at (`None` off a terminal: no wrap).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Paint {
     pub on: bool,
+    pub depth: u8,
     pub unicode: bool,
     pub stdout_columns: Option<u16>,
 }

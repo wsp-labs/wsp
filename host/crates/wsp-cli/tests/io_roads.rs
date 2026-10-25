@@ -2,6 +2,7 @@
 //! The roads that follow a pushed stream and the reads beside them (io.ts:57-143, 434-452; spec/io.md): which
 //! frames reach the caller, in what order, what the host is asked, and what the socket going does.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::sync::{Arc, Mutex};

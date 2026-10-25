@@ -5,6 +5,7 @@
 //!
 //! Every function under test is a `todo!()` stub, so every test here is red until the section is written.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::fmt::Debug;

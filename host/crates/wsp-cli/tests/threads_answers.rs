@@ -3,6 +3,7 @@
 //! server answers them, and `thread_verbs()` against the table the oracle wrote. Cases recorded with the cloud on are
 //! in threads_answers_cloud.rs, a binary of its own, since the cloud is read once per process.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::fmt::Display;

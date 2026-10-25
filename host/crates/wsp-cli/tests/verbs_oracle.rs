@@ -3,6 +3,7 @@
 // gave (oracle/cli.oracle.ts, fixtures lookup, parse_args, pages, verbs, all_verbs and run_verb). Every test loops over
 // every row of its fixture and names the row in its message. `_cloud` fixtures are the cloud-on run.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::sync::atomic::{AtomicUsize, Ordering};

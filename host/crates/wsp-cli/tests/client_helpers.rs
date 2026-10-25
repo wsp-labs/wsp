@@ -3,6 +3,7 @@
 // releases, failed, toolFailures and misc. The keys asked, oneOf, tables and formatter belong to the rows and output
 // half of client.ts (453-735) and are not read here.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use serde_json::{json, Value};

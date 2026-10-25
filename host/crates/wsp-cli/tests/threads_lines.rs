@@ -3,6 +3,7 @@
 //! stdout and stderr, the exit code it ends with, and what it asks the host in which order, driven through
 //! `run_verb` with the verb the table holds.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::sync::{Arc, Mutex};

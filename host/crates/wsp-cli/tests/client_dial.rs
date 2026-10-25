@@ -2,6 +2,7 @@
 //! The socket to the host (client.ts:95-452, spec/client-dial.md): a real websocket on loopback, a host scripted
 //! frame by frame, and what the line sends, reads and fails with.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::sync::{Arc, Mutex};
