@@ -1,0 +1,4 @@
+# The daemon's link settings, which cargo reads from the folder it runs in and not from a dependency's.
+[env]
+LIBSECCOMP_LINK_TYPE = "static"
+LIBSECCOMP_LIB_PATH = { value = "../../daemon/target/libseccomp", relative = true }
