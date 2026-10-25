@@ -33,6 +33,11 @@ wiring.ts:451-453), `wake_ask`, `resize_to`, `nap_wait_ms`, `unchecked`, `creati
 tree and pull request it carries are refreshed from reads; the record keeps its own `checkout`, `tree` and `pr` for
 after a restart. A join is a `Shared` future so a second caller awaits the same answer (wiring.ts:427-437).
 
+`record` is `Rc<RefCell<WorkspaceRecord>>`. The TS `attach` makes a new entry that shares the same record object, and
+sub-life relies on it: a done that finds `live.get(id) !== entry`, or the record released, knows the workspace was
+released while it ran. Every entry `attach` makes for a workspace clones one `Rc`; two entries are the same workspace
+when `Rc::ptr_eq` holds on their records. The borrow is held between awaits only (rule 3.3).
+
 `generation` moves with every write of the record (wiring.ts:425-426); the status poll drops a row built under an
 older one. The areas own those writes; this unit only declares the field.
 

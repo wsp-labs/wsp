@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use base64::Engine as _;
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use regex::Regex;
 use wsp_engine::errors::{EngineError, Result};
@@ -52,7 +52,7 @@ impl Step {
 pub type Inner = Arc<dyn Fn(&str) -> Result<ExecResult> + Send + Sync>;
 /// What a test puts in front of the guest (the TS `backend.execImpl = async (m, cmd) => ...`): the command, its
 /// input, and the guest's own answer to call or not.
-pub type Hook = Arc<dyn Fn(String, Option<Vec<u8>>, Inner) -> BoxFuture<'static, Result<ExecResult>> + Send + Sync>;
+pub type Hook = Arc<dyn Fn(String, Option<Vec<u8>>, Inner) -> LocalBoxFuture<'static, Result<ExecResult>> + Send + Sync>;
 
 #[derive(Default)]
 struct State {
@@ -284,7 +284,7 @@ fn answer(state: &Mutex<State>, cmd: &str) -> Result<ExecResult> {
     panic!("guest got unexpected command: {cmd}");
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for GuestMachine {
     fn id(&self) -> &str {
         &self.id
@@ -309,7 +309,7 @@ impl Machine for GuestMachine {
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<()> {
         panic!("not on this road")
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> Result<()> {
+    async fn resume(&self, _signal: Option<&wsp_engine::Cancel>) -> Result<()> {
         panic!("not on this road")
     }
     async fn kill(&self) -> Result<()> {
@@ -347,7 +347,7 @@ impl LocalGuest {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for LocalGuest {
     fn id(&self) -> &str {
         &self.id
@@ -390,7 +390,7 @@ impl Machine for LocalGuest {
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<()> {
         panic!("not on this road")
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> Result<()> {
+    async fn resume(&self, _signal: Option<&wsp_engine::Cancel>) -> Result<()> {
         panic!("not on this road")
     }
     async fn kill(&self) -> Result<()> {
@@ -410,10 +410,10 @@ impl Machine for LocalGuest {
 /// A machine in front of another whose every exec goes through `f` (the TS `{ ...machine, exec: ... }`).
 pub struct Wrapped {
     pub inner: Arc<dyn Machine>,
-    pub f: Arc<dyn Fn(Arc<dyn Machine>, String, ExecOptions) -> BoxFuture<'static, Result<ExecResult>> + Send + Sync>,
+    pub f: Arc<dyn Fn(Arc<dyn Machine>, String, ExecOptions) -> LocalBoxFuture<'static, Result<ExecResult>> + Send + Sync>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for Wrapped {
     fn id(&self) -> &str {
         self.inner.id()
@@ -436,7 +436,7 @@ impl Machine for Wrapped {
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<()> {
         panic!("not on this road")
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> Result<()> {
+    async fn resume(&self, _signal: Option<&wsp_engine::Cancel>) -> Result<()> {
         panic!("not on this road")
     }
     async fn kill(&self) -> Result<()> {

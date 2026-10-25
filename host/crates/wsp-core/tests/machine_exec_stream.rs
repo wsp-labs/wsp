@@ -8,7 +8,7 @@ use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicUsize, Ordering::SeqCst};
 use std::sync::{Arc, Mutex};
 
-use futures::future::BoxFuture;
+use futures::future::{BoxFuture, LocalBoxFuture};
 use futures::stream::BoxStream;
 use futures::{FutureExt, StreamExt};
 use regex::Regex;
@@ -68,9 +68,9 @@ fn sleep_fn(f: impl Fn(u64) -> BoxFuture<'static, ()> + Send + Sync + 'static) -
 fn hook<F, Fut>(f: F) -> Hook
 where
     F: Fn(String, Inner) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = EngineResult<ExecResult>> + Send + 'static,
+    Fut: Future<Output = EngineResult<ExecResult>> + 'static,
 {
-    Arc::new(move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> BoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(cmd, inner)) })
+    Arc::new(move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(cmd, inner)) })
 }
 
 fn with_input(lines: &[&str]) -> Launch {
@@ -691,7 +691,7 @@ mod machine_exec_stream {
         let (guest, machine, clock, scripted) = minute_parts(0, 24 * 60_000, 0);
         let dark = Arc::new(AtomicI64::new(0));
         let (c, d) = (clock.clone(), dark.clone());
-        guest.set_hook(Arc::new(move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> BoxFuture<'static, EngineResult<ExecResult>> {
+        guest.set_hook(Arc::new(move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
             let now = c.load(SeqCst);
             if cmd.contains("__WSP_EOF_") && now >= 5 * 60_000 && now < 20 * 60_000 {
                 c.fetch_add(60_000, SeqCst);
@@ -817,7 +817,7 @@ mod machine_exec_stream_ending_a_run_something_outside_its_group_still_writes_to
         let (inner, run_dir, dir) = local();
         let machine: Arc<dyn Machine> = Arc::new(Wrapped {
             inner,
-            f: Arc::new(move |m: Arc<dyn Machine>, cmd: String, o: MachineOptions| -> BoxFuture<'static, EngineResult<ExecResult>> {
+            f: Arc::new(move |m: Arc<dyn Machine>, cmd: String, o: MachineOptions| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
                 Box::pin(async move {
                     support::sleep_ms(ms).await;
                     m.exec(&cmd, o).await
@@ -863,7 +863,7 @@ mod machine_exec_stream_ending_a_run_something_outside_its_group_still_writes_to
         let dir = run_dir.clone();
         let machine: Arc<dyn Machine> = Arc::new(Wrapped {
             inner: guest,
-            f: Arc::new(move |m: Arc<dyn Machine>, cmd: String, o: MachineOptions| -> BoxFuture<'static, EngineResult<ExecResult>> {
+            f: Arc::new(move |m: Arc<dyn Machine>, cmd: String, o: MachineOptions| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
                 let dir = dir.clone();
                 Box::pin(async move {
                     let res = m.exec(&cmd, o).await?;
@@ -913,7 +913,7 @@ mod machine_exec_stream_feeding_a_real_process_over_the_input_channel {
         let (hold, parked) = (hold_polls.clone(), held.clone());
         let gated: Arc<dyn Machine> = Arc::new(Wrapped {
             inner,
-            f: Arc::new(move |m: Arc<dyn Machine>, cmd: String, o: MachineOptions| -> BoxFuture<'static, EngineResult<ExecResult>> {
+            f: Arc::new(move |m: Arc<dyn Machine>, cmd: String, o: MachineOptions| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
                 let (hold, parked) = (hold.clone(), parked.clone());
                 Box::pin(async move {
                     if hold.load(SeqCst) && cmd.contains("__WSP_EOF_") {

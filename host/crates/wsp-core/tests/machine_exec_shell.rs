@@ -44,7 +44,7 @@ struct Recorder {
     calls: Mutex<Vec<String>>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for Recorder {
     fn id(&self) -> &str {
         "rec"
@@ -85,7 +85,7 @@ impl Machine for Recorder {
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<()> {
         panic!("not on this road")
     }
-    async fn resume(&self, _signal: Option<tokio_util::sync::CancellationToken>) -> Result<()> {
+    async fn resume(&self, _signal: Option<&wsp_engine::Cancel>) -> Result<()> {
         panic!("not on this road")
     }
     async fn kill(&self) -> Result<()> {
