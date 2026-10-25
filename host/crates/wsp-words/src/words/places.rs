@@ -1,0 +1,1044 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! Port of packages/protocol/src/words/places.ts at a3b870a6e: the words of the computers table and its rows, a
+//! provider's remove and forget, the import and export progress lines, the hosts menu and table, the terminal
+//! config readout, a theme's paint and a cloud's plan line. Each TS statement stands as a comment above its stub.
+//! See spec/places.md.
+
+use crate::pending_wire::types::agents_report::AgentSignInState;
+use crate::pending_wire::types::workspace_look::{Rgb, WorkspaceTheme};
+use crate::pending_wire::views::desktop_bridge::{ContextMenuItem, HostsView};
+use crate::pending_wire::views::place::{CloudPlan, CloudStarts, PlaceView};
+use crate::pending_wire::views::project_bundle::{ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb};
+use serde::Serialize;
+
+/// The line under the import dialog's title: which workspace, and that the folder lands at the path it has here.
+// places.ts:8
+// export function importIntoLine(workspaceName: string): string {
+//   return `Into ${workspaceName}, at the same path.`;
+// }
+pub fn import_into_line(workspace_name: &str) -> String {
+    todo!()
+}
+
+/// The repository row of a plan, in words a stranger reads: the history travels with a .git, or there is none.
+// places.ts:13
+// export function repoLine(repo: boolean): string {
+//   return repo ? "Git repository, history travels" : "No repository";
+// }
+pub fn repo_line(repo: bool) -> String {
+    todo!()
+}
+
+/// What the ticks on the secret-shaped rows do, under how many rows there are.
+// places.ts:18
+// export function secretsNote(n: number): string {
+//   return `${plural(n, "file")} ${n === 1 ? "looks like a secret" : "look like secrets"}. Ticked files are copied as they are. Unticked files are left out and listed.`;
+// }
+pub fn secrets_note(n: f64) -> String {
+    todo!()
+}
+
+/// What the ticks on the agent rows do.
+// places.ts:23
+pub const SESSIONS_NOTE: &str = "Ticked agents' sessions go with the folder. The rest stay here.";
+
+/// Why a secret-shaped file was flagged and its size, as the CLI's plan column and the dialog's hover both print it.
+// places.ts:26
+// export function secretSignalsLine(s: ProjectSecret): string {
+//   return `${s.signals.join(", ")}, ${fmtBytes(s.bytes)}`;
+// }
+pub fn secret_signals_line(s: &ProjectSecret) -> String {
+    todo!()
+}
+
+/// The line under the export dialog's title: which workspace the folder leaves, and the computer it lands on.
+// places.ts:31
+// export function exportFromLine(workspaceName: string, here: string): string {
+//   return `From ${workspaceName}, to ${here}.`;
+// }
+pub fn export_from_line(workspace_name: &str, here: &str) -> String {
+    todo!()
+}
+
+/// What the ticks on the export dialog's agent rows do.
+// places.ts:36
+pub const EXPORT_SESSIONS_NOTE: &str = "Ticked agents' sessions come home with the folder. The rest stay in the task.";
+
+/// The export dialog's agent section when the workspace has no threads to make rows of.
+// places.ts:39
+pub const NO_THREADS_NOTE: &str = "No threads here. Every agent's sessions for the folder come home with it.";
+
+/// What a row of the export's summary says before the folder has landed, since nothing is read from the machine first.
+// places.ts:42
+pub const NOT_LANDED_WORD: &str = "when it lands";
+
+/// A trip's events folded into the one progress line and its bar.
+// places.ts:45
+// export interface TripProgress {
+//   readonly line: string;
+//   /** How far the bar is, 0 to 1; it never goes back. */
+//   readonly fraction: number;
+// }
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TripProgress {
+    pub line: String,
+    /// How far the bar is, 0 to 1; it never goes back.
+    #[serde(serialize_with = "crate::js::serialize_f64")]
+    pub fraction: f64,
+}
+
+/// An import's events folded into the one progress line and its bar. The words are the last event's step: the two
+/// steps before packing pass in a blink and read as starting, packing keeps the runtime's count, an upload is named
+/// by its total so the words hold still while the bar moves, a landing by the workspace it lands on. The runtime lands
+/// the project and then uploads and lands the sessions tar in a second pass, so that pass is named and the bar holds
+/// its high-water mark instead of dropping to nought. A failure has no step; the status line carries it.
+// places.ts:56
+// export function importProgress(events: readonly Pick<ProjectImportEvent, "stage" | "message" | "bytes" | "total">[], workspaceName: string): TripProgress | null {
+//   let line = "";
+//   let fraction = 0;
+//   let landings = 0;
+//   for (const e of events) {
+//     switch (e.stage) {
+//       case "planned":
+//       case "consented":
+//         line = "Starting";
+//         break;
+//       case "packing":
+//         line = e.message.replace(/\.$/, "");
+//         break;
+//       case "uploading": {
+//         const what = landings > 0 ? " sessions" : "";
+//         const size = e.total === undefined ? "" : `${what === "" ? "" : ","} ${fmtBytes(e.total)}`;
+//         line = `Uploading${what}${size}`;
+//         if (e.bytes !== undefined && e.total !== undefined && e.total > 0) fraction = Math.max(fraction, e.bytes / e.total);
+//         break;
+//       }
+//       case "landing":
+//         landings += 1;
+//         line = `Landing on ${workspaceName}`;
+//         fraction = 1;
+//         break;
+//       case "done":
+//         line = "Done";
+//         fraction = 1;
+//         break;
+//       case "failed":
+//         return null;
+//     }
+//   }
+//   return events.length === 0 ? null : { line, fraction };
+// }
+pub fn import_progress(events: &[ProjectImportEvent], workspace_name: &str) -> Option<TripProgress> {
+    todo!()
+}
+
+/// An export's events folded into the one progress line and its bar. The runtime packs and downloads the folder,
+/// then packs and downloads the sessions as a second pass whose bytes start again at nought, so the pass is named by
+/// counting the packings and the bar holds its high-water mark; a download is named by its total so the words hold
+/// still while the bar moves. A failure has no step; the status line carries it.
+// places.ts:96
+// export function exportProgress(events: readonly Pick<ProjectExportEvent, "stage" | "bytes" | "total">[], here: string): TripProgress | null {
+//   let line = "";
+//   let fraction = 0;
+//   let packings = 0;
+//   const pass = (): string => (packings > 1 ? "sessions" : "the folder");
+//   for (const e of events) {
+//     switch (e.stage) {
+//       case "packing":
+//         packings += 1;
+//         line = `Packing ${pass()}`;
+//         break;
+//       case "downloading":
+//         line = `Downloading ${pass()}${e.total === undefined ? "" : `, ${fmtBytes(e.total)}`}`;
+//         if (e.bytes !== undefined && e.total !== undefined && e.total > 0) fraction = Math.max(fraction, e.bytes / e.total);
+//         break;
+//       case "landing":
+//         line = here === "" ? "Landing" : `Landing on ${here}`;
+//         fraction = 1;
+//         break;
+//       case "done":
+//         line = "Done";
+//         fraction = 1;
+//         break;
+//       case "failed":
+//         return null;
+//     }
+//   }
+//   return events.length === 0 ? null : { line, fraction };
+// }
+pub fn export_progress(events: &[ProjectExportEvent], here: &str) -> Option<TripProgress> {
+    todo!()
+}
+
+/// A color as a Ghostty file writes it.
+// places.ts:127
+// export function hexColor({ r, g, b }: TerminalRgb): string {
+//   return `#${[r, g, b].map(c => c.toString(16).padStart(2, "0")).join("")}`;
+// }
+pub fn hex_color(rgb: &TerminalRgb) -> String {
+    todo!()
+}
+
+// places.ts:131
+pub const NO_TERMINAL_CONFIG_LINE: &str = "No Ghostty config on this computer; the terminal pane keeps its defaults.";
+
+/// The person's terminal config as wsp terminal config prints it: the files read, then each key the pane honours as
+/// the file would write it, so a line here can be pasted back into the config.
+// places.ts:135
+// export function terminalConfigLines(config: TerminalConfig): string[] {
+//   if (config.files.length === 0) return [NO_TERMINAL_CONFIG_LINE];
+//   const set = config.palette.filter(c => c !== null).length;
+//   const pair = (a: number, b: number): string => (a === b ? `${a}` : `${a},${b}`);
+//   const rows: [string, string | undefined][] = [
+//     ["font-family", config.fontFamily.length === 0 ? undefined : config.fontFamily.join(", ")],
+//     ["font-size", config.fontSize?.toString()],
+//     ["theme", config.theme],
+//     ["background", config.background && hexColor(config.background)],
+//     ["foreground", config.foreground && hexColor(config.foreground)],
+//     ["palette", set === 0 ? undefined : `${set} of 16 colors`],
+//     ["selection-background", config.selectionBackground && hexColor(config.selectionBackground)],
+//     ["cursor-color", config.cursorColor && hexColor(config.cursorColor)],
+//     ["cursor-style", config.cursorStyle],
+//     ["cursor-style-blink", config.cursorStyleBlink?.toString()],
+//     ["window-padding-x", config.windowPaddingX && pair(config.windowPaddingX.left, config.windowPaddingX.right)],
+//     ["window-padding-y", config.windowPaddingY && pair(config.windowPaddingY.top, config.windowPaddingY.bottom)],
+//     ["background-opacity", config.backgroundOpacity?.toString()],
+//     ["background-blur", config.backgroundBlur?.toString()],
+//   ];
+//   return [`Read ${config.files.join(", ")}`, ...rows.filter(([, value]) => value !== undefined).map(([key, value]) => `${key} = ${value}`)];
+// }
+pub fn terminal_config_lines(config: &TerminalConfig) -> Vec<String> {
+    todo!()
+}
+
+/// A glyph's id as a picker names it. The ids are one word each, so the word is the id with its first letter up; a
+/// second table of names would drift from the list the wire validates against.
+// places.ts:160
+// export function lookWord(id: WorkspaceGlyph): string {
+//   return id.charAt(0).toUpperCase() + id.slice(1);
+// }
+/// `id` is a WorkspaceGlyph's wire word.
+pub fn look_word(id: &str) -> String {
+    todo!()
+}
+
+/// The custom properties a workspace's theme paints with, the one place the theme object is read. The gradient is
+/// one dot's colour laid flat, two dots fading toward each other from opposite corners, or three with two settling
+/// in the top corners over the third rising from the bottom; every stop carries the opacity as its alpha, so the
+/// colour lies over whatever surface the sidebar has, the glass, the macOS material or the plain token, rather
+/// than replacing it, held under the cap that keeps the side's words reading. The grain is the slider's number,
+/// which the stylesheet gives to a pre-rendered tile. The ink is the one colour the chrome takes from the theme.
+// places.ts:170
+// export interface ThemeVars {
+//   readonly "--space-gradient": string;
+//   readonly "--space-grain": string;
+//   readonly "--space-tint": string;
+// }
+/// Keys in this order, named as the CSS custom properties.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ThemeVars {
+    #[serde(rename = "--space-gradient")]
+    pub space_gradient: String,
+    #[serde(rename = "--space-grain")]
+    pub space_grain: String,
+    #[serde(rename = "--space-tint")]
+    pub space_tint: String,
+}
+
+/// A share as a whole percent: 0.5 reads 50%.
+// places.ts:177
+// export function fmtPercent(share: number): string {
+//   return `${Math.round(share * 100)}%`;
+// }
+pub fn fmt_percent(share: f64) -> String {
+    todo!()
+}
+
+/// What the app says about a desktop shell and the host that served it its page being of two releases.
+// places.ts:182
+// export interface ShellVersionNotice {
+//   /** The one line the app shows. */
+//   line: string;
+//   /** True while the person is being pointed at a newer app; the line asks for the app's own host instead when the
+//    * shell is the newer half, since there is nothing to download for that. */
+//   update: boolean;
+// }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ShellVersionNotice {
+    pub line: String,
+    pub update: bool,
+}
+
+/// The word on the notice's one button, which opens the releases page away from the app's window.
+// places.ts:191
+pub const GET_THE_APP_WORD: &str = "Get";
+
+/// The line for a desktop shell whose page came from a host of another release, and nothing while the two agree.
+/// The halves ship together and every call over the bridge needs both, so the older one is named with what to do
+/// about it. A shell whose bridge carries no version at all is one from before the bridge carried one, which is
+/// older than any host that reads this.
+// places.ts:197
+// export function shellVersionNotice(shell: string | undefined, host: string, label?: string): ShellVersionNotice | undefined {
+//   const named = label === undefined ? "the host" : `the host ${label}`;
+//   if (shell === undefined) return { line: `this app is older than ${named}, which is ${host}: get the new app`, update: true };
+//   const order = compareVersions(shell, host);
+//   if (order === 0) return undefined;
+//   const both = `this app is ${shell}, ${named} is ${host}`;
+//   return order < 0 ? { line: `${both}: get the new app`, update: true } : { line: `${both}: run the app's own host`, update: false };
+// }
+pub fn shell_version_notice(shell: Option<&str>, host: &str, label: Option<&str>) -> Option<ShellVersionNotice> {
+    todo!()
+}
+
+/// The words of the desktop's hosts: the menu and the sidebar's foot read them here.
+// places.ts:207
+// export const HOST_WORDS = {
+//   hosts: "Hosts",
+// } as const;
+pub mod host_words {
+    pub const HOSTS: &str = "Hosts";
+}
+
+/// How long a computer has been away, coarse on purpose: the figure is read once in a table, not watched.
+// places.ts:212
+// export function offlineFor(ms: number): string {
+//   const minutes = Math.max(0, Math.floor(ms / 60_000));
+//   if (minutes < 60) return `${minutes} min`;
+//   const hours = Math.floor(minutes / 60);
+//   return hours < 24 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
+// }
+pub fn offline_for(ms: f64) -> String {
+    todo!()
+}
+
+/// The Workspaces cell of that table: how many stand on the computer, what it has cost this month where somebody
+/// is charging for them, and the one thing about the computer that changes what a person may put there. Whether it
+/// is answering is not one of them: the state slot beside its name carries that, and a row that said it twice was a
+/// row that said it in two wordings. The count is what the caller reads off the workspace list, never off the row:
+/// a row carries at most the one workspace its join recorded, so this computer's own workspace and a provider's
+/// forks are on neither.
+// places.ts:225
+// export function placeWorkspacesCell(view: PlaceView, count: number, monthUsd?: number): string {
+//   const { count: n, note } = placeWorkspacesParts(view, count, monthUsd);
+//   return note === undefined ? n : `${n}, ${note}`;
+// }
+pub fn place_workspaces_cell(view: &PlaceView, count: f64, month_usd: Option<f64>) -> String {
+    todo!()
+}
+
+/// The same cell in its two parts, for a table that draws them in two inks: the count a person is counting, and
+/// the note behind it, which is the mock's muted clause. A line that is one string (the command line's row, a
+/// title) reads placeWorkspacesCell instead; both are this one rule.
+// places.ts:233
+// export function placeWorkspacesParts(view: PlaceView, count: number, monthUsd?: number): { count: string; note?: string } {
+//   const n = `${count}`;
+//   // A copy being built or stopped there is what the row has to say while it lasts: the workspaces the row counts wait on it.
+//   if (view.build !== undefined) return { count: n, note: view.build };
+//   // Only a provider bills: a computer of the person's own runs their workspaces for nothing, whatever it runs them on.
+//   if (view.kind === "provider") return monthUsd === undefined ? { count: n } : { count: n, note: spentThisMonth(monthUsd) };
+//   return { count: n };
+// }
+/// The cell's two parts; `note` absent where the TS leaves it out.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct WorkspacesParts {
+    pub count: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+pub fn place_workspaces_parts(view: &PlaceView, count: f64, month_usd: Option<f64>) -> WorkspacesParts {
+    todo!()
+}
+
+/// What a place has taken since the first of the month, the clause every surface that says it says.
+// places.ts:243
+// export const spentThisMonth = (usd: number): string => `${fmtCost(usd)} this month`;
+pub fn spent_this_month(usd: f64) -> String {
+    todo!()
+}
+
+/// What a cloud has spent today over its spend per day, the SPEND cell and the meter's figure: the limit is a number
+/// the person typed, so it reads as typed, in whole dollars where it has no cents.
+// places.ts:247
+// export function spendMeterWord(todayUsd: number, capUsd: number): string {
+//   return `${fmtCost(todayUsd)}/${Number.isInteger(capUsd) ? `$${capUsd}` : fmtCost(capUsd)}`;
+// }
+pub fn spend_meter_word(today_usd: f64, cap_usd: f64) -> String {
+    todo!()
+}
+
+/// The Spend row of a place's detail: the month behind it, what it burns right now and how many workspaces that is
+/// across. A row burning nothing says so with the rate rather than dropping the clause, since a $0.00/hr that is
+/// measured and a figure left out read differently.
+// places.ts:254
+// export function placeSpendLine(spend: { monthUsd: number; rateUsdPerHour: number }, workspaces: number): string {
+//   return `${spentThisMonth(spend.monthUsd)}, ${fmtRate(spend.rateUsdPerHour)} now across ${plural(workspaces, "workspace")}`;
+// }
+pub fn place_spend_line(month_usd: f64, rate_usd_per_hour: f64, workspaces: f64) -> String {
+    todo!()
+}
+
+/// The foot under the places table: what the providers that have taken something this month took, together, and how
+/// many of them that is. A provider that took nothing is not in the count, whether nothing was ever metered on it or
+/// its workspaces have all been asleep since last month: a count of two where one charged reads as two bills.
+// places.ts:261
+// export function placesSpendFoot(monthUsd: number, providers: number): string {
+//   return `${spentThisMonth(monthUsd)} across ${plural(providers, "provider")}`;
+// }
+pub fn places_spend_foot(month_usd: f64, providers: f64) -> String {
+    todo!()
+}
+
+/// The doctor's word on the engine a project's own containers run on here: the engine when the box has one, else
+/// the line that says installing one opens it. A place that has not yet said reads nothing.
+// places.ts:267
+// export function placeEngineLine(view: Pick<PlaceView, "name" | "engine">): string | undefined {
+//   if (view.engine === undefined) return undefined;
+//   if (view.engine === "none") return `${view.name} has no container engine; a project's docker compose runs there once you install Docker or podman on it`;
+//   return `${view.name} runs a project's own containers on ${view.engine}; a workspace made with --engine gets a socket to it and sees its own containers alone`;
+// }
+pub fn place_engine_line(view: &PlaceView) -> Option<String> {
+    todo!()
+}
+
+/// An agent wsp hands a token or a key of the person's at every turn, which needs no login on the computer.
+// places.ts:274
+pub const TOKEN_SIGN_IN_WORD: &str = "signed in with a token";
+
+/// What a person reads for whether an agent on a computer can take a turn there as things stand: its own login on
+/// that computer, the token or key of theirs wsp hands it, or nothing yet. One home for the three words, so the
+/// table, the doctor and the agents block under a computer's row cannot word them three ways.
+// places.ts:279
+// export function agentSignInWord(state: AgentSignInState): string {
+//   return state === "signed-in" ? "signed in" : state === "vault-key" ? TOKEN_SIGN_IN_WORD : "not signed in";
+// }
+pub fn agent_sign_in_word(state: AgentSignInState) -> String {
+    todo!()
+}
+
+/// The version number in what an agent's own version flag printed: agents word that line their own way (`2.1.270
+/// (Claude Code)`, `codex-cli 0.153.0`), so the number is lifted out where there is one and the line stands as the
+/// computer said it where there is not.
+// places.ts:286
+// export function agentVersionWord(raw: string): string {
+//   return /\d+\.\d+\.\d+/.exec(raw)?.[0] ?? raw.trim();
+// }
+pub fn agent_version_word(raw: &str) -> String {
+    todo!()
+}
+
+/// semver.org's own pattern, whole.
+// places.ts:291
+// private in the TS: port it as a private helper
+// const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+
+// places.ts:292
+pub const VERSION_MAX_CHARS: usize = 64;
+
+/// A version read off the network or a tag: the whole trimmed text, one leading v aside, is a strict semver under the
+/// cap, or it is nothing. No number is ever lifted out of other words, since an error page can carry one.
+// places.ts:296
+// export function strictVersion(raw: string): string | undefined {
+//   const bare = raw.trim().replace(/^v/, "");
+//   return bare.length <= VERSION_MAX_CHARS && SEMVER.test(bare) ? bare : undefined;
+// }
+pub fn strict_version(raw: &str) -> Option<String> {
+    todo!()
+}
+
+/// The agents cell of the computers table: each agent that computer reported, its version and the word for its
+/// sign-in, one clause apiece. Empty where the row reported no agent at all, which is a cloud account, this
+/// computer, and a computer that has not said yet.
+// places.ts:304
+// export function agentsCell(place: Pick<PlaceView, "agents" | "agentVersions" | "signIns">): string {
+//   return (place.agents ?? [])
+//     .map(id => {
+//       const version = place.agentVersions?.[id];
+//       const state = place.signIns?.[id];
+//       return [id, version === undefined ? undefined : agentVersionWord(version), state === undefined ? undefined : agentSignInWord(state)].filter(word => word !== undefined).join(" ");
+//     })
+//     .join(", ");
+// }
+pub fn agents_cell(place: &PlaceView) -> String {
+    todo!()
+}
+
+/// How much of the provider's own reason for refusing a key a sentence carries: enough to tell a dead key from a
+/// narrowed one, short enough to stay one sentence.
+// places.ts:316
+const REFUSAL_REASON_MAX: i64 = 80;
+
+/// The one line a codex turn fails with when it ran on the person's own key and the provider turned that key down:
+/// whose key was refused, what the provider said about it, and the two ways out. Never the not-signed-in line,
+/// which would send a person to sign in when what they have is a key that no longer works. `reason` is what the CLI
+/// printed after the status, empty when it printed nothing, and a refusal with nothing after it drops the clause
+/// rather than reading as a colon with nothing behind it; `login` is the catalog's sign-in command for a machine.
+// places.ts:323
+// export function codexKeyRefusedLine(keyEnv: string, reason: string, login: string): string {
+//   const said = reason.trim().slice(0, REFUSAL_REASON_MAX).trim();
+//   return `OpenAI refused your ${keyEnv}${said === "" ? "" : `: ${said}`}. Put a working key in ~/.wsp/.env, or sign Codex in where this thread runs with ${login}.`;
+// }
+pub fn codex_key_refused_line(key_env: &str, reason: &str, login: &str) -> String {
+    todo!()
+}
+
+/// The verb alone, for the host road that runs that leave on another computer over the line that computer said
+/// starts its own wsp: two spellings of the word would have those two agreeing by luck.
+// places.ts:330
+pub const PLACE_LEAVE_VERB: &str = "leave";
+
+/// The one line that takes wsp off a computer it is typed on.
+// places.ts:333
+// export const PLACE_LEAVE_LINE = `wsp ${PLACE_LEAVE_VERB}`;
+pub const PLACE_LEAVE_LINE: &str = "wsp leave";
+
+/// The copy of the image on a computer of the person's own, in the words every screen that mentions it says. It sits in
+/// the runtime's folder there, which a leave run as root takes whole, so it comes off with wsp: the dialog that removes
+/// a computer and the line that dialog hands over both say so. The size is the copy's where the host knows it; a
+/// screen that does not know it names the copy without a figure rather than one it is guessing.
+// places.ts:339
+// export const imageCopyLine = (size?: string): string => `the copy of your image${size === undefined ? "" : ` (${size})`}`;
+pub fn image_copy_line(size: Option<&str>) -> String {
+    todo!()
+}
+
+/// Everything wsp puts on a computer it is installed on, named once. The Add sheet writes its lines and the note
+/// under them from this list and the Remove dialog writes its sentence from the same, so what a person is told
+/// before they press Add is what they are told on the way out. Nothing here is called a shim: a person reads what
+/// the thing does, since nobody outside this repo knows what a shim is.
+///
+/// The paths behind the words are placeOwnedPaths', which is the list a sweep actually walks.
+// places.ts:347
+// export const PLACE_INSTALL = {
+//   /** Where wsp's own files land under that login's home, and what they weigh there. */
+//   folder: "~/.wsp",
+//   weight: "about 40 MB",
+//   /** What holds the daemon up: a unit under /etc/systemd/system, which needs root and starts again at every boot. */
+//   service: "a system service",
+//   /** The three things a sweep takes off again, in the order placeOwnedPaths walks them and in the grammar Remove
+//    * says them: the unit that holds the agent up, the files under wsp's own folder, and the command beside them.
+//    * The Add lines name the same three in their own grammar, so a fourth thing landing on a box cannot show on one
+//    * screen and not the other. */
+//   taken: {
+//     service: "the daemon's service",
+//     files: "wsp's own files under that login's home",
+//     opener: "the command beside them that opens sign-in pages in your browser",
+//   },
+//   /** What that command does, as its own sentence for a screen that lists what lands rather than what comes off. */
+//   openerLine: "Sign-in pages started on that computer open in your browser here.",
+// } as const;
+pub mod place_install {
+    pub const FOLDER: &str = "~/.wsp";
+    pub const WEIGHT: &str = "about 40 MB";
+    pub const SERVICE: &str = "a system service";
+    pub mod taken {
+        pub const SERVICE: &str = "the daemon's service";
+        pub const FILES: &str = "wsp's own files under that login's home";
+        pub const OPENER: &str = "the command beside them that opens sign-in pages in your browser";
+    }
+    pub const OPENER_LINE: &str = "Sign-in pages started on that computer open in your browser here.";
+}
+
+/// The words of the Settings section for where a person's agents run, and of the sheet that adds a computer.
+// places.ts:367
+// export const PLACES_WORDS = {
+//   section: "Computers",
+//   columns: ["Computer", "Size", "Disk free", "Workspaces"],
+//   addComputer: "Add a computer",
+//   connectProvider: "Connect a provider",
+//   sheet: {
+//     install: "npm i -g @wsp-labs/wsp",
+//     /** The line typed in a terminal on the computer being joined. The token is the code and the fingerprint of the
+//      * key this host will prove, as joinToken writes them, so the line names which host it is joining. */
+//     joinLine: (url: string, token: string): string => `wsp join ${url} --code ${token}`,
+//     relayNote: "when the host is linked to your relay",
+//     /** Said once, the first time the door binds: a Mac with its firewall on asks whether wsp may accept connections. */
+//     firewall: "macOS may ask once whether wsp can accept connections; allow it",
+//   },
+//   remove: {
+//     /** The line run on the computer itself, which is the one road that also takes the agent's service: the sweep
+//      * the host asks for over the link leaves the unit standing, since its name is the host's rule and not the
+//      * agent's. */
+//     leaveLine: PLACE_LEAVE_LINE,
+//     /** What that line takes and what it leaves, off the one list a sweep reads (placeOwnedPaths), which names the
+//      * files under wsp's folder and never the folder itself, and the unit the manager holds the agent up with. Run as
+//      * root on a computer added over ssh it takes the runtime's folder too, the copy of the image in it; one joined
+//      * with a code has no record of what stood before, and keeps it. What it leaves is the work folder. */
+//     leaveTakes: `It takes off ${PLACE_INSTALL.taken.service}, ${PLACE_INSTALL.taken.files}, ${PLACE_INSTALL.taken.opener}, and, on a computer added over ssh, ${imageCopyLine()}. Your work folder stays.`,
+//   },
+// } as const;
+pub mod places_words {
+    pub const SECTION: &str = "Computers";
+    pub const COLUMNS: [&str; 4] = ["Computer", "Size", "Disk free", "Workspaces"];
+    pub const ADD_COMPUTER: &str = "Add a computer";
+    pub const CONNECT_PROVIDER: &str = "Connect a provider";
+    pub mod sheet {
+        pub const INSTALL: &str = "npm i -g @wsp-labs/wsp";
+        /// `wsp join <url> --code <token>`.
+        pub fn join_line(url: &str, token: &str) -> String {
+            todo!()
+        }
+        pub const RELAY_NOTE: &str = "when the host is linked to your relay";
+        pub const FIREWALL: &str = "macOS may ask once whether wsp can accept connections; allow it";
+    }
+    pub mod remove {
+        pub const LEAVE_LINE: &str = "wsp leave";
+        pub const LEAVE_TAKES: &str = "It takes off the daemon's service, wsp's own files under that login's home, the command beside them that opens sign-in pages in your browser, and, on a computer added over ssh, the copy of your image. Your work folder stays.";
+    }
+}
+
+// places.ts:394
+// private in the TS: port it as a private helper
+// const tasksRecords = (tasks: number, its: boolean): string => (tasks === 1 ? `${its ? "its task" : "1 task"}'s record` : `${its ? `its ${tasks}` : tasks} tasks' records`);
+
+/// The one question before a provider is removed at a terminal, naming what goes as the app's dialog does.
+// places.ts:397
+// export const providerRemoveQuestion = (name: string, tasks: number): string =>
+//   `Remove ${name}?\n${tasks === 0 ? "Every machine wsp made there is deleted" : `${tasks === 1 ? "Its task is" : `Its ${tasks} tasks are`} deleted at ${name}`}, and once ${name} reads ${tasks === 1 ? "it" : "them"} gone the key is forgotten.`;
+pub fn provider_remove_question(name: &str, tasks: f64) -> String {
+    todo!()
+}
+
+/// Where a provider's key still is once the file beside the state lost it: a host reads the shell's environment and
+/// the start folder's .env before that file, and wsp edits neither.
+// places.ts:402
+// export type KeyStill = { file: string } | { env: string };
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum KeyStill {
+    File(String),
+    Env(String),
+}
+
+// places.ts:404
+// private in the TS: port it as a private helper
+// const stillWhere = (still: KeyStill): string => ("file" in still ? still.file : `the environment this host started with (${still.env})`);
+
+// places.ts:405
+// private in the TS: port it as a private helper
+// const stillReader = (still: KeyStill): string => ("file" in still ? "in that folder" : "from that shell");
+
+/// The sentence naming every place a forgotten key still is, for the person to take it out of each: a key left in
+/// one of them is read back by the next host started there.
+// places.ts:409
+// export const providerKeyStillLine = (still: readonly KeyStill[]): string => {
+//   const one = still.length === 1;
+//   return `Its key is still in ${still.map(stillWhere).join(" and in ")}, which a host started ${still.map(stillReader).join(" or ")} reads first; take it out ${one ? "there" : still.length === 2 ? "of both" : "of each"}.`;
+// };
+pub fn provider_key_still_line(still: &[KeyStill]) -> String {
+    todo!()
+}
+
+/// What removing a provider answers once every machine this host made there is gone: the key forgotten with them, or
+/// where it still is.
+// places.ts:416
+// export const providerRemovedLine = (name: string, deleted: number, still?: string, snapshots = 0): string => {
+//   const went = snapshots === 0 ? plural(deleted, "machine") : `${plural(deleted, "machine")} and ${plural(snapshots, "image snapshot")}`;
+//   return still === undefined ? `${name} removed: ${went} deleted, the key forgotten.` : `${name} removed: ${went} deleted. ${still}`;
+// };
+/// `snapshots` defaults to 0.
+pub fn provider_removed_line(name: &str, deleted: f64, still: Option<&str>, snapshots: Option<f64>) -> String {
+    todo!()
+}
+
+// places.ts:421
+// private in the TS: port it as a private helper
+// const forgetBills = (name: string, touched: string): string => `Nothing at ${name} ${touched} touched, so machines wsp made there may bill until ${name}'s own timer ends them.`;
+
+/// The question before a provider is only forgotten: its key and records leave, and nothing there is asked.
+// places.ts:424
+// export const providerForgetQuestion = (name: string, tasks: number): string =>
+//   `Forget ${name}?\nThe key ${tasks === 0 ? "leaves" : `and ${tasksRecords(tasks, true)} leave`} this host. ${forgetBills(name, "is")}`;
+pub fn provider_forget_question(name: &str, tasks: f64) -> String {
+    todo!()
+}
+
+/// What forgetting a provider answers, with where its key still is when the host reads it from beyond its own file.
+// places.ts:428
+// export const providerForgotLine = (name: string, tasks: number, still?: string): string => {
+//   const records = tasks === 0 ? "" : `${tasksRecords(tasks, false)} left this host`;
+//   const head = still === undefined ? `${name} forgotten: the key${records === "" ? " left this host" : ` and ${records}`}.` : `${name} forgotten${records === "" ? "." : `: ${records}.`} ${still}`;
+//   return `${head} ${forgetBills(name, "was")}`;
+// };
+pub fn provider_forgot_line(name: &str, tasks: f64, still: Option<&str>) -> String {
+    todo!()
+}
+
+/// Why one machine a provider's remove reached is not gone yet, as the kept line names it.
+// places.ts:435
+// export const PROVIDER_LEFT_WORDS = {
+//   running: (state: string): string => `still ${state} after three asks`,
+//   unread: (said: string): string => `could not be read: ${said}`,
+//   undeleted: (said: string): string => `could not be deleted: ${said}`,
+//   late: "made while the remove ran",
+//   listed: (graceMs: number): string => `still listed ${Math.round(graceMs / 1000)} s after its delete`,
+// } as const;
+pub mod provider_left_words {
+    /// `still <state> after three asks`.
+    pub fn running(state: &str) -> String {
+        todo!()
+    }
+    /// `could not be read: <said>`.
+    pub fn unread(said: &str) -> String {
+        todo!()
+    }
+    /// `could not be deleted: <said>`.
+    pub fn undeleted(said: &str) -> String {
+        todo!()
+    }
+    pub const LATE: &str = "made while the remove ran";
+    /// `still listed <js_round(grace_ms / 1000)> s after its delete`.
+    pub fn listed(grace_ms: f64) -> String {
+        todo!()
+    }
+}
+
+/// How many machines the kept line names before it counts the rest.
+// places.ts:444
+pub const PROVIDER_LEFT_NAMED: usize = 5;
+
+// places.ts:446
+// private in the TS: port it as a private helper
+// const othersDeleted = (deleted: number): string => (deleted === 0 ? "" : `; ${deleted} ${deleted === 1 ? "other machine was" : "other machines were"} deleted`);
+
+/// What it answers when some machines are not gone: the first few named with why, the rest counted, and the key
+/// kept, since a machine left there bills and only that key reaches it.
+// places.ts:450
+// export function providerKeptLine(name: string, deleted: number, left: readonly { id: string; said: string }[]): string {
+//   const named = left.slice(0, PROVIDER_LEFT_NAMED).map(l => `${l.id} (${l.said})`).join(", ");
+//   const more = left.length > PROVIDER_LEFT_NAMED ? ` and ${left.length - PROVIDER_LEFT_NAMED} more` : "";
+//   const one = left.length === 1;
+//   return `${plural(left.length, "machine")} wsp made at ${name} ${one ? "is" : "are"} not gone: ${named}${more}. The key is kept until ${one ? "it goes" : "they go"}${othersDeleted(deleted)}. Remove ${name} again to ask once more.`;
+// }
+/// A machine or snapshot a remove left, and why.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LeftThere {
+    pub id: String,
+    pub said: String,
+}
+
+/// An image snapshot a host saved at a provider, with its size where listed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SavedImage {
+    pub id: String,
+    pub size_bytes: Option<f64>,
+}
+
+pub fn provider_kept_line(name: &str, deleted: f64, left: &[LeftThere]) -> String {
+    todo!()
+}
+
+// places.ts:457
+// private in the TS: port it as a private helper
+// const listed = (names: readonly string[]): string => (names.length < 3 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+
+// places.ts:459
+// private in the TS: port it as a private helper
+// const namedImages = (images: readonly { id: string; sizeBytes?: number }[]): string => listed(images.map(i => (i.sizeBytes === undefined ? i.id : `${i.id} (${fmtBytes(i.sizeBytes)})`)));
+
+/// The image snapshots this host saved at a provider, each with its size where the provider listed one: what a remove
+/// deletes there after the machines and before the key, since once the key is forgotten nothing here can reach them.
+// places.ts:463
+// export function providerImagesLine(name: string, images: readonly { id: string; sizeBytes?: number }[]): string {
+//   const named = namedImages(images);
+//   return images.length === 1 ? `Its image snapshot ${named} is deleted at ${name} before the key goes.` : `Its ${images.length} image snapshots, ${named}, are deleted at ${name} before the key goes.`;
+// }
+pub fn provider_images_line(name: &str, images: &[SavedImage]) -> String {
+    todo!()
+}
+
+/// What a forget leaves at a provider beside its machines: the image snapshots this host saved there, which no timer
+/// ends there, and which a remove with the key held again deletes.
+// places.ts:470
+// export function providerImagesLeftLine(name: string, images: readonly { id: string; sizeBytes?: number }[]): string {
+//   const one = images.length === 1;
+//   return `${one ? `Its image snapshot ${namedImages(images)} stays` : `Its ${images.length} image snapshots, ${namedImages(images)}, stay`} at ${name} and ${one ? "bills" : "bill"} every month; add the key again and remove ${name} to delete ${one ? "it" : "them"}.`;
+// }
+pub fn provider_images_left_line(name: &str, images: &[SavedImage]) -> String {
+    todo!()
+}
+
+/// What it answers when every machine is gone and an image snapshot is not: each named with why, and the key kept,
+/// since the snapshot bills every month and only that key reaches it.
+// places.ts:477
+// export function providerImagesKeptLine(name: string, deleted: number, left: readonly { id: string; said: string }[]): string {
+//   const one = left.length === 1;
+//   const machines = deleted === 0 ? "" : `; ${plural(deleted, "machine")} ${deleted === 1 ? "was" : "were"} deleted`;
+//   return `${plural(left.length, "image snapshot")} this host saved at ${name} ${one ? "is" : "are"} not gone: ${left.map(l => `${l.id} (${l.said})`).join(", ")}. The key is kept until ${one ? "it goes" : "they go"}${machines}. Remove ${name} again to ask once more.`;
+// }
+pub fn provider_images_kept_line(name: &str, deleted: f64, left: &[LeftThere]) -> String {
+    todo!()
+}
+
+/// What it answers when the listing read again after the deletes failed: a machine a create made meanwhile may be
+/// there, so the key is kept.
+// places.ts:485
+// export const providerUnlistedLine = (name: string, deleted: number, said: string): string =>
+//   `${name}'s machines could not be listed again${deleted === 0 ? "" : ` after ${plural(deleted, "machine")} ${deleted === 1 ? "was" : "were"} deleted`} (${said}), so one made meanwhile may still be there and the key is kept. Remove ${name} again to finish.`;
+pub fn provider_unlisted_line(name: &str, deleted: f64, said: &str) -> String {
+    todo!()
+}
+
+/// --force on a provider's remove: it takes work no remote has off a computer, and a provider is no computer.
+// places.ts:489
+// export const providerForceRefusal = (name: string, typed: string): { said: string; fix: string } => ({
+//   said: `${name} is not a computer, so --force, which removes one over work no remote has, means nothing there.`,
+//   fix: `Run ${typed} without it, or with --forget to drop the key and touch nothing at ${name}.`,
+// });
+/// A refusal's two halves, for the caller to stamp.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaidFix {
+    pub said: String,
+    pub fix: String,
+}
+
+pub fn provider_force_refusal(name: &str, typed: &str) -> SaidFix {
+    todo!()
+}
+
+/// A provider that refused the key a remove reads its machines with: nothing there can be seen or deleted.
+// places.ts:495
+// export const providerKeyRefused = (name: string, said: string): { said: string; fix: string } => ({
+//   said: `${name} refused the key (${said}), so wsp cannot see or delete the machines it made there; the key is kept.`,
+//   fix: `Save a working key and remove ${name} again, or remove it with --forget.`,
+// });
+pub fn provider_key_refused(name: &str, said: &str) -> SaidFix {
+    todo!()
+}
+
+/// Every line a computer you own can join this host by: one per address it answers on, and the relay's address
+/// last, with the note that it only answers while the host is linked. The one list wsp add prints and the app draws.
+// places.ts:502
+// export function joinRoads(token: string, urls: readonly string[], relayUrl: string | undefined): { url: string; line: string; note?: string }[] {
+//   const road = (url: string, note?: string): { url: string; line: string; note?: string } => ({ url, line: PLACES_WORDS.sheet.joinLine(url, token), ...(note === undefined ? {} : { note }) });
+//   return [...urls.map(url => road(url)), ...(relayUrl === undefined ? [] : [road(relayUrl, PLACES_WORDS.sheet.relayNote)])];
+// }
+/// One line a computer joins by; keys url, line, note, note absent where the TS leaves it out.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct JoinRoad {
+    pub url: String,
+    pub line: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+pub fn join_roads(token: &str, urls: &[impl AsRef<str>], relay_url: Option<&str>) -> Vec<JoinRoad> {
+    todo!()
+}
+
+/// What the app calls the computer it runs on, first in every hosts list.
+// places.ts:508
+// export const hereWord = (mac: boolean): string => (mac ? "This Mac" : "This computer");
+pub fn here_word(mac: bool) -> String {
+    todo!()
+}
+
+// places.ts:510
+const HOST_MENU_SWITCH: &str = "switch:";
+
+/// The Hosts menu as one list of rows, read by the shell's own menu bar and by the sidebar's foot alike: this computer
+/// first, then every host on the account, the current one marked.
+// places.ts:514
+// export function hostsMenuItems(view: HostsView): ContextMenuItem[] {
+//   return [
+//     { id: HOST_MENU_SWITCH, label: view.here, group: "hosts", enabled: true, checked: view.current === null },
+//     ...view.hosts.map((h): ContextMenuItem => ({ id: `${HOST_MENU_SWITCH}${h.alias}`, label: h.alias, group: "hosts", enabled: true, checked: h.alias === view.current })),
+//   ];
+// }
+pub fn hosts_menu_items(view: &HostsView) -> Vec<ContextMenuItem> {
+    todo!()
+}
+
+/// The host a row of the Hosts menu moves the window to, null for this computer, read back off its id; nothing for an
+/// id the list above never minted.
+// places.ts:523
+// export function hostMenuAction(id: string): { alias: string | null } | undefined {
+//   if (!id.startsWith(HOST_MENU_SWITCH)) return undefined;
+//   const alias = id.slice(HOST_MENU_SWITCH.length);
+//   return { alias: alias === "" ? null : alias };
+// }
+/// Some(None) is this computer (alias null); None is an id the menu never minted.
+pub fn host_menu_action(id: &str) -> Option<Option<String>> {
+    todo!()
+}
+
+/// How often a linked host says where it is on its account, and so how fresh a listing of the account's hosts can
+/// be. Read by the host that beats and by the table below that calls a host up or away, so the two cannot drift.
+// places.ts:531
+pub const HOST_BEAT_MS: f64 = 60_000.0;
+
+/// One row of the one listing wsp hosts prints: a host on the person's account. The command line builds the rows off
+/// the relay's listing and the records under its hosts folder; the words are here, beside every other table's.
+// places.ts:535
+// export interface HostsTableRow {
+//   host: string;
+//   /** Where it answers, and nothing for a host on the account that has not said where it is yet. */
+//   address?: string;
+//   /** How long since its last beat, null for a host that has never beaten, and nothing for a row read off this
+//    * computer's own records while the relay did not answer. */
+//   awayMs?: number | null;
+//   /** The device this computer holds there, which the account road has none of until its first dial. */
+//   deviceId?: string;
+//   connector?: string;
+//   /** The fingerprint of the key it proves, which every dial holds it to and a person compares with the one wsp
+//    * host pair prints over there. */
+//   hostKey?: string;
+//   default?: boolean;
+// }
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HostsTableRow {
+    pub host: String,
+    pub address: Option<String>,
+    /// None is absent (a row read off this computer's records); Some(None) is null (never beaten).
+    pub away_ms: Option<Option<f64>>,
+    pub device_id: Option<String>,
+    pub connector: Option<String>,
+    pub host_key: Option<String>,
+    pub default: Option<bool>,
+}
+
+/// What a host on the account with no address reads as: there is nothing to dial until wsp up runs over there.
+// places.ts:552
+pub const NOT_UP_YET: &str = "not up yet";
+
+/// What a host that is beating with no address reads as: it is up, and it says where it is only from a wsp new
+/// enough to send the key every dial holds it to, so its address lands at its next start. One row says one thing:
+/// a host the state column calls up is never called not up yet beside it.
+// places.ts:557
+pub const ADDRESS_NEXT_START: &str = "waits on its next start";
+
+/// Whether a host on the account is answering, off the time since its last beat: up while it is inside two beats,
+/// since one missed beat is a slow minute rather than a host that is gone, and away with the time since after that.
+/// A host that has never beaten has never been up.
+// places.ts:562
+// export function hostBeatWord(awayMs: number | null): string {
+//   if (awayMs === null) return "not yet";
+//   if (awayMs <= 2 * HOST_BEAT_MS) return `up ${fmtDuration(Math.max(0, awayMs))}`;
+//   return `away ${offlineFor(awayMs)}`;
+// }
+/// `awayMs` None is null.
+pub fn host_beat_word(away_ms: Option<f64>) -> String {
+    todo!()
+}
+
+/// The cells of the one hosts table, the header first: every host on the account this computer can reach.
+// places.ts:569
+// export function hostsTable(rows: readonly HostsTableRow[]): string[][] {
+//   return [
+//     ["HOST", "ADDRESS", "STATE", "DEVICE", "CONNECTOR", "KEY", ""],
+//     ...rows.map(row => [
+//       row.host,
+//       row.address ?? (row.awayMs === undefined || row.awayMs === null ? NOT_UP_YET : ADDRESS_NEXT_START),
+//       row.awayMs === undefined ? "" : hostBeatWord(row.awayMs),
+//       row.deviceId ?? "",
+//       row.connector ?? "",
+//       row.hostKey ?? "",
+//       row.default === true ? "default" : "",
+//     ]),
+//   ];
+// }
+pub fn hosts_table(rows: &[HostsTableRow]) -> Vec<Vec<String>> {
+    todo!()
+}
+
+/// What wsp hosts prints for a person who can reach nothing: the road to a host on the account.
+// places.ts:585
+pub const NO_HOSTS_LINE: &str = "You can reach no host but this computer. Run wsp login to sign in to your account.";
+
+/// What wsp hosts prints when the relay did not answer: what this computer holds is still the truth about what it
+/// can dial, so the rows are printed and the relay's own words go above them.
+// places.ts:589
+// export const relayQuietLine = (why: string): string => `${why}; the rows below are the hosts this computer already holds`;
+pub fn relay_quiet_line(why: &str) -> String {
+    todo!()
+}
+
+/// What wsp hosts says about a record it wrote for a host on the account that the account no longer names: the
+/// record goes, since a name aimed at it would dial a host nobody on the account holds.
+// places.ts:593
+// export const hostDroppedLine = (alias: string): string => `${alias} is no longer a host on your account, so this computer no longer holds a record for it`;
+pub fn host_dropped_line(alias: &str) -> String {
+    todo!()
+}
+
+/// What a listing that names another key for a host this computer already pinned is refused with: the key is
+/// pinned at first sight and held to on every dial, so a second key is either another host or a relay steering this
+/// computer at one. The record keeps the key it pinned.
+// places.ts:598
+// export const hostKeyMovedLine = (alias: string, held: string, listed: string): string =>
+//   `your account lists ${alias} under the key ${listed}, and this computer pinned ${held} when it first saw it; nothing was sent to it. Compare the key wsp host pair prints on that host, and if it is the one the account lists, wsp logout, wsp login and wsp hosts take the account's keys afresh`;
+pub fn host_key_moved_line(alias: &str, held: &str, listed: &str) -> String {
+    todo!()
+}
+
+/// A colour as CSS spells it, with its alpha as a percent where one is given.
+// places.ts:602
+// export function fmtRgb(colour: Rgb, alpha?: number): string {
+//   const channels = `${colour[0]} ${colour[1]} ${colour[2]}`;
+//   return alpha === undefined ? `rgb(${channels})` : `rgb(${channels} / ${fmtPercent(alpha)})`;
+// }
+pub fn fmt_rgb(colour: &Rgb, alpha: Option<f64>) -> String {
+    todo!()
+}
+
+// places.ts:607
+// export function fmtThemeVars(theme: WorkspaceTheme, appDark: boolean): ThemeVars {
+//   const alpha = effectiveOpacity(theme, appDark);
+//   const colours = theme.dots.map(dot => fmtRgb(dotColour(dot), alpha));
+//   const [first, second, third] = colours;
+//   const gradient =
+//     colours.length === 1
+//       ? `linear-gradient(${first}, ${first})`
+//       : colours.length === 2
+//         ? `linear-gradient(160deg, ${second} 0%, transparent 100%), linear-gradient(340deg, ${first} 0%, transparent 100%)`
+//         : `radial-gradient(circle at 0% 0%, ${first} 0%, transparent 70%), radial-gradient(circle at 100% 0%, ${second} 0%, transparent 70%), linear-gradient(to top, ${third} 0%, transparent 65%)`;
+//   return { "--space-gradient": gradient, "--space-grain": String(theme.grain), "--space-tint": fmtRgb(themeInk(theme, appDark)) };
+// }
+pub fn fmt_theme_vars(theme: &WorkspaceTheme, app_dark: bool) -> ThemeVars {
+    todo!()
+}
+
+/// What a system notification says when a thread's turn finished while nobody was looking: the page's own line and
+/// the desktop's when its window is closed are this one.
+// places.ts:622
+// export const threadFinishedLine = (title: string): string => `${title} finished`;
+pub fn thread_finished_line(title: &str) -> String {
+    todo!()
+}
+
+/// The same for a turn that failed; the line under it is the error, in one line.
+// places.ts:625
+// export const threadStoppedLine = (title: string): string => `${title} stopped`;
+pub fn thread_stopped_line(title: &str) -> String {
+    todo!()
+}
+
+/// What a thread's end says of a process that went without an error of its own: its exit code, when it had one.
+// places.ts:628
+// export const exitLine = (exitCode: number | null): string | undefined => (exitCode === null ? undefined : `exit ${exitCode}`);
+/// `exitCode` None is null.
+pub fn exit_line(exit_code: Option<f64>) -> Option<String> {
+    todo!()
+}
+
+/// A cloud's plan as its page's head says it, off its own limits read: the trial's few figures, or a paid plan's
+/// machines and starts in each window.
+// places.ts:632
+// export function cloudPlanLine(plan: CloudPlan, starts: CloudStarts | undefined, sizeNames: readonly string[]): string {
+//   const day = starts === undefined ? "" : `, ${starts.day.limit} starts a day`;
+//   if (plan.trial) return `Trial: ${plural(plan.machinesAtOnce, "machine")} at once${day}, ${sizeNames.join(" and ")} sizes`;
+//   const usd = /^box_(\d+)$/.exec(plan.key ?? "")?.[1];
+//   const head = usd === undefined ? "Plan" : `$${usd} plan`;
+//   const windows = starts === undefined ? "" : `, ${starts.minute.limit} starts a minute, ${starts.hour.limit} an hour, ${starts.day.limit} a day`;
+//   return `${head}: ${plural(plan.machinesAtOnce, "machine")} at once${windows}`;
+// }
+pub fn cloud_plan_line(plan: &CloudPlan, starts: Option<&CloudStarts>, size_names: &[impl AsRef<str>]) -> String {
+    todo!()
+}
+
+/// Today's starts against the plan's, under the plan line.
+// places.ts:642
+// export const cloudStartsTodayLine = (starts: CloudStarts): string => `Starts today: ${starts.day.used} of ${starts.day.limit}`;
+pub fn cloud_starts_today_line(starts: &CloudStarts) -> String {
+    todo!()
+}
+
