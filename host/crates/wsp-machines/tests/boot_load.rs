@@ -7,11 +7,13 @@ mod support;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use wsp_core::types::internal::{absent_machine, BuilderLife, StoredBuilder};
+use wsp_engine::errors::EngineError;
 use wsp_engine::machine::MachineKind;
 use wsp_machines::machines::boot::load::{late_read_line, LOAD_READS_MS};
 use wsp_words::exit::HostError;
@@ -104,7 +106,7 @@ fn a_late_read_that_fails_holds_the_record_on_the_providers_words() {
         let said = machine.state().await.expect_err("the stand-in refuses");
         assert_eq!(said.to_string(), "provider: key refused (401)");
         assert!(w.area.is_held_away("a"));
-        assert_eq!(support::to_json(&entry.borrow().record.phase), json!("running"), "the record keeps the phase it was left at");
+        assert_eq!(support::to_json(&entry.borrow().record.borrow().phase), json!("running"), "the record keeps the phase it was left at");
         assert!(w.rt.rereading.borrow().is_empty(), "the record is no longer marked being read");
     });
 }
@@ -154,7 +156,7 @@ fn held_away_is_no_entry_or_an_absent_stand_in_that_is_not_a_queued_spawn() {
         let w = load_world(Opts::default());
         assert!(w.area.is_held_away("none"));
         let away = |id: &str, phase: &str| {
-            let machine = absent_machine(&format!("m-{id}"), MachineKind::Sandbox, Rc::new(|| HostError::new("away")));
+            let machine = absent_machine(&format!("m-{id}"), MachineKind::Sandbox, Arc::new(|| EngineError::Other { message: "away".into(), code: None }));
             let entry = live_workspace(workspace_record(&ws(id, json!({"phase": phase}))), machine);
             w.rt.live.borrow_mut().insert(id.to_string(), entry);
         };

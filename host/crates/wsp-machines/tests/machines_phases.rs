@@ -15,6 +15,7 @@ use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{MachineBackend, MachineState};
 use wsp_machines::machines::machines::phases::GoneRead;
 use wsp_machines::machines::machines::Refusal;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::SessionStatus;
 use wsp_wire::wire::events_union::EventUnion;
 
@@ -23,7 +24,7 @@ fn with_lifecycle(backstop: bool, quiet: bool) -> Opts {
 }
 
 fn set_quiet(w: &World, quiet: Result<Option<u64>, EngineError>) {
-    w.backend.life.as_ref().expect("a lifecycle").st.lock().unwrap().quiet = Some(quiet);
+    w.backend.life.as_ref().expect("a lifecycle").st.borrow_mut().quiet = Some(quiet);
 }
 
 fn touched(id: &str) -> (&'static str, String) {
@@ -154,7 +155,7 @@ fn idle_a_quiet_figure_inside_the_window_resets_it() {
         w.area.on_idle("ws_1", 300_000.0).await.expect("the window starts over");
         assert_eq!(w.idle_calls(), vec![touched("ws_1")]);
         assert_eq!(e.phase(), wsp_wire::views::workspace::WorkspacePhase::Running);
-        assert!(e.machine.s.lock().unwrap().pauses.is_empty(), "nothing is stopped under somebody using it");
+        assert!(e.machine.s.borrow_mut().pauses.is_empty(), "nothing is stopped under somebody using it");
         assert!(support::log_of(&w.log_now(), &["persist"]).is_empty());
 
         set_quiet(&w, Ok(Some(300_000)));
@@ -190,10 +191,10 @@ fn idle_a_standing_refusal_raises_the_window_to_the_backstop() {
         w.rt.nap_refusals.borrow_mut().insert("ws_1".into(), Refusal { machine_id: "m-1".into(), said: "no pause".into() });
         assert_eq!(w.area.idle_window_of_id("ws_1"), Some(Some(2_400_000.0)), "asked again only at the backstop");
 
-        e.entry.borrow_mut().record.idle_window_ms = Some(Some(300_000.0));
+        e.entry.borrow().record.borrow_mut().idle_window_ms = Some(Some(JsNumber(300_000.0)));
         assert_eq!(w.area.idle_window_of_id("ws_1"), Some(Some(600_000.0)), "twice the record's own window");
 
-        e.entry.borrow_mut().record.idle_window_ms = Some(None);
+        e.entry.borrow().record.borrow_mut().idle_window_ms = Some(None);
         assert_eq!(w.area.idle_window_of_id("ws_1"), Some(None), "a window that is off stays off");
     })
 }
@@ -293,25 +294,25 @@ fn idle_backstop_is_pushed_only_for_a_running_record() {
     common::run_local(async {
         let w = World::new(with_lifecycle(true, false));
         let e = w.entry_in(EntryOpts::default());
-        let heard = |w: &World| w.backend.life.as_ref().unwrap().st.lock().unwrap().backstops.clone();
+        let heard = |w: &World| w.backend.life.as_ref().unwrap().st.borrow_mut().backstops.clone();
 
         w.area.on_backstop("ws_1", 1_790_002_400_000);
         common::flush().await;
         assert_eq!(heard(&w), vec![("m-1".to_string(), 1_790_002_400_000)], "the machine and the instant");
 
         w.area.on_backstop("ws_none", 1);
-        e.entry.borrow_mut().record.phase = wsp_wire::views::workspace::WorkspacePhase::Napping;
+        e.entry.borrow().record.borrow_mut().phase = wsp_wire::views::workspace::WorkspacePhase::Napping;
         w.area.on_backstop("ws_1", 2);
-        e.entry.borrow_mut().record.phase = wsp_wire::views::workspace::WorkspacePhase::Running;
-        e.entry.borrow_mut().record.sub = Some(from(json!({
+        e.entry.borrow().record.borrow_mut().phase = wsp_wire::views::workspace::WorkspacePhase::Running;
+        e.entry.borrow().record.borrow_mut().sub = Some(from(json!({
             "on": "solari", "repo": "", "base": { "branch": "", "sha": "" }, "branch": "", "folder": "", "deleteAt": 5
         })));
         w.area.on_backstop("ws_1", 3);
         common::flush().await;
         assert_eq!(heard(&w).len(), 1, "no entry, a napping record and a done sub-machine hear nothing");
 
-        e.entry.borrow_mut().record.sub = None;
-        w.backend.life.as_ref().unwrap().st.lock().unwrap().backstop_err = Some(support::plain("PATCH ttlSeconds refused"));
+        e.entry.borrow().record.borrow_mut().sub = None;
+        w.backend.life.as_ref().unwrap().st.borrow_mut().backstop_err = Some(support::plain("PATCH ttlSeconds refused"));
         w.area.on_backstop("ws_1", 4);
         common::flush().await;
         assert_eq!(w.warns(), vec!["backstop of ws_1 on m-1 not set: PATCH ttlSeconds refused".to_string()]);
@@ -320,7 +321,7 @@ fn idle_backstop_is_pushed_only_for_a_running_record() {
         let _e = none.entry_in(EntryOpts::default());
         none.area.on_backstop("ws_1", 5);
         common::flush().await;
-        assert!(none.backend.life.as_ref().unwrap().st.lock().unwrap().backstops.is_empty(), "a lifecycle with no backstop is never asked");
+        assert!(none.backend.life.as_ref().unwrap().st.borrow_mut().backstops.is_empty(), "a lifecycle with no backstop is never asked");
     })
 }
 

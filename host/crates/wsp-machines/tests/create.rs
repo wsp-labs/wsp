@@ -189,7 +189,7 @@ fn show_create_holds_the_view_by_its_id_and_emits_workspace_created_with_it() {
 fn folders_of_lists_the_live_folder_entries_of_the_project_in_live_order() {
     common::run_local(async {
         let w = World::small();
-        let got: Vec<String> = w.area.folders_of("p1").iter().map(|e| e.borrow().record.id.clone()).collect();
+        let got: Vec<String> = w.area.folders_of("p1").iter().map(|e| e.borrow().record.borrow().id.clone()).collect();
         let want: Vec<String> = facts()["foldersOf"].as_array().expect("ids").iter().map(|i| i.as_str().expect("an id").to_string()).collect();
         assert_eq!(got, want);
     })
@@ -206,7 +206,7 @@ fn one_folder_joins_per_key_and_frees_the_key_when_the_make_settles_either_way()
             "k",
             Box::new(move || {
                 m.set(m.get() + 1);
-                async move { wait.await.map_err(|_| HostError { message: "released".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }) }.boxed_local()
+                async move { wait.await.map_err(|_| HostError::new("released")) }.boxed_local()
             }),
         );
         let m = made.clone();
@@ -225,7 +225,7 @@ fn one_folder_joins_per_key_and_frees_the_key_when_the_make_settles_either_way()
         let m = made.clone();
         let failing = w.area.one_folder("k", Box::new(move || {
             m.set(m.get() + 1);
-            async { Err(HostError { message: "no".into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }) }.boxed_local()
+            async { Err(HostError::new("no")) }.boxed_local()
         }));
         assert_eq!(failing.await.err().map(|e| e.message), Some("no".to_string()), "a failed make rejects its callers");
         let m = made.clone();
@@ -235,7 +235,7 @@ fn one_folder_joins_per_key_and_frees_the_key_when_the_make_settles_either_way()
             async move { Ok(again_entry) }.boxed_local()
         }));
         let got = again.await.expect("made again");
-        assert_eq!(got.borrow().record.id, "d");
+        assert_eq!(got.borrow().record.borrow().id, "d");
         assert_eq!(made.get() as i64, facts()["oneFolderMade"].as_i64().expect("a count"), "a settled make, success or failure, frees the key");
     })
 }

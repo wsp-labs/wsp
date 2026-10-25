@@ -10,17 +10,18 @@ mod support;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use futures::future::FutureExt;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
-use support::{from, BackendOpts, Made, MachineDef, Opts, Unsend, World};
+use support::{from, BackendOpts, Made, MachineDef, Opts, World};
 use wsp_core::types::harness::login_env_on;
 use wsp_core::types::wiring::{GoldenExec, WorkspaceRecord, WorkspaceSpec};
 use wsp_engine::machine::{ExecOptions, Machine, MachineBackend, MachineKind, MachineSpec, MachineSpecOnIdle, RunOptions};
 use wsp_machines::machines::machines::create::ForkSpecIn;
 use wsp_machines::machines::machines::ImageRead;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::Kind;
 
 fn pairs(labels: &Option<IndexMap<String, String>>) -> Vec<(String, String)> {
@@ -49,7 +50,7 @@ fn fork_spec_keys_and_precedence_match_the_ts() {
     common::run_local(async {
         let w = World::new(Opts::default());
         let image: MachineSpec = from(json!({ "kind": "sandbox", "template": "img-1", "diskGb": 10, "binds": [{ "source": "/img", "target": "/img" }] }));
-        let over = WorkspaceSpec { cpu: Some(8.0), mem_mb: None, envs: Some(env(&[("B", "over"), ("C", "over")])), ..Default::default() };
+        let over = WorkspaceSpec { cpu: Some(JsNumber(8.0)), mem_mb: None, envs: Some(env(&[("B", "over"), ("C", "over")])), ..Default::default() };
         let record = record_with(json!({
             "golden": "snap_g",
             "spec": {
@@ -123,7 +124,7 @@ fn fork_spec_backstop_is_twice_the_window_or_six_hours_off() {
     common::run_local(async {
         let w = World::new(Opts::default());
         let mut record = record_with(json!({}));
-        let cases: [(Option<Option<f64>>, i64); 3] = [(Some(Some(300_000.0)), 600_000), (Some(None), 6 * 60 * 60_000), (None, 2_400_000)];
+        let cases: [(Option<Option<JsNumber>>, i64); 3] = [(Some(Some(JsNumber(300_000.0))), 600_000), (Some(None), 6 * 60 * 60_000), (None, 2_400_000)];
         for (window, want) in cases {
             record.idle_window_ms = window;
             let spec = w.area.fork_spec(&record, fork_in(None, None, None));
@@ -171,9 +172,9 @@ fn hold_waits_for_the_holder_and_rechecks_after_waking() {
 fn claiming_holds_every_claimed_id_until_run_settles() {
     common::run_local(async {
         let w = World::new(Opts::default());
-        let blocked = Arc::new(Mutex::new(Vec::<bool>::new()));
+        let blocked = Rc::new(RefCell::new(Vec::<bool>::new()));
 
-        let area = Unsend(w.area.clone());
+        let area = w.area.clone();
         let flags = blocked.clone();
         let inside = {
             let (area_in, spec) = (w.area.clone(), support::spec_default());
@@ -184,7 +185,7 @@ fn claiming_holds_every_claimed_id_until_run_settles() {
                     move |h| {
                         async move {
                             let waiting: wsp_engine::machine::Waiting = Arc::new(move |_line: &str, _box: Option<&wsp_engine::machine::ProviderBoxState>| {
-                                flags.lock().unwrap().push(area.hold("workspace/ws_1").now_or_never().is_none());
+                                flags.borrow_mut().push(area.hold("workspace/ws_1").now_or_never().is_none());
                             });
                             h.create(spec.clone(), Some(waiting)).await?;
                             let once = area_in.inflight();
@@ -201,7 +202,7 @@ fn claiming_holds_every_claimed_id_until_run_settles() {
         };
         assert_eq!(inside.0, vec!["box-early".to_string(), "m-made".to_string()], "the waiting line's box, then the machine");
         assert_eq!(inside.1, inside.0, "a second create claims each id once");
-        assert_eq!(*blocked.lock().unwrap(), vec![true], "the purpose is held while the provider is asked");
+        assert_eq!(*blocked.borrow(), vec![true], "the purpose is held while the provider is asked");
         assert!(w.area.inflight().is_empty(), "run settled: nothing is in flight");
         assert!(w.area.hold("workspace/ws_1").now_or_never().is_some(), "and the hold is released");
 
@@ -237,7 +238,7 @@ fn claiming_forwards_the_optional_calls_bound() {
     common::run_local(async {
         let w = World::new(Opts::default());
         let at = w.provider(BackendOpts { request: true, replays: Some(Vec::new()), named: Some(Vec::new()), ..Default::default() });
-        at.b.lock().unwrap().names_workspace = true;
+        at.b.borrow_mut().names_workspace = true;
         let want_caps = at.capabilities();
         let names: BTreeSet<String> = ["wsp-n".to_string()].into_iter().collect();
         let spec = support::spec_default();
@@ -268,13 +269,13 @@ fn claiming_forwards_the_optional_calls_bound() {
             json!(["namedAfter", ["wsp-n"]]),
             json!(["createRequest", { "a": "1", "createdAt": "stamp" }]),
         ]);
-        assert!(w.backend.b.lock().unwrap().gets.is_empty(), "the runtime's own provider was not asked");
+        assert!(w.backend.b.borrow_mut().gets.is_empty(), "the runtime's own provider was not asked");
 
         w.area
             .claiming("workspace/ws_1", |h| async move { h.backend().get("g2").await.map(|_| ()).map_err(|e| wsp_words::exit::HostError::new(e.to_string())) }.boxed_local(), None, None)
             .await
             .expect("the run answers");
-        assert_eq!(w.backend.b.lock().unwrap().gets, vec!["g2".to_string()], "with no provider named it is the runtime's");
+        assert_eq!(w.backend.b.borrow_mut().gets, vec!["g2".to_string()], "with no provider named it is the runtime's");
     })
 }
 
@@ -292,7 +293,7 @@ fn observed_reports_each_exec_and_run_once_and_a_throwing_listener_is_warned_onc
         }));
         let machine = support::FakeMachine::quiet("m-x");
         {
-            let mut s = machine.s.lock().unwrap();
+            let mut s = machine.s.borrow_mut();
             s.exec.push_back(Ok(from(json!({ "exitCode": 0, "stdout": "out", "stderr": "err" }))));
             s.exec.push_back(Err(support::plain("exec refused")));
             s.exec.push_back(Ok(from(json!({ "exitCode": 3, "stdout": "secret", "stderr": "e" }))));
@@ -307,7 +308,7 @@ fn observed_reports_each_exec_and_run_once_and_a_throwing_listener_is_warned_onc
         let r3 = seen.run("cat secret", RunOptions { unlogged: true, ..Default::default() }).await.expect("answers as the machine did");
         assert_eq!(r3.stdout, "secret", "the caller still gets the output");
 
-        let ran = |cmd: &str| GoldenExec { machine_id: "m-x".into(), cmd: cmd.into(), ms: 0.0, ..Default::default() };
+        let ran = |cmd: &str| GoldenExec { machine_id: "m-x".into(), cmd: cmd.into(), ms: JsNumber(0.0), ..Default::default() };
         assert_eq!(
             *heard.borrow(),
             vec![
@@ -469,7 +470,7 @@ fn unfork_marks_the_machine_dropped_after_it_is_gone_and_a_failed_mark_only_warn
         let e = w.entry_in(support::EntryOpts::default());
         w.area.unfork(&e.entry).await.expect("the machine is gone");
 
-        assert!(e.machine.s.lock().unwrap().kills >= 1, "the machine was asked to die");
+        assert!(e.machine.s.borrow_mut().kills >= 1, "the machine was asked to die");
         let log = w.log_now();
         let puts = support::log_of(&log, &["store.put"]);
         assert_eq!(puts, vec![json!(["store.put", "dropped-machines", "m-1", { "machineId": "m-1", "at": "2026-09-21T14:13:20.000Z" }])]);
