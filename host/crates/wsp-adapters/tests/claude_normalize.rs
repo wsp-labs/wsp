@@ -229,3 +229,75 @@ fn retries_tasks_and_drained_notices() {
     assert_eq!(compacted_to(&obj(json!({"type": "system", "subtype": "compact_boundary", "compact_metadata": {"pre_tokens": 1000}}))), None, "no after, no compaction figure");
     assert_eq!(compacted_to(&obj(json!({"type": "system", "subtype": "compact_boundary", "compact_metadata": {"post_tokens": 40}}))), Some(Compacted { before: None, after: 40.0 }));
 }
+
+// Rule N1: a result answered nothing where its text is blank by JS trim, which strips U+FEFF and leaves U+0085,
+// U+200B, U+180E and U+001C.
+#[test]
+fn answered_nothing_trims_as_javascript_does() {
+    let blank = |t: &str| answered_nothing(&TurnResult { text: Some(t.into()), ..done() });
+    let got = ["\u{85}", "\u{FEFF}", "\u{A0}", "\u{2028}", "\u{3000}", "\u{B}", "\u{200B}", "\u{180E}", "\u{1C}"].map(blank);
+    assert_eq!(got, [false, true, true, true, true, true, false, false, false]);
+}
+
+// Rule N2: modelUsage present as null is a turn that named no model (`[]`); usage `{}` is zero tokens with no cache
+// counts; usage that is no object is nothing.
+#[test]
+fn result_tokens_read_null_model_usage_as_no_model() {
+    assert_eq!(result_tokens(&obj(json!({"modelUsage": null, "usage": {"input_tokens": 1, "output_tokens": 2}}))), ResultTokens { tokens: Some(tok(1.0, 2.0)), models: Some(vec![]) });
+    assert_eq!(result_tokens(&obj(json!({"usage": {}}))), ResultTokens { tokens: Some(tok(0.0, 0.0)), models: None });
+    assert_eq!(result_tokens(&obj(json!({"usage": [1]}))), ResultTokens::default());
+}
+
+// Rule N3: a call joining an entry of its base model adds tokens only, its cost dropped; an exact name beats a base
+// match wherever it sits; "" finds nothing.
+#[test]
+fn a_joined_call_adds_tokens_only_and_an_exact_name_beats_its_base() {
+    let joined = with_calls(&[mu("m[1m]", 10, 1, Some(0.5))], &[mu("m", 2, 3, Some(0.7)), mu("n", 1, 1, Some(0.2)), mu("n[1m]", 4, 4, Some(0.3))]);
+    assert_eq!(joined, vec![mu("m[1m]", 12, 4, Some(0.5)), mu("n", 5, 5, Some(0.2))]);
+    let two = [mu("m[1m]", 1, 1, None), mu("m", 2, 2, None)];
+    assert_eq!(start_of(&two, "m"), Some(&two[1]));
+    let windows = [mu("m[1m]", 1, 1, None), mu("m[200k]", 2, 2, None)];
+    assert_eq!(start_of(&windows, "m"), Some(&windows[0]));
+    assert_eq!(start_of(&[mu("m", 1, 1, None)], ""), None);
+}
+
+// Rule N4: a resume whose result names no model's totals costs the gain over the saved total and names no models.
+#[test]
+fn own_use_with_no_running_models_costs_the_gain_alone() {
+    let saved = SavedUse { cost_usd: 0.1, models: vec![mu("a", 1, 1, Some(0.1))], unpriced: None };
+    let tokens = TurnTokens { cached: Some(n(3.0)), ..tok(1.0, 2.0) };
+    let result = TurnResult { tokens: Some(tokens.clone()), cost_usd: Some(n(0.2)), ..done() };
+    assert_eq!(own_use(result, Some(&saved), false, None), TurnResult { tokens: Some(tokens), cost_usd: Some(n(0.1)), ..done() });
+}
+
+// Rule N5: a tool_use block with no name and no id still draws, its input text "null", no name or id keys.
+#[test]
+fn a_bare_tool_use_block_draws_null() {
+    let event = obj(json!({"type": "assistant", "session_id": "S", "message": {"content": [{"type": "tool_use"}]}}));
+    let drawn = normalize_event(&event, "FB", None, &mut PlanBook::default(), &mut HandbackBook::default());
+    assert_eq!(drawn, vec![AdapterEvent::TurnDelta(TurnDelta::new("S", DeltaKind::ToolUse, "null"))]);
+}
+
+// Rule N6: a tool result with no is_error says isError false, always present.
+#[test]
+fn a_tool_result_always_says_whether_it_failed() {
+    let event = obj(json!({"type": "user", "session_id": "S", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]}}));
+    let drawn = normalize_event(&event, "FB", None, &mut PlanBook::default(), &mut HandbackBook::default());
+    assert_eq!(drawn, vec![AdapterEvent::TurnDelta(TurnDelta { tool_use_id: Some("t1".into()), is_error: Some(false), ..TurnDelta::new("S", DeltaKind::ToolResult, "ok") })]);
+}
+
+// Rule N7: a retry with attempt 0 and nothing else is still a retry, with the default words.
+#[test]
+fn a_first_retry_with_no_words_says_anthropic_did_not_answer() {
+    assert_eq!(retry_of(&obj(json!({"type": "system", "subtype": "api_retry", "attempt": 0})), "s"), Some(AdapterEvent::TurnRetry { session_id: "s".into(), attempt: 0.0, of: None, why: Some("Anthropic did not answer".into()) }));
+}
+
+// Rule N8: the empty-answer line times the result through fmt_duration, a negative duration 0ms, none 1ms, and keeps
+// the tail's blank entries.
+#[test]
+fn the_empty_answer_line_times_any_duration() {
+    let line = |d: Option<f64>| no_output_error(&TurnResult { duration_ms: d.map(n), ..done() }, &["a".to_string(), "".to_string(), "b".to_string()]);
+    let got: Vec<String> = [Some(1500.0), Some(999.6), Some(59999.0), Some(61000.0), Some(-5.0), None].into_iter().map(line).collect();
+    let said = |t: &str| format!("claude answered with no output and no usage after {t}: a\n\nb");
+    assert_eq!(got, ["1.5s", "1000ms", "60s", "1m 1s", "0ms", "1ms"].map(said).to_vec());
+}
